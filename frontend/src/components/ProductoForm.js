@@ -180,9 +180,10 @@ return (
                 label="Unidad de Medida"
                 onChange={(e) => setUnidadMedida(e.target.value)}
               >
-                <MenuItem value="UND">Unidad (UND)</MenuItem>
+                <MenuItem value="UND">Unidad (Und)</MenuItem>
                 <MenuItem value="MTS">Metros (Mts)</MenuItem>
-                <MenuItem value="KGS">Kilos (Kgs)</MenuItem>
+                <MenuItem value="Kg">Kilos (Kg)</MenuItem>
+                <MenuItem value="Gr">Gramos (Gr)</MenuItem>
                 <MenuItem value="PAR">Pares</MenuItem>
               </Select>
             </FormControl>

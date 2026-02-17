@@ -34,14 +34,9 @@ origins = [
     "http://localhost:3000",
    "http://127.0.0.1:3000"
 
-
-  
    "https://appksmp.vercel.app",
    "https://ksmart360.vercel.app",
 
-
-
-   
     "https://app.appjeylor.com",
     "https://appjeylor.com",      # por si en algún momento entras sin subdominio
 
