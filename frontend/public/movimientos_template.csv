@@ -1,0 +1,4 @@
+producto_id,producto_nombre,tipo,cantidad,costo_unitario,motivo,referencia,observacion
+1,,entrada,50,10000,Compra inicial,FACT123,Lote inicial
+,Servicio reparación tacón,salida,10,0,Venta,FACT124,Cliente Juan
+3,Hilo nylon 0.8mm,ajuste,-5,0,Ajuste inventario,SINREF,Stock dañado

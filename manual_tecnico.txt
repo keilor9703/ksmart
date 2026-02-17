@@ -1,0 +1,127 @@
+=================================
+MANUAL TÉCNICO
+Sistema de Gestión Peleteria Jeylor
+=================================
+
+Versión 1.0
+
+
+-- ÍNDICE --
+
+1. Resumen de la Arquitectura
+2. Configuración del Entorno de Desarrollo
+   2.1. Prerrequisitos
+   2.2. Backend
+   2.3. Frontend
+   2.4. Ejecución
+3. Estructura del Backend
+   3.1. Archivos Principales
+   3.2. Implementación del Dashboard
+4. Estructura del Frontend
+   4.1. Archivos Principales
+   4.2. Implementación del Dashboard
+5. Flujo de Autenticación
+6. Puntos de Mejora Sugeridos
+
+
+-- 1. RESUMEN DE LA ARQUITECTURA --
+
+El proyecto sigue una arquitectura cliente-servidor desacoplada:
+
+- **Frontend (Cliente):** Una Single-Page Application (SPA) desarrollada con React y la librería de componentes Material-UI. Se encarga de toda la lógica de presentación y la interacción con el usuario.
+
+- **Backend (Servidor):** Una API RESTful construida sobre el framework FastAPI de Python. Maneja toda la lógica de negocio, persistencia de datos y autenticación.
+
+- **Base de Datos:** El sistema utiliza PostgreSQL como motor de base de datos, con SQLAlchemy como ORM para el mapeo de objetos y la interacción.
+
+- **Autenticación:** La seguridad de la API se basa en JSON Web Tokens (JWT).
+
+
+-- 2. CONFIGURACIÓN DEL ENTORNO DE DESARROLLO --
+
+2.1. Prerrequisitos
+- Python 3.10+
+- Node.js 16.x+
+- npm (o yarn)
+- Una instancia de PostgreSQL en ejecución.
+
+2.2. Backend
+
+1. Navegue a la raíz del proyecto.
+2. Cree un entorno virtual: `python -m venv .venv`
+3. Active el entorno virtual: `source .venv/Scripts/activate` (en Windows) o `source .venv/bin/activate` (en macOS/Linux).
+4. Instale las dependencias de Python: `pip install -r backend/requirements.txt`
+5. **Configuración de la Base de Datos:** La cadena de conexión a la base de datos está definida en `backend/database.py`. Asegúrese de que apunte a su instancia de PostgreSQL.
+6. **Variable de Entorno de Seguridad (Recomendado):** La clave secreta (SECRET_KEY) para JWT en `backend/main.py` está hardcodeada. Se recomienda encarecidamente moverla a un archivo `.env` en la raíz del proyecto y cargarla usando `python-dotenv`.
+
+2.3. Frontend
+
+1. Navegue al directorio del frontend: `cd frontend`
+2. Instale las dependencias de Node.js: `npm install`
+3. **Variable de Entorno de API:** El archivo `frontend/src/api.js` busca la URL del backend en la variable de entorno `REACT_APP_API_URL`. Puede crear un archivo `.env` en el directorio `frontend` para definirla (ej. `REACT_APP_API_URL=http://127.0.0.1:8000`). Si no se define, usará `http://127.0.0.1:8000` por defecto.
+
+2.4. Ejecución
+
+1. **Iniciar Backend:** Desde la raíz del proyecto (con el entorno virtual activado), ejecute: `uvicorn backend.main:app --reload`
+2. **Iniciar Frontend:** Desde el directorio `frontend`, ejecute: `npm start`
+
+
+-- 3. ESTRUCTURA DEL BACKEND --
+
+3.1. Archivos Principales
+
+- `main.py`: Punto de entrada de la aplicación FastAPI. Define los routers de la API, la configuración de CORS y los middlewares.
+- `crud.py`: Contiene toda la lógica de negocio y las funciones que interactúan directamente con la base de datos (consultas, creaciones, actualizaciones).
+- `models.py`: Define los modelos de datos de SQLAlchemy, que se corresponden con las tablas de la base de datos.
+- `schemas.py`: Define los esquemas de Pydantic utilizados para la validación de datos de entrada/salida en la API y para el modelado de respuestas.
+- `database.py`: Gestiona la conexión a la base de datos y la sesión de SQLAlchemy.
+
+3.2. Implementación del Dashboard (Novedad)
+
+Para implementar el dashboard de administrador, se realizaron los siguientes añadidos:
+
+- **Endpoint:** Se creó `GET /reportes/dashboard` en `main.py`. Este endpoint está protegido y solo es accesible para usuarios con el rol 'Admin'.
+- **Funciones CRUD:** Se añadieron dos funciones principales en `crud.py`:
+    - `get_sales_by_day()`: Calcula las ventas agregadas por día para un rango de fechas.
+    - `get_dashboard_data()`: Orquesta las llamadas a otras funciones CRUD para recopilar todos los KPIs en una sola respuesta.
+- **Schemas:** Se añadieron los siguientes esquemas en `schemas.py`:
+    - `SalesByDay`: Define la estructura para los datos del gráfico de ventas.
+    - `DashboardData`: Define la estructura de la respuesta completa del endpoint del dashboard. Para resolver un `NameError` por orden de definición, se usó una referencia hacia adelante (`List['OrdenTrabajo']`) y se resolvió con `DashboardData.model_rebuild()`.
+
+
+-- 4. ESTRUCTURA DEL FRONTEND --
+
+4.1. Archivos Principales
+
+- `App.js`: Componente principal que gestiona el estado de autenticación, la navegación principal (react-router) y el layout general de la aplicación (AppBar, Drawer).
+- `components/`: Directorio que contiene todos los componentes reutilizables y las vistas principales de cada módulo (ej. `Ventas.js`, `Clientes.js`).
+- `api.js`: Contiene la instancia preconfigurada de `axios`. Incluye un interceptor para añadir automáticamente el `Authorization: Bearer <token>` a todas las peticiones salientes.
+- `public/index.html`: Plantilla HTML principal. Se modificó el tag `<title>` a "KSmart360 App".
+
+4.2. Implementación del Dashboard (Novedad)
+
+- **Componente:** Se creó el nuevo componente `frontend/src/components/Dashboard.js`.
+    - Realiza una única llamada al endpoint `/reportes/dashboard` para obtener todos los datos.
+    - Utiliza `react-chartjs-2` para renderizar el gráfico de ventas.
+    - Muestra los KPIs en tarjetas interactivas que enlazan a sus respectivos módulos usando el componente `<Link>` de `react-router-dom`.
+- **Enrutamiento Condicional:** En `App.js`, la ruta principal (`/`) ahora renderiza un componente de forma condicional:
+    - Si `user.role.name === 'Admin'`, muestra el componente `<Dashboard />`.
+    - De lo contrario, muestra el componente de bienvenida `<Home />`.
+
+
+-- 5. FLUJO DE AUTENTICACIÓN --
+
+1. El usuario introduce sus credenciales en el componente `Login`.
+2. Se realiza una petición POST al endpoint `/token` del backend.
+3. Si las credenciales son válidas, la API devuelve un `access_token` (JWT).
+4. El frontend guarda este token en el `localStorage` del navegador.
+5. El interceptor de `axios` en `api.js` lee el token del `localStorage` y lo añade a la cabecera `Authorization` de todas las peticiones subsiguientes.
+6. El backend valida este token en cada petición a un endpoint protegido.
+
+
+-- 6. PUNTOS DE MEJORA SUGERIDOS --
+
+- **Seguridad:** Mover la `SECRET_KEY` del backend a variables de entorno es una prioridad.
+- **Rendimiento:** Implementar paginación, filtrado y ordenamiento del lado del servidor para las listas principales (ventas, clientes, etc.) para mejorar la escalabilidad.
+- **Base de Datos:** Añadir índices a las claves foráneas y a las columnas usadas frecuentemente en filtros (ej. `ventas.cliente_id`, `ventas.fecha`).
+- **Gestión de Estado:** Para una mayor escalabilidad del frontend, considerar la adopción de una librería de gestión de estado global como Redux Toolkit o Zustand.

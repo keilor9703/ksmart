@@ -1,0 +1,197 @@
+================================
+MANUAL DE USUARIO DETALLADO
+Sistema de Gestión Peleteria Jeylor
+================================
+
+Versión 3.0
+
+
+-- ÍNDICE --
+
+1. Introducción
+2. Conceptos Clave y Flujo de Información
+3. Guía de Módulos Paso a Paso
+   3.1. Módulo de Clientes
+   3.2. Módulo de Productos y Servicios
+   3.3. Módulo de Inventario
+   3.4. Módulo de Órdenes de Trabajo (OT)
+   3.5. Módulo de Ventas
+   3.6. Módulo de Reportes
+   3.7. Panel del Operador
+   3.8. Módulo de Administración (Solo Admins)
+4. Gestión de Sesión
+
+
+-- 1. INTRODUCCIÓN --
+
+Este manual es una guía completa y detallada para operar el Sistema de Gestión de Peleteria Jeylor. Su propósito es capacitar a cualquier usuario para utilizar todas las funcionalidades de la aplicación, explicando cada campo, cada botón y cada validación del sistema.
+
+
+-- 2. CONCEPTOS CLAVE Y FLUJO DE INFORMACIÓN --
+
+El sistema gira en torno a varios conceptos que se interconectan:
+
+- **Clientes:** Personas o empresas a las que se les venden productos o servicios.
+- **Productos y Servicios:** Los productos son artículos físicos con stock, mientras que los servicios son trabajos realizados sin stock.
+- **Órdenes de Trabajo (OT):** Documentan un trabajo a realizar para un cliente. Al ser aprobada, genera una Venta a crédito.
+- **Ventas:** La transacción comercial. Puede generarse desde una OT o crearse directamente. Afectan la deuda del cliente y el stock de los productos.
+
+**Flujo Principal:**
+1. Se crea una **Orden de Trabajo** para un **Cliente**.
+2. La OT es aprobada, lo que descuenta los **Productos** del inventario y crea una **Venta** a crédito.
+3. El cliente realiza abonos a su deuda, los cuales se registran como **Pagos**.
+4. El estado de la Venta cambia de "Pendiente" a "Parcial" y finalmente a "Pagada".
+
+
+-- 3. GUÍA DE MÓDULOS PASO A PASO --
+
+--- 3.1. Módulo de Clientes ---
+
+**Propósito:** Centralizar la información de sus clientes.
+
+**Cómo Crear un Nuevo Cliente:**
+
+1. En el menú lateral, haga clic en "Clientes".
+2. En la pantalla de Clientes, haga clic en el botón "Añadir Cliente".
+3. Se abrirá un formulario. Rellene los siguientes campos:
+
+    - **Nombre:**
+      - *Descripción:* Nombre completo del cliente o razón social de la empresa.
+      - *Regla:* Este campo es **obligatorio**.
+
+    - **Cédula o NIT:**
+      - *Descripción:* Documento de identidad del cliente.
+      - *Regla:* Aunque no es obligatorio, es muy recomendable. El sistema **no permite registrar dos clientes con la misma cédula**.
+
+    - **Teléfono:**
+      - *Descripción:* Número de contacto del cliente.
+      - *Regla:* Campo opcional.
+
+    - **Dirección:**
+      - *Descripción:* Dirección de residencia o fiscal del cliente.
+      - *Regla:* Campo opcional.
+
+    - **Cupo de Crédito:**
+      - *Descripción:* Cantidad máxima de dinero que este cliente puede tener en deudas. Si no desea otorgarle crédito, ingrese el número `0`.
+      - *Regla:* Este campo es **obligatorio** y debe ser un número.
+
+4. Haga clic en "Guardar". Si algún campo obligatorio está vacío, el sistema mostrará un error.
+
+**Otras Funciones:**
+- **Editar Cliente:** En la lista de clientes, haga clic en el icono del lápiz (Editar) para modificar su información.
+- **Ver Historial:** Haga clic en el icono del ojo (Ver Detalles) para abrir una ventana con todo el historial de ventas, deudas y pagos del cliente.
+
+
+--- 3.2. Módulo de Productos y Servicios ---
+
+**Propósito:** Administrar el catálogo de artículos y servicios.
+
+**Cómo Crear un Nuevo Producto o Servicio:**
+
+1. En el menú lateral, haga clic en "Productos".
+2. Haga clic en el botón "Añadir Producto".
+3. Rellene el formulario:
+
+    - **Nombre:**
+      - *Descripción:* Nombre descriptivo del artículo (ej. "Cuero Nappa Negro", "Servicio de Costura").
+      - *Regla:* **Obligatorio**.
+
+    - **Precio:**
+      - *Descripción:* El precio al que vende el artículo al público.
+      - *Regla:* **Obligatorio** y debe ser un número.
+
+    - **Costo:**
+      - *Descripción:* Cuánto le cuesta a usted adquirir o producir el artículo. Es crucial para los reportes de rentabilidad.
+      - *Regla:* **Obligatorio** y debe ser un número.
+
+    - **Es Servicio:**
+      - *Descripción:* Marque esta casilla si lo que está creando no es un producto físico (ej. "Mano de Obra", "Domicilio").
+      - *Regla:* Los servicios no manejan inventario (stock).
+
+    - **Unidad de Medida:**
+      - *Descripción:* Cómo se mide el producto. Seleccione de la lista.
+      - *Opciones:* `UND` (Unidad), `MTS` (Metros), `KGS` (Kilogramos).
+
+    - **Stock Mínimo:**
+      - *Descripción:* La cantidad mínima que desea tener en inventario. Cuando el stock baje de este número, aparecerá en el reporte de "Alertas de Stock".
+      - *Regla:* Debe ser un número. Ingrese `0` si no desea alertas para este producto.
+
+4. Haga clic en "Guardar".
+
+
+--- 3.3. Módulo de Inventario ---
+
+**Propósito:** Controlar las existencias de sus productos.
+
+**Cómo Registrar un Movimiento Manual:**
+
+1. Vaya al módulo "Inventario".
+2. En la sección "Registrar Movimiento", rellene los campos:
+
+    - **Producto:** Selecciónelo de la lista.
+    - **Tipo de Movimiento:**
+        - `Entrada`: Para registrar compras a proveedores o aumentos de stock.
+        - `Salida`: Para registrar retiros de mercancía que no son por ventas (ej. muestras, pérdidas).
+        - `Ajuste`: Para corregir el stock a un valor específico.
+    - **Cantidad:** El número de unidades que entran o salen.
+    - **Motivo:** Una breve descripción de la razón del movimiento (ej. "Compra factura 123").
+
+3. Haga clic en "Registrar Movimiento". El stock del producto se actualizará automáticamente.
+
+
+--- 3.4. Módulo de Órdenes de Trabajo (OT) ---
+
+**Propósito:** Gestionar trabajos para clientes.
+
+**Cómo Crear una OT:**
+
+1. Vaya a "Órdenes de Trabajo" y haga clic en "Crear Orden de Trabajo".
+2. Rellene el formulario:
+
+    - **Cliente:** Selecciónelo de la lista. **Obligatorio**.
+    - **Productos/Insumos:** Añada los productos físicos que se usarán en el trabajo. Puede añadir varias filas.
+    - **Servicios/Mano de Obra:** Añada los servicios a realizar. Puede añadir varias filas.
+    - **Total:** El sistema calcula el total automáticamente.
+
+3. Haga clic en "Guardar". La OT se creará en estado "Borrador".
+4. Para que un administrador la revise, debe hacer clic en el botón "Enviar a Revisión".
+
+
+--- 3.5. Módulo de Ventas ---
+
+**Propósito:** Registrar ventas directas (de mostrador).
+
+**Cómo Registrar una Venta Directa:**
+
+1. Vaya a "Ventas". La primera pestaña es "Registrar Venta".
+2. Rellene el formulario:
+
+    - **Cliente:** Selecciónelo de la lista. **Obligatorio**.
+    - **Detalles de la Venta:**
+        - **Producto:** Añada uno o más productos/servicios. Al seleccionarlo, el precio se carga automáticamente, pero puede editarlo para esa venta específica.
+        - **Cantidad:** Ingrese la cantidad a vender. El sistema valida que haya stock suficiente si es un producto.
+
+    - **Tipo de Pago:**
+        - **Efectivo:** Si el cliente paga el total en el momento. La venta quedará en estado "Pagada".
+        - **X Cobrar:** Si el cliente no paga o solo paga una parte. La venta quedará en estado "Pendiente" y se sumará a la deuda del cliente.
+
+3. Haga clic en "Registrar Venta". Si la venta es de productos, el stock se descontará automáticamente.
+
+
+--- 3.6. Módulo de Reportes ---
+
+**Propósito:** Consultar información consolidada.
+
+**Cómo Registrar un Abono a una Deuda:**
+
+1. Vaya a "Reportes" y busque la sección o reporte de **"Cuentas por Cobrar"**.
+2. El sistema le mostrará una lista de clientes con deudas pendientes.
+3. Busque al cliente y la venta específica a la que desea abonar.
+4. Haga clic en el botón **"Registrar Pago"** (o similar) asociado a esa venta.
+5. Se abrirá un diálogo donde deberá ingresar el **monto** del abono y el **método de pago**.
+6. Al guardar, el sistema actualizará el saldo de la venta y la deuda total del cliente.
+
+
+-- 4. GESTIÓN DE SESIÓN --
+
+- **Cerrar Sesión:** Para salir del sistema de forma segura, haga clic en el icono de "puerta de salida" ubicado en la esquina superior derecha de la barra de navegación.
