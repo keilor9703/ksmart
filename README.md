@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Sistema de Gestión - Peleteria Jeylor
 
 ## Descripción General
@@ -162,3 +163,7 @@ Una vez que el servidor del backend está en ejecución, FastAPI genera automát
 - **ReDoc:** [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
 
 Puedes usar estas interfaces para explorar y probar todos los endpoints de la API directamente desde tu navegador.
+=======
+# Ksmart360
+App integral para el manejo del negocio
+>>>>>>> f09ddf5e3895c084611d3f12882f85212a9b06e4
