@@ -34,8 +34,9 @@ origins = [
     "http://localhost:3000",
    "http://127.0.0.1:3000"
 
-   "https://peleteria-jeylor-app.vercel.app",
+  
    "https://appksmp.vercel.app",
+   "https://ksmart360.vercel.app",
 
    
     "https://app.appjeylor.com",
