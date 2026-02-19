@@ -92,11 +92,13 @@ export default function Inventario() {
   const filteredData = useMemo(() => {
     if (tab > 3) return []; // Para la pestaña de movimientos
     const grupoId = GRUPOS[tab].id;
-    return productos.filter(p => 
-      p.grupo_item === grupoId && 
-      !p.es_servicio &&
-      p.nombre.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    return productos
+      .filter(p => 
+        p.grupo_item === grupoId && 
+        !p.es_servicio &&
+        p.nombre.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+      .sort((a, b) => a.nombre.localeCompare(b.nombre));
   }, [productos, tab, searchTerm]);
 
   const paginatedData = useMemo(() => {

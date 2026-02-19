@@ -131,7 +131,9 @@ const ClienteList = ({ onEditCliente, onClienteDeleted, filterType }) => {
     };
 
     const paginatedClientes = useMemo(() => {
-        return filteredClientes.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+        return [...filteredClientes]
+            .sort((a, b) => a.nombre.localeCompare(b.nombre))
+            .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
     }, [filteredClientes, page, rowsPerPage]);
 
     return (
