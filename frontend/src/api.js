@@ -87,4 +87,33 @@ export const updateProductoStockMinimo = (productoId, minimo) =>
   apiClient.patch(`/productos/${productoId}/stock-minimo`, { stock_minimo: minimo });
 
 
+// --- API PRODUCCIÓN (VIALMAR) ---
+
+export const fetchRecetas = (params = {}) =>
+  apiClient.get('/produccion/recetas/', { params });
+
+export const createReceta = (data) =>
+  apiClient.post('/produccion/recetas/', data);
+
+export const deleteReceta = (id) =>
+  apiClient.delete(`/produccion/recetas/${id}`);
+
+export const fetchLotes = (params = {}) =>
+  apiClient.get('/produccion/lotes/', { params });
+
+export const createLote = (data) =>
+  apiClient.post('/produccion/lotes/', data);
+
+// export const confirmarLote = (id) =>
+//   apiClient.post(`/produccion/lotes/${id}/confirmar`);
+
+export const confirmarLote = (id, payload) =>
+  apiClient.post(`/produccion/lotes/${id}/confirmar`, payload);
+
+
+
+export const cancelarLote = (id) =>
+  apiClient.put(`/produccion/lotes/${id}/cancelar`);
+
+
 export default apiClient;

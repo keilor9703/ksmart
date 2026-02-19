@@ -1850,3 +1850,167 @@ def bulk_create_movimientos(db: Session, file: IO, filename: str):
         "created_records": created_count,
         "errors": errors
     }
+
+
+# =========================
+# LÓGICA DE PRODUCCIÓN (VIALMAR)
+# =========================
+
+# --- Recetas ---
+
+def get_recetas(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.Receta).options(
+        joinedload(models.Receta.producto_resultante),
+        joinedload(models.Receta.items).joinedload(models.RecetaItem.insumo)
+    ).offset(skip).limit(limit).all()
+
+def get_receta(db: Session, receta_id: int):
+    return db.query(models.Receta).options(
+        joinedload(models.Receta.producto_resultante),
+        joinedload(models.Receta.items).joinedload(models.RecetaItem.insumo)
+    ).filter(models.Receta.id == receta_id).first()
+
+def get_receta_by_producto(db: Session, producto_id: int):
+    return db.query(models.Receta).filter(models.Receta.producto_id == producto_id).first()
+
+def create_receta(db: Session, receta: schemas.RecetaCreate):
+    db_receta = models.Receta(
+        producto_id=receta.producto_id,
+        nombre=receta.nombre,
+        descripcion=receta.descripcion
+    )
+    db.add(db_receta)
+    db.flush() # Para obtener el ID
+
+    for item in receta.items:
+        db_item = models.RecetaItem(
+            receta_id=db_receta.id,
+            insumo_id=item.insumo_id,
+            cantidad=item.cantidad
+        )
+        db.add(db_item)
+    
+    db.commit()
+    db.refresh(db_receta)
+    return db_receta
+
+def delete_receta(db: Session, receta_id: int):
+    db_receta = db.query(models.Receta).filter(models.Receta.id == receta_id).first()
+    if db_receta:
+        db.delete(db_receta)
+        db.commit()
+        return True
+    return False
+
+# --- Lotes de Producción ---
+
+def get_lotes(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.LoteProduccion).options(
+        joinedload(models.LoteProduccion.receta).joinedload(models.Receta.producto_resultante),
+        joinedload(models.LoteProduccion.cliente)
+    ).order_by(models.LoteProduccion.fecha_planificada.desc()).offset(skip).limit(limit).all()
+
+def get_lote(db: Session, lote_id: int):
+    return db.query(models.LoteProduccion).options(
+        joinedload(models.LoteProduccion.receta).joinedload(models.Receta.producto_resultante),
+        joinedload(models.LoteProduccion.receta).joinedload(models.Receta.items).joinedload(models.RecetaItem.insumo),
+        joinedload(models.LoteProduccion.cliente)
+    ).filter(models.LoteProduccion.id == lote_id).first()
+
+def create_lote(db: Session, lote: schemas.LoteProduccionCreate):
+    db_lote = models.LoteProduccion(
+        receta_id=lote.receta_id,
+        cantidad_a_producir=lote.cantidad_a_producir,
+        cliente_id=lote.cliente_id,
+        observaciones=lote.observaciones,
+        estado="Borrador"
+    )
+    db.add(db_lote)
+    db.commit()
+    db.refresh(db_lote)
+    return db_lote
+
+def confirmar_lote_produccion(db: Session, lote_id: int, confirm_data: schemas.LoteProduccionConfirm):
+    db_lote = get_lote(db, lote_id)
+    if not db_lote or db_lote.estado != "Borrador":
+        raise ValueError("El lote no existe o ya ha sido procesado.")
+
+    receta = db_lote.receta
+    cantidad_teorica = db_lote.cantidad_a_producir
+    cantidad_final = confirm_data.cantidad_real
+
+    costo_total_acumulado = 0.0
+
+    # 1. Validar Stock e Iniciar Consumo (SALIDAS)
+    for item in receta.items:
+        insumo = item.insumo
+        cantidad_requerida = item.cantidad * cantidad_teorica
+        if (insumo.stock_actual or 0) < cantidad_requerida:
+            raise ValueError(f"Stock insuficiente para: {insumo.nombre}. Req: {cantidad_requerida}, Disp: {insumo.stock_actual}")
+        
+        # Calcular costo basado en el costo actual del producto (Kardex promedio)
+        costo_insumo_total = cantidad_requerida * (insumo.costo or 0.0)
+        costo_total_acumulado += costo_insumo_total
+
+        mov_salida = schemas.InventoryMovementCreate(
+            producto_id=item.insumo_id,
+            tipo=schemas.MovementType.salida,
+            cantidad=cantidad_requerida,
+            costo_unitario=insumo.costo or 0.0,
+            motivo="Producción - Consumo",
+            referencia=f"Lote #{db_lote.id}",
+            observacion=f"Consumo para {cantidad_teorica} de {receta.producto_resultante.nombre}"
+        )
+        create_movement(db, mov_salida)
+
+    # 2. Calcular Costo Unitario del Resultado (Considerando Mermas)
+    costo_unitario_final = (costo_total_acumulado / cantidad_final) if cantidad_final > 0 else 0.0
+
+    # 3. Registrar ENTRADA del Producto Resultante con el NUEVO COSTO
+    mov_entrada = schemas.InventoryMovementCreate(
+        producto_id=receta.producto_id,
+        tipo=schemas.MovementType.entrada,
+        cantidad=cantidad_final,
+        costo_unitario=costo_unitario_final,
+        motivo="Producción - Finalizado",
+        referencia=f"Lote #{db_lote.id}",
+        observacion=f"Entrada con mermas aplicadas. Costo unitario calculado: {costo_unitario_final:.2f}"
+    )
+    create_movement(db, mov_entrada)
+
+    # 4. Integración Comercial: Venta por Maquila (Si aplica)
+    if db_lote.cliente_id and receta.servicio_maquila_id:
+        venta_schema = schemas.VentaCreate(
+            cliente_id=db_lote.cliente_id,
+            detalles=[
+                schemas.DetalleVentaCreate(
+                    producto_id=receta.servicio_maquila_id,
+                    cantidad=cantidad_final,
+                    precio_unitario=confirm_data.precio_maquila
+                )
+            ],
+            pagada=False # Se genera como cuenta por cobrar
+        )
+        db_venta = create_venta(db, venta_schema)
+        db_lote.venta_id = db_venta.id
+
+    # 5. Finalizar Lote
+    db_lote.estado = "Confirmado"
+    db_lote.cantidad_real = cantidad_final
+    db_lote.costo_total = costo_total_acumulado
+    db_lote.costo_unitario_resultado = costo_unitario_final
+    db_lote.fecha_confirmacion = datetime.utcnow()
+    if confirm_data.observaciones:
+        db_lote.observaciones = (db_lote.observaciones or "") + " | Cierre: " + confirm_data.observaciones
+
+    db.commit()
+    db.refresh(db_lote)
+    return db_lote
+
+def cancelar_lote(db: Session, lote_id: int):
+    db_lote = db.query(models.LoteProduccion).filter(models.LoteProduccion.id == lote_id).first()
+    if db_lote and db_lote.estado == "Borrador":
+        db_lote.estado = "Cancelado"
+        db.commit()
+        return True
+    return False

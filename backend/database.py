@@ -131,7 +131,7 @@ def run_migrations():
     Migraciones manuales simples.
     Debe llamarse al iniciar la app (idealmente en startup), después de create_all().
     """
-    migration_key = "inv_v1"
+    migration_key = "inv_v2"
 
     try:
         # begin() abre transacción y hace commit automático si todo sale bien
@@ -146,6 +146,14 @@ def run_migrations():
             # Nota: 'REAL' funciona en SQLite y Postgres; si prefieres NUMERIC en Postgres, se puede condicionar.
             _add_column_if_missing(conn, "productos", "stock_actual REAL DEFAULT 0", "stock_actual")
             _add_column_if_missing(conn, "productos", "stock_minimo REAL DEFAULT 0", "stock_minimo")
+                        # Asegura columnas en tabla recetas (VIALMAR)
+            _add_column_if_missing(
+                conn,
+                "recetas",
+                "servicio_maquila_id INTEGER",
+                "servicio_maquila_id",
+            )
+
 
             _mark_migration_applied(conn, migration_key, "done")
             logger.info("Migraciones: %s aplicada correctamente.", migration_key)

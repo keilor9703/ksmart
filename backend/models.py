@@ -178,9 +178,10 @@ class Notificacion(Base):
     leido = Column(Boolean, default=False)
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
     orden_id = Column(Integer, ForeignKey("ordenes_trabajo.id"), nullable=True)
-
     usuario = relationship("User", back_populates="notificaciones")
     orden = relationship("OrdenTrabajo")
+    
+
 
 class RegistroProductividad(Base):
     __tablename__ = "registros_productividad"
@@ -195,3 +196,55 @@ class RegistroProductividad(Base):
     operador = relationship("User")
     orden = relationship("OrdenTrabajo")
     servicio = relationship("Producto")
+
+# =========================
+# NUEVOS MODELOS PRODUCCIÓN (VIALMAR)
+# =========================
+
+class Receta(Base):
+    __tablename__ = "recetas"
+    id = Column(Integer, primary_key=True, index=True)
+    producto_id = Column(Integer, ForeignKey("productos.id"), unique=True) # Una receta por producto resultante
+    nombre = Column(String, index=True)
+    descripcion = Column(String, nullable=True)
+    servicio_maquila_id = Column(Integer, ForeignKey("productos.id"), nullable=True) # Servicio que se factura en maquila
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    producto_resultante = relationship("Producto", foreign_keys=[producto_id])
+    servicio_maquila = relationship("Producto", foreign_keys=[servicio_maquila_id])
+    items = relationship("RecetaItem", back_populates="receta", cascade="all, delete-orphan")
+
+class RecetaItem(Base):
+    __tablename__ = "receta_items"
+    id = Column(Integer, primary_key=True, index=True)
+    receta_id = Column(Integer, ForeignKey("recetas.id"))
+    insumo_id = Column(Integer, ForeignKey("productos.id"))
+    cantidad = Column(Float) # Cantidad necesaria para producir 1 unidad del producto_resultante
+
+    receta = relationship("Receta", back_populates="items")
+    insumo = relationship("Producto")
+
+class LoteProduccion(Base):
+    __tablename__ = "lotes_produccion"
+    id = Column(Integer, primary_key=True, index=True)
+    receta_id = Column(Integer, ForeignKey("recetas.id"))
+    cantidad_a_producir = Column(Float)
+
+    cantidad_real = Column(Float, nullable=True)  # merma
+    costo_total = Column(Float, default=0.0)
+    costo_unitario_resultado = Column(Float, default=0.0)
+
+    fecha_planificada = Column(DateTime, default=datetime.utcnow)
+    fecha_confirmacion = Column(DateTime, nullable=True)
+
+    estado = Column(String, default="Borrador")  # Borrador, Confirmado, Cancelado
+
+    cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=True)  # maquila
+    venta_id = Column(Integer, ForeignKey("ventas.id"), nullable=True)  # venta por maquila
+
+    observaciones = Column(Text, nullable=True)
+
+    receta = relationship("Receta")
+    cliente = relationship("Cliente")
+    venta_asociada = relationship("Venta")
+

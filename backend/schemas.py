@@ -555,3 +555,68 @@ class MovementExcel(BaseModel):
 
 # Resolve forward references
 DashboardData.model_rebuild()
+
+
+# =========================
+# PRODUCCIÓN (VIALMAR) - FASE 1
+# =========================
+
+class RecetaItemBase(BaseModel):
+    insumo_id: int
+    cantidad: float
+
+class RecetaItemCreate(RecetaItemBase):
+    pass
+
+class RecetaItem(RecetaItemBase):
+    id: int
+    receta_id: int
+    insumo: Producto
+
+    model_config = ConfigDict(from_attributes=True)
+
+class RecetaBase(BaseModel):
+    producto_id: int
+    nombre: str
+    descripcion: Optional[str] = None
+    servicio_maquila_id: Optional[int] = None
+
+class RecetaCreate(RecetaBase):
+    items: List[RecetaItemCreate]
+
+class Receta(RecetaBase):
+    id: int
+    created_at: datetime.datetime
+    items: List[RecetaItem]
+    producto_resultante: Producto
+    servicio_maquila: Optional[Producto] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+class LoteProduccionBase(BaseModel):
+    receta_id: int
+    cantidad_a_producir: float
+    cliente_id: Optional[int] = None
+    observaciones: Optional[str] = None
+
+class LoteProduccionCreate(LoteProduccionBase):
+    pass
+
+class LoteProduccionConfirm(BaseModel):
+    cantidad_real: float
+    precio_maquila: Optional[float] = 0.0 # Precio cobrado al cliente si es maquila
+    observaciones: Optional[str] = None
+
+class LoteProduccion(LoteProduccionBase):
+    id: int
+    cantidad_real: Optional[float] = None
+    costo_total: float
+    costo_unitario_resultado: float
+    fecha_planificada: datetime.datetime
+    fecha_confirmacion: Optional[datetime.datetime] = None
+    estado: str
+    receta: Receta
+    cliente: Optional[Cliente] = None
+    venta_id: Optional[int] = None
+
+    model_config = ConfigDict(from_attributes=True)

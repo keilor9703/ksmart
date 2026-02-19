@@ -74,6 +74,28 @@ const getAppTheme = (mode) => createTheme({
         },
       },
     },
+    MuiFormControl: {
+      styleOverrides: {
+        root: {
+          // Asegura que los controles con fullWidth realmente ocupen el 100%
+          // y no se vean limitados por anchos intrínsecos del Select
+          width: '100%',
+        },
+      },
+    },
+    MuiTextField: {
+      defaultProps: {
+        fullWidth: true, // Hacer que los TextField sean fullWidth por defecto ayuda a la consistencia
+      },
+    },
+    MuiSelect: {
+      styleOverrides: {
+        select: {
+          // Evita que el contenido del select trunque el texto prematuramente
+          minWidth: 'auto',
+        },
+      },
+    },
   },
 });
 

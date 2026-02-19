@@ -128,7 +128,7 @@ return (
 
       <AccordionDetails>
         <Grid container spacing={2}>
-          <Grid item xs={12} sm={4}>
+          <Grid item xs={12} sm={6}>
             <TextField
               label="Nombre"
               value={nombre}
@@ -189,7 +189,7 @@ return (
             </FormControl>
           </Grid>
 
-          <Grid item xs={12} sm={6}>
+          <Grid item xs={12} sm={2}>
             <TextField
               label="Stock mínimo"
               value={stockMinimo}
@@ -201,7 +201,7 @@ return (
             />
           </Grid>
 
-          <Grid item xs={12} sm={6}>
+          <Grid item xs={12} sm={2}>
             <TextField
               label="Stock actual"
               value={stockActual}

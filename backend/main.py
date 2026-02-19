@@ -86,6 +86,10 @@ def initialize_default_data(db: Session):
         {"name": "Órdenes de Trabajo", "description": "Módulo para la gestión de órdenes de trabajo.", "frontend_path": "/ordenes-trabajo"},
         {"name": "Panel del Operador", "description": "Panel de productividad y gestión para operadores.", "frontend_path": "/panel-operador"},
 
+        # 👇 NUEVO PRODUCCIÓN (VIALMAR)
+        {"name": "Recetas", "description": "Gestión de fórmulas de producción (BOM).", "frontend_path": "/produccion/recetas"},
+        {"name": "Producción", "description": "Gestión de lotes y procesos de transformación.", "frontend_path": "/produccion/lotes"},
+
         # 👇 NUEVO
         {"name": "Inventarios", "description": "Módulo para movimientos y alertas de stock.", "frontend_path": "/inventario"},
         {"name": "Reportes inventario", "description": "Módulo para movimientos y alertas de stock.", "frontend_path": "/reportes-inventario"},
@@ -1096,4 +1100,128 @@ def get_panel_historial(
     return crud.get_historial_reciente_operador(db, operador_id=operador_id_to_fetch)
 
 app.include_router(panel_operador_router)
+
+# =========================
+# ROUTERS PRODUCCIÓN (VIALMAR)
+# =========================
+
+produccion_router = APIRouter(
+    prefix="/produccion",
+    tags=["Producción"],
+    dependencies=[Depends(get_current_active_user)]
+)
+
+# --- Recetas ---
+@produccion_router.get("/recetas/", response_model=List[schemas.Receta])
+def read_recetas(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return crud.get_recetas(db, skip=skip, limit=limit)
+
+@produccion_router.get("/recetas/{receta_id}", response_model=schemas.Receta)
+def read_receta(receta_id: int, db: Session = Depends(get_db)):
+    db_receta = crud.get_receta(db, receta_id=receta_id)
+    if not db_receta:
+        raise HTTPException(status_code=404, detail="Receta no encontrada")
+    return db_receta
+
+@produccion_router.post("/recetas/", response_model=schemas.Receta)
+def create_receta(receta: schemas.RecetaCreate, db: Session = Depends(get_db)):
+    # Validar si el producto ya tiene receta
+    if crud.get_receta_by_producto(db, receta.producto_id):
+        raise HTTPException(status_code=400, detail="Este producto ya tiene una receta asociada.")
+    return crud.create_receta(db, receta)
+
+@produccion_router.delete("/recetas/{receta_id}")
+def delete_receta(receta_id: int, db: Session = Depends(get_db)):
+    if not crud.delete_receta(db, receta_id):
+        raise HTTPException(status_code=404, detail="Receta no encontrada")
+    return {"message": "Receta eliminada correctamente"}
+
+# --- Lotes de Producción ---
+@produccion_router.get("/lotes/", response_model=List[schemas.LoteProduccion])
+def read_lotes(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return crud.get_lotes(db, skip=skip, limit=limit)
+
+@produccion_router.get("/lotes/{lote_id}", response_model=schemas.LoteProduccion)
+def read_lote(lote_id: int, db: Session = Depends(get_db)):
+    db_lote = crud.get_lote(db, lote_id=lote_id)
+    if not db_lote:
+        raise HTTPException(status_code=404, detail="Lote no encontrado")
+    return db_lote
+
+@produccion_router.post("/lotes/", response_model=schemas.LoteProduccion)
+def create_lote(lote: schemas.LoteProduccionCreate, db: Session = Depends(get_db)):
+    return crud.create_lote(db, lote)
+
+@produccion_router.post("/lotes/{lote_id}/confirmar", response_model=schemas.LoteProduccion)
+def confirmar_lote(lote_id: int, confirm_data: schemas.LoteProduccionConfirm, db: Session = Depends(get_db)):
+    try:
+        return crud.confirmar_lote_produccion(db, lote_id, confirm_data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@produccion_router.put("/lotes/{lote_id}/cancelar")
+def cancelar_lote(lote_id: int, db: Session = Depends(get_db)):
+    if not crud.cancelar_lote(db, lote_id):
+        raise HTTPException(status_code=404, detail="Lote no encontrado o no puede ser cancelado")
+    return {"message": "Lote cancelado correctamente"}
+
+# --- Reportes de Producción ---
+
+@app.get("/reportes/produccion-summary")
+def get_produccion_summary(
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_admin_user)
+):
+    query = db.query(models.LoteProduccion).filter(models.LoteProduccion.estado == "Confirmado")
+    if start_date:
+        query = query.filter(models.LoteProduccion.fecha_confirmacion >= start_date)
+    if end_date:
+        query = query.filter(models.LoteProduccion.fecha_confirmacion < end_date + timedelta(days=1))
+    
+    lotes = query.all()
+    
+    total_costo = sum(l.costo_total for l in lotes)
+    total_producido = sum(l.cantidad_real for l in lotes if l.cantidad_real is not None)
+    maquilas_count = len([l for l in lotes if l.cliente_id is not None])
+
+    return {
+        "total_costo_produccion": total_costo,
+        "total_unidades_producidas": total_producido,
+        "total_lotes_finalizados": len(lotes),
+        "total_maquilas": maquilas_count
+    }
+
+@app.get("/reportes/consumo-insumos")
+def get_consumo_insumos(
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_admin_user)
+):
+    query = (
+        db.query(
+            models.Producto.nombre,
+            func.sum(models.InventoryMovement.cantidad).label("cantidad_total"),
+            func.sum(models.InventoryMovement.cantidad * models.InventoryMovement.costo_unitario).label("costo_total")
+        )
+        .join(models.InventoryMovement, models.Producto.id == models.InventoryMovement.producto_id)
+        .filter(models.InventoryMovement.tipo == "salida")
+        .filter(models.InventoryMovement.motivo.like("%Producción%"))
+    )
+
+    if start_date:
+        query = query.filter(models.InventoryMovement.created_at >= start_date)
+    if end_date:
+        query = query.filter(models.InventoryMovement.created_at < end_date + timedelta(days=1))
+
+    results = query.group_by(models.Producto.nombre).order_by(func.sum(models.InventoryMovement.cantidad).desc()).all()
+
+    return [
+        {"insumo": r.nombre, "cantidad": r.cantidad_total, "costo": r.costo_total}
+        for r in results
+    ]
+
+app.include_router(produccion_router)
 

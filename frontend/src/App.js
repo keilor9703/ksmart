@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { styled, ThemeProvider, useTheme } from '@mui/material/styles'; // Importar useTheme desde @mui/material/styles
 import MuiAppBar from '@mui/material/AppBar';
 import { Toolbar, Typography, Button, IconButton, List, ListItem, ListItemButton, ListItemText, ListItemIcon, Collapse, Box, CircularProgress, Divider, Drawer, Tooltip, CssBaseline, GlobalStyles, Menu, MenuItem } from '@mui/material'; // ADD CssBaseline, GlobalStyles, Menu, MenuItem
-import { ShoppingCart, People, Inventory, Assessment, AdminPanelSettings, ExpandLess, ExpandMore, Brightness4 as Brightness4Icon, Brightness7 as Brightness7Icon, Assignment, Dashboard as DashboardIcon, Logout as LogoutIcon, Menu as MenuIcon, MoreVert as MoreVertIcon } from '@mui/icons-material'; // Importar MenuIcon, MoreVertIcon
+import { ShoppingCart, People, Inventory, Assessment, AdminPanelSettings, ExpandLess, ExpandMore, Brightness4 as Brightness4Icon, Brightness7 as Brightness7Icon, Assignment, Dashboard as DashboardIcon, Logout as LogoutIcon, Menu as MenuIcon, MoreVert as MoreVertIcon, ReceiptLong, PrecisionManufacturing } from '@mui/icons-material'; // Importar ReceiptLong, PrecisionManufacturing
 import useMediaQuery from '@mui/material/useMediaQuery'; // Importar useMediaQuery
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -24,6 +24,8 @@ import UserManagement from './components/UserManagement';
 import RoleManagement from './components/RoleManagement';
 import ModuleManagement from './components/ModuleManagement';
 import OrdenesTrabajo from './components/OrdenesTrabajo';
+import Recetas from './components/Recetas';
+import Lotes from './components/Lotes';
 import Notifications from './components/Notifications';
 import PanelOperador from './components/PanelOperador';
 import { SpeedInsights } from "@vercel/speed-insights/react";
@@ -42,23 +44,7 @@ const DrawerHeader = styled('div')(({ theme }) => ({
   ...theme.mixins.toolbar,
 }));
 
-// const AppBar = styled(MuiAppBar, {
-//   shouldForwardProp: (prop) => prop !== 'open',
-// })(({ theme, open }) => ({
-//   zIndex: theme.zIndex.drawer + 1,
-//   transition: theme.transitions.create(['width', 'margin'], {
-//     easing: theme.transitions.easing.sharp,
-//     duration: theme.transitions.duration.leavingScreen,
-//   }),
-//   ...(open && {
-//     marginLeft: drawerWidth,
-//     width: `calc(100% - ${drawerWidth}px)`,
-//     transition: theme.transitions.create(['width', 'margin'], {
-//       easing: theme.transitions.easing.sharp,
-//       duration: theme.transitions.duration.enteringScreen,
-//     }),
-//   }),
-// }));
+
 
 const AppBar = styled(MuiAppBar)(({ theme }) => ({
   zIndex: theme.zIndex.drawer + 1,
@@ -256,6 +242,8 @@ function App() {
     { path: '/clientes', text: 'Clientes', icon: <People />, color: 'blue' },
     { path: '/productos', text: 'Productos', icon: <Inventory />, color: 'green' },
     { path: '/inventario', text: 'Inventarios', icon: <Inventory2OutlinedIcon />, color: 'brown' },
+    { path: '/produccion/recetas', text: 'Recetas', icon: <ReceiptLong />, color: '#795548' }, // Brown for Cacao
+    { path: '/produccion/lotes', text: 'Producción', icon: <PrecisionManufacturing />, color: '#3e2723' }, // Dark brown for Cacao
     { path: '/ordenes-trabajo', text: 'Órdenes de Trabajo', icon: <Assignment />, color: 'teal' },
     { path: '/panel-operador', text: 'Panel del Operador', icon: <DashboardIcon />, color: 'purple' },
     { path: '/reportes', text: 'Reportes', icon: <Assessment />, color: 'red' },
@@ -320,7 +308,7 @@ function App() {
                           src="/Logo2.png"
                         />
                         <Typography variant="h6" noWrap component="div">
-                          KSmart360
+                          Ksmart360
                         </Typography>
                       </Link>
                     </Box>
@@ -533,35 +521,31 @@ function App() {
                   </List>
                 </Drawer>
 
-                <Box
-                  component="main"
-                  sx={{
-                    flexGrow: 1,
-                    p: 3,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    // Ajustar margen izquierdo para compensar el Drawer permanente en desktop
-                    ml: !isMobile ? `${collapsedDrawerWidth}px` : 0,
-                    transition: (theme) => theme.transitions.create('margin', {
-                      easing: theme.transitions.easing.sharp,
-                      duration: theme.transitions.duration.leavingScreen,
-                    }),
-                    // ...(drawerOpen && !isMobile && {
-                    //   ml: `${drawerWidth}px`,
-                    //   transition: (theme) => theme.transitions.create('margin', {
-                    //     easing: theme.transitions.easing.sharp,
-                    //     duration: theme.transitions.duration.enteringScreen,
-                    //   }),
-                    // }),
-                    // width: isMobile ? '100%' : `calc(100% - ${collapsedDrawerWidth}px)`, // Ajustar ancho en móvil
-                    // ...(drawerOpen && !isMobile && {
-                    //   width: `calc(100% - ${drawerWidth}px)`,
-                    // }),
-                      ml: !isMobile ? `${collapsedDrawerWidth}px` : 0,
-                      width: !isMobile ? `calc(100% - ${collapsedDrawerWidth}px)` : '100%',
+                    <Box
+                      component="main"
+                      sx={{
+                        flexGrow: 1,
+                        p: 3,
+                        display: 'flex',
+                        flexDirection: 'column',
 
-                  }}
-                >
+                        // ✅ margen dinámico según drawerOpen (desktop)
+                        // ml: isMobile ? 0 : (drawerOpen ? `${drawerWidth}px` : `${collapsedDrawerWidth}px`),
+                        ml:0,
+
+                        // ✅ ancho dinámico según drawerOpen (desktop)
+                        width: isMobile ? '100%' : (drawerOpen
+                          ? `calc(100% - ${drawerWidth}px)`
+                          : `calc(100% - ${collapsedDrawerWidth}px)`),
+
+                        transition: (theme) =>
+                          theme.transitions.create(['margin', 'width'], {
+                            easing: theme.transitions.easing.sharp,
+                            duration: theme.transitions.duration.standard,
+                          }),
+                      }}
+                    >
+
                   <DrawerHeader />
                   <Routes>
                     <Route path="/" element={user?.role?.name === 'Admin' ? <Dashboard /> : <Home />} />
@@ -569,6 +553,8 @@ function App() {
                     <Route path="/clientes" element={<Clientes />} />
                     <Route path="/productos" element={<Productos />} />
                     <Route path="/inventario" element={<InventarioPage />} />
+                    <Route path="/produccion/recetas" element={<Recetas />} />
+                    <Route path="/produccion/lotes" element={<Lotes />} />
                     <Route path="/reportes-inventario" element={<InventoryReports />} />
                     <Route path="/reportes" element={<Reportes />} />
                     <Route path="/ordenes-trabajo" element={<OrdenesTrabajo user={user} />} />
