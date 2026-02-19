@@ -1580,13 +1580,15 @@ def bulk_create_clientes(db: Session, file: IO, filename: str):
             # Marcar como visto
             seen_cedulas.add(cedula)
 
-            # Crear cliente
+            # ✅ Asignación con valores por defecto y nuevos campos
             cliente_data = schemas.ClienteCreate(
                 nombre=row['nombre'],
                 cedula=cedula,
                 telefono=str(row.get('telefono')) if pd.notna(row.get('telefono')) else None,
                 direccion=row.get('direccion'),
-                cupo_credito=row.get('cupo_credito', 0.0)
+                cupo_credito=float(row.get('cupo_credito', 0.0)),
+                es_cliente=bool(row.get('es_cliente', True)), # Por defecto cliente
+                es_proveedor=bool(row.get('es_proveedor', False))
             )
             create_cliente(db, cliente_data)
             created_count += 1
@@ -1605,73 +1607,77 @@ def bulk_create_clientes(db: Session, file: IO, filename: str):
 def bulk_create_productos(db: Session, file: IO, filename: str):
     try:
         file_extension = filename.split('.')[-1].lower()
-        if file_extension == 'xls':
-            df = pd.read_excel(file, engine='xlrd')
-        elif file_extension == 'xlsx':
+        if file_extension == 'xlsx':
             df = pd.read_excel(file, engine='openpyxl')
-        elif file_extension == 'csv':
-            df = pd.read_csv(file)
+        elif file_extension == 'xls':
+            df = pd.read_excel(file, engine='xlrd')
         else:
             raise HTTPException(
                 status_code=400,
-                detail=f"Formato no soportado: {file_extension}. Porfavor cargue achivos tipo .xls, .xlsx, or .csv file."
+                detail="Formato no soportado. Por favor cargue solo archivos Excel (.xlsx o .xls)."
             )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error procesando archivo: {e}")
 
+    # ✅ Sanitización Global: Rellenar numéricos vacíos con 0
+    numeric_cols = ['precio', 'costo', 'stock_minimo', 'grupo_item']
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+
     created_count = 0
     errors = []
 
-    # 🔎 Normalización de nombres: minúsculas + sin espacios
     def normalize_name(name: str) -> str:
         return "".join(str(name).lower().split())
 
-    # 1. Obtener nombres existentes en la BD
-    existing_names = {
-        normalize_name(p.nombre)
-        for p in db.query(models.Producto).all()
-    }
-
-    # 2. Mantener set de nombres vistos en este archivo
+    existing_names = {normalize_name(p.nombre) for p in db.query(models.Producto).all()}
     seen_names = set()
+
+    # ✅ Mapeo inteligente de grupos
+    def map_group(val):
+        v = str(val).upper().strip()
+        if 'MP' in v or 'MATERIA' in v or v == '1': return 1
+        if 'PT' in v or 'TERMINADO' in v or v == '2': return 2
+        if 'AF' in v or 'ACTIVO' in v or v == '3': return 3
+        if 'INS' in v or 'INSUMO' in v or v == '4': return 4
+        return 2 # Default PT si no se reconoce
 
     for index, row in df.iterrows():
         try:
-            raw_name = row['nombre']
-            norm_name = normalize_name(raw_name)
+            raw_name = str(row.get('nombre', '')).strip()
+            if not raw_name or raw_name == '0' or raw_name == 'nan':
+                errors.append(f"Fila {index + 2}: Nombre del producto es obligatorio.")
+                continue
 
-            # Validar duplicados
+            norm_name = normalize_name(raw_name)
             if norm_name in existing_names:
-                errors.append(
-                    f"Row {index + 2}: Producto '{raw_name}' ya existe en la base de datos."
-                )
+                errors.append(f"Fila {index + 2}: Producto '{raw_name}' ya existe.")
                 continue
             if norm_name in seen_names:
-                errors.append(
-                    f"Row {index + 2}: Producto '{raw_name}' está duplicado en el archivo."
-                )
+                errors.append(f"Fila {index + 2}: Producto '{raw_name}' duplicado en el archivo.")
                 continue
 
-            # Marcar como visto
             seen_names.add(norm_name)
 
-            # Crear producto
+            # ✅ Asignación con mapeo de grupo
             producto_data = schemas.ProductoCreate(
                 nombre=raw_name,
-                precio=row['precio'],
-                costo=row.get('costo', 0.0),
-                es_servicio=row.get('es_servicio', False),
-                unidad_medida=row.get('unidad_medida', 'UND'),
-                stock_minimo=row.get('stock_minimo', 0)
+                precio=float(row.get('precio', 0.0)),
+                costo=float(row.get('costo', 0.0)),
+                es_servicio=bool(row.get('es_servicio', 0)),
+                unidad_medida=str(row.get('unidad_medida', 'UND')) if pd.notna(row.get('unidad_medida')) else 'UND',
+                stock_minimo=float(row.get('stock_minimo', 0.0)),
+                grupo_item=map_group(row.get('grupo_item', 'PT'))
             )
             create_producto(db, producto_data)
             created_count += 1
         except Exception as e:
-            errors.append(f"Error creando producto en fila {index + 2}: {e}")
+            errors.append(f"Fila {index + 2}: {str(e)}")
 
     return {
         "success": True,
-        "message": f"Carge masivo finalizado. {created_count} productos creados."   + (f" Error: {len(errors)} registros con problemas: {errors}" if errors else ""),
+        "message": f"Carga masiva finalizada. {created_count} productos creados.",
         "created_records": created_count,
         "errors": errors
     }

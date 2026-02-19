@@ -1,7 +1,8 @@
 // BulkUpload.jsx
 import React, { useState } from 'react';
 import { Button, Input, Box, CircularProgress, Alert } from '@mui/material';
-import { uploadFile } from '../api';
+import { uploadFile, fetchProductTemplate, fetchTercerosTemplate } from '../api';
+import { toast } from 'react-toastify';
 
 const BulkUpload = ({ uploadType, onUploadSuccess }) => {
   const [file, setFile] = useState(null);
@@ -86,14 +87,36 @@ const BulkUpload = ({ uploadType, onUploadSuccess }) => {
     }
   };
 
-  const handleDownloadTemplate = () => {
-    let templateFileName = '';
-    if (uploadType === 'clientes') templateFileName = 'clientes_template.csv';
-    if (uploadType === 'productos') templateFileName = 'productos_template.csv';
-    if (uploadType === 'movimientos') templateFileName = 'movimientos_template.csv';
-    
+  const handleDownloadTemplate = async () => {
+    try {
+      let response;
+      let filename = '';
 
-    if (templateFileName) window.location.href = `/${templateFileName}`;
+      if (uploadType === 'productos') {
+        response = await fetchProductTemplate();
+        filename = 'plantilla_productos.xlsx';
+      } else if (uploadType === 'clientes') {
+        response = await fetchTercerosTemplate();
+        filename = 'plantilla_terceros.xlsx';
+      }
+
+      if (filename) {
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      } else {
+        // Fallback para otros tipos
+        let templateFileName = '';
+        if (uploadType === 'movimientos') templateFileName = 'movimientos_template.csv';
+        if (templateFileName) window.location.href = `/${templateFileName}`;
+      }
+    } catch (err) {
+      toast.error("Error al descargar la plantilla.");
+    }
   };
 
   return (

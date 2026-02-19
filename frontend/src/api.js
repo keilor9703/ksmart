@@ -127,5 +127,11 @@ export const createCompra = (data) =>
 export const addPagoCompra = (data) =>
   apiClient.post('/compras/pagos/', data);
 
+export const fetchProductTemplate = () =>
+  apiClient.get('/productos/template', { responseType: 'blob' });
+
+export const fetchTercerosTemplate = () =>
+  apiClient.get('/clientes/template', { responseType: 'blob' });
+
 
 export default apiClient;

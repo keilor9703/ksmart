@@ -143,21 +143,34 @@ const ProductoList = ({ onEditProducto, onProductoDeleted }) => {
       <Typography variant="h6" gutterBottom component="div">
         Lista de Productos y Servicios
       </Typography>
-      <Box>
-        <Button 
-          variant="outlined" 
-          onClick={() => handleExport("csv")}
-          sx={{ mr: 1 }}
-        >
-          Exportar CSV
-        </Button>
-        <Button 
-          variant="outlined" 
-          onClick={() => handleExport("xlsx")}
-        >
-          Exportar Excel
-        </Button>
-      </Box>
+            <Box>
+              <Button 
+                variant="outlined" 
+                onClick={() => {
+                  apiClient.get('/productos/template', { responseType: 'blob' })
+                    .then(res => {
+                      const url = window.URL.createObjectURL(new Blob([res.data]));
+                      const link = document.createElement('a');
+                      link.href = url;
+                      link.setAttribute('download', 'plantilla_productos.xlsx');
+                      document.body.appendChild(link);
+                      link.click();
+                      link.remove();
+                    });
+                }}
+                sx={{ mr: 1 }}
+                color="info"
+              >
+                Descargar Plantilla
+              </Button>
+              <Button 
+                variant="outlined" 
+                onClick={() => handleExport("xlsx")}
+              >
+                Exportar Lista a Excel
+              </Button>
+            </Box>
+      
     </Box>
 
       <TextField

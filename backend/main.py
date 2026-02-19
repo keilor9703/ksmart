@@ -463,43 +463,84 @@ def delete_producto(producto_id: int, db: Session = Depends(get_db), current_use
 
 @app.get("/productos/export")
 def exportar_productos(
-    formato: str = Query("csv", pattern="^(csv|xlsx)$"),
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(get_current_active_user)
 ):
     prods = crud.get_productos(db)
     rows = []
+    groups = {1: 'MP', 2: 'PT', 3: 'AF', 4: 'INS'}
     for p in prods:
         rows.append({
             "id": p.id,
             "nombre": p.nombre,
             "precio": p.precio,
             "costo": p.costo,
-            "es_servicio": bool(p.es_servicio),
+            "grupo_item": groups.get(p.grupo_item, 'PT'),
+            "es_servicio": "SÍ" if p.es_servicio else "NO",
             "unidad_medida": p.unidad_medida,
             "stock_minimo": float(p.stock_minimo or 0.0),
             "stock_actual": float(p.stock_actual or 0.0),
         })
 
     df = pd.DataFrame(rows)
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Productos")
+    output.seek(0)
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="productos_existentes.xlsx"'}
+    )
 
-    if formato == "csv":
-        csv_bytes = df.to_csv(index=False).encode("utf-8")
-        return Response(
-            content=csv_bytes,
-            media_type="text/csv; charset=utf-8",
-            headers={"Content-Disposition": 'attachment; filename="productos.csv"'}
-        )
-    else:  # xlsx
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            df.to_excel(writer, index=False, sheet_name="Productos")
-        output.seek(0)
-        return StreamingResponse(
-            output,
-            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": 'attachment; filename="productos.xlsx"'}
-        )
+@app.get("/productos/template")
+def get_productos_template(
+    current_user: schemas.User = Depends(get_current_active_user)
+):
+    # Definir estructura de la plantilla
+    cols = ["nombre", "precio", "costo", "grupo_item", "unidad_medida", "es_servicio", "stock_minimo"]
+    # Ejemplos con nombres de grupo claros para guiar al usuario
+    examples = [
+        ["Cacao en Grano", 5000, 3000, "MP - Materia Prima", "Kg", 0, 10],
+        ["Chocolate 80g", 12000, 4500, "PT - Producto Terminado", "UND", 0, 5],
+        ["Servicio Maquila", 2500, 0, "PT - Producto Terminado", "UND", 1, 0],
+        ["Estantería", 0, 500000, "AF - Activo Fijo", "UND", 0, 0],
+        ["Empaque Plástico", 200, 100, "INS - Insumo", "UND", 0, 100]
+    ]
+    df = pd.DataFrame(examples, columns=cols)
+    
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Plantilla")
+    output.seek(0)
+    
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="plantilla_productos.xlsx"'}
+    )
+
+@app.get("/clientes/template")
+def get_clientes_template(
+    current_user: schemas.User = Depends(get_current_active_user)
+):
+    cols = ["nombre", "cedula", "telefono", "direccion", "cupo_credito", "es_cliente", "es_proveedor"]
+    examples = [
+        ["Tiendas D1", "900123456", "1234567", "Calle 10 #20-30", 0, 1, 1],
+        ["Juan Perez", "10203040", "3001234567", "Carrera 5 #15-10", 500000, 1, 0]
+    ]
+    df = pd.DataFrame(examples, columns=cols)
+    
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Terceros")
+    output.seek(0)
+    
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="plantilla_terceros.xlsx"'}
+    )
 
 
 # --- Endpoints para Ventas ---
