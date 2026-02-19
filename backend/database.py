@@ -13,7 +13,12 @@ if not logger.handlers:
 # ---------------------------------------------------------------------
 # Configuración de conexión
 # ---------------------------------------------------------------------
+#DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./sales.db").strip()
+
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./sales.db").strip()
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
 
 IS_SQLITE = DATABASE_URL.startswith("sqlite")
 
@@ -147,9 +152,14 @@ def run_migrations():
             _add_column_if_missing(conn, "productos", "stock_minimo REAL DEFAULT 0", "stock_minimo")
             _add_column_if_missing(conn, "productos", "grupo_item INTEGER DEFAULT 2", "grupo_item")
 
-            # --- Tabla Terceros ---
-            _add_column_if_missing(conn, "clientes", "es_cliente BOOLEAN DEFAULT 1", "es_cliente")
-            _add_column_if_missing(conn, "clientes", "es_proveedor BOOLEAN DEFAULT 0", "es_proveedor")
+           # --- Tabla Terceros ---
+            if IS_SQLITE:
+                _add_column_if_missing(conn, "clientes", "es_cliente INTEGER DEFAULT 1", "es_cliente")
+                _add_column_if_missing(conn, "clientes", "es_proveedor INTEGER DEFAULT 0", "es_proveedor")
+            else:
+                _add_column_if_missing(conn, "clientes", "es_cliente BOOLEAN DEFAULT TRUE", "es_cliente")
+                _add_column_if_missing(conn, "clientes", "es_proveedor BOOLEAN DEFAULT FALSE", "es_proveedor")
+
 
             # --- Tabla Pagos Compras (Trazabilidad) ---
             _add_column_if_missing(conn, "pagos_compra", "detalle_pago TEXT", "detalle_pago")
