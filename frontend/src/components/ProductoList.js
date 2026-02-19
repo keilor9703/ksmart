@@ -134,7 +134,9 @@ const ProductoList = ({ onEditProducto, onProductoDeleted }) => {
   };
 
   const paginatedProductos = React.useMemo(() => {
-    return filteredProductos.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+    return [...filteredProductos]
+      .sort((a, b) => a.nombre.localeCompare(b.nombre))
+      .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   }, [filteredProductos, page, rowsPerPage]);
 
   return (
