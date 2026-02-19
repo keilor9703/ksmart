@@ -3,6 +3,7 @@ from fastapi import FastAPI, Depends, HTTPException, Response, status, File, Upl
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
 from typing import List, Optional
 from datetime import date, datetime, timedelta
 from jose import JWTError, jwt
@@ -89,6 +90,7 @@ def initialize_default_data(db: Session):
         # 👇 NUEVO PRODUCCIÓN (VIALMAR)
         {"name": "Recetas", "description": "Gestión de fórmulas de producción (BOM).", "frontend_path": "/produccion/recetas"},
         {"name": "Producción", "description": "Gestión de lotes y procesos de transformación.", "frontend_path": "/produccion/lotes"},
+        {"name": "Compras", "description": "Módulo para la gestión de compras y proveedores.", "frontend_path": "/compras"},
 
         # 👇 NUEVO
         {"name": "Inventarios", "description": "Módulo para movimientos y alertas de stock.", "frontend_path": "/inventario"},
@@ -522,6 +524,15 @@ def create_venta(
         prod = crud.get_producto(db, d.producto_id)
         if not prod:
             raise HTTPException(status_code=404, detail=f"Producto {d.producto_id} no existe")
+        
+        # --- NUEVA RESTRICCIÓN VIALMAR ---
+        if not prod.es_servicio and prod.grupo_item != 2:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"El ítem '{prod.nombre}' no es un Producto Terminado y no puede ser vendido."
+            )
+        # ---------------------------------
+
         if getattr(prod, "es_servicio", False):
             continue  # los servicios no descuentan inventario
         # cantidad que vas a descontar
@@ -900,15 +911,6 @@ def enviar_orden_para_revision(orden_id: int, db: Session = Depends(get_db), cur
     if db_orden.operador_id != current_user.id and current_user.role.name != 'Admin':
         raise HTTPException(status_code=403, detail="No tienes permiso para modificar esta orden")
     
-    # Notificar a los administradores
-    admins = [u for u in crud.get_users(db, limit=1000) if u.role.name == 'Admin']
-    for admin in admins:
-        crud.create_notificacion(db, schemas.NotificacionCreate(
-            usuario_id=admin.id,
-            mensaje=f"La orden de trabajo #{orden_id} ha sido enviada a revisión por {current_user.username}.",
-            orden_id=orden_id
-        ))
-
     return crud.update_orden_trabajo_estado(db, orden_id=orden_id, estado="En revisión")
 
 @ordenes_router.post("/{orden_id}/aprobar", response_model=schemas.OrdenTrabajo)
@@ -1031,7 +1033,7 @@ def mark_notification_as_read(notificacion_id: int, db: Session = Depends(get_db
         raise HTTPException(status_code=404, detail="Notificación no encontrada")
     return db_notif
 
-app.include_router(notificaciones_router)
+# app.include_router(notificaciones_router)
 
 from fastapi.staticfiles import StaticFiles
 
@@ -1224,4 +1226,114 @@ def get_consumo_insumos(
     ]
 
 app.include_router(produccion_router)
+
+# =========================
+# ROUTERS COMPRAS (VIALMAR)
+# =========================
+
+compras_router = APIRouter(
+    prefix="/compras",
+    tags=["Compras"],
+    dependencies=[Depends(get_current_active_user)]
+)
+
+@compras_router.get("/", response_model=List[schemas.Compra])
+def read_compras(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return crud.get_compras(db, skip=skip, limit=limit)
+
+@compras_router.post("/", response_model=schemas.Compra)
+def create_compra(compra: schemas.CompraCreate, db: Session = Depends(get_db)):
+    # Validar que el proveedor exista y sea proveedor
+    db_prov = db.query(models.Cliente).filter(models.Cliente.id == compra.proveedor_id).first()
+    if not db_prov or not db_prov.es_proveedor:
+        raise HTTPException(status_code=400, detail="El proveedor seleccionado no es válido o no está marcado como proveedor.")
+    return crud.create_compra(db, compra)
+
+@compras_router.get("/{compra_id}", response_model=schemas.Compra)
+def read_compra(compra_id: int, db: Session = Depends(get_db)):
+    db_compra = crud.get_compra(db, compra_id)
+    if not db_compra:
+        raise HTTPException(status_code=404, detail="Compra no encontrada")
+    return db_compra
+
+@compras_router.post("/pagos/", response_model=schemas.PagoCompraCreate)
+def add_pago_compra(pago: schemas.PagoCompraCreate, db: Session = Depends(get_db)):
+    db_compra = db.query(models.Compra).get(pago.compra_id)
+    if not db_compra:
+        raise HTTPException(status_code=404, detail="Compra no encontrada")
+    
+    # Validar que el pago no exceda el monto pendiente
+    monto_pendiente = db_compra.total - db_compra.monto_pagado
+    if pago.monto > (monto_pendiente + 0.01): # Margen para redondeo
+        raise HTTPException(status_code=400, detail=f"El pago excede el saldo pendiente de {monto_pendiente:.2f}")
+    
+    crud.create_pago_compra(db, pago)
+    return pago
+
+@app.get("/reportes/iva-neto")
+def get_iva_neto(
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_admin_user)
+):
+    # Consultas para Ventas
+    query_v_iva = db.query(func.sum(models.Venta.iva_total))
+    query_v_total = db.query(func.sum(models.Venta.total))
+    
+    # Consultas para Compras
+    query_c_iva = db.query(func.sum(models.Compra.iva_total))
+    query_c_total = db.query(func.sum(models.Compra.total))
+
+    if start_date:
+        query_v_iva = query_v_iva.filter(models.Venta.fecha >= start_date)
+        query_v_total = query_v_total.filter(models.Venta.fecha >= start_date)
+        query_c_iva = query_c_iva.filter(models.Compra.fecha >= start_date)
+        query_c_total = query_c_total.filter(models.Compra.fecha >= start_date)
+    if end_date:
+        query_v_iva = query_v_iva.filter(models.Venta.fecha < end_date + timedelta(days=1))
+        query_v_total = query_v_total.filter(models.Venta.fecha < end_date + timedelta(days=1))
+        query_c_iva = query_c_iva.filter(models.Compra.fecha < end_date + timedelta(days=1))
+        query_c_total = query_c_total.filter(models.Compra.fecha < end_date + timedelta(days=1))
+
+    iva_ventas = query_v_iva.scalar() or 0.0
+    total_ventas = query_v_total.scalar() or 0.0
+    
+    iva_compras = query_c_iva.scalar() or 0.0
+    total_compras = query_c_total.scalar() or 0.0
+
+    return {
+        "periodo": {"desde": start_date, "hasta": end_date},
+        "iva_generado_ventas": iva_ventas,
+        "iva_descontable_compras": iva_compras,
+        "iva_neto_resultado": iva_ventas - iva_compras,
+        "ventas_brutas": total_ventas,
+        "base_gravable_ventas": total_ventas - iva_ventas,
+        "compras_brutas": total_compras,
+        "base_gravable_compras": total_compras - iva_compras
+    }
+
+@app.get("/reportes/iva-compras")
+def get_iva_compras(
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_admin_user)
+):
+    query = db.query(models.Compra)
+    if start_date:
+        query = query.filter(models.Compra.fecha >= start_date)
+    if end_date:
+        query = query.filter(models.Compra.fecha < end_date + timedelta(days=1))
+    
+    compras = query.all()
+    iva_total = sum(c.iva_total for c in compras)
+    
+    return {
+        "periodo": {"desde": start_date, "hasta": end_date},
+        "iva_descontable_total": iva_total,
+        "base_compras_total": sum(c.total for c in compras) - iva_total
+    }
+
+app.include_router(compras_router)
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { styled, ThemeProvider, useTheme } from '@mui/material/styles'; // Importar useTheme desde @mui/material/styles
 import MuiAppBar from '@mui/material/AppBar';
 import { Toolbar, Typography, Button, IconButton, List, ListItem, ListItemButton, ListItemText, ListItemIcon, Collapse, Box, CircularProgress, Divider, Drawer, Tooltip, CssBaseline, GlobalStyles, Menu, MenuItem } from '@mui/material'; // ADD CssBaseline, GlobalStyles, Menu, MenuItem
-import { ShoppingCart, People, Inventory, Assessment, AdminPanelSettings, ExpandLess, ExpandMore, Brightness4 as Brightness4Icon, Brightness7 as Brightness7Icon, Assignment, Dashboard as DashboardIcon, Logout as LogoutIcon, Menu as MenuIcon, MoreVert as MoreVertIcon, ReceiptLong, PrecisionManufacturing } from '@mui/icons-material'; // Importar ReceiptLong, PrecisionManufacturing
+import { ShoppingCart, People, Inventory, Assessment, AdminPanelSettings, ExpandLess, ExpandMore, Brightness4 as Brightness4Icon, Brightness7 as Brightness7Icon, Assignment, Dashboard as DashboardIcon, Logout as LogoutIcon, Menu as MenuIcon, MoreVert as MoreVertIcon, ReceiptLong, PrecisionManufacturing, ShoppingBag } from '@mui/icons-material'; // Importar ShoppingBag
 import useMediaQuery from '@mui/material/useMediaQuery'; // Importar useMediaQuery
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -14,7 +14,6 @@ import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import apiClient from './api';
 import getAppTheme from './theme';
 
-import Clientes from './components/Clientes';
 import Productos from './components/Productos';
 import Ventas from './components/Ventas';
 import Reportes from './components/Reportes';
@@ -26,10 +25,11 @@ import ModuleManagement from './components/ModuleManagement';
 import OrdenesTrabajo from './components/OrdenesTrabajo';
 import Recetas from './components/Recetas';
 import Lotes from './components/Lotes';
-import Notifications from './components/Notifications';
+import Terceros from './components/Terceros';
+import Compras from './components/Compras';
 import PanelOperador from './components/PanelOperador';
 import { SpeedInsights } from "@vercel/speed-insights/react";
-import InventarioPage from './components/InventoryPage';
+import Inventario from './components/Inventario';
 import InventoryReports from './components/InventoryReports';
 import Dashboard from './components/Dashboard';
 
@@ -239,10 +239,10 @@ function App() {
 
   const menuItems = [
     { path: '/ventas', text: 'Ventas', icon: <ShoppingCart />, color: 'orange' },
-    { path: '/clientes', text: 'Clientes', icon: <People />, color: 'blue' },
+    { path: '/compras', text: 'Compras', icon: <ShoppingBag />, color: '#4caf50' }, // Green for Money Out/Goods In
+    { path: '/clientes', text: 'Terceros', icon: <People />, color: 'blue' },
     { path: '/productos', text: 'Productos', icon: <Inventory />, color: 'green' },
     { path: '/inventario', text: 'Inventarios', icon: <Inventory2OutlinedIcon />, color: 'brown' },
-    { path: '/produccion/recetas', text: 'Recetas', icon: <ReceiptLong />, color: '#795548' }, // Brown for Cacao
     { path: '/produccion/lotes', text: 'Producción', icon: <PrecisionManufacturing />, color: '#3e2723' }, // Dark brown for Cacao
     { path: '/ordenes-trabajo', text: 'Órdenes de Trabajo', icon: <Assignment />, color: 'teal' },
     { path: '/panel-operador', text: 'Panel del Operador', icon: <DashboardIcon />, color: 'purple' },
@@ -317,7 +317,6 @@ function App() {
                         <IconButton sx={{ ml: 1 }} onClick={handleThemeToggle} color="inherit">
                           {mode === 'dark' ? <Brightness4Icon /> : <Brightness7Icon />}
                         </IconButton>
-                        <Notifications />
                         <Typography variant="body1" sx={{ mr: 2, ml: 2 }}>
                           Bienvenido, {user?.username}
                         </Typography>
@@ -550,9 +549,10 @@ function App() {
                   <Routes>
                     <Route path="/" element={user?.role?.name === 'Admin' ? <Dashboard /> : <Home />} />
                     <Route path="/ventas" element={<Ventas />} />
-                    <Route path="/clientes" element={<Clientes />} />
+                    <Route path="/compras" element={<Compras />} />
+                    <Route path="/clientes" element={<Terceros />} />
                     <Route path="/productos" element={<Productos />} />
-                    <Route path="/inventario" element={<InventarioPage />} />
+                    <Route path="/inventario" element={<Inventario />} />
                     <Route path="/produccion/recetas" element={<Recetas />} />
                     <Route path="/produccion/lotes" element={<Lotes />} />
                     <Route path="/reportes-inventario" element={<InventoryReports />} />

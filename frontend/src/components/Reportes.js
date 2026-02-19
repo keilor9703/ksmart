@@ -6,6 +6,7 @@ import CustomerBuyers from './CustomerBuyers';
 import CustomerDebtors from './CustomerDebtors';
 import RentabilidadReporte from './RentabilidadReporte';
 import ReporteProductividad from './ReporteProductividad';
+import ReporteIVA from './ReporteIVA';
 
 // Helper component for TabPanel
 function TabPanel(props) {
@@ -69,6 +70,7 @@ const Reportes = () => {
                     <Tab label="Ventas por Cliente" {...a11yProps(3)} />
                     <Tab label="Cuentas por Cliente" {...a11yProps(4)} />
                     <Tab label="Productividad" {...a11yProps(5)} />
+                    <Tab label="Impuestos (IVA)" {...a11yProps(6)} />
                 </Tabs>
             </Box>
 
@@ -89,6 +91,9 @@ const Reportes = () => {
             </TabPanel>
             <TabPanel value={value} index={5}>
                 <ReporteProductividad />
+            </TabPanel>
+            <TabPanel value={value} index={6}>
+                <ReporteIVA />
             </TabPanel>
         </Box>
     );

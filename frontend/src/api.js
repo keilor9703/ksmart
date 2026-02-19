@@ -116,4 +116,16 @@ export const cancelarLote = (id) =>
   apiClient.put(`/produccion/lotes/${id}/cancelar`);
 
 
+// --- API COMPRAS (VIALMAR) ---
+
+export const fetchCompras = (params = {}) =>
+  apiClient.get('/compras/', { params });
+
+export const createCompra = (data) =>
+  apiClient.post('/compras/', data);
+
+export const addPagoCompra = (data) =>
+  apiClient.post('/compras/pagos/', data);
+
+
 export default apiClient;

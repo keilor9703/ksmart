@@ -8,9 +8,14 @@ import {
   Table, TableBody, TableCell, TableContainer, TablePagination,
   TableHead, TableRow, Paper, IconButton, Typography,
   useMediaQuery, useTheme, Card, CardContent, CardActions,
-  Box, TextField, Chip,Button   
+  Box, TextField, Chip, Button   
 } from '@mui/material';
 import { Edit, Delete } from '@mui/icons-material';
+
+const productGroupLabel = (id) => {
+  const groups = { 1: 'MP (Materia Prima)', 2: 'PT (Prod. Terminado)', 3: 'AF (Activo Fijo)', 4: 'INS (Insumo)' };
+  return groups[id] || 'Sin Grupo';
+};
 
 const ProductoCard = ({ producto, onEditProducto, handleDelete }) => {
   const stockActual = producto.stock_actual ?? 0;
@@ -22,8 +27,9 @@ const ProductoCard = ({ producto, onEditProducto, handleDelete }) => {
     <Card sx={{ mb: 2 }}>
       <CardContent>
         <Typography variant="h6" color="text.primary">{producto.nombre}</Typography>
-        <Typography color="textSecondary">ID: {producto.id}</Typography>
+        <Typography color="textSecondary">ID: {producto.id} | {productGroupLabel(producto.grupo_item)}</Typography>
         <Typography color="text.primary">Unidad de Medida: {producto.unidad_medida}</Typography>
+        <Typography color="text.primary">Costo: {formatCurrency(producto.costo)}</Typography>
         <Typography color="text.primary">Precio: {formatCurrency(producto.precio)}</Typography>
         <Typography color="text.primary">Tipo: {isService ? 'Servicio' : 'Producto'}</Typography>
 
@@ -99,10 +105,8 @@ const ProductoList = ({ onEditProducto, onProductoDeleted }) => {
   const handleExport = async (formato) => {
   try {
     const response = await apiClient.get(`/productos/export?formato=${formato}`, {
-      responseType: 'blob', // 👈 importante para descargar binarios
+      responseType: 'blob',
     });
-
-    // Crear un enlace temporal y forzar la descarga
     const url = window.URL.createObjectURL(new Blob([response.data]));
     const link = document.createElement('a');
     link.href = url;
@@ -115,7 +119,6 @@ const ProductoList = ({ onEditProducto, onProductoDeleted }) => {
     toast.error("Error al exportar productos");
   }
 };
-
 
   const filteredProductos = productos.filter(producto =>
     producto.nombre.toLowerCase().includes(searchTerm.toLowerCase())
@@ -138,7 +141,7 @@ const ProductoList = ({ onEditProducto, onProductoDeleted }) => {
         <Paper sx={{ mt: 4, p: 2 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 3, mb: 2 }}>
       <Typography variant="h6" gutterBottom component="div">
-        Lista de Productos
+        Lista de Productos y Servicios
       </Typography>
       <Box>
         <Button 
@@ -154,10 +157,8 @@ const ProductoList = ({ onEditProducto, onProductoDeleted }) => {
         >
           Exportar Excel
         </Button>
-
       </Box>
     </Box>
-
 
       <TextField
         label="Buscar Producto"
@@ -184,13 +185,15 @@ const ProductoList = ({ onEditProducto, onProductoDeleted }) => {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>ID</TableCell>
-                <TableCell>Nombre</TableCell>
-                <TableCell>Unidad de Medida</TableCell>
-                <TableCell>Precio</TableCell>
-                <TableCell>Stock</TableCell> {/* 👈 nueva columna */}
-                <TableCell>Tipo</TableCell>
-                <TableCell>Acciones</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>ID</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>Nombre</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>Grupo</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>Unidad</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>Costo</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>Precio</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>Stock</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>Tipo</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>Acciones</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -201,10 +204,19 @@ const ProductoList = ({ onEditProducto, onProductoDeleted }) => {
                 const low = !isService && stockActual < stockMinimo;
 
                 return (
-                  <TableRow key={producto.id}>
+                  <TableRow key={producto.id} hover>
                     <TableCell>{producto.id}</TableCell>
                     <TableCell>{producto.nombre}</TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={productGroupLabel(producto.grupo_item).split(' ')[0]} 
+                        size="small" 
+                        color={producto.grupo_item === 1 ? "primary" : producto.grupo_item === 2 ? "success" : "default"}
+                        variant="outlined"
+                      />
+                    </TableCell>
                     <TableCell>{producto.unidad_medida}</TableCell>
+                    <TableCell>{formatCurrency(producto.costo)}</TableCell>
                     <TableCell>{formatCurrency(producto.precio)}</TableCell>
                     <TableCell>
                       {isService ? '—' : (
@@ -242,9 +254,6 @@ const ProductoList = ({ onEditProducto, onProductoDeleted }) => {
         onPageChange={handleChangePage}
         onRowsPerPageChange={handleChangeRowsPerPage}
         labelRowsPerPage="Filas por página:"
-        labelDisplayedRows={({ from, to, count }) =>
-          `${from}-${to} de ${count !== -1 ? count : `más de ${to}`}`
-        }
       />
 
       <ConfirmationDialog

@@ -414,32 +414,40 @@ def get_venta(db: Session, venta_id: int):
 
 def create_venta(db: Session, venta: schemas.VentaCreate):
     detalles = []
-    total_venta = 0
+    total_bruto = 0.0
 
     for detalle_data in venta.detalles:
         producto = db.query(models.Producto).filter(models.Producto.id == detalle_data.producto_id).first()
         if not producto:
             raise HTTPException(status_code=404, detail=f"Producto con id {detalle_data.producto_id} no encontrado")
         
-        # ✅ Usa producto.precio si no viene precio_unitario o es 0
         precio_unitario = (
             detalle_data.precio_unitario
             if detalle_data.precio_unitario not in (None, 0)
             else producto.precio
         )
 
-        total_venta += detalle_data.cantidad * precio_unitario
+        total_bruto += detalle_data.cantidad * precio_unitario
+
         detalle = models.DetalleVenta(
             producto_id=detalle_data.producto_id,
             cantidad=detalle_data.cantidad,
-            precio_unitario=precio_unitario
+            precio_unitario=precio_unitario,
+            iva_porcentaje=0.0 # Se maneja global en cabecera ahora
         )
         detalles.append(detalle)
 
+    # Cálculo de IVA Incluido
+    iva_porc = venta.iva_porcentaje
+    subtotal_base = total_bruto / (1 + (iva_porc / 100))
+    iva_total_calc = total_bruto - subtotal_base
+
     db_venta = models.Venta(
         cliente_id=venta.cliente_id,
-        total=total_venta,
-        monto_pagado=total_venta if venta.pagada else 0,
+        total=total_bruto, # El total NO cambia
+        iva_total=iva_total_calc,
+        iva_porcentaje=iva_porc,
+        monto_pagado=total_bruto if venta.pagada else 0,
         estado_pago="pagado" if venta.pagada else "pendiente",
         detalles=detalles
     )
@@ -1062,24 +1070,16 @@ def aprobar_orden_trabajo(db: Session, orden_id: int, admin_user: models.User):
         # Calcular el valor de productividad basado en el precio y cantidad del servicio
         # Asumimos que la productividad se mide por el valor total del servicio realizado
         valor_productividad_calculado = servicio.precio_servicio * servicio.cantidad
-        modalidad_pago_definida = "por_servicio" # O definir una lógica más compleja si es necesario
+        modalidad_pago_defined = "por_servicio" # O definir una lógica más compleja si es necesario
 
         prod_log = schemas.RegistroProductividadCreate(
             operador_id=db_orden.operador_id,
             orden_id=orden_id,
             servicio_id=servicio.servicio_id,
             valor_productividad=valor_productividad_calculado,
-            modalidad_pago=modalidad_pago_definida
+            modalidad_pago=modalidad_pago_defined
         )
         db.add(models.RegistroProductividad(**prod_log.dict()))
-
-    # 5. Crear notificación para el operador
-    notif_schema = schemas.NotificacionCreate(
-        usuario_id=db_orden.operador_id,
-        mensaje=f"Tu orden de trabajo #{orden_id} ha sido APROBADA.",
-        orden_id=orden_id
-    )
-    create_notificacion(db, notif_schema)
 
     db.commit()
     db.refresh(db_orden)
@@ -1093,14 +1093,6 @@ def rechazar_orden_trabajo(db: Session, orden_id: int, observaciones: str, admin
     # 1. Actualizar estado y añadir observaciones
     db_orden.estado = 'Rechazada'
     db_orden.observaciones_aprobador = f"Rechazado por {admin_user.username}: {observaciones}"
-
-    # 2. Crear notificación para el operador
-    notif_schema = schemas.NotificacionCreate(
-        usuario_id=db_orden.operador_id,
-        mensaje=f"Tu orden de trabajo #{orden_id} ha sido RECHAZADA. Motivo: {observaciones}",
-        orden_id=orden_id
-    )
-    create_notificacion(db, notif_schema)
 
     db.commit()
     db.refresh(db_orden)
@@ -1163,14 +1155,6 @@ def cerrar_orden_trabajo(db: Session, orden_id: int, admin_user: models.User, cl
     # 1. Actualizar estado de la orden
     db_orden.estado = 'Cerrada'
     db_orden.observaciones_aprobador = f"Cerrada por {admin_user.username}"
-
-    # 2. Crear notificación para el operador
-    notif_schema = schemas.NotificacionCreate(
-        usuario_id=db_orden.operador_id,
-        mensaje=f"Tu orden de trabajo #{orden_id} ha sido CERRADA.",
-        orden_id=orden_id
-    )
-    create_notificacion(db, notif_schema)
 
     db.commit()
     db.refresh(db_orden)
@@ -1874,13 +1858,21 @@ def get_receta_by_producto(db: Session, producto_id: int):
     return db.query(models.Receta).filter(models.Receta.producto_id == producto_id).first()
 
 def create_receta(db: Session, receta: schemas.RecetaCreate):
+    # 1. Validar Insumos Permitidos (Solo MP=1 o INS=4)
+    for item in receta.items:
+        db_prod = db.query(models.Producto).get(item.insumo_id)
+        if not db_prod:
+            raise ValueError(f"Insumo con ID {item.insumo_id} no encontrado.")
+        if db_prod.grupo_item not in [1, 4]:
+            raise ValueError(f"El ítem '{db_prod.nombre}' no puede ser insumo. Solo se permiten Materias Primas o Insumos.")
+
     db_receta = models.Receta(
         producto_id=receta.producto_id,
         nombre=receta.nombre,
         descripcion=receta.descripcion
     )
     db.add(db_receta)
-    db.flush() # Para obtener el ID
+    db.flush()
 
     for item in receta.items:
         db_item = models.RecetaItem(
@@ -1889,6 +1881,14 @@ def create_receta(db: Session, receta: schemas.RecetaCreate):
             cantidad=item.cantidad
         )
         db.add(db_item)
+    
+    # 2. Registrar Servicios de Maquila
+    for srv in receta.servicios:
+        db_srv = models.RecetaServicio(
+            receta_id=db_receta.id,
+            servicio_id=srv.servicio_id
+        )
+        db.add(db_srv)
     
     db.commit()
     db.refresh(db_receta)
@@ -1979,20 +1979,27 @@ def confirmar_lote_produccion(db: Session, lote_id: int, confirm_data: schemas.L
     create_movement(db, mov_entrada)
 
     # 4. Integración Comercial: Venta por Maquila (Si aplica)
-    if db_lote.cliente_id and receta.servicio_maquila_id:
-        venta_schema = schemas.VentaCreate(
-            cliente_id=db_lote.cliente_id,
-            detalles=[
-                schemas.DetalleVentaCreate(
-                    producto_id=receta.servicio_maquila_id,
-                    cantidad=cantidad_final,
-                    precio_unitario=confirm_data.precio_maquila
-                )
-            ],
-            pagada=False # Se genera como cuenta por cobrar
-        )
-        db_venta = create_venta(db, venta_schema)
-        db_lote.venta_id = db_venta.id
+    if db_lote.cliente_id and db_lote.receta.servicios_maquila:
+        detalles_venta = []
+        # Crear un mapa de precios para búsqueda rápida
+        precios_map = {p.servicio_id: p.precio for p in confirm_data.precios_servicios}
+
+        for rs in db_lote.receta.servicios_maquila:
+            detalles_venta.append(schemas.DetalleVentaCreate(
+                producto_id=rs.servicio_id,
+                cantidad=cantidad_final,
+                precio_unitario=precios_map.get(rs.servicio_id, 0.0)
+            ))
+
+        if detalles_venta:
+            venta_schema = schemas.VentaCreate(
+                cliente_id=db_lote.cliente_id,
+                detalles=detalles_venta,
+                pagada=False,
+                iva_porcentaje=0.0 # Por ahora 0, Fase IVA puede ajustar
+            )
+            db_venta = create_venta(db, venta_schema)
+            db_lote.venta_id = db_venta.id
 
     # 5. Finalizar Lote
     db_lote.estado = "Confirmado"
@@ -2014,3 +2021,98 @@ def cancelar_lote(db: Session, lote_id: int):
         db.commit()
         return True
     return False
+
+
+# =========================
+# MÓDULO DE COMPRAS (VIALMAR)
+# =========================
+
+def get_compras(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.Compra).options(
+        joinedload(models.Compra.proveedor),
+        joinedload(models.Compra.detalles).joinedload(models.DetalleCompra.producto),
+        joinedload(models.Compra.pagos) # <--- CARGAR PAGOS
+    ).order_by(models.Compra.fecha.desc()).offset(skip).limit(limit).all()
+
+def get_compra(db: Session, compra_id: int):
+    return db.query(models.Compra).options(
+        joinedload(models.Compra.proveedor),
+        joinedload(models.Compra.detalles).joinedload(models.DetalleCompra.producto),
+        joinedload(models.Compra.pagos) # <--- CARGAR PAGOS
+    ).filter(models.Compra.id == compra_id).first()
+
+def create_compra(db: Session, compra: schemas.CompraCreate):
+    total_bruto = 0.0
+    
+    # 1. Calcular Total Bruto (Suma de items)
+    for item in compra.detalles:
+        total_bruto += item.cantidad * item.precio_unitario
+
+    # 2. Calcular IVA Incluido
+    iva_porc = compra.iva_porcentaje
+    subtotal_base = total_bruto / (1 + (iva_porc / 100))
+    iva_total_calc = total_bruto - subtotal_base
+
+    db_compra = models.Compra(
+        proveedor_id=compra.proveedor_id,
+        total=total_bruto,
+        iva_total=iva_total_calc,
+        iva_porcentaje=iva_porc,
+        referencia_factura=compra.referencia_factura,
+        monto_pagado=total_bruto if compra.pagada else 0.0,
+        estado_pago="pagado" if compra.pagada else "pendiente"
+    )
+    db.add(db_compra)
+    db.flush()
+
+    # 3. Registrar Detalles y Movimientos
+    for item in compra.detalles:
+        db_detalle = models.DetalleCompra(
+            compra_id=db_compra.id,
+            producto_id=item.producto_id,
+            cantidad=item.cantidad,
+            precio_unitario=item.precio_unitario,
+            iva_porcentaje=0.0
+        )
+        db.add(db_detalle)
+
+        payload_mov = schemas.InventoryMovementCreate(
+            producto_id=item.producto_id,
+            tipo=schemas.MovementType.entrada,
+            cantidad=item.cantidad,
+            costo_unitario=item.precio_unitario,
+            motivo="Compra",
+            referencia=f"Compra #{db_compra.id}",
+            observacion=f"Factura: {compra.referencia_factura or 'N/A'}"
+        )
+        create_movement(db, payload_mov)
+
+        db_prod = db.query(models.Producto).get(item.producto_id)
+        if db_prod:
+            db_prod.costo = item.precio_unitario
+
+    db.commit()
+    db.refresh(db_compra)
+    return db_compra
+
+def create_pago_compra(db: Session, pago: schemas.PagoCompraCreate):
+    db_pago = models.PagoCompra(**pago.dict())
+    db.add(db_pago)
+    db.flush()
+
+    db_compra = db.query(models.Compra).filter(models.Compra.id == pago.compra_id).first()
+    if db_compra:
+        # Recalcular monto pagado
+        total_pagado = sum(p.monto for p in db_compra.pagos)
+        db_compra.monto_pagado = total_pagado
+
+        if db_compra.monto_pagado >= db_compra.total:
+            db_compra.estado_pago = "pagado"
+        elif db_compra.monto_pagado > 0:
+            db_compra.estado_pago = "parcial"
+        else:
+            db_compra.estado_pago = "pendiente"
+        
+        db.commit()
+        db.refresh(db_compra)
+    return db_pago

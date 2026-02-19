@@ -14,6 +14,7 @@ const ProductoForm = ({ onProductoAdded, productoToEdit, onProductoUpdated }) =>
   const [costo, setCosto] = useState('');
   const [esServicio, setEsServicio] = useState(false);
   const [unidadMedida, setUnidadMedida] = useState('UND');
+  const [grupoItem, setGrupoItem] = useState(2);
 
   // 👇 nuevos estados de inventario
   const [stockMinimo, setStockMinimo] = useState('');
@@ -40,6 +41,7 @@ const ProductoForm = ({ onProductoAdded, productoToEdit, onProductoUpdated }) =>
       setCosto(productoToEdit.costo || '');
       setEsServicio(productoToEdit.es_servicio);
       setUnidadMedida(productoToEdit.unidad_medida || 'UND');
+      setGrupoItem(productoToEdit.grupo_item || 2);
 
       // ⬇️ inventario
       setStockMinimo(
@@ -54,6 +56,7 @@ const ProductoForm = ({ onProductoAdded, productoToEdit, onProductoUpdated }) =>
       setCosto('');
       setEsServicio(false);
       setUnidadMedida('UND');
+      setGrupoItem(2);
 
       // ⬇️ inventario
       setStockMinimo('');
@@ -70,6 +73,7 @@ const ProductoForm = ({ onProductoAdded, productoToEdit, onProductoUpdated }) =>
       costo: parseFloat(costo) || 0.0,
       es_servicio: esServicio,
       unidad_medida: unidadMedida,
+      grupo_item: parseInt(grupoItem),
       // ⬇️ guardamos el stock mínimo (el stock actual se mueve por movimientos)
       stock_minimo: stockMinimo === '' ? 0 : parseFloat(stockMinimo)
     };
@@ -88,6 +92,7 @@ const ProductoForm = ({ onProductoAdded, productoToEdit, onProductoUpdated }) =>
         setCosto('');
         setEsServicio(false);
         setUnidadMedida('UND');
+        setGrupoItem(2);
         setStockMinimo('');
         setStockActual(0);
         onProductoAdded(response.data);
@@ -170,6 +175,23 @@ return (
                 )
               }}
             />
+          </Grid>
+
+          <Grid item xs={12} sm={6}>
+            <FormControl fullWidth>
+              <InputLabel>Grupo de Item</InputLabel>
+              <Select
+                value={grupoItem}
+                label="Grupo de Item"
+                onChange={(e) => setGrupoItem(e.target.value)}
+                required
+              >
+                <MenuItem value={1}>MP — Materia Prima</MenuItem>
+                <MenuItem value={2}>PT — Producto Terminado</MenuItem>
+                <MenuItem value={3}>AF — Activo Fijo</MenuItem>
+                <MenuItem value={4}>INS — Insumos</MenuItem>
+              </Select>
+            </FormControl>
           </Grid>
 
           <Grid item xs={12} sm={6}>

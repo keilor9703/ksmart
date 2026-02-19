@@ -15,6 +15,8 @@ class Cliente(Base):
     telefono = Column(String, nullable=True)
     direccion = Column(String, nullable=True)
     cupo_credito = Column(Float, default=0.0)
+    es_cliente = Column(Boolean, default=True)
+    es_proveedor = Column(Boolean, default=False)
 
     ventas = relationship("Venta", back_populates="cliente")
     ordenes_trabajo = relationship("OrdenTrabajo", back_populates="cliente")
@@ -29,6 +31,7 @@ class Producto(Base):
     unidad_medida = Column(String, default="UND")
     stock_actual = Column(Float, default=0.0) # New field for current stock
     stock_minimo = Column(Float, default=0.0) # New field for minimum
+    grupo_item = Column(Integer, default=2) # 1:MP, 2:PT, 3:AF, 4:INS (Default PT)
     
 class MovementType(str, enum.Enum):
     ENTRADA = "entrada"
@@ -58,6 +61,7 @@ class DetalleVenta(Base):
     producto_id = Column(Integer, ForeignKey("productos.id"))
     cantidad = Column(Float)
     precio_unitario = Column(Float)
+    iva_porcentaje = Column(Float, default=0.0)
 
     venta = relationship("Venta", back_populates="detalles")
     producto = relationship("Producto")
@@ -77,6 +81,8 @@ class Venta(Base):
     id = Column(Integer, primary_key=True, index=True)
     cliente_id = Column(Integer, ForeignKey("clientes.id"))
     total = Column(Float)
+    iva_total = Column(Float, default=0.0)
+    iva_porcentaje = Column(Float, default=0.0) # <--- IVA Global de la venta
     fecha = Column(DateTime, default=datetime.utcnow)
     monto_pagado = Column(Float, default=0.0)
     estado_pago = Column(String, default="pendiente") # pagado, parcial, pendiente
@@ -207,12 +213,20 @@ class Receta(Base):
     producto_id = Column(Integer, ForeignKey("productos.id"), unique=True) # Una receta por producto resultante
     nombre = Column(String, index=True)
     descripcion = Column(String, nullable=True)
-    servicio_maquila_id = Column(Integer, ForeignKey("productos.id"), nullable=True) # Servicio que se factura en maquila
     created_at = Column(DateTime, default=datetime.utcnow)
 
     producto_resultante = relationship("Producto", foreign_keys=[producto_id])
-    servicio_maquila = relationship("Producto", foreign_keys=[servicio_maquila_id])
     items = relationship("RecetaItem", back_populates="receta", cascade="all, delete-orphan")
+    servicios_maquila = relationship("RecetaServicio", back_populates="receta", cascade="all, delete-orphan")
+
+class RecetaServicio(Base):
+    __tablename__ = "receta_servicios"
+    id = Column(Integer, primary_key=True, index=True)
+    receta_id = Column(Integer, ForeignKey("recetas.id"))
+    servicio_id = Column(Integer, ForeignKey("productos.id"))
+
+    receta = relationship("Receta", back_populates="servicios_maquila")
+    servicio = relationship("Producto")
 
 class RecetaItem(Base):
     __tablename__ = "receta_items"
@@ -247,4 +261,47 @@ class LoteProduccion(Base):
     receta = relationship("Receta")
     cliente = relationship("Cliente")
     venta_asociada = relationship("Venta")
+
+# =========================
+# MÓDULO DE COMPRAS (VIALMAR)
+# =========================
+
+class Compra(Base):
+    __tablename__ = "compras"
+    id = Column(Integer, primary_key=True, index=True)
+    proveedor_id = Column(Integer, ForeignKey("clientes.id")) # Reutilizamos tabla clientes/terceros
+    total = Column(Float)
+    iva_total = Column(Float, default=0.0)
+    iva_porcentaje = Column(Float, default=0.0) # <--- IVA Global de la compra
+    fecha = Column(DateTime, default=datetime.utcnow)
+    monto_pagado = Column(Float, default=0.0)
+    estado_pago = Column(String, default="pendiente") # pagado, parcial, pendiente
+    referencia_factura = Column(String, nullable=True) # Num. factura proveedor
+
+    proveedor = relationship("Cliente")
+    detalles = relationship("DetalleCompra", back_populates="compra", cascade="all, delete-orphan")
+    pagos = relationship("PagoCompra", back_populates="compra", cascade="all, delete-orphan")
+
+class DetalleCompra(Base):
+    __tablename__ = "detalles_compra"
+    id = Column(Integer, primary_key=True, index=True)
+    compra_id = Column(Integer, ForeignKey("compras.id"))
+    producto_id = Column(Integer, ForeignKey("productos.id"))
+    cantidad = Column(Float)
+    precio_unitario = Column(Float) # Costo de compra
+    iva_porcentaje = Column(Float, default=0.0)
+
+    compra = relationship("Compra", back_populates="detalles")
+    producto = relationship("Producto")
+
+class PagoCompra(Base):
+    __tablename__ = "pagos_compra"
+    id = Column(Integer, primary_key=True, index=True)
+    compra_id = Column(Integer, ForeignKey("compras.id"))
+    monto = Column(Float)
+    fecha = Column(DateTime, default=datetime.utcnow)
+    metodo_pago = Column(String, nullable=True)
+    detalle_pago = Column(String, nullable=True) # <--- NUEVO: Nro Cuenta, Nro Cheque, etc.
+
+    compra = relationship("Compra", back_populates="pagos")
 

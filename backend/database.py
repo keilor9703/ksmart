@@ -131,7 +131,7 @@ def run_migrations():
     Migraciones manuales simples.
     Debe llamarse al iniciar la app (idealmente en startup), después de create_all().
     """
-    migration_key = "inv_v2"
+    migration_key = "inv_v10"
 
     try:
         # begin() abre transacción y hace commit automático si todo sale bien
@@ -142,18 +142,35 @@ def run_migrations():
                 logger.info("Migraciones: %s ya aplicada, no se ejecuta de nuevo.", migration_key)
                 return
 
-            # Asegura columnas en tabla productos
-            # Nota: 'REAL' funciona en SQLite y Postgres; si prefieres NUMERIC en Postgres, se puede condicionar.
+            # --- Tabla Productos ---
             _add_column_if_missing(conn, "productos", "stock_actual REAL DEFAULT 0", "stock_actual")
             _add_column_if_missing(conn, "productos", "stock_minimo REAL DEFAULT 0", "stock_minimo")
-                        # Asegura columnas en tabla recetas (VIALMAR)
-            _add_column_if_missing(
-                conn,
-                "recetas",
-                "servicio_maquila_id INTEGER",
-                "servicio_maquila_id",
-            )
+            _add_column_if_missing(conn, "productos", "grupo_item INTEGER DEFAULT 2", "grupo_item")
 
+            # --- Tabla Terceros ---
+            _add_column_if_missing(conn, "clientes", "es_cliente BOOLEAN DEFAULT 1", "es_cliente")
+            _add_column_if_missing(conn, "clientes", "es_proveedor BOOLEAN DEFAULT 0", "es_proveedor")
+
+            # --- Tabla Pagos Compras (Trazabilidad) ---
+            _add_column_if_missing(conn, "pagos_compra", "detalle_pago TEXT", "detalle_pago")
+
+            # --- Tabla Receta Servicios (Muchos a Muchos) ---
+            if IS_SQLITE:
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS receta_servicios (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        receta_id INTEGER REFERENCES recetas(id),
+                        servicio_id INTEGER REFERENCES productos(id)
+                    );
+                """))
+            else:
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS receta_servicios (
+                        id SERIAL PRIMARY KEY,
+                        receta_id INTEGER REFERENCES recetas(id),
+                        servicio_id INTEGER REFERENCES productos(id)
+                    );
+                """))
 
             _mark_migration_applied(conn, migration_key, "done")
             logger.info("Migraciones: %s aplicada correctamente.", migration_key)

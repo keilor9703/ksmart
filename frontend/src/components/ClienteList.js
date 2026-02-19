@@ -39,7 +39,7 @@ const ClienteCard = ({ cliente, onEditCliente, handleDelete, handleViewHistory }
 );
 
 
-const ClienteList = ({ onEditCliente, onClienteDeleted }) => {
+const ClienteList = ({ onEditCliente, onClienteDeleted, filterType }) => {
     const [clientes, setClientes] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const navigate = useNavigate();
@@ -56,17 +56,24 @@ const ClienteList = ({ onEditCliente, onClienteDeleted }) => {
     const [rowsPerPage, setRowsPerPage] = useState(10);
 
     const filteredClientes = useMemo(() => {
+        let list = clientes;
+        if (filterType === 'cliente') {
+            list = list.filter(c => c.es_cliente);
+        } else if (filterType === 'proveedor') {
+            list = list.filter(c => c.es_proveedor);
+        }
+
         if (!searchTerm) {
-            return clientes;
+            return list;
         }
         const lowerCaseSearchTerm = searchTerm.toLowerCase();
-        return clientes.filter(cliente =>
+        return list.filter(cliente =>
             cliente.nombre.toLowerCase().includes(lowerCaseSearchTerm) ||
             (cliente.cedula && cliente.cedula.toLowerCase().includes(lowerCaseSearchTerm)) ||
             (cliente.telefono && cliente.telefono.toLowerCase().includes(lowerCaseSearchTerm)) ||
             (cliente.direccion && cliente.direccion.toLowerCase().includes(lowerCaseSearchTerm))
         );
-    }, [clientes, searchTerm]);
+    }, [clientes, searchTerm, filterType]);
 
     useEffect(() => {
         fetchClientes();
@@ -88,15 +95,15 @@ const ClienteList = ({ onEditCliente, onClienteDeleted }) => {
     const confirmDelete = () => {
         apiClient.delete(`/clientes/${clienteToDelete}`)
             .then(() => {
-                toast.success('Cliente eliminado!');
+                toast.success('Tercero eliminado!');
                 fetchClientes(); // Refresh the list
                 if (onClienteDeleted) {
                     onClienteDeleted();
                 }
             })
             .catch(error => {
-                console.error('Error deleting cliente:', error);
-                toast.error('Error al eliminar el cliente.');
+                console.error('Error deleting tercero:', error);
+                toast.error('Error al eliminar el tercero.');
             })
             .finally(() => {
                 setShowConfirmDialog(false);
@@ -128,17 +135,17 @@ const ClienteList = ({ onEditCliente, onClienteDeleted }) => {
     }, [filteredClientes, page, rowsPerPage]);
 
     return (
-        <Paper sx={{ mt: 4 }}>
+        <Paper sx={{ mt: 2 }}>
             <Typography variant="h6" gutterBottom component="div" sx={{ p: 2 }}>
-                Lista de Clientes
+                Lista de {filterType === 'proveedor' ? 'Proveedores' : 'Clientes'}
             </Typography>
             <TextField
-                label="Buscar Cliente"
+                label={`Buscar ${filterType === 'proveedor' ? 'Proveedor' : 'Cliente'}`}
                 variant="outlined"
                 fullWidth
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                sx={{ mb: 2, mx: 2, width: 'auto' }} // Añadir margen y ancho automático
+                sx={{ mb: 2, px: 2 }} 
             />
             {isMobile ? (
                 <Box sx={{ p: 2 }}>
@@ -158,11 +165,11 @@ const ClienteList = ({ onEditCliente, onClienteDeleted }) => {
                         <TableHead>
                             <TableRow>
                                 <TableCell>ID</TableCell>
-                                <TableCell>Nombre</TableCell>
-                                <TableCell>Cédula</TableCell>
+                                <TableCell>Nombre / Razón Social</TableCell>
+                                <TableCell>Cédula / NIT</TableCell>
                                 <TableCell>Teléfono</TableCell>
                                 <TableCell>Dirección</TableCell>
-                                <TableCell>Cupo Crédito</TableCell>
+                                {filterType === 'cliente' && <TableCell>Cupo Crédito</TableCell>}
                                 <TableCell>Acciones</TableCell>
                             </TableRow>
                         </TableHead>
@@ -174,7 +181,7 @@ const ClienteList = ({ onEditCliente, onClienteDeleted }) => {
                                     <TableCell>{cliente.cedula || 'N/A'}</TableCell>
                                     <TableCell>{cliente.telefono || 'N/A'}</TableCell>
                                     <TableCell>{cliente.direccion || 'N/A'}</TableCell>
-                                    <TableCell>{formatCurrency(cliente.cupo_credito)}</TableCell>
+                                    {filterType === 'cliente' && <TableCell>{formatCurrency(cliente.cupo_credito)}</TableCell>}
                                     <TableCell>
                                         <IconButton onClick={() => onEditCliente(cliente)} color="primary">
                                             <Edit />
@@ -211,7 +218,7 @@ const ClienteList = ({ onEditCliente, onClienteDeleted }) => {
                 handleClose={() => setShowConfirmDialog(false)}
                 handleConfirm={confirmDelete}
                 title="Confirmar Eliminación"
-                message="¿Estás seguro de que quieres eliminar este cliente? Esta acción no se puede deshacer."
+                message="¿Estás seguro de que quieres eliminar este tercero? Esta acción no se puede deshacer."
             />
 
             {selectedClienteForHistory && ( // Render dialog conditionally

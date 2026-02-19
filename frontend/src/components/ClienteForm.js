@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../api';
 import { toast } from 'react-toastify';
-import { Button, TextField, Box, Typography, Grid, InputAdornment,Accordion, AccordionSummary, AccordionDetails } from '@mui/material';
+import { Button, TextField, Box, Typography, Grid, InputAdornment, Accordion, AccordionSummary, AccordionDetails, FormControlLabel, Checkbox } from '@mui/material';
 import { Edit, Delete, ExpandMore } from '@mui/icons-material';
 import BulkUpload from './BulkUpload'; // ✅ importamos el cargue masivo
 
@@ -12,7 +12,9 @@ const ClienteForm = ({ onClienteAdded, clienteToEdit, onClienteUpdated }) => {
     const [telefono, setTelefono] = useState('');
     const [direccion, setDireccion] = useState('');
     const [cupoCredito, setCupoCredito] = useState('');
-     const [clientes, setClientes] = useState([]);
+    const [esCliente, setEsCliente] = useState(true);
+    const [esProveedor, setEsProveedor] = useState(false);
+    const [clientes, setClientes] = useState([]);
     
 
      useEffect(() => {
@@ -32,12 +34,16 @@ const ClienteForm = ({ onClienteAdded, clienteToEdit, onClienteUpdated }) => {
             setTelefono(clienteToEdit.telefono || '');
             setDireccion(clienteToEdit.direccion || '');
             setCupoCredito(clienteToEdit.cupo_credito || '');
+            setEsCliente(clienteToEdit.es_cliente ?? true);
+            setEsProveedor(clienteToEdit.es_proveedor ?? false);
         } else {
             setNombre('');
             setCedula('');
             setTelefono('');
             setDireccion('');
             setCupoCredito('');
+            setEsCliente(true);
+            setEsProveedor(false);
         }
     }, [clienteToEdit]);
     
@@ -51,12 +57,20 @@ const ClienteForm = ({ onClienteAdded, clienteToEdit, onClienteUpdated }) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        
+        if (!esCliente && !esProveedor) {
+            toast.warning("El tercero debe ser al menos Cliente o Proveedor.");
+            return;
+        }
+
         const clienteData = {
             nombre,
             cedula,
             telefono,
             direccion,
-            cupo_credito: parseFloat(cupoCredito) || 0
+            cupo_credito: parseFloat(cupoCredito) || 0,
+            es_cliente: esCliente,
+            es_proveedor: esProveedor
         };
 
         const request = clienteToEdit
@@ -64,7 +78,7 @@ const ClienteForm = ({ onClienteAdded, clienteToEdit, onClienteUpdated }) => {
             : apiClient.post('/clientes/', clienteData);
 
         request.then(response => {
-            toast.success(`Cliente ${clienteToEdit ? 'actualizado' : 'agregado'}!`);
+            toast.success(`Tercero ${clienteToEdit ? 'actualizado' : 'agregado'}!`);
             if (clienteToEdit) {
                 onClienteUpdated(response.data);
             } else {
@@ -73,11 +87,13 @@ const ClienteForm = ({ onClienteAdded, clienteToEdit, onClienteUpdated }) => {
                 setTelefono('');
                 setDireccion('');
                 setCupoCredito('');
+                setEsCliente(true);
+                setEsProveedor(false);
                 onClienteAdded(response.data);
             }
         }).catch(error => {
-            console.error(`Error ${clienteToEdit ? 'updating' : 'creating'} cliente:`, error);
-            toast.error(`Error al ${clienteToEdit ? 'actualizar' : 'agregar'} el cliente.`);
+            console.error(`Error ${clienteToEdit ? 'updating' : 'creating'} tercero:`, error);
+            toast.error(`Error al ${clienteToEdit ? 'actualizar' : 'agregar'} el tercero.`);
         });
     };
 
@@ -100,7 +116,7 @@ return (
         sx={{ minHeight: 48, "& .MuiAccordionSummary-content": { margin: 0 } }}
       >
         <Typography variant="subtitle1" fontWeight="bold" color="text.primary">
-          {clienteToEdit ? "Editar Cliente" : "Agregar Nuevo Cliente"}
+          {clienteToEdit ? "Editar Tercero" : "Agregar Nuevo Tercero"}
         </Typography>
       </AccordionSummary>
 
@@ -108,7 +124,7 @@ return (
         <Grid container spacing={2}>
           <Grid item xs={12} sm={6}>
             <TextField
-              label="Nombre"
+              label="Nombre / Razón Social"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
               fullWidth
@@ -118,7 +134,7 @@ return (
 
           <Grid item xs={12} sm={6}>
             <TextField
-              label="Cédula"
+              label="Cédula / NIT"
               value={cedula}
               onChange={(e) => setCedula(e.target.value)}
               fullWidth
@@ -143,9 +159,9 @@ return (
             />
           </Grid>
 
-          <Grid item xs={12} sm={6}>
+          <Grid item xs={12} sm={4}>
             <TextField
-              label="Cupo de Crédito"
+              label="Cupo de Crédito (Clientes)"
               value={cupoCredito}
               onChange={(e) =>
                 setCupoCredito(e.target.value.replace(/[^0-9.]/g, ""))
@@ -159,9 +175,23 @@ return (
             />
           </Grid>
 
+          <Grid item xs={12} sm={4}>
+            <FormControlLabel
+              control={<Checkbox checked={esCliente} onChange={(e) => setEsCliente(e.target.checked)} />}
+              label="Es Cliente"
+            />
+          </Grid>
+
+          <Grid item xs={12} sm={4}>
+            <FormControlLabel
+              control={<Checkbox checked={esProveedor} onChange={(e) => setEsProveedor(e.target.checked)} />}
+              label="Es Proveedor"
+            />
+          </Grid>
+
           <Grid item xs={12}>
             <Button type="submit" variant="contained">
-              {clienteToEdit ? "Actualizar Cliente" : "Agregar Cliente"}
+              {clienteToEdit ? "Actualizar Tercero" : "Agregar Tercero"}
             </Button>
           </Grid>
         </Grid>
@@ -183,7 +213,7 @@ return (
         sx={{ minHeight: 48, "& .MuiAccordionSummary-content": { margin: 0 } }}
       >
         <Typography variant="subtitle1" fontWeight="bold" color="text.primary">
-          Carga Masiva de Clientes
+          Carga Masiva de Terceros (Clientes/Proveedores)
         </Typography>
       </AccordionSummary>
 

@@ -70,6 +70,7 @@ class ProductoBase(BaseModel):
     unidad_medida: Optional[str] = "UND"
     # Inventario
     stock_minimo: float = 0.0  # nuevo en fase 1 (editable)
+    grupo_item: int = 2 # 1:MP, 2:PT, 3:AF, 4:INS
     # stock_actual NO se edita aquí; se mueve con movimientos
 
 class ProductoCreate(ProductoBase):
@@ -129,6 +130,8 @@ class ClienteBase(BaseModel):
     telefono: Optional[str] = None
     direccion: Optional[str] = None
     cupo_credito: Optional[float] = 0.0
+    es_cliente: bool = True
+    es_proveedor: bool = False
 
 class ClienteCreate(ClienteBase):
     pass
@@ -236,6 +239,7 @@ class VentaBase(BaseModel):
     cliente_id: int
     detalles: List[DetalleVentaCreate]
     pagada: bool = True
+    iva_porcentaje: float = 0.0
 
 class VentaCreate(VentaBase):
     pass
@@ -243,6 +247,8 @@ class VentaCreate(VentaBase):
 class Venta(VentaBase):
     id: int
     total: float
+    iva_total: float
+    iva_porcentaje: float
     fecha: datetime.datetime
     monto_pagado: float
     estado_pago: str
@@ -575,21 +581,31 @@ class RecetaItem(RecetaItemBase):
 
     model_config = ConfigDict(from_attributes=True)
 
+class RecetaServicioBase(BaseModel):
+    servicio_id: int
+
+class RecetaServicio(RecetaServicioBase):
+    id: int
+    receta_id: int
+    servicio: Producto
+
+    model_config = ConfigDict(from_attributes=True)
+
 class RecetaBase(BaseModel):
     producto_id: int
     nombre: str
     descripcion: Optional[str] = None
-    servicio_maquila_id: Optional[int] = None
 
 class RecetaCreate(RecetaBase):
     items: List[RecetaItemCreate]
+    servicios: List[RecetaServicioBase] = [] # Lista de servicios asociados
 
 class Receta(RecetaBase):
     id: int
     created_at: datetime.datetime
     items: List[RecetaItem]
+    servicios_maquila: List[RecetaServicio] = [] # Lista de servicios
     producto_resultante: Producto
-    servicio_maquila: Optional[Producto] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -602,9 +618,13 @@ class LoteProduccionBase(BaseModel):
 class LoteProduccionCreate(LoteProduccionBase):
     pass
 
+class LoteServicioPrecio(BaseModel):
+    servicio_id: int
+    precio: float
+
 class LoteProduccionConfirm(BaseModel):
     cantidad_real: float
-    precio_maquila: Optional[float] = 0.0 # Precio cobrado al cliente si es maquila
+    precios_servicios: List[LoteServicioPrecio] = [] # Precios para cada servicio de la receta
     observaciones: Optional[str] = None
 
 class LoteProduccion(LoteProduccionBase):
@@ -618,5 +638,65 @@ class LoteProduccion(LoteProduccionBase):
     receta: Receta
     cliente: Optional[Cliente] = None
     venta_id: Optional[int] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+# =========================
+# COMPRAS (VIALMAR)
+# =========================
+
+class DetalleCompraBase(BaseModel):
+    producto_id: int
+    cantidad: float
+    precio_unitario: float
+
+class DetalleCompraCreate(DetalleCompraBase):
+    pass
+
+class DetalleCompra(DetalleCompraBase):
+    id: int
+    compra_id: int
+    producto: Producto
+
+    model_config = ConfigDict(from_attributes=True)
+
+class CompraBase(BaseModel):
+    proveedor_id: int
+    referencia_factura: Optional[str] = None
+    fecha: Optional[datetime.datetime] = None
+
+class CompraCreate(BaseModel):
+    proveedor_id: int
+    referencia_factura: Optional[str] = None
+    detalles: List[DetalleCompraCreate]
+    pagada: bool = False
+    iva_porcentaje: float = 0.0
+
+class Compra(CompraBase):
+    id: int
+    total: float
+    iva_total: float
+    iva_porcentaje: float
+    monto_pagado: float
+    estado_pago: str
+    proveedor: Cliente
+    detalles: List[DetalleCompra] = []
+    pagos: List['PagoCompra'] = [] # Relación con pagos realizados
+
+    model_config = ConfigDict(from_attributes=True)
+
+class PagoCompraCreate(BaseModel):
+    compra_id: int
+    monto: float
+    metodo_pago: Optional[str] = None
+    detalle_pago: Optional[str] = None
+
+class PagoCompra(BaseModel):
+    id: int
+    compra_id: int
+    monto: float
+    fecha: datetime.datetime
+    metodo_pago: Optional[str] = None
+    detalle_pago: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)

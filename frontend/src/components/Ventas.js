@@ -81,6 +81,7 @@ const Ventas = () => {
 
     const [cliente, setCliente] = useState(null);
     const [saleDetails, setSaleDetails] = useState([{ id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0 }]);
+    const [ivaPorcentajeGlobal, setIvaPorcentajeGlobal] = useState(0);
     const [pagada, setPagada] = useState(true);
     const [editingVenta, setEditingVenta] = useState(null);
     const [creditoHabilitado, setCreditoHabilitado] = useState(true);
@@ -114,7 +115,11 @@ const Ventas = () => {
 
     const fetchVentas = () => apiClient.get('/ventas/').then(res => setVentas(res.data)).catch(console.error);
     const fetchClientes = () => apiClient.get('/clientes/').then(res => setClientes(res.data)).catch(console.error);
-    const fetchProductos = () => apiClient.get('/productos/').then(res => setProductos(res.data)).catch(console.error);
+    const fetchProductos = () => apiClient.get('/productos/').then(res => {
+        // --- FILTRO VIALMAR: Solo PT (2) o Servicios ---
+        const salesProds = res.data.filter(p => p.es_servicio || p.grupo_item === 2);
+        setProductos(salesProds);
+    }).catch(console.error);
     const fetchVentasSummary = () =>
   apiClient
     .get('/reportes/ventas_summary')
@@ -140,6 +145,7 @@ const Ventas = () => {
     const resetForm = () => {
         setCliente(null);
         setSaleDetails([{ id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0 }]);
+        setIvaPorcentajeGlobal(0);
         setPagada(true);
         setEditingVenta(null);
         setCreditoHabilitado(true);
@@ -176,9 +182,11 @@ const Ventas = () => {
             detalles: saleDetails.map(({ producto, cantidad, precioUnitario }) => ({
                 producto_id: producto.id,
                 cantidad,
-                precio_unitario: precioUnitario
+                precio_unitario: precioUnitario,
+                iva_porcentaje: 0.0 
             })),
-            pagada: pagada
+            pagada: pagada,
+            iva_porcentaje: parseFloat(ivaPorcentajeGlobal)
         };
 
         setSaleToConfirm(ventaData);
@@ -378,9 +386,19 @@ const Ventas = () => {
                         {/* Subtotal, Pagada switch, and Submit Buttons Section */}
                         <Box>
                             <Grid container spacing={2} justifyContent="flex-end" alignItems="center">
-                            <Grid item xs={12} sm={6}>
+                            <Grid item xs={12} sm={3}>
+                                <TextField
+                                    label="% IVA Global (Incluido)"
+                                    type="number"
+                                    value={ivaPorcentajeGlobal}
+                                    onChange={(e) => setIvaPorcentajeGlobal(e.target.value)}
+                                    fullWidth
+                                    helperText="El total no cambiará"
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={3}>
                                 <Typography variant="h6" align="right">
-                                Subtotal: {formatCurrency(calculateSubtotal())}
+                                Total Factura: {formatCurrency(calculateSubtotal())}
                                 </Typography>
                             </Grid>
 
