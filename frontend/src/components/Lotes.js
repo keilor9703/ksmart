@@ -290,6 +290,7 @@ const Lotes = () => {
               <TextField
                 select fullWidth label="Receta"
                 value={formData.receta_id}
+                sx={{ flexGrow: 1, minWidth: '200px' }}
                 onChange={(e) => setFormData({...formData, receta_id: e.target.value})}
                 margin="normal" required
               >
@@ -304,6 +305,7 @@ const Lotes = () => {
               <TextField
                 fullWidth type="number" label="Cantidad a Producir"
                 value={formData.cantidad_a_producir}
+                
                 onChange={(e) => setFormData({...formData, cantidad_a_producir: e.target.value})}
                 margin="normal" required
               />
@@ -312,6 +314,7 @@ const Lotes = () => {
               <TextField
                 select fullWidth label="Cliente (Solo para Maquila)"
                 value={formData.cliente_id}
+                sx={{ flexGrow: 1, minWidth: '200px' }}
                 onChange={(e) => setFormData({...formData, cliente_id: e.target.value})}
                 margin="normal"
               >
