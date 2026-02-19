@@ -136,7 +136,7 @@ def run_migrations():
     Migraciones manuales simples.
     Debe llamarse al iniciar la app (idealmente en startup), después de create_all().
     """
-    migration_key = "inv_v10"
+    migration_key = "inv_v11"
 
     try:
         # begin() abre transacción y hace commit automático si todo sale bien
