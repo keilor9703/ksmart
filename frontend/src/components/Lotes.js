@@ -13,7 +13,7 @@ import ConfirmationDialog from './ConfirmationDialog';
 
 const LoteCard = ({ lote, handleOpenConfirm, handleCancelar }) => {
   const getStatusChip = (status) => {
-    const colors = { 'Borrador': 'default', 'Confirmado': 'success', 'Cancelado': 'error' };
+    const colors = { 'En produccion': 'default', 'Confirmado': 'success', 'Cancelado': 'error' };
     return <Chip label={status} color={colors[status] || 'default'} size="small" />;
   };
 
@@ -39,7 +39,7 @@ const LoteCard = ({ lote, handleOpenConfirm, handleCancelar }) => {
         </Typography>
       </CardContent>
       <CardActions>
-        {lote.estado === 'Borrador' && (
+        {lote.estado === 'En produccion' && (
           <>
             <IconButton color="success" onClick={() => handleOpenConfirm(lote)}>
               <CheckCircle />
@@ -120,7 +120,7 @@ const Lotes = () => {
         precios_servicios: confirmData.precios_servicios.map(p => ({ servicio_id: p.servicio_id, precio: p.precio })),
         observaciones: confirmData.observaciones
       });
-      toast.success("Producción finalizada");
+      toast.success("produccion finalizada");
       loadData();
       setOpenConfirm(false);
     } catch (error) {
@@ -134,14 +134,14 @@ const Lotes = () => {
   );
 
   const getStatusChip = (status) => {
-    const colors = { 'Borrador': 'default', 'Confirmado': 'success', 'Cancelado': 'error' };
+    const colors = { 'En produccion': 'default', 'Confirmado': 'success', 'Cancelado': 'error' };
     return <Chip label={status} color={colors[status] || 'default'} size="small" />;
   };
 
   return (
     <Paper sx={{ p: 2 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-        <Typography variant="h6">Lotes de Producción</Typography>
+        <Typography variant="h6">Lotes de produccion</Typography>
         <Button variant="contained" startIcon={<Add />} onClick={() => setOpen(true)}>Nuevo Lote</Button>
       </Box>
 
@@ -176,11 +176,26 @@ const Lotes = () => {
                   <TableCell>{l.cantidad_real || '---'}</TableCell>
                   <TableCell>{l.costo_total > 0 ? `$${l.costo_total.toFixed(2)}` : '---'}</TableCell>
                   <TableCell>{getStatusChip(l.estado)}</TableCell>
-                  <TableCell align="right">
-                    {l.estado === 'Borrador' && (
-                      <IconButton color="success" onClick={() => handleOpenConfirm(l)}><CheckCircle /></IconButton>
+                 <TableCell align="right">
+                    {l.estado === 'En produccion' && (
+                      <>
+                        <IconButton color="success" onClick={() => handleOpenConfirm(l)}>
+                          <CheckCircle />
+                        </IconButton>
+
+                        <IconButton
+                          color="error"
+                          onClick={async () => {
+                            await cancelarLote(l.id);
+                            loadData();
+                          }}
+                        >
+                          <Cancel />
+                        </IconButton>
+                      </>
                     )}
                   </TableCell>
+
                 </TableRow>
               ))}
             </TableBody>
@@ -240,7 +255,7 @@ const Lotes = () => {
 
       {/* Diálogo Confirmación con Precios de Múltiples Servicios */}
       <Dialog open={openConfirm} onClose={() => setOpenConfirm(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Finalizar Producción</DialogTitle>
+        <DialogTitle>Finalizar produccion</DialogTitle>
         <DialogContent dividers>
           <TextField
             fullWidth type="number" label="Cantidad Real Obtenida"

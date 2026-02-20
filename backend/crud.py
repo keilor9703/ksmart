@@ -929,7 +929,7 @@ def create_orden_trabajo(db: Session, orden: schemas.OrdenTrabajoCreate, operado
         cliente_id=orden.cliente_id,
         operador_id=operador_id,
         total=orden.total,
-        estado='Borrador' # Siempre se crea como borrador
+        estado='En produccion' # Siempre se crea como "En produccion"
     )
 
     # Añadir productos
@@ -1935,7 +1935,7 @@ def create_lote(db: Session, lote: schemas.LoteProduccionCreate):
         cantidad_a_producir=lote.cantidad_a_producir,
         cliente_id=cliente_id,
         observaciones=lote.observaciones,
-        estado="Borrador"
+        estado="En produccion"
     )
     db.add(db_lote)
     db.commit()
@@ -1962,7 +1962,7 @@ def get_or_create_cliente_interno(db: Session) -> models.Cliente:
 
 def confirmar_lote_produccion(db: Session, lote_id: int, confirm_data: schemas.LoteProduccionConfirm):
     db_lote = get_lote(db, lote_id)
-    if not db_lote or db_lote.estado != "Borrador":
+    if not db_lote or db_lote.estado != "En produccion":
         raise ValueError("El lote no existe o ya ha sido procesado.")
 
     receta = db_lote.receta
@@ -2046,7 +2046,7 @@ def confirmar_lote_produccion(db: Session, lote_id: int, confirm_data: schemas.L
 
 def cancelar_lote(db: Session, lote_id: int):
     db_lote = db.query(models.LoteProduccion).filter(models.LoteProduccion.id == lote_id).first()
-    if db_lote and db_lote.estado == "Borrador":
+    if db_lote and db_lote.estado == "En produccion":
         db_lote.estado = "Cancelado"
         db.commit()
         return True

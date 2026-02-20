@@ -251,7 +251,7 @@ class LoteProduccion(Base):
     fecha_planificada = Column(DateTime, default=datetime.utcnow)
     fecha_confirmacion = Column(DateTime, nullable=True)
 
-    estado = Column(String, default="Borrador")  # Borrador, Confirmado, Cancelado
+    estado = Column(String, default="En produccion")  # Borrador, Confirmado, Cancelado
 
     cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=True)  # maquila
     venta_id = Column(Integer, ForeignKey("ventas.id"), nullable=True)  # venta por maquila
