@@ -31,8 +31,11 @@ const LoteCard = ({ lote, handleOpenConfirm, handleCancelar }) => {
           </Typography>
         )}
         <Box sx={{ mt: 1 }}>{getStatusChip(lote.estado)}</Box>
+        
         <Typography variant="caption" display="block" sx={{ mt: 1 }}>
-          {lote.cliente ? `Maquila: ${lote.cliente.nombre}` : 'Interno (Vialmar)'}
+
+         {(!lote.cliente || lote.cliente.cedula === "INTERNO") ? 'Interno (Vialmar)' : `Maquila: ${lote.cliente.nombre}`}
+
         </Typography>
       </CardContent>
       <CardActions>
@@ -215,7 +218,23 @@ const Lotes = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpen(false)}>Cancelar</Button>
-          <Button onClick={async () => { await createLote(formData); loadData(); setOpen(false); }} variant="contained">Crear</Button>
+                <Button
+                    onClick={async () => {
+                      const payload = {
+                        ...formData,
+                        cliente_id: formData.cliente_id ? Number(formData.cliente_id) : null,
+                        receta_id: Number(formData.receta_id),
+                        cantidad_a_producir: Number(formData.cantidad_a_producir),
+                      };
+                      await createLote(payload);
+                      loadData();
+                      setOpen(false);
+                    }}
+                    variant="contained"
+                  >
+                    Crear
+                </Button>
+
         </DialogActions>
       </Dialog>
 
@@ -230,7 +249,7 @@ const Lotes = () => {
             margin="normal" required
           />
           
-          {selectedLote?.cliente_id && confirmData.precios_servicios.length > 0 && (
+          {/* {selectedLote?.cliente_id && confirmData.precios_servicios.length > 0 && (
             <Box sx={{ mt: 2, p: 2, border: '1px dashed #ccc', borderRadius: 1 }}>
               <Typography variant="subtitle2" color="primary" gutterBottom>PRECIOS DE MAQUILA POR SERVICIO</Typography>
               {confirmData.precios_servicios.map((srv, idx) => (
@@ -245,7 +264,7 @@ const Lotes = () => {
                 />
               ))}
             </Box>
-          )}
+          )} */}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenConfirm(false)}>Cancelar</Button>

@@ -1924,10 +1924,16 @@ def get_lote(db: Session, lote_id: int):
     ).filter(models.LoteProduccion.id == lote_id).first()
 
 def create_lote(db: Session, lote: schemas.LoteProduccionCreate):
+    cliente_id = lote.cliente_id
+
+    if cliente_id is None:
+        interno = get_or_create_cliente_interno(db)
+        cliente_id = interno.id
+
     db_lote = models.LoteProduccion(
         receta_id=lote.receta_id,
         cantidad_a_producir=lote.cantidad_a_producir,
-        cliente_id=lote.cliente_id,
+        cliente_id=cliente_id,
         observaciones=lote.observaciones,
         estado="Borrador"
     )
@@ -1935,6 +1941,24 @@ def create_lote(db: Session, lote: schemas.LoteProduccionCreate):
     db.commit()
     db.refresh(db_lote)
     return db_lote
+
+def get_or_create_cliente_interno(db: Session) -> models.Cliente:
+    # Usa una “cedula” fija para identificarlo
+    interno = db.query(models.Cliente).filter(models.Cliente.cedula == "INTERNO").first()
+    if interno:
+        return interno
+
+    interno = models.Cliente(
+        nombre="Vialmar - Producción interna",
+        cedula="INTERNO",
+        es_cliente=True,
+        es_proveedor=False
+    )
+    db.add(interno)
+    db.commit()
+    db.refresh(interno)
+    return interno
+
 
 def confirmar_lote_produccion(db: Session, lote_id: int, confirm_data: schemas.LoteProduccionConfirm):
     db_lote = get_lote(db, lote_id)
@@ -1985,27 +2009,27 @@ def confirmar_lote_produccion(db: Session, lote_id: int, confirm_data: schemas.L
     create_movement(db, mov_entrada)
 
     # 4. Integración Comercial: Venta por Maquila (Si aplica)
-    if db_lote.cliente_id and db_lote.receta.servicios_maquila:
-        detalles_venta = []
-        # Crear un mapa de precios para búsqueda rápida
-        precios_map = {p.servicio_id: p.precio for p in confirm_data.precios_servicios}
+    # if db_lote.cliente_id and db_lote.receta.servicios_maquila:
+    #     detalles_venta = []
+    #     # Crear un mapa de precios para búsqueda rápida
+    #     precios_map = {p.servicio_id: p.precio for p in confirm_data.precios_servicios}
 
-        for rs in db_lote.receta.servicios_maquila:
-            detalles_venta.append(schemas.DetalleVentaCreate(
-                producto_id=rs.servicio_id,
-                cantidad=cantidad_final,
-                precio_unitario=precios_map.get(rs.servicio_id, 0.0)
-            ))
+    #     for rs in db_lote.receta.servicios_maquila:
+    #         detalles_venta.append(schemas.DetalleVentaCreate(
+    #             producto_id=rs.servicio_id,
+    #             cantidad=cantidad_final,
+    #             precio_unitario=precios_map.get(rs.servicio_id, 0.0)
+    #         ))
 
-        if detalles_venta:
-            venta_schema = schemas.VentaCreate(
-                cliente_id=db_lote.cliente_id,
-                detalles=detalles_venta,
-                pagada=False,
-                iva_porcentaje=0.0 # Por ahora 0, Fase IVA puede ajustar
-            )
-            db_venta = create_venta(db, venta_schema)
-            db_lote.venta_id = db_venta.id
+    #     if detalles_venta:
+    #         venta_schema = schemas.VentaCreate(
+    #             cliente_id=db_lote.cliente_id,
+    #             detalles=detalles_venta,
+    #             pagada=False,
+    #             iva_porcentaje=0.0 # Por ahora 0, Fase IVA puede ajustar
+    #         )
+    #         db_venta = create_venta(db, venta_schema)
+    #         db_lote.venta_id = db_venta.id
 
     # 5. Finalizar Lote
     db_lote.estado = "Confirmado"
