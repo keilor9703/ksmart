@@ -1,74 +1,139 @@
-import React, { useState } from "react";
-import { Box, Paper, Typography, Tabs, Tab } from "@mui/material";
-import PeopleIcon from "@mui/icons-material/People";
-import ClienteForm from "./ClienteForm";
-import ClienteList from "./ClienteList";
-import CuentasPorCobrar from "./CuentasPorCobrar";
-import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import React, { useState } from 'react';
+import { Box, Typography, Tabs, Tab, Button } from '@mui/material';
+import { People, AccountBalance, Add } from '@mui/icons-material';
+import ClienteForm from './ClienteForm';
+import ClienteList from './ClienteList';
+import CuentasPorCobrar from './CuentasPorCobrar';
+
+// ─── Constantes ────────────────────────────────────────────────────────────────
+const ACCENT = '#3B82F6'; // azul — color semántico para Terceros
 
 function TabPanel({ children, value, index }) {
   return (
     <div role="tabpanel" hidden={value !== index}>
-      {value === index && <Box sx={{ pt: 2 }}>{children}</Box>}
+      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
     </div>
   );
 }
 
 export default function Terceros() {
-  const [tab, setTab] = useState(0);
+  const [tab, setTab]                   = useState(0);
   const [clienteToEdit, setClienteToEdit] = useState(null);
-  const [refreshList, setRefreshList] = useState(0);
+  const [refreshList, setRefreshList]   = useState(0);
+  const [formOpen, setFormOpen]         = useState(false); // controla el acordeón del form
 
   const handleEdit = (cliente) => {
     setClienteToEdit(cliente);
+    setFormOpen(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleSuccess = () => {
     setClienteToEdit(null);
     setRefreshList(prev => prev + 1);
+    setFormOpen(false);
+  };
+
+  const handleNewTercero = () => {
+    setClienteToEdit(null);
+    setFormOpen(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
-    <Box>
-      <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-        <PeopleIcon sx={{ mr: 1, color: 'primary.main' }} />
-        <Typography variant="h5" fontWeight="bold">Gestión de Terceros</Typography>
+    <Box sx={{ width: '100%' }}>
+
+      {/* ── Header ── */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{
+            width: 40, height: 40, borderRadius: 2,
+            bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT,
+          }}>
+            <People />
+          </Box>
+          <Box>
+            <Typography sx={{ fontWeight: 700, fontSize: 20, lineHeight: 1.2 }}>Terceros</Typography>
+            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Clientes, proveedores y cuentas por cobrar</Typography>
+          </Box>
+        </Box>
+        <Button
+          variant="contained"
+          startIcon={<Add />}
+          onClick={handleNewTercero}
+          sx={{
+            background: `linear-gradient(135deg, ${ACCENT}, #60a5fa)`,
+            boxShadow: `0 4px 14px rgba(59,130,246,0.35)`,
+            borderRadius: 2, fontWeight: 600,
+          }}
+        >
+          Nuevo Tercero
+        </Button>
       </Box>
 
-      <ClienteForm 
-        clienteToEdit={clienteToEdit} 
-        onClienteAdded={handleSuccess} 
-        onClienteUpdated={handleSuccess} 
+      {/* ── Formulario (colapsable) ── */}
+      <ClienteForm
+        clienteToEdit={clienteToEdit}
+        onClienteAdded={handleSuccess}
+        onClienteUpdated={handleSuccess}
+        forceOpen={formOpen}
+        onClose={() => { setFormOpen(false); setClienteToEdit(null); }}
       />
 
-      <Paper sx={{ mb: 3 }}>
-        <Tabs 
-          value={tab} 
+      {/* ── Tabs ── */}
+      <Box sx={{
+        borderRadius: 3, overflow: 'hidden',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+        border: '1px solid', borderColor: 'divider',
+        bgcolor: 'background.paper',
+      }}>
+        <Tabs
+          value={tab}
           onChange={(_, v) => setTab(v)}
-          indicatorColor="primary"
-          textColor="primary"
           variant="scrollable"
           scrollButtons="auto"
+          sx={{
+            px: 2,
+            borderBottom: '1px solid', borderColor: 'divider',
+            '& .MuiTab-root': { fontWeight: 600, fontSize: 13.5, textTransform: 'none', minHeight: 52 },
+            '& .MuiTabs-indicator': { backgroundColor: ACCENT, height: 3, borderRadius: 3 },
+            '& .Mui-selected': { color: `${ACCENT} !important` },
+          }}
         >
-          <Tab label="Clientes" />
-          <Tab label="Proveedores" />
-          <Tab label="Cuentas por Cobrar" />
-          <Tab label="Bancos (Próximamente)" icon={<AccountBalanceIcon />} iconPosition="start" disabled />
+          <Tab label="👥 Clientes" />
+          <Tab label="🏭 Proveedores" />
+          <Tab label="💰 Cuentas por Cobrar" />
+          <Tab
+            label="🏦 Bancos"
+            disabled
+            sx={{ opacity: 0.4, '& .MuiTab-root': { cursor: 'not-allowed' } }}
+          />
         </Tabs>
-      </Paper>
 
-      <TabPanel value={tab} index={0}>
-        <ClienteList key={`cli-${refreshList}`} filterType="cliente" onEditCliente={handleEdit} />
-      </TabPanel>
+        <Box sx={{ p: { xs: 2, md: 3 } }}>
+          <TabPanel value={tab} index={0}>
+            <ClienteList
+              key={`cli-${refreshList}`}
+              filterType="cliente"
+              onEditCliente={handleEdit}
+              accentColor={ACCENT}
+            />
+          </TabPanel>
 
-      <TabPanel value={tab} index={1}>
-        <ClienteList key={`prov-${refreshList}`} filterType="proveedor" onEditCliente={handleEdit} />
-      </TabPanel>
+          <TabPanel value={tab} index={1}>
+            <ClienteList
+              key={`prov-${refreshList}`}
+              filterType="proveedor"
+              onEditCliente={handleEdit}
+              accentColor={ACCENT}
+            />
+          </TabPanel>
 
-      <TabPanel value={tab} index={2}>
-        <CuentasPorCobrar />
-      </TabPanel>
+          <TabPanel value={tab} index={2}>
+            <CuentasPorCobrar />
+          </TabPanel>
+        </Box>
+      </Box>
     </Box>
   );
 }

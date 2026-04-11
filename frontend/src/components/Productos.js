@@ -1,71 +1,107 @@
 import React, { useState } from 'react';
-import { Box, Paper, Tabs, Tab, Typography } from '@mui/material';
-import InventoryIcon from '@mui/icons-material/Inventory';
-import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import { Box, Typography, Tabs, Tab, Button } from '@mui/material';
+import { Inventory, ReceiptLong, Add } from '@mui/icons-material';
 import ProductoList from './ProductoList';
 import ProductoForm from './ProductoForm';
 import Recetas from './Recetas';
 
+const ACCENT = '#8B5CF6'; // violeta — color semántico para Productos
+
 function TabPanel({ children, value, index }) {
   return (
     <div role="tabpanel" hidden={value !== index}>
-      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
+      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
     </div>
   );
 }
 
 const Productos = () => {
-    const [tab, setTab] = useState(0);
-    const [key, setKey] = useState(0);
-    const [editingProducto, setEditingProducto] = useState(null);
+  const [tab, setTab]                       = useState(0);
+  const [key, setKey]                       = useState(0);
+  const [editingProducto, setEditingProducto] = useState(null);
+  const [formOpen, setFormOpen]             = useState(false);
 
-    const handleRefresh = () => {
-        setKey(prev => prev + 1);
-        setEditingProducto(null);
-    };
+  const handleRefresh = () => { setKey(p => p + 1); setEditingProducto(null); setFormOpen(false); };
 
-    const handleEditProducto = (producto) => {
-        setEditingProducto(producto);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
+  const handleEditProducto = (producto) => {
+    setEditingProducto(producto);
+    setFormOpen(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
-    return (
-        <Box>
-            <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-                <InventoryIcon sx={{ mr: 1, color: 'primary.main' }} />
-                <Typography variant="h5" fontWeight="bold">Catálogo y Fórmulas</Typography>
-            </Box>
+  const handleNewProducto = () => {
+    setEditingProducto(null);
+    setFormOpen(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
-            <Paper sx={{ mb: 0 }}>
-                <Tabs 
-                    value={tab} 
-                    onChange={(_, v) => setTab(v)} 
-                    indicatorColor="primary" 
-                    textColor="primary"
-                >
-                    <Tab label="Productos y Servicios" icon={<InventoryIcon />} iconPosition="start" />
-                    <Tab label="Recetas (BOM)" icon={<ReceiptLongIcon />} iconPosition="start" />
-                </Tabs>
-            </Paper>
+  return (
+    <Box sx={{ width: '100%' }}>
 
-            <TabPanel value={tab} index={0}>
-                <ProductoForm 
-                    onProductoAdded={handleRefresh} 
-                    productoToEdit={editingProducto}
-                    onProductoUpdated={handleRefresh}
-                />
-                <ProductoList 
-                    key={key} 
-                    onEditProducto={handleEditProducto}
-                    onProductoDeleted={handleRefresh}
-                />
-            </TabPanel>
-
-            <TabPanel value={tab} index={1}>
-                <Recetas />
-            </TabPanel>
+      {/* ── Header ── */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT }}>
+            <Inventory />
+          </Box>
+          <Box>
+            <Typography sx={{ fontWeight: 700, fontSize: 20, lineHeight: 1.2 }}>Productos</Typography>
+            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Catálogo, servicios y fórmulas de producción</Typography>
+          </Box>
         </Box>
-    );
+        {tab === 0 && (
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={handleNewProducto}
+            sx={{ background: `linear-gradient(135deg, ${ACCENT}, #a78bfa)`, boxShadow: `0 4px 14px rgba(139,92,246,0.35)`, borderRadius: 2, fontWeight: 600 }}
+          >
+            Nuevo Producto
+          </Button>
+        )}
+      </Box>
+
+      {/* ── Tabs ── */}
+      <Box sx={{ borderRadius: 3, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
+        <Tabs
+          value={tab}
+          onChange={(_, v) => setTab(v)}
+          sx={{
+            px: 2, borderBottom: '1px solid', borderColor: 'divider',
+            '& .MuiTab-root': { fontWeight: 600, fontSize: 13.5, textTransform: 'none', minHeight: 52, gap: 1 },
+            '& .MuiTabs-indicator': { backgroundColor: ACCENT, height: 3, borderRadius: 3 },
+            '& .Mui-selected': { color: `${ACCENT} !important` },
+          }}
+        >
+          <Tab icon={<Inventory fontSize="small" />} iconPosition="start" label="Productos y Servicios" />
+          <Tab icon={<ReceiptLong fontSize="small" />} iconPosition="start" label="Recetas (BOM)" />
+        </Tabs>
+
+        <Box sx={{ p: { xs: 2, md: 3 } }}>
+          <TabPanel value={tab} index={0}>
+            <ProductoForm
+              onProductoAdded={handleRefresh}
+              productoToEdit={editingProducto}
+              onProductoUpdated={handleRefresh}
+              forceOpen={formOpen}
+              onClose={() => { setFormOpen(false); setEditingProducto(null); }}
+              accentColor={ACCENT}
+            />
+            <ProductoList
+              key={key}
+              onEditProducto={handleEditProducto}
+              onProductoDeleted={handleRefresh}
+              accentColor={ACCENT}
+            />
+          </TabPanel>
+
+          <TabPanel value={tab} index={1}>
+            <Recetas accentColor={ACCENT} />
+          </TabPanel>
+        </Box>
+      </Box>
+    </Box>
+  );
 };
 
 export default Productos;
