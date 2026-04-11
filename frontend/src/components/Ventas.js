@@ -5,138 +5,261 @@ import { toast } from 'react-toastify';
 import ConfirmationDialog from './ConfirmationDialog';
 import VentaDetailDialog from './VentaDetailDialog';
 import {
-    Box, Paper, Typography, Grid, TextField, Button, IconButton, Autocomplete, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, useMediaQuery, useTheme, Card, CardContent, CardActions, Tabs, Tab, TablePagination
+    Box, Paper, Typography, Grid, TextField, Button, IconButton,
+    Autocomplete, Table, TableBody, TableCell, TableContainer,
+    TableHead, TableRow, Chip, useMediaQuery, useTheme, Card,
+    CardContent, CardActions, Tabs, Tab, TablePagination, Divider,
+    Stack, Tooltip, InputAdornment
 } from '@mui/material';
-import { AddCircleOutline, RemoveCircleOutline, Edit, Delete, Visibility } from '@mui/icons-material';
+import {
+    AddCircleOutline, RemoveCircleOutline, Edit, Delete, Visibility,
+    Search, ShoppingCart, TrendingUp, Receipt, AttachMoney,
+    AccessTime, CheckCircle, Cancel
+} from '@mui/icons-material';
 import { ToggleButton, ToggleButtonGroup } from '@mui/material';
 
-// Helper component for TabPanel
-function TabPanel(props) {
-    const { children, value, index, ...other } = props;
+// ─── Constantes de diseño ──────────────────────────────────────────────────────
+const ACCENT = '#FF6020';
+
+// ─── Tab Panel ────────────────────────────────────────────────────────────────
+function TabPanel({ children, value, index, ...other }) {
     return (
-        <div
-            role="tabpanel"
-            hidden={value !== index}
-            id={`simple-tabpanel-${index}`}
-            aria-labelledby={`simple-tab-${index}`}
-            {...other}
-        >
-            {value === index && (
-                <Box sx={{ p: 3 }}>
-                    {children}
-                </Box>
-            )}
+        <div role="tabpanel" hidden={value !== index} {...other}>
+            {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
         </div>
     );
 }
-// Muestra "eva — Stock: 32" (o "Servicio" si es un servicio)
+
+// ─── Label de producto ────────────────────────────────────────────────────────
 const productLabel = (p) => {
-  if (!p) return '';
-  const isService = !!p.es_servicio;
-  const stockTxt = isService ? 'Servicio' : `stock: ${p.stock_actual ?? 0}`;
-  return `${p.nombre} (${stockTxt})`;
+    if (!p) return '';
+    const stockTxt = p.es_servicio ? 'Servicio' : `stock: ${p.stock_actual ?? 0}`;
+    return `${p.nombre} (${stockTxt})`;
 };
 
-
-
-// Helper function for a11y props
-function a11yProps(index) {
-    return {
-        id: `simple-tab-${index}`,
-        'aria-controls': `simple-tabpanel-${index}`,
-    };
-}
-
-const VentaCard = ({ venta, handleEdit, handleDelete, handleOpenDetails, getEstadoPagoChip }) => (
-    <Card sx={{ mb: 2 }}>
-        <CardContent>
-            <Typography variant="h6" color="text.primary">Venta #{venta.id} - {venta.cliente?.nombre || 'N/A'}</Typography>
-            <Typography color="textSecondary">{new Date(venta.fecha + 'Z').toLocaleString()}</Typography>
-            <Box sx={{ my: 1 }}>
-                {venta.detalles.map(d => (
-                    <Typography key={d.id} variant="body2" color="text.primary">{d.producto?.nombre} (x{d.cantidad})</Typography>
-                ))}
-            </Box>
-            <Typography color="text.primary">Total: {formatCurrency(venta.total)}</Typography>
-            <Typography color="text.primary">Pagado: {formatCurrency(venta.monto_pagado)}</Typography>
-            <Typography color="text.primary">Saldo: {formatCurrency(venta.total - venta.monto_pagado)}</Typography>
-
-            <Box sx={{ mt: 1 }}>
-                {getEstadoPagoChip(venta.estado_pago)}
-            </Box>
-        </CardContent>
-        <CardActions>
-            <IconButton onClick={() => handleOpenDetails(venta)} color="info"><Visibility /></IconButton>
-            <IconButton onClick={() => handleEdit(venta)} color="primary"><Edit /></IconButton>
-            <IconButton onClick={() => handleDelete(venta.id)} color="error"><Delete /></IconButton>
-        </CardActions>
-    </Card>
+// ─── KPI Card ─────────────────────────────────────────────────────────────────
+const KpiCard = ({ label, value, icon, color }) => (
+    <Paper
+        sx={{
+            p: 2.5, borderRadius: 3,
+            display: 'flex', alignItems: 'center', gap: 2,
+            boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+        }}
+    >
+        <Box sx={{
+            width: 48, height: 48, borderRadius: 2, flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            backgroundColor: `${color}18`, color,
+        }}>
+            {icon}
+        </Box>
+        <Box>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 500, mb: 0.3 }}>
+                {label}
+            </Typography>
+            <Typography sx={{ fontSize: 18, fontWeight: 700, color: 'text.primary' }}>
+                {value}
+            </Typography>
+        </Box>
+    </Paper>
 );
 
+// ─── Badge de estado ──────────────────────────────────────────────────────────
+const getEstadoPagoChip = (estado) => {
+    const map = {
+        pagado:    { label: 'Pagada',    color: 'success' },
+        parcial:   { label: 'Parcial',   color: 'warning' },
+        pendiente: { label: 'Pendiente', color: 'error'   },
+    };
+    const p = map[estado] || { label: 'Desconocido', color: 'default' };
+    return <Chip label={p.label} color={p.color} size="small" sx={{ fontWeight: 600, fontSize: 11, borderRadius: 1.5 }} />;
+};
+
+// ─── Venta Card (mobile) ──────────────────────────────────────────────────────
+const VentaCard = ({ venta, handleEdit, handleDelete, handleOpenDetails }) => (
+    <Paper sx={{ p: 2.5, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
+            <Box>
+                <Typography sx={{ fontWeight: 700, fontSize: 15 }}>
+                    {venta.cliente?.nombre || 'Sin cliente'}
+                </Typography>
+                <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                    #{venta.id} · {new Date(venta.fecha + 'Z').toLocaleString()}
+                </Typography>
+            </Box>
+            {getEstadoPagoChip(venta.estado_pago)}
+        </Box>
+
+        <Divider sx={{ my: 1.5 }} />
+
+        <Box sx={{ mb: 1.5 }}>
+            {venta.detalles.map(d => (
+                <Typography key={d.id} sx={{ fontSize: 13, color: 'text.secondary', mb: 0.3 }}>
+                    • {d.producto?.nombre} × {d.cantidad}
+                </Typography>
+            ))}
+        </Box>
+
+        <Grid container spacing={1} sx={{ mb: 1.5 }}>
+            {[
+                { label: 'Total',  val: formatCurrency(venta.total) },
+                { label: 'Pagado', val: formatCurrency(venta.monto_pagado) },
+                { label: 'Saldo',  val: formatCurrency(venta.total - venta.monto_pagado) },
+            ].map(({ label, val }) => (
+                <Grid item xs={4} key={label}>
+                    <Box sx={{ textAlign: 'center', p: 1, borderRadius: 2, bgcolor: 'action.hover' }}>
+                        <Typography sx={{ fontSize: 10, color: 'text.secondary', mb: 0.2 }}>{label}</Typography>
+                        <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{val}</Typography>
+                    </Box>
+                </Grid>
+            ))}
+        </Grid>
+
+        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+            <Tooltip title="Ver detalle">
+                <IconButton size="small" onClick={() => handleOpenDetails(venta)}
+                    sx={{ color: '#3B82F6', bgcolor: '#EFF6FF', borderRadius: 1.5 }}>
+                    <Visibility fontSize="small" />
+                </IconButton>
+            </Tooltip>
+            <Tooltip title="Editar">
+                <IconButton size="small" onClick={() => handleEdit(venta)}
+                    sx={{ color: ACCENT, bgcolor: '#FFF0E9', borderRadius: 1.5 }}>
+                    <Edit fontSize="small" />
+                </IconButton>
+            </Tooltip>
+            <Tooltip title="Eliminar">
+                <IconButton size="small" onClick={() => handleDelete(venta.id)}
+                    sx={{ color: '#EF4444', bgcolor: '#FEF2F2', borderRadius: 1.5 }}>
+                    <Delete fontSize="small" />
+                </IconButton>
+            </Tooltip>
+        </Box>
+    </Paper>
+);
+
+// ─── Fila de producto en formulario ───────────────────────────────────────────
+const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRemove, isMobile }) => (
+    <Box sx={{
+        display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
+        alignItems: isMobile ? 'stretch' : 'center',
+        gap: 1.5, mb: 1.5, p: isMobile ? 2 : 1.5,
+        borderRadius: 2, bgcolor: 'action.hover',
+        border: '1px solid', borderColor: 'divider',
+    }}>
+        <Autocomplete
+            options={productos}
+            getOptionLabel={productLabel}
+            value={detail.producto}
+            onChange={(_, newValue) => onProductChange(detail.id, newValue)}
+            renderOption={(props, option) => (
+                <li {...props} key={option.id}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 2 }}>
+                        <span style={{ fontSize: 13.5 }}>{option.nombre}</span>
+                        <Typography variant="caption" color="text.secondary">
+                            {option.es_servicio ? 'Servicio' : `Stock: ${option.stock_actual ?? 0}`}
+                        </Typography>
+                    </Box>
+                </li>
+            )}
+            renderInput={(params) => (
+                <TextField {...params} label="Producto" placeholder="Busca por nombre…" />
+            )}
+            sx={{ flex: 1, minWidth: isMobile ? '100%' : 220 }}
+        />
+
+        <TextField
+            type="number"
+            label="Cantidad"
+            value={detail.cantidad}
+            onChange={(e) => {
+                const isDecimal = detail.producto && ['MTS', 'KGS'].includes(detail.producto.unidad_medida);
+                const parsed = isDecimal ? parseFloat(e.target.value) : parseInt(e.target.value, 10);
+                onFieldChange(detail.id, 'cantidad', isNaN(parsed) ? '' : parsed);
+            }}
+            InputProps={{
+                inputProps: {
+                    step: detail.producto && ['MTS', 'KGS'].includes(detail.producto.unidad_medida) ? 'any' : '1',
+                    min: 0,
+                },
+            }}
+            sx={{ width: isMobile ? '100%' : 110 }}
+        />
+
+        <TextField
+            type="number"
+            label="Precio Unit."
+            value={detail.precioUnitario}
+            onChange={(e) => onFieldChange(detail.id, 'precioUnitario', parseFloat(e.target.value))}
+            InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+            sx={{ width: isMobile ? '100%' : 140 }}
+        />
+
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minWidth: isMobile ? '100%' : 'auto', gap: 1 }}>
+            <Typography sx={{ fontWeight: 700, fontSize: 14, color: ACCENT }}>
+                {formatCurrency(detail.cantidad * detail.precioUnitario)}
+            </Typography>
+            <Tooltip title="Quitar">
+                <IconButton onClick={() => onRemove(detail.id)} size="small"
+                    sx={{ color: '#EF4444', bgcolor: '#FEF2F2', borderRadius: 1.5 }}>
+                    <RemoveCircleOutline fontSize="small" />
+                </IconButton>
+            </Tooltip>
+        </Box>
+    </Box>
+);
+
+// ─── Componente principal ──────────────────────────────────────────────────────
 const Ventas = () => {
     const [totalVentasHoy, setTotalVentasHoy] = useState(0);
-    const [ventas, setVentas] = useState([]);
+    const [ventas, setVentas]     = useState([]);
     const [clientes, setClientes] = useState([]);
     const [productos, setProductos] = useState([]);
 
-    const [cliente, setCliente] = useState(null);
+    const [cliente, setCliente]   = useState(null);
     const [saleDetails, setSaleDetails] = useState([{ id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0 }]);
     const [ivaPorcentajeGlobal, setIvaPorcentajeGlobal] = useState(0);
-    const [pagada, setPagada] = useState(true);
+    const [pagada, setPagada]     = useState(true);
     const [editingVenta, setEditingVenta] = useState(null);
-    const [creditoHabilitado, setCreditoHabilitado] = useState(true);
-    const [mensajeCredito, setMensajeCredito] = useState('');
+    const [estadoPago, setEstadoPago]     = useState('pagada');
 
-    const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-    const [ventaToDelete, setVentaToDelete] = useState(null);
-    const [showConfirmSaleDialog, setShowConfirmSaleDialog] = useState(false); // New state for sale confirmation
-    const [saleToConfirm, setSaleToConfirm] = useState(null); // New state to hold sale data for confirmation
+    const [showConfirmDialog, setShowConfirmDialog]         = useState(false);
+    const [ventaToDelete, setVentaToDelete]                 = useState(null);
+    const [showConfirmSaleDialog, setShowConfirmSaleDialog] = useState(false);
+    const [saleToConfirm, setSaleToConfirm]                 = useState(null);
 
     const [detailModalOpen, setDetailModalOpen] = useState(false);
-    const [selectedVenta, setSelectedVenta] = useState(null);
-    
-    const [value, setValue] = useState(0); // State for tab selection
-    const [page, setPage] = useState(0);
+    const [selectedVenta, setSelectedVenta]     = useState(null);
+
+    const [tabValue, setTabValue]       = useState(0);
+    const [page, setPage]               = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm]   = useState('');
 
-
-    const theme = useTheme();
+    const theme    = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-    const [estadoPago, setEstadoPago] = useState("pagada");
-
     useEffect(() => {
-        fetchVentas();
-        fetchClientes();
-        fetchProductos();
-        fetchVentasSummary();
+        fetchVentas(); fetchClientes(); fetchProductos(); fetchVentasSummary();
     }, []);
 
-    const fetchVentas = () => apiClient.get('/ventas/').then(res => setVentas(res.data)).catch(console.error);
-    const fetchClientes = () => apiClient.get('/clientes/').then(res => setClientes(res.data)).catch(console.error);
-    const fetchProductos = () => apiClient.get('/productos/').then(res => {
-        // --- FILTRO VIALMAR: Solo PT (2) o Servicios ---
-        const salesProds = res.data.filter(p => p.es_servicio || p.grupo_item === 2);
-        setProductos(salesProds);
-    }).catch(console.error);
+    const fetchVentas    = () => apiClient.get('/ventas/').then(r => setVentas(r.data)).catch(console.error);
+    const fetchClientes  = () => apiClient.get('/clientes/').then(r => setClientes(r.data)).catch(console.error);
+    const fetchProductos = () => apiClient.get('/productos/').then(r =>
+        setProductos(r.data.filter(p => p.es_servicio || p.grupo_item === 2))
+    ).catch(console.error);
     const fetchVentasSummary = () =>
-  apiClient
-    .get('/reportes/ventas_summary')
-    .then(res => setTotalVentasHoy(res.data.total_ventas_hoy))
-    .catch(console.error);
+        apiClient.get('/reportes/ventas_summary').then(r => setTotalVentasHoy(r.data.total_ventas_hoy)).catch(console.error);
 
     useEffect(() => {
         if (editingVenta) {
-            const clienteSeleccionado = clientes.find(c => c.id === editingVenta.cliente_id);
-            setCliente(clienteSeleccionado);
+            setCliente(clientes.find(c => c.id === editingVenta.cliente_id) || null);
             setSaleDetails(editingVenta.detalles.map(d => ({
-                id: d.id,
-                producto: d.producto,
-                cantidad: d.cantidad,
-                precioUnitario: d.precio_unitario,
+                id: d.id, producto: d.producto, cantidad: d.cantidad, precioUnitario: d.precio_unitario,
             })));
             setPagada(editingVenta.estado_pago === 'pagado');
+            setEstadoPago(editingVenta.estado_pago === 'pagado' ? 'pagada' : 'pendiente');
         } else {
             resetForm();
         }
@@ -147,408 +270,364 @@ const Ventas = () => {
         setSaleDetails([{ id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0 }]);
         setIvaPorcentajeGlobal(0);
         setPagada(true);
+        setEstadoPago('pagada');
         setEditingVenta(null);
-        setCreditoHabilitado(true);
-        setMensajeCredito('');
     };
 
-    const handleAddSaleDetail = () => {
-        setSaleDetails([...saleDetails, { id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0 }]);
+    const handleAddSaleDetail = () =>
+        setSaleDetails(p => [...p, { id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0 }]);
+    const handleRemoveSaleDetail = (id) =>
+        setSaleDetails(p => p.filter(d => d.id !== id));
+    const handleFieldChange = (id, field, value) =>
+        setSaleDetails(p => p.map(d => d.id === id ? { ...d, [field]: value } : d));
+    const handleProductChange = (id, newValue) => {
+        handleFieldChange(id, 'producto', newValue);
+        handleFieldChange(id, 'precioUnitario', newValue?.precio ?? 0);
     };
-
-    const handleRemoveSaleDetail = (id) => {
-        setSaleDetails(saleDetails.filter(detail => detail.id !== id));
-    };
-
-    const handleSaleDetailChange = (id, field, value) => {
-        setSaleDetails(prevDetails => prevDetails.map(detail =>
-            detail.id === id ? { ...detail, [field]: value } : detail
-        ));
-    };
-    
-    const calculateSubtotal = () => {
-        return saleDetails.reduce((total, detail) => total + (detail.cantidad * detail.precioUnitario), 0);
-    };
+    const calculateSubtotal = () =>
+        saleDetails.reduce((t, d) => t + d.cantidad * d.precioUnitario, 0);
 
     const handleSubmit = (e) => {
         e.preventDefault();
         if (!cliente || saleDetails.some(d => !d.producto || d.cantidad <= 0)) {
-            toast.error('Asegúrese de seleccionar un cliente y que todos los productos tengan una cantidad válida.');
+            toast.error('Selecciona un cliente y verifica que todos los productos tengan cantidad válida.');
             return;
         }
-
         const ventaData = {
             cliente_id: cliente.id,
             detalles: saleDetails.map(({ producto, cantidad, precioUnitario }) => ({
-                producto_id: producto.id,
-                cantidad,
-                precio_unitario: precioUnitario,
-                iva_porcentaje: 0.0 
+                producto_id: producto.id, cantidad, precio_unitario: precioUnitario, iva_porcentaje: 0.0,
             })),
-            pagada: pagada,
-            iva_porcentaje: parseFloat(ivaPorcentajeGlobal)
+            pagada,
+            iva_porcentaje: parseFloat(ivaPorcentajeGlobal),
         };
-
         setSaleToConfirm(ventaData);
         setShowConfirmSaleDialog(true);
     };
 
     const confirmSale = () => {
-        const ventaData = saleToConfirm;
-        if (!ventaData) return;
-
-        const request = editingVenta
-            ? apiClient.put(`/ventas/${editingVenta.id}`, ventaData)
-            : apiClient.post('/ventas/', ventaData);
-
-        request.then(() => {
-            toast.success(`Venta ${editingVenta ? 'actualizada' : 'registrada'}!`);
-            fetchVentas();
-            fetchVentasSummary();
-            resetForm();
-            setValue(1); // Switch to history tab after submit
-        }).catch(error => {
-            const errorMessage = error.response?.data?.detail || `Error al ${editingVenta ? 'actualizar' : 'registrar'} la venta.`;
-            toast.error(errorMessage);
-        }).finally(() => {
-            setShowConfirmSaleDialog(false);
-            setSaleToConfirm(null);
-        });
+        if (!saleToConfirm) return;
+        const req = editingVenta
+            ? apiClient.put(`/ventas/${editingVenta.id}`, saleToConfirm)
+            : apiClient.post('/ventas/', saleToConfirm);
+        req.then(() => {
+            toast.success(`Venta ${editingVenta ? 'actualizada' : 'registrada'} exitosamente`);
+            fetchVentas(); fetchVentasSummary(); resetForm(); setTabValue(1);
+        }).catch(err => toast.error(err.response?.data?.detail || 'Error al guardar la venta.'))
+          .finally(() => { setShowConfirmSaleDialog(false); setSaleToConfirm(null); });
     };
 
-    const handleDelete = (id) => {
-        setVentaToDelete(id);
-        setShowConfirmDialog(true);
+    const handleDelete   = (id) => { setVentaToDelete(id); setShowConfirmDialog(true); };
+    const confirmDelete  = () => {
+        apiClient.delete(`/ventas/${ventaToDelete}`)
+            .then(() => { toast.success('Venta eliminada'); fetchVentas(); fetchVentasSummary(); })
+            .catch(() => toast.error('Error al eliminar la venta.'))
+            .finally(() => { setShowConfirmDialog(false); setVentaToDelete(null); });
     };
+    const handleEdit = (v) => { setEditingVenta(v); setTabValue(0); };
+    const handleOpenDetails  = (v) => { setSelectedVenta(v); setDetailModalOpen(true); };
+    const handleCloseDetails = ()  => { setDetailModalOpen(false); setSelectedVenta(null); };
 
-    const confirmDelete = () => {
-        apiClient.delete(`/ventas/${ventaToDelete}`).then(() => {
-            toast.success('Venta eliminada!');
-            fetchVentas();
-            fetchVentasSummary();
-        }).catch(error => {
-            toast.error('Error al eliminar la venta.');
-        }).finally(() => {
-            setShowConfirmDialog(false);
-            setVentaToDelete(null);
-        });
-    };
+    const filteredVentas  = [...ventas]
+        .filter(v => (v.cliente?.nombre || '').toLowerCase().includes(searchTerm.toLowerCase()))
+        .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    const paginatedVentas = filteredVentas.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
-    const handleEdit = (venta) => {
-        setEditingVenta(venta);
-        setValue(0); // Switch to the form tab when editing
-    };
-
-    const handleOpenDetails = (venta) => {
-        setSelectedVenta(venta);
-        setDetailModalOpen(true);
-    };
-
-    const handleCloseDetails = () => {
-        setDetailModalOpen(false);
-        setSelectedVenta(null);
-    };
-
-    const getEstadoPagoChip = (estado) => {
-        const chipProps = {
-            pagado: { label: 'Pagada', color: 'success' },
-            parcial: { label: 'Parcial', color: 'warning' },
-            pendiente: { label: 'Pendiente', color: 'error' },
-        };
-        const props = chipProps[estado] || { label: 'Desconocido', color: 'default' };
-        return <Chip label={props.label} color={props.color} size="small" />;
-    };
-
-    const handleChange = (event, newValue) => {
-        setValue(newValue);
-    };
-
-    const handleChangePage = (event, newPage) => {
-        setPage(newPage);
-    };
-
-    const handleChangeRowsPerPage = (event) => {
-        setRowsPerPage(parseInt(event.target.value, 10));
-        setPage(0);
-    };
-
-    const filteredVentas = ventas.filter(venta =>
-        (venta.cliente?.nombre.toLowerCase() || '').includes(searchTerm.toLowerCase())
-    );
-
-    // Ensure sales are always sorted from newest to oldest
-    const sortedVentas = [...filteredVentas].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    const totalPendiente = ventas.filter(v => v.estado_pago === 'pendiente')
+        .reduce((s, v) => s + (v.total - v.monto_pagado), 0);
 
     return (
         <Box sx={{ width: '100%' }}>
-            <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-                <Tabs value={value} onChange={handleChange} aria-label="sales management tabs">
-                    <Tab label="Registrar Venta" {...a11yProps(0)} />
-                    <Tab label="Historial de Ventas" {...a11yProps(1)} />
-                </Tabs>
-            </Box>
-            <TabPanel value={value} index={0}>
-                <Paper sx={{ p: 3 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                        <Typography variant="h6">
-                            {editingVenta ? 'Editar Venta' : 'Registrar Nueva Venta'}
-                        </Typography>
-                        <Typography variant="h6">Ventas del día (Hoy): {formatCurrency(totalVentasHoy)}</Typography>
+
+            {/* ── Header ── */}
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT }}>
+                        <ShoppingCart />
                     </Box>
-                    <Box component="form" onSubmit={handleSubmit}>
-                        {/* Client Autocomplete Section */}
-                        <Box sx={{ mb: 3 }}>
-                            <Autocomplete
-                                options={clientes}
-                                getOptionLabel={(option) => option.nombre}
-                                value={cliente}
-                                onChange={(event, newValue) => {
-                                    setCliente(newValue);
+                    <Box>
+                        <Typography sx={{ fontWeight: 700, fontSize: 20, lineHeight: 1.2 }}>Ventas</Typography>
+                        <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Gestión de ventas y cobros</Typography>
+                    </Box>
+                </Box>
+                <Button
+                    variant="contained"
+                    startIcon={<AddCircleOutline />}
+                    onClick={() => { resetForm(); setTabValue(0); }}
+                    sx={{ background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`, boxShadow: `0 4px 14px rgba(255,96,32,0.35)`, borderRadius: 2, fontWeight: 600 }}
+                >
+                    Nueva Venta
+                </Button>
+            </Box>
+
+            {/* ── KPIs ── */}
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+                <Grid item xs={12} sm={4}>
+                    <KpiCard label="Ventas hoy" value={formatCurrency(totalVentasHoy)} icon={<TrendingUp />} color={ACCENT} />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                    <KpiCard label="Total registros" value={ventas.length} icon={<Receipt />} color="#3B82F6" />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                    <KpiCard label="Cartera pendiente" value={formatCurrency(totalPendiente)} icon={<AttachMoney />} color="#EF4444" />
+                </Grid>
+            </Grid>
+
+            {/* ── Tabs container ── */}
+            <Paper sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+                <Tabs
+                    value={tabValue}
+                    onChange={(_, v) => setTabValue(v)}
+                    sx={{
+                        px: 2,
+                        borderBottom: '1px solid', borderColor: 'divider',
+                        '& .MuiTab-root': { fontWeight: 600, fontSize: 13.5, textTransform: 'none', minHeight: 52 },
+                        '& .MuiTabs-indicator': { backgroundColor: ACCENT, height: 3, borderRadius: 3 },
+                        '& .Mui-selected': { color: `${ACCENT} !important` },
+                    }}
+                >
+                    <Tab label={editingVenta ? '✏️ Editar Venta' : '➕ Registrar Venta'} />
+                    <Tab label={`📋 Historial (${ventas.length})`} />
+                </Tabs>
+
+                {/* ══ Tab 0: Formulario ══ */}
+                <TabPanel value={tabValue} index={0}>
+                    <Box sx={{ p: { xs: 2, md: 3 } }}>
+                        <Box component="form" onSubmit={handleSubmit}>
+
+                            {/* Cliente */}
+                            <Box sx={{ mb: 3 }}>
+                                <Typography sx={{ fontWeight: 600, fontSize: 12, mb: 1, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+                                    Cliente
+                                </Typography>
+                                <Autocomplete
+                                    options={clientes}
+                                    getOptionLabel={(o) => o.nombre}
+                                    value={cliente}
+                                    onChange={(_, v) => setCliente(v)}
+                                    renderInput={(params) => <TextField {...params} label="Seleccionar cliente" required fullWidth />}
+                                />
+                            </Box>
+
+                            {/* Productos */}
+                            <Box sx={{ mb: 3 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                    <Typography sx={{ fontWeight: 600, fontSize: 12, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+                                        Productos / Servicios
+                                    </Typography>
+                                    <Button size="small" startIcon={<AddCircleOutline />} onClick={handleAddSaleDetail}
+                                        sx={{ color: ACCENT, fontWeight: 600 }}>
+                                        Añadir ítem
+                                    </Button>
+                                </Box>
+                                {saleDetails.map(detail => (
+                                    <SaleDetailRow
+                                        key={detail.id}
+                                        detail={detail}
+                                        productos={productos}
+                                        onProductChange={handleProductChange}
+                                        onFieldChange={handleFieldChange}
+                                        onRemove={handleRemoveSaleDetail}
+                                        isMobile={isMobile}
+                                    />
+                                ))}
+                            </Box>
+
+                            <Divider sx={{ mb: 3 }} />
+
+                            {/* Totales */}
+                            <Grid container spacing={2} alignItems="center">
+                                <Grid item xs={12} sm={3}>
+                                    <TextField
+                                        label="% IVA Global (Incluido)"
+                                        type="number"
+                                        value={ivaPorcentajeGlobal}
+                                        onChange={(e) => setIvaPorcentajeGlobal(e.target.value)}
+                                        fullWidth
+                                        helperText="El total no cambia"
+                                    />
+                                </Grid>
+
+                                <Grid item xs={12} sm={3}>
+                                    <Paper sx={{
+                                        p: 2, borderRadius: 2, textAlign: 'center',
+                                        bgcolor: `${ACCENT}0D`, border: `1.5px dashed ${ACCENT}60`, boxShadow: 'none',
+                                    }}>
+                                        <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.5 }}>Total Factura</Typography>
+                                        <Typography sx={{ fontSize: 22, fontWeight: 800, color: ACCENT }}>
+                                            {formatCurrency(calculateSubtotal())}
+                                        </Typography>
+                                    </Paper>
+                                </Grid>
+
+                                <Grid item xs={12} sm={6}>
+                                    <Box sx={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 2, alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'flex-end' }}>
+                                        <ToggleButtonGroup
+                                            value={estadoPago} exclusive
+                                            onChange={(_, v) => { if (v !== null) { setEstadoPago(v); setPagada(v === 'pagada'); } }}
+                                            sx={{
+                                                '& .MuiToggleButton-root': { fontWeight: 600, fontSize: 13, textTransform: 'none', borderRadius: '8px !important', px: 2 },
+                                                '& .Mui-selected[value="pagada"]':   { bgcolor: '#DCFCE7 !important', color: '#16a34a !important', borderColor: '#22c55e !important' },
+                                                '& .Mui-selected[value="pendiente"]':{ bgcolor: '#FEF2F2 !important', color: '#dc2626 !important', borderColor: '#EF4444 !important' },
+                                            }}
+                                        >
+                                            <ToggleButton value="pagada">💰 Efectivo</ToggleButton>
+                                            <ToggleButton value="pendiente">🕒 Por Cobrar</ToggleButton>
+                                        </ToggleButtonGroup>
+
+                                        <Box sx={{ display: 'flex', gap: 1 }}>
+                                            {editingVenta && (
+                                                <Button onClick={resetForm} variant="outlined"
+                                                    sx={{ borderRadius: 2, fontWeight: 600, borderColor: 'divider' }}>
+                                                    Cancelar
+                                                </Button>
+                                            )}
+                                            <Button type="submit" variant="contained"
+                                                sx={{ background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`, boxShadow: `0 4px 14px rgba(255,96,32,0.35)`, borderRadius: 2, fontWeight: 600, px: 3 }}>
+                                                {editingVenta ? 'Actualizar' : 'Registrar Venta'}
+                                            </Button>
+                                        </Box>
+                                    </Box>
+                                </Grid>
+                            </Grid>
+                        </Box>
+                    </Box>
+                </TabPanel>
+
+                {/* ══ Tab 1: Historial ══ */}
+                <TabPanel value={tabValue} index={1}>
+                    <Box sx={{ px: { xs: 2, md: 3 }, pb: 3 }}>
+                        <Box sx={{ mb: 2.5 }}>
+                            <TextField
+                                fullWidth
+                                placeholder="Buscar por nombre de cliente…"
+                                value={searchTerm}
+                                onChange={(e) => { setSearchTerm(e.target.value); setPage(0); }}
+                                InputProps={{
+                                    startAdornment: (
+                                        <InputAdornment position="start">
+                                            <Search sx={{ color: 'text.secondary', fontSize: 20 }} />
+                                        </InputAdornment>
+                                    ),
                                 }}
-                                renderInput={(params) => <TextField {...params} label="Cliente" required fullWidth />}
                             />
                         </Box>
 
-                        {/* Sale Details Section */}
-                        <Box sx={{ mb: 2 }}>
-                            <Typography variant="subtitle1" gutterBottom mb={2}>Detalles de la Venta</Typography>
-                            {saleDetails.map((detail) => (
-                                <Box key={detail.id} sx={{ display: 'flex', alignItems: 'center', mb: 1, gap: 2, flexWrap: 'wrap' }}>
-                                   <Autocomplete
-                                    options={productos}
-                                    // 👇 etiqueta que verá el usuario en el input (y cuando está seleccionado)
-                                    getOptionLabel={productLabel}
-                                    value={detail.producto}
-                                    onChange={(event, newValue) => {
-                                        handleSaleDetailChange(detail.id, 'producto', newValue);
-                                        handleSaleDetailChange(detail.id, 'precioUnitario', newValue ? newValue.precio : 0);
-                                    }}
-                                    // 👇 personalizamos cada fila del dropdown para mostrar nombre + stock
-                                    renderOption={(props, option) => (
-                                        <li {...props} key={option.id}>
-                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 2 }}>
-                                            <span>{option.nombre}</span>
-                                            <Typography variant="caption" color="text.secondary">
-                                            {option.es_servicio ? 'Servicio' : `Stock: ${option.stock_actual ?? 0}`}
-                                            </Typography>
-                                        </Box>
-                                        </li>
-                                    )}
-                                    renderInput={(params) => (
-                                        <TextField
-                                        {...params}
-                                        label="Producto"
-                                        sx={{ flexGrow: 1, minWidth: '250px' }}
-                                        placeholder="Busca por nombre…"
-                                        />
-                                    )}
-                                    />
-
-                                    <TextField
-                                        type="number"
-                                        label="Cantidad"
-                                        value={detail.cantidad}
-                                        onChange={(e) => {
-                                            const value = e.target.value;
-                                            let parsedValue;
-                                            if (detail.producto && (detail.producto.unidad_medida === 'MTS' || detail.producto.unidad_medida === 'KGS')) { // Use MTS/KGS as per ProductoForm.js
-                                                parsedValue = parseFloat(value);
-                                            } else {
-                                                parsedValue = parseInt(value, 10);
-                                            }
-                                            handleSaleDetailChange(detail.id, 'cantidad', isNaN(parsedValue) ? '' : parsedValue);
-                                        }}
-                                        InputProps={{
-                                            inputProps: {
-                                                step: (detail.producto && (detail.producto.unidad_medida === 'MTS' || detail.producto.unidad_medida === 'KGS')) ? "any" : "1"
-                                            }
-                                        }}
-                                        sx={{ width: '100px' }}
-                                    />
-                                    <TextField
-                                        type="number"
-                                        label="Precio Unit."
-                                        value={detail.precioUnitario}
-                                        onChange={(e) => handleSaleDetailChange(detail.id, 'precioUnitario', parseFloat(e.target.value))}
-                                        sx={{ width: '120px' }}
-                                    />
-                                    <Typography sx={{ width: '120px' }}>{formatCurrency(detail.cantidad * detail.precioUnitario)}</Typography>
-                                    <IconButton onClick={() => handleRemoveSaleDetail(detail.id)} color="error">
-                                        <RemoveCircleOutline />
-                                    </IconButton>
-                                </Box>
-                            ))}
-                            <Button startIcon={<AddCircleOutline />} onClick={handleAddSaleDetail}>
-                                Añadir Producto
-                            </Button>
-                        </Box>
-
-                        {/* Subtotal, Pagada switch, and Submit Buttons Section */}
-                        <Box>
-                            <Grid container spacing={2} justifyContent="flex-end" alignItems="center">
-                            <Grid item xs={12} sm={3}>
-                                <TextField
-                                    label="% IVA Global (Incluido)"
-                                    type="number"
-                                    value={ivaPorcentajeGlobal}
-                                    onChange={(e) => setIvaPorcentajeGlobal(e.target.value)}
-                                    fullWidth
-                                    helperText="El total no cambiará"
-                                />
-                            </Grid>
-                            <Grid item xs={12} sm={3}>
-                                <Typography variant="h6" align="right">
-                                Total Factura: {formatCurrency(calculateSubtotal())}
-                                </Typography>
-                            </Grid>
-
-                           <Grid item xs={12} sm={6} sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-                            <ToggleButtonGroup
-                                value={estadoPago}
-                                exclusive
-                                onChange={(e, newValue) => {
-                                if (newValue !== null) {
-                                    setEstadoPago(newValue);
-                                    setPagada(newValue === "pagada"); // sincroniza con tu estado actual
+                        {isMobile ? (
+                            <Box>
+                                {paginatedVentas.length === 0
+                                    ? <Box sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
+                                        <Receipt sx={{ fontSize: 48, mb: 1, opacity: 0.3 }} />
+                                        <Typography>No se encontraron ventas</Typography>
+                                      </Box>
+                                    : paginatedVentas.map(v => (
+                                        <VentaCard key={v.id} venta={v}
+                                            handleEdit={handleEdit} handleDelete={handleDelete}
+                                            handleOpenDetails={handleOpenDetails} />
+                                    ))
                                 }
-                                }}
-                                sx={{ mr: 2 }}
-                            >
-                                <ToggleButton value="pagada" color="success">💰 Efectivo</ToggleButton>
-                                <ToggleButton value="pendiente" color="error">🕒 X Cobrar</ToggleButton>
-                            </ToggleButtonGroup>
-
-                            <Button type="submit" variant="contained">
-                                {editingVenta ? 'Actualizar Venta' : 'Registrar Venta'}
-                            </Button>
-                            {editingVenta && (
-                                <Button onClick={resetForm} sx={{ ml: 1 }}>Cancelar</Button>
-                            )}
-                            </Grid>
-
-                            </Grid>
-
-                        </Box>
-                    </Box>
-                </Paper>
-            </TabPanel>
-            <TabPanel value={value} index={1}>
-                <Paper sx={{ p: 3 }}>
-                  <Box
-                    sx={{
-                        display: 'flex',
-                        flexDirection: isMobile ? 'column' : 'row',
-                        justifyContent: isMobile ? 'flex-start' : 'space-between',
-                        alignItems: isMobile ? 'stretch' : 'center',
-                        gap: 2,
-                        mb: 2,
-                    }}
-                    >
-                    <Typography variant="h6">Historial de Ventas</Typography>
-
-                    <TextField
-                        fullWidth={isMobile} // 👈 hace que ocupe el ancho completo en móvil
-                        label="Buscar por cliente"
-                        variant="outlined"
-                        size="small"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-
-                    <Typography variant="h6">Ventas del día (Hoy): {formatCurrency(totalVentasHoy)}</Typography>
-                    </Box>
-
-                    {isMobile ? (
-                        <Box>
-                            {sortedVentas
-                                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                                .map(venta => (
-                                <VentaCard 
-                                    key={venta.id}
-                                    venta={venta}
-                                    handleEdit={handleEdit}
-                                    handleDelete={handleDelete}
-                                    handleOpenDetails={handleOpenDetails}
-                                    getEstadoPagoChip={getEstadoPagoChip}
-                                />
-                            ))}
-                        </Box>
-                    ) : (
-                        <TableContainer>
-                            <Table>
-                                <TableHead>
-                                    <TableRow>
-                                        <TableCell>ID</TableCell>
-                                        <TableCell>Cliente</TableCell>
-                                        <TableCell>Productos</TableCell>
-                                        <TableCell>Total</TableCell>
-                                        <TableCell>Pagado</TableCell>
-                                        <TableCell>Saldo</TableCell>
-                                        <TableCell>Estado</TableCell>
-                                        <TableCell>Fecha</TableCell>
-                                        <TableCell>Acciones</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {sortedVentas
-                                        .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                                        .map(venta => (
-                                        <TableRow key={venta.id}>
-                                            <TableCell>{venta.id}</TableCell>
-                                            <TableCell>{venta.cliente?.nombre || 'N/A'}</TableCell>
-                                            <TableCell>
-                                                {venta.detalles.map(d => (
-                                                    <div key={d.id}>{d.producto?.nombre} (x{d.cantidad})</div>
-                                                ))}
-                                            </TableCell>
-                                            <TableCell>{formatCurrency(venta.total)}</TableCell>
-                                            <TableCell>{formatCurrency(venta.monto_pagado)}</TableCell>
-                                            <TableCell>{formatCurrency(venta.total - venta.monto_pagado)}</TableCell>
-                                            <TableCell>{getEstadoPagoChip(venta.estado_pago)}</TableCell>
-                                            <TableCell>{new Date(venta.fecha + 'Z').toLocaleString()}</TableCell>
-                                            <TableCell>
-                                                <IconButton onClick={() => handleOpenDetails(venta)} color="info"><Visibility /></IconButton>
-                                                <IconButton onClick={() => handleEdit(venta)} color="primary"><Edit /></IconButton>
-                                                <IconButton onClick={() => handleDelete(venta.id)} color="error"><Delete /></IconButton>
-                                            </TableCell>
+                            </Box>
+                        ) : (
+                            <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                                <Table size="small">
+                                    <TableHead>
+                                        <TableRow>
+                                            {['#', 'Cliente', 'Productos', 'Total', 'Pagado', 'Saldo', 'Estado', 'Fecha', 'Acciones'].map(h => (
+                                                <TableCell key={h}>{h}</TableCell>
+                                            ))}
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
-                    )}
-                     <TablePagination
-                        rowsPerPageOptions={[10, 25, 50]}
-                        component="div"
-                        count={filteredVentas.length}
-                        rowsPerPage={rowsPerPage}
-                        page={page}
-                        onPageChange={handleChangePage}
-                        onRowsPerPageChange={handleChangeRowsPerPage}
-                    />
-                </Paper>
-            </TabPanel>
+                                    </TableHead>
+                                    <TableBody>
+                                        {paginatedVentas.length === 0
+                                            ? <TableRow>
+                                                <TableCell colSpan={9} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
+                                                    No se encontraron ventas
+                                                </TableCell>
+                                              </TableRow>
+                                            : paginatedVentas.map(v => (
+                                                <TableRow key={v.id} hover>
+                                                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{v.id}</TableCell>
+                                                    <TableCell sx={{ fontWeight: 600 }}>{v.cliente?.nombre || 'N/A'}</TableCell>
+                                                    <TableCell>
+                                                        {v.detalles.map(d => (
+                                                            <Typography key={d.id} sx={{ fontSize: 12, color: 'text.secondary' }}>
+                                                                {d.producto?.nombre} × {d.cantidad}
+                                                            </Typography>
+                                                        ))}
+                                                    </TableCell>
+                                                    <TableCell sx={{ fontWeight: 700 }}>{formatCurrency(v.total)}</TableCell>
+                                                    <TableCell sx={{ color: '#16a34a', fontWeight: 600 }}>{formatCurrency(v.monto_pagado)}</TableCell>
+                                                    <TableCell sx={{ color: v.total - v.monto_pagado > 0 ? '#EF4444' : 'text.primary', fontWeight: 600 }}>
+                                                        {formatCurrency(v.total - v.monto_pagado)}
+                                                    </TableCell>
+                                                    <TableCell>{getEstadoPagoChip(v.estado_pago)}</TableCell>
+                                                    <TableCell sx={{ fontSize: 12, color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                                                        {new Date(v.fecha + 'Z').toLocaleString()}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                                            <Tooltip title="Ver detalle">
+                                                                <IconButton size="small" onClick={() => handleOpenDetails(v)}
+                                                                    sx={{ color: '#3B82F6', '&:hover': { bgcolor: '#EFF6FF' } }}>
+                                                                    <Visibility fontSize="small" />
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                            <Tooltip title="Editar">
+                                                                <IconButton size="small" onClick={() => handleEdit(v)}
+                                                                    sx={{ color: ACCENT, '&:hover': { bgcolor: '#FFF0E9' } }}>
+                                                                    <Edit fontSize="small" />
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                            <Tooltip title="Eliminar">
+                                                                <IconButton size="small" onClick={() => handleDelete(v.id)}
+                                                                    sx={{ color: '#EF4444', '&:hover': { bgcolor: '#FEF2F2' } }}>
+                                                                    <Delete fontSize="small" />
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                        </Box>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))
+                                        }
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        )}
 
+                        <TablePagination
+                            rowsPerPageOptions={[10, 25, 50]}
+                            component="div"
+                            count={filteredVentas.length}
+                            rowsPerPage={rowsPerPage}
+                            page={page}
+                            onPageChange={(_, p) => setPage(p)}
+                            onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+                            labelRowsPerPage="Filas:"
+                            labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
+                        />
+                    </Box>
+                </TabPanel>
+            </Paper>
+
+            {/* Diálogos */}
             <ConfirmationDialog
                 open={showConfirmDialog}
                 handleClose={() => setShowConfirmDialog(false)}
                 handleConfirm={confirmDelete}
-                title="Confirmar Eliminación"
+                title="Eliminar venta"
                 message="¿Estás seguro de que quieres eliminar esta venta? Esta acción no se puede deshacer."
             />
-
-            <VentaDetailDialog 
-                open={detailModalOpen}
-                handleClose={handleCloseDetails}
-                venta={selectedVenta}
-            />
-
             <ConfirmationDialog
                 open={showConfirmSaleDialog}
                 handleClose={() => setShowConfirmSaleDialog(false)}
                 handleConfirm={confirmSale}
-                title="Confirmar Registro de Venta"
-                message="¿Estás seguro de que quieres registrar esta venta?"
+                title="Confirmar venta"
+                message={`¿Confirmas el registro de esta venta por ${formatCurrency(calculateSubtotal())}?`}
+            />
+            <VentaDetailDialog
+                open={detailModalOpen}
+                handleClose={handleCloseDetails}
+                venta={selectedVenta}
             />
         </Box>
     );
