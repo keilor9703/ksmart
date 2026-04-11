@@ -1,5 +1,9 @@
 import React, { useState } from 'react';
-import { Box, Tabs, Tab, Typography } from '@mui/material';
+import { Box, Typography, Tabs, Tab } from '@mui/material';
+import {
+  Assessment, ShoppingCart, TrendingUp, People,
+  AccountBalanceWallet, Engineering, Receipt
+} from '@mui/icons-material';
 import ResumenVentas from './ResumenVentas';
 import ProductSales from './ProductSales';
 import CustomerBuyers from './CustomerBuyers';
@@ -8,95 +12,79 @@ import RentabilidadReporte from './RentabilidadReporte';
 import ReporteProductividad from './ReporteProductividad';
 import ReporteIVA from './ReporteIVA';
 
-// Helper component for TabPanel
-function TabPanel(props) {
-    const { children, value, index, ...other } = props;
+const ACCENT = '#F43F5E';
 
-    return (
-        <div
-            role="tabpanel"
-            hidden={value !== index}
-            id={`simple-tabpanel-${index}`}
-            aria-labelledby={`simple-tab-${index}`}
-            {...other}
-        >
-            {value === index && (
-                <Box 
-                    sx={{ 
-                        p: { xs: 1, sm: 3 },   // 👈 menos padding en móvil
-                        width: '100%', 
-                        maxWidth: '100%',      // 👈 asegura que no desborde
-                        overflowX: 'hidden'    // 👈 evita scroll horizontal
-                    }}
-                >
-                    {children}
-                </Box>
-            )}
-        </div>
-    );
+function TabPanel({ children, value, index }) {
+  return (
+    <div role="tabpanel" hidden={value !== index}>
+      {value === index && (
+        <Box sx={{ pt: 3, width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
+          {children}
+        </Box>
+      )}
+    </div>
+  );
 }
 
-// Helper function for a11y props
-function a11yProps(index) {
-    return {
-        id: `simple-tab-${index}`,
-        'aria-controls': `simple-tabpanel-${index}`,
-    };
-}
+const TABS = [
+  { label: 'Resumen General',   icon: <Assessment fontSize="small" />        },
+  { label: 'Ventas x Producto', icon: <ShoppingCart fontSize="small" />      },
+  { label: 'Rentabilidad',      icon: <TrendingUp fontSize="small" />        },
+  { label: 'Ventas x Cliente',  icon: <People fontSize="small" />            },
+  { label: 'Deudores',          icon: <AccountBalanceWallet fontSize="small" /> },
+  { label: 'Productividad',     icon: <Engineering fontSize="small" />       },
+  { label: 'IVA / Impuestos',   icon: <Receipt fontSize="small" />          },
+];
 
 const Reportes = () => {
-    const [value, setValue] = useState(0);
+  const [tab, setTab] = useState(0);
 
-    const handleChange = (event, newValue) => {
-        setValue(newValue);
-    };
+  return (
+    <Box sx={{ width: '100%' }}>
 
-    return (
-        <Box sx={{ width: '100%' }}>
-            <Typography variant="h4" gutterBottom color="text.primary">
-                Reportes Detallados
-            </Typography>
-            <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-                <Tabs 
-                    value={value} 
-                    onChange={handleChange} 
-                    aria-label="report tabs" 
-                    variant="scrollable" 
-                    scrollButtons="auto"
-                >
-                    <Tab label="Resumen General" {...a11yProps(0)} />
-                    <Tab label="Ventas por Producto" {...a11yProps(1)} />
-                    <Tab label="Rentabilidad" {...a11yProps(2)} />
-                    <Tab label="Ventas por Cliente" {...a11yProps(3)} />
-                    <Tab label="Cuentas por Cliente" {...a11yProps(4)} />
-                    <Tab label="Productividad" {...a11yProps(5)} />
-                    <Tab label="Impuestos (IVA)" {...a11yProps(6)} />
-                </Tabs>
-            </Box>
-
-            <TabPanel value={value} index={0}>
-                <ResumenVentas />
-            </TabPanel>
-            <TabPanel value={value} index={1}>
-                <ProductSales />
-            </TabPanel>
-            <TabPanel value={value} index={2}>
-                <RentabilidadReporte />
-            </TabPanel>
-            <TabPanel value={value} index={3}>
-                <CustomerBuyers />
-            </TabPanel>
-            <TabPanel value={value} index={4}>
-                <CustomerDebtors />
-            </TabPanel>
-            <TabPanel value={value} index={5}>
-                <ReporteProductividad />
-            </TabPanel>
-            <TabPanel value={value} index={6}>
-                <ReporteIVA />
-            </TabPanel>
+      {/* ── Header ── */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+        <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT }}>
+          <Assessment />
         </Box>
-    );
+        <Box>
+          <Typography sx={{ fontWeight: 700, fontSize: 20, lineHeight: 1.2 }}>Reportes</Typography>
+          <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Análisis financiero, ventas y productividad</Typography>
+        </Box>
+      </Box>
+
+      {/* ── Tabs ── */}
+      <Box sx={{ borderRadius: 3, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
+        <Tabs
+          value={tab}
+          onChange={(_, v) => setTab(v)}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{
+            px: 1,
+            borderBottom: '1px solid', borderColor: 'divider',
+            '& .MuiTab-root': { fontWeight: 600, fontSize: 12.5, textTransform: 'none', minHeight: 52, gap: 0.8 },
+            '& .MuiTabs-indicator': { backgroundColor: ACCENT, height: 3, borderRadius: 3 },
+            '& .Mui-selected': { color: `${ACCENT} !important` },
+          }}
+        >
+          {TABS.map((t, i) => (
+            <Tab key={i} icon={t.icon} iconPosition="start" label={t.label} />
+          ))}
+        </Tabs>
+
+        <Box sx={{ p: { xs: 2, md: 3 } }}>
+          <TabPanel value={tab} index={0}><ResumenVentas       accentColor={ACCENT} /></TabPanel>
+          <TabPanel value={tab} index={1}><ProductSales        accentColor={ACCENT} /></TabPanel>
+          <TabPanel value={tab} index={2}><RentabilidadReporte accentColor={ACCENT} /></TabPanel>
+          <TabPanel value={tab} index={3}><CustomerBuyers      accentColor={ACCENT} /></TabPanel>
+          <TabPanel value={tab} index={4}><CustomerDebtors     accentColor={ACCENT} /></TabPanel>
+          <TabPanel value={tab} index={5}><ReporteProductividad accentColor={ACCENT} /></TabPanel>
+          <TabPanel value={tab} index={6}><ReporteIVA          accentColor={ACCENT} /></TabPanel>
+        </Box>
+      </Box>
+    </Box>
+  );
 };
 
 export default Reportes;

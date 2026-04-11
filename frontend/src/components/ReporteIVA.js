@@ -1,125 +1,108 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Paper, Typography, Grid, TextField, Button, Divider, Table, TableHead, TableRow, TableCell, TableBody, TableContainer } from '@mui/material';
-import { Assessment, DateRange } from '@mui/icons-material';
+import {
+  Box, Typography, Paper, Grid, Button,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow
+} from '@mui/material';
+import { TrendingUp, TrendingDown, AttachMoney } from '@mui/icons-material';
 import apiClient from '../api';
 import { formatCurrency } from '../utils/formatters';
 import { toast } from 'react-toastify';
+import {
+  FilterPanel, KpiCard, LoadingState,
+  GREEN, BLUE, RED, REPORT_ACCENT
+} from './ReportShared.js';
 
-const ReporteIVA = () => {
+const ACCENT = '#F43F5E';
+
+const ReporteIVA = ({ accentColor = ACCENT }) => {
   const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [endDate, setEndDate]     = useState('');
+  const [data, setData]           = useState(null);
+  const [loading, setLoading]     = useState(false);
+
+  useEffect(() => { fetchReport(); }, []); // eslint-disable-line
 
   const fetchReport = async () => {
     setLoading(true);
     try {
       const params = {};
       if (startDate) params.start_date = startDate;
-      if (endDate) params.end_date = endDate;
-
-      const res = await apiClient.get('/reportes/iva-neto', { params });
-      setData(res.data);
-    } catch (error) {
-      toast.error("Error al generar el reporte tributario.");
-    } finally {
-      setLoading(false);
-    }
+      if (endDate)   params.end_date   = endDate;
+      const { data: res } = await apiClient.get('/reportes/iva-neto', { params });
+      setData(res);
+    } catch { toast.error('Error al generar el reporte tributario.'); }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    fetchReport();
-  }, []);
+  const handleClear = () => { setStartDate(''); setEndDate(''); setTimeout(fetchReport, 0); };
+
+  const ivaNeto  = data?.iva_neto_resultado ?? 0;
+  const netColor = ivaNeto >= 0 ? RED : GREEN;
+  const netLabel = ivaNeto >= 0 ? 'A pagar' : 'A favor';
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        <Assessment sx={{ mr: 1, color: 'primary.main' }} />
-        <Typography variant="h5" fontWeight="bold">Reporte Tributario (IVA Neto)</Typography>
-      </Box>
+      <FilterPanel
+        startDate={startDate} onStartChange={setStartDate}
+        endDate={endDate}     onEndChange={setEndDate}
+        onFilter={fetchReport} onClear={handleClear}
+        loading={loading}     accentColor={accentColor}
+      />
 
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} sm={4}>
-            <TextField
-              fullWidth label="Desde" type="date"
-              value={startDate} onChange={(e) => setStartDate(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-            />
-          </Grid>
-          <Grid item xs={12} sm={4}>
-            <TextField
-              fullWidth label="Hasta" type="date"
-              value={endDate} onChange={(e) => setEndDate(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-            />
-          </Grid>
-          <Grid item xs={12} sm={4}>
-            <Button 
-              variant="contained" 
-              fullWidth 
-              startIcon={<DateRange />} 
-              onClick={fetchReport}
-              disabled={loading}
-            >
-              {loading ? "Generando..." : "Filtrar Periodo"}
-            </Button>
-          </Grid>
-        </Grid>
-      </Paper>
-
-      {data && (
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={4}>
-            <Paper sx={{ p: 3, textAlign: 'center', bgcolor: 'success.light', color: 'white' }}>
-              <Typography variant="subtitle1">IVA Generado (Ventas)</Typography>
-              <Typography variant="h4">{formatCurrency(data.iva_generado_ventas)}</Typography>
-            </Paper>
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <Paper sx={{ p: 3, textAlign: 'center', bgcolor: 'warning.light', color: 'white' }}>
-              <Typography variant="subtitle1">IVA Descontable (Compras)</Typography>
-              <Typography variant="h4">{formatCurrency(data.iva_descontable_compras)}</Typography>
-            </Paper>
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <Paper sx={{ p: 3, textAlign: 'center', bgcolor: data.iva_neto_resultado >= 0 ? 'error.light' : 'info.light', color: 'white' }}>
-              <Typography variant="subtitle1">IVA Neto a {data.iva_neto_resultado >= 0 ? 'Pagar' : 'Favor'}</Typography>
-              <Typography variant="h4">{formatCurrency(Math.abs(data.iva_neto_resultado))}</Typography>
-            </Paper>
+      {loading ? <LoadingState /> : !data ? null : (
+        <>
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid item xs={12} sm={4}>
+              <KpiCard label="IVA Generado (ventas)" value={formatCurrency(data.iva_generado_ventas)} icon={<TrendingUp />} color={GREEN} sub="A pagar al fisco" />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <KpiCard label="IVA Descontable (compras)" value={formatCurrency(data.iva_descontable_compras)} icon={<TrendingDown />} color={BLUE} sub="Descuento por compras" />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Paper sx={{
+                p: 2.5, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 2,
+                boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+                bgcolor: `${netColor}08`, border: `2px solid ${netColor}30`,
+              }}>
+                <Box sx={{ width: 48, height: 48, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: `${netColor}18`, color: netColor }}>
+                  <AttachMoney />
+                </Box>
+                <Box>
+                  <Typography sx={{ fontSize: 12, color: netColor, fontWeight: 600, mb: 0.3 }}>IVA Neto — {netLabel}</Typography>
+                  <Typography sx={{ fontSize: 22, fontWeight: 800, color: netColor }}>{formatCurrency(Math.abs(ivaNeto))}</Typography>
+                </Box>
+              </Paper>
+            </Grid>
           </Grid>
 
-          <Grid item xs={12}>
-            <TableContainer component={Paper}>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Concepto</TableCell>
-                    <TableCell align="right">Valor</TableCell>
+          <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Concepto</TableCell>
+                  <TableCell align="right">Valor</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {[
+                  { label: 'Ventas totales brutas (recaudado)',       val: data.ventas_brutas,           color: GREEN,          bold: false },
+                  { label: 'Base gravable ventas (valor mercancía)',  val: data.base_gravable_ventas,    color: 'text.primary',  bold: false },
+                  { label: 'IVA generado (a pagar al fisco)',         val: data.iva_generado_ventas,     color: GREEN,          bold: true  },
+                  { label: 'IVA descontable (a favor por compras)',   val: data.iva_descontable_compras, color: BLUE,           bold: true  },
+                ].map(({ label, val, color, bold }) => (
+                  <TableRow key={label} hover>
+                    <TableCell sx={{ fontWeight: bold ? 700 : 400 }}>{label}</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: bold ? 800 : 600, color }}>{formatCurrency(val)}</TableCell>
                   </TableRow>
-                </TableHead>
-                <TableBody>
-                  <TableRow>
-                    <TableCell>Ventas Totales (Bruto - Recaudado)</TableCell>
-                    <TableCell align="right" sx={{ color: 'success.main', fontWeight: 'bold' }}>{formatCurrency(data.ventas_brutas)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>Base Gravable Ventas (Valor Real Mercancía)</TableCell>
-                    <TableCell align="right">{formatCurrency(data.base_gravable_ventas)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Total IVA Generado (A pagar al fisco)</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(data.iva_generado_ventas)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Total IVA Descontable (A favor por compras)</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(data.iva_descontable_compras)}</TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Grid>
-        </Grid>
+                ))}
+                <TableRow sx={{ bgcolor: `${netColor}08` }}>
+                  <TableCell sx={{ fontWeight: 800, color: netColor }}>IVA Neto {netLabel}</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 800, fontSize: 15, color: netColor }}>{formatCurrency(Math.abs(ivaNeto))}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </>
       )}
     </Box>
   );

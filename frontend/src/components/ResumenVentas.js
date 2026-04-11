@@ -3,261 +3,150 @@ import apiClient from '../api';
 import { formatCurrency } from '../utils/formatters';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
+import { Box, Paper, Typography, Grid } from '@mui/material';
+import { AttachMoney, Today, CheckCircleOutline, AccountBalanceWallet } from '@mui/icons-material'; 
 import {
-    Box, Paper, Typography, Grid, TextField, Button, Card, CircularProgress,
-    useMediaQuery, Stack
-} from '@mui/material';
-import { useTheme } from '@mui/material/styles';
-import {
-    AttachMoney, Today, AccountBalanceWallet, CheckCircleOutline
-} from '@mui/icons-material';
+  KpiCard, FilterPanel, LoadingState,
+  GREEN, RED, YELLOW, BLUE
+} from './ReportShared';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-const StatCard = ({ title, value, icon, color, isMobile }) => (
-    <Card 
-        sx={{ 
-            display: 'flex',
-            flexDirection: isMobile ? 'column' : 'row',
-            alignItems: isMobile ? 'flex-start' : 'center',
-            p: 2,
-            width: '100%',
-            borderRadius: 2,
-            boxShadow: isMobile ? 1 : 3,
-            flexGrow: 1 // hace que todas crezcan igual
-        }}
-    >
-        <Box sx={{ mb: isMobile ? 1 : 0, mr: isMobile ? 0 : 2, color: color }}>
-            {icon}
-        </Box>
-        <Box>
-            <Typography color="text.secondary" gutterBottom>{title}</Typography>
-            <Typography variant={isMobile ? "body1" : "h5"} component="div">
-                {value}
-            </Typography>
-        </Box>
-    </Card>
-);
+const ACCENT = '#F43F5E';
 
-const ResumenVentas = () => {
-    const [ventasSummary, setVentasSummary] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
+const ResumenVentas = ({ accentColor = ACCENT }) => {
+  const [summary, setSummary]     = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate]     = useState('');
 
-    const theme = useTheme();
-    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  useEffect(() => { fetchSummary(); }, []); // eslint-disable-line
 
-    useEffect(() => {
-        fetchVentasSummary();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+  const fetchSummary = async () => {
+    setLoading(true);
+    const params = {};
+    if (startDate) params.start_date = startDate;
+    if (endDate)   params.end_date   = endDate;
+    try {
+      const { data } = await apiClient.get('/reportes/ventas_summary', { params });
+      setSummary(data);
+    } catch { console.error('Error fetching sales summary'); }
+    finally { setLoading(false); }
+  };
 
-    const fetchVentasSummary = async () => {
-        setLoading(true);
-        const params = {};
-        if (startDate) params.start_date = startDate;
-        if (endDate) params.end_date = endDate;
-        try {
-            const res = await apiClient.get('/reportes/ventas_summary', { params });
-            setVentasSummary(res.data);
-        } catch (error) {
-            console.error('Error fetching sales summary:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+  const handleClear = () => {
+    setStartDate('');
+    setEndDate('');
+    setTimeout(() => fetchSummary(), 0);
+  };
 
-    const handleClearFilters = () => {
-        setStartDate('');
-        setEndDate('');
-        fetchVentasSummary();
-    };
+  const chartData = summary ? {
+    labels: ['Pagado', 'Pendiente'],
+    datasets: [{
+      data: [summary.total_pagado, summary.total_pendiente],
+      backgroundColor: [`${GREEN}CC`, `${RED}CC`],
+      borderColor: [GREEN, RED],
+      borderWidth: 2,
+      hoverOffset: 6,
+    }],
+  } : null;
 
-    const chartData = ventasSummary ? {
-        labels: ['Total Pagado', 'Total Pendiente'],
-        datasets: [
-            {
-                data: [ventasSummary.total_pagado, ventasSummary.total_pendiente],
-                backgroundColor: [
-                    'rgba(75, 192, 192, 0.6)',
-                    'rgba(255, 99, 132, 0.6)',
-                ],
-                borderColor: [
-                    'rgba(75, 192, 192, 1)',
-                    'rgba(255, 99, 132, 1)',
-                ],
-                borderWidth: 1,
-            },
-        ],
-    } : {};
+  const chartOptions = {
+    responsive: true,
+    cutout: '70%',
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { padding: 16, font: { size: 12, weight: '600' }, boxWidth: 12, usePointStyle: true, pointStyle: 'circle' },
+      },
+      tooltip: {
+        callbacks: {
+          label: ctx => {
+            const total = ctx.dataset.data.reduce((s, v) => s + v, 0);
+            const pct   = total > 0 ? ((ctx.parsed / total) * 100).toFixed(1) : 0;
+            return ` ${formatCurrency(ctx.parsed)} (${pct}%)`;
+          },
+        },
+      },
+    },
+  };
 
-    const chartOptions = {
-        responsive: true,
-        plugins: {
-            legend: { position: 'top' },
-            tooltip: {
-                callbacks: {
-                    label: function(context) {
-                        let label = context.label || '';
-                        if (label) label += ': ';
-                        if (context.parsed !== null) {
-                            label += formatCurrency(context.parsed);
-                        }
-                        const total = context.dataset.data.reduce((sum, val) => sum + val, 0);
-                        const percentage = total > 0 ? ((context.parsed / total) * 100).toFixed(2) : 0;
-                        return label + ` (${percentage}%)`;
-                    }
-                }
-            }
-        }
-    };
+  return (
+    <Box>
+      <FilterPanel
+        startDate={startDate} onStartChange={setStartDate}
+        endDate={endDate}     onEndChange={setEndDate}
+        onFilter={fetchSummary} onClear={handleClear}
+        loading={loading} accentColor={accentColor}
+      />
 
-    return (
-        <Box>
-            {/* 🔹 Filtros */}
-            <Paper sx={{ p: 2, mb: 3 }}>
-                <Typography variant="h6" gutterBottom>Filtrar por Fecha</Typography>
+      {loading ? <LoadingState /> : !summary ? (
+        <Typography color="text.secondary">No se pudo cargar el resumen.</Typography>
+      ) : (
+        <Grid container spacing={3}>
+          {/* KPIs */}
+          <Grid item xs={12} lg={8}>
+            <Grid container spacing={2}>
+              {[
+                { label: 'Total General',   value: formatCurrency(summary.total_general),    icon: <AttachMoney />,          color: YELLOW },
+                { label: 'Ventas de Hoy',   value: formatCurrency(summary.total_ventas_hoy), icon: <Today />,                color: GREEN  },
+                { label: 'Total Pagado',    value: formatCurrency(summary.total_pagado),      icon: <CheckCircleOutline />,   color: BLUE   },
+                { label: 'Total Pendiente', value: formatCurrency(summary.total_pendiente),   icon: <AccountBalanceWallet />, color: RED    },
+              ].map(k => (
+                <Grid item xs={12} sm={6} key={k.label}>
+                  <KpiCard {...k} />
+                </Grid>
+              ))}
 
-                {isMobile ? (
-                    <Stack spacing={2}>
-                        <TextField
-                            label="Fecha Inicio"
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            fullWidth
-                            InputLabelProps={{ shrink: true }}
-                        />
-                        <TextField
-                            label="Fecha Fin"
-                            type="date"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                            fullWidth
-                            InputLabelProps={{ shrink: true }}
-                        />
-                        <Button variant="contained" onClick={fetchVentasSummary} fullWidth>
-                            Filtrar
-                        </Button>
-                        <Button variant="outlined" onClick={handleClearFilters} fullWidth>
-                            Limpiar
-                        </Button>
-                    </Stack>
-                ) : (
-                    <Grid container spacing={2} alignItems="center">
-                        <Grid item xs={12} sm={5}>
-                            <TextField
-                                label="Fecha Inicio"
-                                type="date"
-                                value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
-                                fullWidth
-                                InputLabelProps={{ shrink: true }}
-                            />
-                        </Grid>
-                        <Grid item xs={12} sm={5}>
-                            <TextField
-                                label="Fecha Fin"
-                                type="date"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                                fullWidth
-                                InputLabelProps={{ shrink: true }}
-                            />
-                        </Grid>
-                        <Grid item xs={12} sm={2}>
-                            <Button variant="contained" onClick={fetchVentasSummary} fullWidth>
-                                Filtrar
-                            </Button>
-                            <Button variant="outlined" onClick={handleClearFilters} fullWidth sx={{ mt: 1 }}>
-                                Limpiar
-                            </Button>
-                        </Grid>
-                    </Grid>
-                )}
-            </Paper>
+              {/* Barra de cobranza */}
+              {summary.total_general > 0 && (
+                <Grid item xs={12}>
+                  <Paper sx={{ p: 2.5, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography sx={{ fontWeight: 600, fontSize: 13 }}>Tasa de cobranza</Typography>
+                      <Typography sx={{ fontWeight: 700, fontSize: 13, color: GREEN }}>
+                        {((summary.total_pagado / summary.total_general) * 100).toFixed(1)}%
+                      </Typography>
+                    </Box>
+                    <Box sx={{ height: 10, borderRadius: 5, bgcolor: `${RED}20`, overflow: 'hidden' }}>
+                      <Box sx={{
+                        height: '100%', borderRadius: 5,
+                        background: `linear-gradient(90deg, ${GREEN}, #34d399)`,
+                        width: `${Math.min((summary.total_pagado / summary.total_general) * 100, 100)}%`,
+                        transition: 'width 0.6s ease',
+                      }} />
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.8 }}>
+                      <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Pagado: {formatCurrency(summary.total_pagado)}</Typography>
+                      <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Pendiente: {formatCurrency(summary.total_pendiente)}</Typography>
+                    </Box>
+                  </Paper>
+                </Grid>
+              )}
+            </Grid>
+          </Grid>
 
-            {/* 🔹 Contenido */}
-            {loading ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-                    <CircularProgress />
+          {/* Donut */}
+          <Grid item xs={12} lg={4}>
+            <Paper sx={{ p: 3, borderRadius: 3, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+              <Typography sx={{ fontWeight: 700, fontSize: 15, mb: 2, textAlign: 'center' }}>Distribución de pagos</Typography>
+              <Box sx={{ maxWidth: 260, mx: 'auto', position: 'relative' }}>
+                <Doughnut data={chartData} options={chartOptions} />
+                <Box sx={{
+                  position: 'absolute', top: '50%', left: '50%',
+                  transform: 'translate(-50%, -60%)',
+                  textAlign: 'center', pointerEvents: 'none',
+                }}>
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Total</Typography>
+                  <Typography sx={{ fontWeight: 800, fontSize: 15 }}>{formatCurrency(summary.total_general)}</Typography>
                 </Box>
-            ) : ventasSummary ? (
-                isMobile ? (
-                    <Stack spacing={2}>
-                        <StatCard 
-                            title="Total General" 
-                            value={formatCurrency(ventasSummary.total_general)} 
-                            icon={<AttachMoney fontSize="large" />} 
-                            color="#fbc02d" 
-                            isMobile={isMobile}
-                        />
-                        <StatCard 
-                            title="Ventas de Hoy" 
-                            value={formatCurrency(ventasSummary.total_ventas_hoy)} 
-                            icon={<Today fontSize="large" />} 
-                            color="#66bb6a" 
-                            isMobile={isMobile}
-                        />
-                        <StatCard 
-                            title="Total Pagado" 
-                            value={formatCurrency(ventasSummary.total_pagado)} 
-                            icon={<CheckCircleOutline fontSize="large" />} 
-                            color="#42a5f5" 
-                            isMobile={isMobile}
-                        />
-                        <StatCard 
-                            title="Total Pendiente" 
-                            value={formatCurrency(ventasSummary.total_pendiente)} 
-                            icon={<AccountBalanceWallet fontSize="large" />} 
-                            color="#ef5350" 
-                            isMobile={isMobile}
-                        />
-
-                        <Paper sx={{ p: 2 }}>
-                            <Typography variant="h6" gutterBottom>Distribución de Pagos</Typography>
-                            <Box sx={{ height: 250, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                                <Doughnut data={chartData} options={chartOptions} />
-                            </Box>
-                        </Paper>
-                    </Stack>
-                ) : (
-                    <Grid container spacing={3}>
-                        <Grid item xs={12} md={8}>
-                           <Paper sx={{ p: 2, height: '100%' }}>
-                            <Typography variant="h6" gutterBottom>Métricas Clave</Typography>
-                            <Grid container spacing={2} alignItems="stretch">
-                                <Grid item xs={12} sm={6} md={3} sx={{ display: 'flex' }}>
-                                    <StatCard title="Total General" value={formatCurrency(ventasSummary.total_general)} icon={<AttachMoney fontSize="large" />} color="#fbc02d" isMobile={isMobile}/>
-                                </Grid>
-                                <Grid item xs={12} sm={6} md={3} sx={{ display: 'flex' }}>
-                                    <StatCard title="Ventas de Hoy" value={formatCurrency(ventasSummary.total_ventas_hoy)} icon={<Today fontSize="large" />} color="#66bb6a" isMobile={isMobile}/>
-                                </Grid>
-                                <Grid item xs={12} sm={6} md={3} sx={{ display: 'flex' }}>
-                                    <StatCard title="Total Pagado" value={formatCurrency(ventasSummary.total_pagado)} icon={<CheckCircleOutline fontSize="large" />} color="#42a5f5" isMobile={isMobile}/>
-                                </Grid>
-                                <Grid item xs={12} sm={6} md={3} sx={{ display: 'flex' }}>
-                                    <StatCard title="Total Pendiente" value={formatCurrency(ventasSummary.total_pendiente)} icon={<AccountBalanceWallet fontSize="large" />} color="#ef5350" isMobile={isMobile}/>
-                                </Grid>
-                            </Grid>
-                            </Paper>
-                        </Grid>
-                        <Grid item xs={12} md={4}>
-                            <Paper sx={{ p: 2, height: '100%' }}>
-                                <Typography variant="h6" gutterBottom>Distribución de Pagos</Typography>
-                                <Box sx={{ height: 300, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                                    <Doughnut data={chartData} options={chartOptions} />
-                                </Box>
-                            </Paper>
-                        </Grid>
-                    </Grid>
-                )
-            ) : (
-                <Typography color="text.primary">No se pudo cargar el resumen.</Typography>
-            )}
-        </Box>
-    );
+              </Box>
+            </Paper>
+          </Grid>
+        </Grid>
+      )}
+    </Box>
+  );
 };
 
 export default ResumenVentas;

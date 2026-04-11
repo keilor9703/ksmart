@@ -1,285 +1,249 @@
 import React, { useState, useMemo } from 'react';
+import {
+  Box, Typography, Paper, Grid, Button, TextField,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  Collapse, IconButton, Divider, useMediaQuery
+} from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import { TrendingUp, AttachMoney, Engineering, KeyboardArrowDown, KeyboardArrowUp } from '@mui/icons-material';
+import { Bar } from 'react-chartjs-2';
+import {
+  Chart as ChartJS, CategoryScale, LinearScale,
+  BarElement, Title, Tooltip, Legend
+} from 'chart.js';
 import apiClient from '../api';
 import { formatCurrency } from '../utils/formatters';
 import { toast } from 'react-toastify';
 import {
-    Box, Paper, Typography, Grid, TextField, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Collapse, Card, CardContent, useMediaQuery
-} from '@mui/material';
-import { useTheme } from '@mui/material/styles';
-import { KeyboardArrowDown, KeyboardArrowUp, AttachMoney, TrendingUp, People } from '@mui/icons-material';
-import { Bar } from 'react-chartjs-2';
-import {
-    Chart as ChartJS,
-    CategoryScale,
-    LinearScale,
-    BarElement,
-    Title,
-    Tooltip,
-    Legend,
-} from 'chart.js';
+  KpiCard, EmptyState, barChartDefaults, accentDataset,
+  GREEN, BLUE, REPORT_ACCENT
+} from './ReportShared.js';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
-// ================== MOBILE CARD ==================
-const ProductividadCard = ({ row, formatCurrency, isMobile }) => {
-    const [open, setOpen] = useState(false);
+const ACCENT = '#F43F5E';
 
-    return (
-        <Card sx={{ mb: 2 }}>
-            <CardContent>
-                <Typography variant="h6" color="text.primary">{row.operador_username}</Typography>
-                <Typography color="textSecondary">Valor Total: {formatCurrency(row.total_ganado)}</Typography>
-                {isMobile && (
-                    <IconButton size="small" onClick={() => setOpen(!open)}>
-                        {open ? <KeyboardArrowUp /> : <KeyboardArrowDown />}
-                    </IconButton>
-                )}
-                <Collapse in={open} timeout="auto" unmountOnExit>
-                    <Box sx={{ margin: 1 }}>
-                        {/* === Unidades por Servicio primero en MOBILE === */}
-                        {Array.isArray(row.desglose_unidades) && row.desglose_unidades.length > 0 && (
-                            <Box sx={{ mb: 2 }}>
-                                <Typography variant="h6" gutterBottom component="div">
-                                    Unidades por Servicio
-                                </Typography>
-                                {row.desglose_unidades.map((servicio, index) => (
-                                    <Card key={index} variant="outlined" sx={{ mb: 1, p: 1 }}>
-                                        <Typography variant="body2"><strong>Servicio:</strong> {servicio.servicio_nombre}</Typography>
-                                        <Typography variant="body2"><strong>Total Unidades:</strong> {servicio.total_unidades}</Typography>
-                                        <Typography variant="body2"><strong>Valor Total:</strong> {formatCurrency(servicio.total_valor ?? 0)}</Typography>
-                                    </Card>
-                                ))}
-                            </Box>
-                        )}
-
-                        {/* === Desglose por Orden después en MOBILE === */}
-                        <Typography variant="h6" gutterBottom component="div">Desglose por Orden</Typography>
-                        {row.desglose.map((item, index) => (
-                            <ProductividadDetailCard key={index} item={item} formatCurrency={formatCurrency} />
+// ─── Fila expandible desktop ──────────────────────────────────────────────────
+const OperadorRow = ({ row }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <TableRow hover>
+        <TableCell sx={{ width: 40 }}>
+          <IconButton size="small" onClick={() => setOpen(p => !p)}>
+            {open ? <KeyboardArrowUp fontSize="small" /> : <KeyboardArrowDown fontSize="small" />}
+          </IconButton>
+        </TableCell>
+        <TableCell sx={{ fontWeight: 600 }}>{row.operador_username}</TableCell>
+        <TableCell align="right" sx={{ fontWeight: 700, color: GREEN }}>{formatCurrency(row.total_ganado)}</TableCell>
+      </TableRow>
+      <TableRow>
+        <TableCell colSpan={3} sx={{ p: 0, border: 0 }}>
+          <Collapse in={open} unmountOnExit>
+            <Box sx={{ p: 2, bgcolor: 'action.hover' }}>
+              {row.desglose_unidades?.length > 0 && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography sx={{ fontWeight: 600, fontSize: 11, mb: 1, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Unidades por Servicio
+                  </Typography>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        {['Servicio', 'Unidades', 'Valor'].map(h => (
+                          <TableCell key={h} align={h !== 'Servicio' ? 'right' : 'left'}>{h}</TableCell>
                         ))}
-                    </Box>
-                </Collapse>
-            </CardContent>
-        </Card>
-    );
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {row.desglose_unidades.map((s, i) => (
+                        <TableRow key={i}>
+                          <TableCell>{s.servicio_nombre}</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 600 }}>{s.total_unidades}</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 600, color: GREEN }}>{formatCurrency(s.total_valor ?? 0)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Box>
+              )}
+              <Typography sx={{ fontWeight: 600, fontSize: 11, mb: 1, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                Desglose por Orden
+              </Typography>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    {['Orden ID', 'Servicio', 'Valor'].map(h => (
+                      <TableCell key={h} align={h === 'Valor' ? 'right' : 'left'}>{h}</TableCell>
+                    ))}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {row.desglose.map((item, i) => (
+                    <TableRow key={i}>
+                      <TableCell sx={{ fontSize: 12 }}>#{item.orden_id}</TableCell>
+                      <TableCell sx={{ fontSize: 12 }}>{item.servicio_nombre}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600 }}>{formatCurrency(item.valor_ganado)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Box>
+          </Collapse>
+        </TableCell>
+      </TableRow>
+    </>
+  );
 };
 
-const ProductividadDetailCard = ({ item, formatCurrency }) => (
-    <Card variant="outlined" sx={{ mb: 1, p: 1 }}>
-        <Typography variant="body2"><strong>Orden ID:</strong> {item.orden_id}</Typography>
-        <Typography variant="body2"><strong>Servicio:</strong> {item.servicio_nombre}</Typography>
-        <Typography variant="body2"><strong>Valor Total:</strong> {formatCurrency(item.valor_ganado)}</Typography>
-    </Card>
-);
+// ─── Card mobile ──────────────────────────────────────────────────────────────
+const OperadorCard = ({ row }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <Paper sx={{ mb: 2, borderRadius: 3, overflow: 'hidden', boxShadow: '0 2px 10px rgba(0,0,0,0.06)' }}>
+      <Box
+        onClick={() => setOpen(p => !p)}
+        sx={{ p: 2.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+      >
+        <Box>
+          <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{row.operador_username}</Typography>
+          <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{row.desglose.length} órdenes</Typography>
+        </Box>
+        <Box sx={{ textAlign: 'right' }}>
+          <Typography sx={{ fontWeight: 800, fontSize: 16, color: GREEN }}>{formatCurrency(row.total_ganado)}</Typography>
+          {open ? <KeyboardArrowUp fontSize="small" sx={{ color: 'text.secondary' }} /> : <KeyboardArrowDown fontSize="small" sx={{ color: 'text.secondary' }} />}
+        </Box>
+      </Box>
+      <Collapse in={open}>
+        <Divider />
+        <Box sx={{ p: 2 }}>
+          {row.desglose_unidades?.map((s, i) => (
+            <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.8, borderBottom: '1px solid', borderColor: 'divider' }}>
+              <Typography sx={{ fontSize: 12 }}>{s.servicio_nombre}</Typography>
+              <Typography sx={{ fontWeight: 600, fontSize: 12, color: GREEN }}>{formatCurrency(s.total_valor ?? 0)}</Typography>
+            </Box>
+          ))}
+        </Box>
+      </Collapse>
+    </Paper>
+  );
+};
 
-const ReporteProductividad = () => {
-    const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
-    const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
-    const [reportData, setReportData] = useState(null);
-    const [loading, setLoading] = useState(false);
-    const [showAllOperators, setShowAllOperators] = useState(false);
+// ─── Componente principal ──────────────────────────────────────────────────────
+const ReporteProductividad = ({ accentColor = ACCENT }) => {
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate]     = useState(new Date().toISOString().split('T')[0]);
+  const [reportData, setReportData] = useState(null);
+  const [loading, setLoading]     = useState(false);
+  const [showAll, setShowAll]     = useState(false);
 
-    const theme = useTheme();
-    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMobile = useMediaQuery(useTheme().breakpoints.down('sm'));
 
-    const handleGenerateReport = () => {
-        setLoading(true);
-        apiClient.get('/reportes/productividad', { params: { start_date: startDate, end_date: endDate } })
-            .then(res => {
-                setReportData(res.data);
-                if (res.data.reporte.length === 0) {
-                    toast.info("No se encontraron datos de productividad para el rango de fechas seleccionado.");
-                }
-            })
-            .catch(err => toast.error(err.response?.data?.detail || "Error al generar el reporte."))
-            .finally(() => setLoading(false));
-    };
+  const fetchData = () => {
+    setLoading(true);
+    apiClient.get('/reportes/productividad', { params: { start_date: startDate, end_date: endDate } })
+      .then(res => {
+        setReportData(res.data);
+        if (!res.data.reporte.length) toast.info('Sin datos de productividad para este período.');
+      })
+      .catch(err => toast.error(err.response?.data?.detail || 'Error al generar el reporte.'))
+      .finally(() => setLoading(false));
+  };
 
-    const sortedAndFilteredReport = useMemo(() => {
-        if (!reportData || !reportData.reporte) return [];
-        const sorted = [...reportData.reporte].sort((a, b) => b.total_ganado - a.total_ganado);
-        return showAllOperators ? sorted : sorted.slice(0, 5);
-    }, [reportData, showAllOperators]);
+  const sorted  = useMemo(() => reportData ? [...reportData.reporte].sort((a, b) => b.total_ganado - a.total_ganado) : [], [reportData]);
+  const visible = showAll ? sorted : sorted.slice(0, 5);
+  const totalProductividad = useMemo(() => sorted.reduce((s, r) => s + r.total_ganado, 0), [sorted]);
 
-    const chartData = useMemo(() => {
-        if (!reportData || sortedAndFilteredReport.length === 0) return { labels: [], datasets: [] };
-        return {
-            labels: sortedAndFilteredReport.map(row => row.operador_username),
-            datasets: [{
-                label: 'Productividad Total Ganada',
-                data: sortedAndFilteredReport.map(row => row.total_ganado),
-                backgroundColor: 'rgba(75, 192, 192, 0.6)',
-                borderColor: 'rgba(75, 192, 192, 1)',
-                borderWidth: 1,
-            }],
-        };
-    }, [sortedAndFilteredReport]);
+  return (
+    <Box>
+      {/* Filtros */}
+      <Paper sx={{ p: 2.5, mb: 3, borderRadius: 2.5, border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+        <Grid container spacing={2} alignItems="flex-end">
+          <Grid item xs={6} md={4}>
+            <TextField type="date" label="Fecha inicio" value={startDate}
+              onChange={e => setStartDate(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth size="small" />
+          </Grid>
+          <Grid item xs={6} md={4}>
+            <TextField type="date" label="Fecha fin" value={endDate}
+              onChange={e => setEndDate(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth size="small" />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Button variant="contained" onClick={fetchData} disabled={loading} fullWidth
+              sx={{
+                background: `linear-gradient(135deg, ${accentColor}, #fb7185)`,
+                boxShadow: `0 4px 14px rgba(244,63,94,0.25)`,
+                borderRadius: 2, fontWeight: 600,
+              }}>
+              {loading ? 'Generando…' : 'Generar Reporte'}
+            </Button>
+          </Grid>
+        </Grid>
+      </Paper>
 
-    const chartOptions = {
-        responsive: true,
-        plugins: {
-            legend: { position: 'top' },
-            title: { display: true, text: 'Productividad por Operador' },
-            tooltip: {
-                callbacks: {
-                    label: (context) => {
-                        let label = context.dataset.label || '';
-                        if (label) label += ': ';
-                        if (context.parsed.y !== null) label += formatCurrency(context.parsed.y);
-                        return label;
-                    }
-                }
-            }
-        },
-        scales: {
-            y: { beginAtZero: true, ticks: { callback: (value) => formatCurrency(value) } },
-            x: { title: { display: true, text: 'Operador' } },
-        },
-    };
-
-    // ============= FILA DESPLEGABLE DESKTOP =============
-    const Row = ({ row }) => {
-        const [open, setOpen] = useState(false);
-        return (
-            <>
-                <TableRow sx={{ '& > *': { borderBottom: 'unset' } }}>
-                    <TableCell>
-                        <IconButton size="small" onClick={() => setOpen(!open)}>
-                            {open ? <KeyboardArrowUp /> : <KeyboardArrowDown />}
-                        </IconButton>
-                    </TableCell>
-                    <TableCell>{row.operador_username}</TableCell>
-                    <TableCell align="right">{formatCurrency(row.total_ganado)}</TableCell>
-                </TableRow>
-                <TableRow>
-                    <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={3}>
-                        <Collapse in={open} timeout="auto" unmountOnExit>
-                            <Box sx={{ margin: 1 }}>
-                                {/* === Unidades por Servicio primero en DESKTOP === */}
-                                {Array.isArray(row.desglose_unidades) && row.desglose_unidades.length > 0 && (
-                                    <Box sx={{ mb: 2 }}>
-                                        <Typography variant="h6" gutterBottom component="div">
-                                            Unidades por Servicio
-                                        </Typography>
-                                        <TableContainer sx={{
-                                            backgroundColor: theme.palette.background.paper,
-                                            '&::-webkit-scrollbar': { height: '8px' },
-                                            '&::-webkit-scrollbar-thumb': { backgroundColor: theme.palette.grey[700], borderRadius: '4px' },
-                                            '&::-webkit-scrollbar-track': { backgroundColor: theme.palette.background.default },
-                                        }}>
-                                            <Table size="small">
-                                                <TableHead>
-                                                    <TableRow>
-                                                        <TableCell>Servicio</TableCell>
-                                                        <TableCell align="right">Total Unidades</TableCell>
-                                                        <TableCell align="right">Valor Total</TableCell>
-                                                    </TableRow>
-                                                </TableHead>
-                                                <TableBody>
-                                                    {row.desglose_unidades.map((servicio, index) => (
-                                                        <TableRow key={index}>
-                                                            <TableCell>{servicio.servicio_nombre}</TableCell>
-                                                            <TableCell align="right">{servicio.total_unidades}</TableCell>
-                                                            <TableCell align="right">{formatCurrency(servicio.total_valor ?? 0)}</TableCell>
-                                                        </TableRow>
-                                                    ))}
-                                                </TableBody>
-                                            </Table>
-                                        </TableContainer>
-                                    </Box>
-                                )}
-
-                                {/* === Desglose por Orden después === */}
-                                <Typography variant="h6" gutterBottom component="div">Desglose por Orden</Typography>
-                                <TableContainer sx={{
-                                    backgroundColor: theme.palette.background.paper,
-                                    '&::-webkit-scrollbar': { height: '8px' },
-                                    '&::-webkit-scrollbar-thumb': { backgroundColor: theme.palette.grey[700], borderRadius: '4px' },
-                                    '&::-webkit-scrollbar-track': { backgroundColor: theme.palette.background.default },
-                                }}>
-                                    <Table size="small">
-                                        <TableHead>
-                                            <TableRow>
-                                                <TableCell>Orden ID</TableCell>
-                                                <TableCell>Servicio</TableCell>
-                                                <TableCell align="right">Valor Total</TableCell>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {row.desglose.map((item, index) => (
-                                                <TableRow key={index}>
-                                                    <TableCell>{item.orden_id}</TableCell>
-                                                    <TableCell>{item.servicio_nombre}</TableCell>
-                                                    <TableCell align="right">{formatCurrency(item.valor_ganado)}</TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </TableContainer>
-                            </Box>
-                        </Collapse>
-                    </TableCell>
-                </TableRow>
-            </>
-        );
-    };
-
-    const totalProductivity = useMemo(() => reportData?.reporte.reduce((sum, row) => sum + row.total_ganado, 0) || 0, [reportData]);
-    const totalOperators = useMemo(() => reportData?.reporte.length || 0, [reportData]);
-
-    return (
-        <Paper sx={{ p: 3 }}>
-            <Typography variant="h5" mb={3}>Reporte de Productividad</Typography>
-
-            <Grid container spacing={2} alignItems="center" mb={3}>
-                <Grid item><TextField type="date" label="Fecha de Inicio" value={startDate} onChange={e => setStartDate(e.target.value)} InputLabelProps={{ shrink: true }} /></Grid>
-                <Grid item><TextField type="date" label="Fecha de Fin" value={endDate} onChange={e => setEndDate(e.target.value)} InputLabelProps={{ shrink: true }} /></Grid>
-                <Grid item><Button variant="contained" onClick={handleGenerateReport} disabled={loading}>{loading ? 'Generando...' : 'Generar Reporte'}</Button></Grid>
+      {!reportData ? (
+        <EmptyState icon="⚙️" message="Selecciona un período y presiona Generar Reporte" />
+      ) : sorted.length === 0 ? (
+        <EmptyState icon="👷" message="Sin datos de productividad para este período" />
+      ) : (
+        <>
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid item xs={12} sm={4}>
+              <KpiCard label="Operadores activos" value={sorted.length} icon={<Engineering />} color={accentColor} />
             </Grid>
+            <Grid item xs={12} sm={4}>
+              <KpiCard label="Productividad total" value={formatCurrency(totalProductividad)} icon={<AttachMoney />} color={GREEN} />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <KpiCard
+                label="Promedio por operador"
+                value={formatCurrency(sorted.length ? totalProductividad / sorted.length : 0)}
+                icon={<TrendingUp />}
+                color={BLUE}
+              />
+            </Grid>
+          </Grid>
 
-            {reportData && reportData.reporte.length > 0 && (
-                <Grid container spacing={3}>
-                    <Grid item xs={12} md={8}>
-                        <Paper elevation={3} sx={{ p: 2 }}>
-                            <Bar data={chartData} options={chartOptions} />
-                        </Paper>
-                    </Grid>
-                    <Grid item xs={12} md={4}>
-                        <Paper elevation={3} sx={{ p: 2 }}>
-                            <Typography variant="h6" mb={2}>Detalle por Operador</Typography>
-                            {reportData.reporte.length > 5 && (
-                                <Button onClick={() => setShowAllOperators(!showAllOperators)} sx={{ mb: 2 }}>
-                                    {showAllOperators ? "Ver Top 5" : "Ver Todos"}
-                                </Button>
-                            )}
-                            {isMobile ? (
-                                <Box>
-                                    {sortedAndFilteredReport.map(row => (
-                                        <ProductividadCard key={row.operador_id} row={row} formatCurrency={formatCurrency} isMobile={isMobile} />
-                                    ))}
-                                </Box>
-                            ) : (
-                                <TableContainer>
-                                    <Table size="small">
-                                        <TableHead>
-                                            <TableRow>
-                                                <TableCell />
-                                                <TableCell>Operador</TableCell>
-                                                <TableCell align="right">Valor Total</TableCell>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {sortedAndFilteredReport.map(row => <Row key={row.operador_id} row={row} />)}
-                                        </TableBody>
-                                    </Table>
-                                </TableContainer>
-                            )}
-                        </Paper>
-                    </Grid>
-                </Grid>
-            )}
-        </Paper>
-    );
+          <Paper sx={{ p: 2.5, borderRadius: 3, mb: 2.5, boxShadow: '0 2px 10px rgba(0,0,0,0.06)' }}>
+            <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 2 }}>Productividad por operador</Typography>
+            <Box sx={{ height: 260 }}>
+              <Bar
+                data={{ labels: visible.map(r => r.operador_username), datasets: [accentDataset(visible.map(r => r.total_ganado), 'Productividad', GREEN)] }}
+                options={{
+                  ...barChartDefaults(),
+                  scales: { ...barChartDefaults().scales, y: { ...barChartDefaults().scales.y, ticks: { callback: v => formatCurrency(v) } } },
+                }}
+              />
+            </Box>
+          </Paper>
+
+          {isMobile
+            ? visible.map(row => <OperadorCard key={row.operador_id} row={row} />)
+            : (
+              <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ width: 40 }} />
+                      <TableCell>Operador</TableCell>
+                      <TableCell align="right">Valor Total</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {visible.map(row => <OperadorRow key={row.operador_id} row={row} />)}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )
+          }
+
+          {sorted.length > 5 && (
+            <Button onClick={() => setShowAll(p => !p)} sx={{ mt: 1.5, fontWeight: 600, color: accentColor, fontSize: 12 }}>
+              {showAll ? 'Ver Top 5' : `Ver todos (${sorted.length})`}
+            </Button>
+          )}
+        </>
+      )}
+    </Box>
+  );
 };
 
 export default ReporteProductividad;
