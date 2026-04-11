@@ -103,12 +103,14 @@ const Home = () => (
 );
 
 // ─── Sidebar Item ──────────────────────────────────────────────────────────────
-const SidebarItem = ({ item, expanded, onClick, active }) => (
+// onClick  → handler para ítems que NO navegan (ej: toggle Admin)
+// onClose  → cerrar drawer mobile DESPUÉS de navegar
+const SidebarItem = ({ item, expanded, onClick, onClose, active }) => (
   <Tooltip title={!expanded ? item.text : ''} placement="right" arrow>
     <ListItemButton
-      component={onClick ? 'div' : Link}
-      to={onClick ? undefined : item.path}
-      onClick={onClick}
+      component={onClick ? 'div' : Link}   // 'div' solo para toggles sin ruta
+      to={onClick ? undefined : item.path} // ruta solo cuando hay path
+      onClick={onClick ?? onClose}         // toggle -o- cerrar drawer
       sx={{
         mx: 1, mb: 0.5,
         borderRadius: 2,
@@ -259,7 +261,7 @@ const Sidebar = ({ expanded, user, hasAccess, onClose, mobile }) => {
               item={item}
               expanded={expanded}
               active={isActive(item.path)}
-              onClick={mobile ? onClose : undefined}
+              onClose={mobile ? onClose : undefined}  // cierra drawer tras navegar
             />
           ) : null
         )}
