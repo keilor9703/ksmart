@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Box, Typography, Paper, Grid, Button, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, useMediaQuery } from '@mui/material';
+import { Box, Typography, Paper, Button, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, useMediaQuery } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { TrendingUp, TrendingDown, AttachMoney } from '@mui/icons-material';
 import { Bar } from 'react-chartjs-2';
@@ -10,7 +10,6 @@ import { toast } from 'react-toastify';
 import { FilterPanel, KpiCard, LoadingState, EmptyState, barChartDefaults, GREEN, BLUE, RED } from './ReportShared';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
-
 const ACCENT = '#F43F5E';
 
 const RentCard = ({ item }) => {
@@ -18,7 +17,7 @@ const RentCard = ({ item }) => {
   return (
     <Paper sx={{ p: 2, mb: 1.5, borderRadius: 3, boxShadow: '0 2px 10px rgba(0,0,0,0.06)', borderLeft: `4px solid ${positive ? GREEN : RED}`, width: '100%', boxSizing: 'border-box' }}>
       <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.product_name}</Typography>
-      <Grid container spacing={1}>
+      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
         {[
           { label: 'Cantidad', val: item.total_quantity_sold,           color: 'text.primary' },
           { label: 'Ingresos', val: formatCurrency(item.total_revenue), color: BLUE  },
@@ -26,14 +25,12 @@ const RentCard = ({ item }) => {
           { label: 'Ganancia', val: formatCurrency(item.net_profit),    color: positive ? GREEN : RED },
           { label: 'Margen',   val: `${item.profit_margin.toFixed(1)}%`, color: positive ? GREEN : RED },
         ].map(({ label, val, color }) => (
-          <Grid item xs={4} key={label}>
-            <Box sx={{ p: 0.8, borderRadius: 1.5, bgcolor: 'action.hover', textAlign: 'center' }}>
-              <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>{label}</Typography>
-              <Typography sx={{ fontWeight: 700, fontSize: 11, color }}>{val}</Typography>
-            </Box>
-          </Grid>
+          <Box key={label} sx={{ flex: '1 1 calc(33% - 6px)', minWidth: 0, p: 0.8, borderRadius: 1.5, bgcolor: 'action.hover', textAlign: 'center' }}>
+            <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>{label}</Typography>
+            <Typography sx={{ fontWeight: 700, fontSize: 11, color }}>{val}</Typography>
+          </Box>
         ))}
-      </Grid>
+      </Box>
     </Paper>
   );
 };
@@ -71,19 +68,23 @@ const RentabilidadReporte = ({ accentColor = ACCENT }) => {
     <Box sx={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
       <FilterPanel startDate={startDate} onStartChange={setStartDate} endDate={endDate} onEndChange={setEndDate} onFilter={fetchData} onClear={handleClear} loading={loading} accentColor={accentColor} />
 
-      {loading ? <LoadingState /> : visible.length === 0 ? (
-        <EmptyState icon="📊" message="No hay datos de rentabilidad para el período seleccionado." />
-      ) : (
+      {loading ? <LoadingState /> : visible.length === 0 ? <EmptyState icon="📊" message="No hay datos de rentabilidad para el período seleccionado." /> : (
         <>
-          <Grid container spacing={1.5} sx={{ mb: 2 }}>
-            <Grid item xs={6} sm={4}><KpiCard label="Ganancia neta" value={formatCurrency(totalProfit)} icon={<TrendingUp />} color={totalProfit >= 0 ? GREEN : RED} /></Grid>
-            <Grid item xs={6} sm={4}><KpiCard label="Ingresos totales" value={formatCurrency(totalRevenue)} icon={<AttachMoney />} color={accentColor} /></Grid>
-            <Grid item xs={12} sm={4}><KpiCard label="Margen promedio" value={`${avgMargin.toFixed(1)}%`} icon={<TrendingUp />} color={avgMargin >= 0 ? GREEN : RED} /></Grid>
-          </Grid>
+          <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 2, width: '100%' }}>
+            <Box sx={{ flex: '1 1 calc(50% - 6px)', minWidth: 0 }}>
+              <KpiCard label="Ganancia neta" value={formatCurrency(totalProfit)} icon={<TrendingUp />} color={totalProfit >= 0 ? GREEN : RED} />
+            </Box>
+            <Box sx={{ flex: '1 1 calc(50% - 6px)', minWidth: 0 }}>
+              <KpiCard label="Ingresos totales" value={formatCurrency(totalRevenue)} icon={<AttachMoney />} color={accentColor} />
+            </Box>
+            <Box sx={{ flex: '1 1 100%', minWidth: 0 }}>
+              <KpiCard label="Margen promedio" value={`${avgMargin.toFixed(1)}%`} icon={<TrendingUp />} color={avgMargin >= 0 ? GREEN : RED} />
+            </Box>
+          </Box>
 
-          <Paper sx={{ p: 2, borderRadius: 3, mb: 2, boxShadow: '0 2px 10px rgba(0,0,0,0.06)' }}>
+          <Paper sx={{ p: 2, borderRadius: 3, mb: 2, boxShadow: '0 2px 10px rgba(0,0,0,0.06)', width: '100%', boxSizing: 'border-box' }}>
             <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1.5 }}>Ganancia neta por producto</Typography>
-            <Box sx={{ height: 240 }}>
+            <Box sx={{ height: 200, width: '100%', overflow: 'hidden' }}>
               <Bar
                 data={{ labels: visible.map(i => i.product_name), datasets: [{ label: 'Ganancia neta', data: visible.map(i => i.net_profit), backgroundColor: visible.map(i => i.net_profit > 0 ? `${GREEN}CC` : `${RED}CC`), borderColor: visible.map(i => i.net_profit > 0 ? GREEN : RED), borderWidth: 1.5, borderRadius: 6, borderSkipped: false }] }}
                 options={{ ...barChartDefaults(), scales: { ...barChartDefaults().scales, y: { ...barChartDefaults().scales.y, ticks: { callback: v => formatCurrency(v) } } } }}

@@ -4,7 +4,7 @@ import { useTheme } from '@mui/material/styles';
 import {
   Assessment, ShoppingCart, TrendingUp, People,
   AccountBalanceWallet, Engineering, Receipt
-} from '@mui/icons-material';
+} from '@mui/icons-material'; 
 import ResumenVentas from './ResumenVentas';
 import ProductSales from './ProductSales';
 import CustomerBuyers from './CustomerBuyers';
@@ -27,15 +27,14 @@ function TabPanel({ children, value, index }) {
   );
 }
 
-// Labels completos para desktop, cortos para mobile
 const TABS = [
-  { label: 'Resumen General',   short: 'Resumen',      icon: <Assessment fontSize="small" />           },
-  { label: 'Ventas x Producto', short: 'Ventas',       icon: <ShoppingCart fontSize="small" />         },
-  { label: 'Rentabilidad',      short: 'Rentab.',      icon: <TrendingUp fontSize="small" />           },
-  { label: 'Ventas x Cliente',  short: 'Clientes',     icon: <People fontSize="small" />               },
-  { label: 'Deudores',          short: 'Deudores',     icon: <AccountBalanceWallet fontSize="small" /> },
-  { label: 'Productividad',     short: 'Product.',     icon: <Engineering fontSize="small" />          },
-  { label: 'IVA / Impuestos',   short: 'IVA',          icon: <Receipt fontSize="small" />             },
+  { label: 'Resumen',       icon: <Assessment fontSize="small" />,           fullLabel: 'Resumen General'   },
+  { label: 'Ventas',        icon: <ShoppingCart fontSize="small" />,         fullLabel: 'Ventas x Producto' },
+  { label: 'Rentab.',       icon: <TrendingUp fontSize="small" />,           fullLabel: 'Rentabilidad'      },
+  { label: 'Clientes',      icon: <People fontSize="small" />,               fullLabel: 'Ventas x Cliente'  },
+  { label: 'Deudores',      icon: <AccountBalanceWallet fontSize="small" />, fullLabel: 'Deudores'          },
+  { label: 'Product.',      icon: <Engineering fontSize="small" />,          fullLabel: 'Productividad'     },
+  { label: 'IVA',           icon: <Receipt fontSize="small" />,              fullLabel: 'IVA / Impuestos'   },
 ];
 
 const Reportes = () => {
@@ -45,12 +44,9 @@ const Reportes = () => {
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
 
-      {/* ── Header ── */}
+      {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
-        <Box sx={{
-          width: 38, height: 38, borderRadius: 2, flexShrink: 0,
-          bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT,
-        }}>
+        <Box sx={{ width: 38, height: 38, borderRadius: 2, flexShrink: 0, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT }}>
           <Assessment />
         </Box>
         <Box sx={{ minWidth: 0 }}>
@@ -59,29 +55,27 @@ const Reportes = () => {
         </Box>
       </Box>
 
-      {/* ── Contenedor de tabs — sin overflow:hidden ── */}
-      <Box sx={{
-        borderRadius: 3,
-        boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
-        border: '1px solid', borderColor: 'divider',
-        bgcolor: 'background.paper',
-        width: '100%', boxSizing: 'border-box',
-      }}>
+      {/* Contenedor tabs — sin overflow:hidden */}
+      <Box sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', width: '100%', boxSizing: 'border-box' }}>
+
+        {/*
+          En mobile: SOLO íconos (sin texto) para que todos quepan sin scroll
+          En desktop: ícono + texto
+        */}
         <Tabs
           value={tab}
           onChange={(_, v) => setTab(v)}
-          variant="scrollable"
-          scrollButtons="auto"
-          allowScrollButtonsMobile
+          variant={isMobile ? 'fullWidth' : 'scrollable'}
+          scrollButtons={isMobile ? false : 'auto'}
           sx={{
             borderBottom: '1px solid', borderColor: 'divider',
             '& .MuiTab-root': {
               fontWeight: 600,
-              fontSize: isMobile ? 11 : 12.5,
+              fontSize: 11,
               textTransform: 'none',
-              minHeight: isMobile ? 44 : 52,
-              gap: 0.6,
-              px: isMobile ? 1 : 2,
+              minHeight: isMobile ? 48 : 52,
+              minWidth: isMobile ? 0 : 'auto',
+              px: isMobile ? 0.5 : 2,
             },
             '& .MuiTabs-indicator': { backgroundColor: ACCENT, height: 3, borderRadius: 3 },
             '& .Mui-selected': { color: `${ACCENT} !important` },
@@ -90,12 +84,25 @@ const Reportes = () => {
           {TABS.map((t, i) => (
             <Tab
               key={i}
+              // En mobile: solo el ícono
+              // En desktop: ícono + texto
               icon={t.icon}
-              iconPosition="start"
-              label={isMobile ? t.short : t.label}
+              iconPosition={isMobile ? 'top' : 'start'}
+              label={isMobile ? undefined : t.label}
+              title={t.fullLabel}  // tooltip nativo al hacer hover
+              sx={isMobile ? { gap: 0, '& .MuiTab-iconWrapper': { mb: 0 } } : { gap: 0.6 }}
             />
           ))}
         </Tabs>
+
+        {/* Nombre del tab activo en mobile — para compensar que no hay texto */}
+        {isMobile && (
+          <Box sx={{ px: 2, pt: 1.5, pb: 0.5 }}>
+            <Typography sx={{ fontWeight: 700, fontSize: 13, color: ACCENT }}>
+              {TABS[tab].fullLabel}
+            </Typography>
+          </Box>
+        )}
 
         <Box sx={{ p: { xs: 1.5, md: 3 } }}>
           <TabPanel value={tab} index={0}><ResumenVentas        accentColor={ACCENT} /></TabPanel>

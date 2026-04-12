@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Box, Typography, Paper, Grid, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel, useMediaQuery } from '@mui/material';
+import { Box, Typography, Paper, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel, useMediaQuery } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { People, AccountBalanceWallet, TrendingDown } from '@mui/icons-material';
 import { Bar } from 'react-chartjs-2';
@@ -11,7 +11,6 @@ import { visuallyHidden, stableSort, getComparator } from '../utils/sortingUtils
 import { KpiCard, LoadingState, barChartDefaults, accentDataset, RED, YELLOW } from './ReportShared';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
-
 const ACCENT = '#F43F5E';
 
 const ClientCard = ({ name, id, primary, primaryLabel, color }) => (
@@ -85,8 +84,8 @@ const CustomerDebtors = ({ accentColor = ACCENT }) => {
   };
 
   const handleSort = (col) => { setOrder(p => orderBy === col && p === 'desc' ? 'asc' : 'desc'); setOrderBy(col); };
-  const sorted  = useMemo(() => stableSort(data, getComparator(order, orderBy)), [data, order, orderBy]);
-  const visible = showAll ? sorted : sorted.slice(0, 5);
+  const sorted     = useMemo(() => stableSort(data, getComparator(order, orderBy)), [data, order, orderBy]);
+  const visible    = showAll ? sorted : sorted.slice(0, 5);
   const totalDeuda = data.reduce((s, c) => s + c.total_debt_amount, 0);
 
   const COLS = [
@@ -106,15 +105,21 @@ const CustomerDebtors = ({ accentColor = ACCENT }) => {
 
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
-      <Grid container spacing={1.5} sx={{ mb: 2 }}>
-        <Grid item xs={6} sm={4}><KpiCard label="Clientes deudores" value={data.length} icon={<People />} color={RED} /></Grid>
-        <Grid item xs={6} sm={4}><KpiCard label="Deuda total" value={formatCurrency(totalDeuda)} icon={<AccountBalanceWallet />} color={RED} /></Grid>
-        <Grid item xs={12} sm={4}><KpiCard label="Deuda promedio" value={formatCurrency(data.length ? totalDeuda / data.length : 0)} icon={<TrendingDown />} color={YELLOW} /></Grid>
-      </Grid>
+      <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 2, width: '100%' }}>
+        <Box sx={{ flex: '1 1 calc(50% - 6px)', minWidth: 0 }}>
+          <KpiCard label="Clientes deudores" value={data.length} icon={<People />} color={RED} />
+        </Box>
+        <Box sx={{ flex: '1 1 calc(50% - 6px)', minWidth: 0 }}>
+          <KpiCard label="Deuda total" value={formatCurrency(totalDeuda)} icon={<AccountBalanceWallet />} color={RED} />
+        </Box>
+        <Box sx={{ flex: '1 1 100%', minWidth: 0 }}>
+          <KpiCard label="Deuda promedio" value={formatCurrency(data.length ? totalDeuda / data.length : 0)} icon={<TrendingDown />} color={YELLOW} />
+        </Box>
+      </Box>
 
-      <Paper sx={{ p: 2, borderRadius: 3, mb: 2, boxShadow: '0 2px 10px rgba(0,0,0,0.06)' }}>
+      <Paper sx={{ p: 2, borderRadius: 3, mb: 2, boxShadow: '0 2px 10px rgba(0,0,0,0.06)', width: '100%', boxSizing: 'border-box' }}>
         <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1.5 }}>Top clientes por monto adeudado</Typography>
-        <Box sx={{ height: 220 }}>
+        <Box sx={{ height: 200, width: '100%', overflow: 'hidden' }}>
           <Bar data={{ labels: visible.map(c => c.client_name), datasets: [accentDataset(visible.map(c => c.total_debt_amount), '', RED)] }}
             options={{ ...barChartDefaults(), scales: { ...barChartDefaults().scales, y: { ...barChartDefaults().scales.y, ticks: { callback: v => formatCurrency(v) } } } }} />
         </Box>
@@ -124,7 +129,6 @@ const CustomerDebtors = ({ accentColor = ACCENT }) => {
         ? visible.map(c => <ClientCard key={c.client_id} name={c.client_name} id={c.client_id} primary={c.total_debt_amount} primaryLabel="Deuda total" color={RED} />)
         : <RankedTable data={visible} columns={COLS} order={order} orderBy={orderBy} onSort={handleSort} />
       }
-
       {sorted.length > 5 && (
         <Button onClick={() => setShowAll(p => !p)} sx={{ mt: 1, fontWeight: 600, color: RED, fontSize: 12 }}>
           {showAll ? 'Ver solo Top 5' : `Ver todos (${sorted.length})`}

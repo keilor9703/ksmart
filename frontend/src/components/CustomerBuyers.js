@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Box, Typography, Paper, Grid, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel, useMediaQuery } from '@mui/material';
+import { Box, Typography, Paper, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel, useMediaQuery } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { People, AccountBalanceWallet, TrendingUp } from '@mui/icons-material';
 import { Bar } from 'react-chartjs-2';
@@ -11,7 +11,6 @@ import { visuallyHidden, stableSort, getComparator } from '../utils/sortingUtils
 import { FilterPanel, KpiCard, LoadingState, EmptyState, barChartDefaults, accentDataset, GREEN, BLUE } from './ReportShared';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
-
 const ACCENT = '#F43F5E';
 
 const ClientCard = ({ name, id, primary, primaryLabel, color }) => (
@@ -91,8 +90,8 @@ const CustomerBuyers = ({ accentColor = ACCENT }) => {
 
   const handleClear = () => { setStartDate(''); setEndDate(''); setTimeout(fetchData, 0); };
   const handleSort  = (col) => { setOrder(p => orderBy === col && p === 'desc' ? 'asc' : 'desc'); setOrderBy(col); };
-  const sorted  = useMemo(() => stableSort(data, getComparator(order, orderBy)), [data, order, orderBy]);
-  const visible = showAll ? sorted : sorted.slice(0, 5);
+  const sorted      = useMemo(() => stableSort(data, getComparator(order, orderBy)), [data, order, orderBy]);
+  const visible     = showAll ? sorted : sorted.slice(0, 5);
   const totalCompras = data.reduce((s, c) => s + c.total_purchase_amount, 0);
 
   const COLS = [
@@ -103,22 +102,28 @@ const CustomerBuyers = ({ accentColor = ACCENT }) => {
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
       <FilterPanel startDate={startDate} onStartChange={setStartDate} endDate={endDate} onEndChange={setEndDate} onFilter={fetchData} onClear={handleClear} loading={loading} accentColor={accentColor} />
-      {loading ? <LoadingState /> : data.length === 0 ? (
-        <EmptyState icon="👥" message="No hay datos de clientes compradores para el período." />
-      ) : (
+      {loading ? <LoadingState /> : data.length === 0 ? <EmptyState icon="👥" message="No hay datos de clientes compradores para el período." /> : (
         <>
-          <Grid container spacing={1.5} sx={{ mb: 2 }}>
-            <Grid item xs={6} sm={4}><KpiCard label="Clientes activos" value={data.length} icon={<People />} color={accentColor} /></Grid>
-            <Grid item xs={6} sm={4}><KpiCard label="Total facturado" value={formatCurrency(totalCompras)} icon={<TrendingUp />} color={GREEN} /></Grid>
-            <Grid item xs={12} sm={4}><KpiCard label="Ticket promedio" value={formatCurrency(data.length ? totalCompras / data.length : 0)} icon={<AccountBalanceWallet />} color={BLUE} /></Grid>
-          </Grid>
-          <Paper sx={{ p: 2, borderRadius: 3, mb: 2, boxShadow: '0 2px 10px rgba(0,0,0,0.06)' }}>
+          <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 2, width: '100%' }}>
+            <Box sx={{ flex: '1 1 calc(50% - 6px)', minWidth: 0 }}>
+              <KpiCard label="Clientes activos" value={data.length} icon={<People />} color={accentColor} />
+            </Box>
+            <Box sx={{ flex: '1 1 calc(50% - 6px)', minWidth: 0 }}>
+              <KpiCard label="Total facturado" value={formatCurrency(totalCompras)} icon={<TrendingUp />} color={GREEN} />
+            </Box>
+            <Box sx={{ flex: '1 1 100%', minWidth: 0 }}>
+              <KpiCard label="Ticket promedio" value={formatCurrency(data.length ? totalCompras / data.length : 0)} icon={<AccountBalanceWallet />} color={BLUE} />
+            </Box>
+          </Box>
+
+          <Paper sx={{ p: 2, borderRadius: 3, mb: 2, boxShadow: '0 2px 10px rgba(0,0,0,0.06)', width: '100%', boxSizing: 'border-box' }}>
             <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1.5 }}>Top clientes por monto de compra</Typography>
-            <Box sx={{ height: 220 }}>
+            <Box sx={{ height: 200, width: '100%', overflow: 'hidden' }}>
               <Bar data={{ labels: visible.map(c => c.client_name), datasets: [accentDataset(visible.map(c => c.total_purchase_amount), '', accentColor)] }}
                 options={{ ...barChartDefaults(), scales: { ...barChartDefaults().scales, y: { ...barChartDefaults().scales.y, ticks: { callback: v => formatCurrency(v) } } } }} />
             </Box>
           </Paper>
+
           {isMobile
             ? visible.map(c => <ClientCard key={c.client_id} name={c.client_name} id={c.client_id} primary={c.total_purchase_amount} primaryLabel="Total comprado" color={GREEN} />)
             : <RankedTable data={visible} columns={COLS} order={order} orderBy={orderBy} onSort={handleSort} />

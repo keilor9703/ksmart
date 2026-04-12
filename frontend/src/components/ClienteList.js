@@ -276,7 +276,13 @@ const ClienteList = ({ onEditCliente, onClienteDeleted, filterType, accentColor 
         onPageChange={(_, p) => setPage(p)}
         onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
         labelRowsPerPage="Filas:"
-        labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
+        labelDisplayedRows={({ from, to, count }) => `${from}-${to}/${count}`}
+        sx={{
+          '& .MuiTablePagination-toolbar': { flexWrap: 'wrap', pl: 0 },
+          '& .MuiTablePagination-spacer': { display: 'none' },
+          '& .MuiTablePagination-displayedRows': { fontSize: 11 },
+          '& .MuiTablePagination-selectLabel': { fontSize: 11 },
+        }}
       />
 
       <ConfirmationDialog

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Paper, Grid, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from '@mui/material';
+import { Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from '@mui/material';
 import { TrendingUp, TrendingDown, AttachMoney } from '@mui/icons-material';
 import apiClient from '../api';
 import { formatCurrency } from '../utils/formatters';
@@ -45,16 +45,16 @@ const ReporteIVA = ({ accentColor = ACCENT }) => {
 
       {loading ? <LoadingState /> : !data ? null : (
         <>
-          {/* KPIs — 2 por fila en mobile */}
-          <Grid container spacing={1.5} sx={{ mb: 2 }}>
-            <Grid item xs={6} sm={4}>
-              <KpiCard label="IVA Generado" value={formatCurrency(data.iva_generado_ventas)} icon={<TrendingUp />} color={GREEN} sub="Ventas" />
-            </Grid>
-            <Grid item xs={6} sm={4}>
-              <KpiCard label="IVA Descontable" value={formatCurrency(data.iva_descontable_compras)} icon={<TrendingDown />} color={BLUE} sub="Compras" />
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              {/* Card especial IVA Neto — ocupa fila completa en mobile */}
+          {/* KPIs: 2 por fila con Box flex */}
+          <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 2, width: '100%' }}>
+            <Box sx={{ flex: '1 1 calc(50% - 6px)', minWidth: 0 }}>
+              <KpiCard label="IVA Generado" value={formatCurrency(data.iva_generado_ventas)} icon={<TrendingUp />} color={GREEN} sub="En ventas" />
+            </Box>
+            <Box sx={{ flex: '1 1 calc(50% - 6px)', minWidth: 0 }}>
+              <KpiCard label="IVA Descontable" value={formatCurrency(data.iva_descontable_compras)} icon={<TrendingDown />} color={BLUE} sub="En compras" />
+            </Box>
+            {/* IVA Neto — fila completa */}
+            <Box sx={{ flex: '1 1 100%', minWidth: 0 }}>
               <Paper sx={{
                 p: 2, borderRadius: 3,
                 display: 'flex', alignItems: 'center', gap: 1.5,
@@ -62,7 +62,7 @@ const ReporteIVA = ({ accentColor = ACCENT }) => {
                 bgcolor: `${netColor}08`, border: `2px solid ${netColor}30`,
                 width: '100%', boxSizing: 'border-box',
               }}>
-                <Box sx={{ width: 42, height: 42, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: `${netColor}18`, color: netColor }}>
+                <Box sx={{ width: 40, height: 40, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: `${netColor}18`, color: netColor }}>
                   <AttachMoney />
                 </Box>
                 <Box sx={{ minWidth: 0 }}>
@@ -70,10 +70,10 @@ const ReporteIVA = ({ accentColor = ACCENT }) => {
                   <Typography sx={{ fontSize: 20, fontWeight: 800, color: netColor }}>{formatCurrency(Math.abs(ivaNeto))}</Typography>
                 </Box>
               </Paper>
-            </Grid>
-          </Grid>
+            </Box>
+          </Box>
 
-          <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', overflowX: 'auto' }}>
+          <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', overflowX: 'auto', width: '100%', boxSizing: 'border-box' }}>
             <Table size="small">
               <TableHead>
                 <TableRow>
@@ -83,19 +83,19 @@ const ReporteIVA = ({ accentColor = ACCENT }) => {
               </TableHead>
               <TableBody>
                 {[
-                  { label: 'Ventas brutas (recaudado)',         val: data.ventas_brutas,           color: GREEN,          bold: false },
-                  { label: 'Base gravable ventas',              val: data.base_gravable_ventas,    color: 'text.primary',  bold: false },
-                  { label: 'IVA generado (a pagar al fisco)',   val: data.iva_generado_ventas,     color: GREEN,          bold: true  },
-                  { label: 'IVA descontable (por compras)',     val: data.iva_descontable_compras, color: BLUE,           bold: true  },
+                  { label: 'Ventas brutas (recaudado)',       val: data.ventas_brutas,           color: GREEN,          bold: false },
+                  { label: 'Base gravable ventas',            val: data.base_gravable_ventas,    color: 'text.primary',  bold: false },
+                  { label: 'IVA generado (pagar al fisco)',   val: data.iva_generado_ventas,     color: GREEN,          bold: true  },
+                  { label: 'IVA descontable (por compras)',   val: data.iva_descontable_compras, color: BLUE,           bold: true  },
                 ].map(({ label, val, color, bold }) => (
                   <TableRow key={label} hover>
-                    <TableCell sx={{ fontWeight: bold ? 700 : 400, fontSize: 13 }}>{label}</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: bold ? 800 : 600, color, fontSize: 13 }}>{formatCurrency(val)}</TableCell>
+                    <TableCell sx={{ fontWeight: bold ? 700 : 400, fontSize: 12 }}>{label}</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: bold ? 800 : 600, color, fontSize: 12 }}>{formatCurrency(val)}</TableCell>
                   </TableRow>
                 ))}
                 <TableRow sx={{ bgcolor: `${netColor}08` }}>
-                  <TableCell sx={{ fontWeight: 800, color: netColor }}>IVA Neto — {netLabel}</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800, fontSize: 15, color: netColor }}>{formatCurrency(Math.abs(ivaNeto))}</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: netColor, fontSize: 13 }}>IVA Neto — {netLabel}</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 800, fontSize: 14, color: netColor }}>{formatCurrency(Math.abs(ivaNeto))}</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
@@ -107,4 +107,3 @@ const ReporteIVA = ({ accentColor = ACCENT }) => {
 };
 
 export default ReporteIVA;
- 

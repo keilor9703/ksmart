@@ -21,19 +21,14 @@ const SalesCard = ({ item }) => (
   <Paper sx={{ p: 2, mb: 1.5, borderRadius: 3, boxShadow: '0 2px 10px rgba(0,0,0,0.06)', width: '100%', boxSizing: 'border-box' }}>
     <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 0.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.product_name}</Typography>
     <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 1 }}>#{item.product_id}</Typography>
-    <Grid container spacing={1}>
-      {[
-        { label: 'Cantidad', val: item.total_quantity_sold },
-        { label: 'Ingresos', val: formatCurrency(item.total_revenue) },
-      ].map(({ label, val }) => (
-        <Grid item xs={6} key={label}>
-          <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'action.hover', textAlign: 'center' }}>
-            <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>{label}</Typography>
-            <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{val}</Typography>
-          </Box>
-        </Grid>
+    <Box sx={{ display: 'flex', gap: 1 }}>
+      {[{ label: 'Cantidad', val: item.total_quantity_sold }, { label: 'Ingresos', val: formatCurrency(item.total_revenue) }].map(({ label, val }) => (
+        <Box key={label} sx={{ flex: 1, p: 1, borderRadius: 1.5, bgcolor: 'action.hover', textAlign: 'center' }}>
+          <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>{label}</Typography>
+          <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{val}</Typography>
+        </Box>
       ))}
-    </Grid>
+    </Box>
   </Paper>
 );
 
@@ -105,17 +100,17 @@ const ProductSales = ({ accentColor = ACCENT }) => {
   const totalIngresos = [...salesData.productos, ...salesData.servicios].reduce((s, i) => s + i.total_revenue, 0);
 
   const COLS = [
-    { id: 'product_name',       label: 'Producto',      numeric: false },
-    { id: 'total_quantity_sold', label: 'Cant.',         numeric: true, bold: true },
-    { id: 'total_revenue',       label: 'Ingresos',      numeric: true, bold: true, render: i => formatCurrency(i.total_revenue), color: () => GREEN },
+    { id: 'product_name',       label: 'Producto', numeric: false },
+    { id: 'total_quantity_sold', label: 'Cant.',    numeric: true, bold: true },
+    { id: 'total_revenue',       label: 'Ingresos', numeric: true, bold: true, render: i => formatCurrency(i.total_revenue), color: () => GREEN },
   ];
 
   const renderSection = (title, sorted, visible, showKey, color) => (
-    <Box sx={{ mb: 3 }}>
+    <Box sx={{ mb: 3, width: '100%' }}>
       <SectionTitle badge={`${sorted.length}`} color={color}>{title}</SectionTitle>
       {visible.length > 0 && (
-        <Paper sx={{ p: 2, borderRadius: 3, mb: 2, boxShadow: '0 2px 10px rgba(0,0,0,0.06)' }}>
-          <Box sx={{ height: 220 }}>
+        <Paper sx={{ p: 2, borderRadius: 3, mb: 2, boxShadow: '0 2px 10px rgba(0,0,0,0.06)', width: '100%', boxSizing: 'border-box' }}>
+          <Box sx={{ height: 200, width: '100%', overflow: 'hidden' }}>
             <Bar
               data={{ labels: visible.map(i => i.product_name), datasets: [accentDataset(visible.map(i => i.total_revenue), 'Ingresos', color)] }}
               options={{ ...barChartDefaults(), scales: { ...barChartDefaults().scales, y: { ...barChartDefaults().scales.y, ticks: { callback: v => formatCurrency(v) } } } }}
@@ -140,17 +135,18 @@ const ProductSales = ({ accentColor = ACCENT }) => {
       <FilterPanel startDate={startDate} onStartChange={setStartDate} endDate={endDate} onEndChange={setEndDate} onFilter={fetchData} onClear={handleClear} loading={loading} accentColor={accentColor} />
       {loading ? <LoadingState /> : (
         <>
-          <Grid container spacing={1.5} sx={{ mb: 2.5 }}>
-            <Grid item xs={6} sm={4}>
+          {/* KPIs: 2 por fila usando flex, nunca Grid que puede desbordar */}
+          <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 2, width: '100%' }}>
+            <Box sx={{ flex: '1 1 calc(50% - 6px)', minWidth: 0 }}>
               <KpiCard label="Productos vendidos" value={salesData.productos.length} icon={<ShoppingCart />} color={accentColor} />
-            </Grid>
-            <Grid item xs={6} sm={4}>
+            </Box>
+            <Box sx={{ flex: '1 1 calc(50% - 6px)', minWidth: 0 }}>
               <KpiCard label="Servicios prestados" value={salesData.servicios.length} icon={<Settings />} color={BLUE} />
-            </Grid>
-            <Grid item xs={12} sm={4}>
+            </Box>
+            <Box sx={{ flex: '1 1 100%', minWidth: 0 }}>
               <KpiCard label="Total ingresos" value={formatCurrency(totalIngresos)} icon={<ShoppingCart />} color={GREEN} />
-            </Grid>
-          </Grid>
+            </Box>
+          </Box>
           {renderSection('Productos Vendidos', sortedProd, visibleProd, 'prod', accentColor)}
           {renderSection('Servicios Prestados', sortedServ, visibleServ, 'serv', BLUE)}
         </>

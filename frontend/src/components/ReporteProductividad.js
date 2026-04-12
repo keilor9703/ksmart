@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Box, Typography, Paper, Grid, Button, TextField, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Collapse, IconButton, Divider, useMediaQuery } from '@mui/material';
+import { Box, Typography, Paper, Button, TextField, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Collapse, IconButton, Divider, useMediaQuery, Stack } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { TrendingUp, AttachMoney, Engineering, KeyboardArrowDown, KeyboardArrowUp } from '@mui/icons-material';
 import { Bar } from 'react-chartjs-2';
@@ -10,7 +10,6 @@ import { toast } from 'react-toastify';
 import { KpiCard, EmptyState, barChartDefaults, accentDataset, GREEN, BLUE } from './ReportShared';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
-
 const ACCENT = '#F43F5E';
 
 const OperadorRow = ({ row }) => {
@@ -30,23 +29,6 @@ const OperadorRow = ({ row }) => {
         <TableCell colSpan={3} sx={{ p: 0, border: 0 }}>
           <Collapse in={open} unmountOnExit>
             <Box sx={{ p: 2, bgcolor: 'action.hover' }}>
-              {row.desglose_unidades?.length > 0 && (
-                <Box sx={{ mb: 2 }}>
-                  <Typography sx={{ fontWeight: 600, fontSize: 11, mb: 1, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>Unidades por Servicio</Typography>
-                  <Table size="small">
-                    <TableHead><TableRow>{['Servicio', 'Unidades', 'Valor'].map(h => <TableCell key={h} align={h !== 'Servicio' ? 'right' : 'left'}>{h}</TableCell>)}</TableRow></TableHead>
-                    <TableBody>
-                      {row.desglose_unidades.map((s, i) => (
-                        <TableRow key={i}>
-                          <TableCell>{s.servicio_nombre}</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 600 }}>{s.total_unidades}</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 600, color: GREEN }}>{formatCurrency(s.total_valor ?? 0)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </Box>
-              )}
               <Typography sx={{ fontWeight: 600, fontSize: 11, mb: 1, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>Desglose por Orden</Typography>
               <Table size="small">
                 <TableHead><TableRow>{['Orden ID', 'Servicio', 'Valor'].map(h => <TableCell key={h} align={h === 'Valor' ? 'right' : 'left'}>{h}</TableCell>)}</TableRow></TableHead>
@@ -119,62 +101,63 @@ const ReporteProductividad = ({ accentColor = ACCENT }) => {
 
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
-      {/* Filtros — fechas en xs=6 para que quepan en una fila */}
+      {/* Filtros con Stack — mismo patrón que FilterPanel */}
       <Paper sx={{ p: { xs: 1.5, md: 2.5 }, mb: 2, borderRadius: 2.5, border: '1px solid', borderColor: 'divider', boxShadow: 'none', width: '100%', boxSizing: 'border-box' }}>
-        <Grid container spacing={1.5} alignItems="flex-end">
-          <Grid item xs={6} md={4}>
-            <TextField type="date" label="Fecha inicio" value={startDate} onChange={e => setStartDate(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth size="small" />
-          </Grid>
-          <Grid item xs={6} md={4}>
-            <TextField type="date" label="Fecha fin" value={endDate} onChange={e => setEndDate(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth size="small" />
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <Button variant="contained" onClick={fetchData} disabled={loading} fullWidth size="small"
-              sx={{ background: `linear-gradient(135deg, ${accentColor}, #fb7185)`, boxShadow: `0 4px 14px rgba(244,63,94,0.25)`, borderRadius: 2, fontWeight: 600 }}>
-              {loading ? 'Generando…' : 'Generar Reporte'}
-            </Button>
-          </Grid>
-        </Grid>
+        <Stack spacing={1.5} sx={{ width: '100%' }}>
+          <Box sx={{ display: 'flex', gap: 1, width: '100%' }}>
+            <TextField type="date" label="Fecha inicio" value={startDate} onChange={e => setStartDate(e.target.value)} InputLabelProps={{ shrink: true }} size="small" sx={{ flex: 1 }} />
+            <TextField type="date" label="Fecha fin"    value={endDate}   onChange={e => setEndDate(e.target.value)}   InputLabelProps={{ shrink: true }} size="small" sx={{ flex: 1 }} />
+          </Box>
+          <Button variant="contained" onClick={fetchData} disabled={loading} fullWidth size="small"
+            sx={{ background: `linear-gradient(135deg, ${accentColor}, #fb7185)`, boxShadow: `0 4px 14px rgba(244,63,94,0.2)`, borderRadius: 2, fontWeight: 600 }}>
+            {loading ? 'Generando…' : 'Generar Reporte'}
+          </Button>
+        </Stack>
       </Paper>
 
-      {!reportData ? (
-        <EmptyState icon="⚙️" message="Selecciona un período y presiona Generar Reporte" />
-      ) : sorted.length === 0 ? (
-        <EmptyState icon="👷" message="Sin datos de productividad para este período" />
-      ) : (
-        <>
-          <Grid container spacing={1.5} sx={{ mb: 2 }}>
-            <Grid item xs={6} sm={4}><KpiCard label="Operadores" value={sorted.length} icon={<Engineering />} color={accentColor} /></Grid>
-            <Grid item xs={6} sm={4}><KpiCard label="Productividad total" value={formatCurrency(totalProductividad)} icon={<AttachMoney />} color={GREEN} /></Grid>
-            <Grid item xs={12} sm={4}><KpiCard label="Promedio/operador" value={formatCurrency(sorted.length ? totalProductividad / sorted.length : 0)} icon={<TrendingUp />} color={BLUE} /></Grid>
-          </Grid>
-
-          <Paper sx={{ p: 2, borderRadius: 3, mb: 2, boxShadow: '0 2px 10px rgba(0,0,0,0.06)' }}>
-            <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1.5 }}>Productividad por operador</Typography>
-            <Box sx={{ height: 220 }}>
-              <Bar data={{ labels: visible.map(r => r.operador_username), datasets: [accentDataset(visible.map(r => r.total_ganado), 'Productividad', GREEN)] }}
-                options={{ ...barChartDefaults(), scales: { ...barChartDefaults().scales, y: { ...barChartDefaults().scales.y, ticks: { callback: v => formatCurrency(v) } } } }} />
+      {!reportData ? <EmptyState icon="⚙️" message="Selecciona un período y presiona Generar Reporte" />
+        : sorted.length === 0 ? <EmptyState icon="👷" message="Sin datos de productividad para este período" />
+        : (
+          <>
+            <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 2, width: '100%' }}>
+              <Box sx={{ flex: '1 1 calc(50% - 6px)', minWidth: 0 }}>
+                <KpiCard label="Operadores" value={sorted.length} icon={<Engineering />} color={accentColor} />
+              </Box>
+              <Box sx={{ flex: '1 1 calc(50% - 6px)', minWidth: 0 }}>
+                <KpiCard label="Productividad total" value={formatCurrency(totalProductividad)} icon={<AttachMoney />} color={GREEN} />
+              </Box>
+              <Box sx={{ flex: '1 1 100%', minWidth: 0 }}>
+                <KpiCard label="Promedio por operador" value={formatCurrency(sorted.length ? totalProductividad / sorted.length : 0)} icon={<TrendingUp />} color={BLUE} />
+              </Box>
             </Box>
-          </Paper>
 
-          {isMobile
-            ? visible.map(row => <OperadorCard key={row.operador_id} row={row} />)
-            : (
-              <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', overflowX: 'auto' }}>
-                <Table size="small">
-                  <TableHead><TableRow><TableCell sx={{ width: 40 }} /><TableCell>Operador</TableCell><TableCell align="right">Valor Total</TableCell></TableRow></TableHead>
-                  <TableBody>{visible.map(row => <OperadorRow key={row.operador_id} row={row} />)}</TableBody>
-                </Table>
-              </TableContainer>
-            )
-          }
-          {sorted.length > 5 && (
-            <Button onClick={() => setShowAll(p => !p)} sx={{ mt: 1, fontWeight: 600, color: accentColor, fontSize: 12 }}>
-              {showAll ? 'Ver Top 5' : `Ver todos (${sorted.length})`}
-            </Button>
-          )}
-        </>
-      )}
+            <Paper sx={{ p: 2, borderRadius: 3, mb: 2, boxShadow: '0 2px 10px rgba(0,0,0,0.06)', width: '100%', boxSizing: 'border-box' }}>
+              <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1.5 }}>Productividad por operador</Typography>
+              <Box sx={{ height: 200, width: '100%', overflow: 'hidden' }}>
+                <Bar data={{ labels: visible.map(r => r.operador_username), datasets: [accentDataset(visible.map(r => r.total_ganado), 'Productividad', GREEN)] }}
+                  options={{ ...barChartDefaults(), scales: { ...barChartDefaults().scales, y: { ...barChartDefaults().scales.y, ticks: { callback: v => formatCurrency(v) } } } }} />
+              </Box>
+            </Paper>
+
+            {isMobile
+              ? visible.map(row => <OperadorCard key={row.operador_id} row={row} />)
+              : (
+                <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', overflowX: 'auto' }}>
+                  <Table size="small">
+                    <TableHead><TableRow><TableCell sx={{ width: 40 }} /><TableCell>Operador</TableCell><TableCell align="right">Valor Total</TableCell></TableRow></TableHead>
+                    <TableBody>{visible.map(row => <OperadorRow key={row.operador_id} row={row} />)}</TableBody>
+                  </Table>
+                </TableContainer>
+              )
+            }
+            {sorted.length > 5 && (
+              <Button onClick={() => setShowAll(p => !p)} sx={{ mt: 1, fontWeight: 600, color: accentColor, fontSize: 12 }}>
+                {showAll ? 'Ver Top 5' : `Ver todos (${sorted.length})`}
+              </Button>
+            )}
+          </>
+        )
+      }
     </Box>
   );
 };
