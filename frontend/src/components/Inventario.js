@@ -189,16 +189,21 @@ export default function Inventario() {
       {/* ── Paper sin overflow:hidden ── */}
       <Paper sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: '1px solid', borderColor: 'divider', width: '100%', boxSizing: 'border-box' }}>
 
-        {/* Tabs: scrollable + botones de scroll visibles en mobile */}
+        {/* Tabs: fullWidth con íconos en mobile, scrollable con texto en desktop */}
         <Tabs
           value={tab}
           onChange={(_, v) => { setTab(v); setPage(0); setSearchTerm(''); }}
-          variant="scrollable"
-          scrollButtons="auto"
-          allowScrollButtonsMobile
+          variant={isMobile ? 'fullWidth' : 'scrollable'}
+          scrollButtons={isMobile ? false : 'auto'}
           sx={{
             borderBottom: '1px solid', borderColor: 'divider',
-            '& .MuiTab-root': { fontWeight: 600, fontSize: 11, textTransform: 'none', minHeight: 44, px: 1.2 },
+            '& .MuiTab-root': {
+              fontWeight: 600, textTransform: 'none',
+              minHeight: isMobile ? 50 : 48,
+              minWidth: isMobile ? 0 : 'auto',
+              px: isMobile ? 0.5 : 1.5,
+              fontSize: isMobile ? 10 : 12,
+            },
             '& .MuiTabs-indicator': { backgroundColor: ACCENT, height: 3, borderRadius: 3 },
             '& .Mui-selected': { color: `${ACCENT} !important` },
           }}
@@ -209,24 +214,54 @@ export default function Inventario() {
             return (
               <Tab
                 key={g.id}
+                title={g.label}
                 label={
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: g.color, flexShrink: 0 }} />
-                    <span style={{ whiteSpace: 'nowrap' }}>{g.short}</span>
-                    {bajos > 0 && (
-                      <Chip label={bajos} size="small" sx={{
-                        height: 14, fontSize: 8, fontWeight: 700,
-                        bgcolor: '#EF444420', color: '#EF4444',
-                        '& .MuiChip-label': { px: 0.4 },
-                      }} />
-                    )}
-                  </Box>
+                  isMobile ? (
+                    // Mobile: solo punto de color + abreviatura corta
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.3 }}>
+                      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: g.color }} />
+                      <Typography sx={{ fontSize: 10, fontWeight: 700, lineHeight: 1 }}>{g.short}</Typography>
+                      {bajos > 0 && (
+                        <Chip label={bajos} size="small" sx={{
+                          height: 12, fontSize: 8, fontWeight: 700,
+                          bgcolor: '#EF444420', color: '#EF4444',
+                          '& .MuiChip-label': { px: 0.4 },
+                        }} />
+                      )}
+                    </Box>
+                  ) : (
+                    // Desktop: punto + nombre completo
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+                      <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: g.color, flexShrink: 0 }} />
+                      <span style={{ whiteSpace: 'nowrap' }}>{g.label}</span>
+                      {bajos > 0 && (
+                        <Chip label={bajos} size="small" sx={{
+                          height: 14, fontSize: 8, fontWeight: 700,
+                          bgcolor: '#EF444420', color: '#EF4444',
+                          '& .MuiChip-label': { px: 0.4 },
+                        }} />
+                      )}
+                    </Box>
+                  )
                 }
               />
             );
           })}
-          <Tab label="⚙️" sx={{ fontWeight: 700, color: '#06B6D4 !important', minWidth: 40 }} />
+          <Tab
+            title="Configuración"
+            label={isMobile ? '⚙️' : '⚙️ Config.'}
+            sx={{ fontWeight: 700, color: '#06B6D4 !important', minWidth: isMobile ? 0 : 'auto' }}
+          />
         </Tabs>
+
+        {/* Nombre del tab activo en mobile — compensa la ausencia de texto */}
+        {isMobile && (
+          <Box sx={{ px: 2, pt: 1, pb: 0.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+            <Typography sx={{ fontWeight: 700, fontSize: 13, color: tab <= 3 ? GRUPOS[tab]?.color : '#06B6D4' }}>
+              {tab <= 3 ? GRUPOS[tab]?.label : 'Configuración de Stock'}
+            </Typography>
+          </Box>
+        )}
 
         <Box sx={{ p: { xs: 1.5, md: 3 } }}>
           {tab <= 3 ? (
