@@ -4,7 +4,7 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   IconButton, Grid, Divider, useTheme, Chip, TablePagination, Autocomplete,
   Dialog, DialogTitle, DialogContent, DialogActions,
-  List, ListItem, ListItemText, Tooltip, InputAdornment, useMediaQuery
+  List, ListItem, ListItemText, Tooltip, InputAdornment, useMediaQuery, Stack
 } from '@mui/material';
 import {
   Add, Delete, ShoppingBag, Receipt, Payment, CheckCircle,
@@ -259,40 +259,54 @@ const Compras = () => {
 
             {/* Proveedor + metadatos */}
             <SectionLabel>Información de la compra</SectionLabel>
-            <Grid container spacing={2} sx={{ mb: 3 }}>
-              <Grid item xs={12} md={5}>
-                <Autocomplete
-                  options={proveedores}
-                  getOptionLabel={(o) => `${o.nombre} (${o.cedula || 'S/N'})`}
-                  value={proveedorSel}
-                  onChange={(_, v) => setProveedorSel(v)}
-                  renderInput={(params) => <TextField {...params} label="Proveedor" required fullWidth />}
-                />
-              </Grid>
-              <Grid item xs={12} md={4}>
+            <Stack direction="column" spacing={1.5} sx={{ mb: 3 }}>
+
+              {/* Fila 1: Proveedor — línea completa siempre */}
+              <Autocomplete
+                options={proveedores}
+                getOptionLabel={(o) => `${o.nombre} (${o.cedula || 'S/N'})`}
+                value={proveedorSel}
+                onChange={(_, v) => setProveedorSel(v)}
+                renderOption={(props, option) => (
+                  <li {...props} key={option.id} style={{ padding: '8px 12px' }}>
+                    <Box>
+                      <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{option.nombre}</Typography>
+                      <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                        NIT/CC: {option.cedula || 'Sin identificación'}
+                      </Typography>
+                    </Box>
+                  </li>
+                )}
+                renderInput={(params) => (
+                  <TextField {...params} label="Proveedor (busca por nombre o NIT)" required fullWidth size="small" />
+                )}
+                fullWidth
+              />
+
+              {/* Fila 2: Referencia — línea completa */}
+              <TextField
+                fullWidth label="Referencia / Nro. Factura Proveedor"
+                value={refFactura}
+                onChange={(e) => setRefFactura(e.target.value)}
+                size="small"
+              />
+
+              {/* Fila 3: IVA + Pagada */}
+              <Box sx={{ display: 'flex', gap: 1.5 }}>
                 <TextField
-                  fullWidth label="Referencia / Nro. Factura Proveedor"
-                  value={refFactura}
-                  onChange={(e) => setRefFactura(e.target.value)}
-                />
-              </Grid>
-              <Grid item xs={6} md={2}>
-                <TextField
-                  fullWidth label="% IVA Global" type="number"
+                  label="% IVA Global" type="number"
                   value={ivaPorcentajeGlobal}
                   onChange={(e) => setIvaPorcentajeGlobal(e.target.value)}
                   helperText="IVA incluido"
+                  size="small"
+                  sx={{ flex: 1 }}
                 />
-              </Grid>
-              <Grid item xs={6} md={1} sx={{ display: 'flex', alignItems: 'center' }}>
-                {/* Reemplazamos Checkbox por ToggleButton visual */}
                 <Button
-                  fullWidth
                   variant={pagadaAlCrear ? 'contained' : 'outlined'}
                   size="small"
                   onClick={() => setPagadaAlCrear(p => !p)}
                   sx={{
-                    borderRadius: 2, fontWeight: 600, fontSize: 12, height: 40,
+                    borderRadius: 2, fontWeight: 600, fontSize: 12, height: 40, flexShrink: 0,
                     ...(pagadaAlCrear
                       ? { bgcolor: GREEN, '&:hover': { bgcolor: '#059669' }, borderColor: GREEN }
                       : { borderColor: 'divider', color: 'text.secondary' }),
@@ -300,8 +314,8 @@ const Compras = () => {
                 >
                   {pagadaAlCrear ? '✓ Pagada' : 'Pagada'}
                 </Button>
-              </Grid>
-            </Grid>
+              </Box>
+            </Stack>
 
             {/* Detalle de ítems */}
             <Box sx={{ mb: 3 }}>
