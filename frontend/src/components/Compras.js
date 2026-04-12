@@ -416,48 +416,95 @@ const Compras = () => {
               />
             </Box>
 
-            <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    {['#', 'Fecha', 'Proveedor', 'Factura Ref.', 'Total', 'Pagado', 'Saldo', 'Estado', 'Acciones'].map(h => (
-                      <TableCell key={h}>{h}</TableCell>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {paginatedCompras.length === 0
-                    ? <TableRow>
-                        <TableCell colSpan={9} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
-                          No se encontraron compras
-                        </TableCell>
-                      </TableRow>
-                    : paginatedCompras.map(c => (
-                        <TableRow key={c.id} hover>
-                          <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{c.id}</TableCell>
-                          <TableCell sx={{ fontSize: 12, whiteSpace: 'nowrap' }}>{new Date(c.fecha).toLocaleDateString()}</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>{c.proveedor.nombre}</TableCell>
-                          <TableCell sx={{ fontSize: 12, color: 'text.secondary' }}>{c.referencia_factura || '—'}</TableCell>
-                          <TableCell sx={{ fontWeight: 700 }}>{formatCurrency(c.total)}</TableCell>
-                          <TableCell sx={{ color: GREEN, fontWeight: 600 }}>{formatCurrency(c.monto_pagado)}</TableCell>
-                          <TableCell sx={{ color: c.total - c.monto_pagado > 0 ? RED : 'text.primary', fontWeight: 600 }}>
-                            {formatCurrency(c.total - c.monto_pagado)}
-                          </TableCell>
-                          <TableCell><EstadoChip estado={c.estado_pago} /></TableCell>
-                          <TableCell>
-                            <Tooltip title="Ver detalle">
-                              <IconButton size="small" onClick={() => { setCompraDetalle(c); setOpenDetailDialog(true); }}
-                                sx={{ color: BLUE, '&:hover': { bgcolor: '#EFF6FF' } }}>
-                                <Visibility fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+            {isMobile ? (
+              <Box>
+                {paginatedCompras.length === 0
+                  ? <Box sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
+                      <Receipt sx={{ fontSize: 48, mb: 1, opacity: 0.3 }} />
+                      <Typography>No se encontraron compras</Typography>
+                    </Box>
+                  : paginatedCompras.map(c => (
+                      <Paper key={c.id} sx={{ p: 2.5, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
+                          <Box>
+                            <Typography sx={{ fontWeight: 700, fontSize: 15 }}>{c.proveedor.nombre}</Typography>
+                            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                              #{c.id} · {new Date(c.fecha).toLocaleDateString()} · {c.referencia_factura || 'Sin ref.'}
+                            </Typography>
+                          </Box>
+                          <EstadoChip estado={c.estado_pago} />
+                        </Box>
+                        <Divider sx={{ my: 1.5 }} />
+                        <Grid container spacing={1} sx={{ mb: 1.5 }}>
+                          {[
+                            { label: 'Total',  val: formatCurrency(c.total) },
+                            { label: 'Pagado', val: formatCurrency(c.monto_pagado) },
+                            { label: 'Saldo',  val: formatCurrency(c.total - c.monto_pagado) },
+                          ].map(({ label, val }) => (
+                            <Grid item xs={4} key={label}>
+                              <Box sx={{ textAlign: 'center', p: 1, borderRadius: 2, bgcolor: 'action.hover' }}>
+                                <Typography sx={{ fontSize: 10, color: 'text.secondary', mb: 0.2 }}>{label}</Typography>
+                                <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{val}</Typography>
+                              </Box>
+                            </Grid>
+                          ))}
+                        </Grid>
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                          <Tooltip title="Ver detalle">
+                            <IconButton size="small" onClick={() => { setCompraDetalle(c); setOpenDetailDialog(true); }}
+                              sx={{ color: BLUE, bgcolor: '#EFF6FF', borderRadius: 1.5 }}>
+                              <Visibility fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      </Paper>
+                    ))
+                }
+              </Box>
+            ) : (
+              <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      {['#', 'Fecha', 'Proveedor', 'Factura Ref.', 'Total', 'Pagado', 'Saldo', 'Estado', 'Acciones'].map(h => (
+                        <TableCell key={h}>{h}</TableCell>
+                      ))}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {paginatedCompras.length === 0
+                      ? <TableRow>
+                          <TableCell colSpan={9} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
+                            No se encontraron compras
                           </TableCell>
                         </TableRow>
-                      ))
-                  }
-                </TableBody>
-              </Table>
-            </TableContainer>
+                      : paginatedCompras.map(c => (
+                          <TableRow key={c.id} hover>
+                            <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{c.id}</TableCell>
+                            <TableCell sx={{ fontSize: 12, whiteSpace: 'nowrap' }}>{new Date(c.fecha).toLocaleDateString()}</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>{c.proveedor.nombre}</TableCell>
+                            <TableCell sx={{ fontSize: 12, color: 'text.secondary' }}>{c.referencia_factura || '—'}</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>{formatCurrency(c.total)}</TableCell>
+                            <TableCell sx={{ color: GREEN, fontWeight: 600 }}>{formatCurrency(c.monto_pagado)}</TableCell>
+                            <TableCell sx={{ color: c.total - c.monto_pagado > 0 ? RED : 'text.primary', fontWeight: 600 }}>
+                              {formatCurrency(c.total - c.monto_pagado)}
+                            </TableCell>
+                            <TableCell><EstadoChip estado={c.estado_pago} /></TableCell>
+                            <TableCell>
+                              <Tooltip title="Ver detalle">
+                                <IconButton size="small" onClick={() => { setCompraDetalle(c); setOpenDetailDialog(true); }}
+                                  sx={{ color: BLUE, '&:hover': { bgcolor: '#EFF6FF' } }}>
+                                  <Visibility fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                    }
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
 
             <TablePagination
               rowsPerPageOptions={[5, 10, 25]}
@@ -501,41 +548,70 @@ const Compras = () => {
                   </Box>
                 </Paper>
 
-                <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        {['Proveedor', 'Factura', 'Total', 'Pagado', 'Saldo Pendiente', 'Acción'].map(h => (
-                          <TableCell key={h}>{h}</TableCell>
-                        ))}
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {cuentasPorPagar.map(c => (
-                        <TableRow key={c.id} hover>
-                          <TableCell sx={{ fontWeight: 600 }}>{c.proveedor.nombre}</TableCell>
-                          <TableCell sx={{ fontSize: 12, color: 'text.secondary' }}>{c.referencia_factura || `#${c.id}`}</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>{formatCurrency(c.total)}</TableCell>
-                          <TableCell sx={{ color: GREEN, fontWeight: 600 }}>{formatCurrency(c.monto_pagado)}</TableCell>
-                          <TableCell sx={{ color: RED, fontWeight: 700 }}>{formatCurrency(c.total - c.monto_pagado)}</TableCell>
-                          <TableCell>
-                            <Button
-                              variant="contained" size="small"
-                              startIcon={<CheckCircle />}
-                              onClick={() => handleOpenPay(c)}
-                              sx={{
-                                background: `linear-gradient(135deg, ${GREEN}, #34d399)`,
-                                boxShadow: 'none', borderRadius: 1.5, fontWeight: 600, fontSize: 12,
-                              }}
-                            >
-                              Abonar
-                            </Button>
-                          </TableCell>
+                {isMobile ? (
+                  <Box>
+                    {cuentasPorPagar.map(c => (
+                      <Paper key={c.id} sx={{ p: 2.5, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', borderLeft: `4px solid ${RED}` }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
+                          <Box>
+                            <Typography sx={{ fontWeight: 700, fontSize: 15 }}>{c.proveedor.nombre}</Typography>
+                            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{c.referencia_factura || `#${c.id}`}</Typography>
+                          </Box>
+                          <EstadoChip estado={c.estado_pago} />
+                        </Box>
+                        <Grid container spacing={1} sx={{ mb: 1.5 }}>
+                          {[
+                            { label: 'Total',    val: formatCurrency(c.total) },
+                            { label: 'Pagado',   val: formatCurrency(c.monto_pagado) },
+                            { label: 'Pendiente',val: formatCurrency(c.total - c.monto_pagado) },
+                          ].map(({ label, val }) => (
+                            <Grid item xs={4} key={label}>
+                              <Box sx={{ textAlign: 'center', p: 1, borderRadius: 2, bgcolor: 'action.hover' }}>
+                                <Typography sx={{ fontSize: 10, color: 'text.secondary', mb: 0.2 }}>{label}</Typography>
+                                <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{val}</Typography>
+                              </Box>
+                            </Grid>
+                          ))}
+                        </Grid>
+                        <Button fullWidth variant="contained" size="small" startIcon={<CheckCircle />}
+                          onClick={() => handleOpenPay(c)}
+                          sx={{ background: `linear-gradient(135deg, ${GREEN}, #34d399)`, boxShadow: 'none', borderRadius: 2, fontWeight: 600 }}>
+                          Registrar Abono
+                        </Button>
+                      </Paper>
+                    ))}
+                  </Box>
+                ) : (
+                  <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          {['Proveedor', 'Factura', 'Total', 'Pagado', 'Saldo Pendiente', 'Acción'].map(h => (
+                            <TableCell key={h}>{h}</TableCell>
+                          ))}
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                      </TableHead>
+                      <TableBody>
+                        {cuentasPorPagar.map(c => (
+                          <TableRow key={c.id} hover>
+                            <TableCell sx={{ fontWeight: 600 }}>{c.proveedor.nombre}</TableCell>
+                            <TableCell sx={{ fontSize: 12, color: 'text.secondary' }}>{c.referencia_factura || `#${c.id}`}</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>{formatCurrency(c.total)}</TableCell>
+                            <TableCell sx={{ color: GREEN, fontWeight: 600 }}>{formatCurrency(c.monto_pagado)}</TableCell>
+                            <TableCell sx={{ color: RED, fontWeight: 700 }}>{formatCurrency(c.total - c.monto_pagado)}</TableCell>
+                            <TableCell>
+                              <Button variant="contained" size="small" startIcon={<CheckCircle />}
+                                onClick={() => handleOpenPay(c)}
+                                sx={{ background: `linear-gradient(135deg, ${GREEN}, #34d399)`, boxShadow: 'none', borderRadius: 1.5, fontWeight: 600, fontSize: 12 }}>
+                                Abonar
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
               </>
             )}
           </Box>

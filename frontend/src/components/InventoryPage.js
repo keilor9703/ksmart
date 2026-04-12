@@ -11,11 +11,11 @@ import { fetchMovements, createMovement, fetchLowStockAlerts } from '../api';
 import apiClient from '../api';
 import Autocomplete from '@mui/material/Autocomplete';
 import BulkUpload from './BulkUpload';
-import { TableContainer } from '@mui/material';
 import {
   Warning, ExpandMore, ExpandLess, Search, Add,
   Upload, SwapVert, TrendingUp, TrendingDown, Tune
 } from '@mui/icons-material';
+import TableContainer from '@mui/material/TableContainer';
 
 const ACCENT = '#F59E0B';
 const GREEN  = '#10B981';
@@ -374,7 +374,7 @@ const MovementsTable = ({ refreshKey }) => {
           }
         </Box>
       ) : (
-        <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+        <TableContainer sx={{ borderRadius: 2, border: "1px solid", borderColor: "divider", overflowX: "auto" }}>
           <Table size="small">
             <TableHead>
               <TableRow>

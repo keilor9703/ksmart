@@ -10,7 +10,7 @@ import { toast } from 'react-toastify';
 import {
   FilterPanel, KpiCard, LoadingState,
   GREEN, BLUE, RED, REPORT_ACCENT
-} from './ReportShared.js';
+} from './ReportShared';
 
 const ACCENT = '#F43F5E';
 
@@ -75,7 +75,7 @@ const ReporteIVA = ({ accentColor = ACCENT }) => {
             </Grid>
           </Grid>
 
-          <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+          <TableContainer sx={{ borderRadius: 2, border: "1px solid", borderColor: "divider", overflowX: "auto" }}>
             <Table size="small">
               <TableHead>
                 <TableRow>

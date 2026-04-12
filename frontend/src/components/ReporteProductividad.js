@@ -17,7 +17,7 @@ import { toast } from 'react-toastify';
 import {
   KpiCard, EmptyState, barChartDefaults, accentDataset,
   GREEN, BLUE, REPORT_ACCENT
-} from './ReportShared.js';
+} from './ReportShared';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -218,7 +218,7 @@ const ReporteProductividad = ({ accentColor = ACCENT }) => {
           {isMobile
             ? visible.map(row => <OperadorCard key={row.operador_id} row={row} />)
             : (
-              <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+              <TableContainer sx={{ borderRadius: 2, border: "1px solid", borderColor: "divider", overflowX: "auto" }}>
                 <Table size="small">
                   <TableHead>
                     <TableRow>

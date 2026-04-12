@@ -179,7 +179,7 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
           }
         </Box>
       ) : (
-        <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+        <TableContainer sx={{ borderRadius: 2, border: "1px solid", borderColor: "divider", overflowX: "auto" }}>
           <Table size="small">
             <TableHead>
               <TableRow>

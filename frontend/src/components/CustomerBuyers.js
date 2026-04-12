@@ -19,7 +19,7 @@ import {
   FilterPanel, KpiCard, LoadingState, EmptyState,
   barChartDefaults, accentDataset,
   GREEN, BLUE, RED, YELLOW, REPORT_ACCENT
-} from './ReportShared.js';
+} from './ReportShared';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -43,7 +43,7 @@ const SimpleBar = ({ labels, values, color }) => (
 
 // ─── Tabla con ranking ────────────────────────────────────────────────────────
 const RankedTable = ({ data, columns, order, orderBy, onSort }) => (
-  <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+  <TableContainer sx={{ borderRadius: 2, border: "1px solid", borderColor: "divider", overflowX: "auto" }}>
     <Table size="small">
       <TableHead>
         <TableRow>

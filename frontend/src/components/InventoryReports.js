@@ -40,7 +40,7 @@ const KpiCard = ({ label, value, icon, color }) => (
 
 // ─── Tabla de rotación ────────────────────────────────────────────────────────
 const RotTable = ({ rows, emptyText }) => (
-  <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+  <TableContainer sx={{ borderRadius: 2, border: "1px solid", borderColor: "divider", overflowX: "auto" }}>
     <Table size="small">
       <TableHead>
         <TableRow>
@@ -231,7 +231,7 @@ export default function InventoryReports() {
               </Button>
             </Box>
 
-            <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+            <TableContainer sx={{ borderRadius: 2, border: "1px solid", borderColor: "divider", overflowX: "auto" }}>
               <Table size="small">
                 <TableHead>
                   <TableRow>
@@ -422,7 +422,7 @@ export default function InventoryReports() {
                   </Box>
                 )}
 
-                <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                <TableContainer sx={{ borderRadius: 2, border: "1px solid", borderColor: "divider", overflowX: "auto" }}>
                   <Table size="small">
                     <TableHead>
                       <TableRow>
