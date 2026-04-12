@@ -40,21 +40,21 @@ const Reportes = () => {
   const [tab, setTab] = useState(0);
 
   return (
-    <Box sx={{ width: '100%' }}>
+    <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
 
       {/* ── Header ── */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-        <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2, flexWrap: 'wrap' }}>
+        <Box sx={{ width: 40, height: 40, borderRadius: 2, flexShrink: 0, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT }}>
           <Assessment />
         </Box>
-        <Box>
-          <Typography sx={{ fontWeight: 700, fontSize: 20, lineHeight: 1.2 }}>Reportes</Typography>
-          <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Análisis financiero, ventas y productividad</Typography>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography sx={{ fontWeight: 700, fontSize: 19, lineHeight: 1.2 }}>Reportes</Typography>
+          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Análisis financiero, ventas y productividad</Typography>
         </Box>
       </Box>
 
       {/* ── Tabs ── */}
-      <Box sx={{ borderRadius: 3, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
+      <Box sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', width: '100%', boxSizing: 'border-box' }}>
         <Tabs
           value={tab}
           onChange={(_, v) => setTab(v)}

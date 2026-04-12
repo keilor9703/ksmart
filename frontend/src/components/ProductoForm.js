@@ -4,7 +4,7 @@ import { toast } from 'react-toastify';
 import BulkUpload from './BulkUpload';
 import {
   Box, Typography, Grid, TextField, Button, InputAdornment,
-  Collapse, Divider, Chip, MenuItem, Select, FormControl, InputLabel
+  Collapse, Divider, Chip, MenuItem, Select, FormControl, InputLabel, IconButton
 } from '@mui/material';
 import { Inventory, ExpandMore, ExpandLess, Upload, Close, Settings } from '@mui/icons-material';
 
@@ -46,7 +46,9 @@ const ToggleBtn = ({ label, checked, onChange, color }) => (
 const Panel = ({ title, icon, chip, open, onToggle, forceOpen, onClose, children, accentColor }) => (
   <Box sx={{
     borderRadius: 3, border: '1px solid', borderColor: 'divider',
-    bgcolor: 'background.paper', overflow: 'hidden', mb: 2,
+    bgcolor: 'background.paper',
+    overflowX: 'hidden',          // solo horizontal para no cortar el collapse
+    mb: 2, width: '100%', boxSizing: 'border-box',
     boxShadow: open ? '0 4px 24px rgba(0,0,0,0.08)' : '0 2px 8px rgba(0,0,0,0.04)',
     transition: 'box-shadow 0.2s',
   }}>
@@ -54,32 +56,39 @@ const Panel = ({ title, icon, chip, open, onToggle, forceOpen, onClose, children
       onClick={() => { if (!forceOpen) onToggle(); }}
       sx={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        px: 2.5, py: 1.8, cursor: forceOpen ? 'default' : 'pointer',
+        px: { xs: 1.5, md: 2.5 }, py: 1.5,
+        cursor: forceOpen ? 'default' : 'pointer',
         '&:hover': { bgcolor: forceOpen ? 'transparent' : 'action.hover' },
-        transition: 'background 0.15s',
+        transition: 'background 0.15s', minWidth: 0,
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <Box sx={{ width: 32, height: 32, borderRadius: 1.5, bgcolor: `${accentColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: accentColor }}>
+      {/* Lado izquierdo: se comprime si hay poco espacio */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, flex: 1 }}>
+        <Box sx={{ width: 30, height: 30, borderRadius: 1.5, flexShrink: 0, bgcolor: `${accentColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: accentColor }}>
           {icon}
         </Box>
-        <Typography sx={{ fontWeight: 600, fontSize: 14 }}>{title}</Typography>
-        {chip}
+        <Typography sx={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {title}
+        </Typography>
+        {chip && <Box sx={{ flexShrink: 0 }}>{chip}</Box>}
       </Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      {/* Lado derecho: siempre visible, no comprimible */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0, ml: 1 }}>
         {open && onClose && (
-          <Button size="small" onClick={(e) => { e.stopPropagation(); onClose(); }}
-            startIcon={<Close fontSize="small" />}
-            sx={{ color: 'text.secondary', fontWeight: 600, fontSize: 12, textTransform: 'none' }}>
-            Cerrar
-          </Button>
+          <IconButton size="small" onClick={(e) => { e.stopPropagation(); onClose(); }}
+            sx={{ color: 'text.secondary' }}>
+            <Close fontSize="small" />
+          </IconButton>
         )}
-        {!forceOpen && (open ? <ExpandLess sx={{ color: 'text.secondary' }} /> : <ExpandMore sx={{ color: 'text.secondary' }} />)}
+        {!forceOpen && (open
+          ? <ExpandLess sx={{ color: 'text.secondary', fontSize: 20 }} />
+          : <ExpandMore sx={{ color: 'text.secondary', fontSize: 20 }} />
+        )}
       </Box>
     </Box>
     <Collapse in={open}>
       <Divider />
-      <Box sx={{ p: { xs: 2, md: 3 } }}>{children}</Box>
+      <Box sx={{ p: { xs: 1.5, md: 3 }, boxSizing: 'border-box' }}>{children}</Box>
     </Collapse>
   </Box>
 );

@@ -36,25 +36,24 @@ const Productos = () => {
   };
 
   return (
-    <Box sx={{ width: '100%' }}>
+    <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
 
       {/* ── Header ── */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
+          <Box sx={{ width: 40, height: 40, borderRadius: 2, flexShrink: 0, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT }}>
             <Inventory />
           </Box>
-          <Box>
-            <Typography sx={{ fontWeight: 700, fontSize: 20, lineHeight: 1.2 }}>Productos</Typography>
-            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Catálogo, servicios y fórmulas de producción</Typography>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontWeight: 700, fontSize: 19, lineHeight: 1.2 }}>Productos</Typography>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Catálogo, servicios y fórmulas de producción</Typography>
           </Box>
         </Box>
         {tab === 0 && (
           <Button
-            variant="contained"
-            startIcon={<Add />}
+            variant="contained" startIcon={<Add />}
             onClick={handleNewProducto}
-            sx={{ background: `linear-gradient(135deg, ${ACCENT}, #a78bfa)`, boxShadow: `0 4px 14px rgba(139,92,246,0.35)`, borderRadius: 2, fontWeight: 600 }}
+            sx={{ background: `linear-gradient(135deg, ${ACCENT}, #a78bfa)`, boxShadow: `0 4px 14px rgba(139,92,246,0.35)`, borderRadius: 2, fontWeight: 600, flexShrink: 0 }}
           >
             Nuevo Producto
           </Button>
@@ -62,13 +61,13 @@ const Productos = () => {
       </Box>
 
       {/* ── Tabs ── */}
-      <Box sx={{ borderRadius: 3, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
+      <Box sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', width: '100%' }}>
         <Tabs
-          value={tab}
-          onChange={(_, v) => setTab(v)}
+          value={tab} onChange={(_, v) => setTab(v)}
+          variant="scrollable" scrollButtons="auto"
           sx={{
-            px: 2, borderBottom: '1px solid', borderColor: 'divider',
-            '& .MuiTab-root': { fontWeight: 600, fontSize: 13.5, textTransform: 'none', minHeight: 52, gap: 1 },
+            px: { xs: 1, md: 2 }, borderBottom: '1px solid', borderColor: 'divider',
+            '& .MuiTab-root': { fontWeight: 600, fontSize: 13, textTransform: 'none', minHeight: 48, gap: 0.8 },
             '& .MuiTabs-indicator': { backgroundColor: ACCENT, height: 3, borderRadius: 3 },
             '& .Mui-selected': { color: `${ACCENT} !important` },
           }}
@@ -77,7 +76,7 @@ const Productos = () => {
           <Tab icon={<ReceiptLong fontSize="small" />} iconPosition="start" label="Recetas (BOM)" />
         </Tabs>
 
-        <Box sx={{ p: { xs: 2, md: 3 } }}>
+        <Box sx={{ p: { xs: 1.5, md: 3 } }}>
           <TabPanel value={tab} index={0}>
             <ProductoForm
               onProductoAdded={handleRefresh}
@@ -87,14 +86,8 @@ const Productos = () => {
               onClose={() => { setFormOpen(false); setEditingProducto(null); }}
               accentColor={ACCENT}
             />
-            <ProductoList
-              key={key}
-              onEditProducto={handleEditProducto}
-              onProductoDeleted={handleRefresh}
-              accentColor={ACCENT}
-            />
+            <ProductoList key={key} onEditProducto={handleEditProducto} onProductoDeleted={handleRefresh} accentColor={ACCENT} />
           </TabPanel>
-
           <TabPanel value={tab} index={1}>
             <Recetas accentColor={ACCENT} />
           </TabPanel>

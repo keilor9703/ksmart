@@ -187,9 +187,9 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
   ];
 
   return (
-    <Box>
+    <Box sx={{ width: '100%', maxWidth: '100%' }}>
       {/* ── Stats ── */}
-      <Box sx={{ display: 'flex', gap: 2, mb: 2.5, flexWrap: 'wrap' }}>
+      <Box sx={{ display: 'flex', gap: 1.5, mb: 2, flexWrap: 'wrap' }}>
         <KpiCard label="Productos" value={productosN} icon={<Inventory fontSize="small" />} color={accentColor} />
         <KpiCard label="Servicios" value={servicios} icon={<Settings fontSize="small" />} color="#06B6D4" />
         {stockBajo > 0 && (
@@ -197,31 +197,32 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
         )}
       </Box>
 
-      {/* ── Toolbar ── */}
-      <Box sx={{ display: 'flex', gap: 1.5, mb: 2, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-        <TextField
-          placeholder="Buscar producto o servicio…"
-          value={searchTerm}
-          onChange={e => { setSearchTerm(e.target.value); setPage(0); }}
-          sx={{ flex: 1, minWidth: 200 }}
-          InputProps={{
-            startAdornment: <InputAdornment position="start"><Search sx={{ color: 'text.secondary', fontSize: 20 }} /></InputAdornment>,
-          }}
-        />
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Tooltip title="Descargar plantilla Excel">
-            <Button variant="outlined" size="small" startIcon={<Download />} onClick={handleTemplate}
-              sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12, borderColor: 'divider', color: 'text.secondary' }}>
-              Plantilla
-            </Button>
-          </Tooltip>
-          <Tooltip title="Exportar lista a Excel">
-            <Button variant="outlined" size="small" startIcon={<Download />} onClick={() => handleExport('xlsx')}
-              sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12, borderColor: 'divider', color: 'text.secondary' }}>
-              Exportar
-            </Button>
-          </Tooltip>
-        </Box>
+      {/* ── Buscador ── */}
+      <TextField
+        fullWidth
+        placeholder="Buscar producto o servicio…"
+        value={searchTerm}
+        onChange={e => { setSearchTerm(e.target.value); setPage(0); }}
+        sx={{ mb: 1.5 }}
+        InputProps={{
+          startAdornment: <InputAdornment position="start"><Search sx={{ color: 'text.secondary', fontSize: 20 }} /></InputAdornment>,
+        }}
+      />
+
+      {/* ── Botones exportar (en fila separada en mobile) ── */}
+      <Box sx={{ display: 'flex', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
+        <Tooltip title="Descargar plantilla Excel">
+          <Button variant="outlined" size="small" startIcon={<Download />} onClick={handleTemplate}
+            sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12, borderColor: 'divider', color: 'text.secondary' }}>
+            Plantilla
+          </Button>
+        </Tooltip>
+        <Tooltip title="Exportar lista a Excel">
+          <Button variant="outlined" size="small" startIcon={<Download />} onClick={() => handleExport('xlsx')}
+            sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12, borderColor: 'divider', color: 'text.secondary' }}>
+            Exportar
+          </Button>
+        </Tooltip>
       </Box>
 
       {/* ── Filtros de grupo ── */}

@@ -175,7 +175,7 @@ export default function InventoryReports() {
       </Box>
 
       {/* ── Tabs ── */}
-      <Paper sx={{ borderRadius: 3, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: '1px solid', borderColor: 'divider' }}>
+      <Paper sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: '1px solid', borderColor: 'divider', width: '100%', boxSizing: 'border-box' }}>
         <Tabs
           value={tab} onChange={(_, v) => setTab(v)}
           sx={{

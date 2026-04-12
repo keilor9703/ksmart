@@ -100,7 +100,7 @@ const ClienteDeudaRow = ({ cuenta, onPago, onPagoTotal, onEditPago }) => {
       <Collapse in={open}>
         <Divider />
         <Box sx={{ p: 2 }}>
-          <TableContainer sx={{ borderRadius: 2, border: "1px solid", borderColor: "divider", overflowX: "auto" }}>
+          <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
             <Table size="small">
               <TableHead>
                 <TableRow>

@@ -64,7 +64,7 @@ const Login = ({ onLogin }) => {
                     width: { sm: '40%', md: '60%' },
                     flexShrink: 0,
                     height: '100%',
-                    backgroundImage: "url('/images/1706694810975.jpg')",
+                    backgroundImage: "url('/images/sistema-erp.1.12.avif')",
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
                     position: 'relative',

@@ -16,39 +16,42 @@ const GREEN  = '#10B981';
 
 // ─── Card mobile ──────────────────────────────────────────────────────────────
 const ClienteCard = ({ cliente, onEditCliente, handleDelete, handleViewHistory, filterType }) => (
-  <Paper sx={{ p: 2.5, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
-    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
-      <Box>
-        <Typography sx={{ fontWeight: 700, fontSize: 15 }}>{cliente.nombre}</Typography>
-        <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+  <Paper sx={{ p: 2, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+    {/* Fila 1: nombre + id */}
+    <Box sx={{ mb: 1 }}>
+      <Typography sx={{ fontWeight: 700, fontSize: 14, lineHeight: 1.3 }}>{cliente.nombre}</Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mt: 0.4, flexWrap: 'wrap' }}>
+        <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
           {cliente.cedula || 'Sin cédula'} · #{cliente.id}
         </Typography>
-      </Box>
-      <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-        {cliente.es_cliente   && <Chip label="Cliente"   size="small" sx={{ bgcolor: `${ACCENT}18`, color: ACCENT,   fontWeight: 600, fontSize: 10, borderRadius: 1 }} />}
-        {cliente.es_proveedor && <Chip label="Proveedor" size="small" sx={{ bgcolor: `${GREEN}18`,  color: GREEN,    fontWeight: 600, fontSize: 10, borderRadius: 1 }} />}
+        {cliente.es_cliente   && <Chip label="Cliente"   size="small" sx={{ height: 16, fontSize: 9, fontWeight: 700, bgcolor: `${ACCENT}18`, color: ACCENT,  borderRadius: 1 }} />}
+        {cliente.es_proveedor && <Chip label="Proveedor" size="small" sx={{ height: 16, fontSize: 9, fontWeight: 700, bgcolor: `${GREEN}18`,  color: GREEN,   borderRadius: 1 }} />}
       </Box>
     </Box>
 
-    <Divider sx={{ my: 1.5 }} />
+    <Divider sx={{ my: 1 }} />
 
+    {/* Fila 2: datos clave */}
     <Grid container spacing={1} sx={{ mb: 1.5 }}>
-      {[
-        { label: 'Teléfono',   val: cliente.telefono  || 'N/A' },
-        { label: 'Dirección',  val: cliente.direccion || 'N/A' },
-        ...(filterType === 'cliente'
-          ? [{ label: 'Cupo crédito', val: formatCurrency(cliente.cupo_credito) }]
-          : []),
-      ].map(({ label, val }) => (
-        <Grid item xs={filterType === 'cliente' ? 4 : 6} key={label}>
-          <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'action.hover' }}>
-            <Typography sx={{ fontSize: 10, color: 'text.secondary', mb: 0.2 }}>{label}</Typography>
-            <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{val}</Typography>
-          </Box>
+      <Grid item xs={6}>
+        <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Teléfono</Typography>
+        <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{cliente.telefono || 'N/A'}</Typography>
+      </Grid>
+      <Grid item xs={6}>
+        <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Dirección</Typography>
+        <Typography sx={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {cliente.direccion || 'N/A'}
+        </Typography>
+      </Grid>
+      {filterType === 'cliente' && (
+        <Grid item xs={12}>
+          <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Cupo de crédito</Typography>
+          <Typography sx={{ fontSize: 13, fontWeight: 700, color: ACCENT }}>{formatCurrency(cliente.cupo_credito)}</Typography>
         </Grid>
-      ))}
+      )}
     </Grid>
 
+    {/* Fila 3: botones */}
     <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
       <Tooltip title="Historial financiero">
         <IconButton size="small" onClick={() => handleViewHistory(cliente)}
@@ -137,19 +140,19 @@ const ClienteList = ({ onEditCliente, onClienteDeleted, filterType, accentColor 
   const label = filterType === 'proveedor' ? 'proveedores' : 'clientes';
 
   return (
-    <Box>
+    <Box sx={{ width: '100%', maxWidth: '100%' }}>
 
       {/* Stats rápidas */}
-      <Box sx={{ display: 'flex', gap: 2, mb: 2.5, flexWrap: 'wrap' }}>
+      <Box sx={{ display: 'flex', gap: 1.5, mb: 2, flexWrap: 'wrap' }}>
         {[
           { label: `Total ${label}`, val: filteredClientes.length, icon: filterType === 'proveedor' ? <Business fontSize="small" /> : <Person fontSize="small" />, color: accentColor },
           ...(filterType === 'cliente'
-            ? [{ label: 'Con crédito asignado', val: filteredClientes.filter(c => c.cupo_credito > 0).length, icon: <CreditCard fontSize="small" />, color: GREEN }]
+            ? [{ label: 'Con crédito', val: filteredClientes.filter(c => c.cupo_credito > 0).length, icon: <CreditCard fontSize="small" />, color: GREEN }]
             : []),
         ].map(({ label: l, val, icon, color }) => (
           <Box key={l} sx={{
-            display: 'flex', alignItems: 'center', gap: 1.5,
-            px: 2, py: 1.2, borderRadius: 2,
+            display: 'flex', alignItems: 'center', gap: 1,
+            px: 1.5, py: 1, borderRadius: 2,
             bgcolor: `${color}0D`, border: `1px solid ${color}25`,
           }}>
             <Box sx={{ color, display: 'flex' }}>{icon}</Box>
