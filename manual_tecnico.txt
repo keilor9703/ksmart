@@ -125,3 +125,15 @@ Para implementar el dashboard de administrador, se realizaron los siguientes añ
 - **Rendimiento:** Implementar paginación, filtrado y ordenamiento del lado del servidor para las listas principales (ventas, clientes, etc.) para mejorar la escalabilidad.
 - **Base de Datos:** Añadir índices a las claves foráneas y a las columnas usadas frecuentemente en filtros (ej. `ventas.cliente_id`, `ventas.fecha`).
 - **Gestión de Estado:** Para una mayor escalabilidad del frontend, considerar la adopción de una librería de gestión de estado global como Redux Toolkit o Zustand.
+
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r backend/requirements.txt
+cd backend
+uvicorn main:app --reload
+
+
+en carpeta frontend
+ npm install
+ npm start
+ 

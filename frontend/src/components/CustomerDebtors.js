@@ -1,49 +1,45 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import {
-  Box, Typography, Paper, Grid, Button,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  TableSortLabel, useMediaQuery
-} from '@mui/material';
+import { Box, Typography, Paper, Grid, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel, useMediaQuery } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { People, AccountBalanceWallet, TrendingDown } from '@mui/icons-material';
 import { Bar } from 'react-chartjs-2';
-import {
-  Chart as ChartJS, CategoryScale, LinearScale,
-  BarElement, Title, Tooltip, Legend
-} from 'chart.js';
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
 import apiClient from '../api';
 import { formatCurrency } from '../utils/formatters';
 import { toast } from 'react-toastify';
 import { visuallyHidden, stableSort, getComparator } from '../utils/sortingUtils';
-import {
-  KpiCard, LoadingState,
-  barChartDefaults, accentDataset,
-  RED, YELLOW, REPORT_ACCENT
-} from './ReportShared';
+import { KpiCard, LoadingState, barChartDefaults, accentDataset, RED, YELLOW } from './ReportShared';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 const ACCENT = '#F43F5E';
 
+const ClientCard = ({ name, id, primary, primaryLabel, color }) => (
+  <Paper sx={{ p: 2, mb: 1.5, borderRadius: 3, boxShadow: '0 2px 10px rgba(0,0,0,0.06)', width: '100%', boxSizing: 'border-box' }}>
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Box sx={{ minWidth: 0, flex: 1 }}>
+        <Typography sx={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</Typography>
+        <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>#{id}</Typography>
+      </Box>
+      <Box sx={{ textAlign: 'right', flexShrink: 0, ml: 1 }}>
+        <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>{primaryLabel}</Typography>
+        <Typography sx={{ fontWeight: 800, fontSize: 15, color }}>{formatCurrency(primary)}</Typography>
+      </Box>
+    </Box>
+  </Paper>
+);
+
 const RankedTable = ({ data, columns, order, orderBy, onSort }) => (
-  <TableContainer sx={{ borderRadius: 2, border: "1px solid", borderColor: "divider", overflowX: "auto" }}>
+  <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', overflowX: 'auto' }}>
     <Table size="small">
       <TableHead>
         <TableRow>
-          <TableCell sx={{ width: 40 }}>#</TableCell>
+          <TableCell sx={{ width: 32 }}>#</TableCell>
           {columns.map(c => (
             <TableCell key={c.id} align={c.numeric ? 'right' : 'left'}>
-              <TableSortLabel
-                active={orderBy === c.id}
-                direction={orderBy === c.id ? order : 'asc'}
-                onClick={() => onSort(c.id)}
-              >
+              <TableSortLabel active={orderBy === c.id} direction={orderBy === c.id ? order : 'asc'} onClick={() => onSort(c.id)}>
                 {c.label}
-                {orderBy === c.id && (
-                  <Box component="span" sx={visuallyHidden}>
-                    {order === 'desc' ? 'desc' : 'asc'}
-                  </Box>
-                )}
+                {orderBy === c.id && <Box component="span" sx={visuallyHidden}>{order === 'desc' ? 'desc' : 'asc'}</Box>}
               </TableSortLabel>
             </TableCell>
           ))}
@@ -69,28 +65,12 @@ const RankedTable = ({ data, columns, order, orderBy, onSort }) => (
   </TableContainer>
 );
 
-const ClientCard = ({ name, id, primary, primaryLabel, color }) => (
-  <Paper sx={{ p: 2.5, mb: 2, borderRadius: 3, boxShadow: '0 2px 10px rgba(0,0,0,0.06)' }}>
-    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <Box>
-        <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{name}</Typography>
-        <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>#{id}</Typography>
-      </Box>
-      <Box sx={{ textAlign: 'right' }}>
-        <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>{primaryLabel}</Typography>
-        <Typography sx={{ fontWeight: 800, fontSize: 16, color }}>{formatCurrency(primary)}</Typography>
-      </Box>
-    </Box>
-  </Paper>
-);
-
 const CustomerDebtors = ({ accentColor = ACCENT }) => {
   const [data, setData]       = useState([]);
   const [loading, setLoading] = useState(true);
   const [order, setOrder]     = useState('desc');
   const [orderBy, setOrderBy] = useState('total_debt_amount');
   const [showAll, setShowAll] = useState(false);
-
   const isMobile = useMediaQuery(useTheme().breakpoints.down('sm'));
 
   useEffect(() => { fetchData(); }, []); // eslint-disable-line
@@ -104,68 +84,49 @@ const CustomerDebtors = ({ accentColor = ACCENT }) => {
     finally { setLoading(false); }
   };
 
-  const handleSort = (col) => {
-    setOrder(p => orderBy === col && p === 'desc' ? 'asc' : 'desc');
-    setOrderBy(col);
-  };
-
+  const handleSort = (col) => { setOrder(p => orderBy === col && p === 'desc' ? 'asc' : 'desc'); setOrderBy(col); };
   const sorted  = useMemo(() => stableSort(data, getComparator(order, orderBy)), [data, order, orderBy]);
   const visible = showAll ? sorted : sorted.slice(0, 5);
   const totalDeuda = data.reduce((s, c) => s + c.total_debt_amount, 0);
 
   const COLS = [
-    { id: 'client_name',       label: 'Cliente',      numeric: false, bold: true },
-    { id: 'total_debt_amount', label: 'Deuda total',   numeric: true,  bold: true,
-      render: r => formatCurrency(r.total_debt_amount), color: () => RED },
+    { id: 'client_name',       label: 'Cliente',    numeric: false, bold: true },
+    { id: 'total_debt_amount', label: 'Deuda total', numeric: true,  bold: true, render: r => formatCurrency(r.total_debt_amount), color: () => RED },
   ];
 
   if (loading) return <LoadingState />;
 
   if (data.length === 0) return (
-    <Box sx={{ textAlign: 'center', py: 8 }}>
-      <Typography sx={{ fontSize: 48, mb: 1.5 }}>✅</Typography>
-      <Typography sx={{ fontWeight: 700, fontSize: 18, mb: 0.5 }}>¡Sin deudores!</Typography>
-      <Typography sx={{ color: 'text.secondary' }}>Todos los clientes están al día.</Typography>
+    <Box sx={{ textAlign: 'center', py: 6 }}>
+      <Typography sx={{ fontSize: 44, mb: 1.5 }}>✅</Typography>
+      <Typography sx={{ fontWeight: 700, fontSize: 17, mb: 0.5 }}>¡Sin deudores!</Typography>
+      <Typography sx={{ color: 'text.secondary', fontSize: 13 }}>Todos los clientes están al día.</Typography>
     </Box>
   );
 
   return (
-    <Box>
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={4}>
-          <KpiCard label="Clientes deudores" value={data.length} icon={<People />} color={RED} />
-        </Grid>
-        <Grid item xs={12} sm={4}>
-          <KpiCard label="Deuda total" value={formatCurrency(totalDeuda)} icon={<AccountBalanceWallet />} color={RED} />
-        </Grid>
-        <Grid item xs={12} sm={4}>
-          <KpiCard label="Deuda promedio" value={formatCurrency(data.length ? totalDeuda / data.length : 0)} icon={<TrendingDown />} color={YELLOW} />
-        </Grid>
+    <Box sx={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+      <Grid container spacing={1.5} sx={{ mb: 2 }}>
+        <Grid item xs={6} sm={4}><KpiCard label="Clientes deudores" value={data.length} icon={<People />} color={RED} /></Grid>
+        <Grid item xs={6} sm={4}><KpiCard label="Deuda total" value={formatCurrency(totalDeuda)} icon={<AccountBalanceWallet />} color={RED} /></Grid>
+        <Grid item xs={12} sm={4}><KpiCard label="Deuda promedio" value={formatCurrency(data.length ? totalDeuda / data.length : 0)} icon={<TrendingDown />} color={YELLOW} /></Grid>
       </Grid>
 
-      <Paper sx={{ p: 2.5, borderRadius: 3, mb: 2.5, boxShadow: '0 2px 10px rgba(0,0,0,0.06)' }}>
-        <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 2 }}>Top clientes por monto adeudado</Typography>
-        <Box sx={{ height: 260 }}>
-          <Bar
-            data={{ labels: visible.map(c => c.client_name), datasets: [accentDataset(visible.map(c => c.total_debt_amount), '', RED)] }}
-            options={{
-              ...barChartDefaults(),
-              scales: { ...barChartDefaults().scales, y: { ...barChartDefaults().scales.y, ticks: { callback: v => formatCurrency(v) } } },
-            }}
-          />
+      <Paper sx={{ p: 2, borderRadius: 3, mb: 2, boxShadow: '0 2px 10px rgba(0,0,0,0.06)' }}>
+        <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1.5 }}>Top clientes por monto adeudado</Typography>
+        <Box sx={{ height: 220 }}>
+          <Bar data={{ labels: visible.map(c => c.client_name), datasets: [accentDataset(visible.map(c => c.total_debt_amount), '', RED)] }}
+            options={{ ...barChartDefaults(), scales: { ...barChartDefaults().scales, y: { ...barChartDefaults().scales.y, ticks: { callback: v => formatCurrency(v) } } } }} />
         </Box>
       </Paper>
 
       {isMobile
-        ? visible.map(c => (
-            <ClientCard key={c.client_id} name={c.client_name} id={c.client_id}
-              primary={c.total_debt_amount} primaryLabel="Deuda total" color={RED} />
-          ))
+        ? visible.map(c => <ClientCard key={c.client_id} name={c.client_name} id={c.client_id} primary={c.total_debt_amount} primaryLabel="Deuda total" color={RED} />)
         : <RankedTable data={visible} columns={COLS} order={order} orderBy={orderBy} onSort={handleSort} />
       }
 
       {sorted.length > 5 && (
-        <Button onClick={() => setShowAll(p => !p)} sx={{ mt: 1.5, fontWeight: 600, color: RED, fontSize: 12 }}>
+        <Button onClick={() => setShowAll(p => !p)} sx={{ mt: 1, fontWeight: 600, color: RED, fontSize: 12 }}>
           {showAll ? 'Ver solo Top 5' : `Ver todos (${sorted.length})`}
         </Button>
       )}

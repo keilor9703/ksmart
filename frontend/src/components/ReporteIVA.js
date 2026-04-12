@@ -1,16 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Box, Typography, Paper, Grid, Button,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow
-} from '@mui/material';
+import { Box, Typography, Paper, Grid, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from '@mui/material';
 import { TrendingUp, TrendingDown, AttachMoney } from '@mui/icons-material';
 import apiClient from '../api';
 import { formatCurrency } from '../utils/formatters';
 import { toast } from 'react-toastify';
-import {
-  FilterPanel, KpiCard, LoadingState,
-  GREEN, BLUE, RED, REPORT_ACCENT
-} from './ReportShared';
+import { FilterPanel, KpiCard, LoadingState, GREEN, BLUE, RED } from './ReportShared';
 
 const ACCENT = '#F43F5E';
 
@@ -41,7 +35,7 @@ const ReporteIVA = ({ accentColor = ACCENT }) => {
   const netLabel = ivaNeto >= 0 ? 'A pagar' : 'A favor';
 
   return (
-    <Box>
+    <Box sx={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
       <FilterPanel
         startDate={startDate} onStartChange={setStartDate}
         endDate={endDate}     onEndChange={setEndDate}
@@ -51,31 +45,35 @@ const ReporteIVA = ({ accentColor = ACCENT }) => {
 
       {loading ? <LoadingState /> : !data ? null : (
         <>
-          <Grid container spacing={2} sx={{ mb: 3 }}>
-            <Grid item xs={12} sm={4}>
-              <KpiCard label="IVA Generado (ventas)" value={formatCurrency(data.iva_generado_ventas)} icon={<TrendingUp />} color={GREEN} sub="A pagar al fisco" />
+          {/* KPIs — 2 por fila en mobile */}
+          <Grid container spacing={1.5} sx={{ mb: 2 }}>
+            <Grid item xs={6} sm={4}>
+              <KpiCard label="IVA Generado" value={formatCurrency(data.iva_generado_ventas)} icon={<TrendingUp />} color={GREEN} sub="Ventas" />
+            </Grid>
+            <Grid item xs={6} sm={4}>
+              <KpiCard label="IVA Descontable" value={formatCurrency(data.iva_descontable_compras)} icon={<TrendingDown />} color={BLUE} sub="Compras" />
             </Grid>
             <Grid item xs={12} sm={4}>
-              <KpiCard label="IVA Descontable (compras)" value={formatCurrency(data.iva_descontable_compras)} icon={<TrendingDown />} color={BLUE} sub="Descuento por compras" />
-            </Grid>
-            <Grid item xs={12} sm={4}>
+              {/* Card especial IVA Neto — ocupa fila completa en mobile */}
               <Paper sx={{
-                p: 2.5, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 2,
+                p: 2, borderRadius: 3,
+                display: 'flex', alignItems: 'center', gap: 1.5,
                 boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
                 bgcolor: `${netColor}08`, border: `2px solid ${netColor}30`,
+                width: '100%', boxSizing: 'border-box',
               }}>
-                <Box sx={{ width: 48, height: 48, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: `${netColor}18`, color: netColor }}>
+                <Box sx={{ width: 42, height: 42, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: `${netColor}18`, color: netColor }}>
                   <AttachMoney />
                 </Box>
-                <Box>
-                  <Typography sx={{ fontSize: 12, color: netColor, fontWeight: 600, mb: 0.3 }}>IVA Neto — {netLabel}</Typography>
-                  <Typography sx={{ fontSize: 22, fontWeight: 800, color: netColor }}>{formatCurrency(Math.abs(ivaNeto))}</Typography>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontSize: 11, color: netColor, fontWeight: 600, mb: 0.2 }}>IVA Neto — {netLabel}</Typography>
+                  <Typography sx={{ fontSize: 20, fontWeight: 800, color: netColor }}>{formatCurrency(Math.abs(ivaNeto))}</Typography>
                 </Box>
               </Paper>
             </Grid>
           </Grid>
 
-          <TableContainer sx={{ borderRadius: 2, border: "1px solid", borderColor: "divider", overflowX: "auto" }}>
+          <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', overflowX: 'auto' }}>
             <Table size="small">
               <TableHead>
                 <TableRow>
@@ -85,18 +83,18 @@ const ReporteIVA = ({ accentColor = ACCENT }) => {
               </TableHead>
               <TableBody>
                 {[
-                  { label: 'Ventas totales brutas (recaudado)',       val: data.ventas_brutas,           color: GREEN,          bold: false },
-                  { label: 'Base gravable ventas (valor mercancía)',  val: data.base_gravable_ventas,    color: 'text.primary',  bold: false },
-                  { label: 'IVA generado (a pagar al fisco)',         val: data.iva_generado_ventas,     color: GREEN,          bold: true  },
-                  { label: 'IVA descontable (a favor por compras)',   val: data.iva_descontable_compras, color: BLUE,           bold: true  },
+                  { label: 'Ventas brutas (recaudado)',         val: data.ventas_brutas,           color: GREEN,          bold: false },
+                  { label: 'Base gravable ventas',              val: data.base_gravable_ventas,    color: 'text.primary',  bold: false },
+                  { label: 'IVA generado (a pagar al fisco)',   val: data.iva_generado_ventas,     color: GREEN,          bold: true  },
+                  { label: 'IVA descontable (por compras)',     val: data.iva_descontable_compras, color: BLUE,           bold: true  },
                 ].map(({ label, val, color, bold }) => (
                   <TableRow key={label} hover>
-                    <TableCell sx={{ fontWeight: bold ? 700 : 400 }}>{label}</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: bold ? 800 : 600, color }}>{formatCurrency(val)}</TableCell>
+                    <TableCell sx={{ fontWeight: bold ? 700 : 400, fontSize: 13 }}>{label}</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: bold ? 800 : 600, color, fontSize: 13 }}>{formatCurrency(val)}</TableCell>
                   </TableRow>
                 ))}
                 <TableRow sx={{ bgcolor: `${netColor}08` }}>
-                  <TableCell sx={{ fontWeight: 800, color: netColor }}>IVA Neto {netLabel}</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: netColor }}>IVA Neto — {netLabel}</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 800, fontSize: 15, color: netColor }}>{formatCurrency(Math.abs(ivaNeto))}</TableCell>
                 </TableRow>
               </TableBody>
@@ -109,3 +107,4 @@ const ReporteIVA = ({ accentColor = ACCENT }) => {
 };
 
 export default ReporteIVA;
+ 
