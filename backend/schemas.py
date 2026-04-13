@@ -700,3 +700,97 @@ class PagoCompra(BaseModel):
     detalle_pago: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+
+
+    # ═══════════════════════════════════════════════════════════════════════════════
+# ARCHIVO: schemas_additions.py
+#
+# Estos schemas deben AGREGARSE al schemas.py existente.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+from pydantic import BaseModel, ConfigDict
+from typing import Optional
+import datetime
+
+
+# ─── Pago (actualizado — ahora incluye detalle_pago igual que PagoCompra) ─────
+class PagoCreate(BaseModel):
+    venta_id:    int
+    monto:       float
+    metodo_pago: Optional[str] = None
+    detalle_pago: Optional[str] = None   # ✅ NUEVO: nro. comprobante, cuenta, etc.
+
+class PagoUpdate(BaseModel):
+    monto:        Optional[float] = None
+    metodo_pago:  Optional[str]   = None
+    detalle_pago: Optional[str]   = None  # ✅ NUEVO
+
+class Pago(PagoCreate):
+    id:    int
+    fecha: datetime.datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ─── DetalleVenta (actualizado — ahora incluye descuento_pct) ─────────────────
+class DetalleVentaCreate(BaseModel):
+    producto_id:    int
+    cantidad:       Optional[float]
+    precio_unitario: Optional[float] = None
+    descuento_pct:  float = 0.0   # ✅ NUEVO: % de descuento por línea (0-100)
+
+
+# ─── Venta (actualizado — ahora incluye descuento_total) ──────────────────────
+class VentaBase(BaseModel):
+    cliente_id:    int
+    detalles:      list  # List[DetalleVentaCreate]
+    pagada:        bool  = True
+    iva_porcentaje: float = 0.0
+    descuento_total: float = 0.0   # ✅ NUEVO: calculado automáticamente en el backend
+
+
+# ─── Notificacion (actualizado — incluye campo tipo) ──────────────────────────
+class Notificacion(BaseModel):
+    id:             int
+    usuario_id:     int
+    mensaje:        str
+    leido:          bool
+    tipo:           str = "info"   # ✅ NUEVO: info | warning | error | success
+    fecha_creacion: datetime.datetime
+    orden_id:       Optional[int] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ─── Corte de Caja (NUEVO) ────────────────────────────────────────────────────
+class CorteCajaCreate(BaseModel):
+    efectivo_fisico: float
+    observaciones:   Optional[str] = None
+
+class CorteCajaOut(BaseModel):
+    id:                         int
+    usuario_id:                 int
+    fecha:                      datetime.datetime
+    total_efectivo_ventas:      float
+    total_transferencia_ventas: float
+    total_tarjeta_ventas:       float
+    total_otros_ventas:         float
+    total_ventas_dia:           float
+    efectivo_fisico:            float
+    diferencia:                 float
+    observaciones:              Optional[str] = None
+    estado:                     str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ─── Preview corte (sin crear) ────────────────────────────────────────────────
+class CorteCajaPreview(BaseModel):
+    efectivo:       float
+    transferencia:  float
+    tarjeta:        float
+    otros:          float
+    total_dia:      float
+    fecha:          str

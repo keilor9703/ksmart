@@ -11,7 +11,8 @@ import {
   ExpandLess, ExpandMore, Assignment, Dashboard as DashboardIcon,
   Logout as LogoutIcon, Menu as MenuIcon, MoreVert as MoreVertIcon,
   PrecisionManufacturing, ShoppingBag, KeyboardArrowRight,
-  LightMode, DarkMode, Settings, NotificationsNone
+  LightMode, DarkMode, Settings, NotificationsNone,
+  PointOfSale as PointOfSaleIcon
 } from '@mui/icons-material';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import useMediaQueryHook from '@mui/material/useMediaQuery';
@@ -40,6 +41,8 @@ import { SpeedInsights } from '@vercel/speed-insights/react';
 import Inventario from './components/Inventario';
 import InventoryReports from './components/InventoryReports';
 import Dashboard from './components/Dashboard';
+import Notifications from './components/Notifications';
+import Caja from './components/Caja';
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 const SIDEBAR_FULL   = 240;
@@ -61,6 +64,7 @@ const menuItems = [
   { path: '/clientes',        text: 'Terceros',            icon: <People />,               color: '#3B82F6' },
   { path: '/productos',       text: 'Productos',           icon: <Inventory />,            color: '#8B5CF6' },
   { path: '/inventario',      text: 'Inventarios',         icon: <Inventory2OutlinedIcon />, color: '#F59E0B' },
+  { path: '/caja',            text: 'Caja',                icon: <PointOfSaleIcon />,      color: '#FF6020' },
   { path: '/produccion/lotes',text: 'Producción',          icon: <PrecisionManufacturing />,color: '#06B6D4' },
   { path: '/ordenes-trabajo', text: 'Órdenes de Trabajo',  icon: <Assignment />,           color: '#EC4899' },
   { path: '/panel-operador',  text: 'Panel Operador',      icon: <DashboardIcon />,        color: '#14B8A6' },
@@ -372,6 +376,9 @@ const TopBar = ({
               </IconButton>
             </Tooltip>
 
+            {/* ── Notificaciones ── */}
+            <Notifications mode={mode} />
+
             <Tooltip title="Cerrar sesión">
               <IconButton onClick={onLogout} size="small"
                 sx={{ color: mode === 'dark' ? '#94a3b8' : '#6B7280' }}
@@ -411,6 +418,8 @@ const TopBar = ({
 
         {isMobile && (
           <>
+            {/* Campana en mobile también */}
+            <Notifications mode={mode} />
             <IconButton onClick={onMenuOpen} size="small">
               <MoreVertIcon />
             </IconButton>
@@ -596,6 +605,7 @@ function App() {
                   <Route path="/clientes"            element={<Terceros />} />
                   <Route path="/productos"           element={<Productos />} />
                   <Route path="/inventario"          element={<Inventario />} />
+                  <Route path="/caja"                element={<Caja />} />
                   <Route path="/produccion/recetas"  element={<Recetas />} />
                   <Route path="/produccion/lotes"    element={<Lotes />} />
                   <Route path="/reportes-inventario" element={<InventoryReports />} />

@@ -2146,3 +2146,183 @@ def create_pago_compra(db: Session, pago: schemas.PagoCompraCreate):
         db.commit()
         db.refresh(db_compra)
     return db_pago
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ARCHIVO: crud_additions.py
+#
+# Estas funciones deben AGREGARSE al crud.py existente.
+# No reemplaza el archivo completo — solo son los additions.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+from datetime import datetime, timezone, timedelta, date
+from typing import Optional, List
+import models, schemas
+
+
+# ─── Fix 1: Revertir movimientos de inventario al eliminar una venta ──────────
+def revertir_movimientos_venta(db: Session, venta: models.Venta):
+    """
+    Al eliminar una venta, devuelve el stock de cada producto vendido.
+    Registra una ENTRADA de reversa para trazabilidad completa en el kardex.
+    """
+    for det in venta.detalles:
+        prod = db.query(models.Producto).get(det.producto_id)
+        if not prod or prod.es_servicio:
+            continue
+        # Entrada de reversa
+        mov = models.InventoryMovement(
+            producto_id=det.producto_id,
+            tipo="entrada",
+            cantidad=det.cantidad,
+            costo_unitario=prod.costo or 0.0,
+            motivo="reversa_venta",
+            referencia=f"reversa venta #{venta.id}",
+            observacion=f"Venta #{venta.id} eliminada el {datetime.now(timezone.utc).date()}"
+        )
+        db.add(mov)
+        prod.stock_actual = (prod.stock_actual or 0) + det.cantidad
+        db.add(prod)
+    db.commit()
+
+
+# ─── Fix 2: Notificaciones automáticas de stock bajo ─────────────────────────
+def check_and_notify_low_stock(db: Session, producto_ids: List[int]):
+    """
+    Después de una venta, verifica si algún producto quedó bajo su stock mínimo
+    y crea notificaciones para todos los usuarios Admin.
+    """
+    admin_users = db.query(models.User).join(models.Role).filter(models.Role.name == "Admin").all()
+    if not admin_users:
+        return
+
+    for prod_id in set(producto_ids):
+        prod = db.query(models.Producto).get(prod_id)
+        if not prod or prod.es_servicio:
+            continue
+        if (prod.stock_minimo or 0) > 0 and (prod.stock_actual or 0) < prod.stock_minimo:
+            for admin in admin_users:
+                # Evitar notificaciones duplicadas del mismo día
+                hoy = datetime.now(timezone.utc).date()
+                ya_notificado = db.query(models.Notificacion).filter(
+                    models.Notificacion.usuario_id == admin.id,
+                    models.Notificacion.mensaje.like(f"%{prod.nombre}%bajo stock%"),
+                    func.date(models.Notificacion.fecha_creacion) == hoy
+                ).first()
+                if ya_notificado:
+                    continue
+
+                db.add(models.Notificacion(
+                    usuario_id=admin.id,
+                    mensaje=f"⚠️ '{prod.nombre}' está bajo stock mínimo. Actual: {prod.stock_actual:.1f} | Mínimo: {prod.stock_minimo:.1f}",
+                    tipo="warning",
+                    leido=False
+                ))
+    db.commit()
+
+
+# ─── Corte de Caja ────────────────────────────────────────────────────────────
+def calcular_totales_dia(db: Session) -> dict:
+    """
+    Calcula los ingresos del día actual agrupados por método de pago.
+    Usa la zona horaria de Colombia (UTC-5).
+    """
+    tz_col = timezone(timedelta(hours=-5))
+    ahora_col = datetime.now(tz_col)
+    inicio_dia = ahora_col.replace(hour=0, minute=0, second=0, microsecond=0)
+    fin_dia    = ahora_col.replace(hour=23, minute=59, second=59)
+
+    # Convertir a UTC para la consulta
+    inicio_utc = inicio_dia.astimezone(timezone.utc)
+    fin_utc    = fin_dia.astimezone(timezone.utc)
+
+    pagos_dia = (
+        db.query(
+            func.coalesce(models.Pago.metodo_pago, "Otro").label("metodo"),
+            func.sum(models.Pago.monto).label("total")
+        )
+        .join(models.Venta, models.Pago.venta_id == models.Venta.id)
+        .filter(models.Pago.fecha >= inicio_utc, models.Pago.fecha <= fin_utc)
+        .group_by(models.Pago.metodo_pago)
+        .all()
+    )
+
+    totales = {
+        "efectivo": 0.0,
+        "transferencia": 0.0,
+        "tarjeta": 0.0,
+        "otros": 0.0,
+        "total_dia": 0.0,
+        "fecha": ahora_col.date().isoformat(),
+    }
+
+    for row in pagos_dia:
+        metodo = (row.metodo or "Otro").lower()
+        monto  = float(row.total or 0)
+        totales["total_dia"] += monto
+        if "efectivo" in metodo:
+            totales["efectivo"] += monto
+        elif "transfer" in metodo:
+            totales["transferencia"] += monto
+        elif "tarjeta" in metodo or "card" in metodo:
+            totales["tarjeta"] += monto
+        else:
+            totales["otros"] += monto
+
+    return totales
+
+
+def crear_corte_caja(db: Session, usuario_id: int, efectivo_fisico: float, observaciones: Optional[str] = None) -> models.CorteCaja:
+    """
+    Crea un corte de caja para el día actual:
+      1. Calcula los totales del día por método de pago.
+      2. Compara el efectivo físico con el calculado.
+      3. Registra la diferencia (sobrante/faltante).
+    """
+    totales = calcular_totales_dia(db)
+
+    diferencia = efectivo_fisico - totales["efectivo"]
+
+    corte = models.CorteCaja(
+        usuario_id=usuario_id,
+        total_efectivo_ventas=totales["efectivo"],
+        total_transferencia_ventas=totales["transferencia"],
+        total_tarjeta_ventas=totales["tarjeta"],
+        total_otros_ventas=totales["otros"],
+        total_ventas_dia=totales["total_dia"],
+        efectivo_fisico=efectivo_fisico,
+        diferencia=diferencia,
+        observaciones=observaciones,
+        estado="cerrado"
+    )
+    db.add(corte)
+    db.commit()
+    db.refresh(corte)
+
+    # Notificar si hay diferencia significativa (> $1.000)
+    if abs(diferencia) > 1000:
+        admin_users = db.query(models.User).join(models.Role).filter(models.Role.name == "Admin").all()
+        tipo = "error" if diferencia < 0 else "warning"
+        signo = "FALTANTE" if diferencia < 0 else "SOBRANTE"
+        for admin in admin_users:
+            db.add(models.Notificacion(
+                usuario_id=admin.id,
+                mensaje=f"💰 Corte de caja: {signo} de ${abs(diferencia):,.0f} COP detectado.",
+                tipo=tipo,
+                leido=False
+            ))
+        db.commit()
+
+    return corte
+
+
+def get_cortes_caja(db: Session, skip: int = 0, limit: int = 30) -> List[models.CorteCaja]:
+    return (
+        db.query(models.CorteCaja)
+        .order_by(models.CorteCaja.fecha.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
