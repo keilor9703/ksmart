@@ -148,6 +148,29 @@ export default function Caja() {
               <Typography sx={{ fontWeight: 700, fontSize: 14 }}>Total</Typography>
               <Typography sx={{ fontWeight: 800, fontSize: 16, color: ACCENT }}>{formatCurrency(preview.total_dia)}</Typography>
             </Box>
+
+            {/* Desglose por origen */}
+            {(preview.ventas_contado > 0 || preview.abonos_cartera > 0) && (
+              <Box sx={{ mt: 2, pt: 1.5, borderTop: '1px dashed', borderColor: 'divider' }}>
+                <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 1 }}>
+                  Por origen
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Box sx={{ flex: 1, p: 1.2, borderRadius: 2, bgcolor: `${GREEN}08`, border: `1px solid ${GREEN}20`, textAlign: 'center' }}>
+                    <Typography sx={{ fontSize: 10, color: 'text.secondary', mb: 0.3 }}>
+                      Ventas al contado ({preview.num_ventas || 0})
+                    </Typography>
+                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: GREEN }}>{formatCurrency(preview.ventas_contado || 0)}</Typography>
+                  </Box>
+                  <Box sx={{ flex: 1, p: 1.2, borderRadius: 2, bgcolor: `${BLUE}08`, border: `1px solid ${BLUE}20`, textAlign: 'center' }}>
+                    <Typography sx={{ fontSize: 10, color: 'text.secondary', mb: 0.3 }}>
+                      Abonos cartera ({preview.num_abonos || 0})
+                    </Typography>
+                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: BLUE }}>{formatCurrency(preview.abonos_cartera || 0)}</Typography>
+                  </Box>
+                </Box>
+              </Box>
+            )}
           </Paper>
         </>
       )}
@@ -229,13 +252,28 @@ export default function Caja() {
               { label: 'Efectivo',        val: preview?.efectivo,      color: GREEN  },
               { label: 'Transferencias',  val: preview?.transferencia, color: BLUE   },
               { label: 'Tarjeta / Otros', val: (preview?.tarjeta || 0) + (preview?.otros || 0), color: YELLOW },
-              { label: 'Total del día',   val: preview?.total_dia,     color: ACCENT },
             ].map(({ label, val, color }) => (
-              <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+              <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.4 }}>
                 <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{label}</Typography>
                 <Typography sx={{ fontSize: 12, fontWeight: 600, color }}>{formatCurrency(val || 0)}</Typography>
               </Box>
             ))}
+            <Divider sx={{ my: 0.8 }} />
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography sx={{ fontSize: 13, fontWeight: 700 }}>Total del día</Typography>
+              <Typography sx={{ fontSize: 13, fontWeight: 800, color: ACCENT }}>{formatCurrency(preview?.total_dia || 0)}</Typography>
+            </Box>
+            {/* Origen del dinero */}
+            <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+              <Box sx={{ flex: 1, p: 1, borderRadius: 1.5, bgcolor: `${GREEN}08`, textAlign: 'center' }}>
+                <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>Ventas contado</Typography>
+                <Typography sx={{ fontSize: 12, fontWeight: 700, color: GREEN }}>{formatCurrency(preview?.ventas_contado || 0)}</Typography>
+              </Box>
+              <Box sx={{ flex: 1, p: 1, borderRadius: 1.5, bgcolor: `${BLUE}08`, textAlign: 'center' }}>
+                <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>Abonos cartera</Typography>
+                <Typography sx={{ fontSize: 12, fontWeight: 700, color: BLUE }}>{formatCurrency(preview?.abonos_cartera || 0)}</Typography>
+              </Box>
+            </Box>
           </Paper>
 
           <Divider sx={{ mb: 2 }} />

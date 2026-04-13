@@ -12,7 +12,7 @@ const PRESETS = {
   delete: {
     icon: <DeleteOutline sx={{ fontSize: 28 }} />,
     color: '#EF4444',
-    confirmLabel: 'Eliminar',
+    confirmLabel: 'Confirmar',
     confirmSx: { bgcolor: '#EF4444', '&:hover': { bgcolor: '#dc2626' } },
   },
   warning: {

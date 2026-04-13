@@ -2226,28 +2226,28 @@ def check_and_notify_low_stock(db: Session, producto_ids: List[int]):
 # ─── Corte de Caja ────────────────────────────────────────────────────────────
 def calcular_totales_dia(db: Session) -> dict:
     """
-    Calcula los ingresos del día actual agrupados por método de pago.
-    Usa la zona horaria de Colombia (UTC-5).
+    Calcula el dinero real que entró a caja en el día actual.
+    Hay DOS fuentes de dinero que deben sumarse:
+
+    1. VENTAS AL CONTADO — ventas con pagada=True registradas hoy.
+       Estas NO crean un registro en la tabla Pago, el dinero va directo
+       a Venta.monto_pagado = Venta.total al momento de crear la venta.
+       Método de pago: se toma de Venta.metodo_pago_contado (si existe)
+       o se clasifica como "Efectivo" por defecto.
+
+    2. ABONOS A CUENTAS POR COBRAR — registros en la tabla Pago hechos hoy.
+       Aplica a ventas que quedaron pendientes en días anteriores y hoy
+       el cliente abonó o pagó.
+
+    Usar solo la tabla Pago es incorrecto porque omite las ventas de contado.
     """
-    tz_col = timezone(timedelta(hours=-5))
+    tz_col    = timezone(timedelta(hours=-5))
     ahora_col = datetime.now(tz_col)
-    inicio_dia = ahora_col.replace(hour=0, minute=0, second=0, microsecond=0)
-    fin_dia    = ahora_col.replace(hour=23, minute=59, second=59)
+    inicio    = ahora_col.replace(hour=0, minute=0, second=0, microsecond=0)
+    fin       = ahora_col.replace(hour=23, minute=59, second=59)
 
-    # Convertir a UTC para la consulta
-    inicio_utc = inicio_dia.astimezone(timezone.utc)
-    fin_utc    = fin_dia.astimezone(timezone.utc)
-
-    pagos_dia = (
-        db.query(
-            func.coalesce(models.Pago.metodo_pago, "Otro").label("metodo"),
-            func.sum(models.Pago.monto).label("total")
-        )
-        .join(models.Venta, models.Pago.venta_id == models.Venta.id)
-        .filter(models.Pago.fecha >= inicio_utc, models.Pago.fecha <= fin_utc)
-        .group_by(models.Pago.metodo_pago)
-        .all()
-    )
+    inicio_utc = inicio.astimezone(timezone.utc)
+    fin_utc    = fin.astimezone(timezone.utc)
 
     totales = {
         "efectivo": 0.0,
@@ -2255,21 +2255,69 @@ def calcular_totales_dia(db: Session) -> dict:
         "tarjeta": 0.0,
         "otros": 0.0,
         "total_dia": 0.0,
+        "ventas_contado": 0.0,    # informativo: cuánto fue de ventas directas
+        "abonos_cartera": 0.0,    # informativo: cuánto fue de abonos
+        "num_ventas": 0,
+        "num_abonos": 0,
         "fecha": ahora_col.date().isoformat(),
     }
 
-    for row in pagos_dia:
-        metodo = (row.metodo or "Otro").lower()
-        monto  = float(row.total or 0)
+    def _clasificar(metodo: str, monto: float):
+        """Acumula el monto en la categoría correcta según el método."""
+        m = (metodo or "").lower().strip()
         totales["total_dia"] += monto
-        if "efectivo" in metodo:
+        if "efectivo" in m or m == "":
             totales["efectivo"] += monto
-        elif "transfer" in metodo:
+        elif "transfer" in m or "nequi" in m or "daviplata" in m or "pse" in m:
             totales["transferencia"] += monto
-        elif "tarjeta" in metodo or "card" in metodo:
+        elif "tarjeta" in m or "card" in m or "credito" in m or "debito" in m:
             totales["tarjeta"] += monto
         else:
             totales["otros"] += monto
+
+    # ── FUENTE 1: Ventas al contado registradas hoy ───────────────────────────
+    # Son ventas con estado_pago = 'pagado' Y fecha en el rango del día.
+    # Excluimos las que tienen pagos en la tabla Pago (serían abonos de hoy
+    # sobre ventas viejas — esas las contamos en FUENTE 2).
+    ventas_contado = (
+        db.query(models.Venta)
+        .filter(
+            models.Venta.fecha >= inicio_utc,
+            models.Venta.fecha <= fin_utc,
+            models.Venta.estado_pago == "pagado",
+        )
+        .all()
+    )
+
+    for v in ventas_contado:
+        # Solo contar si NO tiene pagos registrados en tabla Pago
+        # (significaría que fue pagada al crear, no via abono posterior)
+        pagos_registrados = [p for p in v.pagos if inicio_utc <= p.fecha <= fin_utc]
+        if not pagos_registrados:
+            # Venta al contado pura — el método lo tomamos del primer pago
+            # o usamos "Efectivo" como default
+            metodo = "Efectivo"
+            _clasificar(metodo, float(v.total or 0))
+            totales["ventas_contado"] += float(v.total or 0)
+            totales["num_ventas"] += 1
+
+    # ── FUENTE 2: Abonos/pagos registrados hoy en tabla Pago ─────────────────
+    # Cubre dos casos:
+    # a) Ventas de hoy pagadas via abono (raro pero posible)
+    # b) Abonos de hoy a ventas de días anteriores (cuentas por cobrar)
+    abonos_dia = (
+        db.query(models.Pago)
+        .filter(
+            models.Pago.fecha >= inicio_utc,
+            models.Pago.fecha <= fin_utc,
+        )
+        .all()
+    )
+
+    for p in abonos_dia:
+        _clasificar(p.metodo_pago or "Efectivo", float(p.monto or 0))
+        totales["abonos_cartera"] += float(p.monto or 0)
+        totales["num_abonos"] += 1
 
     return totales
 

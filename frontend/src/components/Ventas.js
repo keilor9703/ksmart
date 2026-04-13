@@ -139,76 +139,102 @@ const VentaCard = ({ venta, handleEdit, handleDelete, handleOpenDetails }) => (
 );
 
 // ─── Fila de producto en formulario ───────────────────────────────────────────
-const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRemove, isMobile }) => (
-    <Box sx={{
-        display: 'flex',
-        flexDirection: isMobile ? 'column' : 'row',
-        alignItems: isMobile ? 'stretch' : 'center',
-        gap: 1.5, mb: 1.5, p: isMobile ? 2 : 1.5,
-        borderRadius: 2, bgcolor: 'action.hover',
-        border: '1px solid', borderColor: 'divider',
-    }}>
-        <Autocomplete
-            options={productos}
-            getOptionLabel={productLabel}
-            value={detail.producto}
-            onChange={(_, newValue) => onProductChange(detail.id, newValue)}
-            renderOption={(props, option) => (
-                <li {...props} key={option.id}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 2 }}>
-                        <span style={{ fontSize: 13.5 }}>{option.nombre}</span>
-                        <Typography variant="caption" color="text.secondary">
-                            {option.es_servicio ? 'Servicio' : `Stock: ${option.stock_actual ?? 0}`}
+const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRemove, isMobile }) => {
+    const subtotalSinDesc = detail.cantidad * detail.precioUnitario;
+    const descuentoMonto  = subtotalSinDesc * ((detail.descuentoPct || 0) / 100);
+    const subtotalFinal   = subtotalSinDesc - descuentoMonto;
+
+    return (
+        <Box sx={{
+            display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
+            alignItems: isMobile ? 'stretch' : 'center',
+            gap: 1.5, mb: 1.5, p: isMobile ? 2 : 1.5,
+            borderRadius: 2, bgcolor: 'action.hover',
+            border: '1px solid', borderColor: 'divider',
+        }}>
+            <Autocomplete
+                options={productos}
+                getOptionLabel={productLabel}
+                value={detail.producto}
+                onChange={(_, newValue) => onProductChange(detail.id, newValue)}
+                renderOption={(props, option) => (
+                    <li {...props} key={option.id}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 2 }}>
+                            <span style={{ fontSize: 13.5 }}>{option.nombre}</span>
+                            <Typography variant="caption" color="text.secondary">
+                                {option.es_servicio ? 'Servicio' : `Stock: ${option.stock_actual ?? 0}`}
+                            </Typography>
+                        </Box>
+                    </li>
+                )}
+                renderInput={(params) => (
+                    <TextField {...params} label="Producto" placeholder="Busca por nombre…" />
+                )}
+                sx={{ flex: 1, minWidth: isMobile ? '100%' : 220 }}
+            />
+
+            <TextField
+                type="number"
+                label="Cantidad"
+                value={detail.cantidad}
+                onChange={(e) => {
+                    const isDecimal = detail.producto && ['MTS', 'KGS'].includes(detail.producto.unidad_medida);
+                    const parsed = isDecimal ? parseFloat(e.target.value) : parseInt(e.target.value, 10);
+                    onFieldChange(detail.id, 'cantidad', isNaN(parsed) ? '' : parsed);
+                }}
+                InputProps={{
+                    inputProps: {
+                        step: detail.producto && ['MTS', 'KGS'].includes(detail.producto.unidad_medida) ? 'any' : '1',
+                        min: 0,
+                    },
+                }}
+                sx={{ width: isMobile ? '100%' : 110 }}
+            />
+
+            <TextField
+                type="number"
+                label="Precio Unit."
+                value={detail.precioUnitario}
+                onChange={(e) => onFieldChange(detail.id, 'precioUnitario', parseFloat(e.target.value))}
+                InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+                sx={{ width: isMobile ? '100%' : 140 }}
+            />
+
+            {/* ✅ NUEVO: campo descuento por línea */}
+            <TextField
+                type="number"
+                label="Desc. %"
+                value={detail.descuentoPct || 0}
+                onChange={(e) => {
+                    const v = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0));
+                    onFieldChange(detail.id, 'descuentoPct', v);
+                }}
+                InputProps={{ inputProps: { min: 0, max: 100, step: 0.5 } }}
+                sx={{ width: isMobile ? '100%' : 80 }}
+            />
+
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minWidth: isMobile ? '100%' : 'auto', gap: 1 }}>
+                <Box sx={{ textAlign: 'right' }}>
+                    {(detail.descuentoPct || 0) > 0 && (
+                        <Typography sx={{ fontSize: 10, color: 'text.secondary', textDecoration: 'line-through' }}>
+                            {formatCurrency(subtotalSinDesc)}
                         </Typography>
-                    </Box>
-                </li>
-            )}
-            renderInput={(params) => (
-                <TextField {...params} label="Producto" placeholder="Busca por nombre…" />
-            )}
-            sx={{ flex: 1, minWidth: isMobile ? '100%' : 220 }}
-        />
-
-        <TextField
-            type="number"
-            label="Cantidad"
-            value={detail.cantidad}
-            onChange={(e) => {
-                const isDecimal = detail.producto && ['MTS', 'KGS'].includes(detail.producto.unidad_medida);
-                const parsed = isDecimal ? parseFloat(e.target.value) : parseInt(e.target.value, 10);
-                onFieldChange(detail.id, 'cantidad', isNaN(parsed) ? '' : parsed);
-            }}
-            InputProps={{
-                inputProps: {
-                    step: detail.producto && ['MTS', 'KGS'].includes(detail.producto.unidad_medida) ? 'any' : '1',
-                    min: 0,
-                },
-            }}
-            sx={{ width: isMobile ? '100%' : 110 }}
-        />
-
-        <TextField
-            type="number"
-            label="Precio Unit."
-            value={detail.precioUnitario}
-            onChange={(e) => onFieldChange(detail.id, 'precioUnitario', parseFloat(e.target.value))}
-            InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
-            sx={{ width: isMobile ? '100%' : 140 }}
-        />
-
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minWidth: isMobile ? '100%' : 'auto', gap: 1 }}>
-            <Typography sx={{ fontWeight: 700, fontSize: 14, color: ACCENT }}>
-                {formatCurrency(detail.cantidad * detail.precioUnitario)}
-            </Typography>
-            <Tooltip title="Quitar">
-                <IconButton onClick={() => onRemove(detail.id)} size="small"
-                    sx={{ color: '#EF4444', bgcolor: '#FEF2F2', borderRadius: 1.5 }}>
-                    <RemoveCircleOutline fontSize="small" />
-                </IconButton>
-            </Tooltip>
+                    )}
+                    <Typography sx={{ fontWeight: 700, fontSize: 14, color: (detail.descuentoPct || 0) > 0 ? '#10B981' : ACCENT }}>
+                        {formatCurrency(subtotalFinal)}
+                    </Typography>
+                </Box>
+                <Tooltip title="Quitar">
+                    <IconButton onClick={() => onRemove(detail.id)} size="small"
+                        sx={{ color: '#EF4444', bgcolor: '#FEF2F2', borderRadius: 1.5 }}>
+                        <RemoveCircleOutline fontSize="small" />
+                    </IconButton>
+                </Tooltip>
+            </Box>
         </Box>
-    </Box>
-);
+    );
+};
 
 // ─── Componente principal ──────────────────────────────────────────────────────
 const Ventas = () => {
@@ -218,7 +244,7 @@ const Ventas = () => {
     const [productos, setProductos] = useState([]);
 
     const [cliente, setCliente]   = useState(null);
-    const [saleDetails, setSaleDetails] = useState([{ id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0 }]);
+    const [saleDetails, setSaleDetails] = useState([{ id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0, descuentoPct: 0 }]);
     const [ivaPorcentajeGlobal, setIvaPorcentajeGlobal] = useState(0);
     const [pagada, setPagada]     = useState(true);
     const [editingVenta, setEditingVenta] = useState(null);
@@ -256,7 +282,9 @@ const Ventas = () => {
         if (editingVenta) {
             setCliente(clientes.find(c => c.id === editingVenta.cliente_id) || null);
             setSaleDetails(editingVenta.detalles.map(d => ({
-                id: d.id, producto: d.producto, cantidad: d.cantidad, precioUnitario: d.precio_unitario,
+                id: d.id, producto: d.producto, cantidad: d.cantidad,
+                precioUnitario: d.precio_unitario,
+                descuentoPct: d.descuento_pct || 0,
             })));
             setPagada(editingVenta.estado_pago === 'pagado');
             setEstadoPago(editingVenta.estado_pago === 'pagado' ? 'pagada' : 'pendiente');
@@ -267,7 +295,7 @@ const Ventas = () => {
 
     const resetForm = () => {
         setCliente(null);
-        setSaleDetails([{ id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0 }]);
+        setSaleDetails([{ id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0, descuentoPct: 0 }]);
         setIvaPorcentajeGlobal(0);
         setPagada(true);
         setEstadoPago('pagada');
@@ -275,7 +303,7 @@ const Ventas = () => {
     };
 
     const handleAddSaleDetail = () =>
-        setSaleDetails(p => [...p, { id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0 }]);
+        setSaleDetails(p => [...p, { id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0, descuentoPct: 0 }]);
     const handleRemoveSaleDetail = (id) =>
         setSaleDetails(p => p.filter(d => d.id !== id));
     const handleFieldChange = (id, field, value) =>
@@ -284,8 +312,18 @@ const Ventas = () => {
         handleFieldChange(id, 'producto', newValue);
         handleFieldChange(id, 'precioUnitario', newValue?.precio ?? 0);
     };
+    // ✅ Subtotal con descuentos aplicados por línea
     const calculateSubtotal = () =>
-        saleDetails.reduce((t, d) => t + d.cantidad * d.precioUnitario, 0);
+        saleDetails.reduce((t, d) => {
+            const bruto = d.cantidad * d.precioUnitario;
+            const desc  = bruto * ((d.descuentoPct || 0) / 100);
+            return t + bruto - desc;
+        }, 0);
+
+    const calculateDescuentoTotal = () =>
+        saleDetails.reduce((t, d) => {
+            return t + (d.cantidad * d.precioUnitario * ((d.descuentoPct || 0) / 100));
+        }, 0);
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -295,8 +333,12 @@ const Ventas = () => {
         }
         const ventaData = {
             cliente_id: cliente.id,
-            detalles: saleDetails.map(({ producto, cantidad, precioUnitario }) => ({
-                producto_id: producto.id, cantidad, precio_unitario: precioUnitario, iva_porcentaje: 0.0,
+            detalles: saleDetails.map(({ producto, cantidad, precioUnitario, descuentoPct }) => ({
+                producto_id: producto.id,
+                cantidad,
+                precio_unitario: precioUnitario * (1 - (descuentoPct || 0) / 100), // ✅ precio ya con descuento
+                descuento_pct: descuentoPct || 0,
+                iva_porcentaje: 0.0,
             })),
             pagada,
             iva_porcentaje: parseFloat(ivaPorcentajeGlobal),
@@ -453,6 +495,17 @@ const Ventas = () => {
                                         p: 2, borderRadius: 2, textAlign: 'center',
                                         bgcolor: `${ACCENT}0D`, border: `1.5px dashed ${ACCENT}60`, boxShadow: 'none',
                                     }}>
+                                        {/* ✅ Mostrar descuento si hay alguno */}
+                                        {calculateDescuentoTotal() > 0 && (
+                                            <Box sx={{ mb: 0.5 }}>
+                                                <Typography sx={{ fontSize: 10, color: 'text.secondary', textDecoration: 'line-through' }}>
+                                                    {formatCurrency(calculateSubtotal() + calculateDescuentoTotal())}
+                                                </Typography>
+                                                <Typography sx={{ fontSize: 11, color: '#10B981', fontWeight: 600 }}>
+                                                    − {formatCurrency(calculateDescuentoTotal())} descuento
+                                                </Typography>
+                                            </Box>
+                                        )}
                                         <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.5 }}>Total Factura</Typography>
                                         <Typography sx={{ fontSize: 22, fontWeight: 800, color: ACCENT }}>
                                             {formatCurrency(calculateSubtotal())}
