@@ -610,7 +610,7 @@ def get_cuentas_por_cobrar(db: Session = Depends(get_db), current_user: schemas.
     return crud.get_cuentas_por_cobrar_por_cliente(db)
 
 @app.get("/reportes/dashboard", response_model=schemas.DashboardData)
-def get_dashboard_report(db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_admin_user)):
+def get_dashboard_report(db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_active_user)):
     return crud.get_dashboard_data(db)
 
 @app.get("/reportes/iva-neto")
