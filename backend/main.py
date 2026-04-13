@@ -153,8 +153,7 @@ def get_current_active_user(current_user: schemas.User = Depends(get_current_use
     return current_user
 
 def get_current_admin_user(current_user: schemas.User = Depends(get_current_user)):
-    # if current_user.role.name != "Admin" :
-    if current_user.role.name not in ["Admin", "Socio"]:
+    if current_user.role.name != "Admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permisos insuficientes")
     return current_user
 
@@ -616,7 +615,7 @@ def get_dashboard_report(db: Session = Depends(get_db), current_user: schemas.Us
 
 @app.get("/reportes/iva-neto")
 def get_iva_neto(start_date: Optional[date] = None, end_date: Optional[date] = None,
-                 db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+                 db: Session = Depends(get_db), current_user: models.User = Depends(get_current_admin_user)):
     from sqlalchemy import func
     query_v_iva   = db.query(func.sum(models.Venta.iva_total))
     query_v_total = db.query(func.sum(models.Venta.total))
@@ -675,6 +674,32 @@ def get_consumo_insumos(start_date: Optional[date] = None, end_date: Optional[da
         query = query.filter(models.InventoryMovement.created_at < end_date + timedelta(days=1))
     results = query.group_by(models.Producto.nombre).order_by(func.sum(models.InventoryMovement.cantidad).desc()).all()
     return [{"insumo": r.nombre, "cantidad": r.cantidad_total, "costo": r.costo_total} for r in results]
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DEVOLUCIONES  ✅ NUEVO
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.post("/devoluciones/", response_model=schemas.DevolucionOut)
+def crear_devolucion(
+    data: schemas.DevolucionCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """
+    Registra una devolución parcial o total de una venta.
+    - Repone stock automáticamente por cada producto devuelto.
+    - Reduce el total de la venta (nota crédito).
+    - Genera notificación para el admin.
+    """
+    return crud.crear_devolucion(db, data)
+
+@app.get("/devoluciones/venta/{venta_id}", response_model=List[schemas.DevolucionOut])
+def get_devoluciones_venta(
+    venta_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    return crud.get_devoluciones_by_venta(db, venta_id)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CORTE DE CAJA  ✅ NUEVO

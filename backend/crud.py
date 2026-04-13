@@ -8,8 +8,29 @@ import pandas as pd
 from fastapi import HTTPException
 
 
+
+
+
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+COL_TZ = "America/Bogota"
+
+def _is_postgres(db: Session) -> bool:
+    """
+    Detecta si la sesión usa PostgreSQL.
+    Usa get_bind() en lugar de db.bind (deprecado en SQLAlchemy 2.x).
+    """
+    try:
+        dialect = db.get_bind().dialect.name
+        return dialect == "postgresql"
+    except Exception:
+        # Fallback: leer la URL configurada
+        try:
+            from database import DATABASE_URL
+            return "postgresql" in DATABASE_URL.lower()
+        except Exception:
+            return False
 
 
 # ---------- Kardex (Promedio Ponderado) ----------
@@ -398,63 +419,88 @@ def delete_producto(db: Session, producto_id: int):
     return db_producto
 
 # --- CRUD para Ventas ---
+
 def get_ventas(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Venta).options(
-        selectinload(models.Venta.cliente),
-        selectinload(models.Venta.detalles).selectinload(models.DetalleVenta.producto),
-        selectinload(models.Venta.pagos)
-    ).order_by(models.Venta.fecha.desc()).offset(skip).limit(limit).all()
+    return (
+        db.query(models.Venta)
+        .options(
+            joinedload(models.Venta.cliente),
+            joinedload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
+            joinedload(models.Venta.pagos),
+        )
+        .order_by(models.Venta.fecha.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+
+# ── TAMBIÉN: get_venta (singular) ─────────────────────────────────────────────
 
 def get_venta(db: Session, venta_id: int):
-    return db.query(models.Venta).options(
-        selectinload(models.Venta.cliente),
-        selectinload(models.Venta.detalles).selectinload(models.DetalleVenta.producto),
-        selectinload(models.Venta.pagos)
-    ).filter(models.Venta.id == venta_id).first()
-
-def create_venta(db: Session, venta: schemas.VentaCreate):
-    detalles = []
-    total_bruto = 0.0
-
-    for detalle_data in venta.detalles:
-        producto = db.query(models.Producto).filter(models.Producto.id == detalle_data.producto_id).first()
-        if not producto:
-            raise HTTPException(status_code=404, detail=f"Producto con id {detalle_data.producto_id} no encontrado")
-        
-        precio_unitario = (
-            detalle_data.precio_unitario
-            if detalle_data.precio_unitario not in (None, 0)
-            else producto.precio
+    return (
+        db.query(models.Venta)
+        .options(
+            joinedload(models.Venta.cliente),
+            joinedload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
+            joinedload(models.Venta.pagos),
         )
+        .filter(models.Venta.id == venta_id)
+        .first()
+    )
 
-        total_bruto += detalle_data.cantidad * precio_unitario
+
+def create_venta(db, venta):
+    """
+    Versión de referencia de create_venta con metodo_pago incluido.
+    AJUSTA según la lógica real de tu crud.py.
+    """
+    from sqlalchemy.orm import Session
+    import models
+
+    # Calcular total
+    total_bruto = 0.0
+    detalles_objs = []
+
+    for d in venta.detalles:
+        prod = db.query(models.Producto).get(d.producto_id)
+        precio = d.precio_unitario if d.precio_unitario is not None else (prod.precio if prod else 0)
+        subtotal = precio * d.cantidad
+        total_bruto += subtotal
 
         detalle = models.DetalleVenta(
-            producto_id=detalle_data.producto_id,
-            cantidad=detalle_data.cantidad,
-            precio_unitario=precio_unitario,
-            iva_porcentaje=0.0 # Se maneja global en cabecera ahora
+            producto_id     = d.producto_id,
+            cantidad        = d.cantidad,
+            precio_unitario = precio,
+            descuento_pct   = getattr(d, 'descuento_pct', 0.0),
+            iva_porcentaje  = getattr(d, 'iva_porcentaje', 0.0),
         )
-        detalles.append(detalle)
+        detalles_objs.append(detalle)
 
-    # Cálculo de IVA Incluido
-    iva_porc = venta.iva_porcentaje
-    subtotal_base = total_bruto / (1 + (iva_porc / 100))
-    iva_total_calc = total_bruto - subtotal_base
+    # IVA incluido en el precio (no se suma, solo se registra)
+    iva_porc  = float(getattr(venta, 'iva_porcentaje', 0) or 0)
+    iva_total = total_bruto * iva_porc / (100 + iva_porc) if iva_porc > 0 else 0.0
 
     db_venta = models.Venta(
-        cliente_id=venta.cliente_id,
-        total=total_bruto, # El total NO cambia
-        iva_total=iva_total_calc,
-        iva_porcentaje=iva_porc,
-        monto_pagado=total_bruto if venta.pagada else 0,
-        estado_pago="pagado" if venta.pagada else "pendiente",
-        detalles=detalles
+        cliente_id      = venta.cliente_id,
+        total           = total_bruto,
+        iva_total       = iva_total,
+        iva_porcentaje  = iva_porc,
+        monto_pagado    = total_bruto if venta.pagada else 0,
+        estado_pago     = "pagado" if venta.pagada else "pendiente",
+        metodo_pago     = venta.metodo_pago if venta.pagada else None,  # ✅ FIX
     )
     db.add(db_venta)
+    db.flush()  # obtener db_venta.id
+
+    for det in detalles_objs:
+        det.venta_id = db_venta.id
+        db.add(det)
+
     db.commit()
     db.refresh(db_venta)
     return db_venta
+
 
 def update_venta(db: Session, venta_id: int, venta: schemas.VentaCreate):
     db_venta = db.query(models.Venta).filter(models.Venta.id == venta_id).first()
@@ -623,30 +669,7 @@ def update_pago(db: Session, pago_id: int, pago: schemas.PagoUpdate):
     return db_pago
 
 # --- Reportes ---
-def get_total_sales_today(db: Session) -> float:
-    # User's timezone offset
-    user_tz_offset = timedelta(hours=-5)
 
-    # Current time in user's timezone
-    now_user_tz = datetime.utcnow() + user_tz_offset
-    today_user_tz = now_user_tz.date()
-
-    # Start of day in user's timezone
-    start_of_day_user_tz = datetime.combine(today_user_tz, datetime.min.time())
-
-    # End of day is start of next day
-    end_of_day_user_tz = start_of_day_user_tz + timedelta(days=1)
-
-    # Convert to UTC for database query
-    start_of_day_utc = start_of_day_user_tz - user_tz_offset
-    end_of_day_utc = end_of_day_user_tz - user_tz_offset
-
-    total_sales = db.query(func.sum(models.Venta.total)).filter(
-        models.Venta.fecha >= start_of_day_utc,
-        models.Venta.fecha < end_of_day_utc
-    ).scalar()
-    
-    return total_sales if total_sales is not None else 0.0
 
 def get_ventas_summary(db: Session, start_date: Optional[date] = None, end_date: Optional[date] = None):
     query = db.query(models.Venta)
@@ -811,33 +834,31 @@ def get_rentabilidad_por_producto(db: Session, start_date: Optional[date] = None
     return sorted(report_data, key=lambda x: x.net_profit, reverse=True)
 
 
-def get_sales_by_day(db: Session, start_date: date, end_date: date) -> List[schemas.SalesByDay]:
-    """
-    Calculates total sales for each day in a given date range.
-    Fills in missing dates with 0 sales.
-    """
-    result = (
-        db.query(
-            func.date(models.Venta.fecha).label("day"),
-            func.sum(models.Venta.total).label("total"),
-        )
-        .filter(models.Venta.fecha >= start_date)
-        .filter(models.Venta.fecha < end_date + timedelta(days=1))
-        .group_by(func.date(models.Venta.fecha))
-        .order_by(func.date(models.Venta.fecha))
-        .all()
-    )
-    
-    # Fill in missing dates with 0 sales
-    sales_map = {r.day: r.total for r in result}
-    all_days = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
-    
-    sales_data = []
-    for day in all_days:
-        total = sales_map.get(day.isoformat(), 0.0)
-        sales_data.append(schemas.SalesByDay(day=day, total=total))
-        
-    return sales_data
+
+
+    # ── Normalizar clave a "YYYY-MM-DD" sea cual sea el tipo del motor ──
+    sales_map: dict = {}
+    for r in rows:
+        if r.day is None:
+            continue
+        if isinstance(r.day, str):
+            key = r.day[:10]              # SQLite: "2024-01-15" o "2024-01-15 00:00"
+        elif hasattr(r.day, "isoformat"):
+            key = r.day.isoformat()[:10]  # Postgres datetime.date / datetime
+        else:
+            key = str(r.day)[:10]
+        sales_map[key] = float(r.total or 0)
+
+    # Rellenar días sin ventas con 0 para que la gráfica no tenga huecos
+    all_days = [
+        start_date + timedelta(days=i)
+        for i in range((end_date - start_date).days + 1)
+    ]
+    return [
+        schemas.SalesByDay(day=d, total=sales_map.get(d.isoformat(), 0.0))
+        for d in all_days
+    ]
+
 
 def get_dashboard_data(db: Session) -> schemas.DashboardData:
     """
@@ -2146,8 +2167,6 @@ def create_pago_compra(db: Session, pago: schemas.PagoCompraCreate):
         db.commit()
         db.refresh(db_compra)
     return db_pago
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # ARCHIVO: crud_additions.py
 #
@@ -2162,17 +2181,492 @@ from typing import Optional, List
 import models, schemas
 
 
-# ─── Fix 1: Revertir movimientos de inventario al eliminar una venta ──────────
+# # ─── Fix 1: Revertir movimientos de inventario al eliminar una venta ──────────
+# def revertir_movimientos_venta(db: Session, venta: models.Venta):
+#     """
+#     Al eliminar una venta, devuelve el stock de cada producto vendido.
+#     Registra una ENTRADA de reversa para trazabilidad completa en el kardex.
+#     """
+#     for det in venta.detalles:
+#         prod = db.query(models.Producto).get(det.producto_id)
+#         if not prod or prod.es_servicio:
+#             continue
+#         # Entrada de reversa
+#         mov = models.InventoryMovement(
+#             producto_id=det.producto_id,
+#             tipo="entrada",
+#             cantidad=det.cantidad,
+#             costo_unitario=prod.costo or 0.0,
+#             motivo="reversa_venta",
+#             referencia=f"reversa venta #{venta.id}",
+#             observacion=f"Venta #{venta.id} eliminada el {datetime.now(timezone.utc).date()}"
+#         )
+#         db.add(mov)
+#         prod.stock_actual = (prod.stock_actual or 0) + det.cantidad
+#         db.add(prod)
+#     db.commit()
+
+
+# ─── Fix 2: Notificaciones automáticas de stock bajo ─────────────────────────
+# def check_and_notify_low_stock(db: Session, producto_ids: List[int]):
+#     """
+#     Después de una venta, verifica si algún producto quedó bajo su stock mínimo
+#     y crea notificaciones para todos los usuarios Admin.
+#     """
+#     admin_users = db.query(models.User).join(models.Role).filter(models.Role.name == "Admin").all()
+#     if not admin_users:
+#         return
+
+#     for prod_id in set(producto_ids):
+#         prod = db.query(models.Producto).get(prod_id)
+#         if not prod or prod.es_servicio:
+#             continue
+#         if (prod.stock_minimo or 0) > 0 and (prod.stock_actual or 0) < prod.stock_minimo:
+#             for admin in admin_users:
+#                 # Evitar notificaciones duplicadas del mismo día
+#                 hoy = datetime.now(timezone.utc).date()
+#                 ya_notificado = db.query(models.Notificacion).filter(
+#                     models.Notificacion.usuario_id == admin.id,
+#                     models.Notificacion.mensaje.like(f"%{prod.nombre}%bajo stock%"),
+#                     func.date(models.Notificacion.fecha_creacion) == hoy
+#                 ).first()
+#                 if ya_notificado:
+#                     continue
+
+#                 db.add(models.Notificacion(
+#                     usuario_id=admin.id,
+#                     mensaje=f"⚠️ '{prod.nombre}' está bajo stock mínimo. Actual: {prod.stock_actual:.1f} | Mínimo: {prod.stock_minimo:.1f}",
+#                     tipo="warning",
+#                     leido=False
+#                 ))
+#     db.commit()
+
+
+# ─── Corte de Caja ────────────────────────────────────────────────────────────
+# def calcular_totales_dia(db: Session) -> dict:
+#     """
+#     Calcula el dinero real que entró a caja en el día actual.
+#     Hay DOS fuentes de dinero que deben sumarse:
+
+#     1. VENTAS AL CONTADO — ventas con pagada=True registradas hoy.
+#        Estas NO crean un registro en la tabla Pago, el dinero va directo
+#        a Venta.monto_pagado = Venta.total al momento de crear la venta.
+#        Método de pago: se toma de Venta.metodo_pago_contado (si existe)
+#        o se clasifica como "Efectivo" por defecto.
+
+#     2. ABONOS A CUENTAS POR COBRAR — registros en la tabla Pago hechos hoy.
+#        Aplica a ventas que quedaron pendientes en días anteriores y hoy
+#        el cliente abonó o pagó.
+
+#     Usar solo la tabla Pago es incorrecto porque omite las ventas de contado.
+#     """
+#     tz_col    = timezone(timedelta(hours=-5))
+#     ahora_col = datetime.now(tz_col)
+#     inicio    = ahora_col.replace(hour=0, minute=0, second=0, microsecond=0)
+#     fin       = ahora_col.replace(hour=23, minute=59, second=59)
+
+#     inicio_utc = inicio.astimezone(timezone.utc)
+#     fin_utc    = fin.astimezone(timezone.utc)
+
+#     totales = {
+#         "efectivo": 0.0,
+#         "transferencia": 0.0,
+#         "tarjeta": 0.0,
+#         "otros": 0.0,
+#         "total_dia": 0.0,
+#         "ventas_contado": 0.0,    # informativo: cuánto fue de ventas directas
+#         "abonos_cartera": 0.0,    # informativo: cuánto fue de abonos
+#         "num_ventas": 0,
+#         "num_abonos": 0,
+#         "fecha": ahora_col.date().isoformat(),
+#     }
+
+#     def _clasificar(metodo: str, monto: float):
+#         """Acumula el monto en la categoría correcta según el método."""
+#         m = (metodo or "").lower().strip()
+#         totales["total_dia"] += monto
+#         if "efectivo" in m or m == "":
+#             totales["efectivo"] += monto
+#         elif "transfer" in m or "nequi" in m or "daviplata" in m or "pse" in m:
+#             totales["transferencia"] += monto
+#         elif "tarjeta" in m or "card" in m or "credito" in m or "debito" in m:
+#             totales["tarjeta"] += monto
+#         else:
+#             totales["otros"] += monto
+
+#     # ── FUENTE 1: Ventas al contado registradas hoy ───────────────────────────
+#     # Son ventas con estado_pago = 'pagado' Y fecha en el rango del día.
+#     # Excluimos las que tienen pagos en la tabla Pago (serían abonos de hoy
+#     # sobre ventas viejas — esas las contamos en FUENTE 2).
+#     ventas_contado = (
+#         db.query(models.Venta)
+#         .filter(
+#             models.Venta.fecha >= inicio_utc,
+#             models.Venta.fecha <= fin_utc,
+#             models.Venta.estado_pago == "pagado",
+#         )
+#         .all()
+#     )
+
+#     for v in ventas_contado:
+#         # Solo contar si NO tiene pagos registrados en tabla Pago hoy
+#         pagos_registrados = [p for p in v.pagos if inicio_utc <= p.fecha <= fin_utc]
+#         if not pagos_registrados:
+#             # ✅ Usar el metodo_pago real de la venta si existe, sino "Efectivo"
+#             metodo = getattr(v, 'metodo_pago', None) or "Efectivo"
+#             _clasificar(metodo, float(v.total or 0))
+#             totales["ventas_contado"] += float(v.total or 0)
+#             totales["num_ventas"] += 1
+
+#     # ── FUENTE 2: Abonos/pagos registrados hoy en tabla Pago ─────────────────
+#     # Cubre dos casos:
+#     # a) Ventas de hoy pagadas via abono (raro pero posible)
+#     # b) Abonos de hoy a ventas de días anteriores (cuentas por cobrar)
+#     abonos_dia = (
+#         db.query(models.Pago)
+#         .filter(
+#             models.Pago.fecha >= inicio_utc,
+#             models.Pago.fecha <= fin_utc,
+#         )
+#         .all()
+#     )
+
+#     for p in abonos_dia:
+#         _clasificar(p.metodo_pago or "Efectivo", float(p.monto or 0))
+#         totales["abonos_cartera"] += float(p.monto or 0)
+#         totales["num_abonos"] += 1
+
+#     return totales
+
+
+# def crear_corte_caja(db: Session, usuario_id: int, efectivo_fisico: float, observaciones: Optional[str] = None) -> models.CorteCaja:
+#     """
+#     Crea un corte de caja para el día actual:
+#       1. Calcula los totales del día por método de pago.
+#       2. Compara el efectivo físico con el calculado.
+#       3. Registra la diferencia (sobrante/faltante).
+#     """
+#     totales = calcular_totales_dia(db)
+
+#     diferencia = efectivo_fisico - totales["efectivo"]
+
+#     corte = models.CorteCaja(
+#         usuario_id=usuario_id,
+#         total_efectivo_ventas=totales["efectivo"],
+#         total_transferencia_ventas=totales["transferencia"],
+#         total_tarjeta_ventas=totales["tarjeta"],
+#         total_otros_ventas=totales["otros"],
+#         total_ventas_dia=totales["total_dia"],
+#         efectivo_fisico=efectivo_fisico,
+#         diferencia=diferencia,
+#         observaciones=observaciones,
+#         estado="cerrado"
+#     )
+#     db.add(corte)
+#     db.commit()
+#     db.refresh(corte)
+
+#     # Notificar si hay diferencia significativa (> $1.000)
+#     if abs(diferencia) > 1000:
+#         admin_users = db.query(models.User).join(models.Role).filter(models.Role.name == "Admin").all()
+#         tipo = "error" if diferencia < 0 else "warning"
+#         signo = "FALTANTE" if diferencia < 0 else "SOBRANTE"
+#         for admin in admin_users:
+#             db.add(models.Notificacion(
+#                 usuario_id=admin.id,
+#                 mensaje=f"💰 Corte de caja: {signo} de ${abs(diferencia):,.0f} COP detectado.",
+#                 tipo=tipo,
+#                 leido=False
+#             ))
+#         db.commit()
+
+#     return corte
+
+
+# def get_cortes_caja(db: Session, skip: int = 0, limit: int = 30) -> List[models.CorteCaja]:
+#     return (
+#         db.query(models.CorteCaja)
+#         .order_by(models.CorteCaja.fecha.desc())
+#         .offset(skip)
+#         .limit(limit)
+#         .all()
+#     )
+
+
+
+
+
+
+
+
+
+
+# def crear_devolucion(db: Session, data: schemas.DevolucionCreate) -> models.Devolucion:
+#     """
+#     Registra una devolución:
+#       1. Valida que la venta exista y que las cantidades no excedan lo vendido.
+#       2. Crea el encabezado Devolucion y sus DevolucionItem.
+#       3. Repone el stock (movimiento ENTRADA al inventario).
+#       4. Ajusta el total y monto_pagado de la venta:
+#          - Si la venta estaba PAGADA: descuenta del total (nota crédito).
+#          - Si la venta estaba PENDIENTE/PARCIAL: descuenta del saldo pendiente.
+#       5. Crea una notificación para el admin.
+#     """
+#     venta = db.query(models.Venta).options(
+#         joinedload(models.Venta.detalles)
+#     ).filter(models.Venta.id == data.venta_id).first()
+
+#     if not venta:
+#         raise HTTPException(status_code=404, detail="Venta no encontrada")
+
+#     # Calcular total de la devolución y validar cantidades
+#     total_dev = 0.0
+#     for item in data.items:
+#         if item.cantidad <= 0:
+#             raise HTTPException(status_code=400, detail=f"La cantidad debe ser mayor a 0.")
+
+#         # Buscar el detalle original para validar que no se devuelva más de lo vendido
+#         if item.detalle_id:
+#             detalle = next((d for d in venta.detalles if d.id == item.detalle_id), None)
+#             if detalle and item.cantidad > detalle.cantidad:
+#                 prod = db.query(models.Producto).get(item.producto_id)
+#                 nombre = prod.nombre if prod else f"ID {item.producto_id}"
+#                 raise HTTPException(
+#                     status_code=400,
+#                     detail=f"No puede devolver {item.cantidad} de '{nombre}'. Solo se vendieron {detalle.cantidad}."
+#                 )
+#         total_dev += item.cantidad * item.precio_unit
+
+#     # Crear encabezado de devolución
+#     dev = models.Devolucion(
+#         venta_id=data.venta_id,
+#         motivo=data.motivo,
+#         monto_total=total_dev,
+#     )
+#     db.add(dev)
+#     db.flush()  # obtener dev.id sin commit
+
+#     # Crear ítems + reponer stock
+#     for item in data.items:
+#         db_item = models.DevolucionItem(
+#             devolucion_id=dev.id,
+#             producto_id=item.producto_id,
+#             detalle_id=item.detalle_id,
+#             cantidad=item.cantidad,
+#             precio_unitario=item.precio_unit,
+#         )
+#         db.add(db_item)
+
+#         # Reponer inventario: ENTRADA con motivo "devolucion"
+#         prod = db.query(models.Producto).get(item.producto_id)
+#         if prod and not prod.es_servicio:
+#             prod.stock_actual = (prod.stock_actual or 0) + item.cantidad
+#             mov = models.InventoryMovement(
+#                 producto_id=item.producto_id,
+#                 tipo="entrada",
+#                 cantidad=item.cantidad,
+#                 costo_unitario=prod.costo or 0.0,
+#                 motivo="devolucion",
+#                 referencia=f"Dev #{dev.id} / Venta #{data.venta_id}",
+#                 observacion=f"Devolución: {data.motivo[:80]}"
+#             )
+#             db.add(mov)
+#             db.add(prod)
+
+#     # Ajustar la venta
+#     if venta.estado_pago == "pagado":
+#         # Venta ya cobrada: reducir el total (nota crédito)
+#         venta.total       = max(0, venta.total - total_dev)
+#         venta.monto_pagado = max(0, venta.monto_pagado - total_dev)
+#     else:
+#         # Venta pendiente/parcial: reducir solo el saldo pendiente
+#         venta.total = max(0, venta.total - total_dev)
+
+#     # Recalcular estado_pago
+#     if venta.total <= 0:
+#         venta.estado_pago = "pagado"
+#         venta.monto_pagado = 0
+#     elif venta.monto_pagado >= venta.total:
+#         venta.estado_pago = "pagado"
+#     elif venta.monto_pagado > 0:
+#         venta.estado_pago = "parcial"
+#     else:
+#         venta.estado_pago = "pendiente"
+
+#     db.add(venta)
+
+#     # Notificación para admin
+#     admin_users = db.query(models.User).join(models.Role).filter(models.Role.name == "Admin").all()
+#     for admin in admin_users:
+#         db.add(models.Notificacion(
+#             usuario_id=admin.id,
+#             mensaje=f"↩️ Devolución registrada — Venta #{data.venta_id} · {venta.cliente.nombre if venta.cliente else ''} · Nota crédito: ${total_dev:,.0f}",
+#             tipo="warning",
+#             leido=False,
+#         ))
+
+#     db.commit()
+#     db.refresh(dev)
+#     return dev
+
+
+# def get_devoluciones_by_venta(db: Session, venta_id: int):
+#     return (
+#         db.query(models.Devolucion)
+#         .options(joinedload(models.Devolucion.items))
+#         .filter(models.Devolucion.venta_id == venta_id)
+#         .order_by(models.Devolucion.fecha.desc())
+#         .all()
+#     )
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FIX: get_sales_by_day + get_total_sales_today
+# Compatible con SQLite (local) y PostgreSQL (producción/Supabase)
+#
+# INSTRUCCIÓN: en crud.py, reemplaza completamente las funciones
+#   get_sales_by_day()  y  get_total_sales_today()  con este código.
+#   No toques nada más.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+from sqlalchemy.orm import Session
+from sqlalchemy import func, text
+from datetime import date, timedelta, datetime
+from typing import List
+import models, schemas
+
+
+# def get_sales_by_day(
+#     db: Session,
+#     start_date: date,
+#     end_date: date
+# ) -> List[schemas.SalesByDay]:
+#     """
+#     Retorna la suma de ventas agrupada por día en el rango indicado.
+
+#     BUG en producción (Postgres):
+#       - func.date(campo_TIMESTAMPTZ) en Postgres retorna datetime.date
+#         pero en SQLite retorna str "YYYY-MM-DD"
+#       - Sin zona horaria, ventas después de las 7pm Colombia (UTC-5)
+#         aparecen en el día siguiente porque la BD guarda UTC
+#       - El sales_map construido con .isoformat() no encuentra claves
+#         cuando los tipos no coinciden → todos los días salen en 0
+
+#     FIX:
+#       - Postgres: func.timezone("America/Bogota", campo) convierte
+#         correctamente antes de extraer la fecha
+#       - Normalizar SIEMPRE la clave del sales_map a str "YYYY-MM-DD"
+#         sin asumir el tipo que devuelve cada motor
+#     """
+#     is_pg = _is_postgres(db)
+
+#     if is_pg:
+#         # Convertir TIMESTAMPTZ a hora Colombia, luego extraer fecha
+#         day_expr = func.date(
+#             func.timezone(COL_TZ, models.Venta.fecha)
+#         ).label("day")
+#     else:
+#         # SQLite no tiene timezone — func.date() funciona directamente
+#         day_expr = func.date(models.Venta.fecha).label("day")
+
+#     # Rango de fechas en UTC para el filtro
+#     start_dt = datetime.combine(start_date, datetime.min.time())
+#     end_dt   = datetime.combine(end_date,   datetime.max.time())
+
+#     rows = (
+#         db.query(day_expr, func.sum(models.Venta.total).label("total"))
+#         .filter(models.Venta.fecha >= start_dt)
+#         .filter(models.Venta.fecha <= end_dt)
+#         .group_by(day_expr)
+#         .order_by(day_expr)
+#         .all()
+#     )
+
+#     # ── Normalizar clave a "YYYY-MM-DD" sea cual sea el tipo del motor ──
+#     sales_map: dict = {}
+#     for r in rows:
+#         if r.day is None:
+#             continue
+#         if isinstance(r.day, str):
+#             key = r.day[:10]              # SQLite: "2024-01-15" o "2024-01-15 00:00"
+#         elif hasattr(r.day, "isoformat"):
+#             key = r.day.isoformat()[:10]  # Postgres datetime.date / datetime
+#         else:
+#             key = str(r.day)[:10]
+#         sales_map[key] = float(r.total or 0)
+
+#     # Rellenar días sin ventas con 0 para que la gráfica no tenga huecos
+#     all_days = [
+#         start_date + timedelta(days=i)
+#         for i in range((end_date - start_date).days + 1)
+#     ]
+#     return [
+#         schemas.SalesByDay(day=d, total=sales_map.get(d.isoformat(), 0.0))
+#         for d in all_days
+#     ]
+
+
+# def get_total_sales_today(db: Session) -> float:
+#     """
+#     Total de ventas del día actual en hora Colombia.
+
+#     BUG en producción (Postgres):
+#       Sin zona horaria, 'hoy' se calcula en UTC y puede excluir ventas
+#       de la mañana en Colombia (que en UTC son del día anterior después
+#       de las 7pm UTC-5 = medianoche UTC).
+
+#     FIX:
+#       - Postgres: SQL nativo con AT TIME ZONE para calcular el rango
+#         exacto del día en Colombia
+#       - SQLite: offset manual de -5 horas
+#     """
+#     is_pg = _is_postgres(db)
+
+#     if is_pg:
+#         result = db.execute(text("""
+#             SELECT COALESCE(SUM(total), 0)
+#             FROM ventas
+#             WHERE DATE(fecha AT TIME ZONE 'America/Bogota')
+#                 = (CURRENT_TIMESTAMP AT TIME ZONE 'America/Bogota')::date
+#         """)).scalar()
+#         return float(result or 0)
+
+#     else:
+#         # SQLite: offset manual UTC-5
+#         tz_offset = timedelta(hours=-5)
+#         now_col   = datetime.utcnow() + tz_offset
+#         today_col = now_col.date()
+#         start_utc = datetime.combine(today_col, datetime.min.time()) - tz_offset
+#         end_utc   = datetime.combine(today_col, datetime.max.time()) - tz_offset
+
+#         total = db.query(func.sum(models.Venta.total)).filter(
+#             models.Venta.fecha >= start_utc,
+#             models.Venta.fecha <= end_utc,
+#         ).scalar()
+#         return float(total or 0)
+
+
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# crud_additions.py — agregar TODO esto al final de crud.py
+# ═══════════════════════════════════════════════════════════════════════════════
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func, text
+from datetime import datetime, timezone, timedelta, date
+from typing import Optional, List
+import models, schemas
+from fastapi import HTTPException
+
+
+# ─── Revertir movimientos al eliminar una venta ───────────────────────────────
 def revertir_movimientos_venta(db: Session, venta: models.Venta):
-    """
-    Al eliminar una venta, devuelve el stock de cada producto vendido.
-    Registra una ENTRADA de reversa para trazabilidad completa en el kardex.
-    """
     for det in venta.detalles:
         prod = db.query(models.Producto).get(det.producto_id)
         if not prod or prod.es_servicio:
             continue
-        # Entrada de reversa
         mov = models.InventoryMovement(
             producto_id=det.producto_id,
             tipo="entrada",
@@ -2188,12 +2682,8 @@ def revertir_movimientos_venta(db: Session, venta: models.Venta):
     db.commit()
 
 
-# ─── Fix 2: Notificaciones automáticas de stock bajo ─────────────────────────
+# ─── Notificaciones automáticas de stock bajo ────────────────────────────────
 def check_and_notify_low_stock(db: Session, producto_ids: List[int]):
-    """
-    Después de una venta, verifica si algún producto quedó bajo su stock mínimo
-    y crea notificaciones para todos los usuarios Admin.
-    """
     admin_users = db.query(models.User).join(models.Role).filter(models.Role.name == "Admin").all()
     if not admin_users:
         return
@@ -2204,7 +2694,6 @@ def check_and_notify_low_stock(db: Session, producto_ids: List[int]):
             continue
         if (prod.stock_minimo or 0) > 0 and (prod.stock_actual or 0) < prod.stock_minimo:
             for admin in admin_users:
-                # Evitar notificaciones duplicadas del mismo día
                 hoy = datetime.now(timezone.utc).date()
                 ya_notificado = db.query(models.Notificacion).filter(
                     models.Notificacion.usuario_id == admin.id,
@@ -2213,7 +2702,6 @@ def check_and_notify_low_stock(db: Session, producto_ids: List[int]):
                 ).first()
                 if ya_notificado:
                     continue
-
                 db.add(models.Notificacion(
                     usuario_id=admin.id,
                     mensaje=f"⚠️ '{prod.nombre}' está bajo stock mínimo. Actual: {prod.stock_actual:.1f} | Mínimo: {prod.stock_minimo:.1f}",
@@ -2223,47 +2711,23 @@ def check_and_notify_low_stock(db: Session, producto_ids: List[int]):
     db.commit()
 
 
-# ─── Corte de Caja ────────────────────────────────────────────────────────────
+# ─── Caja ─────────────────────────────────────────────────────────────────────
 def calcular_totales_dia(db: Session) -> dict:
-    """
-    Calcula el dinero real que entró a caja en el día actual.
-    Hay DOS fuentes de dinero que deben sumarse:
-
-    1. VENTAS AL CONTADO — ventas con pagada=True registradas hoy.
-       Estas NO crean un registro en la tabla Pago, el dinero va directo
-       a Venta.monto_pagado = Venta.total al momento de crear la venta.
-       Método de pago: se toma de Venta.metodo_pago_contado (si existe)
-       o se clasifica como "Efectivo" por defecto.
-
-    2. ABONOS A CUENTAS POR COBRAR — registros en la tabla Pago hechos hoy.
-       Aplica a ventas que quedaron pendientes en días anteriores y hoy
-       el cliente abonó o pagó.
-
-    Usar solo la tabla Pago es incorrecto porque omite las ventas de contado.
-    """
     tz_col    = timezone(timedelta(hours=-5))
     ahora_col = datetime.now(tz_col)
     inicio    = ahora_col.replace(hour=0, minute=0, second=0, microsecond=0)
     fin       = ahora_col.replace(hour=23, minute=59, second=59)
-
     inicio_utc = inicio.astimezone(timezone.utc)
     fin_utc    = fin.astimezone(timezone.utc)
 
     totales = {
-        "efectivo": 0.0,
-        "transferencia": 0.0,
-        "tarjeta": 0.0,
-        "otros": 0.0,
-        "total_dia": 0.0,
-        "ventas_contado": 0.0,    # informativo: cuánto fue de ventas directas
-        "abonos_cartera": 0.0,    # informativo: cuánto fue de abonos
-        "num_ventas": 0,
-        "num_abonos": 0,
+        "efectivo": 0.0, "transferencia": 0.0, "tarjeta": 0.0, "otros": 0.0,
+        "total_dia": 0.0, "ventas_contado": 0.0, "abonos_cartera": 0.0,
+        "num_ventas": 0, "num_abonos": 0,
         "fecha": ahora_col.date().isoformat(),
     }
 
     def _clasificar(metodo: str, monto: float):
-        """Acumula el monto en la categoría correcta según el método."""
         m = (metodo or "").lower().strip()
         totales["total_dia"] += monto
         if "efectivo" in m or m == "":
@@ -2275,42 +2739,27 @@ def calcular_totales_dia(db: Session) -> dict:
         else:
             totales["otros"] += monto
 
-    # ── FUENTE 1: Ventas al contado registradas hoy ───────────────────────────
-    # Son ventas con estado_pago = 'pagado' Y fecha en el rango del día.
-    # Excluimos las que tienen pagos en la tabla Pago (serían abonos de hoy
-    # sobre ventas viejas — esas las contamos en FUENTE 2).
     ventas_contado = (
         db.query(models.Venta)
+        .options(joinedload(models.Venta.pagos))
         .filter(
             models.Venta.fecha >= inicio_utc,
             models.Venta.fecha <= fin_utc,
             models.Venta.estado_pago == "pagado",
-        )
-        .all()
+        ).all()
     )
 
     for v in ventas_contado:
-        # Solo contar si NO tiene pagos registrados en tabla Pago
-        # (significaría que fue pagada al crear, no via abono posterior)
-        pagos_registrados = [p for p in v.pagos if inicio_utc <= p.fecha <= fin_utc]
-        if not pagos_registrados:
-            # Venta al contado pura — el método lo tomamos del primer pago
-            # o usamos "Efectivo" como default
-            metodo = "Efectivo"
+        pagos_hoy = [p for p in v.pagos if inicio_utc <= p.fecha <= fin_utc]
+        if not pagos_hoy:
+            metodo = getattr(v, 'metodo_pago', None) or "Efectivo"
             _clasificar(metodo, float(v.total or 0))
             totales["ventas_contado"] += float(v.total or 0)
             totales["num_ventas"] += 1
 
-    # ── FUENTE 2: Abonos/pagos registrados hoy en tabla Pago ─────────────────
-    # Cubre dos casos:
-    # a) Ventas de hoy pagadas via abono (raro pero posible)
-    # b) Abonos de hoy a ventas de días anteriores (cuentas por cobrar)
     abonos_dia = (
         db.query(models.Pago)
-        .filter(
-            models.Pago.fecha >= inicio_utc,
-            models.Pago.fecha <= fin_utc,
-        )
+        .filter(models.Pago.fecha >= inicio_utc, models.Pago.fecha <= fin_utc)
         .all()
     )
 
@@ -2322,15 +2771,9 @@ def calcular_totales_dia(db: Session) -> dict:
     return totales
 
 
-def crear_corte_caja(db: Session, usuario_id: int, efectivo_fisico: float, observaciones: Optional[str] = None) -> models.CorteCaja:
-    """
-    Crea un corte de caja para el día actual:
-      1. Calcula los totales del día por método de pago.
-      2. Compara el efectivo físico con el calculado.
-      3. Registra la diferencia (sobrante/faltante).
-    """
-    totales = calcular_totales_dia(db)
-
+def crear_corte_caja(db: Session, usuario_id: int, efectivo_fisico: float,
+                     observaciones: Optional[str] = None) -> models.CorteCaja:
+    totales   = calcular_totales_dia(db)
     diferencia = efectivo_fisico - totales["efectivo"]
 
     corte = models.CorteCaja(
@@ -2349,17 +2792,15 @@ def crear_corte_caja(db: Session, usuario_id: int, efectivo_fisico: float, obser
     db.commit()
     db.refresh(corte)
 
-    # Notificar si hay diferencia significativa (> $1.000)
     if abs(diferencia) > 1000:
         admin_users = db.query(models.User).join(models.Role).filter(models.Role.name == "Admin").all()
-        tipo = "error" if diferencia < 0 else "warning"
+        tipo  = "error" if diferencia < 0 else "warning"
         signo = "FALTANTE" if diferencia < 0 else "SOBRANTE"
         for admin in admin_users:
             db.add(models.Notificacion(
                 usuario_id=admin.id,
                 mensaje=f"💰 Corte de caja: {signo} de ${abs(diferencia):,.0f} COP detectado.",
-                tipo=tipo,
-                leido=False
+                tipo=tipo, leido=False
             ))
         db.commit()
 
@@ -2370,7 +2811,216 @@ def get_cortes_caja(db: Session, skip: int = 0, limit: int = 30) -> List[models.
     return (
         db.query(models.CorteCaja)
         .order_by(models.CorteCaja.fecha.desc())
-        .offset(skip)
-        .limit(limit)
+        .offset(skip).limit(limit).all()
+    )
+
+
+# ─── Dashboard ────────────────────────────────────────────────────────────────
+COL_TZ = "America/Bogota"
+
+def _is_postgres(db: Session) -> bool:
+    try:
+        return db.get_bind().dialect.name == "postgresql"
+    except Exception:
+        try:
+            from database import DATABASE_URL
+            return "postgresql" in DATABASE_URL.lower()
+        except Exception:
+            return False
+
+
+def get_sales_by_day(db: Session, start_date: date, end_date: date):
+    is_pg = _is_postgres(db)
+    day_expr = (
+        func.date(func.timezone(COL_TZ, models.Venta.fecha)).label("day")
+        if is_pg else
+        func.date(models.Venta.fecha).label("day")
+    )
+    start_dt = datetime.combine(start_date, datetime.min.time())
+    end_dt   = datetime.combine(end_date,   datetime.max.time())
+
+    rows = (
+        db.query(day_expr, func.sum(models.Venta.total).label("total"))
+        .filter(models.Venta.fecha >= start_dt, models.Venta.fecha <= end_dt)
+        .group_by(day_expr).order_by(day_expr).all()
+    )
+
+    sales_map: dict = {}
+    for r in rows:
+        if r.day is None:
+            continue
+        key = r.day[:10] if isinstance(r.day, str) else r.day.isoformat()[:10]
+        sales_map[key] = float(r.total or 0)
+
+    all_days = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
+    return [
+        schemas.SalesByDay(day=d, total=sales_map.get(d.isoformat(), 0.0))
+        for d in all_days
+    ]
+
+
+def get_total_sales_today(db: Session) -> float:
+    if _is_postgres(db):
+        result = db.execute(text("""
+            SELECT COALESCE(SUM(total), 0)
+            FROM ventas
+            WHERE DATE(fecha AT TIME ZONE 'America/Bogota')
+                = (CURRENT_TIMESTAMP AT TIME ZONE 'America/Bogota')::date
+        """)).scalar()
+        return float(result or 0)
+    else:
+        tz_offset = timedelta(hours=-5)
+        now_col   = datetime.utcnow() + tz_offset
+        today_col = now_col.date()
+        start_utc = datetime.combine(today_col, datetime.min.time()) - tz_offset
+        end_utc   = datetime.combine(today_col, datetime.max.time()) - tz_offset
+        total = db.query(func.sum(models.Venta.total)).filter(
+            models.Venta.fecha >= start_utc, models.Venta.fecha <= end_utc
+        ).scalar()
+        return float(total or 0)
+
+
+# ─── Devoluciones ─────────────────────────────────────────────────────────────
+def crear_devolucion(db: Session, data: schemas.DevolucionCreate) -> models.Devolucion:
+    """
+    Registra una devolución parcial o total de una venta.
+
+    FLUJO:
+      1. Carga la venta con joinedload para evitar DetachedInstanceError en Postgres
+      2. Valida que las cantidades no excedan lo vendido originalmente
+      3. Crea el encabezado Devolucion (campo: monto_total)
+      4. Crea DevolucionItem por cada línea (campo: precio_unitario)
+      5. Repone stock con movimiento de ENTRADA
+      6. Ajusta el total de la venta (nota crédito)
+      7. Recalcula estado_pago
+      8. Notifica al admin
+    """
+    # ── 1. Cargar venta con todas las relaciones necesarias ──────────────────
+    venta = (
+        db.query(models.Venta)
+        .options(
+            joinedload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
+            joinedload(models.Venta.cliente),   # ← necesario para la notificación
+        )
+        .filter(models.Venta.id == data.venta_id)
+        .first()
+    )
+
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+
+    if not data.items:
+        raise HTTPException(status_code=400, detail="Debe incluir al menos un ítem a devolver.")
+
+    if not data.motivo or not data.motivo.strip():
+        raise HTTPException(status_code=400, detail="El motivo es obligatorio.")
+
+    # ── 2. Validar cantidades ─────────────────────────────────────────────────
+    total_dev = 0.0
+    for item in data.items:
+        if item.cantidad <= 0:
+            raise HTTPException(status_code=400, detail="La cantidad debe ser mayor a 0.")
+        if item.precio_unitario <= 0:
+            raise HTTPException(status_code=400, detail="El precio unitario debe ser mayor a 0.")
+
+        if item.detalle_id:
+            detalle = next((d for d in venta.detalles if d.id == item.detalle_id), None)
+            if detalle and item.cantidad > detalle.cantidad:
+                nombre = detalle.producto.nombre if detalle.producto else f"ID {item.producto_id}"
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"No puede devolver {item.cantidad} de '{nombre}'. Solo se vendieron {detalle.cantidad}."
+                )
+        total_dev += item.cantidad * item.precio_unitario
+
+    # ── 3. Crear encabezado de devolución ─────────────────────────────────────
+    # IMPORTANTE: el modelo usa 'monto_total', NO 'total'
+    dev = models.Devolucion(
+        venta_id=venta.id,
+        motivo=data.motivo.strip(),
+        monto_total=total_dev,          # ✅ campo correcto del modelo
+        tipo="parcial",
+        estado="confirmada",
+    )
+    db.add(dev)
+    db.flush()   # obtenemos dev.id sin hacer commit todavía
+
+    # ── 4. Crear ítems + reponer stock ────────────────────────────────────────
+    for item in data.items:
+        # IMPORTANTE: el modelo usa 'precio_unitario', NO 'precio_unit'
+        db_item = models.DevolucionItem(
+            devolucion_id=dev.id,
+            producto_id=item.producto_id,
+            detalle_id=item.detalle_id,
+            cantidad=item.cantidad,
+            precio_unitario=item.precio_unitario,   # ✅ campo correcto del modelo
+        )
+        db.add(db_item)
+
+        # ── 5. Reponer inventario ─────────────────────────────────────────────
+        prod = db.query(models.Producto).get(item.producto_id)
+        if prod and not prod.es_servicio:
+            prod.stock_actual = (prod.stock_actual or 0) + item.cantidad
+            db.add(prod)
+
+            mov = models.InventoryMovement(
+                producto_id=item.producto_id,
+                tipo="entrada",
+                cantidad=item.cantidad,
+                costo_unitario=prod.costo or 0.0,
+                motivo="devolucion",
+                referencia=f"Dev #{dev.id} / Venta #{data.venta_id}",
+                observacion=f"Devolución: {data.motivo[:80]}"
+            )
+            db.add(mov)
+
+    # ── 6. Ajustar el total de la venta ───────────────────────────────────────
+    if venta.estado_pago == "pagado":
+        # Ya cobrada → reducir total Y monto_pagado (nota crédito)
+        venta.total        = max(0.0, venta.total - total_dev)
+        venta.monto_pagado = max(0.0, venta.monto_pagado - total_dev)
+    else:
+        # Pendiente/parcial → solo reducir el total (el cliente debe menos)
+        venta.total = max(0.0, venta.total - total_dev)
+
+    # ── 7. Recalcular estado_pago ─────────────────────────────────────────────
+    if venta.total <= 0:
+        venta.estado_pago  = "pagado"
+        venta.monto_pagado = 0.0
+    elif venta.monto_pagado >= venta.total:
+        venta.estado_pago = "pagado"
+    elif venta.monto_pagado > 0:
+        venta.estado_pago = "parcial"
+    else:
+        venta.estado_pago = "pendiente"
+
+    db.add(venta)
+
+    # ── 8. Notificar al admin ─────────────────────────────────────────────────
+    # venta.cliente ya cargado con joinedload → no hay DetachedInstanceError
+    cliente_nombre = venta.cliente.nombre if venta.cliente else "desconocido"
+    admin_users = db.query(models.User).join(models.Role).filter(models.Role.name == "Admin").all()
+    for admin in admin_users:
+        db.add(models.Notificacion(
+            usuario_id=admin.id,
+            mensaje=(
+                f"↩️ Devolución — Venta #{data.venta_id} · {cliente_nombre} · "
+                f"Nota crédito: ${total_dev:,.0f}"
+            ),
+            tipo="warning",
+            leido=False,
+        ))
+
+    db.commit()
+    db.refresh(dev)
+    return dev
+
+
+def get_devoluciones_by_venta(db: Session, venta_id: int) -> List[models.Devolucion]:
+    return (
+        db.query(models.Devolucion)
+        .options(joinedload(models.Devolucion.items).joinedload(models.DevolucionItem.producto))
+        .filter(models.Devolucion.venta_id == venta_id)
+        .order_by(models.Devolucion.fecha.desc())
         .all()
     )

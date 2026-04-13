@@ -4,6 +4,7 @@ import { formatCurrency } from '../utils/formatters';
 import { toast } from 'react-toastify';
 import ConfirmationDialog from './ConfirmationDialog';
 import VentaDetailDialog from './VentaDetailDialog';
+import DevolucionDialog from './DevolucionDialog'; // ✅ NUEVO
 import {
     Box, Paper, Typography, Grid, TextField, Button, IconButton,
     Autocomplete, Table, TableBody, TableCell, TableContainer,
@@ -14,9 +15,9 @@ import {
 import {
     AddCircleOutline, RemoveCircleOutline, Edit, Delete, Visibility,
     Search, ShoppingCart, TrendingUp, Receipt, AttachMoney,
-    AccessTime, CheckCircle, Cancel
+    AccessTime, CheckCircle, Cancel, AssignmentReturn
 } from '@mui/icons-material';
-import { ToggleButton, ToggleButtonGroup } from '@mui/material';
+
 
 // ─── Constantes de diseño ──────────────────────────────────────────────────────
 const ACCENT = '#FF6020';
@@ -76,7 +77,7 @@ const getEstadoPagoChip = (estado) => {
 };
 
 // ─── Venta Card (mobile) ──────────────────────────────────────────────────────
-const VentaCard = ({ venta, handleEdit, handleDelete, handleOpenDetails }) => (
+const VentaCard = ({ venta, handleEdit, handleDelete, handleOpenDetails, handleOpenDevolucion }) => (
     <Paper sx={{ p: 2.5, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
             <Box>
@@ -122,9 +123,18 @@ const VentaCard = ({ venta, handleEdit, handleDelete, handleOpenDetails }) => (
                     <Visibility fontSize="small" />
                 </IconButton>
             </Tooltip>
+            {/* Devolución — visible si la venta tiene detalles */}
+            {venta.detalles?.length > 0 && (
+                <Tooltip title="Registrar devolución">
+                    <IconButton size="small" onClick={() => handleOpenDevolucion(venta)}
+                        sx={{ color: '#F59E0B', bgcolor: '#FFFBEB', borderRadius: 1.5 }}>
+                        <AssignmentReturn fontSize="small" />
+                    </IconButton>
+                </Tooltip>
+            )}
             <Tooltip title="Editar">
                 <IconButton size="small" onClick={() => handleEdit(venta)}
-                    sx={{ color: ACCENT, bgcolor: '#FFF0E9', borderRadius: 1.5 }}>
+                    sx={{ color: '#FF6020', bgcolor: '#FFF0E9', borderRadius: 1.5 }}>
                     <Edit fontSize="small" />
                 </IconButton>
             </Tooltip>
@@ -249,6 +259,7 @@ const Ventas = () => {
     const [pagada, setPagada]     = useState(true);
     const [editingVenta, setEditingVenta] = useState(null);
     const [estadoPago, setEstadoPago]     = useState('pagada');
+    const [metodoPago, setMetodoPago]     = useState('Efectivo'); // ✅ NUEVO
 
     const [showConfirmDialog, setShowConfirmDialog]         = useState(false);
     const [ventaToDelete, setVentaToDelete]                 = useState(null);
@@ -257,6 +268,10 @@ const Ventas = () => {
 
     const [detailModalOpen, setDetailModalOpen] = useState(false);
     const [selectedVenta, setSelectedVenta]     = useState(null);
+
+    // ✅ NUEVO: Devoluciones
+    const [devolucionOpen, setDevolucionOpen]   = useState(false);
+    const [ventaDevolucion, setVentaDevolucion] = useState(null);
 
     const [tabValue, setTabValue]       = useState(0);
     const [page, setPage]               = useState(0);
@@ -299,6 +314,7 @@ const Ventas = () => {
         setIvaPorcentajeGlobal(0);
         setPagada(true);
         setEstadoPago('pagada');
+        setMetodoPago('Efectivo'); // ✅
         setEditingVenta(null);
     };
 
@@ -336,11 +352,12 @@ const Ventas = () => {
             detalles: saleDetails.map(({ producto, cantidad, precioUnitario, descuentoPct }) => ({
                 producto_id: producto.id,
                 cantidad,
-                precio_unitario: precioUnitario * (1 - (descuentoPct || 0) / 100), // ✅ precio ya con descuento
+                precio_unitario: precioUnitario * (1 - (descuentoPct || 0) / 100),
                 descuento_pct: descuentoPct || 0,
                 iva_porcentaje: 0.0,
             })),
             pagada,
+            metodo_pago: pagada ? metodoPago : null, // ✅ solo si es al contado
             iva_porcentaje: parseFloat(ivaPorcentajeGlobal),
         };
         setSaleToConfirm(ventaData);
@@ -369,6 +386,10 @@ const Ventas = () => {
     const handleEdit = (v) => { setEditingVenta(v); setTabValue(0); };
     const handleOpenDetails  = (v) => { setSelectedVenta(v); setDetailModalOpen(true); };
     const handleCloseDetails = ()  => { setDetailModalOpen(false); setSelectedVenta(null); };
+
+    // ✅ NUEVO
+    const handleOpenDevolucion  = (v) => { setVentaDevolucion(v); setDevolucionOpen(true); };
+    const handleDevolucionSuccess = () => { fetchVentas(); fetchVentasSummary(); };
 
     const filteredVentas  = [...ventas]
         .filter(v => (v.cliente?.nombre || '').toLowerCase().includes(searchTerm.toLowerCase()))
@@ -515,18 +536,55 @@ const Ventas = () => {
 
                                 <Grid item xs={12} sm={6}>
                                     <Box sx={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 2, alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'flex-end' }}>
-                                        <ToggleButtonGroup
-                                            value={estadoPago} exclusive
-                                            onChange={(_, v) => { if (v !== null) { setEstadoPago(v); setPagada(v === 'pagada'); } }}
-                                            sx={{
-                                                '& .MuiToggleButton-root': { fontWeight: 600, fontSize: 13, textTransform: 'none', borderRadius: '8px !important', px: 2 },
-                                                '& .Mui-selected[value="pagada"]':   { bgcolor: '#DCFCE7 !important', color: '#16a34a !important', borderColor: '#22c55e !important' },
-                                                '& .Mui-selected[value="pendiente"]':{ bgcolor: '#FEF2F2 !important', color: '#dc2626 !important', borderColor: '#EF4444 !important' },
-                                            }}
-                                        >
-                                            <ToggleButton value="pagada">💰 Efectivo</ToggleButton>
-                                            <ToggleButton value="pendiente">🕒 Por Cobrar</ToggleButton>
-                                        </ToggleButtonGroup>
+
+                                        {/* ✅ Método de pago — 4 opciones */}
+                                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.8, minWidth: isMobile ? '100%' : 'auto' }}>
+                                            <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+                                                Método de pago
+                                            </Typography>
+                                            <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap' }}>
+                                                {[
+                                                    { value: 'Efectivo',       label: '💵 Efectivo',       pagada: true,  color: '#10B981' },
+                                                    { value: 'Transferencia',  label: '🏦 Transferencia',  pagada: true,  color: '#3B82F6' },
+                                                    { value: 'Tarjeta',        label: '💳 Tarjeta',        pagada: true,  color: '#8B5CF6' },
+                                                    { value: 'Por Cobrar',     label: '🕒 Por Cobrar',     pagada: false, color: '#EF4444' },
+                                                ].map(opt => {
+                                                    const isSelected = pagada
+                                                        ? (opt.pagada && metodoPago === opt.value)
+                                                        : (!opt.pagada);
+                                                    return (
+                                                        <Box
+                                                            key={opt.value}
+                                                            onClick={() => {
+                                                                if (opt.pagada) {
+                                                                    setPagada(true);
+                                                                    setEstadoPago('pagada');
+                                                                    setMetodoPago(opt.value);
+                                                                } else {
+                                                                    setPagada(false);
+                                                                    setEstadoPago('pendiente');
+                                                                    setMetodoPago(null);
+                                                                }
+                                                            }}
+                                                            sx={{
+                                                                px: 1.5, py: 0.8, borderRadius: 2, cursor: 'pointer',
+                                                                border: '1.5px solid',
+                                                                borderColor: isSelected ? opt.color : 'divider',
+                                                                bgcolor: isSelected ? `${opt.color}15` : 'background.paper',
+                                                                color: isSelected ? opt.color : 'text.secondary',
+                                                                fontSize: 12, fontWeight: isSelected ? 700 : 500,
+                                                                transition: 'all 0.15s',
+                                                                userSelect: 'none',
+                                                                '&:hover': { borderColor: opt.color, bgcolor: `${opt.color}08` },
+                                                                whiteSpace: 'nowrap',
+                                                            }}
+                                                        >
+                                                            {opt.label}
+                                                        </Box>
+                                                    );
+                                                })}
+                                            </Box>
+                                        </Box>
 
                                         <Box sx={{ display: 'flex', gap: 1 }}>
                                             {editingVenta && (
@@ -576,7 +634,8 @@ const Ventas = () => {
                                     : paginatedVentas.map(v => (
                                         <VentaCard key={v.id} venta={v}
                                             handleEdit={handleEdit} handleDelete={handleDelete}
-                                            handleOpenDetails={handleOpenDetails} />
+                                            handleOpenDetails={handleOpenDetails}
+                                            handleOpenDevolucion={handleOpenDevolucion} />
                                     ))
                                 }
                             </Box>
@@ -625,6 +684,15 @@ const Ventas = () => {
                                                                     <Visibility fontSize="small" />
                                                                 </IconButton>
                                                             </Tooltip>
+                                                            {/* Devolución — visible si la venta tiene detalles (con o sin producto cargado) */}
+                                                            {v.detalles?.length > 0 && (
+                                                                <Tooltip title="Registrar devolución">
+                                                                    <IconButton size="small" onClick={() => handleOpenDevolucion(v)}
+                                                                        sx={{ color: '#F59E0B', '&:hover': { bgcolor: '#FFFBEB' } }}>
+                                                                        <AssignmentReturn fontSize="small" />
+                                                                    </IconButton>
+                                                                </Tooltip>
+                                                            )}
                                                             <Tooltip title="Editar">
                                                                 <IconButton size="small" onClick={() => handleEdit(v)}
                                                                     sx={{ color: ACCENT, '&:hover': { bgcolor: '#FFF0E9' } }}>
@@ -681,6 +749,14 @@ const Ventas = () => {
                 open={detailModalOpen}
                 handleClose={handleCloseDetails}
                 venta={selectedVenta}
+            />
+
+            {/* ✅ NUEVO */}
+            <DevolucionDialog
+                open={devolucionOpen}
+                onClose={() => setDevolucionOpen(false)}
+                venta={ventaDevolucion}
+                onSuccess={handleDevolucionSuccess}
             />
         </Box>
     );

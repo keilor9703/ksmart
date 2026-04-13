@@ -85,17 +85,19 @@ class Pago(Base):
 
 class Venta(Base):
     __tablename__ = "ventas"
-    id             = Column(Integer, primary_key=True, index=True)
-    cliente_id     = Column(Integer, ForeignKey("clientes.id"))
-    total          = Column(Float)
-    iva_total      = Column(Float, default=0.0)
-    iva_porcentaje = Column(Float, default=0.0)
-    descuento_total = Column(Float, default=0.0)   # ✅ NUEVO: descuento total de la venta
-    # ✅ timezone=True
-    fecha          = Column(DateTime(timezone=True), default=utcnow)
-    monto_pagado   = Column(Float, default=0.0)
-    estado_pago    = Column(String, default="pendiente")   # pagado | parcial | pendiente
-    fecha_pago     = Column(DateTime(timezone=True), nullable=True)
+    id              = Column(Integer, primary_key=True, index=True)
+    cliente_id      = Column(Integer, ForeignKey("clientes.id"))
+    total           = Column(Float)
+    iva_total       = Column(Float, default=0.0)
+    iva_porcentaje  = Column(Float, default=0.0)
+    descuento_total = Column(Float, default=0.0)
+    fecha           = Column(DateTime(timezone=True), default=utcnow)
+    monto_pagado    = Column(Float, default=0.0)
+    estado_pago     = Column(String, default="pendiente")
+    fecha_pago      = Column(DateTime(timezone=True), nullable=True)
+    # ✅ NUEVO: método con el que se pagó al contado (Efectivo|Transferencia|Tarjeta)
+    # Null si la venta quedó pendiente (Por Cobrar)
+    metodo_pago     = Column(String, nullable=True)
 
     cliente                = relationship("Cliente", back_populates="ventas")
     detalles               = relationship("DetalleVenta", back_populates="venta", cascade="all, delete-orphan")
@@ -318,8 +320,48 @@ class PagoCompra(Base):
     compra = relationship("Compra", back_populates="pagos")
 
 # =========================
-# CORTE DE CAJA  ✅ NUEVO
+# DEVOLUCIONES  ✅ NUEVO
 # =========================
+
+class DevolucionItem(Base):
+    """Línea de devolución — qué producto se devolvió y en qué cantidad."""
+    __tablename__ = "devolucion_items"
+    id              = Column(Integer, primary_key=True, index=True)
+    devolucion_id   = Column(Integer, ForeignKey("devoluciones.id"), nullable=False)
+    producto_id     = Column(Integer, ForeignKey("productos.id"), nullable=False)
+    detalle_id      = Column(Integer, ForeignKey("detalles_venta.id"), nullable=True)  # ✅ referencia al detalle original
+    cantidad        = Column(Float, nullable=False)
+    precio_unitario = Column(Float, nullable=False)
+
+    devolucion = relationship("Devolucion", back_populates="items")
+    producto   = relationship("Producto")
+
+class Devolucion(Base):
+    """
+    Nota crédito / devolución asociada a una venta.
+    Al confirmarla:
+      - Repone stock de los productos devueltos
+      - Reduce el total y monto_pagado de la venta original
+      - Actualiza el estado_pago si corresponde
+    """
+    __tablename__ = "devoluciones"
+    id          = Column(Integer, primary_key=True, index=True)
+    venta_id    = Column(Integer, ForeignKey("ventas.id"), nullable=False)
+    usuario_id  = Column(Integer, ForeignKey("users.id"), nullable=True)
+    fecha       = Column(DateTime(timezone=True), default=utcnow)
+    motivo      = Column(String(300), nullable=True)
+    monto_total = Column(Float, default=0.0)
+    tipo        = Column(String(20), default="parcial")
+    estado      = Column(String(20), default="confirmada")
+
+    venta   = relationship("Venta", back_populates="devoluciones")  # ✅ back_populates correcto
+    usuario = relationship("User")
+    items   = relationship("DevolucionItem", back_populates="devolucion", cascade="all, delete-orphan")
+
+
+# Venta.devoluciones — definido aquí para evitar dependencias circulares
+Venta.devoluciones = relationship("Devolucion", back_populates="venta")
+
 
 class CorteCaja(Base):
     __tablename__ = "cortes_caja"
@@ -340,3 +382,5 @@ class CorteCaja(Base):
     estado                      = Column(String, default="abierto")  # abierto | cerrado
 
     usuario = relationship("User")
+
+

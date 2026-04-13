@@ -101,7 +101,7 @@ def run_migrations():
       - tipo en notificaciones
       - tabla cortes_caja
     """
-    migration_key = "inv_v12"
+    migration_key = "inv_v15"
 
     try:
         with engine.begin() as conn:
@@ -127,6 +127,65 @@ def run_migrations():
             # ── Tabla ventas ─────────────────────────────────────────────────
             _add_column_if_missing(conn, "ventas", "descuento_total REAL DEFAULT 0", "descuento_total")
             _add_column_if_missing(conn, "ventas", "fecha_pago TIMESTAMP", "fecha_pago")
+            _add_column_if_missing(conn, "ventas", "metodo_pago TEXT", "metodo_pago")
+
+            # ── Tablas devoluciones (NUEVAS) ──────────────────────────────────
+            if not _table_exists(conn, "devoluciones"):
+                if IS_SQLITE:
+                    conn.execute(text("""
+                        CREATE TABLE devoluciones (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            venta_id INTEGER NOT NULL REFERENCES ventas(id),
+                            usuario_id INTEGER REFERENCES users(id),
+                            fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            motivo TEXT,
+                            monto_total REAL DEFAULT 0,
+                            tipo TEXT DEFAULT 'parcial',
+                            estado TEXT DEFAULT 'confirmada'
+                        );
+                    """))
+                else:
+                    conn.execute(text("""
+                        CREATE TABLE devoluciones (
+                            id SERIAL PRIMARY KEY,
+                            venta_id INTEGER NOT NULL REFERENCES ventas(id),
+                            usuario_id INTEGER REFERENCES users(id),
+                            fecha TIMESTAMPTZ DEFAULT NOW(),
+                            motivo TEXT,
+                            monto_total REAL DEFAULT 0,
+                            tipo TEXT DEFAULT 'parcial',
+                            estado TEXT DEFAULT 'confirmada'
+                        );
+                    """))
+                logger.info("Tabla devoluciones creada.")
+
+            if not _table_exists(conn, "devolucion_items"):
+                if IS_SQLITE:
+                    conn.execute(text("""
+                        CREATE TABLE devolucion_items (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            devolucion_id INTEGER NOT NULL REFERENCES devoluciones(id),
+                            producto_id INTEGER NOT NULL REFERENCES productos(id),
+                            detalle_id INTEGER REFERENCES detalles_venta(id),
+                            cantidad REAL NOT NULL,
+                            precio_unitario REAL NOT NULL
+                        );
+                    """))
+                else:
+                    conn.execute(text("""
+                        CREATE TABLE devolucion_items (
+                            id SERIAL PRIMARY KEY,
+                            devolucion_id INTEGER NOT NULL REFERENCES devoluciones(id),
+                            producto_id INTEGER NOT NULL REFERENCES productos(id),
+                            detalle_id INTEGER REFERENCES detalles_venta(id),
+                            cantidad REAL NOT NULL,
+                            precio_unitario REAL NOT NULL
+                        );
+                    """))
+                logger.info("Tabla devolucion_items creada.")
+            else:
+                # Si la tabla ya existía (versión anterior sin detalle_id), agregar la columna
+                _add_column_if_missing(conn, "devolucion_items", "detalle_id INTEGER", "detalle_id")
 
             # ── Tabla detalles_venta ─────────────────────────────────────────
             _add_column_if_missing(conn, "detalles_venta", "descuento_pct REAL DEFAULT 0", "descuento_pct")
@@ -195,6 +254,13 @@ def run_migrations():
                         );
                     """))
                 logger.info("Tabla cortes_caja creada.")
+
+            # ── Columnas de seguridad — por si la tabla existía con esquema viejo ──
+            # (cuando la migración anterior usaba campo 'total' en vez de 'monto_total')
+            _add_column_if_missing(conn, "devoluciones", "monto_total REAL DEFAULT 0", "monto_total")
+            _add_column_if_missing(conn, "devoluciones", "tipo TEXT DEFAULT 'parcial'", "tipo")
+            _add_column_if_missing(conn, "devoluciones", "estado TEXT DEFAULT 'confirmada'", "estado")
+            _add_column_if_missing(conn, "devoluciones", "usuario_id INTEGER", "usuario_id")
 
             _mark_migration_applied(conn, migration_key)
             logger.info("Migración %s aplicada correctamente.", migration_key)
