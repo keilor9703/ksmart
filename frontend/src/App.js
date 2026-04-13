@@ -599,7 +599,7 @@ function App() {
             >
               <Box sx={{ flex: 1, p: { xs: 1.5, md: 3 } }}>
                 <Routes>
-                  <Route path="/"                    element={user?.role?.name === 'Admin' ? <Dashboard /> : <Home />} />
+                  <Route path="/"                    element={["Admin", "Socio"].includes(user?.role?.name) ?  <Dashboard /> : <Home />} />
                   <Route path="/ventas"              element={<Ventas />} />
                   <Route path="/compras"             element={<Compras />} />
                   <Route path="/clientes"            element={<Terceros />} />
@@ -636,7 +636,7 @@ function App() {
                 <Typography variant="caption" color="text.secondary"
                   sx={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                 >
-                  Powered by Jeylor Systems
+                  Powered KSMP Systems - 2026
                 </Typography>
                 <Box component="img" src="/Logo2.png" alt="Logo" sx={{ height: 20 }} />
               </Box>

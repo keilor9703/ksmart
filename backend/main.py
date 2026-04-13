@@ -153,7 +153,8 @@ def get_current_active_user(current_user: schemas.User = Depends(get_current_use
     return current_user
 
 def get_current_admin_user(current_user: schemas.User = Depends(get_current_user)):
-    if current_user.role.name != "Admin":
+    # if current_user.role.name != "Admin" :
+    if current_user.role.name not in ["Admin", "Socio"]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permisos insuficientes")
     return current_user
 
@@ -615,7 +616,7 @@ def get_dashboard_report(db: Session = Depends(get_db), current_user: schemas.Us
 
 @app.get("/reportes/iva-neto")
 def get_iva_neto(start_date: Optional[date] = None, end_date: Optional[date] = None,
-                 db: Session = Depends(get_db), current_user: models.User = Depends(get_current_admin_user)):
+                 db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
     from sqlalchemy import func
     query_v_iva   = db.query(func.sum(models.Venta.iva_total))
     query_v_total = db.query(func.sum(models.Venta.total))
