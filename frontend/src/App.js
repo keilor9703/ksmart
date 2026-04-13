@@ -166,14 +166,21 @@ const Sidebar = ({ expanded, user, hasAccess, onClose, mobile }) => {
         overflowX: 'hidden',
       }}
     >
-      {/* Logo */}
+      {/* Logo — clickeable, navega al dashboard */}
       <Box
+        component={Link}
+        to="/"
+        onClick={mobile ? onClose : undefined}
         sx={{
           display: 'flex', alignItems: 'center',
           px: expanded ? 2.5 : 1.5, py: 2.5,
           minHeight: 64,
           borderBottom: '1px solid rgba(255,255,255,0.06)',
           gap: 1.5,
+          textDecoration: 'none',
+          cursor: 'pointer',
+          transition: 'opacity 0.15s',
+          '&:hover': { opacity: 0.85 },
         }}
       >
         <Box
@@ -581,7 +588,7 @@ function App() {
                 flexDirection: 'column',
               }}
             >
-              <Box sx={{ flex: 1, p: { xs: 2, md: 3 } }}>
+              <Box sx={{ flex: 1, p: { xs: 1.5, md: 3 } }}>
                 <Routes>
                   <Route path="/"                    element={user?.role?.name === 'Admin' ? <Dashboard /> : <Home />} />
                   <Route path="/ventas"              element={<Ventas />} />
@@ -634,12 +641,21 @@ function App() {
 
       <ToastContainer
         position="bottom-right"
-        autoClose={3000}
+        autoClose={3500}
         hideProgressBar={false}
         newestOnTop
         closeOnClick
         pauseOnHover
-        toastStyle={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 14 }}
+        draggable
+        toastStyle={{
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          fontSize: 13.5,
+          borderRadius: 12,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
+          border: '1px solid rgba(0,0,0,0.06)',
+          padding: '12px 16px',
+        }}
+        style={{ bottom: 24, right: 16 }}
       />
       <SpeedInsights />
     </ThemeProvider>
