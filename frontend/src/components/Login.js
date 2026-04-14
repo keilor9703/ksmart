@@ -79,8 +79,10 @@ const Login = ({ onLogin }) => {
             toast.success('Inicio de sesión exitoso');
             onLogin();
             navigate('/');
-        } catch {
-            toast.error('Usuario o contraseña incorrectos');
+        } catch (err) {
+            // ✅ CORRECCIÓN AQUÍ: Leemos el error dinámico del backend
+            const mensajeError = err.response?.data?.detail || 'Usuario o contraseña incorrectos';
+            toast.error(mensajeError);
         } finally {
             setLoading(false);
         }

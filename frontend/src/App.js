@@ -12,7 +12,8 @@ import {
   Logout as LogoutIcon, Menu as MenuIcon, MoreVert as MoreVertIcon,
   PrecisionManufacturing, ShoppingBag, KeyboardArrowRight,
   LightMode, DarkMode, Settings, NotificationsNone,
-  PointOfSale as PointOfSaleIcon
+  PointOfSale as PointOfSaleIcon,
+  Business // ✅ NUEVO: Icono para SuperAdmin
 } from '@mui/icons-material';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import useMediaQueryHook from '@mui/material/useMediaQuery';
@@ -43,6 +44,7 @@ import InventoryReports from './components/InventoryReports';
 import Dashboard from './components/Dashboard';
 import Notifications from './components/Notifications';
 import Caja from './components/Caja';
+import GestionEmpresas from './components/GestionEmpresas'; // ✅ NUEVO: Importación del componente
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 const SIDEBAR_FULL   = 240;
@@ -211,6 +213,22 @@ const Sidebar = ({ expanded, user, hasAccess, onClose, mobile }) => {
         '&::-webkit-scrollbar': { width: 4 },
         '&::-webkit-scrollbar-thumb': { background: 'rgba(255,255,255,0.1)', borderRadius: 4 },
       }}>
+
+        {/* ✅ NUEVO: Menú exclusivo para el SuperAdmin (Dueño del SaaS) */}
+        {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (
+          <>
+            <SidebarItem
+              expanded={expanded}
+              item={{ path: '/superadmin/empresas', text: 'Clientes SaaS', icon: <Business />, color: '#F43F5E' }}
+              active={isActive('/superadmin/empresas')}
+              onClose={mobile ? onClose : undefined}
+            />
+            {expanded && (
+              <Divider sx={{ mx: 2, my: 1, borderColor: 'rgba(255,255,255,0.06)' }} />
+            )}
+          </>
+        )}
+
         {/* Admin section */}
         {user?.role?.name === 'Admin' && (
           <>
@@ -326,7 +344,12 @@ const TopBar = ({
 }) => {
   const location = useLocation();
 
-  const currentPage = [...menuItems, ...adminMenuItems].find(
+  // Actualizado para buscar en todos los ítems posibles, incluyendo el nuevo panel SaaS
+  const currentPage = [
+    ...menuItems, 
+    ...adminMenuItems, 
+    { path: '/superadmin/empresas', text: 'Clientes SaaS' }
+  ].find(
     i => location.pathname === i.path || location.pathname.startsWith(i.path + '/')
   )?.text || 'Inicio';
 
@@ -611,6 +634,12 @@ function App() {
                   <Route path="/reportes-inventario" element={<InventoryReports />} />
                   <Route path="/reportes"            element={<Reportes />} />
                   <Route path="/ordenes-trabajo"     element={<OrdenesTrabajo user={user} />} />
+                  
+                  {/* ✅ NUEVO: Ruta protegida para el SuperAdmin */}
+                  {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (
+                    <Route path="/superadmin/empresas" element={<GestionEmpresas />} />
+                  )}
+
                   {hasAccess('/panel-operador') && (
                     <Route path="/panel-operador" element={<PanelOperador />} />
                   )}

@@ -59,6 +59,40 @@ class ReporteRotacion(BaseModel):
 
 
 
+
+
+# =========================
+# MULTI-TENANT (EMPRESAS)
+# =========================
+
+# ─── AGREGAR ESTO EN schemas.py (Cerca de la parte superior) ───
+
+class EmpresaBase(BaseModel):
+    nombre: str
+    nit: Optional[str] = None
+    color_primario: str = "#F43F5E"
+
+class EmpresaCreate(EmpresaBase):
+    pass
+
+class EmpresaOut(EmpresaBase):
+    id: int
+    is_active: bool
+    created_at: Optional[datetime.datetime] = None  #
+    model_config = ConfigDict(from_attributes=True)
+
+class EmpresaWithAdminCreate(BaseModel):
+    empresa: EmpresaCreate
+    admin_username: str
+    admin_password: str
+
+class Empresa(EmpresaBase):
+    id: int
+    is_active: bool
+    model_config = ConfigDict(from_attributes=True)
+
+
+
 # =========================
 # Producto / Inventario
 # =========================
@@ -205,6 +239,8 @@ class UserCreate(UserBase):
 class User(UserBase):
     id: int
     role: Role
+    empresa_id: Optional[int] = None   # <--- ASEGÚRATE DE QUE ESTO ESTÉ
+    empresa: Optional[Empresa] = None  # <--- ASEGÚRATE DE QUE ESTO ESTÉ
 
     # hashed_password está en modelo ORM; aquí no se expone
     model_config = ConfigDict(from_attributes=True)
@@ -1045,4 +1081,30 @@ class GastoOut(BaseModel):
     metodo_pago: str
     fecha: datetime.datetime
     model_config = ConfigDict(from_attributes=True)
+
+
+
+
+# ─── Añadir en schemas.py ───
+
+class EmpresaBase(BaseModel):
+    nombre: str
+    nit: Optional[str] = None
+    logo_url: Optional[str] = None
+    color_primario: str = "#F43F5E"
+
+class Empresa(EmpresaBase):
+    id: int
+    is_active: bool
+    model_config = ConfigDict(from_attributes=True)
+
+# ─── Actualizar User ───
+class User(UserBase):
+    id: int
+    role: Role
+    empresa_id: Optional[int] = None  # ✅ NUEVO
+    empresa: Optional[Empresa] = None # ✅ NUEVO
+    model_config = ConfigDict(from_attributes=True)
+
+
 

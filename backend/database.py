@@ -93,10 +93,11 @@ def _add_column_if_missing(conn, table_name: str, column_sql: str, column_name: 
 # ─── Migraciones ─────────────────────────────────────────────────────────────
 
 def run_migrations():
-   
-    
-
-    migration_key = "MIGRACION 10 - Corte de caja y devoluciones"
+    """
+    Versión v17 — MIGRACIÓN MULTI-TENANT
+    Crea la tabla empresas, añade empresa_id a todas las tablas y migra los datos existentes.
+    """
+    migration_key = "inv_v18_multitenant"
 
     try:
         with engine.begin() as conn:
@@ -106,193 +107,69 @@ def run_migrations():
                 logger.info("Migración %s ya aplicada.", migration_key)
                 return
 
-            # ── Tabla productos ──────────────────────────────────────────────
-            _add_column_if_missing(conn, "productos", "stock_actual REAL DEFAULT 0", "stock_actual")
-            _add_column_if_missing(conn, "productos", "stock_minimo REAL DEFAULT 0", "stock_minimo")
-            _add_column_if_missing(conn, "productos", "grupo_item INTEGER DEFAULT 2", "grupo_item")
-
-            # ── Tabla clientes (terceros) ────────────────────────────────────
-            if IS_SQLITE:
-                _add_column_if_missing(conn, "clientes", "es_cliente INTEGER DEFAULT 1", "es_cliente")
-                _add_column_if_missing(conn, "clientes", "es_proveedor INTEGER DEFAULT 0", "es_proveedor")
-            else:
-                _add_column_if_missing(conn, "clientes", "es_cliente BOOLEAN DEFAULT TRUE", "es_cliente")
-                _add_column_if_missing(conn, "clientes", "es_proveedor BOOLEAN DEFAULT FALSE", "es_proveedor")
-
-            # ── Tabla ventas ─────────────────────────────────────────────────
-            _add_column_if_missing(conn, "ventas", "descuento_total REAL DEFAULT 0", "descuento_total")
-            _add_column_if_missing(conn, "ventas", "fecha_pago TIMESTAMP", "fecha_pago")
-            _add_column_if_missing(conn, "ventas", "metodo_pago TEXT", "metodo_pago")
-
-            # ── Tablas devoluciones (NUEVAS) ──────────────────────────────────
-            if not _table_exists(conn, "devoluciones"):
+            # 1. Crear tabla empresas si no existe
+            if not _table_exists(conn, "empresas"):
                 if IS_SQLITE:
                     conn.execute(text("""
-                        CREATE TABLE devoluciones (
+                        CREATE TABLE empresas (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            venta_id INTEGER NOT NULL REFERENCES ventas(id),
-                            usuario_id INTEGER REFERENCES users(id),
-                            fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                            motivo TEXT,
-                            monto_total REAL DEFAULT 0,
-                            tipo TEXT DEFAULT 'parcial',
-                            estado TEXT DEFAULT 'confirmada'
+                            nombre TEXT NOT NULL,
+                            nit TEXT,
+                            logo_url TEXT,
+                            color_primario TEXT DEFAULT '#F43F5E',
+                            is_active INTEGER DEFAULT 1,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                         );
                     """))
                 else:
                     conn.execute(text("""
-                        CREATE TABLE devoluciones (
+                        CREATE TABLE empresas (
                             id SERIAL PRIMARY KEY,
-                            venta_id INTEGER NOT NULL REFERENCES ventas(id),
-                            usuario_id INTEGER REFERENCES users(id),
-                            fecha TIMESTAMPTZ DEFAULT NOW(),
-                            motivo TEXT,
-                            monto_total REAL DEFAULT 0,
-                            tipo TEXT DEFAULT 'parcial',
-                            estado TEXT DEFAULT 'confirmada'
+                            nombre TEXT NOT NULL,
+                            nit TEXT,
+                            logo_url TEXT,
+                            color_primario TEXT DEFAULT '#F43F5E',
+                            is_active BOOLEAN DEFAULT TRUE,
+                            created_at TIMESTAMPTZ DEFAULT NOW()
                         );
                     """))
-                logger.info("Tabla devoluciones creada.")
+                logger.info("Tabla 'empresas' creada.")
 
-            if not _table_exists(conn, "devolucion_items"):
-                if IS_SQLITE:
-                    conn.execute(text("""
-                        CREATE TABLE devolucion_items (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            devolucion_id INTEGER NOT NULL REFERENCES devoluciones(id),
-                            producto_id INTEGER NOT NULL REFERENCES productos(id),
-                            detalle_id INTEGER REFERENCES detalles_venta(id),
-                            cantidad REAL NOT NULL,
-                            precio_unitario REAL NOT NULL
-                        );
+            # 2. Insertar la empresa por defecto (Tu Fábrica de Cacao)
+            conn.execute(text("""
+                INSERT INTO empresas (id, nombre, nit, color_primario) 
+                VALUES (1, 'Ksmart360 (Mi Fábrica)', '900000000-1', '#F43F5E')
+                ON CONFLICT DO NOTHING;
+            """))
+
+            # 3. Lista COMPLETA de tablas que necesitan empresa_id
+            tablas_tenant = [
+                'users', 'clientes', 'productos', 'inventory_movements', 
+                'ventas', 'detalles_venta', 'pagos', 'ordenes_trabajo', 
+                'orden_productos', 'orden_servicios', 'evidencias', 
+                'notificaciones', 'registros_productividad', 'recetas', 
+                'receta_servicios', 'receta_items', 'lotes_produccion', 
+                'compras', 'detalles_compra', 'pagos_compra', 
+                'devoluciones', 'devolucion_items', 'cortes_caja', 'gastos'
+            ]
+
+            # 4. Agregar la columna empresa_id y actualizar datos huérfanos
+            for tabla in tablas_tenant:
+                if _table_exists(conn, tabla):
+                    # Agregar columna si no existe
+                    _add_column_if_missing(conn, tabla, "empresa_id INTEGER", "empresa_id")
+                    
+                    # Asignar todos los registros existentes a la Empresa 1
+                    conn.execute(text(f"""
+                        UPDATE {tabla} 
+                        SET empresa_id = 1 
+                        WHERE empresa_id IS NULL;
                     """))
-                else:
-                    conn.execute(text("""
-                        CREATE TABLE devolucion_items (
-                            id SERIAL PRIMARY KEY,
-                            devolucion_id INTEGER NOT NULL REFERENCES devoluciones(id),
-                            producto_id INTEGER NOT NULL REFERENCES productos(id),
-                            detalle_id INTEGER REFERENCES detalles_venta(id),
-                            cantidad REAL NOT NULL,
-                            precio_unitario REAL NOT NULL
-                        );
-                    """))
-                logger.info("Tabla devolucion_items creada.")
-            else:
-                # Si la tabla ya existía (versión anterior sin detalle_id), agregar la columna
-                _add_column_if_missing(conn, "devolucion_items", "detalle_id INTEGER", "detalle_id")
-
-            # ── Tabla detalles_venta ─────────────────────────────────────────
-            _add_column_if_missing(conn, "detalles_venta", "descuento_pct REAL DEFAULT 0", "descuento_pct")
-
-            # ── Tabla pagos (consistencia con pagos_compra) ──────────────────
-            _add_column_if_missing(conn, "pagos", "detalle_pago TEXT", "detalle_pago")
-
-            # ── Tabla pagos_compra ───────────────────────────────────────────
-            _add_column_if_missing(conn, "pagos_compra", "detalle_pago TEXT", "detalle_pago")
-
-            # ── Tabla notificaciones ─────────────────────────────────────────
-            _add_column_if_missing(conn, "notificaciones", "tipo TEXT DEFAULT 'info'", "tipo")
-
-            # ── Tabla receta_servicios ───────────────────────────────────────
-            if IS_SQLITE:
-                conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS receta_servicios (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        receta_id INTEGER REFERENCES recetas(id),
-                        servicio_id INTEGER REFERENCES productos(id)
-                    );
-                """))
-            else:
-                conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS receta_servicios (
-                        id SERIAL PRIMARY KEY,
-                        receta_id INTEGER REFERENCES recetas(id),
-                        servicio_id INTEGER REFERENCES productos(id)
-                    );
-                """))
-
-            # ── Tabla cortes_caja (NUEVA) ────────────────────────────────────
-            if not _table_exists(conn, "cortes_caja"):
-                if IS_SQLITE:
-                    conn.execute(text("""
-                        CREATE TABLE cortes_caja (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            usuario_id INTEGER REFERENCES users(id),
-                            fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                            total_efectivo_ventas REAL DEFAULT 0,
-                            total_transferencia_ventas REAL DEFAULT 0,
-                            total_tarjeta_ventas REAL DEFAULT 0,
-                            total_otros_ventas REAL DEFAULT 0,
-                            total_ventas_dia REAL DEFAULT 0,
-                            efectivo_fisico REAL DEFAULT 0,
-                            diferencia REAL DEFAULT 0,
-                            observaciones TEXT,
-                            estado TEXT DEFAULT 'abierto'
-                        );
-                    """))
-                else:
-                    conn.execute(text("""
-                        CREATE TABLE cortes_caja (
-                            id SERIAL PRIMARY KEY,
-                            usuario_id INTEGER REFERENCES users(id),
-                            fecha TIMESTAMPTZ DEFAULT NOW(),
-                            total_efectivo_ventas REAL DEFAULT 0,
-                            total_transferencia_ventas REAL DEFAULT 0,
-                            total_tarjeta_ventas REAL DEFAULT 0,
-                            total_otros_ventas REAL DEFAULT 0,
-                            total_ventas_dia REAL DEFAULT 0,
-                            efectivo_fisico REAL DEFAULT 0,
-                            diferencia REAL DEFAULT 0,
-                            observaciones TEXT,
-                            estado TEXT DEFAULT 'abierto'
-                        );
-                    """))
-                logger.info("Tabla cortes_caja creada.")
-
-                # ── Tabla cortes_caja (Actualización) ────────────────────────────
-            # Agregamos la columna total_gastos si la tabla ya existe
-            if _table_exists(conn, "cortes_caja"):
-                _add_column_if_missing(conn, "cortes_caja", "total_gastos REAL DEFAULT 0", "total_gastos")
-
-            # ── Tabla gastos (NUEVA) ─────────────────────────────────────────
-            if not _table_exists(conn, "gastos"):
-                if IS_SQLITE:
-                    conn.execute(text("""
-                        CREATE TABLE gastos (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            usuario_id INTEGER REFERENCES users(id),
-                            tercero_id INTEGER REFERENCES clientes(id),
-                            monto REAL NOT NULL,
-                            concepto TEXT,
-                            metodo_pago TEXT DEFAULT 'Efectivo',
-                            fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                        );
-                    """))
-                else:
-                    conn.execute(text("""
-                        CREATE TABLE gastos (
-                            id SERIAL PRIMARY KEY,
-                            usuario_id INTEGER REFERENCES users(id),
-                            tercero_id INTEGER REFERENCES clientes(id),
-                            monto REAL NOT NULL,
-                            concepto TEXT,
-                            metodo_pago TEXT DEFAULT 'Efectivo',
-                            fecha TIMESTAMPTZ DEFAULT NOW()
-                        );
-                    """))
-                logger.info("Tabla gastos creada.")
-
-            # ── Columnas de seguridad — por si la tabla existía con esquema viejo ──
-            # (cuando la migración anterior usaba campo 'total' en vez de 'monto_total')
-            _add_column_if_missing(conn, "devoluciones", "monto_total REAL DEFAULT 0", "monto_total")
-            _add_column_if_missing(conn, "devoluciones", "tipo TEXT DEFAULT 'parcial'", "tipo")
-            _add_column_if_missing(conn, "devoluciones", "estado TEXT DEFAULT 'confirmada'", "estado")
-            _add_column_if_missing(conn, "devoluciones", "usuario_id INTEGER", "usuario_id")
+                    logger.info(f"Datos migrados a Empresa 1 en la tabla: {tabla}")
 
             _mark_migration_applied(conn, migration_key)
-            logger.info("Migración %s aplicada correctamente.", migration_key)
+            logger.info("Migración %s aplicada correctamente. Sistema Multi-tenant listo.", migration_key)
 
     except Exception as e:
-        logger.exception("Error ejecutando migraciones: %s", e)
+        logger.exception("Error ejecutando migraciones Multi-tenant: %s", e)
         raise
