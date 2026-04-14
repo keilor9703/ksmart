@@ -291,10 +291,22 @@ def get_cliente_details(cliente_id: int, db: Session = Depends(get_db), current_
     return schemas.ClienteDetails(**db_cliente.__dict__, deuda_actual=deuda_actual)
 
 @app.delete("/clientes/{cliente_id}")
-def delete_cliente(cliente_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_active_user)):
-    if crud.delete_cliente(db, cliente_id=cliente_id) is None:
-        raise HTTPException(status_code=404, detail="Cliente no encontrado")
-    return {"message": "Tercero eliminado"}
+def delete_cliente(cliente_id: int, db: Session = Depends(get_db),
+                   current_user: schemas.User = Depends(get_current_active_user)):
+    db_cliente = crud.get_cliente(db, cliente_id=cliente_id)
+    if db_cliente is None:
+        raise HTTPException(status_code=404, detail="Tercero no encontrado")
+    bloqueos = crud.check_can_delete_cliente(db, cliente_id)
+    if bloqueos:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"No se puede eliminar '{db_cliente.nombre}' porque tiene: "
+                + ", ".join(bloqueos) + ". Desactívelo en lugar de eliminarlo."
+            )
+        )
+    crud.delete_cliente(db, cliente_id=cliente_id)
+    return {"message": f"Tercero '{db_cliente.nombre}' eliminado correctamente"}
 
 @app.get("/clientes/{cliente_id}/history", response_model=schemas.ClienteHistory)
 def get_cliente_history(cliente_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_active_user)):
@@ -342,10 +354,22 @@ def update_producto(producto_id: int, producto: schemas.ProductoCreate, db: Sess
     return db_producto
 
 @app.delete("/productos/{producto_id}")
-def delete_producto(producto_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_active_user)):
-    if crud.delete_producto(db, producto_id=producto_id) is None:
+def delete_producto(producto_id: int, db: Session = Depends(get_db),
+                    current_user: schemas.User = Depends(get_current_active_user)):
+    db_producto = crud.get_producto(db, producto_id=producto_id)
+    if db_producto is None:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
-    return {"message": "Producto eliminado"}
+    bloqueos = crud.check_can_delete_producto(db, producto_id)
+    if bloqueos:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"No se puede eliminar '{db_producto.nombre}' porque está: "
+                + ", ".join(bloqueos) + ". Archívelo en lugar de eliminarlo."
+            )
+        )
+    crud.delete_producto(db, producto_id=producto_id)
+    return {"message": f"Producto '{db_producto.nombre}' eliminado correctamente"}
 
 @app.get("/productos/export")
 def exportar_productos(db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_active_user)):
@@ -469,15 +493,23 @@ def update_venta(venta_id: int, venta: schemas.VentaCreate, db: Session = Depend
     return db_venta
 
 @app.delete("/ventas/{venta_id}")
-def delete_venta(venta_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_active_user)):
-    # ✅ NUEVO: reversar movimientos de inventario antes de eliminar
+def delete_venta(venta_id: int, db: Session = Depends(get_db),
+                 current_user: schemas.User = Depends(get_current_active_user)):
     db_venta = crud.get_venta(db, venta_id=venta_id)
     if db_venta is None:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
-
+    bloqueos = crud.check_can_delete_venta(db, venta_id)
+    if bloqueos:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"No se puede eliminar la venta #{venta_id} porque "
+                + ", ".join(bloqueos) + "."
+            )
+        )
     crud.revertir_movimientos_venta(db, db_venta)
     crud.delete_venta(db, venta_id=venta_id)
-    return {"message": "Venta eliminada y stock revertido"}
+    return {"message": f"Venta #{venta_id} eliminada y stock revertido"}
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PAGOS
@@ -615,7 +647,7 @@ def get_dashboard_report(db: Session = Depends(get_db), current_user: schemas.Us
 
 @app.get("/reportes/iva-neto")
 def get_iva_neto(start_date: Optional[date] = None, end_date: Optional[date] = None,
-                 db: Session = Depends(get_db), current_user: models.User = Depends(get_current_admin_user)):
+                 db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
     from sqlalchemy import func
     query_v_iva   = db.query(func.sum(models.Venta.iva_total))
     query_v_total = db.query(func.sum(models.Venta.total))
@@ -933,8 +965,19 @@ def create_receta(receta: schemas.RecetaCreate, db: Session = Depends(get_db)):
 
 @produccion_router.delete("/recetas/{receta_id}")
 def delete_receta(receta_id: int, db: Session = Depends(get_db)):
-    if not crud.delete_receta(db, receta_id):
+    db_receta = crud.get_receta(db, receta_id=receta_id)
+    if not db_receta:
         raise HTTPException(status_code=404, detail="Receta no encontrada")
+    bloqueos = crud.check_can_delete_receta(db, receta_id)
+    if bloqueos:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"No se puede eliminar la receta '{db_receta.nombre}' porque "
+                + ", ".join(bloqueos) + "."
+            )
+        )
+    crud.delete_receta(db, receta_id)
     return {"message": "Receta eliminada"}
 
 @produccion_router.get("/lotes/", response_model=List[schemas.LoteProduccion])

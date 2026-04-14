@@ -165,7 +165,7 @@ const CuentasPorCobrar = () => {
 
   const handlePago = (venta) => { setSelectedVenta(venta); setShowPaymentDialog(true); };
   const handleClose = () => { setShowPaymentDialog(false); setSelectedVenta(null); };
-  const handleSuccess = () => { fetchData(); toast.success('Pago registrado exitosamente'); };
+  const handleSuccess = () => { fetchData(); };
 
   const handleTotalPayment = async (venta) => {
     const monto = venta.total - venta.monto_pagado;

@@ -107,7 +107,10 @@ const ClienteList = ({ onEditCliente, onClienteDeleted, filterType, accentColor 
         fetchClientes();
         if (onClienteDeleted) onClienteDeleted();
       })
-      .catch(() => toast.error('Error al eliminar el tercero.'))
+      .catch(err => {
+        const msg = err.response?.data?.detail || 'Error al eliminar el tercero.';
+        toast.error(msg, { autoClose: 7000 });
+      })
       .finally(() => { setShowConfirmDialog(false); setClienteToDelete(null); });
   };
 

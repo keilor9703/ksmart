@@ -125,7 +125,7 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
   const confirmDelete = () => {
     apiClient.delete(`/productos/${productoToDelete}`)
       .then(() => { toast.success('Producto eliminado exitosamente'); fetchProductos(); if (onProductoDeleted) onProductoDeleted(); })
-      .catch(() => toast.error('Error al eliminar el producto.'))
+      .catch(err => toast.error(err.response?.data?.detail || 'Error al eliminar el producto.', { autoClose: 7000 }))
       .finally(() => { setShowConfirmDialog(false); setProductoToDelete(null); });
   };
 

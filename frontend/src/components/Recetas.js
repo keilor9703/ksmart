@@ -2,8 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box, Typography, Button, Paper, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, IconButton, Dialog, DialogTitle, DialogContent,
-  DialogActions, TextField, MenuItem, Grid, Divider, useTheme, useMediaQuery,
-  Chip, Tooltip, InputAdornment, Autocomplete
+  DialogActions, TextField, Grid, Divider, useTheme, useMediaQuery,
+  Chip, Tooltip, InputAdornment, Autocomplete, Stack
 } from '@mui/material';
 import { Add, Delete, ReceiptLong, Search, Close, Science } from '@mui/icons-material';
 import { fetchRecetas, createReceta, deleteReceta } from '../api';
@@ -74,6 +74,7 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
     servicios: [],
     items: [{ insumo_id: '', cantidad: '' }],
   });
+  const [productoInput, setProductoInput] = useState('');
 
   useEffect(() => { loadData(); }, []);
 
@@ -89,6 +90,7 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
 
   const handleClose = () => {
     setOpen(false);
+    setProductoInput('');
     setFormData({ producto_id: '', nombre: '', descripcion: '', servicios: [], items: [{ insumo_id: '', cantidad: '' }] });
   };
 
@@ -257,26 +259,59 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
           <Typography sx={{ fontWeight: 600, fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 1.5 }}>
             Información general
           </Typography>
-          <Grid container spacing={2} sx={{ mb: 3 }}>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                select fullWidth label="Producto a Producir"
-                value={formData.producto_id}
-                onChange={e => setFormData({ ...formData, producto_id: e.target.value })}
-                required
-              >
-                {productosNoServicio.map(p => <MenuItem key={p.id} value={p.id}>{p.nombre}</MenuItem>)}
-              </TextField>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth label="Nombre de la Receta"
-                value={formData.nombre}
-                onChange={e => setFormData({ ...formData, nombre: e.target.value })}
-                required
-              />
-            </Grid>
-          </Grid>
+
+          {/* Stack igual al patrón de InventoryPage — garantiza ancho completo */}
+          <Stack direction="column" spacing={2} sx={{ mb: 3, width: '100%' }}>
+
+            {/* Producto a producir — ancho total, con inputValue para búsqueda fluida */}
+            <Autocomplete
+              options={productosNoServicio}
+              value={productosNoServicio.find(p => p.id === parseInt(formData.producto_id)) || null}
+              onChange={(_, v) => setFormData({ ...formData, producto_id: v ? v.id : '' })}
+              inputValue={productoInput}
+              onInputChange={(_, v) => setProductoInput(v)}
+              getOptionLabel={opt => opt ? opt.nombre : ''}
+              filterOptions={(opts, state) => {
+                const q = (state.inputValue || '').toLowerCase().trim();
+                if (!q) return opts;
+                return opts.filter(o => o.nombre.toLowerCase().includes(q));
+              }}
+              renderOption={(props, option) => (
+                <li {...props} key={option.id} style={{ padding: '10px 14px' }}>
+                  <Box>
+                    <Typography sx={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3 }}>
+                      {option.nombre}
+                    </Typography>
+                    <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                      {['MP','PT','AF','INS'][option.grupo_item - 1] || 'PT'} · {option.unidad_medida} · Stock: {option.stock_actual ?? 0}
+                    </Typography>
+                  </Box>
+                </li>
+              )}
+              renderInput={params => (
+                <TextField
+                  {...params}
+                  label="Producto a Producir *"
+                  placeholder="Escribe para buscar por nombre…"
+                  fullWidth
+                />
+              )}
+              fullWidth
+              sx={{ width: '100%' }}
+              noOptionsText="Sin resultados"
+              ListboxProps={{ style: { maxHeight: 280 } }}
+            />
+
+            {/* Nombre de la receta */}
+            <TextField
+              fullWidth
+              label="Nombre de la Receta *"
+              value={formData.nombre}
+              onChange={e => setFormData({ ...formData, nombre: e.target.value })}
+              required
+              sx={{ width: '100%' }}
+            />
+          </Stack>
 
           {/* Servicios de maquila */}
           <Box sx={{ mb: 3 }}>
@@ -294,28 +329,48 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
                 Sin servicios asociados
               </Typography>
             )}
-            {formData.servicios.map((srv, idx) => (
-              <Box key={idx} sx={{ display: 'flex', gap: 1.5, mb: 1, alignItems: 'center', p: 1.5, borderRadius: 2, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider' }}>
-                <TextField
-                  select fullWidth label="Servicio" size="small"
-                  value={srv.servicio_id}
-                  onChange={e => handleServicioChange(idx, e.target.value)}
-                >
-                  {servicios.map(p => <MenuItem key={p.id} value={p.id}>{p.nombre}</MenuItem>)}
-                </TextField>
-                <Tooltip title="Quitar">
-                  <IconButton size="small" onClick={() => removeServicio(idx)}
-                    sx={{ color: '#EF4444', bgcolor: '#FEF2F2', borderRadius: 1.5, flexShrink: 0 }}>
-                    <Delete fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-            ))}
+            {/* Stack vertical: cada servicio ocupa su fila completa */}
+            <Stack direction="column" spacing={1} sx={{ width: '100%' }}>
+              {formData.servicios.map((srv, idx) => (
+                <Box key={idx} sx={{ display: 'flex', gap: 1.5, alignItems: 'center', p: 1.5, borderRadius: 2, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider', width: '100%' }}>
+                  <Autocomplete
+                    options={servicios}
+                    value={servicios.find(p => p.id === parseInt(srv.servicio_id)) || null}
+                    onChange={(_, v) => handleServicioChange(idx, v ? v.id : '')}
+                    getOptionLabel={opt => opt ? opt.nombre : ''}
+                    filterOptions={(opts, state) => {
+                      const q = (state.inputValue || '').toLowerCase().trim();
+                      if (!q) return opts;
+                      return opts.filter(o => o.nombre.toLowerCase().includes(q));
+                    }}
+                    renderOption={(props, option) => (
+                      <li {...props} key={option.id} style={{ padding: '10px 14px' }}>
+                        <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{option.nombre}</Typography>
+                      </li>
+                    )}
+                    renderInput={params => (
+                      <TextField {...params} label="Servicio" size="small" placeholder="Escribe para buscar…" fullWidth />
+                    )}
+                    fullWidth
+                    sx={{ width: '100%' }}
+                    size="small"
+                    noOptionsText="Sin resultados"
+                    ListboxProps={{ style: { maxHeight: 220 } }}
+                  />
+                  <Tooltip title="Quitar">
+                    <IconButton size="small" onClick={() => removeServicio(idx)}
+                      sx={{ color: '#EF4444', bgcolor: '#FEF2F2', borderRadius: 1.5, flexShrink: 0 }}>
+                      <Delete fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              ))}
+            </Stack>
           </Box>
 
           <Divider sx={{ mb: 3 }} />
 
-          {/* Insumos */}
+          {/* Insumos — Stack vertical igual a InventoryPage */}
           <Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
               <Typography sx={{ fontWeight: 600, fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6 }}>
@@ -326,33 +381,73 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
                 Añadir insumo
               </Button>
             </Box>
-            {formData.items.map((item, idx) => (
-              <Box key={idx} sx={{ display: 'flex', gap: 1.5, mb: 1, alignItems: 'center', p: 1.5, borderRadius: 2, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider' }}>
-                <TextField
-                  select fullWidth label="Insumo" size="small"
-                  value={item.insumo_id}
-                  onChange={e => handleItemChange(idx, 'insumo_id', e.target.value)}
-                  sx={{ flex: 2 }}
-                >
-                  {insumos.map(p => <MenuItem key={p.id} value={p.id}>{p.nombre} ({p.unidad_medida})</MenuItem>)}
-                </TextField>
-                <TextField
-                  type="number" label="Cantidad" size="small"
-                  value={item.cantidad}
-                  onChange={e => handleItemChange(idx, 'cantidad', e.target.value)}
-                  sx={{ flex: 1, minWidth: 100 }}
-                  InputProps={{ inputProps: { min: 0, step: 'any' } }}
-                />
-                <Tooltip title="Quitar">
-                  <span>
-                    <IconButton size="small" onClick={() => removeItem(idx)} disabled={formData.items.length === 1}
-                      sx={{ color: '#EF4444', bgcolor: '#FEF2F2', borderRadius: 1.5, flexShrink: 0, '&.Mui-disabled': { opacity: 0.3 } }}>
-                      <Delete fontSize="small" />
-                    </IconButton>
-                  </span>
-                </Tooltip>
-              </Box>
-            ))}
+            <Stack direction="column" spacing={1.5} sx={{ width: '100%' }}>
+              {formData.items.map((item, idx) => (
+                <Box key={idx} sx={{ p: 1.5, borderRadius: 2, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider', width: '100%' }}>
+
+                  {/* Insumo: ancho completo igual que el Autocomplete de InventoryPage */}
+                  <Autocomplete
+                    options={insumos}
+                    value={insumos.find(p => p.id === parseInt(item.insumo_id)) || null}
+                    onChange={(_, v) => handleItemChange(idx, 'insumo_id', v ? v.id : '')}
+                    getOptionLabel={opt => opt ? opt.nombre : ''}
+                    filterOptions={(opts, state) => {
+                      const q = (state.inputValue || '').toLowerCase().trim();
+                      if (!q) return opts;
+                      return opts.filter(o => o.nombre.toLowerCase().includes(q));
+                    }}
+                    renderOption={(props, option) => (
+                      <li {...props} key={option.id} style={{ padding: '10px 14px' }}>
+                        <Box>
+                          <Typography sx={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3 }}>
+                            {option.nombre}
+                          </Typography>
+                          <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                            Stock: {option.stock_actual ?? 0} {option.unidad_medida}
+                          </Typography>
+                        </Box>
+                      </li>
+                    )}
+                    renderInput={params => (
+                      <TextField
+                        {...params}
+                        label="Insumo (busca por nombre)"
+                        size="small"
+                        placeholder="Escribe para buscar…"
+                        fullWidth
+                      />
+                    )}
+                    fullWidth
+                    sx={{ width: '100%', mb: 1 }}
+                    size="small"
+                    noOptionsText="Sin insumos disponibles"
+                    ListboxProps={{ style: { maxHeight: 240 } }}
+                  />
+
+                  {/* Cantidad + eliminar en fila separada */}
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                    <TextField
+                      type="number"
+                      label="Cantidad"
+                      size="small"
+                      value={item.cantidad}
+                      onChange={e => handleItemChange(idx, 'cantidad', e.target.value)}
+                      fullWidth
+                      InputProps={{ inputProps: { min: 0, step: 'any' } }}
+                    />
+                    <Tooltip title="Quitar">
+                      <span>
+                        <IconButton size="small" onClick={() => removeItem(idx)} disabled={formData.items.length === 1}
+                          sx={{ color: '#EF4444', bgcolor: '#FEF2F2', borderRadius: 1.5, flexShrink: 0, '&.Mui-disabled': { opacity: 0.3 } }}>
+                          <Delete fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </Box>
+
+                </Box>
+              ))}
+            </Stack>
           </Box>
         </DialogContent>
 
@@ -376,8 +471,10 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
             await deleteReceta(itemToDelete);
             toast.success('Receta eliminada exitosamente');
             loadData();
-          } catch { toast.error('Error al eliminar la receta'); }
-          finally { setShowConfirmDialog(false); }
+          } catch (err) {
+            const msg = err.response?.data?.detail || 'Error al eliminar la receta';
+            toast.error(msg, { autoClose: 7000 });
+          } finally { setShowConfirmDialog(false); }
         }}
         title="Eliminar Receta"
         message="¿Estás seguro de que quieres eliminar esta receta? Esta acción no se puede deshacer."

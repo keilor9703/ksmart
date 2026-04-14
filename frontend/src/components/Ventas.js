@@ -380,7 +380,7 @@ const Ventas = () => {
     const confirmDelete  = () => {
         apiClient.delete(`/ventas/${ventaToDelete}`)
             .then(() => { toast.success('Venta eliminada'); fetchVentas(); fetchVentasSummary(); })
-            .catch(() => toast.error('Error al eliminar la venta.'))
+            .catch(err => toast.error(err.response?.data?.detail || 'Error al eliminar la venta.', { autoClose: 7000 }))
             .finally(() => { setShowConfirmDialog(false); setVentaToDelete(null); });
     };
     const handleEdit = (v) => { setEditingVenta(v); setTabValue(0); };
