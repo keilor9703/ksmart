@@ -670,27 +670,52 @@ def update_pago(db: Session, pago_id: int, pago: schemas.PagoUpdate):
 
 # --- Reportes ---
 
+# crud.py
 
 def get_ventas_summary(db: Session, start_date: Optional[date] = None, end_date: Optional[date] = None):
-    query = db.query(models.Venta)
-
+    # ─── 1. Ingresos por Ventas ───
+    query_ventas = db.query(models.Venta)
     if start_date:
-        query = query.filter(models.Venta.fecha >= start_date)
+        query_ventas = query_ventas.filter(models.Venta.fecha >= start_date)
     if end_date:
         # Para incluir todo el día de end_date, sumamos un día y usamos <
-        query = query.filter(models.Venta.fecha < end_date + timedelta(days=1))
+        query_ventas = query_ventas.filter(models.Venta.fecha < end_date + timedelta(days=1))
 
-    ventas = query.all()
+    ventas = query_ventas.all()
 
-    total_pagado = sum(venta.monto_pagado for venta in ventas)
-    total_pendiente = sum(venta.total - venta.monto_pagado for venta in ventas if venta.estado_pago != "pagado")
-    total_general = sum(venta.total for venta in ventas)
+    total_pagado = sum(venta.monto_pagado or 0 for venta in ventas)
+    total_pendiente = sum((venta.total or 0) - (venta.monto_pagado or 0) for venta in ventas if venta.estado_pago != "pagado")
+    total_general = sum(venta.total or 0 for venta in ventas)
 
+    # ─── 2. Egresos por Compras (Pago a proveedores) ───
+    query_compras = db.query(models.Compra)
+    if start_date:
+        query_compras = query_compras.filter(models.Compra.fecha >= start_date)
+    if end_date:
+        query_compras = query_compras.filter(models.Compra.fecha < end_date + timedelta(days=1))
+        
+    compras = query_compras.all()
+    # Tomamos monto_pagado porque queremos ver el dinero real que salió, no la deuda.
+    total_compras = sum(compra.monto_pagado or 0 for compra in compras)
+
+    # ─── 3. Egresos por Gastos Menores / Operativos ───
+    query_gastos = db.query(models.Gasto)
+    if start_date:
+        query_gastos = query_gastos.filter(models.Gasto.fecha >= start_date)
+    if end_date:
+        query_gastos = query_gastos.filter(models.Gasto.fecha < end_date + timedelta(days=1))
+        
+    gastos = query_gastos.all()
+    total_gastos = sum(gasto.monto or 0 for gasto in gastos)
+
+    # ─── Retornar el resumen unificado ───
     return schemas.VentasSummary(
         total_pagado=total_pagado,
         total_pendiente=total_pendiente,
         total_general=total_general,
-        total_ventas_hoy=get_total_sales_today(db)
+        total_ventas_hoy=get_total_sales_today(db),
+        total_compras=total_compras,  # <--- Nuevo dato para el frontend
+        total_gastos=total_gastos     # <--- Nuevo dato para el frontend
     )
 
 def get_cuentas_por_cobrar_por_cliente(db: Session):
@@ -2760,6 +2785,7 @@ def check_and_notify_low_stock(db: Session, producto_ids: List[int]):
 
 
 # ─── Caja ─────────────────────────────────────────────────────────────────────
+
 # def calcular_totales_dia(db: Session) -> dict:
 #     tz_col    = timezone(timedelta(hours=-5))
 #     ahora_col = datetime.now(tz_col)
@@ -2818,6 +2844,7 @@ def check_and_notify_low_stock(db: Session, producto_ids: List[int]):
 
 #     return totales
 
+
 def calcular_totales_dia(db: Session) -> dict:
     tz_col    = timezone(timedelta(hours=-5))
     ahora_col = datetime.now(tz_col)
@@ -2828,12 +2855,12 @@ def calcular_totales_dia(db: Session) -> dict:
 
     totales = {
         "efectivo": 0.0, "transferencia": 0.0, "tarjeta": 0.0, "otros": 0.0,
-        "total_dia": 0.0, "ventas_contado": 0.0, "abonos_cartera": 0.0,
+        "total_dia": 0.0, "total_gastos": 0.0, "ventas_contado": 0.0, "abonos_cartera": 0.0,
         "num_ventas": 0, "num_abonos": 0,
         "fecha": ahora_col.date().isoformat(),
     }
 
-    def _clasificar(metodo: str, monto: float):
+    def _clasificar_ingreso(metodo: str, monto: float):
         m = (metodo or "").lower().strip()
         totales["total_dia"] += monto
         if "efectivo" in m or m == "":
@@ -2845,6 +2872,7 @@ def calcular_totales_dia(db: Session) -> dict:
         else:
             totales["otros"] += monto
 
+    # 1. Sumar ventas al contado
     ventas_contado = (
         db.query(models.Venta)
         .options(joinedload(models.Venta.pagos))
@@ -2859,10 +2887,11 @@ def calcular_totales_dia(db: Session) -> dict:
         pagos_hoy = [p for p in v.pagos if inicio_utc <= p.fecha <= fin_utc]
         if not pagos_hoy:
             metodo = getattr(v, 'metodo_pago', None) or "Efectivo"
-            _clasificar(metodo, float(v.total or 0))
+            _clasificar_ingreso(metodo, float(v.total or 0))
             totales["ventas_contado"] += float(v.total or 0)
             totales["num_ventas"] += 1
 
+    # 2. Sumar abonos de cartera
     abonos_dia = (
         db.query(models.Pago)
         .filter(models.Pago.fecha >= inicio_utc, models.Pago.fecha <= fin_utc)
@@ -2870,59 +2899,31 @@ def calcular_totales_dia(db: Session) -> dict:
     )
 
     for p in abonos_dia:
-        _clasificar(p.metodo_pago or "Efectivo", float(p.monto or 0))
+        _clasificar_ingreso(p.metodo_pago or "Efectivo", float(p.monto or 0))
         totales["abonos_cartera"] += float(p.monto or 0)
         totales["num_abonos"] += 1
 
+    # 3. RESTAR GASTOS DEL DÍA (Nueva Lógica)
+    gastos_dia = db.query(models.Gasto).filter(
+        models.Gasto.fecha >= inicio_utc, 
+        models.Gasto.fecha <= fin_utc
+    ).all()
+
+    for g in gastos_dia:
+        monto = float(g.monto or 0)
+        totales["total_gastos"] += monto
+        m = (g.metodo_pago or "Efectivo").lower().strip()
+        # Restamos el dinero de donde salió (generalmente sale de la caja en efectivo)
+        if "efectivo" in m or m == "":
+            totales["efectivo"] -= monto
+        elif "transfer" in m or "nequi" in m or "daviplata" in m or "pse" in m:
+            totales["transferencia"] -= monto
+        elif "tarjeta" in m or "card" in m or "credito" in m or "debito" in m:
+            totales["tarjeta"] -= monto
+        else:
+            totales["otros"] -= monto
+
     return totales
-
-
-
-
-# def crear_corte_caja(db: Session, usuario_id: int, efectivo_fisico: float,
-#                      observaciones: Optional[str] = None) -> models.CorteCaja:
-#     totales   = calcular_totales_dia(db)
-#     diferencia = efectivo_fisico - totales["efectivo"]
-
-#     corte = models.CorteCaja(
-#         usuario_id=usuario_id,
-#         total_efectivo_ventas=totales["efectivo"],
-#         total_transferencia_ventas=totales["transferencia"],
-#         total_tarjeta_ventas=totales["tarjeta"],
-#         total_otros_ventas=totales["otros"],
-#         total_ventas_dia=totales["total_dia"],
-#         efectivo_fisico=efectivo_fisico,
-#         diferencia=diferencia,
-#         observaciones=observaciones,
-#         estado="cerrado"
-#     )
-#     db.add(corte)
-#     db.commit()
-#     db.refresh(corte)
-
-#     if abs(diferencia) > 1000:
-#         admin_users = db.query(models.User).join(models.Role).filter(models.Role.name == "Admin").all()
-#         tipo  = "error" if diferencia < 0 else "warning"
-#         signo = "FALTANTE" if diferencia < 0 else "SOBRANTE"
-#         for admin in admin_users:
-#             db.add(models.Notificacion(
-#                 usuario_id=admin.id,
-#                 mensaje=f"💰 Corte de caja: {signo} de ${abs(diferencia):,.0f} COP detectado.",
-#                 tipo=tipo, leido=False
-#             ))
-#         db.commit()
-
-#     return corte
-
-
-# def get_cortes_caja(db: Session, skip: int = 0, limit: int = 30) -> List[models.CorteCaja]:
-#     return (
-#         db.query(models.CorteCaja)
-#         .order_by(models.CorteCaja.fecha.desc())
-#         .offset(skip).limit(limit).all()
-#     )
-
-
 
 def crear_corte_caja(db: Session, usuario_id: int, efectivo_fisico: float,
                      observaciones: Optional[str] = None) -> models.CorteCaja:
@@ -2936,6 +2937,7 @@ def crear_corte_caja(db: Session, usuario_id: int, efectivo_fisico: float,
         total_tarjeta_ventas=totales["tarjeta"],
         total_otros_ventas=totales["otros"],
         total_ventas_dia=totales["total_dia"],
+        total_gastos=totales["total_gastos"], # <--- NUEVA LÍNEA
         efectivo_fisico=efectivo_fisico,
         diferencia=diferencia,
         observaciones=observaciones,
@@ -2946,7 +2948,7 @@ def crear_corte_caja(db: Session, usuario_id: int, efectivo_fisico: float,
     db.refresh(corte)
 
     if abs(diferencia) > 1000:
-        admin_users = db.query(models.User).join(models.Role).filter(models.Role.name == "Admin").all()
+        admin_users = db.query(models.User).join(models.Role).filter(models.Role.name.in_(["Admin", "Socio"])).all()
         tipo  = "error" if diferencia < 0 else "warning"
         signo = "FALTANTE" if diferencia < 0 else "SOBRANTE"
         for admin in admin_users:
@@ -3454,3 +3456,25 @@ def check_can_delete_receta(db: Session, receta_id: int) -> list:
     if lotes:
         bloqueos.append(f"tiene {lotes} lote{'s' if lotes > 1 else ''} de producción asociado{'s' if lotes > 1 else ''}")
     return bloqueos
+
+
+def crear_gasto(db: Session, usuario_id: int, data: schemas.GastoCreate) -> models.Gasto:
+    db_gasto = models.Gasto(
+        usuario_id=usuario_id,
+        tercero_id=data.tercero_id,
+        monto=data.monto,
+        concepto=data.concepto,
+        metodo_pago=data.metodo_pago
+    )
+    db.add(db_gasto)
+    db.commit()
+    db.refresh(db_gasto)
+    return db_gasto
+
+def get_gastos(db: Session, skip: int = 0, limit: int = 100) -> List[models.Gasto]:
+    return (
+        db.query(models.Gasto)
+        .options(joinedload(models.Gasto.tercero))
+        .order_by(models.Gasto.fecha.desc())
+        .offset(skip).limit(limit).all()
+    )

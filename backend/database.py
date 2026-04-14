@@ -93,15 +93,10 @@ def _add_column_if_missing(conn, table_name: str, column_sql: str, column_name: 
 # ─── Migraciones ─────────────────────────────────────────────────────────────
 
 def run_migrations():
-    """
-    Versión v12 — incluye todas las migraciones anteriores + las nuevas:
-      - descuento_pct en detalles_venta
-      - descuento_total en ventas
-      - detalle_pago en pagos (consistencia con pagos_compra)
-      - tipo en notificaciones
-      - tabla cortes_caja
-    """
-    migration_key = "inv_v15"
+   
+    
+
+    migration_key = "MIGRACION 10 - Corte de caja y devoluciones"
 
     try:
         with engine.begin() as conn:
@@ -254,6 +249,39 @@ def run_migrations():
                         );
                     """))
                 logger.info("Tabla cortes_caja creada.")
+
+                # ── Tabla cortes_caja (Actualización) ────────────────────────────
+            # Agregamos la columna total_gastos si la tabla ya existe
+            if _table_exists(conn, "cortes_caja"):
+                _add_column_if_missing(conn, "cortes_caja", "total_gastos REAL DEFAULT 0", "total_gastos")
+
+            # ── Tabla gastos (NUEVA) ─────────────────────────────────────────
+            if not _table_exists(conn, "gastos"):
+                if IS_SQLITE:
+                    conn.execute(text("""
+                        CREATE TABLE gastos (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            usuario_id INTEGER REFERENCES users(id),
+                            tercero_id INTEGER REFERENCES clientes(id),
+                            monto REAL NOT NULL,
+                            concepto TEXT,
+                            metodo_pago TEXT DEFAULT 'Efectivo',
+                            fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        );
+                    """))
+                else:
+                    conn.execute(text("""
+                        CREATE TABLE gastos (
+                            id SERIAL PRIMARY KEY,
+                            usuario_id INTEGER REFERENCES users(id),
+                            tercero_id INTEGER REFERENCES clientes(id),
+                            monto REAL NOT NULL,
+                            concepto TEXT,
+                            metodo_pago TEXT DEFAULT 'Efectivo',
+                            fecha TIMESTAMPTZ DEFAULT NOW()
+                        );
+                    """))
+                logger.info("Tabla gastos creada.")
 
             # ── Columnas de seguridad — por si la tabla existía con esquema viejo ──
             # (cuando la migración anterior usaba campo 'total' en vez de 'monto_total')

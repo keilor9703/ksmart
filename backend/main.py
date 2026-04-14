@@ -745,13 +745,25 @@ def crear_corte_caja(data: schemas.CorteCajaCreate, db: Session = Depends(get_db
 
 @app.get("/caja/cortes", response_model=List[schemas.CorteCajaOut])
 def listar_cortes(skip: int = 0, limit: int = 30, db: Session = Depends(get_db),
-                  current_user: models.User = Depends(get_current_admin_user)):
+                  current_user: models.User = Depends(get_current_active_user)):
     return crud.get_cortes_caja(db, skip=skip, limit=limit)
 
 @app.get("/caja/corte/preview")
 def preview_corte(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
     """Calcula los totales del día sin cerrar la caja — útil para que el cajero vea el resumen antes del arqueo."""
     return crud.calcular_totales_dia(db)
+
+    
+
+@app.post("/caja/gastos", response_model=schemas.GastoOut)
+def registrar_gasto(data: schemas.GastoCreate, db: Session = Depends(get_db),
+                    current_user: models.User = Depends(get_current_active_user)):
+    return crud.crear_gasto(db, current_user.id, data)
+
+@app.get("/caja/gastos", response_model=List[schemas.GastoOut])
+def listar_gastos(skip: int = 0, limit: int = 100, db: Session = Depends(get_db),
+                  current_user: models.User = Depends(get_current_active_user)):
+    return crud.get_gastos(db, skip=skip, limit=limit)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # NOTIFICACIONES  ✅ ACTIVADAS

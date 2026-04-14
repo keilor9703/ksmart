@@ -4,20 +4,19 @@ import { formatCurrency } from '../utils/formatters';
 import { toast } from 'react-toastify';
 import ConfirmationDialog from './ConfirmationDialog';
 import VentaDetailDialog from './VentaDetailDialog';
-import DevolucionDialog from './DevolucionDialog'; // ✅ NUEVO
+import DevolucionDialog from './DevolucionDialog';
+import QuickCreateModal from './QuickCreateModal'; // ✅ NUEVO
 import {
     Box, Paper, Typography, Grid, TextField, Button, IconButton,
     Autocomplete, Table, TableBody, TableCell, TableContainer,
-    TableHead, TableRow, Chip, useMediaQuery, useTheme, Card,
-    CardContent, CardActions, Tabs, Tab, TablePagination, Divider,
-    Stack, Tooltip, InputAdornment
+    TableHead, TableRow, Chip, useMediaQuery, useTheme, Tabs, Tab,
+    TablePagination, Divider, Tooltip, InputAdornment
 } from '@mui/material';
 import {
     AddCircleOutline, RemoveCircleOutline, Edit, Delete, Visibility,
     Search, ShoppingCart, TrendingUp, Receipt, AttachMoney,
-    AccessTime, CheckCircle, Cancel, AssignmentReturn
+    AssignmentReturn, Add // ✅ Añadido el ícono Add
 } from '@mui/icons-material';
-
 
 // ─── Constantes de diseño ──────────────────────────────────────────────────────
 const ACCENT = '#FF6020';
@@ -30,13 +29,6 @@ function TabPanel({ children, value, index, ...other }) {
         </div>
     );
 }
-
-// ─── Label de producto ────────────────────────────────────────────────────────
-const productLabel = (p) => {
-    if (!p) return '';
-    const stockTxt = p.es_servicio ? 'Servicio' : `stock: ${p.stock_actual ?? 0}`;
-    return `${p.nombre} (${stockTxt})`;
-};
 
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
 const KpiCard = ({ label, value, icon, color }) => (
@@ -123,7 +115,6 @@ const VentaCard = ({ venta, handleEdit, handleDelete, handleOpenDetails, handleO
                     <Visibility fontSize="small" />
                 </IconButton>
             </Tooltip>
-            {/* Devolución — visible si la venta tiene detalles */}
             {venta.detalles?.length > 0 && (
                 <Tooltip title="Registrar devolución">
                     <IconButton size="small" onClick={() => handleOpenDevolucion(venta)}
@@ -149,7 +140,7 @@ const VentaCard = ({ venta, handleEdit, handleDelete, handleOpenDetails, handleO
 );
 
 // ─── Fila de producto en formulario ───────────────────────────────────────────
-const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRemove, isMobile }) => {
+const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRemove, isMobile, productoInput, onProductoInputChange, openQuickCreate }) => {
     const subtotalSinDesc = detail.cantidad * detail.precioUnitario;
     const descuentoMonto  = subtotalSinDesc * ((detail.descuentoPct || 0) / 100);
     const subtotalFinal   = subtotalSinDesc - descuentoMonto;
@@ -165,9 +156,34 @@ const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRe
         }}>
             <Autocomplete
                 options={productos}
-                getOptionLabel={productLabel}
+                getOptionLabel={(p) => p?.nombre || ''}
                 value={detail.producto}
                 onChange={(_, newValue) => onProductChange(detail.id, newValue)}
+                inputValue={productoInput}
+                onInputChange={(_, v) => onProductoInputChange(v)}
+                filterOptions={(opts, state) => {
+                    const q = (state.inputValue || '').toLowerCase().trim();
+                    if (!q) return opts;
+                    return opts.filter(o => o.nombre.toLowerCase().includes(q));
+                }}
+                noOptionsText={
+                    <Box sx={{ py: 0.5 }}>
+                        <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>
+                            No se encontró ningún producto
+                        </Typography>
+                        <Button
+                            size="small" variant="contained" fullWidth
+                            startIcon={<Add />}
+                            onClick={openQuickCreate}
+                            sx={{
+                                borderRadius: 2, fontWeight: 600, fontSize: 12,
+                                bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' },
+                            }}
+                        >
+                            Crear "{productoInput || 'nuevo producto'}"
+                        </Button>
+                    </Box>
+                }
                 renderOption={(props, option) => (
                     <li {...props} key={option.id}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 2 }}>
@@ -179,7 +195,28 @@ const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRe
                     </li>
                 )}
                 renderInput={(params) => (
-                    <TextField {...params} label="Producto" placeholder="Busca por nombre…" />
+                    <TextField 
+                        {...params} 
+                        label="Producto / Servicio" 
+                        placeholder="Busca por nombre…" 
+                        InputProps={{
+                            ...params.InputProps,
+                            endAdornment: (
+                                <>
+                                    {params.InputProps.endAdornment}
+                                    <Tooltip title="Crear nuevo producto">
+                                        <IconButton
+                                            size="small"
+                                            onClick={openQuickCreate}
+                                            sx={{ color: '#10B981', p: 0.5 }}
+                                        >
+                                            <Add fontSize="small" />
+                                        </IconButton>
+                                    </Tooltip>
+                                </>
+                            ),
+                        }}
+                    />
                 )}
                 sx={{ flex: 1, minWidth: isMobile ? '100%' : 220 }}
             />
@@ -211,7 +248,6 @@ const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRe
                 sx={{ width: isMobile ? '100%' : 140 }}
             />
 
-            {/* ✅ NUEVO: campo descuento por línea */}
             <TextField
                 type="number"
                 label="Desc. %"
@@ -236,7 +272,7 @@ const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRe
                     </Typography>
                 </Box>
                 <Tooltip title="Quitar">
-                    <IconButton onClick={() => onRemove(detail.id)} size="small"
+                    <IconButton onClick={() => onRemove(detail.id)} size="small" disabled={!isMobile && !detail.producto && detail.cantidad === 1 && !detail.precioUnitario} // Opcional: previene quitar el único si está vacío
                         sx={{ color: '#EF4444', bgcolor: '#FEF2F2', borderRadius: 1.5 }}>
                         <RemoveCircleOutline fontSize="small" />
                     </IconButton>
@@ -259,7 +295,14 @@ const Ventas = () => {
     const [pagada, setPagada]     = useState(true);
     const [editingVenta, setEditingVenta] = useState(null);
     const [estadoPago, setEstadoPago]     = useState('pagada');
-    const [metodoPago, setMetodoPago]     = useState('Efectivo'); // ✅ NUEVO
+    const [metodoPago, setMetodoPago]     = useState('Efectivo');
+
+    // ✅ NUEVO: Input states para Autocompletes
+    const [clienteInput, setClienteInput] = useState('');
+    const [productoInputs, setProductoInputs] = useState({});
+
+    // ✅ NUEVO: Control del QuickCreate Modal
+    const [quickCreate, setQuickCreate] = useState({ open: false, type: 'tercero', initialName: '', targetIdx: null });
 
     const [showConfirmDialog, setShowConfirmDialog]         = useState(false);
     const [ventaToDelete, setVentaToDelete]                 = useState(null);
@@ -269,7 +312,6 @@ const Ventas = () => {
     const [detailModalOpen, setDetailModalOpen] = useState(false);
     const [selectedVenta, setSelectedVenta]     = useState(null);
 
-    // ✅ NUEVO: Devoluciones
     const [devolucionOpen, setDevolucionOpen]   = useState(false);
     const [ventaDevolucion, setVentaDevolucion] = useState(null);
 
@@ -295,12 +337,21 @@ const Ventas = () => {
 
     useEffect(() => {
         if (editingVenta) {
-            setCliente(clientes.find(c => c.id === editingVenta.cliente_id) || null);
-            setSaleDetails(editingVenta.detalles.map(d => ({
+            const clientMatch = clientes.find(c => c.id === editingVenta.cliente_id) || null;
+            setCliente(clientMatch);
+            setClienteInput(clientMatch?.nombre || '');
+            
+            const newDetails = editingVenta.detalles.map(d => ({
                 id: d.id, producto: d.producto, cantidad: d.cantidad,
                 precioUnitario: d.precio_unitario,
                 descuentoPct: d.descuento_pct || 0,
-            })));
+            }));
+            setSaleDetails(newDetails);
+            
+            const pInputs = {};
+            newDetails.forEach(d => { pInputs[d.id] = d.producto?.nombre || ''; });
+            setProductoInputs(pInputs);
+
             setPagada(editingVenta.estado_pago === 'pagado');
             setEstadoPago(editingVenta.estado_pago === 'pagado' ? 'pagada' : 'pendiente');
         } else {
@@ -310,25 +361,62 @@ const Ventas = () => {
 
     const resetForm = () => {
         setCliente(null);
-        setSaleDetails([{ id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0, descuentoPct: 0 }]);
+        setClienteInput('');
+        const initialId = Date.now();
+        setSaleDetails([{ id: initialId, producto: null, cantidad: 1, precioUnitario: 0, descuentoPct: 0 }]);
+        setProductoInputs({});
         setIvaPorcentajeGlobal(0);
         setPagada(true);
         setEstadoPago('pagada');
-        setMetodoPago('Efectivo'); // ✅
+        setMetodoPago('Efectivo');
         setEditingVenta(null);
     };
 
+    // ✅ NUEVO: Handlers de QuickCreate
+    const openQuickCreate = (type, initialName = '', targetIdx = null) =>
+        setQuickCreate({ open: true, type, initialName, targetIdx });
+    
+    const closeQuickCreate = () =>
+        setQuickCreate(q => ({ ...q, open: false }));
+
+    const handleQuickCreated = (nuevoRegistro) => {
+        if (quickCreate.type === 'tercero') {
+            setClientes(prev => [...prev, nuevoRegistro]);
+            setCliente(nuevoRegistro);
+            setClienteInput(nuevoRegistro.nombre);
+        } else {
+            setProductos(prev => [...prev, nuevoRegistro]);
+            if (quickCreate.targetIdx !== null) {
+                handleProductChange(quickCreate.targetIdx, nuevoRegistro);
+                handleProductoInputChange(quickCreate.targetIdx, nuevoRegistro.nombre);
+            }
+        }
+        closeQuickCreate();
+    };
+
+    const handleProductoInputChange = (id, val) =>
+        setProductoInputs(prev => ({ ...prev, [id]: val }));
+
     const handleAddSaleDetail = () =>
         setSaleDetails(p => [...p, { id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0, descuentoPct: 0 }]);
-    const handleRemoveSaleDetail = (id) =>
+    
+    const handleRemoveSaleDetail = (id) => {
         setSaleDetails(p => p.filter(d => d.id !== id));
+        setProductoInputs(p => {
+            const next = { ...p };
+            delete next[id];
+            return next;
+        });
+    };
+
     const handleFieldChange = (id, field, value) =>
         setSaleDetails(p => p.map(d => d.id === id ? { ...d, [field]: value } : d));
+    
     const handleProductChange = (id, newValue) => {
         handleFieldChange(id, 'producto', newValue);
         handleFieldChange(id, 'precioUnitario', newValue?.precio ?? 0);
     };
-    // ✅ Subtotal con descuentos aplicados por línea
+
     const calculateSubtotal = () =>
         saleDetails.reduce((t, d) => {
             const bruto = d.cantidad * d.precioUnitario;
@@ -357,7 +445,7 @@ const Ventas = () => {
                 iva_porcentaje: 0.0,
             })),
             pagada,
-            metodo_pago: pagada ? metodoPago : null, // ✅ solo si es al contado
+            metodo_pago: pagada ? metodoPago : null,
             iva_porcentaje: parseFloat(ivaPorcentajeGlobal),
         };
         setSaleToConfirm(ventaData);
@@ -387,7 +475,6 @@ const Ventas = () => {
     const handleOpenDetails  = (v) => { setSelectedVenta(v); setDetailModalOpen(true); };
     const handleCloseDetails = ()  => { setDetailModalOpen(false); setSelectedVenta(null); };
 
-    // ✅ NUEVO
     const handleOpenDevolucion  = (v) => { setVentaDevolucion(v); setDevolucionOpen(true); };
     const handleDevolucionSuccess = () => { fetchVentas(); fetchVentasSummary(); };
 
@@ -458,17 +545,79 @@ const Ventas = () => {
                     <Box sx={{ p: { xs: 2, md: 3 } }}>
                         <Box component="form" onSubmit={handleSubmit}>
 
-                            {/* Cliente */}
+                            {/* Cliente - Reemplazado por Autocomplete Inline */}
                             <Box sx={{ mb: 3 }}>
                                 <Typography sx={{ fontWeight: 600, fontSize: 12, mb: 1, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6 }}>
                                     Cliente
                                 </Typography>
                                 <Autocomplete
                                     options={clientes}
-                                    getOptionLabel={(o) => o.nombre}
+                                    getOptionLabel={(o) => o?.nombre || ''}
                                     value={cliente}
                                     onChange={(_, v) => setCliente(v)}
-                                    renderInput={(params) => <TextField {...params} label="Seleccionar cliente" required fullWidth />}
+                                    inputValue={clienteInput}
+                                    onInputChange={(_, v) => setClienteInput(v)}
+                                    filterOptions={(opts, state) => {
+                                        const q = (state.inputValue || '').toLowerCase().trim();
+                                        if (!q) return opts;
+                                        return opts.filter(o =>
+                                            o.nombre.toLowerCase().includes(q) ||
+                                            (o.cedula || '').toLowerCase().includes(q)
+                                        );
+                                    }}
+                                    noOptionsText={
+                                        <Box sx={{ py: 0.5 }}>
+                                            <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>
+                                                No se encontró ningún cliente
+                                            </Typography>
+                                            <Button
+                                                size="small" variant="contained" fullWidth
+                                                startIcon={<Add />}
+                                                onClick={() => openQuickCreate('tercero', clienteInput)}
+                                                sx={{
+                                                    borderRadius: 2, fontWeight: 600, fontSize: 12,
+                                                    bgcolor: '#3B82F6', '&:hover': { bgcolor: '#2563EB' },
+                                                }}
+                                            >
+                                                Crear "{clienteInput || 'nuevo cliente'}"
+                                            </Button>
+                                        </Box>
+                                    }
+                                    renderOption={(props, option) => (
+                                        <li {...props} key={option.id} style={{ padding: '8px 12px' }}>
+                                            <Box>
+                                                <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{option.nombre}</Typography>
+                                                <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                                                    NIT/CC: {option.cedula || 'Sin identificación'}
+                                                </Typography>
+                                            </Box>
+                                        </li>
+                                    )}
+                                    renderInput={(params) => (
+                                        <TextField
+                                            {...params}
+                                            label="Seleccionar cliente (busca por nombre o NIT)"
+                                            required fullWidth
+                                            placeholder="Escribe para buscar…"
+                                            InputProps={{
+                                                ...params.InputProps,
+                                                endAdornment: (
+                                                    <>
+                                                        {params.InputProps.endAdornment}
+                                                        <Tooltip title="Crear nuevo cliente">
+                                                            <IconButton
+                                                                size="small"
+                                                                onClick={() => openQuickCreate('tercero', clienteInput)}
+                                                                sx={{ color: '#3B82F6', p: 0.5 }}
+                                                            >
+                                                                <Add fontSize="small" />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                    </>
+                                                ),
+                                            }}
+                                        />
+                                    )}
                                 />
                             </Box>
 
@@ -492,6 +641,9 @@ const Ventas = () => {
                                         onFieldChange={handleFieldChange}
                                         onRemove={handleRemoveSaleDetail}
                                         isMobile={isMobile}
+                                        productoInput={productoInputs[detail.id] || ''}
+                                        onProductoInputChange={(val) => handleProductoInputChange(detail.id, val)}
+                                        openQuickCreate={() => openQuickCreate('producto', productoInputs[detail.id] || '', detail.id)}
                                     />
                                 ))}
                             </Box>
@@ -516,7 +668,6 @@ const Ventas = () => {
                                         p: 2, borderRadius: 2, textAlign: 'center',
                                         bgcolor: `${ACCENT}0D`, border: `1.5px dashed ${ACCENT}60`, boxShadow: 'none',
                                     }}>
-                                        {/* ✅ Mostrar descuento si hay alguno */}
                                         {calculateDescuentoTotal() > 0 && (
                                             <Box sx={{ mb: 0.5 }}>
                                                 <Typography sx={{ fontSize: 10, color: 'text.secondary', textDecoration: 'line-through' }}>
@@ -537,7 +688,6 @@ const Ventas = () => {
                                 <Grid item xs={12} sm={6}>
                                     <Box sx={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 2, alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'flex-end' }}>
 
-                                        {/* ✅ Método de pago — 4 opciones */}
                                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.8, minWidth: isMobile ? '100%' : 'auto' }}>
                                             <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6 }}>
                                                 Método de pago
@@ -684,7 +834,6 @@ const Ventas = () => {
                                                                     <Visibility fontSize="small" />
                                                                 </IconButton>
                                                             </Tooltip>
-                                                            {/* Devolución — visible si la venta tiene detalles (con o sin producto cargado) */}
                                                             {v.detalles?.length > 0 && (
                                                                 <Tooltip title="Registrar devolución">
                                                                     <IconButton size="small" onClick={() => handleOpenDevolucion(v)}
@@ -750,14 +899,22 @@ const Ventas = () => {
                 handleClose={handleCloseDetails}
                 venta={selectedVenta}
             />
-
-            {/* ✅ NUEVO */}
             <DevolucionDialog
                 open={devolucionOpen}
                 onClose={() => setDevolucionOpen(false)}
                 venta={ventaDevolucion}
                 onSuccess={handleDevolucionSuccess}
             />
+
+            {/* ── QuickCreateModal — creación inline de terceros y productos ── */}
+            <QuickCreateModal
+                open={quickCreate.open}
+                onClose={closeQuickCreate}
+                type={quickCreate.type}
+                initialName={quickCreate.initialName}
+                onCreated={handleQuickCreated}
+            />
+
         </Box>
     );
 };

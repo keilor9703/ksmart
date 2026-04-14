@@ -884,6 +884,7 @@ class CorteCajaOut(BaseModel):
     diferencia:                 float
     observaciones:              Optional[str] = None
     estado:                     str
+    total_gastos:               float  # <--- NUEVA LÍNEA
     model_config = ConfigDict(from_attributes=True)
 
 class CorteCajaPreview(BaseModel):
@@ -892,6 +893,7 @@ class CorteCajaPreview(BaseModel):
     tarjeta:        float
     otros:          float
     total_dia:      float
+    total_gastos:   float # <--- NUEVA LÍNEA
     fecha:          str
 
 
@@ -949,6 +951,11 @@ class VentasSummary(BaseModel):
     total_pendiente: float
     total_general: float
     total_ventas_hoy: float
+    # 👇 AÑADE ESTAS DOS LÍNEAS 👇
+    total_compras: float = 0.0
+    total_gastos: float = 0.0
+    
+    model_config = ConfigDict(from_attributes=True)
 
 class ClienteCuentasPorCobrar(BaseModel):
     cliente_id: int
@@ -1011,4 +1018,31 @@ class ProductoRentabilidad(BaseModel):
     total_cost: float
     net_profit: float
     profit_margin: float
+
+
+
+
+# GASTOS
+
+class TerceroReducido(BaseModel):
+    id: int
+    nombre: str
+    model_config = ConfigDict(from_attributes=True)
+
+class GastoCreate(BaseModel):
+    tercero_id: int
+    monto: float
+    concepto: str
+    metodo_pago: str = "Efectivo"
+
+class GastoOut(BaseModel):
+    id: int
+    usuario_id: int
+    tercero_id: Optional[int] = None
+    tercero: Optional[TerceroReducido] = None
+    monto: float
+    concepto: str
+    metodo_pago: str
+    fecha: datetime.datetime
+    model_config = ConfigDict(from_attributes=True)
 

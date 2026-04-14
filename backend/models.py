@@ -374,13 +374,31 @@ class CorteCaja(Base):
     total_tarjeta_ventas        = Column(Float, default=0.0)
     total_otros_ventas          = Column(Float, default=0.0)
     total_ventas_dia            = Column(Float, default=0.0)
+    total_gastos = Column(Float, default=0.0) # <--- NUEVA LÍNEA
     # Arqueo físico del cajero
     efectivo_fisico             = Column(Float, default=0.0)
     diferencia                  = Column(Float, default=0.0)   # efectivo_fisico - total_efectivo_ventas
     # Observaciones
     observaciones               = Column(Text, nullable=True)
     estado                      = Column(String, default="abierto")  # abierto | cerrado
+    
+    
 
     usuario = relationship("User")
 
+
+# Agrega este modelo al final de tu archivo models.py
+
+class Gasto(Base):
+    __tablename__ = "gastos"
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("users.id"))
+    tercero_id = Column(Integer, ForeignKey("clientes.id"), nullable=True) # Puede enlazarse a un tercero
+    monto = Column(Float, default=0.0, nullable=False)
+    concepto = Column(Text, nullable=True)
+    metodo_pago = Column(String, default="Efectivo")
+    fecha = Column(DateTime(timezone=True), default=utcnow)
+
+    usuario = relationship("User")
+    tercero = relationship("Cliente") # Reutilizamos la tabla clientes/terceros
 

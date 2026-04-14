@@ -10,6 +10,7 @@ import { fetchRecetas, createReceta, deleteReceta } from '../api';
 import apiClient from '../api';
 import { toast } from 'react-toastify';
 import ConfirmationDialog from './ConfirmationDialog';
+import QuickCreateModal from './QuickCreateModal'; // ✅ NUEVO IMPORT
 
 const DEFAULT_ACCENT = '#8B5CF6';
 
@@ -74,7 +75,11 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
     servicios: [],
     items: [{ insumo_id: '', cantidad: '' }],
   });
+  
+  // ✅ NUEVO: Estados para Inline Creation
   const [productoInput, setProductoInput] = useState('');
+  const [insumoInputs, setInsumoInputs] = useState({});
+  const [quickCreate, setQuickCreate] = useState({ open: false, type: 'producto', initialName: '', targetIdx: null });
 
   useEffect(() => { loadData(); }, []);
 
@@ -91,16 +96,43 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
   const handleClose = () => {
     setOpen(false);
     setProductoInput('');
+    setInsumoInputs({}); // Limpiar inputs
     setFormData({ producto_id: '', nombre: '', descripcion: '', servicios: [], items: [{ insumo_id: '', cantidad: '' }] });
+  };
+
+  // ✅ NUEVO: Handlers de Inline Creation
+  const openQuickCreate = (type, initialName = '', targetIdx = null) =>
+      setQuickCreate({ open: true, type, initialName, targetIdx });
+  
+  const closeQuickCreate = () => setQuickCreate(q => ({ ...q, open: false }));
+
+  const handleQuickCreated = (nuevoRegistro) => {
+      setProductos(prev => [...prev, nuevoRegistro]);
+      setInsumos(prev => [...prev, nuevoRegistro]); // Mantenemos el estado de insumos actualizado
+
+      if (quickCreate.targetIdx === 'resultante') {
+          setFormData(f => ({ ...f, producto_id: nuevoRegistro.id }));
+          setProductoInput(nuevoRegistro.nombre);
+      } else if (quickCreate.targetIdx !== null) {
+          handleItemChange(quickCreate.targetIdx, 'insumo_id', nuevoRegistro.id);
+          setInsumoInputs(prev => ({ ...prev, [quickCreate.targetIdx]: nuevoRegistro.nombre }));
+      }
+      closeQuickCreate();
   };
 
   const addItem     = () => setFormData(f => ({ ...f, items: [...f.items, { insumo_id: '', cantidad: '' }] }));
   const addServicio = () => setFormData(f => ({ ...f, servicios: [...f.servicios, { servicio_id: '' }] }));
-  const removeItem  = (i) => setFormData(f => ({ ...f, items: f.items.filter((_, idx) => idx !== i) }));
+  const removeItem  = (i) => {
+      setFormData(f => ({ ...f, items: f.items.filter((_, idx) => idx !== i) }));
+      setInsumoInputs(prev => { const next = { ...prev }; delete next[i]; return next; });
+  };
   const removeServicio = (i) => setFormData(f => ({ ...f, servicios: f.servicios.filter((_, idx) => idx !== i) }));
 
   const handleItemChange = (i, field, val) =>
     setFormData(f => { const items = [...f.items]; items[i][field] = val; return { ...f, items }; });
+  
+  const handleInsumoInputChange = (i, val) => setInsumoInputs(prev => ({ ...prev, [i]: val }));
+
   const handleServicioChange = (i, val) =>
     setFormData(f => { const servicios = [...f.servicios]; servicios[i].servicio_id = val; return { ...f, servicios }; });
 
@@ -260,10 +292,8 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
             Información general
           </Typography>
 
-          {/* Stack igual al patrón de InventoryPage — garantiza ancho completo */}
           <Stack direction="column" spacing={2} sx={{ mb: 3, width: '100%' }}>
-
-            {/* Producto a producir — ancho total, con inputValue para búsqueda fluida */}
+            {/* ✅ Autocomplete Producto a Producir Actualizado */}
             <Autocomplete
               options={productosNoServicio}
               value={productosNoServicio.find(p => p.id === parseInt(formData.producto_id)) || null}
@@ -276,6 +306,24 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
                 if (!q) return opts;
                 return opts.filter(o => o.nombre.toLowerCase().includes(q));
               }}
+              noOptionsText={
+                  <Box sx={{ py: 0.5 }}>
+                      <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>
+                          No se encontró ningún producto
+                      </Typography>
+                      <Button
+                          size="small" variant="contained" fullWidth
+                          startIcon={<Add />}
+                          onClick={() => openQuickCreate('producto', productoInput, 'resultante')}
+                          sx={{
+                              borderRadius: 2, fontWeight: 600, fontSize: 12,
+                              bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' },
+                          }}
+                      >
+                          Crear "{productoInput || 'nuevo producto'}"
+                      </Button>
+                  </Box>
+              }
               renderOption={(props, option) => (
                 <li {...props} key={option.id} style={{ padding: '10px 14px' }}>
                   <Box>
@@ -294,15 +342,30 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
                   label="Producto a Producir *"
                   placeholder="Escribe para buscar por nombre…"
                   fullWidth
+                  InputProps={{
+                      ...params.InputProps,
+                      endAdornment: (
+                          <>
+                              {params.InputProps.endAdornment}
+                              <Tooltip title="Crear nuevo producto resultante">
+                                  <IconButton
+                                      size="small"
+                                      onClick={() => openQuickCreate('producto', productoInput, 'resultante')}
+                                      sx={{ color: '#10B981', p: 0.5 }}
+                                  >
+                                      <Add fontSize="small" />
+                                  </IconButton>
+                              </Tooltip>
+                          </>
+                      ),
+                  }}
                 />
               )}
               fullWidth
               sx={{ width: '100%' }}
-              noOptionsText="Sin resultados"
               ListboxProps={{ style: { maxHeight: 280 } }}
             />
 
-            {/* Nombre de la receta */}
             <TextField
               fullWidth
               label="Nombre de la Receta *"
@@ -313,7 +376,6 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
             />
           </Stack>
 
-          {/* Servicios de maquila */}
           <Box sx={{ mb: 3 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
               <Typography sx={{ fontWeight: 600, fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6 }}>
@@ -329,7 +391,6 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
                 Sin servicios asociados
               </Typography>
             )}
-            {/* Stack vertical: cada servicio ocupa su fila completa */}
             <Stack direction="column" spacing={1} sx={{ width: '100%' }}>
               {formData.servicios.map((srv, idx) => (
                 <Box key={idx} sx={{ display: 'flex', gap: 1.5, alignItems: 'center', p: 1.5, borderRadius: 2, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider', width: '100%' }}>
@@ -370,7 +431,6 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
 
           <Divider sx={{ mb: 3 }} />
 
-          {/* Insumos — Stack vertical igual a InventoryPage */}
           <Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
               <Typography sx={{ fontWeight: 600, fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6 }}>
@@ -385,17 +445,37 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
               {formData.items.map((item, idx) => (
                 <Box key={idx} sx={{ p: 1.5, borderRadius: 2, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider', width: '100%' }}>
 
-                  {/* Insumo: ancho completo igual que el Autocomplete de InventoryPage */}
+                  {/* ✅ Autocomplete Insumo Actualizado */}
                   <Autocomplete
                     options={insumos}
                     value={insumos.find(p => p.id === parseInt(item.insumo_id)) || null}
                     onChange={(_, v) => handleItemChange(idx, 'insumo_id', v ? v.id : '')}
+                    inputValue={insumoInputs[idx] || ''}
+                    onInputChange={(_, v) => handleInsumoInputChange(idx, v)}
                     getOptionLabel={opt => opt ? opt.nombre : ''}
                     filterOptions={(opts, state) => {
                       const q = (state.inputValue || '').toLowerCase().trim();
                       if (!q) return opts;
                       return opts.filter(o => o.nombre.toLowerCase().includes(q));
                     }}
+                    noOptionsText={
+                        <Box sx={{ py: 0.5 }}>
+                            <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>
+                                No se encontró ningún insumo
+                            </Typography>
+                            <Button
+                                size="small" variant="contained" fullWidth
+                                startIcon={<Add />}
+                                onClick={() => openQuickCreate('producto', insumoInputs[idx] || '', idx)}
+                                sx={{
+                                    borderRadius: 2, fontWeight: 600, fontSize: 12,
+                                    bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' },
+                                }}
+                            >
+                                Crear "{insumoInputs[idx] || 'nuevo insumo'}"
+                            </Button>
+                        </Box>
+                    }
                     renderOption={(props, option) => (
                       <li {...props} key={option.id} style={{ padding: '10px 14px' }}>
                         <Box>
@@ -415,16 +495,31 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
                         size="small"
                         placeholder="Escribe para buscar…"
                         fullWidth
+                        InputProps={{
+                            ...params.InputProps,
+                            endAdornment: (
+                                <>
+                                    {params.InputProps.endAdornment}
+                                    <Tooltip title="Crear nuevo insumo">
+                                        <IconButton
+                                            size="small"
+                                            onClick={() => openQuickCreate('producto', insumoInputs[idx] || '', idx)}
+                                            sx={{ color: '#10B981', p: 0.5 }}
+                                        >
+                                            <Add fontSize="small" />
+                                        </IconButton>
+                                    </Tooltip>
+                                </>
+                            ),
+                        }}
                       />
                     )}
                     fullWidth
                     sx={{ width: '100%', mb: 1 }}
                     size="small"
-                    noOptionsText="Sin insumos disponibles"
                     ListboxProps={{ style: { maxHeight: 240 } }}
                   />
 
-                  {/* Cantidad + eliminar en fila separada */}
                   <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                     <TextField
                       type="number"
@@ -478,6 +573,15 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
         }}
         title="Eliminar Receta"
         message="¿Estás seguro de que quieres eliminar esta receta? Esta acción no se puede deshacer."
+      />
+
+      {/* ✅ NUEVO: QuickCreate Modal */}
+      <QuickCreateModal
+          open={quickCreate.open}
+          onClose={closeQuickCreate}
+          type={quickCreate.type}
+          initialName={quickCreate.initialName}
+          onCreated={handleQuickCreated}
       />
     </Box>
   );

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import apiClient from '../api';
 import { formatCurrency } from '../utils/formatters';
@@ -6,14 +5,15 @@ import { toast } from 'react-toastify';
 import ConfirmationDialog from './ConfirmationDialog';
 import RechazoDialog from './RechazoDialog';
 import OrdenTrabajoDetailDialog from './OrdenTrabajoDetailDialog';
+import QuickCreateModal from './QuickCreateModal'; // ✅ NUEVO IMPORT
 import { useLocation } from 'react-router-dom';
 import {
     Box, Paper, Typography, Grid, TextField, Button, IconButton, Autocomplete,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    Chip, Tabs, Tab, Tooltip, List, ListItem, ListItemText, useMediaQuery, Card, CardContent, CardActions
+    Chip, Tabs, Tab, Tooltip, List, ListItem, ListItemText, useMediaQuery, Card, CardContent, CardActions, InputAdornment
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { AddCircleOutline, RemoveCircleOutline, Edit, Delete, Visibility, Send, CheckCircle, Cancel } from '@mui/icons-material';
+import { AddCircleOutline, RemoveCircleOutline, Edit, Delete, Visibility, Send, CheckCircle, Cancel, Add } from '@mui/icons-material';
 import CloseOrderPaymentDialog from './CloseOrderPaymentDialog';
 
 // Helper component for TabPanel
@@ -113,15 +113,20 @@ const OrdenesTrabajo = ({ user }) => {
     const [ordenes, setOrdenes] = useState([]);
     const [ordenesParaAprobar, setOrdenesParaAprobar] = useState([]);
     const [clientes, setClientes] = useState([]);
-    const [productos, setProductos] = useState([]); // Todos los productos y servicios
-    const [operators, setOperators] = useState([]); // New state for operators
+    const [productos, setProductos] = useState([]); 
+    const [operators, setOperators] = useState([]); 
     
     const [cliente, setCliente] = useState(null);
-    const [selectedOperatorForForm, setSelectedOperatorForForm] = useState(null); // New state for operator in form
+    const [selectedOperatorForForm, setSelectedOperatorForForm] = useState(null); 
     const [addedProductos, setAddedProductos] = useState([]);
     const [addedServicios, setAddedServicios] = useState([]);
     const [evidenceFile, setEvidenceFile] = useState(null);
     
+    // ✅ NUEVO: Estados para Inline Creation
+    const [clienteInput, setClienteInput] = useState('');
+    const [productoInputs, setProductoInputs] = useState({});
+    const [quickCreate, setQuickCreate] = useState({ open: false, type: 'tercero', initialName: '', targetIdx: null });
+
     const [editingOrden, setEditingOrden] = useState(null);
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
     const [ordenAction, setOrdenAction] = useState({ action: null, id: null, message: '' });
@@ -129,27 +134,27 @@ const OrdenesTrabajo = ({ user }) => {
     const [ordenToProcess, setOrdenToProcess] = useState(null);
     const [showDetailDialog, setShowDetailDialog] = useState(false);
     const [selectedOrden, setSelectedOrden] = useState(null);
-    const [showCloseOrderPaymentDialog, setShowCloseOrderPaymentDialog] = useState(false); // New state
-    const [ordenToClose, setOrdenToClose] = useState(null); // New state
+    const [showCloseOrderPaymentDialog, setShowCloseOrderPaymentDialog] = useState(false); 
+    const [ordenToClose, setOrdenToClose] = useState(null); 
 
     const [tabValue, setTabValue] = useState(0);
     const location = useLocation();
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-    const [startDate, setStartDate] = useState(new Date().toLocaleDateString('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-')); // Default to current day
-    const [endDate, setEndDate] = useState(new Date().toLocaleDateString('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-'));     // Default to current day
+    const [startDate, setStartDate] = useState(new Date().toLocaleDateString('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-')); 
+    const [endDate, setEndDate] = useState(new Date().toLocaleDateString('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-'));     
     const [selectedClient, setSelectedClient] = useState(null);
-    const [selectedOperator, setSelectedOperator] = useState(null); // New state for selected operator
+    const [selectedOperator, setSelectedOperator] = useState(null); 
     const [accumulatedTotal, setAccumulatedTotal] = useState(0);
 
     useEffect(() => {
         fetchClientes();
         fetchProductos();
-        if (user?.role?.name === 'Admin') { // Only fetch operators if user is Admin
+        if (user?.role?.name === 'Admin') { 
             fetchOperators();
         }
-    }, []); // Fetch clients and products only once
+    }, []); 
 
     const fetchOrdenes = (filters = {}) => {
         const params = {
@@ -159,7 +164,7 @@ const OrdenesTrabajo = ({ user }) => {
             start_date: filters.startDate || null,
             end_date: filters.endDate || null,
             cliente_id: filters.clienteId || null,
-            operador_id: filters.operadorId || null, // Pass selected operator ID
+            operador_id: filters.operadorId || null, 
         };
         apiClient.get('/ordenes-trabajo/', { params })
             .then(res => setOrdenes(res.data))
@@ -181,46 +186,56 @@ const OrdenesTrabajo = ({ user }) => {
     const fetchOrdenesParaAprobar = () => apiClient.get('/ordenes-trabajo/?estado=En revisión').then(res => setOrdenesParaAprobar(res.data)).catch(err => toast.error("Error al cargar órdenes para aprobar."));
     const fetchClientes = () => apiClient.get('/clientes/').then(res => setClientes(res.data)).catch(err => toast.error("Error al cargar clientes."));
     const fetchProductos = () => apiClient.get('/productos/').then(res => setProductos(res.data)).catch(err => toast.error("Error al cargar productos."));
-    const fetchOperators = () => apiClient.get('/users/').then(res => setOperators(res.data)).catch(err => toast.error("Error al cargar operadores.")); // Added this line
+    const fetchOperators = () => apiClient.get('/users/').then(res => setOperators(res.data)).catch(err => toast.error("Error al cargar operadores.")); 
 
     useEffect(() => {
         const filters = {
             startDate,
             endDate,
             clienteId: selectedClient?.id,
-            operadorId: selectedOperator?.id, // Pass selected operator ID
+            operadorId: selectedOperator?.id, 
         };
         fetchOrdenes(filters);
         fetchAccumulatedTotal(filters);
         if (user?.role?.name === 'Admin') {
             fetchOrdenesParaAprobar();
         }
-    }, [user, startDate, endDate, selectedClient, selectedOperator]); // Add selectedOperator to dependency array
+    }, [user, startDate, endDate, selectedClient, selectedOperator]); 
 
     useEffect(() => {
         if (editingOrden) {
             const clienteSeleccionado = clientes.find(c => c.id === editingOrden.cliente.id);
             setCliente(clienteSeleccionado);
-            setSelectedOperatorForForm(operators.find(op => op.id === editingOrden.operador.id)); // Initialize operator for form
-            setAddedProductos(editingOrden.productos.map(p => ({
-                id: Date.now() + Math.random(), // Unique ID for React list
-                producto: p.producto,
-                cantidad: p.cantidad,
-                precioUnitario: p.precio_unitario,
-            })));
+            setClienteInput(clienteSeleccionado?.nombre || '');
+            setSelectedOperatorForForm(operators.find(op => op.id === editingOrden.operador.id)); 
+            
+            const pInputs = {};
+            const prodsEdit = editingOrden.productos.map(p => {
+                const newId = Date.now() + Math.random();
+                pInputs[newId] = p.producto?.nombre || '';
+                return {
+                    id: newId, 
+                    producto: p.producto,
+                    cantidad: p.cantidad,
+                    precioUnitario: p.precio_unitario,
+                };
+            });
+            
+            setAddedProductos(prodsEdit);
+            setProductoInputs(pInputs);
+            
             setAddedServicios(editingOrden.servicios.map(s => ({
-                id: Date.now() + Math.random(), // Unique ID for React list
+                id: Date.now() + Math.random(), 
                 servicio: s.servicio,
-                cantidad: s.cantidad, // Now services have quantity
-                precioUnitario: s.precio_servicio, // Now services have unit price
+                cantidad: s.cantidad, 
+                precioUnitario: s.precio_servicio, 
             })));
-            setTabValue(0); // Switch to form tab
+            setTabValue(0); 
         } else {
             resetForm();
         }
-    }, [editingOrden, clientes, productos, operators]); // Add operators to dependency array
+    }, [editingOrden, clientes, productos, operators]); 
 
-    // Effect to handle navigation from notifications
     useEffect(() => {
         if (location.state?.ordenId) {
             const ordenId = location.state.ordenId;
@@ -228,7 +243,6 @@ const OrdenesTrabajo = ({ user }) => {
                 .then(res => {
                     setSelectedOrden(res.data);
                     setShowDetailDialog(true);
-                    // Clear the state so it doesn't re-trigger on subsequent renders
                     window.history.replaceState({}, document.title, location.pathname);
                 })
                 .catch(err => toast.error(err.response?.data?.detail || "Error al cargar la orden de trabajo."));
@@ -237,20 +251,57 @@ const OrdenesTrabajo = ({ user }) => {
 
     const resetForm = () => {
         setCliente(null);
-        setSelectedOperatorForForm(null); // Clear selected operator for form
+        setClienteInput('');
+        setSelectedOperatorForForm(null); 
         setAddedProductos([]);
+        setProductoInputs({});
         setAddedServicios([]);
         setEditingOrden(null);
         setEvidenceFile(null);
     };
 
-    const handleAddProducto = () => setAddedProductos([...addedProductos, { id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0 }]);
-    const handleRemoveProducto = (id) => setAddedProductos(addedProductos.filter(p => p.id !== id));
+    // ✅ NUEVO: Handlers para Inline Creation
+    const openQuickCreate = (type, initialName = '', targetIdx = null) => {
+        setQuickCreate({ open: true, type, initialName, targetIdx });
+    };
+
+    const closeQuickCreate = () => setQuickCreate(q => ({ ...q, open: false }));
+
+    const handleQuickCreated = (nuevoRegistro) => {
+        if (quickCreate.type === 'tercero') {
+            setClientes(prev => [...prev, nuevoRegistro]);
+            setCliente(nuevoRegistro);
+            setClienteInput(nuevoRegistro.nombre);
+        } else {
+            setProductos(prev => [...prev, nuevoRegistro]);
+            if (quickCreate.targetIdx !== null) {
+                handleProductoChange(quickCreate.targetIdx, 'producto', nuevoRegistro);
+                handleProductoChange(quickCreate.targetIdx, 'precioUnitario', nuevoRegistro.precio || 0);
+                setProductoInputs(prev => ({ ...prev, [quickCreate.targetIdx]: nuevoRegistro.nombre }));
+            }
+        }
+        closeQuickCreate();
+    };
+
+    const handleAddProducto = () => setAddedProductos([...addedProductos, { id: Date.now() + Math.random(), producto: null, cantidad: 1, precioUnitario: 0 }]);
+    const handleRemoveProducto = (id) => {
+        setAddedProductos(addedProductos.filter(p => p.id !== id));
+        setProductoInputs(prev => {
+            const next = { ...prev };
+            delete next[id];
+            return next;
+        });
+    };
+    
     const handleProductoChange = (id, field, value) => {
         setAddedProductos(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
     };
+    
+    const handleProductoInputChange = (id, val) => {
+        setProductoInputs(prev => ({ ...prev, [id]: val }));
+    };
 
-    const handleAddServicio = () => setAddedServicios([...addedServicios, { id: Date.now(), servicio: null, cantidad: 1, precioUnitario: 0 }]);
+    const handleAddServicio = () => setAddedServicios([...addedServicios, { id: Date.now() + Math.random(), servicio: null, cantidad: 1, precioUnitario: 0 }]);
     const handleRemoveServicio = (id) => setAddedServicios(addedServicios.filter(s => s.id !== id));
     const handleServicioChange = (id, field, value) => {
         setAddedServicios(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
@@ -285,7 +336,6 @@ const OrdenesTrabajo = ({ user }) => {
             const newOrdenId = response.data.id;
             toast.success(`Orden ${editingOrden ? 'actualizada' : 'registrada'} con éxito.`);
             
-            // Si hay un archivo de evidencia, subirlo ahora
             if (evidenceFile && newOrdenId) {
                 const formData = new FormData();
                 formData.append("file", evidenceFile);
@@ -296,19 +346,16 @@ const OrdenesTrabajo = ({ user }) => {
                     },
                 });
             }
-            return Promise.resolve(); // Continuar la cadena de promesas
+            return Promise.resolve(); 
         })
         .then(() => {
-            // Este .then se ejecuta después de que la orden se guarda y el archivo (si lo hay) se sube.
             const today = new Date().toLocaleDateString('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
             
-            // Establecer los estados de los filtros para que la UI se actualice correctamente
             setStartDate(today);
             setEndDate(today);
             setSelectedClient(null);
             setSelectedOperator(null);
 
-            // Obtener explícitamente con los filtros correctos para asegurar que la nueva orden esté incluida
             const filters = {
                 startDate: today,
                 endDate: today,
@@ -319,10 +366,9 @@ const OrdenesTrabajo = ({ user }) => {
             fetchAccumulatedTotal(filters);
             
             resetForm();
-            setTabValue(1); // Cambiar a la pestaña de la lista
+            setTabValue(1); 
         })
         .catch(err => {
-            // Error en la creación de la orden o en la subida del archivo
             const errorMessage = err.response?.data?.detail || `Error al procesar la orden.`;
             toast.error(errorMessage);
         });
@@ -334,22 +380,17 @@ const OrdenesTrabajo = ({ user }) => {
     };
 
     const handleApprove = async (id) => {
-  // 1) Valida stock
-  const ok = await checkStockForOrder(id);
-  if (!ok) {
-    // Si no hay stock suficiente, NO abrimos el diálogo de confirmación ni aprobamos
-    return;
-  }
-
-  // 2) Si está ok, abrimos el diálogo de confirmación (flujo actual)
-  setOrdenAction({
-    action: 'aprobar',
-    id,
-    message: '¿Estás seguro de que quieres APROBAR esta orden de trabajo? Esta acción registrará la venta y no se puede deshacer.',
-  });
-  setShowConfirmDialog(true);
-};
-
+      const ok = await checkStockForOrder(id);
+      if (!ok) {
+        return;
+      }
+      setOrdenAction({
+        action: 'aprobar',
+        id,
+        message: '¿Estás seguro de que quieres APROBAR esta orden de trabajo? Esta acción registrará la venta y no se puede deshacer.',
+      });
+      setShowConfirmDialog(true);
+    };
 
     const handleOpenRejectDialog = (orden) => {
         setOrdenToProcess(orden);
@@ -397,7 +438,6 @@ const OrdenesTrabajo = ({ user }) => {
                 .catch(err => toast.error(err.response?.data?.detail || 'Error al aprobar la orden.'))
                 .finally(() => setShowConfirmDialog(false));
         }
-        // The 'cerrar' action is now handled by handleConfirmCloseOrderWithPayment
     };
 
     const handleConfirmReject = (observaciones) => {
@@ -435,8 +475,6 @@ const OrdenesTrabajo = ({ user }) => {
         setShowDetailDialog(false);
     };
 
-
-
     const getEstadoChip = (estado) => {
         const chipProps = {
             'Borrador': { label: 'Borrador', color: 'default' },
@@ -449,55 +487,48 @@ const OrdenesTrabajo = ({ user }) => {
         return <Chip label={props.label} color={props.color} size="small" />;
     };
 
+    const fetchOrdenDetalle = async (ordenId) => {
+      const res = await apiClient.get(`/ordenes-trabajo/${ordenId}`);
+      return res.data;
+    };
 
-    // Trae los detalles completos de la OT
-const fetchOrdenDetalle = async (ordenId) => {
-  const res = await apiClient.get(`/ordenes-trabajo/${ordenId}`);
-  return res.data;
-};
+    const checkStockForOrder = async (ordenId) => {
+      try {
+        const orden = await fetchOrdenDetalle(ordenId);
+        const faltantes = [];
 
-// Verifica stock antes de aprobar
-const checkStockForOrder = async (ordenId) => {
-  try {
-    const orden = await fetchOrdenDetalle(ordenId);
-    const faltantes = [];
+        (orden.productos || []).forEach((linea) => {
+          const prod = linea.producto;
+          if (!prod) return;
 
-    // orden.productos es un array con { producto, cantidad, precio_unitario, ... }
-    (orden.productos || []).forEach((linea) => {
-      const prod = linea.producto;
-      if (!prod) return;
+          const esServicio = !!prod.es_servicio;
+          if (esServicio) return;
 
-      // Solo productos (no servicios) consumen stock
-      const esServicio = !!prod.es_servicio;
-      if (esServicio) return;
+          const disponible = Number(prod.stock_actual ?? 0);
+          const requerido = Number(linea.cantidad ?? 0);
 
-      const disponible = Number(prod.stock_actual ?? 0);
-      const requerido = Number(linea.cantidad ?? 0);
-
-      if (disponible < requerido) {
-        faltantes.push({
-          nombre: prod.nombre,
-          requerido,
-          disponible,
+          if (disponible < requerido) {
+            faltantes.push({
+              nombre: prod.nombre,
+              requerido,
+              disponible,
+            });
+          }
         });
+
+        if (faltantes.length) {
+          faltantes.forEach((f) =>
+            toast.error(`Stock insuficiente para "${f.nombre}": requiere ${f.requerido}, disponible ${f.disponible}`)
+          );
+          return false;
+        }
+
+        return true;
+      } catch (err) {
+        toast.error(err?.response?.data?.detail || 'No fue posible validar el stock de la orden.');
+        return false;
       }
-    });
-
-    if (faltantes.length) {
-      // Muestra todos los faltantes y bloquea la aprobación
-      faltantes.forEach((f) =>
-        toast.error(`Stock insuficiente para "${f.nombre}": requiere ${f.requerido}, disponible ${f.disponible}`)
-      );
-      return false;
-    }
-
-    return true;
-  } catch (err) {
-    toast.error(err?.response?.data?.detail || 'No fue posible validar el stock de la orden.');
-    return false;
-  }
-};
-
+    };
 
     return (
         <Box sx={{ width: '100%' }}>
@@ -514,12 +545,67 @@ const checkStockForOrder = async (ordenId) => {
                 <Paper sx={{ p: 3 }}>
                     <Typography variant="h6" mb={2}>{editingOrden ? 'Editar' : 'Registrar'} Orden de Trabajo</Typography>
                     <Box component="form" onSubmit={handleSubmit}>
+                        
+                        {/* ✅ Autocomplete Cliente Actualizado */}
                         <Autocomplete
                             options={clientes}
-                            getOptionLabel={(option) => option.nombre}
+                            getOptionLabel={(option) => option?.nombre || ''}
                             value={cliente}
                             onChange={(e, newValue) => setCliente(newValue)}
-                            renderInput={(params) => <TextField {...params} label="Cliente" required fullWidth />}
+                            inputValue={clienteInput}
+                            onInputChange={(_, v) => setClienteInput(v)}
+                            filterOptions={(opts, state) => {
+                                const q = (state.inputValue || '').toLowerCase().trim();
+                                if (!q) return opts;
+                                return opts.filter(o =>
+                                    o.nombre.toLowerCase().includes(q) ||
+                                    (o.cedula || '').toLowerCase().includes(q)
+                                );
+                            }}
+                            noOptionsText={
+                                <Box sx={{ py: 0.5 }}>
+                                    <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>
+                                        No se encontró ningún cliente
+                                    </Typography>
+                                    <Button
+                                        size="small" variant="contained" fullWidth
+                                        startIcon={<Add />}
+                                        onClick={() => openQuickCreate('tercero', clienteInput)}
+                                        sx={{
+                                            borderRadius: 2, fontWeight: 600, fontSize: 12,
+                                            bgcolor: '#3B82F6', '&:hover': { bgcolor: '#2563EB' },
+                                        }}
+                                    >
+                                        Crear "{clienteInput || 'nuevo cliente'}"
+                                    </Button>
+                                </Box>
+                            }
+                            renderInput={(params) => (
+                                <TextField 
+                                    {...params} 
+                                    label="Cliente" 
+                                    required 
+                                    fullWidth 
+                                    placeholder="Busca por nombre o NIT…"
+                                    InputProps={{
+                                        ...params.InputProps,
+                                        endAdornment: (
+                                            <>
+                                                {params.InputProps.endAdornment}
+                                                <Tooltip title="Crear nuevo cliente">
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() => openQuickCreate('tercero', clienteInput)}
+                                                        sx={{ color: '#3B82F6', p: 0.5 }}
+                                                    >
+                                                        <Add fontSize="small" />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </>
+                                        ),
+                                    }}
+                                />
+                            )}
                             sx={{ mb: 3 }}
                         />
 
@@ -540,16 +626,64 @@ const checkStockForOrder = async (ordenId) => {
                         {addedProductos.map(p => (
                             <Grid container spacing={2} key={p.id} alignItems="center" sx={{ mb: 1 }}>
                                 <Grid item xs={6}>
+                                    {/* ✅ Autocomplete Productos Actualizado */}
                                     <Autocomplete
                                         options={productos.filter(prod => !prod.es_servicio)}
-                                        // getOptionLabel={(option) => option.nombre}
-                                        getOptionLabel={productLabel}
+                                        getOptionLabel={(opt) => opt?.nombre ? productLabel(opt) : ''}
                                         value={p.producto}
                                         onChange={(e, newValue) => {
                                             handleProductoChange(p.id, 'producto', newValue);
                                             handleProductoChange(p.id, 'precioUnitario', newValue ? newValue.precio : 0);
                                         }}
-                                        renderInput={(params) => <TextField {...params} label="Producto" />}
+                                        inputValue={productoInputs[p.id] || ''}
+                                        onInputChange={(_, v) => handleProductoInputChange(p.id, v)}
+                                        filterOptions={(opts, state) => {
+                                            const q = (state.inputValue || '').toLowerCase().trim();
+                                            if (!q) return opts;
+                                            return opts.filter(o => o.nombre.toLowerCase().includes(q));
+                                        }}
+                                        noOptionsText={
+                                            <Box sx={{ py: 0.5 }}>
+                                                <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>
+                                                    No se encontró ningún producto
+                                                </Typography>
+                                                <Button
+                                                    size="small" variant="contained" fullWidth
+                                                    startIcon={<Add />}
+                                                    onClick={() => openQuickCreate('producto', productoInputs[p.id] || '', p.id)}
+                                                    sx={{
+                                                        borderRadius: 2, fontWeight: 600, fontSize: 12,
+                                                        bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' },
+                                                    }}
+                                                >
+                                                    Crear "{productoInputs[p.id] || 'nuevo producto'}"
+                                                </Button>
+                                            </Box>
+                                        }
+                                        renderInput={(params) => (
+                                            <TextField 
+                                                {...params} 
+                                                label="Producto" 
+                                                placeholder="Busca por nombre…"
+                                                InputProps={{
+                                                    ...params.InputProps,
+                                                    endAdornment: (
+                                                        <>
+                                                            {params.InputProps.endAdornment}
+                                                            <Tooltip title="Crear nuevo producto">
+                                                                <IconButton
+                                                                    size="small"
+                                                                    onClick={() => openQuickCreate('producto', productoInputs[p.id] || '', p.id)}
+                                                                    sx={{ color: '#10B981', p: 0.5 }}
+                                                                >
+                                                                    <Add fontSize="small" />
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                        </>
+                                                    ),
+                                                }}
+                                            />
+                                        )}
                                         sx={{ minWidth: 250 }}
                                     />
                                 </Grid>
@@ -613,7 +747,7 @@ const checkStockForOrder = async (ordenId) => {
                     <Typography variant="h6" mb={2}>Mis Órdenes de Trabajo</Typography>
                     {/* Filter Section */}
                     <Grid container spacing={2} alignItems="center" mb={3}>
-                        <Grid item xs={12} sm={3}> {/* Adjusted width for date fields */}
+                        <Grid item xs={12} sm={3}> 
                             <TextField
                                 type="date"
                                 label="Fecha Inicio"
@@ -623,7 +757,7 @@ const checkStockForOrder = async (ordenId) => {
                                 fullWidth
                             />
                         </Grid>
-                        <Grid item xs={12} sm={3}> {/* Adjusted width for date fields */}
+                        <Grid item xs={12} sm={3}> 
                             <TextField
                                 type="date"
                                 label="Fecha Fin"
@@ -633,7 +767,7 @@ const checkStockForOrder = async (ordenId) => {
                                 fullWidth
                             />
                         </Grid>
-                        <Grid item xs={12} sm={6}> {/* Increased width for Autocomplete on small/medium screens */}
+                        <Grid item xs={12} sm={6}> 
                             <Autocomplete
                                 options={clientes}
                                 getOptionLabel={(option) => option.nombre}
@@ -641,10 +775,10 @@ const checkStockForOrder = async (ordenId) => {
                                 onChange={(event, newValue) => setSelectedClient(newValue)}
                                 renderInput={(params) => <TextField {...params} label="Filtrar por Cliente" fullWidth />}
                                 isOptionEqualToValue={(option, value) => option.id === value.id}
-                                sx={{ minWidth: 250 }} // Ensure a minimum width
+                                sx={{ minWidth: 250 }} 
                             />
                         </Grid>
-                        {user?.role?.name === 'Admin' && ( // Conditionally render for Admin
+                        {user?.role?.name === 'Admin' && ( 
                             <Grid item xs={12} sm={6}>
                                 <Autocomplete
                                     options={operators}
@@ -668,7 +802,7 @@ const checkStockForOrder = async (ordenId) => {
                                 <OrdenTrabajoCard
                                     key={orden.id}
                                     orden={orden}
-                                    handleEdit={() => { setEditingOrden(orden); setTabValue(0); }} // Set tab to 0 (Registrar Orden) for editing
+                                    handleEdit={() => { setEditingOrden(orden); setTabValue(0); }} 
                                     handleOpenDetails={handleOpenDetails}
                                     getEstadoChip={getEstadoChip}
                                     handleEnviarRevision={handleEnviarRevision}
@@ -681,17 +815,10 @@ const checkStockForOrder = async (ordenId) => {
                         </Box>
                     ) : (
                         <TableContainer sx={{
-                            backgroundColor: theme.palette.background.paper, // Asegurar el color de fondo del TableContainer
-                            '&::-webkit-scrollbar': {
-                                height: '8px',
-                            },
-                            '&::-webkit-scrollbar-thumb': {
-                                backgroundColor: theme.palette.grey[700], // Color del scrollbar en modo oscuro
-                                borderRadius: '4px',
-                            },
-                            '&::-webkit-scrollbar-track': {
-                                backgroundColor: theme.palette.background.default, // Color del track del scrollbar
-                            },
+                            backgroundColor: theme.palette.background.paper, 
+                            '&::-webkit-scrollbar': { height: '8px' },
+                            '&::-webkit-scrollbar-thumb': { backgroundColor: theme.palette.grey[700], borderRadius: '4px' },
+                            '&::-webkit-scrollbar-track': { backgroundColor: theme.palette.background.default },
                         }}>
                             <Table>
                                 <TableHead>
@@ -717,9 +844,7 @@ const checkStockForOrder = async (ordenId) => {
                                                 <List dense disablePadding>
                                                     {orden.productos && orden.productos.length > 0 ? orden.productos.map(item => (
                                                         <ListItem key={item.id} sx={{ pl: 0 }}>
-                                                            <ListItemText
-                                                                primary={`${item.producto.nombre} (x${item.cantidad})`}
-                                                            />
+                                                            <ListItemText primary={`${item.producto.nombre} (x${item.cantidad})`} />
                                                         </ListItem>
                                                     )) : <ListItemText primary="N/A" />}
                                                 </List>
@@ -728,9 +853,7 @@ const checkStockForOrder = async (ordenId) => {
                                                 <List dense disablePadding>
                                                     {orden.servicios && orden.servicios.length > 0 ? orden.servicios.map(item => (
                                                         <ListItem key={item.id} sx={{ pl: 0 }}>
-                                                            <ListItemText
-                                                                primary={`${item.servicio.nombre} (x${item.cantidad})`}
-                                                            />
+                                                            <ListItemText primary={`${item.servicio.nombre} (x${item.cantidad})`} />
                                                         </ListItem>
                                                     )) : <ListItemText primary="N/A" />}
                                                 </List>
@@ -776,17 +899,10 @@ const checkStockForOrder = async (ordenId) => {
                         </Box>
                     ) : (
                         <TableContainer sx={{
-                            backgroundColor: theme.palette.background.paper, // Asegurar el color de fondo del TableContainer
-                            '&::-webkit-scrollbar': {
-                                height: '8px',
-                            },
-                            '&::-webkit-scrollbar-thumb': {
-                                backgroundColor: theme.palette.grey[700], // Color del scrollbar en modo oscuro
-                                borderRadius: '4px',
-                            },
-                            '&::-webkit-scrollbar-track': {
-                                backgroundColor: theme.palette.background.default, // Color del track del scrollbar
-                            },
+                            backgroundColor: theme.palette.background.paper, 
+                            '&::-webkit-scrollbar': { height: '8px' },
+                            '&::-webkit-scrollbar-thumb': { backgroundColor: theme.palette.grey[700], borderRadius: '4px' },
+                            '&::-webkit-scrollbar-track': { backgroundColor: theme.palette.background.default },
                         }}>
                             <Table>
                                 <TableHead>
@@ -846,6 +962,15 @@ const checkStockForOrder = async (ordenId) => {
                 handleClose={() => setShowCloseOrderPaymentDialog(false)}
                 orden={ordenToClose}
                 onConfirmClose={handleConfirmCloseOrderWithPayment}
+            />
+
+            {/* ✅ NUEVO: QuickCreate Modal */}
+            <QuickCreateModal
+                open={quickCreate.open}
+                onClose={closeQuickCreate}
+                type={quickCreate.type}
+                initialName={quickCreate.initialName}
+                onCreated={handleQuickCreated}
             />
         </Box>
     );

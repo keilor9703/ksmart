@@ -13,10 +13,10 @@
 // Coincide exactamente con el campo grupo_item en la tabla productos
 // id: valor que se guarda en BD | label: texto visible | short: abreviatura
 export const GRUPOS_PRODUCTO = [
-  { id: 1, label: 'MP — Materia Prima',      short: 'MP',  color: '#3B82F6', emoji: '🌿' },
-  { id: 2, label: 'PT — Producto Terminado', short: 'PT',  color: '#10B981', emoji: '📦' },
-  { id: 3, label: 'AF — Activo Fijo',        short: 'AF',  color: '#F59E0B', emoji: '🏗️' },
-  { id: 4, label: 'INS — Insumos',           short: 'INS', color: '#8B5CF6', emoji: '🔩' },
+  { id: 1, label: 'MP — Materia Prima',      short: 'Materia Prima',  color: '#3B82F6', emoji: '🌿' },
+  { id: 2, label: 'PT — Producto Terminado', short: 'Producto Terminado',  color: '#10B981', emoji: '📦' },
+  { id: 3, label: 'AF — Activo Fijo',        short: ' Activo Fijo',  color: '#F59E0B', emoji: '🏗️' },
+  { id: 4, label: 'INS — Insumos',           short: 'Insumos', color: '#8B5CF6', emoji: '🔩' },
 ];
 
 // ─── Unidades de medida ────────────────────────────────────────────────────────
@@ -26,8 +26,8 @@ export const UNIDADES_MEDIDA = [
   { value: 'KGS', label: 'Kilos (Kg)'  },
   { value: 'GRS', label: 'Gramos (Gr)' },
   { value: 'LTS', label: 'Litros (Lt)' },
-  { value: 'MTS', label: 'Metros (Mts)' },
-  { value: 'PAR', label: 'Pares'        },
+  // { value: 'MTS', label: 'Metros (Mts)' },
+  // { value: 'PAR', label: 'Pares'        },
   { value: 'CJA', label: 'Caja'         },
   { value: 'PAQ', label: 'Paquete'      },
 ];

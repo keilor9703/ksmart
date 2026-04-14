@@ -9,7 +9,8 @@ import {
   MonetizationOn, AccountBalanceWallet, Warning,
   Assignment, TrendingUp, TrendingDown, ShoppingCart,
   Inventory2Outlined, CheckCircle, PointOfSale,
-  AssignmentReturn, AttachMoney, CreditCard, AccountBalance
+  AssignmentReturn, AttachMoney, CreditCard, AccountBalance,
+  MoneyOff // ✅ NUEVO: Icono de gastos
 } from '@mui/icons-material';
 import apiClient from '../api';
 import { formatCurrency } from '../utils/formatters';
@@ -115,7 +116,7 @@ const Dashboard = () => {
   const fetchAll = useCallback(async () => {
     setLoadingMain(true);
     setLoadingCaja(true);
-    try {
+    try { 
       const [dashRes, cajaRes] = await Promise.allSettled([
         apiClient.get('/reportes/dashboard'),
         apiClient.get('/caja/corte/preview'),
@@ -151,10 +152,8 @@ const Dashboard = () => {
   const tendencia      = promedioDia > 0 ? ((ventaHoy - promedioDia) / promedioDia * 100).toFixed(1) : 0;
   const tendenciaPos   = parseFloat(tendencia) >= 0;
 
-  // Mejor día del mes
   const mejorDia = ventas30.reduce((mx, d) => d.total > mx.total ? d : mx, { total: 0, day: '' });
 
-  // Comparativo: últimos 7 días vs 7 anteriores
   const ultimos7     = ventas30.slice(-7);
   const anteriores7  = ventas30.slice(-14, -7);
   const totalUlt7    = ultimos7.reduce((s, d) => s + d.total, 0);
@@ -178,7 +177,6 @@ const Dashboard = () => {
             </Typography>
           </Box>
         </Box>
-        {/* Comparativo semanal inline */}
         {totalAnt7 > 0 && (
           <Chip
             icon={diffPos ? <TrendingUp sx={{ fontSize: 14 }} /> : <TrendingDown sx={{ fontSize: 14 }} />}
@@ -228,11 +226,12 @@ const Dashboard = () => {
           />
         </Grid>
         <Grid item xs={6} sm={3}>
+          {/* ✅ ACTUALIZADO: KPI de Caja Neto */}
           <KpiCard
-            title="Caja hoy"
-            value={formatCurrency(caja?.total_dia || 0)}
+            title="Caja hoy (Neto)"
+            value={formatCurrency((caja?.total_dia || 0) - (caja?.total_gastos || 0))}
             icon={<PointOfSale />} color={YELLOW}
-            sub={`${caja?.num_ventas || 0} vtas + ${caja?.num_abonos || 0} abonos`}
+            sub={caja?.total_gastos > 0 ? `- ${formatCurrency(caja.total_gastos)} en gastos` : 'Sin gastos hoy'}
             onClick={() => navigate('/caja')}
             loading={loadingCaja}
           />
@@ -266,7 +265,6 @@ const Dashboard = () => {
                 </Box>
             }
 
-            {/* Eje X mínimo */}
             {ventas30.length > 1 && (
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5, px: 0.5 }}>
                 {[ventas30[0], ventas30[Math.floor(ventas30.length / 2)], ventas30[ventas30.length - 1]].map((d, i) => (
@@ -277,7 +275,6 @@ const Dashboard = () => {
               </Box>
             )}
 
-            {/* Comparativo 7 días */}
             {ultimos7.length > 0 && (
               <>
                 <Divider sx={{ my: 2 }} />
@@ -322,7 +319,7 @@ const Dashboard = () => {
                 onClick={() => navigate('/caja')}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                   <PointOfSale sx={{ color: YELLOW, fontSize: 18 }} />
-                  <Typography sx={{ fontWeight: 700, fontSize: 14 }}>Caja de hoy</Typography>
+                  <Typography sx={{ fontWeight: 700, fontSize: 14 }}>Resumen de caja hoy</Typography>
                 </Box>
                 {loadingCaja ? (
                   <Box>{[1,2,3].map(i => <Skeleton key={i} height={20} sx={{ mb: 0.5 }} />)}</Box>
@@ -331,10 +328,29 @@ const Dashboard = () => {
                     <MetodoBarra icon={<AttachMoney sx={{ fontSize: 14 }} />} label="Efectivo"       value={caja.efectivo}      total={caja.total_dia} color={GREEN}  />
                     <MetodoBarra icon={<AccountBalance sx={{ fontSize: 14 }} />} label="Transferencia" value={caja.transferencia}  total={caja.total_dia} color={BLUE}   />
                     <MetodoBarra icon={<CreditCard sx={{ fontSize: 14 }} />}   label="Tarjeta"        value={caja.tarjeta}       total={caja.total_dia} color={PURPLE} />
+                    
+                    <Divider sx={{ mt: 1.5, mb: 1 }} />
+                    
+                    {/* ✅ ACTUALIZADO: Desglose Ingresos vs Gastos */}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                      <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary' }}>Ingresos Brutos</Typography>
+                      <Typography sx={{ fontSize: 12, fontWeight: 700 }}>{formatCurrency(caja.total_dia)}</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <MoneyOff sx={{ fontSize: 13, color: RED }} />
+                        <Typography sx={{ fontSize: 12, fontWeight: 600, color: RED }}>Egresos / Gastos</Typography>
+                      </Box>
+                      <Typography sx={{ fontSize: 12, fontWeight: 700, color: RED }}>- {formatCurrency(caja.total_gastos || 0)}</Typography>
+                    </Box>
+                    
                     <Divider sx={{ my: 1 }} />
+                    
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography sx={{ fontSize: 12, fontWeight: 600 }}>Total recaudado</Typography>
-                      <Typography sx={{ fontSize: 14, fontWeight: 800, color: YELLOW }}>{formatCurrency(caja.total_dia)}</Typography>
+                      <Typography sx={{ fontSize: 13, fontWeight: 700 }}>Saldo Neto</Typography>
+                      <Typography sx={{ fontSize: 15, fontWeight: 800, color: YELLOW }}>
+                        {formatCurrency(caja.total_dia - (caja.total_gastos || 0))}
+                      </Typography>
                     </Box>
                   </>
                 ) : (
@@ -394,12 +410,12 @@ const Dashboard = () => {
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
               {[
                 { label: 'Nueva Venta',   icon: <MonetizationOn sx={{ fontSize: 15 }} />,      color: ACCENT,  path: '/ventas' },
-                { label: 'Compras',       icon: <ShoppingCart sx={{ fontSize: 15 }} />,         color: GREEN,   path: '/compras' },
-                { label: 'Inventario',    icon: <Inventory2Outlined sx={{ fontSize: 15 }} />,   color: YELLOW,  path: '/inventario' },
+                { label: 'Compras',       icon: <ShoppingCart sx={{ fontSize: 15 }} />,        color: GREEN,   path: '/compras' },
+                { label: 'Inventario',    icon: <Inventory2Outlined sx={{ fontSize: 15 }} />,  color: YELLOW,  path: '/inventario' },
                 { label: 'Terceros',      icon: <AccountBalanceWallet sx={{ fontSize: 15 }} />, color: BLUE,    path: '/clientes' },
-                { label: 'Reportes',      icon: <TrendingUp sx={{ fontSize: 15 }} />,           color: RED,     path: '/reportes' },
-                { label: 'Devoluciones',  icon: <AssignmentReturn sx={{ fontSize: 15 }} />,     color: '#F59E0B', path: '/ventas' },
-                { label: 'Caja',          icon: <PointOfSale sx={{ fontSize: 15 }} />,          color: PURPLE,  path: '/caja' },
+                { label: 'Reportes',      icon: <TrendingUp sx={{ fontSize: 15 }} />,          color: RED,     path: '/reportes' },
+                { label: 'Devoluciones',  icon: <AssignmentReturn sx={{ fontSize: 15 }} />,    color: '#F59E0B', path: '/ventas' },
+                { label: 'Caja / Gastos', icon: <PointOfSale sx={{ fontSize: 15 }} />,         color: PURPLE,  path: '/caja' },
               ].map(({ label, icon, color, path }) => (
                 <Box key={label} onClick={() => navigate(path)}
                   sx={{
