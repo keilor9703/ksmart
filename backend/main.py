@@ -1070,3 +1070,18 @@ app.mount("/evidencias", StaticFiles(directory=EVIDENCE_DIR), name="evidencias")
 @app.get("/")
 def read_root():
     return {"message": "Ksmart360 API v2.0", "docs": "/docs"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# "Hack" Gratuito (Ping Automático) 🛠️ / Engañar a Render para que crea que la aplicación siempre está en uso.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+
+@app.get("/ping")
+def ping():
+    """
+    Endpoint ligero para mantener el servidor de Render despierto.
+    No interactúa con la base de datos para no consumir recursos de Supabase.
+    """
+    return {"status": "ok", "message": "Backend de Ksmart360 activo y despierto"}
