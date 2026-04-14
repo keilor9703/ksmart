@@ -7,23 +7,9 @@ import {
   Collapse, Divider, Chip, MenuItem, Select, FormControl, InputLabel, IconButton
 } from '@mui/material';
 import { Inventory, ExpandMore, ExpandLess, Upload, Close, Settings } from '@mui/icons-material';
+import { GRUPOS_PRODUCTO, UNIDADES_MEDIDA } from '../utils/constants';
 
 const DEFAULT_ACCENT = '#8B5CF6';
-
-const GRUPOS = [
-  { value: 1, label: 'MP — Materia Prima' },
-  { value: 2, label: 'PT — Producto Terminado' },
-  { value: 3, label: 'AF — Activo Fijo' },
-  { value: 4, label: 'INS — Insumos' },
-];
-
-const UNIDADES = [
-  { value: 'UND', label: 'Unidad (Und)' },
-  { value: 'MTS', label: 'Metros (Mts)' },
-  { value: 'KGS', label: 'Kilos (Kg)' },
-  { value: 'GRS', label: 'Gramos (Gr)' },
-  { value: 'PAR', label: 'Pares' },
-];
 
 // ─── Toggle genérico ──────────────────────────────────────────────────────────
 const ToggleBtn = ({ label, checked, onChange, color }) => (
@@ -211,7 +197,7 @@ const ProductoForm = ({
               <FormControl fullWidth>
                 <InputLabel>Grupo de Item</InputLabel>
                 <Select value={grupoItem} label="Grupo de Item" onChange={e => setGrupoItem(e.target.value)} required>
-                  {GRUPOS.map(g => <MenuItem key={g.value} value={g.value}>{g.label}</MenuItem>)}
+                  {GRUPOS_PRODUCTO.map(g => <MenuItem key={g.id} value={g.id}>{g.label}</MenuItem>)}
                 </Select>
               </FormControl>
             </Grid>
@@ -221,7 +207,7 @@ const ProductoForm = ({
               <FormControl fullWidth>
                 <InputLabel>Unidad de Medida</InputLabel>
                 <Select value={unidadMedida} label="Unidad de Medida" onChange={e => setUnidadMedida(e.target.value)}>
-                  {UNIDADES.map(u => <MenuItem key={u.value} value={u.value}>{u.label}</MenuItem>)}
+                  {UNIDADES_MEDIDA.map(u => <MenuItem key={u.value} value={u.value}>{u.label}</MenuItem>)}
                 </Select>
               </FormControl>
             </Grid>

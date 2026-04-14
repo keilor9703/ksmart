@@ -14,6 +14,7 @@ import {
 import apiClient, { fetchCompras, createCompra, addPagoCompra } from '../api';
 import { formatCurrency } from '../utils/formatters';
 import { toast } from 'react-toastify';
+import QuickCreateModal from './QuickCreateModal';
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 const ACCENT  = '#FF6020';
@@ -75,10 +76,36 @@ const Compras = () => {
 
   // Form
   const [proveedorSel, setProveedorSel]           = useState(null);
+  const [proveedorInput, setProveedorInput]        = useState('');
   const [refFactura, setRefFactura]               = useState('');
   const [detalles, setDetalles]                   = useState([{ producto_id: '', cantidad: 1, precio_unitario: 0 }]);
   const [ivaPorcentajeGlobal, setIvaPorcentajeGlobal] = useState(0);
   const [pagadaAlCrear, setPagadaAlCrear]         = useState(false);
+
+  // QuickCreate — creación inline de tercero o producto
+  const [quickCreate, setQuickCreate] = useState({ open: false, type: 'tercero', initialName: '', targetIdx: null });
+
+  const openQuickCreate = (type, initialName = '', targetIdx = null) =>
+    setQuickCreate({ open: true, type, initialName, targetIdx });
+  const closeQuickCreate = () =>
+    setQuickCreate(q => ({ ...q, open: false }));
+
+  // Cuando se crea un nuevo tercero o producto desde el modal
+  const handleQuickCreated = (nuevoRegistro) => {
+    if (quickCreate.type === 'tercero') {
+      // Agregar a la lista y seleccionarlo automáticamente
+      setProveedores(prev => [...prev, nuevoRegistro]);
+      setProveedorSel(nuevoRegistro);
+      setProveedorInput(nuevoRegistro.nombre);
+    } else {
+      // Agregar a productos y seleccionarlo en el detalle correspondiente
+      setProductos(prev => [...prev, nuevoRegistro]);
+      if (quickCreate.targetIdx !== null) {
+        handleDetalleChange(quickCreate.targetIdx, 'producto_id', nuevoRegistro.id);
+      }
+    }
+    closeQuickCreate();
+  };
 
   // Pago
   const [openPayDialog, setOpenPayDialog]   = useState(false);
@@ -117,9 +144,19 @@ const Compras = () => {
     } catch { toast.error('Error cargando historial de compras'); }
   };
 
-  // ── Formulario ───────────────────────────────────────────────────────────
-  const addDetalle    = () => setDetalles(p => [...p, { producto_id: '', cantidad: 1, precio_unitario: 0 }]);
-  const removeDetalle = (idx) => setDetalles(p => p.filter((_, i) => i !== idx));
+  // Input values para los autocomplete de productos (uno por línea de detalle)
+  const [productoInputs, setProductoInputs] = useState(['']);
+  const handleProductoInputChange = (idx, val) =>
+    setProductoInputs(prev => { const next = [...prev]; next[idx] = val; return next; });
+
+  const addDetalle = () => {
+    setDetalles(p => [...p, { producto_id: '', cantidad: 1, precio_unitario: 0 }]);
+    setProductoInputs(p => [...p, '']);
+  };
+  const removeDetalle = (idx) => {
+    setDetalles(p => p.filter((_, i) => i !== idx));
+    setProductoInputs(p => p.filter((_, i) => i !== idx));
+  };
   const handleDetalleChange = (idx, field, val) =>
     setDetalles(p => p.map((d, i) => i === idx ? { ...d, [field]: val } : d));
 
@@ -127,8 +164,9 @@ const Compras = () => {
     detalles.reduce((acc, d) => acc + d.cantidad * d.precio_unitario, 0);
 
   const resetForm = () => {
-    setProveedorSel(null); setRefFactura('');
+    setProveedorSel(null); setProveedorInput(''); setRefFactura('');
     setDetalles([{ producto_id: '', cantidad: 1, precio_unitario: 0 }]);
+    setProductoInputs(['']);
     setIvaPorcentajeGlobal(0); setPagadaAlCrear(false);
   };
 
@@ -264,9 +302,37 @@ const Compras = () => {
               {/* Fila 1: Proveedor — línea completa siempre */}
               <Autocomplete
                 options={proveedores}
-                getOptionLabel={(o) => `${o.nombre} (${o.cedula || 'S/N'})`}
+                getOptionLabel={(o) => o.nombre || ''}
                 value={proveedorSel}
                 onChange={(_, v) => setProveedorSel(v)}
+                inputValue={proveedorInput}
+                onInputChange={(_, v) => setProveedorInput(v)}
+                filterOptions={(opts, state) => {
+                  const q = (state.inputValue || '').toLowerCase().trim();
+                  if (!q) return opts;
+                  return opts.filter(o =>
+                    o.nombre.toLowerCase().includes(q) ||
+                    (o.cedula || '').toLowerCase().includes(q)
+                  );
+                }}
+                noOptionsText={
+                  <Box sx={{ py: 0.5 }}>
+                    <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>
+                      No se encontró ningún proveedor
+                    </Typography>
+                    <Button
+                      size="small" variant="contained" fullWidth
+                      startIcon={<Add />}
+                      onClick={() => openQuickCreate('tercero', proveedorInput)}
+                      sx={{
+                        borderRadius: 2, fontWeight: 600, fontSize: 12,
+                        bgcolor: '#3B82F6', '&:hover': { bgcolor: '#2563EB' },
+                      }}
+                    >
+                      Crear "{proveedorInput || 'nuevo proveedor'}"
+                    </Button>
+                  </Box>
+                }
                 renderOption={(props, option) => (
                   <li {...props} key={option.id} style={{ padding: '8px 12px' }}>
                     <Box>
@@ -278,7 +344,29 @@ const Compras = () => {
                   </li>
                 )}
                 renderInput={(params) => (
-                  <TextField {...params} label="Proveedor (busca por nombre o NIT)" required fullWidth size="small" />
+                  <TextField
+                    {...params}
+                    label="Proveedor (busca por nombre o NIT)"
+                    required fullWidth size="small"
+                    placeholder="Escribe para buscar…"
+                    InputProps={{
+                      ...params.InputProps,
+                      endAdornment: (
+                        <>
+                          {params.InputProps.endAdornment}
+                          <Tooltip title="Crear nuevo proveedor">
+                            <IconButton
+                              size="small"
+                              onClick={() => openQuickCreate('tercero', proveedorInput)}
+                              sx={{ color: '#3B82F6', p: 0.5 }}
+                            >
+                              <Add fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </>
+                      ),
+                    }}
+                  />
                 )}
                 fullWidth
               />
@@ -341,10 +429,69 @@ const Compras = () => {
                   >
                     <Autocomplete
                       options={productos}
-                      getOptionLabel={(p) => `${p.nombre} (${p.unidad_medida})`}
+                      getOptionLabel={(p) => p.nombre || ''}
                       value={prodSel || null}
                       onChange={(_, v) => handleDetalleChange(idx, 'producto_id', v ? v.id : '')}
-                      renderInput={(params) => <TextField {...params} label="Producto / Insumo" />}
+                      inputValue={productoInputs[idx] || ''}
+                      onInputChange={(_, v) => handleProductoInputChange(idx, v)}
+                      filterOptions={(opts, state) => {
+                        const q = (state.inputValue || '').toLowerCase().trim();
+                        if (!q) return opts;
+                        return opts.filter(o => o.nombre.toLowerCase().includes(q));
+                      }}
+                      noOptionsText={
+                        <Box sx={{ py: 0.5 }}>
+                          <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>
+                            No se encontró ningún producto
+                          </Typography>
+                          <Button
+                            size="small" variant="contained" fullWidth
+                            startIcon={<Add />}
+                            onClick={() => openQuickCreate('producto', productoInputs[idx] || '', idx)}
+                            sx={{
+                              borderRadius: 2, fontWeight: 600, fontSize: 12,
+                              bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' },
+                            }}
+                          >
+                            Crear "{productoInputs[idx] || 'nuevo producto'}"
+                          </Button>
+                        </Box>
+                      }
+                      renderOption={(props, option) => (
+                        <li {...props} key={option.id} style={{ padding: '8px 12px' }}>
+                          <Box>
+                            <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{option.nombre}</Typography>
+                            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                              {option.unidad_medida} · Stock: {option.stock_actual ?? 0}
+                            </Typography>
+                          </Box>
+                        </li>
+                      )}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Producto / Insumo"
+                          size="small"
+                          placeholder="Escribe para buscar…"
+                          InputProps={{
+                            ...params.InputProps,
+                            endAdornment: (
+                              <>
+                                {params.InputProps.endAdornment}
+                                <Tooltip title="Crear nuevo producto">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => openQuickCreate('producto', productoInputs[idx] || '', idx)}
+                                    sx={{ color: '#10B981', p: 0.5 }}
+                                  >
+                                    <Add fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              </>
+                            ),
+                          }}
+                        />
+                      )}
                       sx={{ flex: 1, minWidth: isMobile ? '100%' : 220 }}
                     />
                     <TextField
@@ -863,6 +1010,16 @@ const Compras = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* ── QuickCreateModal — creación inline de terceros y productos ── */}
+      <QuickCreateModal
+        open={quickCreate.open}
+        onClose={closeQuickCreate}
+        type={quickCreate.type}
+        initialName={quickCreate.initialName}
+        onCreated={handleQuickCreated}
+      />
+
     </Box>
   );
 };
