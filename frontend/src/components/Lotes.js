@@ -3,7 +3,7 @@ import {
   Box, Typography, Button, Paper, Table, TableBody, TableCell, TableContainer, 
   TableHead, TableRow, Chip, IconButton, Dialog, DialogTitle, DialogContent, 
   DialogActions, TextField, MenuItem, Grid, Divider, useTheme, useMediaQuery,
-  Tabs, Tab, Stack, Tooltip
+  Tabs, Tab, Stack, Tooltip, Autocomplete
 } from '@mui/material';
 import { Add, Cancel, PrecisionManufacturing, Assignment, CheckCircleOutline, History } from '@mui/icons-material';
 import { fetchLotes, createLote, confirmarLote, cancelarLote, fetchRecetas } from '../api';
@@ -22,12 +22,12 @@ function TabPanel({ children, value, index }) {
 const Lotes = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  
+
   const [tab, setTab] = useState(0);
   const [lotes, setLotes] = useState([]);
   const [recetas, setRecetas] = useState([]);
   const [clientes, setClientes] = useState([]);
-  
+
   const [open, setOpen] = useState(false);
   const [openConfirm, setOpenConfirm] = useState(false);
   const [selectedLote, setSelectedLote] = useState(null);
@@ -208,7 +208,6 @@ const Lotes = () => {
           {/* ════ TAB 1: HISTORIAL ════ */}
           <TabPanel value={tab} index={1}>
             {isMobile ? (
-              /* VISTA DE TARJETAS EN MÓVIL PARA EVITAR OVERFLOW */
               <Box>
                 {lotesHistorial.length === 0 ? (
                   <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
@@ -250,7 +249,6 @@ const Lotes = () => {
                 )}
               </Box>
             ) : (
-              /* VISTA DE TABLA EN ESCRITORIO */
               <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
                 <Table size="small">
                   <TableHead sx={{ bgcolor: 'action.hover' }}>
@@ -299,41 +297,27 @@ const Lotes = () => {
         <DialogTitle sx={{ fontWeight: 800, fontSize: 18 }}>Lanzar Orden de Producción</DialogTitle>
         <DialogContent dividers sx={{ p: { xs: 2, sm: 3 } }}>
             <Stack spacing={2.5}>
-                
-                {/* ✅ LISTA DESPLEGABLE MEJORADA PARA MÓVILES */}
-                <TextField 
-                    select 
-                    fullWidth 
-                    label="Fórmula a Producir *" 
-                    value={formData.receta_id} 
-                    onChange={(e) => setFormData({...formData, receta_id: e.target.value})}
-                    SelectProps={{
-                        MenuProps: {
-                            PaperProps: {
-                                sx: { maxHeight: 300, borderRadius: 2 }
-                            }
-                        }
-                    }}
-                >
-                    {recetas.length === 0 ? (
-                         <MenuItem disabled value="">No hay recetas creadas</MenuItem>
-                    ) : (
-                        recetas.map(r => (
-                            <MenuItem 
-                                key={r.id} 
-                                value={r.id}
-                                sx={{ whiteSpace: 'normal', py: 1.5, borderBottom: '1px solid', borderColor: 'divider' }} 
-                            >
-                                <Box>
-                                    <Typography sx={{ fontWeight: 600, fontSize: 14 }}>{r.nombre}</Typography>
-                                    <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Produce: {r.producto_resultante.nombre}</Typography>
-                                </Box>
-                            </MenuItem>
-                        ))
-                    )}
-                </TextField>
 
-                <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
+                {/* ✅ LISTA DESPLEGABLE MEJORADA: Usando Autocomplete para mejor UX en móviles */}
+                <Autocomplete
+                  options={recetas}
+                  getOptionLabel={(option) => `${option.nombre} (Produce: ${option.producto_resultante?.nombre || ''})`}
+                  value={recetas.find(r => r.id === parseInt(formData.receta_id)) || null}
+                  onChange={(e, newValue) => setFormData({...formData, receta_id: newValue ? newValue.id : ''})}
+                  renderOption={(props, option) => (
+                    <li {...props} style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0', display: 'block' }}>
+                      <Typography sx={{ fontWeight: 600, fontSize: 14 }}>{option.nombre}</Typography>
+                      <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Produce: {option.producto_resultante?.nombre}</Typography>
+                    </li>
+                  )}
+                  renderInput={(params) => (
+                    <TextField {...params} label="Fórmula a Producir *" placeholder="Busca por nombre..." fullWidth />
+                  )}
+                  noOptionsText="No hay recetas creadas"
+                />
+
+                {/* ✅ AJUSTE MODO OSCURO: Se usó 'background.default' en lugar de un código HEX claro */}
+                <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
                     <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', mb: 1.5 }}>Configuración del Lote</Typography>
                     <Grid container spacing={2}>
                         <Grid item xs={12} sm={6}>
@@ -361,7 +345,6 @@ const Lotes = () => {
                     </Grid>
                 </Box>
 
-                {/* ✅ ALERTA DEL SIMULADOR */}
                 {simulando ? (
                     <Typography sx={{ fontSize: 12, color: 'text.secondary', textAlign: 'center' }}>Analizando inventario...</Typography>
                 ) : simulacion ? (
@@ -415,9 +398,9 @@ const Lotes = () => {
             </Box>
             
             <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary', mb: 1.5 }}>RESULTADO REAL OBTENIDO</Typography>
-            <TextField fullWidth type="number" label="Cantidad real a ingresar a Bodega *" value={confirmData.cantidad_real} onChange={(e) => setConfirmData({...confirmData, cantidad_real: e.target.value})} sx={{ bgcolor: 'background.default', mb: 2 }} helperText="El sistema calculará automáticamente el nuevo costo unitario promediando las mermas." />
+            <TextField fullWidth type="number" label="Cantidad real a ingresar a Bodega *" value={confirmData.cantidad_real} onChange={(e) => setConfirmData({...confirmData, cantidad_real: e.target.value})} sx={{ mb: 2 }} helperText="El sistema calculará automáticamente el nuevo costo unitario promediando las mermas." />
             
-            <TextField fullWidth multiline rows={2} label="Observaciones de Cierre" value={confirmData.observaciones} onChange={(e) => setConfirmData({...confirmData, observaciones: e.target.value})} sx={{ bgcolor: 'background.default' }} placeholder="Ej: Se dañaron 2 unidades en el horno..." />
+            <TextField fullWidth multiline rows={2} label="Observaciones de Cierre" value={confirmData.observaciones} onChange={(e) => setConfirmData({...confirmData, observaciones: e.target.value})} placeholder="Ej: Se dañaron 2 unidades en el horno..." />
         </DialogContent>
         <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2 }}>
           <Button onClick={() => setOpenConfirm(false)} sx={{ color: 'text.secondary', fontWeight: 600 }}>Cancelar</Button>
