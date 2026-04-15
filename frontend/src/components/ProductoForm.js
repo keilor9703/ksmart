@@ -7,7 +7,7 @@ import {
   Collapse, Divider, Chip, MenuItem, Select, FormControl, InputLabel, IconButton,
   ButtonGroup
 } from '@mui/material';
-import { Inventory, ExpandMore, ExpandLess, Upload, Close, Settings, Category } from '@mui/icons-material';
+import { Inventory, ExpandMore, ExpandLess, Upload, Close, Category } from '@mui/icons-material';
 import { GRUPOS_PRODUCTO, UNIDADES_MEDIDA } from '../utils/constants';
 
 const DEFAULT_ACCENT = '#8B5CF6';
@@ -56,7 +56,10 @@ const Panel = ({ title, icon, chip, open, onToggle, forceOpen, onClose, children
     </Box>
     <Collapse in={open}>
       <Divider />
-      <Box sx={{ p: { xs: 2, md: 3 }, boxSizing: 'border-box', bgcolor: '#F8FAFC' }}>{children}</Box>
+      {/* ✅ CORRECCIÓN: Uso de tokens del tema en lugar de #F8FAFC quemado */}
+      <Box sx={{ p: { xs: 2, md: 3 }, boxSizing: 'border-box', bgcolor: 'background.default' }}>
+        {children}
+      </Box>
     </Collapse>
   </Box>
 );
@@ -71,7 +74,7 @@ const ProductoForm = ({
   const [costo, setCosto]           = useState('');
   const [esServicio, setEsServicio] = useState(false);
   const [unidadMedida, setUnidadMedida] = useState('UND');
-  const [grupoItem, setGrupoItem]   = useState(2); // Default a PT (Producto Terminado)
+  const [grupoItem, setGrupoItem]   = useState(2);
   const [stockMinimo, setStockMinimo] = useState('');
   const [stockActual, setStockActual] = useState(0);
 
@@ -114,10 +117,10 @@ const ProductoForm = ({
     const data = {
       nombre,
       precio: parseFloat(precio) || 0.0,
-      costo: esServicio ? 0.0 : (parseFloat(costo) || 0.0), // Servicios no tienen costo inventariable
+      costo: esServicio ? 0.0 : (parseFloat(costo) || 0.0),
       es_servicio: esServicio,
-      unidad_medida: esServicio ? 'UND' : unidadMedida,     // Servicios son siempre UND
-      grupo_item: esServicio ? 2 : parseInt(grupoItem),     // Servicios se venden como PT
+      unidad_medida: esServicio ? 'UND' : unidadMedida,
+      grupo_item: esServicio ? 2 : parseInt(grupoItem),
       stock_minimo: esServicio || stockMinimo === '' ? 0 : parseFloat(stockMinimo),
     };
     
@@ -158,7 +161,8 @@ const ProductoForm = ({
               <Button 
                 onClick={() => setEsServicio(false)}
                 sx={{ 
-                  bgcolor: !esServicio ? `${accentColor}15` : '#fff',
+                  // ✅ CORRECCIÓN: transparent en lugar de #fff
+                  bgcolor: !esServicio ? `${accentColor}15` : 'transparent',
                   color: !esServicio ? accentColor : 'text.secondary',
                   borderColor: !esServicio ? `${accentColor} !important` : 'divider',
                   fontWeight: !esServicio ? 700 : 500,
@@ -170,7 +174,8 @@ const ProductoForm = ({
               <Button 
                 onClick={() => setEsServicio(true)}
                 sx={{ 
-                  bgcolor: esServicio ? '#06B6D415' : '#fff',
+                  // ✅ CORRECCIÓN: transparent en lugar de #fff
+                  bgcolor: esServicio ? '#06B6D415' : 'transparent',
                   color: esServicio ? '#06B6D4' : 'text.secondary',
                   borderColor: esServicio ? `#06B6D4 !important` : 'divider',
                   fontWeight: esServicio ? 700 : 500,
@@ -192,7 +197,6 @@ const ProductoForm = ({
           {/* ── 2. CAMPOS DEL FORMULARIO DINÁMICO ── */}
           <Grid container spacing={3}>
             
-            {/* Nombre (Aplica a ambos) */}
             <Grid item xs={12} sm={esServicio ? 8 : 6}>
               <TextField 
                 label={esServicio ? "Nombre del Servicio *" : "Nombre del Producto *"}
@@ -200,20 +204,19 @@ const ProductoForm = ({
                 onChange={e => setNombre(e.target.value)} 
                 fullWidth 
                 required 
-                sx={{ bgcolor: '#fff' }}
+                // ✅ CORRECCIÓN: Se eliminó el sx={{ bgcolor: '#fff' }}
               />
             </Grid>
 
-            {/* Precio de Venta (Aplica a ambos) */}
             <Grid item xs={12} sm={esServicio ? 4 : 3}>
               <TextField
                 label={esServicio ? "Precio de Venta *" : "Precio de Venta (Opcional)"} 
                 value={precio}
                 onChange={e => setPrecio(e.target.value.replace(/[^0-9.]/g, ''))}
                 fullWidth 
-                required={esServicio} // Obligatorio para servicios, opcional para insumos
+                required={esServicio}
                 InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
-                sx={{ bgcolor: '#fff' }}
+                // ✅ CORRECCIÓN: Se eliminó el sx={{ bgcolor: '#fff' }}
               />
             </Grid>
 
@@ -228,12 +231,12 @@ const ProductoForm = ({
                     fullWidth 
                     required 
                     InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
-                    sx={{ bgcolor: '#fff' }}
+                    // ✅ CORRECCIÓN: Se eliminó el sx={{ bgcolor: '#fff' }}
                   />
                 </Grid>
 
                 <Grid item xs={12} sm={4}>
-                  <FormControl fullWidth sx={{ bgcolor: '#fff' }}>
+                  <FormControl fullWidth>
                     <InputLabel>Grupo o Categoría *</InputLabel>
                     <Select value={grupoItem} label="Grupo o Categoría *" onChange={e => setGrupoItem(e.target.value)} required>
                       {GRUPOS_PRODUCTO.map(g => <MenuItem key={g.id} value={g.id}>{g.label}</MenuItem>)}
@@ -242,7 +245,7 @@ const ProductoForm = ({
                 </Grid>
 
                 <Grid item xs={12} sm={4}>
-                  <FormControl fullWidth sx={{ bgcolor: '#fff' }}>
+                  <FormControl fullWidth>
                     <InputLabel>Unidad de Medida *</InputLabel>
                     <Select value={unidadMedida} label="Unidad de Medida *" onChange={e => setUnidadMedida(e.target.value)} required>
                       {UNIDADES_MEDIDA.map(u => <MenuItem key={u.value} value={u.value}>{u.label}</MenuItem>)}
@@ -258,7 +261,7 @@ const ProductoForm = ({
                     fullWidth 
                     placeholder="Ej: 10"
                     helperText="Te avisaremos cuando baje de este número"
-                    sx={{ bgcolor: '#fff' }}
+                    // ✅ CORRECCIÓN: Se eliminó el sx={{ bgcolor: '#fff' }}
                   />
                 </Grid>
                 

@@ -36,6 +36,11 @@ apiClient.interceptors.request.use(
   }
 );
 
+
+
+export const fetchMovimientosTemplate = () => apiClient.get('/inventario/movimientos/template', { responseType: 'blob' });
+
+
 // --- API para Panel del Operador ---
 
 export const getPanelOperadorPendientes = () => {

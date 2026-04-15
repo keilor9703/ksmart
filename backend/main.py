@@ -325,6 +325,113 @@ def delete_user(user_id: int, db: Session = Depends(get_db), current_user: schem
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     return {"message": "Usuario eliminado"}
 
+
+    import io
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.worksheet.datavalidation import DataValidation
+from fastapi.responses import StreamingResponse
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PLANTILLAS INTELIGENTES (EXCEL) - ¡DEBEN IR ANTES DE LAS RUTAS CON {id}!
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/clientes/template")
+def get_clientes_template(current_user: schemas.User = Depends(get_current_active_user)):
+    wb = openpyxl.Workbook()
+    
+    # 1. INSTRUCCIONES
+    ws_inst = wb.active
+    ws_inst.title = "Instrucciones"
+    ws_inst.sheet_properties.tabColor = "3B82F6"
+    ws_inst.cell(row=2, column=2, value="🛠 CÓMO REGISTRAR TERCEROS").font = Font(size=14, bold=True, color="3B82F6")
+    instrucciones = [
+        "1. Usa la pestaña 'Plantilla Datos' para registrar clientes o proveedores.",
+        "2. La CÉDULA/NIT no debe repetirse. Si ya existe, se omitirá.",
+        "3. ES_CLIENTE y ES_PROVEEDOR: Usa la lista desplegable (SI / NO).",
+        "4. No modifiques ni elimines la Fila 1."
+    ]
+    for i, inst in enumerate(instrucciones, 4):
+        ws_inst.cell(row=i, column=2, value=inst).font = Font(size=11)
+    ws_inst.column_dimensions['B'].width = 80
+
+    # 2. DATOS Y CABECERAS
+    ws_datos = wb.create_sheet(title="Plantilla Datos")
+    headers = ["NOMBRE", "CEDULA", "TELEFONO", "DIRECCION", "CUPO_CREDITO", "ES_CLIENTE", "ES_PROVEEDOR"]
+    header_fill = PatternFill(start_color="3B82F6", end_color="3B82F6", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True)
+    
+    for col_num, header in enumerate(headers, 1):
+        cell = ws_datos.cell(row=1, column=col_num, value=header)
+        cell.fill, cell.font = header_fill, header_font
+        ws_datos.column_dimensions[openpyxl.utils.get_column_letter(col_num)].width = 20
+
+    # 3. VALIDACIÓN (SI/NO)
+    dv_bool = DataValidation(type="list", formula1='"SI,NO"', allow_blank=True)
+    ws_datos.add_data_validation(dv_bool)
+    dv_bool.add("F2:G1000")
+
+    # 4. EJEMPLOS
+    ejemplos = [
+        ["Distribuidora XYZ", "900123456", "3001234567", "Calle 10", 5000000, "NO", "SI"],
+        ["Juan Pérez", "10203040", "3100000000", "Cra 5", 0, "SI", "NO"]
+    ]
+    for r_idx, row in enumerate(ejemplos, 2):
+        for c_idx, val in enumerate(row, 1):
+            ws_datos.cell(row=r_idx, column=c_idx, value=val)
+            
+    ws_datos.freeze_panes = 'A2'
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": 'attachment; filename="plantilla_terceros_PRO.xlsx"'})
+
+@app.get("/inventario/movimientos/template")
+def get_movimientos_template(current_user: schemas.User = Depends(get_current_active_user)):
+    wb = openpyxl.Workbook()
+    
+    ws_inst = wb.active
+    ws_inst.title = "Instrucciones"
+    ws_inst.sheet_properties.tabColor = "10B981"
+    ws_inst.cell(row=2, column=2, value="🛠 CÓMO CARGAR MOVIMIENTOS").font = Font(size=14, bold=True, color="10B981")
+    instrucciones = [
+        "1. Usa la pestaña 'Plantilla Datos'.",
+        "2. El PRODUCTO_NOMBRE debe coincidir exactamente con uno existente en el sistema.",
+        "3. TIPO: Usa la lista desplegable (entrada, salida, ajuste).",
+        "4. CANTIDAD: Siempre positiva (el sistema deduce si es salida)."
+    ]
+    for i, inst in enumerate(instrucciones, 4):
+        ws_inst.cell(row=i, column=2, value=inst).font = Font(size=11)
+    ws_inst.column_dimensions['B'].width = 80
+
+    ws_datos = wb.create_sheet(title="Plantilla Datos")
+    headers = ["PRODUCTO_NOMBRE", "TIPO", "CANTIDAD", "COSTO_UNITARIO", "MOTIVO", "REFERENCIA", "OBSERVACION"]
+    header_fill = PatternFill(start_color="10B981", end_color="10B981", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True)
+    
+    for col_num, header in enumerate(headers, 1):
+        cell = ws_datos.cell(row=1, column=col_num, value=header)
+        cell.fill, cell.font = header_fill, header_font
+        ws_datos.column_dimensions[openpyxl.utils.get_column_letter(col_num)].width = 22
+
+    dv_tipo = DataValidation(type="list", formula1='"entrada,salida,ajuste"', allow_blank=False)
+    ws_datos.add_data_validation(dv_tipo)
+    dv_tipo.add("B2:B1000")
+
+    ejemplos = [
+        ["Cacao Tostado", "entrada", 50, 2500, "Compra inicial", "FACT-001", "Stock base"],
+        ["Chocolatina 80g", "ajuste", 5, 0, "Dañado", "MERMA", "Se rompió empaque"]
+    ]
+    for r_idx, row in enumerate(ejemplos, 2):
+        for c_idx, val in enumerate(row, 1):
+            ws_datos.cell(row=r_idx, column=c_idx, value=val)
+
+    ws_datos.freeze_panes = 'A2'
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": 'attachment; filename="plantilla_movimientos_PRO.xlsx"'})
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # CLIENTES / TERCEROS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -387,20 +494,20 @@ def get_cliente_history(cliente_id: int, db: Session = Depends(get_db), current_
         raise HTTPException(status_code=404, detail="Historial no encontrado")
     return history
 
-@app.get("/clientes/template")
-def get_clientes_template(current_user: schemas.User = Depends(get_current_active_user)):
-    cols = ["nombre", "cedula", "telefono", "direccion", "cupo_credito", "es_cliente", "es_proveedor"]
-    examples = [
-        ["Tiendas D1", "900123456", "1234567", "Calle 10 #20-30", 0, 1, 1],
-        ["Juan Perez", "10203040", "3001234567", "Carrera 5 #15-10", 500000, 1, 0]
-    ]
-    df = pd.DataFrame(examples, columns=cols)
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="Terceros")
-    output.seek(0)
-    return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                             headers={"Content-Disposition": 'attachment; filename="plantilla_terceros.xlsx"'})
+# @app.get("/clientes/template")
+# def get_clientes_template(current_user: schemas.User = Depends(get_current_active_user)):
+#     cols = ["nombre", "cedula", "telefono", "direccion", "cupo_credito", "es_cliente", "es_proveedor"]
+#     examples = [
+#         ["Tiendas D1", "900123456", "1234567", "Calle 10 #20-30", 0, 1, 1],
+#         ["Juan Perez", "10203040", "3001234567", "Carrera 5 #15-10", 500000, 1, 0]
+#     ]
+#     df = pd.DataFrame(examples, columns=cols)
+#     output = BytesIO()
+#     with pd.ExcelWriter(output, engine="openpyxl") as writer:
+#         df.to_excel(writer, index=False, sheet_name="Terceros")
+#     output.seek(0)
+#     return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+#                              headers={"Content-Disposition": 'attachment; filename="plantilla_terceros.xlsx"'})
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PRODUCTOS
@@ -460,23 +567,90 @@ def exportar_productos(db: Session = Depends(get_db), current_user: schemas.User
     return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                              headers={"Content-Disposition": 'attachment; filename="productos_existentes.xlsx"'})
 
+import io
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.worksheet.datavalidation import DataValidation
+from fastapi.responses import StreamingResponse
+
 @app.get("/productos/template")
 def get_productos_template(current_user: schemas.User = Depends(get_current_active_user)):
-    cols = ["nombre", "precio", "costo", "grupo_item", "unidad_medida", "es_servicio", "stock_minimo"]
-    examples = [
-        ["Cacao en Grano", 5000, 3000, "MP - Materia Prima", "Kg", 0, 10],
-        ["Chocolate 80g", 12000, 4500, "PT - Producto Terminado", "UND", 0, 5],
-        ["Servicio Maquila", 2500, 0, "PT - Producto Terminado", "UND", 1, 0],
-        ["Estantería", 0, 500000, "AF - Activo Fijo", "UND", 0, 0],
-        ["Empaque Plástico", 200, 100, "INS - Insumo", "UND", 0, 100]
+    wb = openpyxl.Workbook()
+    
+    # ─── 1. HOJA DE INSTRUCCIONES (Primera impresión) ───
+    ws_inst = wb.active
+    ws_inst.title = "Instrucciones"
+    ws_inst.sheet_properties.tabColor = "8B5CF6"
+    
+    ws_inst.cell(row=2, column=2, value="🛠 CÓMO USAR ESTA PLANTILLA").font = Font(size=14, bold=True, color="8B5CF6")
+    instrucciones = [
+        "1. Ve a la pestaña 'Plantilla Datos' para registrar tu inventario.",
+        "2. IMPORTANTE: No modifiques, renombres ni elimines la fila 1 (Cabeceras).",
+        "3. GRUPO_ITEM: Usa el desplegable (1=Materia Prima, 2=Prod. Terminado, 3=Activo Fijo, 4=Insumo).",
+        "4. ES_SERVICIO: Usa el desplegable (0 = Producto Físico, 1 = Servicio Intangible).",
+        "5. UNIDAD_MEDIDA: Usa el desplegable (UND, Kg, Lts, etc.).",
+        "6. COSTO: Si marcas el ítem como Servicio (1), el costo debe ser 0."
     ]
-    df = pd.DataFrame(examples, columns=cols)
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="Plantilla")
+    for i, inst in enumerate(instrucciones, 4):
+        cell = ws_inst.cell(row=i, column=2, value=inst)
+        cell.font = Font(size=11)
+    ws_inst.column_dimensions['B'].width = 80
+
+    # ─── 2. HOJA DE DATOS (El formulario real) ───
+    ws_datos = wb.create_sheet(title="Plantilla Datos")
+    
+    headers = ["nombre", "precio", "costo", "grupo_item", "unidad_medida", "es_servicio", "stock_minimo"]
+    
+    # Estilo de Cabecera SaaS
+    header_fill = PatternFill(start_color="8B5CF6", end_color="8B5CF6", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True)
+    
+    for col_num, header in enumerate(headers, 1):
+        cell = ws_datos.cell(row=1, column=col_num, value=header.upper())
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws_datos.column_dimensions[openpyxl.utils.get_column_letter(col_num)].width = 20
+
+    # ─── 3. VALIDACIÓN DE DATOS (Dropdowns en Excel) ───
+    # Dropdown para Grupo Item
+    dv_grupo = DataValidation(type="list", formula1='"1,2,3,4"', allow_blank=True)
+    dv_grupo.error ='Selecciona una opción válida de la lista'
+    ws_datos.add_data_validation(dv_grupo)
+    dv_grupo.add("D2:D1000")
+
+    # Dropdown para Unidad
+    dv_unidad = DataValidation(type="list", formula1='"UND,Kg,MTS,Lts,Gr"', allow_blank=True)
+    ws_datos.add_data_validation(dv_unidad)
+    dv_unidad.add("E2:E1000")
+
+    # Dropdown para Es Servicio
+    dv_servicio = DataValidation(type="list", formula1='"0,1"', allow_blank=True)
+    ws_datos.add_data_validation(dv_servicio)
+    dv_servicio.add("F2:F1000")
+
+    # ─── 4. DATOS DE EJEMPLO ───
+    ejemplos = [
+        ["Cacao Tostado", 5000, 3000, 1, "Kg", 0, 10],
+        ["Chocolatina 80g", 12000, 4500, 2, "UND", 0, 5],
+        ["Servicio Maquila", 2500, 0, 2, "UND", 1, 0]
+    ]
+    for r_idx, row_data in enumerate(ejemplos, 2):
+        for c_idx, value in enumerate(row_data, 1):
+            ws_datos.cell(row=r_idx, column=c_idx, value=value)
+
+    # Congelar la fila de cabeceras para que al hacer scroll no se pierda
+    ws_datos.freeze_panes = 'A2'
+
+    output = io.BytesIO()
+    wb.save(output)
     output.seek(0)
-    return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                             headers={"Content-Disposition": 'attachment; filename="plantilla_productos.xlsx"'})
+
+    return StreamingResponse(
+        output, 
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="plantilla_productos_PRO.xlsx"'}
+    )
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # VENTAS

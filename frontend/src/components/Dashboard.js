@@ -10,7 +10,7 @@ import {
   Assignment, TrendingUp, TrendingDown, ShoppingCart,
   Inventory2Outlined, CheckCircle, PointOfSale,
   AssignmentReturn, AttachMoney, CreditCard, AccountBalance,
-  MoneyOff // ✅ NUEVO: Icono de gastos
+  MoneyOff, Business // ✅ Añadido el icono Business para el nombre de la empresa
 } from '@mui/icons-material';
 import apiClient from '../api';
 import { formatCurrency } from '../utils/formatters';
@@ -106,6 +106,7 @@ const MetodoBarra = ({ label, value, total, color, icon }) => {
 const Dashboard = () => {
   const [data, setData]           = useState(null);
   const [caja, setCaja]           = useState(null);
+  const [companyName, setCompanyName] = useState(''); // ✅ NUEVO: Estado para la empresa
   const [loadingMain, setLoadingMain] = useState(true);
   const [loadingCaja, setLoadingCaja] = useState(true);
   const [error, setError]         = useState(null);
@@ -117,13 +118,22 @@ const Dashboard = () => {
     setLoadingMain(true);
     setLoadingCaja(true);
     try { 
-      const [dashRes, cajaRes] = await Promise.allSettled([
+      // ✅ AÑADIDO: Obtenemos /users/me en la misma ráfaga para sacar el nombre de la empresa
+      const [dashRes, cajaRes, userRes] = await Promise.allSettled([
         apiClient.get('/reportes/dashboard'),
         apiClient.get('/caja/corte/preview'),
+        apiClient.get('/users/me')
       ]);
+      
       if (dashRes.status === 'fulfilled') setData(dashRes.value.data);
       else setError('Error al cargar el dashboard.');
+      
       if (cajaRes.status === 'fulfilled') setCaja(cajaRes.value.data);
+      
+      if (userRes.status === 'fulfilled') {
+        // Extraemos la relación 'empresa' que viaja desde el backend
+        setCompanyName(userRes.value.data.empresa?.nombre || 'Mi Empresa');
+      }
     } finally {
       setLoadingMain(false);
       setLoadingCaja(false);
@@ -165,14 +175,31 @@ const Dashboard = () => {
     <Box sx={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
 
       {/* ── Header ── */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5, flexWrap: 'wrap', gap: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box sx={{ width: 42, height: 42, borderRadius: 2, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+          <Box sx={{ 
+            width: 48, height: 48, borderRadius: 2, 
+            background: `linear-gradient(135deg, ${ACCENT}20, ${ACCENT}05)`, 
+            display: 'flex', alignItems: 'center', justifyContent: 'center', 
+            color: ACCENT, border: `1px solid ${ACCENT}30` 
+          }}>
             <TrendingUp />
           </Box>
           <Box>
-            <Typography sx={{ fontWeight: 700, fontSize: 20, lineHeight: 1.2 }}>Dashboard</Typography>
-            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+            {/* ✅ SAAS UX: Overline con el nombre de la Empresa */}
+            <Typography sx={{ 
+              fontSize: 11, fontWeight: 800, color: ACCENT, 
+              textTransform: 'uppercase', letterSpacing: 1.2, mb: 0.3,
+              display: 'flex', alignItems: 'center', gap: 0.5
+            }}>
+              <Business sx={{ fontSize: 13 }} /> 
+              {companyName ? companyName : <Skeleton width={100} height={15} sx={{ display: 'inline-block' }}/>}
+            </Typography>
+            
+            <Typography sx={{ fontWeight: 800, fontSize: 22, lineHeight: 1.1, color: 'text.primary' }}>
+              Resumen General
+            </Typography>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5 }}>
               {new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}
             </Typography>
           </Box>
@@ -226,7 +253,6 @@ const Dashboard = () => {
           />
         </Grid>
         <Grid item xs={6} sm={3}>
-          {/* ✅ ACTUALIZADO: KPI de Caja Neto */}
           <KpiCard
             title="Caja hoy (Neto)"
             value={formatCurrency((caja?.total_dia || 0) - (caja?.total_gastos || 0))}
@@ -331,7 +357,6 @@ const Dashboard = () => {
                     
                     <Divider sx={{ mt: 1.5, mb: 1 }} />
                     
-                    {/* ✅ ACTUALIZADO: Desglose Ingresos vs Gastos */}
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                       <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary' }}>Ingresos Brutos</Typography>
                       <Typography sx={{ fontSize: 12, fontWeight: 700 }}>{formatCurrency(caja.total_dia)}</Typography>

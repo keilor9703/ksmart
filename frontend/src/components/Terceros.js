@@ -1,12 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Box, Typography, Tabs, Tab, Button, Grid, Paper,
-  useTheme, useMediaQuery 
+  useTheme, useMediaQuery, CircularProgress 
 } from '@mui/material';
 import { People, Add, AccountBalance, TrendingUp } from '@mui/icons-material';
 import ClienteForm from './ClienteForm';
 import ClienteList from './ClienteList';
 import CuentasPorCobrar from './CuentasPorCobrar';
+
+// ✅ IMPORTACIONES DE GRADO COMERCIAL
+import apiClient from '../api';
+import { toast } from 'react-toastify';
 
 const ACCENT = '#3B82F6';
 
@@ -18,8 +22,8 @@ function TabPanel({ children, value, index }) {
   );
 }
 
-// ── KPI Card (igual que Compras) ──
-const KpiCard = ({ label, value, icon, color }) => (
+// ── KPI Card (Mejorada con esqueleto/loading state) ──
+const KpiCard = ({ label, value, icon, color, loading }) => (
   <Paper sx={{ 
     p: 2.5, borderRadius: 3, 
     display: 'flex', alignItems: 'center', gap: 2, 
@@ -37,7 +41,7 @@ const KpiCard = ({ label, value, icon, color }) => (
         {label}
       </Typography>
       <Typography sx={{ fontSize: 18, fontWeight: 700, color: 'text.primary' }}>
-        {value}
+        {loading ? <CircularProgress size={18} sx={{ color }} /> : value}
       </Typography>
     </Box>
   </Paper>
@@ -52,12 +56,43 @@ export default function Terceros() {
   const [refreshList, setRefreshList] = useState(0);
   const [formOpen, setFormOpen] = useState(false);
 
-  // ── Datos de ejemplo para KPIs (deberías traerlos del backend) ──
+  // ── Estados reales para los KPIs ──
+  const [loadingStats, setLoadingStats] = useState(true);
   const [stats, setStats] = useState({
-    totalClientes: 3,
-    totalProveedores: 1,
-    cuentasPorCobrar: 4000
+    totalClientes: 0,
+    totalProveedores: 0,
+    cuentasPorCobrar: 0
   });
+
+  // ── FUNCIÓN DE EXTRACCIÓN PARALELA Y OPTIMIZADA ──
+  const fetchStats = async () => {
+    setLoadingStats(true);
+    try {
+      // Usamos Promise.all para evitar el bloqueo en cascada (N+1 Request Anti-pattern)
+      const [clientesRes, dashboardRes] = await Promise.all([
+        apiClient.get('/clientes/'),
+        apiClient.get('/reportes/dashboard') // Aquí el backend ya calcula la cartera limpia
+      ]);
+
+      const clientesData = clientesRes.data || [];
+      
+      setStats({
+        totalClientes: clientesData.filter(c => c.es_cliente).length,
+        totalProveedores: clientesData.filter(c => c.es_proveedor).length,
+        cuentasPorCobrar: dashboardRes.data?.cuentas_por_cobrar || 0
+      });
+    } catch (error) {
+      console.error("Error al obtener estadísticas de terceros:", error);
+      toast.error("Hubo un problema al cargar los indicadores.");
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
+  // ── EFECTO REACTIVO: Se dispara al montar y cada vez que 'refreshList' cambie ──
+  useEffect(() => {
+    fetchStats();
+  }, [refreshList]);
 
   const handleEdit = (cliente) => {
     setClienteToEdit(cliente);
@@ -67,8 +102,9 @@ export default function Terceros() {
 
   const handleSuccess = () => {
     setClienteToEdit(null);
-    setRefreshList(prev => prev + 1);
     setFormOpen(false);
+    // Disparar la actualización de listas y KPIs simultáneamente
+    setRefreshList(prev => prev + 1); 
   };
 
   const handleNewTercero = () => {
@@ -80,7 +116,7 @@ export default function Terceros() {
   return (
     <Box sx={{ width: '100%' }}>
 
-      {/* ── Header compacto (IGUAL QUE COMPRAS) ── */}
+      {/* ── Header ── */}
       <Box sx={{ 
         display: 'flex', 
         alignItems: 'center', 
@@ -122,14 +158,15 @@ export default function Terceros() {
         </Button>
       </Box>
 
-      {/* ── KPIs (IGUAL QUE COMPRAS) ── */}
+      {/* ── KPIs DINÁMICOS ── */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={4}>
           <KpiCard 
             label="Total clientes" 
             value={stats.totalClientes} 
             icon={<People />} 
-            color={ACCENT} 
+            color={ACCENT}
+            loading={loadingStats}
           />
         </Grid>
         <Grid item xs={12} sm={4}>
@@ -137,15 +174,18 @@ export default function Terceros() {
             label="Proveedores activos" 
             value={stats.totalProveedores} 
             icon={<AccountBalance />} 
-            color="#10B981" 
+            color="#10B981"
+            loading={loadingStats}
           />
         </Grid>
         <Grid item xs={12} sm={4}>
           <KpiCard 
             label="Cuentas por cobrar" 
-            value={`$${stats.cuentasPorCobrar.toLocaleString()}`} 
+            // Formateo seguro para monedas (UX comercial)
+            value={stats.cuentasPorCobrar.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })} 
             icon={<TrendingUp />} 
-            color="#EF4444" 
+            color="#EF4444"
+            loading={loadingStats}
           />
         </Grid>
       </Grid>
@@ -163,7 +203,7 @@ export default function Terceros() {
         </Box>
       )}
 
-      {/* ── Tabs Container (IGUAL QUE COMPRAS) ── */}
+      {/* ── Tabs Container ── */}
       <Paper sx={{ 
         borderRadius: 3, 
         boxShadow: '0 2px 12px rgba(0,0,0,0.06)', 
@@ -222,7 +262,7 @@ export default function Terceros() {
 
         <TabPanel value={tab} index={2}>
           <Box sx={{ px: { xs: 2, md: 3 }, pb: 3 }}>
-            <CuentasPorCobrar />
+            <CuentasPorCobrar key={`cxc-${refreshList}`} />
           </Box>
         </TabPanel>
       </Paper>
