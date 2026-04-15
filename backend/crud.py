@@ -2710,14 +2710,19 @@ def create_empresa_with_admin(db: Session, data: schemas.EmpresaWithAdminCreate)
     if existing_user:
         raise ValueError(f"El nombre de usuario '{data.admin_username}' ya está en uso.")
 
+    ahora_utc = datetime.now(timezone.utc)
+    fin_prueba = ahora_utc + timedelta(days=14) # 14 días de prueba
+
     db_empresa = models.Empresa(
         nombre=data.empresa.nombre,
         nit=data.empresa.nit,
         color_primario=data.empresa.color_primario,
-        is_active=True
+        is_active=True,
+        plan_type="trial",
+        trial_ends_at=fin_prueba # ✅ Inyectamos la fecha límite
     )
     db.add(db_empresa)
-    db.flush() 
+    db.flush()
 
     admin_role = db.query(models.Role).filter(models.Role.name == "Admin").first()
     if not admin_role:

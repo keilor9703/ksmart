@@ -36,7 +36,16 @@ apiClient.interceptors.request.use(
   }
 );
 
-
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 402) {
+      // El trial expiró. Redirigimos a la pantalla de pago/bloqueo.
+      window.location.href = '/suscripcion-expirada';
+    }
+    return Promise.reject(error);
+  }
+);
 
 export const fetchMovimientosTemplate = () => apiClient.get('/inventario/movimientos/template', { responseType: 'blob' });
 

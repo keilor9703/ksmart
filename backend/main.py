@@ -169,10 +169,37 @@ def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_
         raise credentials_exception
     return user
 
+from fastapi import HTTPException, status
+
 def get_current_active_user(current_user: schemas.User = Depends(get_current_user)):
     if not current_user:
         raise HTTPException(status_code=400, detail="Usuario inactivo")
+    
+    empresa = current_user.empresa
+    if not empresa.is_active:
+        raise HTTPException(status_code=403, detail="Suscripción suspendida. Contacte a soporte.")
+
+    # ✅ EL GUARDIA DEL TRIAL (Blindado contra el bug de SQLite)
+    if empresa.plan_type == "trial" and empresa.trial_ends_at:
+        ahora_utc = datetime.now(timezone.utc)
+        
+        # Extraemos la fecha de la BD
+        fecha_limite = empresa.trial_ends_at
+        
+        # Si la fecha viene de SQLite no tendrá tzinfo (es naive). 
+        # Como sabemos que la guardamos en UTC, le reasignamos la etiqueta.
+        if fecha_limite.tzinfo is None:
+            fecha_limite = fecha_limite.replace(tzinfo=timezone.utc)
+
+        # Ahora sí, la comparación es segura
+        if ahora_utc > fecha_limite:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED, 
+                detail="TRIAL_EXPIRED"
+            )
+
     return current_user
+
 
 def get_current_admin_user(current_user: schemas.User = Depends(get_current_user)):
     if current_user.role.name != "Admin":

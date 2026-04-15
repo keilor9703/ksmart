@@ -1,12 +1,12 @@
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
-import datetime
+from datetime import datetime, date
 from enum import Enum
 
 
 # ---------- Kardex ----------
 class KardexItem(BaseModel):
-    fecha: datetime.datetime
+    fecha: datetime
     tipo: str           # 'entrada' | 'salida' | 'ajuste'
     cantidad: float
     costo_unitario: float
@@ -52,8 +52,8 @@ class ProductoRotacionItem(BaseModel):
     total_ingresos: float     # suma (cantidad * precio_unitario)
 
 class ReporteRotacion(BaseModel):
-    start_date: Optional[datetime.date] = None
-    end_date: Optional[datetime.date] = None
+    tart_date: Optional[date] = None
+    end_date: Optional[date] = None
     top: List[ProductoRotacionItem]
     slow: List[ProductoRotacionItem]
 
@@ -67,10 +67,33 @@ class ReporteRotacion(BaseModel):
 
 # ─── AGREGAR ESTO EN schemas.py (Cerca de la parte superior) ───
 
+
+# ─── Añadir en schemas.py ───
+
+
 class EmpresaBase(BaseModel):
     nombre: str
     nit: Optional[str] = None
+    logo_url: Optional[str] = None
     color_primario: str = "#F43F5E"
+
+    # ✅ AÑADE ESTOS DOS CAMPOS PARA EL SAAS
+    plan_type: Optional[str] = "trial"
+    trial_ends_at: Optional[datetime] = None
+
+class Empresa(EmpresaBase):
+    id: int
+    is_active: bool
+    model_config = ConfigDict(from_attributes=True)
+
+
+# class Empresa(EmpresaBase):
+#     id: int
+#     logo_url: Optional[str] = None
+
+#     class Config:
+#         orm_mode = True  # O model_config = ConfigDict(from_attributes=True) si usas Pydantic v2
+
 
 class EmpresaCreate(EmpresaBase):
     pass
@@ -78,7 +101,7 @@ class EmpresaCreate(EmpresaBase):
 class EmpresaOut(EmpresaBase):
     id: int
     is_active: bool
-    created_at: Optional[datetime.datetime] = None  #
+    created_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
 
 class EmpresaWithAdminCreate(BaseModel):
@@ -86,10 +109,7 @@ class EmpresaWithAdminCreate(BaseModel):
     admin_username: str
     admin_password: str
 
-class Empresa(EmpresaBase):
-    id: int
-    is_active: bool
-    model_config = ConfigDict(from_attributes=True)
+
 
 
 
@@ -140,7 +160,7 @@ class InventoryMovementOut(BaseModel):
     motivo: Optional[str] = None
     referencia: Optional[str] = None
     observacion: Optional[str] = None
-    created_at: datetime.datetime
+    created_at: date
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -196,7 +216,7 @@ class PagoBase(BaseModel):
 
 # class Pago(PagoBase):
 #     id: int
-#     fecha: datetime.datetime
+#     fecha: datetime
 
 #     model_config = ConfigDict(from_attributes=True)
 
@@ -276,7 +296,7 @@ class DetalleVenta(DetalleVentaBase):
 
 # --- Dashboard Schemas ---
 class SalesByDay(BaseModel):
-    day: datetime.date
+    day: date
     total: float
 
 class DashboardData(BaseModel):
@@ -299,7 +319,7 @@ class EvidenciaCreate(EvidenciaBase):
 class Evidencia(EvidenciaBase):
     id: int
     orden_id: int
-    uploaded_at: datetime.datetime
+    uploaded_at: date
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -356,8 +376,8 @@ class OrdenTrabajo(OrdenTrabajoBase):
     id: int
     operador_id: int
     estado: str
-    fecha_creacion: datetime.datetime
-    fecha_actualizacion: datetime.datetime
+    fecha_creacion: date
+    fecha_actualizacion: date
     observaciones_aprobador: Optional[str] = None
 
     cliente: Cliente
@@ -379,7 +399,7 @@ class NotificacionCreate(NotificacionBase):
 # class Notificacion(NotificacionBase):
 #     id: int
 #     leido: bool
-#     fecha_creacion: datetime.datetime
+#     fecha_creacion: date
 
 #     model_config = ConfigDict(from_attributes=True)
 
@@ -395,7 +415,7 @@ class RegistroProductividadCreate(RegistroProductividadBase):
 
 class RegistroProductividad(RegistroProductividadBase):
     id: int
-    fecha: datetime.datetime
+    fecha: datetime
     servicio: Producto
 
     model_config = ConfigDict(from_attributes=True)
@@ -420,8 +440,8 @@ class ProductividadOperador(BaseModel):
 
 
 class ReporteProductividad(BaseModel):
-    start_date: datetime.date
-    end_date: datetime.date
+    start_date: date
+    end_date: date
     reporte: List[ProductividadOperador] = []
 
 
@@ -435,8 +455,8 @@ class PanelOrdenPendiente(BaseModel):
     cliente_telefono: Optional[str] = None
     cliente_direccion: Optional[str] = None
     estado: str
-    fecha_creacion: datetime.datetime
-    fecha_actualizacion: datetime.datetime
+    fecha_creacion: date
+    fecha_actualizacion: date
     total: float
     productos: List[OrdenProducto] = []
     servicios: List[OrdenServicio] = []
@@ -458,7 +478,7 @@ class PanelProductividad(BaseModel):
 class PanelHistorialItem(BaseModel):
     id: int
     cliente_nombre: str
-    fecha_actualizacion: datetime.datetime
+    fecha_actualizacion: date
     total: float
     estado_pago_venta: str
 
@@ -544,7 +564,7 @@ class RecetaCreate(RecetaBase):
 
 class Receta(RecetaBase):
     id: int
-    created_at: datetime.datetime
+    created_at: date
     items: List[RecetaItem]
     servicios_maquila: List[RecetaServicio] = [] # Lista de servicios
     producto_resultante: Producto
@@ -574,8 +594,8 @@ class LoteProduccion(LoteProduccionBase):
     cantidad_real: Optional[float] = None
     costo_total: float
     costo_unitario_resultado: float
-    fecha_planificada: datetime.datetime
-    fecha_confirmacion: Optional[datetime.datetime] = None
+    fecha_planificada: date
+    fecha_confirmacion: Optional[date] = None
     estado: str
     receta: Receta
     cliente: Optional[Cliente] = None
@@ -605,7 +625,7 @@ class DetalleCompra(DetalleCompraBase):
 class CompraBase(BaseModel):
     proveedor_id: int
     referencia_factura: Optional[str] = None
-    fecha: Optional[datetime.datetime] = None
+    fecha: Optional[date] = None
 
 class CompraCreate(BaseModel):
     proveedor_id: int
@@ -637,7 +657,7 @@ class PagoCompra(BaseModel):
     id: int
     compra_id: int
     monto: float
-    fecha: datetime.datetime
+    fecha: datetime
     metodo_pago: Optional[str] = None
     detalle_pago: Optional[str] = None
 
@@ -651,7 +671,7 @@ class PagoCompra(BaseModel):
 
 from pydantic import BaseModel, ConfigDict
 from typing import Optional
-import datetime
+
 
 
 # ─── Pago (actualizado — ahora incluye detalle_pago igual que PagoCompra) ─────
@@ -668,7 +688,7 @@ import datetime
 
 # class Pago(PagoCreate):
 #     id:    int
-#     fecha: datetime.datetime
+#     fecha: datetime
 
 #     model_config = ConfigDict(from_attributes=True)
 
@@ -707,7 +727,7 @@ import datetime
 #     venta_id: int
 #     motivo:   str
 #     total:    Optional[float] = 0.0
-#     fecha:    datetime.datetime
+#     fecha:    date
 #     items:    list = []   # List[DevolucionItemOut]
 
 #     model_config = ConfigDict(from_attributes=True)
@@ -731,7 +751,7 @@ import datetime
 #     mensaje:        str
 #     leido:          bool
 #     tipo:           str = "info"   # ✅ NUEVO: info | warning | error | success
-#     fecha_creacion: datetime.datetime
+#     fecha_creacion: date
 #     orden_id:       Optional[int] = None
 
 #     model_config = ConfigDict(from_attributes=True)
@@ -745,7 +765,7 @@ import datetime
 # class CorteCajaOut(BaseModel):
 #     id:                         int
 #     usuario_id:                 int
-#     fecha:                      datetime.datetime
+#     fecha:                      date
 #     total_efectivo_ventas:      float
 #     total_transferencia_ventas: float
 #     total_tarjeta_ventas:       float
@@ -801,7 +821,7 @@ import datetime
 #     venta_id: int
 #     motivo:   str
 #     total:    float
-#     fecha:    datetime.datetime
+#     fecha:    date
 #     items:    List[DevolucionItemOut] = []
 
 #     model_config = ConfigDict(from_attributes=True)
@@ -812,7 +832,7 @@ import datetime
 # ═══════════════════════════════════════════════════════════════════════════════
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
-import datetime
+
 
 
 # ─── Pago ─────────────────────────────────────────────────────────────────────
@@ -829,7 +849,7 @@ class PagoUpdate(BaseModel):
 
 class Pago(PagoCreate):
     id:    int
-    fecha: datetime.datetime
+    fecha: datetime
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -865,7 +885,7 @@ class Venta(VentaBase):
     total: float
     iva_total: float
     iva_porcentaje: float
-    fecha: datetime.datetime
+    fecha: datetime
     monto_pagado: float
     estado_pago: str
     cliente_id: Optional[int]
@@ -897,7 +917,7 @@ class Notificacion(BaseModel):
     mensaje:        str
     leido:          bool
     tipo:           str = "info"
-    fecha_creacion: datetime.datetime
+    fecha_creacion: date
     orden_id:       Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
@@ -910,7 +930,7 @@ class CorteCajaCreate(BaseModel):
 class CorteCajaOut(BaseModel):
     id:                         int
     usuario_id:                 int
-    fecha:                      datetime.datetime
+    fecha:                      date
     total_efectivo_ventas:      float
     total_transferencia_ventas: float
     total_tarjeta_ventas:       float
@@ -967,7 +987,7 @@ class DevolucionOut(BaseModel):
     venta_id:   int
     motivo:     str
     monto_total: float = 0.0         # ✅ igual que el modelo (NO 'total')
-    fecha:      datetime.datetime
+    fecha:      date
     tipo:       str = "parcial"
     estado:     str = "confirmada"
     items:      List[DevolucionItemOut] = []
@@ -1003,7 +1023,7 @@ class VentaHistoryItem(BaseModel):
     id: int
     detalles: List[DetalleVenta] = []
     total: float
-    fecha: datetime.datetime
+    fecha: datetime
     monto_pagado: float
     estado_pago: str
     pagos: List[Pago] = []
@@ -1079,24 +1099,13 @@ class GastoOut(BaseModel):
     monto: float
     concepto: str
     metodo_pago: str
-    fecha: datetime.datetime
+    fecha: datetime
     model_config = ConfigDict(from_attributes=True)
 
 
 
 
-# ─── Añadir en schemas.py ───
 
-class EmpresaBase(BaseModel):
-    nombre: str
-    nit: Optional[str] = None
-    logo_url: Optional[str] = None
-    color_primario: str = "#F43F5E"
-
-class Empresa(EmpresaBase):
-    id: int
-    is_active: bool
-    model_config = ConfigDict(from_attributes=True)
 
 # ─── Actualizar User ───
 class User(UserBase):

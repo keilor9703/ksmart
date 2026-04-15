@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Paper, Grid, CircularProgress,
-  Divider, Chip, useMediaQuery, Skeleton
+  Divider, Chip, useMediaQuery, Skeleton, Button
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import {
@@ -10,7 +10,7 @@ import {
   Assignment, TrendingUp, TrendingDown, ShoppingCart,
   Inventory2Outlined, CheckCircle, PointOfSale,
   AssignmentReturn, AttachMoney, CreditCard, AccountBalance,
-  MoneyOff, Business // ✅ Añadido el icono Business para el nombre de la empresa
+  MoneyOff, Business 
 } from '@mui/icons-material';
 import apiClient from '../api';
 import { formatCurrency } from '../utils/formatters';
@@ -22,7 +22,7 @@ const YELLOW  = '#F59E0B';
 const RED     = '#EF4444';
 const PURPLE  = '#8B5CF6';
 
-// ─── KPI Card clickeable ───────────────────────────────────────────────────────
+// ─── KPI Card clickeable ───
 const KpiCard = ({ title, value, icon, color, sub, onClick, loading }) => (
   <Paper onClick={onClick} sx={{
     p: 2, borderRadius: 3,
@@ -38,16 +38,13 @@ const KpiCard = ({ title, value, icon, color, sub, onClick, loading }) => (
     </Box>
     <Box sx={{ minWidth: 0, flex: 1 }}>
       <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 500 }}>{title}</Typography>
-      {loading
-        ? <Skeleton width={100} height={28} />
-        : <Typography sx={{ fontSize: 18, fontWeight: 800, lineHeight: 1.2 }}>{value}</Typography>
-      }
+      {loading ? <Skeleton width={100} height={28} /> : <Typography sx={{ fontSize: 18, fontWeight: 800, lineHeight: 1.2 }}>{value}</Typography>}
       {sub && !loading && <Typography sx={{ fontSize: 10, color: 'text.secondary', mt: 0.2 }}>{sub}</Typography>}
     </Box>
   </Paper>
 );
 
-// ─── Sparkline SVG nativa ─────────────────────────────────────────────────────
+// ─── Sparkline SVG nativa ───
 const Sparkline = ({ data, color, height = 80 }) => {
   if (!data || data.length < 2) return null;
   const vals  = data.map(d => d.total);
@@ -83,7 +80,7 @@ const Sparkline = ({ data, color, height = 80 }) => {
   );
 };
 
-// ─── Mini barra de método de pago ────────────────────────────────────────────
+// ─── Mini barra de método de pago ───
 const MetodoBarra = ({ label, value, total, color, icon }) => {
   const pct = total > 0 ? (value / total) * 100 : 0;
   return (
@@ -102,11 +99,14 @@ const MetodoBarra = ({ label, value, total, color, icon }) => {
   );
 };
 
-// ─── Componente principal ──────────────────────────────────────────────────────
+// ─── Componente principal ───
 const Dashboard = () => {
   const [data, setData]           = useState(null);
   const [caja, setCaja]           = useState(null);
-  const [companyName, setCompanyName] = useState(''); // ✅ NUEVO: Estado para la empresa
+  
+  const [companyName, setCompanyName] = useState(''); 
+  const [empresaData, setEmpresaData] = useState(null); 
+  
   const [loadingMain, setLoadingMain] = useState(true);
   const [loadingCaja, setLoadingCaja] = useState(true);
   const [error, setError]         = useState(null);
@@ -118,7 +118,6 @@ const Dashboard = () => {
     setLoadingMain(true);
     setLoadingCaja(true);
     try { 
-      // ✅ AÑADIDO: Obtenemos /users/me en la misma ráfaga para sacar el nombre de la empresa
       const [dashRes, cajaRes, userRes] = await Promise.allSettled([
         apiClient.get('/reportes/dashboard'),
         apiClient.get('/caja/corte/preview'),
@@ -131,8 +130,9 @@ const Dashboard = () => {
       if (cajaRes.status === 'fulfilled') setCaja(cajaRes.value.data);
       
       if (userRes.status === 'fulfilled') {
-        // Extraemos la relación 'empresa' que viaja desde el backend
-        setCompanyName(userRes.value.data.empresa?.nombre || 'Mi Empresa');
+        const empresaInfo = userRes.value.data.empresa;
+        setCompanyName(empresaInfo?.nombre || 'Mi Empresa');
+        setEmpresaData(empresaInfo); 
       }
     } finally {
       setLoadingMain(false);
@@ -154,7 +154,7 @@ const Dashboard = () => {
     </Box>
   );
 
-  // ── Cálculos de tendencia ───────────────────────────────────────────────────
+  // ── Cálculos de tendencia ──
   const ventas30       = data?.ventas_ultimos_30_dias || [];
   const totalUltimos30 = ventas30.reduce((s, d) => s + d.total, 0);
   const promedioDia    = ventas30.length ? totalUltimos30 / ventas30.length : 0;
@@ -168,8 +168,22 @@ const Dashboard = () => {
   const anteriores7  = ventas30.slice(-14, -7);
   const totalUlt7    = ultimos7.reduce((s, d) => s + d.total, 0);
   const totalAnt7    = anteriores7.reduce((s, d) => s + d.total, 0);
-  const diffSemana   = totalAnt7 > 0 ? ((totalUlt7 - totalAnt7) / totalAnt7 * 100).toFixed(1) : 0;
+  
+  const diffSemana   = totalAnt7 > 0 ? ((totalUlt7 - totalAnt7) / totalAnt7 * 100).toFixed(1) : (totalUlt7 > 0 ? 100 : 0);
   const diffPos      = parseFloat(diffSemana) >= 0;
+
+  // ✅ CÁLCULO DEFENSIVO DE DÍAS RESTANTES (Evitamos NaN)
+  const calculateDaysLeft = (dateString) => {
+    if (!dateString) return 0;
+    // Si viene la "Z" al final, es UTC (Postgres). La convertimos de manera segura.
+    const endsAt = new Date(dateString.endsWith('Z') ? dateString : dateString + 'Z');
+    const now = new Date();
+    const diffTime = endsAt - now;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : 0;
+  };
+
+  const diasRestantes = calculateDaysLeft(empresaData?.trial_ends_at);
 
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
@@ -186,7 +200,6 @@ const Dashboard = () => {
             <TrendingUp />
           </Box>
           <Box>
-            {/* ✅ SAAS UX: Overline con el nombre de la Empresa */}
             <Typography sx={{ 
               fontSize: 11, fontWeight: 800, color: ACCENT, 
               textTransform: 'uppercase', letterSpacing: 1.2, mb: 0.3,
@@ -204,20 +217,40 @@ const Dashboard = () => {
             </Typography>
           </Box>
         </Box>
-        {totalAnt7 > 0 && (
-          <Chip
-            icon={diffPos ? <TrendingUp sx={{ fontSize: 14 }} /> : <TrendingDown sx={{ fontSize: 14 }} />}
-            label={`${diffPos ? '+' : ''}${diffSemana}% vs semana anterior`}
-            size="small"
-            sx={{
-              bgcolor: diffPos ? `${GREEN}15` : `${RED}15`,
-              color: diffPos ? GREEN : RED,
-              fontWeight: 700, fontSize: 11,
-              '& .MuiChip-icon': { color: diffPos ? GREEN : RED },
-            }}
-          />
-        )}
+        <Chip
+          icon={diffPos ? <TrendingUp sx={{ fontSize: 14 }} /> : <TrendingDown sx={{ fontSize: 14 }} />}
+          label={`${diffPos ? '+' : ''}${diffSemana}% vs semana anterior`}
+          size="small"
+          sx={{
+            bgcolor: diffPos ? `${GREEN}15` : `${RED}15`,
+            color: diffPos ? GREEN : RED,
+            fontWeight: 700, fontSize: 11,
+            '& .MuiChip-icon': { color: diffPos ? GREEN : RED },
+          }}
+        />
       </Box>
+
+      {/* ✅ BANNER DE TRIAL (Visible solo para 'trial' con días > 0) */}
+      {empresaData?.plan_type === 'trial' && diasRestantes > 0 && (
+        <Box sx={{ 
+          mb: 3, p: 1.5, borderRadius: 2, 
+          bgcolor: '#EFF6FF', border: '1px solid #BFDBFE', 
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          flexWrap: 'wrap', gap: 2
+        }}>
+          <Typography sx={{ fontSize: 13, color: '#1E3A8A', fontWeight: 600 }}>
+            ⏱ Estás en tu periodo de prueba. Te quedan {diasRestantes} días gratis.
+          </Typography>
+          <Button 
+            size="small" 
+            variant="contained" 
+            onClick={() => window.open(`https://wa.me/573001234567?text=Hola,%20quiero%20activar%20mi%20plan%20premium`, '_blank')}
+            sx={{ bgcolor: '#2563EB', fontSize: 11, fontWeight: 700, boxShadow: 'none' }}
+          >
+            Activar mi cuenta
+          </Button>
+        </Box>
+      )}
 
       {/* ── KPIs principales — 4 en fila ── */}
       <Grid container spacing={1.5} sx={{ mb: 2 }}>
@@ -308,11 +341,6 @@ const Dashboard = () => {
                   <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6 }}>
                     Últimos 7 días
                   </Typography>
-                  {totalAnt7 > 0 && (
-                    <Typography sx={{ fontSize: 11, fontWeight: 600, color: diffPos ? GREEN : RED }}>
-                      {diffPos ? '▲' : '▼'} {Math.abs(diffSemana)}% vs semana ant.
-                    </Typography>
-                  )}
                 </Box>
                 <Box sx={{ display: 'flex', gap: 0.6, flexWrap: 'wrap' }}>
                   {ultimos7.map((d, i) => (

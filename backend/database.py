@@ -90,86 +90,98 @@ def _add_column_if_missing(conn, table_name: str, column_sql: str, column_name: 
     logger.info("Agregando columna: %s.%s", table_name, column_name)
     conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_sql}"))
 
+
 # ─── Migraciones ─────────────────────────────────────────────────────────────
 
 def run_migrations():
-    """
-    Versión v17 — MIGRACIÓN MULTI-TENANT
-    Crea la tabla empresas, añade empresa_id a todas las tablas y migra los datos existentes.
-    """
-    migration_key = "inv_v18_multitenant"
-
     try:
         with engine.begin() as conn:
             _ensure_schema_meta(conn)
 
-            if _migration_already_applied(conn, migration_key):
-                logger.info("Migración %s ya aplicada.", migration_key)
-                return
+            # =================================================================
+            # V18 - MIGRACIÓN MULTI-TENANT (BASE)
+            # =================================================================
+            migration_v18 = "inv_v18_multitenant"
+            if not _migration_already_applied(conn, migration_v18):
+                # 1. Crear tabla empresas si no existe
+                if not _table_exists(conn, "empresas"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE empresas (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                nombre TEXT NOT NULL,
+                                nit TEXT,
+                                logo_url TEXT,
+                                color_primario TEXT DEFAULT '#F43F5E',
+                                is_active INTEGER DEFAULT 1,
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            );
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE empresas (
+                                id SERIAL PRIMARY KEY,
+                                nombre TEXT NOT NULL,
+                                nit TEXT,
+                                logo_url TEXT,
+                                color_primario TEXT DEFAULT '#F43F5E',
+                                is_active BOOLEAN DEFAULT TRUE,
+                                created_at TIMESTAMPTZ DEFAULT NOW()
+                            );
+                        """))
+                    logger.info("Tabla 'empresas' creada.")
 
-            # 1. Crear tabla empresas si no existe
-            if not _table_exists(conn, "empresas"):
-                if IS_SQLITE:
-                    conn.execute(text("""
-                        CREATE TABLE empresas (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            nombre TEXT NOT NULL,
-                            nit TEXT,
-                            logo_url TEXT,
-                            color_primario TEXT DEFAULT '#F43F5E',
-                            is_active INTEGER DEFAULT 1,
-                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                        );
-                    """))
-                else:
-                    conn.execute(text("""
-                        CREATE TABLE empresas (
-                            id SERIAL PRIMARY KEY,
-                            nombre TEXT NOT NULL,
-                            nit TEXT,
-                            logo_url TEXT,
-                            color_primario TEXT DEFAULT '#F43F5E',
-                            is_active BOOLEAN DEFAULT TRUE,
-                            created_at TIMESTAMPTZ DEFAULT NOW()
-                        );
-                    """))
-                logger.info("Tabla 'empresas' creada.")
+                # 2. Insertar la empresa por defecto
+                conn.execute(text("""
+                    INSERT INTO empresas (id, nombre, nit, color_primario) 
+                    VALUES (1, 'Ksmart360 (Mi Fábrica)', '900000000-1', '#F43F5E')
+                    ON CONFLICT DO NOTHING;
+                """))
 
-            # 2. Insertar la empresa por defecto (Tu Fábrica de Cacao)
-            conn.execute(text("""
-                INSERT INTO empresas (id, nombre, nit, color_primario) 
-                VALUES (1, 'Ksmart360 (Mi Fábrica)', '900000000-1', '#F43F5E')
-                ON CONFLICT DO NOTHING;
-            """))
+                # 3. Lista COMPLETA de tablas que necesitan empresa_id
+                tablas_tenant = [
+                    'users', 'clientes', 'productos', 'inventory_movements', 
+                    'ventas', 'detalles_venta', 'pagos', 'ordenes_trabajo', 
+                    'orden_productos', 'orden_servicios', 'evidencias', 
+                    'notificaciones', 'registros_productividad', 'recetas', 
+                    'receta_servicios', 'receta_items', 'lotes_produccion', 
+                    'compras', 'detalles_compra', 'pagos_compra', 
+                    'devoluciones', 'devolucion_items', 'cortes_caja', 'gastos'
+                ]
 
-            # 3. Lista COMPLETA de tablas que necesitan empresa_id
-            tablas_tenant = [
-                'users', 'clientes', 'productos', 'inventory_movements', 
-                'ventas', 'detalles_venta', 'pagos', 'ordenes_trabajo', 
-                'orden_productos', 'orden_servicios', 'evidencias', 
-                'notificaciones', 'registros_productividad', 'recetas', 
-                'receta_servicios', 'receta_items', 'lotes_produccion', 
-                'compras', 'detalles_compra', 'pagos_compra', 
-                'devoluciones', 'devolucion_items', 'cortes_caja', 'gastos'
-            ]
+                # 4. Agregar la columna empresa_id y actualizar datos huérfanos
+                for tabla in tablas_tenant:
+                    if _table_exists(conn, tabla):
+                        _add_column_if_missing(conn, tabla, "empresa_id INTEGER", "empresa_id")
+                        conn.execute(text(f"UPDATE {tabla} SET empresa_id = 1 WHERE empresa_id IS NULL;"))
 
-            # 4. Agregar la columna empresa_id y actualizar datos huérfanos
-            for tabla in tablas_tenant:
-                if _table_exists(conn, tabla):
-                    # Agregar columna si no existe
-                    _add_column_if_missing(conn, tabla, "empresa_id INTEGER", "empresa_id")
+                _mark_migration_applied(conn, migration_v18)
+                logger.info("Migración %s aplicada correctamente. Sistema Multi-tenant listo.", migration_v18)
+
+
+            # =================================================================
+            # V19 - MIGRACIÓN SAAS Y TRIAL PERIODS
+            # =================================================================
+            migration_v19 = "inv_v20_saas_trial"
+            if not _migration_already_applied(conn, migration_v19):
+                if _table_exists(conn, "empresas"):
                     
-                    # Asignar todos los registros existentes a la Empresa 1
-                    conn.execute(text(f"""
-                        UPDATE {tabla} 
-                        SET empresa_id = 1 
-                        WHERE empresa_id IS NULL;
-                    """))
-                    logger.info(f"Datos migrados a Empresa 1 en la tabla: {tabla}")
+                    # 1. Agregar plan_type a empresas
+                    _add_column_if_missing(conn, "empresas", "plan_type TEXT DEFAULT 'trial'", "plan_type")
+                    
+                    # 2. Agregar trial_ends_at (dependiendo del motor de base de datos)
+                    if IS_SQLITE:
+                        _add_column_if_missing(conn, "empresas", "trial_ends_at TIMESTAMP", "trial_ends_at")
+                    else:
+                        _add_column_if_missing(conn, "empresas", "trial_ends_at TIMESTAMPTZ", "trial_ends_at")
 
-            _mark_migration_applied(conn, migration_key)
-            logger.info("Migración %s aplicada correctamente. Sistema Multi-tenant listo.", migration_key)
+                    # 3. BLINDAJE: Hacer que la empresa 1 (SuperAdmin) tenga plan premium de por vida
+                    # Esto evita que te auto-bloquees del sistema a los 14 días.
+                    conn.execute(text("UPDATE empresas SET plan_type = 'premium' WHERE id = 1;"))
+
+                _mark_migration_applied(conn, migration_v19)
+                logger.info("Migración %s aplicada. Campos de Trial y Facturación añadidos.", migration_v19)
 
     except Exception as e:
-        logger.exception("Error ejecutando migraciones Multi-tenant: %s", e)
+        logger.exception("Error ejecutando migraciones en base de datos: %s", e)
         raise

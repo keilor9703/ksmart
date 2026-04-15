@@ -29,6 +29,9 @@ class Empresa(Base):
     # Opcional: relación inversa para acceder a sus usuarios
     usuarios = relationship("User", back_populates="empresa")
 
+    plan_type = Column(String, default="trial") # Puede ser: 'trial', 'premium', 'anual'
+    trial_ends_at = Column(DateTime(timezone=True), nullable=True)
+
 
 class TenantMixin:
     """
