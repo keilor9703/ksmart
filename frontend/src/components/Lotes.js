@@ -1,81 +1,46 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Box, Typography, Button, Paper, Table, TableBody, TableCell, TableContainer, 
   TableHead, TableRow, Chip, IconButton, Dialog, DialogTitle, DialogContent, 
   DialogActions, TextField, MenuItem, Grid, Divider, useTheme, useMediaQuery,
-  Card, CardContent, CardActions, TablePagination
+  Tabs, Tab, Stack, Tooltip
 } from '@mui/material';
-import { Add, CheckCircle, Cancel, Visibility } from '@mui/icons-material';
+import { Add, CheckCircle, Cancel, PrecisionManufacturing, Assignment, CheckCircleOutline, History } from '@mui/icons-material';
 import { fetchLotes, createLote, confirmarLote, cancelarLote, fetchRecetas } from '../api';
 import apiClient from '../api';
 import { toast } from 'react-toastify';
-import ConfirmationDialog from './ConfirmationDialog';
+import { formatCurrency } from '../utils/formatters';
 
-const LoteCard = ({ lote, handleOpenConfirm, handleCancelar }) => {
-  const getStatusChip = (status) => {
-    const colors = { 'En produccion': 'default', 'Confirmado': 'success', 'Cancelado': 'error' };
-    return <Chip label={status} color={colors[status] || 'default'} size="small" />;
-  };
+const ACCENT = '#06B6D4'; // Cyan - Producción
+const GREEN  = '#10B981';
+const RED = '#EF4444'; // Rojo elegante
 
-  return (
-    <Card sx={{ mb: 2 }}>
-      <CardContent>
-        <Typography variant="h6">Lote #{lote.id}</Typography>
-        <Typography color="textSecondary">{lote.receta.producto_resultante.nombre}</Typography>
-        <Typography variant="body2" sx={{ mt: 1 }}>
-          <strong>Planificado:</strong> {lote.cantidad_a_producir} {lote.receta.producto_resultante.unidad_medida}
-        </Typography>
-        {lote.cantidad_real && (
-          <Typography variant="body2" color="secondary">
-            <strong>Real:</strong> {lote.cantidad_real}
-          </Typography>
-        )}
-        <Box sx={{ mt: 1 }}>{getStatusChip(lote.estado)}</Box>
-        
-        <Typography variant="caption" display="block" sx={{ mt: 1 }}>
 
-         {(!lote.cliente || lote.cliente.cedula === "INTERNO") ? 'Interno (Vialmar)' : `Maquila: ${lote.cliente.nombre}`}
-
-        </Typography>
-      </CardContent>
-      <CardActions>
-        {lote.estado === 'En produccion' && (
-          <>
-            <IconButton color="success" onClick={() => handleOpenConfirm(lote)}>
-              <CheckCircle />
-            </IconButton>
-            <IconButton color="error" onClick={() => handleCancelar(lote.id)}>
-              <Cancel />
-            </IconButton>
-          </>
-        )}
-      </CardActions>
-    </Card>
-  );
-};
+function TabPanel({ children, value, index }) {
+  return <div role="tabpanel" hidden={value !== index}>{value === index && <Box sx={{ pt: 3 }}>{children}</Box>}</div>;
+}
 
 const Lotes = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   
+  const [tab, setTab] = useState(0);
   const [lotes, setLotes] = useState([]);
   const [recetas, setRecetas] = useState([]);
   const [clientes, setClientes] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  
   const [open, setOpen] = useState(false);
   const [openConfirm, setOpenConfirm] = useState(false);
   const [selectedLote, setSelectedLote] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-
   const [formData, setFormData] = useState({ receta_id: '', cantidad_a_producir: '', cliente_id: '', observaciones: '' });
-  const [confirmData, setConfirmData] = useState({
-    cantidad_real: '', 
-    precios_servicios: [], // Lista de { servicio_id, nombre, precio }
-    observaciones: ''
-  });
+  const [confirmData, setConfirmData] = useState({ cantidad_real: '', observaciones: '' });
+
+  const [simulacion, setSimulacion] = useState(null);
+  const [simulando, setSimulando] = useState(false);
+
 
   useEffect(() => { loadData(); }, []);
 
@@ -86,30 +51,14 @@ const Lotes = () => {
       ]);
       setLotes(lotResponse.data);
       setRecetas(recResponse.data);
-      setClientes(cliResponse.data);
-    } catch (error) { toast.error("Error cargando lotes"); }
+      setClientes(cliResponse.data.filter(c => c.es_cliente));
+    } catch (error) { toast.error("Error cargando el panel de producción"); }
   };
 
   const handleOpenConfirm = (lote) => {
     setSelectedLote(lote);
-    // Inicializar precios para los servicios de la receta
-    const srvPrecios = lote.receta.servicios_maquila.map(s => ({
-      servicio_id: s.servicio_id,
-      nombre: s.servicio.nombre,
-      precio: 0
-    }));
-    setConfirmData({
-      cantidad_real: lote.cantidad_a_producir,
-      precios_servicios: srvPrecios,
-      observaciones: ''
-    });
+    setConfirmData({ cantidad_real: lote.cantidad_a_producir, observaciones: '' });
     setOpenConfirm(true);
-  };
-
-  const handlePrecioChange = (idx, val) => {
-    const newPrecios = [...confirmData.precios_servicios];
-    newPrecios[idx].precio = parseFloat(val) || 0;
-    setConfirmData({ ...confirmData, precios_servicios: newPrecios });
   };
 
   const handleConfirmarFinal = async () => {
@@ -117,176 +66,322 @@ const Lotes = () => {
     try {
       await confirmarLote(selectedLote.id, {
         cantidad_real: parseFloat(confirmData.cantidad_real),
-        precios_servicios: confirmData.precios_servicios.map(p => ({ servicio_id: p.servicio_id, precio: p.precio })),
+        precios_servicios: [], 
         observaciones: confirmData.observaciones
       });
-      toast.success("produccion finalizada");
+      toast.success("¡Lote finalizado! Inventario actualizado correctamente.");
       loadData();
       setOpenConfirm(false);
     } catch (error) {
-      toast.error(error.response?.data?.detail || "Error al confirmar");
+      toast.error(error.response?.data?.detail || "Error al finalizar el lote");
     } finally { setLoading(false); }
   };
 
-  const filteredLotes = lotes.filter(l =>
-    l.id.toString().includes(searchTerm) ||
-    l.receta.producto_resultante.nombre.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const getStatusChip = (status) => {
-    const colors = { 'En produccion': 'default', 'Confirmado': 'success', 'Cancelado': 'error' };
-    return <Chip label={status} color={colors[status] || 'default'} size="small" />;
+  const handleCancelar = async (id) => {
+    if(window.confirm("¿Seguro que deseas cancelar esta orden de producción?")) {
+        await cancelarLote(id); 
+        toast.info("Orden de producción cancelada");
+        loadData(); 
+    }
   };
 
+  const lotesEnPlanta = lotes.filter(l => l.estado === 'En produccion');
+  const lotesHistorial = lotes.filter(l => l.estado !== 'En produccion');
+
+  useEffect(() => {
+    if (formData.receta_id && formData.cantidad_a_producir > 0) {
+      setSimulando(true);
+      const timer = setTimeout(() => {
+        apiClient.get(`/produccion/recetas/${formData.receta_id}/simular?cantidad=${formData.cantidad_a_producir}`)
+          .then(res => setSimulacion(res.data))
+          .catch(() => setSimulacion(null))
+          .finally(() => setSimulando(false));
+      }, 500); 
+      return () => clearTimeout(timer);
+    } else {
+      setSimulacion(null);
+    }
+  }, [formData.receta_id, formData.cantidad_a_producir]);
+
   return (
-    <Paper sx={{ p: 2 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-        <Typography variant="h6">Lotes de produccion</Typography>
-        <Button variant="contained" startIcon={<Add />} onClick={() => setOpen(true)}>Nuevo Lote</Button>
+    <Box sx={{ width: '100%' }}> 
+      {/* ── Header ── */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT }}>
+            <PrecisionManufacturing />
+          </Box>
+          <Box>
+            <Typography sx={{ fontWeight: 700, fontSize: { xs: 18, sm: 20 }, lineHeight: 1.2 }}>Órdenes de Producción</Typography>
+            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Control de planta, mermas y generación de lotes</Typography>
+          </Box>
+        </Box>
+        <Button variant="contained" startIcon={<Add />} onClick={() => setOpen(true)}
+          sx={{ background: `linear-gradient(135deg, ${ACCENT}, #22d3ee)`, boxShadow: `0 4px 14px rgba(6,182,212,0.35)`, borderRadius: 2, fontWeight: 600 }}>
+          Lanzar Producción
+        </Button>
       </Box>
 
-      <TextField
-        label="Buscar..." variant="outlined" fullWidth
-        value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-        sx={{ mb: 2 }}
-      />
+      {/* ── KPIs ── */}
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={12} sm={6}>
+          <Paper sx={{ p: 2.5, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 2, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+             <Assignment sx={{ color: '#F59E0B', fontSize: 32 }}/>
+             <Box>
+                <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 600 }}>EN PLANTA AHORA</Typography>
+                <Typography sx={{ fontSize: 22, fontWeight: 800 }}>{lotesEnPlanta.length} <span style={{fontSize:14, fontWeight:500, color:'#64748b'}}>Lotes activos</span></Typography>
+             </Box>
+          </Paper>
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <Paper sx={{ p: 2.5, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 2, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+             <CheckCircleOutline sx={{ color: GREEN, fontSize: 32 }}/>
+             <Box>
+                <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 600 }}>PRODUCCIÓN HISTÓRICA</Typography>
+                <Typography sx={{ fontSize: 22, fontWeight: 800 }}>{lotesHistorial.filter(l => l.estado==='Confirmado').reduce((acc, l) => acc + (l.cantidad_real || 0), 0)} <span style={{fontSize:14, fontWeight:500, color:'#64748b'}}>Unidades Creadas</span></Typography>
+             </Box>
+          </Paper>
+        </Grid>
+      </Grid>
 
-      {isMobile ? (
-        <Box>{filteredLotes.map(l => <LoteCard key={l.id} lote={l} handleOpenConfirm={handleOpenConfirm} handleCancelar={async (id) => { await cancelarLote(id); loadData(); }} />)}</Box>
-      ) : (
-        <TableContainer>
-          <Table>
-            <TableHead sx={{ bgcolor: 'action.hover' }}>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 'bold' }}>ID</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>Fecha</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>Producto</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>Cantidad Real</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>Costo Total</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>Estado</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 'bold' }}>Acciones</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredLotes.map((l) => (
-                <TableRow key={l.id} hover>
-                  <TableCell>#{l.id}</TableCell>
-                  <TableCell>{new Date(l.fecha_planificada).toLocaleDateString()}</TableCell>
-                  <TableCell>{l.receta.producto_resultante.nombre}</TableCell>
-                  <TableCell>{l.cantidad_real || '---'}</TableCell>
-                  <TableCell>{l.costo_total > 0 ? `$${l.costo_total.toFixed(2)}` : '---'}</TableCell>
-                  <TableCell>{getStatusChip(l.estado)}</TableCell>
-                 <TableCell align="right">
-                    {l.estado === 'En produccion' && (
-                      <>
-                        <IconButton color="success" onClick={() => handleOpenConfirm(l)}>
-                          <CheckCircle />
-                        </IconButton>
+      {/* ── TABS Y CONTENIDO ── */}
+      <Paper sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', overflow: 'hidden', width: '100%' }}>
+        <Tabs 
+          value={tab} 
+          onChange={(_, v) => setTab(v)} 
+          variant={isMobile ? "scrollable" : "standard"} 
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          sx={{ 
+            px: { xs: 1, md: 2 }, 
+            borderBottom: '1px solid', borderColor: 'divider', 
+            '& .MuiTab-root': { fontWeight: 600, fontSize: 13, textTransform: 'none', minHeight: 52, whiteSpace: 'nowrap' }, 
+            '& .MuiTabs-indicator': { backgroundColor: ACCENT, height: 3, borderRadius: 3 }, 
+            '& .Mui-selected': { color: `${ACCENT} !important` } 
+          }}
+        >
+          <Tab icon={<PrecisionManufacturing sx={{ fontSize: 18, mr: 1 }} />} iconPosition="start" label={`En Producción (${lotesEnPlanta.length})`} />
+          <Tab icon={<History sx={{ fontSize: 18, mr: 1 }} />} iconPosition="start" label="Historial Terminado" />
+        </Tabs>
 
-                        <IconButton
-                          color="error"
-                          onClick={async () => {
-                            await cancelarLote(l.id);
-                            loadData();
-                          }}
-                        >
-                          <Cancel />
-                        </IconButton>
-                      </>
-                    )}
-                  </TableCell>
+        <Box sx={{ p: { xs: 2, md: 3 } }}>
+          {/* ════ TAB 0: EN PLANTA ════ */}
+          <TabPanel value={tab} index={0}>
+            {lotesEnPlanta.length === 0 ? (
+               <Box sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
+                 <PrecisionManufacturing sx={{ fontSize: 48, mb: 1, opacity: 0.2 }} />
+                 <Typography>La planta está libre. No hay órdenes en proceso.</Typography>
+               </Box>
+            ) : (
+              <Grid container spacing={2}>
+                {lotesEnPlanta.map(l => (
+                  <Grid item xs={12} md={6} key={l.id}>
+                    <Paper sx={{ p: 2.5, borderRadius: 3, borderLeft: `4px solid #F59E0B`, border: '1px solid', borderColor: 'divider', position: 'relative' }}>
+                        <Chip label="En Curso" size="small" sx={{ position: 'absolute', top: 16, right: 16, bgcolor: '#FEF3C7', color: '#D97706', fontWeight: 600, fontSize: 10 }} />
+                        <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 600 }}>ORDEN #{l.id} · {new Date(l.fecha_planificada).toLocaleDateString()}</Typography>
+                        <Typography sx={{ fontWeight: 800, fontSize: 18, mt: 0.5, mb: 1 }}>{l.receta.producto_resultante.nombre}</Typography>
+                        <Divider sx={{ my: 1.5 }} />
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                            <Box>
+                                <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Cantidad Solicitada</Typography>
+                                <Typography sx={{ fontWeight: 700, fontSize: 16 }}>{l.cantidad_a_producir} {l.receta.producto_resultante.unidad_medida}</Typography>
+                            </Box>
+                            <Box sx={{ textAlign: 'right' }}>
+                                <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Destino</Typography>
+                                <Typography sx={{ fontWeight: 600, fontSize: 13, color: ACCENT }}>{(!l.cliente || l.cliente.cedula === "INTERNO") ? 'Inventario Interno' : `Maquila: ${l.cliente.nombre}`}</Typography>
+                            </Box>
+                        </Box>
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                            <Button fullWidth variant="contained" color="success" onClick={() => handleOpenConfirm(l)} sx={{ fontWeight: 600, borderRadius: 2, bgcolor: GREEN, '&:hover':{bgcolor:'#059669'}, boxShadow:'none' }}>
+                                Finalizar Lote
+                            </Button>
+                            <Tooltip title="Cancelar Orden">
+                                <IconButton onClick={() => handleCancelar(l.id)} sx={{ color: RED, bgcolor: '#FEF2F2', borderRadius: 2 }}><Cancel /></IconButton>
+                            </Tooltip>
+                        </Box>
+                    </Paper>
+                  </Grid>
+                ))}
+              </Grid>
+            )}
+          </TabPanel>
 
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
+          {/* ════ TAB 1: HISTORIAL ════ */}
+          <TabPanel value={tab} index={1}>
+            {isMobile ? (
+              /* VISTA DE TARJETAS EN MÓVIL PARA EVITAR OVERFLOW */
+              <Box>
+                {lotesHistorial.length === 0 ? (
+                  <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
+                    <Typography>No hay historial</Typography>
+                  </Box>
+                ) : (
+                  lotesHistorial.map(l => {
+                    const merma = l.estado === 'Confirmado' ? l.cantidad_real - l.cantidad_a_producir : 0;
+                    const isSuccess = l.estado === 'Confirmado';
+                    return (
+                      <Paper key={l.id} sx={{ p: 2, mb: 2, borderRadius: 3, borderLeft: `4px solid ${isSuccess ? GREEN : RED}`, border: '1px solid', borderColor: 'divider' }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                          <Typography sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{l.id}</Typography>
+                          <Chip label={l.estado} size="small" sx={{ bgcolor: isSuccess ? `${GREEN}15` : `${RED}15`, color: isSuccess ? GREEN : RED, fontWeight: 600, fontSize: 10, borderRadius: 1 }} />
+                        </Box>
+                        <Typography sx={{ fontWeight: 800, fontSize: 16 }}>{l.receta.producto_resultante.nombre}</Typography>
+                        <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1.5 }}>
+                          Cierre: {l.fecha_confirmacion ? new Date(l.fecha_confirmacion).toLocaleDateString() : '—'}
+                        </Typography>
+                        <Divider sx={{ my: 1 }} />
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Box>
+                            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Rendimiento</Typography>
+                            <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{isSuccess ? `${l.cantidad_real} Unds` : '—'}</Typography>
+                            {isSuccess && merma !== 0 && (
+                              <Typography sx={{ fontSize: 11, fontWeight: 600, color: merma > 0 ? GREEN : RED }}>
+                                {merma > 0 ? `+${merma} sobrante` : `${merma} merma`}
+                              </Typography>
+                            )}
+                          </Box>
+                          <Box sx={{ textAlign: 'right' }}>
+                            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Costo Unit.</Typography>
+                            <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{isSuccess ? formatCurrency(l.costo_unitario_resultado) : '—'}</Typography>
+                          </Box>
+                        </Box>
+                      </Paper>
+                    )
+                  })
+                )}
+              </Box>
+            ) : (
+              /* VISTA DE TABLA EN ESCRITORIO */
+              <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                <Table size="small">
+                  <TableHead sx={{ bgcolor: 'action.hover' }}>
+                    <TableRow>
+                      {['Lote', 'Fecha Fin', 'Producto Creado', 'Rendimiento (Mermas)', 'Costo Unitario', 'Estado'].map(h => <TableCell key={h} sx={{ fontWeight: 600 }}>{h}</TableCell>)}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {lotesHistorial.length === 0 ? <TableRow><TableCell colSpan={6} align="center" sx={{ py: 4 }}>No hay historial</TableCell></TableRow> :
+                      lotesHistorial.map(l => {
+                        const merma = l.estado === 'Confirmado' ? l.cantidad_real - l.cantidad_a_producir : 0;
+                        return (
+                        <TableRow key={l.id} hover>
+                          <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{l.id}</TableCell>
+                          <TableCell sx={{ fontSize: 12 }}>{l.fecha_confirmacion ? new Date(l.fecha_confirmacion).toLocaleDateString() : '—'}</TableCell>
+                          <TableCell sx={{ fontWeight: 700 }}>{l.receta.producto_resultante.nombre}</TableCell>
+                          <TableCell>
+                              {l.estado === 'Confirmado' ? (
+                                  <Box>
+                                      <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{l.cantidad_real} Unds</Typography>
+                                      {merma !== 0 && (
+                                          <Typography sx={{ fontSize: 11, fontWeight: 600, color: merma > 0 ? GREEN : RED }}>
+                                              {merma > 0 ? `+${merma} sobrante` : `${merma} merma`} vs Plan
+                                          </Typography>
+                                      )}
+                                  </Box>
+                              ) : '—'}
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>{l.estado === 'Confirmado' ? formatCurrency(l.costo_unitario_resultado) : '—'}</TableCell>
+                          <TableCell>
+                              <Chip label={l.estado} size="small" sx={{ bgcolor: l.estado === 'Confirmado' ? `${GREEN}15` : `${RED}15`, color: l.estado === 'Confirmado' ? GREEN : RED, fontWeight: 600, fontSize: 10, borderRadius: 1 }} />
+                          </TableCell>
+                        </TableRow>
+                      )})}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </TabPanel>
+        </Box>
+      </Paper>
 
-      {/* Diálogo Creación */}
-      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Nuevo Lote</DialogTitle>
-        <DialogContent dividers>
-          <TextField
-            select fullWidth label="Receta"
-            value={formData.receta_id}
-            onChange={(e) => setFormData({...formData, receta_id: e.target.value})}
-            margin="normal"
-          >
-            {recetas.map(r => <MenuItem key={r.id} value={r.id}>{r.nombre}</MenuItem>)}
-          </TextField>
-          <TextField
-            fullWidth type="number" label="Cantidad a Producir"
-            value={formData.cantidad_a_producir}
-            onChange={(e) => setFormData({...formData, cantidad_a_producir: e.target.value})}
-            margin="normal"
-          />
-          <TextField
-            select fullWidth label="Cliente (Maquila)"
-            value={formData.cliente_id}
-            onChange={(e) => setFormData({...formData, cliente_id: e.target.value})}
-            margin="normal"
-          >
-            <MenuItem value="">Interno (Vialmar)</MenuItem>
-            {clientes.map(c => <MenuItem key={c.id} value={c.id}>{c.nombre}</MenuItem>)}
-          </TextField>
+      {/* ── Diálogo Lanzar Producción ── */}
+      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+        <Box sx={{ height: 4, bgcolor: ACCENT }} />
+        <DialogTitle sx={{ fontWeight: 800, fontSize: 18 }}>Lanzar Orden de Producción</DialogTitle>
+        <DialogContent dividers sx={{ p: { xs: 2, sm: 3 } }}>
+            <Stack spacing={2.5}>
+                <TextField select fullWidth label="Fórmula a Producir *" value={formData.receta_id} onChange={(e) => setFormData({...formData, receta_id: e.target.value})}>
+                    {recetas.map(r => <MenuItem key={r.id} value={r.id}>{r.nombre} (Produce: {r.producto_resultante.nombre})</MenuItem>)}
+                </TextField>
+                
+                <Box sx={{ p: 2, borderRadius: 2, bgcolor: '#F8FAFC', border: '1px solid', borderColor: 'divider' }}>
+                    <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', mb: 1.5 }}>Configuración del Lote</Typography>
+                    <Grid container spacing={2}>
+                        <Grid item xs={12} sm={6}>
+                            <TextField fullWidth type="number" label="Cantidad Esperada *" value={formData.cantidad_a_producir} onChange={(e) => setFormData({...formData, cantidad_a_producir: e.target.value})} />
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                            <TextField select fullWidth label="Destino (Cliente o Bodega)" value={formData.cliente_id} onChange={(e) => setFormData({...formData, cliente_id: e.target.value})}>
+                                <MenuItem value="">🏢 Para mi Inventario (Vialmar)</MenuItem>
+                                {clientes.map(c => <MenuItem key={c.id} value={c.id}>👤 Maquila: {c.nombre}</MenuItem>)}
+                            </TextField>
+                        </Grid>
+                    </Grid>
+                </Box>
+
+                {simulando ? (
+                    <Typography sx={{ fontSize: 12, color: 'text.secondary', textAlign: 'center' }}>Analizando inventario...</Typography>
+                ) : simulacion ? (
+                    <Box sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: simulacion.factible ? '#10B98150' : '#EF444450', bgcolor: simulacion.factible ? '#10B9810A' : '#EF44440A' }}>
+                        <Typography sx={{ fontWeight: 700, fontSize: 13, color: simulacion.factible ? '#10B981' : '#EF4444', mb: 1 }}>
+                            {simulacion.factible ? '✅ Inventario suficiente para esta producción' : '⚠️ Faltan insumos en inventario'}
+                        </Typography>
+                        
+                        {!simulacion.factible && (
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 2 }}>
+                                {simulacion.faltantes.map(f => (
+                                    <Typography key={f.insumo_id} sx={{ fontSize: 12, color: '#EF4444' }}>
+                                        • Falta <strong>{f.faltante} {f.unidad}</strong> de {f.nombre} (Req: {f.requerido} | Disp: {f.disponible})
+                                    </Typography>
+                                ))}
+                                <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.5 }}>
+                                  *Puedes crear el lote para planificarlo, pero no podrás finalizarlo hasta ingresar el stock faltante.
+                                </Typography>
+                            </Box>
+                        )}
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed', borderColor: 'divider', pt: 1, mt: 1 }}>
+                            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Costo estimado:</Typography>
+                            <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{formatCurrency(simulacion.costo_teorico_total)}</Typography>
+                        </Box>
+                    </Box>
+                ) : null}
+
+                <TextField fullWidth multiline rows={2} label="Notas u observaciones para el operador" value={formData.observaciones} onChange={(e) => setFormData({...formData, observaciones: e.target.value})} placeholder="Ej: Usar lote antiguo de azúcar..." />
+            </Stack>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpen(false)}>Cancelar</Button>
-                <Button
-                    onClick={async () => {
-                      const payload = {
-                        ...formData,
-                        cliente_id: formData.cliente_id ? Number(formData.cliente_id) : null,
-                        receta_id: Number(formData.receta_id),
-                        cantidad_a_producir: Number(formData.cantidad_a_producir),
-                      };
-                      await createLote(payload);
-                      loadData();
-                      setOpen(false);
-                    }}
-                    variant="contained"
-                  >
-                    Crear
-                </Button>
-
+        <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2 }}>
+          <Button onClick={() => setOpen(false)} sx={{ color: 'text.secondary', fontWeight: 600 }}>Cancelar</Button>
+          <Button variant="contained" onClick={async () => {
+              if(!formData.receta_id || !formData.cantidad_a_producir) { toast.warning('Completa receta y cantidad'); return; }
+              await createLote({ ...formData, cliente_id: formData.cliente_id ? Number(formData.cliente_id) : null, receta_id: Number(formData.receta_id), cantidad_a_producir: Number(formData.cantidad_a_producir) });
+              loadData(); setOpen(false); setFormData({receta_id: '', cantidad_a_producir: '', cliente_id: '', observaciones: ''});
+              toast.success('Orden enviada a planta');
+          }} sx={{ bgcolor: ACCENT, '&:hover':{bgcolor: '#0891B2'}, fontWeight: 600 }}>Enviar a Planta</Button>
         </DialogActions>
       </Dialog>
 
-      {/* Diálogo Confirmación con Precios de Múltiples Servicios */}
-      <Dialog open={openConfirm} onClose={() => setOpenConfirm(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Finalizar produccion</DialogTitle>
-        <DialogContent dividers>
-          <TextField
-            fullWidth type="number" label="Cantidad Real Obtenida"
-            value={confirmData.cantidad_real}
-            onChange={(e) => setConfirmData({...confirmData, cantidad_real: e.target.value})}
-            margin="normal" required
-          />
-          
-          {/* {selectedLote?.cliente_id && confirmData.precios_servicios.length > 0 && (
-            <Box sx={{ mt: 2, p: 2, border: '1px dashed #ccc', borderRadius: 1 }}>
-              <Typography variant="subtitle2" color="primary" gutterBottom>PRECIOS DE MAQUILA POR SERVICIO</Typography>
-              {confirmData.precios_servicios.map((srv, idx) => (
-                <TextField
-                  key={srv.servicio_id}
-                  fullWidth type="number" 
-                  label={`Precio: ${srv.nombre}`}
-                  value={srv.precio}
-                  onChange={(e) => handlePrecioChange(idx, e.target.value)}
-                  margin="normal"
-                  required
-                />
-              ))}
+      {/* ── Diálogo Finalizar Producción ── */}
+      <Dialog open={openConfirm} onClose={() => setOpenConfirm(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+        <Box sx={{ height: 4, bgcolor: GREEN }} />
+        <DialogTitle sx={{ fontWeight: 800, fontSize: 18 }}>Cierre de Producción</DialogTitle>
+        <DialogContent dividers sx={{ p: { xs: 2, sm: 3 }, bgcolor: '#F8FAFC' }}>
+            <Box sx={{ p: 2, mb: 3, borderRadius: 2, bgcolor: '#fff', border: '1px solid', borderColor: 'divider' }}>
+                <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 0.5 }}>Producto Resultante</Typography>
+                <Typography sx={{ fontWeight: 800, fontSize: 18 }}>{selectedLote?.receta?.producto_resultante?.nombre}</Typography>
+                <Typography sx={{ fontSize: 13, fontWeight: 600, color: ACCENT, mt: 1 }}>Cantidad Esperada: {selectedLote?.cantidad_a_producir}</Typography>
             </Box>
-          )} */}
+            
+            <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary', mb: 1.5 }}>RESULTADO REAL OBTENIDO</Typography>
+            <TextField fullWidth type="number" label="Cantidad real a ingresar a Bodega *" value={confirmData.cantidad_real} onChange={(e) => setConfirmData({...confirmData, cantidad_real: e.target.value})} sx={{ bgcolor: '#fff', mb: 2 }} helperText="El sistema calculará automáticamente el nuevo costo unitario promediando las mermas." />
+            
+            <TextField fullWidth multiline rows={2} label="Observaciones de Cierre" value={confirmData.observaciones} onChange={(e) => setConfirmData({...confirmData, observaciones: e.target.value})} sx={{ bgcolor: '#fff' }} placeholder="Ej: Se dañaron 2 unidades en el horno..." />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenConfirm(false)}>Cancelar</Button>
-          <Button onClick={handleConfirmarFinal} variant="contained" color="success" disabled={loading}>Finalizar</Button>
+        <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2 }}>
+          <Button onClick={() => setOpenConfirm(false)} sx={{ color: 'text.secondary', fontWeight: 600 }}>Cancelar</Button>
+          <Button onClick={handleConfirmarFinal} variant="contained" disabled={loading} sx={{ bgcolor: GREEN, '&:hover':{bgcolor: '#059669'}, fontWeight: 600, px: { xs: 2, sm: 3 } }}>Finalizar e Ingresar a Inventario</Button>
         </DialogActions>
       </Dialog>
-    </Paper>
+    </Box>
   );
 };
 

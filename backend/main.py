@@ -1138,6 +1138,48 @@ def cancelar_lote(lote_id: int, db: Session = Depends(get_db), current_user: mod
 
 app.include_router(produccion_router)
 
+
+# ─── AGREGAR EN main.py (Sección de PRODUCCIÓN, debajo de las rutas de recetas) ───
+
+@produccion_router.get("/recetas/{receta_id}/simular")
+def simular_produccion(receta_id: int, cantidad: float, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+    """
+    Simula una producción para advertir si hay stock suficiente de insumos
+    antes de lanzar la orden a la planta.
+    """
+    receta = crud.get_receta(db, empresa_id=current_user.empresa_id, receta_id=receta_id)
+    if not receta:
+        raise HTTPException(status_code=404, detail="Receta no encontrada")
+
+    faltantes = []
+    costo_teorico_total = 0.0
+
+    for item in receta.items:
+        insumo = item.insumo
+        cantidad_requerida = item.cantidad * cantidad
+        stock_actual = insumo.stock_actual or 0.0
+        
+        # Calcular costo teórico
+        costo_teorico_total += cantidad_requerida * (insumo.costo or 0.0)
+
+        # Verificar si falta
+        if stock_actual < cantidad_requerida:
+            faltantes.append({
+                "insumo_id": insumo.id,
+                "nombre": insumo.nombre,
+                "requerido": cantidad_requerida,
+                "disponible": stock_actual,
+                "faltante": cantidad_requerida - stock_actual,
+                "unidad": insumo.unidad_medida
+            })
+
+    return {
+        "factible": len(faltantes) == 0,
+        "costo_teorico_total": costo_teorico_total,
+        "costo_unitario_estimado": costo_teorico_total / cantidad if cantidad > 0 else 0,
+        "faltantes": faltantes
+    }
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # COMPRAS
 # ═══════════════════════════════════════════════════════════════════════════════

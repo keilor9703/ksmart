@@ -44,7 +44,8 @@ import InventoryReports from './components/InventoryReports';
 import Dashboard from './components/Dashboard';
 import Notifications from './components/Notifications';
 import Caja from './components/Caja';
-import GestionEmpresas from './components/GestionEmpresas'; // ✅ NUEVO: Importación del componente
+import AdminUsuarios from './components/AdminUsuarios';
+import GestionEmpresas from './components/GestionEmpresas';
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 const SIDEBAR_FULL   = 240;
@@ -74,9 +75,7 @@ const menuItems = [
 ];
 
 const adminMenuItems = [
-  { path: '/admin/users',   text: 'Usuarios'  },
-  { path: '/admin/roles',   text: 'Roles'     },
-  { path: '/admin/modules', text: 'Módulos'   },
+  { path: '/admin/usuarios', text: 'Usuarios y Permisos' },
 ];
 
 // ─── Home ──────────────────────────────────────────────────────────────────────
@@ -109,14 +108,12 @@ const Home = () => (
 );
 
 // ─── Sidebar Item ──────────────────────────────────────────────────────────────
-// onClick  → handler para ítems que NO navegan (ej: toggle Admin)
-// onClose  → cerrar drawer mobile DESPUÉS de navegar
 const SidebarItem = ({ item, expanded, onClick, onClose, active }) => (
   <Tooltip title={!expanded ? item.text : ''} placement="right" arrow>
     <ListItemButton
-      component={onClick ? 'div' : Link}   // 'div' solo para toggles sin ruta
-      to={onClick ? undefined : item.path} // ruta solo cuando hay path
-      onClick={onClick ?? onClose}         // toggle -o- cerrar drawer
+      component={onClick ? 'div' : Link}   
+      to={onClick ? undefined : item.path} 
+      onClick={onClick ?? onClose}         
       sx={{
         mx: 1, mb: 0.5,
         borderRadius: 2,
@@ -172,7 +169,6 @@ const Sidebar = ({ expanded, user, hasAccess, onClose, mobile }) => {
         overflowX: 'hidden',
       }}
     >
-      {/* Logo — clickeable, navega al dashboard */}
       <Box
         component={Link}
         to="/"
@@ -208,13 +204,11 @@ const Sidebar = ({ expanded, user, hasAccess, onClose, mobile }) => {
         )}
       </Box>
 
-      {/* Nav */}
       <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', py: 1.5,
         '&::-webkit-scrollbar': { width: 4 },
         '&::-webkit-scrollbar-thumb': { background: 'rgba(255,255,255,0.1)', borderRadius: 4 },
       }}>
 
-        {/* ✅ NUEVO: Menú exclusivo para el SuperAdmin (Dueño del SaaS) */}
         {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (
           <>
             <SidebarItem
@@ -229,7 +223,6 @@ const Sidebar = ({ expanded, user, hasAccess, onClose, mobile }) => {
           </>
         )}
 
-        {/* Admin section */}
         {user?.role?.name === 'Admin' && (
           <>
             <SidebarItem
@@ -282,7 +275,6 @@ const Sidebar = ({ expanded, user, hasAccess, onClose, mobile }) => {
           </>
         )}
 
-        {/* Main items */}
         {menuItems.map(item =>
           hasAccess(item.path) ? (
             <SidebarItem
@@ -290,13 +282,12 @@ const Sidebar = ({ expanded, user, hasAccess, onClose, mobile }) => {
               item={item}
               expanded={expanded}
               active={isActive(item.path)}
-              onClose={mobile ? onClose : undefined}  // cierra drawer tras navegar
+              onClose={mobile ? onClose : undefined}
             />
           ) : null
         )}
       </Box>
 
-      {/* User footer */}
       <Box
         sx={{
           borderTop: '1px solid rgba(255,255,255,0.06)',
@@ -344,7 +335,6 @@ const TopBar = ({
 }) => {
   const location = useLocation();
 
-  // Actualizado para buscar en todos los ítems posibles, incluyendo el nuevo panel SaaS
   const currentPage = [
     ...menuItems, 
     ...adminMenuItems, 
@@ -389,19 +379,21 @@ const TopBar = ({
 
       {/* Acciones */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        
+        {/* ✅ SIEMPRE VISIBLES: Tema y Notificaciones (Tanto PC como Móvil) */}
+        <Tooltip title={mode === 'dark' ? 'Modo claro' : 'Modo oscuro'}>
+          <IconButton onClick={onThemeToggle} size="small"
+            sx={{ color: mode === 'dark' ? '#94a3b8' : '#6B7280' }}
+          >
+            {mode === 'dark' ? <LightMode fontSize="small" /> : <DarkMode fontSize="small" />}
+          </IconButton>
+        </Tooltip>
+
+        <Notifications mode={mode} />
+
+        {/* ── SOLO ESCRITORIO (Avatar y Logout directo) ── */}
         {!isMobile && (
           <>
-            <Tooltip title={mode === 'dark' ? 'Modo claro' : 'Modo oscuro'}>
-              <IconButton onClick={onThemeToggle} size="small"
-                sx={{ color: mode === 'dark' ? '#94a3b8' : '#6B7280' }}
-              >
-                {mode === 'dark' ? <LightMode fontSize="small" /> : <DarkMode fontSize="small" />}
-              </IconButton>
-            </Tooltip>
-
-            {/* ── Notificaciones ── */}
-            <Notifications mode={mode} />
-
             <Tooltip title="Cerrar sesión">
               <IconButton onClick={onLogout} size="small"
                 sx={{ color: mode === 'dark' ? '#94a3b8' : '#6B7280' }}
@@ -439,21 +431,17 @@ const TopBar = ({
           </>
         )}
 
+        {/* ── SOLO MÓVIL (Menú desplegable para cerrar sesión) ── */}
         {isMobile && (
           <>
-            {/* Campana en mobile también */}
-            <Notifications mode={mode} />
             <IconButton onClick={onMenuOpen} size="small">
               <MoreVertIcon />
             </IconButton>
             <Menu anchorEl={anchorEl} open={openMenu} onClose={onMenuClose}
-              PaperProps={{ sx: { mt: 1, minWidth: 180, borderRadius: 2 } }}
+              PaperProps={{ sx: { mt: 1, minWidth: 160, borderRadius: 2 } }}
             >
-              <MenuItem onClick={() => { onThemeToggle(); onMenuClose(); }}>
-                {mode === 'dark' ? 'Modo Claro' : 'Modo Oscuro'}
-              </MenuItem>
-              <Divider />
               <MenuItem onClick={() => { onLogout(); onMenuClose(); }} sx={{ color: 'error.main' }}>
+                <LogoutIcon fontSize="small" sx={{ mr: 1.5 }} />
                 Cerrar sesión
               </MenuItem>
             </Menu>
@@ -469,7 +457,7 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser]       = useState(null);
   const [loading, setLoading] = useState(true);
-  const [sidebarExpanded, setSidebarExpanded] = useState(false); // hover expand
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl]   = useState(null);
   const navigate = useNavigate();
@@ -550,7 +538,7 @@ function App() {
           </Box>
         ) : isAuthenticated ? (
           <>
-            {/* ── Sidebar desktop (hover expand) ── */}
+            {/* ── Sidebar desktop ── */}
             {!isMobile && (
               <Box
                 onMouseEnter={() => setSidebarExpanded(true)}
@@ -564,30 +552,18 @@ function App() {
                   boxShadow: sidebarExpanded ? '4px 0 24px rgba(0,0,0,0.18)' : 'none',
                 }}
               >
-                <Sidebar
-                  expanded={sidebarExpanded}
-                  user={user}
-                  hasAccess={hasAccess}
-                />
+                <Sidebar expanded={sidebarExpanded} user={user} hasAccess={hasAccess} />
               </Box>
             )}
 
-            {/* ── Sidebar mobile (drawer) ── */}
+            {/* ── Sidebar mobile ── */}
             {isMobile && (
               <Drawer
-                variant="temporary"
-                open={mobileOpen}
-                onClose={() => setMobileOpen(false)}
+                variant="temporary" open={mobileOpen} onClose={() => setMobileOpen(false)}
                 ModalProps={{ keepMounted: true }}
                 sx={{ '& .MuiDrawer-paper': { width: SIDEBAR_FULL, border: 'none' } }}
               >
-                <Sidebar
-                  expanded
-                  user={user}
-                  hasAccess={hasAccess}
-                  onClose={() => setMobileOpen(false)}
-                  mobile
-                />
+                <Sidebar expanded user={user} hasAccess={hasAccess} onClose={() => setMobileOpen(false)} mobile />
               </Drawer>
             )}
 
@@ -612,12 +588,11 @@ function App() {
               sx={{
                 flexGrow: 1,
                 ml: isMobile ? 0 : `${sidebarWidth}px`,
-                mt: '60px', // altura del topbar
+                mt: '60px',
                 minHeight: 'calc(100vh - 60px)',
                 transition: 'margin-left 0.22s cubic-bezier(0.4,0,0.2,1)',
                 backgroundColor: mode === 'dark' ? PAGE_BG_DARK : PAGE_BG_LIGHT,
-                display: 'flex',
-                flexDirection: 'column',
+                display: 'flex', flexDirection: 'column',
               }}
             >
               <Box sx={{ flex: 1, p: { xs: 1.5, md: 3 } }}>
@@ -635,7 +610,6 @@ function App() {
                   <Route path="/reportes"            element={<Reportes />} />
                   <Route path="/ordenes-trabajo"     element={<OrdenesTrabajo user={user} />} />
                   
-                  {/* ✅ NUEVO: Ruta protegida para el SuperAdmin */}
                   {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (
                     <Route path="/superadmin/empresas" element={<GestionEmpresas />} />
                   )}
@@ -643,28 +617,21 @@ function App() {
                   {hasAccess('/panel-operador') && (
                     <Route path="/panel-operador" element={<PanelOperador />} />
                   )}
+
                   {user?.role?.name === 'Admin' && (
-                    <>
-                      <Route path="/admin/users"   element={<UserManagement />} />
-                      <Route path="/admin/roles"   element={<RoleManagement />} />
-                      <Route path="/admin/modules" element={<ModuleManagement />} />
-                    </>
+                    <Route path="/admin/usuarios" element={<AdminUsuarios />} />
                   )}
                 </Routes>
               </Box>
 
-              {/* Footer */}
               <Box
                 component="footer"
                 sx={{
-                  py: 2, px: 3,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1,
+                  py: 2, px: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1,
                   borderTop: `1px solid ${mode === 'dark' ? 'rgba(255,255,255,0.06)' : '#E5E7EB'}`,
                 }}
               >
-                <Typography variant="caption" color="text.secondary"
-                  sx={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-                >
+                <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                   Powered KSMP Systems - 2026
                 </Typography>
                 <Box component="img" src="/Logo2.png" alt="Logo" sx={{ height: 20 }} />
@@ -679,20 +646,10 @@ function App() {
       </Box>
 
       <ToastContainer
-        position="bottom-right"
-        autoClose={3500}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        pauseOnHover
-        draggable
+        position="bottom-right" autoClose={3500} hideProgressBar={false} newestOnTop closeOnClick pauseOnHover draggable
         toastStyle={{
-          fontFamily: "'Plus Jakarta Sans', sans-serif",
-          fontSize: 13.5,
-          borderRadius: 12,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
-          border: '1px solid rgba(0,0,0,0.06)',
-          padding: '12px 16px',
+          fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 13.5, borderRadius: 12,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.14)', border: '1px solid rgba(0,0,0,0.06)', padding: '12px 16px',
         }}
         style={{ bottom: 24, right: 16 }}
       />
