@@ -1,18 +1,18 @@
 import axios from 'axios';
 
-//const apiClient = axios.create({
- // baseURL: `${window.location.protocol}////${window.location.hostname}:8000`,
-  //headers: {
-   // 'Content-Type': 'application/json',
- //},
-//});
-
-//  const apiClient = axios.create({
-//     baseURL: 'https://peleteria-jeylor-app.onrender.com',     headers: {
+// const apiClient = axios.create({
+//   baseURL: `${window.location.protocol}////${window.location.hostname}:8000`,
+//   headers: {
 //     'Content-Type': 'application/json',
-//      },
-//       });
+//   },
+// });
 
+// const apiClient = axios.create({
+//   baseURL: 'https://peleteria-jeylor-app.onrender.com',    
+//   headers: {
+//     'Content-Type': 'application/json',
+//   },
+// });
 
 const base = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
@@ -20,7 +20,6 @@ export const apiClient = axios.create({
   baseURL: base,
   headers: { "Content-Type": "application/json" },
 });
-
 
 // Interceptor para añadir el token de autenticación a las solicitudes
 apiClient.interceptors.request.use(
@@ -36,19 +35,17 @@ apiClient.interceptors.request.use(
   }
 );
 
+// ✅ INTERCEPTOR DE RESPUESTA CORREGIDO
+// Se eliminó el window.location.href para evitar el bucle infinito de recargas.
+// Ahora App.js es el único encargado de atajar el 402 y hacer el cambio de pantalla.
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 402) {
-      // El trial expiró. Redirigimos a la pantalla de pago/bloqueo.
-      window.location.href = '/suscripcion-expirada';
-    }
     return Promise.reject(error);
   }
 );
 
 export const fetchMovimientosTemplate = () => apiClient.get('/inventario/movimientos/template', { responseType: 'blob' });
-
 
 // --- API para Panel del Operador ---
 
@@ -87,7 +84,6 @@ export const uploadFile = async (uploadType, file) => {
     }
 };
 
-
 export const fetchMovements = (params = {}) =>
   apiClient.get('/inventario/movimientos', { params });
 
@@ -99,7 +95,6 @@ export const fetchLowStockAlerts = () =>
 
 export const updateProductoStockMinimo = (productoId, minimo) =>
   apiClient.patch(`/productos/${productoId}/stock-minimo`, { stock_minimo: minimo });
-
 
 // --- API PRODUCCIÓN (VIALMAR) ---
 
@@ -118,17 +113,11 @@ export const fetchLotes = (params = {}) =>
 export const createLote = (data) =>
   apiClient.post('/produccion/lotes/', data);
 
-// export const confirmarLote = (id) =>
-//   apiClient.post(`/produccion/lotes/${id}/confirmar`);
-
 export const confirmarLote = (id, payload) =>
   apiClient.post(`/produccion/lotes/${id}/confirmar`, payload);
 
-
-
 export const cancelarLote = (id) =>
   apiClient.put(`/produccion/lotes/${id}/cancelar`);
-
 
 // --- API COMPRAS (VIALMAR) ---
 
@@ -146,6 +135,5 @@ export const fetchProductTemplate = () =>
 
 export const fetchTercerosTemplate = () =>
   apiClient.get('/clientes/template', { responseType: 'blob' });
-
 
 export default apiClient;
