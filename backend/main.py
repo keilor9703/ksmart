@@ -1242,7 +1242,7 @@ def ping():
     return {"status": "ok", "message": "Backend de Ksmart360 activo y despierto"}
 
 
-# ─── AGREGAR EN main.py (Dentro de la sección PRODUCCIÓN) ───
+# ─── AGREGAR EN main.py (Dentro de la sección PRODUCCIÓN) ya ajustado───
 
 @produccion_router.get("/recetas/{receta_id}/simular")
 def simular_produccion(receta_id: int, cantidad: float, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
