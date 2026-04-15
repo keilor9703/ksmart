@@ -5,7 +5,7 @@ import {
   DialogActions, TextField, MenuItem, Grid, Divider, useTheme, useMediaQuery,
   Tabs, Tab, Stack, Tooltip
 } from '@mui/material';
-import { Add, CheckCircle, Cancel, PrecisionManufacturing, Assignment, CheckCircleOutline, History } from '@mui/icons-material';
+import { Add, Cancel, PrecisionManufacturing, Assignment, CheckCircleOutline, History } from '@mui/icons-material';
 import { fetchLotes, createLote, confirmarLote, cancelarLote, fetchRecetas } from '../api';
 import apiClient from '../api';
 import { toast } from 'react-toastify';
@@ -14,7 +14,6 @@ import { formatCurrency } from '../utils/formatters';
 const ACCENT = '#06B6D4'; // Cyan - Producción
 const GREEN  = '#10B981';
 const RED = '#EF4444'; // Rojo elegante
-
 
 function TabPanel({ children, value, index }) {
   return <div role="tabpanel" hidden={value !== index}>{value === index && <Box sx={{ pt: 3 }}>{children}</Box>}</div>;
@@ -28,7 +27,6 @@ const Lotes = () => {
   const [lotes, setLotes] = useState([]);
   const [recetas, setRecetas] = useState([]);
   const [clientes, setClientes] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
   
   const [open, setOpen] = useState(false);
   const [openConfirm, setOpenConfirm] = useState(false);
@@ -38,9 +36,9 @@ const Lotes = () => {
   const [formData, setFormData] = useState({ receta_id: '', cantidad_a_producir: '', cliente_id: '', observaciones: '' });
   const [confirmData, setConfirmData] = useState({ cantidad_real: '', observaciones: '' });
 
+  // Estados del simulador
   const [simulacion, setSimulacion] = useState(null);
   const [simulando, setSimulando] = useState(false);
-
 
   useEffect(() => { loadData(); }, []);
 
@@ -88,6 +86,7 @@ const Lotes = () => {
   const lotesEnPlanta = lotes.filter(l => l.estado === 'En produccion');
   const lotesHistorial = lotes.filter(l => l.estado !== 'En produccion');
 
+  // Simulador en tiempo real
   useEffect(() => {
     if (formData.receta_id && formData.cantidad_a_producir > 0) {
       setSimulando(true);
@@ -104,7 +103,7 @@ const Lotes = () => {
   }, [formData.receta_id, formData.cantidad_a_producir]);
 
   return (
-    <Box sx={{ width: '100%' }}> 
+    <Box sx={{ width: '100%', overflowX: 'hidden' }}> 
       {/* ── Header ── */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -124,7 +123,7 @@ const Lotes = () => {
 
       {/* ── KPIs ── */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6}>
+        <Grid item xs={12} sm={6} md={4}>
           <Paper sx={{ p: 2.5, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 2, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
              <Assignment sx={{ color: '#F59E0B', fontSize: 32 }}/>
              <Box>
@@ -133,7 +132,7 @@ const Lotes = () => {
              </Box>
           </Paper>
         </Grid>
-        <Grid item xs={12} sm={6}>
+        <Grid item xs={12} sm={6} md={4}>
           <Paper sx={{ p: 2.5, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 2, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
              <CheckCircleOutline sx={{ color: GREEN, fontSize: 32 }}/>
              <Box>
@@ -144,7 +143,7 @@ const Lotes = () => {
         </Grid>
       </Grid>
 
-      {/* ── TABS Y CONTENIDO ── */}
+      {/* ── TABS Y TABLAS ── */}
       <Paper sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', overflow: 'hidden', width: '100%' }}>
         <Tabs 
           value={tab} 
@@ -209,7 +208,6 @@ const Lotes = () => {
           {/* ════ TAB 1: HISTORIAL ════ */}
           <TabPanel value={tab} index={1}>
             {isMobile ? (
-              /* VISTA DE TARJETAS EN MÓVIL PARA EVITAR OVERFLOW */
               <Box>
                 {lotesHistorial.length === 0 ? (
                   <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
@@ -251,7 +249,6 @@ const Lotes = () => {
                 )}
               </Box>
             ) : (
-              /* VISTA DE TABLA EN ESCRITORIO */
               <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
                 <Table size="small">
                   <TableHead sx={{ bgcolor: 'action.hover' }}>
@@ -300,10 +297,40 @@ const Lotes = () => {
         <DialogTitle sx={{ fontWeight: 800, fontSize: 18 }}>Lanzar Orden de Producción</DialogTitle>
         <DialogContent dividers sx={{ p: { xs: 2, sm: 3 } }}>
             <Stack spacing={2.5}>
-                <TextField select fullWidth label="Fórmula a Producir *" value={formData.receta_id} onChange={(e) => setFormData({...formData, receta_id: e.target.value})}>
-                    {recetas.map(r => <MenuItem key={r.id} value={r.id}>{r.nombre} (Produce: {r.producto_resultante.nombre})</MenuItem>)}
-                </TextField>
                 
+                {/* ✅ LISTA DESPLEGABLE MEJORADA PARA MÓVILES */}
+                <TextField 
+                    select 
+                    fullWidth 
+                    label="Fórmula a Producir *" 
+                    value={formData.receta_id} 
+                    onChange={(e) => setFormData({...formData, receta_id: e.target.value})}
+                    SelectProps={{
+                        MenuProps: {
+                            PaperProps: {
+                                sx: { maxHeight: 300, borderRadius: 2 }
+                            }
+                        }
+                    }}
+                >
+                    {recetas.length === 0 ? (
+                         <MenuItem disabled value="">No hay recetas creadas</MenuItem>
+                    ) : (
+                        recetas.map(r => (
+                            <MenuItem 
+                                key={r.id} 
+                                value={r.id}
+                                sx={{ whiteSpace: 'normal', py: 1.5, borderBottom: '1px solid #f1f5f9' }} 
+                            >
+                                <Box>
+                                    <Typography sx={{ fontWeight: 600, fontSize: 14 }}>{r.nombre}</Typography>
+                                    <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Produce: {r.producto_resultante.nombre}</Typography>
+                                </Box>
+                            </MenuItem>
+                        ))
+                    )}
+                </TextField>
+
                 <Box sx={{ p: 2, borderRadius: 2, bgcolor: '#F8FAFC', border: '1px solid', borderColor: 'divider' }}>
                     <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', mb: 1.5 }}>Configuración del Lote</Typography>
                     <Grid container spacing={2}>
@@ -311,14 +338,28 @@ const Lotes = () => {
                             <TextField fullWidth type="number" label="Cantidad Esperada *" value={formData.cantidad_a_producir} onChange={(e) => setFormData({...formData, cantidad_a_producir: e.target.value})} />
                         </Grid>
                         <Grid item xs={12} sm={6}>
-                            <TextField select fullWidth label="Destino (Cliente o Bodega)" value={formData.cliente_id} onChange={(e) => setFormData({...formData, cliente_id: e.target.value})}>
-                                <MenuItem value="">🏢 Para mi Inventario (Vialmar)</MenuItem>
-                                {clientes.map(c => <MenuItem key={c.id} value={c.id}>👤 Maquila: {c.nombre}</MenuItem>)}
+                            <TextField 
+                                select 
+                                fullWidth 
+                                label="Destino (Cliente o Bodega)" 
+                                value={formData.cliente_id} 
+                                onChange={(e) => setFormData({...formData, cliente_id: e.target.value})}
+                                SelectProps={{
+                                    MenuProps: { PaperProps: { sx: { borderRadius: 2 } } }
+                                }}
+                            >
+                                <MenuItem value="" sx={{ py: 1.5 }}>🏢 Para mi Inventario (Vialmar)</MenuItem>
+                                {clientes.map(c => (
+                                    <MenuItem key={c.id} value={c.id} sx={{ py: 1.5, borderTop: '1px solid #f1f5f9' }}>
+                                        👤 Maquila: {c.nombre}
+                                    </MenuItem>
+                                ))}
                             </TextField>
                         </Grid>
                     </Grid>
                 </Box>
 
+                {/* ✅ ALERTA DEL SIMULADOR */}
                 {simulando ? (
                     <Typography sx={{ fontSize: 12, color: 'text.secondary', textAlign: 'center' }}>Analizando inventario...</Typography>
                 ) : simulacion ? (
@@ -326,7 +367,7 @@ const Lotes = () => {
                         <Typography sx={{ fontWeight: 700, fontSize: 13, color: simulacion.factible ? '#10B981' : '#EF4444', mb: 1 }}>
                             {simulacion.factible ? '✅ Inventario suficiente para esta producción' : '⚠️ Faltan insumos en inventario'}
                         </Typography>
-                        
+
                         {!simulacion.factible && (
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 2 }}>
                                 {simulacion.faltantes.map(f => (
