@@ -1,18 +1,16 @@
 # ═══════════════════════════════════════════════════════════════════════════════
-# CRUD.PY - VERSIÓN MULTI-TENANT CON TIMEZONE FIX (NIVEL SENIOR)
-# Todos los registros están aislados por empresa_id
-# Toda la base de datos guarda en UTC, y las consultas filtran en Hora Local
+# CRUD.PY - VERSIÓN MULTI-TENANT CON TIMEZONE FIX DEFINITIVO
 # ═══════════════════════════════════════════════════════════════════════════════
 
 from sqlalchemy.orm import Session, joinedload, selectinload
-from sqlalchemy import func, text
+from sqlalchemy import func, text, cast, Date
 from typing import Optional, List, IO
 from datetime import date, timedelta, datetime, timezone, time
 from passlib.context import CryptContext
 import models, schemas
 import pandas as pd
 from fastapi import HTTPException
-from zoneinfo import ZoneInfo # Disponible en Python 3.9+
+from zoneinfo import ZoneInfo
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 COL_TZ = "America/Bogota"
@@ -32,24 +30,27 @@ def _is_postgres(db: Session) -> bool:
 BOGOTA_TZ = ZoneInfo("America/Bogota")
 UTC_TZ = ZoneInfo("UTC")
 
-def get_utc_boundaries(local_date: date):
+def get_utc_boundaries(local_date: date, db: Session = None):
     """
     Toma una fecha local (date) y devuelve el inicio y fin de ese día en UTC.
-    Ideal para filtrar correctamente en la base de datos (que está en UTC).
+    Compatible tanto con Postgres (Producción) como SQLite (Local).
     """
-    # Inicio del día en Bogotá (00:00:00)
     local_start = datetime.combine(local_date, time.min, tzinfo=BOGOTA_TZ)
-    # Fin del día en Bogotá (23:59:59.999999)
     local_end = datetime.combine(local_date, time.max, tzinfo=BOGOTA_TZ)
 
-    # Convertir a UTC
     utc_start = local_start.astimezone(UTC_TZ)
     utc_end = local_end.astimezone(UTC_TZ)
 
-    return utc_start, utc_end          
+    # Si pasamos la db y comprobamos que es SQLite, removemos el tzinfo
+    # para que la comparación por string en SQLite funcione.
+    if db and not _is_postgres(db):
+        utc_start = utc_start.replace(tzinfo=None)
+        utc_end = utc_end.replace(tzinfo=None)
+
+    return utc_start, utc_end  
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# UTILIDADES - NO REQUIEREN EMPRESA_ID
+# UTILIDADES
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def verify_password(plain_password, hashed_password):
@@ -59,7 +60,7 @@ def get_password_hash(password):
     return pwd_context.hash(password)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ROLES Y MÓDULOS - GLOBALES (NO TIENEN EMPRESA_ID)
+# ROLES Y MÓDULOS
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def get_modulo(db: Session, modulo_id: int):
@@ -148,7 +149,7 @@ def set_modules_for_role(db: Session, role_id: int, module_ids: List[int]):
     return db_role
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# USUARIOS - TIENEN EMPRESA_ID
+# USUARIOS
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def get_user(db: Session, user_id: int):
@@ -326,7 +327,7 @@ def delete_producto(db: Session, empresa_id: int, producto_id: int):
     return db_producto
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# VENTAS - CON EMPRESA_ID
+# VENTAS
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def get_ventas(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
@@ -391,6 +392,9 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate):
     iva_porc = float(getattr(venta, 'iva_porcentaje', 0) or 0)
     iva_total = total_bruto * iva_porc / (100 + iva_porc) if iva_porc > 0 else 0.0
 
+    # Usamos timezone explícito para Postgres
+    ahora_utc = datetime.now(timezone.utc)
+
     db_venta = models.Venta(
         cliente_id=venta.cliente_id,
         total=total_bruto,
@@ -399,7 +403,8 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate):
         monto_pagado=total_bruto if venta.pagada else 0,
         estado_pago="pagado" if venta.pagada else "pendiente",
         metodo_pago=venta.metodo_pago if venta.pagada else None,
-        empresa_id=empresa_id 
+        empresa_id=empresa_id,
+        fecha=ahora_utc # Forzado explicito para no depender del default base
     )
     db.add(db_venta)
     db.flush()
@@ -491,6 +496,7 @@ def create_movement(db: Session, empresa_id: int, payload: schemas.InventoryMove
         raise ValueError("Stock insuficiente")
 
     prod.stock_actual = new_stock
+    ahora_utc = datetime.now(timezone.utc)
 
     mov = models.InventoryMovement(
         producto_id=payload.producto_id,
@@ -500,7 +506,8 @@ def create_movement(db: Session, empresa_id: int, payload: schemas.InventoryMove
         motivo=payload.motivo or "",
         referencia=payload.referencia or "",
         observacion=payload.observacion or "",
-        empresa_id=empresa_id 
+        empresa_id=empresa_id,
+        created_at=ahora_utc
     )
     db.add(mov)
     db.add(prod)
@@ -539,7 +546,7 @@ def get_kardex_promedio_ponderado(
     db: Session,
     empresa_id: int, 
     producto_id: int,
-    start_date: Optional[datetime] = None, # FastAPI parsea estos a naive datetimes a las 00:00
+    start_date: Optional[datetime] = None, 
     end_date: Optional[datetime] = None,
 ) -> schemas.KardexResponse:
     prod = get_producto(db, empresa_id, producto_id)
@@ -551,7 +558,6 @@ def get_kardex_promedio_ponderado(
         models.InventoryMovement.empresa_id == empresa_id 
     )
     
-    # ✅ TIMEZONE FIX APLICADO
     if start_date:
         utc_start, _ = get_utc_boundaries(start_date.date())
         q = q.filter(models.InventoryMovement.created_at >= utc_start)
@@ -665,7 +671,6 @@ def get_rotacion_productos(
         )
     )
 
-    # ✅ TIMEZONE FIX APLICADO
     if start_date:
         utc_start, _ = get_utc_boundaries(start_date)
         q = q.filter(models.Venta.fecha >= utc_start)
@@ -714,10 +719,13 @@ def create_pago(db: Session, empresa_id: int, pago: schemas.PagoCreate):
 
     db_pago = models.Pago(**pago.dict())
     db.add(db_pago)
-    db.commit()
-    db.refresh(db_pago)
+    db.flush()
 
-    total_pagado_venta = sum(p.monto for p in db_venta.pagos)
+    # ✅ FIX: Calcular el total consultando directamente a la base de datos
+    total_pagado_venta = db.query(func.sum(models.Pago.monto)).filter(
+        models.Pago.venta_id == db_venta.id
+    ).scalar() or 0.0
+
     db_venta.monto_pagado = total_pagado_venta
 
     if db_venta.monto_pagado >= db_venta.total:
@@ -769,7 +777,6 @@ def get_ventas_summary(db: Session, empresa_id: int, start_date: Optional[date] 
     query_compras = db.query(models.Compra).filter(models.Compra.empresa_id == empresa_id)
     query_gastos = db.query(models.Gasto).filter(models.Gasto.empresa_id == empresa_id)
 
-    # ✅ TIMEZONE FIX APLICADO PARA LOS RANGOS DE FECHAS
     if start_date:
         utc_start, _ = get_utc_boundaries(start_date)
         query_ventas = query_ventas.filter(models.Venta.fecha >= utc_start)
@@ -793,15 +800,15 @@ def get_ventas_summary(db: Session, empresa_id: int, start_date: Optional[date] 
     total_compras = sum(compra.monto_pagado or 0 for compra in compras)
     total_gastos = sum(gasto.monto or 0 for gasto in gastos)
 
-    # ✅ VENTAS DE HOY EXACTAS (Hora Colombia)
+    # ✅ VENTAS DE HOY EXACTAS USANDO BOUNDARIES UTC Y CAST DE FECHA PARA SEGURIDAD POSTGRES
     hoy_colombia = datetime.now(BOGOTA_TZ).date()
     inicio_utc_hoy, fin_utc_hoy = get_utc_boundaries(hoy_colombia)
 
     ventas_hoy = db.query(models.Venta).filter(
         models.Venta.empresa_id == empresa_id,
         models.Venta.fecha >= inicio_utc_hoy,
-        models.Venta.fecha <= fin_utc_hoy,
-        models.Venta.estado_pago == "pagado"
+        models.Venta.fecha <= fin_utc_hoy
+        # models.Venta.estado_pago == "pagado"
     ).all()
     
     total_ventas_hoy = sum(v.total or 0 for v in ventas_hoy)
@@ -860,7 +867,6 @@ def get_productos_vendidos(db: Session, empresa_id: int, start_date: Optional[da
         )
     )
 
-    # ✅ TIMEZONE FIX APLICADO
     if start_date:
         utc_start, _ = get_utc_boundaries(start_date)
         query = query.filter(models.Venta.fecha >= utc_start)
@@ -897,7 +903,6 @@ def get_clientes_compradores(db: Session, empresa_id: int, start_date: Optional[
         )
     )
 
-    # ✅ TIMEZONE FIX APLICADO
     if start_date:
         utc_start, _ = get_utc_boundaries(start_date)
         query = query.filter(models.Venta.fecha >= utc_start)
@@ -952,7 +957,6 @@ def get_rentabilidad_por_producto(db: Session, empresa_id: int, start_date: Opti
         )
     )
 
-    # ✅ TIMEZONE FIX APLICADO
     if start_date:
         utc_start, _ = get_utc_boundaries(start_date)
         query = query.filter(models.Venta.fecha >= utc_start)
@@ -979,33 +983,22 @@ def get_rentabilidad_por_producto(db: Session, empresa_id: int, start_date: Opti
     return sorted(report_data, key=lambda x: x.net_profit, reverse=True)
 
 def get_sales_by_day(db: Session, empresa_id: int, start_date: date, end_date: date):
-    # ✅ TIMEZONE FIX: Usar utc boundaries para el cruce, sin importar el dialecto
+    # ✅ FIX TOTAL PARA DIAGRAMA DE BARRAS/TENDENCIA (POSTGRES Y SQLITE COMPATIBLE)
     utc_start, _ = get_utc_boundaries(start_date)
     _, utc_end = get_utc_boundaries(end_date)
 
-    is_pg = _is_postgres(db)
-    day_expr = (
-        func.date(func.timezone(COL_TZ, models.Venta.fecha)).label("day")
-        if is_pg else
-        func.date(models.Venta.fecha).label("day")
-    )
+    ventas = db.query(models.Venta).filter(
+        models.Venta.empresa_id == empresa_id,
+        models.Venta.fecha >= utc_start,
+        models.Venta.fecha <= utc_end
+    ).all()
 
-    rows = (
-        db.query(day_expr, func.sum(models.Venta.total).label("total"))
-        .filter(
-            models.Venta.empresa_id == empresa_id,
-            models.Venta.fecha >= utc_start,
-            models.Venta.fecha <= utc_end
-        )
-        .group_by(day_expr).order_by(day_expr).all()
-    )
-
-    sales_map: dict = {}
-    for r in rows:
-        if r.day is None:
-            continue
-        key = r.day[:10] if isinstance(r.day, str) else r.day.isoformat()[:10]
-        sales_map[key] = float(r.total or 0)
+    sales_map = {}
+    for v in ventas:
+        # Convertimos la fecha UTC guardada a la hora de Colombia para agrupar
+        col_date = v.fecha.astimezone(BOGOTA_TZ).date()
+        key = col_date.isoformat()
+        sales_map[key] = sales_map.get(key, 0.0) + float(v.total or 0)
 
     all_days = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
     return [
@@ -1014,8 +1007,6 @@ def get_sales_by_day(db: Session, empresa_id: int, start_date: date, end_date: d
     ]
 
 def get_total_sales_today(db: Session, empresa_id: int) -> float:
-    # Usado internamente como fallback o si requieres la consulta pura. 
-    # El dashboard ya está resuelto arriba, pero esto también lo actualizamos.
     hoy = datetime.now(BOGOTA_TZ).date()
     inicio_utc, fin_utc = get_utc_boundaries(hoy)
     
@@ -1030,11 +1021,12 @@ def get_dashboard_data(db: Session, empresa_id: int) -> schemas.DashboardData:
     hoy_colombia = datetime.now(BOGOTA_TZ).date()
     inicio_utc_hoy, fin_utc_hoy = get_utc_boundaries(hoy_colombia)
 
+    # ✅ Usamos los limites exactos en UTC
     ventas_hoy_records = db.query(models.Venta).filter(
         models.Venta.empresa_id == empresa_id,
         models.Venta.fecha >= inicio_utc_hoy,
-        models.Venta.fecha <= fin_utc_hoy,
-        models.Venta.estado_pago == "pagado"
+        models.Venta.fecha <= fin_utc_hoy
+        # models.Venta.estado_pago == "pagado"
     ).all()
     ventas_hoy = sum(v.total or 0 for v in ventas_hoy_records)
 
@@ -1097,7 +1089,6 @@ def get_ordenes_trabajo(
     if estado:
         query = query.filter(models.OrdenTrabajo.estado == estado)
     
-    # ✅ TIMEZONE FIX APLICADO
     if start_date:
         utc_start, _ = get_utc_boundaries(start_date)
         query = query.filter(models.OrdenTrabajo.fecha_creacion >= utc_start)
@@ -1120,7 +1111,9 @@ def create_orden_trabajo(db: Session, empresa_id: int, orden: schemas.OrdenTraba
         operador_id=operador_id,
         total=orden.total,
         estado='En produccion',
-        empresa_id=empresa_id 
+        empresa_id=empresa_id,
+        fecha_creacion=datetime.now(timezone.utc),
+        fecha_actualizacion=datetime.now(timezone.utc)
     )
 
     for producto_data in orden.productos:
@@ -1192,6 +1185,7 @@ def update_orden_trabajo(db: Session, empresa_id: int, orden_id: int, orden: sch
 
     db_orden.productos = nuevos_productos
     db_orden.servicios = nuevos_servicios
+    db_orden.fecha_actualizacion = datetime.now(timezone.utc)
 
     db.commit()
     db.refresh(db_orden)
@@ -1203,6 +1197,7 @@ def update_orden_trabajo_estado(db: Session, empresa_id: int, orden_id: int, est
         db_orden.estado = estado
         if observaciones:
             db_orden.observaciones_aprobador = observaciones
+        db_orden.fecha_actualizacion = datetime.now(timezone.utc)
         db.commit()
         db.refresh(db_orden)
     return db_orden
@@ -1225,6 +1220,7 @@ def aprobar_orden_trabajo(db: Session, empresa_id: int, orden_id: int, admin_use
 
     db_orden.estado = 'Aprobada'
     db_orden.observaciones_aprobador = f"Aprobado por {admin_user.username}"
+    db_orden.fecha_actualizacion = datetime.now(timezone.utc)
 
     detalles_venta = []
     for item in db_orden.productos:
@@ -1273,6 +1269,7 @@ def rechazar_orden_trabajo(db: Session, empresa_id: int, orden_id: int, observac
 
     db_orden.estado = 'Rechazada'
     db_orden.observaciones_aprobador = f"Rechazado por {admin_user.username}: {observaciones}"
+    db_orden.fecha_actualizacion = datetime.now(timezone.utc)
 
     db.commit()
     db.refresh(db_orden)
@@ -1317,12 +1314,13 @@ def cerrar_orden_trabajo(db: Session, empresa_id: int, orden_id: int, admin_user
             )
             create_pago(db, empresa_id, pago_schema) 
         
-        db_venta.fecha_pago = datetime.utcnow()
+        db_venta.fecha_pago = datetime.now(timezone.utc)
     else:
         db_venta.estado_pago = "pendiente"
 
     db_orden.estado = 'Cerrada'
     db_orden.observaciones_aprobador = f"Cerrada por {admin_user.username}"
+    db_orden.fecha_actualizacion = datetime.now(timezone.utc)
 
     db.commit()
     db.refresh(db_orden)
@@ -1347,7 +1345,6 @@ def get_total_ordenes_trabajo(
     if estado:
         query = query.filter(models.OrdenTrabajo.estado == estado)
     
-    # ✅ TIMEZONE FIX APLICADO
     if start_date:
         utc_start, _ = get_utc_boundaries(start_date)
         query = query.filter(models.OrdenTrabajo.fecha_creacion >= utc_start)
@@ -1401,7 +1398,6 @@ def get_productividad_operador(
     end_date: Optional[date] = None,
 ) -> schemas.PanelProductividad:
     
-    # ✅ TIMEZONE FIX: Usar la zona horaria real
     hoy_colombia = datetime.now(BOGOTA_TZ).date()
     week_start_date = hoy_colombia - timedelta(days=hoy_colombia.weekday())
     month_start_date = hoy_colombia.replace(day=1)
@@ -1424,7 +1420,7 @@ def get_productividad_operador(
                 ).scalar() or 0)
 
     servicios_hoy = get_total_units_for_range(today_utc_start, today_utc_end)
-    servicios_semana = get_total_units_for_range(week_utc_start, today_utc_end) # Hasta hoy (que engloba la semana hasta ahora)
+    servicios_semana = get_total_units_for_range(week_utc_start, today_utc_end) 
     servicios_mes = get_total_units_for_range(month_utc_start, today_utc_end)
 
     ordenes_completadas_semana = db.query(func.count(models.OrdenTrabajo.id)).filter(
@@ -1517,7 +1513,6 @@ def get_productividad_operador(
     )
 
 def get_historial_reciente_operador(db: Session, empresa_id: int, operador_id: int) -> List[schemas.PanelHistorialItem]:
-    # ✅ TIMEZONE FIX
     hoy_colombia = datetime.now(BOGOTA_TZ).date()
     hace_7_dias = hoy_colombia - timedelta(days=7)
     utc_inicio, _ = get_utc_boundaries(hace_7_dias)
@@ -1548,7 +1543,6 @@ def get_historial_reciente_operador(db: Session, empresa_id: int, operador_id: i
     return response
 
 def get_reporte_productividad(db: Session, empresa_id: int, start_date: date, end_date: date):
-    # ✅ TIMEZONE FIX APLICADO
     utc_start, _ = get_utc_boundaries(start_date)
     _, utc_end = get_utc_boundaries(end_date)
 
@@ -1644,83 +1638,6 @@ def get_reporte_productividad(db: Session, empresa_id: int, start_date: date, en
         end_date=end_date,
         reporte=list(productividad_por_operador.values()),
     )
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# NOTIFICACIONES Y DEMÁS FUNCIONES PERMANECEN IGUAL
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def create_notificacion(db: Session, empresa_id: int, notificacion: schemas.NotificacionCreate):
-    db_notificacion = models.Notificacion(**notificacion.dict(), empresa_id=empresa_id) 
-    db.add(db_notificacion)
-    db.commit()
-    db.refresh(db_notificacion)
-    return db_notificacion
-
-def get_notificaciones_usuario(db: Session, empresa_id: int, usuario_id: int, skip: int = 0, limit: int = 20):
-    return (
-        db.query(models.Notificacion)
-        .filter(
-            models.Notificacion.usuario_id == usuario_id,
-            models.Notificacion.empresa_id == empresa_id 
-        )
-        .order_by(models.Notificacion.fecha_creacion.desc())
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
-
-def marcar_notificacion_leida(db: Session, empresa_id: int, notificacion_id: int, usuario_id: int):
-    db_notificacion = (
-        db.query(models.Notificacion)
-        .filter(
-            models.Notificacion.id == notificacion_id,
-            models.Notificacion.usuario_id == usuario_id,
-            models.Notificacion.empresa_id == empresa_id 
-        )
-        .first()
-    )
-    if db_notificacion:
-        db_notificacion.leido = True
-        db.commit()
-        db.refresh(db_notificacion)
-    return db_notificacion
-
-def check_and_notify_low_stock(db: Session, empresa_id: int, producto_ids: List[int]):
-    admin_users = db.query(models.User).join(models.Role).filter(
-        models.Role.name == "Admin",
-        models.User.empresa_id == empresa_id 
-    ).all()
-    if not admin_users:
-        return
-
-    hoy_col = datetime.now(BOGOTA_TZ).date()
-
-    for prod_id in set(producto_ids):
-        prod = get_producto(db, empresa_id, prod_id)
-        if not prod or prod.es_servicio:
-            continue
-        if (prod.stock_minimo or 0) > 0 and (prod.stock_actual or 0) < prod.stock_minimo:
-            for admin in admin_users:
-                # Evitar notificaciones duplicadas en el mismo día
-                ya_notificado = db.query(models.Notificacion).filter(
-                    models.Notificacion.usuario_id == admin.id,
-                    models.Notificacion.empresa_id == empresa_id, 
-                    models.Notificacion.mensaje.like(f"%{prod.nombre}%bajo stock%"),
-                ).all()
-                
-                # Checkear si alguna fue hoy en local
-                notificado_hoy = any(n.fecha_creacion.astimezone(BOGOTA_TZ).date() == hoy_col for n in ya_notificado)
-
-                if notificado_hoy:
-                    continue
-                db.add(models.Notificacion(
-                    usuario_id=admin.id,
-                    empresa_id=empresa_id, 
-                    mensaje=f"⚠️ '{prod.nombre}' está bajo stock mínimo. Actual: {prod.stock_actual:.1f} | Mínimo: {prod.stock_minimo:.1f}",
-                    tipo="warning",
-                    leido=False
-                ))
-    db.commit()
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PRODUCCIÓN - RECETAS Y LOTES
@@ -1842,7 +1759,8 @@ def create_lote(db: Session, empresa_id: int, lote: schemas.LoteProduccionCreate
         cliente_id=cliente_id,
         observaciones=lote.observaciones,
         estado="En produccion",
-        empresa_id=empresa_id 
+        empresa_id=empresa_id,
+        fecha_planificada=datetime.now(timezone.utc) 
     )
     db.add(db_lote)
     db.commit()
@@ -1920,7 +1838,7 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
     db_lote.cantidad_real = cantidad_final
     db_lote.costo_total = costo_total_acumulado
     db_lote.costo_unitario_resultado = costo_unitario_final
-    db_lote.fecha_confirmacion = datetime.utcnow()
+    db_lote.fecha_confirmacion = datetime.now(timezone.utc)
     if confirm_data.observaciones:
         db_lote.observaciones = (db_lote.observaciones or "") + " | Cierre: " + confirm_data.observaciones
 
@@ -1939,33 +1857,327 @@ def cancelar_lote(db: Session, empresa_id: int, lote_id: int):
         return True
     return False
 
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# VALIDACIONES DE ELIMINACIÓN
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def check_can_delete_cliente(db: Session, empresa_id: int, cliente_id: int) -> list:
+    """✅ FILTRADO POR EMPRESA"""
+    bloqueos = []
+    ventas = db.query(models.Venta).filter(
+        models.Venta.cliente_id == cliente_id,
+        models.Venta.empresa_id == empresa_id  # ✅
+    ).count()
+    if ventas:
+        bloqueos.append(f"{ventas} venta{'s' if ventas > 1 else ''}")
+    
+    compras = db.query(models.Compra).filter(
+        models.Compra.proveedor_id == cliente_id,
+        models.Compra.empresa_id == empresa_id  # ✅
+    ).count()
+    if compras:
+        bloqueos.append(f"{compras} compra{'s' if compras > 1 else ''} como proveedor")
+    
+    ordenes = db.query(models.OrdenTrabajo).filter(
+        models.OrdenTrabajo.cliente_id == cliente_id,
+        models.OrdenTrabajo.empresa_id == empresa_id  # ✅
+    ).count()
+    if ordenes:
+        bloqueos.append(f"{ordenes} orden{'es' if ordenes > 1 else ''} de trabajo")
+    
+    lotes = db.query(models.LoteProduccion).filter(
+        models.LoteProduccion.cliente_id == cliente_id,
+        models.LoteProduccion.empresa_id == empresa_id  # ✅
+    ).count()
+    if lotes:
+        bloqueos.append(f"{lotes} lote{'s' if lotes > 1 else ''} de producción")
+    
+    return bloqueos
+
+def check_can_delete_producto(db: Session, empresa_id: int, producto_id: int) -> list:
+    """✅ FILTRADO POR EMPRESA - Productos pueden aparecer en ventas/compras de la misma empresa"""
+    bloqueos = []
+    
+    # Revisar detalles de venta (join para filtrar por empresa de la venta)
+    dv = db.query(models.DetalleVenta).join(models.Venta).filter(
+        models.DetalleVenta.producto_id == producto_id,
+        models.Venta.empresa_id == empresa_id  # ✅
+    ).count()
+    if dv:
+        bloqueos.append(f"usado en {dv} venta{'s' if dv > 1 else ''}")
+    
+    dc = db.query(models.DetalleCompra).join(models.Compra).filter(
+        models.DetalleCompra.producto_id == producto_id,
+        models.Compra.empresa_id == empresa_id  # ✅
+    ).count()
+    if dc:
+        bloqueos.append(f"usado en {dc} compra{'s' if dc > 1 else ''}")
+    
+    mov = db.query(models.InventoryMovement).filter(
+        models.InventoryMovement.producto_id == producto_id,
+        models.InventoryMovement.empresa_id == empresa_id  # ✅
+    ).count()
+    if mov:
+        bloqueos.append(f"tiene {mov} movimiento{'s' if mov > 1 else ''} de inventario")
+    
+    receta = db.query(models.Receta).filter(
+        models.Receta.producto_id == producto_id,
+        models.Receta.empresa_id == empresa_id  # ✅
+    ).first()
+    if receta:
+        bloqueos.append("tiene una receta de producción asociada")
+    
+    en_receta = db.query(models.RecetaItem).join(models.Receta).filter(
+        models.RecetaItem.insumo_id == producto_id,
+        models.Receta.empresa_id == empresa_id  # ✅
+    ).count()
+    if en_receta:
+        bloqueos.append(f"es insumo en {en_receta} receta{'s' if en_receta > 1 else ''}")
+    
+    op = db.query(models.OrdenProducto).join(models.OrdenTrabajo).filter(
+        models.OrdenProducto.producto_id == producto_id,
+        models.OrdenTrabajo.empresa_id == empresa_id  # ✅
+    ).count()
+    if op:
+        bloqueos.append(f"en {op} orden{'es' if op > 1 else ''} de trabajo")
+    
+    os_ = db.query(models.OrdenServicio).join(models.OrdenTrabajo).filter(
+        models.OrdenServicio.servicio_id == producto_id,
+        models.OrdenTrabajo.empresa_id == empresa_id  # ✅
+    ).count()
+    if os_:
+        bloqueos.append(f"como servicio en {os_} orden{'es' if os_ > 1 else ''}")
+    
+    return bloqueos
+
+def check_can_delete_venta(db: Session, empresa_id: int, venta_id: int) -> list:
+    """✅ FILTRADO POR EMPRESA"""
+    bloqueos = []
+    devs = db.query(models.Devolucion).filter(
+        models.Devolucion.venta_id == venta_id,
+        models.Devolucion.empresa_id == empresa_id  # ✅
+    ).count()
+    if devs:
+        bloqueos.append(f"tiene {devs} devolución{'es' if devs > 1 else ''} registrada{'s' if devs > 1 else ''}")
+    
+    orden = db.query(models.OrdenTrabajo).filter(
+        models.OrdenTrabajo.venta_id == venta_id,
+        models.OrdenTrabajo.empresa_id == empresa_id  # ✅
+    ).first()
+    if orden:
+        bloqueos.append(f"vinculada a la orden de trabajo #{orden.id}")
+    
+    return bloqueos
+
+def check_can_delete_receta(db: Session, empresa_id: int, receta_id: int) -> list:
+    """✅ FILTRADO POR EMPRESA"""
+    bloqueos = []
+    lotes = db.query(models.LoteProduccion).filter(
+        models.LoteProduccion.receta_id == receta_id,
+        models.LoteProduccion.empresa_id == empresa_id  # ✅
+    ).count()
+    if lotes:
+        bloqueos.append(f"tiene {lotes} lote{'s' if lotes > 1 else ''} de producción asociado{'s' if lotes > 1 else ''}")
+    
+    return bloqueos
+
+
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DEVOLUCIONES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def crear_devolucion(db: Session, empresa_id: int, data: schemas.DevolucionCreate) -> models.Devolucion:
+    """✅ VALIDACIÓN POR EMPRESA"""
+    venta = (
+        db.query(models.Venta)
+        .options(
+            joinedload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
+            joinedload(models.Venta.cliente),
+        )
+        .filter(
+            models.Venta.id == data.venta_id,
+            models.Venta.empresa_id == empresa_id  # ✅
+        )
+        .first()
+    )
+
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+
+    if not data.items:
+        raise HTTPException(status_code=400, detail="Debe incluir al menos un ítem a devolver.")
+
+    if not data.motivo or not data.motivo.strip():
+        raise HTTPException(status_code=400, detail="El motivo es obligatorio.")
+
+    total_dev = 0.0
+    for item in data.items:
+        if item.cantidad <= 0:
+            raise HTTPException(status_code=400, detail="La cantidad debe ser mayor a 0.")
+        if item.precio_unitario <= 0:
+            raise HTTPException(status_code=400, detail="El precio unitario debe ser mayor a 0.")
+
+        if item.detalle_id:
+            detalle = next((d for d in venta.detalles if d.id == item.detalle_id), None)
+            if detalle and item.cantidad > detalle.cantidad:
+                nombre = detalle.producto.nombre if detalle.producto else f"ID {item.producto_id}"
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"No puede devolver {item.cantidad} de '{nombre}'. Solo se vendieron {detalle.cantidad}."
+                )
+        total_dev += item.cantidad * item.precio_unitario
+
+    dev = models.Devolucion(
+        venta_id=venta.id,
+        motivo=data.motivo.strip(),
+        monto_total=total_dev,
+        tipo="parcial",
+        estado="confirmada",
+        empresa_id=empresa_id  # ✅
+    )
+    db.add(dev)
+    db.flush()
+
+    for item in data.items:
+        db_item = models.DevolucionItem(
+            devolucion_id=dev.id,
+            producto_id=item.producto_id,
+            detalle_id=item.detalle_id,
+            cantidad=item.cantidad,
+            precio_unitario=item.precio_unitario,
+        )
+        db.add(db_item)
+
+        # Reponer inventario
+        prod = get_producto(db, empresa_id, item.producto_id)
+        if prod and not prod.es_servicio:
+            prod.stock_actual = (prod.stock_actual or 0) + item.cantidad
+            db.add(prod)
+
+            mov = models.InventoryMovement(
+                producto_id=item.producto_id,
+                tipo="entrada",
+                cantidad=item.cantidad,
+                costo_unitario=prod.costo or 0.0,
+                motivo="devolucion",
+                referencia=f"Dev #{dev.id} / Venta #{data.venta_id}",
+                observacion=f"Devolución: {data.motivo[:80]}",
+                empresa_id=empresa_id  # ✅
+            )
+            db.add(mov)
+
+    # Ajustar la venta
+    if venta.estado_pago == "pagado":
+        venta.total = max(0.0, venta.total - total_dev)
+        venta.monto_pagado = max(0.0, venta.monto_pagado - total_dev)
+    else:
+        venta.total = max(0.0, venta.total - total_dev)
+
+    # Recalcular estado_pago
+    if venta.total <= 0:
+        venta.estado_pago = "pagado"
+        venta.monto_pagado = 0.0
+    elif venta.monto_pagado >= venta.total:
+        venta.estado_pago = "pagado"
+    elif venta.monto_pagado > 0:
+        venta.estado_pago = "parcial"
+    else:
+        venta.estado_pago = "pendiente"
+
+    db.add(venta)
+
+    # Notificar al admin
+    cliente_nombre = venta.cliente.nombre if venta.cliente else "desconocido"
+    admin_users = db.query(models.User).join(models.Role).filter(
+        models.Role.name == "Admin",
+        models.User.empresa_id == empresa_id  # ✅
+    ).all()
+    for admin in admin_users:
+        db.add(models.Notificacion(
+            usuario_id=admin.id,
+            empresa_id=empresa_id,  # ✅
+            mensaje=(
+                f"↩️ Devolución — Venta #{data.venta_id} · {cliente_nombre} · "
+                f"Nota crédito: ${total_dev:,.0f}"
+            ),
+            tipo="warning",
+            leido=False,
+        ))
+
+    db.commit()
+    db.refresh(dev)
+    return dev
+
+def get_devoluciones_by_venta(db: Session, empresa_id: int, venta_id: int) -> List[models.Devolucion]:
+    """✅ FILTRADO POR EMPRESA"""
+    return (
+        db.query(models.Devolucion)
+        .options(joinedload(models.Devolucion.items).joinedload(models.DevolucionItem.producto))
+        .filter(
+            models.Devolucion.venta_id == venta_id,
+            models.Devolucion.empresa_id == empresa_id  # ✅
+        )
+        .order_by(models.Devolucion.fecha.desc())
+        .all()
+    )
+
+def revertir_movimientos_venta(db: Session, empresa_id: int, venta: models.Venta):
+    """✅ INYECCIÓN DE EMPRESA_ID"""
+    for det in venta.detalles:
+        prod = get_producto(db, empresa_id, det.producto_id)
+        if not prod or prod.es_servicio:
+            continue
+        mov = models.InventoryMovement(
+            producto_id=det.producto_id,
+            tipo="entrada",
+            cantidad=det.cantidad,
+            costo_unitario=prod.costo or 0.0,
+            motivo="reversa_venta",
+            referencia=f"reversa venta #{venta.id}",
+            observacion=f"Venta #{venta.id} eliminada el {datetime.now(timezone.utc).date()}",
+            empresa_id=empresa_id  # ✅
+        )
+        db.add(mov)
+        prod.stock_actual = (prod.stock_actual or 0) + det.cantidad
+        db.add(prod)
+    db.commit()
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # COMPRAS
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def get_compras(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
+    """✅ FILTRADO POR EMPRESA"""
     return db.query(models.Compra).options(
         joinedload(models.Compra.proveedor),
         joinedload(models.Compra.detalles).joinedload(models.DetalleCompra.producto),
         joinedload(models.Compra.pagos)
     ).filter(
-        models.Compra.empresa_id == empresa_id 
+        models.Compra.empresa_id == empresa_id  # ✅
     ).order_by(models.Compra.fecha.desc()).offset(skip).limit(limit).all()
 
 def get_compra(db: Session, empresa_id: int, compra_id: int):
+    """✅ FILTRADO POR EMPRESA"""
     return db.query(models.Compra).options(
         joinedload(models.Compra.proveedor),
         joinedload(models.Compra.detalles).joinedload(models.DetalleCompra.producto),
         joinedload(models.Compra.pagos)
     ).filter(
         models.Compra.id == compra_id,
-        models.Compra.empresa_id == empresa_id 
+        models.Compra.empresa_id == empresa_id  # ✅
     ).first()
 
 def create_compra(db: Session, empresa_id: int, compra: schemas.CompraCreate):
+    """✅ INYECCIÓN DE EMPRESA_ID + VALIDACIÓN CROSS-TENANT"""
+    # Validar que el proveedor pertenece a la empresa
     db_prov = db.query(models.Cliente).filter(
         models.Cliente.id == compra.proveedor_id,
-        models.Cliente.empresa_id == empresa_id 
+        models.Cliente.empresa_id == empresa_id  # ✅
     ).first()
     if not db_prov or not db_prov.es_proveedor:
         raise HTTPException(status_code=400, detail="Proveedor no válido o no pertenece a esta empresa.")
@@ -1987,12 +2199,13 @@ def create_compra(db: Session, empresa_id: int, compra: schemas.CompraCreate):
         referencia_factura=compra.referencia_factura,
         monto_pagado=total_bruto if compra.pagada else 0.0,
         estado_pago="pagado" if compra.pagada else "pendiente",
-        empresa_id=empresa_id 
+        empresa_id=empresa_id  # ✅
     )
     db.add(db_compra)
     db.flush()
 
     for item in compra.detalles:
+        # Validar que el producto pertenece a la empresa
         prod = get_producto(db, empresa_id, item.producto_id)
         if not prod:
             raise HTTPException(
@@ -2018,7 +2231,7 @@ def create_compra(db: Session, empresa_id: int, compra: schemas.CompraCreate):
             referencia=f"Compra #{db_compra.id}",
             observacion=f"Factura: {compra.referencia_factura or 'N/A'}"
         )
-        create_movement(db, empresa_id, payload_mov) 
+        create_movement(db, empresa_id, payload_mov)  # ✅
 
         db_prod = get_producto(db, empresa_id, item.producto_id)
         if db_prod:
@@ -2035,9 +2248,14 @@ def create_pago_compra(db: Session, empresa_id: int, pago: schemas.PagoCompraCre
 
     db_pago = models.PagoCompra(**pago.dict())
     db.add(db_pago)
-    db.flush()
+    db.flush() # Guarda el pago en la BD pero no cierra la transacción
 
-    total_pagado = sum(p.monto for p in db_compra.pagos)
+    # ✅ FIX: Calcular el total consultando directamente a la base de datos
+    # Esto evita el bug de caché en memoria de SQLAlchemy
+    total_pagado = db.query(func.sum(models.PagoCompra.monto)).filter(
+        models.PagoCompra.compra_id == db_compra.id
+    ).scalar() or 0.0
+
     db_compra.monto_pagado = total_pagado
 
     if db_compra.monto_pagado >= db_compra.total:
@@ -2211,6 +2429,8 @@ def get_gastos(db: Session, empresa_id: int, skip: int = 0, limit: int = 100) ->
         .order_by(models.Gasto.fecha.desc())
         .offset(skip).limit(limit).all()
     )
+
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CARGAS MASIVAS - CON AISLAMIENTO MULTI-TENANT
@@ -2512,6 +2732,9 @@ def bulk_create_movimientos(db: Session, empresa_id: int, file: IO, filename: st
         "errors": errors
     }
 
+
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # SAAS SUPERADMIN - EMPRESAS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -2570,3 +2793,80 @@ def create_empresa_with_admin(db: Session, data: schemas.EmpresaWithAdminCreate)
     db.commit()
     db.refresh(db_empresa)
     return db_empresa
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# NOTIFICACIONES Y DEMÁS FUNCIONES PERMANECEN IGUAL
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def create_notificacion(db: Session, empresa_id: int, notificacion: schemas.NotificacionCreate):
+    db_notificacion = models.Notificacion(**notificacion.dict(), empresa_id=empresa_id) 
+    db.add(db_notificacion)
+    db.commit()
+    db.refresh(db_notificacion)
+    return db_notificacion
+
+def get_notificaciones_usuario(db: Session, empresa_id: int, usuario_id: int, skip: int = 0, limit: int = 20):
+    return (
+        db.query(models.Notificacion)
+        .filter(
+            models.Notificacion.usuario_id == usuario_id,
+            models.Notificacion.empresa_id == empresa_id 
+        )
+        .order_by(models.Notificacion.fecha_creacion.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+def marcar_notificacion_leida(db: Session, empresa_id: int, notificacion_id: int, usuario_id: int):
+    db_notificacion = (
+        db.query(models.Notificacion)
+        .filter(
+            models.Notificacion.id == notificacion_id,
+            models.Notificacion.usuario_id == usuario_id,
+            models.Notificacion.empresa_id == empresa_id 
+        )
+        .first()
+    )
+    if db_notificacion:
+        db_notificacion.leido = True
+        db.commit()
+        db.refresh(db_notificacion)
+    return db_notificacion
+
+def check_and_notify_low_stock(db: Session, empresa_id: int, producto_ids: List[int]):
+    admin_users = db.query(models.User).join(models.Role).filter(
+        models.Role.name == "Admin",
+        models.User.empresa_id == empresa_id 
+    ).all()
+    if not admin_users:
+        return
+
+    hoy_col = datetime.now(BOGOTA_TZ).date()
+
+    for prod_id in set(producto_ids):
+        prod = get_producto(db, empresa_id, prod_id)
+        if not prod or prod.es_servicio:
+            continue
+        if (prod.stock_minimo or 0) > 0 and (prod.stock_actual or 0) < prod.stock_minimo:
+            for admin in admin_users:
+                # Evitar notificaciones duplicadas en el mismo día
+                ya_notificado = db.query(models.Notificacion).filter(
+                    models.Notificacion.usuario_id == admin.id,
+                    models.Notificacion.empresa_id == empresa_id, 
+                    models.Notificacion.mensaje.like(f"%{prod.nombre}%bajo stock%"),
+                ).all()
+                
+                # Checkear si alguna fue hoy en local
+                notificado_hoy = any(n.fecha_creacion.astimezone(BOGOTA_TZ).date() == hoy_col for n in ya_notificado)
+
+                if notificado_hoy:
+                    continue
+                db.add(models.Notificacion(
+                    usuario_id=admin.id,
+                    empresa_id=empresa_id, 
+                    mensaje=f"⚠️ '{prod.nombre}' está bajo stock mínimo. Actual: {prod.stock_actual:.1f} | Mínimo: {prod.stock_minimo:.1f}",
+                    tipo="warning",
+                    leido=False
+                ))
+    db.commit()
