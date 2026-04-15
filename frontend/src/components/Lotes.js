@@ -208,6 +208,7 @@ const Lotes = () => {
           {/* ════ TAB 1: HISTORIAL ════ */}
           <TabPanel value={tab} index={1}>
             {isMobile ? (
+              /* VISTA DE TARJETAS EN MÓVIL PARA EVITAR OVERFLOW */
               <Box>
                 {lotesHistorial.length === 0 ? (
                   <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
@@ -249,6 +250,7 @@ const Lotes = () => {
                 )}
               </Box>
             ) : (
+              /* VISTA DE TABLA EN ESCRITORIO */
               <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
                 <Table size="small">
                   <TableHead sx={{ bgcolor: 'action.hover' }}>
@@ -320,7 +322,7 @@ const Lotes = () => {
                             <MenuItem 
                                 key={r.id} 
                                 value={r.id}
-                                sx={{ whiteSpace: 'normal', py: 1.5, borderBottom: '1px solid #f1f5f9' }} 
+                                sx={{ whiteSpace: 'normal', py: 1.5, borderBottom: '1px solid', borderColor: 'divider' }} 
                             >
                                 <Box>
                                     <Typography sx={{ fontWeight: 600, fontSize: 14 }}>{r.nombre}</Typography>
@@ -331,7 +333,7 @@ const Lotes = () => {
                     )}
                 </TextField>
 
-                <Box sx={{ p: 2, borderRadius: 2, bgcolor: '#F8FAFC', border: '1px solid', borderColor: 'divider' }}>
+                <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
                     <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', mb: 1.5 }}>Configuración del Lote</Typography>
                     <Grid container spacing={2}>
                         <Grid item xs={12} sm={6}>
@@ -350,7 +352,7 @@ const Lotes = () => {
                             >
                                 <MenuItem value="" sx={{ py: 1.5 }}>🏢 Para mi Inventario (Vialmar)</MenuItem>
                                 {clientes.map(c => (
-                                    <MenuItem key={c.id} value={c.id} sx={{ py: 1.5, borderTop: '1px solid #f1f5f9' }}>
+                                    <MenuItem key={c.id} value={c.id} sx={{ py: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
                                         👤 Maquila: {c.nombre}
                                     </MenuItem>
                                 ))}
@@ -405,17 +407,17 @@ const Lotes = () => {
       <Dialog open={openConfirm} onClose={() => setOpenConfirm(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
         <Box sx={{ height: 4, bgcolor: GREEN }} />
         <DialogTitle sx={{ fontWeight: 800, fontSize: 18 }}>Cierre de Producción</DialogTitle>
-        <DialogContent dividers sx={{ p: { xs: 2, sm: 3 }, bgcolor: '#F8FAFC' }}>
-            <Box sx={{ p: 2, mb: 3, borderRadius: 2, bgcolor: '#fff', border: '1px solid', borderColor: 'divider' }}>
+        <DialogContent dividers sx={{ p: { xs: 2, sm: 3 }, bgcolor: 'background.paper' }}>
+            <Box sx={{ p: 2, mb: 3, borderRadius: 2, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
                 <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 0.5 }}>Producto Resultante</Typography>
                 <Typography sx={{ fontWeight: 800, fontSize: 18 }}>{selectedLote?.receta?.producto_resultante?.nombre}</Typography>
                 <Typography sx={{ fontSize: 13, fontWeight: 600, color: ACCENT, mt: 1 }}>Cantidad Esperada: {selectedLote?.cantidad_a_producir}</Typography>
             </Box>
             
             <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary', mb: 1.5 }}>RESULTADO REAL OBTENIDO</Typography>
-            <TextField fullWidth type="number" label="Cantidad real a ingresar a Bodega *" value={confirmData.cantidad_real} onChange={(e) => setConfirmData({...confirmData, cantidad_real: e.target.value})} sx={{ bgcolor: '#fff', mb: 2 }} helperText="El sistema calculará automáticamente el nuevo costo unitario promediando las mermas." />
+            <TextField fullWidth type="number" label="Cantidad real a ingresar a Bodega *" value={confirmData.cantidad_real} onChange={(e) => setConfirmData({...confirmData, cantidad_real: e.target.value})} sx={{ bgcolor: 'background.default', mb: 2 }} helperText="El sistema calculará automáticamente el nuevo costo unitario promediando las mermas." />
             
-            <TextField fullWidth multiline rows={2} label="Observaciones de Cierre" value={confirmData.observaciones} onChange={(e) => setConfirmData({...confirmData, observaciones: e.target.value})} sx={{ bgcolor: '#fff' }} placeholder="Ej: Se dañaron 2 unidades en el horno..." />
+            <TextField fullWidth multiline rows={2} label="Observaciones de Cierre" value={confirmData.observaciones} onChange={(e) => setConfirmData({...confirmData, observaciones: e.target.value})} sx={{ bgcolor: 'background.default' }} placeholder="Ej: Se dañaron 2 unidades en el horno..." />
         </DialogContent>
         <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2 }}>
           <Button onClick={() => setOpenConfirm(false)} sx={{ color: 'text.secondary', fontWeight: 600 }}>Cancelar</Button>
