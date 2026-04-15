@@ -3,100 +3,27 @@ from typing import Optional, List
 from datetime import datetime, date
 from enum import Enum
 
-
-# ---------- Kardex ----------
-class KardexItem(BaseModel):
-    fecha: datetime
-    tipo: str           # 'entrada' | 'salida' | 'ajuste'
-    cantidad: float
-    costo_unitario: float
-    referencia: Optional[str] = None
-    saldo_cantidad: float
-    saldo_costo_unitario: float
-    saldo_valor: float
-
-    class Config:
-        from_attributes = True
-
-class KardexResponse(BaseModel):
-    producto_id: int
-    producto_nombre: str
-    items: List[KardexItem]
-
-# ---------- Inventario actual ----------
-class InventarioItem(BaseModel):
-    id: int
-    nombre: str
-    es_servicio: bool
-    unidad_medida: Optional[str]
-    stock_actual: float
-    costo: float
-    precio: float
-    valor_costo: float        # stock_actual * costo
-    valor_venta: float        # stock_actual * precio
-
-    class Config:
-        from_attributes = True
-
-class InventarioSnapshot(BaseModel):
-    items: List[InventarioItem]
-    total_valor_costo: float
-    total_valor_venta: float
-
-# ---------- Rotación (más vendidos / más lentos) ----------
-class ProductoRotacionItem(BaseModel):
-    producto_id: int
-    nombre: str
-    es_servicio: bool
-    total_cantidad_vendida: float
-    total_ingresos: float     # suma (cantidad * precio_unitario)
-
-class ReporteRotacion(BaseModel):
-    tart_date: Optional[date] = None
-    end_date: Optional[date] = None
-    top: List[ProductoRotacionItem]
-    slow: List[ProductoRotacionItem]
-
-
-
-
-
 # =========================
-# MULTI-TENANT (EMPRESAS)
+# MULTI-TENANT (EMPRESAS) & SAAS
 # =========================
-
-# ─── AGREGAR ESTO EN schemas.py (Cerca de la parte superior) ───
-
-
-# ─── Añadir en schemas.py ───
-
 
 class EmpresaBase(BaseModel):
     nombre: str
     nit: Optional[str] = None
     logo_url: Optional[str] = None
     color_primario: str = "#F43F5E"
-
-    # ✅ AÑADE ESTOS DOS CAMPOS PARA EL SAAS
+    
+    # ✅ CAMPOS PARA EL SAAS Y EL TRIAL
     plan_type: Optional[str] = "trial"
     trial_ends_at: Optional[datetime] = None
+
+class EmpresaCreate(EmpresaBase):
+    pass
 
 class Empresa(EmpresaBase):
     id: int
     is_active: bool
     model_config = ConfigDict(from_attributes=True)
-
-
-# class Empresa(EmpresaBase):
-#     id: int
-#     logo_url: Optional[str] = None
-
-#     class Config:
-#         orm_mode = True  # O model_config = ConfigDict(from_attributes=True) si usas Pydantic v2
-
-
-class EmpresaCreate(EmpresaBase):
-    pass
 
 class EmpresaOut(EmpresaBase):
     id: int
@@ -109,12 +36,77 @@ class EmpresaWithAdminCreate(BaseModel):
     admin_username: str
     admin_password: str
 
+# =========================
+# MÓDULOS / ROLES / USUARIOS
+# =========================
+class ModuloBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    frontend_path: str
 
+class ModuloCreate(ModuloBase):
+    pass
 
+class Modulo(ModuloBase):
+    id: int
+    model_config = ConfigDict(from_attributes=True)
 
+class RoleBase(BaseModel):
+    name: str
+
+class RoleCreate(RoleBase):
+    pass
+
+class Role(RoleBase):
+    id: int
+    modules: List[Modulo] = []
+    model_config = ConfigDict(from_attributes=True)
+
+class UserBase(BaseModel):
+    username: str
+    role_id: int
+
+class UserCreate(UserBase):
+    password: str
+
+class User(UserBase):
+    id: int
+    role: Role
+    empresa_id: Optional[int] = None
+    empresa: Optional[Empresa] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
 
 # =========================
-# Producto / Inventario
+# CLIENTES / TERCEROS
+# =========================
+class ClienteBase(BaseModel):
+    nombre: str
+    cedula: Optional[str] = None
+    telefono: Optional[str] = None
+    direccion: Optional[str] = None
+    cupo_credito: Optional[float] = 0.0
+    es_cliente: bool = True
+    es_proveedor: bool = False
+
+class ClienteCreate(ClienteBase):
+    pass
+
+class Cliente(ClienteBase):
+    id: int
+    model_config = ConfigDict(from_attributes=True)
+
+class ClienteDetails(Cliente):
+    deuda_actual: float
+
+# =========================
+# PRODUCTOS / INVENTARIO
 # =========================
 class ProductoBase(BaseModel):
     nombre: str
@@ -122,18 +114,15 @@ class ProductoBase(BaseModel):
     costo: float = 0.0
     es_servicio: bool = False
     unidad_medida: Optional[str] = "UND"
-    # Inventario
-    stock_minimo: float = 0.0  # nuevo en fase 1 (editable)
-    grupo_item: int = 2 # 1:MP, 2:PT, 3:AF, 4:INS
-    # stock_actual NO se edita aquí; se mueve con movimientos
+    stock_minimo: float = 0.0
+    grupo_item: int = 2 
 
 class ProductoCreate(ProductoBase):
     pass
 
 class Producto(ProductoBase):
     id: int
-    stock_actual: float = 0.0  # solo lectura hacia el front (lo mantiene el backend con movimientos)
-
+    stock_actual: float = 0.0
     model_config = ConfigDict(from_attributes=True)
 
 class MovementType(str, Enum):
@@ -153,17 +142,15 @@ class InventoryMovementCreate(BaseModel):
 class InventoryMovementOut(BaseModel):
     id: int
     producto_id: int
-    producto: Optional[Producto] = None      # 👈 para traer el nombre
+    producto: Optional[Producto] = None
     tipo: MovementType
     cantidad: float
-    costo_unitario: float                    # 👈 antes tenías "floatPago"
+    costo_unitario: float
     motivo: Optional[str] = None
     referencia: Optional[str] = None
     observacion: Optional[str] = None
     created_at: date
-
     model_config = ConfigDict(from_attributes=True)
-
 
 class InventoryAlertOut(BaseModel):
     producto_id: int
@@ -174,141 +161,101 @@ class InventoryAlertOut(BaseModel):
 class ProductoStockUpdate(BaseModel):
     stock_minimo: Optional[float] = None
 
-
 # =========================
-# Cliente
+# VENTAS Y PAGOS
 # =========================
-class ClienteBase(BaseModel):
-    nombre: str
-    cedula: Optional[str] = None
-    telefono: Optional[str] = None
-    direccion: Optional[str] = None
-    cupo_credito: Optional[float] = 0.0
-    es_cliente: bool = True
-    es_proveedor: bool = False
-
-class ClienteCreate(ClienteBase):
-    pass
-
-class Cliente(ClienteBase):
-    id: int
-
-    model_config = ConfigDict(from_attributes=True)
-
-class ClienteDetails(Cliente):
-    deuda_actual: float
-
-
-# =========================
-# Pago
-# =========================
-class PagoBase(BaseModel):
+class PagoCreate(BaseModel):
     venta_id: int
     monto: float
     metodo_pago: Optional[str] = None
+    detalle_pago: Optional[str] = None
 
-# class PagoCreate(PagoBase):
-#     pass
+class PagoUpdate(BaseModel):
+    monto: Optional[float] = None
+    metodo_pago: Optional[str] = None
+    detalle_pago: Optional[str] = None
 
-# class PagoUpdate(BaseModel):
-#     monto: Optional[float] = None
-#     metodo_pago: Optional[str] = None
-
-# class Pago(PagoBase):
-#     id: int
-#     fecha: datetime
-
-#     model_config = ConfigDict(from_attributes=True)
-
-
-# =========================
-# Módulos / Roles / Usuarios
-# =========================
-class ModuloBase(BaseModel):
-    name: str
-    description: Optional[str] = None
-    frontend_path: str
-
-class ModuloCreate(ModuloBase):
-    pass
-
-class Modulo(ModuloBase):
+class Pago(PagoCreate):
     id: int
-
+    fecha: datetime
     model_config = ConfigDict(from_attributes=True)
 
-class RoleBase(BaseModel):
-    name: str
+class DetalleVentaCreate(BaseModel):
+    producto_id: int
+    cantidad: Optional[float]
+    precio_unitario: Optional[float] = None
+    descuento_pct: float = 0.0
 
-class RoleCreate(RoleBase):
-    pass
-
-class Role(RoleBase):
-    id: int
-    modules: List[Modulo] = []
-
-    model_config = ConfigDict(from_attributes=True)
-
-class UserBase(BaseModel):
-    username: str
-    role_id: int
-
-class UserCreate(UserBase):
-    password: str
-
-class User(UserBase):
-    id: int
-    role: Role
-    empresa_id: Optional[int] = None   # <--- ASEGÚRATE DE QUE ESTO ESTÉ
-    empresa: Optional[Empresa] = None  # <--- ASEGÚRATE DE QUE ESTO ESTÉ
-
-    # hashed_password está en modelo ORM; aquí no se expone
-    model_config = ConfigDict(from_attributes=True)
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-class TokenData(BaseModel):
-    username: Optional[str] = None
-
-
-# =========================
-# Venta
-# =========================
 class DetalleVentaBase(BaseModel):
     producto_id: int
     cantidad: Optional[float]
-
-# class DetalleVentaCreate(DetalleVentaBase):
-#     precio_unitario: Optional[float] = None  # opcional en creación
 
 class DetalleVenta(DetalleVentaBase):
     id: int
     venta_id: int
     precio_unitario: float
-    producto: Optional[Producto]
-
+    producto: Optional[Producto] = None
     model_config = ConfigDict(from_attributes=True)
 
+class VentaBase(BaseModel):
+    cliente_id: int
+    detalles: List[DetalleVentaCreate]
+    pagada: bool = True
+    iva_porcentaje: float = 0.0
+    metodo_pago: Optional[str] = None
 
+class VentaCreate(VentaBase):
+    pass
 
-
-# --- Dashboard Schemas ---
-class SalesByDay(BaseModel):
-    day: date
+class Venta(VentaBase):
+    id: int
     total: float
-
-class DashboardData(BaseModel):
-    ventas_hoy: float
-    cuentas_por_cobrar: float
-    productos_bajo_stock: int
-    ordenes_recientes: List['OrdenTrabajo']
-    ventas_ultimos_30_dias: List[SalesByDay]
-
+    iva_total: float
+    iva_porcentaje: float
+    fecha: datetime
+    monto_pagado: float
+    estado_pago: str
+    cliente_id: Optional[int]
+    cliente: Optional[Cliente]
+    detalles: List[DetalleVenta] = []
+    pagos: List[Pago] = []
+    model_config = ConfigDict(from_attributes=True)
 
 # =========================
-# Órdenes de Trabajo / Productividad
+# DEVOLUCIONES
+# =========================
+class DevolucionItemCreate(BaseModel):
+    detalle_id: Optional[int] = None
+    producto_id: int
+    cantidad: float
+    precio_unitario: float
+
+class DevolucionCreate(BaseModel):
+    venta_id: int
+    motivo: str
+    items: List[DevolucionItemCreate]
+
+class DevolucionItemOut(BaseModel):
+    id: int
+    producto_id: int
+    cantidad: float
+    precio_unitario: float
+    detalle_id: Optional[int] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class DevolucionOut(BaseModel):
+    id: int
+    venta_id: int
+    motivo: str
+    monto_total: float = 0.0
+    fecha: date
+    tipo: str = "parcial"
+    estado: str = "confirmada"
+    items: List[DevolucionItemOut] = []
+    model_config = ConfigDict(from_attributes=True)
+
+# =========================
+# ÓRDENES DE TRABAJO
 # =========================
 class EvidenciaBase(BaseModel):
     file_path: str
@@ -320,7 +267,6 @@ class Evidencia(EvidenciaBase):
     id: int
     orden_id: int
     uploaded_at: date
-
     model_config = ConfigDict(from_attributes=True)
 
 class OrdenProductoBase(BaseModel):
@@ -335,7 +281,6 @@ class OrdenProducto(OrdenProductoBase):
     id: int
     orden_id: int
     producto: Producto
-
     model_config = ConfigDict(from_attributes=True)
 
 class OrdenServicioBase(BaseModel):
@@ -351,7 +296,6 @@ class OrdenServicio(OrdenServicioBase):
     orden_id: int
     servicio: Producto
     cantidad: Optional[float]
-
     model_config = ConfigDict(from_attributes=True)
 
 class OrdenTrabajoBase(BaseModel):
@@ -369,40 +313,26 @@ class OrdenTrabajoUpdate(BaseModel):
 
 class OrdenTrabajoClose(BaseModel):
     was_paid: bool
-    payment_type: Optional[str] = None  # 'total' | 'partial'
+    payment_type: Optional[str] = None 
     paid_amount: Optional[float] = None
 
 class OrdenTrabajo(OrdenTrabajoBase):
     id: int
     operador_id: int
     estado: str
-    fecha_creacion: date
-    fecha_actualizacion: date
+    fecha_creacion: datetime       # ✅ CAMBIADO DE date a datetime (Solución Bug 500)
+    fecha_actualizacion: datetime  # ✅ CAMBIADO DE date a datetime
     observaciones_aprobador: Optional[str] = None
-
     cliente: Cliente
     operador: User
     productos: List[OrdenProducto] = []
     servicios: List[OrdenServicio] = []
     evidencias: List[Evidencia] = []
-
     model_config = ConfigDict(from_attributes=True)
 
-class NotificacionBase(BaseModel):
-    usuario_id: int
-    mensaje: str
-    orden_id: Optional[int] = None
-
-class NotificacionCreate(NotificacionBase):
-    pass
-
-# class Notificacion(NotificacionBase):
-#     id: int
-#     leido: bool
-#     fecha_creacion: date
-
-#     model_config = ConfigDict(from_attributes=True)
-
+# =========================
+# PRODUCTIVIDAD Y PANEL OPERADOR
+# =========================
 class RegistroProductividadBase(BaseModel):
     operador_id: int
     orden_id: int
@@ -417,7 +347,6 @@ class RegistroProductividad(RegistroProductividadBase):
     id: int
     fecha: datetime
     servicio: Producto
-
     model_config = ConfigDict(from_attributes=True)
 
 class ProductividadOperadorDetalle(BaseModel):
@@ -429,25 +358,20 @@ class ProductividadUnidadesPorServicio(BaseModel):
     servicio_id: int
     servicio_nombre: str
     total_unidades: float
-    total_valor: float  # 👈 necesario para la columna "$" del frontend
+    total_valor: float
 
 class ProductividadOperador(BaseModel):
     operador_id: int
     operador_username: str
     total_ganado: float
     desglose: List[ProductividadOperadorDetalle]
-    desglose_unidades: List[ProductividadUnidadesPorServicio] = []  # 👈 nuevo campo
-
+    desglose_unidades: List[ProductividadUnidadesPorServicio] = []
 
 class ReporteProductividad(BaseModel):
     start_date: date
     end_date: date
     reporte: List[ProductividadOperador] = []
 
-
-# =========================
-# Panel Operador
-# =========================
 class PanelOrdenPendiente(BaseModel):
     id: int
     cliente_id: int
@@ -455,12 +379,11 @@ class PanelOrdenPendiente(BaseModel):
     cliente_telefono: Optional[str] = None
     cliente_direccion: Optional[str] = None
     estado: str
-    fecha_creacion: date
-    fecha_actualizacion: date
+    fecha_creacion: datetime       # ✅ CAMBIADO DE date a datetime
+    fecha_actualizacion: datetime  # ✅ CAMBIADO DE date a datetime
     total: float
     productos: List[OrdenProducto] = []
     servicios: List[OrdenServicio] = []
-
     model_config = ConfigDict(from_attributes=True)
 
 class PanelProductividadDataPoint(BaseModel):
@@ -473,7 +396,7 @@ class PanelProductividad(BaseModel):
     servicios_mes: int
     ordenes_completadas_semana: int
     grafica_servicios_semana: List[PanelProductividadDataPoint]
-    unidades_por_servicio_filtrado: List[ProductividadUnidadesPorServicio] = [] # Nuevo campo para la tabla
+    unidades_por_servicio_filtrado: List[ProductividadUnidadesPorServicio] = []
 
 class PanelHistorialItem(BaseModel):
     id: int
@@ -481,132 +404,11 @@ class PanelHistorialItem(BaseModel):
     fecha_actualizacion: date
     total: float
     estado_pago_venta: str
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-# =========================
-# Carga Masiva
-# =========================
-class ProductoExcel(BaseModel):
-    nombre: str
-    precio: float
-    costo: float = 0.0
-    es_servicio: bool = False
-    unidad_medida: Optional[str] = "UND"
-    stock_minimo: float = 0.0
-    stock_inicial: float = 0.0   # 👈 nuevo campo opcional
-
-
-class ClienteExcel(BaseModel):
-    nombre: str
-    cedula: Optional[str] = None
-    telefono: Optional[str] = None
-    direccion: Optional[str] = None
-    cupo_credito: Optional[float] = 0.0
-
-class BulkLoadResponse(BaseModel):
-    success: bool
-    message: str
-    created_records: int = 0
-    errors: List[str] = []
-
-class MovementExcel(BaseModel):
-    producto_id: Optional[int]
-    producto_nombre: Optional[str]
-    tipo: str   # entrada | salida | ajuste
-    cantidad: float
-    costo_unitario: Optional[float] = 0.0
-    motivo: Optional[str] = None
-    referencia: Optional[str] = None
-    observacion: Optional[str] = None
-
-# Resolve forward references
-DashboardData.model_rebuild()
-
-
-# =========================
-# PRODUCCIÓN (VIALMAR) - FASE 1
-# =========================
-
-class RecetaItemBase(BaseModel):
-    insumo_id: int
-    cantidad: float
-
-class RecetaItemCreate(RecetaItemBase):
-    pass
-
-class RecetaItem(RecetaItemBase):
-    id: int
-    receta_id: int
-    insumo: Producto
-
-    model_config = ConfigDict(from_attributes=True)
-
-class RecetaServicioBase(BaseModel):
-    servicio_id: int
-
-class RecetaServicio(RecetaServicioBase):
-    id: int
-    receta_id: int
-    servicio: Producto
-
-    model_config = ConfigDict(from_attributes=True)
-
-class RecetaBase(BaseModel):
-    producto_id: int
-    nombre: str
-    descripcion: Optional[str] = None
-
-class RecetaCreate(RecetaBase):
-    items: List[RecetaItemCreate]
-    servicios: List[RecetaServicioBase] = [] # Lista de servicios asociados
-
-class Receta(RecetaBase):
-    id: int
-    created_at: date
-    items: List[RecetaItem]
-    servicios_maquila: List[RecetaServicio] = [] # Lista de servicios
-    producto_resultante: Producto
-
-    model_config = ConfigDict(from_attributes=True)
-
-class LoteProduccionBase(BaseModel):
-    receta_id: int
-    cantidad_a_producir: float
-    cliente_id: Optional[int] = None
-    observaciones: Optional[str] = None
-
-class LoteProduccionCreate(LoteProduccionBase):
-    pass
-
-class LoteServicioPrecio(BaseModel):
-    servicio_id: int
-    precio: float
-
-class LoteProduccionConfirm(BaseModel):
-    cantidad_real: float
-    precios_servicios: List[LoteServicioPrecio] = [] # Precios para cada servicio de la receta
-    observaciones: Optional[str] = None
-
-class LoteProduccion(LoteProduccionBase):
-    id: int
-    cantidad_real: Optional[float] = None
-    costo_total: float
-    costo_unitario_resultado: float
-    fecha_planificada: date
-    fecha_confirmacion: Optional[date] = None
-    estado: str
-    receta: Receta
-    cliente: Optional[Cliente] = None
-    venta_id: Optional[int] = None
-
     model_config = ConfigDict(from_attributes=True)
 
 # =========================
-# COMPRAS (VIALMAR)
+# COMPRAS
 # =========================
-
 class DetalleCompraBase(BaseModel):
     producto_id: int
     cantidad: float
@@ -619,7 +421,6 @@ class DetalleCompra(DetalleCompraBase):
     id: int
     compra_id: int
     producto: Producto
-
     model_config = ConfigDict(from_attributes=True)
 
 class CompraBase(BaseModel):
@@ -643,8 +444,7 @@ class Compra(CompraBase):
     estado_pago: str
     proveedor: Cliente
     detalles: List[DetalleCompra] = []
-    pagos: List['PagoCompra'] = [] # Relación con pagos realizados
-
+    pagos: List['PagoCompra'] = []
     model_config = ConfigDict(from_attributes=True)
 
 class PagoCompraCreate(BaseModel):
@@ -660,426 +460,84 @@ class PagoCompra(BaseModel):
     fecha: datetime
     metodo_pago: Optional[str] = None
     detalle_pago: Optional[str] = None
-
     model_config = ConfigDict(from_attributes=True)
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# ARCHIVO: schemas_additions.py
-#
-# Estos schemas deben AGREGARSE al schemas.py existente.
-# ═══════════════════════════════════════════════════════════════════════════════
-
-from pydantic import BaseModel, ConfigDict
-from typing import Optional
-
-
-
-# ─── Pago (actualizado — ahora incluye detalle_pago igual que PagoCompra) ─────
-# class PagoCreate(BaseModel):
-#     venta_id:    int
-#     monto:       float
-#     metodo_pago: Optional[str] = None
-#     detalle_pago: Optional[str] = None   # ✅ NUEVO: nro. comprobante, cuenta, etc.
-
-# class PagoUpdate(BaseModel):
-#     monto:        Optional[float] = None
-#     metodo_pago:  Optional[str]   = None
-#     detalle_pago: Optional[str]   = None  # ✅ NUEVO
-
-# class Pago(PagoCreate):
-#     id:    int
-#     fecha: datetime
-
-#     model_config = ConfigDict(from_attributes=True)
-
-
-# ─── DetalleVenta (actualizado — ahora incluye descuento_pct) ─────────────────
-# class DetalleVentaCreate(BaseModel):
-#     producto_id:    int
-#     cantidad:       Optional[float]
-#     precio_unitario: Optional[float] = None
-#     descuento_pct:  float = 0.0   # ✅ NUEVO: % de descuento por línea (0-100)
-
-
-# # ─── Venta (actualizado — ahora incluye descuento_total) ──────────────────────
-# # ─── Devoluciones (NUEVO) ─────────────────────────────────────────────────────
-# class DevolucionItemCreate(BaseModel):
-#     detalle_id:  Optional[int] = None
-#     producto_id: int
-#     cantidad:    float
-#     precio_unit: float
-
-# class DevolucionCreate(BaseModel):
-#     venta_id: int
-#     motivo:   str
-#     items:    list  # List[DevolucionItemCreate]
-
-# class DevolucionItemOut(BaseModel):
-#     id:          int
-#     producto_id: int
-#     cantidad:    float
-#     precio_unit: float
-
-#     model_config = ConfigDict(from_attributes=True)
-
-# class DevolucionOut(BaseModel):
-#     id:       int
-#     venta_id: int
-#     motivo:   str
-#     total:    Optional[float] = 0.0
-#     fecha:    date
-#     items:    list = []   # List[DevolucionItemOut]
-
-#     model_config = ConfigDict(from_attributes=True)
-# En schemas.py, actualizar VentaCreate y VentaBase para incluir:
-#   metodo_pago: Optional[str] = None
-# Y en la clase Venta (response):
-#   metodo_pago: Optional[str] = None
-
-# class VentaCreate(BaseModel):
-#     cliente_id:      int
-#     detalles:        List[DetalleVentaCreate]  # ✅ BIEN
-#     pagada:          bool           = True
-#     iva_porcentaje:  float          = 0.0
-#     metodo_pago:     Optional[str]  = None  # ✅ Efectivo|Transferencia|Tarjeta|None
-
-
-# ─── Notificacion (actualizado — incluye campo tipo) ──────────────────────────
-# class Notificacion(BaseModel):
-#     id:             int
-#     usuario_id:     int
-#     mensaje:        str
-#     leido:          bool
-#     tipo:           str = "info"   # ✅ NUEVO: info | warning | error | success
-#     fecha_creacion: date
-#     orden_id:       Optional[int] = None
-
-#     model_config = ConfigDict(from_attributes=True)
-
-
-# ─── Corte de Caja (NUEVO) ────────────────────────────────────────────────────
-# class CorteCajaCreate(BaseModel):
-#     efectivo_fisico: float
-#     observaciones:   Optional[str] = None
-
-# class CorteCajaOut(BaseModel):
-#     id:                         int
-#     usuario_id:                 int
-#     fecha:                      date
-#     total_efectivo_ventas:      float
-#     total_transferencia_ventas: float
-#     total_tarjeta_ventas:       float
-#     total_otros_ventas:         float
-#     total_ventas_dia:           float
-#     efectivo_fisico:            float
-#     diferencia:                 float
-#     observaciones:              Optional[str] = None
-#     estado:                     str
-
-#     model_config = ConfigDict(from_attributes=True)
-
-
-# ─── Preview corte (sin crear) ────────────────────────────────────────────────
-# class CorteCajaPreview(BaseModel):
-#     efectivo:       float
-#     transferencia:  float
-#     tarjeta:        float
-#     otros:          float
-#     total_dia:      float
-#     fecha:          str
-
-
-
-
-
-
-
-
-    # ─── Devoluciones ─────────────────────────────────────────────────────────────
-# class DevolucionItemCreate(BaseModel):
-#     detalle_id:  Optional[int] = None
-#     producto_id: int
-#     cantidad:    float
-#     precio_unit: float
-
-# class DevolucionCreate(BaseModel):
-#     venta_id: int
-#     motivo:   str
-#     items:    List[DevolucionItemCreate]
-
-# class DevolucionItemOut(BaseModel):
-#     id:          int
-#     producto_id: int
-#     cantidad:    float
-#     precio_unit: float
-#     producto:    Optional[dict] = None   # nombre del producto
-
-#     model_config = ConfigDict(from_attributes=True)
-
-# class DevolucionOut(BaseModel):
-#     id:       int
-#     venta_id: int
-#     motivo:   str
-#     total:    float
-#     fecha:    date
-#     items:    List[DevolucionItemOut] = []
-
-#     model_config = ConfigDict(from_attributes=True)
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# schemas_additions.py — agregar TODO esto al final de schemas.py
-# ═══════════════════════════════════════════════════════════════════════════════
-from pydantic import BaseModel, ConfigDict
-from typing import Optional, List
-
-
-
-# ─── Pago ─────────────────────────────────────────────────────────────────────
-class PagoCreate(BaseModel):
-    venta_id:     int
-    monto:        float
-    metodo_pago:  Optional[str] = None
-    detalle_pago: Optional[str] = None
-
-class PagoUpdate(BaseModel):
-    monto:        Optional[float] = None
-    metodo_pago:  Optional[str]   = None
-    detalle_pago: Optional[str]   = None
-
-class Pago(PagoCreate):
-    id:    int
-    fecha: datetime
-    model_config = ConfigDict(from_attributes=True)
-
-
-# ─── DetalleVenta ─────────────────────────────────────────────────────────────
-class DetalleVentaCreate(BaseModel):
-    producto_id:     int
-    cantidad:        Optional[float]
-    precio_unitario: Optional[float] = None
-    descuento_pct:   float = 0.0
-
-
-# ─── VentaCreate (reemplaza la del schemas.py base) ──────────────────────────
-class VentaCreate(BaseModel):
-    cliente_id:     int
-    detalles:       List[DetalleVentaCreate]
-    pagada:         bool          = True
-    iva_porcentaje: float         = 0.0
-    metodo_pago:    Optional[str] = None   # Efectivo | Transferencia | Tarjeta | None
-
-
-
-class VentaBase(BaseModel):
-    cliente_id: int
-    detalles: List[DetalleVentaCreate]
-    pagada: bool = True
-    iva_porcentaje: float = 0.0
-
-# class VentaCreate(VentaBase):
-#     pass
-
-class Venta(VentaBase):
-    id: int
-    total: float
-    iva_total: float
-    iva_porcentaje: float
-    fecha: datetime
-    monto_pagado: float
-    estado_pago: str
-    cliente_id: Optional[int]
-    cliente: Optional[Cliente]
-    detalles: List[DetalleVenta] = []
-    pagos: List[Pago] = []
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-
-
-# ─── IMPORTANTE: en schemas.py, en la clase Venta (response), agregar: ────────
-#   metodo_pago: Optional[str] = None
-#
-# Ejemplo:
-#   class Venta(VentaBase):
-#       id: int
-#       total: float
-#       ...
-#       metodo_pago: Optional[str] = None   # ← AGREGAR ESTA LÍNEA
-#       model_config = ConfigDict(from_attributes=True)
-
-
-# ─── Notificacion ─────────────────────────────────────────────────────────────
-class Notificacion(BaseModel):
-    id:             int
-    usuario_id:     int
-    mensaje:        str
-    leido:          bool
-    tipo:           str = "info"
-    fecha_creacion: date
-    orden_id:       Optional[int] = None
-    model_config = ConfigDict(from_attributes=True)
-
-
-# ─── Corte de Caja ────────────────────────────────────────────────────────────
-class CorteCajaCreate(BaseModel):
-    efectivo_fisico: float
-    observaciones:   Optional[str] = None
-
-class CorteCajaOut(BaseModel):
-    id:                         int
-    usuario_id:                 int
-    fecha:                      date
-    total_efectivo_ventas:      float
-    total_transferencia_ventas: float
-    total_tarjeta_ventas:       float
-    total_otros_ventas:         float
-    total_ventas_dia:           float
-    efectivo_fisico:            float
-    diferencia:                 float
-    observaciones:              Optional[str] = None
-    estado:                     str
-    total_gastos:               float  # <--- NUEVA LÍNEA
-    model_config = ConfigDict(from_attributes=True)
-
-class CorteCajaPreview(BaseModel):
-    efectivo:       float
-    transferencia:  float
-    tarjeta:        float
-    otros:          float
-    total_dia:      float
-    total_gastos:   float # <--- NUEVA LÍNEA
-    fecha:          str
-
-
-# ─── Devoluciones ─────────────────────────────────────────────────────────────
-# REGLA DE ORO: todos los nombres deben coincidir EXACTAMENTE con los
-# campos del modelo SQLAlchemy (models.py).
-#
-# models.Devolucion:    monto_total, motivo, fecha, venta_id
-# models.DevolucionItem: precio_unitario, cantidad, producto_id, detalle_id
-
-class DevolucionItemCreate(BaseModel):
-    """Lo que envía el frontend al crear una devolución."""
-    detalle_id:      Optional[int] = None
-    producto_id:     int
-    cantidad:        float
-    precio_unitario: float           # ✅ igual que el modelo DevolucionItem
-
-class DevolucionCreate(BaseModel):
-    venta_id: int
-    motivo:   str
-    items:    List[DevolucionItemCreate]
-
-class DevolucionItemOut(BaseModel):
-    """Lo que devuelve el backend al serializar un DevolucionItem."""
-    id:              int
-    producto_id:     int
-    cantidad:        float
-    precio_unitario: float           # ✅ igual que el modelo
-    detalle_id:      Optional[int] = None
-    model_config = ConfigDict(from_attributes=True)
-
-class DevolucionOut(BaseModel):
-    """Lo que devuelve el backend al serializar una Devolucion."""
-    id:         int
-    venta_id:   int
-    motivo:     str
-    monto_total: float = 0.0         # ✅ igual que el modelo (NO 'total')
-    fecha:      date
-    tipo:       str = "parcial"
-    estado:     str = "confirmada"
-    items:      List[DevolucionItemOut] = []
-    model_config = ConfigDict(from_attributes=True)
-
-
-
-
-
-
 
 # =========================
-# Reportes
+# PRODUCCIÓN (RECETAS Y LOTES)
 # =========================
-class VentasSummary(BaseModel):
-    total_pagado: float
-    total_pendiente: float
-    total_general: float
-    total_ventas_hoy: float
-    # 👇 AÑADE ESTAS DOS LÍNEAS 👇
-    total_compras: float = 0.0
-    total_gastos: float = 0.0
-    
-    model_config = ConfigDict(from_attributes=True)
+class RecetaItemBase(BaseModel):
+    insumo_id: int
+    cantidad: float
 
-class ClienteCuentasPorCobrar(BaseModel):
-    cliente_id: int
-    cliente_nombre: str
-    monto_pendiente: float
-    ventas_pendientes: List[Venta] = []
+class RecetaItemCreate(RecetaItemBase):
+    pass
 
-class VentaHistoryItem(BaseModel):
+class RecetaItem(RecetaItemBase):
     id: int
-    detalles: List[DetalleVenta] = []
-    total: float
-    fecha: datetime
-    monto_pagado: float
-    estado_pago: str
-    pagos: List[Pago] = []
-
+    receta_id: int
+    insumo: Producto
     model_config = ConfigDict(from_attributes=True)
 
-class ClienteHistory(BaseModel):
-    cliente: Cliente
-    ventas: List[VentaHistoryItem] = []
-    total_deuda: float
-    total_pagado_general: float
-    total_ventas_general: float
+class RecetaServicioBase(BaseModel):
+    servicio_id: int
 
+class RecetaServicio(RecetaServicioBase):
+    id: int
+    receta_id: int
+    servicio: Producto
     model_config = ConfigDict(from_attributes=True)
 
-class ProductoVendido(BaseModel):
-    product_id: int
-    product_name: str
-    total_quantity_sold: float
-    es_servicio: bool
-    total_revenue: float
+class RecetaBase(BaseModel):
+    producto_id: int
+    nombre: str
+    descripcion: Optional[str] = None
 
+class RecetaCreate(RecetaBase):
+    items: List[RecetaItemCreate]
+    servicios: List[RecetaServicioBase] = []
+
+class Receta(RecetaBase):
+    id: int
+    created_at: date
+    items: List[RecetaItem]
+    servicios_maquila: List[RecetaServicio] = []
+    producto_resultante: Producto
     model_config = ConfigDict(from_attributes=True)
 
-class ReporteProductosVendidos(BaseModel):
-    productos: List[ProductoVendido]
-    servicios: List[ProductoVendido]
+class LoteProduccionBase(BaseModel):
+    receta_id: int
+    cantidad_a_producir: float
+    cliente_id: Optional[int] = None
+    observaciones: Optional[str] = None
 
-class ClienteComprador(BaseModel):
-    client_id: int
-    client_name: str
-    total_purchase_amount: float
+class LoteProduccionCreate(LoteProduccionBase):
+    pass
 
+class LoteServicioPrecio(BaseModel):
+    servicio_id: int
+    precio: float
+
+class LoteProduccionConfirm(BaseModel):
+    cantidad_real: float
+    precios_servicios: List[LoteServicioPrecio] = []
+    observaciones: Optional[str] = None
+
+class LoteProduccion(LoteProduccionBase):
+    id: int
+    cantidad_real: Optional[float] = None
+    costo_total: float
+    costo_unitario_resultado: float
+    fecha_planificada: date
+    fecha_confirmacion: Optional[date] = None
+    estado: str
+    receta: Receta
+    cliente: Optional[Cliente] = None
+    venta_id: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
-class ClienteDeudor(BaseModel):
-    client_id: int
-    client_name: str
-    total_debt_amount: float
-
-    model_config = ConfigDict(from_attributes=True)
-
-class ProductoRentabilidad(BaseModel):
-    product_id: int
-    product_name: str
-    total_quantity_sold: float
-    total_revenue: float
-    total_cost: float
-    net_profit: float
-    profit_margin: float
-
-
-
-
-# GASTOS
-
+# =========================
+# GASTOS Y CAJA
+# =========================
 class TerceroReducido(BaseModel):
     id: int
     nombre: str
@@ -1102,18 +560,218 @@ class GastoOut(BaseModel):
     fecha: datetime
     model_config = ConfigDict(from_attributes=True)
 
+class CorteCajaCreate(BaseModel):
+    efectivo_fisico: float
+    observaciones: Optional[str] = None
 
-
-
-
-
-# ─── Actualizar User ───
-class User(UserBase):
+class CorteCajaOut(BaseModel):
     id: int
-    role: Role
-    empresa_id: Optional[int] = None  # ✅ NUEVO
-    empresa: Optional[Empresa] = None # ✅ NUEVO
+    usuario_id: int
+    fecha: date
+    total_efectivo_ventas: float
+    total_transferencia_ventas: float
+    total_tarjeta_ventas: float
+    total_otros_ventas: float
+    total_ventas_dia: float
+    efectivo_fisico: float
+    diferencia: float
+    observaciones: Optional[str] = None
+    estado: str
+    total_gastos: float 
     model_config = ConfigDict(from_attributes=True)
 
+class CorteCajaPreview(BaseModel):
+    efectivo: float
+    transferencia: float
+    tarjeta: float
+    otros: float
+    total_dia: float
+    total_gastos: float
+    fecha: str
 
+# =========================
+# REPORTES Y DASHBOARD
+# =========================
+class KardexItem(BaseModel):
+    fecha: datetime
+    tipo: str
+    cantidad: float
+    costo_unitario: float
+    referencia: Optional[str] = None
+    saldo_cantidad: float
+    saldo_costo_unitario: float
+    saldo_valor: float
+    model_config = ConfigDict(from_attributes=True)
 
+class KardexResponse(BaseModel):
+    producto_id: int
+    producto_nombre: str
+    items: List[KardexItem]
+
+class InventarioItem(BaseModel):
+    id: int
+    nombre: str
+    es_servicio: bool
+    unidad_medida: Optional[str]
+    stock_actual: float
+    costo: float
+    precio: float
+    valor_costo: float
+    valor_venta: float
+    model_config = ConfigDict(from_attributes=True)
+
+class InventarioSnapshot(BaseModel):
+    items: List[InventarioItem]
+    total_valor_costo: float
+    total_valor_venta: float
+
+class ProductoRotacionItem(BaseModel):
+    producto_id: int
+    nombre: str
+    es_servicio: bool
+    total_cantidad_vendida: float
+    total_ingresos: float
+
+class ReporteRotacion(BaseModel):
+    tart_date: Optional[date] = None
+    end_date: Optional[date] = None
+    top: List[ProductoRotacionItem]
+    slow: List[ProductoRotacionItem]
+
+class VentasSummary(BaseModel):
+    total_pagado: float
+    total_pendiente: float
+    total_general: float
+    total_ventas_hoy: float
+    total_compras: float = 0.0
+    total_gastos: float = 0.0
+    model_config = ConfigDict(from_attributes=True)
+
+class ClienteCuentasPorCobrar(BaseModel):
+    cliente_id: int
+    cliente_nombre: str
+    monto_pendiente: float
+    ventas_pendientes: List[Venta] = []
+
+class VentaHistoryItem(BaseModel):
+    id: int
+    detalles: List[DetalleVenta] = []
+    total: float
+    fecha: datetime
+    monto_pagado: float
+    estado_pago: str
+    pagos: List[Pago] = []
+    model_config = ConfigDict(from_attributes=True)
+
+class ClienteHistory(BaseModel):
+    cliente: Cliente
+    ventas: List[VentaHistoryItem] = []
+    total_deuda: float
+    total_pagado_general: float
+    total_ventas_general: float
+    model_config = ConfigDict(from_attributes=True)
+
+class ProductoVendido(BaseModel):
+    product_id: int
+    product_name: str
+    total_quantity_sold: float
+    es_servicio: bool
+    total_revenue: float
+    model_config = ConfigDict(from_attributes=True)
+
+class ReporteProductosVendidos(BaseModel):
+    productos: List[ProductoVendido]
+    servicios: List[ProductoVendido]
+
+class ClienteComprador(BaseModel):
+    client_id: int
+    client_name: str
+    total_purchase_amount: float
+    model_config = ConfigDict(from_attributes=True)
+
+class ClienteDeudor(BaseModel):
+    client_id: int
+    client_name: str
+    total_debt_amount: float
+    model_config = ConfigDict(from_attributes=True)
+
+class ProductoRentabilidad(BaseModel):
+    product_id: int
+    product_name: str
+    total_quantity_sold: float
+    total_revenue: float
+    total_cost: float
+    net_profit: float
+    profit_margin: float
+
+class SalesByDay(BaseModel):
+    day: date
+    total: float
+
+class DashboardData(BaseModel):
+    ventas_hoy: float
+    cuentas_por_cobrar: float
+    productos_bajo_stock: int
+    ordenes_recientes: List[OrdenTrabajo]
+    ventas_ultimos_30_dias: List[SalesByDay]
+
+# =========================
+# NOTIFICACIONES
+# =========================
+class NotificacionBase(BaseModel):
+    usuario_id: int
+    mensaje: str
+    orden_id: Optional[int] = None
+
+class NotificacionCreate(NotificacionBase):
+    pass
+
+class Notificacion(BaseModel):
+    id: int
+    usuario_id: int
+    mensaje: str
+    leido: bool
+    tipo: str = "info"
+    fecha_creacion: date
+    orden_id: Optional[int] = None
+    model_config = ConfigDict(from_attributes=True)
+
+# =========================
+# CARGAS MASIVAS (EXCEL)
+# =========================
+class ProductoExcel(BaseModel):
+    nombre: str
+    precio: float
+    costo: float = 0.0
+    es_servicio: bool = False
+    unidad_medida: Optional[str] = "UND"
+    stock_minimo: float = 0.0
+    stock_inicial: float = 0.0
+
+class ClienteExcel(BaseModel):
+    nombre: str
+    cedula: Optional[str] = None
+    telefono: Optional[str] = None
+    direccion: Optional[str] = None
+    cupo_credito: Optional[float] = 0.0
+
+class BulkLoadResponse(BaseModel):
+    success: bool
+    message: str
+    created_records: int = 0
+    errors: List[str] = []
+
+class MovementExcel(BaseModel):
+    producto_id: Optional[int]
+    producto_nombre: Optional[str]
+    tipo: str
+    cantidad: float
+    costo_unitario: Optional[float] = 0.0
+    motivo: Optional[str] = None
+    referencia: Optional[str] = None
+    observacion: Optional[str] = None
+
+# =========================
+# RECONSTRUCCIÓN DE REFERENCIAS FORWARD
+# =========================
+DashboardData.model_rebuild()
