@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Paper, Grid, CircularProgress,
-  Divider, Chip, useMediaQuery, Skeleton, Button
+  Divider, Chip, useMediaQuery, Skeleton, Button,
+  CardActionArea // ✅ Añadido para efectos de clic en el Onboarding
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import {
@@ -10,7 +11,7 @@ import {
   Assignment, TrendingUp, TrendingDown, ShoppingCart,
   Inventory2Outlined, CheckCircle, PointOfSale,
   AssignmentReturn, AttachMoney, CreditCard, AccountBalance,
-  MoneyOff, Business 
+  MoneyOff, Business, RocketLaunch, Storefront, PeopleOutline, AddShoppingCart // ✅ Nuevos iconos para Onboarding
 } from '@mui/icons-material';
 import apiClient from '../api';
 import { formatCurrency } from '../utils/formatters';
@@ -25,7 +26,7 @@ const PURPLE  = '#8B5CF6';
 // ─── KPI Card clickeable ───
 const KpiCard = ({ title, value, icon, color, sub, onClick, loading }) => (
   <Paper onClick={onClick} sx={{
-    p: 2, borderRadius: 3,
+    p: 1.5, borderRadius: 3,
     display: 'flex', alignItems: 'center', gap: 1.5,
     boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
     cursor: onClick ? 'pointer' : 'default',
@@ -33,19 +34,19 @@ const KpiCard = ({ title, value, icon, color, sub, onClick, loading }) => (
     width: '100%', boxSizing: 'border-box',
     '&:hover': onClick ? { transform: 'translateY(-2px)', boxShadow: '0 6px 20px rgba(0,0,0,0.1)' } : {},
   }}>
-    <Box sx={{ width: 44, height: 44, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: `${color}18`, color }}>
+    <Box sx={{ width: 40, height: 40, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: `${color}18`, color }}>
       {icon}
     </Box>
     <Box sx={{ minWidth: 0, flex: 1 }}>
       <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 500 }}>{title}</Typography>
-      {loading ? <Skeleton width={100} height={28} /> : <Typography sx={{ fontSize: 18, fontWeight: 800, lineHeight: 1.2 }}>{value}</Typography>}
+      {loading ? <Skeleton width={80} height={24} /> : <Typography sx={{ fontSize: 17, fontWeight: 800, lineHeight: 1.2 }}>{value}</Typography>}
       {sub && !loading && <Typography sx={{ fontSize: 10, color: 'text.secondary', mt: 0.2 }}>{sub}</Typography>}
     </Box>
   </Paper>
 );
 
 // ─── Sparkline SVG nativa ───
-const Sparkline = ({ data, color, height = 80 }) => {
+const Sparkline = ({ data, color, height = 70 }) => {
   if (!data || data.length < 2) return null;
   const vals  = data.map(d => d.total);
   const max   = Math.max(...vals, 1);
@@ -88,11 +89,11 @@ const MetodoBarra = ({ label, value, total, color, icon }) => {
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.4 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
           <Box sx={{ color, display: 'flex' }}>{icon}</Box>
-          <Typography sx={{ fontSize: 12 }}>{label}</Typography>
+          <Typography sx={{ fontSize: 11 }}>{label}</Typography>
         </Box>
-        <Typography sx={{ fontSize: 12, fontWeight: 700, color }}>{formatCurrency(value)}</Typography>
+        <Typography sx={{ fontSize: 11, fontWeight: 700, color }}>{formatCurrency(value)}</Typography>
       </Box>
-      <Box sx={{ height: 5, borderRadius: 3, bgcolor: `${color}18`, overflow: 'hidden' }}>
+      <Box sx={{ height: 4, borderRadius: 3, bgcolor: `${color}18`, overflow: 'hidden' }}>
         <Box sx={{ height: '100%', width: `${pct}%`, bgcolor: color, borderRadius: 3, transition: 'width 0.6s ease' }} />
       </Box>
     </Box>
@@ -172,10 +173,8 @@ const Dashboard = () => {
   const diffSemana   = totalAnt7 > 0 ? ((totalUlt7 - totalAnt7) / totalAnt7 * 100).toFixed(1) : (totalUlt7 > 0 ? 100 : 0);
   const diffPos      = parseFloat(diffSemana) >= 0;
 
-  // ✅ CÁLCULO DEFENSIVO DE DÍAS RESTANTES (Evitamos NaN)
   const calculateDaysLeft = (dateString) => {
     if (!dateString) return 0;
-    // Si viene la "Z" al final, es UTC (Postgres). La convertimos de manera segura.
     const endsAt = new Date(dateString.endsWith('Z') ? dateString : dateString + 'Z');
     const now = new Date();
     const diffTime = endsAt - now;
@@ -185,14 +184,18 @@ const Dashboard = () => {
 
   const diasRestantes = calculateDaysLeft(empresaData?.trial_ends_at);
 
+  // ✅ LOGICA DE "ZERO STATE"
+  // Si no hay ventas históricas, ni caja, ni cuentas por cobrar, asumimos que es una cuenta virgen.
+  const isZeroState = totalUltimos30 === 0 && (data?.cuentas_por_cobrar || 0) === 0 && (caja?.total_dia || 0) === 0;
+
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
 
       {/* ── Header ── */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Box sx={{ 
-            width: 48, height: 48, borderRadius: 2, 
+            width: 40, height: 40, borderRadius: 2, 
             background: `linear-gradient(135deg, ${ACCENT}20, ${ACCENT}05)`, 
             display: 'flex', alignItems: 'center', justifyContent: 'center', 
             color: ACCENT, border: `1px solid ${ACCENT}30` 
@@ -201,50 +204,52 @@ const Dashboard = () => {
           </Box>
           <Box>
             <Typography sx={{ 
-              fontSize: 11, fontWeight: 800, color: ACCENT, 
-              textTransform: 'uppercase', letterSpacing: 1.2, mb: 0.3,
+              fontSize: 10, fontWeight: 800, color: ACCENT, 
+              textTransform: 'uppercase', letterSpacing: 1.2, mb: 0.1,
               display: 'flex', alignItems: 'center', gap: 0.5
             }}>
-              <Business sx={{ fontSize: 13 }} /> 
-              {companyName ? companyName : <Skeleton width={100} height={15} sx={{ display: 'inline-block' }}/>}
+              <Business sx={{ fontSize: 12 }} /> 
+              {companyName ? companyName : <Skeleton width={80} height={12} sx={{ display: 'inline-block' }}/>}
             </Typography>
-            
-            <Typography sx={{ fontWeight: 800, fontSize: 22, lineHeight: 1.1, color: 'text.primary' }}>
+            <Typography sx={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1, color: 'text.primary' }}>
               Resumen General
             </Typography>
-            <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5 }}>
+            <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.2 }}>
               {new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}
             </Typography>
           </Box>
         </Box>
-        <Chip
-          icon={diffPos ? <TrendingUp sx={{ fontSize: 14 }} /> : <TrendingDown sx={{ fontSize: 14 }} />}
-          label={`${diffPos ? '+' : ''}${diffSemana}% vs semana anterior`}
-          size="small"
-          sx={{
-            bgcolor: diffPos ? `${GREEN}15` : `${RED}15`,
-            color: diffPos ? GREEN : RED,
-            fontWeight: 700, fontSize: 11,
-            '& .MuiChip-icon': { color: diffPos ? GREEN : RED },
-          }}
-        />
+
+        {!isZeroState && (
+          <Chip
+            icon={diffPos ? <TrendingUp sx={{ fontSize: 12 }} /> : <TrendingDown sx={{ fontSize: 12 }} />}
+            label={`${diffPos ? '+' : ''}${diffSemana}% vs semana anterior`}
+            size="small"
+            sx={{
+              bgcolor: diffPos ? `${GREEN}15` : `${RED}15`,
+              color: diffPos ? GREEN : RED,
+              fontWeight: 700, fontSize: 10,
+              '& .MuiChip-icon': { color: diffPos ? GREEN : RED },
+            }}
+          />
+        )}
       </Box>
 
-      {/* ✅ BANNER DE TRIAL (Visible solo para 'trial' con días > 0) */}
+      {/* BANNER DE TRIAL */}
       {empresaData?.plan_type === 'trial' && diasRestantes > 0 && (
         <Box sx={{ 
-          mb: 3, p: 1.5, borderRadius: 2, 
+          mb: 2, p: 1.5, borderRadius: 2, 
           bgcolor: '#EFF6FF', border: '1px solid #BFDBFE', 
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           flexWrap: 'wrap', gap: 2
         }}>
-          <Typography sx={{ fontSize: 13, color: '#1E3A8A', fontWeight: 600 }}>
+          <Typography sx={{ fontSize: 12, color: '#1E3A8A', fontWeight: 600 }}>
             ⏱ Estás en tu periodo de prueba. Te quedan {diasRestantes} días gratis.
           </Typography>
           <Button 
             size="small" 
             variant="contained" 
-            onClick={() => window.open(`https://wa.me/573001234567?text=Hola,%20quiero%20activar%20mi%20plan%20premium`, '_blank')}
+            onClick={() => window.open(`https://wa.me/3175882321?text=Hola,%20quiero%20activar%20mi%20plan%20premium`, '_blank')}
             sx={{ bgcolor: '#2563EB', fontSize: 11, fontWeight: 700, boxShadow: 'none' }}
           >
             Activar mi cuenta
@@ -252,241 +257,264 @@ const Dashboard = () => {
         </Box>
       )}
 
-      {/* ── KPIs principales — 4 en fila ── */}
+      {/* ── KPIs principales ── */}
       <Grid container spacing={1.5} sx={{ mb: 2 }}>
         <Grid item xs={6} sm={3}>
           <KpiCard
-            title="Ventas hoy"
-            value={formatCurrency(ventaHoy)}
+            title="Ventas hoy" value={formatCurrency(ventaHoy)}
             icon={<MonetizationOn />} color={ACCENT}
             sub={`${tendenciaPos ? '▲' : '▼'} ${Math.abs(tendencia)}% vs promedio`}
-            onClick={() => navigate('/ventas')}
-            loading={loadingMain}
+            onClick={() => navigate('/ventas')} loading={loadingMain}
           />
         </Grid>
         <Grid item xs={6} sm={3}>
           <KpiCard
-            title="Por cobrar"
-            value={formatCurrency(data?.cuentas_por_cobrar || 0)}
-            icon={<AccountBalanceWallet />} color={BLUE}
-            sub="Saldo pendiente clientes"
-            onClick={() => navigate('/clientes')}
-            loading={loadingMain}
+            title="Por cobrar" value={formatCurrency(data?.cuentas_por_cobrar || 0)}
+            icon={<AccountBalanceWallet />} color={BLUE} sub="Saldo pendiente clientes"
+            onClick={() => navigate('/clientes')} loading={loadingMain}
           />
         </Grid>
         <Grid item xs={6} sm={3}>
           <KpiCard
-            title="Bajo stock"
-            value={data?.productos_bajo_stock || 0}
-            icon={<Warning />}
-            color={data?.productos_bajo_stock > 0 ? RED : GREEN}
+            title="Bajo stock" value={data?.productos_bajo_stock || 0}
+            icon={<Warning />} color={data?.productos_bajo_stock > 0 ? RED : GREEN}
             sub={data?.productos_bajo_stock === 0 ? 'Todo en orden' : 'Requieren reposición'}
-            onClick={() => navigate('/inventario')}
-            loading={loadingMain}
+            onClick={() => navigate('/inventario')} loading={loadingMain}
           />
         </Grid>
         <Grid item xs={6} sm={3}>
           <KpiCard
-            title="Caja hoy (Neto)"
-            value={formatCurrency((caja?.total_dia || 0) - (caja?.total_gastos || 0))}
+            title="Caja hoy (Neto)" value={formatCurrency((caja?.total_dia || 0) - (caja?.total_gastos || 0))}
             icon={<PointOfSale />} color={YELLOW}
             sub={caja?.total_gastos > 0 ? `- ${formatCurrency(caja.total_gastos)} en gastos` : 'Sin gastos hoy'}
-            onClick={() => navigate('/caja')}
-            loading={loadingCaja}
+            onClick={() => navigate('/caja')} loading={loadingCaja}
           />
         </Grid>
       </Grid>
 
-      <Grid container spacing={1.5}>
-
-        {/* ── Gráfica ventas 30 días ── */}
-        <Grid item xs={12} md={8}>
-          <Paper sx={{ p: 2.5, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', height: '100%', boxSizing: 'border-box' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
-              <Box>
-                <Typography sx={{ fontWeight: 700, fontSize: 15 }}>Ventas — últimos 30 días</Typography>
-                <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-                  Total: <strong>{formatCurrency(totalUltimos30)}</strong>
-                  {promedioDia > 0 && ` · Promedio: ${formatCurrency(promedioDia)}/día`}
-                </Typography>
-              </Box>
-              {mejorDia.total > 0 && (
-                <Chip label={`🏆 Mejor: ${formatCurrency(mejorDia.total)}`} size="small"
-                  sx={{ bgcolor: `${ACCENT}12`, color: ACCENT, fontWeight: 700, fontSize: 10 }} />
-              )}
-            </Box>
-
-            {ventas30.length > 1
-              ? <Sparkline data={ventas30} color={ACCENT} height={isMobile ? 70 : 110} />
-              : <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
-                  <TrendingUp sx={{ fontSize: 40, opacity: 0.2, mb: 1 }} />
-                  <Typography fontSize={13}>Sin datos de ventas aún</Typography>
-                </Box>
-            }
-
-            {ventas30.length > 1 && (
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5, px: 0.5 }}>
-                {[ventas30[0], ventas30[Math.floor(ventas30.length / 2)], ventas30[ventas30.length - 1]].map((d, i) => (
-                  <Typography key={i} sx={{ fontSize: 10, color: 'text.secondary' }}>
-                    {new Date(d.day + 'T00:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}
-                  </Typography>
-                ))}
-              </Box>
-            )}
-
-            {ultimos7.length > 0 && (
-              <>
-                <Divider sx={{ my: 2 }} />
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                  <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6 }}>
-                    Últimos 7 días
+      {/* ✅ FLUJO DE ONBOARDING (ESTADO CERO) */}
+      {isZeroState ? (
+        <Paper sx={{ p: { xs: 3, md: 5 }, borderRadius: 3, boxShadow: '0 2px 24px rgba(0,0,0,0.04)', textAlign: 'center', mb: 3 }}>
+          <Box sx={{ width: 64, height: 64, borderRadius: '50%', bgcolor: `${ACCENT}15`, color: ACCENT, display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 2 }}>
+            <RocketLaunch sx={{ fontSize: 32 }} />
+          </Box>
+          <Typography variant="h5" sx={{ fontWeight: 800, mb: 1 }}>¡Bienvenido a Ksmart360!</Typography>
+          <Typography sx={{ color: 'text.secondary', maxWidth: 500, mx: 'auto', mb: 4 }}>
+            Tu espacio de trabajo está listo. Sigue estos tres rápidos pasos para configurar tu negocio y empezar a vender.
+          </Typography>
+          
+          <Grid container spacing={2} justifyContent="center" sx={{ maxWidth: 900, mx: 'auto' }}>
+            {[
+              { title: '1. Agrega tus Productos', desc: 'Crea tu catálogo o sube tu inventario en Excel.', icon: <Storefront sx={{ fontSize: 30 }}/>, path: '/productos', color: PURPLE },
+              { title: '2. Registra Clientes', desc: 'Añade tu cartera de clientes y proveedores.', icon: <PeopleOutline sx={{ fontSize: 30 }}/>, path: '/clientes', color: BLUE },
+              { title: '3. Tu Primera Venta', desc: 'Factura y empieza a ver crecer tus métricas.', icon: <AddShoppingCart sx={{ fontSize: 30 }}/>, path: '/ventas', color: GREEN },
+            ].map((step, idx) => (
+              <Grid item xs={12} sm={4} key={idx}>
+                <CardActionArea onClick={() => navigate(step.path)} sx={{ height: '100%', borderRadius: 3 }}>
+                  <Paper sx={{ p: 3, height: '100%', borderRadius: 3, border: '1px dashed', borderColor: 'divider', transition: 'all 0.2s', '&:hover': { borderColor: step.color, bgcolor: `${step.color}05` } }}>
+                    <Box sx={{ color: step.color, mb: 1 }}>{step.icon}</Box>
+                    <Typography sx={{ fontWeight: 700, fontSize: 15, mb: 0.5 }}>{step.title}</Typography>
+                    <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{step.desc}</Typography>
+                  </Paper>
+                </CardActionArea>
+              </Grid>
+            ))}
+          </Grid>
+        </Paper>
+      ) : (
+        /* ── Gráficas y resto del dashboard regular ── */
+        <Grid container spacing={1.5}>
+          {/* ── Gráfica ventas 30 días ── */}
+          <Grid item xs={12} md={8}>
+            <Paper sx={{ p: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', height: '100%', boxSizing: 'border-box' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1, flexWrap: 'wrap', gap: 1 }}>
+                <Box>
+                  <Typography sx={{ fontWeight: 700, fontSize: 14 }}>Ventas — últimos 30 días</Typography>
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                    Total: <strong>{formatCurrency(totalUltimos30)}</strong>
+                    {promedioDia > 0 && ` · Promedio: ${formatCurrency(promedioDia)}/día`}
                   </Typography>
                 </Box>
-                <Box sx={{ display: 'flex', gap: 0.6, flexWrap: 'wrap' }}>
-                  {ultimos7.map((d, i) => (
-                    <Box key={i} sx={{
-                      flex: '1 1 0', minWidth: 0, textAlign: 'center',
-                      p: 0.8, borderRadius: 1.5,
-                      bgcolor: d.total >= promedioDia ? `${GREEN}10` : 'action.hover',
-                    }}>
-                      <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>
-                        {new Date(d.day + 'T00:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}
-                      </Typography>
-                      <Typography sx={{ fontSize: 11, fontWeight: 700, color: d.total >= promedioDia ? GREEN : 'text.primary' }}>
-                        {formatCurrency(d.total)}
-                      </Typography>
-                    </Box>
+                {mejorDia.total > 0 && (
+                  <Chip label={`🏆 Mejor: ${formatCurrency(mejorDia.total)}`} size="small"
+                    sx={{ bgcolor: `${ACCENT}12`, color: ACCENT, fontWeight: 700, fontSize: 10 }} />
+                )}
+              </Box>
+
+              {ventas30.length > 1
+                ? <Sparkline data={ventas30} color={ACCENT} height={isMobile ? 60 : 90} />
+                : <Box sx={{ textAlign: 'center', py: 3, color: 'text.secondary' }}>
+                    <TrendingUp sx={{ fontSize: 36, opacity: 0.2, mb: 1 }} />
+                    <Typography fontSize={12}>Faltan datos para graficar</Typography>
+                  </Box>
+              }
+
+              {ventas30.length > 1 && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5, px: 0.5 }}>
+                  {[ventas30[0], ventas30[Math.floor(ventas30.length / 2)], ventas30[ventas30.length - 1]].map((d, i) => (
+                    <Typography key={i} sx={{ fontSize: 10, color: 'text.secondary' }}>
+                      {new Date(d.day + 'T00:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}
+                    </Typography>
                   ))}
                 </Box>
-              </>
-            )}
-          </Paper>
-        </Grid>
+              )}
 
-        {/* ── Columna derecha ── */}
-        <Grid item xs={12} md={4}>
-          <Grid container spacing={1.5} sx={{ height: '100%' }}>
-
-            {/* Caja del día */}
-            <Grid item xs={12}>
-              <Paper sx={{ p: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', boxSizing: 'border-box', cursor: 'pointer', '&:hover': { boxShadow: '0 6px 20px rgba(0,0,0,0.1)' } }}
-                onClick={() => navigate('/caja')}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                  <PointOfSale sx={{ color: YELLOW, fontSize: 18 }} />
-                  <Typography sx={{ fontWeight: 700, fontSize: 14 }}>Resumen de caja hoy</Typography>
-                </Box>
-                {loadingCaja ? (
-                  <Box>{[1,2,3].map(i => <Skeleton key={i} height={20} sx={{ mb: 0.5 }} />)}</Box>
-                ) : caja ? (
-                  <>
-                    <MetodoBarra icon={<AttachMoney sx={{ fontSize: 14 }} />} label="Efectivo"       value={caja.efectivo}      total={caja.total_dia} color={GREEN}  />
-                    <MetodoBarra icon={<AccountBalance sx={{ fontSize: 14 }} />} label="Transferencia" value={caja.transferencia}  total={caja.total_dia} color={BLUE}   />
-                    <MetodoBarra icon={<CreditCard sx={{ fontSize: 14 }} />}   label="Tarjeta"        value={caja.tarjeta}       total={caja.total_dia} color={PURPLE} />
-                    
-                    <Divider sx={{ mt: 1.5, mb: 1 }} />
-                    
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                      <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary' }}>Ingresos Brutos</Typography>
-                      <Typography sx={{ fontSize: 12, fontWeight: 700 }}>{formatCurrency(caja.total_dia)}</Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <MoneyOff sx={{ fontSize: 13, color: RED }} />
-                        <Typography sx={{ fontSize: 12, fontWeight: 600, color: RED }}>Egresos / Gastos</Typography>
-                      </Box>
-                      <Typography sx={{ fontSize: 12, fontWeight: 700, color: RED }}>- {formatCurrency(caja.total_gastos || 0)}</Typography>
-                    </Box>
-                    
-                    <Divider sx={{ my: 1 }} />
-                    
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography sx={{ fontSize: 13, fontWeight: 700 }}>Saldo Neto</Typography>
-                      <Typography sx={{ fontSize: 15, fontWeight: 800, color: YELLOW }}>
-                        {formatCurrency(caja.total_dia - (caja.total_gastos || 0))}
-                      </Typography>
-                    </Box>
-                  </>
-                ) : (
-                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Sin datos de caja</Typography>
-                )}
-              </Paper>
-            </Grid>
-
-            {/* Órdenes recientes */}
-            <Grid item xs={12}>
-              <Paper sx={{ p: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', boxSizing: 'border-box' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                  <Assignment sx={{ color: PURPLE, fontSize: 18 }} />
-                  <Typography sx={{ fontWeight: 700, fontSize: 14 }}>Órdenes recientes</Typography>
-                </Box>
-                {!data?.ordenes_recientes?.length ? (
-                  <Box sx={{ textAlign: 'center', py: 2, color: 'text.secondary' }}>
-                    <CheckCircle sx={{ fontSize: 28, opacity: 0.2, mb: 0.5 }} />
-                    <Typography fontSize={12}>Sin órdenes recientes</Typography>
+              {ultimos7.length > 0 && (
+                <>
+                  <Divider sx={{ my: 1.5 }} />
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                    <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+                      Últimos 7 días
+                    </Typography>
                   </Box>
-                ) : (
-                  data.ordenes_recientes.slice(0, 4).map((orden, i) => (
-                    <Box key={orden.id}>
-                      <Box onClick={() => navigate('/ordenes-trabajo')}
-                        sx={{ py: 1, cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }, borderRadius: 1, px: 0.5, mx: -0.5 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Box sx={{ minWidth: 0, flex: 1 }}>
-                            <Typography sx={{ fontWeight: 600, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              OT #{orden.id} · {orden.cliente?.nombre}
-                            </Typography>
-                            <Chip label={orden.estado} size="small" sx={{
-                              height: 16, fontSize: 9, fontWeight: 700, borderRadius: 1, mt: 0.3,
-                              bgcolor: orden.estado === 'Cerrada' ? `${GREEN}15` : orden.estado === 'En produccion' ? `${BLUE}15` : `${YELLOW}15`,
-                              color: orden.estado === 'Cerrada' ? GREEN : orden.estado === 'En produccion' ? BLUE : YELLOW,
-                            }} />
-                          </Box>
-                          <Typography sx={{ fontWeight: 700, fontSize: 12, color: ACCENT, ml: 1, flexShrink: 0 }}>
-                            {formatCurrency(orden.total)}
-                          </Typography>
-                        </Box>
+                  <Box sx={{ display: 'flex', gap: 0.6, flexWrap: 'wrap' }}>
+                    {ultimos7.map((d, i) => (
+                      <Box key={i} sx={{
+                        flex: '1 1 0', minWidth: 0, textAlign: 'center',
+                        p: 0.6, borderRadius: 1.5,
+                        bgcolor: d.total >= promedioDia ? `${GREEN}10` : 'action.hover',
+                      }}>
+                        <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>
+                          {new Date(d.day + 'T00:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}
+                        </Typography>
+                        <Typography sx={{ fontSize: 10, fontWeight: 700, color: d.total >= promedioDia ? GREEN : 'text.primary' }}>
+                          {formatCurrency(d.total)}
+                        </Typography>
                       </Box>
-                      {i < Math.min(data.ordenes_recientes.length, 4) - 1 && <Divider />}
+                    ))}
+                  </Box>
+                </>
+              )}
+            </Paper>
+          </Grid>
+
+          {/* ── Columna derecha ── */}
+          <Grid item xs={12} md={4}>
+            <Grid container spacing={1.5} sx={{ height: '100%' }}>
+
+              {/* Caja del día */}
+              <Grid item xs={12}>
+                <Paper sx={{ p: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', boxSizing: 'border-box', cursor: 'pointer', '&:hover': { boxShadow: '0 6px 20px rgba(0,0,0,0.1)' } }}
+                  onClick={() => navigate('/caja')}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <PointOfSale sx={{ color: YELLOW, fontSize: 16 }} />
+                    <Typography sx={{ fontWeight: 700, fontSize: 13 }}>Resumen de caja hoy</Typography>
+                  </Box>
+                  {loadingCaja ? (
+                    <Box>{[1,2,3].map(i => <Skeleton key={i} height={20} sx={{ mb: 0.5 }} />)}</Box>
+                  ) : caja ? (
+                    <>
+                      <MetodoBarra icon={<AttachMoney sx={{ fontSize: 13 }} />} label="Efectivo"       value={caja.efectivo}      total={caja.total_dia} color={GREEN}  />
+                      <MetodoBarra icon={<AccountBalance sx={{ fontSize: 13 }} />} label="Transferencia" value={caja.transferencia}  total={caja.total_dia} color={BLUE}   />
+                      <MetodoBarra icon={<CreditCard sx={{ fontSize: 13 }} />}   label="Tarjeta"        value={caja.tarjeta}       total={caja.total_dia} color={PURPLE} />
+                      
+                      <Divider sx={{ mt: 1, mb: 0.5 }} />
+                      
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.2 }}>
+                        <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary' }}>Ingresos Brutos</Typography>
+                        <Typography sx={{ fontSize: 11, fontWeight: 700 }}>{formatCurrency(caja.total_dia)}</Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.2 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <MoneyOff sx={{ fontSize: 12, color: RED }} />
+                          <Typography sx={{ fontSize: 11, fontWeight: 600, color: RED }}>Egresos / Gastos</Typography>
+                        </Box>
+                        <Typography sx={{ fontSize: 11, fontWeight: 700, color: RED }}>- {formatCurrency(caja.total_gastos || 0)}</Typography>
+                      </Box>
+                      
+                      <Divider sx={{ my: 0.5 }} />
+                      
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography sx={{ fontSize: 12, fontWeight: 700 }}>Saldo Neto</Typography>
+                        <Typography sx={{ fontSize: 14, fontWeight: 800, color: YELLOW }}>
+                          {formatCurrency(caja.total_dia - (caja.total_gastos || 0))}
+                        </Typography>
+                      </Box>
+                    </>
+                  ) : (
+                    <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Sin datos de caja</Typography>
+                  )}
+                </Paper>
+              </Grid>
+
+              {/* Órdenes recientes */}
+              <Grid item xs={12}>
+                <Paper sx={{ p: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', boxSizing: 'border-box' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <Assignment sx={{ color: PURPLE, fontSize: 16 }} />
+                    <Typography sx={{ fontWeight: 700, fontSize: 13 }}>Órdenes recientes</Typography>
+                  </Box>
+                  {!data?.ordenes_recientes?.length ? (
+                    <Box sx={{ textAlign: 'center', py: 1.5, color: 'text.secondary' }}>
+                      <CheckCircle sx={{ fontSize: 24, opacity: 0.2, mb: 0.5 }} />
+                      <Typography fontSize={11}>Sin órdenes recientes</Typography>
                     </Box>
-                  ))
-                )}
-              </Paper>
+                  ) : (
+                    data.ordenes_recientes.slice(0, 4).map((orden, i) => (
+                      <Box key={orden.id}>
+                        <Box onClick={() => navigate('/ordenes-trabajo')}
+                          sx={{ py: 0.5, cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }, borderRadius: 1, px: 0.5, mx: -0.5 }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Box sx={{ minWidth: 0, flex: 1 }}>
+                              <Typography sx={{ fontWeight: 600, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                OT #{orden.id} · {orden.cliente?.nombre}
+                              </Typography>
+                              <Chip label={orden.estado} size="small" sx={{
+                                height: 14, fontSize: 9, fontWeight: 700, borderRadius: 1, mt: 0.2,
+                                bgcolor: orden.estado === 'Cerrada' ? `${GREEN}15` : orden.estado === 'En produccion' ? `${BLUE}15` : `${YELLOW}15`,
+                                color: orden.estado === 'Cerrada' ? GREEN : orden.estado === 'En produccion' ? BLUE : YELLOW,
+                              }} />
+                            </Box>
+                            <Typography sx={{ fontWeight: 700, fontSize: 11, color: ACCENT, ml: 1, flexShrink: 0 }}>
+                              {formatCurrency(orden.total)}
+                            </Typography>
+                          </Box>
+                        </Box>
+                        {i < Math.min(data.ordenes_recientes.length, 4) - 1 && <Divider />}
+                      </Box>
+                    ))
+                  )}
+                </Paper>
+              </Grid>
             </Grid>
           </Grid>
         </Grid>
+      )}
 
-        {/* ── Accesos rápidos ── */}
+      {/* ── Accesos rápidos (Siempre visibles) ── */}
+      <Grid container spacing={1.5} sx={{ mt: 0.5 }}>
         <Grid item xs={12}>
           <Paper sx={{ p: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', boxSizing: 'border-box' }}>
-            <Typography sx={{ fontWeight: 700, fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 1.5 }}>
+            <Typography sx={{ fontWeight: 700, fontSize: 10, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 1 }}>
               Acceso rápido
             </Typography>
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
               {[
-                { label: 'Nueva Venta',   icon: <MonetizationOn sx={{ fontSize: 15 }} />,      color: ACCENT,  path: '/ventas' },
-                { label: 'Compras',       icon: <ShoppingCart sx={{ fontSize: 15 }} />,        color: GREEN,   path: '/compras' },
-                { label: 'Inventario',    icon: <Inventory2Outlined sx={{ fontSize: 15 }} />,  color: YELLOW,  path: '/inventario' },
-                { label: 'Terceros',      icon: <AccountBalanceWallet sx={{ fontSize: 15 }} />, color: BLUE,    path: '/clientes' },
-                { label: 'Reportes',      icon: <TrendingUp sx={{ fontSize: 15 }} />,          color: RED,     path: '/reportes' },
-                { label: 'Devoluciones',  icon: <AssignmentReturn sx={{ fontSize: 15 }} />,    color: '#F59E0B', path: '/ventas' },
-                { label: 'Caja / Gastos', icon: <PointOfSale sx={{ fontSize: 15 }} />,         color: PURPLE,  path: '/caja' },
+                { label: 'Nueva Venta',   icon: <MonetizationOn sx={{ fontSize: 14 }} />,      color: ACCENT,  path: '/ventas' },
+                { label: 'Compras',       icon: <ShoppingCart sx={{ fontSize: 14 }} />,        color: GREEN,   path: '/compras' },
+                { label: 'Inventario',    icon: <Inventory2Outlined sx={{ fontSize: 14 }} />,  color: YELLOW,  path: '/inventario' },
+                { label: 'Terceros',      icon: <AccountBalanceWallet sx={{ fontSize: 14 }} />, color: BLUE,    path: '/clientes' },
+                { label: 'Reportes',      icon: <TrendingUp sx={{ fontSize: 14 }} />,          color: RED,     path: '/reportes' },
+                { label: 'Devoluciones',  icon: <AssignmentReturn sx={{ fontSize: 14 }} />,    color: '#F59E0B', path: '/ventas' },
+                { label: 'Caja / Gastos', icon: <PointOfSale sx={{ fontSize: 14 }} />,         color: PURPLE,  path: '/caja' },
               ].map(({ label, icon, color, path }) => (
                 <Box key={label} onClick={() => navigate(path)}
                   sx={{
                     display: 'flex', alignItems: 'center', gap: 0.8,
-                    px: 1.5, py: 0.8, borderRadius: 2,
+                    px: 1.2, py: 0.6, borderRadius: 2,
                     bgcolor: `${color}0D`, border: `1px solid ${color}25`,
                     cursor: 'pointer', transition: 'all 0.15s',
                     '&:hover': { bgcolor: `${color}18`, transform: 'translateY(-1px)' },
                   }}>
-                  <Box sx={{ color }}>{icon}</Box>
-                  <Typography sx={{ fontSize: 12, fontWeight: 600, color, whiteSpace: 'nowrap' }}>{label}</Typography>
+                  <Box sx={{ color, display: 'flex' }}>{icon}</Box>
+                  <Typography sx={{ fontSize: 11, fontWeight: 600, color, whiteSpace: 'nowrap' }}>{label}</Typography>
                 </Box>
               ))}
             </Box>
           </Paper>
         </Grid>
-
       </Grid>
+
     </Box>
   );
 };

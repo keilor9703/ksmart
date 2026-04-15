@@ -6,6 +6,7 @@ __pycache__/
 .Python
 env/
 venv/
+.venv/
 pip-log.txt
 pip-delete-this-directory.txt
 .tox/
@@ -17,7 +18,7 @@ coverage/
 *.mo
 *.pot
 *.log
-.ipynb_checkpoints
+.ipynb_checkpoints/
 .pytest_cache/
 
 # Node.js
@@ -25,6 +26,8 @@ node_modules/
 npm-debug.log
 yarn-debug.log
 yarn-error.log
+
+# Environment variables
 .env
 .env.local
 .env.development.local
