@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { getPanelOperadorPendientes, getPanelOperadorProductividad, getPanelOperadorHistorial } from '../api';
-import { 
-    Box, Typography, Grid, Card, CardContent, CircularProgress, Alert, 
-    List, ListItem, ListItemText, Divider, Chip, Tabs, Tab, 
-    TableContainer, Table, TableBody, TableCell, TableHead, TableRow, Paper, 
-    useMediaQuery, useTheme, Button
+import {
+  Box, Typography, Grid, Card, CardContent, CircularProgress, Alert,
+  List, ListItem, ListItemText, Divider, Chip, Tabs, Tab,
+  TableContainer, Table, TableBody, TableCell, TableHead, TableRow, Paper,
+  useMediaQuery, useTheme, Button, TextField, Stack
 } from '@mui/material';
 import { Doughnut } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
@@ -12,388 +12,646 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
+import {
+  Assignment, TrendingUp, CheckCircle, PendingActions,
+  Refresh, CalendarToday, PrecisionManufacturing
+} from '@mui/icons-material';
+import { formatCurrency } from '../utils/formatters';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-// Refactored data fetching function
-const fetchPanelData = async (setLoading, setPendientes, setProductividad, setHistorial, setError, startDate = null, endDate = null) => {
-    try {
-        setLoading(true);
-        const [pendientesRes, productividadRes, historialRes] = await Promise.all([
-            getPanelOperadorPendientes(),
-            getPanelOperadorProductividad(startDate ? startDate.format('YYYY-MM-DD') : null, endDate ? endDate.format('YYYY-MM-DD') : null),
-            getPanelOperadorHistorial()
-        ]);
-        setPendientes(pendientesRes.data);
-        setProductividad(productividadRes.data);
-        setHistorial(historialRes.data);
-        setError(null);
-    } catch (err) {
-        setError('Error al cargar los datos del panel. Por favor, intente de nuevo más tarde.');
-        console.error(err);
-    } finally {
-        setLoading(false);
-    }
-};
+const ACCENT = '#14B8A6'; // Teal para Panel Operador
+const GREEN = '#10B981';
+const YELLOW = '#F59E0B';
+const BLUE = '#3B82F6';
+const RED = '#EF4444';
 
-// TabPanel component for conditional rendering
-function TabPanel(props) {
-    const { children, value, index, ...other } = props;
-
-    return (
-        <div
-            role="tabpanel"
-            hidden={value !== index}
-            id={`simple-tabpanel-${index}`}
-            aria-labelledby={`simple-tab-${index}`}
-            {...other}
-        >
-            {value === index && (
-                <Box sx={{ p: 3 }}>
-                    {children}
-                </Box>
-            )}
-        </div>
-    );
+// ─── TabPanel ──────────────────────────────────────────────────────────────────
+function TabPanel({ children, value, index }) {
+  return (
+    <div role="tabpanel" hidden={value !== index}>
+      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
+    </div>
+  );
 }
 
-function a11yProps(index) {
-    return {
-        id: `simple-tab-${index}`,
-        'aria-controls': `simple-tabpanel-${index}`,
-    };
-}
-
-const OrdenTrabajoCard = ({ orden }) => (
-    <Card sx={{ mb: 2 }}>
-        <CardContent>
-            <Typography variant="h6" color="text.primary">Orden #{orden.id} - {orden.cliente_nombre}</Typography>
-            <Typography color="textSecondary">Fecha Creación: {new Date(orden.fecha_creacion + 'Z').toLocaleString('es-CO', { timeZone: 'America/Bogota' })}</Typography>
-            <Box sx={{ my: 1 }}>
-                <Typography variant="body2" color="text.primary">Estado: <Chip label={orden.estado} color={orden.estado === 'Aprobada' ? 'primary' : 'warning'} size="small" /></Typography>
-                <Typography variant="body2" color="text.primary">Total: ${orden.total.toLocaleString()}</Typography>
-                {orden.productos && orden.productos.length > 0 && (
-                    <Typography variant="body2" color="text.primary">Productos:</Typography>
-                )}
-                <List dense disablePadding>
-                    {orden.productos && orden.productos.length > 0 ? orden.productos.map(item => (
-                        <ListItem key={item.id} sx={{ pl: 0 }}>
-                            <ListItemText
-                                primary={`${item.producto.nombre} (x${item.cantidad})`}
-                                secondary={`${item.precio_unitario.toLocaleString()}`}
-                            />
-                        </ListItem>
-                    )) : null}
-                </List>
-                {orden.servicios && orden.servicios.length > 0 && (
-                    <Typography variant="body2" color="text.primary">Servicios:</Typography>
-                )}
-                <List dense disablePadding>
-                    {orden.servicios && orden.servicios.length > 0 ? orden.servicios.map(item => (
-                        <ListItem key={item.id} sx={{ pl: 0 }}>
-                            <ListItemText
-                                primary={`${item.servicio.nombre} (x${item.cantidad})`}
-                                secondary={`${item.precio_servicio.toLocaleString()}`}
-                            />
-                        </ListItem>
-                    )) : null}
-                </List>
-            </Box>
-        </CardContent>
-    </Card>
+// ─── KPI Card ──────────────────────────────────────────────────────────────────
+const KpiCard = ({ label, value, icon, color, subtitle }) => (
+  <Paper sx={{
+    p: 2.5, borderRadius: 3,
+    display: 'flex', alignItems: 'center', gap: 2,
+    boxShadow: '0 2px 12px rgba(0,0,0,0.06)'
+  }}>
+    <Box sx={{
+      width: 48, height: 48, borderRadius: 2, flexShrink: 0,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      bgcolor: `${color}18`, color
+    }}>
+      {icon}
+    </Box>
+    <Box>
+      <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 500, mb: 0.3 }}>
+        {label}
+      </Typography>
+      <Typography sx={{ fontSize: 18, fontWeight: 700, color: 'text.primary' }}>
+        {value}
+      </Typography>
+      {subtitle && (
+        <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
+          {subtitle}
+        </Typography>
+      )}
+    </Box>
+  </Paper>
 );
 
+// ─── Orden Card Mobile ─────────────────────────────────────────────────────────
+const OrdenCard = ({ orden }) => {
+  const getEstadoChip = (estado) => {
+    const map = {
+      'Aprobada': { label: 'Aprobada', color: 'success' },
+      'En revisión': { label: 'En Revisión', color: 'warning' },
+    };
+    const props = map[estado] || { label: estado, color: 'default' };
+    return <Chip label={props.label} color={props.color} size="small" sx={{ fontWeight: 600, fontSize: 11, borderRadius: 1.5 }} />;
+  };
+
+  return (
+    <Paper sx={{ p: 2.5, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
+        <Box>
+          <Typography sx={{ fontWeight: 700, fontSize: 15 }}>Orden #{orden.id}</Typography>
+          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+            {orden.cliente_nombre}
+          </Typography>
+        </Box>
+        {getEstadoChip(orden.estado)}
+      </Box>
+
+      <Divider sx={{ my: 1.5 }} />
+
+      <Grid container spacing={1} sx={{ mb: 1.5 }}>
+        <Grid item xs={6}>
+          <Box sx={{ textAlign: 'center', p: 1, borderRadius: 2, bgcolor: 'action.hover' }}>
+            <Typography sx={{ fontSize: 10, color: 'text.secondary', mb: 0.2 }}>Total</Typography>
+            <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{formatCurrency(orden.total)}</Typography>
+          </Box>
+        </Grid>
+        <Grid item xs={6}>
+          <Box sx={{ textAlign: 'center', p: 1, borderRadius: 2, bgcolor: 'action.hover' }}>
+            <Typography sx={{ fontSize: 10, color: 'text.secondary', mb: 0.2 }}>Contacto</Typography>
+            <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{orden.cliente_telefono || 'N/A'}</Typography>
+          </Box>
+        </Grid>
+      </Grid>
+
+      <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 1 }}>
+        Creada: {new Date(orden.fecha_creacion + 'Z').toLocaleString('es-CO', { timeZone: 'America/Bogota' })}
+      </Typography>
+
+      {orden.productos && orden.productos.length > 0 && (
+        <Box sx={{ mb: 1 }}>
+          <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', mb: 0.5 }}>
+            Productos
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+            {orden.productos.map(p => (
+              <Chip
+                key={p.id}
+                label={`${p.producto.nombre} ×${p.cantidad}`}
+                size="small"
+                sx={{ bgcolor: `${ACCENT}12`, color: ACCENT, fontWeight: 500, fontSize: 10, borderRadius: 1 }}
+              />
+            ))}
+          </Box>
+        </Box>
+      )}
+
+      {orden.servicios && orden.servicios.length > 0 && (
+        <Box>
+          <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', mb: 0.5 }}>
+            Servicios
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+            {orden.servicios.map(s => (
+              <Chip
+                key={s.id}
+                label={`${s.servicio.nombre} ×${s.cantidad}`}
+                size="small"
+                sx={{ bgcolor: `${BLUE}12`, color: BLUE, fontWeight: 500, fontSize: 10, borderRadius: 1 }}
+              />
+            ))}
+          </Box>
+        </Box>
+      )}
+    </Paper>
+  );
+};
+
+// ─── Historial Card Mobile ─────────────────────────────────────────────────────
+const HistorialCard = ({ orden }) => (
+  <Paper sx={{ p: 2.5, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+      <Box>
+        <Typography sx={{ fontWeight: 700, fontSize: 15 }}>Orden #{orden.id}</Typography>
+        <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+          {orden.cliente_nombre}
+        </Typography>
+      </Box>
+      <Chip
+        label={orden.estado_pago_venta === 'pagado' ? 'Pagado' : 'Pendiente'}
+        color={orden.estado_pago_venta === 'pagado' ? 'success' : 'warning'}
+        size="small"
+        sx={{ fontWeight: 600, fontSize: 10, borderRadius: 1.5 }}
+      />
+    </Box>
+
+    <Divider sx={{ my: 1.5 }} />
+
+    <Grid container spacing={1}>
+      <Grid item xs={6}>
+        <Box sx={{ textAlign: 'center', p: 1, borderRadius: 2, bgcolor: 'action.hover' }}>
+          <Typography sx={{ fontSize: 10, color: 'text.secondary', mb: 0.2 }}>Total</Typography>
+          <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{formatCurrency(orden.total)}</Typography>
+        </Box>
+      </Grid>
+      <Grid item xs={6}>
+        <Box sx={{ textAlign: 'center', p: 1, borderRadius: 2, bgcolor: 'action.hover' }}>
+          <Typography sx={{ fontSize: 10, color: 'text.secondary', mb: 0.2 }}>Fecha</Typography>
+          <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
+            {new Date(orden.fecha_actualizacion).toLocaleDateString()}
+          </Typography>
+        </Box>
+      </Grid>
+    </Grid>
+  </Paper>
+);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── COMPONENTE PRINCIPAL ──────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
 const PanelOperador = () => {
-    const [pendientes, setPendientes] = useState([]);
-    const [productividad, setProductividad] = useState(null);
-    const [historial, setHistorial] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [currentTab, setCurrentTab] = useState(0); // State for active tab
-    const [startDate, setStartDate] = useState(null); // New state for start date filter
-    const [endDate, setEndDate] = useState(null);     // New state for end date filter
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-    const theme = useTheme();
-    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const [pendientes, setPendientes] = useState([]);
+  const [productividad, setProductividad] = useState(null);
+  const [historial, setHistorial] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [currentTab, setCurrentTab] = useState(0);
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
 
-    // Effect to fetch data on component mount and when dates change
-    useEffect(() => {
-        fetchPanelData(setLoading, setPendientes, setProductividad, setHistorial, setError, startDate, endDate);
-    }, [startDate, endDate]); // Re-run when startDate or endDate changes
+  // ── Carga inicial ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    fetchPanelData();
+  }, [startDate, endDate]);
 
-    const handleTabChange = (event, newValue) => {
-        setCurrentTab(newValue);
-    };
+  const fetchPanelData = async () => {
+    try {
+      setLoading(true);
+      const [pendientesRes, productividadRes, historialRes] = await Promise.all([
+        getPanelOperadorPendientes(),
+        getPanelOperadorProductividad(
+          startDate ? startDate.format('YYYY-MM-DD') : null,
+          endDate ? endDate.format('YYYY-MM-DD') : null
+        ),
+        getPanelOperadorHistorial()
+      ]);
+      setPendientes(pendientesRes.data);
+      setProductividad(productividadRes.data);
+      setHistorial(historialRes.data);
+      setError(null);
+    } catch (err) {
+      setError('Error al cargar datos del panel');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const chartData = {
-        labels: productividad?.grafica_servicios_semana.map(d => d.name) || [],
-        datasets: [
-            {
-                label: 'Unidades de Servicio de la Semana', // Updated label
-                data: productividad?.grafica_servicios_semana.map(d => d.value) || [],
-                backgroundColor: [
-                    'rgba(255, 99, 132, 0.7)',
-                    'rgba(54, 162, 235, 0.7)',
-                    'rgba(255, 206, 86, 0.7)',
-                    'rgba(75, 192, 192, 0.7)',
-                    'rgba(153, 102, 255, 0.7)',
-                    'rgba(255, 159, 64, 0.7)',
-                ],
-                borderColor: [
-                    'rgba(255, 99, 132, 1)',
-                    'rgba(54, 162, 235, 1)',
-                    'rgba(255, 206, 86, 1)',
-                    'rgba(75, 192, 192, 1)',
-                    'rgba(153, 102, 255, 1)',
-                    'rgba(255, 159, 64, 1)',
-                ],
-                borderWidth: 1,
-            },
+  const handleTabChange = (event, newValue) => {
+    setCurrentTab(newValue);
+  };
+
+  const handleClearFilters = () => {
+    setStartDate(null);
+    setEndDate(null);
+  };
+
+  // ── Configuración de gráfica ───────────────────────────────────────────────
+  const chartData = {
+    labels: productividad?.grafica_servicios_semana.map(d => d.name) || [],
+    datasets: [
+      {
+        label: 'Unidades de Servicio',
+        data: productividad?.grafica_servicios_semana.map(d => d.value) || [],
+        backgroundColor: [
+          'rgba(255, 99, 132, 0.7)',
+          'rgba(54, 162, 235, 0.7)',
+          'rgba(255, 206, 86, 0.7)',
+          'rgba(75, 192, 192, 0.7)',
+          'rgba(153, 102, 255, 0.7)',
+          'rgba(255, 159, 64, 0.7)',
         ],
-    };
+        borderColor: [
+          'rgba(255, 99, 132, 1)',
+          'rgba(54, 162, 235, 1)',
+          'rgba(255, 206, 86, 1)',
+          'rgba(75, 192, 192, 1)',
+          'rgba(153, 102, 255, 1)',
+          'rgba(255, 159, 64, 1)',
+        ],
+        borderWidth: 1,
+      },
+    ],
+  };
 
-    if (loading) {
-        return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}><CircularProgress /></Box>;
-    }
-
-    if (error) {
-        return <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>;
-    }
-
+  if (loading) {
     return (
-        <Box sx={{ p: 3 }}>
-            <Typography variant="h4" gutterBottom color="text.primary">Panel del Operador</Typography>
-            <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-                <Tabs value={currentTab} onChange={handleTabChange} aria-label="panel de operador tabs">
-                    <Tab label="Órdenes Pendientes" {...a11yProps(0)} />
-                    <Tab label="Productividad" {...a11yProps(1)} />
-                    <Tab label="Historial" {...a11yProps(2)} />
-                </Tabs>
-            </Box>
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+        <CircularProgress sx={{ color: ACCENT }} />
+      </Box>
+    );
+  }
 
-            <TabPanel value={currentTab} index={0}>
-                <Card elevation={3} sx={{ backgroundColor: 'background.paper' }}>
-                    <CardContent>
-                        <Typography variant="h5" gutterBottom>Órdenes de Trabajo Pendientes</Typography>
-                        {isMobile ? (
-                            <Box>
-                                {pendientes.length > 0 ? pendientes.map(orden => (
-                                    <OrdenTrabajoCard key={orden.id} orden={orden} />
-                                )) : (
-                                    <Typography align="center">No hay órdenes pendientes.</Typography>
-                                )}
-                            </Box>
-                        ) : (
-                            <TableContainer component={Paper} sx={{ overflowX: 'auto', backgroundColor: 'background.paper' }}>
-                                <Table aria-label="órdenes de trabajo pendientes">
-                                    <TableHead>
-                                        <TableRow>
-                                            <TableCell>ID Orden</TableCell>
-                                            <TableCell>Cliente</TableCell>
-                                            <TableCell>Contacto</TableCell>
-                                            <TableCell>Fecha Creación</TableCell>
-                                            <TableCell>Estado</TableCell>
-                                            <TableCell>Productos</TableCell>
-                                            <TableCell>Servicios</TableCell>
-                                            <TableCell align="right">Total</TableCell>
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {pendientes.length > 0 ? pendientes.map((orden) => (
-                                            <TableRow
-                                                key={orden.id}
-                                                sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
-                                            >
-                                                <TableCell component="th" scope="row">
-                                                    {orden.id}
-                                                </TableCell>
-                                                <TableCell>{orden.cliente_nombre}</TableCell>
-                                                <TableCell>
-                                                    <Typography variant="body2">Tel: {orden.cliente_telefono || 'N/A'}</Typography>
-                                                    <Typography variant="body2">Dir: {orden.cliente_direccion || 'N/A'}</Typography>
-                                                </TableCell>
-                                                <TableCell>{new Date(orden.fecha_creacion + 'Z').toLocaleString('es-CO', { timeZone: 'America/Bogota' })}</TableCell>
-                                                <TableCell><Chip label={orden.estado} color={orden.estado === 'Aprobada' ? 'primary' : 'warning'} /></TableCell>
-                                                <TableCell>
-                                                    <List dense disablePadding>
-                                                        {orden.productos && orden.productos.length > 0 ? orden.productos.map(item => (
-                                                            <ListItem key={item.id} sx={{ pl: 0 }}>
-                                                                <ListItemText
-                                                                    primary={`${item.producto.nombre} (x${item.cantidad})`}
-                                                                    secondary={`${item.precio_unitario.toLocaleString()}`}
-                                                                />
-                                                            </ListItem>
-                                                        )) : <ListItemText primary="N/A" />}
-                                                    </List>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <List dense disablePadding>
-                                                        {orden.servicios && orden.servicios.length > 0 ? orden.servicios.map(item => (
-                                                            <ListItem key={item.id} sx={{ pl: 0 }}>
-                                                                <ListItemText
-                                                                    primary={`${item.servicio.nombre} (x${item.cantidad})`}
-                                                                    secondary={`${item.precio_servicio.toLocaleString()}`}
-                                                                />
-                                                            </ListItem>
-                                                        )) : <ListItemText primary="N/A" />}
-                                                    </List>
-                                                </TableCell>
-                                                <TableCell align="right">${orden.total.toLocaleString()}</TableCell>
-                                            </TableRow>
-                                        )) : (
-                                            <TableRow>
-                                                <TableCell colSpan={8} align="center">
-                                                    No hay órdenes pendientes.
-                                                </TableCell>
-                                            </TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
-                            </TableContainer>
-                        )}
-                    </CardContent>
-                </Card>
-            </TabPanel>
+  if (error) {
+    return (
+      <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }}>
+        {error}
+      </Alert>
+    );
+  }
 
-          <TabPanel value={currentTab} index={1}>
-  <Card elevation={3}>
-    <CardContent>
-      <Typography variant="h5" gutterBottom>Panel de Productividad (Unidades)</Typography>
+  return (
+    <Box sx={{ width: '100%' }}>
+      {/* ── Header ── */}
+      <Box sx={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        mb: 3, flexWrap: 'wrap', gap: 2
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{
+            width: 40, height: 40, borderRadius: 2,
+            bgcolor: `${ACCENT}18`, display: 'flex',
+            alignItems: 'center', justifyContent: 'center', color: ACCENT
+          }}>
+            <PrecisionManufacturing />
+          </Box>
+          <Box>
+            <Typography sx={{ fontWeight: 700, fontSize: 20, lineHeight: 1.2 }}>
+              Panel del Operador
+            </Typography>
+            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+              Órdenes pendientes, productividad y estadísticas
+            </Typography>
+          </Box>
+        </Box>
+        <Button
+          variant="outlined"
+          startIcon={<Refresh />}
+          onClick={fetchPanelData}
+          sx={{
+            borderRadius: 2, fontWeight: 600,
+            borderColor: 'divider', color: 'text.secondary'
+          }}
+        >
+          Actualizar
+        </Button>
+      </Box>
 
-      {productividad && (
-        <>
-          <LocalizationProvider dateAdapter={AdapterDayjs}>
-            <Box sx={{ display: 'flex', gap: 2, mb: 3, flexDirection: isMobile ? 'column' : 'row' }}>
-              <DatePicker
-                label="Fecha Inicio"
-                value={startDate}
-                onChange={(newValue) => setStartDate(newValue)}
-                slotProps={{ textField: { fullWidth: isMobile } }}
-              />
-              <DatePicker
-                label="Fecha Fin"
-                value={endDate}
-                onChange={(newValue) => setEndDate(newValue)}
-                slotProps={{ textField: { fullWidth: isMobile } }}
-              />
-              <Button
-                variant="contained"
-                onClick={() => fetchPanelData(setLoading, setPendientes, setProductividad, setHistorial, setError, startDate, endDate)}
-                sx={{ height: '56px' }}
-              >
-                Aplicar Filtro
-              </Button>
-              <Button
-                variant="outlined"
-                onClick={() => { setStartDate(null); setEndDate(null); }}
-                sx={{ height: '56px' }}
-              >
-                Limpiar Filtro
-              </Button>
-            </Box>
-          </LocalizationProvider>
+      {/* ── Tabs ── */}
+      <Paper sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+        <Tabs
+          value={currentTab}
+          onChange={handleTabChange}
+          variant={isMobile ? 'scrollable' : 'standard'}
+          scrollButtons="auto"
+          sx={{
+            px: 2,
+            borderBottom: '1px solid', borderColor: 'divider',
+            '& .MuiTab-root': { fontWeight: 600, fontSize: 13, textTransform: 'none', minHeight: 52 },
+            '& .MuiTabs-indicator': { backgroundColor: ACCENT, height: 3, borderRadius: 3 },
+            '& .Mui-selected': { color: `${ACCENT} !important` },
+          }}
+        >
+          <Tab label={`📋 Órdenes Pendientes (${pendientes.length})`} />
+          <Tab label="📊 Productividad" />
+          <Tab label="🕒 Historial Reciente" />
+        </Tabs>
 
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} sm={6}>
-              <Card sx={{ textAlign: 'center', p: 1, backgroundColor: '#f0f4f8' }}>
-                <Typography variant="h6" color="black">{productividad.servicios_hoy}</Typography>
-                <Typography variant="body2" color="black">Unidades Hoy</Typography>
-              </Card>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <Card sx={{ textAlign: 'center', p: 1, backgroundColor: '#e8f5e9' }}>
-                <Typography variant="h6" color="black">{productividad.servicios_semana}</Typography>
-                <Typography variant="body2" color="black">Unidades Semana</Typography>
-              </Card>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <Card sx={{ textAlign: 'center', p: 1, backgroundColor: '#e3f2fd' }}>
-                <Typography variant="h6" color="black">{productividad.servicios_mes}</Typography>
-                <Typography variant="body2" color="black">Unidades Mes</Typography>
-              </Card>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <Card sx={{ textAlign: 'center', p: 1, backgroundColor: '#fff3e0' }}>
-                <Typography variant="h6" color="black">{productividad.ordenes_completadas_semana}</Typography>
-                <Typography variant="body2" color="black">Órdenes Cerradas (Semana)</Typography>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} sx={{ mt: 2 }}>
-              <Typography variant="h6" align="center">Unidades de Servicio por Periodo (Gráfica)</Typography>
-              {productividad.grafica_servicios_semana.length > 0 ? (
-                <Doughnut data={chartData} />
-              ) : (
-                <Typography align="center" sx={{ mt: 2 }}>
-                  No hay datos de servicios para mostrar en la gráfica.
-                </Typography>
-              )}
-            </Grid>
-
-            <Grid item xs={12} sx={{ mt: 4 }}>
-              <Typography variant="h6" gutterBottom align="center">
-                Total de Unidades por Tipo de Servicio (Tabla)
-              </Typography>
-              {productividad.unidades_por_servicio_filtrado.length > 0 ? (
-                <TableContainer component={Paper} sx={{ mt: 2 }}>
-                  <Table>
-                    <TableHead>
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/* ── TAB 0: ÓRDENES PENDIENTES ────────────────────────────────────── */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        <TabPanel value={currentTab} index={0}>
+          <Box sx={{ px: { xs: 2, md: 3 }, pb: 3 }}>
+            {isMobile ? (
+              <Box>
+                {pendientes.length === 0 ? (
+                  <Box sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
+                    <CheckCircle sx={{ fontSize: 48, mb: 1, opacity: 0.3 }} />
+                    <Typography>No hay órdenes pendientes</Typography>
+                  </Box>
+                ) : (
+                  pendientes.map(orden => (
+                    <OrdenCard key={orden.id} orden={orden} />
+                  ))
+                )}
+              </Box>
+            ) : (
+              <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      {['ID', 'Cliente', 'Contacto', 'Fecha Creación', 'Estado', 'Productos', 'Servicios', 'Total'].map(h => (
+                        <TableCell key={h} sx={{ fontWeight: 600 }}>{h}</TableCell>
+                      ))}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {pendientes.length === 0 ? (
                       <TableRow>
-                        <TableCell>Servicio</TableCell>
-                        <TableCell align="right">Unidades</TableCell>
-                        <TableCell align="right">Valor Total</TableCell>
+                        <TableCell colSpan={8} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
+                          No hay órdenes pendientes
+                        </TableCell>
                       </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {productividad.unidades_por_servicio_filtrado.map((row) => (
-                        <TableRow key={row.servicio_id}>
-                          <TableCell>{row.servicio_nombre}</TableCell>
-                          <TableCell align="right">{row.total_unidades}</TableCell>
-                          <TableCell align="right">
-                            ${row.total_valor.toLocaleString('es-CO')}
+                    ) : (
+                      pendientes.map(orden => (
+                        <TableRow key={orden.id} hover>
+                          <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>#{orden.id}</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>{orden.cliente_nombre}</TableCell>
+                          <TableCell sx={{ fontSize: 11 }}>
+                            <Typography sx={{ fontSize: 11 }}>Tel: {orden.cliente_telefono || 'N/A'}</Typography>
+                            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                              Dir: {orden.cliente_direccion || 'N/A'}
+                            </Typography>
+                          </TableCell>
+                          <TableCell sx={{ fontSize: 11, whiteSpace: 'nowrap' }}>
+                            {new Date(orden.fecha_creacion + 'Z').toLocaleString('es-CO', { timeZone: 'America/Bogota' })}
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={orden.estado}
+                              color={orden.estado === 'Aprobada' ? 'success' : 'warning'}
+                              size="small"
+                              sx={{ fontWeight: 600, fontSize: 10, borderRadius: 1.5 }}
+                            />
+                          </TableCell>
+                          <TableCell sx={{ fontSize: 11 }}>
+                            {orden.productos && orden.productos.length > 0
+                              ? orden.productos.map(p => `${p.producto.nombre} (×${p.cantidad})`).join(', ')
+                              : 'N/A'
+                            }
+                          </TableCell>
+                          <TableCell sx={{ fontSize: 11 }}>
+                            {orden.servicios && orden.servicios.length > 0
+                              ? orden.servicios.map(s => `${s.servicio.nombre} (×${s.cantidad})`).join(', ')
+                              : 'N/A'
+                            }
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 700 }}>{formatCurrency(orden.total)}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </Box>
+        </TabPanel>
+
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/* ── TAB 1: PRODUCTIVIDAD ──────────────────────────────────────────── */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        <TabPanel value={currentTab} index={1}>
+          <Box sx={{ px: { xs: 2, md: 3 }, pb: 3 }}>
+            {productividad && (
+              <>
+                {/* Filtros de Fecha */}
+                <Paper sx={{
+                  p: 2, mb: 3, borderRadius: 2,
+                  bgcolor: 'action.hover', border: '1px solid',
+                  borderColor: 'divider', boxShadow: 'none'
+                }}>
+                  <Typography sx={{
+                    fontSize: 11, fontWeight: 600, color: 'text.secondary',
+                    textTransform: 'uppercase', letterSpacing: 0.6, mb: 1.5
+                  }}>
+                    Filtrar período
+                  </Typography>
+                  <LocalizationProvider dateAdapter={AdapterDayjs}>
+                    <Stack direction={isMobile ? 'column' : 'row'} spacing={2} sx={{ alignItems: 'flex-start' }}>
+                      <DatePicker
+                        label="Fecha Inicio"
+                        value={startDate}
+                        onChange={(newValue) => setStartDate(newValue)}
+                        slotProps={{ textField: { fullWidth: isMobile, size: 'small' } }}
+                      />
+                      <DatePicker
+                        label="Fecha Fin"
+                        value={endDate}
+                        onChange={(newValue) => setEndDate(newValue)}
+                        slotProps={{ textField: { fullWidth: isMobile, size: 'small' } }}
+                      />
+                      <Button
+                        variant="contained"
+                        onClick={fetchPanelData}
+                        sx={{
+                          height: 40,
+                          bgcolor: ACCENT,
+                          '&:hover': { bgcolor: '#0d9488' },
+                          borderRadius: 2,
+                          fontWeight: 600,
+                          flexShrink: 0
+                        }}
+                      >
+                        Aplicar
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        onClick={handleClearFilters}
+                        sx={{
+                          height: 40,
+                          borderRadius: 2,
+                          fontWeight: 600,
+                          borderColor: 'divider',
+                          color: 'text.secondary',
+                          flexShrink: 0
+                        }}
+                      >
+                        Limpiar
+                      </Button>
+                    </Stack>
+                  </LocalizationProvider>
+                </Paper>
+
+                {/* KPIs de Productividad */}
+                <Grid container spacing={2} sx={{ mb: 3 }}>
+                  <Grid item xs={6} sm={3}>
+                    <KpiCard
+                      label="Unidades Hoy"
+                      value={productividad.servicios_hoy}
+                      icon={<CalendarToday />}
+                      color={BLUE}
+                    />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <KpiCard
+                      label="Unidades Semana"
+                      value={productividad.servicios_semana}
+                      icon={<TrendingUp />}
+                      color={GREEN}
+                    />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <KpiCard
+                      label="Unidades Mes"
+                      value={productividad.servicios_mes}
+                      icon={<Assignment />}
+                      color={ACCENT}
+                    />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <KpiCard
+                      label="Órdenes Cerradas"
+                      value={productividad.ordenes_completadas_semana}
+                      icon={<CheckCircle />}
+                      color={YELLOW}
+                      subtitle="Esta semana"
+                    />
+                  </Grid>
+                </Grid>
+
+                {/* Gráfica de Servicios */}
+                <Paper sx={{ p: 3, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', mb: 3 }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: 16, mb: 2 }}>
+                    Distribución de Unidades de Servicio
+                  </Typography>
+                  {productividad.grafica_servicios_semana.length > 0 ? (
+                    <Box sx={{ maxWidth: 400, mx: 'auto' }}>
+                      <Doughnut data={chartData} />
+                    </Box>
+                  ) : (
+                    <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
+                      <Typography>No hay datos para mostrar</Typography>
+                    </Box>
+                  )}
+                </Paper>
+
+                {/* Tabla de Unidades por Servicio */}
+                <Paper sx={{ p: 3, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: 16, mb: 2 }}>
+                    Total de Unidades por Tipo de Servicio
+                  </Typography>
+                  {productividad.unidades_por_servicio_filtrado.length > 0 ? (
+                    <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 600 }}>Servicio</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 600 }}>Unidades</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 600 }}>Valor Total</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {productividad.unidades_por_servicio_filtrado.map((row) => (
+                            <TableRow key={row.servicio_id} hover>
+                              <TableCell sx={{ fontWeight: 600 }}>{row.servicio_nombre}</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 700, color: ACCENT }}>
+                                {row.total_unidades}
+                              </TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 700 }}>
+                                {formatCurrency(row.total_valor)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  ) : (
+                    <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
+                      <Typography>No hay datos para mostrar</Typography>
+                    </Box>
+                  )}
+                </Paper>
+              </>
+            )}
+          </Box>
+        </TabPanel>
+
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/* ── TAB 2: HISTORIAL RECIENTE ────────────────────────────────────── */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        <TabPanel value={currentTab} index={2}>
+          <Box sx={{ px: { xs: 2, md: 3 }, pb: 3 }}>
+            <Typography sx={{
+              fontSize: 11, fontWeight: 600, color: 'text.secondary',
+              textTransform: 'uppercase', letterSpacing: 0.6, mb: 2
+            }}>
+              Últimos 7 días
+            </Typography>
+
+            {isMobile ? (
+              <Box>
+                {historial.length === 0 ? (
+                  <Box sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
+                    <Assignment sx={{ fontSize: 48, mb: 1, opacity: 0.3 }} />
+                    <Typography>No hay órdenes cerradas recientemente</Typography>
+                  </Box>
+                ) : (
+                  historial.map(orden => (
+                    <HistorialCard key={orden.id} orden={orden} />
+                  ))
+                )}
+              </Box>
+            ) : (
+              <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      {['ID', 'Cliente', 'Total', 'Estado Pago', 'Fecha'].map(h => (
+                        <TableCell key={h} sx={{ fontWeight: 600 }}>{h}</TableCell>
+                      ))}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {historial.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
+                          No hay órdenes cerradas recientemente
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      historial.map(orden => (
+                        <TableRow key={orden.id} hover>
+                          <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>#{orden.id}</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>{orden.cliente_nombre}</TableCell>
+                          <TableCell sx={{ fontWeight: 700 }}>{formatCurrency(orden.total)}</TableCell>
+                          <TableCell>
+                            <Chip
+                              label={orden.estado_pago_venta === 'pagado' ? 'Pagado' : 'Pendiente'}
+                              color={orden.estado_pago_venta === 'pagado' ? 'success' : 'warning'}
+                              size="small"
+                              sx={{ fontWeight: 600, fontSize: 10, borderRadius: 1.5 }}
+                            />
+                          </TableCell>
+                          <TableCell sx={{ fontSize: 11 }}>
+                            {new Date(orden.fecha_actualizacion).toLocaleDateString()}
                           </TableCell>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              ) : (
-                <Typography align="center" sx={{ mt: 2 }}>
-                  No hay datos de unidades por servicio para mostrar en la tabla.
-                </Typography>
-              )}
-            </Grid>
-          </Grid>
-        </>
-      )}
-    </CardContent>
-  </Card>
-</TabPanel>
-
-
-            <TabPanel value={currentTab} index={2}>
-                <Card elevation={3}>
-                    <CardContent>
-                        <Typography variant="h5" gutterBottom>Historial Reciente (Últimos 7 días)</Typography>
-                        <List>
-                            {historial.length > 0 ? historial.map((orden, index) => (
-                                <React.Fragment key={orden.id}>
-                                    <ListItem>
-                                        <ListItemText 
-                                            primary={`#${orden.id} - ${orden.cliente_nombre}`}
-                                            secondary={`Total: ${orden.total.toLocaleString()} - ${new Date(orden.fecha_actualizacion).toLocaleDateString()}`}
-                                        />
-                                        <Chip label={`Pago: ${orden.estado_pago_venta}`} color={orden.estado_pago_venta === 'pagado' ? 'success' : 'default'} />
-                                    </ListItem>
-                                    {index < historial.length - 1 && <Divider />}
-                                </React.Fragment>
-                            )) : <Typography>No hay órdenes cerradas recientemente.</Typography>}
-                        </List>
-                    </CardContent>
-                </Card>
-            </TabPanel>
-        </Box>
-    );
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </Box>
+        </TabPanel>
+      </Paper>
+    </Box>
+  );
 };
 
 export default PanelOperador;
