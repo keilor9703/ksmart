@@ -1,16 +1,18 @@
 # ═══════════════════════════════════════════════════════════════════════════════
-# CRUD.PY - VERSIÓN MULTI-TENANT
+# CRUD.PY - VERSIÓN MULTI-TENANT CON TIMEZONE FIX (NIVEL SENIOR)
 # Todos los registros están aislados por empresa_id
+# Toda la base de datos guarda en UTC, y las consultas filtran en Hora Local
 # ═══════════════════════════════════════════════════════════════════════════════
 
 from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import func, text
 from typing import Optional, List, IO
-from datetime import date, timedelta, datetime, timezone
+from datetime import date, timedelta, datetime, timezone, time
 from passlib.context import CryptContext
 import models, schemas
 import pandas as pd
 from fastapi import HTTPException
+from zoneinfo import ZoneInfo # Disponible en Python 3.9+
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 COL_TZ = "America/Bogota"
@@ -25,6 +27,26 @@ def _is_postgres(db: Session) -> bool:
             return "postgresql" in DATABASE_URL.lower()
         except Exception:
             return False
+
+# ─── MANEJO PROFESIONAL DE ZONAS HORARIAS ───
+BOGOTA_TZ = ZoneInfo("America/Bogota")
+UTC_TZ = ZoneInfo("UTC")
+
+def get_utc_boundaries(local_date: date):
+    """
+    Toma una fecha local (date) y devuelve el inicio y fin de ese día en UTC.
+    Ideal para filtrar correctamente en la base de datos (que está en UTC).
+    """
+    # Inicio del día en Bogotá (00:00:00)
+    local_start = datetime.combine(local_date, time.min, tzinfo=BOGOTA_TZ)
+    # Fin del día en Bogotá (23:59:59.999999)
+    local_end = datetime.combine(local_date, time.max, tzinfo=BOGOTA_TZ)
+
+    # Convertir a UTC
+    utc_start = local_start.astimezone(UTC_TZ)
+    utc_end = local_end.astimezone(UTC_TZ)
+
+    return utc_start, utc_end          
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # UTILIDADES - NO REQUIEREN EMPRESA_ID
@@ -134,19 +156,13 @@ def get_user(db: Session, user_id: int):
         joinedload(models.User.role).joinedload(models.Role.modules)
     ).filter(models.User.id == user_id).first()
 
-# def get_user_by_username(db: Session, username: str):
-#     return db.query(models.User).options(
-#         joinedload(models.User.role).joinedload(models.Role.modules)
-#     ).filter(models.User.username == username).first()
-
 def get_user_by_username(db: Session, username: str):
     return db.query(models.User).options(
         joinedload(models.User.role).joinedload(models.Role.modules),
-        joinedload(models.User.empresa) # ✅ Agregamos esto para traer los datos de la empresa de inmediato
+        joinedload(models.User.empresa) 
     ).filter(models.User.username == username).first()
 
 def get_users(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
-    """✅ FILTRADO POR EMPRESA"""
     return db.query(models.User).options(
         joinedload(models.User.role).joinedload(models.Role.modules)
     ).filter(
@@ -154,13 +170,12 @@ def get_users(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
     ).offset(skip).limit(limit).all()
 
 def create_user(db: Session, user: schemas.UserCreate, empresa_id: int):
-    """✅ INYECCIÓN DE EMPRESA_ID"""
     hashed_password = get_password_hash(user.password)
     db_user = models.User(
         username=user.username,
         hashed_password=hashed_password,
         role_id=user.role_id,
-        empresa_id=empresa_id  # ✅
+        empresa_id=empresa_id 
     )
     db.add(db_user)
     db.commit()
@@ -168,10 +183,9 @@ def create_user(db: Session, user: schemas.UserCreate, empresa_id: int):
     return db_user
 
 def update_user(db: Session, user_id: int, user: schemas.UserCreate, empresa_id: int):
-    """✅ VALIDACIÓN POR EMPRESA"""
     db_user = db.query(models.User).filter(
         models.User.id == user_id,
-        models.User.empresa_id == empresa_id  # ✅
+        models.User.empresa_id == empresa_id 
     ).first()
     if db_user:
         for key, value in user.dict(exclude_unset=True).items():
@@ -184,10 +198,9 @@ def update_user(db: Session, user_id: int, user: schemas.UserCreate, empresa_id:
     return db_user
 
 def delete_user(db: Session, user_id: int, empresa_id: int):
-    """✅ VALIDACIÓN POR EMPRESA"""
     db_user = db.query(models.User).filter(
         models.User.id == user_id,
-        models.User.empresa_id == empresa_id  # ✅
+        models.User.empresa_id == empresa_id 
     ).first()
     if db_user:
         db.delete(db_user)
@@ -199,40 +212,35 @@ def delete_user(db: Session, user_id: int, empresa_id: int):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def get_cliente(db: Session, empresa_id: int, cliente_id: int):
-    """✅ FILTRADO ESTRICTO"""
     return db.query(models.Cliente).filter(
         models.Cliente.id == cliente_id,
-        models.Cliente.empresa_id == empresa_id  # ✅
+        models.Cliente.empresa_id == empresa_id
     ).first()
 
 def get_cliente_deuda(db: Session, empresa_id: int, cliente_id: int):
-    """✅ FILTRADO POR EMPRESA"""
     ventas_cliente = db.query(models.Venta).filter(
         models.Venta.cliente_id == cliente_id,
-        models.Venta.empresa_id == empresa_id  # ✅
+        models.Venta.empresa_id == empresa_id
     ).all()
     total_deuda = sum(v.total - v.monto_pagado for v in ventas_cliente)
     return total_deuda
 
 def get_clientes(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
-    """✅ FILTRADO POR EMPRESA"""
     return db.query(models.Cliente).filter(
-        models.Cliente.empresa_id == empresa_id  # ✅
+        models.Cliente.empresa_id == empresa_id
     ).offset(skip).limit(limit).all()
 
 def create_cliente(db: Session, empresa_id: int, cliente: schemas.ClienteCreate):
-    """✅ INYECCIÓN DE EMPRESA_ID"""
-    db_cliente = models.Cliente(**cliente.dict(), empresa_id=empresa_id)  # ✅
+    db_cliente = models.Cliente(**cliente.dict(), empresa_id=empresa_id)
     db.add(db_cliente)
     db.commit()
     db.refresh(db_cliente)
     return db_cliente
 
 def update_cliente(db: Session, empresa_id: int, cliente_id: int, cliente: schemas.ClienteCreate):
-    """✅ VALIDACIÓN POR EMPRESA"""
     db_cliente = db.query(models.Cliente).filter(
         models.Cliente.id == cliente_id,
-        models.Cliente.empresa_id == empresa_id  # ✅
+        models.Cliente.empresa_id == empresa_id
     ).first()
     if db_cliente:
         for key, value in cliente.dict(exclude_unset=True).items():
@@ -242,10 +250,9 @@ def update_cliente(db: Session, empresa_id: int, cliente_id: int, cliente: schem
     return db_cliente
 
 def delete_cliente(db: Session, empresa_id: int, cliente_id: int):
-    """✅ VALIDACIÓN POR EMPRESA"""
     db_cliente = db.query(models.Cliente).filter(
         models.Cliente.id == cliente_id,
-        models.Cliente.empresa_id == empresa_id  # ✅
+        models.Cliente.empresa_id == empresa_id
     ).first()
     if db_cliente:
         db.delete(db_cliente)
@@ -253,10 +260,9 @@ def delete_cliente(db: Session, empresa_id: int, cliente_id: int):
     return db_cliente
 
 def get_cliente_history(db: Session, empresa_id: int, cliente_id: int):
-    """✅ FILTRADO POR EMPRESA"""
     cliente = db.query(models.Cliente).filter(
         models.Cliente.id == cliente_id,
-        models.Cliente.empresa_id == empresa_id  # ✅
+        models.Cliente.empresa_id == empresa_id 
     ).first()
     if not cliente:
         return None
@@ -266,7 +272,7 @@ def get_cliente_history(db: Session, empresa_id: int, cliente_id: int):
         joinedload(models.Venta.pagos)
     ).filter(
         models.Venta.cliente_id == cliente_id,
-        models.Venta.empresa_id == empresa_id  # ✅
+        models.Venta.empresa_id == empresa_id
     ).all()
 
     total_ventas_general = sum(venta.total for venta in ventas)
@@ -286,28 +292,24 @@ def get_cliente_history(db: Session, empresa_id: int, cliente_id: int):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def get_producto(db: Session, empresa_id: int, producto_id: int):
-    """✅ FILTRADO ESTRICTO"""
     return db.query(models.Producto).filter(
         models.Producto.id == producto_id,
-        models.Producto.empresa_id == empresa_id  # ✅
+        models.Producto.empresa_id == empresa_id
     ).first()
 
 def get_productos(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
-    """✅ FILTRADO POR EMPRESA"""
     return db.query(models.Producto).filter(
-        models.Producto.empresa_id == empresa_id  # ✅
+        models.Producto.empresa_id == empresa_id
     ).offset(skip).limit(limit).all()
 
 def create_producto(db: Session, empresa_id: int, producto: schemas.ProductoCreate):
-    """✅ INYECCIÓN DE EMPRESA_ID"""
-    db_producto = models.Producto(**producto.dict(), empresa_id=empresa_id)  # ✅
+    db_producto = models.Producto(**producto.dict(), empresa_id=empresa_id)
     db.add(db_producto)
     db.commit()
     db.refresh(db_producto)
     return db_producto
 
 def update_producto(db: Session, empresa_id: int, producto_id: int, producto: schemas.ProductoCreate):
-    """✅ VALIDACIÓN POR EMPRESA"""
     db_producto = get_producto(db, empresa_id, producto_id)
     if db_producto:
         for key, value in producto.dict(exclude_unset=True).items():
@@ -317,7 +319,6 @@ def update_producto(db: Session, empresa_id: int, producto_id: int, producto: sc
     return db_producto
 
 def delete_producto(db: Session, empresa_id: int, producto_id: int):
-    """✅ VALIDACIÓN POR EMPRESA"""
     db_producto = get_producto(db, empresa_id, producto_id)
     if db_producto:
         db.delete(db_producto)
@@ -329,7 +330,6 @@ def delete_producto(db: Session, empresa_id: int, producto_id: int):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def get_ventas(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
-    """✅ FILTRADO POR EMPRESA"""
     return (
         db.query(models.Venta)
         .options(
@@ -337,7 +337,7 @@ def get_ventas(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
             joinedload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
             joinedload(models.Venta.pagos),
         )
-        .filter(models.Venta.empresa_id == empresa_id)  # ✅
+        .filter(models.Venta.empresa_id == empresa_id)
         .order_by(models.Venta.fecha.desc())
         .offset(skip)
         .limit(limit)
@@ -345,7 +345,6 @@ def get_ventas(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
     )
 
 def get_venta(db: Session, empresa_id: int, venta_id: int):
-    """✅ FILTRADO POR EMPRESA"""
     return (
         db.query(models.Venta)
         .options(
@@ -355,14 +354,12 @@ def get_venta(db: Session, empresa_id: int, venta_id: int):
         )
         .filter(
             models.Venta.id == venta_id,
-            models.Venta.empresa_id == empresa_id  # ✅
+            models.Venta.empresa_id == empresa_id 
         )
         .first()
     )
 
 def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate):
-    """✅ INYECCIÓN DE EMPRESA_ID + VALIDACIONES CROSS-TENANT"""
-    # Validar que el cliente pertenece a la misma empresa
     cliente = get_cliente(db, empresa_id, venta.cliente_id)
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado o no pertenece a esta empresa")
@@ -371,7 +368,6 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate):
     detalles_objs = []
 
     for d in venta.detalles:
-        # Validar que el producto pertenece a la misma empresa
         prod = get_producto(db, empresa_id, d.producto_id)
         if not prod:
             raise HTTPException(
@@ -403,7 +399,7 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate):
         monto_pagado=total_bruto if venta.pagada else 0,
         estado_pago="pagado" if venta.pagada else "pendiente",
         metodo_pago=venta.metodo_pago if venta.pagada else None,
-        empresa_id=empresa_id  # ✅
+        empresa_id=empresa_id 
     )
     db.add(db_venta)
     db.flush()
@@ -417,10 +413,9 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate):
     return db_venta
 
 def update_venta(db: Session, empresa_id: int, venta_id: int, venta: schemas.VentaCreate):
-    """✅ VALIDACIÓN POR EMPRESA"""
     db_venta = db.query(models.Venta).filter(
         models.Venta.id == venta_id,
-        models.Venta.empresa_id == empresa_id  # ✅
+        models.Venta.empresa_id == empresa_id
     ).first()
     if not db_venta:
         return None
@@ -464,26 +459,21 @@ def update_venta(db: Session, empresa_id: int, venta_id: int, venta: schemas.Ven
     return db_venta
 
 def delete_venta(db: Session, empresa_id: int, venta_id: int):
-    """✅ VALIDACIÓN POR EMPRESA"""
     db_venta = db.query(models.Venta).filter(
         models.Venta.id == venta_id,
-        models.Venta.empresa_id == empresa_id  # ✅
+        models.Venta.empresa_id == empresa_id 
     ).first()
     if db_venta:
         db.delete(db_venta)
         db.commit()
     return db_venta
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# CONTINUARÁ EN LA SIGUIENTE RESPUESTA DEBIDO AL LÍMITE DE CARACTERES
-# ═══════════════════════════════════════════════════════════════════════════════
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # INVENTARIO - MOVIMIENTOS, KARDEX, ALERTAS
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def create_movement(db: Session, empresa_id: int, payload: schemas.InventoryMovementCreate):
-    """✅ INYECCIÓN DE EMPRESA_ID + VALIDACIÓN"""
     prod = get_producto(db, empresa_id, payload.producto_id)
     if not prod:
         raise ValueError("Producto no encontrado o no pertenece a esta empresa")
@@ -510,7 +500,7 @@ def create_movement(db: Session, empresa_id: int, payload: schemas.InventoryMove
         motivo=payload.motivo or "",
         referencia=payload.referencia or "",
         observacion=payload.observacion or "",
-        empresa_id=empresa_id  # ✅
+        empresa_id=empresa_id 
     )
     db.add(mov)
     db.add(prod)
@@ -519,9 +509,8 @@ def create_movement(db: Session, empresa_id: int, payload: schemas.InventoryMove
     return mov
 
 def list_movements(db: Session, empresa_id: int, producto_id: int = None, limit: int = 100):
-    """✅ FILTRADO POR EMPRESA"""
     q = db.query(models.InventoryMovement).filter(
-        models.InventoryMovement.empresa_id == empresa_id  # ✅
+        models.InventoryMovement.empresa_id == empresa_id 
     ).order_by(models.InventoryMovement.created_at.desc())
     
     if producto_id:
@@ -530,16 +519,14 @@ def list_movements(db: Session, empresa_id: int, producto_id: int = None, limit:
     return q.limit(limit).all()
 
 def get_low_stock(db: Session, empresa_id: int):
-    """✅ FILTRADO POR EMPRESA"""
     return db.query(models.Producto).filter(
-        models.Producto.empresa_id == empresa_id,  # ✅
+        models.Producto.empresa_id == empresa_id, 
         models.Producto.stock_minimo.isnot(None),
         models.Producto.stock_minimo > 0,
         (models.Producto.stock_actual or 0) < models.Producto.stock_minimo
     ).all()
 
 def update_producto_stock_minimo(db: Session, empresa_id: int, producto_id: int, minimo: float):
-    """✅ VALIDACIÓN POR EMPRESA"""
     prod = get_producto(db, empresa_id, producto_id)
     if not prod:
         return None
@@ -550,24 +537,27 @@ def update_producto_stock_minimo(db: Session, empresa_id: int, producto_id: int,
 
 def get_kardex_promedio_ponderado(
     db: Session,
-    empresa_id: int,  # ✅
+    empresa_id: int, 
     producto_id: int,
-    start_date: Optional[datetime] = None,
+    start_date: Optional[datetime] = None, # FastAPI parsea estos a naive datetimes a las 00:00
     end_date: Optional[datetime] = None,
 ) -> schemas.KardexResponse:
-    """✅ FILTRADO POR EMPRESA"""
     prod = get_producto(db, empresa_id, producto_id)
     if not prod:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
 
     q = db.query(models.InventoryMovement).filter(
         models.InventoryMovement.producto_id == producto_id,
-        models.InventoryMovement.empresa_id == empresa_id  # ✅
+        models.InventoryMovement.empresa_id == empresa_id 
     )
+    
+    # ✅ TIMEZONE FIX APLICADO
     if start_date:
-        q = q.filter(models.InventoryMovement.created_at >= start_date)
+        utc_start, _ = get_utc_boundaries(start_date.date())
+        q = q.filter(models.InventoryMovement.created_at >= utc_start)
     if end_date:
-        q = q.filter(models.InventoryMovement.created_at <= end_date)
+        _, utc_end = get_utc_boundaries(end_date.date())
+        q = q.filter(models.InventoryMovement.created_at <= utc_end)
 
     movimientos = q.order_by(
         models.InventoryMovement.created_at.asc(),
@@ -615,9 +605,8 @@ def get_kardex_promedio_ponderado(
     )
 
 def get_inventario_actual(db: Session, empresa_id: int) -> schemas.InventarioSnapshot:
-    """✅ FILTRADO POR EMPRESA"""
     prods = db.query(models.Producto).filter(
-        models.Producto.empresa_id == empresa_id  # ✅
+        models.Producto.empresa_id == empresa_id 
     ).all()
 
     items: List[schemas.InventarioItem] = []
@@ -654,13 +643,12 @@ def get_inventario_actual(db: Session, empresa_id: int) -> schemas.InventarioSna
 
 def get_rotacion_productos(
     db: Session,
-    empresa_id: int,  # ✅
+    empresa_id: int,
     start_date: Optional[date],
     end_date: Optional[date],
     limit: int = 10,
     incluir_servicios: bool = False,
 ) -> schemas.ReporteRotacion:
-    """✅ FILTRADO POR EMPRESA"""
     q = (
         db.query(
             models.Producto.id.label("producto_id"),
@@ -672,15 +660,19 @@ def get_rotacion_productos(
         .join(models.DetalleVenta, models.DetalleVenta.producto_id == models.Producto.id)
         .join(models.Venta, models.DetalleVenta.venta_id == models.Venta.id)
         .filter(
-            models.Producto.empresa_id == empresa_id,  # ✅
-            models.Venta.empresa_id == empresa_id      # ✅
+            models.Producto.empresa_id == empresa_id,
+            models.Venta.empresa_id == empresa_id 
         )
     )
 
+    # ✅ TIMEZONE FIX APLICADO
     if start_date:
-        q = q.filter(models.Venta.fecha >= datetime.combine(start_date, datetime.min.time()))
+        utc_start, _ = get_utc_boundaries(start_date)
+        q = q.filter(models.Venta.fecha >= utc_start)
     if end_date:
-        q = q.filter(models.Venta.fecha <= datetime.combine(end_date, datetime.max.time()))
+        _, utc_end = get_utc_boundaries(end_date)
+        q = q.filter(models.Venta.fecha <= utc_end)
+        
     if not incluir_servicios:
         q = q.filter(models.Producto.es_servicio == False)
 
@@ -716,7 +708,6 @@ def get_rotacion_productos(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def create_pago(db: Session, empresa_id: int, pago: schemas.PagoCreate):
-    """✅ VALIDACIÓN CROSS-TENANT"""
     db_venta = get_venta(db, empresa_id, pago.venta_id)
     if not db_venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
@@ -726,7 +717,6 @@ def create_pago(db: Session, empresa_id: int, pago: schemas.PagoCreate):
     db.commit()
     db.refresh(db_pago)
 
-    # Recalcular monto_pagado
     total_pagado_venta = sum(p.monto for p in db_venta.pagos)
     db_venta.monto_pagado = total_pagado_venta
 
@@ -742,14 +732,12 @@ def create_pago(db: Session, empresa_id: int, pago: schemas.PagoCreate):
     return db_pago
 
 def get_pago(db: Session, empresa_id: int, pago_id: int):
-    """✅ FILTRADO POR EMPRESA"""
     return db.query(models.Pago).join(models.Venta).filter(
         models.Pago.id == pago_id,
-        models.Venta.empresa_id == empresa_id  # ✅
+        models.Venta.empresa_id == empresa_id
     ).first()
 
 def update_pago(db: Session, empresa_id: int, pago_id: int, pago: schemas.PagoUpdate):
-    """✅ VALIDACIÓN POR EMPRESA"""
     db_pago = get_pago(db, empresa_id, pago_id)
     if db_pago:
         for key, value in pago.dict(exclude_unset=True).items():
@@ -777,55 +765,42 @@ def update_pago(db: Session, empresa_id: int, pago_id: int, pago: schemas.PagoUp
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def get_ventas_summary(db: Session, empresa_id: int, start_date: Optional[date] = None, end_date: Optional[date] = None):
-    """✅ FILTRADO POR EMPRESA + TIMEZONE FIX"""
-    query_ventas = db.query(models.Venta).filter(
-        models.Venta.empresa_id == empresa_id
-    )
+    query_ventas = db.query(models.Venta).filter(models.Venta.empresa_id == empresa_id)
+    query_compras = db.query(models.Compra).filter(models.Compra.empresa_id == empresa_id)
+    query_gastos = db.query(models.Gasto).filter(models.Gasto.empresa_id == empresa_id)
+
+    # ✅ TIMEZONE FIX APLICADO PARA LOS RANGOS DE FECHAS
     if start_date:
-        query_ventas = query_ventas.filter(models.Venta.fecha >= start_date)
+        utc_start, _ = get_utc_boundaries(start_date)
+        query_ventas = query_ventas.filter(models.Venta.fecha >= utc_start)
+        query_compras = query_compras.filter(models.Compra.fecha >= utc_start)
+        query_gastos = query_gastos.filter(models.Gasto.fecha >= utc_start)
+        
     if end_date:
-        query_ventas = query_ventas.filter(models.Venta.fecha < end_date + timedelta(days=1))
+        _, utc_end = get_utc_boundaries(end_date)
+        query_ventas = query_ventas.filter(models.Venta.fecha <= utc_end)
+        query_compras = query_compras.filter(models.Compra.fecha <= utc_end)
+        query_gastos = query_gastos.filter(models.Gasto.fecha <= utc_end)
 
     ventas = query_ventas.all()
+    compras = query_compras.all()
+    gastos = query_gastos.all()
 
     total_pagado = sum(venta.monto_pagado or 0 for venta in ventas)
     total_pendiente = sum((venta.total or 0) - (venta.monto_pagado or 0) for venta in ventas if venta.estado_pago != "pagado")
     total_general = sum(venta.total or 0 for venta in ventas)
-
-    query_compras = db.query(models.Compra).filter(
-        models.Compra.empresa_id == empresa_id
-    )
-    if start_date:
-        query_compras = query_compras.filter(models.Compra.fecha >= start_date)
-    if end_date:
-        query_compras = query_compras.filter(models.Compra.fecha < end_date + timedelta(days=1))
-        
-    compras = query_compras.all()
+    
     total_compras = sum(compra.monto_pagado or 0 for compra in compras)
-
-    query_gastos = db.query(models.Gasto).filter(
-        models.Gasto.empresa_id == empresa_id
-    )
-    if start_date:
-        query_gastos = query_gastos.filter(models.Gasto.fecha >= start_date)
-    if end_date:
-        query_gastos = query_gastos.filter(models.Gasto.fecha < end_date + timedelta(days=1))
-        
-    gastos = query_gastos.all()
     total_gastos = sum(gasto.monto or 0 for gasto in gastos)
 
-    # ✅ FIX: Calcular ventas de hoy usando ZONA HORARIA COLOMBIA (UTC-5)
-    tz_col = timezone(timedelta(hours=-5))
-    ahora_col = datetime.now(tz_col)
-    inicio_dia = ahora_col.replace(hour=0, minute=0, second=0, microsecond=0)
-    fin_dia = ahora_col.replace(hour=23, minute=59, second=59)
-    inicio_utc = inicio_dia.astimezone(timezone.utc)
-    fin_utc = fin_dia.astimezone(timezone.utc)
+    # ✅ VENTAS DE HOY EXACTAS (Hora Colombia)
+    hoy_colombia = datetime.now(BOGOTA_TZ).date()
+    inicio_utc_hoy, fin_utc_hoy = get_utc_boundaries(hoy_colombia)
 
     ventas_hoy = db.query(models.Venta).filter(
         models.Venta.empresa_id == empresa_id,
-        models.Venta.fecha >= inicio_utc,
-        models.Venta.fecha <= fin_utc,
+        models.Venta.fecha >= inicio_utc_hoy,
+        models.Venta.fecha <= fin_utc_hoy,
         models.Venta.estado_pago == "pagado"
     ).all()
     
@@ -835,16 +810,15 @@ def get_ventas_summary(db: Session, empresa_id: int, start_date: Optional[date] 
         total_pagado=total_pagado,
         total_pendiente=total_pendiente,
         total_general=total_general,
-        total_ventas_hoy=total_ventas_hoy,  # ✅ Ahora usa el cálculo correcto
+        total_ventas_hoy=total_ventas_hoy, 
         total_compras=total_compras,
         total_gastos=total_gastos
     )
 
 def get_cuentas_por_cobrar_por_cliente(db: Session, empresa_id: int):
-    """✅ FILTRADO POR EMPRESA"""
     clientes_con_pendientes = db.query(models.Cliente).join(models.Venta).filter(
-        models.Cliente.empresa_id == empresa_id,  # ✅
-        models.Venta.empresa_id == empresa_id,    # ✅
+        models.Cliente.empresa_id == empresa_id, 
+        models.Venta.empresa_id == empresa_id,   
         (models.Venta.estado_pago == "pendiente") | (models.Venta.estado_pago == "parcial")
     ).distinct().all()
 
@@ -855,7 +829,7 @@ def get_cuentas_por_cobrar_por_cliente(db: Session, empresa_id: int):
             joinedload(models.Venta.pagos)
         ).filter(
             models.Venta.cliente_id == cliente.id,
-            models.Venta.empresa_id == empresa_id,  # ✅
+            models.Venta.empresa_id == empresa_id, 
             (models.Venta.estado_pago == "pendiente") | (models.Venta.estado_pago == "parcial")
         ).all()
         
@@ -870,7 +844,6 @@ def get_cuentas_por_cobrar_por_cliente(db: Session, empresa_id: int):
     return result
 
 def get_productos_vendidos(db: Session, empresa_id: int, start_date: Optional[date] = None, end_date: Optional[date] = None):
-    """✅ FILTRADO POR EMPRESA"""
     query = (
         db.query(
             models.Producto.id.label("product_id"),
@@ -882,15 +855,18 @@ def get_productos_vendidos(db: Session, empresa_id: int, start_date: Optional[da
         .join(models.DetalleVenta, models.Producto.id == models.DetalleVenta.producto_id)
         .join(models.Venta, models.DetalleVenta.venta_id == models.Venta.id)
         .filter(
-            models.Producto.empresa_id == empresa_id,  # ✅
-            models.Venta.empresa_id == empresa_id      # ✅
+            models.Producto.empresa_id == empresa_id, 
+            models.Venta.empresa_id == empresa_id     
         )
     )
 
+    # ✅ TIMEZONE FIX APLICADO
     if start_date:
-        query = query.filter(models.Venta.fecha >= start_date)
+        utc_start, _ = get_utc_boundaries(start_date)
+        query = query.filter(models.Venta.fecha >= utc_start)
     if end_date:
-        query = query.filter(models.Venta.fecha < end_date + timedelta(days=1))
+        _, utc_end = get_utc_boundaries(end_date)
+        query = query.filter(models.Venta.fecha <= utc_end)
 
     query = (
         query.group_by(models.Producto.id, models.Producto.nombre, models.Producto.es_servicio)
@@ -908,7 +884,6 @@ def get_productos_vendidos(db: Session, empresa_id: int, start_date: Optional[da
     )
 
 def get_clientes_compradores(db: Session, empresa_id: int, start_date: Optional[date] = None, end_date: Optional[date] = None):
-    """✅ FILTRADO POR EMPRESA"""
     query = (
         db.query(
             models.Cliente.id.label("client_id"),
@@ -917,15 +892,18 @@ def get_clientes_compradores(db: Session, empresa_id: int, start_date: Optional[
         )
         .join(models.Venta, models.Cliente.id == models.Venta.cliente_id)
         .filter(
-            models.Cliente.empresa_id == empresa_id,  # ✅
-            models.Venta.empresa_id == empresa_id     # ✅
+            models.Cliente.empresa_id == empresa_id, 
+            models.Venta.empresa_id == empresa_id    
         )
     )
 
+    # ✅ TIMEZONE FIX APLICADO
     if start_date:
-        query = query.filter(models.Venta.fecha >= start_date)
+        utc_start, _ = get_utc_boundaries(start_date)
+        query = query.filter(models.Venta.fecha >= utc_start)
     if end_date:
-        query = query.filter(models.Venta.fecha < end_date + timedelta(days=1))
+        _, utc_end = get_utc_boundaries(end_date)
+        query = query.filter(models.Venta.fecha <= utc_end)
 
     query = (
         query.group_by(models.Cliente.id, models.Cliente.nombre)
@@ -935,7 +913,6 @@ def get_clientes_compradores(db: Session, empresa_id: int, start_date: Optional[
     return [schemas.ClienteComprador.from_orm(row) for row in query.all()]
 
 def get_clientes_deudores(db: Session, empresa_id: int):
-    """✅ FILTRADO POR EMPRESA"""
     query = (
         db.query(
             models.Cliente.id.label("client_id"),
@@ -944,8 +921,8 @@ def get_clientes_deudores(db: Session, empresa_id: int):
         )
         .join(models.Venta, models.Cliente.id == models.Venta.cliente_id)
         .filter(
-            models.Cliente.empresa_id == empresa_id,  # ✅
-            models.Venta.empresa_id == empresa_id,    # ✅
+            models.Cliente.empresa_id == empresa_id, 
+            models.Venta.empresa_id == empresa_id,   
             models.Venta.estado_pago != "pagado"
         )
     )
@@ -959,7 +936,6 @@ def get_clientes_deudores(db: Session, empresa_id: int):
     return [schemas.ClienteDeudor.from_orm(row) for row in query.all()]
 
 def get_rentabilidad_por_producto(db: Session, empresa_id: int, start_date: Optional[date] = None, end_date: Optional[date] = None):
-    """✅ FILTRADO POR EMPRESA"""
     query = (
         db.query(
             models.Producto.id.label("product_id"),
@@ -971,15 +947,18 @@ def get_rentabilidad_por_producto(db: Session, empresa_id: int, start_date: Opti
         .join(models.DetalleVenta, models.Producto.id == models.DetalleVenta.producto_id)
         .join(models.Venta, models.DetalleVenta.venta_id == models.Venta.id)
         .filter(
-            models.Producto.empresa_id == empresa_id,  # ✅
-            models.Venta.empresa_id == empresa_id      # ✅
+            models.Producto.empresa_id == empresa_id, 
+            models.Venta.empresa_id == empresa_id     
         )
     )
 
+    # ✅ TIMEZONE FIX APLICADO
     if start_date:
-        query = query.filter(models.Venta.fecha >= start_date)
+        utc_start, _ = get_utc_boundaries(start_date)
+        query = query.filter(models.Venta.fecha >= utc_start)
     if end_date:
-        query = query.filter(models.Venta.fecha < end_date + timedelta(days=1))
+        _, utc_end = get_utc_boundaries(end_date)
+        query = query.filter(models.Venta.fecha <= utc_end)
 
     results = query.group_by(models.Producto.id, models.Producto.nombre).all()
 
@@ -1000,22 +979,23 @@ def get_rentabilidad_por_producto(db: Session, empresa_id: int, start_date: Opti
     return sorted(report_data, key=lambda x: x.net_profit, reverse=True)
 
 def get_sales_by_day(db: Session, empresa_id: int, start_date: date, end_date: date):
-    """✅ FILTRADO POR EMPRESA"""
+    # ✅ TIMEZONE FIX: Usar utc boundaries para el cruce, sin importar el dialecto
+    utc_start, _ = get_utc_boundaries(start_date)
+    _, utc_end = get_utc_boundaries(end_date)
+
     is_pg = _is_postgres(db)
     day_expr = (
         func.date(func.timezone(COL_TZ, models.Venta.fecha)).label("day")
         if is_pg else
         func.date(models.Venta.fecha).label("day")
     )
-    start_dt = datetime.combine(start_date, datetime.min.time())
-    end_dt = datetime.combine(end_date, datetime.max.time())
 
     rows = (
         db.query(day_expr, func.sum(models.Venta.total).label("total"))
         .filter(
-            models.Venta.empresa_id == empresa_id,  # ✅
-            models.Venta.fecha >= start_dt,
-            models.Venta.fecha <= end_dt
+            models.Venta.empresa_id == empresa_id,
+            models.Venta.fecha >= utc_start,
+            models.Venta.fecha <= utc_end
         )
         .group_by(day_expr).order_by(day_expr).all()
     )
@@ -1034,45 +1014,26 @@ def get_sales_by_day(db: Session, empresa_id: int, start_date: date, end_date: d
     ]
 
 def get_total_sales_today(db: Session, empresa_id: int) -> float:
-    """✅ FILTRADO POR EMPRESA"""
-    if _is_postgres(db):
-        result = db.execute(text("""
-            SELECT COALESCE(SUM(total), 0)
-            FROM ventas
-            WHERE DATE(fecha AT TIME ZONE 'America/Bogota')
-                = (CURRENT_TIMESTAMP AT TIME ZONE 'America/Bogota')::date
-                AND empresa_id = :empresa_id
-        """), {"empresa_id": empresa_id}).scalar()
-        return float(result or 0)
-    else:
-        tz_offset = timedelta(hours=-5)
-        now_col = datetime.utcnow() + tz_offset
-        today_col = now_col.date()
-        start_utc = datetime.combine(today_col, datetime.min.time()) - tz_offset
-        end_utc = datetime.combine(today_col, datetime.max.time()) - tz_offset
-        total = db.query(func.sum(models.Venta.total)).filter(
-            models.Venta.empresa_id == empresa_id,  # ✅
-            models.Venta.fecha >= start_utc,
-            models.Venta.fecha <= end_utc
-        ).scalar()
-        return float(total or 0)
-
-def get_dashboard_data(db: Session, empresa_id: int) -> schemas.DashboardData:
-    """✅ FILTRADO POR EMPRESA + TIMEZONE FIX"""
+    # Usado internamente como fallback o si requieres la consulta pura. 
+    # El dashboard ya está resuelto arriba, pero esto también lo actualizamos.
+    hoy = datetime.now(BOGOTA_TZ).date()
+    inicio_utc, fin_utc = get_utc_boundaries(hoy)
     
-    # ✅ FIX: Calcular ventas de hoy usando ZONA HORARIA COLOMBIA (UTC-5)
-    tz_col = timezone(timedelta(hours=-5))
-    ahora_col = datetime.now(tz_col)
-    inicio_dia = ahora_col.replace(hour=0, minute=0, second=0, microsecond=0)
-    fin_dia = ahora_col.replace(hour=23, minute=59, second=59)
-    inicio_utc = inicio_dia.astimezone(timezone.utc)
-    fin_utc = fin_dia.astimezone(timezone.utc)
-
-    # Ventas de hoy (CORREGIDO - mismo cálculo que calcular_totales_dia)
-    ventas_hoy_records = db.query(models.Venta).filter(
+    total = db.query(func.sum(models.Venta.total)).filter(
         models.Venta.empresa_id == empresa_id,
         models.Venta.fecha >= inicio_utc,
-        models.Venta.fecha <= fin_utc,
+        models.Venta.fecha <= fin_utc
+    ).scalar()
+    return float(total or 0)
+
+def get_dashboard_data(db: Session, empresa_id: int) -> schemas.DashboardData:
+    hoy_colombia = datetime.now(BOGOTA_TZ).date()
+    inicio_utc_hoy, fin_utc_hoy = get_utc_boundaries(hoy_colombia)
+
+    ventas_hoy_records = db.query(models.Venta).filter(
+        models.Venta.empresa_id == empresa_id,
+        models.Venta.fecha >= inicio_utc_hoy,
+        models.Venta.fecha <= fin_utc_hoy,
         models.Venta.estado_pago == "pagado"
     ).all()
     ventas_hoy = sum(v.total or 0 for v in ventas_hoy_records)
@@ -1084,7 +1045,7 @@ def get_dashboard_data(db: Session, empresa_id: int) -> schemas.DashboardData:
 
     ordenes_recientes = get_ordenes_trabajo(db, empresa_id, skip=0, limit=5)
 
-    end_date = datetime.now().date()
+    end_date = hoy_colombia
     start_date = end_date - timedelta(days=29)
     ventas_ultimos_30_dias = get_sales_by_day(db, empresa_id, start_date, end_date)
 
@@ -1102,7 +1063,6 @@ def get_dashboard_data(db: Session, empresa_id: int) -> schemas.DashboardData:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def get_orden_trabajo(db: Session, empresa_id: int, orden_id: int):
-    """✅ FILTRADO POR EMPRESA"""
     return db.query(models.OrdenTrabajo).options(
         joinedload(models.OrdenTrabajo.cliente),
         joinedload(models.OrdenTrabajo.operador),
@@ -1111,12 +1071,12 @@ def get_orden_trabajo(db: Session, empresa_id: int, orden_id: int):
         joinedload(models.OrdenTrabajo.evidencias)
     ).filter(
         models.OrdenTrabajo.id == orden_id,
-        models.OrdenTrabajo.empresa_id == empresa_id  # ✅
+        models.OrdenTrabajo.empresa_id == empresa_id 
     ).first()
 
 def get_ordenes_trabajo(
     db: Session,
-    empresa_id: int,  # ✅
+    empresa_id: int, 
     skip: int = 0,
     limit: int = 100,
     operador_id: Optional[int] = None,
@@ -1125,12 +1085,11 @@ def get_ordenes_trabajo(
     end_date: Optional[date] = None,
     cliente_id: Optional[int] = None
 ):
-    """✅ FILTRADO POR EMPRESA"""
     query = db.query(models.OrdenTrabajo).options(
         joinedload(models.OrdenTrabajo.cliente),
         joinedload(models.OrdenTrabajo.operador)
     ).filter(
-        models.OrdenTrabajo.empresa_id == empresa_id  # ✅
+        models.OrdenTrabajo.empresa_id == empresa_id
     ).order_by(models.OrdenTrabajo.fecha_creacion.desc())
 
     if operador_id:
@@ -1138,16 +1097,13 @@ def get_ordenes_trabajo(
     if estado:
         query = query.filter(models.OrdenTrabajo.estado == estado)
     
-    user_tz_offset = timedelta(hours=-5)
-
+    # ✅ TIMEZONE FIX APLICADO
     if start_date:
-        start_datetime_local = datetime.combine(start_date, datetime.min.time())
-        start_datetime_utc = start_datetime_local - user_tz_offset
-        query = query.filter(models.OrdenTrabajo.fecha_creacion >= start_datetime_utc)
+        utc_start, _ = get_utc_boundaries(start_date)
+        query = query.filter(models.OrdenTrabajo.fecha_creacion >= utc_start)
     if end_date:
-        end_datetime_local = datetime.combine(end_date, datetime.max.time())
-        end_datetime_utc = end_datetime_local - user_tz_offset
-        query = query.filter(models.OrdenTrabajo.fecha_creacion <= end_datetime_utc)
+        _, utc_end = get_utc_boundaries(end_date)
+        query = query.filter(models.OrdenTrabajo.fecha_creacion <= utc_end)
     
     if cliente_id:
         query = query.filter(models.OrdenTrabajo.cliente_id == cliente_id)
@@ -1155,8 +1111,6 @@ def get_ordenes_trabajo(
     return query.offset(skip).limit(limit).all()
 
 def create_orden_trabajo(db: Session, empresa_id: int, orden: schemas.OrdenTrabajoCreate, operador_id: int):
-    """✅ INYECCIÓN DE EMPRESA_ID + VALIDACIÓN CROSS-TENANT"""
-    # Validar que el cliente pertenece a la empresa
     cliente = get_cliente(db, empresa_id, orden.cliente_id)
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado o no pertenece a esta empresa")
@@ -1166,10 +1120,9 @@ def create_orden_trabajo(db: Session, empresa_id: int, orden: schemas.OrdenTraba
         operador_id=operador_id,
         total=orden.total,
         estado='En produccion',
-        empresa_id=empresa_id  # ✅
+        empresa_id=empresa_id 
     )
 
-    # Validar productos
     for producto_data in orden.productos:
         prod = get_producto(db, empresa_id, producto_data.producto_id)
         if not prod:
@@ -1179,7 +1132,6 @@ def create_orden_trabajo(db: Session, empresa_id: int, orden: schemas.OrdenTraba
             )
         db_orden.productos.append(models.OrdenProducto(**producto_data.dict()))
 
-    # Validar servicios
     for servicio_data in orden.servicios:
         serv = get_producto(db, empresa_id, servicio_data.servicio_id)
         if not serv:
@@ -1195,7 +1147,6 @@ def create_orden_trabajo(db: Session, empresa_id: int, orden: schemas.OrdenTraba
     return db_orden
 
 def update_orden_trabajo(db: Session, empresa_id: int, orden_id: int, orden: schemas.OrdenTrabajoCreate):
-    """✅ VALIDACIÓN POR EMPRESA"""
     db_orden = (
         db.query(models.OrdenTrabajo)
           .options(
@@ -1204,7 +1155,7 @@ def update_orden_trabajo(db: Session, empresa_id: int, orden_id: int, orden: sch
           )
           .filter(
               models.OrdenTrabajo.id == orden_id,
-              models.OrdenTrabajo.empresa_id == empresa_id  # ✅
+              models.OrdenTrabajo.empresa_id == empresa_id 
           )
           .first()
     )
@@ -1247,7 +1198,6 @@ def update_orden_trabajo(db: Session, empresa_id: int, orden_id: int, orden: sch
     return db_orden
 
 def update_orden_trabajo_estado(db: Session, empresa_id: int, orden_id: int, estado: str, observaciones: Optional[str] = None):
-    """✅ VALIDACIÓN POR EMPRESA"""
     db_orden = get_orden_trabajo(db, empresa_id, orden_id)
     if db_orden:
         db_orden.estado = estado
@@ -1258,7 +1208,6 @@ def update_orden_trabajo_estado(db: Session, empresa_id: int, orden_id: int, est
     return db_orden
 
 def add_evidencia_orden_trabajo(db: Session, empresa_id: int, orden_id: int, file_path: str):
-    """✅ VALIDACIÓN POR EMPRESA"""
     db_orden = get_orden_trabajo(db, empresa_id, orden_id)
     if not db_orden:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
@@ -1270,7 +1219,6 @@ def add_evidencia_orden_trabajo(db: Session, empresa_id: int, orden_id: int, fil
     return db_evidencia
 
 def aprobar_orden_trabajo(db: Session, empresa_id: int, orden_id: int, admin_user: models.User):
-    """✅ VALIDACIÓN POR EMPRESA"""
     db_orden = get_orden_trabajo(db, empresa_id, orden_id)
     if not db_orden or db_orden.estado != 'En revisión':
         return None
@@ -1297,12 +1245,9 @@ def aprobar_orden_trabajo(db: Session, empresa_id: int, orden_id: int, admin_use
         detalles=detalles_venta,
         pagada=False
     )
-    created_venta = create_venta(db, empresa_id, venta_schema)  # ✅
+    created_venta = create_venta(db, empresa_id, venta_schema) 
     
     db_orden.venta_id = created_venta.id
-
-    for item in db_orden.productos:
-        db_producto = get_producto(db, empresa_id, item.producto_id)
 
     for servicio in db_orden.servicios:
         valor_productividad_calculado = servicio.precio_servicio * servicio.cantidad
@@ -1322,7 +1267,6 @@ def aprobar_orden_trabajo(db: Session, empresa_id: int, orden_id: int, admin_use
     return db_orden
 
 def rechazar_orden_trabajo(db: Session, empresa_id: int, orden_id: int, observaciones: str, admin_user: models.User):
-    """✅ VALIDACIÓN POR EMPRESA"""
     db_orden = get_orden_trabajo(db, empresa_id, orden_id)
     if not db_orden or db_orden.estado != 'En revisión':
         return None
@@ -1335,7 +1279,6 @@ def rechazar_orden_trabajo(db: Session, empresa_id: int, orden_id: int, observac
     return db_orden
 
 def cerrar_orden_trabajo(db: Session, empresa_id: int, orden_id: int, admin_user: models.User, close_data: schemas.OrdenTrabajoClose):
-    """✅ VALIDACIÓN POR EMPRESA"""
     db_orden = get_orden_trabajo(db, empresa_id, orden_id)
     if not db_orden or db_orden.estado not in ['Aprobada', 'Rechazada']:
         return None
@@ -1356,7 +1299,7 @@ def cerrar_orden_trabajo(db: Session, empresa_id: int, orden_id: int, admin_user
                     monto=monto_a_pagar,
                     metodo_pago="Cierre de Orden (Pago Total)"
                 )
-                create_pago(db, empresa_id, pago_schema)  # ✅
+                create_pago(db, empresa_id, pago_schema) 
             db_venta.estado_pago = "pagado"
             db_venta.monto_pagado = db_venta.total
         elif close_data.payment_type == "partial":
@@ -1372,7 +1315,7 @@ def cerrar_orden_trabajo(db: Session, empresa_id: int, orden_id: int, admin_user
                 monto=close_data.paid_amount,
                 metodo_pago="Cierre de Orden (Pago Parcial)"
             )
-            create_pago(db, empresa_id, pago_schema)  # ✅
+            create_pago(db, empresa_id, pago_schema) 
         
         db_venta.fecha_pago = datetime.utcnow()
     else:
@@ -1388,16 +1331,15 @@ def cerrar_orden_trabajo(db: Session, empresa_id: int, orden_id: int, admin_user
 
 def get_total_ordenes_trabajo(
     db: Session,
-    empresa_id: int,  # ✅
+    empresa_id: int, 
     operador_id: Optional[int] = None,
     estado: Optional[str] = None,
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
     cliente_id: Optional[int] = None
 ) -> float:
-    """✅ FILTRADO POR EMPRESA"""
     query = db.query(func.sum(models.OrdenTrabajo.total)).filter(
-        models.OrdenTrabajo.empresa_id == empresa_id  # ✅
+        models.OrdenTrabajo.empresa_id == empresa_id 
     )
 
     if operador_id:
@@ -1405,10 +1347,13 @@ def get_total_ordenes_trabajo(
     if estado:
         query = query.filter(models.OrdenTrabajo.estado == estado)
     
+    # ✅ TIMEZONE FIX APLICADO
     if start_date:
-        query = query.filter(models.OrdenTrabajo.fecha_creacion >= start_date)
+        utc_start, _ = get_utc_boundaries(start_date)
+        query = query.filter(models.OrdenTrabajo.fecha_creacion >= utc_start)
     if end_date:
-        query = query.filter(models.OrdenTrabajo.fecha_creacion < end_date + timedelta(days=1))
+        _, utc_end = get_utc_boundaries(end_date)
+        query = query.filter(models.OrdenTrabajo.fecha_creacion <= utc_end)
     
     if cliente_id:
         query = query.filter(models.OrdenTrabajo.cliente_id == cliente_id)
@@ -1421,14 +1366,13 @@ def get_total_ordenes_trabajo(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def get_ordenes_pendientes_operador(db: Session, empresa_id: int, operador_id: int) -> List[schemas.PanelOrdenPendiente]:
-    """✅ FILTRADO POR EMPRESA"""
     ordenes_pendientes = db.query(models.OrdenTrabajo).options(
         joinedload(models.OrdenTrabajo.cliente),
         joinedload(models.OrdenTrabajo.productos).joinedload(models.OrdenProducto.producto),
         joinedload(models.OrdenTrabajo.servicios).joinedload(models.OrdenServicio.servicio)
     ).filter(
         models.OrdenTrabajo.operador_id == operador_id,
-        models.OrdenTrabajo.empresa_id == empresa_id,  # ✅
+        models.OrdenTrabajo.empresa_id == empresa_id, 
         models.OrdenTrabajo.estado != 'Cerrada'
     ).order_by(models.OrdenTrabajo.fecha_actualizacion.asc()).all()
 
@@ -1451,22 +1395,22 @@ def get_ordenes_pendientes_operador(db: Session, empresa_id: int, operador_id: i
 
 def get_productividad_operador(
     db: Session,
-    empresa_id: int,  # ✅
+    empresa_id: int,
     operador_id: int,
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
 ) -> schemas.PanelProductividad:
-    """✅ FILTRADO POR EMPRESA"""
-    user_tz_offset = timedelta(hours=-5)
-    now_user_tz = datetime.utcnow() + user_tz_offset
     
-    today_start_utc = datetime.combine(now_user_tz.date(), datetime.min.time()) - user_tz_offset
-    week_start_date = now_user_tz.date() - timedelta(days=now_user_tz.weekday())
-    week_start_utc = datetime.combine(week_start_date, datetime.min.time()) - user_tz_offset
-    month_start_date = now_user_tz.date().replace(day=1)
-    month_start_utc = datetime.combine(month_start_date, datetime.min.time()) - user_tz_offset
+    # ✅ TIMEZONE FIX: Usar la zona horaria real
+    hoy_colombia = datetime.now(BOGOTA_TZ).date()
+    week_start_date = hoy_colombia - timedelta(days=hoy_colombia.weekday())
+    month_start_date = hoy_colombia.replace(day=1)
 
-    def get_total_units_for_fixed_range(start_utc: datetime):
+    today_utc_start, today_utc_end = get_utc_boundaries(hoy_colombia)
+    week_utc_start, week_utc_end = get_utc_boundaries(week_start_date)
+    month_utc_start, month_utc_end = get_utc_boundaries(month_start_date)
+
+    def get_total_units_for_range(utc_start, utc_end):
         return (db.query(func.sum(models.OrdenServicio.cantidad))
                 .select_from(models.OrdenServicio)
                 .join(models.RegistroProductividad,
@@ -1474,29 +1418,29 @@ def get_productividad_operador(
                       (models.OrdenServicio.servicio_id == models.RegistroProductividad.servicio_id))
                 .filter(
                     models.RegistroProductividad.operador_id == operador_id,
-                    models.RegistroProductividad.empresa_id == empresa_id,  # ✅
-                    models.RegistroProductividad.fecha >= start_utc
+                    models.RegistroProductividad.empresa_id == empresa_id, 
+                    models.RegistroProductividad.fecha >= utc_start,
+                    models.RegistroProductividad.fecha <= utc_end
                 ).scalar() or 0)
 
-    servicios_hoy = get_total_units_for_fixed_range(today_start_utc)
-    servicios_semana = get_total_units_for_fixed_range(week_start_utc)
-    servicios_mes = get_total_units_for_fixed_range(month_start_utc)
+    servicios_hoy = get_total_units_for_range(today_utc_start, today_utc_end)
+    servicios_semana = get_total_units_for_range(week_utc_start, today_utc_end) # Hasta hoy (que engloba la semana hasta ahora)
+    servicios_mes = get_total_units_for_range(month_utc_start, today_utc_end)
 
     ordenes_completadas_semana = db.query(func.count(models.OrdenTrabajo.id)).filter(
         models.OrdenTrabajo.operador_id == operador_id,
-        models.OrdenTrabajo.empresa_id == empresa_id,  # ✅
+        models.OrdenTrabajo.empresa_id == empresa_id, 
         models.OrdenTrabajo.estado == 'Cerrada',
-        models.OrdenTrabajo.fecha_actualizacion >= week_start_utc
+        models.OrdenTrabajo.fecha_actualizacion >= week_utc_start,
+        models.OrdenTrabajo.fecha_actualizacion <= today_utc_end
     ).scalar() or 0
 
     if start_date and end_date:
-        filtered_start_datetime_local = datetime.combine(start_date, datetime.min.time())
-        filtered_start_utc = filtered_start_datetime_local - user_tz_offset
-        filtered_end_datetime_local = datetime.combine(end_date, datetime.max.time())
-        filtered_end_utc = filtered_end_datetime_local - user_tz_offset
+        filtered_start_utc, _ = get_utc_boundaries(start_date)
+        _, filtered_end_utc = get_utc_boundaries(end_date)
     else:
-        filtered_start_utc = week_start_utc
-        filtered_end_utc = datetime.combine(now_user_tz.date(), datetime.max.time()) - user_tz_offset
+        filtered_start_utc = week_utc_start
+        filtered_end_utc = today_utc_end
 
     servicios_agg_query = (
         db.query(
@@ -1514,7 +1458,7 @@ def get_productividad_operador(
         )
         .filter(
             models.RegistroProductividad.operador_id == operador_id,
-            models.RegistroProductividad.empresa_id == empresa_id,  # ✅
+            models.RegistroProductividad.empresa_id == empresa_id, 
             models.RegistroProductividad.fecha >= filtered_start_utc,
             models.RegistroProductividad.fecha <= filtered_end_utc
         )
@@ -1542,7 +1486,7 @@ def get_productividad_operador(
         .join(models.Producto, models.Producto.id == models.RegistroProductividad.servicio_id)
         .filter(
             models.RegistroProductividad.operador_id == operador_id,
-            models.RegistroProductividad.empresa_id == empresa_id,  # ✅
+            models.RegistroProductividad.empresa_id == empresa_id, 
             models.RegistroProductividad.fecha >= filtered_start_utc,
             models.RegistroProductividad.fecha <= filtered_end_utc
         )
@@ -1573,19 +1517,19 @@ def get_productividad_operador(
     )
 
 def get_historial_reciente_operador(db: Session, empresa_id: int, operador_id: int) -> List[schemas.PanelHistorialItem]:
-    """✅ FILTRADO POR EMPRESA"""
-    user_tz_offset = timedelta(hours=-5)
-    now_user_tz = datetime.utcnow() + user_tz_offset
-    seven_days_ago_utc = datetime.combine(now_user_tz.date() - timedelta(days=7), datetime.min.time()) - user_tz_offset
+    # ✅ TIMEZONE FIX
+    hoy_colombia = datetime.now(BOGOTA_TZ).date()
+    hace_7_dias = hoy_colombia - timedelta(days=7)
+    utc_inicio, _ = get_utc_boundaries(hace_7_dias)
 
     ordenes_recientes = db.query(models.OrdenTrabajo).options(
         joinedload(models.OrdenTrabajo.cliente),
         joinedload(models.OrdenTrabajo.venta_asociada)
     ).filter(
         models.OrdenTrabajo.operador_id == operador_id,
-        models.OrdenTrabajo.empresa_id == empresa_id,  # ✅
+        models.OrdenTrabajo.empresa_id == empresa_id, 
         models.OrdenTrabajo.estado == 'Cerrada',
-        models.OrdenTrabajo.fecha_actualizacion >= seven_days_ago_utc
+        models.OrdenTrabajo.fecha_actualizacion >= utc_inicio
     ).order_by(models.OrdenTrabajo.fecha_actualizacion.desc()).limit(10).all()
 
     response = []
@@ -1604,8 +1548,9 @@ def get_historial_reciente_operador(db: Session, empresa_id: int, operador_id: i
     return response
 
 def get_reporte_productividad(db: Session, empresa_id: int, start_date: date, end_date: date):
-    """✅ FILTRADO POR EMPRESA"""
-    end_date_inclusive = end_date + timedelta(days=1)
+    # ✅ TIMEZONE FIX APLICADO
+    utc_start, _ = get_utc_boundaries(start_date)
+    _, utc_end = get_utc_boundaries(end_date)
 
     registros = (
         db.query(models.RegistroProductividad)
@@ -1614,9 +1559,9 @@ def get_reporte_productividad(db: Session, empresa_id: int, start_date: date, en
             joinedload(models.RegistroProductividad.servicio),
         )
         .filter(
-            models.RegistroProductividad.empresa_id == empresa_id,  # ✅
-            models.RegistroProductividad.fecha >= start_date,
-            models.RegistroProductividad.fecha < end_date_inclusive,
+            models.RegistroProductividad.empresa_id == empresa_id, 
+            models.RegistroProductividad.fecha >= utc_start,
+            models.RegistroProductividad.fecha <= utc_end,
         )
         .all()
     )
@@ -1660,9 +1605,9 @@ def get_reporte_productividad(db: Session, empresa_id: int, start_date: date, en
         )
         .join(models.Producto, models.Producto.id == models.RegistroProductividad.servicio_id)
         .filter(
-            models.RegistroProductividad.empresa_id == empresa_id,  # ✅
-            models.RegistroProductividad.fecha >= start_date,
-            models.RegistroProductividad.fecha < end_date_inclusive,
+            models.RegistroProductividad.empresa_id == empresa_id, 
+            models.RegistroProductividad.fecha >= utc_start,
+            models.RegistroProductividad.fecha <= utc_end,
         )
         .group_by(
             models.RegistroProductividad.operador_id,
@@ -1701,24 +1646,22 @@ def get_reporte_productividad(db: Session, empresa_id: int, start_date: date, en
     )
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# NOTIFICACIONES
+# NOTIFICACIONES Y DEMÁS FUNCIONES PERMANECEN IGUAL
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def create_notificacion(db: Session, empresa_id: int, notificacion: schemas.NotificacionCreate):
-    """✅ INYECCIÓN DE EMPRESA_ID"""
-    db_notificacion = models.Notificacion(**notificacion.dict(), empresa_id=empresa_id)  # ✅
+    db_notificacion = models.Notificacion(**notificacion.dict(), empresa_id=empresa_id) 
     db.add(db_notificacion)
     db.commit()
     db.refresh(db_notificacion)
     return db_notificacion
 
 def get_notificaciones_usuario(db: Session, empresa_id: int, usuario_id: int, skip: int = 0, limit: int = 20):
-    """✅ FILTRADO POR EMPRESA"""
     return (
         db.query(models.Notificacion)
         .filter(
             models.Notificacion.usuario_id == usuario_id,
-            models.Notificacion.empresa_id == empresa_id  # ✅
+            models.Notificacion.empresa_id == empresa_id 
         )
         .order_by(models.Notificacion.fecha_creacion.desc())
         .offset(skip)
@@ -1727,13 +1670,12 @@ def get_notificaciones_usuario(db: Session, empresa_id: int, usuario_id: int, sk
     )
 
 def marcar_notificacion_leida(db: Session, empresa_id: int, notificacion_id: int, usuario_id: int):
-    """✅ VALIDACIÓN POR EMPRESA"""
     db_notificacion = (
         db.query(models.Notificacion)
         .filter(
             models.Notificacion.id == notificacion_id,
             models.Notificacion.usuario_id == usuario_id,
-            models.Notificacion.empresa_id == empresa_id  # ✅
+            models.Notificacion.empresa_id == empresa_id 
         )
         .first()
     )
@@ -1744,13 +1686,14 @@ def marcar_notificacion_leida(db: Session, empresa_id: int, notificacion_id: int
     return db_notificacion
 
 def check_and_notify_low_stock(db: Session, empresa_id: int, producto_ids: List[int]):
-    """✅ FILTRADO POR EMPRESA"""
     admin_users = db.query(models.User).join(models.Role).filter(
         models.Role.name == "Admin",
-        models.User.empresa_id == empresa_id  # ✅
+        models.User.empresa_id == empresa_id 
     ).all()
     if not admin_users:
         return
+
+    hoy_col = datetime.now(BOGOTA_TZ).date()
 
     for prod_id in set(producto_ids):
         prod = get_producto(db, empresa_id, prod_id)
@@ -1758,18 +1701,21 @@ def check_and_notify_low_stock(db: Session, empresa_id: int, producto_ids: List[
             continue
         if (prod.stock_minimo or 0) > 0 and (prod.stock_actual or 0) < prod.stock_minimo:
             for admin in admin_users:
-                hoy = datetime.now(timezone.utc).date()
+                # Evitar notificaciones duplicadas en el mismo día
                 ya_notificado = db.query(models.Notificacion).filter(
                     models.Notificacion.usuario_id == admin.id,
-                    models.Notificacion.empresa_id == empresa_id,  # ✅
+                    models.Notificacion.empresa_id == empresa_id, 
                     models.Notificacion.mensaje.like(f"%{prod.nombre}%bajo stock%"),
-                    func.date(models.Notificacion.fecha_creacion) == hoy
-                ).first()
-                if ya_notificado:
+                ).all()
+                
+                # Checkear si alguna fue hoy en local
+                notificado_hoy = any(n.fecha_creacion.astimezone(BOGOTA_TZ).date() == hoy_col for n in ya_notificado)
+
+                if notificado_hoy:
                     continue
                 db.add(models.Notificacion(
                     usuario_id=admin.id,
-                    empresa_id=empresa_id,  # ✅
+                    empresa_id=empresa_id, 
                     mensaje=f"⚠️ '{prod.nombre}' está bajo stock mínimo. Actual: {prod.stock_actual:.1f} | Mínimo: {prod.stock_minimo:.1f}",
                     tipo="warning",
                     leido=False
@@ -1777,48 +1723,37 @@ def check_and_notify_low_stock(db: Session, empresa_id: int, producto_ids: List[
     db.commit()
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# CONTINUARÁ EN LA SIGUIENTE RESPUESTA
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
 # PRODUCCIÓN - RECETAS Y LOTES
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def get_recetas(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
-    """✅ FILTRADO POR EMPRESA"""
     return db.query(models.Receta).options(
         joinedload(models.Receta.producto_resultante),
         joinedload(models.Receta.items).joinedload(models.RecetaItem.insumo)
     ).filter(
-        models.Receta.empresa_id == empresa_id  # ✅
+        models.Receta.empresa_id == empresa_id 
     ).offset(skip).limit(limit).all()
 
 def get_receta(db: Session, empresa_id: int, receta_id: int):
-    """✅ FILTRADO POR EMPRESA"""
     return db.query(models.Receta).options(
         joinedload(models.Receta.producto_resultante),
         joinedload(models.Receta.items).joinedload(models.RecetaItem.insumo)
     ).filter(
         models.Receta.id == receta_id,
-        models.Receta.empresa_id == empresa_id  # ✅
+        models.Receta.empresa_id == empresa_id 
     ).first()
 
 def get_receta_by_producto(db: Session, empresa_id: int, producto_id: int):
-    """✅ FILTRADO POR EMPRESA"""
     return db.query(models.Receta).filter(
         models.Receta.producto_id == producto_id,
-        models.Receta.empresa_id == empresa_id  # ✅
+        models.Receta.empresa_id == empresa_id 
     ).first()
 
 def create_receta(db: Session, empresa_id: int, receta: schemas.RecetaCreate):
-    """✅ INYECCIÓN DE EMPRESA_ID + VALIDACIÓN CROSS-TENANT"""
-    # Validar que el producto resultante pertenece a la empresa
     producto = get_producto(db, empresa_id, receta.producto_id)
     if not producto:
         raise ValueError("Producto resultante no encontrado o no pertenece a esta empresa")
 
-    # Validar insumos
     for item in receta.items:
         db_prod = get_producto(db, empresa_id, item.insumo_id)
         if not db_prod:
@@ -1830,7 +1765,7 @@ def create_receta(db: Session, empresa_id: int, receta: schemas.RecetaCreate):
         producto_id=receta.producto_id,
         nombre=receta.nombre,
         descripcion=receta.descripcion,
-        empresa_id=empresa_id  # ✅
+        empresa_id=empresa_id 
     )
     db.add(db_receta)
     db.flush()
@@ -1843,7 +1778,6 @@ def create_receta(db: Session, empresa_id: int, receta: schemas.RecetaCreate):
         )
         db.add(db_item)
     
-    # Validar servicios de maquila
     for srv in receta.servicios:
         serv = get_producto(db, empresa_id, srv.servicio_id)
         if not serv:
@@ -1859,10 +1793,9 @@ def create_receta(db: Session, empresa_id: int, receta: schemas.RecetaCreate):
     return db_receta
 
 def delete_receta(db: Session, empresa_id: int, receta_id: int):
-    """✅ VALIDACIÓN POR EMPRESA"""
     db_receta = db.query(models.Receta).filter(
         models.Receta.id == receta_id,
-        models.Receta.empresa_id == empresa_id  # ✅
+        models.Receta.empresa_id == empresa_id 
     ).first()
     if db_receta:
         db.delete(db_receta)
@@ -1871,28 +1804,24 @@ def delete_receta(db: Session, empresa_id: int, receta_id: int):
     return False
 
 def get_lotes(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
-    """✅ FILTRADO POR EMPRESA"""
     return db.query(models.LoteProduccion).options(
         joinedload(models.LoteProduccion.receta).joinedload(models.Receta.producto_resultante),
         joinedload(models.LoteProduccion.cliente)
     ).filter(
-        models.LoteProduccion.empresa_id == empresa_id  # ✅
+        models.LoteProduccion.empresa_id == empresa_id 
     ).order_by(models.LoteProduccion.fecha_planificada.desc()).offset(skip).limit(limit).all()
 
 def get_lote(db: Session, empresa_id: int, lote_id: int):
-    """✅ FILTRADO POR EMPRESA"""
     return db.query(models.LoteProduccion).options(
         joinedload(models.LoteProduccion.receta).joinedload(models.Receta.producto_resultante),
         joinedload(models.LoteProduccion.receta).joinedload(models.Receta.items).joinedload(models.RecetaItem.insumo),
         joinedload(models.LoteProduccion.cliente)
     ).filter(
         models.LoteProduccion.id == lote_id,
-        models.LoteProduccion.empresa_id == empresa_id  # ✅
+        models.LoteProduccion.empresa_id == empresa_id 
     ).first()
 
 def create_lote(db: Session, empresa_id: int, lote: schemas.LoteProduccionCreate):
-    """✅ INYECCIÓN DE EMPRESA_ID + VALIDACIÓN CROSS-TENANT"""
-    # Validar que la receta pertenece a la empresa
     receta = get_receta(db, empresa_id, lote.receta_id)
     if not receta:
         raise ValueError("Receta no encontrada o no pertenece a esta empresa")
@@ -1903,7 +1832,6 @@ def create_lote(db: Session, empresa_id: int, lote: schemas.LoteProduccionCreate
         interno = get_or_create_cliente_interno(db, empresa_id)
         cliente_id = interno.id
     else:
-        # Validar que el cliente pertenece a la empresa
         cliente = get_cliente(db, empresa_id, cliente_id)
         if not cliente:
             raise ValueError("Cliente no encontrado o no pertenece a esta empresa")
@@ -1914,7 +1842,7 @@ def create_lote(db: Session, empresa_id: int, lote: schemas.LoteProduccionCreate
         cliente_id=cliente_id,
         observaciones=lote.observaciones,
         estado="En produccion",
-        empresa_id=empresa_id  # ✅
+        empresa_id=empresa_id 
     )
     db.add(db_lote)
     db.commit()
@@ -1922,10 +1850,9 @@ def create_lote(db: Session, empresa_id: int, lote: schemas.LoteProduccionCreate
     return db_lote
 
 def get_or_create_cliente_interno(db: Session, empresa_id: int) -> models.Cliente:
-    """✅ FILTRADO POR EMPRESA"""
     interno = db.query(models.Cliente).filter(
         models.Cliente.cedula == "INTERNO",
-        models.Cliente.empresa_id == empresa_id  # ✅
+        models.Cliente.empresa_id == empresa_id 
     ).first()
     if interno:
         return interno
@@ -1935,7 +1862,7 @@ def get_or_create_cliente_interno(db: Session, empresa_id: int) -> models.Client
         cedula="INTERNO",
         es_cliente=True,
         es_proveedor=False,
-        empresa_id=empresa_id  # ✅
+        empresa_id=empresa_id 
     )
     db.add(interno)
     db.commit()
@@ -1943,7 +1870,6 @@ def get_or_create_cliente_interno(db: Session, empresa_id: int) -> models.Client
     return interno
 
 def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confirm_data: schemas.LoteProduccionConfirm):
-    """✅ VALIDACIÓN POR EMPRESA"""
     db_lote = get_lote(db, empresa_id, lote_id)
     if not db_lote or db_lote.estado != "En produccion":
         raise ValueError("El lote no existe o ya ha sido procesado.")
@@ -1954,7 +1880,6 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
 
     costo_total_acumulado = 0.0
 
-    # Validar Stock e Iniciar Consumo (SALIDAS)
     for item in receta.items:
         insumo = get_producto(db, empresa_id, item.insumo_id)
         if not insumo:
@@ -1976,12 +1901,10 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
             referencia=f"Lote #{db_lote.id}",
             observacion=f"Consumo para {cantidad_teorica} de {receta.producto_resultante.nombre}"
         )
-        create_movement(db, empresa_id, mov_salida)  # ✅
+        create_movement(db, empresa_id, mov_salida) 
 
-    # Calcular Costo Unitario del Resultado
     costo_unitario_final = (costo_total_acumulado / cantidad_final) if cantidad_final > 0 else 0.0
 
-    # Registrar ENTRADA del Producto Resultante
     mov_entrada = schemas.InventoryMovementCreate(
         producto_id=receta.producto_id,
         tipo=schemas.MovementType.entrada,
@@ -1991,9 +1914,8 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
         referencia=f"Lote #{db_lote.id}",
         observacion=f"Entrada con mermas aplicadas. Costo unitario calculado: {costo_unitario_final:.2f}"
     )
-    create_movement(db, empresa_id, mov_entrada)  # ✅
+    create_movement(db, empresa_id, mov_entrada) 
 
-    # Finalizar Lote
     db_lote.estado = "Confirmado"
     db_lote.cantidad_real = cantidad_final
     db_lote.costo_total = costo_total_acumulado
@@ -2007,10 +1929,9 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
     return db_lote
 
 def cancelar_lote(db: Session, empresa_id: int, lote_id: int):
-    """✅ VALIDACIÓN POR EMPRESA"""
     db_lote = db.query(models.LoteProduccion).filter(
         models.LoteProduccion.id == lote_id,
-        models.LoteProduccion.empresa_id == empresa_id  # ✅
+        models.LoteProduccion.empresa_id == empresa_id 
     ).first()
     if db_lote and db_lote.estado == "En produccion":
         db_lote.estado = "Cancelado"
@@ -2023,32 +1944,28 @@ def cancelar_lote(db: Session, empresa_id: int, lote_id: int):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def get_compras(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
-    """✅ FILTRADO POR EMPRESA"""
     return db.query(models.Compra).options(
         joinedload(models.Compra.proveedor),
         joinedload(models.Compra.detalles).joinedload(models.DetalleCompra.producto),
         joinedload(models.Compra.pagos)
     ).filter(
-        models.Compra.empresa_id == empresa_id  # ✅
+        models.Compra.empresa_id == empresa_id 
     ).order_by(models.Compra.fecha.desc()).offset(skip).limit(limit).all()
 
 def get_compra(db: Session, empresa_id: int, compra_id: int):
-    """✅ FILTRADO POR EMPRESA"""
     return db.query(models.Compra).options(
         joinedload(models.Compra.proveedor),
         joinedload(models.Compra.detalles).joinedload(models.DetalleCompra.producto),
         joinedload(models.Compra.pagos)
     ).filter(
         models.Compra.id == compra_id,
-        models.Compra.empresa_id == empresa_id  # ✅
+        models.Compra.empresa_id == empresa_id 
     ).first()
 
 def create_compra(db: Session, empresa_id: int, compra: schemas.CompraCreate):
-    """✅ INYECCIÓN DE EMPRESA_ID + VALIDACIÓN CROSS-TENANT"""
-    # Validar que el proveedor pertenece a la empresa
     db_prov = db.query(models.Cliente).filter(
         models.Cliente.id == compra.proveedor_id,
-        models.Cliente.empresa_id == empresa_id  # ✅
+        models.Cliente.empresa_id == empresa_id 
     ).first()
     if not db_prov or not db_prov.es_proveedor:
         raise HTTPException(status_code=400, detail="Proveedor no válido o no pertenece a esta empresa.")
@@ -2070,13 +1987,12 @@ def create_compra(db: Session, empresa_id: int, compra: schemas.CompraCreate):
         referencia_factura=compra.referencia_factura,
         monto_pagado=total_bruto if compra.pagada else 0.0,
         estado_pago="pagado" if compra.pagada else "pendiente",
-        empresa_id=empresa_id  # ✅
+        empresa_id=empresa_id 
     )
     db.add(db_compra)
     db.flush()
 
     for item in compra.detalles:
-        # Validar que el producto pertenece a la empresa
         prod = get_producto(db, empresa_id, item.producto_id)
         if not prod:
             raise HTTPException(
@@ -2102,7 +2018,7 @@ def create_compra(db: Session, empresa_id: int, compra: schemas.CompraCreate):
             referencia=f"Compra #{db_compra.id}",
             observacion=f"Factura: {compra.referencia_factura or 'N/A'}"
         )
-        create_movement(db, empresa_id, payload_mov)  # ✅
+        create_movement(db, empresa_id, payload_mov) 
 
         db_prod = get_producto(db, empresa_id, item.producto_id)
         if db_prod:
@@ -2113,7 +2029,6 @@ def create_compra(db: Session, empresa_id: int, compra: schemas.CompraCreate):
     return db_compra
 
 def create_pago_compra(db: Session, empresa_id: int, pago: schemas.PagoCompraCreate):
-    """✅ VALIDACIÓN CROSS-TENANT"""
     db_compra = get_compra(db, empresa_id, pago.compra_id)
     if not db_compra:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
@@ -2137,183 +2052,19 @@ def create_pago_compra(db: Session, empresa_id: int, pago: schemas.PagoCompraCre
     return db_pago
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# DEVOLUCIONES
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def crear_devolucion(db: Session, empresa_id: int, data: schemas.DevolucionCreate) -> models.Devolucion:
-    """✅ VALIDACIÓN POR EMPRESA"""
-    venta = (
-        db.query(models.Venta)
-        .options(
-            joinedload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
-            joinedload(models.Venta.cliente),
-        )
-        .filter(
-            models.Venta.id == data.venta_id,
-            models.Venta.empresa_id == empresa_id  # ✅
-        )
-        .first()
-    )
-
-    if not venta:
-        raise HTTPException(status_code=404, detail="Venta no encontrada")
-
-    if not data.items:
-        raise HTTPException(status_code=400, detail="Debe incluir al menos un ítem a devolver.")
-
-    if not data.motivo or not data.motivo.strip():
-        raise HTTPException(status_code=400, detail="El motivo es obligatorio.")
-
-    total_dev = 0.0
-    for item in data.items:
-        if item.cantidad <= 0:
-            raise HTTPException(status_code=400, detail="La cantidad debe ser mayor a 0.")
-        if item.precio_unitario <= 0:
-            raise HTTPException(status_code=400, detail="El precio unitario debe ser mayor a 0.")
-
-        if item.detalle_id:
-            detalle = next((d for d in venta.detalles if d.id == item.detalle_id), None)
-            if detalle and item.cantidad > detalle.cantidad:
-                nombre = detalle.producto.nombre if detalle.producto else f"ID {item.producto_id}"
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"No puede devolver {item.cantidad} de '{nombre}'. Solo se vendieron {detalle.cantidad}."
-                )
-        total_dev += item.cantidad * item.precio_unitario
-
-    dev = models.Devolucion(
-        venta_id=venta.id,
-        motivo=data.motivo.strip(),
-        monto_total=total_dev,
-        tipo="parcial",
-        estado="confirmada",
-        empresa_id=empresa_id  # ✅
-    )
-    db.add(dev)
-    db.flush()
-
-    for item in data.items:
-        db_item = models.DevolucionItem(
-            devolucion_id=dev.id,
-            producto_id=item.producto_id,
-            detalle_id=item.detalle_id,
-            cantidad=item.cantidad,
-            precio_unitario=item.precio_unitario,
-        )
-        db.add(db_item)
-
-        # Reponer inventario
-        prod = get_producto(db, empresa_id, item.producto_id)
-        if prod and not prod.es_servicio:
-            prod.stock_actual = (prod.stock_actual or 0) + item.cantidad
-            db.add(prod)
-
-            mov = models.InventoryMovement(
-                producto_id=item.producto_id,
-                tipo="entrada",
-                cantidad=item.cantidad,
-                costo_unitario=prod.costo or 0.0,
-                motivo="devolucion",
-                referencia=f"Dev #{dev.id} / Venta #{data.venta_id}",
-                observacion=f"Devolución: {data.motivo[:80]}",
-                empresa_id=empresa_id  # ✅
-            )
-            db.add(mov)
-
-    # Ajustar la venta
-    if venta.estado_pago == "pagado":
-        venta.total = max(0.0, venta.total - total_dev)
-        venta.monto_pagado = max(0.0, venta.monto_pagado - total_dev)
-    else:
-        venta.total = max(0.0, venta.total - total_dev)
-
-    # Recalcular estado_pago
-    if venta.total <= 0:
-        venta.estado_pago = "pagado"
-        venta.monto_pagado = 0.0
-    elif venta.monto_pagado >= venta.total:
-        venta.estado_pago = "pagado"
-    elif venta.monto_pagado > 0:
-        venta.estado_pago = "parcial"
-    else:
-        venta.estado_pago = "pendiente"
-
-    db.add(venta)
-
-    # Notificar al admin
-    cliente_nombre = venta.cliente.nombre if venta.cliente else "desconocido"
-    admin_users = db.query(models.User).join(models.Role).filter(
-        models.Role.name == "Admin",
-        models.User.empresa_id == empresa_id  # ✅
-    ).all()
-    for admin in admin_users:
-        db.add(models.Notificacion(
-            usuario_id=admin.id,
-            empresa_id=empresa_id,  # ✅
-            mensaje=(
-                f"↩️ Devolución — Venta #{data.venta_id} · {cliente_nombre} · "
-                f"Nota crédito: ${total_dev:,.0f}"
-            ),
-            tipo="warning",
-            leido=False,
-        ))
-
-    db.commit()
-    db.refresh(dev)
-    return dev
-
-def get_devoluciones_by_venta(db: Session, empresa_id: int, venta_id: int) -> List[models.Devolucion]:
-    """✅ FILTRADO POR EMPRESA"""
-    return (
-        db.query(models.Devolucion)
-        .options(joinedload(models.Devolucion.items).joinedload(models.DevolucionItem.producto))
-        .filter(
-            models.Devolucion.venta_id == venta_id,
-            models.Devolucion.empresa_id == empresa_id  # ✅
-        )
-        .order_by(models.Devolucion.fecha.desc())
-        .all()
-    )
-
-def revertir_movimientos_venta(db: Session, empresa_id: int, venta: models.Venta):
-    """✅ INYECCIÓN DE EMPRESA_ID"""
-    for det in venta.detalles:
-        prod = get_producto(db, empresa_id, det.producto_id)
-        if not prod or prod.es_servicio:
-            continue
-        mov = models.InventoryMovement(
-            producto_id=det.producto_id,
-            tipo="entrada",
-            cantidad=det.cantidad,
-            costo_unitario=prod.costo or 0.0,
-            motivo="reversa_venta",
-            referencia=f"reversa venta #{venta.id}",
-            observacion=f"Venta #{venta.id} eliminada el {datetime.now(timezone.utc).date()}",
-            empresa_id=empresa_id  # ✅
-        )
-        db.add(mov)
-        prod.stock_actual = (prod.stock_actual or 0) + det.cantidad
-        db.add(prod)
-    db.commit()
-
-# ═══════════════════════════════════════════════════════════════════════════════
 # CAJA Y GASTOS
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def calcular_totales_dia(db: Session, empresa_id: int) -> dict:
-    """✅ FILTRADO POR EMPRESA"""
-    tz_col = timezone(timedelta(hours=-5))
-    ahora_col = datetime.now(tz_col)
-    inicio = ahora_col.replace(hour=0, minute=0, second=0, microsecond=0)
-    fin = ahora_col.replace(hour=23, minute=59, second=59)
-    inicio_utc = inicio.astimezone(timezone.utc)
-    fin_utc = fin.astimezone(timezone.utc)
+    # ✅ TIMEZONE FIX PARA CORTE DE CAJA DIARIO
+    hoy_colombia = datetime.now(BOGOTA_TZ).date()
+    inicio_utc, fin_utc = get_utc_boundaries(hoy_colombia)
 
     totales = {
         "efectivo": 0.0, "transferencia": 0.0, "tarjeta": 0.0, "otros": 0.0,
         "total_dia": 0.0, "total_gastos": 0.0, "ventas_contado": 0.0, "abonos_cartera": 0.0,
         "num_ventas": 0, "num_abonos": 0,
-        "fecha": ahora_col.date().isoformat(),
+        "fecha": hoy_colombia.isoformat(),
     }
 
     def _clasificar_ingreso(metodo: str, monto: float):
@@ -2328,12 +2079,11 @@ def calcular_totales_dia(db: Session, empresa_id: int) -> dict:
         else:
             totales["otros"] += monto
 
-    # Ventas al contado
     ventas_contado = (
         db.query(models.Venta)
         .options(joinedload(models.Venta.pagos))
         .filter(
-            models.Venta.empresa_id == empresa_id,  # ✅
+            models.Venta.empresa_id == empresa_id, 
             models.Venta.fecha >= inicio_utc,
             models.Venta.fecha <= fin_utc,
             models.Venta.estado_pago == "pagado",
@@ -2348,12 +2098,11 @@ def calcular_totales_dia(db: Session, empresa_id: int) -> dict:
             totales["ventas_contado"] += float(v.total or 0)
             totales["num_ventas"] += 1
 
-    # Abonos de cartera
     abonos_dia = (
         db.query(models.Pago)
         .join(models.Venta)
         .filter(
-            models.Venta.empresa_id == empresa_id,  # ✅
+            models.Venta.empresa_id == empresa_id, 
             models.Pago.fecha >= inicio_utc,
             models.Pago.fecha <= fin_utc
         )
@@ -2365,9 +2114,8 @@ def calcular_totales_dia(db: Session, empresa_id: int) -> dict:
         totales["abonos_cartera"] += float(p.monto or 0)
         totales["num_abonos"] += 1
 
-    # Gastos del día
     gastos_dia = db.query(models.Gasto).filter(
-        models.Gasto.empresa_id == empresa_id,  # ✅
+        models.Gasto.empresa_id == empresa_id, 
         models.Gasto.fecha >= inicio_utc,
         models.Gasto.fecha <= fin_utc
     ).all()
@@ -2389,7 +2137,6 @@ def calcular_totales_dia(db: Session, empresa_id: int) -> dict:
 
 def crear_corte_caja(db: Session, empresa_id: int, usuario_id: int, efectivo_fisico: float,
                      observaciones: Optional[str] = None) -> models.CorteCaja:
-    """✅ INYECCIÓN DE EMPRESA_ID"""
     totales = calcular_totales_dia(db, empresa_id)
     diferencia = efectivo_fisico - totales["efectivo"]
 
@@ -2405,7 +2152,7 @@ def crear_corte_caja(db: Session, empresa_id: int, usuario_id: int, efectivo_fis
         diferencia=diferencia,
         observaciones=observaciones,
         estado="cerrado",
-        empresa_id=empresa_id  # ✅
+        empresa_id=empresa_id 
     )
     db.add(corte)
     db.commit()
@@ -2414,14 +2161,14 @@ def crear_corte_caja(db: Session, empresa_id: int, usuario_id: int, efectivo_fis
     if abs(diferencia) > 1000:
         admin_users = db.query(models.User).join(models.Role).filter(
             models.Role.name.in_(["Admin", "Socio"]),
-            models.User.empresa_id == empresa_id  # ✅
+            models.User.empresa_id == empresa_id 
         ).all()
         tipo = "error" if diferencia < 0 else "warning"
         signo = "FALTANTE" if diferencia < 0 else "SOBRANTE"
         for admin in admin_users:
             db.add(models.Notificacion(
                 usuario_id=admin.id,
-                empresa_id=empresa_id,  # ✅
+                empresa_id=empresa_id, 
                 mensaje=f"💰 Corte de caja: {signo} de ${abs(diferencia):,.0f} COP detectado.",
                 tipo=tipo, leido=False
             ))
@@ -2430,17 +2177,14 @@ def crear_corte_caja(db: Session, empresa_id: int, usuario_id: int, efectivo_fis
     return corte
 
 def get_cortes_caja(db: Session, empresa_id: int, skip: int = 0, limit: int = 30) -> List[models.CorteCaja]:
-    """✅ FILTRADO POR EMPRESA"""
     return (
         db.query(models.CorteCaja)
-        .filter(models.CorteCaja.empresa_id == empresa_id)  # ✅
+        .filter(models.CorteCaja.empresa_id == empresa_id) 
         .order_by(models.CorteCaja.fecha.desc())
         .offset(skip).limit(limit).all()
     )
 
 def crear_gasto(db: Session, empresa_id: int, usuario_id: int, data: schemas.GastoCreate) -> models.Gasto:
-    """✅ INYECCIÓN DE EMPRESA_ID + VALIDACIÓN CROSS-TENANT"""
-    # Validar que el tercero pertenece a la empresa
     if data.tercero_id:
         tercero = get_cliente(db, empresa_id, data.tercero_id)
         if not tercero:
@@ -2452,7 +2196,7 @@ def crear_gasto(db: Session, empresa_id: int, usuario_id: int, data: schemas.Gas
         monto=data.monto,
         concepto=data.concepto,
         metodo_pago=data.metodo_pago,
-        empresa_id=empresa_id  # ✅
+        empresa_id=empresa_id 
     )
     db.add(db_gasto)
     db.commit()
@@ -2460,149 +2204,19 @@ def crear_gasto(db: Session, empresa_id: int, usuario_id: int, data: schemas.Gas
     return db_gasto
 
 def get_gastos(db: Session, empresa_id: int, skip: int = 0, limit: int = 100) -> List[models.Gasto]:
-    """✅ FILTRADO POR EMPRESA"""
     return (
         db.query(models.Gasto)
         .options(joinedload(models.Gasto.tercero))
-        .filter(models.Gasto.empresa_id == empresa_id)  # ✅
+        .filter(models.Gasto.empresa_id == empresa_id) 
         .order_by(models.Gasto.fecha.desc())
         .offset(skip).limit(limit).all()
     )
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# VALIDACIONES DE ELIMINACIÓN
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def check_can_delete_cliente(db: Session, empresa_id: int, cliente_id: int) -> list:
-    """✅ FILTRADO POR EMPRESA"""
-    bloqueos = []
-    ventas = db.query(models.Venta).filter(
-        models.Venta.cliente_id == cliente_id,
-        models.Venta.empresa_id == empresa_id  # ✅
-    ).count()
-    if ventas:
-        bloqueos.append(f"{ventas} venta{'s' if ventas > 1 else ''}")
-    
-    compras = db.query(models.Compra).filter(
-        models.Compra.proveedor_id == cliente_id,
-        models.Compra.empresa_id == empresa_id  # ✅
-    ).count()
-    if compras:
-        bloqueos.append(f"{compras} compra{'s' if compras > 1 else ''} como proveedor")
-    
-    ordenes = db.query(models.OrdenTrabajo).filter(
-        models.OrdenTrabajo.cliente_id == cliente_id,
-        models.OrdenTrabajo.empresa_id == empresa_id  # ✅
-    ).count()
-    if ordenes:
-        bloqueos.append(f"{ordenes} orden{'es' if ordenes > 1 else ''} de trabajo")
-    
-    lotes = db.query(models.LoteProduccion).filter(
-        models.LoteProduccion.cliente_id == cliente_id,
-        models.LoteProduccion.empresa_id == empresa_id  # ✅
-    ).count()
-    if lotes:
-        bloqueos.append(f"{lotes} lote{'s' if lotes > 1 else ''} de producción")
-    
-    return bloqueos
-
-def check_can_delete_producto(db: Session, empresa_id: int, producto_id: int) -> list:
-    """✅ FILTRADO POR EMPRESA - Productos pueden aparecer en ventas/compras de la misma empresa"""
-    bloqueos = []
-    
-    # Revisar detalles de venta (join para filtrar por empresa de la venta)
-    dv = db.query(models.DetalleVenta).join(models.Venta).filter(
-        models.DetalleVenta.producto_id == producto_id,
-        models.Venta.empresa_id == empresa_id  # ✅
-    ).count()
-    if dv:
-        bloqueos.append(f"usado en {dv} venta{'s' if dv > 1 else ''}")
-    
-    dc = db.query(models.DetalleCompra).join(models.Compra).filter(
-        models.DetalleCompra.producto_id == producto_id,
-        models.Compra.empresa_id == empresa_id  # ✅
-    ).count()
-    if dc:
-        bloqueos.append(f"usado en {dc} compra{'s' if dc > 1 else ''}")
-    
-    mov = db.query(models.InventoryMovement).filter(
-        models.InventoryMovement.producto_id == producto_id,
-        models.InventoryMovement.empresa_id == empresa_id  # ✅
-    ).count()
-    if mov:
-        bloqueos.append(f"tiene {mov} movimiento{'s' if mov > 1 else ''} de inventario")
-    
-    receta = db.query(models.Receta).filter(
-        models.Receta.producto_id == producto_id,
-        models.Receta.empresa_id == empresa_id  # ✅
-    ).first()
-    if receta:
-        bloqueos.append("tiene una receta de producción asociada")
-    
-    en_receta = db.query(models.RecetaItem).join(models.Receta).filter(
-        models.RecetaItem.insumo_id == producto_id,
-        models.Receta.empresa_id == empresa_id  # ✅
-    ).count()
-    if en_receta:
-        bloqueos.append(f"es insumo en {en_receta} receta{'s' if en_receta > 1 else ''}")
-    
-    op = db.query(models.OrdenProducto).join(models.OrdenTrabajo).filter(
-        models.OrdenProducto.producto_id == producto_id,
-        models.OrdenTrabajo.empresa_id == empresa_id  # ✅
-    ).count()
-    if op:
-        bloqueos.append(f"en {op} orden{'es' if op > 1 else ''} de trabajo")
-    
-    os_ = db.query(models.OrdenServicio).join(models.OrdenTrabajo).filter(
-        models.OrdenServicio.servicio_id == producto_id,
-        models.OrdenTrabajo.empresa_id == empresa_id  # ✅
-    ).count()
-    if os_:
-        bloqueos.append(f"como servicio en {os_} orden{'es' if os_ > 1 else ''}")
-    
-    return bloqueos
-
-def check_can_delete_venta(db: Session, empresa_id: int, venta_id: int) -> list:
-    """✅ FILTRADO POR EMPRESA"""
-    bloqueos = []
-    devs = db.query(models.Devolucion).filter(
-        models.Devolucion.venta_id == venta_id,
-        models.Devolucion.empresa_id == empresa_id  # ✅
-    ).count()
-    if devs:
-        bloqueos.append(f"tiene {devs} devolución{'es' if devs > 1 else ''} registrada{'s' if devs > 1 else ''}")
-    
-    orden = db.query(models.OrdenTrabajo).filter(
-        models.OrdenTrabajo.venta_id == venta_id,
-        models.OrdenTrabajo.empresa_id == empresa_id  # ✅
-    ).first()
-    if orden:
-        bloqueos.append(f"vinculada a la orden de trabajo #{orden.id}")
-    
-    return bloqueos
-
-def check_can_delete_receta(db: Session, empresa_id: int, receta_id: int) -> list:
-    """✅ FILTRADO POR EMPRESA"""
-    bloqueos = []
-    lotes = db.query(models.LoteProduccion).filter(
-        models.LoteProduccion.receta_id == receta_id,
-        models.LoteProduccion.empresa_id == empresa_id  # ✅
-    ).count()
-    if lotes:
-        bloqueos.append(f"tiene {lotes} lote{'s' if lotes > 1 else ''} de producción asociado{'s' if lotes > 1 else ''}")
-    
-    return bloqueos
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# CONTINUARÁ CON CARGAS MASIVAS EN LA SIGUIENTE RESPUESTA
-# ═══════════════════════════════════════════════════════════════════════════════
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CARGAS MASIVAS - CON AISLAMIENTO MULTI-TENANT
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def bulk_create_clientes(db: Session, empresa_id: int, file: IO, filename: str):
-    """✅ INYECCIÓN DE EMPRESA_ID + VALIDACIÓN DE DUPLICADOS POR EMPRESA"""
     try:
         file_extension = filename.split('.')[-1].lower()
         if file_extension == 'xls':
@@ -2622,16 +2236,14 @@ def bulk_create_clientes(db: Session, empresa_id: int, file: IO, filename: str):
     created_count = 0
     errors = []
 
-    # ✅ Guardar cédulas ya existentes EN ESTA EMPRESA
     existing_cedulas = {
         str(c.cedula)
         for c in db.query(models.Cliente).filter(
-            models.Cliente.empresa_id == empresa_id  # ✅
+            models.Cliente.empresa_id == empresa_id 
         ).all()
         if c.cedula is not None
     }
 
-    # Guardar cédulas vistas en este archivo
     seen_cedulas = set()
 
     for index, row in df.iterrows():
@@ -2642,12 +2254,10 @@ def bulk_create_clientes(db: Session, empresa_id: int, file: IO, filename: str):
                 errors.append(f"Row {index + 2}: Cliente sin cédula, no se puede registrar.")
                 continue
 
-            # ✅ Validar duplicados EN LA BASE DE DATOS DE ESTA EMPRESA
             if cedula in existing_cedulas:
                 errors.append(f"Row {index + 2}: Cliente con cédula {cedula} ya existe en la base de datos.")
                 continue
 
-            # Validar duplicados en el mismo archivo
             if cedula in seen_cedulas:
                 errors.append(f"Row {index + 2}: Cliente con cédula {cedula} duplicado en el archivo.")
                 continue
@@ -2663,7 +2273,7 @@ def bulk_create_clientes(db: Session, empresa_id: int, file: IO, filename: str):
                 es_cliente=bool(row.get('es_cliente', True)),
                 es_proveedor=bool(row.get('es_proveedor', False))
             )
-            create_cliente(db, empresa_id, cliente_data)  # ✅
+            create_cliente(db, empresa_id, cliente_data) 
             created_count += 1
 
         except Exception as e:
@@ -2678,7 +2288,6 @@ def bulk_create_clientes(db: Session, empresa_id: int, file: IO, filename: str):
     }
 
 def bulk_create_productos(db: Session, empresa_id: int, file: IO, filename: str):
-    """✅ INYECCIÓN DE EMPRESA_ID + VALIDACIÓN DE DUPLICADOS POR EMPRESA"""
     try:
         file_extension = filename.split('.')[-1].lower()
         if file_extension == 'xlsx':
@@ -2693,7 +2302,6 @@ def bulk_create_productos(db: Session, empresa_id: int, file: IO, filename: str)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error procesando archivo: {e}")
 
-    # Sanitización Global: Rellenar numéricos vacíos con 0
     numeric_cols = ['precio', 'costo', 'stock_minimo', 'grupo_item']
     for col in numeric_cols:
         if col in df.columns:
@@ -2705,11 +2313,10 @@ def bulk_create_productos(db: Session, empresa_id: int, file: IO, filename: str)
     def normalize_name(name: str) -> str:
         return "".join(str(name).lower().split())
 
-    # ✅ Obtener nombres existentes EN ESTA EMPRESA
     existing_names = {
         normalize_name(p.nombre) 
         for p in db.query(models.Producto).filter(
-            models.Producto.empresa_id == empresa_id  # ✅
+            models.Producto.empresa_id == empresa_id 
         ).all()
     }
     seen_names = set()
@@ -2720,7 +2327,7 @@ def bulk_create_productos(db: Session, empresa_id: int, file: IO, filename: str)
         if 'PT' in v or 'TERMINADO' in v or v == '2': return 2
         if 'AF' in v or 'ACTIVO' in v or v == '3': return 3
         if 'INS' in v or 'INSUMO' in v or v == '4': return 4
-        return 2  # Default PT
+        return 2 
 
     for index, row in df.iterrows():
         try:
@@ -2731,12 +2338,10 @@ def bulk_create_productos(db: Session, empresa_id: int, file: IO, filename: str)
 
             norm_name = normalize_name(raw_name)
             
-            # ✅ Validar duplicados EN LA BD DE ESTA EMPRESA
             if norm_name in existing_names:
                 errors.append(f"Fila {index + 2}: Producto '{raw_name}' ya existe.")
                 continue
             
-            # Validar duplicados en el archivo
             if norm_name in seen_names:
                 errors.append(f"Fila {index + 2}: Producto '{raw_name}' duplicado en el archivo.")
                 continue
@@ -2752,7 +2357,7 @@ def bulk_create_productos(db: Session, empresa_id: int, file: IO, filename: str)
                 stock_minimo=float(row.get('stock_minimo', 0.0)),
                 grupo_item=map_group(row.get('grupo_item', 'PT'))
             )
-            create_producto(db, empresa_id, producto_data)  # ✅
+            create_producto(db, empresa_id, producto_data) 
             created_count += 1
             
         except Exception as e:
@@ -2766,7 +2371,6 @@ def bulk_create_productos(db: Session, empresa_id: int, file: IO, filename: str)
     }
 
 def bulk_create_movimientos(db: Session, empresa_id: int, file: IO, filename: str):
-    """✅ INYECCIÓN DE EMPRESA_ID + VALIDACIÓN DE PRODUCTOS POR EMPRESA"""
     try:
         file_extension = filename.split('.')[-1].lower()
         if file_extension == 'xls':
@@ -2790,10 +2394,8 @@ def bulk_create_movimientos(db: Session, empresa_id: int, file: IO, filename: st
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error procesando archivo: {e}")
 
-    # Normalizar encabezados
     df.columns = [str(c).strip().lower().replace("\r", "").replace("\n", "") for c in df.columns]
 
-    # Alias de encabezados
     aliases = {
         "producto_id": ["producto_id", "id_producto"],
         "producto_nombre": ["producto_nombre", "producto_non", "nombre_producto"],
@@ -2812,7 +2414,6 @@ def bulk_create_movimientos(db: Session, empresa_id: int, file: IO, filename: st
                 col_map[expected] = opt
                 break
 
-    # Validar requeridas
     for col in ["tipo", "cantidad"]:
         if col not in col_map:
             raise HTTPException(
@@ -2829,9 +2430,8 @@ def bulk_create_movimientos(db: Session, empresa_id: int, file: IO, filename: st
     def safe_str(value):
         return "" if pd.isna(value) else str(value)
 
-    # ✅ Mapas de productos DE ESTA EMPRESA
     productos = db.query(models.Producto).filter(
-        models.Producto.empresa_id == empresa_id  # ✅
+        models.Producto.empresa_id == empresa_id 
     ).all()
     
     productos_by_id = {p.id: p for p in productos}
@@ -2842,7 +2442,6 @@ def bulk_create_movimientos(db: Session, empresa_id: int, file: IO, filename: st
             producto_id = None
             prod = None
 
-            # Opción 1: ID
             if "producto_id" in col_map and pd.notna(row.get(col_map["producto_id"])):
                 try:
                     producto_id = int(row[col_map["producto_id"]])
@@ -2850,7 +2449,6 @@ def bulk_create_movimientos(db: Session, empresa_id: int, file: IO, filename: st
                 except Exception:
                     pass
 
-            # Opción 2: Nombre
             if not prod and "producto_nombre" in col_map and pd.notna(row.get(col_map["producto_nombre"])):
                 norm_name = normalize_name(row[col_map["producto_nombre"]])
                 prod = productos_by_name.get(norm_name)
@@ -2865,19 +2463,16 @@ def bulk_create_movimientos(db: Session, empresa_id: int, file: IO, filename: st
                 )
                 continue
 
-            # Validar tipo
             tipo = str(row[col_map["tipo"]]).lower().strip()
             if tipo not in ["entrada", "salida", "ajuste"]:
                 errors.append(f"Fila {index+2}: Tipo '{tipo}' no es válido (use entrada, salida o ajuste).")
                 continue
 
-            # Validar cantidad
             cantidad = float(row[col_map["cantidad"]]) if pd.notna(row[col_map["cantidad"]]) else 0
             if tipo in ["entrada", "salida"] and cantidad <= 0:
                 errors.append(f"Fila {index+2}: Cantidad debe ser > 0 para entradas/salidas.")
                 continue
 
-            # Validar stock en salidas
             if tipo == "salida" and (prod.stock_actual or 0) < cantidad:
                 errors.append(
                     f"Fila {index+2}: Stock insuficiente para salida de {cantidad}. "
@@ -2885,7 +2480,6 @@ def bulk_create_movimientos(db: Session, empresa_id: int, file: IO, filename: st
                 )
                 continue
 
-            # Extras
             costo_unitario = (
                 float(row.get(col_map["costo_unitario"], 0.0))
                 if "costo_unitario" in col_map and pd.notna(row.get(col_map["costo_unitario"]))
@@ -2895,7 +2489,6 @@ def bulk_create_movimientos(db: Session, empresa_id: int, file: IO, filename: st
             referencia = safe_str(row.get(col_map.get("referencia")))
             observacion = safe_str(row.get(col_map.get("observacion")))
 
-            # ✅ Crear movimiento CON EMPRESA_ID
             payload = schemas.InventoryMovementCreate(
                 producto_id=producto_id,
                 tipo=tipo,
@@ -2905,7 +2498,7 @@ def bulk_create_movimientos(db: Session, empresa_id: int, file: IO, filename: st
                 referencia=referencia,
                 observacion=observacion
             )
-            create_movement(db, empresa_id, payload)  # ✅
+            create_movement(db, empresa_id, payload) 
             created_count += 1
 
         except Exception as e:
@@ -2920,9 +2513,8 @@ def bulk_create_movimientos(db: Session, empresa_id: int, file: IO, filename: st
     }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# FIN DE CRUD.PY REFACTORIZADO
+# SAAS SUPERADMIN - EMPRESAS
 # ═══════════════════════════════════════════════════════════════════════════════
-
 
 def create_empresa(db: Session, empresa: schemas.EmpresaBase):
     db_empresa = models.Empresa(**empresa.dict())
@@ -2930,21 +2522,6 @@ def create_empresa(db: Session, empresa: schemas.EmpresaBase):
     db.commit()
     db.refresh(db_empresa)
     return db_empresa
-
-def get_empresas(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Empresa).offset(skip).limit(limit).all()
-
-def update_empresa_status(db: Session, empresa_id: int, is_active: bool):
-    db_empresa = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
-    if db_empresa:
-        db_empresa.is_active = is_active
-        db.commit()
-        db.refresh(db_empresa)
-    return db_empresa
-
-
-
-    # ─── EMPRESAS ───
 
 def get_empresas(db: Session, skip: int = 0, limit: int = 100):
     """Obtiene todas las empresas registradas en el SaaS"""
@@ -2963,12 +2540,10 @@ def create_empresa_with_admin(db: Session, data: schemas.EmpresaWithAdminCreate)
     """
     Crea una nueva Empresa y automáticamente le crea su primer usuario Admin.
     """
-    # 1. Validar que el username no exista en TODO el sistema
     existing_user = db.query(models.User).filter(models.User.username == data.admin_username).first()
     if existing_user:
         raise ValueError(f"El nombre de usuario '{data.admin_username}' ya está en uso.")
 
-    # 2. Crear la Empresa
     db_empresa = models.Empresa(
         nombre=data.empresa.nombre,
         nit=data.empresa.nit,
@@ -2976,27 +2551,22 @@ def create_empresa_with_admin(db: Session, data: schemas.EmpresaWithAdminCreate)
         is_active=True
     )
     db.add(db_empresa)
-    db.flush() # Obtenemos el ID de la empresa sin hacer commit
+    db.flush() 
 
-    # 3. Buscar el Rol 'Admin'
     admin_role = db.query(models.Role).filter(models.Role.name == "Admin").first()
     if not admin_role:
         raise ValueError("El rol 'Admin' no existe en la base de datos.")
 
-    # 4. Crear el Usuario Administrador atado a la nueva empresa
-    from passlib.context import CryptContext
-    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     hashed_password = pwd_context.hash(data.admin_password)
 
     db_user = models.User(
         username=data.admin_username,
         hashed_password=hashed_password,
         role_id=admin_role.id,
-        empresa_id=db_empresa.id # ✅ INYECCIÓN MULTI-TENANT
+        empresa_id=db_empresa.id 
     )
     db.add(db_user)
 
-    # 5. Guardar todo
     db.commit()
     db.refresh(db_empresa)
     return db_empresa

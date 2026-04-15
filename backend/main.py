@@ -34,7 +34,7 @@ origins = [
     "http://127.0.0.1:3000",
     "https://appksmp.vercel.app",
     "https://ksmart360.vercel.app",
-    "https://app.appjeylor.com",
+    "https://www.appjeylor.com",
     "https://appjeylor.com",
     "https://api.appjeylor.com",
 ]
@@ -78,7 +78,7 @@ def initialize_default_data(db: Session):
     empresa_default = db.query(models.Empresa).first()
     if not empresa_default:
         empresa_default = models.Empresa(
-            nombre="Ksmart360 (Mi Fábrica)",
+            nombre="Vialmar Cacao (Mi Fábrica)",
             nit="900000000-1",
             color_primario="#F43F5E",
             is_active=True
