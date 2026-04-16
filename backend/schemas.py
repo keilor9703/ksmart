@@ -833,3 +833,18 @@ class PlanSuscripcionOut(PlanSuscripcionBase):
     id: int
     model_config = ConfigDict(from_attributes=True)
 
+
+
+
+class RegistroPagoOut(BaseModel):
+    id: int
+    monto: float
+    moneda: str
+    metodo_pago: str
+    bold_tx_id: str
+    email_pagador: str
+    fecha_pago: datetime
+    empresa_nombre: str
+    plan_nombre: str
+    model_config = ConfigDict(from_attributes=True)
+
