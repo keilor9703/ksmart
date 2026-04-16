@@ -41,8 +41,9 @@ import Caja from './components/Caja';
 import AdminUsuarios from './components/AdminUsuarios';
 import GestionEmpresas from './components/GestionEmpresas';
 
-// ✅ IMPORTAMOS LA NUEVA PANTALLA DE PAGO
+// ✅ IMPORTAMOS LAS PANTALLAS PÚBLICAS
 import SuscripcionExpirada from './components/SuscripcionExpirada';
+import Registro from './components/Registro'; // <-- Nueva importación
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 const SIDEBAR_FULL   = 240;
@@ -261,13 +262,10 @@ function App() {
           res.data.role.modules.map(m => m.frontend_path)
         ));
       } catch (error) {
-        // ✅ AQUÍ ESTÁ LA MAGIA DEL TRIAL
-        // Si el backend nos responde con 402, enviamos al usuario al muro de pago
         if (error.response && error.response.status === 402) {
           setIsAuthenticated(false);
           navigate('/suscripcion-expirada');
         } else {
-          // Si es cualquier otro error (ej. token inválido), lo deslogueamos normal
           handleLogout(false);
           toast.error('Sesión expirada. Por favor inicia sesión nuevamente.');
         }
@@ -381,7 +379,7 @@ function App() {
                   <Route path="/reportes-inventario" element={<InventoryReports />} />
                   <Route path="/reportes"            element={<Reportes />} />
                   <Route path="/ordenes-trabajo"     element={<OrdenesTrabajo user={user} />} />
-                  
+
                   {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (
                     <Route path="/superadmin/empresas" element={<GestionEmpresas />} />
                   )}
@@ -403,10 +401,11 @@ function App() {
             </Box>
           </>
         ) : (
-          // ✅ AQUÍ ESTÁN LAS RUTAS PÚBLICAS (Login y Pantalla de Pago)
+          // ✅ AQUÍ ESTÁN LAS RUTAS PÚBLICAS
           <Box sx={{ width: '100%', minHeight: '100vh' }}>
             <Routes>
               <Route path="/suscripcion-expirada" element={<SuscripcionExpirada />} />
+              <Route path="/registro" element={<Registro />} />
               <Route path="*" element={<Login onLogin={checkAuth} />} />
             </Routes>
           </Box>
