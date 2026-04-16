@@ -1642,27 +1642,53 @@ def generar_hash_bold(
         "api_key": BOLD_API_KEY
     }
 
-
-# ─── EL WEBHOOK DINÁMICO ───
+# ─── EL WEBHOOK DINÁMICO (BLINDADO CON SEGURIDAD CRIPTOGRÁFICA) ───
 @app.post("/webhooks/bold")
 async def webhook_pagos_bold(request: Request, db: Session = Depends(get_db)):
     try:
-        # 1. Capturamos el payload exactamente como lo envía Bold
+        # 1. Capturamos el Payload y los Headers Criptográficos
         payload = await request.json()
-        print("🔴 URGENTE - PAYLOAD BOLD RECIBIDO:", payload)
+        payload_str = await request.body() # Necesitamos el raw body para encriptar
+        headers = request.headers
+        
+        # 2. ESCUDO 1: VERIFICACIÓN DE FIRMA CRIPTOGRÁFICA
+        timestamp = headers.get("bold-timestamp")
+        signature_recibida = headers.get("bold-signature")
+        
+        # Si Bold no manda la firma, es un atacante escaneando tu API
+        if not timestamp or not signature_recibida:
+            logger.warning("🚨 INTRUSIÓN DETECTADA: Petición sin firma criptográfica.")
+            raise HTTPException(status_code=400, detail="Firma no proporcionada")
 
-        # 2. Extracción Defensiva basada en el log real
-        status = payload.get("type") 
+        # Generamos nuestro propio Hash para comparar
+        cadena_a_firmar = f"{payload_str.decode('utf-8')}{timestamp}{BOLD_SECRET_KEY}"
+        hash_calculado = hashlib.sha256(cadena_a_firmar.encode('utf-8')).hexdigest()
+
+        if hash_calculado != signature_recibida:
+            logger.error(f"💀 FRAUDE DETECTADO: Firma inválida. \nCalculada: {hash_calculado}\nRecibida: {signature_recibida}")
+            raise HTTPException(status_code=400, detail="Firma inválida")
+
+        print("✅ FIRMA VERIFICADA - EL PAGO VIENE REALMENTE DE BOLD")
+
+        # 3. Extracción Defensiva de Datos
+        status_type = payload.get("type") 
         data_node = payload.get("data", {})
         metadata_node = data_node.get("metadata", {})
         order_id = metadata_node.get("reference")
+        payment_id = data_node.get("payment_id") # ID Único de Bold
+        status_str = str(status_type).upper()
 
-        print(f"🔍 Evaluando -> Status detectado: {status} | Order ID detectado: {order_id}")
+        print(f"🔍 Evaluando -> Status: {status_str} | Order ID: {order_id} | Payment ID: {payment_id}")
 
-        status_str = str(status).upper()
-        
-        # 3. Validamos que sea un pago aprobado (SALE_APPROVED)
+        # 4. Procesamiento Lógico
         if "APPROVED" in status_str and order_id and str(order_id).startswith("KSMART-"):
+            
+            # ESCUDO 2: IDEMPOTENCIA (Prevenir doble activación)
+            pago_existente = db.query(models.RegistroPago).filter(models.RegistroPago.bold_tx_id == str(payment_id)).first()
+            if pago_existente:
+                print(f"♻️ PAGO DUPLICADO IGNORADO: El ID {payment_id} ya fue procesado antes.")
+                return {"status": "ok", "message": "Ya procesado"}
+
             partes = str(order_id).split("-")
             
             # KSMART - empresa_id - plan_id - timestamp
@@ -1680,27 +1706,26 @@ async def webhook_pagos_bold(request: Request, db: Session = Depends(get_db)):
                     empresa.is_active = True
                     
                     now_utc = datetime.now(timezone.utc)
+                    # Si aún tenía días de prueba, se los respetamos y le sumamos los del plan
                     base_date = empresa.trial_ends_at if empresa.trial_ends_at and empresa.trial_ends_at > now_utc else now_utc
                     empresa.trial_ends_at = base_date + timedelta(days=plan_comprado.dias_duracion)
                     
-                    # --- B. CREAR REGISTRO PARA TU HISTORIAL DE PAGOS ---
+                    # --- B. CREAR REGISTRO FINANCIERO ---
                     amount_node = data_node.get("amount", {})
-                    
                     nuevo_pago = models.RegistroPago(
                         empresa_id=empresa_id,
                         plan_id=plan_id,
                         monto=amount_node.get("total"),
                         moneda=amount_node.get("currency"),
                         metodo_pago=data_node.get("payment_method", "DESCONOCIDO"),
-                        bold_tx_id=data_node.get("payment_id", "SIN_ID"),
+                        bold_tx_id=str(payment_id),
                         email_pagador=data_node.get("payer_email", "SIN_EMAIL"),
-                        payload_auditoria=payload  # Se guarda todo el JSON original por seguridad
+                        payload_auditoria=payload  
                     )
                     db.add(nuevo_pago)
                     
-                    # Confirmar ambas transacciones en la base de datos
                     db.commit()
-                    print(f"✅ ÉXITO TOTAL: Pago registrado y Empresa {empresa_id} activada por {plan_comprado.dias_duracion} días.")
+                    print(f"✅ ÉXITO TOTAL: Empresa {empresa_id} activada por {plan_comprado.dias_duracion} días. (TX: {payment_id})")
                 else:
                     print(f"❌ ERROR DB: Empresa {empresa_id} o Plan {plan_id} no encontrados.")
             else:
@@ -1712,8 +1737,9 @@ async def webhook_pagos_bold(request: Request, db: Session = Depends(get_db)):
 
     except Exception as e:
         print(f"❌ ERROR FATAL EN WEBHOOK: {e}")
-        # Retornamos 200 para que Bold no nos marque como caídos y bloquee la integración
-        return {"status": "error_interno"}
+        # Retornamos 200 intencionalmente para que Bold no nos marque como caídos y bloquee la integración
+        return Response(status_code=status.HTTP_200_OK)
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # ESTÁTICOS
 # ═══════════════════════════════════════════════════════════════════════════════
