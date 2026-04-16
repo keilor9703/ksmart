@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from datetime import datetime, timezone
 import enum
+from sqlalchemy import JSON 
 
 Base = declarative_base()
 
@@ -421,3 +422,29 @@ class PlanSuscripcion(Base):
     dias_duracion = Column(Integer, nullable=False)      # Ej: 30, 365, etc.
     caracteristicas = Column(String, nullable=True)     # Texto largo: "Ventas ilimitadas, Soporte, etc."
     is_active = Column(Boolean, default=True)
+
+
+
+
+
+
+
+class RegistroPago(Base):
+    __tablename__ = "registros_pagos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"))
+    plan_id = Column(Integer, ForeignKey("planes_suscripcion.id"))
+    monto = Column(Float)
+    moneda = Column(String)
+    metodo_pago = Column(String) # Ej: NEQUI, CARD, PSE
+    bold_tx_id = Column(String)  # El ID que nos dio Bold (payment_id)
+    email_pagador = Column(String)
+    fecha_pago = Column(DateTime(timezone=True), server_default=func.now())
+    # 💡 Nivel Senior: Guardamos el JSON completo de Bold por si necesitamos auditar algo después
+    payload_auditoria = Column(JSON) 
+
+    # Relaciones
+    empresa = relationship("Empresa")
+    plan = relationship("PlanSuscripcion")
+
