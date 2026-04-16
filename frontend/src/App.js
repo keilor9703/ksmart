@@ -4,7 +4,7 @@ import {
   Box, Typography, IconButton, List, ListItemButton,
   ListItemText, ListItemIcon, Collapse, CircularProgress, Divider,
   Drawer, Tooltip, CssBaseline, GlobalStyles, Menu, MenuItem,
-  Avatar
+  Avatar, Button // 👈 AÑADIDO: Faltaba importar Button
 } from '@mui/material';
 import {
   ShoppingCart, People, Inventory, Assessment, AdminPanelSettings,
@@ -43,7 +43,7 @@ import GestionEmpresas from './components/GestionEmpresas';
 
 // ✅ IMPORTAMOS LAS PANTALLAS PÚBLICAS
 import SuscripcionExpirada from './components/SuscripcionExpirada';
-import Registro from './components/Registro'; // <-- Nueva importación
+import Registro from './components/Registro'; 
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 const SIDEBAR_FULL   = 240;
@@ -182,6 +182,16 @@ const TopBar = ({ sidebarExpanded, isMobile, onMobileMenuOpen, mode, onThemeTogg
   const location = useLocation();
   const currentPage = [...menuItems, ...adminMenuItems, { path: '/superadmin/empresas', text: 'Clientes SaaS' }].find(i => location.pathname === i.path || location.pathname.startsWith(i.path + '/'))?.text || 'Inicio';
 
+  // 👈 LÓGICA INYECTADA: Detectar si estamos suplantando identidad
+  let isImpersonated = false;
+  try {
+    const token = localStorage.getItem('token');
+    if (token) {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      isImpersonated = payload.is_impersonated === true;
+    }
+  } catch (e) { }
+
   return (
     <Box component="header" sx={{ position: 'fixed', top: 0, right: 0, zIndex: 1100, left: isMobile ? 0 : (sidebarExpanded ? SIDEBAR_FULL : SIDEBAR_MINI), height: 60, display: 'flex', alignItems: 'center', px: { xs: 2, md: 3 }, backgroundColor: mode === 'dark' ? '#0d1117' : '#fff', borderBottom: `1px solid ${mode === 'dark' ? 'rgba(255,255,255,0.06)' : '#E5E7EB'}`, gap: 2, transition: 'left 0.25s ease' }}>
       {isMobile && (
@@ -191,6 +201,29 @@ const TopBar = ({ sidebarExpanded, isMobile, onMobileMenuOpen, mode, onThemeTogg
         <Typography sx={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 16, color: mode === 'dark' ? '#f1f5f9' : '#111827' }}>{currentPage}</Typography>
       </Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        
+        {/* 👈 LÓGICA INYECTADA: Botón rojo para salir del soporte */}
+        {isImpersonated && (
+          <Button 
+            variant="contained" 
+            color="error" 
+            size="small"
+            onClick={() => {
+              localStorage.removeItem('token');
+              localStorage.removeItem('userModules');
+              window.location.href = '/login';
+            }}
+            sx={{ 
+              mr: { xs: 0, md: 2 }, 
+              fontWeight: 800, 
+              animation: 'pulse 2s infinite',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {isMobile ? 'SALIR' : 'FINALIZAR SOPORTE'}
+          </Button>
+        )}
+
         <Tooltip title={mode === 'dark' ? 'Modo claro' : 'Modo oscuro'}>
           <IconButton onClick={onThemeToggle} size="small" sx={{ color: mode === 'dark' ? '#94a3b8' : '#6B7280' }}>
             {mode === 'dark' ? <LightMode fontSize="small" /> : <DarkMode fontSize="small" />}
@@ -308,6 +341,12 @@ function App() {
           },
           '#root': { width: '100%', minHeight: '100vh', display: 'flex', flexDirection: 'column' },
           '*': { boxSizing: 'border-box' },
+          // 👈 LÓGICA INYECTADA: Animación para el botón de emergencia
+          '@keyframes pulse': {
+            '0%': { boxShadow: '0 0 0 0 rgba(239, 68, 68, 0.7)' },
+            '70%': { boxShadow: '0 0 0 8px rgba(239, 68, 68, 0)' },
+            '100%': { boxShadow: '0 0 0 0 rgba(239, 68, 68, 0)' }
+          }
         })}
       />
 

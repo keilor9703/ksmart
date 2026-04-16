@@ -248,7 +248,7 @@ class DevolucionOut(BaseModel):
     venta_id: int
     motivo: str
     monto_total: float = 0.0
-    fecha: date
+    fecha: datetime
     tipo: str = "parcial"
     estado: str = "confirmada"
     items: List[DevolucionItemOut] = []
@@ -266,7 +266,7 @@ class EvidenciaCreate(EvidenciaBase):
 class Evidencia(EvidenciaBase):
     id: int
     orden_id: int
-    uploaded_at: date
+    uploaded_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
 class OrdenProductoBase(BaseModel):
@@ -401,7 +401,7 @@ class PanelProductividad(BaseModel):
 class PanelHistorialItem(BaseModel):
     id: int
     cliente_nombre: str
-    fecha_actualizacion: date
+    fecha_actualizacion: datetime
     total: float
     estado_pago_venta: str
     model_config = ConfigDict(from_attributes=True)
@@ -426,7 +426,8 @@ class DetalleCompra(DetalleCompraBase):
 class CompraBase(BaseModel):
     proveedor_id: int
     referencia_factura: Optional[str] = None
-    fecha: Optional[date] = None
+    # fecha: Optional[date] = None
+    fecha: datetime
 
 class CompraCreate(BaseModel):
     proveedor_id: int
@@ -498,7 +499,7 @@ class RecetaCreate(RecetaBase):
 
 class Receta(RecetaBase):
     id: int
-    created_at: date
+    created_at: datetime
     items: List[RecetaItem]
     servicios_maquila: List[RecetaServicio] = []
     producto_resultante: Producto
@@ -527,7 +528,7 @@ class LoteProduccion(LoteProduccionBase):
     cantidad_real: Optional[float] = None
     costo_total: float
     costo_unitario_resultado: float
-    fecha_planificada: date
+    fecha_planificada: datetime
     fecha_confirmacion: Optional[date] = None
     estado: str
     receta: Receta
@@ -567,7 +568,7 @@ class CorteCajaCreate(BaseModel):
 class CorteCajaOut(BaseModel):
     id: int
     usuario_id: int
-    fecha: date
+    fecha: datetime
     total_efectivo_ventas: float
     total_transferencia_ventas: float
     total_tarjeta_ventas: float
@@ -633,7 +634,7 @@ class ProductoRotacionItem(BaseModel):
     total_ingresos: float
 
 class ReporteRotacion(BaseModel):
-    tart_date: Optional[date] = None
+    start_date: Optional[date] = None
     end_date: Optional[date] = None
     top: List[ProductoRotacionItem]
     slow: List[ProductoRotacionItem]
@@ -732,7 +733,7 @@ class Notificacion(BaseModel):
     mensaje: str
     leido: bool
     tipo: str = "info"
-    fecha_creacion: date
+    fecha_creacion: datetime
     orden_id: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 

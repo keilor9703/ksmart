@@ -84,6 +84,9 @@ export const uploadFile = async (uploadType, file) => {
     }
 };
 
+
+export const impersonateCompany = (id) => apiClient.post(`/superadmin/impersonate/${id}`);
+
 export const fetchMovements = (params = {}) =>
   apiClient.get('/inventario/movimientos', { params });
 

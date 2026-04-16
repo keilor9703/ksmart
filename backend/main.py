@@ -406,6 +406,40 @@ def listar_historial_pagos(db: Session = Depends(get_db)):
 
 
 
+# Asegúrate de importar create_access_token de tu archivo de seguridad
+# from auth import create_access_token (o como lo tengas importado)
+
+# Asegúrate de importar create_access_token
+# from auth import create_access_token 
+@superadmin_router.post("/impersonate/{empresa_id}")
+def impersonate_company(
+    empresa_id: int, 
+    db: Session = Depends(get_db), 
+    current_admin: schemas.User = Depends(get_current_superadmin_user)
+):
+    # 1. Buscamos al usuario dueño de esa empresa
+    target_user = db.query(models.User).filter(
+        models.User.empresa_id == empresa_id
+    ).first()
+
+    if not target_user:
+        raise HTTPException(status_code=404, detail="No se encontró un usuario para esta empresa.")
+
+    # 2. Creamos un Token especial que dice "is_impersonated: True"
+    access_token = create_access_token(
+        data={
+            "sub": target_user.username,
+            "empresa_id": target_user.empresa_id,
+            # 👇 CORRECCIÓN: Usamos .name para sacar el texto, no el objeto de BD
+            "role": target_user.role.name if target_user.role else "Admin", 
+            "is_impersonated": True 
+        }
+    )
+
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+
 app.include_router(superadmin_router)
 
 # ═══════════════════════════════════════════════════════════════════════════════
