@@ -804,3 +804,32 @@ class BoldHashResponse(BaseModel):
     currency: str
     hash_integridad: str
     api_key: str
+
+
+
+
+
+# --- Añadir al final de schemas.py ---
+
+class PlanSuscripcionBase(BaseModel):
+    nombre: str
+    codigo_interno: str
+    precio: float
+    dias_duracion: int
+    caracteristicas: Optional[str] = None
+    is_active: bool = True
+
+class PlanSuscripcionCreate(PlanSuscripcionBase):
+    pass
+
+class PlanSuscripcionUpdate(BaseModel):
+    nombre: Optional[str] = None
+    precio: Optional[float] = None
+    dias_duracion: Optional[int] = None
+    caracteristicas: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class PlanSuscripcionOut(PlanSuscripcionBase):
+    id: int
+    model_config = ConfigDict(from_attributes=True)
+
