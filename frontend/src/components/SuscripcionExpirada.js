@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Box, Typography, Button, Paper, CircularProgress, Container, Fade } from '@mui/material';
+import { Box, Typography, Button, Paper, CircularProgress, Container, Fade, Grid } from '@mui/material';
 import { WorkspacePremium, CheckCircle, Lock, Autorenew } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
@@ -7,17 +7,21 @@ import apiClient from '../api';
 
 const ACCENT = '#FF6020';
 
+const formatCurrency = (val) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(val);
+
 export default function SuscripcionExpirada() {
   const [loadingPayment, setLoadingPayment] = useState(false);
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const [isWaitingPayment, setIsWaitingPayment] = useState(false);
-  const navigate = useNavigate();
+  const [planes, setPlanes] = useState([]); // 👈 Estado para guardar los planes reales
+  const [loadingPlanes, setLoadingPlanes] = useState(true);
   
-  // Usamos una referencia para el intervalo para poder limpiarlo fácilmente
+  const navigate = useNavigate();
   const pollingRef = useRef(null);
 
-  // 1. Inyectar el Script de Bold
+  // 1. Cargar Script de Bold y Planes Activos
   useEffect(() => {
+    // Cargar Script
     const initBoldCheckout = () => {
       if (document.querySelector('script[src="https://checkout.bold.co/library/boldPaymentButton.js"]')) {
         setScriptLoaded(true);
@@ -31,11 +35,23 @@ export default function SuscripcionExpirada() {
     };
     initBoldCheckout();
 
-    // Limpieza al desmontar el componente
+    // Traer Planes desde la BD
+    const fetchPlanes = async () => {
+      try {
+        const { data } = await apiClient.get('/planes-activos');
+        setPlanes(data);
+      } catch (error) {
+        toast.error("Error al cargar los planes disponibles.");
+      } finally {
+        setLoadingPlanes(false);
+      }
+    };
+    fetchPlanes();
+
     return () => stopPolling();
   }, []);
 
-  // 2. Función para dejar de preguntar al servidor
+  // 2. Funciones de Sondeo (Polling)
   const stopPolling = () => {
     if (pollingRef.current) {
       clearInterval(pollingRef.current);
@@ -43,45 +59,31 @@ export default function SuscripcionExpirada() {
     }
   };
 
-  // 3. Función de Sondeo (Polling)
   const startPollingStatus = () => {
     setIsWaitingPayment(true);
-    
-    // Si ya hay un intervalo corriendo, lo limpiamos para no duplicar
     stopPolling();
-
     pollingRef.current = setInterval(async () => {
       try {
-        // Consultamos el perfil del usuario
-        // Si el backend devuelve 200 (en lugar de 402), es porque ya está activo
         const res = await apiClient.get('/users/me');
-        
         if (res.status === 200 && res.data.empresa.plan_type === 'premium') {
           stopPolling();
           toast.success('¡Pago verificado con éxito! Bienvenido al plan Premium.');
-          
-          // Damos un segundo de gracia para que el usuario vea el éxito y redirigimos
-          setTimeout(() => {
-            window.location.href = '/'; // Forzamos recarga limpia al dashboard
-          }, 1500);
+          setTimeout(() => { window.location.href = '/'; }, 1500);
         }
-      } catch (error) {
-        // Mientras siga devolviendo 402, simplemente ignoramos el error y seguimos esperando
-        console.log("Esperando confirmación de pago...");
-      }
-    }, 4000); // Preguntamos cada 4 segundos
+      } catch (error) { console.log("Esperando pago..."); }
+    }, 4000);
   };
 
-  // 4. Manejador de Pago
-  const handlePaymentClick = async (planName) => {
+  // 3. Manejador de Pago Dinámico
+  const handlePaymentClick = async (planCodigo) => {
     if (!scriptLoaded || !window.BoldCheckout) {
       toast.warning('La pasarela aún está cargando...');
       return;
     }
-
     setLoadingPayment(true);
     try {
-      const { data } = await apiClient.post('/pagos/generar-hash', { plan_name: planName });
+      // 👈 Enviamos el código del plan que el usuario eligió
+      const { data } = await apiClient.post('/pagos/generar-hash', { plan_name: planCodigo });
 
       const checkout = new window.BoldCheckout({
         orderId: data.order_id,
@@ -89,19 +91,16 @@ export default function SuscripcionExpirada() {
         amount: data.amount,
         apiKey: data.api_key,
         integritySignature: data.hash_integridad,
-        description: `Suscripción Ksmart360 - PREMIUM`,
+        description: `Suscripción Ksmart360 - ${planCodigo.toUpperCase()}`,
         redirectionUrl: `${window.location.origin}/`,
         renderMode: 'embedded'
       });
 
       checkout.open();
-      
-      // 🚀 ¡AQUÍ EMPIEZA LA MAGIA!
-      // Una vez abierta la pasarela, empezamos a vigilar el backend
       startPollingStatus();
 
     } catch (error) {
-      toast.error('Error al iniciar el proceso de pago.');
+      toast.error(error.response?.data?.detail || 'Error al procesar el pago.');
     } finally {
       setLoadingPayment(false);
     }
@@ -118,7 +117,7 @@ export default function SuscripcionExpirada() {
       minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', 
       background: 'linear-gradient(160deg, #0f172a 0%, #020617 100%)', p: 2 
     }}>
-      <Container maxWidth="sm">
+      <Container maxWidth="md"> {/* 👈 Más ancho para acomodar varios planes */}
         <Paper sx={{ 
           p: { xs: 3, md: 5 }, borderRadius: 4, textAlign: 'center',
           background: 'rgba(30, 41, 59, 0.7)', backdropFilter: 'blur(16px)',
@@ -126,7 +125,6 @@ export default function SuscripcionExpirada() {
           position: 'relative', overflow: 'hidden'
         }}>
           
-          {/* Overlay de espera de pago */}
           <Fade in={isWaitingPayment}>
             <Box sx={{ 
               position: 'absolute', inset: 0, bgcolor: 'rgba(15, 23, 42, 0.9)', 
@@ -136,59 +134,62 @@ export default function SuscripcionExpirada() {
               <Autorenew sx={{ fontSize: 60, color: ACCENT, mb: 2, animation: 'spin 2s linear infinite' }} />
               <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
               <Typography variant="h5" sx={{ fontWeight: 800, mb: 1 }}>Procesando tu pago...</Typography>
-              <Typography sx={{ color: '#94a3b8', mb: 4 }}>
-                No cierres esta ventana. Estamos esperando la confirmación de tu banco.
-              </Typography>
-              <Button onClick={() => setIsWaitingPayment(false)} sx={{ color: '#94a3b8' }}>
-                Regresar a las opciones
-              </Button>
+              <Typography sx={{ color: '#94a3b8', mb: 4 }}>No cierres esta ventana. Estamos esperando la confirmación de Bold.</Typography>
+              <Button onClick={() => setIsWaitingPayment(false)} sx={{ color: '#94a3b8' }}>Regresar a los planes</Button>
             </Box>
           </Fade>
 
-          <Box sx={{ 
-            width: 72, height: 72, borderRadius: '50%', bgcolor: 'rgba(245, 158, 11, 0.1)', 
-            color: '#F59E0B', display: 'flex', alignItems: 'center', justifyContent: 'center', 
-            mx: 'auto', mb: 3 
-          }}>
+          <Box sx={{ width: 72, height: 72, borderRadius: '50%', bgcolor: 'rgba(245, 158, 11, 0.1)', color: '#F59E0B', display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 3 }}>
             <WorkspacePremium sx={{ fontSize: 40 }} />
           </Box>
           
-          <Typography variant="h4" sx={{ fontWeight: 800, mb: 1, letterSpacing: -0.5 }}>
-            Tu periodo de prueba finalizó
-          </Typography>
-          <Typography sx={{ color: '#94a3b8', fontSize: 15, mb: 4 }}>
-            Activa tu plan Premium para continuar gestionando tu negocio.
-          </Typography>
+          <Typography variant="h4" sx={{ fontWeight: 800, mb: 1, letterSpacing: -0.5 }}>Tu periodo de prueba finalizó</Typography>
+          <Typography sx={{ color: '#94a3b8', fontSize: 15, mb: 5 }}>Elige el plan que mejor se adapte a tu negocio para continuar.</Typography>
 
-          <Box sx={{ p: 3, borderRadius: 3, bgcolor: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.05)', mb: 4 }}>
-            <Typography sx={{ fontSize: 13, color: '#94a3b8', textTransform: 'uppercase', mb: 1 }}>Plan Mensual</Typography>
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'baseline', mb: 2 }}>
-              <Typography sx={{ fontSize: 24, fontWeight: 600, color: '#94a3b8', mr: 0.5 }}>$</Typography>
-              <Typography sx={{ fontSize: 48, fontWeight: 800 }}>95.000</Typography>
-              <Typography sx={{ fontSize: 16, color: '#94a3b8', ml: 1 }}>/ mes</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, textAlign: 'left', maxWidth: 220, mx: 'auto' }}>
-              {['Ventas e Inventario Ilimitado', 'Múltiples Usuarios', 'Soporte Prioritario'].map((f, i) => (
-                <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                  <CheckCircle sx={{ color: '#22c55e', fontSize: 16 }} />
-                  <Typography sx={{ fontSize: 13, color: '#cbd5e1' }}>{f}</Typography>
-                </Box>
+          {/* ── RENDERIZADO DINÁMICO DE PLANES ── */}
+          {loadingPlanes ? (
+            <CircularProgress sx={{ color: ACCENT, my: 4 }} />
+          ) : planes.length === 0 ? (
+            <Typography sx={{ my: 4, color: '#fca5a5' }}>En este momento no hay planes disponibles. Contacta a soporte.</Typography>
+          ) : (
+            <Grid container spacing={3} justifyContent="center" sx={{ mb: 4 }}>
+              {planes.map((plan) => (
+                <Grid item xs={12} sm={6} md={planes.length === 1 ? 8 : 6} key={plan.id}>
+                  <Box sx={{ p: 3, borderRadius: 3, bgcolor: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.05)', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    <Typography sx={{ fontSize: 13, color: '#94a3b8', textTransform: 'uppercase', mb: 1, fontWeight: 700 }}>
+                      {plan.nombre}
+                    </Typography>
+                    
+                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'baseline', mb: 2 }}>
+                      <Typography sx={{ fontSize: 36, fontWeight: 800 }}>{formatCurrency(plan.precio)}</Typography>
+                      <Typography sx={{ fontSize: 14, color: '#94a3b8', ml: 1 }}>/ {plan.dias_duracion} días</Typography>
+                    </Box>
+
+                    {/* Pintamos las características separadas por coma */}
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, textAlign: 'left', mb: 3, flexGrow: 1 }}>
+                      {plan.caracteristicas ? plan.caracteristicas.split(',').map((feat, i) => (
+                        <Box key={i} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+                          <CheckCircle sx={{ color: '#22c55e', fontSize: 18, mt: 0.2 }} />
+                          <Typography sx={{ fontSize: 13, color: '#cbd5e1' }}>{feat.trim()}</Typography>
+                        </Box>
+                      )) : (
+                        <Typography sx={{ fontSize: 13, color: '#64748b', textAlign: 'center' }}>Acceso total a la plataforma</Typography>
+                      )}
+                    </Box>
+
+                    <Button
+                      fullWidth variant="contained" size="large"
+                      disabled={loadingPayment || !scriptLoaded}
+                      onClick={() => handlePaymentClick(plan.codigo_interno)} // 👈 Dinámico
+                      sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700, borderRadius: 2 }}
+                    >
+                      {loadingPayment ? <CircularProgress size={24} color="inherit" /> : 'Seleccionar Plan'}
+                    </Button>
+                  </Box>
+                </Grid>
               ))}
-            </Box>
-          </Box>
-
-          <Button
-            fullWidth variant="contained" size="large"
-            disabled={loadingPayment || !scriptLoaded}
-            onClick={() => handlePaymentClick('premium_mensual')}
-            sx={{ 
-              bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, 
-              fontWeight: 700, py: 1.8, borderRadius: 3, fontSize: 16, mb: 3,
-              boxShadow: '0 8px 24px rgba(255, 96, 32, 0.3)'
-            }}
-          >
-            {loadingPayment ? <CircularProgress size={26} color="inherit" /> : 'Pagar Suscripción'}
-          </Button>
+            </Grid>
+          )}
 
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, color: '#64748b', mb: 3 }}>
             <Lock sx={{ fontSize: 14 }} />
