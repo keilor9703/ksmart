@@ -37,7 +37,7 @@ const EmpresaCard = ({ empresa, onToggleStatus, onOpenPlan, onImpersonate }) => 
   const dias = calcularDiasRestantes(empresa.trial_ends_at);
   
   return (
-    <Paper sx={{ p: 2.5, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+    <Paper sx={{ p: { xs: 2, sm: 2.5 }, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
         <Box>
           <Typography sx={{ fontWeight: 700, fontSize: 15 }}>{empresa.nombre}</Typography>
@@ -50,7 +50,7 @@ const EmpresaCard = ({ empresa, onToggleStatus, onOpenPlan, onImpersonate }) => 
 
       <Grid container spacing={1} sx={{ mb: 1.5 }}>
         <Grid item xs={6}>
-          <Box sx={{ textAlign: 'center', p: 1, borderRadius: 2, bgcolor: 'action.hover' }}>
+          <Box sx={{ textAlign: 'center', p: 1, borderRadius: 2, bgcolor: 'action.hover', height: '100%' }}>
             <Typography sx={{ fontSize: 10, color: 'text.secondary', mb: 0.2 }}>Suscripción</Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
               {empresa.plan_type === 'premium' ? <WorkspacePremium sx={{ fontSize: 14, color: '#F59E0B' }} /> : <AccessTime sx={{ fontSize: 14, color: '#3B82F6' }} />}
@@ -59,7 +59,7 @@ const EmpresaCard = ({ empresa, onToggleStatus, onOpenPlan, onImpersonate }) => 
           </Box>
         </Grid>
         <Grid item xs={6}>
-          <Box sx={{ textAlign: 'center', p: 1, borderRadius: 2, bgcolor: 'action.hover' }}>
+          <Box sx={{ textAlign: 'center', p: 1, borderRadius: 2, bgcolor: 'action.hover', height: '100%' }}>
             <Typography sx={{ fontSize: 10, color: 'text.secondary', mb: 0.2 }}>Vencimiento</Typography>
             <Typography sx={{ fontSize: 13, fontWeight: 700, color: dias > 0 ? '#10B981' : '#EF4444' }}>{dias > 0 ? `En ${dias} días` : 'Expirado'}</Typography>
           </Box>
@@ -69,11 +69,9 @@ const EmpresaCard = ({ empresa, onToggleStatus, onOpenPlan, onImpersonate }) => 
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
         <Button size="small" variant="outlined" disabled={empresa.id === 1} onClick={() => onOpenPlan(empresa)} startIcon={<CardMembership />} sx={{ borderRadius: 2, color: '#8B5CF6', borderColor: '#8B5CF6', flex: 1 }}>Plan</Button>
         <Tooltip title={empresa.is_active ? "Suspender acceso" : "Reactivar acceso"}>
-          {/* ✅ CORREGIDO: empresa.id */}
           <span><IconButton size="small" disabled={empresa.id === 1} onClick={() => onToggleStatus(empresa.id, empresa.is_active)} sx={{ color: empresa.is_active ? '#EF4444' : '#10B981', bgcolor: empresa.is_active ? '#FEF2F2' : '#F0FDF4', borderRadius: 1.5, width: 40, height: 40 }}>{empresa.is_active ? <Block fontSize="small" /> : <CheckCircle fontSize="small" />}</IconButton></span>
         </Tooltip>
         <Tooltip title="Entrar como Cliente (Soporte)">
-          {/* ✅ CORREGIDO: empresa.id */}
           <span><IconButton size="small" onClick={() => onImpersonate(empresa.id)} sx={{ color: '#0EA5E9', bgcolor: '#E0F2FE', borderRadius: 1.5, width: 40, height: 40 }}><SupportAgent fontSize="small" /></IconButton></span>
         </Tooltip>
       </Box>
@@ -82,8 +80,8 @@ const EmpresaCard = ({ empresa, onToggleStatus, onOpenPlan, onImpersonate }) => 
 };
 
 const PagoCard = ({ pago }) => (
-  <Paper sx={{ p: 2.5, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', borderLeft: `4px solid ${GREEN}` }}>
-    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+  <Paper sx={{ p: { xs: 2, sm: 2.5 }, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', borderLeft: `4px solid ${GREEN}` }}>
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1, flexWrap: 'wrap' }}>
       <Typography sx={{ fontWeight: 800, fontSize: 16, color: GREEN }}>{formatCurrency(pago.monto)}</Typography>
       <Typography sx={{ fontSize: 11, color: 'text.secondary', textAlign: 'right' }}>{formatDateFull(pago.fecha_pago)}</Typography>
     </Box>
@@ -106,16 +104,13 @@ export default function GestionSaaS() {
   const [tabValue, setTabValue] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  // Estados Base
   const [empresas, setEmpresas] = useState([]);
   const [planesCatalog, setPlanesCatalog] = useState([]);
   const [pagos, setPagos] = useState([]);
 
-  // Estados Buscador y Filtros
   const [searchTerm, setSearchTerm] = useState('');
   const [filterState, setFilterState] = useState('all');
 
-  // Estados Formularios
   const [openDialogEmpresa, setOpenDialogEmpresa] = useState(false);
   const [formEmpresa, setFormEmpresa] = useState({ nombre: '', nit: '', admin_username: '', admin_password: '' });
   const [openPlanDialog, setOpenPlanDialog] = useState(false);
@@ -131,12 +126,10 @@ export default function GestionSaaS() {
     fetchHistorialPagos();
   }, []);
 
-  // ── Peticiones API ──
   const fetchEmpresas = async () => { try { const { data } = await apiClient.get('/superadmin/empresas'); setEmpresas(data); } catch (e) { toast.error('Error al cargar inquilinos'); } };
   const fetchCatalogoPlanes = async () => { try { const { data } = await fetchPlanesAdmin(); setPlanesCatalog(data); } catch (e) { console.error("Error cargando planes"); } };
   const fetchHistorialPagos = async () => { try { const { data } = await apiClient.get('/superadmin/historial-pagos'); setPagos(data); } catch (e) { console.error("Error cargando historial de pagos"); } };
 
-  // ── Funciones de Acción ──
   const handleToggleStatus = async (id, is_active) => {
     const action = is_active ? 'suspender' : 'reactivar';
     if (!window.confirm(`¿Estás seguro de que deseas ${action} esta cuenta?`)) return;
@@ -216,7 +209,6 @@ export default function GestionSaaS() {
     toast.success("Reporte exportado.");
   };
 
-  // ── Cálculos Inteligentes (KPIs) y Búsqueda ──
   const kpis = {
     total: empresas.length,
     premium: empresas.filter(e => e.plan_type === 'premium').length,
@@ -236,28 +228,30 @@ export default function GestionSaaS() {
 
   return (
     <Box sx={{ width: '100%' }}>
-      {/* HEADER PRINCIPAL */}
+      {/* ── HEADER PRINCIPAL ── */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box sx={{ width: 44, height: 44, borderRadius: 2, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT }}><AdminPanelSettings fontSize="medium" /></Box>
+          <Box sx={{ width: 44, height: 44, borderRadius: 2, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT }}>
+            <AdminPanelSettings fontSize="medium" />
+          </Box>
           <Box>
-            <Typography sx={{ fontWeight: 800, fontSize: 22, lineHeight: 1.2 }}>Centro de Control SaaS</Typography>
-            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Administración global de Ksmart360</Typography>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: 18, sm: 22 }, lineHeight: 1.2 }}>Centro de Control</Typography>
+            <Typography sx={{ fontSize: { xs: 11, sm: 13 }, color: 'text.secondary' }}>Administración global de Ksmart360</Typography>
           </Box>
         </Box>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          {tabValue === 0 && <Button variant="contained" startIcon={<Add />} onClick={() => setOpenDialogEmpresa(true)} sx={{ bgcolor: ACCENT, borderRadius: 2, fontWeight: 600 }}>Nueva Empresa</Button>}
-          {tabValue === 1 && <Button variant="contained" startIcon={<Add />} onClick={handleOpenCreatePlan} sx={{ bgcolor: BLUE, borderRadius: 2, fontWeight: 600 }}>Crear Plan</Button>}
-          {tabValue === 2 && <Button variant="outlined" startIcon={<Autorenew />} onClick={fetchHistorialPagos} sx={{ borderRadius: 2, fontWeight: 600 }}>Actualizar Historial</Button>}
+        <Box sx={{ display: 'flex', gap: 1, width: { xs: '100%', sm: 'auto' } }}>
+          {tabValue === 0 && <Button fullWidth={isMobile} variant="contained" startIcon={<Add />} onClick={() => setOpenDialogEmpresa(true)} sx={{ bgcolor: ACCENT, borderRadius: 2, fontWeight: 600 }}>Nueva Empresa</Button>}
+          {tabValue === 1 && <Button fullWidth={isMobile} variant="contained" startIcon={<Add />} onClick={handleOpenCreatePlan} sx={{ bgcolor: BLUE, borderRadius: 2, fontWeight: 600 }}>Crear Plan</Button>}
+          {tabValue === 2 && <Button fullWidth={isMobile} variant="outlined" startIcon={<Autorenew />} onClick={fetchHistorialPagos} sx={{ borderRadius: 2, fontWeight: 600 }}>Actualizar Historial</Button>}
         </Box>
       </Box>
 
-      {/* TABS DE NAVEGACIÓN */}
+      {/* ── TABS ── */}
       <Paper sx={{ mb: 3, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
         <Tabs value={tabValue} onChange={(e, val) => setTabValue(val)} indicatorColor="primary" textColor="primary" variant={isMobile ? "scrollable" : "standard"} scrollButtons="auto" sx={{ '& .MuiTab-root': { fontWeight: 700, fontSize: 13, textTransform: 'none', minHeight: 56 } }}>
           <Tab icon={<Business sx={{ mr: 1, mb: '0 !important' }}/>} iconPosition="start" label="Inquilinos" />
           <Tab icon={<LocalOffer sx={{ mr: 1, mb: '0 !important' }}/>} iconPosition="start" label="Catálogo" />
-          <Tab icon={<ReceiptLong sx={{ mr: 1, mb: '0 !important' }}/>} iconPosition="start" label="Historial de Pagos" />
+          <Tab icon={<ReceiptLong sx={{ mr: 1, mb: '0 !important' }}/>} iconPosition="start" label="Historial Pagos" />
         </Tabs>
       </Paper>
 
@@ -274,29 +268,30 @@ export default function GestionSaaS() {
               { label: 'Expiradas', value: kpis.expired, icon: <WarningAmber />, color: '#EF4444', bg: '#FEE2E2' },
             ].map((kpi, index) => (
               <Grid item xs={6} md={3} key={index}>
-                <Paper sx={{ p: 2, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 2, boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
-                  <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: kpi.bg, color: kpi.color, display: 'flex' }}>{kpi.icon}</Box>
+                <Paper sx={{ p: { xs: 1.5, sm: 2 }, borderRadius: 3, display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 }, boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
+                  <Box sx={{ p: { xs: 1, sm: 1.5 }, borderRadius: 2, bgcolor: kpi.bg, color: kpi.color, display: 'flex' }}>{kpi.icon}</Box>
                   <Box>
-                    <Typography sx={{ fontSize: 24, fontWeight: 800, lineHeight: 1 }}>{kpi.value}</Typography>
-                    <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 600 }}>{kpi.label}</Typography>
+                    <Typography sx={{ fontSize: { xs: 18, sm: 24 }, fontWeight: 800, lineHeight: 1 }}>{kpi.value}</Typography>
+                    <Typography sx={{ fontSize: { xs: 10, sm: 12 }, color: 'text.secondary', fontWeight: 600 }}>{kpi.label}</Typography>
                   </Box>
                 </Paper>
               </Grid>
             ))}
           </Grid>
 
-          <Paper sx={{ p: 2, mb: 3, borderRadius: 3, display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
-            <TextField size="small" placeholder="Buscar por nombre o NIT..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} sx={{ flexGrow: 1, minWidth: 250 }} InputProps={{ startAdornment: <InputAdornment position="start"><Search sx={{ color: 'text.secondary' }}/></InputAdornment> }} />
-            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', overflowX: 'auto' }}>
-              <FilterList sx={{ color: 'text.secondary', mr: 1 }} />
-              {[{ id: 'all', label: 'Todos' }, { id: 'premium', label: 'Solo Premium' }, { id: 'trial', label: 'En Prueba' }, { id: 'expired', label: 'Expirados' }].map(f => (
+          <Paper sx={{ p: 2, mb: 3, borderRadius: 3, display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2, alignItems: { xs: 'stretch', md: 'center' } }}>
+            <TextField size="small" placeholder="Buscar por nombre o NIT..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} sx={{ flexGrow: 1, width: { xs: '100%', md: 'auto' } }} InputProps={{ startAdornment: <InputAdornment position="start"><Search sx={{ color: 'text.secondary' }}/></InputAdornment> }} />
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', overflowX: 'auto', pb: { xs: 1, md: 0 }, width: { xs: '100%', md: 'auto' } }}>
+              {!isMobile && <FilterList sx={{ color: 'text.secondary', mr: 1 }} />}
+              {[{ id: 'all', label: 'Todos' }, { id: 'premium', label: 'Premium' }, { id: 'trial', label: 'En Prueba' }, { id: 'expired', label: 'Expirados' }].map(f => (
                 <Chip key={f.id} label={f.label} onClick={() => setFilterState(f.id)} sx={{ fontWeight: 600, bgcolor: filterState === f.id ? ACCENT : 'transparent', color: filterState === f.id ? 'white' : 'text.primary', border: '1px solid', borderColor: filterState === f.id ? ACCENT : 'divider', '&:hover': { bgcolor: filterState === f.id ? ACCENT : 'action.hover' } }} />
               ))}
             </Box>
           </Paper>
 
-          <Paper sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', overflow: 'hidden', bgcolor: isMobile ? 'transparent' : 'background.paper', p: isMobile ? 2 : 0 }}>
-            {!isMobile ? (
+          {/* ✅ CORRECCIÓN MÓVIL: Las tarjetas se renderizan directo en un Box, sin el Paper invisible */}
+          {!isMobile ? (
+            <Paper sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
               <TableContainer>
                 <Table size="small">
                   <TableHead>
@@ -333,10 +328,12 @@ export default function GestionSaaS() {
                   </TableBody>
                 </Table>
               </TableContainer>
-            ) : (
-              <Box>{filteredEmpresas.map(emp => <EmpresaCard key={emp.id} empresa={emp} onToggleStatus={handleToggleStatus} onOpenPlan={handleOpenAsignarPlan} onImpersonate={handleImpersonate} />)}</Box>
-            )}
-          </Paper>
+            </Paper>
+          ) : (
+            <Box>
+              {filteredEmpresas.map(emp => <EmpresaCard key={emp.id} empresa={emp} onToggleStatus={handleToggleStatus} onOpenPlan={handleOpenAsignarPlan} onImpersonate={handleImpersonate} />)}
+            </Box>
+          )}
         </Box>
       )}
 
@@ -361,21 +358,22 @@ export default function GestionSaaS() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════════
-          TAB 2: HISTORIAL DE PAGOS Y EXPORTACIÓN
+          TAB 2: HISTORIAL DE PAGOS
           ══════════════════════════════════════════════════════════════════════════ */}
       {tabValue === 2 && (
         <Box>
-          <Paper sx={{ p: 2, mb: 2, borderRadius: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
+          <Paper sx={{ p: 2, mb: 2, borderRadius: 3, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
             <Typography sx={{ fontWeight: 700, color: 'text.secondary', fontSize: 14 }}>
               Total recaudado: {formatCurrency(pagos.reduce((acc, p) => acc + p.monto, 0))}
             </Typography>
-            <Button variant="outlined" startIcon={<Payments />} onClick={exportarPagosCSV} sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700, color: GREEN, borderColor: GREEN, '&:hover': { borderColor: GREEN, bgcolor: `${GREEN}10` } }}>
+            <Button variant="outlined" fullWidth={isMobile} startIcon={<Payments />} onClick={exportarPagosCSV} sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700, color: GREEN, borderColor: GREEN, '&:hover': { borderColor: GREEN, bgcolor: `${GREEN}10` } }}>
               Exportar Excel
             </Button>
           </Paper>
 
-          <Paper sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', overflow: 'hidden', bgcolor: isMobile ? 'transparent' : 'background.paper', p: isMobile ? 2 : 0 }}>
-            {!isMobile ? (
+          {/* ✅ CORRECCIÓN MÓVIL: Las tarjetas se renderizan directo en un Box */}
+          {!isMobile ? (
+            <Paper sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
               <TableContainer>
                 <Table size="small">
                   <TableHead>
@@ -400,14 +398,14 @@ export default function GestionSaaS() {
                   </TableBody>
                 </Table>
               </TableContainer>
-            ) : (
-              <Box>{pagos.map((p) => <PagoCard key={p.id} pago={p} />)}</Box>
-            )}
-          </Paper>
+            </Paper>
+          ) : (
+            <Box>{pagos.map((p) => <PagoCard key={p.id} pago={p} />)}</Box>
+          )}
         </Box>
       )}
 
-      {/* ── Modales Base (Crear Empresa y Planes) ── */}
+      {/* ── Modales Base ── */}
       <Dialog open={openDialogEmpresa} onClose={() => setOpenDialogEmpresa(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
          <DialogTitle>Alta de Cliente</DialogTitle>
          <form onSubmit={handleSubmitEmpresa}>
@@ -430,7 +428,13 @@ export default function GestionSaaS() {
             <Stack spacing={2.5}>
               <TextField label="Nombre Comercial" required size="small" value={formPlan.nombre} onChange={e => setFormPlan({...formPlan, nombre: e.target.value})} />
               <TextField label="Código Interno" required size="small" value={formPlan.codigo_interno} onChange={e => setFormPlan({...formPlan, codigo_interno: e.target.value.toLowerCase().replace(/ /g, '_')})} disabled={!!editingPlanId} />
-              <Box sx={{ display: 'flex', gap: 2 }}><TextField label="Precio (COP)" type="number" required size="small" fullWidth value={formPlan.precio} onChange={e => setFormPlan({...formPlan, precio: e.target.value})} /><TextField label="Duración (Días)" type="number" required size="small" fullWidth value={formPlan.dias_duracion} onChange={e => setFormPlan({...formPlan, dias_duracion: e.target.value})} /></Box>
+              
+              {/* ✅ CORRECCIÓN MÓVIL: Flex direction cambia a columna en pantallas pequeñas */}
+              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
+                <TextField label="Precio (COP)" type="number" required size="small" fullWidth value={formPlan.precio} onChange={e => setFormPlan({...formPlan, precio: e.target.value})} />
+                <TextField label="Duración (Días)" type="number" required size="small" fullWidth value={formPlan.dias_duracion} onChange={e => setFormPlan({...formPlan, dias_duracion: e.target.value})} />
+              </Box>
+              
               <TextField label="Características (Separadas por coma)" size="small" multiline rows={2} value={formPlan.caracteristicas} onChange={e => setFormPlan({...formPlan, caracteristicas: e.target.value})} />
               <FormControlLabel control={<Switch checked={formPlan.is_active} onChange={e => setFormPlan({...formPlan, is_active: e.target.checked})} color="primary" />} label="Plan Visible" />
             </Stack>
