@@ -136,4 +136,14 @@ export const fetchProductTemplate = () =>
 export const fetchTercerosTemplate = () =>
   apiClient.get('/clientes/template', { responseType: 'blob' });
 
+
+// =========================
+// API PLANES SAAS
+// =========================
+export const fetchPlanesAdmin = () => apiClient.get('/superadmin/planes');
+export const createPlan = (data) => apiClient.post('/superadmin/planes', data);
+export const updatePlan = (id, data) => apiClient.patch(`/superadmin/planes/${id}`, data);
+export const fetchPlanesPublicos = () => apiClient.get('/planes-activos');
+
+
 export default apiClient;
