@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, Button, Table, TableBody, TableCell,
@@ -28,6 +29,78 @@ const formatDateForInput = (dateString) => {
 };
 
 const formatCurrency = (val) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(val);
+
+// ── Componente: Tarjeta Móvil para Empresas ──
+const EmpresaCard = ({ empresa, onToggleStatus, onOpenPlan }) => {
+  const dias = calcularDiasRestantes(empresa.trial_ends_at);
+  
+  return (
+    <Paper sx={{ p: 2.5, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
+        <Box>
+          <Typography sx={{ fontWeight: 700, fontSize: 15 }}>{empresa.nombre}</Typography>
+          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+            #{empresa.id} · NIT: {empresa.nit || 'Sin registro'}
+          </Typography>
+        </Box>
+        <Chip 
+          label={empresa.is_active ? 'Activa' : 'Suspendida'} 
+          size="small"
+          sx={{ 
+            bgcolor: empresa.is_active ? '#10B98120' : '#EF444420', 
+            color: empresa.is_active ? '#10B981' : '#EF4444', 
+            fontWeight: 600, fontSize: 11, borderRadius: 1.5 
+          }} 
+        />
+      </Box>
+
+      <Divider sx={{ my: 1.5 }} />
+
+      <Grid container spacing={1} sx={{ mb: 1.5 }}>
+        <Grid item xs={6}>
+          <Box sx={{ textAlign: 'center', p: 1, borderRadius: 2, bgcolor: 'action.hover' }}>
+            <Typography sx={{ fontSize: 10, color: 'text.secondary', mb: 0.2 }}>Suscripción</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+              {empresa.plan_type === 'premium' ? <WorkspacePremium sx={{ fontSize: 14, color: '#F59E0B' }} /> : <AccessTime sx={{ fontSize: 14, color: '#3B82F6' }} />}
+              <Typography sx={{ fontSize: 13, fontWeight: 700, textTransform: 'capitalize' }}>
+                {empresa.plan_type || 'trial'}
+              </Typography>
+            </Box>
+          </Box>
+        </Grid>
+        <Grid item xs={6}>
+          <Box sx={{ textAlign: 'center', p: 1, borderRadius: 2, bgcolor: 'action.hover' }}>
+            <Typography sx={{ fontSize: 10, color: 'text.secondary', mb: 0.2 }}>Tiempo Restante</Typography>
+            <Typography sx={{ fontSize: 13, fontWeight: 700, color: dias > 0 || empresa.plan_type === 'premium' ? '#10B981' : '#EF4444' }}>
+              {empresa.plan_type === 'premium' ? 'Ilimitado' : `${dias > 0 ? dias : 0} Días`}
+            </Typography>
+          </Box>
+        </Grid>
+      </Grid>
+
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+        <Button 
+          size="small" 
+          variant="outlined" 
+          disabled={empresa.id === 1} 
+          onClick={() => onOpenPlan(empresa)}
+          startIcon={<CardMembership />}
+          sx={{ borderRadius: 2, color: '#8B5CF6', borderColor: '#8B5CF6', flex: 1 }}
+        >
+          Gestionar Plan
+        </Button>
+        <Tooltip title={empresa.is_active ? "Suspender acceso" : "Reactivar acceso"}>
+          <span>
+            <IconButton size="small" disabled={empresa.id === 1} onClick={() => onToggleStatus(empresa.id, empresa.is_active)}
+              sx={{ color: empresa.is_active ? '#EF4444' : '#10B981', bgcolor: empresa.is_active ? '#FEF2F2' : '#F0FDF4', borderRadius: 1.5, width: 40, height: 40 }}>
+              {empresa.is_active ? <Block fontSize="small" /> : <CheckCircle fontSize="small" />}
+            </IconButton>
+          </span>
+        </Tooltip>
+      </Box>
+    </Paper>
+  );
+};
 
 export default function GestionSaaS() {
   const theme = useTheme();
@@ -195,10 +268,11 @@ export default function GestionSaaS() {
           onChange={(e, val) => setTabValue(val)} 
           indicatorColor="primary"
           textColor="primary"
+          variant={isMobile ? "fullWidth" : "standard"}
           sx={{ '& .MuiTab-root': { fontWeight: 700, fontSize: 14, textTransform: 'none', minHeight: 56 } }}
         >
-          <Tab icon={<Business sx={{ mr: 1, mb: '0 !important' }}/>} iconPosition="start" label="Inquilinos (Empresas)" />
-          <Tab icon={<LocalOffer sx={{ mr: 1, mb: '0 !important' }}/>} iconPosition="start" label="Catálogo de Planes" />
+          <Tab icon={<Business sx={{ mr: 1, mb: '0 !important' }}/>} iconPosition="start" label="Inquilinos" />
+          <Tab icon={<LocalOffer sx={{ mr: 1, mb: '0 !important' }}/>} iconPosition="start" label="Planes" />
         </Tabs>
       </Paper>
 
@@ -206,7 +280,7 @@ export default function GestionSaaS() {
           TAB 0: INQUILINOS (EMPRESAS)
           ══════════════════════════════════════════════════════════════════════════ */}
       {tabValue === 0 && (
-        <Paper sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+        <Paper sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', overflow: 'hidden', bgcolor: isMobile ? 'transparent' : 'background.paper' }}>
           {!isMobile ? (
             <TableContainer>
               <Table size="small">
@@ -270,7 +344,24 @@ export default function GestionSaaS() {
               </Table>
             </TableContainer>
           ) : (
-            <Box sx={{ p: 2 }}>{/* Aquí iría la vista móvil de empresas que ya tenías */}</Box>
+            // ✅ VISTA MÓVIL RECUPERADA Y MEJORADA
+            <Box sx={{ p: { xs: 0, sm: 2 } }}>
+              {empresas.length === 0 ? (
+                <Box sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
+                  <Business sx={{ fontSize: 48, mb: 1, opacity: 0.3 }} />
+                  <Typography>No hay empresas registradas</Typography>
+                </Box>
+              ) : (
+                empresas.map(emp => (
+                  <EmpresaCard 
+                    key={emp.id} 
+                    empresa={emp} 
+                    onToggleStatus={handleToggleStatus} 
+                    onOpenPlan={handleOpenAsignarPlan} 
+                  />
+                ))
+              )}
+            </Box>
           )}
         </Paper>
       )}
@@ -336,7 +427,7 @@ export default function GestionSaaS() {
               <TextField 
                 label="Código Interno (Para el sistema. Ej: premium_mensual)" required size="small" 
                 value={formPlan.codigo_interno} onChange={e => setFormPlan({...formPlan, codigo_interno: e.target.value.toLowerCase().replace(/ /g, '_')})} 
-                disabled={!!editingPlanId} // No dejamos cambiar el código si ya existe para evitar errores en Bold
+                disabled={!!editingPlanId}
                 helperText="No uses espacios. Usa guiones bajos."
               />
 
@@ -362,7 +453,7 @@ export default function GestionSaaS() {
         </form>
       </Dialog>
 
-      {/* ── Modal Original: Asignar Plan a Empresa (El que ya tenías) ── */}
+      {/* ── Modal Original: Asignar Plan a Empresa ── */}
       <Dialog open={openPlanDialog} onClose={() => setOpenPlanDialog(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
         <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography sx={{ fontWeight: 700, fontSize: 16 }}>Actualizar: {empresaSeleccionada?.nombre}</Typography>
@@ -385,8 +476,7 @@ export default function GestionSaaS() {
         </form>
       </Dialog>
 
-      {/* ── Modal Original: Crear Empresa Nueva (El que ya tenías) ── */}
-      {/* ... (Se mantiene igual, he omitido el HTML completo por brevedad pero está manejado en la lógica) ... */}
+      {/* ── Modal Original: Crear Empresa Nueva ── */}
       <Dialog open={openDialogEmpresa} onClose={() => setOpenDialogEmpresa(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
          <DialogTitle>Alta de Cliente</DialogTitle>
          <form onSubmit={handleSubmitEmpresa}>
@@ -399,6 +489,7 @@ export default function GestionSaaS() {
               </Stack>
             </DialogContent>
             <DialogActions sx={{ p: 2 }}>
+              <Button onClick={() => setOpenDialogEmpresa(false)} variant="outlined" sx={{ borderRadius: 2 }}>Cancelar</Button>
               <Button type="submit" variant="contained" sx={{ bgcolor: ACCENT, borderRadius: 2 }}>Crear Inquilino</Button>
             </DialogActions>
          </form>
