@@ -249,7 +249,7 @@ const Dashboard = () => {
           <Button 
             size="small" 
             variant="contained" 
-            onClick={() => window.open(`https://wa.me/573001234567?text=Hola,%20quiero%20activar%20mi%20plan%20premium`, '_blank')}
+            onClick={() => window.open(`https://wa.me/573175882321?text=Hola,%20quiero%20activar%20mi%20plan%20premium`, '_blank')}
             sx={{ bgcolor: '#2563EB', fontSize: 11, fontWeight: 700, boxShadow: 'none' }}
           >
             Activar mi cuenta
