@@ -146,7 +146,7 @@ export default function GestionSaaS() {
         </Paper>
       )}
 
-      {/* ... (Modales de Inquilinos y Planes que ya tenías) ... */}
+      {/* ... (Modales de Inquilinos y Planes que ya tenías ok) ... */}
     </Box>
   );
 }
