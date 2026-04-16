@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom'; // ✅ Importamos Link
 import { toast } from 'react-toastify';
 import apiClient from '../api';
 import {
@@ -80,7 +80,6 @@ const Login = ({ onLogin }) => {
             onLogin();
             navigate('/');
         } catch (err) {
-            // ✅ CORRECCIÓN AQUÍ: Leemos el error dinámico del backend
             const mensajeError = err.response?.data?.detail || 'Usuario o contraseña incorrectos';
             toast.error(mensajeError);
         } finally {
@@ -257,6 +256,14 @@ const Login = ({ onLogin }) => {
                             {loading ? 'Ingresando…' : 'Ingresar'}
                         </Button>
                     </Box>
+
+                    {/* ✅ ENLACE AL REGISTRO */}
+                    <Typography sx={{ mt: 3, color: '#94a3b8', fontSize: 13, textAlign: 'center' }}>
+                        ¿No tienes una cuenta?{' '}
+                        <Link to="/registro" style={{ color: '#22c55e', fontWeight: 700, textDecoration: 'none' }}>
+                            Regístrate gratis
+                        </Link>
+                    </Typography>
 
                     {/* Footer */}
                     <Typography sx={{ mt: 4, color: '#334155', fontSize: 12, textAlign: 'center' }}>
