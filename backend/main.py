@@ -1525,7 +1525,7 @@ BOLD_SECRET_KEY = os.getenv("BOLD_SECRET_KEY", "FALTA_SECRET_KEY")
 @app.post("/pagos/generar-hash", response_model=schemas.BoldHashResponse)
 def generar_hash_bold(
     request_data: schemas.BoldHashRequest, 
-    current_user: schemas.User = Depends(get_current_active_user)
+    current_user: schemas.User = Depends(get_current_user)
 ):
     # 1. Definimos el catálogo de precios de tu SaaS (Sin decimales, en COP)
     # Por ejemplo, $95.000 COP = "95000"
