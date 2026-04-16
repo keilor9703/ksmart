@@ -39,7 +39,7 @@ export default function SuscripcionExpirada() {
         if (res.status === 200) {
           clearInterval(checkInterval);
           toast.success('¡Pago detectado! Tu cuenta ha sido activada.');
-          window.location.reload(); // Recarga para entrar al sistema
+          window.location.href = '/'; // Redirección absoluta a la raíz
         }
       } catch (error) {
         // Ignoramos errores mientras esperamos la activación
@@ -55,7 +55,7 @@ export default function SuscripcionExpirada() {
       const res = await apiClient.get('/users/me');
       if (res.status === 200) {
         toast.success('¡Tu cuenta está activa!');
-        window.location.reload();
+        window.location.href = '/';
       }
     } catch (error) {
       toast.info('Aún no recibimos confirmación de Wompi. Intenta en un momento.');
@@ -120,7 +120,7 @@ export default function SuscripcionExpirada() {
                     {/* ✅ EL NUEVO BOTÓN DE WOMPI */}
                     <WompiButton 
                       planName={plan.codigo_interno} 
-                      onSuccess={() => window.location.reload()} 
+                      onSuccess={() => { window.location.href = '/'; }} 
                     />
                   </Box>
                 </Grid>
