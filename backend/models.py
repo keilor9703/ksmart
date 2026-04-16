@@ -405,3 +405,19 @@ class Gasto(Base, TenantMixin):
 
     usuario = relationship("User")
     tercero = relationship("Cliente")
+
+
+
+
+# --- Añadir en models.py ---
+
+class PlanSuscripcion(Base):
+    __tablename__ = "planes_suscripcion"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String, nullable=False)              # Ej: "Plan Emprendedor"
+    codigo_interno = Column(String, unique=True, index=True, nullable=False) # Ej: "premium_mensual"
+    precio = Column(Float, nullable=False)               # Ej: 95000.0
+    dias_duracion = Column(Integer, nullable=False)      # Ej: 30, 365, etc.
+    caracteristicas = Column(String, nullable=True)     # Texto largo: "Ventas ilimitadas, Soporte, etc."
+    is_active = Column(Boolean, default=True)
