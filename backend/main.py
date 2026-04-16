@@ -386,6 +386,24 @@ def actualizar_plan(plan_id: int, plan_update: schemas.PlanSuscripcionUpdate, db
         raise HTTPException(status_code=404, detail="Plan no encontrado")
     return plan_actualizado
 
+from sqlalchemy.orm import joinedload
+
+@superadmin_router.get("/historial-pagos", response_model=List[schemas.RegistroPagoOut])
+def listar_historial_pagos(db: Session = Depends(get_db)):
+    # Traemos los pagos con la info de empresa y plan unificada (JOIN)
+    pagos = db.query(models.RegistroPago).options(
+        joinedload(models.RegistroPago.empresa),
+        joinedload(models.RegistroPago.plan)
+    ).order_by(models.RegistroPago.fecha_pago.desc()).all()
+    
+    return [
+        {
+            **p.__dict__,
+            "empresa_nombre": p.empresa.nombre,
+            "plan_nombre": p.plan.nombre
+        } for p in pagos
+    ]
+
 
 
 app.include_router(superadmin_router)
