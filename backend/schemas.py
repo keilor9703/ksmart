@@ -780,3 +780,13 @@ DashboardData.model_rebuild()
 class EmpresaPlanUpdate(BaseModel):
     plan_type: str
     trial_ends_at: Optional[datetime] = None
+
+
+
+# =========================
+# REGISTRO AUTOSERVICIO (SAAS)
+# =========================
+class RegistroSaaS(BaseModel):
+    nombre_empresa: str
+    username: str
+    password: str
