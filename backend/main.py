@@ -1611,29 +1611,24 @@ def generar_hash_bold(
 
 # ─── EL WEBHOOK DINÁMICO ───
 
-
 @app.post("/webhooks/bold")
 async def webhook_pagos_bold(request: Request, db: Session = Depends(get_db)):
     try:
-        # 1. Capturamos el payload
+        # 1. Capturamos el payload exactamente como lo envía Bold
         payload = await request.json()
         print("🔴 URGENTE - PAYLOAD BOLD RECIBIDO:", payload)
 
-        # 2. Extracción EXACTA basada en el log de producción de Bold
-        # El estado viene en "type" (Ej: "SALE_APPROVED")
+        # 2. Extracción Defensiva basada en el log real
         status = payload.get("type") 
-        
-        # El ID viene en "data" -> "metadata" -> "reference"
         data_node = payload.get("data", {})
         metadata_node = data_node.get("metadata", {})
         order_id = metadata_node.get("reference")
 
         print(f"🔍 Evaluando -> Status detectado: {status} | Order ID detectado: {order_id}")
 
-        # 3. Validamos (Pasamos a string por seguridad y mayúsculas)
         status_str = str(status).upper()
         
-        # Validamos que contenga "APPROVED" (para atrapar "SALE_APPROVED")
+        # 3. Validamos que sea un pago aprobado (SALE_APPROVED)
         if "APPROVED" in status_str and order_id and str(order_id).startswith("KSMART-"):
             partes = str(order_id).split("-")
             
@@ -1646,16 +1641,33 @@ async def webhook_pagos_bold(request: Request, db: Session = Depends(get_db)):
                 plan_comprado = db.query(models.PlanSuscripcion).filter(models.PlanSuscripcion.id == plan_id).first()
                 
                 if empresa and plan_comprado:
+                    
+                    # --- A. ACTIVAR LA EMPRESA Y SUMAR DÍAS ---
                     empresa.plan_type = "premium"
                     empresa.is_active = True
                     
                     now_utc = datetime.now(timezone.utc)
                     base_date = empresa.trial_ends_at if empresa.trial_ends_at and empresa.trial_ends_at > now_utc else now_utc
-                    
                     empresa.trial_ends_at = base_date + timedelta(days=plan_comprado.dias_duracion)
                     
+                    # --- B. CREAR REGISTRO PARA TU HISTORIAL DE PAGOS ---
+                    amount_node = data_node.get("amount", {})
+                    
+                    nuevo_pago = models.RegistroPago(
+                        empresa_id=empresa_id,
+                        plan_id=plan_id,
+                        monto=amount_node.get("total"),
+                        moneda=amount_node.get("currency"),
+                        metodo_pago=data_node.get("payment_method", "DESCONOCIDO"),
+                        bold_tx_id=data_node.get("payment_id", "SIN_ID"),
+                        email_pagador=data_node.get("payer_email", "SIN_EMAIL"),
+                        payload_auditoria=payload  # Se guarda todo el JSON original por seguridad
+                    )
+                    db.add(nuevo_pago)
+                    
+                    # Confirmar ambas transacciones en la base de datos
                     db.commit()
-                    print(f"✅ ÉXITO TOTAL: Empresa {empresa_id} activada por {plan_comprado.dias_duracion} días.")
+                    print(f"✅ ÉXITO TOTAL: Pago registrado y Empresa {empresa_id} activada por {plan_comprado.dias_duracion} días.")
                 else:
                     print(f"❌ ERROR DB: Empresa {empresa_id} o Plan {plan_id} no encontrados.")
             else:
@@ -1667,7 +1679,10 @@ async def webhook_pagos_bold(request: Request, db: Session = Depends(get_db)):
 
     except Exception as e:
         print(f"❌ ERROR FATAL EN WEBHOOK: {e}")
+        # Retornamos 200 para que Bold no nos marque como caídos y bloquee la integración
         return {"status": "error_interno"}
+
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ESTÁTICOS
