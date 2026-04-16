@@ -1610,7 +1610,6 @@ def generar_hash_bold(
 
 
 # ─── EL WEBHOOK DINÁMICO ───
-
 @app.post("/webhooks/bold")
 async def webhook_pagos_bold(request: Request, db: Session = Depends(get_db)):
     try:
@@ -1681,9 +1680,6 @@ async def webhook_pagos_bold(request: Request, db: Session = Depends(get_db)):
         print(f"❌ ERROR FATAL EN WEBHOOK: {e}")
         # Retornamos 200 para que Bold no nos marque como caídos y bloquee la integración
         return {"status": "error_interno"}
-
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # ESTÁTICOS
 # ═══════════════════════════════════════════════════════════════════════════════
