@@ -7,7 +7,7 @@ import {
 
 const SuscripcionExpirada = () => {
   // 🟢 IMPORTANTE: Cambia este número por tu WhatsApp real de ventas
-  const WHATSAPP_NUMBER = "573001234567"; 
+  const WHATSAPP_NUMBER = "573175882321"; 
   const WHATSAPP_MSG = encodeURIComponent("Hola! Mi periodo de prueba en Ksmart360 ha terminado y me gustaría adquirir un plan Premium para mi empresa.");
 
   const handleContactSales = () => {
