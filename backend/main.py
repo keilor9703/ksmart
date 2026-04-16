@@ -1,4 +1,4 @@
-import os
+9import os
 import logging
 import secrets
 from fastapi import FastAPI, Depends, HTTPException, Response, status, File, UploadFile, Query
@@ -1592,17 +1592,34 @@ def generar_hash_bold(
 
 
 # ─── EL WEBHOOK DINÁMICO ───
+
 @app.post("/webhooks/bold")
 async def webhook_pagos_bold(request: Request, db: Session = Depends(get_db)):
     try:
+        # 1. Capturamos TODO el payload y lo imprimimos para depurar
         payload = await request.json()
-        status = payload.get("data", {}).get("transaction", {}).get("status")
-        order_id = payload.get("data", {}).get("transaction", {}).get("order_id")
+        print("🔴 URGENTE - PAYLOAD BOLD RECIBIDO:", payload)
 
-        if status == "APPROVED" and order_id and order_id.startswith("KSMART-"):
-            partes = order_id.split("-")
+        # 2. Búsqueda exhaustiva (Defensiva) del Estado y el Order ID
+        # Bold puede enviar la info anidada de varias formas, buscaremos en todas
+        data_node = payload.get("data", {})
+        tx_node = data_node.get("transaction", {})
+        
+        if not tx_node and "transaction" in payload:
+            tx_node = payload["transaction"]
+
+        status = tx_node.get("status") or payload.get("status") or payload.get("event_type")
+        order_id = tx_node.get("order_id") or tx_node.get("reference") or payload.get("order_id") or payload.get("reference")
+
+        print(f"🔍 Evaluando -> Status detectado: {status} | Order ID detectado: {order_id}")
+
+        # 3. Validamos que exista y que sea APROBADO (insensible a mayúsculas)
+        status_str = str(status).upper()
+        
+        # Validamos tanto el status APPROVED como si envían un event_type tipo "transaction.approved"
+        if ("APPROVED" in status_str or "APROBADO" in status_str) and order_id and str(order_id).startswith("KSMART-"):
+            partes = str(order_id).split("-")
             
-            # Ahora esperamos 4 partes: ["KSMART", "empresa_id", "plan_id", "timestamp"]
             if len(partes) >= 4 and partes[1].isdigit() and partes[2].isdigit():
                 empresa_id = int(partes[1])
                 plan_id = int(partes[2])
@@ -1617,18 +1634,23 @@ async def webhook_pagos_bold(request: Request, db: Session = Depends(get_db)):
                     now_utc = datetime.now(timezone.utc)
                     base_date = empresa.trial_ends_at if empresa.trial_ends_at and empresa.trial_ends_at > now_utc else now_utc
                     
-                    # 🚀 Sumamos los días exactos que configuraste en tu panel
                     empresa.trial_ends_at = base_date + timedelta(days=plan_comprado.dias_duracion)
                     
                     db.commit()
-                    print(f"✅ Webhook: Empresa {empresa_id} activada. Se sumaron {plan_comprado.dias_duracion} días.")
-                    
+                    print(f"✅ ÉXITO TOTAL: Empresa {empresa_id} activada por {plan_comprado.dias_duracion} días.")
+                else:
+                    print(f"❌ ERROR DB: Empresa {empresa_id} o Plan {plan_id} no encontrados.")
+            else:
+                print(f"❌ ERROR ORDER_ID: Formato inválido o incompleto: {order_id}")
+        else:
+            print(f"⚠️ IGNORADO: No es un pago aprobado o el ID no es de KSMART.")
+
         return {"status": "recibido"}
 
     except Exception as e:
-        print(f"❌ Error Webhook Bold: {e}")
-        return {"status": "error_procesando"}
-
+        print(f"❌ ERROR FATAL EN WEBHOOK: {e}")
+        # Seguimos retornando 200 para que Bold no bloquee nuestro endpoint
+        return {"status": "error_interno"}
 
 
 
