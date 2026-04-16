@@ -182,6 +182,22 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v19)
                 logger.info("Migración %s aplicada. Campos de Trial y Facturación añadidos.", migration_v19)
 
+
+
+
+                # =================================================================
+            # V20 - MIGRACIÓN WOMPI (COBRO RECURRENTE)
+            # =================================================================
+            migration_v20 = "inv_v21_wompi"
+            if not _migration_already_applied(conn, migration_v20):
+                if _table_exists(conn, "empresas"):
+                    _add_column_if_missing(conn, "empresas", "wompi_customer_id TEXT", "wompi_customer_id")
+                    _add_column_if_missing(conn, "empresas", "wompi_payment_source_id TEXT", "wompi_payment_source_id")
+                _mark_migration_applied(conn, migration_v20)
+                logger.info("Migración %s aplicada. Columnas Wompi añadidas a empresas.", migration_v20)
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones en base de datos: %s", e)
         raise
+
+  

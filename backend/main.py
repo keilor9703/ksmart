@@ -1602,143 +1602,239 @@ def listar_planes_publicos(db: Session = Depends(get_db)):
 
 
 # Obtenemos las llaves de Bold desde el entorno virtual
-BOLD_API_KEY = os.getenv("BOLD_API_KEY", "FALTA_API_KEY")
-BOLD_SECRET_KEY = os.getenv("BOLD_SECRET_KEY", "FALTA_SECRET_KEY")
+# BOLD_API_KEY = os.getenv("BOLD_API_KEY", "FALTA_API_KEY")
+# BOLD_SECRET_KEY = os.getenv("BOLD_SECRET_KEY", "FALTA_SECRET_KEY")
 
 
-@app.post("/pagos/generar-hash", response_model=schemas.BoldHashResponse)
-def generar_hash_bold(
-    request_data: schemas.BoldHashRequest, 
+# @app.post("/pagos/generar-hash", response_model=schemas.BoldHashResponse)
+# def generar_hash_bold(
+#     request_data: schemas.BoldHashRequest, 
+#     current_user: schemas.User = Depends(get_current_user),
+#     db: Session = Depends(get_db) # ✅ Agregamos acceso a la Base de Datos
+# ):
+#     # 1. Buscamos el plan real en la Base de Datos
+#     plan = db.query(models.PlanSuscripcion).filter(
+#         models.PlanSuscripcion.codigo_interno == request_data.plan_name,
+#         models.PlanSuscripcion.is_active == True
+#     ).first()
+
+#     if not plan:
+#         raise HTTPException(status_code=400, detail="El plan seleccionado no existe o ya no está disponible.")
+
+#     # Convertimos el float de la BD (ej. 95000.0) a string entero ("95000") para Bold
+#     monto = str(int(plan.precio))
+#     divisa = "COP"
+#     timestamp = int(time.time())
+
+#     # 2. EL TRUCO: Incrustamos el ID del Plan en la orden
+#     # Formato: KSMART - ID_EMPRESA - ID_PLAN - TIMESTAMP
+#     order_id = f"KSMART-{current_user.empresa_id}-{plan.id}-{timestamp}"
+
+#     # 3. Concatenación y Hash
+#     cadena_concatenada = f"{order_id}{monto}{divisa}{BOLD_SECRET_KEY}"
+#     hash_integridad = hashlib.sha256(cadena_concatenada.encode('utf-8')).hexdigest()
+
+#     return {
+#         "order_id": order_id,
+#         "amount": monto,
+#         "currency": divisa,
+#         "hash_integridad": hash_integridad,
+#         "api_key": BOLD_API_KEY
+#     }
+
+
+
+# Obtenemos las llaves de WOMPI desde el entorno virtual
+WOMPI_PUBLIC_KEY = os.getenv("WOMPI_PUBLIC_KEY", "pub_test_...")
+WOMPI_INTEGRITY_SECRET = os.getenv("WOMPI_INTEGRITY_SECRET", "prod_integrity_...")
+
+@app.post("/pagos/generar-hash-wompi")
+def generar_hash_wompi(
+    request_data: schemas.BoldHashRequest, # Podemos reutilizar el schema o crear uno llamado WompiHashRequest
     current_user: schemas.User = Depends(get_current_user),
-    db: Session = Depends(get_db) # ✅ Agregamos acceso a la Base de Datos
+    db: Session = Depends(get_db)
 ):
-    # 1. Buscamos el plan real en la Base de Datos
+    # 1. Buscamos el plan
     plan = db.query(models.PlanSuscripcion).filter(
         models.PlanSuscripcion.codigo_interno == request_data.plan_name,
         models.PlanSuscripcion.is_active == True
     ).first()
 
     if not plan:
-        raise HTTPException(status_code=400, detail="El plan seleccionado no existe o ya no está disponible.")
+        raise HTTPException(status_code=400, detail="El plan no existe.")
 
-    # Convertimos el float de la BD (ej. 95000.0) a string entero ("95000") para Bold
-    monto = str(int(plan.precio))
+    # Wompi maneja los montos en CENTAVOS (Ej: 95,000 COP se envían como 9500000)
+    monto_en_centavos = str(int(plan.precio * 100))
     divisa = "COP"
+    
+    # 2. Generamos una referencia única
     timestamp = int(time.time())
+    referencia = f"KSMART-{current_user.empresa_id}-{plan.id}-{timestamp}"
 
-    # 2. EL TRUCO: Incrustamos el ID del Plan en la orden
-    # Formato: KSMART - ID_EMPRESA - ID_PLAN - TIMESTAMP
-    order_id = f"KSMART-{current_user.empresa_id}-{plan.id}-{timestamp}"
-
-    # 3. Concatenación y Hash
-    cadena_concatenada = f"{order_id}{monto}{divisa}{BOLD_SECRET_KEY}"
+    # 3. Hash de Integridad de Wompi (Regla: referencia + monto_en_centavos + moneda + secreto)
+    cadena_concatenada = f"{referencia}{monto_en_centavos}{divisa}{WOMPI_INTEGRITY_SECRET}"
     hash_integridad = hashlib.sha256(cadena_concatenada.encode('utf-8')).hexdigest()
 
     return {
-        "order_id": order_id,
-        "amount": monto,
+        "reference": referencia,
+        "amount_in_cents": monto_en_centavos,
         "currency": divisa,
-        "hash_integridad": hash_integridad,
-        "api_key": BOLD_API_KEY
+        "signature": hash_integridad,
+        "public_key": WOMPI_PUBLIC_KEY
     }
 
-# ─── EL WEBHOOK DINÁMICO (BLINDADO CON SEGURIDAD CRIPTOGRÁFICA) ───
-@app.post("/webhooks/bold")
-async def webhook_pagos_bold(request: Request, db: Session = Depends(get_db)):
-    try:
-        # 1. Capturamos el Payload y los Headers Criptográficos
-        payload = await request.json()
-        payload_str = await request.body() # Necesitamos el raw body para encriptar
-        headers = request.headers
+
+# # ─── EL WEBHOOK DINÁMICO (BLINDADO CON SEGURIDAD CRIPTOGRÁFICA) ───
+# @app.post("/webhooks/bold")
+# async def webhook_pagos_bold(request: Request, db: Session = Depends(get_db)):
+#     try:
+#         # 1. Capturamos el Payload y los Headers Criptográficos
+#         payload = await request.json()
+#         payload_str = await request.body() # Necesitamos el raw body para encriptar
+#         headers = request.headers
         
-        # 2. ESCUDO 1: VERIFICACIÓN DE FIRMA CRIPTOGRÁFICA
-        timestamp = headers.get("bold-timestamp")
-        signature_recibida = headers.get("bold-signature")
+#         # 2. ESCUDO 1: VERIFICACIÓN DE FIRMA CRIPTOGRÁFICA
+#         timestamp = headers.get("bold-timestamp")
+#         signature_recibida = headers.get("bold-signature")
         
-        # Si Bold no manda la firma, es un atacante escaneando tu API
-        if not timestamp or not signature_recibida:
-            logger.warning("🚨 INTRUSIÓN DETECTADA: Petición sin firma criptográfica.")
-            raise HTTPException(status_code=400, detail="Firma no proporcionada")
+#         # Si Bold no manda la firma, es un atacante escaneando tu API
+#         if not timestamp or not signature_recibida:
+#             logger.warning("🚨 INTRUSIÓN DETECTADA: Petición sin firma criptográfica.")
+#             raise HTTPException(status_code=400, detail="Firma no proporcionada")
 
-        # Generamos nuestro propio Hash para comparar
-        cadena_a_firmar = f"{payload_str.decode('utf-8')}{timestamp}{BOLD_SECRET_KEY}"
-        hash_calculado = hashlib.sha256(cadena_a_firmar.encode('utf-8')).hexdigest()
+#         # Generamos nuestro propio Hash para comparar
+#         cadena_a_firmar = f"{payload_str.decode('utf-8')}{timestamp}{BOLD_SECRET_KEY}"
+#         hash_calculado = hashlib.sha256(cadena_a_firmar.encode('utf-8')).hexdigest()
 
-        if hash_calculado != signature_recibida:
-            logger.error(f"💀 FRAUDE DETECTADO: Firma inválida. \nCalculada: {hash_calculado}\nRecibida: {signature_recibida}")
-            raise HTTPException(status_code=400, detail="Firma inválida")
+#         if hash_calculado != signature_recibida:
+#             logger.error(f"💀 FRAUDE DETECTADO: Firma inválida. \nCalculada: {hash_calculado}\nRecibida: {signature_recibida}")
+#             raise HTTPException(status_code=400, detail="Firma inválida")
 
-        print("✅ FIRMA VERIFICADA - EL PAGO VIENE REALMENTE DE BOLD")
+#         print("✅ FIRMA VERIFICADA - EL PAGO VIENE REALMENTE DE BOLD")
 
-        # 3. Extracción Defensiva de Datos
-        status_type = payload.get("type") 
-        data_node = payload.get("data", {})
-        metadata_node = data_node.get("metadata", {})
-        order_id = metadata_node.get("reference")
-        payment_id = data_node.get("payment_id") # ID Único de Bold
-        status_str = str(status_type).upper()
+#         # 3. Extracción Defensiva de Datos
+#         status_type = payload.get("type") 
+#         data_node = payload.get("data", {})
+#         metadata_node = data_node.get("metadata", {})
+#         order_id = metadata_node.get("reference")
+#         payment_id = data_node.get("payment_id") # ID Único de Bold
+#         status_str = str(status_type).upper()
 
-        print(f"🔍 Evaluando -> Status: {status_str} | Order ID: {order_id} | Payment ID: {payment_id}")
+#         print(f"🔍 Evaluando -> Status: {status_str} | Order ID: {order_id} | Payment ID: {payment_id}")
 
-        # 4. Procesamiento Lógico
-        if "APPROVED" in status_str and order_id and str(order_id).startswith("KSMART-"):
+#         # 4. Procesamiento Lógico
+#         if "APPROVED" in status_str and order_id and str(order_id).startswith("KSMART-"):
             
-            # ESCUDO 2: IDEMPOTENCIA (Prevenir doble activación)
-            pago_existente = db.query(models.RegistroPago).filter(models.RegistroPago.bold_tx_id == str(payment_id)).first()
-            if pago_existente:
-                print(f"♻️ PAGO DUPLICADO IGNORADO: El ID {payment_id} ya fue procesado antes.")
-                return {"status": "ok", "message": "Ya procesado"}
+#             # ESCUDO 2: IDEMPOTENCIA (Prevenir doble activación)
+#             pago_existente = db.query(models.RegistroPago).filter(models.RegistroPago.bold_tx_id == str(payment_id)).first()
+#             if pago_existente:
+#                 print(f"♻️ PAGO DUPLICADO IGNORADO: El ID {payment_id} ya fue procesado antes.")
+#                 return {"status": "ok", "message": "Ya procesado"}
 
-            partes = str(order_id).split("-")
+#             partes = str(order_id).split("-")
             
-            # KSMART - empresa_id - plan_id - timestamp
-            if len(partes) >= 4 and partes[1].isdigit() and partes[2].isdigit():
-                empresa_id = int(partes[1])
-                plan_id = int(partes[2])
+#             # KSMART - empresa_id - plan_id - timestamp
+#             if len(partes) >= 4 and partes[1].isdigit() and partes[2].isdigit():
+#                 empresa_id = int(partes[1])
+#                 plan_id = int(partes[2])
                 
-                empresa = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
-                plan_comprado = db.query(models.PlanSuscripcion).filter(models.PlanSuscripcion.id == plan_id).first()
+#                 empresa = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
+#                 plan_comprado = db.query(models.PlanSuscripcion).filter(models.PlanSuscripcion.id == plan_id).first()
                 
-                if empresa and plan_comprado:
+#                 if empresa and plan_comprado:
                     
-                    # --- A. ACTIVAR LA EMPRESA Y SUMAR DÍAS ---
-                    empresa.plan_type = "premium"
-                    empresa.is_active = True
+#                     # --- A. ACTIVAR LA EMPRESA Y SUMAR DÍAS ---
+#                     empresa.plan_type = "premium"
+#                     empresa.is_active = True
                     
-                    now_utc = datetime.now(timezone.utc)
-                    # Si aún tenía días de prueba, se los respetamos y le sumamos los del plan
-                    base_date = empresa.trial_ends_at if empresa.trial_ends_at and empresa.trial_ends_at > now_utc else now_utc
-                    empresa.trial_ends_at = base_date + timedelta(days=plan_comprado.dias_duracion)
+#                     now_utc = datetime.now(timezone.utc)
+#                     # Si aún tenía días de prueba, se los respetamos y le sumamos los del plan
+#                     base_date = empresa.trial_ends_at if empresa.trial_ends_at and empresa.trial_ends_at > now_utc else now_utc
+#                     empresa.trial_ends_at = base_date + timedelta(days=plan_comprado.dias_duracion)
                     
-                    # --- B. CREAR REGISTRO FINANCIERO ---
-                    amount_node = data_node.get("amount", {})
-                    nuevo_pago = models.RegistroPago(
-                        empresa_id=empresa_id,
-                        plan_id=plan_id,
-                        monto=amount_node.get("total"),
-                        moneda=amount_node.get("currency"),
-                        metodo_pago=data_node.get("payment_method", "DESCONOCIDO"),
-                        bold_tx_id=str(payment_id),
-                        email_pagador=data_node.get("payer_email", "SIN_EMAIL"),
-                        payload_auditoria=payload  
-                    )
-                    db.add(nuevo_pago)
+#                     # --- B. CREAR REGISTRO FINANCIERO ---
+#                     amount_node = data_node.get("amount", {})
+#                     nuevo_pago = models.RegistroPago(
+#                         empresa_id=empresa_id,
+#                         plan_id=plan_id,
+#                         monto=amount_node.get("total"),
+#                         moneda=amount_node.get("currency"),
+#                         metodo_pago=data_node.get("payment_method", "DESCONOCIDO"),
+#                         bold_tx_id=str(payment_id),
+#                         email_pagador=data_node.get("payer_email", "SIN_EMAIL"),
+#                         payload_auditoria=payload  
+#                     )
+#                     db.add(nuevo_pago)
                     
-                    db.commit()
-                    print(f"✅ ÉXITO TOTAL: Empresa {empresa_id} activada por {plan_comprado.dias_duracion} días. (TX: {payment_id})")
-                else:
-                    print(f"❌ ERROR DB: Empresa {empresa_id} o Plan {plan_id} no encontrados.")
-            else:
-                print(f"❌ ERROR ORDER_ID: Formato inválido o incompleto: {order_id}")
-        else:
-            print(f"⚠️ IGNORADO: No es un pago aprobado o el ID no es de KSMART.")
+#                     db.commit()
+#                     print(f"✅ ÉXITO TOTAL: Empresa {empresa_id} activada por {plan_comprado.dias_duracion} días. (TX: {payment_id})")
+#                 else:
+#                     print(f"❌ ERROR DB: Empresa {empresa_id} o Plan {plan_id} no encontrados.")
+#             else:
+#                 print(f"❌ ERROR ORDER_ID: Formato inválido o incompleto: {order_id}")
+#         else:
+#             print(f"⚠️ IGNORADO: No es un pago aprobado o el ID no es de KSMART.")
 
-        return {"status": "recibido"}
+#         return {"status": "recibido"}
 
-    except Exception as e:
-        print(f"❌ ERROR FATAL EN WEBHOOK: {e}")
-        # Retornamos 200 intencionalmente para que Bold no nos marque como caídos y bloquee la integración
-        return Response(status_code=status.HTTP_200_OK)
+#     except Exception as e:
+#         print(f"❌ ERROR FATAL EN WEBHOOK: {e}")
+#         # Retornamos 200 intencionalmente para que Bold no nos marque como caídos y bloquee la integración
+#         return Response(status_code=status.HTTP_200_OK)
+
+
+@app.post("/webhooks/wompi")
+async def webhook_wompi(request: Request, db: Session = Depends(get_db)):
+    payload = await request.json()
+    # Wompi envía la firma en data.signature.checksum
+    # Por ahora, hagamos la lógica de activación
+    
+    event = payload.get("event")
+    data = payload.get("data", {}).get("transaction", {})
+    
+    if event == "transaction.updated" and data.get("status") == "APPROVED":
+        reference = data.get("reference") # Ej: KSMART-5-2-171328
+        
+        if reference.startswith("KSMART-"):
+            partes = reference.split("-")
+            empresa_id = int(partes[1])
+            plan_id = int(partes[2])
+            
+            empresa = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
+            plan = db.query(models.PlanSuscripcion).filter(models.PlanSuscripcion.id == plan_id).first()
+            
+            if empresa and plan:
+                # 1. Activación
+                empresa.is_active = True
+                empresa.plan_type = "premium"
+                
+                # 2. Tokenización (Guardar para cobro recurrente futuro)
+                # Wompi envía el ID de la fuente de pago si fue tarjeta
+                payment_source = data.get("payment_source_id")
+                if payment_source:
+                    empresa.wompi_payment_source_id = str(payment_source)
+                
+                # 3. Sumar días
+                ahora = datetime.now(timezone.utc)
+                base = empresa.trial_ends_at if empresa.trial_ends_at and empresa.trial_ends_at > ahora else ahora
+                empresa.trial_ends_at = base + timedelta(days=plan.dias_duracion)
+                
+                # 4. Registro contable
+                nuevo_pago = models.RegistroPago(
+                    empresa_id=empresa_id,
+                    plan_id=plan_id,
+                    monto=data.get("amount_in_cents") / 100,
+                    moneda=data.get("currency"),
+                    metodo_pago=data.get("payment_method_type"),
+                    bold_tx_id=data.get("id"), # Reutilizamos la columna
+                    email_pagador=data.get("customer_email"),
+                    payload_auditoria=payload
+                )
+                db.add(nuevo_pago)
+                db.commit()
+                logger.info(f"✅ Suscripción Wompi activada para empresa {empresa_id}")
+
+    return {"status": "ok"}
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ESTÁTICOS

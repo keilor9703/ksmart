@@ -14,7 +14,7 @@ def utcnow():
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ARQUITECTURA MULTI-TENANT (SAAS)
-# ═════════════════════════════════════════════════ ══════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 
 class Empresa(Base):
     """Tabla madre: Cada cliente de tu SaaS es una Empresa"""
@@ -32,6 +32,10 @@ class Empresa(Base):
 
     plan_type = Column(String, default="trial") # Puede ser: 'trial', 'premium', 'anual'
     trial_ends_at = Column(DateTime(timezone=True), nullable=True)
+
+    # 👇 NUEVAS COLUMNAS PARA WOMPI (Cobro Recurrente)
+    wompi_customer_id = Column(String, nullable=True) # Identificador del cliente en Wompi
+    wompi_payment_source_id = Column(String, nullable=True) # El "Token" de la tarjeta encriptada
 
 
 class TenantMixin:
@@ -261,7 +265,7 @@ class RegistroProductividad(Base, TenantMixin):
 class Receta(Base, TenantMixin):
     __tablename__ = "recetas"
     id          = Column(Integer, primary_key=True, index=True)
-    producto_id = Column(Integer, ForeignKey("productos.id")) # Quité el unique=True para que 2 empresas puedan tener una receta con un producto que tenga el mismo ID local
+    producto_id = Column(Integer, ForeignKey("productos.id")) 
     nombre      = Column(String, index=True)
     descripcion = Column(String, nullable=True)
     created_at  = Column(DateTime(timezone=True), default=utcnow)
@@ -407,26 +411,16 @@ class Gasto(Base, TenantMixin):
     usuario = relationship("User")
     tercero = relationship("Cliente")
 
-
-
-
-# --- Añadir en models.py ---
-
 class PlanSuscripcion(Base):
     __tablename__ = "planes_suscripcion"
 
     id = Column(Integer, primary_key=True, index=True)
-    nombre = Column(String, nullable=False)              # Ej: "Plan Emprendedor"
-    codigo_interno = Column(String, unique=True, index=True, nullable=False) # Ej: "premium_mensual"
-    precio = Column(Float, nullable=False)               # Ej: 95000.0
-    dias_duracion = Column(Integer, nullable=False)      # Ej: 30, 365, etc.
-    caracteristicas = Column(String, nullable=True)     # Texto largo: "Ventas ilimitadas, Soporte, etc."
+    nombre = Column(String, nullable=False)              
+    codigo_interno = Column(String, unique=True, index=True, nullable=False) 
+    precio = Column(Float, nullable=False)               
+    dias_duracion = Column(Integer, nullable=False)      
+    caracteristicas = Column(String, nullable=True)     
     is_active = Column(Boolean, default=True)
-
-
-
-
-
 
 
 class RegistroPago(Base):
@@ -437,14 +431,11 @@ class RegistroPago(Base):
     plan_id = Column(Integer, ForeignKey("planes_suscripcion.id"))
     monto = Column(Float)
     moneda = Column(String)
-    metodo_pago = Column(String) # Ej: NEQUI, CARD, PSE
-    bold_tx_id = Column(String)  # El ID que nos dio Bold (payment_id)
+    metodo_pago = Column(String) 
+    bold_tx_id = Column(String)  # Reutilizaremos esta misma columna para el ID de Wompi para no dañar tu BD
     email_pagador = Column(String)
     fecha_pago = Column(DateTime(timezone=True), server_default=func.now())
-    # 💡 Nivel Senior: Guardamos el JSON completo de Bold por si necesitamos auditar algo después
     payload_auditoria = Column(JSON) 
 
-    # Relaciones
     empresa = relationship("Empresa")
     plan = relationship("PlanSuscripcion")
-
