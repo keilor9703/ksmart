@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { Button, CircularProgress } from '@mui/material';
 import { Payments } from '@mui/icons-material';
-import apiClient from '../api';
+import { apiClient } from '../api'; // Asegúrate de importar correctamente
 import { toast } from 'react-toastify';
 
 const WompiButton = ({ planName, onSuccess }) => {
   const [loading, setLoading] = useState(false);
 
-const handlePayment = async () => {
+  const handlePayment = async () => {
     setLoading(true);
     try {
       // 1. Obtener datos del backend
@@ -18,22 +18,21 @@ const handlePayment = async () => {
       console.log("Datos recibidos para Wompi:", data);
 
       // 2. Configuración ESTRICTA para el Widget de Wompi
-      // Nota: Wompi usa nombres de campos específicos en el objeto de configuración
       const checkoutData = {
-        currency: data.currency,           // Ej: "COP"
-        amountInCents: parseInt(data.amount_in_cents), // DEBE ser un entero
-        reference: data.reference,         // Ej: "KSMART-..."
-        publicKey: data.public_key,        // Tu llave pub_test_...
-        signature: data.signature,         // El hash de integridad
+        currency: data.currency,           
+        amountInCents: parseInt(data.amount_in_cents), 
+        reference: data.reference,         
+        publicKey: data.public_key,        
+        // 👇 CORRECCIÓN CLAVE: Wompi exige que la firma sea un objeto con la propiedad "integrity"
+        signature: { integrity: data.signature }, 
         redirectUrl: `${window.location.origin}/`, 
       };
 
-      // 3. Invocar el Widget
-      // Verificamos si la librería cargó correctamente desde index.html
       if (!window.WidgetCheckout) {
-        throw new Error("La librería de pagos de Wompi no se ha cargado. Verifica tu conexión.");
+        throw new Error("La librería de Wompi no cargó. Revisa tu conexión o desactiva tu bloqueador de anuncios.");
       }
 
+      // 3. Invocar el Widget
       const checkout = new window.WidgetCheckout(checkoutData);
 
       checkout.open((result) => {
@@ -49,23 +48,19 @@ const handlePayment = async () => {
       });
 
     } catch (error) {
-      // ── LOG DE DIAGNÓSTICO SENIOR ──
       console.error("DEBUG COMPLETO ERROR WOMPI:", error);
-      
-      // Si el error viene de Axios (Backend)
       if (error.response) {
         toast.error(`Error del servidor: ${error.response.data?.detail || 'Fallo en Hash'}`);
-      } 
-      // Si el error es de JavaScript (Widget no cargado o mal configurado)
-      else {
-        toast.error(`Error de pasarela: ${error.message}`);
+      } else {
+        // Mejor manejo de errores para que no salga 'undefined'
+        const msg = error.message || JSON.stringify(error);
+        toast.error(`Error de pasarela: ${msg}`);
       }
     } finally {
       setLoading(false);
     }
   };
 
-  
   return (
     <Button
       variant="contained"
@@ -74,14 +69,17 @@ const handlePayment = async () => {
       disabled={loading}
       startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <Payments />}
       sx={{ 
-        bgcolor: '#3B82F6', 
-        borderRadius: 2, 
-        py: 1.5, 
-        fontWeight: 700,
-        '&:hover': { bgcolor: '#2563EB' }
+        bgcolor: '#F43F5E', 
+        borderRadius: 3, 
+        py: 1.8, 
+        fontWeight: 800,
+        fontSize: '0.95rem',
+        boxShadow: '0 4px 14px rgba(244, 63, 94, 0.4)',
+        '&:hover': { bgcolor: '#E11D48', boxShadow: '0 6px 20px rgba(244, 63, 94, 0.6)' },
+        textTransform: 'none'
       }}
     >
-      {loading ? 'Preparando Pago...' : 'Pagar con Wompi / Nequi'}
+      {loading ? 'Cargando Pasarela...' : 'Pagar con Wompi / Nequi'}
     </Button>
   );
 };
