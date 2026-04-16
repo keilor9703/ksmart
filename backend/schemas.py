@@ -790,3 +790,17 @@ class RegistroSaaS(BaseModel):
     nombre_empresa: str
     username: str
     password: str
+
+
+# =========================
+# INTEGRACIÓN BOLD (PAGOS SAAS)
+# =========================
+class BoldHashRequest(BaseModel):
+    plan_name: str  # Ej: "premium_mensual" o "premium_anual"
+
+class BoldHashResponse(BaseModel):
+    order_id: str
+    amount: str
+    currency: str
+    hash_integridad: str
+    api_key: str
