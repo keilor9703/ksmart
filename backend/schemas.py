@@ -149,7 +149,7 @@ class InventoryMovementOut(BaseModel):
     motivo: Optional[str] = None
     referencia: Optional[str] = None
     observacion: Optional[str] = None
-    created_at: date
+    created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
 class InventoryAlertOut(BaseModel):
