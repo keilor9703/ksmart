@@ -18,6 +18,13 @@ import pandas as pd
 from fastapi import APIRouter
 import shutil
 
+import hashlib
+import time
+import os
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+# Tus otras importaciones
+
 
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -1506,6 +1513,57 @@ def add_pago_compra(pago: schemas.PagoCompraCreate, db: Session = Depends(get_db
     return pago
 
 app.include_router(compras_router)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BOLD
+# ═════════════════════════════════════════════════════════════════════════════
+# Obtenemos las llaves de Bold desde el entorno virtual
+BOLD_API_KEY = os.getenv("BOLD_API_KEY", "FALTA_API_KEY")
+BOLD_SECRET_KEY = os.getenv("BOLD_SECRET_KEY", "FALTA_SECRET_KEY")
+
+@app.post("/pagos/generar-hash", response_model=schemas.BoldHashResponse)
+def generar_hash_bold(
+    request_data: schemas.BoldHashRequest, 
+    current_user: schemas.User = Depends(get_current_active_user)
+):
+    # 1. Definimos el catálogo de precios de tu SaaS (Sin decimales, en COP)
+    # Por ejemplo, $95.000 COP = "95000"
+    precios = {
+        "premium_mensual": "95000",
+        "premium_anual": "950000" # 2 meses gratis, por ejemplo
+    }
+
+    if request_data.plan_name not in precios:
+        raise HTTPException(status_code=400, detail="El plan seleccionado no es válido.")
+
+    monto = precios[request_data.plan_name]
+    divisa = "COP"
+
+    # 2. Generamos un Identificador Único de Orden (Order ID)
+    # Formato: KSMART - ID_EMPRESA - TIMESTAMP
+    # Ej: KSMART-3-1713210450
+    timestamp = int(time.time())
+    order_id = f"KSMART-{current_user.empresa_id}-{timestamp}"
+
+    # 3. Concatenación estricta exigida por Bold
+    # {Identificador}{Monto}{Divisa}{LlaveSecreta}
+    cadena_concatenada = f"{order_id}{monto}{divisa}{BOLD_SECRET_KEY}"
+
+    # 4. Encriptación SHA256
+    hash_integridad = hashlib.sha256(cadena_concatenada.encode('utf-8')).hexdigest()
+
+    # 5. Devolvemos el paquete listo para que React abra la pasarela
+    return {
+        "order_id": order_id,
+        "amount": monto,
+        "currency": divisa,
+        "hash_integridad": hash_integridad,
+        "api_key": BOLD_API_KEY
+    }
+
+
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ESTÁTICOS
