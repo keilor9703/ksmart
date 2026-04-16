@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Button, CircularProgress } from '@mui/material';
 import { Payments } from '@mui/icons-material';
-import { apiClient } from '../api'; // Asegúrate de importar correctamente
+import { apiClient } from '../api'; 
 import { toast } from 'react-toastify';
 
 const WompiButton = ({ planName, onSuccess }) => {
@@ -15,21 +15,34 @@ const WompiButton = ({ planName, onSuccess }) => {
         plan_name: planName
       });
 
-      console.log("Datos recibidos para Wompi:", data);
+      // 🛡️ DEFENSA 1: Verificamos si Render sigue enviando la llave de relleno
+      if (data.public_key === "pub_test_...") {
+         alert("❌ ERROR DE ENTORNO:\nEl backend sigue enviando la llave de prueba falsa ('pub_test_...').\n\nVe a Render, asegúrate de que WOMPI_PUBLIC_KEY esté bien escrita y reinicia el servidor manualmente.");
+         setLoading(false);
+         return;
+      }
+
+      // 🛡️ DEFENSA 2: Limpiamos comillas accidentales de las variables de entorno
+      let safePublicKey = data.public_key;
+      if (safePublicKey.includes('"') || safePublicKey.includes("'")) {
+         safePublicKey = safePublicKey.replace(/['"]/g, '');
+      }
 
       // 2. Configuración ESTRICTA para el Widget de Wompi
       const checkoutData = {
         currency: data.currency,           
         amountInCents: parseInt(data.amount_in_cents), 
         reference: data.reference,         
-        publicKey: data.public_key,        
-        // 👇 CORRECCIÓN CLAVE: Wompi exige que la firma sea un objeto con la propiedad "integrity"
+        publicKey: safePublicKey,        
         signature: { integrity: data.signature }, 
-        redirectUrl: `${window.location.origin}/`, 
+        redirectUrl: window.location.origin, // Sin el slash final para mayor compatibilidad
       };
 
+      // 🛡️ DEFENSA 3: Verificar que el script de index.html sí haya cargado
       if (!window.WidgetCheckout) {
-        throw new Error("La librería de Wompi no cargó. Revisa tu conexión o desactiva tu bloqueador de anuncios.");
+         alert("❌ ERROR DE LIBRERÍA:\nEl script de Wompi no cargó. Verifica que pusiste la etiqueta <script> en tu index.html correctamente.");
+         setLoading(false);
+         return;
       }
 
       // 3. Invocar el Widget
@@ -37,25 +50,28 @@ const WompiButton = ({ planName, onSuccess }) => {
 
       checkout.open((result) => {
         const transaction = result.transaction;
-        console.log("Resultado Wompi:", transaction);
-        
         if (transaction.status === 'APPROVED') {
-          toast.success("¡Pago aprobado! Tu cuenta se activará en segundos.");
+          toast.success("¡Pago aprobado! Activando tu cuenta...");
           if (onSuccess) onSuccess();
         } else {
-          toast.info(`Transacción: ${transaction.status}`);
+          toast.warning(`Transacción no aprobada. Estado: ${transaction.status}`);
         }
       });
 
     } catch (error) {
-      console.error("DEBUG COMPLETO ERROR WOMPI:", error);
+      // 🛡️ DEFENSA 4: Extracción agresiva del error para móviles
+      let errorMsg = "Error Desconocido";
       if (error.response) {
-        toast.error(`Error del servidor: ${error.response.data?.detail || 'Fallo en Hash'}`);
+         errorMsg = error.response.data?.detail || JSON.stringify(error.response.data);
+      } else if (error.message) {
+         errorMsg = error.message;
       } else {
-        // Mejor manejo de errores para que no salga 'undefined'
-        const msg = error.message || JSON.stringify(error);
-        toast.error(`Error de pasarela: ${msg}`);
+         try { errorMsg = JSON.stringify(error); } catch(e) {}
       }
+      
+      toast.error(`No se pudo iniciar el pago.`);
+      // Este alert saltará en tu celular mostrándote LA VERDAD
+      alert("🔎 DIAGNÓSTICO DE ERROR:\n" + errorMsg);
     } finally {
       setLoading(false);
     }
@@ -79,7 +95,7 @@ const WompiButton = ({ planName, onSuccess }) => {
         textTransform: 'none'
       }}
     >
-      {loading ? 'Cargando Pasarela...' : 'Pagar con Wompi / Nequi'}
+      {loading ? 'Conectando...' : 'Pagar con Wompi / Nequi'}
     </Button>
   );
 };
