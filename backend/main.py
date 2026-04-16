@@ -18,6 +18,14 @@ import pandas as pd
 from fastapi import APIRouter
 import shutil
 
+
+from datetime import datetime, timedelta, timezone
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+# Asegúrate de importar tus modelos, schemas, y la dependencia get_db
+# import models, schemas
+# from database import get_db
+
 # ─── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
@@ -213,6 +221,73 @@ def get_current_superadmin_user(current_user: schemas.User = Depends(get_current
     if current_user.role.name != "Admin" or current_user.empresa_id != 1:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado: Solo SuperAdmin")
     return current_user
+
+
+# ─── 1. CONFIGURACIÓN DE ENCRIPTACIÓN (Si no la tienes ya definida) ───
+from passlib.context import CryptContext
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
+
+# ─── 2. ENDPOINT DE REGISTRO AUTOSERVICIO BLINDADO ───
+@app.post("/auth/register", status_code=status.HTTP_201_CREATED)
+def registrar_nuevo_cliente(data: schemas.RegistroSaaS, db: Session = Depends(get_db)):
+    
+    # Validación 1: ¿El usuario ya existe en todo el sistema?
+    # (El username debe ser único a nivel global para que el login funcione)
+    usuario_existente = db.query(models.User).filter(models.User.username == data.username).first()
+    if usuario_existente:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="Este usuario ya está en uso. Por favor, elige otro."
+        )
+
+    try:
+        # Paso A: Crear la Empresa (Tenant)
+        nueva_empresa = models.Empresa(
+            nombre=data.nombre_empresa,
+            is_active=True,
+            plan_type="trial",
+            # Le damos 14 días exactos desde este milisegundo
+            trial_ends_at=datetime.now(timezone.utc) + timedelta(days=14) 
+        )
+        db.add(nueva_empresa)
+        db.flush() # Guardamos en memoria para obtener el ID, pero NO hacemos commit todavía
+
+        # Paso B: Buscar o crear el Rol "Admin"
+        # Meticuloso: Evitamos asumir que el ID 1 es Admin. Lo buscamos por nombre.
+        rol_admin = db.query(models.Role).filter(models.Role.name == "Admin").first()
+        if not rol_admin:
+            # Si la BD es totalmente nueva y no existe el rol, lo creamos
+            rol_admin = models.Role(name="Admin")
+            db.add(rol_admin)
+            db.flush()
+
+        # Paso C: Crear el Usuario Dueño
+        nuevo_usuario = models.User(
+            username=data.username,
+            hashed_password=get_password_hash(data.password), # ¡Encriptación vital!
+            role_id=rol_admin.id,
+            empresa_id=nueva_empresa.id
+        )
+        db.add(nuevo_usuario)
+        
+        # Paso D: Confirmar Transacción (Todo o Nada)
+        db.commit()
+        return {"message": "Cuenta creada exitosamente. ¡Bienvenido a Ksmart360!"}
+        
+    except Exception as e:
+        db.rollback() # Si algo falla, deshacemos todo para evitar datos corruptos
+        # En producción, deberías loguear 'e' en tu logger, no devolverlo al frontend
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail="Ocurrió un error interno al crear tu cuenta. Intenta nuevamente."
+        )
+
+
+
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # AUTENTICACIÓN MULTI-TENANT
