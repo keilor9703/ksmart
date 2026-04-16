@@ -1540,42 +1540,48 @@ app.include_router(compras_router)
 # ═══════════════════════════════════════════════════════════════════════════════
 # BOLD
 # ═════════════════════════════════════════════════════════════════════════════
+
+
+
+@app.get("/planes-activos", response_model=List[schemas.PlanSuscripcionOut])
+def listar_planes_publicos(db: Session = Depends(get_db)):
+    return crud.get_planes(db, include_inactive=False) # Los clientes solo ven planes activos
+
+
+
 # Obtenemos las llaves de Bold desde el entorno virtual
 BOLD_API_KEY = os.getenv("BOLD_API_KEY", "FALTA_API_KEY")
 BOLD_SECRET_KEY = os.getenv("BOLD_SECRET_KEY", "FALTA_SECRET_KEY")
 
+
 @app.post("/pagos/generar-hash", response_model=schemas.BoldHashResponse)
 def generar_hash_bold(
     request_data: schemas.BoldHashRequest, 
-    current_user: schemas.User = Depends(get_current_user)
+    current_user: schemas.User = Depends(get_current_user),
+    db: Session = Depends(get_db) # ✅ Agregamos acceso a la Base de Datos
 ):
-    # 1. Definimos el catálogo de precios de tu SaaS (Sin decimales, en COP)
-    # Por ejemplo, $95.000 COP = "95000"
-    precios = {
-        "premium_mensual": "95000",
-        "premium_anual": "950000" # 2 meses gratis, por ejemplo
-    }
+    # 1. Buscamos el plan real en la Base de Datos
+    plan = db.query(models.PlanSuscripcion).filter(
+        models.PlanSuscripcion.codigo_interno == request_data.plan_name,
+        models.PlanSuscripcion.is_active == True
+    ).first()
 
-    if request_data.plan_name not in precios:
-        raise HTTPException(status_code=400, detail="El plan seleccionado no es válido.")
+    if not plan:
+        raise HTTPException(status_code=400, detail="El plan seleccionado no existe o ya no está disponible.")
 
-    monto = precios[request_data.plan_name]
+    # Convertimos el float de la BD (ej. 95000.0) a string entero ("95000") para Bold
+    monto = str(int(plan.precio))
     divisa = "COP"
-
-    # 2. Generamos un Identificador Único de Orden (Order ID)
-    # Formato: KSMART - ID_EMPRESA - TIMESTAMP
-    # Ej: KSMART-3-1713210450
     timestamp = int(time.time())
-    order_id = f"KSMART-{current_user.empresa_id}-{timestamp}"
 
-    # 3. Concatenación estricta exigida por Bold
-    # {Identificador}{Monto}{Divisa}{LlaveSecreta}
+    # 2. EL TRUCO: Incrustamos el ID del Plan en la orden
+    # Formato: KSMART - ID_EMPRESA - ID_PLAN - TIMESTAMP
+    order_id = f"KSMART-{current_user.empresa_id}-{plan.id}-{timestamp}"
+
+    # 3. Concatenación y Hash
     cadena_concatenada = f"{order_id}{monto}{divisa}{BOLD_SECRET_KEY}"
-
-    # 4. Encriptación SHA256
     hash_integridad = hashlib.sha256(cadena_concatenada.encode('utf-8')).hexdigest()
 
-    # 5. Devolvemos el paquete listo para que React abra la pasarela
     return {
         "order_id": order_id,
         "amount": monto,
@@ -1585,58 +1591,42 @@ def generar_hash_bold(
     }
 
 
-
-
-
-# Asegúrate de tener datetime, timedelta, timezone importados
-
+# ─── EL WEBHOOK DINÁMICO ───
 @app.post("/webhooks/bold")
 async def webhook_pagos_bold(request: Request, db: Session = Depends(get_db)):
     try:
-        # 1. Capturamos el JSON que nos envía Bold
         payload = await request.json()
-        
-        # 2. Extraemos el estado y el ID de la orden. 
-        # (La estructura exacta puede variar según la versión de la API de Bold, 
-        # pero usualmente viene dentro de un nodo 'data' o 'transaction')
-        
-        # Ejemplo de extracción defensiva (ajusta según el JSON real que mande Bold):
         status = payload.get("data", {}).get("transaction", {}).get("status")
         order_id = payload.get("data", {}).get("transaction", {}).get("order_id")
 
-        # 3. Verificamos si el pago fue APROBADO y si la orden es nuestra
         if status == "APPROVED" and order_id and order_id.startswith("KSMART-"):
-            
-            # Extraemos el ID de la empresa de "KSMART-3-171321..."
             partes = order_id.split("-")
-            if len(partes) >= 2 and partes[1].isdigit():
+            
+            # Ahora esperamos 4 partes: ["KSMART", "empresa_id", "plan_id", "timestamp"]
+            if len(partes) >= 4 and partes[1].isdigit() and partes[2].isdigit():
                 empresa_id = int(partes[1])
+                plan_id = int(partes[2])
                 
-                # 4. Buscamos a la empresa en la base de datos
                 empresa = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
+                plan_comprado = db.query(models.PlanSuscripcion).filter(models.PlanSuscripcion.id == plan_id).first()
                 
-                if empresa:
-                    # 🚀 ¡MAGIA DE SAAS!
-                    # Cambiamos el plan a premium y reactivamos el acceso
+                if empresa and plan_comprado:
                     empresa.plan_type = "premium"
                     empresa.is_active = True
                     
-                    # Le sumamos 30 días de suscripción usando UTC (como requiere Postgres)
                     now_utc = datetime.now(timezone.utc)
-                    # Si ya tenía días a favor (compró antes de vencerse), se los sumamos a su saldo actual
                     base_date = empresa.trial_ends_at if empresa.trial_ends_at and empresa.trial_ends_at > now_utc else now_utc
-                    empresa.trial_ends_at = base_date + timedelta(days=30)
+                    
+                    # 🚀 Sumamos los días exactos que configuraste en tu panel
+                    empresa.trial_ends_at = base_date + timedelta(days=plan_comprado.dias_duracion)
                     
                     db.commit()
-                    print(f"✅ Webhook exitoso: Empresa {empresa_id} actualizada a Premium por 30 días.")
-        
-        # Siempre respondemos 200 OK rápido para que Bold sepa que recibimos el mensaje
+                    print(f"✅ Webhook: Empresa {empresa_id} activada. Se sumaron {plan_comprado.dias_duracion} días.")
+                    
         return {"status": "recibido"}
 
     except Exception as e:
-        print(f"❌ Error procesando el Webhook de Bold: {e}")
-        # Retornamos 200 incluso si hay error de código nuestro, 
-        # para evitar que Bold intente reenviar el webhook infinitamente
+        print(f"❌ Error Webhook Bold: {e}")
         return {"status": "error_procesando"}
 
 
