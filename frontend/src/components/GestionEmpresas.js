@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, Button, Table, TableBody, TableCell,
@@ -116,7 +115,7 @@ export default function GestionSaaS() {
   const [openPlanDialog, setOpenPlanDialog] = useState(false);
   const [empresaSeleccionada, setEmpresaSeleccionada] = useState(null);
   const [formEmpresa, setFormEmpresa] = useState({ nombre: '', nit: '', admin_username: '', admin_password: '' });
-  const [formAsignarPlan, setFormAsignarPlan] = useState({ plan_type: 'trial', trial_ends_at: '' });
+  const [formAsignarPlan, setFormAsignarPlan] = useState({ plan_type: 'trial', plan_selector: 'trial', trial_ends_at: '' });
 
   // ── Estados: Catálogo de Planes ──
   const [planesCatalog, setPlanesCatalog] = useState([]);
@@ -169,6 +168,42 @@ export default function GestionSaaS() {
     finally { setLoading(false); }
   };
 
+  // ── Funciones: Asignar Plan ──
+  const handleOpenAsignarPlan = (empresa) => {
+    setEmpresaSeleccionada(empresa);
+    setFormAsignarPlan({ 
+      plan_type: empresa.plan_type || 'trial', 
+      plan_selector: empresa.plan_type || 'trial', 
+      trial_ends_at: formatDateForInput(empresa.trial_ends_at) 
+    });
+    setOpenPlanDialog(true);
+  };
+
+  const handleSelectPlanChange = (e) => {
+    const selectedValue = e.target.value;
+    let newDate = formAsignarPlan.trial_ends_at;
+    let realPlanType = 'premium'; // Por defecto acceso premium para planes pagados
+
+    if (selectedValue === 'trial' || selectedValue === 'premium') {
+      realPlanType = selectedValue;
+    } else {
+      // Calculamos sumando días
+      const planObj = planesCatalog.find(p => p.codigo_interno === selectedValue);
+      if (planObj) {
+        const today = new Date();
+        today.setDate(today.getDate() + planObj.dias_duracion);
+        newDate = formatDateForInput(today);
+      }
+    }
+
+    setFormAsignarPlan({
+      ...formAsignarPlan,
+      plan_type: realPlanType,
+      plan_selector: selectedValue,
+      trial_ends_at: newDate
+    });
+  };
+
   const handleUpdateSuscripcion = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -183,12 +218,6 @@ export default function GestionSaaS() {
       fetchEmpresas();
     } catch (err) { toast.error('Error al actualizar el plan'); } 
     finally { setLoading(false); }
-  };
-
-  const handleOpenAsignarPlan = (empresa) => {
-    setEmpresaSeleccionada(empresa);
-    setFormAsignarPlan({ plan_type: empresa.plan_type || 'trial', trial_ends_at: formatDateForInput(empresa.trial_ends_at) });
-    setOpenPlanDialog(true);
   };
 
   // ── Funciones: Catálogo de Planes ──
@@ -344,7 +373,6 @@ export default function GestionSaaS() {
               </Table>
             </TableContainer>
           ) : (
-            // ✅ VISTA MÓVIL RECUPERADA Y MEJORADA
             <Box sx={{ p: { xs: 0, sm: 2 } }}>
               {empresas.length === 0 ? (
                 <Box sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
@@ -453,7 +481,7 @@ export default function GestionSaaS() {
         </form>
       </Dialog>
 
-      {/* ── Modal Original: Asignar Plan a Empresa ── */}
+      {/* ── Modal Inteligente: Asignar Plan a Empresa ── */}
       <Dialog open={openPlanDialog} onClose={() => setOpenPlanDialog(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
         <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography sx={{ fontWeight: 700, fontSize: 16 }}>Actualizar: {empresaSeleccionada?.nombre}</Typography>
@@ -462,16 +490,42 @@ export default function GestionSaaS() {
         <form onSubmit={handleUpdateSuscripcion}>
           <DialogContent dividers>
             <Stack spacing={3}>
-              <TextField select label="Tipo de Plan Manual" value={formAsignarPlan.plan_type} onChange={e => setFormAsignarPlan({...formAsignarPlan, plan_type: e.target.value})} fullWidth size="small">
-                <MenuItem value="trial">Trial (Prueba Gratuita)</MenuItem>
-                <MenuItem value="premium">Premium (Suscripción Pagada)</MenuItem>
+              <TextField 
+                select 
+                label="Seleccionar Plan o Acción" 
+                value={formAsignarPlan.plan_selector} 
+                onChange={handleSelectPlanChange} 
+                fullWidth size="small"
+                helperText="Elegir un plan de tu catálogo calculará la fecha automáticamente."
+              >
+                <MenuItem value="trial">Volver a Trial (Prueba Gratuita)</MenuItem>
+                <MenuItem value="premium">Premium Genérico (Ajuste Manual)</MenuItem>
+                <Divider sx={{ my: 1 }} />
+                <MenuItem disabled value="">
+                  <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', ml: 1 }}>
+                    PLANES DE TU CATÁLOGO:
+                  </Typography>
+                </MenuItem>
+                {planesCatalog.map(plan => (
+                  <MenuItem key={plan.id} value={plan.codigo_interno} sx={{ pl: 3 }}>
+                    Asignar: {plan.nombre} (+{plan.dias_duracion} días)
+                  </MenuItem>
+                ))}
               </TextField>
-              <TextField type="date" label="Fecha de Vencimiento" InputLabelProps={{ shrink: true }} value={formAsignarPlan.trial_ends_at} onChange={e => setFormAsignarPlan({...formAsignarPlan, trial_ends_at: e.target.value})} fullWidth size="small" />
+
+              <TextField 
+                type="date" 
+                label="Fecha de Vencimiento Resultante" 
+                InputLabelProps={{ shrink: true }} 
+                value={formAsignarPlan.trial_ends_at} 
+                onChange={e => setFormAsignarPlan({...formAsignarPlan, trial_ends_at: e.target.value})} 
+                fullWidth size="small" 
+              />
             </Stack>
           </DialogContent>
           <DialogActions sx={{ p: 2 }}>
             <Button onClick={() => setOpenPlanDialog(false)} variant="outlined" sx={{ borderRadius: 2 }}>Cancelar</Button>
-            <Button type="submit" variant="contained" disabled={loading} sx={{ bgcolor: '#8B5CF6', borderRadius: 2 }}>Guardar</Button>
+            <Button type="submit" variant="contained" disabled={loading} sx={{ bgcolor: '#8B5CF6', borderRadius: 2 }}>Guardar Cambios</Button>
           </DialogActions>
         </form>
       </Dialog>
