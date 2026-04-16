@@ -366,6 +366,28 @@ def actualizar_plan_empresa(empresa_id: int, plan_data: schemas.EmpresaPlanUpdat
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
     return empresa
 
+# --- Rutas de SuperAdmin para Planes ---
+@superadmin_router.get("/planes", response_model=List[schemas.PlanSuscripcionOut])
+def listar_planes_admin(db: Session = Depends(get_db)):
+    return crud.get_planes(db, include_inactive=True) # El admin ve todos, incluso los inactivos
+
+@superadmin_router.post("/planes", response_model=schemas.PlanSuscripcionOut)
+def crear_plan(plan: schemas.PlanSuscripcionCreate, db: Session = Depends(get_db)):
+    # Validar que el código interno no exista ya
+    existente = db.query(models.PlanSuscripcion).filter(models.PlanSuscripcion.codigo_interno == plan.codigo_interno).first()
+    if existente:
+        raise HTTPException(status_code=400, detail="Ya existe un plan con este código interno.")
+    return crud.create_plan(db, plan)
+
+@superadmin_router.patch("/planes/{plan_id}", response_model=schemas.PlanSuscripcionOut)
+def actualizar_plan(plan_id: int, plan_update: schemas.PlanSuscripcionUpdate, db: Session = Depends(get_db)):
+    plan_actualizado = crud.update_plan(db, plan_id, plan_update)
+    if not plan_actualizado:
+        raise HTTPException(status_code=404, detail="Plan no encontrado")
+    return plan_actualizado
+
+
+
 app.include_router(superadmin_router)
 
 # ═══════════════════════════════════════════════════════════════════════════════
