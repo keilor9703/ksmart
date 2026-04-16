@@ -2742,6 +2742,16 @@ def create_empresa_with_admin(db: Session, data: schemas.EmpresaWithAdminCreate)
     db.refresh(db_empresa)
     return db_empresa
 
+
+def update_empresa_plan(db: Session, empresa_id: int, plan_data: schemas.EmpresaPlanUpdate):
+    db_empresa = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
+    if db_empresa:
+        db_empresa.plan_type = plan_data.plan_type
+        db_empresa.trial_ends_at = plan_data.trial_ends_at
+        db.commit()
+        db.refresh(db_empresa)
+    return db_empresa
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # NOTIFICACIONES Y DEMÁS FUNCIONES PERMANECEN IGUAL
 # ═══════════════════════════════════════════════════════════════════════════════

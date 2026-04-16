@@ -275,6 +275,15 @@ def suspender_activar_empresa(empresa_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
     return empresa
 
+@superadmin_router.patch("/empresas/{empresa_id}/plan", response_model=schemas.EmpresaOut)
+def actualizar_plan_empresa(empresa_id: int, plan_data: schemas.EmpresaPlanUpdate, db: Session = Depends(get_db)):
+    if empresa_id == 1:
+        raise HTTPException(status_code=400, detail="La empresa maestra no puede modificar su plan vitalicio.")
+    empresa = crud.update_empresa_plan(db, empresa_id, plan_data)
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+    return empresa
+
 app.include_router(superadmin_router)
 
 # ═══════════════════════════════════════════════════════════════════════════════

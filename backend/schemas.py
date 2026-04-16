@@ -775,3 +775,8 @@ class MovementExcel(BaseModel):
 # RECONSTRUCCIÓN DE REFERENCIAS FORWARD
 # =========================
 DashboardData.model_rebuild()
+
+
+class EmpresaPlanUpdate(BaseModel):
+    plan_type: str
+    trial_ends_at: Optional[datetime] = None
