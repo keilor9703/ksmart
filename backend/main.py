@@ -24,7 +24,7 @@ import os
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 # Tus otras importaciones
-
+from fastapi import Request
 
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -1561,6 +1561,62 @@ def generar_hash_bold(
         "hash_integridad": hash_integridad,
         "api_key": BOLD_API_KEY
     }
+
+
+
+
+
+# Asegúrate de tener datetime, timedelta, timezone importados
+
+@app.post("/webhooks/bold")
+async def webhook_pagos_bold(request: Request, db: Session = Depends(get_db)):
+    try:
+        # 1. Capturamos el JSON que nos envía Bold
+        payload = await request.json()
+        
+        # 2. Extraemos el estado y el ID de la orden. 
+        # (La estructura exacta puede variar según la versión de la API de Bold, 
+        # pero usualmente viene dentro de un nodo 'data' o 'transaction')
+        
+        # Ejemplo de extracción defensiva (ajusta según el JSON real que mande Bold):
+        status = payload.get("data", {}).get("transaction", {}).get("status")
+        order_id = payload.get("data", {}).get("transaction", {}).get("order_id")
+
+        # 3. Verificamos si el pago fue APROBADO y si la orden es nuestra
+        if status == "APPROVED" and order_id and order_id.startswith("KSMART-"):
+            
+            # Extraemos el ID de la empresa de "KSMART-3-171321..."
+            partes = order_id.split("-")
+            if len(partes) >= 2 and partes[1].isdigit():
+                empresa_id = int(partes[1])
+                
+                # 4. Buscamos a la empresa en la base de datos
+                empresa = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
+                
+                if empresa:
+                    # 🚀 ¡MAGIA DE SAAS!
+                    # Cambiamos el plan a premium y reactivamos el acceso
+                    empresa.plan_type = "premium"
+                    empresa.is_active = True
+                    
+                    # Le sumamos 30 días de suscripción usando UTC (como requiere Postgres)
+                    now_utc = datetime.now(timezone.utc)
+                    # Si ya tenía días a favor (compró antes de vencerse), se los sumamos a su saldo actual
+                    base_date = empresa.trial_ends_at if empresa.trial_ends_at and empresa.trial_ends_at > now_utc else now_utc
+                    empresa.trial_ends_at = base_date + timedelta(days=30)
+                    
+                    db.commit()
+                    print(f"✅ Webhook exitoso: Empresa {empresa_id} actualizada a Premium por 30 días.")
+        
+        # Siempre respondemos 200 OK rápido para que Bold sepa que recibimos el mensaje
+        return {"status": "recibido"}
+
+    except Exception as e:
+        print(f"❌ Error procesando el Webhook de Bold: {e}")
+        # Retornamos 200 incluso si hay error de código nuestro, 
+        # para evitar que Bold intente reenviar el webhook infinitamente
+        return {"status": "error_procesando"}
+
 
 
 
