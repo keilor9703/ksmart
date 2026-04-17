@@ -2165,11 +2165,11 @@ def pagar_cuota_cascada(cuota_id: int, req: PagoCuotaRequest, db: Session = Depe
             monto_disponible -= saldo_actual
             cuota.saldo_pendiente = 0
             cuota.estado_pago = "Pagado"
-            cuota.fecha_pago = datetime.now(BOGOTA_TZ)
+            cuota.fecha_pago = datetime.now(crud.BOGOTA_TZ)
         else:
             cuota.saldo_pendiente -= monto_disponible
             cuota.estado_pago = "Parcial"
-            cuota.fecha_pago = datetime.now(BOGOTA_TZ)
+            cuota.fecha_pago = datetime.now(crud.BOGOTA_TZ)
             monto_disponible = 0
     
     db.commit()

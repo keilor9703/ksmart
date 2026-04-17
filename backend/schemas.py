@@ -533,7 +533,7 @@ class LoteProduccion(LoteProduccionBase):
     costo_total: float
     costo_unitario_resultado: float
     fecha_planificada: datetime
-    fecha_confirmacion: Optional[date] = None
+    fecha_confirmacion: Optional[datetime] = None
     estado: str
     receta: Receta
     cliente: Optional[Cliente] = None
