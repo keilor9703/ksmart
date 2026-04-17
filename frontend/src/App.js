@@ -4,14 +4,15 @@ import {
   Box, Typography, IconButton, List, ListItemButton,
   ListItemText, ListItemIcon, Collapse, CircularProgress, Divider,
   Drawer, Tooltip, CssBaseline, GlobalStyles, Menu, MenuItem,
-  Avatar, Button // 👈 AÑADIDO: Faltaba importar Button
+  Avatar, Button 
 } from '@mui/material';
 import {
   ShoppingCart, People, Inventory, Assessment, AdminPanelSettings,
   ExpandLess, ExpandMore, Assignment, Dashboard as DashboardIcon,
   Logout as LogoutIcon, Menu as MenuIcon, MoreVert as MoreVertIcon,
   PrecisionManufacturing, ShoppingBag, KeyboardArrowRight,
-  LightMode, DarkMode, PointOfSale as PointOfSaleIcon, Business
+  LightMode, DarkMode, PointOfSale as PointOfSaleIcon, Business,
+  AttachMoney, DirectionsRun // 👈 AÑADIDO: Iconos para el módulo de prestamistas
 } from '@mui/icons-material';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import useMediaQueryHook from '@mui/material/useMediaQuery';
@@ -45,6 +46,10 @@ import GestionEmpresas from './components/GestionEmpresas';
 import SuscripcionExpirada from './components/SuscripcionExpirada';
 import Registro from './components/Registro'; 
 
+// ✅ IMPORTAMOS LOS NUEVOS MÓDULOS DE PRÉSTAMOS
+import PrestamoForm from './components/PrestamoForm'; // ✅ CORRECTO: Importación por defecto
+import RutaCobro from './components/RutaCobro';
+
 // ─── Constantes ────────────────────────────────────────────────────────────────
 const SIDEBAR_FULL   = 240;
 const SIDEBAR_MINI   = 68;
@@ -68,6 +73,9 @@ const menuItems = [
   { path: '/produccion/lotes',text: 'Producción',          icon: <PrecisionManufacturing />,color: '#06B6D4' },
   { path: '/ordenes-trabajo', text: 'Órdenes de Trabajo',  icon: <Assignment />,           color: '#EC4899' },
   { path: '/panel-operador',  text: 'Panel Operador',      icon: <DashboardIcon />,        color: '#14B8A6' },
+  // 👈 NUEVOS MÓDULOS AÑADIDOS
+  { path: '/prestamos',       text: 'Simular Préstamo',    icon: <AttachMoney />,          color: '#10B981' },
+  { path: '/ruta-cobro',      text: 'Ruta de Cobro',       icon: <DirectionsRun />,        color: '#3B82F6' },
   { path: '/reportes',        text: 'Reportes',            icon: <Assessment />,           color: '#F43F5E' },
 ];
 
@@ -182,7 +190,7 @@ const TopBar = ({ sidebarExpanded, isMobile, onMobileMenuOpen, mode, onThemeTogg
   const location = useLocation();
   const currentPage = [...menuItems, ...adminMenuItems, { path: '/superadmin/empresas', text: 'Clientes SaaS' }].find(i => location.pathname === i.path || location.pathname.startsWith(i.path + '/'))?.text || 'Inicio';
 
-  // 👈 LÓGICA INYECTADA: Detectar si estamos suplantando identidad
+  // LÓGICA INYECTADA: Detectar si estamos suplantando identidad
   let isImpersonated = false;
   try {
     const token = localStorage.getItem('token');
@@ -202,7 +210,7 @@ const TopBar = ({ sidebarExpanded, isMobile, onMobileMenuOpen, mode, onThemeTogg
       </Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
         
-        {/* 👈 LÓGICA INYECTADA: Botón rojo para salir del soporte */}
+        {/* LÓGICA INYECTADA: Botón rojo para salir del soporte */}
         {isImpersonated && (
           <Button 
             variant="contained" 
@@ -283,18 +291,36 @@ function App() {
   useEffect(() => { checkAuth(); }, []);
 
   const checkAuth = async () => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      try {
-        const res = await apiClient.get('/users/me', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setIsAuthenticated(true);
-        setUser(res.data);
-        localStorage.setItem('userModules', JSON.stringify(
-          res.data.role.modules.map(m => m.frontend_path)
-        ));
-      } catch (error) {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          const res = await apiClient.get('/users/me', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          setIsAuthenticated(true);
+          setUser(res.data);
+
+          // ✅ LÓGICA DE INTERSECCIÓN (SAAS FEATURE TOGGLING)
+          // 1. ¿Qué módulos permite el Rol de este usuario?
+          const modulosDelRol = res.data.role.modules.map(m => m.frontend_path);
+          
+          // 2. ¿Qué módulos le habilitó el SuperAdmin a esta EMPRESA?
+          const modulosDeLaEmpresa = res.data.empresa?.modulos_habilitados;
+
+          // 3. Cruzamos los datos:
+          let modulosFinales = modulosDelRol;
+          
+          if (modulosDeLaEmpresa && Array.isArray(modulosDeLaEmpresa)) {
+            // Si el SuperAdmin definió módulos, filtramos: Solo dejamos los que están en ambos lados
+            modulosFinales = modulosDelRol.filter(path => modulosDeLaEmpresa.includes(path));
+          }
+          // Nota: Si modulosDeLaEmpresa es null, se queda con 'modulosDelRol' completo (acceso a todo)
+
+          // 4. Guardamos el resultado final que usará el menú lateral
+          localStorage.setItem('userModules', JSON.stringify(modulosFinales));
+
+        } catch (error) {
+        // ... (resto de tu código de catch con el 402 sigue igual)
         if (error.response && error.response.status === 402) {
           setIsAuthenticated(false);
           navigate('/suscripcion-expirada');
@@ -311,9 +337,24 @@ function App() {
     setLoading(false);
   };
 
-  const hasAccess = (path) => {
-    if (!user?.role?.modules) return false;
-    return user.role.modules.some(m => m.frontend_path === path);
+ const hasAccess = (path) => {
+    // 1. INMUNIDAD SUPERADMIN: El dueño del SaaS siempre ve absolutamente TODO.
+    if (user?.role?.name === 'Admin' && user?.empresa_id === 1) {
+      return true;
+    }
+
+    // 2. Verificación del Rol: ¿El rol de este empleado tiene acceso al módulo?
+    const rolTieneModulo = user?.role?.modules?.some(m => m.frontend_path === path);
+    if (!rolTieneModulo) return false;
+
+    // 3. Verificación SaaS: ¿La empresa (Inquilino) tiene este módulo habilitado?
+    const modulosEmpresa = user?.empresa?.modulos_habilitados;
+    
+    // Si es null, significa que la empresa no tiene restricciones (Retrocompatibilidad)
+    if (!modulosEmpresa) return true;
+
+    // Si tiene un array de permisos, verificamos que el módulo esté ahí
+    return modulosEmpresa.includes(path);
   };
 
   const handleLogout = (showToast = true) => {
@@ -341,7 +382,7 @@ function App() {
           },
           '#root': { width: '100%', minHeight: '100vh', display: 'flex', flexDirection: 'column' },
           '*': { boxSizing: 'border-box' },
-          // 👈 LÓGICA INYECTADA: Animación para el botón de emergencia
+          // LÓGICA INYECTADA: Animación para el botón de emergencia
           '@keyframes pulse': {
             '0%': { boxShadow: '0 0 0 0 rgba(239, 68, 68, 0.7)' },
             '70%': { boxShadow: '0 0 0 8px rgba(239, 68, 68, 0)' },
@@ -418,6 +459,10 @@ function App() {
                   <Route path="/reportes-inventario" element={<InventoryReports />} />
                   <Route path="/reportes"            element={<Reportes />} />
                   <Route path="/ordenes-trabajo"     element={<OrdenesTrabajo user={user} />} />
+                  
+                  {/* 👈 NUEVAS RUTAS AÑADIDAS AQUÍ */}
+                  <Route path="/prestamos"           element={<PrestamoForm />} />
+                  <Route path="/ruta-cobro"          element={<RutaCobro />} />
 
                   {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (
                     <Route path="/superadmin/empresas" element={<GestionEmpresas />} />

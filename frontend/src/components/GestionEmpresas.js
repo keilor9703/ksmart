@@ -13,6 +13,10 @@ import {
 import { toast } from 'react-toastify';
 import apiClient, { fetchPlanesAdmin, createPlan, updatePlan, impersonateCompany } from '../api';
 
+import ModulosEmpresaDialog from './ModulosEmpresaDialog';
+import { ViewModule } from '@mui/icons-material'; // O el icono que prefieras
+
+
 const ACCENT = '#F43F5E';
 const BLUE = '#3B82F6';
 const GREEN = '#10B981';
@@ -33,7 +37,7 @@ const formatCurrency = (val) => new Intl.NumberFormat('es-CO', { style: 'currenc
 const formatDateFull = (d) => new Date(d).toLocaleString('es-CO');
 
 // ── Componentes Móviles ──
-const EmpresaCard = ({ empresa, onToggleStatus, onOpenPlan, onImpersonate }) => {
+const EmpresaCard = ({ empresa, onToggleStatus, onOpenPlan, onImpersonate, onOpenModulos }) => {
   const dias = calcularDiasRestantes(empresa.trial_ends_at);
   
   return (
@@ -61,13 +65,20 @@ const EmpresaCard = ({ empresa, onToggleStatus, onOpenPlan, onImpersonate }) => 
         <Grid item xs={6}>
           <Box sx={{ textAlign: 'center', p: 1, borderRadius: 2, bgcolor: 'action.hover', height: '100%' }}>
             <Typography sx={{ fontSize: 10, color: 'text.secondary', mb: 0.2 }}>Vencimiento</Typography>
-            <Typography sx={{ fontSize: 13, fontWeight: 700, color: dias > 0 ? '#10B981' : '#EF4444' }}>{dias > 0 ? `En ${dias} días` : 'Expirado'}</Typography>
+            {/* 👇 LÓGICA INYECTADA: Si es la empresa 1, es Ilimitado */}
+            <Typography sx={{ fontSize: 13, fontWeight: 700, color: empresa.id === 1 ? '#10B981' : (dias > 0 ? '#10B981' : '#EF4444') }}>
+              {empresa.id === 1 ? 'Ilimitado' : (dias > 0 ? `En ${dias} días` : 'Expirado')}
+            </Typography>
           </Box>
         </Grid>
       </Grid>
 
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
         <Button size="small" variant="outlined" disabled={empresa.id === 1} onClick={() => onOpenPlan(empresa)} startIcon={<CardMembership />} sx={{ borderRadius: 2, color: '#8B5CF6', borderColor: '#8B5CF6', flex: 1 }}>Plan</Button>
+        {/* ✅ NUEVO BOTÓN: Configurar Módulos (Mobile) */}
+        <Tooltip title="Configurar Módulos">
+          <span><IconButton size="small" disabled={empresa.id === 1} onClick={() => onOpenModulos(empresa)} sx={{ color: '#F43F5E', bgcolor: 'rgba(244, 63, 94, 0.1)', borderRadius: 1.5, width: 40, height: 40 }}><ViewModule fontSize="small" /></IconButton></span>
+        </Tooltip>
         <Tooltip title={empresa.is_active ? "Suspender acceso" : "Reactivar acceso"}>
           <span><IconButton size="small" disabled={empresa.id === 1} onClick={() => onToggleStatus(empresa.id, empresa.is_active)} sx={{ color: empresa.is_active ? '#EF4444' : '#10B981', bgcolor: empresa.is_active ? '#FEF2F2' : '#F0FDF4', borderRadius: 1.5, width: 40, height: 40 }}>{empresa.is_active ? <Block fontSize="small" /> : <CheckCircle fontSize="small" />}</IconButton></span>
         </Tooltip>
@@ -120,6 +131,10 @@ export default function GestionSaaS() {
   const [editingPlanId, setEditingPlanId] = useState(null);
   const [formPlan, setFormPlan] = useState({ nombre: '', codigo_interno: '', precio: '', dias_duracion: '', caracteristicas: '', is_active: true });
 
+  // ✅ NUEVOS ESTADOS PARA MODULOS
+  const [openModulosDialog, setOpenModulosDialog] = useState(false);
+  const [empresaParaModulos, setEmpresaParaModulos] = useState(null);
+
   useEffect(() => { 
     fetchEmpresas(); 
     fetchCatalogoPlanes();
@@ -149,6 +164,12 @@ export default function GestionSaaS() {
     setEmpresaSeleccionada(empresa);
     setFormAsignarPlan({ plan_type: empresa.plan_type || 'trial', plan_selector: empresa.plan_type || 'trial', trial_ends_at: formatDateForInput(empresa.trial_ends_at) });
     setOpenPlanDialog(true);
+  };
+
+  // ✅ NUEVO HANDLER: Abrir Modal de Módulos
+  const handleOpenModulos = (empresa) => {
+    setEmpresaParaModulos(empresa);
+    setOpenModulosDialog(true);
   };
 
   const handleSelectPlanChange = (e) => {
@@ -313,14 +334,25 @@ export default function GestionSaaS() {
                           <TableCell sx={{ fontWeight: 600 }}>{emp.nombre}<Typography variant="caption" display="block" color="text.secondary">NIT: {emp.nit || 'N/A'}</Typography></TableCell>
                           <TableCell><Chip label={emp.is_active ? 'Activa' : 'Suspendida'} size="small" sx={{ bgcolor: emp.is_active ? '#10B98120' : '#EF444420', color: emp.is_active ? '#10B981' : '#EF4444', fontWeight: 600, fontSize: 11, borderRadius: 1.5 }} /></TableCell>
                           <TableCell sx={{ textTransform: 'capitalize', fontWeight: 600, color: emp.plan_type === 'premium' ? '#F59E0B' : '#3B82F6' }}>{emp.plan_type || 'trial'}</TableCell>
-                          <TableCell sx={{ fontSize: 12, fontWeight: 600, color: dias > 0 ? 'text.primary' : '#EF4444' }}>
-                            {emp.trial_ends_at ? new Date(emp.trial_ends_at).toLocaleDateString() : 'N/A'}
-                            <Typography variant="caption" display="block" color={dias > 0 ? '#10B981' : '#EF4444'}>{dias > 0 ? `Quedan ${dias} días` : 'Expirado'}</Typography>
+                        {/* 👇 LÓGICA INYECTADA: Si es la empresa 1, es Ilimitado */}
+                          <TableCell sx={{ fontSize: 12, fontWeight: 600, color: emp.id === 1 ? '#10B981' : (dias > 0 ? 'text.primary' : '#EF4444') }}>
+                            {emp.id === 1 ? (
+                              <Typography sx={{ fontWeight: 800, color: '#10B981', fontSize: 13 }}>Ilimitado</Typography>
+                            ) : (
+                              <>
+                                {emp.trial_ends_at ? new Date(emp.trial_ends_at).toLocaleDateString() : 'N/A'}
+                                <Typography variant="caption" display="block" color={dias > 0 ? '#10B981' : '#EF4444'}>
+                                  {dias > 0 ? `Quedan ${dias} días` : 'Expirado'}
+                                </Typography>
+                              </>
+                            )}
                           </TableCell>
                           <TableCell align="right">
                             <Tooltip title="Gestionar Suscripción"><span><IconButton size="small" disabled={emp.id === 1} onClick={() => handleOpenAsignarPlan(emp)} sx={{ color: '#8B5CF6', mr: 1 }}><CardMembership fontSize="small" /></IconButton></span></Tooltip>
-                            <Tooltip title={emp.is_active ? "Suspender Sistema" : "Reactivar Sistema"}><span><IconButton size="small" disabled={emp.id === 1} onClick={() => handleToggleStatus(emp.id, emp.is_active)} sx={{ color: emp.is_active ? '#EF4444' : '#10B981' }}>{emp.is_active ? <Block fontSize="small" /> : <CheckCircle fontSize="small" />}</IconButton></span></Tooltip>
-                            <Tooltip title="Entrar como Cliente (Soporte)"><span><IconButton size="small" onClick={() => handleImpersonate(emp.id)} sx={{ color: '#0EA5E9', ml: 1 }}><SupportAgent fontSize="small" /></IconButton></span></Tooltip>
+                            {/* ✅ NUEVO BOTÓN: Configurar Módulos (Escritorio) */}
+                            <Tooltip title="Configurar Módulos"><span><IconButton size="small" disabled={emp.id === 1} onClick={() => handleOpenModulos(emp)} sx={{ color: '#F43F5E', mr: 1 }}><ViewModule fontSize="small" /></IconButton></span></Tooltip>
+                            <Tooltip title={emp.is_active ? "Suspender Sistema" : "Reactivar Sistema"}><span><IconButton size="small" disabled={emp.id === 1} onClick={() => handleToggleStatus(emp.id, emp.is_active)} sx={{ color: emp.is_active ? '#EF4444' : '#10B981', mr: 1 }}>{emp.is_active ? <Block fontSize="small" /> : <CheckCircle fontSize="small" />}</IconButton></span></Tooltip>
+                            <Tooltip title="Entrar como Cliente (Soporte)"><span><IconButton size="small" onClick={() => handleImpersonate(emp.id)} sx={{ color: '#0EA5E9' }}><SupportAgent fontSize="small" /></IconButton></span></Tooltip>
                           </TableCell>
                         </TableRow>
                       );
@@ -331,7 +363,7 @@ export default function GestionSaaS() {
             </Paper>
           ) : (
             <Box>
-              {filteredEmpresas.map(emp => <EmpresaCard key={emp.id} empresa={emp} onToggleStatus={handleToggleStatus} onOpenPlan={handleOpenAsignarPlan} onImpersonate={handleImpersonate} />)}
+              {filteredEmpresas.map(emp => <EmpresaCard key={emp.id} empresa={emp} onToggleStatus={handleToggleStatus} onOpenPlan={handleOpenAsignarPlan} onImpersonate={handleImpersonate} onOpenModulos={handleOpenModulos} />)}
             </Box>
           )}
         </Box>
@@ -459,6 +491,15 @@ export default function GestionSaaS() {
           <DialogActions sx={{ p: 2 }}><Button onClick={() => setOpenPlanDialog(false)} variant="outlined" sx={{ borderRadius: 2 }}>Cancelar</Button><Button type="submit" variant="contained" disabled={loading} sx={{ bgcolor: '#8B5CF6', borderRadius: 2 }}>Guardar</Button></DialogActions>
         </form>
       </Dialog>
+
+      {/* ✅ NUEVO: MODAL PARA CONFIGURAR MÓDULOS DE LA EMPRESA */}
+      <ModulosEmpresaDialog 
+        open={openModulosDialog}
+        handleClose={() => setOpenModulosDialog(false)}
+        empresa={empresaParaModulos}
+        onModulosUpdated={fetchEmpresas} 
+      />
+
     </Box>
   );
 }

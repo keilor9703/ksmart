@@ -85,6 +85,22 @@ export const uploadFile = async (uploadType, file) => {
 };
 
 
+
+// =========================
+// API PRÉSTAMOS
+// =========================
+export const createPrestamo = (data) => apiClient.post('/prestamos/', data);
+export const fetchPrestamos = () => apiClient.get('/prestamos/');
+
+
+export const fetchCuotasPendientes = () => apiClient.get('/prestamos/cuotas-pendientes');
+export const pagarCuotaPrestamo = (id) => apiClient.post(`/prestamos/cuotas/${id}/pagar`);
+
+// Actualizar módulos permitidos para un cliente SaaS
+export const updateModulosEmpresa = (id, modulos) => apiClient.patch(`/superadmin/empresas/${id}/modulos`, { modulos });
+
+
+
 export const impersonateCompany = (id) => apiClient.post(`/superadmin/impersonate/${id}`);
 
 export const fetchMovements = (params = {}) =>

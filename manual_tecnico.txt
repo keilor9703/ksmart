@@ -1,139 +1,129 @@
-=================================
-MANUAL TÉCNICO
-Sistema de Gestión Peleteria Jeylor
-=================================
-
-Versión 1.0
-
+================================================================================
+MANUAL TÉCNICO DE ARQUITECTURA Y DESARROLLO
+Sistema: Ksmart360 (SaaS Multi-Tenant ERP)
+Versión: 2.1.0 (Producción)
+================================================================================
 
 -- ÍNDICE --
-
 1. Resumen de la Arquitectura
-2. Configuración del Entorno de Desarrollo
-   2.1. Prerrequisitos
-   2.2. Backend
-   2.3. Frontend
-   2.4. Ejecución
-3. Estructura del Backend
-   3.1. Archivos Principales
-   3.2. Implementación del Dashboard
-4. Estructura del Frontend
-   4.1. Archivos Principales
-   4.2. Implementación del Dashboard
-5. Flujo de Autenticación
-6. Puntos de Mejora Sugeridos
+2. Stack Tecnológico y Entornos
+3. Modelo Multi-Tenant (Aislamiento de Datos)
+4. Estructura del Backend (FastAPI)
+5. Estructura del Frontend (React SPA)
+6. Flujo de Autenticación y Autorización
+7. Motor de Pagos y Facturación SaaS (Wompi)
+8. Sistema de Migraciones (Custom)
+9. Módulos Críticos y Lógica de Negocio
+10. Comandos de Ejecución Local
 
+================================================================================
+1. RESUMEN DE LA ARQUITECTURA
+================================================================================
+Ksmart360 ha evolucionado de un ERP monolítico a una plataforma SaaS Multi-Tenant.
+La arquitectura es cliente-servidor desacoplada:
 
--- 1. RESUMEN DE LA ARQUITECTURA --
+- **Frontend:** Single-Page Application (SPA) en React.
+- **Backend:** API RESTful asíncrona construida en FastAPI (Python).
+- **Aislamiento Multi-Tenant:** Patrón "Shared Database, Shared Schema". Todas las empresas comparten las mismas tablas, pero los datos se aíslan a nivel lógico mediante la inyección de una llave foránea (`empresa_id`).
+- **Monetización:** Motor de suscripciones integrado mediante Webhooks con pasarela de pagos (Wompi).
 
-El proyecto sigue una arquitectura cliente-servidor desacoplada:
+================================================================================
+2. STACK TECNOLÓGICO Y ENTORNOS
+================================================================================
+- **Backend:** Python 3.10+, FastAPI, Uvicorn, SQLAlchemy (ORM), Passlib (Bcrypt), python-jose (JWT).
+- **Frontend:** React 18, Material-UI (MUI v5), Axios, React Router DOM v6, Chart.js.
+- **Base de Datos:** - Producción: PostgreSQL (Gestionado en Render/Supabase).
+  - Desarrollo: SQLite (sales.db).
+- **Despliegue CI/CD:**
+  - Frontend: Vercel (https://ksmart360.vercel.app).
+  - Backend: Render Cloud.
 
-- **Frontend (Cliente):** Una Single-Page Application (SPA) desarrollada con React y la librería de componentes Material-UI. Se encarga de toda la lógica de presentación y la interacción con el usuario.
+================================================================================
+3. MODELO MULTI-TENANT (AISLAMIENTO DE DATOS)
+================================================================================
+El núcleo del sistema reside en `models.py` a través de la clase abstracta `TenantMixin`.
 
-- **Backend (Servidor):** Una API RESTful construida sobre el framework FastAPI de Python. Maneja toda la lógica de negocio, persistencia de datos y autenticación.
+- **Regla de Arquitectura:** TODA tabla operativa (`Ventas`, `Productos`, `Compras`, etc.) HEREDA de `TenantMixin`. Esto inyecta automáticamente la columna `empresa_id`.
+- **Regla de Desarrollo (Backend):** Nunca se deben ejecutar consultas globales (ej: `db.query(Venta).all()`). Todas las operaciones en `crud.py` exigen el paso del parámetro `empresa_id` extraído del token JWT del usuario solicitante, aplicando `.filter(Model.empresa_id == empresa_id)`.
+- **Tablas Globales:** Solo `Empresa`, `Role`, y `Modulo` carecen de `empresa_id`.
 
-- **Base de Datos:** El sistema utiliza PostgreSQL como motor de base de datos, con SQLAlchemy como ORM para el mapeo de objetos y la interacción.
+================================================================================
+4. ESTRUCTURA DEL BACKEND (FastAPI)
+================================================================================
+El código backend se concentra en la carpeta raíz (o `/backend`):
+- `main.py`: Punto de entrada. Define routers, dependencias de seguridad, middlewares CORS y Webhooks de pago.
+- `models.py`: Definición declarativa de SQLAlchemy. Contiene la estructura de la base de datos y el `TenantMixin`.
+- `schemas.py`: Modelos Pydantic para validación estricta de request/response y serialización.
+- `crud.py`: Capa de abstracción de base de datos. Contiene toda la lógica de negocio compleja (Kardex, Lotes de Producción, Corte de Caja).
+- `database.py`: Gestión de conexión SQLAlchemy y motor de migraciones customizado.
 
-- **Autenticación:** La seguridad de la API se basa en JSON Web Tokens (JWT).
+================================================================================
+5. ESTRUCTURA DEL FRONTEND (React SPA)
+================================================================================
+- `App.js`: Corazón del enrutamiento. Gestiona el estado global (token, roles, módulos permitidos) y renderiza el Layout (Drawer/AppBar) o la pantalla de bloqueo (Suscripción Expirada).
+- `src/components/`: Contiene los módulos funcionales (`Ventas.js`, `Inventario.js`, `Dashboard.js`). Utiliza un enfoque de modales intensivos (MUI Dialogs) para mantener al usuario en contexto.
+- `src/api.js`: Configuración global de Axios.
+  - **Interceptor Request:** Inyecta `Authorization: Bearer {token}`.
+  - **Manejo de Errores (402):** El estado HTTP 402 (Payment Required) se gestiona en la capa de UI para redirigir al componente `<SuscripcionExpirada />`.
 
+================================================================================
+6. FLUJO DE AUTENTICACIÓN Y AUTORIZACIÓN
+================================================================================
+Seguridad basada en JWT sin estado (Stateless):
+1. **Login:** `POST /token` valida credenciales y devuelve un JWT. El payload incluye `sub` (username), `empresa_id`, `role`, y `modules`.
+2. **Jerarquía de Guardias (Dependencies en `main.py`):**
+   - `get_current_user`: Valida la firma del JWT.
+   - `get_current_active_user`: **[Vital]** Valida que `empresa.is_active == True`. Si el plan es "trial", verifica `trial_ends_at` contra UTC actual. Lanza 402 si expiró.
+   - `get_current_admin_user`: Exige rol "Admin".
+   - `get_current_superadmin_user`: Acceso maestro. Exige rol "Admin" Y `empresa_id == 1`.
+3. **Impersonación (Login As):** El SuperAdmin puede generar un token temporal con `is_impersonated: True` y el `empresa_id` de un cliente para brindar soporte directo.
 
--- 2. CONFIGURACIÓN DEL ENTORNO DE DESARROLLO --
+================================================================================
+7. MOTOR DE PAGOS Y FACTURACIÓN SAAS (Wompi)
+================================================================================
+El sistema se auto-monetiza mediante integración con Bancolombia/Wompi.
+- **Frontend (`WompiButton.js`):** Instancia el `WidgetCheckout` de Wompi. Exige configuración estricta de firma en formato `{ integrity: "hash" }`.
+- **Backend (`/pagos/generar-hash-wompi`):** Genera firma HMAC SHA-256 usando `WOMPI_INTEGRITY_SECRET` para prevenir manipulación de precios.
+- **Webhook (`/webhooks/wompi`):**
+  - Verifica firmas criptográficas entrantes de Wompi.
+  - Implementa **Idempotencia** (verifica `bold_tx_id` en `registros_pagos`) para evitar sumar meses dobles ante reintentos de la pasarela.
+  - Si es exitoso, actualiza `plan_type` a "premium", suma `dias_duracion` a `trial_ends_at` y activa el tenant automáticamente.
 
-2.1. Prerrequisitos
-- Python 3.10+
-- Node.js 16.x+
-- npm (o yarn)
-- Una instancia de PostgreSQL en ejecución.
+================================================================================
+8. SISTEMA DE MIGRACIONES (Custom)
+================================================================================
+El proyecto NO utiliza Alembic para evitar dependencias complejas en el despliegue.
+- La lógica reside al final de `database.py` en `run_migrations()`.
+- Utiliza la tabla `_schema_meta` para rastrear migraciones ejecutadas.
+- Al iniciar la app (`@app.on_event("startup")`), evalúa si hay nuevas columnas o tablas (Ej: Inyección de columnas de Wompi) y ejecuta los `ALTER TABLE` dinámicamente si es seguro (usando SQLite Pragmas o Information Schema de Postgres).
 
-2.2. Backend
+================================================================================
+9. MÓDULOS CRÍTICOS Y LÓGICA DE NEGOCIO
+================================================================================
+- **Kardex y Costo Promedio:** El inventario (`stock_actual`) es un valor derivado. La verdad absoluta reside en `inventory_movements` (Append-Only). El Kardex recalcula saldos y costo promedio ponderado al vuelo.
+- **Producción (BOM):** La transformación de materias primas a productos terminados ocurre en `LoteProduccion`. El descuento de insumos solo se ejecuta al cambiar el estado a "Confirmado".
+- **Corte de Caja:** Entidad inmutable que realiza un snapshot cruzando ingresos en efectivo de la tabla `Ventas`, restando `Gastos` y comparando con `efectivo_fisico` para arrojar diferencias.
 
-1. Navegue a la raíz del proyecto.
-2. Cree un entorno virtual: `python -m venv .venv`
-3. Active el entorno virtual: `source .venv/Scripts/activate` (en Windows) o `source .venv/bin/activate` (en macOS/Linux).
-4. Instale las dependencias de Python: `pip install -r backend/requirements.txt`
-5. **Configuración de la Base de Datos:** La cadena de conexión a la base de datos está definida en `backend/database.py`. Asegúrese de que apunte a su instancia de PostgreSQL.
-6. **Variable de Entorno de Seguridad (Recomendado):** La clave secreta (SECRET_KEY) para JWT en `backend/main.py` está hardcodeada. Se recomienda encarecidamente moverla a un archivo `.env` en la raíz del proyecto y cargarla usando `python-dotenv`.
+================================================================================
+10. COMANDOS DE EJECUCIÓN LOCAL
+================================================================================
 
-2.3. Frontend
+# 1. Configuración de Variables de Entorno (.env en la raíz del backend)
+DATABASE_URL=sqlite:///./sales.db  # O URL de Postgres
+SECRET_KEY=tu_clave_secreta_jwt
+WOMPI_PUBLIC_KEY=pub_test_...
+WOMPI_PRIVATE_KEY=prv_test_...
+WOMPI_EVENTS_SECRET=...
+WOMPI_INTEGRITY_SECRET=...
 
-1. Navegue al directorio del frontend: `cd frontend`
-2. Instale las dependencias de Node.js: `npm install`
-3. **Variable de Entorno de API:** El archivo `frontend/src/api.js` busca la URL del backend en la variable de entorno `REACT_APP_API_URL`. Puede crear un archivo `.env` en el directorio `frontend` para definirla (ej. `REACT_APP_API_URL=http://127.0.0.1:8000`). Si no se define, usará `http://127.0.0.1:8000` por defecto.
-
-2.4. Ejecución
-
-1. **Iniciar Backend:** Desde la raíz del proyecto (con el entorno virtual activado), ejecute: `uvicorn backend.main:app --reload`
-2. **Iniciar Frontend:** Desde el directorio `frontend`, ejecute: `npm start`
-
-
--- 3. ESTRUCTURA DEL BACKEND --
-
-3.1. Archivos Principales
-
-- `main.py`: Punto de entrada de la aplicación FastAPI. Define los routers de la API, la configuración de CORS y los middlewares.
-- `crud.py`: Contiene toda la lógica de negocio y las funciones que interactúan directamente con la base de datos (consultas, creaciones, actualizaciones).
-- `models.py`: Define los modelos de datos de SQLAlchemy, que se corresponden con las tablas de la base de datos.
-- `schemas.py`: Define los esquemas de Pydantic utilizados para la validación de datos de entrada/salida en la API y para el modelado de respuestas.
-- `database.py`: Gestiona la conexión a la base de datos y la sesión de SQLAlchemy.
-
-3.2. Implementación del Dashboard (Novedad)
-
-Para implementar el dashboard de administrador, se realizaron los siguientes añadidos:
-
-- **Endpoint:** Se creó `GET /reportes/dashboard` en `main.py`. Este endpoint está protegido y solo es accesible para usuarios con el rol 'Admin'.
-- **Funciones CRUD:** Se añadieron dos funciones principales en `crud.py`:
-    - `get_sales_by_day()`: Calcula las ventas agregadas por día para un rango de fechas.
-    - `get_dashboard_data()`: Orquesta las llamadas a otras funciones CRUD para recopilar todos los KPIs en una sola respuesta.
-- **Schemas:** Se añadieron los siguientes esquemas en `schemas.py`:
-    - `SalesByDay`: Define la estructura para los datos del gráfico de ventas.
-    - `DashboardData`: Define la estructura de la respuesta completa del endpoint del dashboard. Para resolver un `NameError` por orden de definición, se usó una referencia hacia adelante (`List['OrdenTrabajo']`) y se resolvió con `DashboardData.model_rebuild()`.
-
-
--- 4. ESTRUCTURA DEL FRONTEND --
-
-4.1. Archivos Principales
-
-- `App.js`: Componente principal que gestiona el estado de autenticación, la navegación principal (react-router) y el layout general de la aplicación (AppBar, Drawer).
-- `components/`: Directorio que contiene todos los componentes reutilizables y las vistas principales de cada módulo (ej. `Ventas.js`, `Clientes.js`).
-- `api.js`: Contiene la instancia preconfigurada de `axios`. Incluye un interceptor para añadir automáticamente el `Authorization: Bearer <token>` a todas las peticiones salientes.
-- `public/index.html`: Plantilla HTML principal. Se modificó el tag `<title>` a "KSmart360 App".
-
-4.2. Implementación del Dashboard (Novedad)
-
-- **Componente:** Se creó el nuevo componente `frontend/src/components/Dashboard.js`.
-    - Realiza una única llamada al endpoint `/reportes/dashboard` para obtener todos los datos.
-    - Utiliza `react-chartjs-2` para renderizar el gráfico de ventas.
-    - Muestra los KPIs en tarjetas interactivas que enlazan a sus respectivos módulos usando el componente `<Link>` de `react-router-dom`.
-- **Enrutamiento Condicional:** En `App.js`, la ruta principal (`/`) ahora renderiza un componente de forma condicional:
-    - Si `user.role.name === 'Admin'`, muestra el componente `<Dashboard />`.
-    - De lo contrario, muestra el componente de bienvenida `<Home />`.
-
-
--- 5. FLUJO DE AUTENTICACIÓN --
-
-1. El usuario introduce sus credenciales en el componente `Login`.
-2. Se realiza una petición POST al endpoint `/token` del backend.
-3. Si las credenciales son válidas, la API devuelve un `access_token` (JWT).
-4. El frontend guarda este token en el `localStorage` del navegador.
-5. El interceptor de `axios` en `api.js` lee el token del `localStorage` y lo añade a la cabecera `Authorization` de todas las peticiones subsiguientes.
-6. El backend valida este token en cada petición a un endpoint protegido.
-
-
--- 6. PUNTOS DE MEJORA SUGERIDOS --
-
-- **Seguridad:** Mover la `SECRET_KEY` del backend a variables de entorno es una prioridad.
-- **Rendimiento:** Implementar paginación, filtrado y ordenamiento del lado del servidor para las listas principales (ventas, clientes, etc.) para mejorar la escalabilidad.
-- **Base de Datos:** Añadir índices a las claves foráneas y a las columnas usadas frecuentemente en filtros (ej. `ventas.cliente_id`, `ventas.fecha`).
-- **Gestión de Estado:** Para una mayor escalabilidad del frontend, considerar la adopción de una librería de gestión de estado global como Redux Toolkit o Zustand.
-
+# 2. Inicializar Backend
 python -m venv .venv
-.venv\Scripts\activate
+.venv\Scripts\activate   # (En Mac/Linux: source .venv/bin/activate)
 pip install -r backend/requirements.txt
 cd backend
 uvicorn main:app --reload
 
-
-en carpeta frontend
- npm install
- npm start
- 
+# 3. Inicializar Frontend (En otra terminal)
+cd frontend
+npm install
+npm start

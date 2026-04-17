@@ -2857,3 +2857,56 @@ def update_plan(db: Session, plan_id: int, plan_update: schemas.PlanSuscripcionU
         db.commit()
         db.refresh(db_plan)
     return db_plan
+
+
+# =========================
+# PRESTAMISTAS
+# =========================
+
+
+from datetime import timedelta
+
+def crear_prestamo(db: Session, prestamo: schemas.PrestamoCreate, empresa_id: int):
+    # 1. Cálculos matemáticos (Interés Simple)
+    # Ejemplo: Presta 100,000 al 20%. Interés = 20,000. Total = 120,000.
+    interes_total = prestamo.monto_prestado * (prestamo.tasa_interes / 100)
+    monto_total = prestamo.monto_prestado + interes_total
+    monto_por_cuota = monto_total / prestamo.cantidad_cuotas
+    
+    # 2. Crear el encabezado del Préstamo
+    db_prestamo = models.Prestamo(
+        empresa_id=empresa_id,
+        cliente_id=prestamo.cliente_id,
+        monto_prestado=prestamo.monto_prestado,
+        tasa_interes=prestamo.tasa_interes,
+        cantidad_cuotas=prestamo.cantidad_cuotas,
+        modalidad=prestamo.modalidad,
+        monto_total_pagar=monto_total
+    )
+    db.add(db_prestamo)
+    db.commit()
+    db.refresh(db_prestamo)
+
+    # 3. Generar la amortización (Proyectar las cuotas)
+    fecha_base = db_prestamo.fecha_inicio
+    dias_sumar = {"Diario": 1, "Semanal": 7, "Quincenal": 15, "Mensual": 30}
+    incremento = dias_sumar.get(prestamo.modalidad, 30)
+
+    for i in range(1, prestamo.cantidad_cuotas + 1):
+        fecha_vence = fecha_base + timedelta(days=(incremento * i))
+        
+        # 💡 Opcional: Aquí podrías agregar lógica para saltar los domingos si es pago 'Diario'
+        
+        db_cuota = models.CuotaPrestamo(
+            empresa_id=empresa_id,
+            prestamo_id=db_prestamo.id,
+            numero_cuota=i,
+            monto_cuota=monto_por_cuota,
+            saldo_pendiente=monto_por_cuota,
+            fecha_vencimiento=fecha_vence
+        )
+        db.add(db_cuota)
+    
+    db.commit()
+    db.refresh(db_prestamo)
+    return db_prestamo

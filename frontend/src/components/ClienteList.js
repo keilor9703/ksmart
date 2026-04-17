@@ -9,13 +9,13 @@ import {
   TableHead, TableRow, IconButton, useMediaQuery, useTheme,
   TextField, TablePagination, Tooltip, InputAdornment, Chip, Grid, Divider
 } from '@mui/material';
-import { Edit, Delete, History, Search, Person, Business, CreditCard } from '@mui/icons-material';
+import { Edit, Delete, History, Search, Person, Business, CreditCard, LocationOn } from '@mui/icons-material'; // ✅ Añadido LocationOn
 
 const ACCENT = '#3B82F6';
 const GREEN  = '#10B981';
 
 // ─── Card mobile ──────────────────────────────────────────────────────────────
-const ClienteCard = ({ cliente, onEditCliente, handleDelete, handleViewHistory, filterType }) => (
+const ClienteCard = ({ cliente, onEditCliente, handleDelete, handleViewHistory, handleAbrirMapa, filterType }) => (
   <Paper sx={{ p: 2, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
     {/* Fila 1: nombre + id */}
     <Box sx={{ mb: 1 }}>
@@ -53,6 +53,14 @@ const ClienteCard = ({ cliente, onEditCliente, handleDelete, handleViewHistory, 
 
     {/* Fila 3: botones */}
     <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+      {/* ✅ NUEVO BOTÓN DE MAPA (MÓVIL) */}
+      <Tooltip title="Ver en Mapa">
+        <IconButton size="small" onClick={() => handleAbrirMapa(cliente.direccion)}
+          sx={{ color: '#0ea5e9', bgcolor: 'rgba(14, 165, 233, 0.1)', borderRadius: 1.5 }}>
+          <LocationOn fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      
       <Tooltip title="Historial financiero">
         <IconButton size="small" onClick={() => handleViewHistory(cliente)}
           sx={{ color: '#8B5CF6', bgcolor: 'rgba(139,92,246,0.1)', borderRadius: 1.5 }}>
@@ -116,6 +124,23 @@ const ClienteList = ({ onEditCliente, onClienteDeleted, filterType, accentColor 
 
   const handleViewHistory  = (c) => { setSelectedClienteForHistory(c); setShowHistoryDialog(true); };
   const handleCloseHistory = ()  => { setShowHistoryDialog(false); setSelectedClienteForHistory(null); };
+
+  // ✅ FUNCIÓN PARA ABRIR GOOGLE MAPS
+  const handleAbrirMapa = (direccion) => {
+    if (!direccion || direccion.trim() === '') {
+      toast.warning("Este cliente no tiene una dirección registrada.");
+      return;
+    }
+    
+    // Concatenamos la ciudad por defecto para mejorar la precisión del GPS
+    const direccionCompleta = `${direccion}, Cali, Colombia`;
+    const queryCodificada = encodeURIComponent(direccionCompleta);
+    
+    // URL Universal de Búsqueda de Google Maps (Fuerza la apertura de la app en celulares)
+    const urlMapa = `https://www.google.com/maps/search/?api=1&query=${queryCodificada}`;
+    
+    window.open(urlMapa, '_blank');
+  };
 
   // Filtrado + ordenado
   const filteredClientes = useMemo(() => {
@@ -199,6 +224,7 @@ const ClienteList = ({ onEditCliente, onClienteDeleted, filterType, accentColor 
                   onEditCliente={onEditCliente}
                   handleDelete={handleDelete}
                   handleViewHistory={handleViewHistory}
+                  handleAbrirMapa={handleAbrirMapa} // ✅ Pasamos la función a la tarjeta móvil
                   filterType={filterType}
                 />
               ))
@@ -242,6 +268,14 @@ const ClienteList = ({ onEditCliente, onClienteDeleted, filterType, accentColor 
                       </TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', gap: 0.5 }}>
+                          {/* ✅ NUEVO BOTÓN DE MAPA (ESCRITORIO) */}
+                          <Tooltip title="Ver en Mapa">
+                            <IconButton size="small" onClick={() => handleAbrirMapa(c.direccion)}
+                              sx={{ color: '#0ea5e9', '&:hover': { bgcolor: 'rgba(14, 165, 233, 0.1)' } }}>
+                              <LocationOn fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+
                           <Tooltip title="Historial financiero">
                             <IconButton size="small" onClick={() => handleViewHistory(c)}
                               sx={{ color: '#8B5CF6', '&:hover': { bgcolor: 'rgba(139,92,246,0.1)' } }}>

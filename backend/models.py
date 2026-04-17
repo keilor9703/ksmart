@@ -37,6 +37,11 @@ class Empresa(Base):
     wompi_customer_id = Column(String, nullable=True) # Identificador del cliente en Wompi
     wompi_payment_source_id = Column(String, nullable=True) # El "Token" de la tarjeta encriptada
 
+    # 👇 NUEVA COLUMNA PARA CONTROL SAAS (Feature Toggles)
+    # Guardará una lista de paths, ej: ["/clientes", "/prestamos", "/ruta-cobro"]
+    # Si es NULL, significa que la empresa tiene acceso a TODO (retrocompatibilidad para tu fábrica actual)
+    modulos_habilitados = Column(JSON, nullable=True)
+
 
 class TenantMixin:
     """
@@ -439,3 +444,71 @@ class RegistroPago(Base):
 
     empresa = relationship("Empresa")
     plan = relationship("PlanSuscripcion")
+
+
+
+# class Prestamo(Base, TenantMixin):
+#     __tablename__ = "prestamos"
+#     id = Column(Integer, primary_key=True, index=True)
+#     cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=False)
+#     monto_prestado = Column(Float, nullable=False)
+#     tasa_interes = Column(Float, nullable=False) # Ej: 5.0 para 5%
+#     modalidad = Column(String) # Ej: "Diario", "Semanal", "Mensual"
+#     fecha_inicio = Column(DateTime(timezone=True), default=utcnow)
+#     estado = Column(String, default="Activo") # Activo, Pagado, Mora
+
+#     cliente = relationship("Cliente")
+#     cuotas = relationship("CuotaPrestamo", back_populates="prestamo", cascade="all, delete-orphan")
+
+# class CuotaPrestamo(Base, TenantMixin):
+#     __tablename__ = "cuotas_prestamo"
+#     id = Column(Integer, primary_key=True, index=True)
+#     prestamo_id = Column(Integer, ForeignKey("prestamos.id"), nullable=False)
+#     numero_cuota = Column(Integer)
+#     monto_cuota = Column(Float, nullable=False)
+#     fecha_vencimiento = Column(DateTime(timezone=True), nullable=False)
+#     estado_pago = Column(String, default="Pendiente") # Pendiente, Pagado
+#     fecha_pago = Column(DateTime(timezone=True), nullable=True)
+
+#     prestamo = relationship("Prestamo", back_populates="cuotas")
+
+
+
+
+class Prestamo(Base, TenantMixin):
+    __tablename__ = "prestamos"
+    id = Column(Integer, primary_key=True, index=True)
+    cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=False)
+    monto_prestado = Column(Float, nullable=False)
+    tasa_interes = Column(Float, nullable=False) # Porcentaje. Ej: 20.0 para 20%
+    cantidad_cuotas = Column(Integer, nullable=False)
+    modalidad = Column(String, nullable=False) # 'Diario', 'Semanal', 'Quincenal', 'Mensual'
+    monto_total_pagar = Column(Float, nullable=False) # Capital + Intereses
+    fecha_inicio = Column(DateTime(timezone=True), default=utcnow)
+    estado = Column(String, default="Activo") # Activo, Pagado, En Mora
+
+    cliente = relationship("Cliente")
+    cuotas = relationship("CuotaPrestamo", back_populates="prestamo", cascade="all, delete-orphan")
+
+    usuario_asignado_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    # Y la relación
+    cobrador = relationship("User")
+
+class CuotaPrestamo(Base, TenantMixin):
+    __tablename__ = "cuotas_prestamo"
+    id = Column(Integer, primary_key=True, index=True)
+    prestamo_id = Column(Integer, ForeignKey("prestamos.id"), nullable=False)
+    numero_cuota = Column(Integer, nullable=False)
+    monto_cuota = Column(Float, nullable=False)
+    saldo_pendiente = Column(Float, nullable=False) # Por si el cliente abona una parte de la cuota
+    fecha_vencimiento = Column(DateTime(timezone=True), nullable=False)
+    estado_pago = Column(String, default="Pendiente") # Pendiente, Parcial, Pagado
+    fecha_pago = Column(DateTime(timezone=True), nullable=True)
+
+    # Dentro de la clase CuotaPrestamo en models.py
+    usuario_asignado_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    # Relación para poder saber quién es el cobrador desde la cuota
+    cobrador = relationship("User")
+
+    prestamo = relationship("Prestamo", back_populates="cuotas")

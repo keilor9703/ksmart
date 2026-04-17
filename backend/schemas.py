@@ -16,6 +16,9 @@ class EmpresaBase(BaseModel):
     # ✅ CAMPOS PARA EL SAAS Y EL TRIAL
     plan_type: Optional[str] = "trial"
     trial_ends_at: Optional[datetime] = None
+    
+    # 👇 AÑADIDO: El campo mágico para ocultar/mostrar módulos en el Frontend
+    modulos_habilitados: Optional[List[str]] = None
 
 class EmpresaCreate(EmpresaBase):
     pass
@@ -849,3 +852,46 @@ class RegistroPagoOut(BaseModel):
     plan_nombre: str
     model_config = ConfigDict(from_attributes=True)
 
+
+# =========================
+# PRESTAMISTA
+# =========================
+
+
+from pydantic import BaseModel
+from typing import List, Optional
+from datetime import datetime
+
+class PrestamoCreate(BaseModel):
+    cliente_id: int
+    monto_prestado: float
+    tasa_interes: float
+    cantidad_cuotas: int
+    modalidad: str # 'Diario', 'Semanal', 'Quincenal', 'Mensual'
+
+class CuotaResponse(BaseModel):
+    id: int
+    numero_cuota: int
+    monto_cuota: float
+    saldo_pendiente: float
+    fecha_vencimiento: datetime
+    estado_pago: str
+    fecha_pago: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class PrestamoResponse(BaseModel):
+    id: int
+    cliente_id: int
+    monto_prestado: float
+    tasa_interes: float
+    cantidad_cuotas: int
+    modalidad: str
+    monto_total_pagar: float
+    fecha_inicio: datetime
+    estado: str
+    cuotas: List[CuotaResponse] = []
+
+    class Config:
+        from_attributes = True

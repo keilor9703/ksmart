@@ -3,6 +3,8 @@ import logging
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 
+import models
+
 logger = logging.getLogger("database")
 if not logger.handlers:
     logging.basicConfig(level=logging.INFO)
@@ -195,6 +197,52 @@ def run_migrations():
                     _add_column_if_missing(conn, "empresas", "wompi_payment_source_id TEXT", "wompi_payment_source_id")
                 _mark_migration_applied(conn, migration_v20)
                 logger.info("Migración %s aplicada. Columnas Wompi añadidas a empresas.", migration_v20)
+
+
+                # =================================================================
+            # V21 - MÓDULO DE PRÉSTAMOS
+            # =================================================================
+            migration_v21 = "inv_v22_prestamos"
+            if not _migration_already_applied(conn, migration_v21):
+                # Crea las tablas si no existen basándose en los modelos
+                Base.metadata.create_all(bind=engine, tables=[
+                    models.Prestamo.__table__, 
+                    models.CuotaPrestamo.__table__
+                ])
+                _mark_migration_applied(conn, migration_v21)
+                logger.info("Migración %s aplicada. Tablas de préstamos creadas.", migration_v21)
+
+
+                # =================================================================
+            # V22 - MÓDULOS HABILITADOS POR EMPRESA (SaaS Feature Toggles)
+            # =================================================================
+            migration_v22 = "inv_v22_modulos_empresas"
+            if not _migration_already_applied(conn, migration_v22):
+                # Como SQLite guarda los JSON como texto, agregamos la columna como TEXT
+                _add_column_if_missing(conn, "empresas", "modulos_habilitados", "TEXT")
+                _mark_migration_applied(conn, migration_v22)
+                logger.info("Migración %s aplicada. Columna modulos_habilitados añadida a empresas.", migration_v22)
+
+
+                # =================================================================
+            # V23 - ASIGNACIÓN DE COBRADORES A CUOTAS
+            # =================================================================
+            migration_v23 = "inv_v23_asignacion_cobradores"
+            if not _migration_already_applied(conn, migration_v23):
+                _add_column_if_missing(conn, "cuotas_prestamo", "usuario_asignado_id", "INTEGER")
+                _mark_migration_applied(conn, migration_v23)
+                logger.info("Migración %s aplicada. Columna usuario_asignado_id añadida a cuotas.", migration_v23)
+
+
+                # =================================================================
+            # V24 - ASIGNACIÓN DE COBRADORES A LA CABECERA DEL PRÉSTAMO
+            # =================================================================
+            migration_v24 = "inv_v24_asignacion_cobradores_prestamo"
+            if not _migration_already_applied(conn, migration_v24):
+                # Añadimos la columna a la tabla 'prestamos'
+                _add_column_if_missing(conn, "prestamos", "usuario_asignado_id", "INTEGER")
+                _mark_migration_applied(conn, migration_v24)
+                logger.info("Migración %s aplicada. Columna usuario_asignado_id añadida a prestamos.", migration_v24)
 
     except Exception as e:
         logger.exception("Error ejecutando migraciones en base de datos: %s", e)

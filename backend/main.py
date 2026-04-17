@@ -439,8 +439,40 @@ def impersonate_company(
     return {"access_token": access_token, "token_type": "bearer"}
 
 
+# --- Rutas de SuperAdmin para roles  ---
+
+
+from pydantic import BaseModel
+from typing import List
+
+class ModulosEmpresaRequest(BaseModel):
+    modulos: List[str] # Lista de rutas frontend permitidas
+
+@app.patch("/superadmin/empresas/{empresa_id}/modulos")
+def actualizar_modulos_empresa(
+    empresa_id: int, 
+    req: ModulosEmpresaRequest, 
+    db: Session = Depends(get_db),
+    # Asegúrate de usar la dependencia que protege tus rutas de superadmin
+    current_user: schemas.User = Depends(get_current_user) 
+):
+    # Validamos que seas tú (SuperAdmin)
+    if current_user.role.name != "Admin" or current_user.empresa_id != 1:
+        raise HTTPException(status_code=403, detail="Acceso denegado")
+
+    empresa = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+    
+    empresa.modulos_habilitados = req.modulos
+    db.commit()
+    
+    return {"msg": "Módulos de la empresa actualizados correctamente"}
 
 app.include_router(superadmin_router)
+
+
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ROLES / MÓDULOS (GLOBALES - SIN EMPRESA_ID)
@@ -518,7 +550,26 @@ def delete_user(user_id: int, db: Session = Depends(get_db), current_user: schem
     return {"message": "Usuario eliminado"}
 
 
-    import io
+
+@app.get("/admin/usuarios", response_model=List[schemas.User])
+def listar_usuarios_empresa(
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user)
+):
+    # 🛡️ Seguridad: Solo el Admin de la empresa puede ver la lista de empleados
+    if current_user.role.name != "Admin":
+        raise HTTPException(status_code=403, detail="No tienes permisos para ver la lista de usuarios")
+
+    # Obtenemos todos los usuarios que pertenecen a la misma empresa que el Admin
+    usuarios = db.query(models.User).filter(
+        models.User.empresa_id == current_user.empresa_id
+    ).all()
+    
+    return usuarios
+
+
+
+import io
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.worksheet.datavalidation import DataValidation
@@ -1260,6 +1311,51 @@ def mark_all_read(db: Session = Depends(get_db), current_user: models.User = Dep
 
 app.include_router(notificaciones_router)
 
+
+
+
+
+
+
+# Función auxiliar para crear notificaciones
+def crear_notificacion(db: Session, empresa_id: int, mensaje: str, tipo: str = "info"):
+    # Buscamos a los usuarios con rol Admin en esa empresa
+    admins = db.query(models.User).join(models.Role).filter(
+        models.User.empresa_id == empresa_id,
+        models.Role.name == "Admin"
+    ).all()
+    
+    for admin in admins:
+        nueva_notif = models.Notificacion(
+            usuario_id=admin.id,
+            empresa_id=empresa_id,
+            mensaje=mensaje,
+            tipo=tipo,
+            leido=False,
+            fecha_creacion=utcnow()
+        )
+        db.add(nueva_notif)
+    db.commit()
+
+
+
+
+@app.post("/superadmin/notificar-vencimientos-hoy")
+def notificar_vencimientos(db: Session = Depends(get_db)):
+    hoy = datetime.now().date()
+    # Buscamos todas las empresas activas
+    empresas = db.query(models.Empresa).filter(models.Empresa.is_active == True).all()
+    
+    for emp in empresas:
+        conteo = db.query(models.CuotaPrestamo).filter(
+            models.CuotaPrestamo.empresa_id == emp.id,
+            models.CuotaPrestamo.fecha_vencimiento >= hoy,
+            models.CuotaPrestamo.estado_pago != "Pagado"
+        ).count()
+        
+        if conteo > 0:
+            crear_notificacion(db, emp.id, f"🟡 Tienes {conteo} cobros programados para el día de hoy.", "warning")
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # ÓRDENES DE TRABAJO
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1856,3 +1952,229 @@ def ping():
     """
     return {"status": "ok", "message": "Backend de Ksmart360 activo y despierto"}
 
+@app.get("/superadmin/sync-modulos")
+def sincronizar_modulos_nuevos(db: Session = Depends(get_db)):
+    nuevos_modulos = [
+        # Cambiamos "nombre" por "name" para que coincida con tu base de datos
+        {"name": "Simulador de Préstamos", "frontend_path": "/prestamos"},
+        {"name": "Ruta de Cobro", "frontend_path": "/ruta-cobro"}
+    ]
+    
+    agregados = []
+    for mod in nuevos_modulos:
+        existe = db.query(models.Modulo).filter(models.Modulo.frontend_path == mod["frontend_path"]).first()
+        
+        if not existe:
+            # Ahora le pasamos 'name' al modelo
+            nuevo_mod = models.Modulo(name=mod["name"], frontend_path=mod["frontend_path"])
+            db.add(nuevo_mod)
+            db.commit()
+            db.refresh(nuevo_mod)
+            
+            # Se lo asignamos a tu Rol de Admin (ID 1)
+            db_role_module = models.RoleModule(role_id=1, module_id=nuevo_mod.id)
+            db.add(db_role_module)
+            db.commit()
+            agregados.append(mod["name"])
+            
+    return {"msg": f"Sincronización completada. Módulos agregados: {agregados}"}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MÓDULO DE PRÉSTAMOS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.post("/prestamos/", response_model=schemas.PrestamoResponse)
+def crear_nuevo_prestamo(
+    prestamo: schemas.PrestamoCreate,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user)
+):
+    # 1. Seguridad: Validar que el cliente exista y pertenezca a la empresa del usuario
+    cliente = db.query(models.Cliente).filter(
+        models.Cliente.id == prestamo.cliente_id,
+        models.Cliente.empresa_id == current_user.empresa_id
+    ).first()
+    
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado o no pertenece a tu empresa.")
+    
+    # 2. Ejecutar la magia matemática del CRUD
+    nuevo_prestamo = crud.crear_prestamo(db=db, prestamo=prestamo, empresa_id=current_user.empresa_id)
+    return nuevo_prestamo
+
+
+@app.get("/prestamos/", response_model=List[schemas.PrestamoResponse])
+def listar_prestamos(
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user)
+):
+    # Obtiene todos los préstamos de la empresa actual, incluyendo sus cuotas
+    prestamos = db.query(models.Prestamo).filter(
+        models.Prestamo.empresa_id == current_user.empresa_id
+    ).order_by(models.Prestamo.fecha_inicio.desc()).all()
+    
+    return prestamos
+
+
+
+    # ==========================================
+# RUTAS DE COBRO (MÓDULO PRÉSTAMOS)
+# ==========================================
+@app.get("/prestamos/cuotas-pendientes")
+def cuotas_pendientes(
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user)
+):
+
+    query = db.query(models.CuotaPrestamo, models.Prestamo, models.Cliente)\
+        .join(models.Prestamo, models.CuotaPrestamo.prestamo_id == models.Prestamo.id)\
+        .join(models.Cliente, models.Prestamo.cliente_id == models.Cliente.id)\
+        .filter(
+            models.CuotaPrestamo.empresa_id == current_user.empresa_id,
+            models.CuotaPrestamo.estado_pago != "Pagado"
+        )
+
+
+    # 🛡️ SEGURIDAD: Si no es Admin, filtrar solo lo que tiene asignado
+    if current_user.role.name != "Admin":
+        query = query.filter(models.CuotaPrestamo.usuario_asignado_id == current_user.id)
+
+    # # Unimos Cuota, Prestamo y Cliente para mandar toda la info junta al celular
+    # cuotas = db.query(models.CuotaPrestamo, models.Prestamo, models.Cliente)\
+    #     .join(models.Prestamo, models.CuotaPrestamo.prestamo_id == models.Prestamo.id)\
+    #     .join(models.Cliente, models.Prestamo.cliente_id == models.Cliente.id)\
+    #     .filter(
+    #         models.CuotaPrestamo.empresa_id == current_user.empresa_id,
+    #         models.CuotaPrestamo.estado_pago != "Pagado"
+    #     ).order_by(models.CuotaPrestamo.fecha_vencimiento.asc()).all()
+    cuotas = query.order_by(models.CuotaPrestamo.fecha_vencimiento.asc()).all()
+
+
+    result = []
+    for cuota, prestamo, cliente in cuotas:
+        result.append({
+            "cuota_id": cuota.id,
+            "prestamo_id": prestamo.id,
+            "numero_cuota": cuota.numero_cuota,
+            "monto_cuota": cuota.monto_cuota,
+            "saldo_pendiente": cuota.saldo_pendiente,
+            "fecha_vencimiento": cuota.fecha_vencimiento,
+            "estado_pago": cuota.estado_pago,
+            "cliente_nombre": cliente.nombre,
+            "cliente_telefono": cliente.telefono,
+            "cliente_direccion": cliente.direccion
+        })
+    return result
+
+# @app.post("/prestamos/cuotas/{cuota_id}/pagar")
+# def pagar_cuota(
+#     cuota_id: int,
+#     db: Session = Depends(get_db),
+#     current_user: schemas.User = Depends(get_current_active_user)
+# ):
+#     cuota = db.query(models.CuotaPrestamo).filter(
+#         models.CuotaPrestamo.id == cuota_id,
+#         models.CuotaPrestamo.empresa_id == current_user.empresa_id
+#     ).first()
+    
+#     if not cuota:
+#         raise HTTPException(status_code=404, detail="Cuota no encontrada")
+    
+#     # Marcamos como pagada
+#     cuota.estado_pago = "Pagado"
+#     cuota.saldo_pendiente = 0
+#     cuota.fecha_pago = datetime.now(timezone.utc)
+    
+#     # 💡 Lógica Senior: Si esta era la última cuota, cerramos el préstamo completo
+#     prestamo = db.query(models.Prestamo).filter(models.Prestamo.id == cuota.prestamo_id).first()
+#     todas_pagadas = all(c.estado_pago == "Pagado" for c in prestamo.cuotas)
+#     if todas_pagadas:
+#         prestamo.estado = "Pagado"
+        
+#     db.commit()
+#     return {"msg": "Pago registrado exitosamente"}
+
+@app.post("/notificaciones/generar-alertas-mora")
+def generar_alertas_mora(db: Session = Depends(get_db)):
+    hoy = datetime.now().date()
+    # Buscamos cuotas que vencieron ayer o antes y siguen pendientes
+    cuotas_mora = db.query(models.CuotaPrestamo).filter(
+        models.CuotaPrestamo.fecha_vencimiento < hoy,
+        models.CuotaPrestamo.estado_pago != "Pagado"
+    ).all()
+
+    for cuota in cuotas_mora:
+        cliente = cuota.prestamo.cliente.nombre
+        mensaje = f"🔴 ALERTA: La cuota #{cuota.numero_cuota} de {cliente} está vencida."
+        crear_notificacion(db, cuota.empresa_id, mensaje, "error")
+    
+    db.commit()
+    return {"msg": f"Se generaron {len(cuotas_mora)} alertas de mora."}
+
+
+
+
+@app.post("/prestamos/cuotas/{cuota_id}/pagar")
+def pagar_cuota(
+    cuota_id: int, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_active_user)
+):
+    # 1. Obtener la cuota con toda su información relacionada
+    cuota = db.query(models.CuotaPrestamo).filter(
+        models.CuotaPrestamo.id == cuota_id,
+        models.CuotaPrestamo.empresa_id == current_user.empresa_id
+    ).first()
+    
+    if not cuota:
+        raise HTTPException(status_code=404, detail="Cuota no encontrada")
+
+    # 2. Tu lógica de pago existente (marcar como pagado, etc.)
+    cuota.estado_pago = "Pagado"
+    cuota.fecha_pago = utcnow()
+    cuota.saldo_pendiente = 0
+    
+    # 3. 🔔 DISPARAR NOTIFICACIÓN AL ADMIN
+    # Obtenemos el nombre del cliente a través de la relación
+    cliente_nombre = cuota.prestamo.cliente.nombre
+    monto_formateado = "{:,.0f}".format(cuota.monto_cuota).replace(",", ".")
+    
+    mensaje = f"✅ {current_user.username} recolectó ${monto_formateado} de {cliente_nombre}"
+    
+    # Llamamos a tu función auxiliar
+    crear_notificacion(db, current_user.empresa_id, mensaje, "success")
+    
+    db.commit()
+    return {"msg": "Pago registrado exitosamente"}
+
+class AsignacionCobroRequest(BaseModel):
+    usuario_id: int
+    cuota_ids: Optional[List[int]] = None
+    cliente_id: Optional[int] = None # Si viene cliente_id, asignamos todo lo de ese cliente
+
+@app.post("/prestamos/asignar-cobrador")
+def asignar_cobrador(
+    req: AsignacionCobroRequest,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user)
+):
+    if current_user.role.name != "Admin":
+        raise HTTPException(status_code=403, detail="Solo el administrador puede asignar rutas")
+
+    query = db.query(models.CuotaPrestamo).filter(models.CuotaPrestamo.empresa_id == current_user.empresa_id)
+
+    if req.cliente_id:
+        # Asignar todas las cuotas pendientes de este cliente al cobrador
+        query = query.join(models.Prestamo).filter(models.Prestamo.cliente_id == req.cliente_id, models.CuotaPrestamo.estado_pago != "Pagado")
+    elif req.cuota_ids:
+        # Asignar solo cuotas específicas
+        query = query.filter(models.CuotaPrestamo.id.in_(req.cuota_ids))
+    else:
+        raise HTTPException(status_code=400, detail="Debe proporcionar cuotas o un cliente")
+
+    cuotas_a_actualizar = query.all()
+    for c in cuotas_a_actualizar:
+        c.usuario_asignado_id = req.usuario_id
+    
+    db.commit()
+    return {"msg": f"{len(cuotas_a_actualizar)} cobros asignados correctamente"}
