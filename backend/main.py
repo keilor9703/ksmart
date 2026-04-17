@@ -133,6 +133,8 @@ def initialize_default_data(db: Session):
         {"name": "Inventarios",        "description": "Módulo para movimientos y alertas de stock.",     "frontend_path": "/inventario"},
         {"name": "Reportes inventario","description": "Reportes de inventario y kardex.",                "frontend_path": "/reportes-inventario"},
         {"name": "Caja",               "description": "Módulo de corte de caja diario.",                 "frontend_path": "/caja"},
+         {"name": "Préstamos",               "description": "Módulo de gestión de préstamos.",            "frontend_path": "/prestamos"},
+        {"name": "Ruta de Cobro",               "description": "Módulo de gestión de ruta de cobro.",    "frontend_path": "/ruta-cobro"},
     ]
 
     admin_role = crud.get_role_by_name(db, name="Admin")
@@ -141,9 +143,15 @@ def initialize_default_data(db: Session):
 
     created_modules = []
     for mod_data in default_modules_data:
-        modulo = crud.get_modulo_by_name(db, name=mod_data["name"])
+        modulo = crud.get_modulo_by_frontend_path(
+            db,
+            frontend_path=mod_data["frontend_path"]
+        )
         if not modulo:
-            modulo = crud.create_modulo(db, schemas.ModuloCreate(**mod_data))
+            modulo = crud.create_modulo(
+                db,
+                schemas.ModuloCreate(**mod_data)
+            )
         created_modules.append(modulo)
 
     crud.set_modules_for_role(db, admin_role.id, [m.id for m in created_modules])
@@ -241,64 +249,42 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
-# ─── 2. ENDPOINT DE REGISTRO AUTOSERVICIO BLINDADO ───
+from datetime import datetime, timedelta, timezone
+from fastapi import Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
+
+
 @app.post("/auth/register", status_code=status.HTTP_201_CREATED)
 def registrar_nuevo_cliente(data: schemas.RegistroSaaS, db: Session = Depends(get_db)):
-    
-    # Validación 1: ¿El usuario ya existe en todo el sistema?
-    # (El username debe ser único a nivel global para que el login funcione)
-    usuario_existente = db.query(models.User).filter(models.User.username == data.username).first()
-    if usuario_existente:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail="Este usuario ya está en uso. Por favor, elige otro."
-        )
+    if db.query(models.User).filter(models.User.username == data.username).first():
+        raise HTTPException(status_code=400, detail="Usuario en uso.")
+
+    # 🚀 CONFIGURACIÓN DE PERFILES (FLEXIBILIDAD TOTAL)
+    PERFILES = {
+        "erp": ["/ventas", "/compras", "/clientes", "/productos", "/inventario", "/caja", "/produccion/lotes", "/ordenes-trabajo", "/panel-operador", "/reportes"],
+        "prestamos": ["/clientes", "/prestamos", "/ruta-cobro", "/caja", "/reportes"] # ✅ AGREGAR /reportes AQUÍ
+    }
+    modulos = PERFILES.get(data.tipo_negocio, PERFILES["erp"])
 
     try:
-        # Paso A: Crear la Empresa (Tenant)
-        nueva_empresa = models.Empresa(
-            nombre=data.nombre_empresa,
-            is_active=True,
-            plan_type="trial",
-            # Le damos 14 días exactos desde este milisegundo
-            trial_ends_at=datetime.now(timezone.utc) + timedelta(days=14) 
+        nueva_emp = models.Empresa(
+            nombre=data.nombre_empresa, is_active=True, plan_type="trial",
+            trial_ends_at=datetime.now(timezone.utc) + timedelta(days=14),
+            modulos_habilitados=modulos
         )
-        db.add(nueva_empresa)
-        db.flush() # Guardamos en memoria para obtener el ID, pero NO hacemos commit todavía
-
-        # Paso B: Buscar o crear el Rol "Admin"
-        # Meticuloso: Evitamos asumir que el ID 1 es Admin. Lo buscamos por nombre.
+        db.add(nueva_emp)
+        db.flush()
+        
+        # Crear Admin
         rol_admin = db.query(models.Role).filter(models.Role.name == "Admin").first()
-        if not rol_admin:
-            # Si la BD es totalmente nueva y no existe el rol, lo creamos
-            rol_admin = models.Role(name="Admin")
-            db.add(rol_admin)
-            db.flush()
-
-        # Paso C: Crear el Usuario Dueño
-        nuevo_usuario = models.User(
-            username=data.username,
-            hashed_password=get_password_hash(data.password), # ¡Encriptación vital!
-            role_id=rol_admin.id,
-            empresa_id=nueva_empresa.id
-        )
-        db.add(nuevo_usuario)
-        
-        # Paso D: Confirmar Transacción (Todo o Nada)
+        nuevo_user = models.User(username=data.username, hashed_password=crud.get_password_hash(data.password), role_id=rol_admin.id, empresa_id=nueva_emp.id)
+        db.add(nuevo_user)
         db.commit()
-        return {"message": "Cuenta creada exitosamente. ¡Bienvenido a Ksmart360!"}
-        
-    except Exception as e:
-        db.rollback() # Si algo falla, deshacemos todo para evitar datos corruptos
-        # En producción, deberías loguear 'e' en tu logger, no devolverlo al frontend
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail="Ocurrió un error interno al crear tu cuenta. Intenta nuevamente."
-        )
-
-
-
-
+        return {"message": "Éxito"}
+    except:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Error de configuración")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # AUTENTICACIÓN MULTI-TENANT
@@ -313,6 +299,10 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
             detail="Usuario o contraseña incorrectos",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    # ✅ BLOQUEO DE USUARIOS DESACTIVADOS
+    # ✅ Bloqueo de acceso
+    if not getattr(user, 'is_active', True):
+        raise HTTPException(status_code=403, detail="Cuenta suspendida por el administrador.")
     
     if not user.empresa_id or not user.empresa:
         raise HTTPException(status_code=403, detail="El usuario no está vinculado a ninguna empresa válida.")
@@ -553,7 +543,18 @@ def delete_user(user_id: int, db: Session = Depends(get_db), current_user: schem
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     return {"message": "Usuario eliminado"}
 
-
+# Nuevo Endpoint para alternar estado:
+@app.patch("/users/{user_id}/toggle")
+def toggle_user(user_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_admin_user)):
+    db_user = db.query(models.User).filter(
+        models.User.id == user_id, 
+        models.User.empresa_id == current_user.empresa_id
+    ).first()
+    if not db_user: raise HTTPException(status_code=404)
+    
+    db_user.is_active = not db_user.is_active
+    db.commit()
+    return {"status": "ok", "new_state": db_user.is_active}
 
 @app.get("/admin/usuarios", response_model=List[schemas.User])
 def listar_usuarios_empresa(
@@ -1220,6 +1221,22 @@ def get_consumo_insumos(start_date: Optional[date] = None, end_date: Optional[da
         query = query.filter(models.InventoryMovement.created_at < end_date + timedelta(days=1))
     results = query.group_by(models.Producto.nombre).order_by(func.sum(models.InventoryMovement.cantidad).desc()).all()
     return [{"insumo": r.nombre, "cantidad": r.cantidad_total, "costo": r.costo_total} for r in results]
+
+
+
+
+
+
+@app.get("/reportes/financiero-prestamos")
+def reporte_financiero_prestamos(
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_active_user)
+):
+    # Verificamos si la empresa tiene habilitado el módulo de préstamos
+    if "/prestamos" not in (current_user.empresa.modulos_habilitados or []):
+        raise HTTPException(status_code=403, detail="Módulo no contratado")
+        
+    return crud.get_reporte_financiero_prestamos(db, current_user.empresa_id)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # DEVOLUCIONES
@@ -2116,15 +2133,57 @@ def generar_alertas_mora(db: Session = Depends(get_db)):
     return {"msg": f"Se generaron {len(cuotas_mora)} alertas de mora."}
 
 
+from pydantic import BaseModel
+from datetime import datetime
 
+class PagoCuotaRequest(BaseModel):
+    monto_pagado: float
 
 @app.post("/prestamos/cuotas/{cuota_id}/pagar")
-def pagar_cuota(
+def pagar_cuota_cascada(cuota_id: int, req: PagoCuotaRequest, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+    # 1. Buscamos la cuota por la que inicia el pago
+    cuota_inicial = db.query(models.CuotaPrestamo).filter(models.CuotaPrestamo.id == cuota_id).first()
+    if not cuota_inicial: raise HTTPException(status_code=404, detail="Cuota no encontrada")
+
+    monto_disponible = req.monto_pagado
+    total_recibido = req.monto_pagado
+    
+    # 2. IMPORTANTE: Buscamos TODAS las cuotas pendientes de ese préstamo en orden
+    cuotas_pendientes = db.query(models.CuotaPrestamo).filter(
+        models.CuotaPrestamo.prestamo_id == cuota_inicial.prestamo_id,
+        models.CuotaPrestamo.estado_pago != "Pagado"
+    ).order_by(models.CuotaPrestamo.numero_cuota.asc()).all()
+
+    cuotas_afectadas = 0
+    for cuota in cuotas_pendientes:
+        if monto_disponible <= 0: break
+        
+        saldo_actual = cuota.saldo_pendiente
+        cuotas_afectadas += 1
+        
+        if monto_disponible >= saldo_actual:
+            monto_disponible -= saldo_actual
+            cuota.saldo_pendiente = 0
+            cuota.estado_pago = "Pagado"
+            cuota.fecha_pago = datetime.now(BOGOTA_TZ)
+        else:
+            cuota.saldo_pendiente -= monto_disponible
+            cuota.estado_pago = "Parcial"
+            cuota.fecha_pago = datetime.now(BOGOTA_TZ)
+            monto_disponible = 0
+    
+    db.commit()
+    return {"msg": "Pago procesado", "monto_total_recibido": total_recibido, "cuotas_afectadas": cuotas_afectadas}
+class ReprogramarCuotaRequest(BaseModel):
+    nueva_fecha: datetime
+
+@app.post("/prestamos/cuotas/{cuota_id}/reprogramar")
+def reprogramar_cuota(
     cuota_id: int, 
+    req: ReprogramarCuotaRequest,
     db: Session = Depends(get_db), 
     current_user: models.User = Depends(get_current_active_user)
 ):
-    # 1. Obtener la cuota con toda su información relacionada
     cuota = db.query(models.CuotaPrestamo).filter(
         models.CuotaPrestamo.id == cuota_id,
         models.CuotaPrestamo.empresa_id == current_user.empresa_id
@@ -2133,23 +2192,11 @@ def pagar_cuota(
     if not cuota:
         raise HTTPException(status_code=404, detail="Cuota no encontrada")
 
-    # 2. Tu lógica de pago existente (marcar como pagado, etc.)
-    cuota.estado_pago = "Pagado"
-    cuota.fecha_pago = utcnow()
-    cuota.saldo_pendiente = 0
-    
-    # 3. 🔔 DISPARAR NOTIFICACIÓN AL ADMIN
-    # Obtenemos el nombre del cliente a través de la relación
-    cliente_nombre = cuota.prestamo.cliente.nombre
-    monto_formateado = "{:,.0f}".format(cuota.monto_cuota).replace(",", ".")
-    
-    mensaje = f"✅ {current_user.username} recolectó ${monto_formateado} de {cliente_nombre}"
-    
-    # Llamamos a tu función auxiliar
-    crear_notificacion(db, current_user.empresa_id, mensaje, "success")
-    
+    cuota.fecha_vencimiento = req.nueva_fecha
     db.commit()
-    return {"msg": "Pago registrado exitosamente"}
+    return {"msg": "Cuota reprogramada exitosamente"}
+
+
 
 class AsignacionCobroRequest(BaseModel):
     usuario_id: int
@@ -2182,3 +2229,19 @@ def asignar_cobrador(
     
     db.commit()
     return {"msg": f"{len(cuotas_a_actualizar)} cobros asignados correctamente"}
+
+
+@app.get("/prestamos/calendario-resumen")
+def calendario_resumen(
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_active_user)
+):
+    return crud.get_calendario_cobros(db, current_user.empresa_id)
+
+
+@app.get("/reportes/calendario-cobros")
+def calendario_cobros(
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_active_user)
+):
+    return crud.get_resumen_calendario_cobros(db, current_user.empresa_id)

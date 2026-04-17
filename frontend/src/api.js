@@ -99,7 +99,9 @@ export const pagarCuotaPrestamo = (id) => apiClient.post(`/prestamos/cuotas/${id
 // Actualizar módulos permitidos para un cliente SaaS
 export const updateModulosEmpresa = (id, modulos) => apiClient.patch(`/superadmin/empresas/${id}/modulos`, { modulos });
 
-
+// Funciones para Ruta de Cobro
+export const registrarPagoRuta = (id, data) => apiClient.post(`/prestamos/cuotas/${id}/pagar`, data);
+export const reprogramarCuotaRuta = (id, data) => apiClient.post(`/prestamos/cuotas/${id}/reprogramar`, data);
 
 export const impersonateCompany = (id) => apiClient.post(`/superadmin/impersonate/${id}`);
 

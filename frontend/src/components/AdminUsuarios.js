@@ -6,11 +6,11 @@ import {
   Box, Paper, Typography, Grid, TextField, Button, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, IconButton, FormControl,
   InputLabel, Select, MenuItem, useMediaQuery, useTheme, Chip, Tooltip,
-  Divider, Collapse, Avatar, Tabs, Tab
+  Divider, Collapse, Avatar, Tabs, Tab, CircularProgress
 } from '@mui/material';
 import {
   Edit, Delete, PersonAdd, People, ExpandMore, ExpandLess,
-  Close, AdminPanelSettings, Check, Security
+  Close, AdminPanelSettings, Check, Security, Block, CheckCircle
 } from '@mui/icons-material';
 
 const ACCENT = '#8B5CF6'; // Violeta — Admin
@@ -60,13 +60,14 @@ export default function AdminUsuarios() {
 
   // ── Estados de Usuarios ──
   const [users, setUsers] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null); // Para evitar auto-suspensión
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [roleId, setRoleId] = useState('');
   const [editingUser, setEditingUser] = useState(null);
   const [formUserOpen, setFormUserOpen] = useState(false);
   const [showConfirmUser, setShowConfirmUser] = useState(false);
-  const [userToDelete, setUserToDelete] = useState(null);
+  const [userToToggle, setUserToToggle] = useState(null);
 
   // ── Estados de Roles ──
   const [roles, setRoles] = useState([]);
@@ -80,8 +81,10 @@ export default function AdminUsuarios() {
     fetchUsers();
     fetchRoles();
     fetchModules();
+    fetchMe();
   }, []);
 
+  const fetchMe = async () => { try { const r = await apiClient.get('/users/me'); setCurrentUser(r.data); } catch { } };
   const fetchUsers = async () => { try { const r = await apiClient.get('/users/'); setUsers(r.data); } catch { toast.error('Error al cargar usuarios.'); } };
   const fetchRoles = async () => { try { const r = await apiClient.get('/roles/'); setRoles(r.data); } catch { toast.error('Error al cargar roles.'); } };
   const fetchModules = async () => { try { const r = await apiClient.get('/modulos/'); setModules(r.data); } catch { toast.error('Error al cargar módulos.'); } };
@@ -99,15 +102,44 @@ export default function AdminUsuarios() {
         toast.success('Usuario creado exitosamente');
       }
       resetUserForm(); fetchUsers();
-    } catch (err) { toast.error(err.response?.data?.detail || 'Error al guardar usuario'); }
+    } catch (err) { 
+        // Captura el error de límite de usuarios del plan
+        const msg = err.response?.data?.detail || 'Error al guardar usuario';
+        toast.error(msg, { autoClose: 5000 }); 
+    }
   };
 
   const resetUserForm = () => { setUsername(''); setPassword(''); setRoleId(''); setEditingUser(null); setFormUserOpen(false); };
-  const handleEditUser = (user) => { setEditingUser(user); setUsername(user.username); setRoleId(user.role.id); setPassword(''); setFormUserOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-  const confirmDeleteUser = async () => {
-    try { await apiClient.delete(`/users/${userToDelete}`); toast.success('Usuario eliminado'); fetchUsers(); }
-    catch (err) { toast.error(err.response?.data?.detail || 'Error al eliminar'); }
-    finally { setShowConfirmUser(false); setUserToDelete(null); }
+  
+  const handleEditUser = (user) => { 
+    setEditingUser(user); 
+    setUsername(user.username); 
+    setRoleId(user.role.id); 
+    setPassword(''); 
+    setFormUserOpen(true); 
+    window.scrollTo({ top: 0, behavior: 'smooth' }); 
+  };
+
+  const handleToggleClick = (user) => {
+    setUserToToggle(user);
+    setShowConfirmUser(true);
+  };
+
+  const confirmToggleUser = async () => {
+    try {
+      if (userToToggle.is_active !== false) {
+        // Soft Delete (Desactivar)
+        await apiClient.delete(`/users/${userToToggle.id}`);
+        toast.success('Acceso suspendido correctamente');
+      } else {
+        // Reactivar
+        await apiClient.patch(`/users/${userToToggle.id}/toggle`);
+        toast.success('Usuario reactivado exitosamente');
+      }
+      fetchUsers();
+    }
+    catch (err) { toast.error(err.response?.data?.detail || 'Error al cambiar estado'); }
+    finally { setShowConfirmUser(false); setUserToToggle(null); }
   };
 
   // ── Handlers de Roles ──
@@ -214,24 +246,49 @@ export default function AdminUsuarios() {
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    {['#', 'Usuario', 'Rol', 'Acciones'].map(h => <TableCell key={h}>{h}</TableCell>)}
+                    {['#', 'Usuario', 'Rol', 'Estado', 'Acciones'].map(h => <TableCell key={h}>{h}</TableCell>)}
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {users.length === 0 ? <TableRow><TableCell colSpan={4} align="center" sx={{ py: 3 }}>No hay usuarios</TableCell></TableRow> :
+                  {users.length === 0 ? <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3 }}>No hay usuarios</TableCell></TableRow> :
                     users.map(u => (
-                      <TableRow key={u.id} hover>
+                      <TableRow key={u.id} hover sx={{ opacity: u.is_active !== false ? 1 : 0.6 }}>
                         <TableCell sx={{ color: 'text.secondary', fontSize: 12 }}>#{u.id}</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Avatar sx={{ width: 26, height: 26, bgcolor: `${ACCENT}20`, color: ACCENT, fontSize: 11, fontWeight: 700 }}>{u.username[0].toUpperCase()}</Avatar>
+                            <Avatar sx={{ width: 26, height: 26, bgcolor: u.is_active !== false ? `${ACCENT}20` : '#cbd5e1', color: u.is_active !== false ? ACCENT : '#64748b', fontSize: 11, fontWeight: 700 }}>{u.username[0].toUpperCase()}</Avatar>
                             {u.username}
                           </Box>
                         </TableCell>
                         <TableCell><Chip label={u.role.name} size="small" sx={{ bgcolor: `${ACCENT}15`, color: ACCENT, fontWeight: 600, fontSize: 11, borderRadius: 1 }} /></TableCell>
                         <TableCell>
-                          <IconButton size="small" onClick={() => handleEditUser(u)} sx={{ color: ACCENT, mr: 1 }}><Edit fontSize="small" /></IconButton>
-                          <IconButton size="small" onClick={() => { setUserToDelete(u.id); setShowConfirmUser(true); }} sx={{ color: '#EF4444' }}><Delete fontSize="small" /></IconButton>
+                          <Chip 
+                            label={u.is_active !== false ? 'Activo' : 'Suspendido'} 
+                            size="small" 
+                            sx={{ 
+                                bgcolor: u.is_active !== false ? '#ECFDF5' : '#FEF2F2', 
+                                color: u.is_active !== false ? '#10B981' : '#EF4444', 
+                                fontWeight: 700, fontSize: 10, borderRadius: 1.5 
+                            }} 
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Tooltip title="Editar">
+                            <IconButton size="small" onClick={() => handleEditUser(u)} sx={{ color: ACCENT, mr: 1 }}><Edit fontSize="small" /></IconButton>
+                          </Tooltip>
+                          
+                          <Tooltip title={u.is_active !== false ? "Suspender acceso" : "Reactivar usuario"}>
+                            <span>
+                                <IconButton 
+                                    size="small" 
+                                    disabled={currentUser?.id === u.id} // No se puede suspender a sí mismo
+                                    onClick={() => handleToggleClick(u)} 
+                                    sx={{ color: u.is_active !== false ? '#EF4444' : '#10B981' }}
+                                >
+                                    {u.is_active !== false ? <Block fontSize="small" /> : <CheckCircle fontSize="small" />}
+                                </IconButton>
+                            </span>
+                          </Tooltip>
                         </TableCell>
                       </TableRow>
                     ))
@@ -296,7 +353,7 @@ export default function AdminUsuarios() {
                       <TableCell sx={{ fontWeight: 700 }}>{r.name}</TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                          {r.modules.length === 0 ? <Typography sx={{ fontSize: 11, color: 'text.secondary', fontStyle: 'italic' }}>Sin accesos</Typography> :
+                          {r.modules.length === 0 ? <Typography sx={{ fontSize: 12, color: 'text.secondary', fontStyle: 'italic' }}>Sin accesos</Typography> :
                             r.modules.map(m => <Chip key={m.id} label={m.name} size="small" sx={{ bgcolor: `${ACCENT}10`, color: ACCENT, fontSize: 10, fontWeight: 600, borderRadius: 1 }} />)
                           }
                         </Box>
@@ -313,8 +370,17 @@ export default function AdminUsuarios() {
         </Box>
       </Paper>
 
-      {/* Dialog para borrar usuario */}
-      <ConfirmationDialog open={showConfirmUser} handleClose={() => setShowConfirmUser(false)} handleConfirm={confirmDeleteUser} title="Eliminar usuario" message="¿Estás seguro? Esta acción es irreversible." />
+      {/* Dialog para suspender/reactivar usuario */}
+      <ConfirmationDialog 
+        open={showConfirmUser} 
+        handleClose={() => setShowConfirmUser(false)} 
+        handleConfirm={confirmToggleUser} 
+        title={userToToggle?.is_active !== false ? "Suspender acceso" : "Reactivar acceso"} 
+        message={userToToggle?.is_active !== false 
+            ? `¿Estás seguro de suspender a ${userToToggle?.username}? Ya no podrá ingresar al sistema hasta que lo reactives.` 
+            : `¿Deseas reactivar el acceso para ${userToToggle?.username}?`
+        } 
+      />
     </Box>
   );
 }

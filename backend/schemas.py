@@ -74,6 +74,7 @@ class UserCreate(UserBase):
 
 class User(UserBase):
     id: int
+    is_active: bool = True # ✅ Añadir esto
     role: Role
     empresa_id: Optional[int] = None
     empresa: Optional[Empresa] = None
@@ -713,12 +714,23 @@ class SalesByDay(BaseModel):
     total: float
 
 class DashboardData(BaseModel):
+    # --- MÉTRICAS ERP COMERCIAL ---
     ventas_hoy: float
     cuentas_por_cobrar: float
     productos_bajo_stock: int
-    ordenes_recientes: List[OrdenTrabajo]
     ventas_ultimos_30_dias: List[SalesByDay]
+    
+    # --- MÉTRICAS MÓDULO PRÉSTAMOS (NUEVAS / SEPARADAS) ---
+    recaudo_prestamos_hoy: float = 0.0
+    capital_en_calle: float = 0.0
+    cuotas_mora: int = 0
+    recaudo_ultimos_30_dias: List[SalesByDay] = [] # Gráfica independiente
+    
+    # Comunes
+    ordenes_recientes: List[OrdenTrabajo]
 
+# Al final del archivo schemas.py, mantén la reconstrucción:
+DashboardData.model_rebuild()
 # =========================
 # NOTIFICACIONES
 # =========================
@@ -790,10 +802,12 @@ class EmpresaPlanUpdate(BaseModel):
 # =========================
 # REGISTRO AUTOSERVICIO (SAAS)
 # =========================
+
 class RegistroSaaS(BaseModel):
     nombre_empresa: str
     username: str
     password: str
+    tipo_negocio: str  # Campo obligatorio para la clasificación automática
 
 
 # =========================
@@ -895,3 +909,27 @@ class PrestamoResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+
+
+
+class MetricasPrestamos(BaseModel):
+    capital_prestado: float
+    capital_recuperado: float
+    capital_pendiente: float
+    intereses_esperados: float
+    intereses_recaudados: float
+    intereses_pendientes: float
+    total_en_mora: float
+
+class ReporteFinancieroPrestamos(BaseModel):
+    resumen: MetricasPrestamos
+    proyeccion_recaudo_mes: List[SalesByDay]
+
+
+
+class DiaCobroResumen(BaseModel):
+    fecha: date
+    cantidad_cuotas: int
+    monto_total: float

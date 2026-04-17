@@ -40,7 +40,8 @@ class Empresa(Base):
     # 👇 NUEVA COLUMNA PARA CONTROL SAAS (Feature Toggles)
     # Guardará una lista de paths, ej: ["/clientes", "/prestamos", "/ruta-cobro"]
     # Si es NULL, significa que la empresa tiene acceso a TODO (retrocompatibilidad para tu fábrica actual)
-    modulos_habilitados = Column(JSON, nullable=True)
+    
+    modulos_habilitados = Column(JSON, nullable=True) # Guarda ["/ruta1", "/ruta2"]
 
 
 class TenantMixin:
@@ -96,6 +97,8 @@ class User(Base, TenantMixin):
     username        = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     role_id         = Column(Integer, ForeignKey("roles.id"))
+    
+    is_active       = Column(Boolean, default=True) # ✅ NUEVO: Para el Soft Delete (Trazabilidad)
 
     role              = relationship("Role", back_populates="users")
     empresa           = relationship("Empresa", back_populates="usuarios")

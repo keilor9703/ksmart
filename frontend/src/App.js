@@ -74,7 +74,7 @@ const menuItems = [
   { path: '/ordenes-trabajo', text: 'Órdenes de Trabajo',  icon: <Assignment />,           color: '#EC4899' },
   { path: '/panel-operador',  text: 'Panel Operador',      icon: <DashboardIcon />,        color: '#14B8A6' },
   // 👈 NUEVOS MÓDULOS AÑADIDOS
-  { path: '/prestamos',       text: 'Simular Préstamo',    icon: <AttachMoney />,          color: '#10B981' },
+  { path: '/prestamos',       text: 'Préstamos',    icon: <AttachMoney />,          color: '#10B981' },
   { path: '/ruta-cobro',      text: 'Ruta de Cobro',       icon: <DirectionsRun />,        color: '#3B82F6' },
   { path: '/reportes',        text: 'Reportes',            icon: <Assessment />,           color: '#F43F5E' },
 ];

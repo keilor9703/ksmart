@@ -69,6 +69,12 @@ def get_modulo(db: Session, modulo_id: int):
 def get_modulo_by_name(db: Session, name: str):
     return db.query(models.Modulo).filter(models.Modulo.name == name).first()
 
+
+def get_modulo_by_frontend_path(db: Session, frontend_path: str):
+    return db.query(models.Modulo).filter(
+        models.Modulo.frontend_path == frontend_path
+    ).first()
+
 def get_modulos(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Modulo).offset(skip).limit(limit).all()
 
@@ -171,12 +177,27 @@ def get_users(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
     ).offset(skip).limit(limit).all()
 
 def create_user(db: Session, user: schemas.UserCreate, empresa_id: int):
+    # ✅ 1. VERIFICACIÓN DE LÍMITE DE USUARIOS (MONETIZACIÓN)
+    total_users = db.query(models.User).filter(models.User.empresa_id == empresa_id).count()
+    empresa = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
+    
+    # Lógica de negocio: 7 usuarios en Trial, 20 en Premium (puedes ajustar estos números)
+    limite = 6 if empresa.plan_type == "trial" else 50 
+    
+    if total_users >= limite:
+        raise HTTPException(
+            status_code=403, 
+            detail=f"Has alcanzado el límite de {limite} usuarios de tu plan. Mejora tu suscripción para expandir tu equipo."
+        )
+
+    # 2. Creación normal
     hashed_password = get_password_hash(user.password)
     db_user = models.User(
         username=user.username,
         hashed_password=hashed_password,
         role_id=user.role_id,
-        empresa_id=empresa_id 
+        empresa_id=empresa_id,
+        is_active=True
     )
     db.add(db_user)
     db.commit()
@@ -199,13 +220,37 @@ def update_user(db: Session, user_id: int, user: schemas.UserCreate, empresa_id:
     return db_user
 
 def delete_user(db: Session, user_id: int, empresa_id: int):
+    # ✅ 2. Borrado Lógico: Solo cambiamos el estado
+    db_user = db.query(models.User).filter(
+        models.User.id == user_id,
+        models.User.empresa_id == empresa_id 
+    ).first()
+    
+    if db_user:
+        # Impedir que se desactive el admin principal
+        if db_user.role.name == "Admin":
+            admin_count = db.query(models.User).filter(
+                models.User.empresa_id == empresa_id, 
+                models.User.role.has(name="Admin"),
+                models.User.is_active == True
+            ).count()
+            if admin_count <= 1:
+                raise HTTPException(status_code=400, detail="Debe existir al menos un administrador activo.")
+
+        db_user.is_active = False 
+        db.commit()
+    return db_user
+
+def toggle_user_status(db: Session, user_id: int, empresa_id: int):
+    # Función extra para poder reactivar a un empleado si vuelve a la empresa
     db_user = db.query(models.User).filter(
         models.User.id == user_id,
         models.User.empresa_id == empresa_id 
     ).first()
     if db_user:
-        db.delete(db_user)
+        db_user.is_active = not db_user.is_active
         db.commit()
+        db.refresh(db_user)
     return db_user
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1058,90 +1103,57 @@ def get_total_sales_today(db: Session, empresa_id: int) -> float:
     ).scalar()
     return float(total or 0)
 
-# def get_dashboard_data(db: Session, empresa_id: int) -> schemas.DashboardData:
-#     hoy_colombia = datetime.now(BOGOTA_TZ).date()
-#     inicio_utc_hoy, fin_utc_hoy = get_utc_boundaries(hoy_colombia)
-
-#     # ✅ Usamos los limites exactos en UTC
-#     ventas_hoy_records = db.query(models.Venta).filter(
-#         models.Venta.empresa_id == empresa_id,
-#         models.Venta.fecha >= inicio_utc_hoy,
-#         models.Venta.fecha <= fin_utc_hoy
-#         # models.Venta.estado_pago == "pagado"
-#     ).all()
-#     ventas_hoy = sum(v.total or 0 for v in ventas_hoy_records)
-
-#     deudores = get_clientes_deudores(db, empresa_id)
-#     cuentas_por_cobrar = sum(d.total_debt_amount for d in deudores)
-
-#     productos_bajo_stock = len(get_low_stock(db, empresa_id))
-
-#     ordenes_recientes = get_ordenes_trabajo(db, empresa_id, skip=0, limit=5)
-
-#     end_date = hoy_colombia
-#     start_date = end_date - timedelta(days=29)
-#     ventas_ultimos_30_dias = get_sales_by_day(db, empresa_id, start_date, end_date)
-
-#     return schemas.DashboardData(
-#         ventas_hoy=ventas_hoy,
-#         cuentas_por_cobrar=cuentas_por_cobrar,
-#         productos_bajo_stock=productos_bajo_stock,
-#         ordenes_recientes=ordenes_recientes,
-#         ventas_ultimos_30_dias=ventas_ultimos_30_dias,
-#     )
-
-# 3. REEMPLAZA LA FUNCIÓN get_dashboard_data (Aprox Línea 795)
+# 1. Reemplaza la función get_dashboard_data:
 def get_dashboard_data(db: Session, empresa_id: int) -> schemas.DashboardData:
     hoy_colombia = datetime.now(BOGOTA_TZ).date()
     inicio_utc_hoy, fin_utc_hoy = get_utc_boundaries(hoy_colombia)
 
-    ventas_hoy_records = db.query(models.Venta).filter(
+    # --- MÉTRICAS ERP (PRODUCTOS) ---
+    ventas_hoy_recs = db.query(models.Venta).filter(
         models.Venta.empresa_id == empresa_id,
         models.Venta.fecha >= inicio_utc_hoy,
         models.Venta.fecha <= fin_utc_hoy
     ).all()
-    ventas_hoy = sum(v.total or 0 for v in ventas_hoy_records)
-
+    ventas_hoy = sum(v.total or 0 for v in ventas_hoy_recs)
+    
     deudores = get_clientes_deudores(db, empresa_id)
     cuentas_por_cobrar = sum(d.total_debt_amount for d in deudores)
     productos_bajo_stock = len(get_low_stock(db, empresa_id))
 
-    # ✅ NUEVA LÓGICA: SUMAR PRÉSTAMOS A LOS KPIs DEL DASHBOARD
-    cuotas_hoy = db.query(func.sum(models.CuotaPrestamo.monto_cuota)).filter(
+    # --- MÉTRICAS PRÉSTAMOS ---
+    recaudo_hoy = db.query(func.sum(models.CuotaPrestamo.monto_cuota)).filter(
         models.CuotaPrestamo.empresa_id == empresa_id,
         models.CuotaPrestamo.estado_pago == "Pagado",
         models.CuotaPrestamo.fecha_pago >= inicio_utc_hoy,
         models.CuotaPrestamo.fecha_pago <= fin_utc_hoy
     ).scalar() or 0.0
-    ventas_hoy += float(cuotas_hoy)
 
-    prestamos_pendientes = db.query(func.sum(models.CuotaPrestamo.saldo_pendiente)).filter(
+    capital_calle = db.query(func.sum(models.CuotaPrestamo.saldo_pendiente)).filter(
         models.CuotaPrestamo.empresa_id == empresa_id,
         models.CuotaPrestamo.estado_pago != "Pagado"
     ).scalar() or 0.0
-    cuentas_por_cobrar += float(prestamos_pendientes)
 
     cuotas_mora = db.query(models.CuotaPrestamo).filter(
         models.CuotaPrestamo.empresa_id == empresa_id,
         models.CuotaPrestamo.fecha_vencimiento < hoy_colombia,
         models.CuotaPrestamo.estado_pago != "Pagado"
     ).count()
-    productos_bajo_stock += cuotas_mora
 
-    ordenes_recientes = get_ordenes_trabajo(db, empresa_id, skip=0, limit=5)
-
+    # Gráfica de ventas (ERP)
     end_date = hoy_colombia
     start_date = end_date - timedelta(days=29)
-    ventas_ultimos_30_dias = get_sales_by_day(db, empresa_id, start_date, end_date)
+    ventas_30 = get_sales_by_day(db, empresa_id, start_date, end_date)
 
     return schemas.DashboardData(
         ventas_hoy=ventas_hoy,
         cuentas_por_cobrar=cuentas_por_cobrar,
         productos_bajo_stock=productos_bajo_stock,
-        ordenes_recientes=ordenes_recientes,
-        ventas_ultimos_30_dias=ventas_ultimos_30_dias,
+        recaudo_prestamos_hoy=float(recaudo_hoy),
+        capital_en_calle=float(capital_calle),
+        cuotas_mora=cuotas_mora,
+        ordenes_recientes=get_ordenes_trabajo(db, empresa_id, skip=0, limit=5),
+        ventas_ultimos_30_dias=ventas_30,
     )
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ÓRDENES DE TRABAJO
@@ -2365,183 +2377,43 @@ def create_pago_compra(db: Session, empresa_id: int, pago: schemas.PagoCompraCre
 # ═══════════════════════════════════════════════════════════════════════════════
 # CAJA Y GASTOS
 # ═══════════════════════════════════════════════════════════════════════════════
-
-# def calcular_totales_dia(db: Session, empresa_id: int) -> dict:
-#     # ✅ TIMEZONE FIX PARA CORTE DE CAJA DIARIO
-#     hoy_colombia = datetime.now(BOGOTA_TZ).date()
-#     inicio_utc, fin_utc = get_utc_boundaries(hoy_colombia)
-
-#     totales = {
-#         "efectivo": 0.0, "transferencia": 0.0, "tarjeta": 0.0, "otros": 0.0,
-#         "total_dia": 0.0, "total_gastos": 0.0, "ventas_contado": 0.0, "abonos_cartera": 0.0,
-#         "num_ventas": 0, "num_abonos": 0,
-#         "fecha": hoy_colombia.isoformat(),
-#     }
-
-#     def _clasificar_ingreso(metodo: str, monto: float):
-#         m = (metodo or "").lower().strip()
-#         totales["total_dia"] += monto
-#         if "efectivo" in m or m == "":
-#             totales["efectivo"] += monto
-#         elif "transfer" in m or "nequi" in m or "daviplata" in m or "pse" in m:
-#             totales["transferencia"] += monto
-#         elif "tarjeta" in m or "card" in m or "credito" in m or "debito" in m:
-#             totales["tarjeta"] += monto
-#         else:
-#             totales["otros"] += monto
-
-#     ventas_contado = (
-#         db.query(models.Venta)
-#         .options(joinedload(models.Venta.pagos))
-#         .filter(
-#             models.Venta.empresa_id == empresa_id, 
-#             models.Venta.fecha >= inicio_utc,
-#             models.Venta.fecha <= fin_utc,
-#             models.Venta.estado_pago == "pagado",
-#         ).all()
-#     )
-
-#     for v in ventas_contado:
-#         pagos_hoy = [p for p in v.pagos if inicio_utc <= p.fecha <= fin_utc]
-#         if not pagos_hoy:
-#             metodo = getattr(v, 'metodo_pago', None) or "Efectivo"
-#             _clasificar_ingreso(metodo, float(v.total or 0))
-#             totales["ventas_contado"] += float(v.total or 0)
-#             totales["num_ventas"] += 1
-
-#     abonos_dia = (
-#         db.query(models.Pago)
-#         .join(models.Venta)
-#         .filter(
-#             models.Venta.empresa_id == empresa_id, 
-#             models.Pago.fecha >= inicio_utc,
-#             models.Pago.fecha <= fin_utc
-#         )
-#         .all()
-#     )
-
-#     for p in abonos_dia:
-#         _clasificar_ingreso(p.metodo_pago or "Efectivo", float(p.monto or 0))
-#         totales["abonos_cartera"] += float(p.monto or 0)
-#         totales["num_abonos"] += 1
-
-#     gastos_dia = db.query(models.Gasto).filter(
-#         models.Gasto.empresa_id == empresa_id, 
-#         models.Gasto.fecha >= inicio_utc,
-#         models.Gasto.fecha <= fin_utc
-#     ).all()
-
-#     for g in gastos_dia:
-#         monto = float(g.monto or 0)
-#         totales["total_gastos"] += monto
-#         m = (g.metodo_pago or "Efectivo").lower().strip()
-#         if "efectivo" in m or m == "":
-#             totales["efectivo"] -= monto
-#         elif "transfer" in m or "nequi" in m or "daviplata" in m or "pse" in m:
-#             totales["transferencia"] -= monto
-#         elif "tarjeta" in m or "card" in m or "credito" in m or "debito" in m:
-#             totales["tarjeta"] -= monto
-#         else:
-#             totales["otros"] -= monto
-
-#     return totales
-
-
-# 1. REEMPLAZA LA FUNCIÓN calcular_totales_dia (Aprox Línea 650)
+# 2. Reemplaza calcular_totales_dia para un arqueo de caja preciso:
 def calcular_totales_dia(db: Session, empresa_id: int) -> dict:
     hoy_colombia = datetime.now(BOGOTA_TZ).date()
-    inicio_utc, fin_utc = get_utc_boundaries(hoy_colombia)
+    inicio, fin = get_utc_boundaries(hoy_colombia)
 
     totales = {
         "efectivo": 0.0, "transferencia": 0.0, "tarjeta": 0.0, "otros": 0.0,
-        "total_dia": 0.0, "total_gastos": 0.0, "ventas_contado": 0.0, "abonos_cartera": 0.0,
-        "num_ventas": 0, "num_abonos": 0,
+        "total_dia": 0.0, "total_gastos": 0.0,
+        "ventas_contado": 0.0, "abonos_cartera": 0.0, "recaudo_prestamos": 0.0,
         "fecha": hoy_colombia.isoformat(),
     }
 
-    def _clasificar_ingreso(metodo: str, monto: float):
-        m = (metodo or "").lower().strip()
+    def _clasificar(metodo, monto, cat):
+        m = (metodo or "").lower()
         totales["total_dia"] += monto
-        if "efectivo" in m or m == "":
-            totales["efectivo"] += monto
-        elif "transfer" in m or "nequi" in m or "daviplata" in m or "pse" in m:
-            totales["transferencia"] += monto
-        elif "tarjeta" in m or "card" in m or "credito" in m or "debito" in m:
-            totales["tarjeta"] += monto
-        else:
-            totales["otros"] += monto
+        totales[cat] += monto
+        if "efectivo" in m or m == "": totales["efectivo"] += monto
+        elif any(x in m for x in ["transfer", "nequi", "pse"]): totales["transferencia"] += monto
+        elif any(x in m for x in ["tarjeta", "card"]): totales["tarjeta"] += monto
+        else: totales["otros"] += monto
 
-    ventas_contado = (
-        db.query(models.Venta)
-        .options(joinedload(models.Venta.pagos))
-        .filter(
-            models.Venta.empresa_id == empresa_id, 
-            models.Venta.fecha >= inicio_utc,
-            models.Venta.fecha <= fin_utc,
-            models.Venta.estado_pago == "pagado",
-        ).all()
-    )
+    # Ingresos ERP
+    v_contado = db.query(models.Venta).filter(models.Venta.empresa_id == empresa_id, models.Venta.fecha >= inicio, models.Venta.fecha <= fin, models.Venta.estado_pago == "pagado").all()
+    for v in v_contado: _clasificar(v.metodo_pago, float(v.total or 0), "ventas_contado")
 
-    for v in ventas_contado:
-        pagos_hoy = [p for p in v.pagos if inicio_utc <= p.fecha <= fin_utc]
-        if not pagos_hoy:
-            metodo = getattr(v, 'metodo_pago', None) or "Efectivo"
-            _clasificar_ingreso(metodo, float(v.total or 0))
-            totales["ventas_contado"] += float(v.total or 0)
-            totales["num_ventas"] += 1
+    # Ingresos Préstamos
+    cuotas = db.query(models.CuotaPrestamo).filter(models.CuotaPrestamo.empresa_id == empresa_id, models.CuotaPrestamo.estado_pago == "Pagado", models.CuotaPrestamo.fecha_pago >= inicio, models.CuotaPrestamo.fecha_pago <= fin).all()
+    for c in cuotas: _clasificar("Efectivo", float(c.monto_cuota or 0), "recaudo_prestamos")
 
-    abonos_dia = (
-        db.query(models.Pago)
-        .join(models.Venta)
-        .filter(
-            models.Venta.empresa_id == empresa_id, 
-            models.Pago.fecha >= inicio_utc,
-            models.Pago.fecha <= fin_utc
-        )
-        .all()
-    )
-
-    for p in abonos_dia:
-        _clasificar_ingreso(p.metodo_pago or "Efectivo", float(p.monto or 0))
-        totales["abonos_cartera"] += float(p.monto or 0)
-        totales["num_abonos"] += 1
-
-    # ✅ NUEVA LÓGICA: SUMAR EL RECAUDO DE PRÉSTAMOS
-    cuotas_cobradas_hoy = db.query(models.CuotaPrestamo).filter(
-        models.CuotaPrestamo.empresa_id == empresa_id,
-        models.CuotaPrestamo.estado_pago == "Pagado",
-        models.CuotaPrestamo.fecha_pago >= inicio_utc,
-        models.CuotaPrestamo.fecha_pago <= fin_utc
-    ).all()
+    # Gastos
+    gastos = db.query(models.Gasto).filter(models.Gasto.empresa_id == empresa_id, models.Gasto.fecha >= inicio, models.Gasto.fecha <= fin).all()
+    for g in gastos:
+        totales["total_gastos"] += float(g.monto)
+        m = (g.metodo_pago or "").lower()
+        if "efectivo" in m or m == "": totales["efectivo"] -= float(g.monto)
     
-    for c in cuotas_cobradas_hoy:
-        _clasificar_ingreso("Efectivo", float(c.monto_cuota or 0))
-        totales["ventas_contado"] += float(c.monto_cuota or 0)
-        totales["num_ventas"] += 1
-
-    gastos_dia = db.query(models.Gasto).filter(
-        models.Gasto.empresa_id == empresa_id, 
-        models.Gasto.fecha >= inicio_utc,
-        models.Gasto.fecha <= fin_utc
-    ).all()
-
-    for g in gastos_dia:
-        monto = float(g.monto or 0)
-        totales["total_gastos"] += monto
-        m = (g.metodo_pago or "Efectivo").lower().strip()
-        if "efectivo" in m or m == "":
-            totales["efectivo"] -= monto
-        elif "transfer" in m or "nequi" in m or "daviplata" in m or "pse" in m:
-            totales["transferencia"] -= monto
-        elif "tarjeta" in m or "card" in m or "credito" in m or "debito" in m:
-            totales["tarjeta"] -= monto
-        else:
-            totales["otros"] -= monto
-
     return totales
-
-
-
 
 
 
@@ -3113,3 +2985,97 @@ def crear_prestamo(db: Session, prestamo: schemas.PrestamoCreate, empresa_id: in
     db.commit()
     db.refresh(db_prestamo)
     return db_prestamo
+
+
+
+
+
+def get_reporte_financiero_prestamos(db: Session, empresa_id: int):
+    # 1. Base de préstamos
+    prestamos = db.query(models.Prestamo).filter(models.Prestamo.empresa_id == empresa_id).all()
+
+    capital_prestado = sum(p.monto_prestado for p in prestamos)
+    intereses_totales_proyectados = sum(p.monto_total_pagar - p.monto_prestado for p in prestamos)
+
+    # 2. Análisis de cuotas
+    cuotas = db.query(models.CuotaPrestamo).filter(models.CuotaPrestamo.empresa_id == empresa_id).all()
+
+    intereses_recaudados = 0.0
+    capital_recuperado = 0.0
+    total_en_mora = 0.0
+    hoy = datetime.now(BOGOTA_TZ).date()
+
+    for c in cuotas:
+        # Cálculo proporcional de interés vs capital en cada cuota
+        # Si p.monto_total_pagar es 120 y p.monto_prestado es 100, el 83.3% es capital
+        p = c.prestamo
+        factor_capital = p.monto_prestado / p.monto_total_pagar if p.monto_total_pagar > 0 else 0
+        
+        monto_pagado_cuota = c.monto_cuota - c.saldo_pendiente
+        
+        capital_recuperado += (monto_pagado_cuota * factor_capital)
+        intereses_recaudados += (monto_pagado_cuota * (1 - factor_capital))
+        
+        if c.estado_pago != "Pagado" and c.fecha_vencimiento < hoy:
+            total_en_mora += c.saldo_pendiente
+
+    return {
+        "resumen": {
+            "capital_prestado": capital_prestado,
+            "capital_recuperado": capital_recuperado,
+            "capital_pendiente": capital_prestado - capital_recuperado,
+            "intereses_esperados": intereses_totales_proyectados,
+            "intereses_recaudados": intereses_recaudados,
+            "intereses_pendientes": intereses_totales_proyectados - intereses_recaudados,
+            "total_en_mora": total_en_mora
+        }
+}
+
+
+def get_calendario_cobros(db: Session, empresa_id: int):
+    # Agrupamos cuotas pendientes por fecha de vencimiento
+    resultados = db.query(
+        cast(models.CuotaPrestamo.fecha_vencimiento, Date).label("fecha"),
+        func.count(models.CuotaPrestamo.id).label("cantidad"),
+        func.sum(models.CuotaPrestamo.saldo_pendiente).label("total")
+    ).filter(
+        models.CuotaPrestamo.empresa_id == empresa_id,
+        models.CuotaPrestamo.estado_pago != "Pagado"
+    ).group_by(text("fecha")).all()
+
+    return [
+        {"fecha": r.fecha, "cantidad_cuotas": r.cantidad, "monto_total": r.total}
+        for r in resultados
+    ]
+
+
+
+from sqlalchemy import func, Date, cast
+
+def get_resumen_calendario_cobros(db: Session, empresa_id: int):
+    # Usamos cast para asegurar que tratamos el campo como Date
+    # Y lo agrupamos directamente por la columna de la base de datos
+    query = db.query(
+        models.CuotaPrestamo.fecha_vencimiento,
+        func.count(models.CuotaPrestamo.id).label("total_cuotas")
+    ).filter(
+        models.CuotaPrestamo.empresa_id == empresa_id,
+        models.CuotaPrestamo.estado_pago != "Pagado"
+    ).group_by(models.CuotaPrestamo.fecha_vencimiento).all()
+
+    # Procesamos los resultados en Python para evitar errores de tipos con los drivers
+    resumen = {}
+    for r in query:
+        # Extraemos solo la parte de la fecha (YYYY-MM-DD) si viene con hora
+        fecha_str = r[0].isoformat().split('T')[0] if hasattr(r[0], 'isoformat') else str(r[0]).split(' ')[0]
+        
+        if fecha_str in resumen:
+            resumen[fecha_str] += r.total_cuotas
+        else:
+            resumen[fecha_str] = r.total_cuotas
+
+    # Retornamos una lista de diccionarios limpia para el frontend
+    return [
+        {"fecha": fecha, "total_cuotas": cantidad} 
+        for fecha, cantidad in resumen.items()
+    ]

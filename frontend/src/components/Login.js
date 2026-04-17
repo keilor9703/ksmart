@@ -3,10 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import apiClient from '../api';
 import {
-    Box, TextField, Button, Typography, InputAdornment, IconButton
+    Box, TextField, Button, Typography, InputAdornment, IconButton,
+    Grid, Card, CardActionArea
 } from '@mui/material';
 import { keyframes } from '@mui/system';
-import { Visibility, VisibilityOff, AlternateEmail, Lock, Business, Person } from '@mui/icons-material';
+import { 
+    Visibility, VisibilityOff, AlternateEmail, Lock, Business, Person,
+    Storefront, AttachMoney 
+} from '@mui/icons-material';
 
 // ─── Animación suave de entrada (Difuminado hacia arriba) ──────────────
 const fadeIn = keyframes`
@@ -48,7 +52,8 @@ const Login = ({ onLogin }) => {
 
     // ─── Estados de los Formularios ───
     const [loginData, setLoginData] = useState({ username: '', password: '' });
-    const [regData, setRegData] = useState({ nombre_empresa: '', username: '', password: '' });
+    // ✅ AQUÍ agregamos tipo_negocio al estado inicial del registro
+    const [regData, setRegData] = useState({ nombre_empresa: '', username: '', password: '', tipo_negocio: 'erp' });
 
     // ─── Manejador de Ingreso (Login) ───
     const handleLoginSubmit = async (e) => {
@@ -80,11 +85,12 @@ const Login = ({ onLogin }) => {
         }
         setLoading(true);
         try {
+            // El payload completo, incluyendo tipo_negocio, se envía al backend
             await apiClient.post('/auth/register', regData);
             toast.success('¡Cuenta creada con éxito! Por favor, inicia sesión.');
             // Pasamos los datos al login para mayor comodidad y cambiamos la vista
             setLoginData({ username: regData.username, password: '' });
-            setRegData({ nombre_empresa: '', username: '', password: '' });
+            setRegData({ nombre_empresa: '', username: '', password: '', tipo_negocio: 'erp' });
             setIsLoginView(true);
         } catch (error) {
             toast.error(error.response?.data?.detail || 'Error al crear la cuenta.');
@@ -184,6 +190,35 @@ const Login = ({ onLogin }) => {
                         ) : (
                             /* FORMULARIO DE REGISTRO (ONBOARDING) */
                             <Box component="form" onSubmit={handleRegisterSubmit} sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                
+                                {/* ✅ SELECTORES DE TIPO DE NEGOCIO (Estilo Oscuro) */}
+                                <Grid container spacing={1.5} sx={{ mb: 1 }}>
+                                    <Grid item xs={6}>
+                                        <Card sx={{ 
+                                            border: regData.tipo_negocio === 'erp' ? '2px solid #ea580c' : '2px solid transparent',
+                                            bgcolor: regData.tipo_negocio === 'erp' ? 'rgba(234, 88, 12, 0.1)' : 'rgba(241, 245, 249, 0.06)',
+                                            transition: '0.2s', borderRadius: 3
+                                        }}>
+                                            <CardActionArea onClick={() => setRegData({...regData, tipo_negocio: 'erp'})} sx={{ p: 2, textAlign: 'center', color: '#f1f5f9' }}>
+                                                <Storefront sx={{ color: regData.tipo_negocio === 'erp' ? '#ea580c' : '#64748b', fontSize: 28, mb: 0.5 }} />
+                                                <Typography variant="subtitle2" fontWeight={700} fontSize={12}>Comercio / ERP</Typography>
+                                            </CardActionArea>
+                                        </Card>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                        <Card sx={{ 
+                                            border: regData.tipo_negocio === 'prestamos' ? '2px solid #ea580c' : '2px solid transparent',
+                                            bgcolor: regData.tipo_negocio === 'prestamos' ? 'rgba(234, 88, 12, 0.1)' : 'rgba(241, 245, 249, 0.06)',
+                                            transition: '0.2s', borderRadius: 3
+                                        }}>
+                                            <CardActionArea onClick={() => setRegData({...regData, tipo_negocio: 'prestamos'})} sx={{ p: 2, textAlign: 'center', color: '#f1f5f9' }}>
+                                                <AttachMoney sx={{ color: regData.tipo_negocio === 'prestamos' ? '#ea580c' : '#64748b', fontSize: 28, mb: 0.5 }} />
+                                                <Typography variant="subtitle2" fontWeight={700} fontSize={12}>Prestamista</Typography>
+                                            </CardActionArea>
+                                        </Card>
+                                    </Grid>
+                                </Grid>
+
                                 <TextField
                                     fullWidth label="Nombre de tu Empresa o Negocio" required sx={fieldSx}
                                     value={regData.nombre_empresa} onChange={e => setRegData({ ...regData, nombre_empresa: e.target.value })}

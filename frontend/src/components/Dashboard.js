@@ -3,19 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Paper, Grid, CircularProgress,
   Divider, Chip, useMediaQuery, Skeleton, Button,
-  CardActionArea
+  CardActionArea, Dialog, DialogTitle, DialogContent, IconButton
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import {
   MonetizationOn, AccountBalanceWallet, Warning,
-  Assignment, TrendingUp, TrendingDown, ShoppingCart,
-  Inventory2Outlined, CheckCircle, PointOfSale,
-  AssignmentReturn, AttachMoney, CreditCard, AccountBalance,
-  MoneyOff, Business, RocketLaunch, Storefront, PeopleOutline, 
-  AddShoppingCart, DirectionsRun, Savings, Gavel
+  TrendingUp, PointOfSale, AttachMoney, AccountBalance, 
+  Business, RocketLaunch, Storefront, PeopleOutline, 
+  AddShoppingCart, DirectionsRun, Savings, Gavel, 
+  Inventory2Outlined, Close, WorkspacePremium, ShoppingCart
 } from '@mui/icons-material';
 import apiClient from '../api';
 import { formatCurrency } from '../utils/formatters';
+import WompiButton from './WompiButton';
 
 const ACCENT  = '#FF6020';
 const GREEN   = '#10B981';
@@ -106,6 +106,10 @@ const Dashboard = () => {
   const [loadingMain, setLoadingMain] = useState(true);
   const [loadingCaja, setLoadingCaja] = useState(true);
 
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [planes, setPlanes] = useState([]);
+  const [loadingPlanes, setLoadingPlanes] = useState(false);
+
   const navigate  = useNavigate();
   const theme     = useTheme();
   const isMobile  = useMediaQuery(theme.breakpoints.down('sm'));
@@ -131,12 +135,32 @@ const Dashboard = () => {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
+  const handleOpenUpgrade = async () => {
+    setUpgradeOpen(true);
+    if (planes.length === 0) {
+      setLoadingPlanes(true);
+      try {
+        const { data: resPlanes } = await apiClient.get('/planes-activos');
+        setPlanes(resPlanes);
+      } catch (error) {
+        console.error("Error cargando planes:", error);
+      } finally {
+        setLoadingPlanes(false);
+      }
+    }
+  };
+
   const hasAccess = (path) => {
     if (user?.role?.name === 'Admin' && user?.empresa_id === 1) return true;
     const modulosEmpresa = user?.empresa?.modulos_habilitados;
     if (!modulosEmpresa) return true;
     return modulosEmpresa.includes(path);
   };
+
+  const esPrestamista = useMemo(() => {
+    const mods = user?.empresa?.modulos_habilitados;
+    return mods?.includes('/prestamos') && !mods?.includes('/ventas');
+  }, [user]);
 
   const accesosRapidos = useMemo(() => {
     const todos = [
@@ -152,11 +176,6 @@ const Dashboard = () => {
     return todos.filter(a => hasAccess(a.path));
   }, [user]);
 
-  const esPrestamista = useMemo(() => {
-    const mods = user?.empresa?.modulos_habilitados;
-    return mods?.includes('/prestamos') && !mods?.includes('/ventas');
-  }, [user]);
-
   if (loadingMain && !data) return (
     <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
       <CircularProgress sx={{ color: ACCENT }} />
@@ -165,11 +184,6 @@ const Dashboard = () => {
 
   const ventas30       = data?.ventas_ultimos_30_dias || [];
   const totalUltimos30 = ventas30.reduce((s, d) => s + d.total, 0);
-  const promedioDia    = ventas30.length ? totalUltimos30 / ventas30.length : 0;
-  const ventaHoy       = data?.ventas_hoy || 0;
-  const tendencia      = promedioDia > 0 ? ((ventaHoy - promedioDia) / promedioDia * 100).toFixed(1) : 0;
-  const tendenciaPos   = parseFloat(tendencia) >= 0;
-
   const mejorDia = ventas30.reduce((mx, d) => d.total > mx.total ? d : mx, { total: 0, day: '' });
 
   const calculateDaysLeft = (dateString) => {
@@ -180,15 +194,14 @@ const Dashboard = () => {
   };
 
   const diasRestantes = calculateDaysLeft(user?.empresa?.trial_ends_at);
-  
-  // ✅ LOGICA CORREGIDA: Si es prestamista, el Zero State ya NO depende de "totalUltimos30" (ventas).
   const isZeroState = esPrestamista 
-    ? (data?.cuentas_por_cobrar || 0) === 0 && (caja?.total_dia || 0) === 0
+    ? (data?.capital_en_calle || 0) === 0 && (caja?.total_dia || 0) === 0
     : totalUltimos30 === 0 && (data?.cuentas_por_cobrar || 0) === 0 && (caja?.total_dia || 0) === 0;
 
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
 
+      {/* ── HEADER ── */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Box sx={{ 
@@ -200,13 +213,8 @@ const Dashboard = () => {
             {esPrestamista ? <Savings /> : <TrendingUp />}
           </Box>
           <Box>
-            <Typography sx={{ 
-              fontSize: 10, fontWeight: 800, color: ACCENT, 
-              textTransform: 'uppercase', letterSpacing: 1.2, mb: 0.1,
-              display: 'flex', alignItems: 'center', gap: 0.5
-            }}>
-              <Business sx={{ fontSize: 12 }} /> 
-              {user?.empresa?.nombre || 'Mi Empresa'}
+            <Typography sx={{ fontSize: 10, fontWeight: 800, color: ACCENT, textTransform: 'uppercase', letterSpacing: 1.2, mb: 0.1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Business sx={{ fontSize: 12 }} /> {user?.empresa?.nombre || 'Mi Empresa'}
             </Typography>
             <Typography sx={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1, color: 'text.primary' }}>
               {esPrestamista ? 'Panel Financiero' : 'Resumen General'}
@@ -218,59 +226,54 @@ const Dashboard = () => {
         </Box>
       </Box>
 
+      {/* ── TRIAL BANNER ── */}
       {user?.empresa?.plan_type === 'trial' && user?.empresa_id !== 1 && diasRestantes > 0 && (
-        <Box sx={{ 
-          mb: 2, p: 1.5, borderRadius: 2, 
-          bgcolor: '#EFF6FF', border: '1px solid #BFDBFE', 
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2
-        }}>
+        <Box sx={{ mb: 3, p: 1.5, borderRadius: 2, bgcolor: '#EFF6FF', border: '1px solid #BFDBFE', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
           <Typography sx={{ fontSize: 12, color: '#1E3A8A', fontWeight: 600 }}>
             ⏱ Estás en tu periodo de prueba. Te quedan {diasRestantes} días gratis.
           </Typography>
-          <Button 
-            size="small" variant="contained" 
-            onClick={() => window.open(`https://wa.me/573175882321`, '_blank')}
-            sx={{ bgcolor: '#2563EB', fontSize: 11, fontWeight: 700, boxShadow: 'none' }}
-          >
+          <Button size="small" variant="contained" onClick={handleOpenUpgrade} sx={{ bgcolor: '#2563EB', fontSize: 11, fontWeight: 700, boxShadow: 'none' }}>
             Activar mi cuenta
           </Button>
         </Box>
       )}
 
-      <Grid container spacing={1.5} sx={{ mb: 2 }}>
+      {/* ── KPI GRID ── */}
+      <Grid container spacing={1.5} sx={{ mb: 3 }}>
         {esPrestamista ? (
           <>
             <Grid item xs={6} sm={3}>
-              <KpiCard title="Capital en Calle" value={formatCurrency(data?.cuentas_por_cobrar || 0)} icon={<AccountBalance />} color={BLUE} sub="Total prestado pendiente" onClick={() => navigate('/clientes')} loading={loadingMain} />
+              <KpiCard title="Capital en Calle" value={formatCurrency(data?.capital_en_calle || 0)} icon={<AccountBalance />} color={BLUE} sub="Total pendiente" onClick={() => navigate('/prestamos')} loading={loadingMain}/>
             </Grid>
             <Grid item xs={6} sm={3}>
-              <KpiCard title="Recaudo Hoy" value={formatCurrency(ventaHoy)} icon={<Savings />} color={GREEN} sub="Cobros realizados hoy" onClick={() => navigate('/ruta-cobro')} loading={loadingMain} />
+              <KpiCard title="Recaudo Hoy" value={formatCurrency(data?.recaudo_prestamos_hoy || 0)} icon={<Savings />} color={GREEN} sub="Dinero ingresado" onClick={() => navigate('/ruta-cobro')} loading={loadingMain}/>
             </Grid>
             <Grid item xs={6} sm={3}>
-              <KpiCard title="Mora Crítica" value={data?.productos_bajo_stock || 0} icon={<Gavel />} color={RED} sub="Cuotas vencidas" onClick={() => navigate('/ruta-cobro')} loading={loadingMain} />
+              <KpiCard title="Ganancia Hoy" value={formatCurrency((data?.recaudo_prestamos_hoy || 0) * 0.2)} icon={<TrendingUp />} color={PURPLE} sub="Intereses estimados" loading={loadingMain}/>
             </Grid>
             <Grid item xs={6} sm={3}>
-              <KpiCard title="Caja Efectivo" value={formatCurrency(caja?.efectivo || 0)} icon={<PointOfSale />} color={YELLOW} sub="Disponible en caja" onClick={() => navigate('/caja')} loading={loadingCaja} />
+              <KpiCard title="Mora Crítica" value={data?.cuotas_mora || 0} icon={<Gavel />} color={RED} sub="Cuotas vencidas" onClick={() => navigate('/ruta-cobro')} loading={loadingMain}/>
             </Grid>
           </>
         ) : (
           <>
             <Grid item xs={6} sm={3}>
-              <KpiCard title="Ventas hoy" value={formatCurrency(ventaHoy)} icon={<MonetizationOn />} color={ACCENT} sub={`${tendenciaPos ? '▲' : '▼'} ${Math.abs(tendencia)}% vs promedio`} onClick={() => navigate('/ventas')} loading={loadingMain} />
+              <KpiCard title="Ventas hoy" value={formatCurrency(data?.ventas_hoy || 0)} icon={<MonetizationOn />} color={ACCENT} onClick={() => navigate('/ventas')} loading={loadingMain}/>
             </Grid>
             <Grid item xs={6} sm={3}>
-              <KpiCard title="Por cobrar" value={formatCurrency(data?.cuentas_por_cobrar || 0)} icon={<AccountBalanceWallet />} color={BLUE} sub="Saldo pendiente clientes" onClick={() => navigate('/clientes')} loading={loadingMain} />
+              <KpiCard title="Por cobrar" value={formatCurrency(data?.cuentas_por_cobrar || 0)} icon={<AccountBalanceWallet />} color={BLUE} onClick={() => navigate('/clientes')} loading={loadingMain}/>
             </Grid>
             <Grid item xs={6} sm={3}>
-              <KpiCard title="Bajo stock" value={data?.productos_bajo_stock || 0} icon={<Warning />} color={data?.productos_bajo_stock > 0 ? RED : GREEN} sub={data?.productos_bajo_stock === 0 ? 'Todo en orden' : 'Requieren reposición'} onClick={() => navigate('/inventario')} loading={loadingMain} />
+              <KpiCard title="Bajo stock" value={data?.productos_bajo_stock || 0} icon={<Warning />} color={RED} onClick={() => navigate('/inventario')} loading={loadingMain}/>
             </Grid>
             <Grid item xs={6} sm={3}>
-              <KpiCard title="Caja hoy (Neto)" value={formatCurrency((caja?.total_dia || 0) - (caja?.total_gastos || 0))} icon={<PointOfSale />} color={YELLOW} sub={caja?.total_gastos > 0 ? `- ${formatCurrency(caja.total_gastos)}` : 'Sin gastos'} onClick={() => navigate('/caja')} loading={loadingCaja} />
+              <KpiCard title="Caja hoy" value={formatCurrency(caja?.total_dia || 0)} icon={<PointOfSale />} color={GREEN} loading={loadingCaja}/>
             </Grid>
           </>
         )}
       </Grid>
 
+      {/* ── CONTENIDO PRINCIPAL ── */}
       {isZeroState ? (
         <Paper sx={{ p: { xs: 3, md: 5 }, borderRadius: 3, boxShadow: '0 2px 24px rgba(0,0,0,0.04)', textAlign: 'center', mb: 3 }}>
           <Box sx={{ width: 64, height: 64, borderRadius: '50%', bgcolor: `${ACCENT}15`, color: ACCENT, display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 2 }}>
@@ -278,11 +281,8 @@ const Dashboard = () => {
           </Box>
           <Typography variant="h5" sx={{ fontWeight: 800, mb: 1 }}>¡Bienvenido a Ksmart360!</Typography>
           <Typography sx={{ color: 'text.secondary', maxWidth: 500, mx: 'auto', mb: 4 }}>
-            {esPrestamista 
-              ? 'Configura tu negocio de préstamos siguiendo estos pasos para empezar a cobrar.'
-              : 'Tu espacio de trabajo está listo. Sigue estos pasos para empezar a vender.'}
+            {esPrestamista ? 'Configura tu negocio de préstamos para empezar a recaudar intereses.' : 'Tu espacio de trabajo está listo. Sigue estos pasos para empezar a vender.'}
           </Typography>
-          
           <Grid container spacing={2} justifyContent="center" sx={{ maxWidth: 900, mx: 'auto' }}>
             {[
               { title: esPrestamista ? '1. Registra Deudores' : '1. Agrega Productos', path: esPrestamista ? '/clientes' : '/productos', icon: esPrestamista ? <PeopleOutline /> : <Storefront />, color: PURPLE },
@@ -301,20 +301,19 @@ const Dashboard = () => {
           </Grid>
         </Paper>
       ) : (
-        <Grid container spacing={1.5}>
+        <Grid container spacing={1.5} sx={{ mb: 3 }}>
           <Grid item xs={12} md={8}>
             <Paper sx={{ p: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', height: '100%', boxSizing: 'border-box' }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1, flexWrap: 'wrap', gap: 1 }}>
                 <Box>
-                  <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{esPrestamista ? 'Historial de Recaudo' : 'Ventas — últimos 30 días'}</Typography>
+                  <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{esPrestamista ? 'Historial de Recaudos' : 'Ventas — últimos 30 días'}</Typography>
                   <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Total: <strong>{formatCurrency(totalUltimos30)}</strong></Typography>
                 </Box>
                 {mejorDia.total > 0 && <Chip label={`🏆 Mejor: ${formatCurrency(mejorDia.total)}`} size="small" sx={{ bgcolor: `${ACCENT}12`, color: ACCENT, fontWeight: 700, fontSize: 10 }} />}
               </Box>
-              {ventas30.length > 1 ? <Sparkline data={ventas30} color={ACCENT} height={isMobile ? 60 : 90} /> : <Box sx={{ textAlign: 'center', py: 3, color: 'text.secondary' }}><Typography fontSize={12}>Faltan datos para graficar</Typography></Box>}
+              {ventas30.length > 1 ? <Sparkline data={ventas30} color={esPrestamista ? GREEN : ACCENT} height={isMobile ? 60 : 90} /> : <Box sx={{ textAlign: 'center', py: 3, color: 'text.secondary' }}><Typography fontSize={12}>Faltan datos para graficar</Typography></Box>}
             </Paper>
           </Grid>
-
           <Grid item xs={12} md={4}>
             <Paper sx={{ p: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', boxSizing: 'border-box' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
@@ -323,8 +322,8 @@ const Dashboard = () => {
               </Box>
               {caja ? (
                 <>
-                  <MetodoBarra icon={<AttachMoney sx={{ fontSize: 13 }} />} label="Efectivo" value={caja.efectivo} total={caja.total_dia} color={GREEN}  />
-                  <MetodoBarra icon={<AccountBalance sx={{ fontSize: 13 }} />} label="Transferencia" value={caja.transferencia} total={caja.total_dia} color={BLUE}   />
+                  <MetodoBarra icon={<AttachMoney sx={{ fontSize: 13 }} />} label="Efectivo" value={caja.efectivo} total={caja.total_dia} color={GREEN} />
+                  <MetodoBarra icon={<AccountBalance sx={{ fontSize: 13 }} />} label="Transferencia" value={caja.transferencia} total={caja.total_dia} color={BLUE} />
                   <Divider sx={{ my: 1 }} />
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography sx={{ fontSize: 12, fontWeight: 700 }}>Saldo Neto</Typography>
@@ -337,22 +336,14 @@ const Dashboard = () => {
         </Grid>
       )}
 
-      <Grid container spacing={1.5} sx={{ mt: 0.5 }}>
+      {/* ── ACCESOS RÁPIDOS ── */}
+      <Grid container spacing={1.5}>
         <Grid item xs={12}>
           <Paper sx={{ p: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', boxSizing: 'border-box' }}>
-            <Typography sx={{ fontWeight: 700, fontSize: 10, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 1.5 }}>
-              Acceso rápido autorizado
-            </Typography>
+            <Typography sx={{ fontWeight: 700, fontSize: 10, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 1.5 }}>Acceso rápido autorizado</Typography>
             <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
               {accesosRapidos.map(({ label, icon, color, path }) => (
-                <Box key={label} onClick={() => navigate(path)}
-                  sx={{
-                    display: 'flex', alignItems: 'center', gap: 1,
-                    px: 2, py: 1, borderRadius: 2.5,
-                    bgcolor: `${color}0D`, border: `1px solid ${color}25`,
-                    cursor: 'pointer', transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                    '&:hover': { bgcolor: `${color}18`, transform: 'translateY(-2px)', boxShadow: `0 4px 12px ${color}15` },
-                  }}>
+                <Box key={label} onClick={() => navigate(path)} sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1, borderRadius: 2.5, bgcolor: `${color}0D`, border: `1px solid ${color}25`, cursor: 'pointer', transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)', '&:hover': { bgcolor: `${color}18`, transform: 'translateY(-2px)', boxShadow: `0 4px 12px ${color}15` } }}>
                   <Box sx={{ color, display: 'flex' }}>{icon}</Box>
                   <Typography sx={{ fontSize: 12, fontWeight: 700, color, whiteSpace: 'nowrap' }}>{label}</Typography>
                 </Box>
@@ -361,6 +352,36 @@ const Dashboard = () => {
           </Paper>
         </Grid>
       </Grid>
+
+      {/* ── MODAL DE SUSCRIPCIÓN ── */}
+      <Dialog open={upgradeOpen} onClose={() => setUpgradeOpen(false)} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 3, bgcolor: 'background.default' } }}>
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: 'rgba(244, 63, 94, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#F43F5E' }}>
+              <WorkspacePremium />
+            </Box>
+            <Typography sx={{ fontWeight: 800, fontSize: 18 }}>Elige tu Plan</Typography>
+          </Box>
+          <IconButton onClick={() => setUpgradeOpen(false)}><Close /></IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: { xs: 2, md: 4 } }}>
+          {loadingPlanes ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 5 }}><CircularProgress sx={{ color: '#F43F5E' }} /></Box> :
+            <Grid container spacing={3}>
+              {planes.map(plan => (
+                <Grid item xs={12} sm={6} md={4} key={plan.id}>
+                  <Paper sx={{ p: 3, textAlign: 'center', borderRadius: 3, border: '1px solid', borderColor: 'divider', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', bgcolor: 'background.paper' }}>
+                    <Typography sx={{ fontWeight: 800, fontSize: 18, mb: 1 }}>{plan.nombre}</Typography>
+                    <Typography sx={{ fontSize: 24, fontWeight: 800, color: '#F43F5E', mb: 1 }}>{formatCurrency(plan.precio)}</Typography>
+                    <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 3 }}>Acceso total por {plan.dias_duracion} días</Typography>
+                    <WompiButton planName={plan.codigo_interno} onSuccess={() => { setUpgradeOpen(false); window.location.reload(); }} />
+                  </Paper>
+                </Grid>
+              ))}
+            </Grid>
+          }
+        </DialogContent>
+      </Dialog>
+
     </Box>
   );
 };
