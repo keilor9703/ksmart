@@ -218,31 +218,31 @@ def run_migrations():
             # =================================================================
             migration_v22 = "inv_v22_modulos_empresas"
             if not _migration_already_applied(conn, migration_v22):
-                # Como SQLite guarda los JSON como texto, agregamos la columna como TEXT
-                _add_column_if_missing(conn, "empresas", "modulos_habilitados", "TEXT")
+                # ✅ CORRECCIÓN: "modulos_habilitados TEXT" va junto en el segundo parámetro
+                _add_column_if_missing(conn, "empresas", "modulos_habilitados TEXT", "modulos_habilitados")
                 _mark_migration_applied(conn, migration_v22)
                 logger.info("Migración %s aplicada. Columna modulos_habilitados añadida a empresas.", migration_v22)
 
-
-                # =================================================================
+            # =================================================================
             # V23 - ASIGNACIÓN DE COBRADORES A CUOTAS
             # =================================================================
             migration_v23 = "inv_v23_asignacion_cobradores"
             if not _migration_already_applied(conn, migration_v23):
-                _add_column_if_missing(conn, "cuotas_prestamo", "usuario_asignado_id", "INTEGER")
+                # ✅ CORRECCIÓN: "usuario_asignado_id INTEGER"
+                _add_column_if_missing(conn, "cuotas_prestamo", "usuario_asignado_id INTEGER", "usuario_asignado_id")
                 _mark_migration_applied(conn, migration_v23)
                 logger.info("Migración %s aplicada. Columna usuario_asignado_id añadida a cuotas.", migration_v23)
 
-
-                # =================================================================
+            # =================================================================
             # V24 - ASIGNACIÓN DE COBRADORES A LA CABECERA DEL PRÉSTAMO
             # =================================================================
             migration_v24 = "inv_v24_asignacion_cobradores_prestamo"
             if not _migration_already_applied(conn, migration_v24):
-                # Añadimos la columna a la tabla 'prestamos'
-                _add_column_if_missing(conn, "prestamos", "usuario_asignado_id", "INTEGER")
+                # ✅ CORRECCIÓN: "usuario_asignado_id INTEGER"
+                _add_column_if_missing(conn, "prestamos", "usuario_asignado_id INTEGER", "usuario_asignado_id")
                 _mark_migration_applied(conn, migration_v24)
                 logger.info("Migración %s aplicada. Columna usuario_asignado_id añadida a prestamos.", migration_v24)
+
 
     except Exception as e:
         logger.exception("Error ejecutando migraciones en base de datos: %s", e)
