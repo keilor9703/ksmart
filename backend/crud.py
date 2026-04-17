@@ -982,8 +982,10 @@ def get_rentabilidad_por_producto(db: Session, empresa_id: int, start_date: Opti
     
     return sorted(report_data, key=lambda x: x.net_profit, reverse=True)
 
+
+
+# 2. REEMPLAZA LA FUNCIÓN get_sales_by_day (Aprox Línea 770)
 def get_sales_by_day(db: Session, empresa_id: int, start_date: date, end_date: date):
-    # ✅ FIX TOTAL PARA DIAGRAMA DE BARRAS/TENDENCIA (POSTGRES Y SQLITE COMPATIBLE)
     utc_start, _ = get_utc_boundaries(start_date)
     _, utc_end = get_utc_boundaries(end_date)
 
@@ -995,16 +997,55 @@ def get_sales_by_day(db: Session, empresa_id: int, start_date: date, end_date: d
 
     sales_map = {}
     for v in ventas:
-        # Convertimos la fecha UTC guardada a la hora de Colombia para agrupar
         col_date = v.fecha.astimezone(BOGOTA_TZ).date()
         key = col_date.isoformat()
         sales_map[key] = sales_map.get(key, 0.0) + float(v.total or 0)
+
+    # ✅ NUEVA LÓGICA: DIBUJAR LA GRÁFICA CON LOS RECAUDOS DE PRÉSTAMOS
+    cuotas_pagadas = db.query(models.CuotaPrestamo).filter(
+        models.CuotaPrestamo.empresa_id == empresa_id,
+        models.CuotaPrestamo.estado_pago == "Pagado",
+        models.CuotaPrestamo.fecha_pago >= utc_start,
+        models.CuotaPrestamo.fecha_pago <= utc_end
+    ).all()
+
+    for c in cuotas_pagadas:
+        if c.fecha_pago:
+            col_date = c.fecha_pago.astimezone(BOGOTA_TZ).date()
+            key = col_date.isoformat()
+            sales_map[key] = sales_map.get(key, 0.0) + float(c.monto_cuota or 0)
 
     all_days = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
     return [
         schemas.SalesByDay(day=d, total=sales_map.get(d.isoformat(), 0.0))
         for d in all_days
     ]
+
+
+
+# def get_sales_by_day(db: Session, empresa_id: int, start_date: date, end_date: date):
+#     # ✅ FIX TOTAL PARA DIAGRAMA DE BARRAS/TENDENCIA (POSTGRES Y SQLITE COMPATIBLE)
+#     utc_start, _ = get_utc_boundaries(start_date)
+#     _, utc_end = get_utc_boundaries(end_date)
+
+#     ventas = db.query(models.Venta).filter(
+#         models.Venta.empresa_id == empresa_id,
+#         models.Venta.fecha >= utc_start,
+#         models.Venta.fecha <= utc_end
+#     ).all()
+
+#     sales_map = {}
+#     for v in ventas:
+#         # Convertimos la fecha UTC guardada a la hora de Colombia para agrupar
+#         col_date = v.fecha.astimezone(BOGOTA_TZ).date()
+#         key = col_date.isoformat()
+#         sales_map[key] = sales_map.get(key, 0.0) + float(v.total or 0)
+
+#     all_days = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
+#     return [
+#         schemas.SalesByDay(day=d, total=sales_map.get(d.isoformat(), 0.0))
+#         for d in all_days
+#     ]
 
 def get_total_sales_today(db: Session, empresa_id: int) -> float:
     hoy = datetime.now(BOGOTA_TZ).date()
@@ -1017,23 +1058,75 @@ def get_total_sales_today(db: Session, empresa_id: int) -> float:
     ).scalar()
     return float(total or 0)
 
+# def get_dashboard_data(db: Session, empresa_id: int) -> schemas.DashboardData:
+#     hoy_colombia = datetime.now(BOGOTA_TZ).date()
+#     inicio_utc_hoy, fin_utc_hoy = get_utc_boundaries(hoy_colombia)
+
+#     # ✅ Usamos los limites exactos en UTC
+#     ventas_hoy_records = db.query(models.Venta).filter(
+#         models.Venta.empresa_id == empresa_id,
+#         models.Venta.fecha >= inicio_utc_hoy,
+#         models.Venta.fecha <= fin_utc_hoy
+#         # models.Venta.estado_pago == "pagado"
+#     ).all()
+#     ventas_hoy = sum(v.total or 0 for v in ventas_hoy_records)
+
+#     deudores = get_clientes_deudores(db, empresa_id)
+#     cuentas_por_cobrar = sum(d.total_debt_amount for d in deudores)
+
+#     productos_bajo_stock = len(get_low_stock(db, empresa_id))
+
+#     ordenes_recientes = get_ordenes_trabajo(db, empresa_id, skip=0, limit=5)
+
+#     end_date = hoy_colombia
+#     start_date = end_date - timedelta(days=29)
+#     ventas_ultimos_30_dias = get_sales_by_day(db, empresa_id, start_date, end_date)
+
+#     return schemas.DashboardData(
+#         ventas_hoy=ventas_hoy,
+#         cuentas_por_cobrar=cuentas_por_cobrar,
+#         productos_bajo_stock=productos_bajo_stock,
+#         ordenes_recientes=ordenes_recientes,
+#         ventas_ultimos_30_dias=ventas_ultimos_30_dias,
+#     )
+
+# 3. REEMPLAZA LA FUNCIÓN get_dashboard_data (Aprox Línea 795)
 def get_dashboard_data(db: Session, empresa_id: int) -> schemas.DashboardData:
     hoy_colombia = datetime.now(BOGOTA_TZ).date()
     inicio_utc_hoy, fin_utc_hoy = get_utc_boundaries(hoy_colombia)
 
-    # ✅ Usamos los limites exactos en UTC
     ventas_hoy_records = db.query(models.Venta).filter(
         models.Venta.empresa_id == empresa_id,
         models.Venta.fecha >= inicio_utc_hoy,
         models.Venta.fecha <= fin_utc_hoy
-        # models.Venta.estado_pago == "pagado"
     ).all()
     ventas_hoy = sum(v.total or 0 for v in ventas_hoy_records)
 
     deudores = get_clientes_deudores(db, empresa_id)
     cuentas_por_cobrar = sum(d.total_debt_amount for d in deudores)
-
     productos_bajo_stock = len(get_low_stock(db, empresa_id))
+
+    # ✅ NUEVA LÓGICA: SUMAR PRÉSTAMOS A LOS KPIs DEL DASHBOARD
+    cuotas_hoy = db.query(func.sum(models.CuotaPrestamo.monto_cuota)).filter(
+        models.CuotaPrestamo.empresa_id == empresa_id,
+        models.CuotaPrestamo.estado_pago == "Pagado",
+        models.CuotaPrestamo.fecha_pago >= inicio_utc_hoy,
+        models.CuotaPrestamo.fecha_pago <= fin_utc_hoy
+    ).scalar() or 0.0
+    ventas_hoy += float(cuotas_hoy)
+
+    prestamos_pendientes = db.query(func.sum(models.CuotaPrestamo.saldo_pendiente)).filter(
+        models.CuotaPrestamo.empresa_id == empresa_id,
+        models.CuotaPrestamo.estado_pago != "Pagado"
+    ).scalar() or 0.0
+    cuentas_por_cobrar += float(prestamos_pendientes)
+
+    cuotas_mora = db.query(models.CuotaPrestamo).filter(
+        models.CuotaPrestamo.empresa_id == empresa_id,
+        models.CuotaPrestamo.fecha_vencimiento < hoy_colombia,
+        models.CuotaPrestamo.estado_pago != "Pagado"
+    ).count()
+    productos_bajo_stock += cuotas_mora
 
     ordenes_recientes = get_ordenes_trabajo(db, empresa_id, skip=0, limit=5)
 
@@ -2273,8 +2366,89 @@ def create_pago_compra(db: Session, empresa_id: int, pago: schemas.PagoCompraCre
 # CAJA Y GASTOS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# def calcular_totales_dia(db: Session, empresa_id: int) -> dict:
+#     # ✅ TIMEZONE FIX PARA CORTE DE CAJA DIARIO
+#     hoy_colombia = datetime.now(BOGOTA_TZ).date()
+#     inicio_utc, fin_utc = get_utc_boundaries(hoy_colombia)
+
+#     totales = {
+#         "efectivo": 0.0, "transferencia": 0.0, "tarjeta": 0.0, "otros": 0.0,
+#         "total_dia": 0.0, "total_gastos": 0.0, "ventas_contado": 0.0, "abonos_cartera": 0.0,
+#         "num_ventas": 0, "num_abonos": 0,
+#         "fecha": hoy_colombia.isoformat(),
+#     }
+
+#     def _clasificar_ingreso(metodo: str, monto: float):
+#         m = (metodo or "").lower().strip()
+#         totales["total_dia"] += monto
+#         if "efectivo" in m or m == "":
+#             totales["efectivo"] += monto
+#         elif "transfer" in m or "nequi" in m or "daviplata" in m or "pse" in m:
+#             totales["transferencia"] += monto
+#         elif "tarjeta" in m or "card" in m or "credito" in m or "debito" in m:
+#             totales["tarjeta"] += monto
+#         else:
+#             totales["otros"] += monto
+
+#     ventas_contado = (
+#         db.query(models.Venta)
+#         .options(joinedload(models.Venta.pagos))
+#         .filter(
+#             models.Venta.empresa_id == empresa_id, 
+#             models.Venta.fecha >= inicio_utc,
+#             models.Venta.fecha <= fin_utc,
+#             models.Venta.estado_pago == "pagado",
+#         ).all()
+#     )
+
+#     for v in ventas_contado:
+#         pagos_hoy = [p for p in v.pagos if inicio_utc <= p.fecha <= fin_utc]
+#         if not pagos_hoy:
+#             metodo = getattr(v, 'metodo_pago', None) or "Efectivo"
+#             _clasificar_ingreso(metodo, float(v.total or 0))
+#             totales["ventas_contado"] += float(v.total or 0)
+#             totales["num_ventas"] += 1
+
+#     abonos_dia = (
+#         db.query(models.Pago)
+#         .join(models.Venta)
+#         .filter(
+#             models.Venta.empresa_id == empresa_id, 
+#             models.Pago.fecha >= inicio_utc,
+#             models.Pago.fecha <= fin_utc
+#         )
+#         .all()
+#     )
+
+#     for p in abonos_dia:
+#         _clasificar_ingreso(p.metodo_pago or "Efectivo", float(p.monto or 0))
+#         totales["abonos_cartera"] += float(p.monto or 0)
+#         totales["num_abonos"] += 1
+
+#     gastos_dia = db.query(models.Gasto).filter(
+#         models.Gasto.empresa_id == empresa_id, 
+#         models.Gasto.fecha >= inicio_utc,
+#         models.Gasto.fecha <= fin_utc
+#     ).all()
+
+#     for g in gastos_dia:
+#         monto = float(g.monto or 0)
+#         totales["total_gastos"] += monto
+#         m = (g.metodo_pago or "Efectivo").lower().strip()
+#         if "efectivo" in m or m == "":
+#             totales["efectivo"] -= monto
+#         elif "transfer" in m or "nequi" in m or "daviplata" in m or "pse" in m:
+#             totales["transferencia"] -= monto
+#         elif "tarjeta" in m or "card" in m or "credito" in m or "debito" in m:
+#             totales["tarjeta"] -= monto
+#         else:
+#             totales["otros"] -= monto
+
+#     return totales
+
+
+# 1. REEMPLAZA LA FUNCIÓN calcular_totales_dia (Aprox Línea 650)
 def calcular_totales_dia(db: Session, empresa_id: int) -> dict:
-    # ✅ TIMEZONE FIX PARA CORTE DE CAJA DIARIO
     hoy_colombia = datetime.now(BOGOTA_TZ).date()
     inicio_utc, fin_utc = get_utc_boundaries(hoy_colombia)
 
@@ -2332,6 +2506,19 @@ def calcular_totales_dia(db: Session, empresa_id: int) -> dict:
         totales["abonos_cartera"] += float(p.monto or 0)
         totales["num_abonos"] += 1
 
+    # ✅ NUEVA LÓGICA: SUMAR EL RECAUDO DE PRÉSTAMOS
+    cuotas_cobradas_hoy = db.query(models.CuotaPrestamo).filter(
+        models.CuotaPrestamo.empresa_id == empresa_id,
+        models.CuotaPrestamo.estado_pago == "Pagado",
+        models.CuotaPrestamo.fecha_pago >= inicio_utc,
+        models.CuotaPrestamo.fecha_pago <= fin_utc
+    ).all()
+    
+    for c in cuotas_cobradas_hoy:
+        _clasificar_ingreso("Efectivo", float(c.monto_cuota or 0))
+        totales["ventas_contado"] += float(c.monto_cuota or 0)
+        totales["num_ventas"] += 1
+
     gastos_dia = db.query(models.Gasto).filter(
         models.Gasto.empresa_id == empresa_id, 
         models.Gasto.fecha >= inicio_utc,
@@ -2352,6 +2539,22 @@ def calcular_totales_dia(db: Session, empresa_id: int) -> dict:
             totales["otros"] -= monto
 
     return totales
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 def crear_corte_caja(db: Session, empresa_id: int, usuario_id: int, efectivo_fisico: float,
                      observaciones: Optional[str] = None) -> models.CorteCaja:

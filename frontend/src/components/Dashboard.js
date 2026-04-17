@@ -24,7 +24,6 @@ const YELLOW  = '#F59E0B';
 const RED     = '#EF4444';
 const PURPLE  = '#8B5CF6';
 
-// ─── KPI Card clickeable ───
 const KpiCard = ({ title, value, icon, color, sub, onClick, loading }) => (
   <Paper onClick={onClick} sx={{
     p: 1.5, borderRadius: 3,
@@ -46,7 +45,6 @@ const KpiCard = ({ title, value, icon, color, sub, onClick, loading }) => (
   </Paper>
 );
 
-// ─── Sparkline SVG nativa ───
 const Sparkline = ({ data, color, height = 70 }) => {
   if (!data || data.length < 2) return null;
   const vals  = data.map(d => d.total);
@@ -82,7 +80,6 @@ const Sparkline = ({ data, color, height = 70 }) => {
   );
 };
 
-// ─── Mini barra de método de pago ───
 const MetodoBarra = ({ label, value, total, color, icon }) => {
   const pct = total > 0 ? (value / total) * 100 : 0;
   return (
@@ -101,7 +98,6 @@ const MetodoBarra = ({ label, value, total, color, icon }) => {
   );
 };
 
-// ─── Componente principal ───
 const Dashboard = () => {
   const [data, setData]           = useState(null);
   const [caja, setCaja]           = useState(null);
@@ -109,7 +105,6 @@ const Dashboard = () => {
   
   const [loadingMain, setLoadingMain] = useState(true);
   const [loadingCaja, setLoadingCaja] = useState(true);
-  const [error, setError]         = useState(null);
 
   const navigate  = useNavigate();
   const theme     = useTheme();
@@ -126,13 +121,8 @@ const Dashboard = () => {
       ]);
       
       if (dashRes.status === 'fulfilled') setData(dashRes.value.data);
-      else setError('Error al cargar el dashboard.');
-      
       if (cajaRes.status === 'fulfilled') setCaja(cajaRes.value.data);
-      
-      if (userRes.status === 'fulfilled') {
-        setUser(userRes.value.data);
-      }
+      if (userRes.status === 'fulfilled') setUser(userRes.value.data);
     } finally {
       setLoadingMain(false);
       setLoadingCaja(false);
@@ -141,7 +131,6 @@ const Dashboard = () => {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  // ✅ LOGICA DE SEGURIDAD PARA ACCESOS RÁPIDOS
   const hasAccess = (path) => {
     if (user?.role?.name === 'Admin' && user?.empresa_id === 1) return true;
     const modulosEmpresa = user?.empresa?.modulos_habilitados;
@@ -149,7 +138,6 @@ const Dashboard = () => {
     return modulosEmpresa.includes(path);
   };
 
-  // ✅ FILTRADO DE ACCESOS RÁPIDOS
   const accesosRapidos = useMemo(() => {
     const todos = [
       { label: 'Simular Préstamo', icon: <AttachMoney sx={{ fontSize: 14 }} />, color: GREEN,  path: '/prestamos' },
@@ -164,7 +152,6 @@ const Dashboard = () => {
     return todos.filter(a => hasAccess(a.path));
   }, [user]);
 
-  // ✅ DETERMINAR SI ES EMPRESA DE PRESTAMOS
   const esPrestamista = useMemo(() => {
     const mods = user?.empresa?.modulos_habilitados;
     return mods?.includes('/prestamos') && !mods?.includes('/ventas');
@@ -176,13 +163,6 @@ const Dashboard = () => {
     </Box>
   );
 
-  if (error) return (
-    <Box sx={{ textAlign: 'center', py: 8 }}>
-      <Typography color="error" sx={{ fontWeight: 600 }}>{error}</Typography>
-    </Box>
-  );
-
-  // ── Cálculos de tendencia ──
   const ventas30       = data?.ventas_ultimos_30_dias || [];
   const totalUltimos30 = ventas30.reduce((s, d) => s + d.total, 0);
   const promedioDia    = ventas30.length ? totalUltimos30 / ventas30.length : 0;
@@ -191,23 +171,24 @@ const Dashboard = () => {
   const tendenciaPos   = parseFloat(tendencia) >= 0;
 
   const mejorDia = ventas30.reduce((mx, d) => d.total > mx.total ? d : mx, { total: 0, day: '' });
-  const ultimos7 = ventas30.slice(-7);
 
   const calculateDaysLeft = (dateString) => {
     if (!dateString) return 0;
     const endsAt = new Date(dateString.endsWith('Z') ? dateString : dateString + 'Z');
-    const now = new Date();
-    const diffTime = endsAt - now;
+    const diffTime = endsAt - new Date();
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
   const diasRestantes = calculateDaysLeft(user?.empresa?.trial_ends_at);
-  const isZeroState = totalUltimos30 === 0 && (data?.cuentas_por_cobrar || 0) === 0 && (caja?.total_dia || 0) === 0;
+  
+  // ✅ LOGICA CORREGIDA: Si es prestamista, el Zero State ya NO depende de "totalUltimos30" (ventas).
+  const isZeroState = esPrestamista 
+    ? (data?.cuentas_por_cobrar || 0) === 0 && (caja?.total_dia || 0) === 0
+    : totalUltimos30 === 0 && (data?.cuentas_por_cobrar || 0) === 0 && (caja?.total_dia || 0) === 0;
 
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
 
-      {/* ── Header ── */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Box sx={{ 
@@ -237,13 +218,11 @@ const Dashboard = () => {
         </Box>
       </Box>
 
-      {/* BANNER DE TRIAL */}
       {user?.empresa?.plan_type === 'trial' && user?.empresa_id !== 1 && diasRestantes > 0 && (
         <Box sx={{ 
           mb: 2, p: 1.5, borderRadius: 2, 
           bgcolor: '#EFF6FF', border: '1px solid #BFDBFE', 
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          flexWrap: 'wrap', gap: 2
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2
         }}>
           <Typography sx={{ fontSize: 12, color: '#1E3A8A', fontWeight: 600 }}>
             ⏱ Estás en tu periodo de prueba. Te quedan {diasRestantes} días gratis.
@@ -258,7 +237,6 @@ const Dashboard = () => {
         </Box>
       )}
 
-      {/* ── KPIs DINÁMICOS ── */}
       <Grid container spacing={1.5} sx={{ mb: 2 }}>
         {esPrestamista ? (
           <>
@@ -293,7 +271,6 @@ const Dashboard = () => {
         )}
       </Grid>
 
-      {/* ✅ FLUJO DE ONBOARDING ADAPTADO */}
       {isZeroState ? (
         <Paper sx={{ p: { xs: 3, md: 5 }, borderRadius: 3, boxShadow: '0 2px 24px rgba(0,0,0,0.04)', textAlign: 'center', mb: 3 }}>
           <Box sx={{ width: 64, height: 64, borderRadius: '50%', bgcolor: `${ACCENT}15`, color: ACCENT, display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 2 }}>
@@ -360,7 +337,6 @@ const Dashboard = () => {
         </Grid>
       )}
 
-      {/* ✅ ACCESOS RÁPIDOS BLINDADOS Y ARMÓNICOS */}
       <Grid container spacing={1.5} sx={{ mt: 0.5 }}>
         <Grid item xs={12}>
           <Paper sx={{ p: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', boxSizing: 'border-box' }}>
