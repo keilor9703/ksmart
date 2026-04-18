@@ -1,7 +1,3 @@
-
-
-
-
 import os
 import logging
 import secrets
@@ -287,7 +283,7 @@ def registrar_nuevo_cliente(data: schemas.RegistroSaaS, db: Session = Depends(ge
 # AUTENTICACIÓN MULTI-TENANT
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@app.post("/token", response_model=schemas.Token)
+@app.post("/token")
 def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = crud.get_user_by_username(db, username=form_data.username)
     if not user or not crud.verify_password(form_data.password, user.hashed_password):
@@ -296,7 +292,8 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
             detail="Usuario o contraseña incorrectos",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
+    # 1. Validar suspensiones manuales
     if not getattr(user, 'is_active', True):
         raise HTTPException(status_code=403, detail="Cuenta suspendida por el administrador.")
 
@@ -308,19 +305,18 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
     if not empresa.is_active:
         raise HTTPException(status_code=403, detail="La suscripción de la empresa se encuentra suspendida. Contacte a soporte.")
 
-    # ✅ BLOQUEO DE ACCESO DESDE EL LOGIN: Si está vencido, no entregamos el token.
+    # 2. EVALUAR VENCIMIENTO (Pero NO lanzamos error, calculamos la bandera)
+    is_expired = False
     if empresa.trial_ends_at:
         ahora_utc = datetime.now(timezone.utc)
         fecha_limite = empresa.trial_ends_at
         if fecha_limite.tzinfo is None:
             fecha_limite = fecha_limite.replace(tzinfo=timezone.utc)
-            
+        
         if ahora_utc > fecha_limite:
-            raise HTTPException(
-                status_code=status.HTTP_402_PAYMENT_REQUIRED, 
-                detail="Tu suscripción ha expirado. Por favor, realiza el pago para continuar."
-            )
+            is_expired = True
 
+    # 3. Generar el Token
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={
@@ -331,7 +327,14 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
         },
         expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+    
+    # 4. Retornar el token JUNTO con el estado de expiración
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "is_expired": is_expired
+    }
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # RUTAS DEL SUPERADMIN (DUEÑO DEL SAAS)
 # ═══════════════════════════════════════════════════════════════════════════════
