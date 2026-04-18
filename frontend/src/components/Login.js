@@ -59,20 +59,26 @@ const Login = ({ onLogin }) => {
                 new URLSearchParams({ username: loginData.username, password: loginData.password }),
                 { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
             );
+            
+            // 1. GUARDAMOS EL TOKEN SIEMPRE (Lo necesita para poder pagar)
             localStorage.setItem('token', response.data.access_token);
-            toast.success('Inicio de sesión exitoso');
             onLogin();
-            navigate('/');
+
+            // 2. REDIRECCIÓN INTELIGENTE BASADA EN LA FECHA DE VENCIMIENTO
+            if (response.data.is_expired) {
+                toast.warning('Tu suscripción ha expirado. Redirigiendo a pagos...', { autoClose: 5000 });
+                navigate('/planes'); // 👈 AJUSTA AQUÍ si tu ruta de pagos se llama diferente
+            } else {
+                toast.success('Inicio de sesión exitoso');
+                navigate('/');
+            }
+
         } catch (err) {
             const status = err.response?.status;
             const detail = err.response?.data?.detail;
 
-            // ✅ MANEJO DEL ERROR 402 O TEXTO DE EXPIRACIÓN
-            if (status === 402 || (detail && detail.toLowerCase().includes('expirado'))) {
-                toast.error('Tu suscripción ha expirado. Por favor, renueva tu plan.', { autoClose: 5000 });
-                // navigate('/planes'); // Descomenta si tienes una vista pública de pago
-            } else if (status === 403) {
-                toast.error(detail || 'Cuenta suspendida.');
+            if (status === 403) {
+                toast.error(detail || 'Cuenta suspendida por el administrador.');
             } else {
                 toast.error(detail || 'Usuario o contraseña incorrectos');
             }
@@ -103,7 +109,8 @@ const Login = ({ onLogin }) => {
 
     return (
         <Box sx={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
-            {/* Panel Izquierdo */}
+
+            {/* Panel izquierdo */}
             <Box sx={{
                 display: { xs: 'none', md: 'flex' }, width: '58%', flexShrink: 0, height: '100%',
                 backgroundImage: "url('/images/sistema-erp.1.12.avif')", backgroundSize: 'cover',
@@ -116,7 +123,7 @@ const Login = ({ onLogin }) => {
                 </Box>
             </Box>
 
-            {/* Panel Derecho */}
+            {/* Panel derecho */}
             <Box sx={{
                 flex: 1, minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column',
                 alignItems: 'center', justifyContent: 'center',
@@ -124,6 +131,7 @@ const Login = ({ onLogin }) => {
                 px: { xs: 3, sm: 5 }, overflowY: 'auto',
             }}>
                 <Box sx={{ width: '100%', maxWidth: 400, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+
                     <Box sx={{ mb: 3 }}>
                         <img src="/Logo.jpeg" alt="Ksmart360"
                             style={{
@@ -134,6 +142,7 @@ const Login = ({ onLogin }) => {
                     </Box>
 
                     <Box key={isLoginView ? 'login' : 'register'} sx={{ animation: `${fadeIn} 0.4s cubic-bezier(0.4, 0, 0.2, 1)`, width: '100%' }}>
+
                         <Typography sx={{ fontWeight: 800, fontSize: 28, color: '#f1f5f9', letterSpacing: -0.5, mb: 0.5, textAlign: 'center' }}>
                             {isLoginView ? 'Ingresar' : 'Crea tu espacio'}
                         </Typography>
@@ -210,19 +219,57 @@ const Login = ({ onLogin }) => {
                                         </Card>
                                     </Grid>
                                 </Grid>
-                                <TextField fullWidth label="Nombre de tu Empresa o Negocio" required sx={fieldSx} value={regData.nombre_empresa} onChange={e => setRegData({ ...regData, nombre_empresa: e.target.value })} InputProps={{ startAdornment: <InputAdornment position="start"><Business /></InputAdornment> }} />
-                                <TextField fullWidth label="Usuario para iniciar sesión" required sx={fieldSx} value={regData.username} onChange={e => setRegData({ ...regData, username: e.target.value.trim() })} InputProps={{ startAdornment: <InputAdornment position="start"><Person /></InputAdornment> }} />
-                                <TextField fullWidth label="Contraseña segura" type={showPassword ? 'text' : 'password'} required sx={fieldSx} value={regData.password} onChange={e => setRegData({ ...regData, password: e.target.value })} InputProps={{ startAdornment: <InputAdornment position="start"><Lock /></InputAdornment>, endAdornment: ( <InputAdornment position="end"><IconButton onClick={() => setShowPassword(!showPassword)} edge="end" sx={{ color: '#64748b' }}>{showPassword ? <VisibilityOff /> : <Visibility />}</IconButton></InputAdornment> )}} />
-                                <Button type="submit" fullWidth variant="contained" disabled={loading} sx={{ mt: 1, py: 1.6, borderRadius: 3, fontWeight: 700, fontSize: 15, background: loading ? 'rgba(249,115,22,0.5)' : 'linear-gradient(90deg, #f97316 0%, #ea580c 100%)', boxShadow: loading ? 'none' : '0 8px 24px rgba(249,115,22,0.35)', transition: 'all 0.2s', '&:hover': { background: 'linear-gradient(90deg, #ea580c 0%, #c2410c 100%)', transform: 'translateY(-1px)' } }}>
+
+                                <TextField
+                                    fullWidth label="Nombre de tu Empresa o Negocio" required sx={fieldSx}
+                                    value={regData.nombre_empresa} onChange={e => setRegData({ ...regData, nombre_empresa: e.target.value })}
+                                    InputProps={{ startAdornment: <InputAdornment position="start"><Business /></InputAdornment> }}
+                                />
+                                <TextField
+                                    fullWidth label="Usuario para iniciar sesión" required sx={fieldSx}
+                                    value={regData.username} onChange={e => setRegData({ ...regData, username: e.target.value.trim() })}
+                                    InputProps={{ startAdornment: <InputAdornment position="start"><Person /></InputAdornment> }}
+                                />
+                                <TextField
+                                    fullWidth label="Contraseña segura" type={showPassword ? 'text' : 'password'} required sx={fieldSx}
+                                    value={regData.password} onChange={e => setRegData({ ...regData, password: e.target.value })}
+                                    InputProps={{
+                                        startAdornment: <InputAdornment position="start"><Lock /></InputAdornment>,
+                                        endAdornment: (
+                                            <InputAdornment position="end">
+                                                <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" sx={{ color: '#64748b' }}>
+                                                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                                                </IconButton>
+                                            </InputAdornment>
+                                        ),
+                                    }}
+                                />
+                                <Button
+                                    type="submit" fullWidth variant="contained" disabled={loading}
+                                    sx={{
+                                        mt: 1, py: 1.6, borderRadius: 3, fontWeight: 700, fontSize: 15,
+                                        background: loading ? 'rgba(249,115,22,0.5)' : 'linear-gradient(90deg, #f97316 0%, #ea580c 100%)',
+                                        boxShadow: loading ? 'none' : '0 8px 24px rgba(249,115,22,0.35)',
+                                        transition: 'all 0.2s',
+                                        '&:hover': { background: 'linear-gradient(90deg, #ea580c 0%, #c2410c 100%)', transform: 'translateY(-1px)' },
+                                    }}
+                                >
                                     {loading ? 'Configurando tu cuenta...' : 'Comenzar mi prueba gratis'}
                                 </Button>
+
                                 <Typography sx={{ mt: 2, color: '#94a3b8', fontSize: 13, textAlign: 'center' }}>
-                                    ¿Ya tienes una cuenta? <span onClick={() => setIsLoginView(true)} style={{ color: '#f97316', fontWeight: 700, cursor: 'pointer' }}>Inicia sesión aquí</span>
+                                    ¿Ya tienes una cuenta?{' '}
+                                    <span onClick={() => setIsLoginView(true)} style={{ color: '#f97316', fontWeight: 700, cursor: 'pointer' }}>
+                                        Inicia sesión aquí
+                                    </span>
                                 </Typography>
                             </Box>
                         )}
                     </Box>
-                    <Typography sx={{ mt: 5, color: '#334155', fontSize: 12, textAlign: 'center' }}>Powered by KSMP Systems · 2026</Typography>
+
+                    <Typography sx={{ mt: 5, color: '#334155', fontSize: 12, textAlign: 'center' }}>
+                        Powered by KSMP Systems · 2026
+                    </Typography>
                 </Box>
             </Box>
         </Box>
