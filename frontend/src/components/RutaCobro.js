@@ -5,7 +5,7 @@ import {
 } from '@mui/material';
 import { 
   WhatsApp, CheckCircle, Search, DirectionsRun, LocationOn, PersonSearch, MoreTime, FilterList,
-  AccountBalanceWallet, AssignmentInd, TrendingUp, PointOfSale, Receipt
+  AccountBalanceWallet, AssignmentInd, TrendingUp, PointOfSale, Receipt, Edit
 } from '@mui/icons-material';
 import apiClient, { registrarPagoRuta, reprogramarCuotaRuta } from '../api';
 import { formatCurrency } from '../utils/formatters';
@@ -42,6 +42,8 @@ const RutaCobro = () => {
   const [currentUser, setCurrentUser] = useState(null);
   
   const [asignacionGlobal, setAsignacionGlobal] = useState({});
+  // NUEVO ESTADO: Controla qué tarjetas están en modo edición de cobrador
+  const [editandoAsignacion, setEditandoAsignacion] = useState({});
   
   // Modales
   const [pagoModal, setPagoModal] = useState({ open: false, cuota: null, monto: '' });
@@ -143,6 +145,9 @@ const RutaCobro = () => {
     try {
       await apiClient.post('/prestamos/asignar-cobrador', payload);
       toast.success(isGlobal ? "Se asignó TODA la ruta del cliente." : "Cobrador asignado a la cuota.");
+      
+      // Cerramos el modo edición al terminar
+      setEditandoAsignacion(prev => ({ ...prev, [idReal]: false }));
       fetchInicial();
     } catch (e) {
       toast.error(`Fallo la asignación: ${e.response?.data?.detail || "Verifique los datos"}`);
@@ -237,7 +242,7 @@ const RutaCobro = () => {
         </Box>
       </Box>
 
-      {/* ── FILTROS DE FECHA (Estructura Original Restaurada) ── */}
+      {/* ── FILTROS DE FECHA ── */}
       <Paper sx={{ p: 2.5, mb: 3, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
           <FilterList sx={{ color: 'text.secondary', fontSize: 20 }} />
@@ -246,7 +251,6 @@ const RutaCobro = () => {
           </Typography>
         </Box>
         
-        {/* Aquí está la magia del flexWrap para que bajen bien en móvil */}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
           <Chip 
             label="Ver Todo" 
@@ -295,7 +299,7 @@ const RutaCobro = () => {
         </Grid>
       </Paper>
 
-      {/* ── LISTADO DE TARJETAS (Estructura Original) ── */}
+      {/* ── LISTADO DE TARJETAS ── */}
       <Stack spacing={3}>
         {cuotasFiltradas.length === 0 ? (
           <Paper sx={{ p: 8, textAlign: 'center', borderRadius: 4, bgcolor: 'action.hover', border: '2px dashed', borderColor: 'divider' }}>
@@ -305,6 +309,7 @@ const RutaCobro = () => {
           cuotasFiltradas.map(cuota => {
             const cobradorAsignado = usuarios.find(u => u.id === cuota.usuario_asignado_id) || null;
             const idReal = cuota.id || cuota.cuota_id;
+            const estaEditando = editandoAsignacion[idReal];
 
             return (
               <Paper key={idReal} sx={{ p: { xs: 2, sm: 3 }, borderRadius: 4, border: '1px solid', borderColor: 'divider', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
@@ -329,38 +334,75 @@ const RutaCobro = () => {
                     </Box>
                   </Box>
 
-                  {/* Asignación (Solo Admin) */}
+                  {/* ── ASIGNACIÓN DE COBRADOR (UX MEJORADO) ── */}
                   {esAdmin && (
                     <Box sx={{ p: 2, bgcolor: 'background.default', borderRadius: 3 }}>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
-                        <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 600 }}>Asignar Cobrador</Typography>
-                        <FormControlLabel
-                          control={<Switch size="small" checked={!!asignacionGlobal[idReal]} onChange={() => handleToggleGlobal(idReal)} color="primary" />}
-                          label={<Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Todo el préstamo</Typography>}
-                        />
-                      </Stack>
-                      <Autocomplete
-                        fullWidth
-                        options={usuarios}
-                        getOptionLabel={(option) => option.username ? option.username.toUpperCase() : ''}
-                        value={cobradorAsignado}
-                        onChange={(e, newValue) => handleAsignar(cuota, newValue)}
-                        renderInput={(params) => (
-                          <TextField 
-                            {...params} size="small" placeholder="Busca por nombre..."
-                            InputProps={{
-                              ...params.InputProps,
-                              startAdornment: (
-                                <>
-                                  <InputAdornment position="start"><PersonSearch sx={{ color: ACCENT, ml: 1 }} /></InputAdornment>
-                                  {params.InputProps.startAdornment}
-                                </>
-                              ),
-                              sx: { borderRadius: 2, bgcolor: 'background.paper' }
-                            }}
+                      {cobradorAsignado && !estaEditando ? (
+                        // MODO LECTURA: Ya hay cobrador asignado
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                            <Avatar sx={{ width: 32, height: 32, bgcolor: `${GREEN}20`, color: GREEN }}>
+                              <AssignmentInd sx={{ fontSize: 18 }} />
+                            </Avatar>
+                            <Box>
+                              <Typography sx={{ fontSize: 10, color: 'text.secondary', fontWeight: 700 }}>COBRADOR ASIGNADO</Typography>
+                              <Typography sx={{ fontSize: 14, fontWeight: 800 }}>{cobradorAsignado.username.toUpperCase()}</Typography>
+                            </Box>
+                          </Box>
+                          <Button 
+                            size="small" 
+                            variant="outlined" 
+                            startIcon={<Edit />}
+                            onClick={() => setEditandoAsignacion(prev => ({ ...prev, [idReal]: true }))}
+                            sx={{ borderRadius: 2, fontSize: 11, fontWeight: 700, textTransform: 'none' }}
+                          >
+                            Cambiar
+                          </Button>
+                        </Box>
+                      ) : (
+                        // MODO EDICIÓN / VACÍO: Muestra el Autocomplete
+                        <Box>
+                          <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                            <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 600 }}>
+                              {cobradorAsignado ? "Cambiar Asignación" : "Asignar Cobrador"}
+                            </Typography>
+                            <FormControlLabel
+                              control={<Switch size="small" checked={!!asignacionGlobal[idReal]} onChange={() => handleToggleGlobal(idReal)} color="primary" />}
+                              label={<Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Todo el préstamo</Typography>}
+                            />
+                          </Stack>
+                          <Autocomplete
+                            fullWidth
+                            options={usuarios}
+                            getOptionLabel={(option) => option.username ? option.username.toUpperCase() : ''}
+                            value={cobradorAsignado}
+                            onChange={(e, newValue) => handleAsignar(cuota, newValue)}
+                            renderInput={(params) => (
+                              <TextField 
+                                {...params} size="small" placeholder="Busca por nombre..." autoFocus={estaEditando}
+                                InputProps={{
+                                  ...params.InputProps,
+                                  startAdornment: (
+                                    <>
+                                      <InputAdornment position="start"><PersonSearch sx={{ color: ACCENT, ml: 1 }} /></InputAdornment>
+                                      {params.InputProps.startAdornment}
+                                    </>
+                                  ),
+                                  sx: { borderRadius: 2, bgcolor: 'background.paper' }
+                                }}
+                              />
+                            )}
                           />
-                        )}
-                      />
+                          {/* Botón para cancelar la edición si te arrepientes */}
+                          {cobradorAsignado && (
+                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+                               <Button size="small" sx={{ fontSize: 11, color: 'text.secondary' }} onClick={() => setEditandoAsignacion(prev => ({ ...prev, [idReal]: false }))}>
+                                 Cancelar
+                               </Button>
+                            </Box>
+                          )}
+                        </Box>
+                      )}
                     </Box>
                   )}
 
