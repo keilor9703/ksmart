@@ -2059,7 +2059,6 @@ def cuotas_pendientes(
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(get_current_active_user)
 ):
-
     query = db.query(models.CuotaPrestamo, models.Prestamo, models.Cliente)\
         .join(models.Prestamo, models.CuotaPrestamo.prestamo_id == models.Prestamo.id)\
         .join(models.Cliente, models.Prestamo.cliente_id == models.Cliente.id)\
@@ -2068,21 +2067,11 @@ def cuotas_pendientes(
             models.CuotaPrestamo.estado_pago != "Pagado"
         )
 
-
     # 🛡️ SEGURIDAD: Si no es Admin, filtrar solo lo que tiene asignado
     if current_user.role.name != "Admin":
         query = query.filter(models.CuotaPrestamo.usuario_asignado_id == current_user.id)
 
-    # # Unimos Cuota, Prestamo y Cliente para mandar toda la info junta al celular
-    # cuotas = db.query(models.CuotaPrestamo, models.Prestamo, models.Cliente)\
-    #     .join(models.Prestamo, models.CuotaPrestamo.prestamo_id == models.Prestamo.id)\
-    #     .join(models.Cliente, models.Prestamo.cliente_id == models.Cliente.id)\
-    #     .filter(
-    #         models.CuotaPrestamo.empresa_id == current_user.empresa_id,
-    #         models.CuotaPrestamo.estado_pago != "Pagado"
-    #     ).order_by(models.CuotaPrestamo.fecha_vencimiento.asc()).all()
     cuotas = query.order_by(models.CuotaPrestamo.fecha_vencimiento.asc()).all()
-
 
     result = []
     for cuota, prestamo, cliente in cuotas:
@@ -2096,9 +2085,13 @@ def cuotas_pendientes(
             "estado_pago": cuota.estado_pago,
             "cliente_nombre": cliente.nombre,
             "cliente_telefono": cliente.telefono,
-            "cliente_direccion": cliente.direccion
+            "cliente_direccion": cliente.direccion,
+            # 👇 ESTOS SON LOS DOS CAMPOS CRÍTICOS QUE FALTABAN
+            "cliente_id": cliente.id, 
+            "usuario_asignado_id": cuota.usuario_asignado_id 
         })
     return result
+
 
 # @app.post("/prestamos/cuotas/{cuota_id}/pagar")
 # def pagar_cuota(
