@@ -20,7 +20,6 @@ const GREEN = '#10B981';
 const BLUE = '#3B82F6';
 const YELLOW = '#F59E0B';
 
-// Parseo seguro de fecha
 const getSafeDateString = (fechaStr) => {
   if (!fechaStr) return 'Sin fecha';
   try {
@@ -38,24 +37,19 @@ const RutaCobro = () => {
   const [resumenDias, setResumenDias] = useState([]); 
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filtroFecha, setFiltroFecha] = useState(new Date().toISOString().split('T')[0]); // Default: Hoy
+  const [filtroFecha, setFiltroFecha] = useState(new Date().toISOString().split('T')[0]); 
   const [currentUser, setCurrentUser] = useState(null);
   
   const [asignacionGlobal, setAsignacionGlobal] = useState({});
-  // NUEVO ESTADO: Controla qué tarjetas están en modo edición de cobrador
   const [editandoAsignacion, setEditandoAsignacion] = useState({});
   
-  // Modales
   const [pagoModal, setPagoModal] = useState({ open: false, cuota: null, monto: '' });
   const [reprogramarModal, setReprogramarModal] = useState({ open: false, cuota: null, nuevaFecha: '' });
   
-  // Modal Liquidación
   const [liquidacionModal, setLiquidacionModal] = useState(false);
   const [datosLiquidacion, setDatosLiquidacion] = useState(null);
 
-  useEffect(() => {
-    fetchInicial();
-  }, []);
+  useEffect(() => { fetchInicial(); }, []);
 
   const fetchInicial = async () => {
     setLoading(true);
@@ -85,14 +79,9 @@ const RutaCobro = () => {
 
   const cuotasFiltradas = useMemo(() => {
     return cuotas.filter(c => {
-      // Filtro de Permisos
       const asignadaAMi = !esAdmin ? c.usuario_asignado_id === currentUser?.id : true;
-      
-      // Búsqueda
       const matchSearch = (c.cliente_nombre || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
                           (c.cliente_direccion || '').toLowerCase().includes(searchTerm.toLowerCase());
-      
-      // Fecha
       const fechaCuota = c.fecha_vencimiento ? c.fecha_vencimiento.split('T')[0] : '';
       const matchFecha = filtroFecha ? fechaCuota === filtroFecha : true; 
       
@@ -133,20 +122,25 @@ const RutaCobro = () => {
 
   const handleAsignar = async (cuota, newValue) => {
     const usuarioId = newValue ? newValue.id : null;
-    const idReal = cuota.id || cuota.cuota_id;
+    const idReal = cuota.cuota_id || cuota.id;
     const isGlobal = !!asignacionGlobal[idReal];
 
+    // Ahora sí tenemos el cliente_id desde el backend
     const payload = { 
       usuario_id: usuarioId,
-      cliente_id: isGlobal ? (cuota.cliente_id || null) : null,
+      cliente_id: isGlobal ? cuota.cliente_id : null,
       cuota_ids: !isGlobal ? [idReal] : null
     };
+
+    if (isGlobal && !cuota.cliente_id) {
+        toast.error("Error: No se encontró el identificador del cliente.");
+        return;
+    }
 
     try {
       await apiClient.post('/prestamos/asignar-cobrador', payload);
       toast.success(isGlobal ? "Se asignó TODA la ruta del cliente." : "Cobrador asignado a la cuota.");
       
-      // Cerramos el modo edición al terminar
       setEditandoAsignacion(prev => ({ ...prev, [idReal]: false }));
       fetchInicial();
     } catch (e) {
@@ -184,7 +178,6 @@ const RutaCobro = () => {
   return (
     <Box sx={{ maxWidth: 1100, margin: '0 auto', p: { xs: 1, sm: 3 }, boxSizing: 'border-box' }}>
       
-      {/* ── KPIs (Apilados correctamente en celular) ── */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={4}>
           <Paper sx={{ p: 2, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
@@ -215,7 +208,6 @@ const RutaCobro = () => {
         </Grid>
       </Grid>
 
-      {/* ── HEADER ── */}
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 800 }}>
@@ -242,7 +234,6 @@ const RutaCobro = () => {
         </Box>
       </Box>
 
-      {/* ── FILTROS DE FECHA ── */}
       <Paper sx={{ p: 2.5, mb: 3, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
           <FilterList sx={{ color: 'text.secondary', fontSize: 20 }} />
@@ -280,7 +271,6 @@ const RutaCobro = () => {
           })}
         </Box>
 
-        {/* BUSCADOR */}
         <Grid container spacing={2}>
           <Grid item xs={12}>
             <TextField
@@ -299,7 +289,6 @@ const RutaCobro = () => {
         </Grid>
       </Paper>
 
-      {/* ── LISTADO DE TARJETAS ── */}
       <Stack spacing={3}>
         {cuotasFiltradas.length === 0 ? (
           <Paper sx={{ p: 8, textAlign: 'center', borderRadius: 4, bgcolor: 'action.hover', border: '2px dashed', borderColor: 'divider' }}>
@@ -308,14 +297,13 @@ const RutaCobro = () => {
         ) : (
           cuotasFiltradas.map(cuota => {
             const cobradorAsignado = usuarios.find(u => u.id === cuota.usuario_asignado_id) || null;
-            const idReal = cuota.id || cuota.cuota_id;
+            const idReal = cuota.cuota_id;
             const estaEditando = editandoAsignacion[idReal];
 
             return (
               <Paper key={idReal} sx={{ p: { xs: 2, sm: 3 }, borderRadius: 4, border: '1px solid', borderColor: 'divider', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
                 <Stack spacing={2}>
                   
-                  {/* Info Principal y Monto */}
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
                     <Box sx={{ flex: 1, minWidth: '200px' }}>
                       <Typography sx={{ fontWeight: 800, fontSize: 18, lineHeight: 1.2 }}>{cuota.cliente_nombre}</Typography>
@@ -334,11 +322,9 @@ const RutaCobro = () => {
                     </Box>
                   </Box>
 
-                  {/* ── ASIGNACIÓN DE COBRADOR (UX MEJORADO) ── */}
                   {esAdmin && (
                     <Box sx={{ p: 2, bgcolor: 'background.default', borderRadius: 3 }}>
                       {cobradorAsignado && !estaEditando ? (
-                        // MODO LECTURA: Ya hay cobrador asignado
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                             <Avatar sx={{ width: 32, height: 32, bgcolor: `${GREEN}20`, color: GREEN }}>
@@ -360,11 +346,10 @@ const RutaCobro = () => {
                           </Button>
                         </Box>
                       ) : (
-                        // MODO EDICIÓN / VACÍO: Muestra el Autocomplete
                         <Box>
                           <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
                             <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 600 }}>
-                              {cobradorAsignado ? "Cambiar Asignación" : "Asignar Cobrador"}
+                              {cobradorAsignado ? "Reasignar Cobrador" : "Asignar Cobrador"}
                             </Typography>
                             <FormControlLabel
                               control={<Switch size="small" checked={!!asignacionGlobal[idReal]} onChange={() => handleToggleGlobal(idReal)} color="primary" />}
@@ -393,7 +378,6 @@ const RutaCobro = () => {
                               />
                             )}
                           />
-                          {/* Botón para cancelar la edición si te arrepientes */}
                           {cobradorAsignado && (
                             <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
                                <Button size="small" sx={{ fontSize: 11, color: 'text.secondary' }} onClick={() => setEditandoAsignacion(prev => ({ ...prev, [idReal]: false }))}>
@@ -408,7 +392,6 @@ const RutaCobro = () => {
 
                   <Divider sx={{ borderStyle: 'dashed' }} />
 
-                  {/* Botones de Acción */}
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
                     <Box sx={{ display: 'flex', gap: 1.5 }}>
                       <Tooltip title="Ubicación en Maps">
@@ -445,7 +428,6 @@ const RutaCobro = () => {
         )}
       </Stack>
 
-      {/* ── MODALES ── */}
       <Dialog open={pagoModal.open} onClose={() => setPagoModal({ ...pagoModal, open: false })} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
         <DialogTitle sx={{ fontWeight: 800 }}>Registrar Recaudo</DialogTitle>
         <DialogContent>
@@ -471,7 +453,6 @@ const RutaCobro = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Modal Liquidación */}
       <Dialog open={liquidacionModal} onClose={() => setLiquidacionModal(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 4 } }}>
         <DialogTitle sx={{ fontWeight: 900, textAlign: 'center', bgcolor: 'action.hover', pb: 3 }}>
             Liquidación Diaria
