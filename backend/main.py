@@ -201,28 +201,25 @@ from fastapi import HTTPException, status
 def get_current_active_user(current_user: schemas.User = Depends(get_current_user)):
     if not current_user:
         raise HTTPException(status_code=400, detail="Usuario inactivo")
-    
+
     empresa = current_user.empresa
     if not empresa.is_active:
         raise HTTPException(status_code=403, detail="Suscripción suspendida. Contacte a soporte.")
 
-    # ✅ EL GUARDIA DEL TRIAL (Blindado contra el bug de SQLite)
-    if empresa.plan_type == "trial" and empresa.trial_ends_at:
+    # ✅ EL GUARDIA DE VENCIMIENTO: Aplica para TODOS los planes, no solo para "trial"
+    if empresa.trial_ends_at: 
         ahora_utc = datetime.now(timezone.utc)
-        
-        # Extraemos la fecha de la BD
         fecha_limite = empresa.trial_ends_at
-        
-        # Si la fecha viene de SQLite no tendrá tzinfo (es naive). 
-        # Como sabemos que la guardamos en UTC, le reasignamos la etiqueta.
+
+        # Si la fecha viene de SQLite no tendrá tzinfo (es naive).
         if fecha_limite.tzinfo is None:
             fecha_limite = fecha_limite.replace(tzinfo=timezone.utc)
 
-        # Ahora sí, la comparación es segura
+        # La comparación es universal, el vencimiento manda sobre el tipo de plan
         if ahora_utc > fecha_limite:
             raise HTTPException(
                 status_code=status.HTTP_402_PAYMENT_REQUIRED, 
-                detail="TRIAL_EXPIRED"
+                detail="Suscripción expirada."
             )
 
     return current_user
@@ -299,16 +296,30 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
             detail="Usuario o contraseña incorrectos",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    # ✅ BLOQUEO DE USUARIOS DESACTIVADOS
-    # ✅ Bloqueo de acceso
+    
     if not getattr(user, 'is_active', True):
         raise HTTPException(status_code=403, detail="Cuenta suspendida por el administrador.")
-    
+
     if not user.empresa_id or not user.empresa:
         raise HTTPException(status_code=403, detail="El usuario no está vinculado a ninguna empresa válida.")
-    
-    if not user.empresa.is_active:
+
+    empresa = user.empresa
+
+    if not empresa.is_active:
         raise HTTPException(status_code=403, detail="La suscripción de la empresa se encuentra suspendida. Contacte a soporte.")
+
+    # ✅ BLOQUEO DE ACCESO DESDE EL LOGIN: Si está vencido, no entregamos el token.
+    if empresa.trial_ends_at:
+        ahora_utc = datetime.now(timezone.utc)
+        fecha_limite = empresa.trial_ends_at
+        if fecha_limite.tzinfo is None:
+            fecha_limite = fecha_limite.replace(tzinfo=timezone.utc)
+            
+        if ahora_utc > fecha_limite:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED, 
+                detail="Tu suscripción ha expirado. Por favor, realiza el pago para continuar."
+            )
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
@@ -321,7 +332,6 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
         expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # RUTAS DEL SUPERADMIN (DUEÑO DEL SAAS)
 # ═══════════════════════════════════════════════════════════════════════════════
