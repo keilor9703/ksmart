@@ -2258,3 +2258,58 @@ def calendario_cobros(
     current_user: models.User = Depends(get_current_active_user)
 ):
     return crud.get_resumen_calendario_cobros(db, current_user.empresa_id)
+
+
+
+from sqlalchemy.orm import joinedload
+from datetime import datetime, timezone
+
+@app.get("/prestamos/liquidacion-diaria")
+def liquidacion_diaria_ruta(
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_active_user)
+):
+    if current_user.role.name != "Admin":
+        raise HTTPException(status_code=403, detail="Solo el Admin puede ver la liquidación")
+
+    # Usamos la fecha actual en UTC (o tu zona horaria configurada)
+    hoy = datetime.now(timezone.utc).date()
+    
+    # Traemos todas las cuotas que tienen una fecha de pago registrada
+    cuotas_pagadas = db.query(models.CuotaPrestamo).options(joinedload(models.CuotaPrestamo.cobrador)).filter(
+        models.CuotaPrestamo.empresa_id == current_user.empresa_id,
+        models.CuotaPrestamo.fecha_pago != None
+    ).all()
+
+    resumen_cobradores = {}
+    total_global = 0.0
+
+    for c in cuotas_pagadas:
+        # Filtramos en Python para evitar problemas de compatibilidad de fechas entre SQLite/Postgres
+        if c.fecha_pago.date() != hoy:
+            continue
+
+        cobrador_id = c.usuario_asignado_id or 0
+        cobrador_nombre = c.cobrador.username if c.cobrador else "Sin asignar"
+        
+        # El dinero que entró es la cuota original menos lo que quedó debiendo (saldo_pendiente)
+        monto_recaudado = c.monto_cuota - c.saldo_pendiente
+
+        if cobrador_id not in resumen_cobradores:
+            resumen_cobradores[cobrador_id] = {
+                "cobrador_id": cobrador_id,
+                "cobrador_nombre": cobrador_nombre.upper(),
+                "total_recaudado": 0.0,
+                "cuotas_cobradas": 0
+            }
+        
+        resumen_cobradores[cobrador_id]["total_recaudado"] += monto_recaudado
+        resumen_cobradores[cobrador_id]["cuotas_cobradas"] += 1
+        total_global += monto_recaudado
+
+    return {
+        "fecha": hoy.isoformat(),
+        "total_global": total_global,
+        "cobradores": list(resumen_cobradores.values())
+    }
+
