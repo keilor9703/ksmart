@@ -114,29 +114,32 @@ const handleAsignar = async (cuota, newValue) => {
   const idCuotaReal = cuota.cuota_id || cuota.id;
   const isGlobal = !!asignacionGlobal[idCuotaReal];
 
-  // Construimos el objeto EXACTAMENTE como lo pide tu función asignar_cobrador en Python
-  const payload = {
-    usuario_id: usuarioId,
-    // Si es global, enviamos cliente_id. Si no, enviamos null.
-    cliente_id: isGlobal ? (cuota.cliente_id || null) : null,
-    // Si NO es global, enviamos la lista de IDs. Si es global, enviamos null o lista vacía.
-    cuota_ids: !isGlobal ? [idCuotaReal] : null 
-  };
+  // Buscamos el ID del cliente probando varias rutas posibles donde pueda estar
+  const clienteIdFinal = cuota.cliente_id || (cuota.prestamo && cuota.prestamo.cliente_id) || cuota.prestamo_id;
 
-  // Validación de seguridad antes de enviar
-  if (isGlobal && !cuota.cliente_id) {
-    toast.error("Esta cuota no tiene la información del cliente necesaria para asignación global.");
+  // Si el usuario marcó "Todo el préstamo" pero no logramos identificar a qué cliente o préstamo pertenece
+  if (isGlobal && !clienteIdFinal) {
+    console.error("Datos de la cuota recibida:", cuota); // Para depuración
+    toast.error("No se pudo identificar el ID del cliente para la asignación global.");
     return;
   }
 
+  const payload = {
+    usuario_id: usuarioId,
+    // Si es global enviamos el clienteIdFinal, si no null
+    cliente_id: isGlobal ? clienteIdFinal : null,
+    // Si NO es global enviamos el array con el ID, si es global null
+    cuota_ids: !isGlobal ? [idCuotaReal] : null 
+  };
+
   try {
+    // Ahora sí, si pasa la validación anterior, hace la petición al backend
     await apiClient.post('/prestamos/asignar-cobrador', payload);
-    toast.success(isGlobal ? "Toda la ruta del cliente fue asignada" : "Cobrador asignado a la cuota");
-    fetchInicial(); // Refrescar para actualizar KPIs y vista
+    toast.success(isGlobal ? "Ruta completa asignada con éxito" : "Cobrador asignado a la cuota");
+    fetchInicial(); 
   } catch (e) {
-    const errorMsg = e.response?.data?.detail || "Error en la comunicación con el servidor";
+    const errorMsg = e.response?.data?.detail || "Error en la asignación";
     toast.error(`Error: ${errorMsg}`);
-    console.error("Payload enviado:", payload); // Para depuración en consola
   }
 };
 
