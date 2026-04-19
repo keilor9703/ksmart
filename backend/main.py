@@ -2110,7 +2110,7 @@ def calendario_resumen(db: Session = Depends(get_db), current_user: models.User 
 
 
 
-# ─── Schema inline para abono a capital ──────────────────────────────────────
+# ─── Schema inline ────────────────────────────────────────────────────────────
 class AbonoCapitalRequest(BaseModel):
     monto_abono: float = Field(..., gt=0, description="Monto a aplicar al capital")
 
@@ -2126,10 +2126,11 @@ def abono_capital(
     if req.monto_abono > 999_999_999:
         raise HTTPException(status_code=400, detail="Monto sospechosamente alto")
     return crud.aplicar_abono_capital(
-        db, empresa_id=current_user.empresa_id,
-        prestamo_id=prestamo_id, monto_abono=req.monto_abono,
+        db,
+        empresa_id=current_user.empresa_id,
+        prestamo_id=prestamo_id,
+        monto_abono=req.monto_abono,
     )
-
 
 # ─── Resumen de mora de un préstamo ──────────────────────────────────────────
 @app.get("/prestamos/{prestamo_id}/mora")
