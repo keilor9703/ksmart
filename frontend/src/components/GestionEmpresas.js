@@ -14,14 +14,12 @@ import { toast } from 'react-toastify';
 import apiClient, { fetchPlanesAdmin, createPlan, updatePlan, impersonateCompany } from '../api';
 
 import ModulosEmpresaDialog from './ModulosEmpresaDialog';
-import { ViewModule } from '@mui/icons-material'; // O el icono que prefieras
-
+import { ViewModule } from '@mui/icons-material';
 
 const ACCENT = '#F43F5E';
 const BLUE = '#3B82F6';
 const GREEN = '#10B981';
 
-// ── Helpers ──
 const calcularDiasRestantes = (fechaFin) => {
   if (!fechaFin) return 0;
   const diff = new Date(fechaFin) - new Date();
@@ -36,10 +34,9 @@ const formatDateForInput = (dateString) => {
 const formatCurrency = (val) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(val);
 const formatDateFull = (d) => new Date(d).toLocaleString('es-CO');
 
-// ── Componentes Móviles ──
 const EmpresaCard = ({ empresa, onToggleStatus, onOpenPlan, onImpersonate, onOpenModulos }) => {
   const dias = calcularDiasRestantes(empresa.trial_ends_at);
-  
+
   return (
     <Paper sx={{ p: { xs: 2, sm: 2.5 }, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
@@ -65,7 +62,6 @@ const EmpresaCard = ({ empresa, onToggleStatus, onOpenPlan, onImpersonate, onOpe
         <Grid item xs={6}>
           <Box sx={{ textAlign: 'center', p: 1, borderRadius: 2, bgcolor: 'action.hover', height: '100%' }}>
             <Typography sx={{ fontSize: 10, color: 'text.secondary', mb: 0.2 }}>Vencimiento</Typography>
-            {/* 👇 LÓGICA INYECTADA: Si es la empresa 1, es Ilimitado */}
             <Typography sx={{ fontSize: 13, fontWeight: 700, color: empresa.id === 1 ? '#10B981' : (dias > 0 ? '#10B981' : '#EF4444') }}>
               {empresa.id === 1 ? 'Ilimitado' : (dias > 0 ? `En ${dias} días` : 'Expirado')}
             </Typography>
@@ -75,7 +71,6 @@ const EmpresaCard = ({ empresa, onToggleStatus, onOpenPlan, onImpersonate, onOpe
 
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
         <Button size="small" variant="outlined" disabled={empresa.id === 1} onClick={() => onOpenPlan(empresa)} startIcon={<CardMembership />} sx={{ borderRadius: 2, color: '#8B5CF6', borderColor: '#8B5CF6', flex: 1 }}>Plan</Button>
-        {/* ✅ NUEVO BOTÓN: Configurar Módulos (Mobile) */}
         <Tooltip title="Configurar Módulos">
           <span><IconButton size="small" disabled={empresa.id === 1} onClick={() => onOpenModulos(empresa)} sx={{ color: '#F43F5E', bgcolor: 'rgba(244, 63, 94, 0.1)', borderRadius: 1.5, width: 40, height: 40 }}><ViewModule fontSize="small" /></IconButton></span>
         </Tooltip>
@@ -123,7 +118,9 @@ export default function GestionSaaS() {
   const [filterState, setFilterState] = useState('all');
 
   const [openDialogEmpresa, setOpenDialogEmpresa] = useState(false);
-  const [formEmpresa, setFormEmpresa] = useState({ nombre: '', nit: '', admin_username: '', admin_password: '' });
+  // ✅ ACTUALIZADO: Añadido "tipo_negocio" al formulario manual
+  const [formEmpresa, setFormEmpresa] = useState({ nombre: '', nit: '', admin_username: '', admin_password: '', tipo_negocio: 'erp' });
+  
   const [openPlanDialog, setOpenPlanDialog] = useState(false);
   const [empresaSeleccionada, setEmpresaSeleccionada] = useState(null);
   const [formAsignarPlan, setFormAsignarPlan] = useState({ plan_type: 'trial', plan_selector: 'trial', trial_ends_at: '' });
@@ -131,7 +128,6 @@ export default function GestionSaaS() {
   const [editingPlanId, setEditingPlanId] = useState(null);
   const [formPlan, setFormPlan] = useState({ nombre: '', codigo_interno: '', precio: '', dias_duracion: '', caracteristicas: '', is_active: true });
 
-  // ✅ NUEVOS ESTADOS PARA MODULOS
   const [openModulosDialog, setOpenModulosDialog] = useState(false);
   const [empresaParaModulos, setEmpresaParaModulos] = useState(null);
 
@@ -154,10 +150,21 @@ export default function GestionSaaS() {
   const handleSubmitEmpresa = async (e) => {
     e.preventDefault(); setLoading(true);
     try {
-      await apiClient.post('/superadmin/empresas', { empresa: { nombre: formEmpresa.nombre, nit: formEmpresa.nit, color_primario: '#3B82F6' }, admin_username: formEmpresa.admin_username, admin_password: formEmpresa.admin_password });
-      toast.success('Empresa registrada con 14 días de prueba.');
-      setOpenDialogEmpresa(false); setFormEmpresa({ nombre: '', nit: '', admin_username: '', admin_password: '' }); fetchEmpresas();
-    } catch (err) { toast.error('Error al crear la empresa'); } finally { setLoading(false); }
+      // ✅ ACTUALIZADO: Para evitar que tengas que hacer un endpoint de SuperAdmin nuevo,
+      // la forma más elegante es re-utilizar el `/auth/register` (ya que hace exactamente la magia de los módulos)
+      await apiClient.post('/auth/register', { 
+        nombre_empresa: formEmpresa.nombre, 
+        nit: formEmpresa.nit,
+        username: formEmpresa.admin_username,
+        password: formEmpresa.admin_password,
+        tipo_negocio: formEmpresa.tipo_negocio // 👈 Esto asigna los módulos correctos
+      });
+      
+      toast.success('Empresa registrada con 14 días de prueba y módulos automáticos.');
+      setOpenDialogEmpresa(false); 
+      setFormEmpresa({ nombre: '', nit: '', admin_username: '', admin_password: '', tipo_negocio: 'erp' }); 
+      fetchEmpresas();
+    } catch (err) { toast.error('Error al crear la empresa. ' + (err.response?.data?.detail || '')); } finally { setLoading(false); }
   };
 
   const handleOpenAsignarPlan = (empresa) => {
@@ -166,7 +173,6 @@ export default function GestionSaaS() {
     setOpenPlanDialog(true);
   };
 
-  // ✅ NUEVO HANDLER: Abrir Modal de Módulos
   const handleOpenModulos = (empresa) => {
     setEmpresaParaModulos(empresa);
     setOpenModulosDialog(true);
@@ -310,7 +316,6 @@ export default function GestionSaaS() {
             </Box>
           </Paper>
 
-          {/* ✅ CORRECCIÓN MÓVIL: Las tarjetas se renderizan directo en un Box, sin el Paper invisible */}
           {!isMobile ? (
             <Paper sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
               <TableContainer>
@@ -334,7 +339,6 @@ export default function GestionSaaS() {
                           <TableCell sx={{ fontWeight: 600 }}>{emp.nombre}<Typography variant="caption" display="block" color="text.secondary">NIT: {emp.nit || 'N/A'}</Typography></TableCell>
                           <TableCell><Chip label={emp.is_active ? 'Activa' : 'Suspendida'} size="small" sx={{ bgcolor: emp.is_active ? '#10B98120' : '#EF444420', color: emp.is_active ? '#10B981' : '#EF4444', fontWeight: 600, fontSize: 11, borderRadius: 1.5 }} /></TableCell>
                           <TableCell sx={{ textTransform: 'capitalize', fontWeight: 600, color: emp.plan_type === 'premium' ? '#F59E0B' : '#3B82F6' }}>{emp.plan_type || 'trial'}</TableCell>
-                        {/* 👇 LÓGICA INYECTADA: Si es la empresa 1, es Ilimitado */}
                           <TableCell sx={{ fontSize: 12, fontWeight: 600, color: emp.id === 1 ? '#10B981' : (dias > 0 ? 'text.primary' : '#EF4444') }}>
                             {emp.id === 1 ? (
                               <Typography sx={{ fontWeight: 800, color: '#10B981', fontSize: 13 }}>Ilimitado</Typography>
@@ -349,7 +353,6 @@ export default function GestionSaaS() {
                           </TableCell>
                           <TableCell align="right">
                             <Tooltip title="Gestionar Suscripción"><span><IconButton size="small" disabled={emp.id === 1} onClick={() => handleOpenAsignarPlan(emp)} sx={{ color: '#8B5CF6', mr: 1 }}><CardMembership fontSize="small" /></IconButton></span></Tooltip>
-                            {/* ✅ NUEVO BOTÓN: Configurar Módulos (Escritorio) */}
                             <Tooltip title="Configurar Módulos"><span><IconButton size="small" disabled={emp.id === 1} onClick={() => handleOpenModulos(emp)} sx={{ color: '#F43F5E', mr: 1 }}><ViewModule fontSize="small" /></IconButton></span></Tooltip>
                             <Tooltip title={emp.is_active ? "Suspender Sistema" : "Reactivar Sistema"}><span><IconButton size="small" disabled={emp.id === 1} onClick={() => handleToggleStatus(emp.id, emp.is_active)} sx={{ color: emp.is_active ? '#EF4444' : '#10B981', mr: 1 }}>{emp.is_active ? <Block fontSize="small" /> : <CheckCircle fontSize="small" />}</IconButton></span></Tooltip>
                             <Tooltip title="Entrar como Cliente (Soporte)"><span><IconButton size="small" onClick={() => handleImpersonate(emp.id)} sx={{ color: '#0EA5E9' }}><SupportAgent fontSize="small" /></IconButton></span></Tooltip>
@@ -403,7 +406,6 @@ export default function GestionSaaS() {
             </Button>
           </Paper>
 
-          {/* ✅ CORRECCIÓN MÓVIL: Las tarjetas se renderizan directo en un Box */}
           {!isMobile ? (
             <Paper sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
               <TableContainer>
@@ -442,14 +444,32 @@ export default function GestionSaaS() {
          <DialogTitle>Alta de Cliente</DialogTitle>
          <form onSubmit={handleSubmitEmpresa}>
             <DialogContent dividers>
-              <Stack spacing={2}>
-                <TextField label="Nombre" required size="small" value={formEmpresa.nombre} onChange={e => setFormEmpresa({...formEmpresa, nombre: e.target.value})} />
-                <TextField label="NIT" size="small" value={formEmpresa.nit} onChange={e => setFormEmpresa({...formEmpresa, nit: e.target.value})} />
-                <TextField label="Usuario Admin" required size="small" value={formEmpresa.admin_username} onChange={e => setFormEmpresa({...formEmpresa, admin_username: e.target.value})} />
+              <Stack spacing={2.5}>
+                {/* ✅ AÑADIDO: Selector de Tipo de Negocio (Igual al Login) */}
+                <TextField 
+                  select 
+                  label="Tipo de Negocio (Módulos)" 
+                  value={formEmpresa.tipo_negocio} 
+                  onChange={e => setFormEmpresa({...formEmpresa, tipo_negocio: e.target.value})} 
+                  fullWidth 
+                  size="small"
+                  helperText="Esto define qué menús verá la empresa al iniciar sesión."
+                >
+                  <MenuItem value="erp">Comercio / ERP (Ventas, Inv, Cajas...)</MenuItem>
+                  <MenuItem value="prestamos">Prestamista (Cartera, Rutas...)</MenuItem>
+                </TextField>
+
+                <TextField label="Nombre de la Empresa" required size="small" value={formEmpresa.nombre} onChange={e => setFormEmpresa({...formEmpresa, nombre: e.target.value})} />
+                <TextField label="NIT o Cédula" size="small" value={formEmpresa.nit} onChange={e => setFormEmpresa({...formEmpresa, nit: e.target.value})} />
+                <Divider sx={{ my: 1 }} />
+                <TextField label="Usuario Admin (Log-in)" required size="small" value={formEmpresa.admin_username} onChange={e => setFormEmpresa({...formEmpresa, admin_username: e.target.value})} />
                 <TextField label="Password" required type="password" size="small" value={formEmpresa.admin_password} onChange={e => setFormEmpresa({...formEmpresa, admin_password: e.target.value})} />
               </Stack>
             </DialogContent>
-            <DialogActions sx={{ p: 2 }}><Button onClick={() => setOpenDialogEmpresa(false)} variant="outlined" sx={{ borderRadius: 2 }}>Cancelar</Button><Button type="submit" variant="contained" disabled={loading} sx={{ bgcolor: ACCENT, borderRadius: 2 }}>Crear Inquilino</Button></DialogActions>
+            <DialogActions sx={{ p: 2 }}>
+                <Button onClick={() => setOpenDialogEmpresa(false)} variant="outlined" sx={{ borderRadius: 2 }}>Cancelar</Button>
+                <Button type="submit" variant="contained" disabled={loading} sx={{ bgcolor: ACCENT, borderRadius: 2 }}>Crear Inquilino</Button>
+            </DialogActions>
          </form>
       </Dialog>
 
@@ -460,13 +480,12 @@ export default function GestionSaaS() {
             <Stack spacing={2.5}>
               <TextField label="Nombre Comercial" required size="small" value={formPlan.nombre} onChange={e => setFormPlan({...formPlan, nombre: e.target.value})} />
               <TextField label="Código Interno" required size="small" value={formPlan.codigo_interno} onChange={e => setFormPlan({...formPlan, codigo_interno: e.target.value.toLowerCase().replace(/ /g, '_')})} disabled={!!editingPlanId} />
-              
-              {/* ✅ CORRECCIÓN MÓVIL: Flex direction cambia a columna en pantallas pequeñas */}
+
               <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
                 <TextField label="Precio (COP)" type="number" required size="small" fullWidth value={formPlan.precio} onChange={e => setFormPlan({...formPlan, precio: e.target.value})} />
                 <TextField label="Duración (Días)" type="number" required size="small" fullWidth value={formPlan.dias_duracion} onChange={e => setFormPlan({...formPlan, dias_duracion: e.target.value})} />
               </Box>
-              
+
               <TextField label="Características (Separadas por coma)" size="small" multiline rows={2} value={formPlan.caracteristicas} onChange={e => setFormPlan({...formPlan, caracteristicas: e.target.value})} />
               <FormControlLabel control={<Switch checked={formPlan.is_active} onChange={e => setFormPlan({...formPlan, is_active: e.target.checked})} color="primary" />} label="Plan Visible" />
             </Stack>
@@ -492,7 +511,6 @@ export default function GestionSaaS() {
         </form>
       </Dialog>
 
-      {/* ✅ NUEVO: MODAL PARA CONFIGURAR MÓDULOS DE LA EMPRESA */}
       <ModulosEmpresaDialog 
         open={openModulosDialog}
         handleClose={() => setOpenModulosDialog(false)}
