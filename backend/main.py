@@ -1312,15 +1312,6 @@ def reporte_financiero_prestamos(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    import json as _json
-    modulos_raw = current_user.empresa.modulos_habilitados or []
-    if isinstance(modulos_raw, str):
-        try:
-            modulos_raw = _json.loads(modulos_raw)
-        except Exception:
-            modulos_raw = []
-    if "/prestamos" not in modulos_raw:
-        raise HTTPException(status_code=403, detail="Módulo no contratado")
     return crud.get_reporte_financiero_prestamos(db, current_user.empresa_id)
 
 
