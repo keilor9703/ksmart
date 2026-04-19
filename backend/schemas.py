@@ -7,18 +7,30 @@ from enum import Enum
 # MULTI-TENANT (EMPRESAS) & SAAS
 # =========================
 
+import json
+from pydantic import BaseModel, ConfigDict, validator
+from typing import Optional, List
+from datetime import datetime, date
+from enum import Enum
+
 class EmpresaBase(BaseModel):
     nombre: str
     nit: Optional[str] = None
     logo_url: Optional[str] = None
     color_primario: str = "#F43F5E"
-    
-    # ✅ CAMPOS PARA EL SAAS Y EL TRIAL
     plan_type: Optional[str] = "trial"
     trial_ends_at: Optional[datetime] = None
-    
-    # 👇 AÑADIDO: El campo mágico para ocultar/mostrar módulos en el Frontend
     modulos_habilitados: Optional[List[str]] = None
+
+    # ✅ FIX: La BD guarda esto como string JSON, Pydantic necesita lista
+    @validator('modulos_habilitados', pre=True, always=True)
+    def parse_modulos_habilitados(cls, v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except (json.JSONDecodeError, ValueError):
+                return []
+        return v  # Si ya es lista o None, pasa directo
 
 class EmpresaCreate(EmpresaBase):
     pass
