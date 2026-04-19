@@ -3110,3 +3110,112 @@ def get_resumen_calendario_cobros(db: Session, empresa_id: int):
         {"fecha": fecha, "total_cuotas": cantidad} 
         for fecha, cantidad in resumen.items()
     ]
+
+
+
+# ─── Calcula mora de una cuota al vuelo ──────────────────────────────────────
+def calcular_mora_cuota(cuota: models.CuotaPrestamo, tasa_mora_mensual: float) -> dict:
+    """
+    Retorna mora en pesos, días vencido y total a pagar.
+    La mora NO se guarda en BD — se calcula en tiempo real.
+    """
+    if cuota.estado_pago == "Pagado" or cuota.saldo_pendiente <= 0:
+        return {"mora": 0.0, "dias": 0, "total": cuota.saldo_pendiente}
+
+    hoy = datetime.now(BOGOTA_TZ).date()
+    fv  = cuota.fecha_vencimiento
+    if isinstance(fv, datetime):
+        fv = fv.date()
+
+    if fv >= hoy:
+        return {"mora": 0.0, "dias": 0, "total": float(cuota.saldo_pendiente)}
+
+    dias_vencido = (hoy - fv).days
+    tasa_diaria  = (tasa_mora_mensual / 100) / 30
+    mora         = round(float(cuota.saldo_pendiente) * tasa_diaria * dias_vencido, 2)
+
+    return {
+        "mora":  mora,
+        "dias":  dias_vencido,
+        "total": round(float(cuota.saldo_pendiente) + mora, 2),
+    }
+
+
+# ─── Abono a capital: redistribuye excedente entre cuotas pendientes ─────────
+def aplicar_abono_capital(
+    db: Session,
+    empresa_id: int,
+    prestamo_id: int,
+    monto_abono: float,
+) -> dict:
+    """
+    Aplica un abono directo al capital del préstamo:
+    1. Resta el abono del saldo total pendiente.
+    2. Redistribuye el saldo restante en partes iguales
+       entre todas las cuotas aún no pagadas.
+    3. Devuelve resumen de la operación.
+    """
+    prestamo = db.query(models.Prestamo).filter(
+        models.Prestamo.id     == prestamo_id,
+        models.Prestamo.empresa_id == empresa_id,
+    ).first()
+    if not prestamo:
+        raise HTTPException(status_code=404, detail="Préstamo no encontrado")
+
+    cuotas_pendientes = (
+        db.query(models.CuotaPrestamo)
+        .filter(
+            models.CuotaPrestamo.prestamo_id  == prestamo_id,
+            models.CuotaPrestamo.empresa_id   == empresa_id,
+            models.CuotaPrestamo.estado_pago  != "Pagado",
+        )
+        .order_by(models.CuotaPrestamo.numero_cuota.asc())
+        .all()
+    )
+
+    if not cuotas_pendientes:
+        raise HTTPException(status_code=400, detail="No hay cuotas pendientes en este préstamo")
+
+    saldo_total_pendiente = sum(c.saldo_pendiente for c in cuotas_pendientes)
+
+    if monto_abono >= saldo_total_pendiente:
+        # El abono liquida el préstamo completo
+        for c in cuotas_pendientes:
+            c.saldo_pendiente = 0
+            c.estado_pago     = "Pagado"
+            c.fecha_pago      = datetime.now(BOGOTA_TZ)
+        prestamo.estado = "Pagado"
+        db.commit()
+        return {
+            "msg":               "Préstamo liquidado completamente con abono a capital",
+            "saldo_anterior":    round(saldo_total_pendiente, 2),
+            "abono_aplicado":    round(monto_abono, 2),
+            "nuevo_saldo":       0.0,
+            "cuotas_restantes":  0,
+            "nuevo_valor_cuota": 0.0,
+        }
+
+    # Saldo restante después del abono
+    nuevo_saldo_total  = saldo_total_pendiente - monto_abono
+    num_cuotas         = len(cuotas_pendientes)
+    nuevo_monto_cuota  = round(nuevo_saldo_total / num_cuotas, 2)
+
+    # Ajustar cada cuota pendiente proporcionalmente
+    for i, c in enumerate(cuotas_pendientes):
+        # La última cuota absorbe el centavo de diferencia por redondeo
+        if i == num_cuotas - 1:
+            c.saldo_pendiente = round(nuevo_saldo_total - nuevo_monto_cuota * (num_cuotas - 1), 2)
+        else:
+            c.saldo_pendiente = nuevo_monto_cuota
+        c.monto_cuota = c.saldo_pendiente   # actualizamos el monto original también
+
+    db.commit()
+
+    return {
+        "msg":               f"Abono de {monto_abono:,.0f} aplicado al capital",
+        "saldo_anterior":    round(saldo_total_pendiente, 2),
+        "abono_aplicado":    round(monto_abono, 2),
+        "nuevo_saldo":       round(nuevo_saldo_total, 2),
+        "cuotas_restantes":  num_cuotas,
+        "nuevo_valor_cuota": nuevo_monto_cuota,
+    }
