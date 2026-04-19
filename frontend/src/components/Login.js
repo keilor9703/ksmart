@@ -9,7 +9,7 @@ import {
 import { keyframes } from '@mui/system';
 import { 
     Visibility, VisibilityOff, AlternateEmail, Lock, Business, Person,
-    Storefront, AttachMoney 
+    Storefront, AttachMoney, Badge // ✅ Importamos Badge
 } from '@mui/icons-material';
 
 const fadeIn = keyframes`
@@ -48,7 +48,8 @@ const Login = ({ onLogin }) => {
     const navigate = useNavigate();
 
     const [loginData, setLoginData] = useState({ username: '', password: '' });
-    const [regData, setRegData] = useState({ nombre_empresa: '', username: '', password: '', tipo_negocio: 'erp' });
+    // ✅ Añadimos "nit" al estado base
+    const [regData, setRegData] = useState({ nombre_empresa: '', nit: '', username: '', password: '', tipo_negocio: 'erp' });
 
     const handleLoginSubmit = async (e) => {
         e.preventDefault();
@@ -59,15 +60,13 @@ const Login = ({ onLogin }) => {
                 new URLSearchParams({ username: loginData.username, password: loginData.password }),
                 { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
             );
-            
-            // 1. GUARDAMOS EL TOKEN SIEMPRE (Lo necesita para poder pagar)
+
             localStorage.setItem('token', response.data.access_token);
             onLogin();
 
-            // 2. REDIRECCIÓN INTELIGENTE BASADA EN LA FECHA DE VENCIMIENTO
             if (response.data.is_expired) {
                 toast.warning('Tu suscripción ha expirado. Redirigiendo a pagos...', { autoClose: 5000 });
-                navigate('/planes'); // 👈 AJUSTA AQUÍ si tu ruta de pagos se llama diferente
+                navigate('/planes');
             } else {
                 toast.success('Inicio de sesión exitoso');
                 navigate('/');
@@ -95,10 +94,11 @@ const Login = ({ onLogin }) => {
         }
         setLoading(true);
         try {
+            // El backend debe estar preparado para recibir 'nit' y 'tipo_negocio'
             await apiClient.post('/auth/register', regData);
             toast.success('¡Cuenta creada con éxito! Por favor, inicia sesión.');
             setLoginData({ username: regData.username, password: '' });
-            setRegData({ nombre_empresa: '', username: '', password: '', tipo_negocio: 'erp' });
+            setRegData({ nombre_empresa: '', nit: '', username: '', password: '', tipo_negocio: 'erp' });
             setIsLoginView(true);
         } catch (error) {
             toast.error(error.response?.data?.detail || 'Error al crear la cuenta.');
@@ -110,7 +110,6 @@ const Login = ({ onLogin }) => {
     return (
         <Box sx={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
 
-            {/* Panel izquierdo */}
             <Box sx={{
                 display: { xs: 'none', md: 'flex' }, width: '58%', flexShrink: 0, height: '100%',
                 backgroundImage: "url('/images/sistema-erp.1.12.avif')", backgroundSize: 'cover',
@@ -123,7 +122,6 @@ const Login = ({ onLogin }) => {
                 </Box>
             </Box>
 
-            {/* Panel derecho */}
             <Box sx={{
                 flex: 1, minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column',
                 alignItems: 'center', justifyContent: 'center',
@@ -221,12 +219,18 @@ const Login = ({ onLogin }) => {
                                 </Grid>
 
                                 <TextField
-                                    fullWidth label="Nombre de tu Empresa o Negocio" required sx={fieldSx}
+                                    fullWidth label="Nombre del Negocio" required sx={fieldSx}
                                     value={regData.nombre_empresa} onChange={e => setRegData({ ...regData, nombre_empresa: e.target.value })}
                                     InputProps={{ startAdornment: <InputAdornment position="start"><Business /></InputAdornment> }}
                                 />
+                                {/* ✅ NUEVO CAMPO NIT/CÉDULA */}
                                 <TextField
-                                    fullWidth label="Usuario para iniciar sesión" required sx={fieldSx}
+                                    fullWidth label="NIT o Cédula" required sx={fieldSx}
+                                    value={regData.nit} onChange={e => setRegData({ ...regData, nit: e.target.value.trim() })}
+                                    InputProps={{ startAdornment: <InputAdornment position="start"><Badge /></InputAdornment> }}
+                                />
+                                <TextField
+                                    fullWidth label="Usuario para ingresar" required sx={fieldSx}
                                     value={regData.username} onChange={e => setRegData({ ...regData, username: e.target.value.trim() })}
                                     InputProps={{ startAdornment: <InputAdornment position="start"><Person /></InputAdornment> }}
                                 />
