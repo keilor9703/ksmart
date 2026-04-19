@@ -63,6 +63,16 @@ const CobradorChips = ({ prestamoId, cobradoresMap }) => {
   );
 };
 
+// ─── Helper: formatea fecha corta ────────────────────────────────────────────
+const fmtDate = (val) => {
+  if (!val) return '—';
+  try {
+    const base = typeof val === 'string' ? val.split('T')[0] : val.toISOString().split('T')[0];
+    const [y, m, d] = base.split('-');
+    return `${d}/${m}/${y}`;
+  } catch { return '—'; }
+};
+
 // ─── Prestamo Card (Mobile) ──────────────────────────────────────────────────
 const PrestamoCard = ({ prestamo, expanded, onExpand, accent, clientes, cobradoresMap }) => {
   const totalCuotas     = prestamo.numero_cuotas || prestamo.cantidad_cuotas || 0;
@@ -73,6 +83,10 @@ const PrestamoCard = ({ prestamo, expanded, onExpand, accent, clientes, cobrador
   const saldoPendiente  = prestamo.cuotas?.reduce(
     (acc, c) => acc + (c.estado_pago !== 'Pagado' ? c.saldo_pendiente : 0), 0
   ) || 0;
+
+  // Fecha fin = fecha de la última cuota
+  const ultimaCuota = prestamo.cuotas?.slice().sort((a, b) => b.numero_cuota - a.numero_cuota)[0];
+  const fechaFin    = ultimaCuota?.fecha_vencimiento || null;
 
   return (
     <Paper sx={{ p: 2.5, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', bgcolor: 'background.paper' }}>
@@ -90,6 +104,26 @@ const PrestamoCard = ({ prestamo, expanded, onExpand, accent, clientes, cobrador
           color={prestamo.estado === 'Activo' ? 'success' : 'default'}
           sx={{ fontWeight: 600, fontSize: 11, flexShrink: 0 }}
         />
+      </Box>
+
+      {/* ── Fechas de inicio y fin ── */}
+      <Box sx={{ display: 'flex', gap: 1, mb: 1.5 }}>
+        <Box sx={{ flex: 1, p: 1, borderRadius: 2, bgcolor: 'action.hover', textAlign: 'center' }}>
+          <Typography sx={{ fontSize: 9, color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase', mb: 0.2 }}>
+            Inicio
+          </Typography>
+          <Typography sx={{ fontSize: 11, fontWeight: 800, color: BLUE }}>
+            {fmtDate(prestamo.fecha_inicio)}
+          </Typography>
+        </Box>
+        <Box sx={{ flex: 1, p: 1, borderRadius: 2, bgcolor: 'action.hover', textAlign: 'center' }}>
+          <Typography sx={{ fontSize: 9, color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase', mb: 0.2 }}>
+            Vence
+          </Typography>
+          <Typography sx={{ fontSize: 11, fontWeight: 800, color: ACCENT }}>
+            {fmtDate(fechaFin)}
+          </Typography>
+        </Box>
       </Box>
 
       {/* ── Cobradores asignados ── */}
@@ -425,7 +459,7 @@ const Prestamos = () => {
                       <TableCell sx={{ fontWeight: 700 }}>SALDO PENDIENTE</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>MODALIDAD</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>PROGRESO</TableCell>
-                      {/* ── Columna nueva ── */}
+                      <TableCell sx={{ fontWeight: 700 }}>INICIO / VENCE</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>COBRADOR(ES)</TableCell>
                       <TableCell align="right">DETALLE</TableCell>
                     </TableRow>
@@ -437,6 +471,8 @@ const Prestamos = () => {
                       const cuotasPagadas  = p.cuotas?.filter(c => c.estado_pago === 'Pagado').length || 0;
                       const saldoAdeudado  = p.cuotas?.reduce((acc, c) => acc + (c.estado_pago !== 'Pagado' ? c.saldo_pendiente : 0), 0) || 0;
                       const pct            = totalCuotas ? Math.round((cuotasPagadas / totalCuotas) * 100) : 0;
+                      const ultimaCuota    = p.cuotas?.slice().sort((a, b) => b.numero_cuota - a.numero_cuota)[0];
+                      const fechaFin       = ultimaCuota?.fecha_vencimiento || null;
 
                       return (
                         <React.Fragment key={p.id}>
@@ -449,6 +485,17 @@ const Prestamos = () => {
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                 <Typography variant="body2" sx={{ fontWeight: 700 }}>{cuotasPagadas} / {totalCuotas}</Typography>
                                 <Typography variant="caption" color="text.secondary">({pct}%)</Typography>
+                              </Box>
+                            </TableCell>
+                            {/* ── Fechas inicio / fin ── */}
+                            <TableCell>
+                              <Box>
+                                <Typography sx={{ fontSize: 11, color: BLUE, fontWeight: 700 }}>
+                                  📅 {fmtDate(p.fecha_inicio)}
+                                </Typography>
+                                <Typography sx={{ fontSize: 11, color: ACCENT, fontWeight: 700 }}>
+                                  🏁 {fmtDate(fechaFin)}
+                                </Typography>
                               </Box>
                             </TableCell>
                             {/* ── Cobradores en tabla ── */}
@@ -464,7 +511,7 @@ const Prestamos = () => {
 
                           {/* Fila expandida: cuotas */}
                           <TableRow>
-                            <TableCell colSpan={7} sx={{ p: 0 }}>
+                            <TableCell colSpan={8} sx={{ p: 0 }}>
                               <Collapse in={expandedId === p.id}>
                                 <Box sx={{ p: 3, bgcolor: 'action.hover' }}>
                                   <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 2, color: ACCENT }}>
