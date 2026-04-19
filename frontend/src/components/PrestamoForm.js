@@ -4,17 +4,25 @@ import {
   Divider, Card, Tabs, Tab, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Chip, IconButton,
   Collapse, Autocomplete, InputAdornment, Stack, CircularProgress,
-  useTheme, useMediaQuery, Avatar, Tooltip
+  useTheme, useMediaQuery, Avatar, Tooltip, LinearProgress
 } from '@mui/material';
 import {
   AttachMoney, Calculate, Visibility, Info,
-  KeyboardArrowDown, KeyboardArrowUp, Person
+  KeyboardArrowDown, KeyboardArrowUp, Person,
+  TrendingUp, AccountBalance, PriceCheck, Warning
 } from '@mui/icons-material';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip,
+  ResponsiveContainer, Cell
+} from 'recharts';
 import apiClient, { createPrestamo } from '../api';
 import { formatCurrency } from '../utils/formatters';
 import { toast } from 'react-toastify';
 
-const ACCENT = '#FF6020';
+const ACCENT  = '#FF6020';
+const GREEN   = '#10B981';
+const BLUE    = '#3B82F6';
+const YELLOW  = '#F59E0B';
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -157,10 +165,12 @@ const Prestamos = () => {
   const [loading,          setLoading]          = useState(true);
   const [isSubmitting,     setIsSubmitting]     = useState(false);
   const [clientes,         setClientes]         = useState([]);
-  const [usuarios,         setUsuarios]         = useState([]);      // ← nuevo
+  const [usuarios,         setUsuarios]         = useState([]);
   const [prestamosActivos, setPrestamosActivos] = useState([]);
-  const [cuotasPendientes, setCuotasPendientes] = useState([]);      // ← nuevo
+  const [cuotasPendientes, setCuotasPendientes] = useState([]);
   const [expandedId,       setExpandedId]       = useState(null);
+  const [reporte,          setReporte]          = useState(null);      // ← reporte financiero
+  const [loadingReporte,   setLoadingReporte]   = useState(false);
 
   // Formulario
   const [selectedCliente, setSelectedCliente] = useState(null);
@@ -177,8 +187,8 @@ const Prestamos = () => {
       const [resClie, resPres, resUsers, resCuotas] = await Promise.all([
         apiClient.get('/clientes/'),
         apiClient.get('/prestamos/'),
-        apiClient.get('/admin/usuarios'),          // Lista de usuarios
-        apiClient.get('/prestamos/cuotas-pendientes'), // Cuotas con usuario_asignado_id
+        apiClient.get('/admin/usuarios'),
+        apiClient.get('/prestamos/cuotas-pendientes'),
       ]);
       setClientes(resClie.data);
       setPrestamosActivos(resPres.data);
@@ -189,6 +199,25 @@ const Prestamos = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Carga el reporte financiero solo cuando se abre el tab 2
+  const fetchReporte = async () => {
+    if (reporte) return; // ya cargado
+    setLoadingReporte(true);
+    try {
+      const { data } = await apiClient.get('/reportes/financiero-prestamos');
+      setReporte(data);
+    } catch {
+      toast.error("Error al cargar el reporte financiero");
+    } finally {
+      setLoadingReporte(false);
+    }
+  };
+
+  const handleTabChange = (_, v) => {
+    setTab(v);
+    if (v === 2) fetchReporte();
   };
 
   /**
@@ -268,7 +297,7 @@ const Prestamos = () => {
 
       <Paper sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
         <Tabs
-          value={tab} onChange={(_, v) => setTab(v)}
+          value={tab} onChange={handleTabChange}
           variant={isMobile ? "fullWidth" : "standard"}
           sx={{
             px: 2, borderBottom: '1px solid', borderColor: 'divider',
@@ -278,6 +307,7 @@ const Prestamos = () => {
         >
           <Tab label="➕ Nuevo Préstamo" sx={{ fontWeight: 600 }} />
           <Tab label={`📋 Cartera (${prestamosActivos.length})`} sx={{ fontWeight: 600 }} />
+          <Tab label="📊 Reporte" sx={{ fontWeight: 600 }} />
         </Tabs>
 
         {/* ── Tab 0: Nuevo préstamo ── */}
@@ -476,6 +506,105 @@ const Prestamos = () => {
             )}
           </Box>
         </TabPanel>
+
+        {/* ── Tab 2: Reporte Financiero ── */}
+        <TabPanel value={tab} index={2}>
+          <Box sx={{ p: { xs: 2, md: 3 } }}>
+            {loadingReporte ? (
+              <Box sx={{ textAlign: 'center', py: 8 }}>
+                <CircularProgress sx={{ color: ACCENT }} />
+                <Typography sx={{ mt: 2, color: 'text.secondary' }}>Cargando reporte...</Typography>
+              </Box>
+            ) : !reporte ? (
+              <Box sx={{ textAlign: 'center', py: 8 }}>
+                <Typography color="text.secondary">No hay datos disponibles.</Typography>
+              </Box>
+            ) : (
+              <Stack spacing={3}>
+
+                {/* ── KPI Cards ── */}
+                <Grid container spacing={2}>
+                  {[
+                    { label: 'Capital Prestado',    value: reporte.resumen.capital_prestado,    icon: <AttachMoney />, color: BLUE,   bg: '#EFF6FF' },
+                    { label: 'Capital Recuperado',  value: reporte.resumen.capital_recuperado,  icon: <PriceCheck />,  color: GREEN,  bg: '#ECFDF5' },
+                    { label: 'Capital en Calle',    value: reporte.resumen.capital_pendiente,   icon: <AccountBalance/>,color: ACCENT, bg: '#FFF7ED' },
+                    { label: 'Total en Mora',       value: reporte.resumen.total_en_mora,       icon: <Warning />,     color: '#EF4444', bg: '#FEF2F2' },
+                  ].map(({ label, value, icon, color, bg }) => (
+                    <Grid item xs={12} sm={6} md={3} key={label}>
+                      <Paper sx={{ p: 2.5, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
+                          <Avatar sx={{ width: 36, height: 36, bgcolor: bg, color }}>{icon}</Avatar>
+                          <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase' }}>{label}</Typography>
+                        </Box>
+                        <Typography sx={{ fontSize: 20, fontWeight: 900, color }}>{formatCurrency(value)}</Typography>
+                      </Paper>
+                    </Grid>
+                  ))}
+                </Grid>
+
+                {/* ── Intereses: barra de progreso ── */}
+                <Paper sx={{ p: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+                  <Typography sx={{ fontWeight: 700, mb: 2.5, fontSize: 14 }}>Intereses — Recaudado vs Pendiente</Typography>
+                  <Grid container spacing={3}>
+                    {[
+                      { label: 'Intereses Esperados',   value: reporte.resumen.intereses_esperados,   color: BLUE  },
+                      { label: 'Intereses Recaudados',  value: reporte.resumen.intereses_recaudados,  color: GREEN },
+                      { label: 'Intereses Pendientes',  value: reporte.resumen.intereses_pendientes,  color: ACCENT},
+                    ].map(({ label, value, color }) => {
+                      const pct = reporte.resumen.intereses_esperados > 0
+                        ? Math.round((value / reporte.resumen.intereses_esperados) * 100)
+                        : 0;
+                      return (
+                        <Grid item xs={12} md={4} key={label}>
+                          <Box sx={{ mb: 0.5, display: 'flex', justifyContent: 'space-between' }}>
+                            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{label}</Typography>
+                            <Typography sx={{ fontSize: 12, fontWeight: 700, color }}>{pct}%</Typography>
+                          </Box>
+                          <LinearProgress variant="determinate" value={Math.min(pct, 100)}
+                            sx={{ height: 8, borderRadius: 4, bgcolor: `${color}20`,
+                              '& .MuiLinearProgress-bar': { bgcolor: color, borderRadius: 4 } }} />
+                          <Typography sx={{ fontSize: 13, fontWeight: 800, mt: 0.5, color }}>{formatCurrency(value)}</Typography>
+                        </Grid>
+                      );
+                    })}
+                  </Grid>
+                </Paper>
+
+                {/* ── Gráfica de proyección mensual ── */}
+                {reporte.proyeccion_recaudo_mes?.length > 0 && (
+                  <Paper sx={{ p: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+                    <Typography sx={{ fontWeight: 700, mb: 2.5, fontSize: 14 }}>Proyección de Recaudo — Próximos Cobros</Typography>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <BarChart data={reporte.proyeccion_recaudo_mes} margin={{ top: 0, right: 8, left: 8, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis dataKey="day"
+                          tickFormatter={v => {
+                            try { return new Date(v + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }); }
+                            catch { return v; }
+                          }}
+                          tick={{ fontSize: 10 }} />
+                        <YAxis tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} />
+                        <ChartTooltip
+                          formatter={(val) => [formatCurrency(val), 'Recaudo']}
+                          labelFormatter={l => {
+                            try { return new Date(l + 'T00:00:00').toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' }); }
+                            catch { return l; }
+                          }} />
+                        <Bar dataKey="total" radius={[4, 4, 0, 0]}>
+                          {reporte.proyeccion_recaudo_mes.map((_, i) => (
+                            <Cell key={i} fill={i % 2 === 0 ? ACCENT : '#FFB38E'} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </Paper>
+                )}
+
+              </Stack>
+            )}
+          </Box>
+        </TabPanel>
+
       </Paper>
     </Box>
   );
