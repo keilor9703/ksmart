@@ -2990,47 +2990,6 @@ def crear_prestamo(db: Session, prestamo: schemas.PrestamoCreate, empresa_id: in
 
 
 
-def get_reporte_financiero_prestamos(db: Session, empresa_id: int):
-    # 1. Base de préstamos
-    prestamos = db.query(models.Prestamo).filter(models.Prestamo.empresa_id == empresa_id).all()
-
-    capital_prestado = sum(p.monto_prestado for p in prestamos)
-    intereses_totales_proyectados = sum(p.monto_total_pagar - p.monto_prestado for p in prestamos)
-
-    # 2. Análisis de cuotas
-    cuotas = db.query(models.CuotaPrestamo).filter(models.CuotaPrestamo.empresa_id == empresa_id).all()
-
-    intereses_recaudados = 0.0
-    capital_recuperado = 0.0
-    total_en_mora = 0.0
-    hoy = datetime.now(BOGOTA_TZ).date()
-
-    for c in cuotas:
-        # Cálculo proporcional de interés vs capital en cada cuota
-        # Si p.monto_total_pagar es 120 y p.monto_prestado es 100, el 83.3% es capital
-        p = c.prestamo
-        factor_capital = p.monto_prestado / p.monto_total_pagar if p.monto_total_pagar > 0 else 0
-        
-        monto_pagado_cuota = c.monto_cuota - c.saldo_pendiente
-        
-        capital_recuperado += (monto_pagado_cuota * factor_capital)
-        intereses_recaudados += (monto_pagado_cuota * (1 - factor_capital))
-        
-        if c.estado_pago != "Pagado" and c.fecha_vencimiento < hoy:
-            total_en_mora += c.saldo_pendiente
-
-    return {
-        "resumen": {
-            "capital_prestado": capital_prestado,
-            "capital_recuperado": capital_recuperado,
-            "capital_pendiente": capital_prestado - capital_recuperado,
-            "intereses_esperados": intereses_totales_proyectados,
-            "intereses_recaudados": intereses_recaudados,
-            "intereses_pendientes": intereses_totales_proyectados - intereses_recaudados,
-            "total_en_mora": total_en_mora
-        }
-}
-
 
 def get_calendario_cobros(db: Session, empresa_id: int):
     # Agrupamos cuotas pendientes por fecha de vencimiento
@@ -3048,6 +3007,78 @@ def get_calendario_cobros(db: Session, empresa_id: int):
         for r in resultados
     ]
 
+def get_reporte_financiero_prestamos(db: Session, empresa_id: int):
+    prestamos = db.query(models.Prestamo).filter(
+        models.Prestamo.empresa_id == empresa_id
+    ).all()
+
+    capital_prestado              = sum(p.monto_prestado for p in prestamos)
+    intereses_totales_proyectados = sum(
+        p.monto_total_pagar - p.monto_prestado for p in prestamos
+    )
+
+    cuotas = db.query(models.CuotaPrestamo).filter(
+        models.CuotaPrestamo.empresa_id == empresa_id
+    ).all()
+
+    intereses_recaudados = 0.0
+    capital_recuperado   = 0.0
+    total_en_mora        = 0.0
+    hoy = datetime.now(BOGOTA_TZ).date()  # date puro
+
+    for c in cuotas:
+        p = c.prestamo
+        factor_capital = (
+            p.monto_prestado / p.monto_total_pagar
+            if p.monto_total_pagar > 0 else 0
+        )
+        monto_pagado_cuota = c.monto_cuota - c.saldo_pendiente
+        capital_recuperado   += monto_pagado_cuota * factor_capital
+        intereses_recaudados += monto_pagado_cuota * (1 - factor_capital)
+
+        # FIX: normalizar fecha_vencimiento a date antes de comparar
+        fecha_venc = (
+            c.fecha_vencimiento.date()
+            if isinstance(c.fecha_vencimiento, datetime)
+            else c.fecha_vencimiento
+        )
+        if c.estado_pago != "Pagado" and fecha_venc < hoy:
+            total_en_mora += c.saldo_pendiente
+
+    # Proyección: próximos 30 días de cobros pendientes
+    hoy_dt  = datetime.now(BOGOTA_TZ)
+    fin_dt  = hoy_dt + timedelta(days=30)
+    proyeccion_map: dict[str, float] = {}
+
+    for c in cuotas:
+        if c.estado_pago == "Pagado":
+            continue
+        fv = c.fecha_vencimiento
+        if isinstance(fv, datetime):
+            fv_date = fv.date()
+        else:
+            fv_date = fv
+        if hoy <= fv_date <= fin_dt.date():
+            key = fv_date.isoformat()
+            proyeccion_map[key] = proyeccion_map.get(key, 0.0) + float(c.saldo_pendiente)
+
+    proyeccion_recaudo_mes = [
+        {"day": k, "total": v}
+        for k, v in sorted(proyeccion_map.items())
+    ]
+
+    return {
+        "resumen": {
+            "capital_prestado":       capital_prestado,
+            "capital_recuperado":     capital_recuperado,
+            "capital_pendiente":      capital_prestado - capital_recuperado,
+            "intereses_esperados":    intereses_totales_proyectados,
+            "intereses_recaudados":   intereses_recaudados,
+            "intereses_pendientes":   intereses_totales_proyectados - intereses_recaudados,
+            "total_en_mora":          total_en_mora,
+        },
+        "proyeccion_recaudo_mes": proyeccion_recaudo_mes,
+    }
 
 
 from sqlalchemy import func, Date, cast
