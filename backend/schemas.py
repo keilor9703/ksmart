@@ -893,7 +893,9 @@ class PrestamoCreate(BaseModel):
     monto_prestado: float
     tasa_interes: float
     cantidad_cuotas: int
-    modalidad: str # 'Diario', 'Semanal', 'Quincenal', 'Mensual'
+    modalidad: str
+    tasa_mora: float = 2.0          # ← nuevo: mora mensual por defecto 2%
+    
 
 class CuotaResponse(BaseModel):
     id: int
@@ -903,6 +905,9 @@ class CuotaResponse(BaseModel):
     fecha_vencimiento: datetime
     estado_pago: str
     fecha_pago: Optional[datetime] = None
+    mora_calculada: float = 0.0     # ← nuevo: mora calculada al vuelo
+    dias_vencido: int = 0           # ← nuevo: días de atraso
+    total_a_pagar: float = 0.0      # ← nuevo: saldo + mora
 
     class Config:
         from_attributes = True
@@ -912,6 +917,7 @@ class PrestamoResponse(BaseModel):
     cliente_id: int
     monto_prestado: float
     tasa_interes: float
+    tasa_mora: float                # ← nuevo
     cantidad_cuotas: int
     modalidad: str
     monto_total_pagar: float
