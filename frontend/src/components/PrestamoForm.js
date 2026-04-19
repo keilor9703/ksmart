@@ -566,46 +566,110 @@ const Prestamos = () => {
                   </Grid>
                 </Paper>
 
-                {/* ── Gráfica de proyección mensual (CSS pura, sin librerías) ── */}
-                {reporte.proyeccion_recaudo_mes?.length > 0 && (() => {
-                  const datos  = reporte.proyeccion_recaudo_mes.slice(0, 14); // máx 14 días
+                {/* ── Proyección de cobros próximos ── */}
+                {(() => {
+                  // Solo días con cobros reales (total > 0), ordenados por fecha
+                  const datos = (reporte.proyeccion_recaudo_mes || [])
+                    .filter(d => d.total > 0)
+                    .sort((a, b) => a.day.localeCompare(b.day));
+
+                  if (datos.length === 0) {
+                    return (
+                      <Paper sx={{ p: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+                        <Typography sx={{ fontWeight: 700, mb: 1, fontSize: 14 }}>
+                          Proyección de Recaudo — Próximos 30 días
+                        </Typography>
+                        <Box sx={{ textAlign: 'center', py: 4, opacity: 0.4 }}>
+                          <Typography color="text.secondary">No hay cobros programados en los próximos 30 días</Typography>
+                        </Box>
+                      </Paper>
+                    );
+                  }
+
+                  const BAR_H  = 130; // altura máxima de barra en px
                   const maxVal = Math.max(...datos.map(d => d.total), 1);
+
                   return (
                     <Paper sx={{ p: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
-                      <Typography sx={{ fontWeight: 700, mb: 2.5, fontSize: 14 }}>
-                        Proyección de Recaudo — Próximos Cobros
-                      </Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: 180, overflowX: 'auto', pb: 1 }}>
-                        {datos.map((d, i) => {
-                          const pct   = Math.round((d.total / maxVal) * 100);
-                          const label = (() => {
-                            try {
-                              return new Date(d.day + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
-                            } catch { return d.day; }
-                          })();
-                          return (
-                            <Tooltip key={i} title={`${label}: ${formatCurrency(d.total)}`} arrow placement="top">
-                              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: '1 0 32px', minWidth: 32, cursor: 'default' }}>
-                                {/* Valor encima */}
-                                <Typography sx={{ fontSize: 9, color: 'text.secondary', mb: 0.3, whiteSpace: 'nowrap' }}>
-                                  {d.total >= 1000 ? `$${(d.total / 1000).toFixed(0)}k` : `$${d.total}`}
-                                </Typography>
-                                {/* Barra */}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                        <Typography sx={{ fontWeight: 700, fontSize: 14 }}>
+                          Proyección de Recaudo — Próximos 30 días
+                        </Typography>
+                        <Chip
+                          label={`${datos.length} días con cobros`}
+                          size="small"
+                          sx={{ bgcolor: `${ACCENT}15`, color: ACCENT, fontWeight: 700, fontSize: 10 }}
+                        />
+                      </Box>
+
+                      {/* Contenedor del gráfico con altura fija en px */}
+                      <Box sx={{ overflowX: 'auto', pb: 1 }}>
+                        <Box sx={{
+                          display: 'flex',
+                          alignItems: 'flex-end',
+                          gap: '8px',
+                          height: BAR_H + 48, // barra + etiquetas arriba y abajo
+                          minWidth: datos.length * 48,
+                        }}>
+                          {datos.map((d, i) => {
+                            // Altura en PÍXELES — funciona correctamente en flex
+                            const barPx = Math.max(Math.round((d.total / maxVal) * BAR_H), 6);
+                            const label = (() => {
+                              try {
+                                return new Date(d.day + 'T00:00:00').toLocaleDateString('es-CO', {
+                                  day: '2-digit', month: 'short',
+                                });
+                              } catch { return d.day; }
+                            })();
+                            const isMax = d.total === maxVal;
+
+                            return (
+                              <Tooltip key={i} title={`${label}: ${formatCurrency(d.total)}`} arrow placement="top">
                                 <Box sx={{
-                                  width: '100%', height: `${Math.max(pct, 4)}%`,
-                                  bgcolor: i % 2 === 0 ? ACCENT : '#FFB38E',
-                                  borderRadius: '4px 4px 0 0',
-                                  transition: 'height 0.3s ease',
-                                  '&:hover': { opacity: 0.85 },
-                                }} />
-                                {/* Etiqueta fecha */}
-                                <Typography sx={{ fontSize: 9, color: 'text.secondary', mt: 0.5, textAlign: 'center', lineHeight: 1.1 }}>
-                                  {label}
-                                </Typography>
-                              </Box>
-                            </Tooltip>
-                          );
-                        })}
+                                  display: 'flex', flexDirection: 'column',
+                                  alignItems: 'center', flex: '1 0 44px', cursor: 'default',
+                                }}>
+                                  {/* Monto encima */}
+                                  <Typography sx={{
+                                    fontSize: 9, fontWeight: isMax ? 800 : 400,
+                                    color: isMax ? ACCENT : 'text.secondary',
+                                    mb: 0.5, whiteSpace: 'nowrap',
+                                  }}>
+                                    {d.total >= 1000000
+                                      ? `$${(d.total / 1000000).toFixed(1)}M`
+                                      : `$${(d.total / 1000).toFixed(0)}k`}
+                                  </Typography>
+
+                                  {/* Barra con altura en px */}
+                                  <Box sx={{
+                                    width: '80%',
+                                    height: `${barPx}px`,           // ← px, no %
+                                    bgcolor: isMax ? ACCENT : (i % 2 === 0 ? '#FFB38E' : `${ACCENT}60`),
+                                    borderRadius: '4px 4px 0 0',
+                                    transition: 'height 0.4s ease',
+                                    '&:hover': { opacity: 0.8, transform: 'scaleY(1.03)' },
+                                  }} />
+
+                                  {/* Fecha debajo */}
+                                  <Typography sx={{
+                                    fontSize: 9, color: 'text.secondary',
+                                    mt: 0.5, textAlign: 'center', lineHeight: 1.1,
+                                  }}>
+                                    {label}
+                                  </Typography>
+                                </Box>
+                              </Tooltip>
+                            );
+                          })}
+                        </Box>
+                      </Box>
+
+                      {/* Total del período */}
+                      <Box sx={{ mt: 2, pt: 1.5, borderTop: '1px dashed', borderColor: 'divider', display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Total proyectado</Typography>
+                        <Typography sx={{ fontSize: 13, fontWeight: 900, color: GREEN }}>
+                          {formatCurrency(datos.reduce((s, d) => s + d.total, 0))}
+                        </Typography>
                       </Box>
                     </Paper>
                   );
