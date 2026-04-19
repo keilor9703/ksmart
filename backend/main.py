@@ -2109,6 +2109,69 @@ def calendario_resumen(db: Session = Depends(get_db), current_user: models.User 
     return crud.get_calendario_cobros(db, current_user.empresa_id)
 
 
+
+# ─── Schema inline para abono a capital ──────────────────────────────────────
+class AbonoCapitalRequest(BaseModel):
+    monto_abono: float = Field(..., gt=0, description="Monto a aplicar al capital")
+
+
+# ─── Abono a capital ──────────────────────────────────────────────────────────
+@app.post("/prestamos/{prestamo_id}/abono-capital")
+def abono_capital(
+    prestamo_id: int,
+    req: AbonoCapitalRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    if req.monto_abono > 999_999_999:
+        raise HTTPException(status_code=400, detail="Monto sospechosamente alto")
+    return crud.aplicar_abono_capital(
+        db, empresa_id=current_user.empresa_id,
+        prestamo_id=prestamo_id, monto_abono=req.monto_abono,
+    )
+
+
+# ─── Resumen de mora de un préstamo ──────────────────────────────────────────
+@app.get("/prestamos/{prestamo_id}/mora")
+def resumen_mora_prestamo(
+    prestamo_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    prestamo = db.query(models.Prestamo).filter(
+        models.Prestamo.id         == prestamo_id,
+        models.Prestamo.empresa_id == current_user.empresa_id,
+    ).first()
+    if not prestamo:
+        raise HTTPException(status_code=404, detail="Préstamo no encontrado")
+
+    cuotas = db.query(models.CuotaPrestamo).filter(
+        models.CuotaPrestamo.prestamo_id == prestamo_id,
+        models.CuotaPrestamo.estado_pago != "Pagado",
+    ).all()
+
+    detalle = []
+    total_mora = 0.0
+    for c in cuotas:
+        info = crud.calcular_mora_cuota(c, prestamo.tasa_mora)
+        total_mora += info["mora"]
+        detalle.append({
+            "cuota_id":       c.id,
+            "numero_cuota":   c.numero_cuota,
+            "saldo_pendiente": c.saldo_pendiente,
+            "dias_vencido":   info["dias"],
+            "mora":           info["mora"],
+            "total_a_pagar":  info["total"],
+        })
+
+    return {
+        "prestamo_id":  prestamo_id,
+        "tasa_mora_mensual": prestamo.tasa_mora,
+        "total_mora_acumulada": round(total_mora, 2),
+        "cuotas_en_mora": [d for d in detalle if d["dias_vencido"] > 0],
+    }
+
+
 @app.get("/reportes/calendario-cobros")
 def calendario_cobros(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
     return crud.get_resumen_calendario_cobros(db, current_user.empresa_id)
