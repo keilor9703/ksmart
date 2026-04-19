@@ -489,6 +489,8 @@ class Prestamo(Base, TenantMixin):
     monto_total_pagar = Column(Float, nullable=False) # Capital + Intereses
     fecha_inicio = Column(DateTime(timezone=True), default=utcnow)
     estado = Column(String, default="Activo") # Activo, Pagado, En Mora
+    # Dentro de class Prestamo(Base):
+    tasa_mora = Column(Float, default=2.0)  # % mensual, ej: 2% = 0.066% diario
 
     cliente = relationship("Cliente")
     cuotas = relationship("CuotaPrestamo", back_populates="prestamo", cascade="all, delete-orphan")
