@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
+import {
   Box, Typography, Paper, CircularProgress, IconButton, Tooltip, Button,
-  Divider, Chip, Grid, TextField, InputAdornment, Autocomplete, FormControlLabel, Switch, Badge, Stack, Avatar
+  Divider, Chip, Grid, TextField, InputAdornment, Autocomplete,
+  FormControlLabel, Switch, Badge, Stack, Avatar
 } from '@mui/material';
-import { 
-  WhatsApp, CheckCircle, Search, DirectionsRun, LocationOn, PersonSearch, MoreTime, FilterList,
-  AccountBalanceWallet, AssignmentInd, TrendingUp, PointOfSale, Receipt, Edit, Print
+import {
+  WhatsApp, CheckCircle, Search, DirectionsRun, LocationOn,
+  PersonSearch, MoreTime, FilterList, AccountBalanceWallet,
+  AssignmentInd, TrendingUp, PointOfSale, Receipt, Edit, Print,
+  PictureAsPdf
 } from '@mui/icons-material';
-import apiClient, { registrarPagoRuta, reprogramarCuotaRuta } from '../api';
+import apiClient from '../api';
 import { formatCurrency } from '../utils/formatters';
 import { toast } from 'react-toastify';
 import Dialog from '@mui/material/Dialog';
@@ -20,7 +23,7 @@ const GREEN  = '#10B981';
 const BLUE   = '#3B82F6';
 const YELLOW = '#F59E0B';
 
-// ─── Formatea fecha legible ───────────────────────────────────────────────────
+// ─── Formatea fecha legible dd/mm/yyyy ────────────────────────────────────────
 const getSafeDateString = (fechaStr) => {
   if (!fechaStr) return 'Sin fecha';
   try {
@@ -32,7 +35,7 @@ const getSafeDateString = (fechaStr) => {
   }
 };
 
-// ─── Genera el texto completo del recibo para WhatsApp ───────────────────────
+// ─── Genera texto del recibo para WhatsApp ────────────────────────────────────
 const generarTextoRecibo = (cuota, montoPagado, saldoRestante) => {
   const ahora    = new Date();
   const fecha    = ahora.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -56,7 +59,7 @@ const generarTextoRecibo = (cuota, montoPagado, saldoRestante) => {
   );
 };
 
-// ─── Imprime recibo en ventana nueva ─────────────────────────────────────────
+// ─── Imprime recibo en ventana del navegador ──────────────────────────────────
 const imprimirRecibo = (cuota, montoPagado, saldoRestante) => {
   const ahora    = new Date();
   const fecha    = ahora.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -64,23 +67,22 @@ const imprimirRecibo = (cuota, montoPagado, saldoRestante) => {
   const saldo    = typeof saldoRestante === 'number' ? saldoRestante : (cuota.saldo_pendiente - montoPagado);
   const saldoFmt = saldo > 0 ? formatCurrency(Math.max(0, saldo)) : 'SALDADA ✓';
 
-  const html = `
-    <!DOCTYPE html>
+  const html = `<!DOCTYPE html>
     <html lang="es">
     <head>
       <meta charset="UTF-8"/>
       <title>Recibo #${cuota.cuota_id}</title>
       <style>
         * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family: 'Courier New', monospace; width: 280px; padding: 16px; font-size: 12px; }
-        .logo  { text-align:center; font-size:18px; font-weight:700; letter-spacing:1px; margin-bottom:4px; }
-        .sub   { text-align:center; font-size:10px; color:#555; margin-bottom:12px; }
-        .sep   { border-top:1px dashed #000; margin:8px 0; }
-        .row   { display:flex; justify-content:space-between; margin:3px 0; }
-        .label { color:#555; }
-        .val   { font-weight:700; text-align:right; }
-        .total { font-size:15px; margin-top:6px; }
-        .footer{ text-align:center; margin-top:12px; font-size:10px; color:#888; }
+        body { font-family:'Courier New',monospace; width:280px; padding:16px; font-size:12px; }
+        .logo   { text-align:center; font-size:18px; font-weight:700; letter-spacing:1px; margin-bottom:4px; }
+        .sub    { text-align:center; font-size:10px; color:#555; margin-bottom:12px; }
+        .sep    { border-top:1px dashed #000; margin:8px 0; }
+        .row    { display:flex; justify-content:space-between; margin:3px 0; }
+        .label  { color:#555; }
+        .val    { font-weight:700; text-align:right; }
+        .total  { font-size:15px; margin-top:6px; }
+        .footer { text-align:center; margin-top:12px; font-size:10px; color:#888; }
       </style>
     </head>
     <body>
@@ -100,8 +102,7 @@ const imprimirRecibo = (cuota, montoPagado, saldoRestante) => {
       <div class="sep"></div>
       <div class="footer">Ksmart360 · Gracias por su pago</div>
     </body>
-    </html>
-  `;
+    </html>`;
 
   const win = window.open('', '_blank', 'width=320,height=480');
   win.document.write(html);
@@ -110,22 +111,56 @@ const imprimirRecibo = (cuota, montoPagado, saldoRestante) => {
   setTimeout(() => { win.print(); win.close(); }, 400);
 };
 
-// ─── Componente principal ─────────────────────────────────────────────────────
-const RutaCobro = () => {
-  const [cuotas,        setCuotas]        = useState([]);
-  const [usuarios,      setUsuarios]      = useState([]);
-  const [resumenDias,   setResumenDias]   = useState([]);
-  const [loading,       setLoading]       = useState(true);
-  const [searchTerm,    setSearchTerm]    = useState('');
-  const [filtroFecha,   setFiltroFecha]   = useState(new Date().toISOString().split('T')[0]);
-  const [currentUser,   setCurrentUser]   = useState(null);
+// ─── Descarga el PDF desde el backend ─────────────────────────────────────────
+const descargarPDF = async (cuota, montoPagado, saldoRestante) => {
+  try {
+    const params = new URLSearchParams({
+      monto_pagado:    montoPagado,
+      saldo_restante:  Math.max(0, saldoRestante),
+    });
 
-  const [asignacionGlobal,    setAsignacionGlobal]    = useState({});
-  const [editandoAsignacion,  setEditandoAsignacion]  = useState({});
+    // apiClient ya tiene el token en los headers por interceptor
+    const response = await apiClient.get(
+      `/prestamos/cuotas/${cuota.cuota_id}/recibo-pdf?${params.toString()}`,
+      { responseType: 'blob' }   // ← clave: recibir bytes, no JSON
+    );
+
+    const blob    = new Blob([response.data], { type: 'application/pdf' });
+    const url     = URL.createObjectURL(blob);
+    const a       = document.createElement('a');
+    a.href        = url;
+    a.download    = `recibo_cuota_${cuota.cuota_id}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast.success('PDF descargado');
+  } catch (err) {
+    console.error(err);
+    toast.error('Error al generar el PDF. Verifica que reportlab esté instalado en el servidor.');
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COMPONENTE PRINCIPAL
+// ═══════════════════════════════════════════════════════════════════════════════
+const RutaCobro = () => {
+  const [cuotas,       setCuotas]       = useState([]);
+  const [usuarios,     setUsuarios]     = useState([]);
+  const [resumenDias,  setResumenDias]  = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [searchTerm,   setSearchTerm]   = useState('');
+  const [filtroFecha,  setFiltroFecha]  = useState(new Date().toISOString().split('T')[0]);
+  const [currentUser,  setCurrentUser]  = useState(null);
+
+  const [asignacionGlobal,   setAsignacionGlobal]   = useState({});
+  const [editandoAsignacion, setEditandoAsignacion] = useState({});
 
   const [pagoModal,        setPagoModal]        = useState({ open: false, cuota: null, monto: '' });
   const [reprogramarModal, setReprogramarModal] = useState({ open: false, cuota: null, nuevaFecha: '' });
   const [reciboModal,      setReciboModal]      = useState({ open: false, cuota: null, monto: 0, saldoRestante: 0 });
+  const [pdfLoading,       setPdfLoading]       = useState(false);
 
   const [liquidacionModal, setLiquidacionModal] = useState(false);
   const [datosLiquidacion, setDatosLiquidacion] = useState(null);
@@ -157,11 +192,12 @@ const RutaCobro = () => {
 
   const esAdmin = currentUser?.role?.name === 'Admin';
 
+  // ── Filtrado de cuotas ────────────────────────────────────────────────────
   const cuotasFiltradas = useMemo(() => {
     return cuotas.filter(c => {
       const asignadaAMi = !esAdmin ? c.usuario_asignado_id === currentUser?.id : true;
       const matchSearch =
-        (c.cliente_nombre  || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.cliente_nombre    || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (c.cliente_direccion || '').toLowerCase().includes(searchTerm.toLowerCase());
       const fechaCuota = c.fecha_vencimiento ? c.fecha_vencimiento.split('T')[0] : '';
       const matchFecha = filtroFecha ? fechaCuota === filtroFecha : true;
@@ -174,6 +210,7 @@ const RutaCobro = () => {
     cantidad: cuotasFiltradas.length,
   }), [cuotasFiltradas]);
 
+  // ── Liquidación diaria ────────────────────────────────────────────────────
   const abrirLiquidacion = async () => {
     try {
       const res = await apiClient.get('/prestamos/liquidacion-diaria');
@@ -189,6 +226,7 @@ const RutaCobro = () => {
     setLiquidacionModal(false);
   };
 
+  // ── Asignación de cobrador ────────────────────────────────────────────────
   const handleToggleGlobal = (cuotaId) =>
     setAsignacionGlobal(prev => ({ ...prev, [cuotaId]: !prev[cuotaId] }));
 
@@ -223,7 +261,7 @@ const RutaCobro = () => {
     }
   };
 
-  // ── Confirmar pago + mostrar modal de recibo ──────────────────────────────
+  // ── Confirmar pago → abrir modal recibo ───────────────────────────────────
   const confirmarPago = async () => {
     const { cuota, monto } = pagoModal;
     const montoPagado = parseFloat(monto);
@@ -236,8 +274,6 @@ const RutaCobro = () => {
 
       const saldoRestante = Math.max(0, (cuota.saldo_pendiente || 0) - montoPagado);
       setPagoModal({ open: false, cuota: null, monto: '' });
-
-      // Abrimos el modal de recibo con los datos del pago
       setReciboModal({ open: true, cuota, monto: montoPagado, saldoRestante });
       fetchInicial();
     } catch (error) {
@@ -245,6 +281,7 @@ const RutaCobro = () => {
     }
   };
 
+  // ── Reprogramar cuota ─────────────────────────────────────────────────────
   const confirmarReprogramacion = async () => {
     const { cuota, nuevaFecha } = reprogramarModal;
     try {
@@ -260,6 +297,13 @@ const RutaCobro = () => {
     }
   };
 
+  // ── Handler PDF con loading ───────────────────────────────────────────────
+  const handleDescargarPDF = async () => {
+    setPdfLoading(true);
+    await descargarPDF(reciboModal.cuota, reciboModal.monto, reciboModal.saldoRestante);
+    setPdfLoading(false);
+  };
+
   if (loading) return <Box sx={{ p: 5, textAlign: 'center' }}><CircularProgress /></Box>;
 
   return (
@@ -268,12 +312,13 @@ const RutaCobro = () => {
       {/* ── KPIs ── */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         {[
-          { icon: <AccountBalanceWallet />, color: BLUE,   label: 'TOTAL RUTA',    value: formatCurrency(kpis.total) },
-          { icon: <AssignmentInd />,        color: ACCENT, label: 'CLIENTES HOY',  value: `${kpis.cantidad} Pendientes` },
-          { icon: <TrendingUp />,           color: GREEN,  label: 'ESTADO',         value: esAdmin ? 'Supervisión' : 'Operativo' },
+          { icon: <AccountBalanceWallet />, color: BLUE,   label: 'TOTAL RUTA',   value: formatCurrency(kpis.total) },
+          { icon: <AssignmentInd />,        color: ACCENT, label: 'CLIENTES HOY', value: `${kpis.cantidad} Pendientes` },
+          { icon: <TrendingUp />,           color: GREEN,  label: 'ESTADO',       value: esAdmin ? 'Supervisión' : 'Operativo' },
         ].map(({ icon, color, label, value }) => (
           <Grid item xs={12} sm={4} key={label}>
-            <Paper sx={{ p: 2, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 2, border: '1px solid', borderColor: 'divider' }}>
+            <Paper sx={{ p: 2, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 2,
+              border: '1px solid', borderColor: 'divider' }}>
               <Avatar sx={{ bgcolor: `${color}15`, color }}>{icon}</Avatar>
               <Box>
                 <Typography variant="caption" color="text.secondary" fontWeight={700}>{label}</Typography>
@@ -285,7 +330,8 @@ const RutaCobro = () => {
       </Grid>
 
       {/* ── Header ── */}
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between',
+        alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 800 }}>
             {esAdmin ? 'Gestión de Rutas' : 'Mi Ruta de Cobro'}
@@ -301,7 +347,8 @@ const RutaCobro = () => {
               Cierre
             </Button>
           )}
-          <Box sx={{ p: 1.2, borderRadius: 3, bgcolor: `${ACCENT}15`, color: ACCENT, display: { xs: 'none', sm: 'flex' } }}>
+          <Box sx={{ p: 1.2, borderRadius: 3, bgcolor: `${ACCENT}15`, color: ACCENT,
+            display: { xs: 'none', sm: 'flex' } }}>
             <DirectionsRun fontSize="large" />
           </Box>
         </Box>
@@ -318,10 +365,12 @@ const RutaCobro = () => {
 
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
           <Chip label="Ver Todo" onClick={() => setFiltroFecha('')}
-            sx={{ fontWeight: 700, bgcolor: filtroFecha === '' ? 'action.selected' : 'background.default',
+            sx={{ fontWeight: 700,
+              bgcolor: filtroFecha === '' ? 'action.selected' : 'background.default',
               border: '1px solid', borderColor: filtroFecha === '' ? 'divider' : 'transparent' }} />
           {resumenDias.map(d => {
-            const labelStr = `${d.fecha.split('-')[2]} de ${new Date(d.fecha + 'T00:00:00').toLocaleDateString('es-CO', { month: 'short' })}`;
+            const labelStr = `${d.fecha.split('-')[2]} de ${new Date(d.fecha + 'T00:00:00')
+              .toLocaleDateString('es-CO', { month: 'short' })}`;
             return (
               <Badge key={d.fecha} badgeContent={d.total_cuotas} color="error"
                 sx={{ '& .MuiBadge-badge': { right: 5, top: 5 } }}>
@@ -340,7 +389,8 @@ const RutaCobro = () => {
           InputProps={{
             disableUnderline: true,
             startAdornment: <InputAdornment position="start"><Search sx={{ color: 'text.secondary' }} /></InputAdornment>,
-            sx: { borderRadius: 3, bgcolor: 'background.default', px: 2, py: 0.5, border: '1px solid', borderColor: 'divider' },
+            sx: { borderRadius: 3, bgcolor: 'background.default', px: 2, py: 0.5,
+              border: '1px solid', borderColor: 'divider' },
           }}
           variant="standard" />
       </Paper>
@@ -348,8 +398,11 @@ const RutaCobro = () => {
       {/* ── Lista de cuotas ── */}
       <Stack spacing={3}>
         {cuotasFiltradas.length === 0 ? (
-          <Paper sx={{ p: 8, textAlign: 'center', borderRadius: 4, bgcolor: 'action.hover', border: '2px dashed', borderColor: 'divider' }}>
-            <Typography color="text.secondary">No se encontraron cobros pendientes para esta selección.</Typography>
+          <Paper sx={{ p: 8, textAlign: 'center', borderRadius: 4,
+            bgcolor: 'action.hover', border: '2px dashed', borderColor: 'divider' }}>
+            <Typography color="text.secondary">
+              No se encontraron cobros pendientes para esta selección.
+            </Typography>
           </Paper>
         ) : (
           cuotasFiltradas.map(cuota => {
@@ -358,27 +411,42 @@ const RutaCobro = () => {
             const estaEditando     = editandoAsignacion[idReal];
 
             return (
-              <Paper key={idReal} sx={{ p: { xs: 2, sm: 3 }, borderRadius: 4, border: '1px solid', borderColor: 'divider', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
+              <Paper key={idReal} sx={{ p: { xs: 2, sm: 3 }, borderRadius: 4,
+                border: '1px solid', borderColor: 'divider',
+                boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
                 <Stack spacing={2}>
 
-                  {/* Encabezado cuota */}
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
+                  {/* Encabezado */}
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between',
+                    alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
                     <Box sx={{ flex: 1, minWidth: '200px' }}>
-                      <Typography sx={{ fontWeight: 800, fontSize: 18, lineHeight: 1.2 }}>{cuota.cliente_nombre}</Typography>
-                      <Typography sx={{ fontSize: 13, color: 'text.secondary', mt: 0.5 }}>{cuota.cliente_direccion || 'Sin dirección'}</Typography>
+                      <Typography sx={{ fontWeight: 800, fontSize: 18, lineHeight: 1.2 }}>
+                        {cuota.cliente_nombre}
+                      </Typography>
+                      <Typography sx={{ fontSize: 13, color: 'text.secondary', mt: 0.5 }}>
+                        {cuota.cliente_direccion || 'Sin dirección'}
+                      </Typography>
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
-                        <Chip label={`Cuota #${cuota.numero_cuota}`} size="small" sx={{ fontWeight: 700, bgcolor: 'action.selected' }} />
+                        <Chip label={`Cuota #${cuota.numero_cuota}`} size="small"
+                          sx={{ fontWeight: 700, bgcolor: 'action.selected' }} />
                         <Chip label={getSafeDateString(cuota.fecha_vencimiento)} size="small" variant="outlined" />
-                        {!esAdmin && cuota.usuario_asignado_id && <Chip icon={<AssignmentInd />} label="Mi Ruta" size="small" color="success" variant="outlined" />}
+                        {!esAdmin && cuota.usuario_asignado_id && (
+                          <Chip icon={<AssignmentInd />} label="Mi Ruta"
+                            size="small" color="success" variant="outlined" />
+                        )}
                       </Box>
                     </Box>
                     <Box sx={{ textAlign: { xs: 'left', sm: 'right' }, minWidth: '120px' }}>
-                      <Typography sx={{ fontSize: 10, fontWeight: 800, color: 'text.secondary' }}>RECAUDAR</Typography>
-                      <Typography sx={{ fontWeight: 900, fontSize: 24, color: GREEN }}>{formatCurrency(cuota.saldo_pendiente ?? cuota.monto_cuota)}</Typography>
+                      <Typography sx={{ fontSize: 10, fontWeight: 800, color: 'text.secondary' }}>
+                        RECAUDAR
+                      </Typography>
+                      <Typography sx={{ fontWeight: 900, fontSize: 24, color: GREEN }}>
+                        {formatCurrency(cuota.saldo_pendiente ?? cuota.monto_cuota)}
+                      </Typography>
                     </Box>
                   </Box>
 
-                  {/* Asignación cobrador (Admin) */}
+                  {/* Asignación cobrador (solo Admin) */}
                   {esAdmin && (
                     <Box sx={{ p: 2, bgcolor: 'background.default', borderRadius: 3 }}>
                       {cobradorAsignado && !estaEditando ? (
@@ -388,8 +456,12 @@ const RutaCobro = () => {
                               <AssignmentInd sx={{ fontSize: 18 }} />
                             </Avatar>
                             <Box>
-                              <Typography sx={{ fontSize: 10, color: 'text.secondary', fontWeight: 700 }}>COBRADOR ASIGNADO</Typography>
-                              <Typography sx={{ fontSize: 14, fontWeight: 800 }}>{cobradorAsignado.username.toUpperCase()}</Typography>
+                              <Typography sx={{ fontSize: 10, color: 'text.secondary', fontWeight: 700 }}>
+                                COBRADOR ASIGNADO
+                              </Typography>
+                              <Typography sx={{ fontSize: 14, fontWeight: 800 }}>
+                                {cobradorAsignado.username.toUpperCase()}
+                              </Typography>
                             </Box>
                           </Box>
                           <Button size="small" variant="outlined" startIcon={<Edit />}
@@ -405,20 +477,32 @@ const RutaCobro = () => {
                               {cobradorAsignado ? 'Reasignar Cobrador' : 'Asignar Cobrador'}
                             </Typography>
                             <FormControlLabel
-                              control={<Switch size="small" checked={!!asignacionGlobal[idReal]} onChange={() => handleToggleGlobal(idReal)} color="primary" />}
+                              control={
+                                <Switch size="small"
+                                  checked={!!asignacionGlobal[idReal]}
+                                  onChange={() => handleToggleGlobal(idReal)}
+                                  color="primary" />
+                              }
                               label={<Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Todo el préstamo</Typography>}
                             />
                           </Stack>
-                          <Autocomplete fullWidth options={usuarios}
+                          <Autocomplete
+                            fullWidth options={usuarios}
                             getOptionLabel={o => o.username ? o.username.toUpperCase() : ''}
                             value={cobradorAsignado}
                             onChange={(e, newValue) => handleAsignar(cuota, newValue)}
                             renderInput={params => (
-                              <TextField {...params} size="small" placeholder="Busca por nombre..." autoFocus={estaEditando}
+                              <TextField {...params} size="small" placeholder="Busca por nombre..."
+                                autoFocus={estaEditando}
                                 InputProps={{
                                   ...params.InputProps,
                                   startAdornment: (
-                                    <><InputAdornment position="start"><PersonSearch sx={{ color: ACCENT, ml: 1 }} /></InputAdornment>{params.InputProps.startAdornment}</>
+                                    <>
+                                      <InputAdornment position="start">
+                                        <PersonSearch sx={{ color: ACCENT, ml: 1 }} />
+                                      </InputAdornment>
+                                      {params.InputProps.startAdornment}
+                                    </>
                                   ),
                                   sx: { borderRadius: 2, bgcolor: 'background.paper' },
                                 }} />
@@ -438,33 +522,47 @@ const RutaCobro = () => {
 
                   <Divider sx={{ borderStyle: 'dashed' }} />
 
-                  {/* Acciones */}
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+                  {/* Botones de acción */}
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between',
+                    alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
                     <Box sx={{ display: 'flex', gap: 1.5 }}>
                       <Tooltip title="Ubicación en Maps">
                         <IconButton onClick={() => handleOpenMaps(cuota.cliente_direccion)}
-                          sx={{ bgcolor: BLUE, color: 'white', '&:hover': { bgcolor: '#2563EB' }, width: 44, height: 44, boxShadow: '0 4px 10px rgba(59,130,246,0.3)' }}>
+                          sx={{ bgcolor: BLUE, color: 'white', '&:hover': { bgcolor: '#2563EB' },
+                            width: 44, height: 44, boxShadow: '0 4px 10px rgba(59,130,246,0.3)' }}>
                           <LocationOn fontSize="small" />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Chat WhatsApp">
-                        <IconButton onClick={() => window.open(`https://wa.me/57${cuota.cliente_telefono}`, '_blank')}
-                          sx={{ bgcolor: '#22C55E', color: 'white', '&:hover': { bgcolor: '#16A34A' }, width: 44, height: 44, boxShadow: '0 4px 10px rgba(34,197,94,0.3)' }}>
+                        <IconButton
+                          onClick={() => window.open(`https://wa.me/57${cuota.cliente_telefono}`, '_blank')}
+                          sx={{ bgcolor: '#22C55E', color: 'white', '&:hover': { bgcolor: '#16A34A' },
+                            width: 44, height: 44, boxShadow: '0 4px 10px rgba(34,197,94,0.3)' }}>
                           <WhatsApp fontSize="small" />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Reprogramar Visita">
                         <IconButton
-                          onClick={() => setReprogramarModal({ open: true, cuota, nuevaFecha: cuota.fecha_vencimiento ? cuota.fecha_vencimiento.split('T')[0] : '' })}
-                          sx={{ bgcolor: YELLOW, color: 'white', '&:hover': { bgcolor: '#D97706' }, width: 44, height: 44, boxShadow: '0 4px 10px rgba(245,158,11,0.3)' }}>
+                          onClick={() => setReprogramarModal({
+                            open: true, cuota,
+                            nuevaFecha: cuota.fecha_vencimiento
+                              ? cuota.fecha_vencimiento.split('T')[0] : ''
+                          })}
+                          sx={{ bgcolor: YELLOW, color: 'white', '&:hover': { bgcolor: '#D97706' },
+                            width: 44, height: 44, boxShadow: '0 4px 10px rgba(245,158,11,0.3)' }}>
                           <MoreTime fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     </Box>
 
                     <Button variant="contained" startIcon={<CheckCircle />}
-                      onClick={() => setPagoModal({ open: true, cuota, monto: cuota.saldo_pendiente ?? cuota.monto_cuota })}
-                      sx={{ bgcolor: GREEN, px: 3, py: 1, borderRadius: 3, fontWeight: 800, boxShadow: '0 4px 12px rgba(16,185,129,0.3)', '&:hover': { bgcolor: '#059669' } }}>
+                      onClick={() => setPagoModal({
+                        open: true, cuota,
+                        monto: cuota.saldo_pendiente ?? cuota.monto_cuota
+                      })}
+                      sx={{ bgcolor: GREEN, px: 3, py: 1, borderRadius: 3, fontWeight: 800,
+                        boxShadow: '0 4px 12px rgba(16,185,129,0.3)',
+                        '&:hover': { bgcolor: '#059669' } }}>
                       RECAUDAR
                     </Button>
                   </Box>
@@ -478,7 +576,9 @@ const RutaCobro = () => {
       {/* ════════════════════════════════════════════════════
           MODAL: Registrar pago
           ════════════════════════════════════════════════════ */}
-      <Dialog open={pagoModal.open} onClose={() => setPagoModal({ ...pagoModal, open: false })} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+      <Dialog open={pagoModal.open}
+        onClose={() => setPagoModal({ ...pagoModal, open: false })}
+        maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
         <DialogTitle sx={{ fontWeight: 800 }}>Registrar Recaudo</DialogTitle>
         <DialogContent>
           <Typography variant="body2" mb={2}>
@@ -490,70 +590,116 @@ const RutaCobro = () => {
             InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }} />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3 }}>
-          <Button onClick={() => setPagoModal({ ...pagoModal, open: false })} color="inherit">Cancelar</Button>
-          <Button onClick={confirmarPago} variant="contained" sx={{ bgcolor: GREEN, fontWeight: 800 }}>Confirmar</Button>
+          <Button onClick={() => setPagoModal({ ...pagoModal, open: false })} color="inherit">
+            Cancelar
+          </Button>
+          <Button onClick={confirmarPago} variant="contained"
+            sx={{ bgcolor: GREEN, fontWeight: 800 }}>
+            Confirmar
+          </Button>
         </DialogActions>
       </Dialog>
 
       {/* ════════════════════════════════════════════════════
-          MODAL: Recibo post-pago (WhatsApp + Imprimir)
+          MODAL: Recibo post-pago
+          — WhatsApp + Imprimir + Descargar PDF
           ════════════════════════════════════════════════════ */}
-      <Dialog open={reciboModal.open} onClose={() => setReciboModal({ ...reciboModal, open: false })} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+      <Dialog open={reciboModal.open}
+        onClose={() => setReciboModal({ ...reciboModal, open: false })}
+        maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+
         <DialogTitle sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1 }}>
           <Receipt sx={{ color: GREEN }} /> Pago Registrado
         </DialogTitle>
+
         <DialogContent>
-          {/* Resumen visual del recibo */}
+          {/* Resumen visual */}
           <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2, mb: 2, bgcolor: `${GREEN}08` }}>
             <Stack spacing={1}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                 <Typography variant="caption" color="text.secondary">Cliente</Typography>
-                <Typography variant="caption" fontWeight={700}>{reciboModal.cuota?.cliente_nombre}</Typography>
+                <Typography variant="caption" fontWeight={700}>
+                  {reciboModal.cuota?.cliente_nombre}
+                </Typography>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                 <Typography variant="caption" color="text.secondary">Préstamo / Cuota</Typography>
-                <Typography variant="caption" fontWeight={700}>#{reciboModal.cuota?.prestamo_id} / #{reciboModal.cuota?.numero_cuota}</Typography>
+                <Typography variant="caption" fontWeight={700}>
+                  #{reciboModal.cuota?.prestamo_id} / #{reciboModal.cuota?.numero_cuota}
+                </Typography>
               </Box>
               <Divider sx={{ borderStyle: 'dashed', my: 0.5 }} />
               <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                 <Typography variant="body2" color="text.secondary">Recibido</Typography>
-                <Typography variant="body2" fontWeight={900} color={GREEN}>{formatCurrency(reciboModal.monto)}</Typography>
+                <Typography variant="body2" fontWeight={900} color={GREEN}>
+                  {formatCurrency(reciboModal.monto)}
+                </Typography>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                 <Typography variant="body2" color="text.secondary">Saldo restante</Typography>
-                <Typography variant="body2" fontWeight={700} color={reciboModal.saldoRestante > 0 ? ACCENT : GREEN}>
-                  {reciboModal.saldoRestante > 0 ? formatCurrency(reciboModal.saldoRestante) : '✅ Saldada'}
+                <Typography variant="body2" fontWeight={700}
+                  color={reciboModal.saldoRestante > 0 ? ACCENT : GREEN}>
+                  {reciboModal.saldoRestante > 0
+                    ? formatCurrency(reciboModal.saldoRestante)
+                    : '✅ Saldada'}
                 </Typography>
               </Box>
             </Stack>
           </Paper>
 
           <Typography variant="caption" color="text.secondary">
-            ¿Deseas enviar el recibo al cliente?
+            ¿Cómo deseas compartir el recibo con el cliente?
           </Typography>
         </DialogContent>
+
         <DialogActions sx={{ px: 3, pb: 3, gap: 1, flexWrap: 'wrap' }}>
-          <Button onClick={() => setReciboModal({ ...reciboModal, open: false })} color="inherit" sx={{ fontWeight: 700 }}>
+          {/* Cerrar */}
+          <Button onClick={() => setReciboModal({ ...reciboModal, open: false })}
+            color="inherit" sx={{ fontWeight: 700 }}>
             Cerrar
           </Button>
+
+          {/* Descargar PDF ← NUEVO */}
+          <Button
+            startIcon={pdfLoading
+              ? <CircularProgress size={16} color="inherit" />
+              : <PictureAsPdf />}
+            variant="outlined"
+            disabled={pdfLoading}
+            onClick={handleDescargarPDF}
+            sx={{
+              fontWeight: 700, borderRadius: 2,
+              color: '#DC2626', borderColor: '#DC2626',
+              '&:hover': { bgcolor: '#FEF2F2', borderColor: '#DC2626' },
+            }}>
+            {pdfLoading ? 'Generando...' : 'Descargar PDF'}
+          </Button>
+
+          {/* Imprimir */}
           <Button
             startIcon={<Print />}
             variant="outlined"
             onClick={() => imprimirRecibo(reciboModal.cuota, reciboModal.monto, reciboModal.saldoRestante)}
-            sx={{ fontWeight: 700, borderRadius: 2 }}
-          >
+            sx={{ fontWeight: 700, borderRadius: 2 }}>
             Imprimir
           </Button>
+
+          {/* WhatsApp */}
           <Button
             startIcon={<WhatsApp />}
             variant="contained"
             onClick={() => {
-              const texto = generarTextoRecibo(reciboModal.cuota, reciboModal.monto, reciboModal.saldoRestante);
-              window.open(`https://wa.me/57${reciboModal.cuota?.cliente_telefono}?text=${encodeURIComponent(texto)}`, '_blank');
+              const texto = generarTextoRecibo(
+                reciboModal.cuota, reciboModal.monto, reciboModal.saldoRestante
+              );
+              window.open(
+                `https://wa.me/57${reciboModal.cuota?.cliente_telefono}?text=${encodeURIComponent(texto)}`,
+                '_blank'
+              );
             }}
-            sx={{ bgcolor: '#22C55E', fontWeight: 800, borderRadius: 2, '&:hover': { bgcolor: '#16A34A' } }}
-          >
-            Enviar por WhatsApp
+            sx={{ bgcolor: '#22C55E', fontWeight: 800, borderRadius: 2,
+              '&:hover': { bgcolor: '#16A34A' } }}>
+            WhatsApp
           </Button>
         </DialogActions>
       </Dialog>
@@ -561,55 +707,78 @@ const RutaCobro = () => {
       {/* ════════════════════════════════════════════════════
           MODAL: Reprogramar cobro
           ════════════════════════════════════════════════════ */}
-      <Dialog open={reprogramarModal.open} onClose={() => setReprogramarModal({ ...reprogramarModal, open: false })} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+      <Dialog open={reprogramarModal.open}
+        onClose={() => setReprogramarModal({ ...reprogramarModal, open: false })}
+        maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
         <DialogTitle sx={{ fontWeight: 800 }}>Reprogramar Cobro</DialogTitle>
         <DialogContent>
-          <Typography variant="body2" mb={2}>Selecciona la nueva fecha de compromiso para este cliente.</Typography>
+          <Typography variant="body2" mb={2}>
+            Selecciona la nueva fecha de compromiso para este cliente.
+          </Typography>
           <TextField fullWidth type="date" InputLabelProps={{ shrink: true }}
             value={reprogramarModal.nuevaFecha}
             onChange={e => setReprogramarModal({ ...reprogramarModal, nuevaFecha: e.target.value })} />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3 }}>
-          <Button onClick={() => setReprogramarModal({ ...reprogramarModal, open: false })} color="inherit">Cancelar</Button>
-          <Button onClick={confirmarReprogramacion} variant="contained" sx={{ bgcolor: YELLOW, fontWeight: 800 }}>Guardar Fecha</Button>
+          <Button onClick={() => setReprogramarModal({ ...reprogramarModal, open: false })} color="inherit">
+            Cancelar
+          </Button>
+          <Button onClick={confirmarReprogramacion} variant="contained"
+            sx={{ bgcolor: YELLOW, fontWeight: 800 }}>
+            Guardar Fecha
+          </Button>
         </DialogActions>
       </Dialog>
 
       {/* ════════════════════════════════════════════════════
           MODAL: Liquidación diaria
           ════════════════════════════════════════════════════ */}
-      <Dialog open={liquidacionModal} onClose={() => setLiquidacionModal(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 4 } }}>
+      <Dialog open={liquidacionModal} onClose={() => setLiquidacionModal(false)}
+        maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 4 } }}>
         <DialogTitle sx={{ fontWeight: 900, textAlign: 'center', bgcolor: 'action.hover', pb: 3 }}>
           Liquidación Diaria
-          <Typography variant="body2" color="text.secondary">Resumen de efectivo a entregar hoy</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Resumen de efectivo a entregar hoy
+          </Typography>
         </DialogTitle>
         <DialogContent sx={{ pt: 3 }}>
           {datosLiquidacion?.cobradores?.length === 0 ? (
-            <Typography textAlign="center" color="text.secondary" py={4}>No hay recaudos registrados hoy.</Typography>
+            <Typography textAlign="center" color="text.secondary" py={4}>
+              No hay recaudos registrados hoy.
+            </Typography>
           ) : (
             <Stack spacing={2} mt={2}>
               {datosLiquidacion?.cobradores.map(cob => (
-                <Paper key={cob.cobrador_id} variant="outlined" sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Paper key={cob.cobrador_id} variant="outlined"
+                  sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Box>
                     <Typography fontWeight={800} fontSize={16}>{cob.cobrador_nombre}</Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Typography variant="caption" color="text.secondary"
+                      sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                       <Receipt fontSize="small" /> {cob.cuotas_cobradas} recibos hoy
                     </Typography>
                   </Box>
-                  <Typography fontWeight={900} fontSize={20} color={GREEN}>{formatCurrency(cob.total_recaudado)}</Typography>
+                  <Typography fontWeight={900} fontSize={20} color={GREEN}>
+                    {formatCurrency(cob.total_recaudado)}
+                  </Typography>
                 </Paper>
               ))}
               <Divider sx={{ my: 2, borderStyle: 'dashed' }} />
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1 }}>
                 <Typography fontWeight={800} fontSize={18}>EFECTIVO TOTAL:</Typography>
-                <Typography fontWeight={900} fontSize={26} color={ACCENT}>{formatCurrency(datosLiquidacion?.total_global || 0)}</Typography>
+                <Typography fontWeight={900} fontSize={26} color={ACCENT}>
+                  {formatCurrency(datosLiquidacion?.total_global || 0)}
+                </Typography>
               </Box>
             </Stack>
           )}
         </DialogContent>
         <DialogActions sx={{ p: 3 }}>
-          <Button onClick={() => setLiquidacionModal(false)} color="inherit" sx={{ fontWeight: 700 }}>Cerrar</Button>
-          <Button onClick={confirmarLiquidacion} variant="contained" disabled={!datosLiquidacion?.cobradores?.length}
+          <Button onClick={() => setLiquidacionModal(false)} color="inherit" sx={{ fontWeight: 700 }}>
+            Cerrar
+          </Button>
+          <Button onClick={confirmarLiquidacion} variant="contained"
+            disabled={!datosLiquidacion?.cobradores?.length}
             sx={{ bgcolor: ACCENT, fontWeight: 800 }}>
             Recibir Dinero
           </Button>
