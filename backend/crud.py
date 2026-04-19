@@ -2949,14 +2949,16 @@ def crear_prestamo(db: Session, prestamo: schemas.PrestamoCreate, empresa_id: in
     monto_por_cuota = monto_total / prestamo.cantidad_cuotas
     
     # 2. Crear el encabezado del Préstamo
+  # En crud.crear_prestamo, al crear db_prestamo:
     db_prestamo = models.Prestamo(
-        empresa_id=empresa_id,
-        cliente_id=prestamo.cliente_id,
-        monto_prestado=prestamo.monto_prestado,
-        tasa_interes=prestamo.tasa_interes,
-        cantidad_cuotas=prestamo.cantidad_cuotas,
-        modalidad=prestamo.modalidad,
-        monto_total_pagar=monto_total
+        empresa_id      = empresa_id,
+        cliente_id      = prestamo.cliente_id,
+        monto_prestado  = prestamo.monto_prestado,
+        tasa_interes    = prestamo.tasa_interes,
+        cantidad_cuotas = prestamo.cantidad_cuotas,
+        modalidad       = prestamo.modalidad,
+        monto_total_pagar = monto_total,
+        tasa_mora       = prestamo.tasa_mora,   # ← nuevo
     )
     db.add(db_prestamo)
     db.commit()
