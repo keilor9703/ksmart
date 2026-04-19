@@ -2230,6 +2230,162 @@ def liquidacion_diaria_ruta(
     }
 
 
+
+from reportlab.lib.pagesizes import A6
+from reportlab.lib.units import mm
+from reportlab.pdfgen import canvas as pdf_canvas
+from reportlab.lib import colors
+import io as _io
+
+@app.get("/prestamos/cuotas/{cuota_id}/recibo-pdf")
+def descargar_recibo_pdf(
+    cuota_id: int,
+    monto_pagado: float,
+    saldo_restante: float = 0.0,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Genera y retorna un recibo de pago en PDF listo para descargar."""
+
+    # ── Buscar cuota ──────────────────────────────────────────────────────────
+    cuota = (
+        db.query(models.CuotaPrestamo)
+        .join(models.Prestamo)
+        .join(models.Cliente)
+        .filter(
+            models.CuotaPrestamo.id == cuota_id,
+            models.CuotaPrestamo.empresa_id == current_user.empresa_id,
+        )
+        .first()
+    )
+    if not cuota:
+        raise HTTPException(status_code=404, detail="Cuota no encontrada")
+
+    prestamo       = cuota.prestamo
+    cliente        = prestamo.cliente
+    empresa        = current_user.empresa
+    ahora          = datetime.now(crud.BOGOTA_TZ)
+    fecha_str      = ahora.strftime("%d/%m/%Y %H:%M")
+    vence_str      = cuota.fecha_vencimiento.strftime("%d/%m/%Y") if cuota.fecha_vencimiento else "—"
+
+    def fmt_cop(val: float) -> str:
+        return f"$ {val:,.0f}".replace(",", ".")
+
+    # ── Generar PDF en memoria ────────────────────────────────────────────────
+    buffer = _io.BytesIO()
+
+    # Tamaño tipo recibo térmico: 80mm × 140mm
+    W, H = 80 * mm, 140 * mm
+    c = pdf_canvas.Canvas(buffer, pagesize=(W, H))
+
+    GRAY    = colors.HexColor("#64748b")
+    DARK    = colors.HexColor("#0f172a")
+    ORANGE  = colors.HexColor("#FF6020")
+    GREEN   = colors.HexColor("#10B981")
+    RED     = colors.HexColor("#EF4444")
+
+    def line_h(y, color=GRAY, width=0.5):
+        c.setStrokeColor(color)
+        c.setLineWidth(width)
+        c.line(5 * mm, y, W - 5 * mm, y)
+
+    y = H - 8 * mm  # cursor vertical, de arriba hacia abajo
+
+    # ── Cabecera ──────────────────────────────────────────────────────────────
+    c.setFillColor(ORANGE)
+    c.setFont("Helvetica-Bold", 14)
+    c.drawCentredString(W / 2, y, "KSMART360")
+    y -= 5 * mm
+
+    c.setFillColor(GRAY)
+    c.setFont("Helvetica", 7)
+    c.drawCentredString(W / 2, y, empresa.nombre.upper())
+    y -= 4 * mm
+
+    c.setFont("Helvetica", 7)
+    c.drawCentredString(W / 2, y, "RECIBO DE PAGO")
+    y -= 3 * mm
+
+    line_h(y, ORANGE, 1)
+    y -= 5 * mm
+
+    # ── Info del recibo ───────────────────────────────────────────────────────
+    def row(label: str, value: str, bold_val: bool = False, val_color=DARK):
+        nonlocal y
+        c.setFillColor(GRAY)
+        c.setFont("Helvetica", 7)
+        c.drawString(5 * mm, y, label)
+
+        c.setFillColor(val_color)
+        font = "Helvetica-Bold" if bold_val else "Helvetica"
+        c.setFont(font, 7)
+        c.drawRightString(W - 5 * mm, y, value)
+        y -= 4.5 * mm
+
+    row("Recibo N°",    f"{cuota_id:06d}")
+    row("Fecha",        fecha_str)
+    row("Empresa",      empresa.nombre[:28])
+    y -= 1 * mm
+    line_h(y)
+    y -= 4 * mm
+
+    row("Cliente",      cliente.nombre[:28])
+    row("Préstamo #",   str(prestamo.id))
+    row("Cuota #",      f"{cuota.numero_cuota} de {prestamo.cantidad_cuotas}")
+    row("Vencimiento",  vence_str)
+    y -= 1 * mm
+    line_h(y)
+    y -= 5 * mm
+
+    # ── Montos ────────────────────────────────────────────────────────────────
+    c.setFillColor(GRAY)
+    c.setFont("Helvetica", 7)
+    c.drawCentredString(W / 2, y, "DETALLE DEL PAGO")
+    y -= 5 * mm
+
+    row("Valor recibido", fmt_cop(monto_pagado), bold_val=True, val_color=GREEN)
+
+    if saldo_restante > 0:
+        row("Saldo pendiente", fmt_cop(saldo_restante), val_color=ORANGE)
+    else:
+        row("Estado cuota", "SALDADA ✓", bold_val=True, val_color=GREEN)
+
+    y -= 2 * mm
+    line_h(y, ORANGE, 0.8)
+    y -= 6 * mm
+
+    # ── Monto grande central ──────────────────────────────────────────────────
+    c.setFillColor(GREEN)
+    c.setFont("Helvetica-Bold", 18)
+    c.drawCentredString(W / 2, y, fmt_cop(monto_pagado))
+    y -= 5 * mm
+
+    c.setFillColor(GRAY)
+    c.setFont("Helvetica", 7)
+    c.drawCentredString(W / 2, y, "VALOR RECIBIDO")
+    y -= 8 * mm
+
+    line_h(y)
+    y -= 5 * mm
+
+    # ── Footer ────────────────────────────────────────────────────────────────
+    c.setFillColor(GRAY)
+    c.setFont("Helvetica", 6)
+    c.drawCentredString(W / 2, y, "Gracias por su pago")
+    y -= 3.5 * mm
+    c.drawCentredString(W / 2, y, f"Powered by KSMP Systems · {ahora.year}")
+
+    c.save()
+    buffer.seek(0)
+
+    filename = f"recibo_cuota_{cuota_id}_{ahora.strftime('%Y%m%d')}.pdf"
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # ESTÁTICOS Y UTILIDADES
 # ═══════════════════════════════════════════════════════════════════════════════
