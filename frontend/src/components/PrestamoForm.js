@@ -11,10 +11,6 @@ import {
   KeyboardArrowDown, KeyboardArrowUp, Person,
   TrendingUp, AccountBalance, PriceCheck, Warning
 } from '@mui/icons-material';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip,
-  ResponsiveContainer, Cell
-} from 'recharts';
 import apiClient, { createPrestamo } from '../api';
 import { formatCurrency } from '../utils/formatters';
 import { toast } from 'react-toastify';
@@ -570,35 +566,50 @@ const Prestamos = () => {
                   </Grid>
                 </Paper>
 
-                {/* ── Gráfica de proyección mensual ── */}
-                {reporte.proyeccion_recaudo_mes?.length > 0 && (
-                  <Paper sx={{ p: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
-                    <Typography sx={{ fontWeight: 700, mb: 2.5, fontSize: 14 }}>Proyección de Recaudo — Próximos Cobros</Typography>
-                    <ResponsiveContainer width="100%" height={220}>
-                      <BarChart data={reporte.proyeccion_recaudo_mes} margin={{ top: 0, right: 8, left: 8, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                        <XAxis dataKey="day"
-                          tickFormatter={v => {
-                            try { return new Date(v + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }); }
-                            catch { return v; }
-                          }}
-                          tick={{ fontSize: 10 }} />
-                        <YAxis tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} />
-                        <ChartTooltip
-                          formatter={(val) => [formatCurrency(val), 'Recaudo']}
-                          labelFormatter={l => {
-                            try { return new Date(l + 'T00:00:00').toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' }); }
-                            catch { return l; }
-                          }} />
-                        <Bar dataKey="total" radius={[4, 4, 0, 0]}>
-                          {reporte.proyeccion_recaudo_mes.map((_, i) => (
-                            <Cell key={i} fill={i % 2 === 0 ? ACCENT : '#FFB38E'} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </Paper>
-                )}
+                {/* ── Gráfica de proyección mensual (CSS pura, sin librerías) ── */}
+                {reporte.proyeccion_recaudo_mes?.length > 0 && (() => {
+                  const datos  = reporte.proyeccion_recaudo_mes.slice(0, 14); // máx 14 días
+                  const maxVal = Math.max(...datos.map(d => d.total), 1);
+                  return (
+                    <Paper sx={{ p: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+                      <Typography sx={{ fontWeight: 700, mb: 2.5, fontSize: 14 }}>
+                        Proyección de Recaudo — Próximos Cobros
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: 180, overflowX: 'auto', pb: 1 }}>
+                        {datos.map((d, i) => {
+                          const pct   = Math.round((d.total / maxVal) * 100);
+                          const label = (() => {
+                            try {
+                              return new Date(d.day + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
+                            } catch { return d.day; }
+                          })();
+                          return (
+                            <Tooltip key={i} title={`${label}: ${formatCurrency(d.total)}`} arrow placement="top">
+                              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: '1 0 32px', minWidth: 32, cursor: 'default' }}>
+                                {/* Valor encima */}
+                                <Typography sx={{ fontSize: 9, color: 'text.secondary', mb: 0.3, whiteSpace: 'nowrap' }}>
+                                  {d.total >= 1000 ? `$${(d.total / 1000).toFixed(0)}k` : `$${d.total}`}
+                                </Typography>
+                                {/* Barra */}
+                                <Box sx={{
+                                  width: '100%', height: `${Math.max(pct, 4)}%`,
+                                  bgcolor: i % 2 === 0 ? ACCENT : '#FFB38E',
+                                  borderRadius: '4px 4px 0 0',
+                                  transition: 'height 0.3s ease',
+                                  '&:hover': { opacity: 0.85 },
+                                }} />
+                                {/* Etiqueta fecha */}
+                                <Typography sx={{ fontSize: 9, color: 'text.secondary', mt: 0.5, textAlign: 'center', lineHeight: 1.1 }}>
+                                  {label}
+                                </Typography>
+                              </Box>
+                            </Tooltip>
+                          );
+                        })}
+                      </Box>
+                    </Paper>
+                  );
+                })()}
 
               </Stack>
             )}
