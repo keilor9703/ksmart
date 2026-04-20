@@ -179,10 +179,10 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
   // ── Filtros de grupo ─────────────────────────────────────────────────────
   const groupFilters = [
     { value: 'all',      label: 'Todos' },
-    { value: '1',        label: 'MP' },
-    { value: '2',        label: 'PT' },
-    { value: '3',        label: 'AF' },
-    { value: '4',        label: 'INS' },
+    { value: '1',        label: 'Materia Prima' },
+    { value: '2',        label: 'Producto Terminado' },
+    { value: '3',        label: 'Activo Fijo' },
+    { value: '4',        label: 'Insumo' },
     { value: 'servicio', label: 'Servicios' },
   ];
 

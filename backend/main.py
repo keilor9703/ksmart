@@ -3,6 +3,7 @@ import os
 import io
 import hashlib
 import logging
+import secrets
 import shutil
 import time
 
@@ -67,13 +68,19 @@ app.add_middleware(
 # ─── JWT ──────────────────────────────────────────────────────────────────────
 # FIX #3: JWT Secret robusto — falla fuerte en producción si no está configurado
 SECRET_KEY = os.getenv("SECRET_KEY")
+# if not SECRET_KEY:
+#     raise RuntimeError(
+#         "🛑 FATAL: SECRET_KEY no configurada en variables de entorno.\n"
+#         "Genera una clave segura con:\n"
+#         "  export SECRET_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(32))')\n"
+#         "O añádela a tu archivo .env: SECRET_KEY=tu_clave_super_segura_aqui"
+#     )
+
+
 if not SECRET_KEY:
-    raise RuntimeError(
-        "🛑 FATAL: SECRET_KEY no configurada en variables de entorno.\n"
-        "Genera una clave segura con:\n"
-        "  export SECRET_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(32))')\n"
-        "O añádela a tu archivo .env: SECRET_KEY=tu_clave_super_segura_aqui"
-    )
+    SECRET_KEY = secrets.token_urlsafe(32)
+    logger.warning("⚠️ SECRET_KEY no está configurada...")
+    logger.warning("Usando una clave temporal generada al vuelo. Esto es inseguro para producción.")
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "120"))
@@ -132,6 +139,7 @@ def initialize_default_data(db: Session):
         {"name": "Producción",          "description": "Gestión de lotes y transformaciones.",            "frontend_path": "/produccion/lotes"},
         {"name": "Compras",             "description": "Módulo para la gestión de compras.",              "frontend_path": "/compras"},
         {"name": "Inventarios",         "description": "Módulo para movimientos y alertas de stock.",     "frontend_path": "/inventario"},
+        {"name": "lotes      ",         "description": "Módulo para productos perecederos.",              "frontend_path": "/inventario/lotes"},
         {"name": "Reportes inventario", "description": "Reportes de inventario y kardex.",                "frontend_path": "/reportes-inventario"},
         {"name": "Caja",                "description": "Módulo de corte de caja diario.",                 "frontend_path": "/caja"},
         {"name": "Préstamos",           "description": "Módulo de gestión de préstamos.",                 "frontend_path": "/prestamos"},
@@ -929,20 +937,48 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
 
     db_venta = crud.create_venta(db=db, empresa_id=empresa_id, venta=venta)
 
+
+    
+    
+
     try:
+        # Dentro del proceso de creación de venta en el backend
         for det in db_venta.detalles:
             prod = crud.get_producto(db, empresa_id=empresa_id, producto_id=det.producto_id)
+            
             if getattr(prod, "es_servicio", False):
                 continue
-            crud.create_movement(db, empresa_id=empresa_id, payload=schemas.InventoryMovementCreate(
-                producto_id=det.producto_id,
-                tipo=schemas.MovementType.salida,
-                cantidad=det.cantidad,
-                costo_unitario=prod.costo or 0.0,
-                motivo="venta",
-                referencia=f"venta #{db_venta.id}",
-                observacion=""
-            ))
+                
+            # --- NUEVA LÓGICA DE INTEGRACIÓN ---
+            if getattr(prod, "maneja_lotes", False):
+                # Si el producto es perecedero, usamos FEFO para descontar de los lotes
+                try:
+                    crud.consumir_stock_fefo(
+                        db, 
+                        empresa_id=empresa_id, 
+                        producto_id=det.producto_id, 
+                        cantidad_requerida=det.cantidad,
+                        referencia=f"Venta #{db_venta.id}"
+                    )
+                    
+                    # 👇 FIX CRÍTICO: Sincronizar el stock global del producto
+                    prod.stock_actual = (prod.stock_actual or 0) - det.cantidad
+                    db.add(prod)
+                    db.commit()
+                    
+                except ValueError as e:
+                    raise HTTPException(status_code=400, detail=str(e))
+            else:
+                # Si NO maneja lotes, se descuenta del stock global como antes
+                crud.create_movement(db, empresa_id=empresa_id, payload=schemas.InventoryMovementCreate(
+                    producto_id=det.producto_id,
+                    tipo=schemas.MovementType.salida,
+                    cantidad=det.cantidad,
+                    costo_unitario=prod.costo or 0.0,
+                    motivo="venta",
+                    referencia=f"venta #{db_venta.id}"
+                ))
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -2422,3 +2458,132 @@ def sincronizar_modulos_nuevos(db: Session = Depends(get_db)):
             db.commit()
             agregados.append(mod["name"])
     return {"msg": f"Sincronización completada. Módulos agregados: {agregados}"}
+
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# AÑADIR A main.py — Endpoints de Gestión de Lotes y Perecederos
+# Pégalos en la sección de INVENTARIO de tu main.py existente
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+# ── Crear / registrar un lote nuevo ──────────────────────────────────────────
+@app.post("/inventario/lotes", response_model=schemas.LoteExistenciaOut)
+def crear_lote(
+    payload: schemas.LoteExistenciaCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """
+    Registra un nuevo lote de existencias.
+    Si el número de lote ya existe para ese producto, suma la cantidad.
+    """
+    lote = crud.crear_lote_existencia(db, empresa_id=current_user.empresa_id, payload=payload)
+    return crud._enriquecer_lote(lote)
+
+
+# ── Listar lotes de un producto específico (FEFO) ────────────────────────────
+@app.get("/inventario/lotes/{producto_id}", response_model=List[schemas.LoteExistenciaOut])
+def listar_lotes_producto(
+    producto_id: int,
+    solo_activos: bool = Query(True),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Lista los lotes de un producto ordenados FEFO (primero el que vence antes)."""
+    return crud.get_lotes_producto(
+        db, empresa_id=current_user.empresa_id,
+        producto_id=producto_id, solo_activos=solo_activos,
+    )
+
+
+# ── Listar todos los lotes de la empresa ─────────────────────────────────────
+@app.get("/inventario/lotes", response_model=List[schemas.LoteExistenciaOut])
+def listar_todos_lotes(
+    solo_activos: bool   = Query(True),
+    producto_id:  Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Lista todos los lotes activos de la empresa, opcionalmente filtrados por producto."""
+    return crud.get_todos_los_lotes(
+        db, empresa_id=current_user.empresa_id,
+        solo_activos=solo_activos, producto_id=producto_id,
+    )
+
+
+# ── Ajuste manual de un lote ─────────────────────────────────────────────────
+@app.patch("/inventario/lotes/{lote_id}/ajuste")
+def ajustar_lote(
+    lote_id: int,
+    ajuste: schemas.LoteAjusteCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """
+    Ajusta manualmente la cantidad de un lote.
+    Positivo = entrada, negativo = salida (merma, donación, destrucción).
+    """
+    lote = crud.ajustar_lote(db, empresa_id=current_user.empresa_id,
+                              lote_id=lote_id, ajuste=ajuste)
+    return crud._enriquecer_lote(lote)
+
+
+# ── Sugerencia FEFO sin modificar BD ─────────────────────────────────────────
+@app.get("/inventario/lotes/{producto_id}/sugerencia-fefo")
+def sugerencia_fefo(
+    producto_id:        int,
+    cantidad_requerida: float = Query(..., gt=0),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """
+    Devuelve qué lotes se consumirían al vender `cantidad_requerida` unidades,
+    aplicando FEFO. No modifica la BD — es solo una consulta de planificación.
+    """
+    return crud.sugerencia_fefo(
+        db, empresa_id=current_user.empresa_id,
+        producto_id=producto_id, cantidad_requerida=cantidad_requerida,
+    )
+
+
+# ── Reporte: próximos a vencer ────────────────────────────────────────────────
+@app.get("/reportes/proximos-a-vencer", response_model=List[schemas.AlertaVencimientoOut])
+def proximos_a_vencer(
+    dias: int = Query(30, ge=1, le=365, description="Horizon de días hacia adelante"),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """
+    Lista todos los lotes con stock > 0 que vencen en los próximos `dias` días.
+    Incluye lotes ya vencidos (días negativos).
+    """
+    return crud.get_alertas_vencimiento(
+        db, empresa_id=current_user.empresa_id, dias=dias,
+    )
+
+
+# ── KPIs de alertas para el dashboard ─────────────────────────────────────────
+@app.get("/reportes/resumen-alertas-vencimiento")
+def resumen_alertas_vencimiento(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """
+    Retorna conteos por categoría de urgencia y valor total en riesgo.
+    Ideal para un widget en el dashboard.
+    """
+    return crud.get_resumen_alertas(db, empresa_id=current_user.empresa_id)
+
+
+# ── Cron: notificaciones automáticas de vencimientos ─────────────────────────
+@app.post("/superadmin/notificar-vencimientos-lotes")
+def notificar_vencimientos_lotes(db: Session = Depends(get_db)):
+    """
+    Genera notificaciones de vencimiento para todas las empresas activas.
+    Llamar diariamente desde un cron job externo (ej. cron-job.org).
+    No requiere autenticación — protégelo por IP o secreto si es necesario.
+    """
+    total = crud.notificar_vencimientos_proximos(db)
+    return {"msg": f"Se generaron {total} notificaciones de vencimiento."}

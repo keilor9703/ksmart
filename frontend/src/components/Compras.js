@@ -9,7 +9,7 @@ import {
 import {
   Add, Delete, ShoppingBag, Receipt, Payment, CheckCircle,
   Visibility, Search, TrendingDown, AttachMoney, Warning,
-  LocalShipping, Close
+  LocalShipping, Close, Science
 } from '@mui/icons-material';
 import apiClient, { fetchCompras, createCompra, addPagoCompra } from '../api';
 import { formatCurrency } from '../utils/formatters';
@@ -78,7 +78,8 @@ const Compras = () => {
   const [proveedorSel, setProveedorSel]           = useState(null);
   const [proveedorInput, setProveedorInput]        = useState('');
   const [refFactura, setRefFactura]               = useState('');
-  const [detalles, setDetalles]                   = useState([{ producto_id: '', cantidad: 1, precio_unitario: 0 }]);
+  // Se añaden los campos de lotes al estado inicial de detalles
+  const [detalles, setDetalles]                   = useState([{ producto_id: '', cantidad: 1, precio_unitario: 0, numero_lote: '', fecha_vencimiento: '', fecha_fabricacion: '' }]);
   const [ivaPorcentajeGlobal, setIvaPorcentajeGlobal] = useState(0);
   const [pagadaAlCrear, setPagadaAlCrear]         = useState(false);
 
@@ -150,7 +151,7 @@ const Compras = () => {
     setProductoInputs(prev => { const next = [...prev]; next[idx] = val; return next; });
 
   const addDetalle = () => {
-    setDetalles(p => [...p, { producto_id: '', cantidad: 1, precio_unitario: 0 }]);
+    setDetalles(p => [...p, { producto_id: '', cantidad: 1, precio_unitario: 0, numero_lote: '', fecha_vencimiento: '', fecha_fabricacion: '' }]);
     setProductoInputs(p => [...p, '']);
   };
   const removeDetalle = (idx) => {
@@ -165,7 +166,7 @@ const Compras = () => {
 
   const resetForm = () => {
     setProveedorSel(null); setProveedorInput(''); setRefFactura('');
-    setDetalles([{ producto_id: '', cantidad: 1, precio_unitario: 0 }]);
+    setDetalles([{ producto_id: '', cantidad: 1, precio_unitario: 0, numero_lote: '', fecha_vencimiento: '', fecha_fabricacion: '' }]);
     setProductoInputs(['']);
     setIvaPorcentajeGlobal(0); setPagadaAlCrear(false);
   };
@@ -175,6 +176,16 @@ const Compras = () => {
       toast.warning('Complete el proveedor y los ítems de compra.');
       return;
     }
+
+    // ─── Validación Inteligente de Lotes ───
+    for (let d of detalles) {
+      const prod = productos.find(p => p.id === parseInt(d.producto_id));
+      if (prod?.maneja_lotes && (!d.numero_lote || !d.fecha_vencimiento)) {
+        toast.warning(`El producto "${prod.nombre}" es perecedero. Ingresa el Lote y Vencimiento.`);
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       await createCompra({
@@ -182,10 +193,14 @@ const Compras = () => {
         referencia_factura: refFactura,
         detalles: detalles.map(d => ({
           ...d,
-          producto_id:    parseInt(d.producto_id),
+          producto_id:     parseInt(d.producto_id),
           cantidad:        parseFloat(d.cantidad),
           precio_unitario: parseFloat(d.precio_unitario),
           iva_porcentaje:  0.0,
+          // Se envían los datos de lotes al backend
+          numero_lote: d.numero_lote || undefined,
+          fecha_vencimiento: d.fecha_vencimiento || undefined,
+          fecha_fabricacion: d.fecha_fabricacion || undefined,
         })),
         pagada: pagadaAlCrear,
         iva_porcentaje: parseFloat(ivaPorcentajeGlobal),
@@ -420,110 +435,132 @@ const Compras = () => {
                   <Box
                     key={idx}
                     sx={{
-                      display: 'flex', flexDirection: isMobile ? 'column' : 'row',
-                      alignItems: isMobile ? 'stretch' : 'center',
-                      gap: 1.5, mb: 1.5, p: isMobile ? 2 : 1.5,
+                      mb: 1.5, p: isMobile ? 2 : 1.5,
                       borderRadius: 2, bgcolor: 'action.hover',
                       border: '1px solid', borderColor: 'divider',
                     }}
                   >
-                    <Autocomplete
-                      options={productos}
-                      getOptionLabel={(p) => p.nombre || ''}
-                      value={prodSel || null}
-                      onChange={(_, v) => handleDetalleChange(idx, 'producto_id', v ? v.id : '')}
-                      inputValue={productoInputs[idx] || ''}
-                      onInputChange={(_, v) => handleProductoInputChange(idx, v)}
-                      filterOptions={(opts, state) => {
-                        const q = (state.inputValue || '').toLowerCase().trim();
-                        if (!q) return opts;
-                        return opts.filter(o => o.nombre.toLowerCase().includes(q));
-                      }}
-                      noOptionsText={
-                        <Box sx={{ py: 0.5 }}>
-                          <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>
-                            No se encontró ningún producto
-                          </Typography>
-                          <Button
-                            size="small" variant="contained" fullWidth
-                            startIcon={<Add />}
-                            onClick={() => openQuickCreate('producto', productoInputs[idx] || '', idx)}
-                            sx={{
-                              borderRadius: 2, fontWeight: 600, fontSize: 12,
-                              bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' },
-                            }}
-                          >
-                            Crear "{productoInputs[idx] || 'nuevo producto'}"
-                          </Button>
-                        </Box>
-                      }
-                      renderOption={(props, option) => (
-                        <li {...props} key={option.id} style={{ padding: '8px 12px' }}>
-                          <Box>
-                            <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{option.nombre}</Typography>
-                            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-                              {option.unidad_medida} · Stock: {option.stock_actual ?? 0}
+                    <Box sx={{
+                      display: 'flex', flexDirection: isMobile ? 'column' : 'row',
+                      alignItems: isMobile ? 'stretch' : 'center',
+                      gap: 1.5
+                    }}>
+                      <Autocomplete
+                        options={productos}
+                        getOptionLabel={(p) => p.nombre || ''}
+                        value={prodSel || null}
+                        onChange={(_, v) => handleDetalleChange(idx, 'producto_id', v ? v.id : '')}
+                        inputValue={productoInputs[idx] || ''}
+                        onInputChange={(_, v) => handleProductoInputChange(idx, v)}
+                        filterOptions={(opts, state) => {
+                          const q = (state.inputValue || '').toLowerCase().trim();
+                          if (!q) return opts;
+                          return opts.filter(o => o.nombre.toLowerCase().includes(q));
+                        }}
+                        noOptionsText={
+                          <Box sx={{ py: 0.5 }}>
+                            <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>
+                              No se encontró ningún producto
                             </Typography>
+                            <Button
+                              size="small" variant="contained" fullWidth
+                              startIcon={<Add />}
+                              onClick={() => openQuickCreate('producto', productoInputs[idx] || '', idx)}
+                              sx={{
+                                borderRadius: 2, fontWeight: 600, fontSize: 12,
+                                bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' },
+                              }}
+                            >
+                              Crear "{productoInputs[idx] || 'nuevo producto'}"
+                            </Button>
                           </Box>
-                        </li>
-                      )}
-                      renderInput={(params) => (
-                        <TextField
-                          {...params}
-                          label="Producto / Insumo"
-                          size="small"
-                          placeholder="Escribe para buscar…"
-                          InputProps={{
-                            ...params.InputProps,
-                            endAdornment: (
-                              <>
-                                {params.InputProps.endAdornment}
-                                <Tooltip title="Crear nuevo producto">
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => openQuickCreate('producto', productoInputs[idx] || '', idx)}
-                                    sx={{ color: '#10B981', p: 0.5 }}
-                                  >
-                                    <Add fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                              </>
-                            ),
-                          }}
-                        />
-                      )}
-                      sx={{ flex: 1, minWidth: isMobile ? '100%' : 220 }}
-                    />
-                    <TextField
-                      type="number" label="Cantidad"
-                      value={det.cantidad}
-                      onChange={(e) => handleDetalleChange(idx, 'cantidad', e.target.value)}
-                      InputProps={{ inputProps: { min: 0, step: 'any' } }}
-                      sx={{ width: isMobile ? '100%' : 110 }}
-                    />
-                    <TextField
-                      type="number" label="Precio Unit. (Costo)"
-                      value={det.precio_unitario}
-                      onChange={(e) => handleDetalleChange(idx, 'precio_unitario', e.target.value)}
-                      InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
-                      sx={{ width: isMobile ? '100%' : 160 }}
-                    />
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                      <Typography sx={{ fontWeight: 700, fontSize: 14, color: GREEN, minWidth: 90 }}>
-                        {formatCurrency(det.cantidad * det.precio_unitario)}
-                      </Typography>
-                      <Tooltip title="Quitar">
-                        <span>
-                          <IconButton
-                            size="small" onClick={() => removeDetalle(idx)}
-                            disabled={detalles.length === 1}
-                            sx={{ color: RED, bgcolor: '#FEF2F2', borderRadius: 1.5, '&.Mui-disabled': { opacity: 0.3 } }}
-                          >
-                            <Delete fontSize="small" />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
+                        }
+                        renderOption={(props, option) => (
+                          <li {...props} key={option.id} style={{ padding: '8px 12px' }}>
+                            <Box>
+                              <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{option.nombre}</Typography>
+                              <Typography sx={{ fontSize: 11, color: option.maneja_lotes ? '#10B981' : 'text.secondary' }}>
+                                {option.unidad_medida} · {option.maneja_lotes ? '📦 Perecedero (Lotes)' : `Stock: ${option.stock_actual ?? 0}`}
+                              </Typography>
+                            </Box>
+                          </li>
+                        )}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            label="Producto / Insumo"
+                            size="small"
+                            placeholder="Escribe para buscar…"
+                            InputProps={{
+                              ...params.InputProps,
+                              endAdornment: (
+                                <>
+                                  {params.InputProps.endAdornment}
+                                  <Tooltip title="Crear nuevo producto">
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => openQuickCreate('producto', productoInputs[idx] || '', idx)}
+                                      sx={{ color: '#10B981', p: 0.5 }}
+                                    >
+                                      <Add fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                </>
+                              ),
+                            }}
+                          />
+                        )}
+                        sx={{ flex: 1, minWidth: isMobile ? '100%' : 220 }}
+                      />
+                      <TextField
+                        type="number" label="Cantidad"
+                        value={det.cantidad}
+                        onChange={(e) => handleDetalleChange(idx, 'cantidad', e.target.value)}
+                        InputProps={{ inputProps: { min: 0, step: 'any' } }}
+                        sx={{ width: isMobile ? '100%' : 110 }}
+                        size="small"
+                      />
+                      <TextField
+                        type="number" label="Precio Unit. (Costo)"
+                        value={det.precio_unitario}
+                        onChange={(e) => handleDetalleChange(idx, 'precio_unitario', e.target.value)}
+                        InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+                        sx={{ width: isMobile ? '100%' : 160 }}
+                        size="small"
+                      />
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                        <Typography sx={{ fontWeight: 700, fontSize: 14, color: GREEN, minWidth: 90 }}>
+                          {formatCurrency(det.cantidad * det.precio_unitario)}
+                        </Typography>
+                        <Tooltip title="Quitar">
+                          <span>
+                            <IconButton
+                              size="small" onClick={() => removeDetalle(idx)}
+                              disabled={detalles.length === 1}
+                              sx={{ color: RED, bgcolor: '#FEF2F2', borderRadius: 1.5, '&.Mui-disabled': { opacity: 0.3 } }}
+                            >
+                              <Delete fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      </Box>
                     </Box>
+                    
+                    {/* ─── DESPLIEGUE INTELIGENTE DE LOTES ─── */}
+                   {/* ─── DESPLIEGUE INTELIGENTE DE LOTES ─── */}
+                    {prodSel?.maneja_lotes && (
+                       <Box sx={{ 
+                         mt: 1.5, p: 1.5, 
+                         bgcolor: theme.palette.mode === 'dark' ? 'rgba(16,185,129,0.08)' : '#ECFDF5', 
+                         borderRadius: 2, border: '1px dashed #10B981', 
+                         display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 1.5, alignItems: 'center' 
+                       }}>
+                          <Typography sx={{ display: {xs:'none', md:'flex'}, color: '#10B981' }}><Science fontSize="small"/></Typography>
+                          <TextField size="small" label="Número de Lote *" value={det.numero_lote || ''} onChange={e => handleDetalleChange(idx, 'numero_lote', e.target.value.toUpperCase())} sx={{ flex: 1, width: isMobile ? '100%' : 'auto' }} />
+                          <TextField size="small" type="date" label="Fecha Vencimiento *" InputLabelProps={{ shrink: true }} value={det.fecha_vencimiento || ''} onChange={e => handleDetalleChange(idx, 'fecha_vencimiento', e.target.value)} inputProps={{ min: new Date().toISOString().split('T')[0] }} sx={{ flex: 1, width: isMobile ? '100%' : 'auto' }} />
+                          <TextField size="small" type="date" label="Fabricación" InputLabelProps={{ shrink: true }} value={det.fecha_fabricacion || ''} onChange={e => handleDetalleChange(idx, 'fecha_fabricacion', e.target.value)} sx={{ flex: 1, width: isMobile ? '100%' : 'auto' }} />
+                       </Box>
+                    )}
                   </Box>
                 );
               })}
@@ -930,22 +967,32 @@ const Compras = () => {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  {['Producto', 'Cantidad', 'Precio Unit.', 'Subtotal'].map(h => (
-                    <TableCell key={h} align={h !== 'Producto' ? 'right' : 'left'}>{h}</TableCell>
+                  {['Producto', 'Lote', 'Cantidad', 'Precio Unit.', 'Subtotal'].map(h => (
+                    <TableCell key={h} align={h !== 'Producto' && h !== 'Lote' ? 'right' : 'left'}>{h}</TableCell>
                   ))}
                 </TableRow>
               </TableHead>
               <TableBody>
-                {compraDetalle?.detalles.map((d, idx) => (
-                  <TableRow key={idx} hover>
-                    <TableCell sx={{ fontWeight: 600 }}>{d.producto.nombre}</TableCell>
-                    <TableCell align="right">{d.cantidad} {d.producto.unidad_medida}</TableCell>
-                    <TableCell align="right">{formatCurrency(d.precio_unitario)}</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(d.cantidad * d.precio_unitario)}</TableCell>
-                  </TableRow>
-                ))}
+                {compraDetalle?.detalles.map((d, idx) => {
+                  return (
+                    <TableRow key={idx} hover>
+                      <TableCell sx={{ fontWeight: 600 }}>{d.producto.nombre}</TableCell>
+                      <TableCell sx={{ fontSize: 12, color: 'text.secondary' }}>
+                        {d.numero_lote ? (
+                          <>
+                            <strong>Lote:</strong> {d.numero_lote}<br/>
+                            <strong>Vence:</strong> {d.fecha_vencimiento ? new Date(d.fecha_vencimiento).toLocaleDateString() : ''}
+                          </>
+                        ) : '—'}
+                      </TableCell>
+                      <TableCell align="right">{d.cantidad} {d.producto.unidad_medida}</TableCell>
+                      <TableCell align="right">{formatCurrency(d.precio_unitario)}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(d.cantidad * d.precio_unitario)}</TableCell>
+                    </TableRow>
+                  );
+                })}
                 <TableRow sx={{ bgcolor: 'action.hover' }}>
-                  <TableCell colSpan={3} align="right" sx={{ fontWeight: 700 }}>Total:</TableCell>
+                  <TableCell colSpan={4} align="right" sx={{ fontWeight: 700 }}>Total:</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 800, color: GREEN }}>{formatCurrency(compraDetalle?.total || 0)}</TableCell>
                 </TableRow>
               </TableBody>

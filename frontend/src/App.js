@@ -6,6 +6,7 @@ import {
   Drawer, Tooltip, CssBaseline, GlobalStyles, Menu, MenuItem,
   Avatar, Button 
 } from '@mui/material';
+import { Layers } from '@mui/icons-material';
 import {
   ShoppingCart, People, Inventory, Assessment, AdminPanelSettings,
   ExpandLess, ExpandMore, Assignment, Dashboard as DashboardIcon,
@@ -41,6 +42,7 @@ import Notifications from './components/Notifications';
 import Caja from './components/Caja';
 import AdminUsuarios from './components/AdminUsuarios';
 import GestionEmpresas from './components/GestionEmpresas';
+import InventarioLotes from './components/InventarioLotes';
 
 // ✅ IMPORTAMOS LAS PANTALLAS PÚBLICAS
 import SuscripcionExpirada from './components/SuscripcionExpirada';
@@ -69,6 +71,7 @@ const menuItems = [
   { path: '/clientes',        text: 'Terceros',            icon: <People />,               color: '#3B82F6' },
   { path: '/productos',       text: 'Productos',           icon: <Inventory />,            color: '#8B5CF6' },
   { path: '/inventario',      text: 'Inventarios',         icon: <Inventory2OutlinedIcon />, color: '#F59E0B' },
+  { path: '/inventario/lotes', text: 'Lotes', icon:         <Layers />, color: '#8B5CF6' },
   { path: '/caja',            text: 'Caja',                icon: <PointOfSaleIcon />,      color: '#FF6020' },
   { path: '/produccion/lotes',text: 'Producción',          icon: <PrecisionManufacturing />,color: '#06B6D4' },
   { path: '/ordenes-trabajo', text: 'Órdenes de Trabajo',  icon: <Assignment />,           color: '#EC4899' },
@@ -453,6 +456,7 @@ function App() {
                   <Route path="/clientes"            element={<Terceros />} />
                   <Route path="/productos"           element={<Productos />} />
                   <Route path="/inventario"          element={<Inventario />} />
+                 
                   <Route path="/caja"                element={<Caja />} />
                   <Route path="/produccion/recetas"  element={<Recetas />} />
                   <Route path="/produccion/lotes"    element={<Lotes />} />
@@ -460,9 +464,13 @@ function App() {
                   <Route path="/reportes"            element={<Reportes />} />
                   <Route path="/ordenes-trabajo"     element={<OrdenesTrabajo user={user} />} />
                   
+                  // Por esto (asegúrate de que sea minúscula y sin espacios):
+                  
+                  
                   {/* 👈 NUEVAS RUTAS AÑADIDAS AQUÍ */}
                   <Route path="/prestamos"           element={<PrestamoForm />} />
                   <Route path="/ruta-cobro"          element={<RutaCobro />} />
+                  <Route path="/inventario/lotes" element={<InventarioLotes />} />
 
                   {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (
                     <Route path="/superadmin/empresas" element={<GestionEmpresas />} />

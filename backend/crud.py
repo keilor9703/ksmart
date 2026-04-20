@@ -1903,6 +1903,7 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
 
     costo_total_acumulado = 0.0
 
+    # ─── 1. CONSUMO DE INSUMOS ───
     for item in receta.items:
         insumo = get_producto(db, empresa_id, item.insumo_id)
         if not insumo:
@@ -1915,30 +1916,58 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
         costo_insumo_total = cantidad_requerida * (insumo.costo or 0.0)
         costo_total_acumulado += costo_insumo_total
 
-        mov_salida = schemas.InventoryMovementCreate(
-            producto_id=item.insumo_id,
-            tipo=schemas.MovementType.salida,
-            cantidad=cantidad_requerida,
-            costo_unitario=insumo.costo or 0.0,
-            motivo="Producción - Consumo",
-            referencia=f"Lote #{db_lote.id}",
-            observacion=f"Consumo para {cantidad_teorica} de {receta.producto_resultante.nombre}"
-        )
-        create_movement(db, empresa_id, mov_salida) 
+        if getattr(insumo, "maneja_lotes", False):
+            # Consumo de insumo usando FEFO
+            consumir_stock_fefo(
+                db, empresa_id, insumo.id, cantidad_requerida, 
+                motivo="Producción - Consumo", referencia=f"Lote #{db_lote.id}"
+            )
+            insumo.stock_actual = (insumo.stock_actual or 0) - cantidad_requerida
+            db.add(insumo)
+        else:
+            # Consumo de insumo regular
+            mov_salida = schemas.InventoryMovementCreate(
+                producto_id=item.insumo_id,
+                tipo=schemas.MovementType.salida,
+                cantidad=cantidad_requerida,
+                costo_unitario=insumo.costo or 0.0,
+                motivo="Producción - Consumo",
+                referencia=f"Lote #{db_lote.id}",
+                observacion=f"Consumo para {cantidad_teorica} de {receta.producto_resultante.nombre}"
+            )
+            create_movement(db, empresa_id, mov_salida) 
 
     costo_unitario_final = (costo_total_acumulado / cantidad_final) if cantidad_final > 0 else 0.0
 
-    mov_entrada = schemas.InventoryMovementCreate(
-        producto_id=receta.producto_id,
-        tipo=schemas.MovementType.entrada,
-        cantidad=cantidad_final,
-        costo_unitario=costo_unitario_final,
-        motivo="Producción - Finalizado",
-        referencia=f"Lote #{db_lote.id}",
-        observacion=f"Entrada con mermas aplicadas. Costo unitario calculado: {costo_unitario_final:.2f}"
-    )
-    create_movement(db, empresa_id, mov_entrada) 
+    # ─── 2. INGRESO DEL PRODUCTO TERMINADO A BODEGA ───
+    if getattr(receta.producto_resultante, "maneja_lotes", False):
+        if not confirm_data.numero_lote or not confirm_data.fecha_vencimiento:
+            raise ValueError(f"El producto resultante '{receta.producto_resultante.nombre}' es perecedero. Debes asignarle Número de Lote y Fecha de Vencimiento.")
+        
+        payload_lote = schemas.LoteExistenciaCreate(
+            producto_id=receta.producto_id,
+            numero_lote=confirm_data.numero_lote,
+            fecha_vencimiento=confirm_data.fecha_vencimiento,
+            fecha_fabricacion=confirm_data.fecha_fabricacion if hasattr(confirm_data, 'fecha_fabricacion') else None,
+            cantidad_inicial=cantidad_final,
+            costo_unitario=costo_unitario_final,
+            referencia_compra=f"Producción #{db_lote.id}",
+            observaciones=confirm_data.observaciones
+        )
+        crear_lote_existencia(db, empresa_id, payload_lote)
+    else:
+        mov_entrada = schemas.InventoryMovementCreate(
+            producto_id=receta.producto_id,
+            tipo=schemas.MovementType.entrada,
+            cantidad=cantidad_final,
+            costo_unitario=costo_unitario_final,
+            motivo="Producción - Finalizado",
+            referencia=f"Lote #{db_lote.id}",
+            observacion=f"Costo unitario calculado: {costo_unitario_final:.2f}"
+        )
+        create_movement(db, empresa_id, mov_entrada)
 
+    # Actualizamos el estado del lote de producción
     db_lote.estado = "Confirmado"
     db_lote.cantidad_real = cantidad_final
     db_lote.costo_total = costo_total_acumulado
@@ -2277,18 +2306,88 @@ def get_compra(db: Session, empresa_id: int, compra_id: int):
         models.Compra.empresa_id == empresa_id  # ✅
     ).first()
 
+# def create_compra(db: Session, empresa_id: int, compra: schemas.CompraCreate):
+#     """✅ INYECCIÓN DE EMPRESA_ID + VALIDACIÓN CROSS-TENANT"""
+#     # Validar que el proveedor pertenece a la empresa
+#     db_prov = db.query(models.Cliente).filter(
+#         models.Cliente.id == compra.proveedor_id,
+#         models.Cliente.empresa_id == empresa_id  # ✅
+#     ).first()
+#     if not db_prov or not db_prov.es_proveedor:
+#         raise HTTPException(status_code=400, detail="Proveedor no válido o no pertenece a esta empresa.")
+
+#     total_bruto = 0.0
+    
+#     for item in compra.detalles:
+#         total_bruto += item.cantidad * item.precio_unitario
+
+#     iva_porc = compra.iva_porcentaje
+#     subtotal_base = total_bruto / (1 + (iva_porc / 100))
+#     iva_total_calc = total_bruto - subtotal_base
+
+#     db_compra = models.Compra(
+#         proveedor_id=compra.proveedor_id,
+#         total=total_bruto,
+#         iva_total=iva_total_calc,
+#         iva_porcentaje=iva_porc,
+#         referencia_factura=compra.referencia_factura,
+#         monto_pagado=total_bruto if compra.pagada else 0.0,
+#         estado_pago="pagado" if compra.pagada else "pendiente",
+#         empresa_id=empresa_id  # ✅
+#     )
+#     db.add(db_compra)
+#     db.flush()
+
+#     for item in compra.detalles:
+#         # Validar que el producto pertenece a la empresa
+#         prod = get_producto(db, empresa_id, item.producto_id)
+#         if not prod:
+#             raise HTTPException(
+#                 status_code=404,
+#                 detail=f"Producto {item.producto_id} no encontrado"
+#             )
+        
+#         db_detalle = models.DetalleCompra(
+#             compra_id=db_compra.id,
+#             producto_id=item.producto_id,
+#             cantidad=item.cantidad,
+#             precio_unitario=item.precio_unitario,
+#             iva_porcentaje=0.0
+#         )
+#         db.add(db_detalle)
+
+#         payload_mov = schemas.InventoryMovementCreate(
+#             producto_id=item.producto_id,
+#             tipo=schemas.MovementType.entrada,
+#             cantidad=item.cantidad,
+#             costo_unitario=item.precio_unitario,
+#             motivo="Compra",
+#             referencia=f"Compra #{db_compra.id}",
+#             observacion=f"Factura: {compra.referencia_factura or 'N/A'}"
+#         )
+#         create_movement(db, empresa_id, payload_mov)  # ✅
+
+#         db_prod = get_producto(db, empresa_id, item.producto_id)
+#         if db_prod:
+#             db_prod.costo = item.precio_unitario
+
+#     db.commit()
+#     db.refresh(db_compra)
+#     return db_compra
+
+
+
 def create_compra(db: Session, empresa_id: int, compra: schemas.CompraCreate):
-    """✅ INYECCIÓN DE EMPRESA_ID + VALIDACIÓN CROSS-TENANT"""
+    """✅ INYECCIÓN DE EMPRESA_ID + VALIDACIÓN CROSS-TENANT + LOTES"""
     # Validar que el proveedor pertenece a la empresa
     db_prov = db.query(models.Cliente).filter(
         models.Cliente.id == compra.proveedor_id,
-        models.Cliente.empresa_id == empresa_id  # ✅
+        models.Cliente.empresa_id == empresa_id
     ).first()
     if not db_prov or not db_prov.es_proveedor:
         raise HTTPException(status_code=400, detail="Proveedor no válido o no pertenece a esta empresa.")
 
     total_bruto = 0.0
-    
     for item in compra.detalles:
         total_bruto += item.cantidad * item.precio_unitario
 
@@ -2304,19 +2403,15 @@ def create_compra(db: Session, empresa_id: int, compra: schemas.CompraCreate):
         referencia_factura=compra.referencia_factura,
         monto_pagado=total_bruto if compra.pagada else 0.0,
         estado_pago="pagado" if compra.pagada else "pendiente",
-        empresa_id=empresa_id  # ✅
+        empresa_id=empresa_id
     )
     db.add(db_compra)
     db.flush()
 
     for item in compra.detalles:
-        # Validar que el producto pertenece a la empresa
         prod = get_producto(db, empresa_id, item.producto_id)
         if not prod:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Producto {item.producto_id} no encontrado"
-            )
+            raise HTTPException(status_code=404, detail=f"Producto {item.producto_id} no encontrado")
         
         db_detalle = models.DetalleCompra(
             compra_id=db_compra.id,
@@ -2327,24 +2422,47 @@ def create_compra(db: Session, empresa_id: int, compra: schemas.CompraCreate):
         )
         db.add(db_detalle)
 
-        payload_mov = schemas.InventoryMovementCreate(
-            producto_id=item.producto_id,
-            tipo=schemas.MovementType.entrada,
-            cantidad=item.cantidad,
-            costo_unitario=item.precio_unitario,
-            motivo="Compra",
-            referencia=f"Compra #{db_compra.id}",
-            observacion=f"Factura: {compra.referencia_factura or 'N/A'}"
-        )
-        create_movement(db, empresa_id, payload_mov)  # ✅
-
-        db_prod = get_producto(db, empresa_id, item.producto_id)
-        if db_prod:
-            db_prod.costo = item.precio_unitario
+        # ─── LÓGICA INTELIGENTE DE ENTRADA (Lotes vs Regular) ───
+        if getattr(prod, "maneja_lotes", False):
+            if not item.numero_lote or not item.fecha_vencimiento:
+                raise ValueError(f"El producto '{prod.nombre}' es perecedero. Requiere Número de Lote y Fecha de Vencimiento.")
+            
+            payload_lote = schemas.LoteExistenciaCreate(
+                producto_id=item.producto_id,
+                numero_lote=item.numero_lote,
+                fecha_vencimiento=item.fecha_vencimiento,
+                fecha_fabricacion=item.fecha_fabricacion,
+                cantidad_inicial=item.cantidad,
+                costo_unitario=item.precio_unitario,
+                proveedor_id=compra.proveedor_id,
+                referencia_compra=compra.referencia_factura
+            )
+            # crear_lote_existencia ya actualiza el stock_actual y crea el movimiento.
+            crear_lote_existencia(db, empresa_id, payload_lote)
+            
+            prod.costo = item.precio_unitario
+            db.add(prod)
+        else:
+            # Entrada de producto regular
+            payload_mov = schemas.InventoryMovementCreate(
+                producto_id=item.producto_id,
+                tipo=schemas.MovementType.entrada,
+                cantidad=item.cantidad,
+                costo_unitario=item.precio_unitario,
+                motivo="Compra",
+                referencia=f"Compra #{db_compra.id}",
+                observacion=f"Factura: {compra.referencia_factura or 'N/A'}"
+            )
+            create_movement(db, empresa_id, payload_mov)  
+            
+            prod.costo = item.precio_unitario
+            db.add(prod)
 
     db.commit()
     db.refresh(db_compra)
     return db_compra
+
+
 
 def create_pago_compra(db: Session, empresa_id: int, pago: schemas.PagoCompraCreate):
     db_compra = get_compra(db, empresa_id, pago.compra_id)
@@ -3205,3 +3323,455 @@ def aplicar_abono_capital(db: Session, empresa_id: int, prestamo_id: int, monto_
         "cuotas_restantes":  num_cuotas,
         "nuevo_valor_cuota": nuevo_monto_cuota,
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# AÑADIR A crud.py — Gestión de Perecederos (Lotes + FEFO + Alertas)
+# ═══════════════════════════════════════════════════════════════════════════
+
+from datetime import date, datetime, timedelta, timezone
+from sqlalchemy.orm import Session
+from fastapi import HTTPException
+import models, schemas
+
+
+# ── Helper: clasifica urgencia según días restantes ──────────────────────────
+def _urgencia(dias: int) -> str:
+    if dias <= 0:  return "vencido"
+    if dias <= 5:  return "critico"
+    if dias <= 15: return "alerta"
+    if dias <= 30: return "aviso"
+    return "ok"
+
+
+# ── Helper: enriquece un LoteExistencia con campos calculados ────────────────
+def _enriquecer_lote(lote: models.LoteExistencia) -> dict:
+    dias = (lote.fecha_vencimiento - date.today()).days
+    pct  = round(
+        ((lote.cantidad_inicial - lote.cantidad_actual) / lote.cantidad_inicial * 100)
+        if lote.cantidad_inicial > 0 else 0,
+        1
+    )
+    return {
+        **lote.__dict__,
+        "producto_nombre":    lote.producto.nombre if lote.producto else None,
+        "proveedor_nombre":   lote.proveedor.nombre if lote.proveedor else None,
+        "dias_restantes":     dias,
+        "urgencia":           _urgencia(dias),
+        "porcentaje_consumo": pct,
+    }
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# CRUD BÁSICO DE LOTES
+# ════════════════════════════════════════════════════════════════════════════
+
+def crear_lote_existencia(
+    db: Session,
+    empresa_id: int,
+    payload: schemas.LoteExistenciaCreate,
+) -> models.LoteExistencia:
+    """
+    Crea o actualiza un lote de existencias.
+    Si ya existe el mismo numero_lote para ese producto y empresa, suma la cantidad.
+    """
+    # Verificar que el producto pertenece a la empresa
+    producto = db.query(models.Producto).filter(
+        models.Producto.id         == payload.producto_id,
+        models.Producto.empresa_id == empresa_id,
+    ).first()
+    if not producto:
+        raise HTTPException(404, "Producto no encontrado o no pertenece a esta empresa.")
+
+    # Buscar si ya existe este lote
+    lote = db.query(models.LoteExistencia).filter(
+        models.LoteExistencia.empresa_id  == empresa_id,
+        models.LoteExistencia.producto_id == payload.producto_id,
+        models.LoteExistencia.numero_lote == payload.numero_lote,
+    ).first()
+
+    if lote:
+        # Reposición del mismo lote — suma cantidades
+        lote.cantidad_actual  += payload.cantidad_inicial
+        lote.cantidad_inicial += payload.cantidad_inicial
+        # Actualiza el costo al promedio ponderado
+        total_unidades = lote.cantidad_actual
+        lote.costo_unitario = (
+            (lote.costo_unitario * (total_unidades - payload.cantidad_inicial)
+             + payload.costo_unitario * payload.cantidad_inicial)
+            / total_unidades
+        ) if total_unidades > 0 else payload.costo_unitario
+    else:
+        lote = models.LoteExistencia(
+            empresa_id        = empresa_id,
+            producto_id       = payload.producto_id,
+            numero_lote       = payload.numero_lote,
+            fecha_vencimiento = payload.fecha_vencimiento,
+            fecha_fabricacion = payload.fecha_fabricacion,
+            cantidad_inicial  = payload.cantidad_inicial,
+            cantidad_actual   = payload.cantidad_inicial,
+            costo_unitario    = payload.costo_unitario,
+            proveedor_id      = payload.proveedor_id,
+            referencia_compra = payload.referencia_compra,
+            observaciones     = payload.observaciones,
+        )
+        db.add(lote)
+
+    # Actualizar stock_actual del producto sumando la cantidad ingresada
+    producto.stock_actual = (producto.stock_actual or 0) + payload.cantidad_inicial
+
+    # Registrar en inventory_movements para el Kardex
+    db.add(models.InventoryMovement(
+        producto_id    = payload.producto_id,
+        tipo           = "entrada",
+        cantidad       = payload.cantidad_inicial,
+        costo_unitario = payload.costo_unitario,
+        motivo         = "ingreso_lote",
+        referencia     = payload.referencia_compra or f"Lote {payload.numero_lote}",
+        observacion    = f"Vence: {payload.fecha_vencimiento} | Lote: {payload.numero_lote}",
+        empresa_id     = empresa_id,
+        numero_lote    = payload.numero_lote,
+    ))
+
+    db.commit()
+    db.refresh(lote)
+    return lote
+
+
+def get_lotes_producto(
+    db: Session,
+    empresa_id: int,
+    producto_id: int,
+    solo_activos: bool = True,
+) -> list:
+    """Lista todos los lotes de un producto, ordenados FEFO."""
+    q = db.query(models.LoteExistencia).filter(
+        models.LoteExistencia.empresa_id  == empresa_id,
+        models.LoteExistencia.producto_id == producto_id,
+    )
+    if solo_activos:
+        q = q.filter(models.LoteExistencia.cantidad_actual > 0)
+
+    lotes = q.order_by(models.LoteExistencia.fecha_vencimiento.asc()).all()
+    return [_enriquecer_lote(l) for l in lotes]
+
+
+def get_todos_los_lotes(
+    db: Session,
+    empresa_id: int,
+    solo_activos: bool = True,
+    producto_id: int = None,
+) -> list:
+    """Lista todos los lotes de la empresa."""
+    q = (
+        db.query(models.LoteExistencia)
+        .join(models.Producto)
+        .filter(models.LoteExistencia.empresa_id == empresa_id)
+    )
+    if solo_activos:
+        q = q.filter(models.LoteExistencia.cantidad_actual > 0)
+    if producto_id:
+        q = q.filter(models.LoteExistencia.producto_id == producto_id)
+
+    lotes = q.order_by(models.LoteExistencia.fecha_vencimiento.asc()).all()
+    return [_enriquecer_lote(l) for l in lotes]
+
+
+def ajustar_lote(
+    db: Session,
+    empresa_id: int,
+    lote_id: int,
+    ajuste: schemas.LoteAjusteCreate,
+) -> models.LoteExistencia:
+    """Ajuste manual de cantidad en un lote (positivo=entrada, negativo=salida)."""
+    lote = db.query(models.LoteExistencia).filter(
+        models.LoteExistencia.id         == lote_id,
+        models.LoteExistencia.empresa_id == empresa_id,
+    ).first()
+    if not lote:
+        raise HTTPException(404, "Lote no encontrado.")
+
+    nueva_cantidad = lote.cantidad_actual + ajuste.cantidad
+    if nueva_cantidad < 0:
+        raise HTTPException(400, f"Ajuste inválido: la cantidad resultante sería negativa "
+                                 f"({nueva_cantidad:.2f}).")
+
+    lote.cantidad_actual = nueva_cantidad
+
+    # Actualizar stock del producto
+    producto = db.query(models.Producto).filter(
+        models.Producto.id         == lote.producto_id,
+        models.Producto.empresa_id == empresa_id,
+    ).first()
+    if producto:
+        producto.stock_actual = (producto.stock_actual or 0) + ajuste.cantidad
+
+    # Registrar movimiento
+    db.add(models.InventoryMovement(
+        producto_id    = lote.producto_id,
+        tipo           = "entrada" if ajuste.cantidad > 0 else "salida",
+        cantidad       = abs(ajuste.cantidad),
+        costo_unitario = lote.costo_unitario,
+        motivo         = f"ajuste_lote: {ajuste.motivo}",
+        referencia     = ajuste.referencia or f"Lote {lote.numero_lote}",
+        empresa_id     = empresa_id,
+        lote_id        = lote.id,
+        numero_lote    = lote.numero_lote,
+    ))
+
+    db.commit()
+    db.refresh(lote)
+    return lote
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# FEFO — FIRST EXPIRED, FIRST OUT
+# ════════════════════════════════════════════════════════════════════════════
+
+def get_lotes_fefo(
+    db: Session,
+    empresa_id: int,
+    producto_id: int,
+) -> list[models.LoteExistencia]:
+    """
+    Retorna los lotes vigentes del producto ordenados por fecha de vencimiento ASC.
+    No incluye lotes ya vencidos ni sin stock.
+    """
+    hoy = date.today()
+    return (
+        db.query(models.LoteExistencia)
+        .filter(
+            models.LoteExistencia.empresa_id        == empresa_id,
+            models.LoteExistencia.producto_id       == producto_id,
+            models.LoteExistencia.cantidad_actual   >  0,
+            models.LoteExistencia.fecha_vencimiento >= hoy,
+        )
+        .order_by(models.LoteExistencia.fecha_vencimiento.asc())
+        .all()
+    )
+
+
+def consumir_stock_fefo(
+    db: Session,
+    empresa_id: int,
+    producto_id: int,
+    cantidad_requerida: float,
+    motivo: str = "venta",
+    referencia: str = "",
+    commit: bool = True,
+) -> list[dict]:
+    """
+    Descuenta stock aplicando FEFO.
+    Retorna lista de lotes afectados para trazabilidad en la factura.
+    Lanza ValueError si no hay stock suficiente en lotes vigentes.
+    """
+    lotes    = get_lotes_fefo(db, empresa_id, producto_id)
+    restante = cantidad_requerida
+    afectados = []
+
+    for lote in lotes:
+        if restante <= 0:
+            break
+
+        consumo = min(lote.cantidad_actual, restante)
+        lote.cantidad_actual -= consumo
+        restante             -= consumo
+
+        afectados.append({
+            "lote_id":           lote.id,
+            "numero_lote":       lote.numero_lote,
+            "fecha_vencimiento": lote.fecha_vencimiento.isoformat(),
+            "consumido":         consumo,
+        })
+
+        db.add(models.InventoryMovement(
+            empresa_id     = empresa_id,
+            producto_id    = producto_id,
+            tipo           = "salida",
+            cantidad       = consumo,
+            costo_unitario = lote.costo_unitario,
+            motivo         = motivo,
+            referencia     = referencia,
+            lote_id        = lote.id,
+            numero_lote    = lote.numero_lote,
+        ))
+
+    if restante > 0:
+        raise ValueError(
+            f"Stock insuficiente en lotes vigentes para '{referencia}'. "
+            f"Faltaron {restante:.2f} unidades."
+        )
+
+    if commit:
+        db.commit()
+
+    return afectados
+
+
+def sugerencia_fefo(
+    db: Session,
+    empresa_id: int,
+    producto_id: int,
+    cantidad_requerida: float,
+) -> dict:
+    """
+    Devuelve la sugerencia FEFO SIN modificar la BD.
+    Útil para mostrar al usuario qué lotes se van a consumir antes de confirmar.
+    """
+    lotes    = get_lotes_fefo(db, empresa_id, producto_id)
+    restante = cantidad_requerida
+    plan     = []
+    factible = True
+
+    for lote in lotes:
+        if restante <= 0:
+            break
+        consumo = min(lote.cantidad_actual, restante)
+        restante -= consumo
+        plan.append({
+            "lote_id":           lote.id,
+            "numero_lote":       lote.numero_lote,
+            "fecha_vencimiento": lote.fecha_vencimiento.isoformat(),
+            "dias_restantes":    (lote.fecha_vencimiento - date.today()).days,
+            "cantidad_disponible": lote.cantidad_actual,
+            "a_consumir":        consumo,
+        })
+
+    if restante > 0:
+        factible = False
+
+    return {
+        "factible":          factible,
+        "cantidad_requerida": cantidad_requerida,
+        "faltante":          restante if not factible else 0,
+        "lotes_sugeridos":   plan,
+    }
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# ALERTAS DE VENCIMIENTO
+# ════════════════════════════════════════════════════════════════════════════
+
+def get_alertas_vencimiento(
+    db: Session,
+    empresa_id: int,
+    dias: int = 30,
+) -> list[dict]:
+    """
+    Retorna lotes con stock > 0 cuya fecha de vencimiento está dentro de `dias` días.
+    Incluye lotes ya vencidos (dias_restantes < 0).
+    """
+    limite = date.today() + timedelta(days=dias)
+
+    lotes = (
+        db.query(models.LoteExistencia)
+        .join(models.Producto)
+        .filter(
+            models.LoteExistencia.empresa_id        == empresa_id,
+            models.LoteExistencia.cantidad_actual   >  0,
+            models.LoteExistencia.fecha_vencimiento <= limite,
+        )
+        .order_by(models.LoteExistencia.fecha_vencimiento.asc())
+        .all()
+    )
+
+    return [
+        {
+            "lote_id":           l.id,
+            "producto_id":       l.producto_id,
+            "producto_nombre":   l.producto.nombre,
+            "numero_lote":       l.numero_lote,
+            "cantidad_actual":   l.cantidad_actual,
+            "unidad_medida":     l.producto.unidad_medida,
+            "fecha_vencimiento": l.fecha_vencimiento.isoformat(),
+            "dias_restantes":    (l.fecha_vencimiento - date.today()).days,
+            "urgencia":          _urgencia((l.fecha_vencimiento - date.today()).days),
+            "valor_en_riesgo":   round(l.cantidad_actual * l.costo_unitario, 2),
+        }
+        for l in lotes
+    ]
+
+
+def get_resumen_alertas(db: Session, empresa_id: int) -> dict:
+    """
+    KPIs de alertas: cuántos lotes en cada categoría de urgencia.
+    Para el dashboard.
+    """
+    alertas = get_alertas_vencimiento(db, empresa_id, dias=30)
+
+    return {
+        "vencidos":  sum(1 for a in alertas if a["urgencia"] == "vencido"),
+        "criticos":  sum(1 for a in alertas if a["urgencia"] == "critico"),
+        "alertas":   sum(1 for a in alertas if a["urgencia"] == "alerta"),
+        "avisos":    sum(1 for a in alertas if a["urgencia"] == "aviso"),
+        "valor_total_en_riesgo": sum(a["valor_en_riesgo"] for a in alertas),
+        "detalle":   alertas,
+    }
+
+
+def notificar_vencimientos_proximos(db: Session) -> int:
+    """
+    Cron job: genera notificaciones para admins de empresas con lotes
+    próximos a vencer (≤ 15 días). Se llama desde un endpoint superadmin.
+    Retorna el número de notificaciones creadas.
+    """
+    limite  = date.today() + timedelta(days=15)
+    hoy     = date.today()
+    total   = 0
+
+    empresas = db.query(models.Empresa).filter(models.Empresa.is_active == True).all()
+
+    for empresa in empresas:
+        lotes_criticos = db.query(models.LoteExistencia).join(models.Producto).filter(
+            models.LoteExistencia.empresa_id        == empresa.id,
+            models.LoteExistencia.cantidad_actual   >  0,
+            models.LoteExistencia.fecha_vencimiento <= limite,
+        ).all()
+
+        if not lotes_criticos:
+            continue
+
+        vencidos = [l for l in lotes_criticos if l.fecha_vencimiento < hoy]
+        criticos = [l for l in lotes_criticos if hoy <= l.fecha_vencimiento <= hoy + timedelta(days=5)]
+        proximos = [l for l in lotes_criticos if l.fecha_vencimiento > hoy + timedelta(days=5)]
+
+        admins = db.query(models.User).join(models.Role).filter(
+            models.User.empresa_id == empresa.id,
+            models.Role.name       == "Admin",
+            models.User.is_active  == True,
+        ).all()
+
+        for admin in admins:
+            if vencidos:
+                db.add(models.Notificacion(
+                    usuario_id    = admin.id,
+                    empresa_id    = empresa.id,
+                    mensaje       = f"🔴 {len(vencidos)} lote(s) VENCIDO(S). Retíralos del inventario inmediatamente.",
+                    tipo          = "error",
+                    leido         = False,
+                ))
+                total += 1
+
+            if criticos:
+                nombres = ", ".join(set(l.producto.nombre for l in criticos))
+                db.add(models.Notificacion(
+                    usuario_id    = admin.id,
+                    empresa_id    = empresa.id,
+                    mensaje       = f"🟠 {len(criticos)} lote(s) vencen en ≤5 días: {nombres[:80]}",
+                    tipo          = "warning",
+                    leido         = False,
+                ))
+                total += 1
+
+            if proximos:
+                db.add(models.Notificacion(
+                    usuario_id    = admin.id,
+                    empresa_id    = empresa.id,
+                    mensaje       = f"🟡 {len(proximos)} lote(s) vencen en los próximos 15 días.",
+                    tipo          = "info",
+                    leido         = False,
+                ))
+                total += 1
+
+    db.commit()
+    return total

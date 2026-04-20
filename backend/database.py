@@ -92,8 +92,22 @@ def _add_column_if_missing(conn, table_name: str, column_sql: str, column_name: 
     logger.info("Agregando columna: %s.%s", table_name, column_name)
     conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_sql}"))
 
+def _index_exists(conn, index_name: str) -> bool:
+    if IS_SQLITE:
+        row = conn.execute(
+            text("SELECT name FROM sqlite_master WHERE type='index' AND name=:name"),
+            {"name": index_name},
+        ).fetchone()
+        return row is not None
+    else:
+        row = conn.execute(
+            text("SELECT 1 FROM pg_indexes WHERE indexname = :name"),
+            {"name": index_name},
+        ).fetchone()
+        return row is not None
 
-# ─── Migraciones ─────────────────────────────────────────────────────────────
+
+# ─── Migraciones ──────────────────────────────────────────────────────────────
 
 def run_migrations():
     try:
@@ -105,7 +119,6 @@ def run_migrations():
             # =================================================================
             migration_v18 = "inv_v18_multitenant"
             if not _migration_already_applied(conn, migration_v18):
-                # 1. Crear tabla empresas si no existe
                 if not _table_exists(conn, "empresas"):
                     if IS_SQLITE:
                         conn.execute(text("""
@@ -133,62 +146,47 @@ def run_migrations():
                         """))
                     logger.info("Tabla 'empresas' creada.")
 
-                # 2. Insertar la empresa por defecto
                 conn.execute(text("""
-                    INSERT INTO empresas (id, nombre, nit, color_primario) 
+                    INSERT INTO empresas (id, nombre, nit, color_primario)
                     VALUES (1, 'Ksmart360 (Mi Fábrica)', '900000000-1', '#F43F5E')
                     ON CONFLICT DO NOTHING;
                 """))
 
-                # 3. Lista COMPLETA de tablas que necesitan empresa_id
                 tablas_tenant = [
-                    'users', 'clientes', 'productos', 'inventory_movements', 
-                    'ventas', 'detalles_venta', 'pagos', 'ordenes_trabajo', 
-                    'orden_productos', 'orden_servicios', 'evidencias', 
-                    'notificaciones', 'registros_productividad', 'recetas', 
-                    'receta_servicios', 'receta_items', 'lotes_produccion', 
-                    'compras', 'detalles_compra', 'pagos_compra', 
+                    'users', 'clientes', 'productos', 'inventory_movements',
+                    'ventas', 'detalles_venta', 'pagos', 'ordenes_trabajo',
+                    'orden_productos', 'orden_servicios', 'evidencias',
+                    'notificaciones', 'registros_productividad', 'recetas',
+                    'receta_servicios', 'receta_items', 'lotes_produccion',
+                    'compras', 'detalles_compra', 'pagos_compra',
                     'devoluciones', 'devolucion_items', 'cortes_caja', 'gastos'
                 ]
-
-                # 4. Agregar la columna empresa_id y actualizar datos huérfanos
                 for tabla in tablas_tenant:
                     if _table_exists(conn, tabla):
                         _add_column_if_missing(conn, tabla, "empresa_id INTEGER", "empresa_id")
                         conn.execute(text(f"UPDATE {tabla} SET empresa_id = 1 WHERE empresa_id IS NULL;"))
 
                 _mark_migration_applied(conn, migration_v18)
-                logger.info("Migración %s aplicada correctamente. Sistema Multi-tenant listo.", migration_v18)
-
+                logger.info("Migración %s aplicada. Multi-tenant listo.", migration_v18)
 
             # =================================================================
-            # V19 - MIGRACIÓN SAAS Y TRIAL PERIODS
+            # V19 - SAAS Y TRIAL PERIODS
             # =================================================================
             migration_v19 = "inv_v20_saas_trial"
             if not _migration_already_applied(conn, migration_v19):
                 if _table_exists(conn, "empresas"):
-                    
-                    # 1. Agregar plan_type a empresas
                     _add_column_if_missing(conn, "empresas", "plan_type TEXT DEFAULT 'trial'", "plan_type")
-                    
-                    # 2. Agregar trial_ends_at (dependiendo del motor de base de datos)
                     if IS_SQLITE:
                         _add_column_if_missing(conn, "empresas", "trial_ends_at TIMESTAMP", "trial_ends_at")
                     else:
                         _add_column_if_missing(conn, "empresas", "trial_ends_at TIMESTAMPTZ", "trial_ends_at")
-
-                    # 3. BLINDAJE: Hacer que la empresa 1 (SuperAdmin) tenga plan premium de por vida
-                    # Esto evita que te auto-bloquees del sistema a los 14 días.
                     conn.execute(text("UPDATE empresas SET plan_type = 'premium' WHERE id = 1;"))
 
                 _mark_migration_applied(conn, migration_v19)
-                logger.info("Migración %s aplicada. Campos de Trial y Facturación añadidos.", migration_v19)
+                logger.info("Migración %s aplicada. Trial y facturación añadidos.", migration_v19)
 
-
-
-
-                # =================================================================
-            # V20 - MIGRACIÓN WOMPI (COBRO RECURRENTE)
+            # =================================================================
+            # V20 - WOMPI (COBRO RECURRENTE)
             # =================================================================
             migration_v20 = "inv_v21_wompi"
             if not _migration_already_applied(conn, migration_v20):
@@ -196,56 +194,144 @@ def run_migrations():
                     _add_column_if_missing(conn, "empresas", "wompi_customer_id TEXT", "wompi_customer_id")
                     _add_column_if_missing(conn, "empresas", "wompi_payment_source_id TEXT", "wompi_payment_source_id")
                 _mark_migration_applied(conn, migration_v20)
-                logger.info("Migración %s aplicada. Columnas Wompi añadidas a empresas.", migration_v20)
+                logger.info("Migración %s aplicada. Columnas Wompi añadidas.", migration_v20)
 
-
-                # =================================================================
+            # =================================================================
             # V21 - MÓDULO DE PRÉSTAMOS
             # =================================================================
             migration_v21 = "inv_v22_prestamos"
             if not _migration_already_applied(conn, migration_v21):
-                # Crea las tablas si no existen basándose en los modelos
                 Base.metadata.create_all(bind=engine, tables=[
-                    models.Prestamo.__table__, 
+                    models.Prestamo.__table__,
                     models.CuotaPrestamo.__table__
                 ])
                 _mark_migration_applied(conn, migration_v21)
                 logger.info("Migración %s aplicada. Tablas de préstamos creadas.", migration_v21)
 
-
-                # =================================================================
-            # V22 - MÓDULOS HABILITADOS POR EMPRESA (SaaS Feature Toggles)
+            # =================================================================
+            # V22 - MÓDULOS HABILITADOS POR EMPRESA
             # =================================================================
             migration_v22 = "inv_v22_modulos_empresas"
             if not _migration_already_applied(conn, migration_v22):
-                # ✅ CORRECCIÓN: "modulos_habilitados TEXT" va junto en el segundo parámetro
                 _add_column_if_missing(conn, "empresas", "modulos_habilitados TEXT", "modulos_habilitados")
                 _mark_migration_applied(conn, migration_v22)
-                logger.info("Migración %s aplicada. Columna modulos_habilitados añadida a empresas.", migration_v22)
+                logger.info("Migración %s aplicada. modulos_habilitados añadido.", migration_v22)
 
             # =================================================================
             # V23 - ASIGNACIÓN DE COBRADORES A CUOTAS
             # =================================================================
             migration_v23 = "inv_v23_asignacion_cobradores"
             if not _migration_already_applied(conn, migration_v23):
-                # ✅ CORRECCIÓN: "usuario_asignado_id INTEGER"
                 _add_column_if_missing(conn, "cuotas_prestamo", "usuario_asignado_id INTEGER", "usuario_asignado_id")
                 _mark_migration_applied(conn, migration_v23)
-                logger.info("Migración %s aplicada. Columna usuario_asignado_id añadida a cuotas.", migration_v23)
+                logger.info("Migración %s aplicada. usuario_asignado_id en cuotas.", migration_v23)
 
             # =================================================================
             # V24 - ASIGNACIÓN DE COBRADORES A LA CABECERA DEL PRÉSTAMO
             # =================================================================
             migration_v24 = "inv_v24_asignacion_cobradores_prestamo"
             if not _migration_already_applied(conn, migration_v24):
-                # ✅ CORRECCIÓN: "usuario_asignado_id INTEGER"
                 _add_column_if_missing(conn, "prestamos", "usuario_asignado_id INTEGER", "usuario_asignado_id")
                 _mark_migration_applied(conn, migration_v24)
-                logger.info("Migración %s aplicada. Columna usuario_asignado_id añadida a prestamos.", migration_v24)
+                logger.info("Migración %s aplicada. usuario_asignado_id en prestamos.", migration_v24)
+
+            # =================================================================
+            # V25 - TASA DE MORA EN PRÉSTAMOS
+            # =================================================================
+            migration_v25 = "inv_v25_tasa_mora"
+            if not _migration_already_applied(conn, migration_v25):
+                _add_column_if_missing(conn, "prestamos", "tasa_mora REAL DEFAULT 2.0", "tasa_mora")
+                _mark_migration_applied(conn, migration_v25)
+                logger.info("Migración %s aplicada. tasa_mora añadida a prestamos.", migration_v25)
+
+            # =================================================================
+            # V26 - FASE 1: GESTIÓN DE PERECEDEROS (LOTES Y VENCIMIENTOS)
+            # =================================================================
+            migration_v26 = "inv_v26_lotes_perecederos"
+            if not _migration_already_applied(conn, migration_v26):
+
+                # 1. Tabla lotes_existencias
+                if not _table_exists(conn, "lotes_existencias"):
+                    conn.execute(text("""
+                        CREATE TABLE lotes_existencias (
+                            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                            empresa_id        INTEGER NOT NULL,
+                            producto_id       INTEGER NOT NULL,
+                            numero_lote       TEXT    NOT NULL,
+                            fecha_vencimiento TEXT    NOT NULL,
+                            fecha_fabricacion TEXT,
+                            cantidad_inicial  REAL    NOT NULL DEFAULT 0,
+                            cantidad_actual   REAL    NOT NULL DEFAULT 0,
+                            costo_unitario    REAL    NOT NULL DEFAULT 0,
+                            proveedor_id      INTEGER,
+                            referencia_compra TEXT,
+                            observaciones     TEXT,
+                            created_at        TEXT    DEFAULT (datetime('now')),
+                            UNIQUE(empresa_id, producto_id, numero_lote)
+                        )
+                    """))
+                    logger.info("Tabla 'lotes_existencias' creada.")
+
+                # 2. Índice FEFO — por vencimiento (el más crítico para el rendimiento)
+                if not _index_exists(conn, "idx_lotes_vencimiento"):
+                    conn.execute(text("""
+                        CREATE INDEX idx_lotes_vencimiento
+                        ON lotes_existencias(empresa_id, fecha_vencimiento)
+                    """))
+                    logger.info("Índice idx_lotes_vencimiento creado.")
+
+                # 3. Índice por producto
+                if not _index_exists(conn, "idx_lotes_producto"):
+                    conn.execute(text("""
+                        CREATE INDEX idx_lotes_producto
+                        ON lotes_existencias(empresa_id, producto_id)
+                    """))
+                    logger.info("Índice idx_lotes_producto creado.")
+
+                # 4. Columna lote_id en inventory_movements (trazabilidad)
+                _add_column_if_missing(
+                    conn, "inventory_movements",
+                    "lote_id INTEGER", "lote_id"
+                )
+
+                # 5. Columna numero_lote en inventory_movements (denormalizado para queries rápidas)
+                _add_column_if_missing(
+                    conn, "inventory_movements",
+                    "numero_lote TEXT", "numero_lote"
+                )
+
+                # 6. Índice en movements por lote_id
+                if not _index_exists(conn, "idx_movements_lote"):
+                    conn.execute(text("""
+                        CREATE INDEX idx_movements_lote
+                        ON inventory_movements(lote_id)
+                    """))
+                    logger.info("Índice idx_movements_lote creado.")
+
+                _mark_migration_applied(conn, migration_v26)
+                logger.info(
+                    "Migración %s aplicada. "
+                    "Tabla lotes_existencias + índices FEFO + columnas en inventory_movements.",
+                    migration_v26,
+                )
 
 
+                # database.py - Dentro de run_migrations()
+
+               # database.py - Al final de la función run_migrations()
+
+          # En database.py, al final de las migraciones existentes:
+
+            # =================================================================
+            # V25 - UNIFICACIÓN DE CATÁLOGO: SOPORTE PARA PERECEDEROS
+            # =================================================================
+            migration_v25 = "inv_v25_maneja_lotes"
+            if not _migration_already_applied(conn, migration_v25):
+                if _table_exists(conn, "productos"):
+                    # En SQLite/Postgres el booleano por defecto puede representarse como 0 (False)
+                    _add_column_if_missing(conn, "productos", "maneja_lotes INTEGER DEFAULT 0", "maneja_lotes")
+                _mark_migration_applied(conn, migration_v25)
+                logger.info("Migración %s aplicada. Columna maneja_lotes añadida a productos.", migration_v25)
     except Exception as e:
         logger.exception("Error ejecutando migraciones en base de datos: %s", e)
         raise
-
-  

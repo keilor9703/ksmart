@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, Enum, Text, func
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, Enum, Text, func, Date
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from datetime import datetime, timezone
@@ -119,6 +119,7 @@ class Cliente(Base, TenantMixin):
     ventas          = relationship("Venta", back_populates="cliente")
     ordenes_trabajo = relationship("OrdenTrabajo", back_populates="cliente")
 
+
 class Producto(Base, TenantMixin):
     __tablename__ = "productos"
     id            = Column(Integer, primary_key=True, index=True)
@@ -130,6 +131,11 @@ class Producto(Base, TenantMixin):
     stock_actual  = Column(Float, default=0.0)
     stock_minimo  = Column(Float, default=0.0)
     grupo_item    = Column(Integer, default=2)
+    
+    # 👇 NUEVA COLUMNA: Control maestro para perecederos
+    maneja_lotes  = Column(Boolean, default=False)
+
+    lotes = relationship("LoteExistencia", back_populates="producto", cascade="all, delete-orphan")
 
 class MovementType(str, enum.Enum):
     ENTRADA = "entrada"
@@ -147,6 +153,11 @@ class InventoryMovement(Base, TenantMixin):
     referencia     = Column(String(100), default="")
     observacion    = Column(Text, default="")
     created_at     = Column(DateTime(timezone=True), default=utcnow)
+
+    lote_id     = Column(Integer, ForeignKey("lotes_existencias.id"), nullable=True)
+    numero_lote = Column(String(100), nullable=True)
+    lote        = relationship("LoteExistencia", back_populates="movimientos")
+
 
     producto = relationship("Producto", lazy="joined")
 
@@ -517,3 +528,50 @@ class CuotaPrestamo(Base, TenantMixin):
     cobrador = relationship("User")
 
     prestamo = relationship("Prestamo", back_populates="cuotas")
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# AÑADIR A models.py — Modelo LoteExistencia
+# Pega este bloque dentro de tu models.py existente
+# ═══════════════════════════════════════════════════════════════════════════
+
+class LoteExistencia(Base):
+    """
+    Representa un lote físico de un producto con fecha de vencimiento.
+    Un producto puede tener múltiples lotes activos simultáneamente.
+    """
+    __tablename__ = "lotes_existencias"
+
+    id                = Column(Integer, primary_key=True, index=True)
+    empresa_id        = Column(Integer, ForeignKey("empresas.id"), nullable=False)
+    producto_id       = Column(Integer, ForeignKey("productos.id"), nullable=False)
+    numero_lote       = Column(String(100), nullable=False)
+    fecha_vencimiento = Column(Date, nullable=False)
+    fecha_fabricacion = Column(Date, nullable=True)
+    cantidad_inicial  = Column(Float, default=0)
+    cantidad_actual   = Column(Float, default=0)
+    costo_unitario    = Column(Float, default=0)
+    proveedor_id      = Column(Integer, ForeignKey("clientes.id"), nullable=True)
+    referencia_compra = Column(String(100), nullable=True)
+    observaciones     = Column(Text, nullable=True)
+    created_at        = Column(DateTime(timezone=True), default=utcnow)
+
+    # Relaciones
+    empresa   = relationship("Empresa")
+    producto  = relationship("Producto", back_populates="lotes")
+    proveedor = relationship("Cliente", foreign_keys=[proveedor_id])
+    movimientos = relationship("InventoryMovement", back_populates="lote")
+
+
+# ── También añade en el modelo Producto existente ────────────────────────────
+# Dentro de class Producto(Base): agrega esta línea:
+#
+#     lotes = relationship("LoteExistencia", back_populates="producto",
+#                          cascade="all, delete-orphan")
+#
+# ── Y en InventoryMovement agrega estas dos columnas y la relación: ──────────
+#
+#     lote_id     = Column(Integer, ForeignKey("lotes_existencias.id"), nullable=True)
+#     numero_lote = Column(String(100), nullable=True)
+#     lote        = relationship("LoteExistencia", back_populates="movimientos")

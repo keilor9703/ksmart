@@ -124,6 +124,7 @@ class ClienteDetails(Cliente):
 # =========================
 # PRODUCTOS / INVENTARIO
 # =========================
+# En schemas.py, busca la clase ProductoBase y añádelo al final:
 class ProductoBase(BaseModel):
     nombre: str
     precio: float
@@ -132,7 +133,9 @@ class ProductoBase(BaseModel):
     unidad_medida: Optional[str] = "UND"
     stock_minimo: float = 0.0
     grupo_item: int = 2 
-
+    
+    # 👇 NUEVO CAMPO: Se valida desde la API
+    maneja_lotes: bool = False
 class ProductoCreate(ProductoBase):
     pass
 
@@ -429,6 +432,12 @@ class DetalleCompraBase(BaseModel):
     producto_id: int
     cantidad: float
     precio_unitario: float
+    numero_lote: Optional[str] = None
+    fecha_vencimiento: Optional[date] = None
+    fecha_fabricacion: Optional[date] = None
+
+
+
 
 class DetalleCompraCreate(DetalleCompraBase):
     pass
@@ -534,10 +543,19 @@ class LoteServicioPrecio(BaseModel):
     servicio_id: int
     precio: float
 
+# class LoteProduccionConfirm(BaseModel):
+#     cantidad_real: float
+#     precios_servicios: List[LoteServicioPrecio] = []
+#     observaciones: Optional[str] = None
+
+
 class LoteProduccionConfirm(BaseModel):
     cantidad_real: float
     precios_servicios: List[LoteServicioPrecio] = []
     observaciones: Optional[str] = None
+    # 👇 NUEVOS CAMPOS PARA PRODUCCIÓN FEFO
+    numero_lote: Optional[str] = None
+    fecha_vencimiento: Optional[date] = None
 
 class LoteProduccion(LoteProduccionBase):
     id: int
@@ -951,3 +969,92 @@ class DiaCobroResumen(BaseModel):
     fecha: date
     cantidad_cuotas: int
     monto_total: float
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# AÑADIR A schemas.py — Schemas de Lotes de Existencias
+# ═══════════════════════════════════════════════════════════════════════════
+
+from pydantic import BaseModel, Field, validator
+from typing import Optional, List
+from datetime import date, datetime
+
+
+# ── Schema para crear un lote ─────────────────────────────────────────────────
+class LoteExistenciaCreate(BaseModel):
+    producto_id:       int
+    numero_lote:       str   = Field(..., min_length=1, max_length=100)
+    fecha_vencimiento: date
+    fecha_fabricacion: Optional[date]  = None
+    cantidad_inicial:  float = Field(..., gt=0)
+    costo_unitario:    float = Field(..., ge=0)
+    proveedor_id:      Optional[int]   = None
+    referencia_compra: Optional[str]   = None
+    observaciones:     Optional[str]   = None
+
+    @validator("fecha_vencimiento")
+    def vencimiento_futuro(cls, v):
+        if v <= date.today():
+            raise ValueError("La fecha de vencimiento debe ser una fecha futura.")
+        return v
+
+    @validator("fecha_fabricacion")
+    def fabricacion_antes_vencimiento(cls, v, values):
+        if v and "fecha_vencimiento" in values and v >= values["fecha_vencimiento"]:
+            raise ValueError("La fecha de fabricación debe ser anterior a la de vencimiento.")
+        return v
+
+
+# ── Schema de salida de un lote ───────────────────────────────────────────────
+class LoteExistenciaOut(BaseModel):
+    id:                int
+    empresa_id:        int
+    producto_id:       int
+    producto_nombre:   Optional[str]   = None   # enriquecido en el endpoint
+    numero_lote:       str
+    fecha_vencimiento: date
+    fecha_fabricacion: Optional[date]  = None
+    cantidad_inicial:  float
+    cantidad_actual:   float
+    costo_unitario:    float
+    proveedor_id:      Optional[int]   = None
+    proveedor_nombre:  Optional[str]   = None   # enriquecido
+    referencia_compra: Optional[str]   = None
+    observaciones:     Optional[str]   = None
+    created_at:        Optional[datetime] = None
+
+    # Campos calculados
+    dias_restantes:    Optional[int]   = None
+    urgencia:          Optional[str]   = None   # 'critico' | 'alerta' | 'aviso' | 'ok'
+    porcentaje_consumo:Optional[float] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ── Schema para ajuste manual de un lote ─────────────────────────────────────
+class LoteAjusteCreate(BaseModel):
+    cantidad:  float = Field(..., description="Positivo=entrada, negativo=salida")
+    motivo:    str   = Field(..., min_length=3)
+    referencia:Optional[str] = None
+
+
+# ── Schema para el reporte de proximidad a vencimiento ───────────────────────
+class AlertaVencimientoOut(BaseModel):
+    lote_id:           int
+    producto_id:       int
+    producto_nombre:   str
+    numero_lote:       str
+    cantidad_actual:   float
+    unidad_medida:     Optional[str]
+    fecha_vencimiento: date
+    dias_restantes:    int
+    urgencia:          str           # 'critico' (≤5d) | 'alerta' (≤15d) | 'aviso' (≤30d)
+    valor_en_riesgo:   float         # cantidad_actual × costo_unitario
+
+
+# ── Schema de resumen FEFO para una venta ────────────────────────────────────
+class LoteConsumidoOut(BaseModel):
+    lote_id:           int
+    numero_lote:       str
+    fecha_vencimiento: date
+    consumido:         float

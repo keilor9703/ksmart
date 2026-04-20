@@ -338,7 +338,7 @@ export default function Inventario() {
                                 <TableCell>
                                   <Chip label={low ? 'Stock bajo' : 'Normal'} color={low ? 'error' : 'success'}
                                     size="small" sx={{ fontWeight: 600, fontSize: 10, borderRadius: 1.5 }} />
-                                </TableCell>
+                                </TableCell> 
                               </TableRow>
                             );
                           })

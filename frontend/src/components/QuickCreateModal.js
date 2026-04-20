@@ -1,36 +1,12 @@
-/**
- * QuickCreateModal.jsx
- * ─────────────────────────────────────────────────────────────────────────────
- * Componente REUTILIZABLE de creación en contexto (inline creation).
- *
- * FASE 1 — implementado en: Compras (proveedor + producto)
- * FASE 2 — preparado para:  Ventas, Productos, Terceros
- *
- * USO:
- *   <QuickCreateModal
- *     open={open}
- *     onClose={() => setOpen(false)}
- *     type="tercero" | "producto"
- *     initialName="texto que buscó el usuario"
- *     onCreated={(nuevoRegistro) => { ... }}  ← recibe el objeto creado
- *   />
- *
- * Al llamar onCreated el componente padre puede:
- *   1. Agregar el nuevo registro a su lista local
- *   2. Seleccionarlo automáticamente en el Autocomplete
- *   3. Sin recargar la página ni perder el formulario
- * ─────────────────────────────────────────────────────────────────────────────
- */
-
 import React, { useState, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Box, Typography, TextField, Button, IconButton,
-  CircularProgress, InputAdornment, Divider, Alert
+  CircularProgress, InputAdornment, Divider, Switch, FormControlLabel
 } from '@mui/material';
 import {
   Close, PersonAdd, Inventory2Outlined,
-  CheckCircle, Business, AttachMoney
+  CheckCircle, Science
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../api';
@@ -59,71 +35,25 @@ const TYPE_CONFIG = {
 // ─── Formulario de Tercero ────────────────────────────────────────────────────
 const TerceroForm = ({ data, onChange, errors }) => (
   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-
-    {/* Nombre — ancho completo, sin cortar */}
     <TextField
       label="Nombre o razón social *"
       value={data.nombre}
       onChange={e => onChange('nombre', e.target.value)}
-      fullWidth
-      size="small"
+      fullWidth size="small"
       error={!!errors.nombre}
       helperText={errors.nombre}
       autoFocus
       placeholder="Ej: Distribuciones García S.A.S."
-      sx={{ '& .MuiInputBase-input': { fontSize: 14 } }}
     />
-
-    {/* NIT + Teléfono en fila */}
     <Box sx={{ display: 'flex', gap: 1.5 }}>
-      <TextField
-        label="NIT / Cédula"
-        value={data.cedula}
-        onChange={e => onChange('cedula', e.target.value)}
-        size="small"
-        error={!!errors.cedula}
-        helperText={errors.cedula || 'Único por tercero'}
-        sx={{ flex: 1 }}
-        placeholder="Ej: 900123456-1"
-      />
-      <TextField
-        label="Teléfono"
-        value={data.telefono}
-        onChange={e => onChange('telefono', e.target.value)}
-        size="small"
-        sx={{ flex: 1 }}
-        placeholder="Ej: 3001234567"
-      />
+      <TextField label="NIT / Cédula" value={data.cedula} onChange={e => onChange('cedula', e.target.value)} size="small" error={!!errors.cedula} helperText={errors.cedula || 'Único por tercero'} sx={{ flex: 1 }} />
+      <TextField label="Teléfono" value={data.telefono} onChange={e => onChange('telefono', e.target.value)} size="small" sx={{ flex: 1 }} />
     </Box>
-
-    {/* Dirección */}
-    <TextField
-      label="Dirección"
-      value={data.direccion}
-      onChange={e => onChange('direccion', e.target.value)}
-      size="small"
-      fullWidth
-      placeholder="Ej: Calle 10 #20-30, Barranquilla"
-    />
-
-    {/* Cupo de crédito */}
-    <TextField
-      label="Cupo de crédito"
-      type="number"
-      value={data.cupo_credito}
-      onChange={e => onChange('cupo_credito', e.target.value)}
-      size="small"
-      fullWidth
-      InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
-      inputProps={{ min: 0, step: 1000 }}
-      helperText="Límite máximo de ventas a crédito. Deja en 0 si no aplica."
-    />
-
-    {/* Tipo — Proveedor / Cliente */}
+    <TextField label="Dirección" value={data.direccion} onChange={e => onChange('direccion', e.target.value)} size="small" fullWidth />
+    <TextField label="Cupo de crédito" type="number" value={data.cupo_credito} onChange={e => onChange('cupo_credito', e.target.value)} size="small" fullWidth InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }} inputProps={{ min: 0, step: 1000 }} helperText="Límite máximo de ventas a crédito. Deja en 0 si no aplica." />
+    
     <Box>
-      <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 0.8 }}>
-        Tipo de tercero
-      </Typography>
+      <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', mb: 0.8 }}>Tipo de tercero</Typography>
       <Box sx={{ display: 'flex', gap: 1 }}>
         {[
           { key: 'es_proveedor', label: '🏭 Proveedor' },
@@ -135,12 +65,10 @@ const TerceroForm = ({ data, onChange, errors }) => (
             sx={{
               flex: 1, py: 1, borderRadius: 2, textAlign: 'center',
               cursor: 'pointer', fontSize: 13, fontWeight: 600,
-              border: '1.5px solid',
-              borderColor: data[key] ? '#3B82F6' : 'divider',
+              border: '1.5px solid', borderColor: data[key] ? '#3B82F6' : 'divider',
               bgcolor: data[key] ? '#EFF6FF' : 'background.paper',
               color: data[key] ? '#3B82F6' : 'text.secondary',
               transition: 'all 0.15s', userSelect: 'none',
-              '&:hover': { borderColor: '#3B82F6', bgcolor: '#EFF6FF20' },
             }}
           >
             {label}
@@ -162,51 +90,18 @@ const ProductoForm = ({ data, onChange, errors }) => (
       error={!!errors.nombre}
       helperText={errors.nombre}
       autoFocus
-      placeholder="Ej: Cacao en grano tostado"
     />
     <Box sx={{ display: 'flex', gap: 1.5 }}>
-      <TextField
-        label="Costo de compra *"
-        type="number"
-        value={data.costo}
-        onChange={e => onChange('costo', e.target.value)}
-        size="small"
-        error={!!errors.costo}
-        helperText={errors.costo}
-        sx={{ flex: 1 }}
-        InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
-        inputProps={{ min: 0, step: 'any' }}
-      />
-      <TextField
-        label="Precio de venta"
-        type="number"
-        value={data.precio}
-        onChange={e => onChange('precio', e.target.value)}
-        size="small"
-        sx={{ flex: 1 }}
-        InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
-        inputProps={{ min: 0, step: 'any' }}
-      />
+      <TextField label="Costo de compra *" type="number" value={data.costo} onChange={e => onChange('costo', e.target.value)} size="small" error={!!errors.costo} helperText={errors.costo} sx={{ flex: 1 }} InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }} />
+      <TextField label="Precio de venta" type="number" value={data.precio} onChange={e => onChange('precio', e.target.value)} size="small" sx={{ flex: 1 }} InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }} />
     </Box>
 
-    {/* Unidad de medida — desde constantes centralizadas */}
     <Box>
-      <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 0.8 }}>
-        Unidad de medida
-      </Typography>
+      <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', mb: 0.8 }}>Unidad de medida</Typography>
       <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
         {UNIDADES_MEDIDA.map(u => (
-          <Box
-            key={u.value}
-            onClick={() => onChange('unidad_medida', u.value)}
-            sx={{
-              px: 1.4, py: 0.6, borderRadius: 1.5, cursor: 'pointer',
-              fontSize: 12, fontWeight: 600, border: '1.5px solid',
-              borderColor: data.unidad_medida === u.value ? '#10B981' : 'divider',
-              bgcolor: data.unidad_medida === u.value ? '#ECFDF5' : 'transparent',
-              color: data.unidad_medida === u.value ? '#10B981' : 'text.secondary',
-              transition: 'all 0.1s', userSelect: 'none',
-            }}
+          <Box key={u.value} onClick={() => onChange('unidad_medida', u.value)}
+            sx={{ px: 1.4, py: 0.6, borderRadius: 1.5, cursor: 'pointer', fontSize: 12, fontWeight: 600, border: '1.5px solid', borderColor: data.unidad_medida === u.value ? '#10B981' : 'divider', bgcolor: data.unidad_medida === u.value ? '#ECFDF5' : 'transparent', color: data.unidad_medida === u.value ? '#10B981' : 'text.secondary', userSelect: 'none' }}
           >
             {u.value}
           </Box>
@@ -214,30 +109,36 @@ const ProductoForm = ({ data, onChange, errors }) => (
       </Box>
     </Box>
 
-    {/* Tipo de producto — desde constantes centralizadas, color propio por grupo */}
     <Box>
-      <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 0.8 }}>
-        Tipo de producto
-      </Typography>
+      <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', mb: 0.8 }}>Tipo de producto</Typography>
       <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap' }}>
         {GRUPOS_PRODUCTO.map(g => (
-          <Box
-            key={g.id}
-            onClick={() => onChange('grupo_item', g.id)}
-            sx={{
-              flex: '1 1 0', minWidth: 0, py: 0.8, borderRadius: 2,
-              textAlign: 'center', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-              border: '1.5px solid',
-              borderColor: data.grupo_item === g.id ? g.color : 'divider',
-              bgcolor: data.grupo_item === g.id ? `${g.color}12` : 'background.paper',
-              color: data.grupo_item === g.id ? g.color : 'text.secondary',
-              transition: 'all 0.15s', userSelect: 'none', px: 0.5,
-            }}
+          <Box key={g.id} onClick={() => onChange('grupo_item', g.id)}
+            sx={{ flex: '1 1 0', minWidth: 0, py: 0.8, borderRadius: 2, textAlign: 'center', cursor: 'pointer', fontSize: 12, fontWeight: 600, border: '1.5px solid', borderColor: data.grupo_item === g.id ? g.color : 'divider', bgcolor: data.grupo_item === g.id ? `${g.color}12` : 'background.paper', color: data.grupo_item === g.id ? g.color : 'text.secondary', userSelect: 'none' }}
           >
             {g.emoji} {g.short}
           </Box>
         ))}
       </Box>
+    </Box>
+
+    {/* 👇 NUEVO SWITCH INTELIGENTE PARA LOTES 👇 */}
+    <Box sx={{ 
+      p: 1.5, borderRadius: 2, border: '1px solid', 
+      borderColor: data.maneja_lotes ? '#10B981' : 'divider', 
+      bgcolor: data.maneja_lotes ? '#ECFDF5' : 'transparent',
+      transition: 'all 0.2s'
+    }}>
+      <FormControlLabel 
+        control={<Switch checked={data.maneja_lotes} onChange={(e) => onChange('maneja_lotes', e.target.checked)} color="success" />} 
+        label={<Typography sx={{ fontWeight: 600, fontSize: 14, color: data.maneja_lotes ? '#059669' : 'text.primary' }}>Producto Perecedero (Maneja Lotes)</Typography>} 
+        sx={{ m: 0 }}
+      />
+      {data.maneja_lotes && (
+        <Typography sx={{ fontSize: 11, color: '#059669', mt: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Science fontSize="small" /> Las entradas requerirán fecha de vencimiento y las salidas usarán lógica FEFO.
+        </Typography>
+      )}
     </Box>
   </Box>
 );
@@ -246,50 +147,28 @@ const ProductoForm = ({ data, onChange, errors }) => (
 const QuickCreateModal = ({ open, onClose, type, initialName = '', onCreated }) => {
   const cfg = TYPE_CONFIG[type] || TYPE_CONFIG.tercero;
 
-  // Estado del formulario
-  const [terceroData, setTerceroData] = useState({
-    nombre: '', cedula: '', telefono: '', direccion: '',
-    es_proveedor: true, es_cliente: false, cupo_credito: 0,
-  });
-  const [productoData, setProductoData] = useState({
-    nombre: '', costo: '', precio: '', unidad_medida: 'UND',
-    grupo_item: 1, es_servicio: false, stock_minimo: 0,
-  });
-
+  const [terceroData, setTerceroData] = useState({ nombre: '', cedula: '', telefono: '', direccion: '', es_proveedor: true, es_cliente: false, cupo_credito: 0 });
+  const [productoData, setProductoData] = useState({ nombre: '', costo: '', precio: '', unidad_medida: 'UND', grupo_item: 1, es_servicio: false, stock_minimo: 0, maneja_lotes: false });
   const [errors, setErrors]     = useState({});
   const [saving, setSaving]     = useState(false);
   const [savedItem, setSavedItem] = useState(null);
 
-  // Prellenar nombre con lo que el usuario ya buscó
   useEffect(() => {
     if (!open) return;
-    setSavedItem(null);
-    setErrors({});
+    setSavedItem(null); setErrors({});
     if (type === 'tercero') {
       setTerceroData({ nombre: initialName, cedula: '', telefono: '', direccion: '', es_proveedor: true, es_cliente: false, cupo_credito: 0 });
     } else {
-      setProductoData({ nombre: initialName, costo: '', precio: '', unidad_medida: 'UND', grupo_item: 1, es_servicio: false, stock_minimo: 0 });
+      setProductoData({ nombre: initialName, costo: '', precio: '', unidad_medida: 'UND', grupo_item: 1, es_servicio: false, stock_minimo: 0, maneja_lotes: false });
     }
   }, [open, type, initialName]);
 
   const handleTerceroChange  = (k, v) => { setTerceroData(p => ({ ...p, [k]: v })); setErrors(e => ({ ...e, [k]: '' })); };
   const handleProductoChange = (k, v) => { setProductoData(p => ({ ...p, [k]: v })); setErrors(e => ({ ...e, [k]: '' })); };
 
-  // ── Validaciones ─────────────────────────────────────────────────────────
-  const validateTercero = () => {
-    const errs = {};
-    if (!terceroData.nombre.trim()) errs.nombre = 'El nombre es obligatorio';
-    return errs;
-  };
+  const validateTercero = () => { const errs = {}; if (!terceroData.nombre.trim()) errs.nombre = 'El nombre es obligatorio'; return errs; };
+  const validateProducto = () => { const errs = {}; if (!productoData.nombre.trim()) errs.nombre = 'El nombre es obligatorio'; if (!productoData.costo && productoData.costo !== 0) errs.costo = 'Ingresa el costo'; return errs; };
 
-  const validateProducto = () => {
-    const errs = {};
-    if (!productoData.nombre.trim()) errs.nombre = 'El nombre es obligatorio';
-    if (!productoData.costo && productoData.costo !== 0) errs.costo = 'Ingresa el costo';
-    return errs;
-  };
-
-  // ── Guardar ───────────────────────────────────────────────────────────────
   const handleSave = async () => {
     const errs = type === 'tercero' ? validateTercero() : validateProducto();
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
@@ -298,120 +177,48 @@ const QuickCreateModal = ({ open, onClose, type, initialName = '', onCreated }) 
     try {
       let response;
       if (type === 'tercero') {
-        response = await apiClient.post('/clientes/', {
-          nombre:       terceroData.nombre.trim(),
-          cedula:       terceroData.cedula.trim() || null,
-          telefono:     terceroData.telefono.trim() || null,
-          direccion:    terceroData.direccion.trim() || null,
-          es_proveedor: terceroData.es_proveedor,
-          es_cliente:   terceroData.es_cliente,
-          cupo_credito: parseFloat(terceroData.cupo_credito) || 0,
-        });
+        response = await apiClient.post('/clientes/', { ...terceroData, cupo_credito: parseFloat(terceroData.cupo_credito) || 0 });
       } else {
         response = await apiClient.post('/productos/', {
-          nombre:       productoData.nombre.trim(),
-          costo:        parseFloat(productoData.costo) || 0,
-          precio:       parseFloat(productoData.precio) || 0,
-          unidad_medida: productoData.unidad_medida,
-          grupo_item:   productoData.grupo_item,
-          es_servicio:  false,
-          stock_minimo: 0,
-          stock_actual: 0,
+          ...productoData,
+          costo: parseFloat(productoData.costo) || 0,
+          precio: parseFloat(productoData.precio) || 0,
+          maneja_lotes: productoData.maneja_lotes // ✅ SE ENVÍA AL BACKEND
         });
       }
 
       const nuevo = response.data;
       setSavedItem(nuevo);
       toast.success(`${type === 'tercero' ? 'Tercero' : 'Producto'} "${nuevo.nombre}" creado y seleccionado`);
-
-      // Pequeño delay visual antes de cerrar — el usuario ve el check verde
-      setTimeout(() => {
-        onCreated(nuevo);   // ← el padre lo recibe y lo selecciona en el autocomplete
-        onClose();
-      }, 700);
-
+      setTimeout(() => { onCreated(nuevo); onClose(); }, 700);
     } catch (err) {
       const detail = err.response?.data?.detail || '';
-      // Manejo de errores específicos
       if (detail.toLowerCase().includes('cedula') || detail.toLowerCase().includes('unique')) {
         setErrors({ cedula: 'Ya existe un tercero con ese NIT/cédula' });
-      } else {
-        toast.error(detail || `Error al crear el ${type === 'tercero' ? 'tercero' : 'producto'}`);
-      }
-    } finally {
-      setSaving(false);
-    }
+      } else { toast.error(detail || `Error al crear el ${type === 'tercero' ? 'tercero' : 'producto'}`); }
+    } finally { setSaving(false); }
   };
 
   return (
-    <Dialog
-      open={open}
-      onClose={saving ? undefined : onClose}
-      maxWidth="sm"
-      fullWidth
-      PaperProps={{ sx: { borderRadius: 3, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' } }}
-    >
-      {/* Barra de color superior */}
+    <Dialog open={open} onClose={saving ? undefined : onClose} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' } }}>
       <Box sx={{ height: 4, bgcolor: cfg.color }} />
-
       <DialogTitle sx={{ pb: 1, pt: 2, pr: 6 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box sx={{
-            width: 40, height: 40, borderRadius: 2, flexShrink: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            bgcolor: `${cfg.color}18`, color: cfg.color,
-          }}>
-            {cfg.icon}
-          </Box>
+          <Box sx={{ width: 40, height: 40, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: `${cfg.color}18`, color: cfg.color }}>{cfg.icon}</Box>
           <Box>
             <Typography sx={{ fontWeight: 700, fontSize: 15 }}>{cfg.title}</Typography>
             <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{cfg.subtitle}</Typography>
           </Box>
         </Box>
-        <IconButton
-          size="small" onClick={onClose} disabled={saving}
-          sx={{ position: 'absolute', right: 12, top: 14, color: 'text.secondary' }}
-        >
-          <Close fontSize="small" />
-        </IconButton>
+        <IconButton size="small" onClick={onClose} disabled={saving} sx={{ position: 'absolute', right: 12, top: 14, color: 'text.secondary' }}><Close fontSize="small" /></IconButton>
       </DialogTitle>
-
       <DialogContent sx={{ pt: 1.5, pb: 2 }}>
-        {/* Formulario según tipo */}
-        {type === 'tercero'
-          ? <TerceroForm  data={terceroData}  onChange={handleTerceroChange}  errors={errors} />
-          : <ProductoForm data={productoData} onChange={handleProductoChange} errors={errors} />
-        }
+        {type === 'tercero' ? <TerceroForm data={terceroData} onChange={handleTerceroChange} errors={errors} /> : <ProductoForm data={productoData} onChange={handleProductoChange} errors={errors} />}
       </DialogContent>
-
       <Divider />
-
       <DialogActions sx={{ px: 3, py: 2, gap: 1 }}>
-        <Button
-          onClick={onClose} disabled={saving}
-          variant="outlined" size="small"
-          sx={{ borderRadius: 2, fontWeight: 600, borderColor: 'divider', color: 'text.secondary', flex: 1 }}
-        >
-          Cancelar
-        </Button>
-        <Button
-          onClick={handleSave} disabled={saving}
-          variant="contained" size="small"
-          startIcon={
-            saving
-              ? <CircularProgress size={14} color="inherit" />
-              : savedItem
-                ? <CheckCircle sx={{ fontSize: 16 }} />
-                : null
-          }
-          sx={{
-            borderRadius: 2, fontWeight: 600, flex: 1,
-            bgcolor: savedItem ? '#10B981' : cfg.color,
-            '&:hover': { bgcolor: savedItem ? '#059669' : cfg.color },
-            color: '#fff',
-            transition: 'background 0.2s',
-          }}
-        >
+        <Button onClick={onClose} disabled={saving} variant="outlined" size="small" sx={{ borderRadius: 2, fontWeight: 600, borderColor: 'divider', color: 'text.secondary', flex: 1 }}>Cancelar</Button>
+        <Button onClick={handleSave} disabled={saving} variant="contained" size="small" startIcon={saving ? <CircularProgress size={14} color="inherit" /> : savedItem ? <CheckCircle sx={{ fontSize: 16 }} /> : null} sx={{ borderRadius: 2, fontWeight: 600, flex: 1, bgcolor: savedItem ? '#10B981' : cfg.color, '&:hover': { bgcolor: savedItem ? '#059669' : cfg.color }, color: '#fff' }}>
           {saving ? 'Guardando…' : savedItem ? '¡Creado!' : cfg.btnLabel}
         </Button>
       </DialogActions>
