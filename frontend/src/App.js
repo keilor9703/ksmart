@@ -44,6 +44,9 @@ import AdminUsuarios from './components/AdminUsuarios';
 import GestionEmpresas from './components/GestionEmpresas';
 import InventarioLotes from './components/InventarioLotes';
 
+import Cotizaciones from './components/Cotizaciones';
+import ResolucionesDian from './components/ResolucionesDian';
+
 // ✅ IMPORTAMOS LAS PANTALLAS PÚBLICAS
 import SuscripcionExpirada from './components/SuscripcionExpirada';
 import Registro from './components/Registro'; 
@@ -67,6 +70,8 @@ const PAGE_BG_DARK   = '#0d1117';
 // ─── Datos de navegación ───────────────────────────────────────────────────────
 const menuItems = [
   { path: '/ventas',          text: 'Ventas',              icon: <ShoppingCart />,         color: '#FF6020' },
+  { path: '/cotizaciones',    text: 'Cotizaciones',        icon: <ShoppingCart />,          color: '#FF6020' },
+  { path: '/admin/resoluciones',    text: 'Resoluciones DIAN',   icon: <ShoppingCart />,          color: '#FF6020' },
   { path: '/compras',         text: 'Compras',             icon: <ShoppingBag />,          color: '#10B981' },
   { path: '/clientes',        text: 'Terceros',            icon: <People />,               color: '#3B82F6' },
   { path: '/productos',       text: 'Productos',           icon: <Inventory />,            color: '#8B5CF6' },
@@ -452,6 +457,10 @@ function App() {
                 <Routes>
                   <Route path="/"                  element={["Admin", "Socio"].includes(user?.role?.name) ?  <Dashboard /> : <Home />} />
                   <Route path="/ventas"              element={<Ventas />} />
+
+                  <Route path="/cotizaciones" element={<Cotizaciones />} />
+                  <Route path="/admin/resoluciones" element={<ResolucionesDian />} />
+
                   <Route path="/compras"             element={<Compras />} />
                   <Route path="/clientes"            element={<Terceros />} />
                   <Route path="/productos"           element={<Productos />} />
@@ -464,7 +473,7 @@ function App() {
                   <Route path="/reportes"            element={<Reportes />} />
                   <Route path="/ordenes-trabajo"     element={<OrdenesTrabajo user={user} />} />
                   
-                  // Por esto (asegúrate de que sea minúscula y sin espacios):
+              
                   
                   
                   {/* 👈 NUEVAS RUTAS AÑADIDAS AQUÍ */}

@@ -383,7 +383,7 @@ def get_ventas(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
             joinedload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
             joinedload(models.Venta.pagos),
         )
-        .filter(models.Venta.empresa_id == empresa_id)
+        .filter(models.Venta.empresa_id == empresa_id, models.Venta.tipo == "venta")
         .order_by(models.Venta.fecha.desc())
         .offset(skip)
         .limit(limit)
@@ -457,6 +457,18 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate):
     for det in detalles_objs:
         det.venta_id = db_venta.id
         db.add(det)
+
+    # Fase 2A: Numeración DIAN (solo para ventas reales, no cotizaciones)
+        if getattr(venta, 'tipo', 'venta') == 'venta':
+            _asignar_numero_factura(db, empresa_id, db_venta)
+
+    #     # Fase 2B: campos extra
+        db_venta.tipo         = getattr(venta, 'tipo', 'venta')
+        db_venta.valida_hasta = getattr(venta, 'valida_hasta', None)
+        db_venta.observaciones = getattr(venta, 'observaciones', None)
+    
+
+
 
     db.commit()
     db.refresh(db_venta)
@@ -2422,23 +2434,40 @@ def create_compra(db: Session, empresa_id: int, compra: schemas.CompraCreate):
         )
         db.add(db_detalle)
 
-        # ─── LÓGICA INTELIGENTE DE ENTRADA (Lotes vs Regular) ───
-        if getattr(prod, "maneja_lotes", False):
-            if not item.numero_lote or not item.fecha_vencimiento:
-                raise ValueError(f"El producto '{prod.nombre}' es perecedero. Requiere Número de Lote y Fecha de Vencimiento.")
+        # # ─── LÓGICA INTELIGENTE DE ENTRADA (Lotes vs Regular) ───
+        # if getattr(prod, "maneja_lotes", False):
+        #     if not item.numero_lote or not item.fecha_vencimiento: raise ValueError(f"El producto '{prod.nombre}' es perecedero. Requiere Número de Lote y Fecha de Vencimiento.")
             
-            payload_lote = schemas.LoteExistenciaCreate(
-                producto_id=item.producto_id,
-                numero_lote=item.numero_lote,
-                fecha_vencimiento=item.fecha_vencimiento,
-                fecha_fabricacion=item.fecha_fabricacion,
-                cantidad_inicial=item.cantidad,
-                costo_unitario=item.precio_unitario,
-                proveedor_id=compra.proveedor_id,
-                referencia_compra=compra.referencia_factura
-            )
-            # crear_lote_existencia ya actualiza el stock_actual y crea el movimiento.
-            crear_lote_existencia(db, empresa_id, payload_lote)
+        #     payload_lote = schemas.LoteExistenciaCreate(
+        #         producto_id=item.producto_id,
+        #         numero_lote=item.numero_lote,
+        #         fecha_vencimiento=item.fecha_vencimiento,
+        #         fecha_fabricacion=item.fecha_fabricacion,
+        #         cantidad_inicial=item.cantidad,
+        #         costo_unitario=item.precio_unitario,
+        #         proveedor_id=compra.proveedor_id,
+        #         referencia_compra=compra.referencia_factura
+        #     )
+        #     # crear_lote_existencia ya actualiza el stock_actual y crea el movimiento.
+        #     crear_lote_existencia(db, empresa_id, payload_lote)
+
+        # ── Crear lote automático si el detalle trae datos de lote ──────────────
+        if item.numero_lote and item.fecha_vencimiento:
+            prod_obj = get_producto(db, empresa_id, item.producto_id)
+            if prod_obj and getattr(prod_obj, 'maneja_lotes', False):
+                if not item.numero_lote or not item.fecha_vencimiento: raise ValueError(f"El producto '{prod.nombre}' es perecedero. Requiere Número de Lote y Fecha de Vencimiento.")
+                
+                lote_payload = schemas.LoteExistenciaCreate(
+                    producto_id       = item.producto_id,
+                    numero_lote       = item.numero_lote.strip().upper(),
+                    fecha_vencimiento = item.fecha_vencimiento,
+                    fecha_fabricacion = getattr(item, 'fecha_fabricacion', None),
+                    cantidad_inicial  = item.cantidad,
+                    costo_unitario    = item.precio_unitario,
+                    proveedor_id      = compra.proveedor_id,
+                    referencia_compra = compra.referencia_factura,
+                )
+                crear_lote_existencia(db, empresa_id, lote_payload)
             
             prod.costo = item.precio_unitario
             db.add(prod)
@@ -3346,18 +3375,32 @@ def _urgencia(dias: int) -> str:
 
 # ── Helper: enriquece un LoteExistencia con campos calculados ────────────────
 def _enriquecer_lote(lote: models.LoteExistencia) -> dict:
-    dias = (lote.fecha_vencimiento - date.today()).days
-    pct  = round(
+    # dias = (lote.fecha_vencimiento - date.today()).days
+  # ✅ FIX — construye el dict solo con columnas reales
+    fv = lote.fecha_vencimiento.date() if isinstance(lote.fecha_vencimiento, datetime) else lote.fecha_vencimiento
+    dias = (fv - date.today()).days
+    pct = round(
         ((lote.cantidad_inicial - lote.cantidad_actual) / lote.cantidad_inicial * 100)
-        if lote.cantidad_inicial > 0 else 0,
-        1
+        if lote.cantidad_inicial > 0 else 0, 1
     )
     return {
-        **lote.__dict__,
-        "producto_nombre":    lote.producto.nombre if lote.producto else None,
-        "proveedor_nombre":   lote.proveedor.nombre if lote.proveedor else None,
-        "dias_restantes":     dias,
-        "urgencia":           _urgencia(dias),
+        "id":                lote.id,
+        "empresa_id":        lote.empresa_id,
+        "producto_id":       lote.producto_id,
+        "numero_lote":       lote.numero_lote,
+        "fecha_vencimiento": fv,
+        "fecha_fabricacion": lote.fecha_fabricacion,
+        "cantidad_inicial":  lote.cantidad_inicial,
+        "cantidad_actual":   lote.cantidad_actual,
+        "costo_unitario":    lote.costo_unitario,
+        "proveedor_id":      lote.proveedor_id,
+        "referencia_compra": lote.referencia_compra,
+        "observaciones":     lote.observaciones,
+        "created_at":        lote.created_at,
+        "producto_nombre":   lote.producto.nombre if lote.producto else None,
+        "proveedor_nombre":  lote.proveedor.nombre if lote.proveedor else None,
+        "dias_restantes":    dias,
+        "urgencia":          _urgencia(dias),
         "porcentaje_consumo": pct,
     }
 
@@ -3775,3 +3818,448 @@ def notificar_vencimientos_proximos(db: Session) -> int:
 
     db.commit()
     return total
+
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# AÑADIR A crud.py — Fase 2A (Resoluciones DIAN) + Fase 2B (Cotizaciones)
+# Pega este bloque AL FINAL de tu crud.py
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# HELPERS INTERNOS (usados por create_venta y convertir_cotizacion)
+# ════════════════════════════════════════════════════════════════════════════
+
+def _get_resolucion_activa(db: Session, empresa_id: int) -> Optional[models.ResolucionDian]:
+    """Retorna la resolución activa de la empresa, si existe."""
+    return db.query(models.ResolucionDian).filter(
+        models.ResolucionDian.empresa_id == empresa_id,
+        models.ResolucionDian.is_active  == True,
+    ).first()
+
+
+def _asignar_numero_factura(db: Session, empresa_id: int, venta: models.Venta) -> Optional[str]:
+    """
+    Incrementa el consecutivo de la resolución activa y asigna el numero_factura
+    a la venta. Retorna el número asignado o None si no hay resolución activa.
+    Llama ANTES de hacer db.commit().
+    """
+    resolucion = _get_resolucion_activa(db, empresa_id)
+    if not resolucion:
+        return None
+
+    siguiente = resolucion.numero_actual + 1
+
+    # Validación de rango
+    if siguiente > resolucion.numero_final:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"La resolución DIAN ha llegado al límite de numeración "
+                f"({resolucion.numero_final}). Configura una nueva resolución."
+            )
+        )
+
+    resolucion.numero_actual = siguiente
+    numero_str = f"{resolucion.prefijo}{siguiente}"
+    venta.numero_factura = numero_str
+    venta.resolucion_id  = resolucion.id
+    db.add(resolucion)
+    return numero_str
+
+
+def _ejecutar_movimientos_venta(db: Session, empresa_id: int, db_venta: models.Venta):
+    """
+    Crea los movimientos de inventario para cada detalle de la venta.
+    Aplica FEFO si el producto maneja lotes, descuento estándar en caso contrario.
+    Reutilizable desde create_venta (main.py) y convertir_cotizacion.
+    """
+    for det in db_venta.detalles:
+        prod = get_producto(db, empresa_id=empresa_id, producto_id=det.producto_id)
+        if not prod or prod.es_servicio:
+            continue
+
+        if getattr(prod, "maneja_lotes", False):
+            try:
+                consumir_stock_fefo(
+                    db, empresa_id=empresa_id,
+                    producto_id=det.producto_id,
+                    cantidad_requerida=det.cantidad,
+                    referencia=f"Venta #{db_venta.id}",
+                    commit=False,
+                )
+                prod.stock_actual = (prod.stock_actual or 0) - det.cantidad
+                db.add(prod)
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+        else:
+            create_movement(db, empresa_id=empresa_id, payload=schemas.InventoryMovementCreate(
+                producto_id    = det.producto_id,
+                tipo           = schemas.MovementType.salida,
+                cantidad       = det.cantidad,
+                costo_unitario = prod.costo or 0.0,
+                motivo         = "venta",
+                referencia     = f"venta #{db_venta.id}",
+            ))
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# TAMBIÉN: ACTUALIZA create_venta para que asigne numero_factura automáticamente
+# Agrega esta línea ANTES del db.commit() en tu crud.create_venta existente:
+#
+#     # Fase 2A: Numeración DIAN (solo para ventas reales, no cotizaciones)
+#     if getattr(venta, 'tipo', 'venta') == 'venta':
+#         _asignar_numero_factura(db, empresa_id, db_venta)
+#
+#     # Fase 2B: campos extra
+#     db_venta.tipo         = getattr(venta, 'tipo', 'venta')
+#     db_venta.valida_hasta = getattr(venta, 'valida_hasta', None)
+#     db_venta.observaciones = getattr(venta, 'observaciones', None)
+#
+# ════════════════════════════════════════════════════════════════════════════
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# FASE 2A — CRUD DE RESOLUCIONES DIAN
+# ════════════════════════════════════════════════════════════════════════════
+
+def get_resoluciones(db: Session, empresa_id: int) -> List[models.ResolucionDian]:
+    """Lista todas las resoluciones de la empresa, ordenadas por id desc."""
+    resoluciones = db.query(models.ResolucionDian).filter(
+        models.ResolucionDian.empresa_id == empresa_id
+    ).order_by(models.ResolucionDian.id.desc()).all()
+
+    # Enriquecer con campos calculados
+    hoy = date.today()
+    resultado = []
+    for r in resoluciones:
+        r_dict = {
+            "id":                   r.id,
+            "empresa_id":           r.empresa_id,
+            "prefijo":              r.prefijo or "",
+            "numero_resolucion":    r.numero_resolucion,
+            "numero_actual":        r.numero_actual,
+            "numero_inicial":       r.numero_inicial,
+            "numero_final":         r.numero_final,
+            "vigencia_desde":       r.vigencia_desde,
+            "vigencia_hasta":       r.vigencia_hasta,
+            "is_active":            r.is_active,
+            "created_at":           r.created_at,
+            "numeros_disponibles":  r.numero_final - r.numero_actual,
+            "porcentaje_usado":     round(
+                ((r.numero_actual - r.numero_inicial) /
+                 max(r.numero_final - r.numero_inicial, 1)) * 100, 1
+            ) if r.numero_actual > 0 else 0.0,
+            "esta_vigente": (
+                (r.vigencia_hasta is None or r.vigencia_hasta >= hoy) and
+                r.numero_actual < r.numero_final
+            ),
+        }
+        resultado.append(r_dict)
+    return resultado
+
+
+def create_resolucion(
+    db: Session,
+    empresa_id: int,
+    payload: schemas.ResolucionDianCreate,
+) -> models.ResolucionDian:
+    """Crea una resolución. Si is_active=True desactiva las demás."""
+    resolucion = models.ResolucionDian(
+        empresa_id        = empresa_id,
+        prefijo           = payload.prefijo or "",
+        numero_resolucion = payload.numero_resolucion,
+        numero_actual     = payload.numero_inicial - 1,   # El primero asignado será numero_inicial
+        numero_inicial    = payload.numero_inicial,
+        numero_final      = payload.numero_final,
+        vigencia_desde    = payload.vigencia_desde,
+        vigencia_hasta    = payload.vigencia_hasta,
+        is_active         = False,
+    )
+    db.add(resolucion)
+    db.commit()
+    db.refresh(resolucion)
+    return resolucion
+
+
+def update_resolucion(
+    db: Session,
+    empresa_id: int,
+    resolucion_id: int,
+    payload: schemas.ResolucionDianUpdate,
+) -> Optional[models.ResolucionDian]:
+    resolucion = db.query(models.ResolucionDian).filter(
+        models.ResolucionDian.id         == resolucion_id,
+        models.ResolucionDian.empresa_id == empresa_id,
+    ).first()
+    if not resolucion:
+        return None
+
+    for key, val in payload.dict(exclude_unset=True).items():
+        setattr(resolucion, key, val)
+
+    db.commit()
+    db.refresh(resolucion)
+    return resolucion
+
+
+def activar_resolucion(
+    db: Session,
+    empresa_id: int,
+    resolucion_id: int,
+) -> Optional[models.ResolucionDian]:
+    """Activa una resolución y desactiva todas las demás de la empresa."""
+    # Desactivar todas
+    db.query(models.ResolucionDian).filter(
+        models.ResolucionDian.empresa_id == empresa_id,
+    ).update({"is_active": False})
+
+    # Activar la seleccionada
+    resolucion = db.query(models.ResolucionDian).filter(
+        models.ResolucionDian.id         == resolucion_id,
+        models.ResolucionDian.empresa_id == empresa_id,
+    ).first()
+    if not resolucion:
+        db.rollback()
+        return None
+
+    resolucion.is_active = True
+    db.commit()
+    db.refresh(resolucion)
+    return resolucion
+
+
+def delete_resolucion(
+    db: Session,
+    empresa_id: int,
+    resolucion_id: int,
+) -> bool:
+    """Elimina una resolución solo si no ha emitido ningún comprobante."""
+    resolucion = db.query(models.ResolucionDian).filter(
+        models.ResolucionDian.id         == resolucion_id,
+        models.ResolucionDian.empresa_id == empresa_id,
+    ).first()
+    if not resolucion:
+        return False
+
+    if resolucion.numero_actual > 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede eliminar una resolución que ya emitió comprobantes."
+        )
+
+    db.delete(resolucion)
+    db.commit()
+    return True
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# FASE 2B — CRUD DE COTIZACIONES
+# ════════════════════════════════════════════════════════════════════════════
+
+def get_cotizaciones(
+    db: Session,
+    empresa_id: int,
+    skip: int = 0,
+    limit: int = 100,
+) -> List[dict]:
+    """Lista cotizaciones de la empresa ordenadas por fecha desc."""
+    cotizaciones = (
+        db.query(models.Venta)
+        .options(
+            joinedload(models.Venta.cliente),
+            joinedload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
+        )
+        .filter(
+            models.Venta.empresa_id == empresa_id,
+            models.Venta.tipo       == "cotizacion",
+        )
+        .order_by(models.Venta.fecha.desc())
+        .offset(skip).limit(limit).all()
+    )
+
+    hoy = datetime.now()
+    resultado = []
+    for c in cotizaciones:
+        estado = "vigente"
+        if c.numero_factura:          # fue convertida
+            estado = "convertida"
+        elif c.valida_hasta and c.valida_hasta < hoy:
+            estado = "vencida"
+
+        resultado.append({
+            **{col.key: getattr(c, col.key)
+               for col in models.Venta.__table__.columns},
+            "cliente":           c.cliente,
+            "detalles":          c.detalles,
+            "estado_cotizacion": estado,
+        })
+    return resultado
+
+
+def create_cotizacion(
+    db: Session,
+    empresa_id: int,
+    payload: schemas.CotizacionCreate,
+) -> models.Venta:
+    """
+    Crea una cotización. NO valida stock, NO crea movimientos de inventario.
+    """
+    cliente = get_cliente(db, empresa_id, payload.cliente_id)
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado.")
+
+    total_bruto = 0.0
+    detalles_objs = []
+
+    for d in payload.detalles:
+        prod = get_producto(db, empresa_id, d.producto_id)
+        if not prod:
+            raise HTTPException(status_code=404, detail=f"Producto {d.producto_id} no encontrado.")
+
+        precio = d.precio_unitario if d.precio_unitario is not None else prod.precio
+        subtotal = precio * d.cantidad
+        total_bruto += subtotal
+
+        detalles_objs.append(models.DetalleVenta(
+            producto_id     = d.producto_id,
+            cantidad        = d.cantidad,
+            precio_unitario = precio,
+            descuento_pct   = getattr(d, "descuento_pct", 0.0),
+            iva_porcentaje  = 0.0,
+        ))
+
+    iva_porc  = float(payload.iva_porcentaje or 0)
+    iva_total = total_bruto * iva_porc / (100 + iva_porc) if iva_porc > 0 else 0.0
+
+    db_cot = models.Venta(
+        cliente_id    = payload.cliente_id,
+        total         = total_bruto,
+        iva_total     = iva_total,
+        iva_porcentaje = iva_porc,
+        monto_pagado  = 0.0,
+        estado_pago   = "pendiente",
+        tipo          = "cotizacion",
+        valida_hasta  = payload.valida_hasta,
+        observaciones = payload.observaciones,
+        empresa_id    = empresa_id,
+        fecha         = datetime.now(timezone.utc),
+    )
+    db.add(db_cot)
+    db.flush()
+
+    for det in detalles_objs:
+        det.venta_id   = db_cot.id
+        det.empresa_id = empresa_id
+        db.add(det)
+
+    db.commit()
+    db.refresh(db_cot)
+    return db_cot
+
+
+def convertir_cotizacion_a_venta(
+    db: Session,
+    empresa_id: int,
+    cotizacion_id: int,
+    payload: schemas.CotizacionConvertir,
+) -> models.Venta:
+    """
+    Convierte una cotización en una venta real:
+    1. Valida stock
+    2. Crea movimientos de inventario (FEFO o estándar)
+    3. Asigna numero_factura desde resolución activa
+    4. Cambia tipo → 'venta'
+    5. Marca estado_pago según payload.pagada
+    """
+    cotizacion = (
+        db.query(models.Venta)
+        .options(
+            joinedload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
+            joinedload(models.Venta.cliente),
+        )
+        .filter(
+            models.Venta.id         == cotizacion_id,
+            models.Venta.empresa_id == empresa_id,
+            models.Venta.tipo       == "cotizacion",
+        )
+        .first()
+    )
+
+    if not cotizacion:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada.")
+
+    if cotizacion.numero_factura:
+        raise HTTPException(status_code=400, detail="Esta cotización ya fue convertida a venta.")
+
+    # ── 1. Validar stock ──────────────────────────────────────────────────
+    for det in cotizacion.detalles:
+        prod = get_producto(db, empresa_id, det.producto_id)
+        if not prod or prod.es_servicio:
+            continue
+        if not getattr(prod, "maneja_lotes", False):
+            stock_disp = prod.stock_actual or 0
+            if stock_disp < det.cantidad:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Stock insuficiente para '{prod.nombre}'. "
+                           f"Disponible: {stock_disp}, requerido: {det.cantidad}."
+                )
+
+    # ── 2. Crear movimientos de inventario ────────────────────────────────
+    # Necesitamos que cotizacion.id sea conocido como venta primero
+    cotizacion.tipo = "venta"
+    db.flush()  # sincroniza el tipo antes de crear movimientos
+
+    _ejecutar_movimientos_venta(db, empresa_id, cotizacion)
+
+    # ── 3. Asignar numero_factura ─────────────────────────────────────────
+    _asignar_numero_factura(db, empresa_id, cotizacion)
+
+    # ── 4. Actualizar estado de pago ──────────────────────────────────────
+    cotizacion.pagada      = payload.pagada
+    cotizacion.estado_pago = "pagado" if payload.pagada else "pendiente"
+    cotizacion.metodo_pago = payload.metodo_pago if payload.pagada else None
+    cotizacion.monto_pagado = cotizacion.total if payload.pagada else 0.0
+    cotizacion.fecha_pago   = datetime.now(timezone.utc) if payload.pagada else None
+
+    db.commit()
+    db.refresh(cotizacion)
+
+    # Notificar bajo stock
+    check_and_notify_low_stock(
+        db, empresa_id=empresa_id,
+        producto_ids=[d.producto_id for d in cotizacion.detalles]
+    )
+
+    return cotizacion
+
+
+def delete_cotizacion(
+    db: Session,
+    empresa_id: int,
+    cotizacion_id: int,
+) -> bool:
+    """Elimina una cotización. No puede eliminarse si ya fue convertida."""
+    cotizacion = db.query(models.Venta).filter(
+        models.Venta.id         == cotizacion_id,
+        models.Venta.empresa_id == empresa_id,
+        models.Venta.tipo       == "cotizacion",
+    ).first()
+
+    if not cotizacion:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada.")
+
+    if cotizacion.numero_factura:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede eliminar una cotización ya convertida a venta."
+        )
+
+    db.delete(cotizacion)
+    db.commit()
+    return True
+
+

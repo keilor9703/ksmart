@@ -1,7 +1,4 @@
-from pydantic import BaseModel, ConfigDict
-from typing import Optional, List
-from datetime import datetime, date
-from enum import Enum
+
 
 # =========================
 # MULTI-TENANT (EMPRESAS) & SAAS
@@ -222,6 +219,11 @@ class VentaBase(BaseModel):
     pagada: bool = True
     iva_porcentaje: float = 0.0
     metodo_pago: Optional[str] = None
+    # ← Nuevos campos Fase 2
+    tipo: str = "venta"                          # 'venta' | 'cotizacion'
+    valida_hasta: Optional[datetime] = None      # Solo cotizaciones
+    observaciones: Optional[str] = None          # Notas internas
+
 
 class VentaCreate(VentaBase):
     pass
@@ -238,6 +240,9 @@ class Venta(VentaBase):
     cliente: Optional[Cliente]
     detalles: List[DetalleVenta] = []
     pagos: List[Pago] = []
+    # ← Nuevos campos Fase 2
+    numero_factura: Optional[str] = None
+    resolucion_id: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
 # =========================
@@ -992,10 +997,16 @@ class LoteExistenciaCreate(BaseModel):
     referencia_compra: Optional[str]   = None
     observaciones:     Optional[str]   = None
 
+    # @validator("fecha_vencimiento")
+    # def vencimiento_futuro(cls, v):
+    #     if v <= date.today():
+    #         raise ValueError("La fecha de vencimiento debe ser una fecha futura.")
+    #     return v
+
+    # En LoteExistenciaCreate — quitar la restricción de fecha futura para compras
     @validator("fecha_vencimiento")
-    def vencimiento_futuro(cls, v):
-        if v <= date.today():
-            raise ValueError("La fecha de vencimiento debe ser una fecha futura.")
+    def vencimiento_valido(cls, v):
+        # Permite fechas pasadas (lotes que ya vencieron pero se están registrando tarde)
         return v
 
     @validator("fecha_fabricacion")
@@ -1058,3 +1069,81 @@ class LoteConsumidoOut(BaseModel):
     numero_lote:       str
     fecha_vencimiento: date
     consumido:         float
+
+
+
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# FASE 2A — RESOLUCIONES DIAN
+# ════════════════════════════════════════════════════════════════════════════
+
+class ResolucionDianCreate(BaseModel):
+    prefijo: str = ""
+    numero_resolucion: Optional[str] = None
+    numero_inicial: int = 1
+    numero_final: int = 99999999
+    vigencia_desde: Optional[date] = None
+    vigencia_hasta: Optional[date] = None
+
+class ResolucionDianUpdate(BaseModel):
+    prefijo: Optional[str] = None
+    numero_resolucion: Optional[str] = None
+    numero_inicial: Optional[int] = None
+    numero_final: Optional[int] = None
+    vigencia_desde: Optional[date] = None
+    vigencia_hasta: Optional[date] = None
+
+class ResolucionDianOut(BaseModel):
+    id: int
+    empresa_id: Optional[int] = None
+    prefijo: str = ""
+    numero_resolucion: Optional[str] = None
+    numero_actual: int
+    numero_inicial: int
+    numero_final: int
+    vigencia_desde: Optional[date] = None
+    vigencia_hasta: Optional[date] = None
+    is_active: bool
+    created_at: Optional[datetime] = None
+    # Campos calculados
+    numeros_disponibles: Optional[int] = None
+    porcentaje_usado: Optional[float] = None
+    esta_vigente: Optional[bool] = None          # vigencia_hasta >= hoy
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# FASE 2B — COTIZACIONES
+# ════════════════════════════════════════════════════════════════════════════
+
+class CotizacionCreate(BaseModel):
+    """Schema para crear una cotización (subset de VentaCreate, sin pago)."""
+    cliente_id: int
+    detalles: List[DetalleVentaCreate]
+    iva_porcentaje: float = 0.0
+    valida_hasta: Optional[datetime] = None
+    observaciones: Optional[str] = None
+
+class CotizacionConvertir(BaseModel):
+    """Payload para convertir una cotización en venta real."""
+    pagada: bool = True
+    metodo_pago: Optional[str] = "Efectivo"
+
+class CotizacionOut(BaseModel):
+    """Response schema de cotización (enriquecida con estado calculado)."""
+    id: int
+    cliente_id: Optional[int] = None
+    cliente: Optional[Cliente] = None
+    total: float
+    iva_total: float
+    iva_porcentaje: float
+    fecha: datetime
+    valida_hasta: Optional[datetime] = None
+    observaciones: Optional[str] = None
+    detalles: List[DetalleVenta] = []
+    tipo: str = "cotizacion"
+    # Estado calculado
+    estado_cotizacion: Optional[str] = None  # 'vigente' | 'vencida' | 'convertida'
+    numero_factura: Optional[str] = None     # Populated when converted
+    model_config = ConfigDict(from_attributes=True)

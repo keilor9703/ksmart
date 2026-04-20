@@ -986,6 +986,16 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
     return db_venta
 
 
+# @app.get("/ventas/", response_model=List[schemas.Venta])
+# def read_ventas(
+#     skip: int = 0,
+#     limit: int = Query(default=100, le=500),
+#     db: Session = Depends(get_db),
+#     current_user: schemas.User = Depends(get_current_active_user)
+# ):
+#     return crud.get_ventas(db, empresa_id=current_user.empresa_id, skip=skip, limit=limit)
+
+
 @app.get("/ventas/", response_model=List[schemas.Venta])
 def read_ventas(
     skip: int = 0,
@@ -994,6 +1004,7 @@ def read_ventas(
     current_user: schemas.User = Depends(get_current_active_user)
 ):
     return crud.get_ventas(db, empresa_id=current_user.empresa_id, skip=skip, limit=limit)
+
 
 
 @app.get("/ventas/{venta_id}", response_model=schemas.Venta)
@@ -2482,6 +2493,20 @@ def crear_lote(
     lote = crud.crear_lote_existencia(db, empresa_id=current_user.empresa_id, payload=payload)
     return crud._enriquecer_lote(lote)
 
+# ── Listar todos los lotes de la empresa ─────────────────────────────────────
+@app.get("/inventario/lotes", response_model=List[schemas.LoteExistenciaOut])
+def listar_todos_lotes(
+    solo_activos: bool   = Query(True),
+    producto_id:  Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Lista todos los lotes activos de la empresa, opcionalmente filtrados por producto."""
+    return crud.get_todos_los_lotes(
+        db, empresa_id=current_user.empresa_id,
+        solo_activos=solo_activos, producto_id=producto_id,
+    )
+
 
 # ── Listar lotes de un producto específico (FEFO) ────────────────────────────
 @app.get("/inventario/lotes/{producto_id}", response_model=List[schemas.LoteExistenciaOut])
@@ -2498,19 +2523,6 @@ def listar_lotes_producto(
     )
 
 
-# ── Listar todos los lotes de la empresa ─────────────────────────────────────
-@app.get("/inventario/lotes", response_model=List[schemas.LoteExistenciaOut])
-def listar_todos_lotes(
-    solo_activos: bool   = Query(True),
-    producto_id:  Optional[int] = Query(None),
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user),
-):
-    """Lista todos los lotes activos de la empresa, opcionalmente filtrados por producto."""
-    return crud.get_todos_los_lotes(
-        db, empresa_id=current_user.empresa_id,
-        solo_activos=solo_activos, producto_id=producto_id,
-    )
 
 
 # ── Ajuste manual de un lote ─────────────────────────────────────────────────
@@ -2587,3 +2599,178 @@ def notificar_vencimientos_lotes(db: Session = Depends(get_db)):
     """
     total = crud.notificar_vencimientos_proximos(db)
     return {"msg": f"Se generaron {total} notificaciones de vencimiento."}
+
+
+
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# FASE 2A — ENDPOINTS RESOLUCIONES DIAN
+# ════════════════════════════════════════════════════════════════════════════
+
+@app.get("/resoluciones/", response_model=List[schemas.ResolucionDianOut])
+def listar_resoluciones(
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    """Lista todas las resoluciones DIAN de la empresa con campos calculados."""
+    return crud.get_resoluciones(db, empresa_id=current_user.empresa_id)
+
+
+@app.post("/resoluciones/", response_model=schemas.ResolucionDianOut)
+def crear_resolucion(
+    payload: schemas.ResolucionDianCreate,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_admin_user),
+):
+    """Crea una nueva resolución DIAN. Solo admins."""
+    return crud.create_resolucion(db, empresa_id=current_user.empresa_id, payload=payload)
+
+
+@app.put("/resoluciones/{resolucion_id}", response_model=schemas.ResolucionDianOut)
+def actualizar_resolucion(
+    resolucion_id: int,
+    payload: schemas.ResolucionDianUpdate,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_admin_user),
+):
+    resolucion = crud.update_resolucion(
+        db, empresa_id=current_user.empresa_id,
+        resolucion_id=resolucion_id, payload=payload,
+    )
+    if not resolucion:
+        raise HTTPException(status_code=404, detail="Resolución no encontrada.")
+    return resolucion
+
+
+@app.patch("/resoluciones/{resolucion_id}/activar", response_model=schemas.ResolucionDianOut)
+def activar_resolucion(
+    resolucion_id: int,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_admin_user),
+):
+    """
+    Activa esta resolución y desactiva automáticamente las demás de la empresa.
+    Es el equivalente de 'seleccionar resolución actual'.
+    """
+    resolucion = crud.activar_resolucion(
+        db, empresa_id=current_user.empresa_id, resolucion_id=resolucion_id
+    )
+    if not resolucion:
+        raise HTTPException(status_code=404, detail="Resolución no encontrada.")
+    return resolucion
+
+
+@app.delete("/resoluciones/{resolucion_id}")
+def eliminar_resolucion(
+    resolucion_id: int,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_admin_user),
+):
+    crud.delete_resolucion(db, empresa_id=current_user.empresa_id, resolucion_id=resolucion_id)
+    return {"message": "Resolución eliminada correctamente."}
+
+
+@app.get("/resoluciones/activa")
+def get_resolucion_activa(
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    """Endpoint liviano para que el frontend muestre la resolución activa en el header de ventas."""
+    resolucion = crud._get_resolucion_activa(db, empresa_id=current_user.empresa_id)
+    if not resolucion:
+        return {"activa": False, "resolucion": None}
+    return {
+        "activa":     True,
+        "prefijo":    resolucion.prefijo or "",
+        "siguiente":  resolucion.numero_actual + 1,
+        "disponibles": resolucion.numero_final - resolucion.numero_actual,
+        "resolucion": resolucion.numero_resolucion,
+    }
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# FASE 2B — ENDPOINTS COTIZACIONES
+# ════════════════════════════════════════════════════════════════════════════
+
+@app.get("/cotizaciones/")
+def listar_cotizaciones(
+    skip: int = 0,
+    limit: int = Query(default=100, le=500),
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    """Lista todas las cotizaciones con estado calculado (vigente/vencida/convertida)."""
+    return crud.get_cotizaciones(db, empresa_id=current_user.empresa_id, skip=skip, limit=limit)
+
+
+@app.post("/cotizaciones/")
+def crear_cotizacion(
+    payload: schemas.CotizacionCreate,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    """
+    Crea una cotización/proforma.
+    NO descuenta stock, NO crea movimientos de inventario.
+    """
+    if not payload.detalles:
+        raise HTTPException(status_code=400, detail="La cotización debe tener al menos un ítem.")
+
+    return crud.create_cotizacion(db, empresa_id=current_user.empresa_id, payload=payload)
+
+
+@app.post("/cotizaciones/{cotizacion_id}/convertir")
+def convertir_cotizacion(
+    cotizacion_id: int,
+    payload: schemas.CotizacionConvertir,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    """
+    Convierte una cotización en venta real:
+    - Valida stock disponible
+    - Crea movimientos de inventario (FEFO si aplica)
+    - Asigna numero_factura desde resolución DIAN activa
+    - Registra método y estado de pago
+    """
+    return crud.convertir_cotizacion_a_venta(
+        db,
+        empresa_id    = current_user.empresa_id,
+        cotizacion_id = cotizacion_id,
+        payload       = payload,
+    )
+
+
+@app.get("/cotizaciones/{cotizacion_id}")
+def get_cotizacion(
+    cotizacion_id: int,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    cotizacion = (
+        db.query(models.Venta)
+        .options(
+            joinedload(models.Venta.cliente),
+            joinedload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
+        )
+        .filter(
+            models.Venta.id         == cotizacion_id,
+            models.Venta.empresa_id == current_user.empresa_id,
+            models.Venta.tipo       == "cotizacion",
+        )
+        .first()
+    )
+    if not cotizacion:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada.")
+    return cotizacion
+
+
+@app.delete("/cotizaciones/{cotizacion_id}")
+def eliminar_cotizacion(
+    cotizacion_id: int,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user),
+):
+    crud.delete_cotizacion(db, empresa_id=current_user.empresa_id, cotizacion_id=cotizacion_id)
+    return {"message": "Cotización eliminada correctamente."}

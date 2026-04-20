@@ -250,7 +250,6 @@ def run_migrations():
             migration_v26 = "inv_v26_lotes_perecederos"
             if not _migration_already_applied(conn, migration_v26):
 
-                # 1. Tabla lotes_existencias
                 if not _table_exists(conn, "lotes_existencias"):
                     conn.execute(text("""
                         CREATE TABLE lotes_existencias (
@@ -272,66 +271,135 @@ def run_migrations():
                     """))
                     logger.info("Tabla 'lotes_existencias' creada.")
 
-                # 2. Índice FEFO — por vencimiento (el más crítico para el rendimiento)
                 if not _index_exists(conn, "idx_lotes_vencimiento"):
                     conn.execute(text("""
                         CREATE INDEX idx_lotes_vencimiento
                         ON lotes_existencias(empresa_id, fecha_vencimiento)
                     """))
-                    logger.info("Índice idx_lotes_vencimiento creado.")
 
-                # 3. Índice por producto
                 if not _index_exists(conn, "idx_lotes_producto"):
                     conn.execute(text("""
                         CREATE INDEX idx_lotes_producto
                         ON lotes_existencias(empresa_id, producto_id)
                     """))
-                    logger.info("Índice idx_lotes_producto creado.")
 
-                # 4. Columna lote_id en inventory_movements (trazabilidad)
-                _add_column_if_missing(
-                    conn, "inventory_movements",
-                    "lote_id INTEGER", "lote_id"
-                )
+                _add_column_if_missing(conn, "inventory_movements", "lote_id INTEGER", "lote_id")
+                _add_column_if_missing(conn, "inventory_movements", "numero_lote TEXT", "numero_lote")
 
-                # 5. Columna numero_lote en inventory_movements (denormalizado para queries rápidas)
-                _add_column_if_missing(
-                    conn, "inventory_movements",
-                    "numero_lote TEXT", "numero_lote"
-                )
-
-                # 6. Índice en movements por lote_id
                 if not _index_exists(conn, "idx_movements_lote"):
                     conn.execute(text("""
-                        CREATE INDEX idx_movements_lote
-                        ON inventory_movements(lote_id)
+                        CREATE INDEX idx_movements_lote ON inventory_movements(lote_id)
                     """))
-                    logger.info("Índice idx_movements_lote creado.")
+
+                # maneja_lotes en productos
+                if _table_exists(conn, "productos"):
+                    _add_column_if_missing(conn, "productos", "maneja_lotes INTEGER DEFAULT 0", "maneja_lotes")
 
                 _mark_migration_applied(conn, migration_v26)
                 logger.info(
                     "Migración %s aplicada. "
-                    "Tabla lotes_existencias + índices FEFO + columnas en inventory_movements.",
+                    "Tabla lotes_existencias + índices FEFO + columnas en inventory_movements + maneja_lotes.",
                     migration_v26,
                 )
 
+            # =================================================================
+            # V27 - FASE 2A: RESOLUCIONES DIAN + NUMERACIÓN CONSECUTIVA
+            # =================================================================
+            migration_v27 = "inv_v27_resoluciones_dian"
+            if not _migration_already_applied(conn, migration_v27):
 
-                # database.py - Dentro de run_migrations()
+                # 1. Tabla de resoluciones DIAN
+                if not _table_exists(conn, "resoluciones_dian"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE resoluciones_dian (
+                                id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                                empresa_id         INTEGER NOT NULL,
+                                prefijo            TEXT    DEFAULT '',
+                                numero_resolucion  TEXT,
+                                numero_actual      INTEGER NOT NULL DEFAULT 0,
+                                numero_inicial     INTEGER NOT NULL DEFAULT 1,
+                                numero_final       INTEGER NOT NULL DEFAULT 99999999,
+                                vigencia_desde     TEXT,
+                                vigencia_hasta     TEXT,
+                                is_active          INTEGER DEFAULT 0,
+                                created_at         TEXT    DEFAULT (datetime('now'))
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE resoluciones_dian (
+                                id                 SERIAL PRIMARY KEY,
+                                empresa_id         INTEGER NOT NULL,
+                                prefijo            TEXT    DEFAULT '',
+                                numero_resolucion  TEXT,
+                                numero_actual      INTEGER NOT NULL DEFAULT 0,
+                                numero_inicial     INTEGER NOT NULL DEFAULT 1,
+                                numero_final       INTEGER NOT NULL DEFAULT 99999999,
+                                vigencia_desde     DATE,
+                                vigencia_hasta     DATE,
+                                is_active          BOOLEAN DEFAULT FALSE,
+                                created_at         TIMESTAMPTZ DEFAULT NOW()
+                            )
+                        """))
+                    logger.info("Tabla 'resoluciones_dian' creada.")
 
-               # database.py - Al final de la función run_migrations()
+                # 2. Índice para búsqueda rápida de resolución activa por empresa
+                if not _index_exists(conn, "idx_resoluciones_empresa"):
+                    conn.execute(text("""
+                        CREATE INDEX idx_resoluciones_empresa
+                        ON resoluciones_dian(empresa_id, is_active)
+                    """))
 
-          # En database.py, al final de las migraciones existentes:
+                # 3. Columnas en ventas para numeración y resolución
+                _add_column_if_missing(conn, "ventas", "numero_factura TEXT", "numero_factura")
+                _add_column_if_missing(conn, "ventas", "resolucion_id INTEGER", "resolucion_id")
+
+                _mark_migration_applied(conn, migration_v27)
+                logger.info(
+                    "Migración %s aplicada. "
+                    "Tabla resoluciones_dian + numero_factura + resolucion_id en ventas.",
+                    migration_v27,
+                )
 
             # =================================================================
-            # V25 - UNIFICACIÓN DE CATÁLOGO: SOPORTE PARA PERECEDEROS
+            # V28 - FASE 2B: COTIZACIONES / PROFORMAS
             # =================================================================
-            migration_v25 = "inv_v25_maneja_lotes"
-            if not _migration_already_applied(conn, migration_v25):
-                if _table_exists(conn, "productos"):
-                    # En SQLite/Postgres el booleano por defecto puede representarse como 0 (False)
-                    _add_column_if_missing(conn, "productos", "maneja_lotes INTEGER DEFAULT 0", "maneja_lotes")
-                _mark_migration_applied(conn, migration_v25)
-                logger.info("Migración %s aplicada. Columna maneja_lotes añadida a productos.", migration_v25)
+            migration_v28 = "inv_v28_cotizaciones"
+            if not _migration_already_applied(conn, migration_v28):
+
+                # tipo: 'venta' | 'cotizacion'
+                _add_column_if_missing(
+                    conn, "ventas",
+                    "tipo TEXT DEFAULT 'venta'",
+                    "tipo"
+                )
+
+                # valida_hasta: hasta cuándo es válida la cotización
+                if IS_SQLITE:
+                    _add_column_if_missing(conn, "ventas", "valida_hasta TIMESTAMP", "valida_hasta")
+                else:
+                    _add_column_if_missing(conn, "ventas", "valida_hasta TIMESTAMPTZ", "valida_hasta")
+
+                # observaciones: notas internas (útil tanto en ventas como cotizaciones)
+                _add_column_if_missing(conn, "ventas", "observaciones TEXT", "observaciones")
+
+                # Garantizar que los registros existentes tengan tipo='venta'
+                conn.execute(text("UPDATE ventas SET tipo = 'venta' WHERE tipo IS NULL OR tipo = ''"))
+
+                # Índice para filtrar por tipo rápidamente
+                if not _index_exists(conn, "idx_ventas_tipo"):
+                    conn.execute(text("""
+                        CREATE INDEX idx_ventas_tipo ON ventas(empresa_id, tipo)
+                    """))
+
+                _mark_migration_applied(conn, migration_v28)
+                logger.info(
+                    "Migración %s aplicada. "
+                    "Columnas tipo + valida_hasta + observaciones en ventas. Cotizaciones habilitadas.",
+                    migration_v28,
+                )
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones en base de datos: %s", e)
         raise

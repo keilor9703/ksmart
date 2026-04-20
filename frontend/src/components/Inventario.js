@@ -14,10 +14,10 @@ import InventoryPage from "./InventoryPage";
 const ACCENT = '#F59E0B';
 
 const GRUPOS = [
-  { id: 1, label: 'Materia Prima',      short: 'MP',  color: '#3B82F6' },
-  { id: 2, label: 'Producto Terminado', short: 'PT',  color: '#10B981' },
-  { id: 3, label: 'Activo Fijo',        short: 'AF',  color: '#F59E0B' },
-  { id: 4, label: 'Insumos',            short: 'INS', color: '#8B5CF6' },
+  { id: 1, label: 'Materia Prima',      short: 'Materia Prima',  color: '#3B82F6', hover: { textOverflow: 'ellipsis' } },
+  { id: 2, label: 'Producto Terminado', short: 'P. Terminado',  color: '#10B981', hover: { textOverflow: 'ellipsis' } },
+  { id: 3, label: 'Activo Fijo',        short: 'Activo Fijo',  color: '#F59E0B', hover: { textOverflow: 'ellipsis' } },
+  { id: 4, label: 'Insumos',            short: 'Insumos', color: '#8B5CF6', hover: { textOverflow: 'ellipsis' } },
 ];
 
 function TabPanel({ children, value, index }) {

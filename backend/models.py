@@ -185,6 +185,29 @@ class Pago(Base, TenantMixin):
 
     venta = relationship("Venta", back_populates="pagos")
 
+
+
+class ResolucionDian(Base, TenantMixin):
+    """
+    Resolución de numeración emitida por la DIAN para facturación electrónica.
+    Solo puede haber una activa por empresa (is_active=True).
+    La numeración auto-incrementa en cada nueva venta.
+    """
+    __tablename__ = "resoluciones_dian"
+
+    id                = Column(Integer, primary_key=True, index=True)
+    prefijo           = Column(String(10), default="")          # Ej: "FE", "FAC", ""
+    numero_resolucion = Column(String(50), nullable=True)       # Nro. DIAN oficial
+    numero_actual     = Column(Integer, nullable=False, default=0)    # Último asignado
+    numero_inicial    = Column(Integer, nullable=False, default=1)    # Inicio del rango
+    numero_final      = Column(Integer, nullable=False, default=99999999)  # Fin del rango
+    vigencia_desde    = Column(Date, nullable=True)
+    vigencia_hasta    = Column(Date, nullable=True)
+    is_active         = Column(Boolean, default=False)
+    created_at        = Column(DateTime(timezone=True), default=utcnow)
+
+
+
 class Venta(Base, TenantMixin):
     __tablename__ = "ventas"
     id              = Column(Integer, primary_key=True, index=True)
@@ -198,6 +221,16 @@ class Venta(Base, TenantMixin):
     estado_pago     = Column(String, default="pendiente")
     fecha_pago      = Column(DateTime(timezone=True), nullable=True)
     metodo_pago     = Column(String, nullable=True)
+
+        # Fase 2A — Numeración DIAN
+    numero_factura  = Column(String(20), nullable=True, index=True)
+    resolucion_id   = Column(Integer, ForeignKey("resoluciones_dian.id"), nullable=True)
+    resolucion      = relationship("ResolucionDian")
+
+    # Fase 2B — Cotizaciones
+    tipo            = Column(String(20), default="venta")    # 'venta' | 'cotizacion'
+    valida_hasta    = Column(DateTime(timezone=True), nullable=True)
+    observaciones   = Column(Text, nullable=True)
 
     cliente                = relationship("Cliente", back_populates="ventas")
     detalles               = relationship("DetalleVenta", back_populates="venta", cascade="all, delete-orphan")
