@@ -5,7 +5,7 @@ import BulkUpload from './BulkUpload';
 import {
   Box, Typography, Grid, TextField, Button, InputAdornment,
   Collapse, Divider, Chip, MenuItem, Select, FormControl, InputLabel, IconButton,
-  ButtonGroup, Switch, FormControlLabel
+  ButtonGroup, Switch, FormControlLabel, Autocomplete
 } from '@mui/material';
 import { Inventory, ExpandMore, ExpandLess, Upload, Close, Category, Science } from '@mui/icons-material';
 import { GRUPOS_PRODUCTO, UNIDADES_MEDIDA } from '../utils/constants';
@@ -41,7 +41,7 @@ const ProductoForm = ({ onProductoAdded, productoToEdit, onProductoUpdated, forc
   const [grupoItem, setGrupoItem]   = useState(2);
   const [stockMinimo, setStockMinimo] = useState('');
   const [stockActual, setStockActual] = useState(0);
-  const [manejaLotes, setManejaLotes] = useState(false); // ✅ NUEVO ESTADO
+  const [manejaLotes, setManejaLotes] = useState(false);
 
   const [formOpen, setFormOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -58,7 +58,7 @@ const ProductoForm = ({ onProductoAdded, productoToEdit, onProductoUpdated, forc
       setGrupoItem(productoToEdit.grupo_item || 2);
       setStockMinimo(productoToEdit.stock_minimo != null ? String(productoToEdit.stock_minimo) : '');
       setStockActual(productoToEdit.stock_actual ?? 0);
-      setManejaLotes(productoToEdit.maneja_lotes || false); // Cargar estado de lotes
+      setManejaLotes(productoToEdit.maneja_lotes || false);
     } else {
       resetFields();
     }
@@ -80,7 +80,7 @@ const ProductoForm = ({ onProductoAdded, productoToEdit, onProductoUpdated, forc
       unidad_medida: esServicio ? 'UND' : unidadMedida,
       grupo_item: esServicio ? 2 : parseInt(grupoItem),
       stock_minimo: esServicio || stockMinimo === '' ? 0 : parseFloat(stockMinimo),
-      maneja_lotes: esServicio ? false : manejaLotes, // ✅ SE ENVÍA AL BACKEND (Los servicios NO manejan lotes)
+      maneja_lotes: esServicio ? false : manejaLotes,
     };
     
     const req = productoToEdit ? apiClient.put(`/productos/${productoToEdit.id}`, data) : apiClient.post('/productos/', data);
@@ -130,27 +130,38 @@ const ProductoForm = ({ onProductoAdded, productoToEdit, onProductoUpdated, forc
                 <Grid item xs={12} sm={3}>
                   <TextField label="Costo Actual *" value={costo} onChange={e => setCosto(e.target.value.replace(/[^0-9.]/g, ''))} fullWidth required InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }} />
                 </Grid>
+                
+                {/* 👇 MODIFICADO: Selector moderno de Grupos */}
                 <Grid item xs={12} sm={4}>
-                  <FormControl fullWidth>
-                    <InputLabel>Grupo o Categoría *</InputLabel>
-                    <Select value={grupoItem} label="Grupo o Categoría *" onChange={e => setGrupoItem(e.target.value)} required>
-                      {GRUPOS_PRODUCTO.map(g => <MenuItem key={g.id} value={g.id}>{g.label}</MenuItem>)}
-                    </Select>
-                  </FormControl>
+                  <Autocomplete
+                    options={GRUPOS_PRODUCTO}
+                    getOptionLabel={(option) => option.label || ''}
+                    value={GRUPOS_PRODUCTO.find(g => g.id === grupoItem) || null}
+                    onChange={(_, newValue) => setGrupoItem(newValue ? newValue.id : 2)}
+                    renderInput={(params) => (
+                      <TextField {...params} label="Grupo o Categoría *" required />
+                    )}
+                  />
                 </Grid>
+                
+                {/* 👇 MODIFICADO: Unidad de medida 100% Universal (Free Solo) */}
                 <Grid item xs={12} sm={4}>
-                  <FormControl fullWidth>
-                    <InputLabel>Unidad de Medida *</InputLabel>
-                    <Select value={unidadMedida} label="Unidad de Medida *" onChange={e => setUnidadMedida(e.target.value)} required>
-                      {UNIDADES_MEDIDA.map(u => <MenuItem key={u.value} value={u.value}>{u.label}</MenuItem>)}
-                    </Select>
-                  </FormControl>
+                  <Autocomplete
+                    freeSolo
+                    options={UNIDADES_MEDIDA.map(u => u.value)}
+                    value={unidadMedida}
+                    onChange={(_, newValue) => setUnidadMedida(newValue || 'UND')}
+                    onInputChange={(_, newInputValue) => setUnidadMedida(newInputValue ? newInputValue.toUpperCase() : '')}
+                    renderInput={(params) => (
+                      <TextField {...params} label="Unidad de Medida *" required placeholder="Ej: CAJAx12" />
+                    )}
+                  />
                 </Grid>
+                
                 <Grid item xs={12} sm={4}>
                   <TextField label="Alerta de Stock Mínimo" value={stockMinimo} onChange={e => setStockMinimo(e.target.value.replace(/[^0-9.]/g, ''))} fullWidth placeholder="Ej: 10" helperText="Te avisaremos cuando baje de este número" />
                 </Grid>
                 
-                {/* 👇 NUEVO SWITCH INTELIGENTE PARA LOTES 👇 */}
                 <Grid item xs={12}>
                   <Box sx={{ p: 1.5, borderRadius: 2, border: '1px solid', borderColor: manejaLotes ? '#10B981' : 'divider', bgcolor: manejaLotes ? '#ECFDF5' : 'transparent', transition: 'all 0.2s' }}>
                     <FormControlLabel 
