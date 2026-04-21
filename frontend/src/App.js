@@ -6,16 +6,11 @@ import {
   Drawer, Tooltip, CssBaseline, GlobalStyles, Menu, MenuItem,
   Avatar, Button 
 } from '@mui/material';
-import { Layers } from '@mui/icons-material';
 import {
-  ShoppingCart, People, Inventory, Assessment, AdminPanelSettings,
-  ExpandLess, ExpandMore, Assignment, Dashboard as DashboardIcon,
+  AdminPanelSettings, ExpandLess, ExpandMore, Dashboard as DashboardIcon,
   Logout as LogoutIcon, Menu as MenuIcon, MoreVert as MoreVertIcon,
-  PrecisionManufacturing, ShoppingBag, KeyboardArrowRight,
-  LightMode, DarkMode, PointOfSale as PointOfSaleIcon, Business,
-  AttachMoney, DirectionsRun // 👈 AÑADIDO: Iconos para el módulo de prestamistas
+  KeyboardArrowRight, LightMode, DarkMode, Business, SupportAgent
 } from '@mui/icons-material';
-import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import useMediaQueryHook from '@mui/material/useMediaQuery';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -23,6 +18,7 @@ import { Route, Routes, Link, useNavigate, useLocation } from 'react-router-dom'
 
 import apiClient from './api';
 import getAppTheme from './theme';
+import { APP_MODULES, ADMIN_MODULES } from './utils/modulesConfig';
 
 import Productos from './components/Productos';
 import Ventas from './components/Ventas';
@@ -52,7 +48,7 @@ import SuscripcionExpirada from './components/SuscripcionExpirada';
 import Registro from './components/Registro'; 
 
 // ✅ IMPORTAMOS LOS NUEVOS MÓDULOS DE PRÉSTAMOS
-import PrestamoForm from './components/PrestamoForm'; // ✅ CORRECTO: Importación por defecto
+import PrestamoForm from './components/PrestamoForm';
 import RutaCobro from './components/RutaCobro';
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
@@ -67,30 +63,6 @@ const ACCENT         = '#FF6020';
 const PAGE_BG_LIGHT  = '#F4F6F9';
 const PAGE_BG_DARK   = '#0d1117';
 
-// ─── Datos de navegación ───────────────────────────────────────────────────────
-const menuItems = [
-  { path: '/ventas',          text: 'Ventas',              icon: <ShoppingCart />,         color: '#FF6020' },
-  { path: '/cotizaciones',    text: 'Cotizaciones',        icon: <ShoppingCart />,          color: '#FF6020' },
-  { path: '/admin/resoluciones',    text: 'Resoluciones DIAN',   icon: <ShoppingCart />,          color: '#FF6020' },
-  { path: '/compras',         text: 'Compras',             icon: <ShoppingBag />,          color: '#10B981' },
-  { path: '/clientes',        text: 'Terceros',            icon: <People />,               color: '#3B82F6' },
-  { path: '/productos',       text: 'Productos',           icon: <Inventory />,            color: '#8B5CF6' },
-  { path: '/inventario',      text: 'Inventarios',         icon: <Inventory2OutlinedIcon />, color: '#F59E0B' },
-  { path: '/inventario/lotes', text: 'Lotes', icon:         <Layers />, color: '#8B5CF6' },
-  { path: '/caja',            text: 'Caja',                icon: <PointOfSaleIcon />,      color: '#FF6020' },
-  { path: '/produccion/lotes',text: 'Producción',          icon: <PrecisionManufacturing />,color: '#06B6D4' },
-  { path: '/ordenes-trabajo', text: 'Órdenes de Trabajo',  icon: <Assignment />,           color: '#EC4899' },
-  { path: '/panel-operador',  text: 'Panel Operador',      icon: <DashboardIcon />,        color: '#14B8A6' },
-  // 👈 NUEVOS MÓDULOS AÑADIDOS
-  { path: '/prestamos',       text: 'Préstamos',    icon: <AttachMoney />,          color: '#10B981' },
-  { path: '/ruta-cobro',      text: 'Ruta de Cobro',       icon: <DirectionsRun />,        color: '#3B82F6' },
-  { path: '/reportes',        text: 'Reportes',            icon: <Assessment />,           color: '#F43F5E' },
-];
-
-const adminMenuItems = [
-  { path: '/admin/usuarios', text: 'Usuarios y Permisos' },
-];
-
 // ─── Home ──────────────────────────────────────────────────────────────────────
 const Home = () => (
   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 3 }}>
@@ -104,7 +76,7 @@ const Home = () => (
 
 // ─── Sidebar Item ──────────────────────────────────────────────────────────────
 const SidebarItem = ({ item, expanded, onClick, onClose, active }) => (
-  <Tooltip title={!expanded ? item.text : ''} placement="right" arrow>
+  <Tooltip title={!expanded ? (item.label || item.text) : ''} placement="right" arrow>
     <ListItemButton
       component={onClick ? 'div' : Link}   
       to={onClick ? undefined : item.path} 
@@ -123,7 +95,7 @@ const SidebarItem = ({ item, expanded, onClick, onClose, active }) => (
       </ListItemIcon>
       {expanded && (
         <ListItemText
-          primary={item.text}
+          primary={item.label || item.text}
           primaryTypographyProps={{ fontSize: 13.5, fontWeight: active ? 600 : 400, fontFamily: "'Plus Jakarta Sans', sans-serif", color: active ? '#fff' : '#cbd5e1', noWrap: true }}
         />
       )}
@@ -151,20 +123,20 @@ const Sidebar = ({ expanded, user, hasAccess, onClose, mobile }) => {
       <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', py: 1.5, '&::-webkit-scrollbar': { width: 4 }, '&::-webkit-scrollbar-thumb': { background: 'rgba(255,255,255,0.1)', borderRadius: 4 } }}>
         {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (
           <>
-            <SidebarItem expanded={expanded} item={{ path: '/superadmin/empresas', text: 'Clientes SaaS', icon: <Business />, color: '#F43F5E' }} active={isActive('/superadmin/empresas')} onClose={mobile ? onClose : undefined} />
+            <SidebarItem expanded={expanded} item={{ path: '/superadmin/empresas', label: 'Clientes SaaS', icon: <Business />, color: '#F43F5E' }} active={isActive('/superadmin/empresas')} onClose={mobile ? onClose : undefined} />
             {expanded && <Divider sx={{ mx: 2, my: 1, borderColor: 'rgba(255,255,255,0.06)' }} />}
           </>
         )}
 
         {user?.role?.name === 'Admin' && (
           <>
-            <SidebarItem expanded={expanded} item={{ text: 'Administración', icon: <AdminPanelSettings />, color: '#a78bfa' }} onClick={() => setAdminOpen(o => !o)} active={false} />
+            <SidebarItem expanded={expanded} item={{ label: 'Administración', icon: <AdminPanelSettings />, color: '#a78bfa' }} onClick={() => setAdminOpen(o => !o)} active={false} />
             <Collapse in={adminOpen && expanded} timeout="auto" unmountOnExit>
               <List disablePadding>
-                {adminMenuItems.map(sub => (
+                {ADMIN_MODULES.map(sub => (
                   <ListItemButton key={sub.path} component={Link} to={sub.path} onClick={mobile ? onClose : undefined} sx={{ pl: 5, pr: 2, py: 0.75, mx: 1, mb: 0.25, borderRadius: 2, backgroundColor: isActive(sub.path) ? SIDEBAR_ACTIVE : 'transparent', '&:hover': { backgroundColor: SIDEBAR_HOVER } }}>
                     <KeyboardArrowRight sx={{ fontSize: 14, color: '#64748b', mr: 1 }} />
-                    <ListItemText primary={sub.text} primaryTypographyProps={{ fontSize: 13, color: isActive(sub.path) ? '#fff' : '#94a3b8', fontFamily: "'Plus Jakarta Sans', sans-serif" }} />
+                    <ListItemText primary={sub.label} primaryTypographyProps={{ fontSize: 13, color: isActive(sub.path) ? '#fff' : '#94a3b8', fontFamily: "'Plus Jakarta Sans', sans-serif" }} />
                   </ListItemButton>
                 ))}
               </List>
@@ -173,7 +145,7 @@ const Sidebar = ({ expanded, user, hasAccess, onClose, mobile }) => {
           </>
         )}
 
-        {menuItems.map(item => hasAccess(item.path) ? (
+        {APP_MODULES.map(item => hasAccess(item.path) ? (
           <SidebarItem key={item.path} item={item} expanded={expanded} active={isActive(item.path)} onClose={mobile ? onClose : undefined} />
         ) : null)}
       </Box>
@@ -196,7 +168,9 @@ const Sidebar = ({ expanded, user, hasAccess, onClose, mobile }) => {
 // ─── TopBar ────────────────────────────────────────────────────────────────────
 const TopBar = ({ sidebarExpanded, isMobile, onMobileMenuOpen, mode, onThemeToggle, onLogout, user, anchorEl, openMenu, onMenuOpen, onMenuClose }) => {
   const location = useLocation();
-  const currentPage = [...menuItems, ...adminMenuItems, { path: '/superadmin/empresas', text: 'Clientes SaaS' }].find(i => location.pathname === i.path || location.pathname.startsWith(i.path + '/'))?.text || 'Inicio';
+  const currentPageItem = [...APP_MODULES, ...ADMIN_MODULES, { path: '/superadmin/empresas', label: 'Clientes SaaS' }]
+    .find(i => location.pathname === i.path || location.pathname.startsWith(i.path + '/'));
+  const currentPage = currentPageItem ? (currentPageItem.label || currentPageItem.text) : 'Inicio';
 
   // LÓGICA INYECTADA: Detectar si estamos suplantando identidad
   let isImpersonated = false;
@@ -322,13 +296,11 @@ function App() {
             // Si el SuperAdmin definió módulos, filtramos: Solo dejamos los que están en ambos lados
             modulosFinales = modulosDelRol.filter(path => modulosDeLaEmpresa.includes(path));
           }
-          // Nota: Si modulosDeLaEmpresa es null, se queda con 'modulosDelRol' completo (acceso a todo)
 
           // 4. Guardamos el resultado final que usará el menú lateral
           localStorage.setItem('userModules', JSON.stringify(modulosFinales));
 
         } catch (error) {
-        // ... (resto de tu código de catch con el 402 sigue igual)
         if (error.response && error.response.status === 402) {
           setIsAuthenticated(false);
           navigate('/suscripcion-expirada');

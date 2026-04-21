@@ -2,49 +2,33 @@ import React, { useState, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Button, Typography, Box, IconButton, Switch,
-  FormGroup, FormControlLabel, Divider, CircularProgress
+  FormGroup, FormControlLabel, CircularProgress
 } from '@mui/material';
 import { Close, ViewModule } from '@mui/icons-material';
 import { updateModulosEmpresa } from '../api';
 import { toast } from 'react-toastify';
+import { APP_MODULES } from '../utils/modulesConfig'; // 👈 IMPORTACIÓN MAESTRA
 
-const ACCENT = '#F43F5E'; // Rojo/Rosa del SuperAdmin
-
-// Lista maestra de todos los módulos que existen en Ksmart360
-const TODOS_LOS_MODULOS = [
-  { path: '/ventas', label: 'Ventas (POS)' },
-  { path: '/compras', label: 'Compras y Gastos' },
-  { path: '/clientes', label: 'Gestión de Terceros' },
-  { path: '/productos', label: 'Catálogo de Productos' },
-  { path: '/inventario', label: 'Control de Inventarios' },
-  { path: '/caja', label: 'Corte de Caja' },
-  { path: '/produccion/lotes', label: 'Producción y Recetas' },
-  { path: '/ordenes-trabajo', label: 'Órdenes de Trabajo' },
-  { path: '/panel-operador', label: 'Panel de Operador' },
-  { path: '/prestamos', label: 'Simulador de Préstamos' },
-  { path: '/ruta-cobro', label: 'Ruta de Cobros' },
-  { path: '/reportes', label: 'Reportes Financieros' }
-];
+const ACCENT = '#F43F5E';
 
 const ModulosEmpresaDialog = ({ open, handleClose, empresa, onModulosUpdated }) => {
   const [modulosActivos, setModulosActivos] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-// Cuando se abre el modal, cargamos los módulos que ya tiene la empresa
+  // Cargar módulos iniciales
   useEffect(() => {
     if (open && empresa) {
-      // Escudo: Si es null, undefined, o no existe, le damos todos los módulos por defecto
       if (!empresa.modulos_habilitados) {
-        setModulosActivos(TODOS_LOS_MODULOS.map(m => m.path));
+        setModulosActivos(APP_MODULES.map(m => m.path));
       } else {
         setModulosActivos(empresa.modulos_habilitados);
       }
     }
   }, [open, empresa]);
 
+  // Manejar el toggle (Switch) de cada módulo
   const handleToggle = (path) => {
     setModulosActivos((prev) => {
-      // Escudo protector por si prev llega a ser undefined
       const current = prev || []; 
       return current.includes(path) 
         ? current.filter(p => p !== path) 
@@ -52,14 +36,16 @@ const ModulosEmpresaDialog = ({ open, handleClose, empresa, onModulosUpdated }) 
     });
   };
 
+  // Marcar todos o ninguno
   const handleMarcarTodos = (marcar) => {
     if (marcar) {
-      setModulosActivos(TODOS_LOS_MODULOS.map(m => m.path));
+      setModulosActivos(APP_MODULES.map(m => m.path));
     } else {
       setModulosActivos([]);
     }
   };
 
+  // Guardar en el backend
   const handleSave = async () => {
     setIsSubmitting(true);
     try {
@@ -103,27 +89,27 @@ const ModulosEmpresaDialog = ({ open, handleClose, empresa, onModulosUpdated }) 
         </Box>
 
         <FormGroup sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 1 }}>
-          {TODOS_LOS_MODULOS.map((modulo) => (
-            // Busca esta parte:
-                <Box key={modulo.path} sx={{ 
-                    p: 1, borderRadius: 2, 
-                    border: '1px solid', borderColor: (modulosActivos || []).includes(modulo.path) ? `${ACCENT}50` : 'divider',
-                    bgcolor: (modulosActivos || []).includes(modulo.path) ? `${ACCENT}08` : 'transparent',
-                    transition: 'all 0.2s'
-                    }}>
-                    <FormControlLabel
-                        control={
-                        <Switch 
-                            checked={(modulosActivos || []).includes(modulo.path)} 
-                            onChange={() => handleToggle(modulo.path)} 
-                            color="primary"
-                            sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: ACCENT }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: ACCENT } }}
-                        />
-                        }
-                        label={<Typography sx={{ fontSize: 13, fontWeight: (modulosActivos || []).includes(modulo.path) ? 700 : 500 }}>{modulo.label}</Typography>}
-                        sx={{ m: 0, width: '100%' }}
-                    />
-                </Box>
+          {/* 👇 AQUÍ RECORREMOS APP_MODULES */}
+          {APP_MODULES.map((modulo) => (
+            <Box key={modulo.path} sx={{ 
+                p: 1, borderRadius: 2, 
+                border: '1px solid', borderColor: (modulosActivos || []).includes(modulo.path) ? `${ACCENT}50` : 'divider',
+                bgcolor: (modulosActivos || []).includes(modulo.path) ? `${ACCENT}08` : 'transparent',
+                transition: 'all 0.2s'
+              }}>
+              <FormControlLabel
+                control={
+                  <Switch 
+                    checked={(modulosActivos || []).includes(modulo.path)} 
+                    onChange={() => handleToggle(modulo.path)} 
+                    color="primary"
+                    sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: ACCENT }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: ACCENT } }}
+                  />
+                }
+                label={<Typography sx={{ fontSize: 13, fontWeight: (modulosActivos || []).includes(modulo.path) ? 700 : 500 }}>{modulo.label}</Typography>}
+                sx={{ m: 0, width: '100%' }}
+              />
+            </Box>
           ))}
         </FormGroup>
       </DialogContent>

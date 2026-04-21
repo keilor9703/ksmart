@@ -127,6 +127,8 @@ def initialize_default_data(db: Session):
 
     default_modules_data = [
         {"name": "Ventas",              "description": "Módulo para la gestión de ventas.",              "frontend_path": "/ventas"},
+        {"name": "Cotizaciones",        "description": "Módulo para la gestión de cotizaciones.",          "frontend_path": "/cotizaciones"},
+        {"name": "Resoluciones DIAN",              "description": "Módulo para la gestión de resoluciones de la DIAN.",    "frontend_path": "/admin/resoluciones"},
         {"name": "Clientes",            "description": "Módulo para la gestión de clientes.",             "frontend_path": "/clientes"},
         {"name": "Productos",           "description": "Módulo para la gestión de productos.",            "frontend_path": "/productos"},
         {"name": "Reportes",            "description": "Módulo para la visualización de reportes.",       "frontend_path": "/reportes"},
