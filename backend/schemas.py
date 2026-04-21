@@ -136,6 +136,13 @@ class ProductoBase(BaseModel):
 class ProductoCreate(ProductoBase):
     pass
 
+# ← AÑADIR ESTE VALIDATOR:
+    @validator('maneja_lotes', pre=True, always=True)
+    def coerce_maneja_lotes(cls, v):
+        if v is None:
+            return False
+        return bool(v)   # convierte 0→False, 1→True, None→False
+
 class Producto(ProductoBase):
     id: int
     stock_actual: float = 0.0
