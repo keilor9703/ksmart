@@ -220,44 +220,45 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v28)
                 logger.info("V28 aplicada.")
 
-            # =================================================================
-            # V29 - FASE 2C: MÚLTIPLES IMPUESTOS POR PRODUCTO
-            # =================================================================
-            migration_v29 = "inv_v29_impuestos_producto"
-            if not _migration_already_applied(conn, migration_v29):
+         # =================================================================
+        # V29 - FASE 2C: MÚLTIPLES IMPUESTOS POR PRODUCTO
+        # =================================================================
+        migration_v29 = "inv_v29_impuestos_producto"
+        if not _migration_already_applied(conn, migration_v29):
 
-                # 1. Catálogo de tipos de impuesto por empresa
-                if not _table_exists(conn, "tipos_impuesto"):
-                    if IS_SQLITE:
-                        conn.execute(text("""
-                            CREATE TABLE tipos_impuesto (
-                                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                                empresa_id  INTEGER NOT NULL,
-                                nombre      TEXT    NOT NULL,
-                                codigo      TEXT    NOT NULL DEFAULT 'IVA',
-                                porcentaje  REAL    NOT NULL DEFAULT 0,
-                                descripcion TEXT,
-                                is_active   INTEGER DEFAULT 1,
-                                created_at  TEXT    DEFAULT (datetime('now')),
-                                UNIQUE(empresa_id, codigo)
-                            )"""))
-                    else:
-                        conn.execute(text("""
-                            CREATE TABLE tipos_impuesto (
-                                id          SERIAL PRIMARY KEY,
-                                empresa_id  INTEGER NOT NULL,
-                                nombre      TEXT    NOT NULL,
-                                codigo      TEXT    NOT NULL DEFAULT 'IVA',
-                                porcentaje  REAL    NOT NULL DEFAULT 0,
-                                descripcion TEXT,
-                                is_active   BOOLEAN DEFAULT TRUE,
-                                created_at  TIMESTAMPTZ DEFAULT NOW(),
-                                UNIQUE(empresa_id, codigo)
-                            )"""))
-                    logger.info("Tabla 'tipos_impuesto' creada.")
+            # 1. Catálogo de tipos de impuesto por empresa (YA ESTABA BIEN)
+            if not _table_exists(conn, "tipos_impuesto"):
+                if IS_SQLITE:
+                    conn.execute(text("""
+                        CREATE TABLE tipos_impuesto (
+                            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                            empresa_id  INTEGER NOT NULL,
+                            nombre      TEXT    NOT NULL,
+                            codigo      TEXT    NOT NULL DEFAULT 'IVA',
+                            porcentaje  REAL    NOT NULL DEFAULT 0,
+                            descripcion TEXT,
+                            is_active   INTEGER DEFAULT 1,
+                            created_at  TEXT    DEFAULT (datetime('now')),
+                            UNIQUE(empresa_id, codigo)
+                        )"""))
+                else:
+                    conn.execute(text("""
+                        CREATE TABLE tipos_impuesto (
+                            id          SERIAL PRIMARY KEY,
+                            empresa_id  INTEGER NOT NULL,
+                            nombre      TEXT    NOT NULL,
+                            codigo      TEXT    NOT NULL DEFAULT 'IVA',
+                            porcentaje  REAL    NOT NULL DEFAULT 0,
+                            descripcion TEXT,
+                            is_active   BOOLEAN DEFAULT TRUE,
+                            created_at  TIMESTAMPTZ DEFAULT NOW(),
+                            UNIQUE(empresa_id, codigo)
+                        )"""))
+                logger.info("Tabla 'tipos_impuesto' creada.")
 
-                # 2. Relación muchos-a-muchos producto ↔ impuesto
-                if not _table_exists(conn, "producto_impuestos"):
+            # 2. Relación muchos-a-muchos producto ↔ impuesto (AQUÍ ESTABA EL ERROR)
+            if not _table_exists(conn, "producto_impuestos"):
+                if IS_SQLITE:
                     conn.execute(text("""
                         CREATE TABLE producto_impuestos (
                             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -266,7 +267,18 @@ def run_migrations():
                             empresa_id  INTEGER NOT NULL,
                             UNIQUE(producto_id, impuesto_id)
                         )"""))
-                    logger.info("Tabla 'producto_impuestos' creada.")
+                else:
+                    conn.execute(text("""
+                        CREATE TABLE producto_impuestos (
+                            id          SERIAL PRIMARY KEY,
+                            producto_id INTEGER NOT NULL,
+                            impuesto_id INTEGER NOT NULL,
+                            empresa_id  INTEGER NOT NULL,
+                            UNIQUE(producto_id, impuesto_id)
+                        )"""))
+                logger.info("Tabla 'producto_impuestos' creada.")
+
+    # ... el resto del código de la V29 (índices y columnas) sigue igual
 
                 # 3. Índices
                 if not _index_exists(conn, "idx_prod_imp_producto"):
