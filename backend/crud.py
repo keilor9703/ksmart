@@ -1227,12 +1227,12 @@ def create_orden_trabajo(db: Session, empresa_id: int, orden: schemas.OrdenTraba
         cliente_id=orden.cliente_id,
         operador_id=operador_id,
         total=orden.total,
-        estado='En produccion',
+        estado='Pendiente', # ✅ CORREGIDO: Nace como Pendiente para que el Operador la inicie
         empresa_id=empresa_id,
         fecha_creacion=datetime.now(timezone.utc),
         fecha_actualizacion=datetime.now(timezone.utc)
     )
-
+    # ... (El resto de la función queda igual)
     for producto_data in orden.productos:
         prod = get_producto(db, empresa_id, producto_data.producto_id)
         if not prod:

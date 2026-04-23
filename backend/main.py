@@ -1610,20 +1610,11 @@ def approve_orden(orden_id: int, db: Session = Depends(get_db), current_user: mo
     db_orden = crud.aprobar_orden_trabajo(db, empresa_id=empresa_id, orden_id=orden_id, admin_user=current_user)
     if db_orden is None:
         raise HTTPException(status_code=404, detail="Orden no encontrada o no está en revisión")
-    try:
-        for item in getattr(db_orden, "productos", []):
-            prod = crud.get_producto(db, empresa_id=empresa_id, producto_id=item.producto_id)
-            if not prod or getattr(prod, "es_servicio", False):
-                continue
-            if (prod.stock_actual or 0) < item.cantidad:
-                raise HTTPException(status_code=400, detail=f"Stock insuficiente para '{prod.nombre}'")
-            crud.create_movement(db, empresa_id=empresa_id, payload=schemas.InventoryMovementCreate(
-                producto_id=item.producto_id, tipo=schemas.MovementType.salida,
-                cantidad=item.cantidad, costo_unitario=prod.costo or 0.0,
-                motivo="orden_trabajo", referencia=f"OT #{orden_id}", observacion=""
-            ))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    
+    # ✅ FIX CRÍTICO: Se eliminó el bucle que descontaba inventario manualmente aquí.
+    # La función crud.aprobar_orden_trabajo ya llama a create_venta(), y el módulo 
+    # de ventas YA se encarga de descontar el stock usando FEFO de manera segura.
+    
     return db_orden
 
 
@@ -1667,6 +1658,23 @@ panel_router = APIRouter(
     tags=["Panel del Operador"],
     dependencies=[Depends(get_current_active_user)]
 )
+
+
+
+
+# ✅ NUEVO: El operador inicia el trabajo
+@panel_router.put("/{orden_id}/iniciar", response_model=schemas.OrdenTrabajo)
+def iniciar_orden_operador(orden_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+    if current_user.role.name not in ('Operador', 'Admin'):
+        raise HTTPException(status_code=403, detail="Acceso denegado")
+    return crud.update_orden_trabajo_estado(db, current_user.empresa_id, orden_id, "Iniciada")
+
+# ✅ NUEVO: El operador termina y envía al Admin
+@panel_router.put("/{orden_id}/terminar", response_model=schemas.OrdenTrabajo)
+def terminar_orden_operador(orden_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+    if current_user.role.name not in ('Operador', 'Admin'):
+        raise HTTPException(status_code=403, detail="Acceso denegado")
+    return crud.update_orden_trabajo_estado(db, current_user.empresa_id, orden_id, "En revisión")
 
 
 @panel_router.get("/pendientes", response_model=List[schemas.PanelOrdenPendiente])
