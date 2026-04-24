@@ -1121,12 +1121,24 @@ def get_dashboard_data(db: Session, empresa_id: int) -> schemas.DashboardData:
     inicio_utc_hoy, fin_utc_hoy = get_utc_boundaries(hoy_colombia)
 
     # --- MÉTRICAS ERP (PRODUCTOS) ---
+    # Ventas totales del día (creadas hoy)
     ventas_hoy_recs = db.query(models.Venta).filter(
         models.Venta.empresa_id == empresa_id,
         models.Venta.fecha >= inicio_utc_hoy,
-        models.Venta.fecha <= fin_utc_hoy
+        models.Venta.fecha <= fin_utc_hoy,
+        models.Venta.tipo == "venta",
     ).all()
     ventas_hoy = sum(v.total or 0 for v in ventas_hoy_recs)
+
+    # ← NUEVO: sumar también los abonos a cartera recibidos hoy
+    abonos_hoy = db.query(func.sum(models.Pago.monto)).join(models.Venta).filter(
+        models.Venta.empresa_id == empresa_id,
+        models.Pago.fecha >= inicio_utc_hoy,
+        models.Pago.fecha <= fin_utc_hoy,
+    ).scalar() or 0.0
+
+    ventas_hoy += abonos_hoy   # el KPI del dashboard ahora refleja todo el dinero recibido hoy
+
     
     deudores = get_clientes_deudores(db, empresa_id)
     cuentas_por_cobrar = sum(d.total_debt_amount for d in deudores)
@@ -2524,7 +2536,6 @@ def create_pago_compra(db: Session, empresa_id: int, pago: schemas.PagoCompraCre
 # ═══════════════════════════════════════════════════════════════════════════════
 # CAJA Y GASTOS
 # ═══════════════════════════════════════════════════════════════════════════════
-# 2. Reemplaza calcular_totales_dia para un arqueo de caja preciso:
 def calcular_totales_dia(db: Session, empresa_id: int) -> dict:
     hoy_colombia = datetime.now(BOGOTA_TZ).date()
     inicio, fin = get_utc_boundaries(hoy_colombia)
@@ -2533,6 +2544,7 @@ def calcular_totales_dia(db: Session, empresa_id: int) -> dict:
         "efectivo": 0.0, "transferencia": 0.0, "tarjeta": 0.0, "otros": 0.0,
         "total_dia": 0.0, "total_gastos": 0.0,
         "ventas_contado": 0.0, "abonos_cartera": 0.0, "recaudo_prestamos": 0.0,
+        "num_ventas": 0, "num_abonos": 0,
         "fecha": hoy_colombia.isoformat(),
     }
 
@@ -2540,39 +2552,68 @@ def calcular_totales_dia(db: Session, empresa_id: int) -> dict:
         m = (metodo or "").lower()
         totales["total_dia"] += monto
         totales[cat] += monto
-        if "efectivo" in m or m == "": totales["efectivo"] += monto
-        elif any(x in m for x in ["transfer", "nequi", "pse"]): totales["transferencia"] += monto
-        elif any(x in m for x in ["tarjeta", "card"]): totales["tarjeta"] += monto
-        else: totales["otros"] += monto
+        if "efectivo" in m or m == "":
+            totales["efectivo"] += monto
+        elif any(x in m for x in ["transfer", "nequi", "pse", "bancolombia"]):
+            totales["transferencia"] += monto
+        elif any(x in m for x in ["tarjeta", "card", "datafono"]):
+            totales["tarjeta"] += monto
+        else:
+            totales["otros"] += monto
 
-    # Ingresos ERP
-    v_contado = db.query(models.Venta).filter(models.Venta.empresa_id == empresa_id, models.Venta.fecha >= inicio, models.Venta.fecha <= fin, models.Venta.estado_pago == "pagado").all()
-    for v in v_contado: _clasificar(v.metodo_pago, float(v.total or 0), "ventas_contado")
+    # ── 1. Ventas de contado (pagadas al momento de la venta) ────────────────
+    # Solo ventas creadas HOY y que nacieron como pagadas (no abonos posteriores)
+    ventas_contado = db.query(models.Venta).filter(
+        models.Venta.empresa_id == empresa_id,
+        models.Venta.fecha >= inicio,
+        models.Venta.fecha <= fin,
+        models.Venta.tipo == "venta",
+        models.Venta.estado_pago == "pagado",
+        # Excluir ventas que tienen pagos en tabla pagos (esas son cartera cobrada)
+        ~models.Venta.pagos.any()
+    ).all()
+    for v in ventas_contado:
+        _clasificar(v.metodo_pago, float(v.total or 0), "ventas_contado")
+        totales["num_ventas"] += 1
 
-    # Ingresos Préstamos
-    cuotas = db.query(models.CuotaPrestamo).filter(models.CuotaPrestamo.empresa_id == empresa_id, models.CuotaPrestamo.estado_pago == "Pagado", models.CuotaPrestamo.fecha_pago >= inicio, models.CuotaPrestamo.fecha_pago <= fin).all()
-    for c in cuotas: _clasificar("Efectivo", float(c.monto_cuota or 0), "recaudo_prestamos")
+    # ── 2. Abonos a cartera (pagos registrados HOY desde CuentasPorCobrar) ───
+    # Estos son los que faltaban — pagos de ventas previas (o del día) vía tabla pagos
+    pagos_hoy = db.query(models.Pago).join(models.Venta).filter(
+        models.Venta.empresa_id == empresa_id,
+        models.Pago.fecha >= inicio,
+        models.Pago.fecha <= fin,
+    ).all()
+    for p in pagos_hoy:
+        _clasificar(p.metodo_pago, float(p.monto or 0), "abonos_cartera")
+        totales["num_abonos"] += 1
 
-    # Gastos
-    gastos = db.query(models.Gasto).filter(models.Gasto.empresa_id == empresa_id, models.Gasto.fecha >= inicio, models.Gasto.fecha <= fin).all()
+    # ── 3. Recaudo de préstamos ──────────────────────────────────────────────
+    cuotas = db.query(models.CuotaPrestamo).filter(
+        models.CuotaPrestamo.empresa_id == empresa_id,
+        models.CuotaPrestamo.estado_pago == "Pagado",
+        models.CuotaPrestamo.fecha_pago >= inicio,
+        models.CuotaPrestamo.fecha_pago <= fin,
+    ).all()
+    for c in cuotas:
+        _clasificar("Efectivo", float(c.monto_cuota or 0), "recaudo_prestamos")
+
+    # ── 4. Gastos (restan del efectivo) ─────────────────────────────────────
+    gastos = db.query(models.Gasto).filter(
+        models.Gasto.empresa_id == empresa_id,
+        models.Gasto.fecha >= inicio,
+        models.Gasto.fecha <= fin,
+    ).all()
     for g in gastos:
         totales["total_gastos"] += float(g.monto)
         m = (g.metodo_pago or "").lower()
-        if "efectivo" in m or m == "": totales["efectivo"] -= float(g.monto)
-    
+        if "efectivo" in m or m == "":
+            totales["efectivo"] -= float(g.monto)
+        elif any(x in m for x in ["transfer", "nequi", "pse"]):
+            totales["transferencia"] -= float(g.monto)
+        elif any(x in m for x in ["tarjeta", "card"]):
+            totales["tarjeta"] -= float(g.monto)
+
     return totales
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def crear_corte_caja(db: Session, empresa_id: int, usuario_id: int, efectivo_fisico: float,
