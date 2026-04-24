@@ -102,22 +102,67 @@ const CollapsePanel = ({ title, icon, color, open, onToggle, children }) => (
 );
 
 // ─── Formulario de movimiento ─────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// REEMPLAZA únicamente el componente MovementForm en InventoryPage.jsx
+// El resto del archivo (LowStockBanner, CollapsePanel, MovementCard,
+// MovementsTable, InventoryPage) queda exactamente igual.
+// ═══════════════════════════════════════════════════════════════════════════
+
 const MovementForm = ({ onCreated }) => {
   const [productos, setProductos]         = useState([]);
   const [productoSel, setProductoSel]     = useState(null);
   const [productoInput, setProductoInput] = useState('');
   const [open, setOpen]                   = useState(false);
-  const [form, setForm] = useState({ tipo: 'ajuste', cantidad: '', motivo: '', referencia: '', observacion: '' });
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving]               = useState(false);
+
+  // ── Estado para producto normal ──────────────────────────────────────────
+  const [form, setForm] = useState({
+    tipo: 'ajuste', cantidad: '', motivo: '', referencia: '', observacion: '',
+  });
+
+  // ── Estado para producto perecedero ─────────────────────────────────────
+  const [lotesExistentes, setLotesExistentes]   = useState([]);
+  const [modoLote, setModoLote]                 = useState('existente'); // 'existente' | 'nuevo'
+  const [loteSel, setLoteSel]                   = useState(null);
+  const [loteInput, setLoteInput]               = useState('');
+  const [cantidadLote, setCantidadLote]         = useState('');
+  const [motivoLote, setMotivoLote]             = useState('');
+  const [nuevoLote, setNuevoLote] = useState({
+    numero_lote: '', fecha_vencimiento: '', fecha_fabricacion: '',
+    cantidad_inicial: '', costo_unitario: '', referencia_compra: '', observaciones: '',
+  });
 
   useEffect(() => {
     apiClient.get('/productos/').then(r => setProductos(r.data || [])).catch(() => {});
   }, []);
 
+  // Al seleccionar un producto perecedero, cargar sus lotes activos
+  const handleProductoChange = async (prod) => {
+    setProductoSel(prod);
+    setLoteSel(null); setLoteInput('');
+    setCantidadLote(''); setMotivoLote('');
+    setNuevoLote({ numero_lote: '', fecha_vencimiento: '', fecha_fabricacion: '',
+                   cantidad_inicial: '', costo_unitario: '', referencia_compra: '', observaciones: '' });
+
+    if (prod?.maneja_lotes) {
+      try {
+        const res = await apiClient.get(`/inventario/lotes/${prod.id}?solo_activos=false`);
+        setLotesExistentes(res.data || []);
+        setModoLote(res.data?.length > 0 ? 'existente' : 'nuevo');
+      } catch {
+        setLotesExistentes([]);
+        setModoLote('nuevo');
+      }
+    } else {
+      setLotesExistentes([]);
+    }
+  };
+
   const handleChange = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const getTipoColor = (t) => t === 'entrada' ? GREEN : t === 'salida' ? RED : ACCENT;
 
-  const submit = async () => {
+  // ── Submit producto NORMAL ───────────────────────────────────────────────
+  const submitNormal = async () => {
     if (!productoSel || !form.tipo || !form.cantidad || Number(form.cantidad) <= 0) {
       toast.warning('Debes completar: Producto, Tipo y Cantidad (mayor a 0).');
       return;
@@ -139,24 +184,74 @@ const MovementForm = ({ onCreated }) => {
     } finally { setSaving(false); }
   };
 
+  // ── Submit lote EXISTENTE (ajuste) ───────────────────────────────────────
+  const submitLoteExistente = async () => {
+    if (!loteSel) { toast.warning('Selecciona un lote.'); return; }
+    if (!cantidadLote || Number(cantidadLote) === 0) { toast.warning('Ingresa la cantidad (positivo = entrada, negativo = salida).'); return; }
+    if (!motivoLote.trim()) { toast.warning('Ingresa el motivo del ajuste.'); return; }
+    setSaving(true);
+    try {
+      await apiClient.patch(`/inventario/lotes/${loteSel.id}/ajuste`, {
+        cantidad:   parseFloat(cantidadLote),
+        motivo:     motivoLote,
+        referencia: form.referencia || undefined,
+      });
+      toast.success('Lote ajustado correctamente');
+      setProductoSel(null); setProductoInput('');
+      setLoteSel(null); setLoteInput('');
+      setCantidadLote(''); setMotivoLote('');
+      setOpen(false);
+      onCreated?.();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail ?? 'Error al ajustar el lote.');
+    } finally { setSaving(false); }
+  };
+
+  // ── Submit NUEVO lote perecedero ─────────────────────────────────────────
+  const submitNuevoLote = async () => {
+    const { numero_lote, fecha_vencimiento, cantidad_inicial, costo_unitario } = nuevoLote;
+    if (!numero_lote || !fecha_vencimiento || !cantidad_inicial || !costo_unitario) {
+      toast.warning('Completa los campos obligatorios: N° Lote, Fecha Venc., Cantidad y Costo.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiClient.post('/inventario/lotes', {
+        producto_id:       productoSel.id,
+        numero_lote:       numero_lote.trim().toUpperCase(),
+        fecha_vencimiento: fecha_vencimiento,
+        fecha_fabricacion: nuevoLote.fecha_fabricacion || undefined,
+        cantidad_inicial:  parseFloat(cantidad_inicial),
+        costo_unitario:    parseFloat(costo_unitario),
+        referencia_compra: nuevoLote.referencia_compra || undefined,
+        observaciones:     nuevoLote.observaciones || undefined,
+      });
+      toast.success('Nuevo lote registrado correctamente');
+      setProductoSel(null); setProductoInput('');
+      setNuevoLote({ numero_lote: '', fecha_vencimiento: '', fecha_fabricacion: '',
+                     cantidad_inicial: '', costo_unitario: '', referencia_compra: '', observaciones: '' });
+      setOpen(false);
+      onCreated?.();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail ?? 'Error al registrar el lote.');
+    } finally { setSaving(false); }
+  };
+
+  const esPerecible = Boolean(productoSel?.maneja_lotes);
+
   return (
     <CollapsePanel
       title="Crear Movimiento Manual"
       icon={<SwapVert fontSize="small" />}
       color={CYAN} open={open} onToggle={() => setOpen(o => !o)}
     >
-      {/*
-        Usamos Stack con direction="column" explícito en lugar de Grid.
-        Esto garantiza que cada campo ocupe su propia fila sin importar
-        el breakpoint o cualquier CSS externo que interfiera.
-      */}
       <Stack direction="column" spacing={1.5} sx={{ width: '100%' }}>
 
-        {/* ── Campo 1: Producto — siempre ocupa toda la fila ── */}
+        {/* ── Selector de producto (siempre visible) ── */}
         <Autocomplete
           options={productos}
           value={productoSel}
-          onChange={(_, v) => setProductoSel(v)}
+          onChange={(_, v) => { setProductoInput(v?.nombre || ''); handleProductoChange(v); }}
           inputValue={productoInput}
           onInputChange={(_, v) => setProductoInput(v)}
           getOptionLabel={opt => opt ? `${opt.nombre} (ID: ${opt.id})` : ''}
@@ -168,9 +263,13 @@ const MovementForm = ({ onCreated }) => {
           renderOption={(props, option) => (
             <li {...props} key={option.id} style={{ padding: '10px 14px' }}>
               <Box>
-                <Typography sx={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3 }}>
-                  {option.nombre}
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography sx={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3 }}>{option.nombre}</Typography>
+                  {option.maneja_lotes && (
+                    <Chip label="Perecedero" size="small"
+                      sx={{ height: 18, fontSize: 10, fontWeight: 700, bgcolor: '#ECFDF5', color: GREEN }} />
+                  )}
+                </Box>
                 <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
                   ID: {option.id} · Stock: {option.stock_actual ?? 0} {option.unidad_medida}
                 </Typography>
@@ -178,105 +277,245 @@ const MovementForm = ({ onCreated }) => {
             </li>
           )}
           renderInput={params => (
-            <TextField
-              {...params}
-              label="Producto (busca por nombre o ID)"
-              size="small"
-              fullWidth
-            />
+            <TextField {...params} label="Producto (busca por nombre o ID)" size="small" fullWidth />
           )}
           fullWidth
-          sx={{ width: '100%' }}
         />
 
-        {/* ── Campo 2: Tipo de movimiento — siempre ocupa toda la fila ── */}
-        <TextField
-          select
-          label="Tipo de movimiento"
-          value={form.tipo}
-          onChange={e => handleChange('tipo', e.target.value)}
-          fullWidth
-          size="small"
-          sx={{ width: '100%' }}
-        >
-          {[
-            { value: 'entrada', label: '↑ Entrada', color: GREEN  },
-            { value: 'salida',  label: '↓ Salida',  color: RED    },
-            { value: 'ajuste',  label: '⟳ Ajuste',  color: ACCENT },
-          ].map(({ value, label, color }) => (
-            <MenuItem key={value} value={value}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color, flexShrink: 0 }} />
-                {label}
-              </Box>
-            </MenuItem>
-          ))}
-        </TextField>
-
-        {/* ── Fila 3: Cantidad + Motivo en la misma fila ── */}
-        <Box sx={{ display: 'flex', gap: 1.5, width: '100%' }}>
-          <TextField
-            label="Cantidad"
-            type="number"
-            value={form.cantidad}
-            onChange={e => handleChange('cantidad', e.target.value)}
-            inputProps={{ min: 0, step: 'any' }}
-            size="small"
-            sx={{ flex: 1 }}
-          />
-          <TextField
-            label="Motivo"
-            value={form.motivo}
-            onChange={e => handleChange('motivo', e.target.value)}
-            size="small"
-            sx={{ flex: 2 }}
-          />
-        </Box>
-
-        {/* ── Campo 4: Referencia ── */}
-        <TextField
-          label="Referencia / Documento"
-          value={form.referencia}
-          onChange={e => handleChange('referencia', e.target.value)}
-          fullWidth size="small"
-          sx={{ width: '100%' }}
-        />
-
-        {/* ── Campo 5: Observación ── */}
-        <TextField
-          label="Observación"
-          value={form.observacion}
-          onChange={e => handleChange('observacion', e.target.value)}
-          fullWidth size="small" multiline minRows={2}
-          sx={{ width: '100%' }}
-        />
-
-        {/* ── Resumen visual ── */}
-        {productoSel && Number(form.cantidad) > 0 && (
-          <Box sx={{
-            p: 1.5, borderRadius: 2,
-            bgcolor: `${getTipoColor(form.tipo)}08`,
-            border: `1.5px dashed ${getTipoColor(form.tipo)}50`,
-            display: 'flex', alignItems: 'center', gap: 1.5,
-            width: '100%',
-          }}>
-            {form.tipo === 'entrada'
-              ? <TrendingUp sx={{ color: getTipoColor(form.tipo), fontSize: 20, flexShrink: 0 }} />
-              : form.tipo === 'salida'
-                ? <TrendingDown sx={{ color: getTipoColor(form.tipo), fontSize: 20, flexShrink: 0 }} />
-                : <Tune sx={{ color: getTipoColor(form.tipo), fontSize: 20, flexShrink: 0 }} />
-            }
-            <Box sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontWeight: 700, fontSize: 12, color: getTipoColor(form.tipo) }}>
-                {form.tipo.toUpperCase()} de {form.cantidad} {productoSel.unidad_medida || 'und'}
-              </Typography>
-              <Typography sx={{ fontSize: 11, color: 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {productoSel.nombre} · Stock actual: {productoSel.stock_actual ?? 0}
+        {/* ════════════════════════════════════════════════════════════════
+            RAMA A — Producto PERECEDERO
+        ════════════════════════════════════════════════════════════════ */}
+        {esPerecible && productoSel && (
+          <>
+            {/* Badge informativo */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1.2, borderRadius: 2,
+                        bgcolor: '#ECFDF5', border: '1px solid #A7F3D0' }}>
+              <Layers sx={{ color: GREEN, fontSize: 18, flexShrink: 0 }} />
+              <Typography sx={{ fontSize: 12, color: '#065F46', fontWeight: 600 }}>
+                Producto perecedero — los movimientos se gestionan por lotes
               </Typography>
             </Box>
-          </Box>
+
+            {/* Selector de modo: lote existente vs nuevo */}
+            {lotesExistentes.length > 0 && (
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                {[
+                  { key: 'existente', label: '📋 Ajustar lote existente' },
+                  { key: 'nuevo',     label: '➕ Registrar nuevo lote' },
+                ].map(({ key, label }) => (
+                  <Button
+                    key={key}
+                    size="small"
+                    variant={modoLote === key ? 'contained' : 'outlined'}
+                    onClick={() => setModoLote(key)}
+                    sx={{
+                      flex: 1, borderRadius: 2, fontWeight: 600, fontSize: 12,
+                      bgcolor: modoLote === key ? GREEN : 'transparent',
+                      borderColor: GREEN, color: modoLote === key ? '#fff' : GREEN,
+                      '&:hover': { bgcolor: modoLote === key ? '#059669' : `${GREEN}10`, borderColor: GREEN },
+                    }}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </Box>
+            )}
+
+            {/* ── Modo: LOTE EXISTENTE ── */}
+            {modoLote === 'existente' && lotesExistentes.length > 0 && (
+              <>
+                <Autocomplete
+                  options={lotesExistentes}
+                  value={loteSel}
+                  onChange={(_, v) => setLoteSel(v)}
+                  inputValue={loteInput}
+                  onInputChange={(_, v) => setLoteInput(v)}
+                  getOptionLabel={opt => opt
+                    ? `${opt.numero_lote} — Vence: ${fmtFecha ? fmtFecha(opt.fecha_vencimiento) : opt.fecha_vencimiento} · Stock: ${opt.cantidad_actual}`
+                    : ''}
+                  renderOption={(props, option) => (
+                    <li {...props} key={option.id} style={{ padding: '10px 14px' }}>
+                      <Box>
+                        <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{option.numero_lote}</Typography>
+                        <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                          Vence: {option.fecha_vencimiento} · Stock actual: {option.cantidad_actual}
+                        </Typography>
+                      </Box>
+                    </li>
+                  )}
+                  renderInput={params => (
+                    <TextField {...params} label="Seleccionar lote *" size="small" fullWidth />
+                  )}
+                  fullWidth
+                />
+
+                <Box sx={{ display: 'flex', gap: 1.5 }}>
+                  <TextField
+                    label="Cantidad"
+                    type="number"
+                    size="small"
+                    value={cantidadLote}
+                    onChange={e => setCantidadLote(e.target.value)}
+                    helperText="Positivo = entrada  ·  Negativo = salida"
+                    sx={{ flex: 1 }}
+                  />
+                  <TextField
+                    label="Motivo *"
+                    size="small"
+                    value={motivoLote}
+                    onChange={e => setMotivoLote(e.target.value)}
+                    placeholder="Ej: Merma, Ajuste de inventario..."
+                    sx={{ flex: 2 }}
+                  />
+                </Box>
+
+                <TextField
+                  label="Referencia (opcional)"
+                  size="small"
+                  value={form.referencia}
+                  onChange={e => handleChange('referencia', e.target.value)}
+                  fullWidth
+                />
+              </>
+            )}
+
+            {/* ── Modo: NUEVO LOTE ── */}
+            {(modoLote === 'nuevo' || lotesExistentes.length === 0) && (
+              <>
+                <Box sx={{ display: 'flex', gap: 1.5 }}>
+                  <TextField
+                    label="N° de Lote *" size="small"
+                    value={nuevoLote.numero_lote}
+                    onChange={e => setNuevoLote(p => ({ ...p, numero_lote: e.target.value.toUpperCase() }))}
+                    sx={{ flex: 1 }}
+                  />
+                  <TextField
+                    label="Cantidad *" type="number" size="small"
+                    value={nuevoLote.cantidad_inicial}
+                    onChange={e => setNuevoLote(p => ({ ...p, cantidad_inicial: e.target.value }))}
+                    InputProps={{ endAdornment: <InputAdornment position="end">{productoSel?.unidad_medida || 'UND'}</InputAdornment> }}
+                    sx={{ flex: 1 }}
+                  />
+                </Box>
+
+                <Box sx={{ display: 'flex', gap: 1.5 }}>
+                  <TextField
+                    label="Fecha Vencimiento *" type="date" size="small"
+                    InputLabelProps={{ shrink: true }}
+                    value={nuevoLote.fecha_vencimiento}
+                    onChange={e => setNuevoLote(p => ({ ...p, fecha_vencimiento: e.target.value }))}
+                    inputProps={{ min: new Date().toISOString().split('T')[0] }}
+                    sx={{ flex: 1 }}
+                  />
+                  <TextField
+                    label="Fabricación (Opc.)" type="date" size="small"
+                    InputLabelProps={{ shrink: true }}
+                    value={nuevoLote.fecha_fabricacion}
+                    onChange={e => setNuevoLote(p => ({ ...p, fecha_fabricacion: e.target.value }))}
+                    sx={{ flex: 1 }}
+                  />
+                </Box>
+
+                <Box sx={{ display: 'flex', gap: 1.5 }}>
+                  <TextField
+                    label="Costo Unitario *" type="number" size="small"
+                    value={nuevoLote.costo_unitario}
+                    onChange={e => setNuevoLote(p => ({ ...p, costo_unitario: e.target.value }))}
+                    InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+                    sx={{ flex: 1 }}
+                  />
+                  <TextField
+                    label="Referencia / Factura" size="small"
+                    value={nuevoLote.referencia_compra}
+                    onChange={e => setNuevoLote(p => ({ ...p, referencia_compra: e.target.value }))}
+                    sx={{ flex: 1 }}
+                  />
+                </Box>
+
+                <TextField
+                  label="Observaciones" size="small" multiline minRows={2} fullWidth
+                  value={nuevoLote.observaciones}
+                  onChange={e => setNuevoLote(p => ({ ...p, observaciones: e.target.value }))}
+                />
+              </>
+            )}
+          </>
         )}
 
+        {/* ════════════════════════════════════════════════════════════════
+            RAMA B — Producto NORMAL (comportamiento original intacto)
+        ════════════════════════════════════════════════════════════════ */}
+        {!esPerecible && productoSel && (
+          <>
+            <TextField
+              select label="Tipo de movimiento" value={form.tipo}
+              onChange={e => handleChange('tipo', e.target.value)}
+              fullWidth size="small"
+            >
+              {[
+                { value: 'entrada', label: '↑ Entrada', color: GREEN  },
+                { value: 'salida',  label: '↓ Salida',  color: RED    },
+                { value: 'ajuste',  label: '⟳ Ajuste',  color: ACCENT },
+              ].map(({ value, label, color }) => (
+                <MenuItem key={value} value={value}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color, flexShrink: 0 }} />
+                    {label}
+                  </Box>
+                </MenuItem>
+              ))}
+            </TextField>
+
+            <Box sx={{ display: 'flex', gap: 1.5, width: '100%' }}>
+              <TextField
+                label="Cantidad" type="number" value={form.cantidad}
+                onChange={e => handleChange('cantidad', e.target.value)}
+                inputProps={{ min: 0, step: 'any' }} size="small" sx={{ flex: 1 }}
+              />
+              <TextField
+                label="Motivo" value={form.motivo}
+                onChange={e => handleChange('motivo', e.target.value)}
+                size="small" sx={{ flex: 2 }}
+              />
+            </Box>
+
+            <TextField
+              label="Referencia / Documento" value={form.referencia}
+              onChange={e => handleChange('referencia', e.target.value)}
+              fullWidth size="small"
+            />
+            <TextField
+              label="Observación" value={form.observacion}
+              onChange={e => handleChange('observacion', e.target.value)}
+              fullWidth size="small" multiline minRows={2}
+            />
+
+            {/* Resumen visual (igual que antes) */}
+            {productoSel && Number(form.cantidad) > 0 && (
+              <Box sx={{
+                p: 1.5, borderRadius: 2,
+                bgcolor: `${getTipoColor(form.tipo)}08`,
+                border: `1.5px dashed ${getTipoColor(form.tipo)}50`,
+                display: 'flex', alignItems: 'center', gap: 1.5,
+              }}>
+                {form.tipo === 'entrada'
+                  ? <TrendingUp sx={{ color: getTipoColor(form.tipo), fontSize: 20, flexShrink: 0 }} />
+                  : form.tipo === 'salida'
+                    ? <TrendingDown sx={{ color: getTipoColor(form.tipo), fontSize: 20, flexShrink: 0 }} />
+                    : <Tune sx={{ color: getTipoColor(form.tipo), fontSize: 20, flexShrink: 0 }} />
+                }
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: 12, color: getTipoColor(form.tipo) }}>
+                    {form.tipo.toUpperCase()} de {form.cantidad} {productoSel.unidad_medida || 'und'}
+                  </Typography>
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {productoSel.nombre} · Stock actual: {productoSel.stock_actual ?? 0}
+                  </Typography>
+                </Box>
+              </Box>
+            )}
+          </>
+        )}
       </Stack>
 
       {/* Botones */}
@@ -285,14 +524,29 @@ const MovementForm = ({ onCreated }) => {
           sx={{ borderRadius: 2, fontWeight: 600, borderColor: 'divider', color: 'text.secondary' }}>
           Cancelar
         </Button>
-        <Button variant="contained" onClick={submit} disabled={saving} size="small"
-          sx={{ background: `linear-gradient(135deg, ${CYAN}, #22d3ee)`, boxShadow: `0 4px 14px rgba(6,182,212,0.3)`, borderRadius: 2, fontWeight: 600 }}>
-          {saving ? 'Guardando…' : 'Registrar Movimiento'}
+        <Button
+          variant="contained" size="small" disabled={saving || !productoSel}
+          onClick={
+            !esPerecible
+              ? submitNormal
+              : (modoLote === 'existente' && lotesExistentes.length > 0)
+                ? submitLoteExistente
+                : submitNuevoLote
+          }
+          sx={{ background: `linear-gradient(135deg, ${CYAN}, #22d3ee)`, boxShadow: `0 4px 14px rgba(6,182,212,0.3)`, borderRadius: 2, fontWeight: 600 }}
+        >
+          {saving
+            ? 'Guardando…'
+            : esPerecible
+              ? (modoLote === 'existente' && lotesExistentes.length > 0 ? 'Ajustar Lote' : 'Registrar Nuevo Lote')
+              : 'Registrar Movimiento'
+          }
         </Button>
       </Box>
     </CollapsePanel>
   );
 };
+
 
 // ─── Card mobile de movimiento ────────────────────────────────────────────────
 const MovementCard = ({ row }) => {
