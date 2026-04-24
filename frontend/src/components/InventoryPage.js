@@ -14,7 +14,7 @@ import Autocomplete from '@mui/material/Autocomplete';
 import BulkUpload from './BulkUpload';
 import {
   Warning, ExpandMore, ExpandLess, Search,
-  Upload, SwapVert, TrendingUp, TrendingDown, Tune
+  Upload, SwapVert, TrendingUp, TrendingDown, Tune, Layers
 } from '@mui/icons-material';
 
 const ACCENT = '#F59E0B';
@@ -22,11 +22,20 @@ const GREEN  = '#10B981';
 const RED    = '#EF4444';
 const CYAN   = '#06B6D4';
 
+// Después de esta función que ya tienes:
 const formatDate = (d) => {
   if (!d) return '—';
   return new Date(d.endsWith('Z') ? d : d + 'Z').toLocaleString();
 };
 
+// Añade esta:
+const fmtFecha = (val) => {
+  if (!val) return '—';
+  try {
+    const [y, m, d] = String(val).split('T')[0].split('-');
+    return `${d}/${m}/${y}`;
+  } catch { return '—'; }
+};
 // ─── Banner stock bajo ────────────────────────────────────────────────────────
 const LowStockBanner = () => {
   const [items, setItems] = useState([]);
