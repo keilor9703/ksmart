@@ -264,6 +264,18 @@ const Prestamos = () => {
   const [cuotas,          setCuotas]          = useState('');
   const [modalidad,       setModalidad]       = useState('Mensual');
 
+  const [fechaInicio, setFechaInicio] = useState(() => {
+  // Por defecto: hoy
+  return new Date().toISOString().split('T')[0];
+});
+
+// Helper: calcula la fecha de inicio con N días de gracia
+const agregarDiasGracia = (dias) => {
+  const d = new Date();
+  d.setDate(d.getDate() + parseInt(dias || 0));
+  setFechaInicio(d.toISOString().split('T')[0]);
+};
+
   // ── Modal abono a capital ──────────────────────────────────────────────────
   const [abonoModal,   setAbonoModal]   = useState({ open: false, prestamoId: null });
   const [abonoMonto,   setAbonoMonto]   = useState('');
@@ -376,15 +388,17 @@ const Prestamos = () => {
     setIsSubmitting(true);
     try {
       await createPrestamo({
-        cliente_id:      selectedCliente.id,
-        monto_prestado:  simulacion.capital,
-        tasa_interes:    parseFloat(tasaInteres),
-        cantidad_cuotas: simulacion.numeroCuotas,
-        modalidad,
-        tasa_mora:       parseFloat(tasaMora) || 2,
-      });
+      cliente_id:      selectedCliente.id,
+      monto_prestado:  simulacion.capital,
+      tasa_interes:    parseFloat(tasaInteres),
+      cantidad_cuotas: simulacion.numeroCuotas,
+      modalidad,
+      tasa_mora:       parseFloat(tasaMora) || 2,
+      fecha_inicio:    fechaInicio,   // ← NUEVO
+    });
       toast.success('Préstamo generado');
       setMonto(''); setTasaInteres(''); setCuotas('');
+      setFechaInicio(new Date().toISOString().split('T')[0]);
       setTasaMora('2'); setSelectedCliente(null);
       fetchData();
       setTab(1);
@@ -476,6 +490,58 @@ const Prestamos = () => {
                           value={tasaMora} onChange={e => setTasaMora(e.target.value)}
                           helperText="% mensual aplicado si se atrasa"
                           InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }} />
+                      </Grid>
+                      {/* Días de gracia / Fecha inicio */}
+                      <Grid item xs={12}>
+                        <Box sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'background.default' }}>
+                          <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 1.5 }}>
+                            Fecha de primer pago (días de gracia)
+                          </Typography>
+                          <Box sx={{ display: 'flex', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
+                            {[
+                              { label: 'Hoy',      dias: 0 },
+                              { label: '+3 días',  dias: 3 },
+                              { label: '+7 días',  dias: 7 },
+                              { label: '+15 días', dias: 15 },
+                              { label: '+30 días', dias: 30 },
+                            ].map(({ label, dias }) => {
+                              const fechaOpcion = (() => {
+                                const d = new Date();
+                                d.setDate(d.getDate() + dias);
+                                return d.toISOString().split('T')[0];
+                              })();
+                              const selected = fechaInicio === fechaOpcion;
+                              return (
+                                <Box
+                                  key={label}
+                                  onClick={() => agregarDiasGracia(dias)}
+                                  sx={{
+                                    px: 1.5, py: 0.6, borderRadius: 2, cursor: 'pointer',
+                                    border: '1.5px solid',
+                                    borderColor: selected ? ACCENT : 'divider',
+                                    bgcolor: selected ? `${ACCENT}12` : 'transparent',
+                                    color: selected ? ACCENT : 'text.secondary',
+                                    fontSize: 12, fontWeight: selected ? 700 : 500,
+                                    transition: 'all 0.15s',
+                                    '&:hover': { borderColor: ACCENT },
+                                    userSelect: 'none',
+                                  }}
+                                >
+                                  {label}
+                                </Box>
+                              );
+                            })}
+                          </Box>
+                          <TextField
+                            fullWidth type="date" size="small"
+                            label="O elige fecha exacta"
+                            InputLabelProps={{ shrink: true }}
+                            value={fechaInicio}
+                            onChange={e => setFechaInicio(e.target.value)}
+                            inputProps={{ min: new Date().toISOString().split('T')[0] }}
+                            helperText={`Las cuotas se generarán a partir del ${new Date(fechaInicio + 'T00:00:00').toLocaleDateString('es-CO', { weekday: 'long', day: '2-digit', month: 'long' })}`}
+                          />
+                        </Box>
                       </Grid>
                     </Grid>
                   </Box>
@@ -764,6 +830,147 @@ const Prestamos = () => {
                     })}
                   </Grid>
                 </Paper>
+
+                  {/* ── TOP DEUDORES / MOROSOS ── */}
+                  {(() => {
+                    // Calcular mora y saldo por préstamo con datos ya cargados
+                    const ranking = prestamosActivos.map(p => {
+                      const nombreCliente = p.cliente?.nombre
+                        || clientes.find(c => c.id === p.cliente_id)?.nombre || 'N/A';
+                      const saldoPendiente = (p.cuotas || []).reduce(
+                        (acc, c) => acc + (c.estado_pago !== 'Pagado' ? (c.saldo_pendiente || 0) : 0), 0
+                      );
+                      const tasaMoraP = p.tasa_mora ?? 2;
+                      const moraAcumulada = (p.cuotas || []).reduce((acc, c) => {
+                        const { mora } = calcularMoraCliente(c, tasaMoraP);
+                        return acc + mora;
+                      }, 0);
+                      return { id: p.id, nombre: nombreCliente, saldoPendiente, moraAcumulada };
+                    });
+
+                    const topDeudores = [...ranking].sort((a, b) => b.saldoPendiente - a.saldoPendiente).slice(0, 5);
+                    const topMorosos  = [...ranking].filter(r => r.moraAcumulada > 0).sort((a, b) => b.moraAcumulada - a.moraAcumulada).slice(0, 5);
+
+                    return (
+                      <Grid container spacing={2}>
+
+                        {/* Top Deudores */}
+                        <Grid item xs={12} md={6}>
+                          <Paper sx={{ p: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                              <Avatar sx={{ width: 32, height: 32, bgcolor: `${ACCENT}15`, color: ACCENT }}>
+                                <AccountBalance sx={{ fontSize: 18 }} />
+                              </Avatar>
+                              <Typography sx={{ fontWeight: 700, fontSize: 14 }}>Mayores Deudas</Typography>
+                            </Box>
+                            {topDeudores.length === 0 ? (
+                              <Typography sx={{ fontSize: 12, color: 'text.secondary', textAlign: 'center', py: 2 }}>
+                                Sin deudas pendientes
+                              </Typography>
+                            ) : (
+                              <Stack spacing={1}>
+                                {topDeudores.map((item, i) => {
+                                  const pct = topDeudores[0].saldoPendiente > 0
+                                    ? (item.saldoPendiente / topDeudores[0].saldoPendiente) * 100 : 0;
+                                  return (
+                                    <Box key={item.id}>
+                                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.3 }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, minWidth: 0 }}>
+                                          <Typography sx={{
+                                            fontSize: 11, fontWeight: 800,
+                                            color: i === 0 ? ACCENT : 'text.secondary',
+                                            flexShrink: 0,
+                                          }}>
+                                            #{i + 1}
+                                          </Typography>
+                                          <Typography sx={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {item.nombre}
+                                          </Typography>
+                                        </Box>
+                                        <Typography sx={{ fontSize: 12, fontWeight: 800, color: ACCENT, flexShrink: 0, ml: 1 }}>
+                                          {formatCurrency(item.saldoPendiente)}
+                                        </Typography>
+                                      </Box>
+                                      <LinearProgress
+                                        variant="determinate"
+                                        value={pct}
+                                        sx={{
+                                          height: 5, borderRadius: 3,
+                                          bgcolor: `${ACCENT}18`,
+                                          '& .MuiLinearProgress-bar': { bgcolor: ACCENT, borderRadius: 3 },
+                                        }}
+                                      />
+                                    </Box>
+                                  );
+                                })}
+                              </Stack>
+                            )}
+                          </Paper>
+                        </Grid>
+
+                        {/* Top Morosos */}
+                        <Grid item xs={12} md={6}>
+                          <Paper sx={{ p: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                              <Avatar sx={{ width: 32, height: 32, bgcolor: `${RED}15`, color: RED }}>
+                                <Warning sx={{ fontSize: 18 }} />
+                              </Avatar>
+                              <Typography sx={{ fontWeight: 700, fontSize: 14 }}>Mayores Morosos</Typography>
+                            </Box>
+                            {topMorosos.length === 0 ? (
+                              <Box sx={{ textAlign: 'center', py: 2 }}>
+                                <Typography sx={{ fontSize: 20 }}>✅</Typography>
+                                <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                                  Sin clientes en mora
+                                </Typography>
+                              </Box>
+                            ) : (
+                              <Stack spacing={1}>
+                                {topMorosos.map((item, i) => {
+                                  const pct = topMorosos[0].moraAcumulada > 0
+                                    ? (item.moraAcumulada / topMorosos[0].moraAcumulada) * 100 : 0;
+                                  return (
+                                    <Box key={item.id}>
+                                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.3 }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, minWidth: 0 }}>
+                                          <Typography sx={{
+                                            fontSize: 11, fontWeight: 800,
+                                            color: i === 0 ? RED : 'text.secondary',
+                                            flexShrink: 0,
+                                          }}>
+                                            #{i + 1}
+                                          </Typography>
+                                          <Typography sx={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {item.nombre}
+                                          </Typography>
+                                        </Box>
+                                        <Box sx={{ textAlign: 'right', flexShrink: 0, ml: 1 }}>
+                                          <Typography sx={{ fontSize: 12, fontWeight: 800, color: RED }}>
+                                            {formatCurrency(item.moraAcumulada)}
+                                          </Typography>
+                                          <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>mora</Typography>
+                                        </Box>
+                                      </Box>
+                                      <LinearProgress
+                                        variant="determinate"
+                                        value={pct}
+                                        sx={{
+                                          height: 5, borderRadius: 3,
+                                          bgcolor: `${RED}18`,
+                                          '& .MuiLinearProgress-bar': { bgcolor: RED, borderRadius: 3 },
+                                        }}
+                                      />
+                                    </Box>
+                                  );
+                                })}
+                              </Stack>
+                            )}
+                          </Paper>
+                        </Grid>
+
+                      </Grid>
+                    );
+                  })()}
 
                 {/* Proyección de cobros */}
                 {(() => {

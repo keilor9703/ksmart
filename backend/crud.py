@@ -2594,8 +2594,10 @@ def calcular_totales_dia(db: Session, empresa_id: int) -> dict:
         models.CuotaPrestamo.fecha_pago >= inicio,
         models.CuotaPrestamo.fecha_pago <= fin,
     ).all()
+    # ✅ DESPUÉS:
     for c in cuotas:
-        _clasificar("Efectivo", float(c.monto_cuota or 0), "recaudo_prestamos")
+        monto_recaudado = float(c.monto_cuota or 0) - float(c.saldo_pendiente or 0)
+        _clasificar(c.metodo_pago or "Efectivo", monto_recaudado, "recaudo_prestamos")
 
     # ── 4. Gastos (restan del efectivo) ─────────────────────────────────────
     gastos = db.query(models.Gasto).filter(
@@ -3153,7 +3155,11 @@ def crear_prestamo(db: Session, prestamo: schemas.PrestamoCreate, empresa_id: in
     db.refresh(db_prestamo)
 
     # 3. Generar la amortización (Proyectar las cuotas)
-    fecha_base = db_prestamo.fecha_inicio
+    if prestamo.fecha_inicio:
+        fecha_base = prestamo.fecha_inicio.replace(tzinfo=None) if prestamo.fecha_inicio.tzinfo else prestamo.fecha_inicio
+    else:
+        fecha_base = datetime.now(timezone.utc).replace(tzinfo=None)
+    db_prestamo.fecha_inicio = fecha_base
     dias_sumar = {"Diario": 1, "Semanal": 7, "Quincenal": 15, "Mensual": 30}
     incremento = dias_sumar.get(prestamo.modalidad, 30)
 

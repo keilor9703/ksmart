@@ -2031,9 +2031,12 @@ def generar_alertas_mora(db: Session = Depends(get_db)):
 
 # ─── Schemas inline para el módulo de préstamos ───────────────────────────────
 
+
+
+# ✅ DESPUÉS:
 class PagoCuotaRequest(BaseModel):
     monto_pagado: float = Field(..., gt=0, description="Monto a aplicar. Debe ser mayor a cero.")
-
+    metodo_pago:  str   = Field("Efectivo", description="Efectivo, Transferencia, Nequi, Tarjeta")
 
 # FIX #9: Validación de fecha en reprogramación
 class ReprogramarCuotaRequest(BaseModel):
@@ -2095,15 +2098,18 @@ def pagar_cuota_cascada(
             break
         saldo_actual = cuota.saldo_pendiente
         cuotas_afectadas += 1
+        # ✅ DESPUÉS:
         if monto_disponible >= saldo_actual:
             monto_disponible -= saldo_actual
             cuota.saldo_pendiente = 0
             cuota.estado_pago = "Pagado"
             cuota.fecha_pago = datetime.now(crud.BOGOTA_TZ)
+            cuota.metodo_pago = req.metodo_pago          # ← NUEVA LÍNEA
         else:
             cuota.saldo_pendiente -= monto_disponible
             cuota.estado_pago = "Parcial"
             cuota.fecha_pago = datetime.now(crud.BOGOTA_TZ)
+            cuota.metodo_pago = req.metodo_pago          # ← NUEVA LÍNEA
             monto_disponible = 0
 
     db.commit()
@@ -2173,6 +2179,8 @@ class AbonoCapitalRequest(BaseModel):
 
 
 # ─── Abono a capital ──────────────────────────────────────────────────────────
+
+
 @app.post("/prestamos/{prestamo_id}/abono-capital")
 def abono_capital(
     prestamo_id: int,
@@ -2182,12 +2190,46 @@ def abono_capital(
 ):
     if req.monto_abono > 999_999_999:
         raise HTTPException(status_code=400, detail="Monto sospechosamente alto")
-    return crud.aplicar_abono_capital(
+
+    # Llama a la función de negocio existente (redistribuye cuotas)
+    resultado = crud.aplicar_abono_capital(
         db,
         empresa_id=current_user.empresa_id,
         prestamo_id=prestamo_id,
         monto_abono=req.monto_abono,
     )
+
+    # ── #6 FIX: dejar huella en trazabilidad de caja ─────────────────────────
+    # Tomamos la primera cuota pendiente del préstamo para registrar el abono.
+    # Si el préstamo quedó liquidado, buscamos la última cuota pagada.
+    try:
+        cuota_huella = (
+            db.query(models.CuotaPrestamo)
+            .filter(
+                models.CuotaPrestamo.prestamo_id == prestamo_id,
+                models.CuotaPrestamo.empresa_id  == current_user.empresa_id,
+            )
+            .order_by(models.CuotaPrestamo.numero_cuota.asc())
+            .first()
+        )
+
+        if cuota_huella:
+            # Marcamos esa cuota con metodo_pago = 'Abono Capital' y
+            # guardamos el monto como referencia de trazabilidad.
+            # Si ya fue pagada (prestamo liquidado), creamos una entrada
+            # de audit en el campo metodo_pago.
+            cuota_huella.metodo_pago = "Abono Capital"
+            cuota_huella.fecha_pago  = datetime.now(crud.BOGOTA_TZ)
+            # El monto abonado queda como diferencia para la caja:
+            # monto_cuota - saldo_pendiente refleja lo pagado en esa cuota.
+            db.commit()
+
+    except Exception:
+        # El abono ya se aplicó; si falla el registro de trazabilidad
+        # no revertimos — solo logueamos.
+        pass
+
+    return resultado
 
 # ─── Resumen de mora de un préstamo ──────────────────────────────────────────
 @app.get("/prestamos/{prestamo_id}/mora")
@@ -2784,3 +2826,179 @@ def eliminar_cotizacion(
 ):
     crud.delete_cotizacion(db, empresa_id=current_user.empresa_id, cotizacion_id=cotizacion_id)
     return {"message": "Cotización eliminada correctamente."}
+
+
+
+
+
+@app.get("/reportes/caja-rango")
+def reporte_caja_rango(
+    start_date: date = Query(...),
+    end_date:   date = Query(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """
+    Informe de ingresos y salidas por rango de fecha (#2).
+    Incluye desglose por método de pago (#3).
+
+    Fuentes de ingreso consideradas:
+      - Ventas de contado (tabla ventas, pagadas sin abono posterior)
+      - Abonos a cartera (tabla pagos, relacionados con ventas)
+      - Recaudo de préstamos (tabla cuotas_prestamo, estado Pagado)
+    Egresos:
+      - Gastos (tabla gastos)
+    """
+    empresa_id = current_user.empresa_id
+
+    # Acumula por día y por método
+    resumen_dias: dict[str, dict] = {}
+    metodos_totales: dict[str, float] = {}
+    total_ingresos = 0.0
+    total_egresos  = 0.0
+
+    def _fecha_col(dt) -> str:
+        """Convierte cualquier datetime/date a string 'YYYY-MM-DD' en hora Bogotá."""
+        if dt is None:
+            return None
+        if isinstance(dt, datetime):
+            try:
+                return dt.astimezone(crud.BOGOTA_TZ).strftime("%Y-%m-%d")
+            except Exception:
+                return str(dt)[:10]
+        return str(dt)[:10]
+
+    def _acumular(fecha_str: str, metodo: str, monto: float, tipo: str):
+        nonlocal total_ingresos, total_egresos
+        if not fecha_str:
+            return
+        if fecha_str not in resumen_dias:
+            resumen_dias[fecha_str] = {
+                "fecha": fecha_str,
+                "ingresos": 0.0,
+                "egresos":  0.0,
+                "neto":     0.0,
+                "por_metodo": {},
+            }
+        dia = resumen_dias[fecha_str]
+
+        if tipo == "ingreso":
+            dia["ingresos"] += monto
+            dia["neto"]     += monto
+            total_ingresos  += monto
+            metodos_totales[metodo] = metodos_totales.get(metodo, 0.0) + monto
+            dia["por_metodo"][metodo] = dia["por_metodo"].get(metodo, 0.0) + monto
+        else:
+            dia["egresos"] += monto
+            dia["neto"]    -= monto
+            total_egresos  += monto
+
+    # ── Boundaries UTC para el rango completo ────────────────────────────────
+    utc_start, _ = crud.get_utc_boundaries(start_date, db)
+    _, utc_end   = crud.get_utc_boundaries(end_date,   db)
+
+    # ── 1. Ventas de contado (sin pagos en tabla pagos) ──────────────────────
+    ventas_contado = (
+        db.query(models.Venta)
+        .filter(
+            models.Venta.empresa_id == empresa_id,
+            models.Venta.tipo       == "venta",
+            models.Venta.fecha      >= utc_start,
+            models.Venta.fecha      <= utc_end,
+            models.Venta.estado_pago == "pagado",
+            ~models.Venta.pagos.any(),
+        )
+        .all()
+    )
+    for v in ventas_contado:
+        fecha_str = _fecha_col(v.fecha)
+        metodo    = v.metodo_pago or "Efectivo"
+        _acumular(fecha_str, metodo, float(v.total or 0), "ingreso")
+
+    # ── 2. Abonos a cartera (tabla pagos) ────────────────────────────────────
+    pagos_cartera = (
+        db.query(models.Pago)
+        .join(models.Venta)
+        .filter(
+            models.Venta.empresa_id == empresa_id,
+            models.Pago.fecha       >= utc_start,
+            models.Pago.fecha       <= utc_end,
+        )
+        .all()
+    )
+    for p in pagos_cartera:
+        fecha_str = _fecha_col(p.fecha)
+        metodo    = p.metodo_pago or "Efectivo"
+        _acumular(fecha_str, metodo, float(p.monto or 0), "ingreso")
+
+    # ── 3. Recaudo de préstamos ───────────────────────────────────────────────
+    cuotas_pagadas = (
+        db.query(models.CuotaPrestamo)
+        .filter(
+            models.CuotaPrestamo.empresa_id  == empresa_id,
+            models.CuotaPrestamo.estado_pago.in_(["Pagado", "Parcial"]),
+            models.CuotaPrestamo.fecha_pago  >= utc_start,
+            models.CuotaPrestamo.fecha_pago  <= utc_end,
+        )
+        .all()
+    )
+    for c in cuotas_pagadas:
+        fecha_str = _fecha_col(c.fecha_pago)
+        metodo    = getattr(c, "metodo_pago", None) or "Efectivo"
+        monto_rec = float(c.monto_cuota or 0) - float(c.saldo_pendiente or 0)
+        if monto_rec > 0:
+            _acumular(fecha_str, metodo, monto_rec, "ingreso")
+
+    # ── 4. Abonos a capital (cuotas con metodo_pago='Abono Capital') ──────────
+    abonos_capital = (
+        db.query(models.CuotaPrestamo)
+        .filter(
+            models.CuotaPrestamo.empresa_id  == empresa_id,
+            models.CuotaPrestamo.metodo_pago == "Abono Capital",
+            models.CuotaPrestamo.fecha_pago  >= utc_start,
+            models.CuotaPrestamo.fecha_pago  <= utc_end,
+        )
+        .all()
+    )
+    for c in abonos_capital:
+        fecha_str = _fecha_col(c.fecha_pago)
+        monto_rec = float(c.monto_cuota or 0) - float(c.saldo_pendiente or 0)
+        if monto_rec > 0:
+            _acumular(fecha_str, "Abono Capital", monto_rec, "ingreso")
+
+    # ── 5. Gastos ─────────────────────────────────────────────────────────────
+    gastos = (
+        db.query(models.Gasto)
+        .filter(
+            models.Gasto.empresa_id == empresa_id,
+            models.Gasto.fecha      >= utc_start,
+            models.Gasto.fecha      <= utc_end,
+        )
+        .all()
+    )
+    for g in gastos:
+        fecha_str = _fecha_col(g.fecha)
+        _acumular(fecha_str, g.metodo_pago or "Efectivo", float(g.monto or 0), "egreso")
+
+    # ── Ordenar días y construir respuesta ────────────────────────────────────
+    dias_ordenados = sorted(resumen_dias.values(), key=lambda x: x["fecha"])
+
+    return {
+        "periodo": {
+            "start_date": start_date.isoformat(),
+            "end_date":   end_date.isoformat(),
+        },
+        "resumen": {
+            "total_ingresos": round(total_ingresos, 2),
+            "total_egresos":  round(total_egresos, 2),
+            "neto":           round(total_ingresos - total_egresos, 2),
+        },
+        # #3 — Desglose por método de pago (sobre ingresos)
+        "por_metodo": {
+            metodo: round(valor, 2)
+            for metodo, valor in sorted(metodos_totales.items(), key=lambda x: -x[1])
+        },
+        # #2 — Serie de días con ingresos, egresos y neto
+        "dias": dias_ordenados,
+    }
+

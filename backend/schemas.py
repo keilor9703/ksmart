@@ -925,6 +925,7 @@ class PrestamoCreate(BaseModel):
     cantidad_cuotas: int
     modalidad: str
     tasa_mora: float = 2.0          # ← nuevo: mora mensual por defecto 2%
+    fecha_inicio: Optional[datetime] = None
     
 
 class CuotaResponse(BaseModel):

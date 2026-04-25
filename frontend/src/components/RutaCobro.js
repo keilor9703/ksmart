@@ -157,10 +157,11 @@ const RutaCobro = () => {
   const [asignacionGlobal,   setAsignacionGlobal]   = useState({});
   const [editandoAsignacion, setEditandoAsignacion] = useState({});
 
-  const [pagoModal,        setPagoModal]        = useState({ open: false, cuota: null, monto: '' });
+ 
   const [reprogramarModal, setReprogramarModal] = useState({ open: false, cuota: null, nuevaFecha: '' });
   const [reciboModal,      setReciboModal]      = useState({ open: false, cuota: null, monto: 0, saldoRestante: 0 });
   const [pdfLoading,       setPdfLoading]       = useState(false);
+  const [pagoModal, setPagoModal]               = useState({ open: false, cuota: null, monto: '', metodoPago: 'Efectivo' });
 
   const [liquidacionModal, setLiquidacionModal] = useState(false);
   const [datosLiquidacion, setDatosLiquidacion] = useState(null);
@@ -262,24 +263,29 @@ const RutaCobro = () => {
   };
 
   // ── Confirmar pago → abrir modal recibo ───────────────────────────────────
-  const confirmarPago = async () => {
-    const { cuota, monto } = pagoModal;
-    const montoPagado = parseFloat(monto);
-    try {
-      const res = await apiClient.post(
-        `/prestamos/cuotas/${cuota.cuota_id}/pagar`,
-        { monto_pagado: montoPagado }
-      );
-      toast.success(res.data?.msg || 'Pago registrado');
+const confirmarPago = async () => {
+  const { cuota, monto, metodoPago } = pagoModal;
+  const montoPagado = parseFloat(monto);
+  if (!montoPagado || montoPagado <= 0) {
+    toast.warning('Ingresa un monto válido mayor a cero.');
+    return;
+  }
+  try {
+    const res = await apiClient.post(
+      `/prestamos/cuotas/${cuota.cuota_id}/pagar`,
+      { monto_pagado: montoPagado, metodo_pago: metodoPago }   // ← método incluido
+    );
+    toast.success(res.data?.msg || 'Pago registrado');
 
-      const saldoRestante = Math.max(0, (cuota.saldo_pendiente || 0) - montoPagado);
-      setPagoModal({ open: false, cuota: null, monto: '' });
-      setReciboModal({ open: true, cuota, monto: montoPagado, saldoRestante });
-      fetchInicial();
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error en el pago');
-    }
-  };
+    const saldoRestante = Math.max(0, (cuota.saldo_pendiente || 0) - montoPagado);
+    setPagoModal({ open: false, cuota: null, monto: '', metodoPago: 'Efectivo' });
+    setReciboModal({ open: true, cuota: { ...cuota, metodoPago }, monto: montoPagado, saldoRestante });
+    fetchInicial();
+  } catch (error) {
+    toast.error(error.response?.data?.detail || 'Error en el pago');
+  }
+};
+
 
   // ── Reprogramar cuota ─────────────────────────────────────────────────────
   const confirmarReprogramacion = async () => {
@@ -356,44 +362,120 @@ const RutaCobro = () => {
 
       {/* ── Filtros / Calendario ── */}
       <Paper sx={{ p: 2.5, mb: 3, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-          <FilterList sx={{ color: 'text.secondary', fontSize: 20 }} />
-          <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase' }}>
-            Calendario de Cobros
+
+  {/* Cabecera del calendario */}
+  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 2 }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <FilterList sx={{ color: 'text.secondary', fontSize: 20 }} />
+      <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase' }}>
+        Calendario de Cobros
+      </Typography>
+    </Box>
+    {filtroFecha && (
+      <Chip
+        label="Limpiar filtro"
+        size="small"
+        onDelete={() => setFiltroFecha('')}
+        sx={{ fontWeight: 600, fontSize: 11 }}
+      />
+    )}
+  </Box>
+
+  {/* Chips de fechas agrupados por semana */}
+  {(() => {
+    // Agrupa resumenDias por semana (lunes–domingo)
+    const grupos = {};
+    resumenDias.forEach(d => {
+      const fecha = new Date(d.fecha + 'T00:00:00');
+      // Número de semana relativo al primer día del conjunto
+      const lunes = new Date(fecha);
+      lunes.setDate(fecha.getDate() - ((fecha.getDay() + 6) % 7)); // lunes de esa semana
+      const key = lunes.toISOString().split('T')[0];
+      if (!grupos[key]) grupos[key] = [];
+      grupos[key].push(d);
+    });
+
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
+        {/* "Ver todo" siempre visible */}
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+          <Chip
+            label="Ver todo"
+            onClick={() => setFiltroFecha('')}
+            sx={{
+              fontWeight: 700,
+              bgcolor: filtroFecha === '' ? ACCENT : 'background.default',
+              color:   filtroFecha === '' ? 'white' : 'text.primary',
+              border: '1px solid', borderColor: filtroFecha === '' ? ACCENT : 'divider',
+            }}
+          />
+        </Box>
+
+        {/* Una fila por semana */}
+        {Object.entries(grupos).map(([semanaKey, dias]) => {
+          const lunesFecha = new Date(semanaKey + 'T00:00:00');
+          const semanaLabel = lunesFecha.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
+          return (
+            <Box key={semanaKey}>
+              <Typography sx={{ fontSize: 10, color: 'text.disabled', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6, mb: 0.5 }}>
+                Semana del {semanaLabel}
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                {dias.map(d => {
+                  const fecha = new Date(d.fecha + 'T00:00:00');
+                  const labelStr = fecha.toLocaleDateString('es-CO', { weekday: 'short', day: '2-digit', month: 'short' });
+                  const isSelected = filtroFecha === d.fecha;
+                  const isToday = d.fecha === new Date().toISOString().split('T')[0];
+                  return (
+                    <Badge
+                      key={d.fecha}
+                      badgeContent={d.total_cuotas}
+                      color="error"
+                      sx={{ '& .MuiBadge-badge': { right: 5, top: 5, fontSize: 9 } }}
+                    >
+                      <Chip
+                        label={labelStr}
+                        onClick={() => setFiltroFecha(d.fecha)}
+                        sx={{
+                          fontWeight: 700,
+                          pr: 1,
+                          border: '1.5px solid',
+                          borderColor: isSelected ? ACCENT : isToday ? GREEN : 'divider',
+                          bgcolor:     isSelected ? ACCENT : isToday ? `${GREEN}12` : 'background.default',
+                          color:       isSelected ? 'white' : isToday ? GREEN : 'text.primary',
+                        }}
+                      />
+                    </Badge>
+                  );
+                })}
+              </Box>
+            </Box>
+          );
+        })}
+
+        {resumenDias.length === 0 && (
+          <Typography sx={{ fontSize: 12, color: 'text.disabled', py: 1 }}>
+            No hay cobros programados próximamente.
           </Typography>
-        </Box>
+        )}
+      </Box>
+    );
+  })()}
 
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-          <Chip label="Ver Todo" onClick={() => setFiltroFecha('')}
-            sx={{ fontWeight: 700,
-              bgcolor: filtroFecha === '' ? 'action.selected' : 'background.default',
-              border: '1px solid', borderColor: filtroFecha === '' ? 'divider' : 'transparent' }} />
-          {resumenDias.map(d => {
-            const labelStr = `${d.fecha.split('-')[2]} de ${new Date(d.fecha + 'T00:00:00')
-              .toLocaleDateString('es-CO', { month: 'short' })}`;
-            return (
-              <Badge key={d.fecha} badgeContent={d.total_cuotas} color="error"
-                sx={{ '& .MuiBadge-badge': { right: 5, top: 5 } }}>
-                <Chip label={labelStr} onClick={() => setFiltroFecha(d.fecha)}
-                  sx={{ fontWeight: 700, pr: 1,
-                    bgcolor: filtroFecha === d.fecha ? ACCENT : 'background.default',
-                    color:   filtroFecha === d.fecha ? 'white' : 'text.primary',
-                    border: '1px solid', borderColor: filtroFecha === d.fecha ? ACCENT : 'divider' }} />
-              </Badge>
-            );
-          })}
-        </Box>
-
-        <TextField fullWidth placeholder="Buscar por cliente o dirección..."
-          value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-          InputProps={{
-            disableUnderline: true,
-            startAdornment: <InputAdornment position="start"><Search sx={{ color: 'text.secondary' }} /></InputAdornment>,
-            sx: { borderRadius: 3, bgcolor: 'background.default', px: 2, py: 0.5,
-              border: '1px solid', borderColor: 'divider' },
-          }}
-          variant="standard" />
-      </Paper>
+  {/* Buscador */}
+  <TextField
+    fullWidth
+    placeholder="Buscar por cliente o dirección..."
+    value={searchTerm}
+    onChange={e => setSearchTerm(e.target.value)}
+    InputProps={{
+      disableUnderline: true,
+      startAdornment: <InputAdornment position="start"><Search sx={{ color: 'text.secondary' }} /></InputAdornment>,
+      sx: { borderRadius: 3, bgcolor: 'background.default', px: 2, py: 0.5, border: '1px solid', borderColor: 'divider' },
+    }}
+    variant="standard"
+  />
+</Paper>
 
       {/* ── Lista de cuotas ── */}
       <Stack spacing={3}>
@@ -576,29 +658,87 @@ const RutaCobro = () => {
       {/* ════════════════════════════════════════════════════
           MODAL: Registrar pago
           ════════════════════════════════════════════════════ */}
-      <Dialog open={pagoModal.open}
-        onClose={() => setPagoModal({ ...pagoModal, open: false })}
-        maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
-        <DialogTitle sx={{ fontWeight: 800 }}>Registrar Recaudo</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" mb={2}>
-            Monto recibido de <strong>{pagoModal.cuota?.cliente_nombre}</strong>:
-          </Typography>
-          <TextField fullWidth autoFocus type="number"
-            value={pagoModal.monto}
-            onChange={e => setPagoModal({ ...pagoModal, monto: e.target.value })}
-            InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }} />
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3 }}>
-          <Button onClick={() => setPagoModal({ ...pagoModal, open: false })} color="inherit">
-            Cancelar
-          </Button>
-          <Button onClick={confirmarPago} variant="contained"
-            sx={{ bgcolor: GREEN, fontWeight: 800 }}>
-            Confirmar
-          </Button>
-        </DialogActions>
-      </Dialog>
+            
+        <Dialog
+          open={pagoModal.open}
+          onClose={() => setPagoModal({ open: false, cuota: null, monto: '', metodoPago: 'Efectivo' })}
+          maxWidth="xs" fullWidth
+          PaperProps={{ sx: { borderRadius: 3, overflow: 'hidden' } }}
+        >
+          <Box sx={{ height: 4, bgcolor: GREEN }} />
+          <DialogTitle sx={{ fontWeight: 800 }}>Registrar Recaudo</DialogTitle>
+          <DialogContent>
+            {/* Resumen del cliente */}
+            <Box sx={{ p: 1.5, mb: 2.5, borderRadius: 2, bgcolor: `${GREEN}08`, border: `1px solid ${GREEN}25` }}>
+              <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{pagoModal.cuota?.cliente_nombre}</Typography>
+              <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                Préstamo #{pagoModal.cuota?.prestamo_id} · Cuota #{pagoModal.cuota?.numero_cuota}
+              </Typography>
+              <Typography sx={{ fontSize: 13, fontWeight: 800, color: GREEN, mt: 0.5 }}>
+                Saldo pendiente: {formatCurrency(pagoModal.cuota?.saldo_pendiente || 0)}
+              </Typography>
+            </Box>
+
+            {/* Monto */}
+            <TextField
+              fullWidth autoFocus type="number"
+              label="Monto recibido *"
+              value={pagoModal.monto}
+              onChange={e => setPagoModal({ ...pagoModal, monto: e.target.value })}
+              InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+              sx={{ mb: 2.5 }}
+            />
+
+            {/* Método de pago */}
+            <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 1 }}>
+              Método de pago
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              {[
+                { value: 'Efectivo',      label: '💵 Efectivo'      },
+                { value: 'Transferencia', label: '🏦 Transferencia' },
+                { value: 'Nequi',         label: '📱 Nequi'         },
+                { value: 'Tarjeta',       label: '💳 Tarjeta'       },
+              ].map(opt => {
+                const selected = pagoModal.metodoPago === opt.value;
+                return (
+                  <Box
+                    key={opt.value}
+                    onClick={() => setPagoModal({ ...pagoModal, metodoPago: opt.value })}
+                    sx={{
+                      px: 1.5, py: 0.8, borderRadius: 2, cursor: 'pointer',
+                      border: '1.5px solid',
+                      borderColor: selected ? GREEN : 'divider',
+                      bgcolor: selected ? `${GREEN}12` : 'background.paper',
+                      color: selected ? GREEN : 'text.secondary',
+                      fontSize: 12, fontWeight: selected ? 700 : 500,
+                      transition: 'all 0.15s',
+                      '&:hover': { borderColor: GREEN },
+                      userSelect: 'none',
+                    }}
+                  >
+                    {opt.label}
+                  </Box>
+                );
+              })}
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
+            <Button
+              onClick={() => setPagoModal({ open: false, cuota: null, monto: '', metodoPago: 'Efectivo' })}
+              color="inherit"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={confirmarPago}
+              variant="contained"
+              sx={{ bgcolor: GREEN, fontWeight: 800 }}
+            >
+              Confirmar Recaudo
+            </Button>
+          </DialogActions>
+        </Dialog>
 
       {/* ════════════════════════════════════════════════════
           MODAL: Recibo post-pago
