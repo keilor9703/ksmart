@@ -51,8 +51,9 @@ const CacaoPriceWidget = () => {
   const [error,         setError]         = useState(false);
   const [lastRefresh,   setLastRefresh]   = useState(null);
   
-  // Nuevo estado para la calculadora de compra (por defecto 15%)
+  // Estados para la calculadora
   const [descuentoPct,  setDescuentoPct]  = useState(15);
+  const [kilos,         setKilos]         = useState('');
 
   const fetchPrecio = useCallback(async (manual = false) => {
     if (manual) setLoading(true);
@@ -71,7 +72,7 @@ const CacaoPriceWidget = () => {
   // Carga inicial
   useEffect(() => { fetchPrecio(); }, [fetchPrecio]);
 
-  // Auto-refresh cada 30 minutos (el backend hace el throttle real)
+  // Auto-refresh cada 30 minutos
   useEffect(() => {
     const id = setInterval(() => fetchPrecio(), 30 * 60 * 1000);
     return () => clearInterval(id);
@@ -115,10 +116,11 @@ const CacaoPriceWidget = () => {
   const tendenciaColor = precio.tendencia === 'alza' ? GREEN
     : precio.tendencia === 'baja' ? RED : BLUE;
 
-  // ── Cálculos del precio de compra ──────────────────────────────────────────
+  // ── Cálculos de la calculadora ─────────────────────────────────────────────
   const precioBase = precio.precio_cop_kg || 0;
   const valorDescuento = (precioBase * (descuentoPct || 0)) / 100;
   const precioCalculado = precioBase - valorDescuento;
+  const totalPagar = precioCalculado * (kilos || 0);
 
   return (
     <Paper sx={{
@@ -185,33 +187,20 @@ const CacaoPriceWidget = () => {
 
           {/* Datos secundarios */}
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-            {/* USD / ton */}
             <Box sx={{ textAlign: 'center' }}>
-              <Typography sx={{ fontSize: 9, color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase' }}>
-                Bolsa ICE
-              </Typography>
-              <Typography sx={{ fontSize: 14, fontWeight: 800, color: BLUE }}>
-                ${precio.precio_usd_ton?.toLocaleString('en-US', { minimumFractionDigits: 0 })}
-              </Typography>
+              <Typography sx={{ fontSize: 9, color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase' }}>Bolsa ICE</Typography>
+              <Typography sx={{ fontSize: 14, fontWeight: 800, color: BLUE }}>${precio.precio_usd_ton?.toLocaleString('en-US', { minimumFractionDigits: 0 })}</Typography>
               <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>USD / ton</Typography>
             </Box>
 
-            {/* TRM */}
             <Box sx={{ textAlign: 'center' }}>
-              <Typography sx={{ fontSize: 9, color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase' }}>
-                TRM
-              </Typography>
-              <Typography sx={{ fontSize: 14, fontWeight: 800, color: CACAO_BROWN }}>
-                ${precio.trm_cop?.toLocaleString('es-CO', { minimumFractionDigits: 2 })}
-              </Typography>
+              <Typography sx={{ fontSize: 9, color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase' }}>TRM</Typography>
+              <Typography sx={{ fontSize: 14, fontWeight: 800, color: CACAO_BROWN }}>${precio.trm_cop?.toLocaleString('es-CO', { minimumFractionDigits: 2 })}</Typography>
               <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>COP / USD</Typography>
             </Box>
 
-            {/* Tendencia */}
             <Box sx={{ textAlign: 'center' }}>
-              <Typography sx={{ fontSize: 9, color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase' }}>
-                Tendencia
-              </Typography>
+              <Typography sx={{ fontSize: 9, color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase' }}>Tendencia</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.3, mt: 0.3 }}>
                 <TrendIcon tendencia={precio.tendencia} size={20} />
                 {precio.variacion_pct !== 0 && (
@@ -227,48 +216,99 @@ const CacaoPriceWidget = () => {
           </Box>
         </Box>
 
-        {/* ── Calculadora de Compra (Logística/Transporte) ── */}
+        {/* ── Calculadora de Compra ── */}
         <Box sx={{
           mt: 2, p: 1.5, borderRadius: 2,
           bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.6)',
           border: `1px dashed ${CACAO_GOLD}60`,
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2
         }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Calculate sx={{ color: CACAO_GOLD, fontSize: 24 }} />
-            <Box>
-              <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase' }}>
-                Ajuste / Viáticos / Transporte
-              </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                <Typography sx={{ fontSize: 12, fontWeight: 600, color: CACAO_BROWN }}>Restar:</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+            <Calculate sx={{ color: CACAO_GOLD, fontSize: 20 }} />
+            <Typography sx={{ fontSize: 11, fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Calculadora de Compra
+            </Typography>
+          </Box>
+
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+            
+            {/* ── Inputs (Izquierda) ── */}
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              {/* Descuento */}
+              <Box>
+                <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.secondary', mb: 0.5, textTransform: 'uppercase' }}>
+                  Ajuste / Viáticos
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography sx={{ fontSize: 12, fontWeight: 600, color: CACAO_BROWN }}>Restar:</Typography>
+                  <TextField
+                    size="small"
+                    type="number"
+                    value={descuentoPct}
+                    onChange={(e) => setDescuentoPct(e.target.value === '' ? '' : Number(e.target.value))}
+                    sx={{
+                      width: 90,
+                      '& .MuiInputBase-root': { 
+                        height: 30, fontSize: 14, fontWeight: 800, color: CACAO_BROWN, 
+                        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#fff' 
+                      },
+                    }}
+                    InputProps={{
+                      endAdornment: <InputAdornment position="end" sx={{ '& .MuiTypography-root': { fontSize: 14, fontWeight: 800, color: CACAO_GOLD } }}>%</InputAdornment>,
+                    }}
+                  />
+                </Box>
+                {/* Diferencia en pesos */}
+                <Typography sx={{ fontSize: 10, color: RED, fontWeight: 700, mt: 0.5 }}>
+                  Diferencia: - {formatCurrency(valorDescuento)} / kg
+                </Typography>
+              </Box>
+
+              {/* Cantidad Kilos */}
+              <Box>
+                <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.secondary', mb: 0.5, textTransform: 'uppercase' }}>
+                  Cantidad a comprar
+                </Typography>
                 <TextField
                   size="small"
                   type="number"
-                  value={descuentoPct}
-                  onChange={(e) => setDescuentoPct(e.target.value === '' ? '' : Number(e.target.value))}
+                  placeholder="0"
+                  value={kilos}
+                  onChange={(e) => setKilos(e.target.value === '' ? '' : Number(e.target.value))}
                   sx={{
-                    width: 90,
+                    width: 130,
                     '& .MuiInputBase-root': { 
                       height: 30, fontSize: 14, fontWeight: 800, color: CACAO_BROWN, 
                       bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#fff' 
                     },
                   }}
                   InputProps={{
-                    endAdornment: <InputAdornment position="end" sx={{ '& .MuiTypography-root': { fontSize: 14, fontWeight: 800, color: CACAO_GOLD } }}>%</InputAdornment>,
+                    endAdornment: <InputAdornment position="end" sx={{ '& .MuiTypography-root': { fontSize: 12, fontWeight: 800, color: CACAO_GOLD } }}>kg</InputAdornment>,
                   }}
                 />
               </Box>
             </Box>
-          </Box>
 
-          <Box sx={{ textAlign: 'right' }}>
-            <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase' }}>
-              Tu precio de compra
-            </Typography>
-            <Typography sx={{ fontSize: 24, fontWeight: 900, color: GREEN, lineHeight: 1.1 }}>
-              {formatCurrency(precioCalculado)} <span style={{ fontSize: 12, fontWeight: 600, color: 'text.secondary' }}>/ kg</span>
-            </Typography>
+            {/* ── Resumen (Derecha) ── */}
+            <Box sx={{ textAlign: 'right', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', minWidth: 140 }}>
+              <Box sx={{ mb: 1 }}>
+                <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase' }}>
+                  Tu precio base
+                </Typography>
+                <Typography sx={{ fontSize: 16, fontWeight: 800, color: GREEN, lineHeight: 1.1 }}>
+                  {formatCurrency(precioCalculado)} <span style={{ fontSize: 10, fontWeight: 600, color: 'text.secondary' }}>/ kg</span>
+                </Typography>
+              </Box>
+              
+              <Box sx={{ pt: 1, borderTop: `1px solid ${CACAO_GOLD}30` }}>
+                <Typography sx={{ fontSize: 10, fontWeight: 800, color: CACAO_BROWN, textTransform: 'uppercase' }}>
+                  Total a pagar
+                </Typography>
+                <Typography sx={{ fontSize: 24, fontWeight: 900, color: CACAO_BROWN, lineHeight: 1.1 }}>
+                  {formatCurrency(totalPagar)}
+                </Typography>
+              </Box>
+            </Box>
+
           </Box>
         </Box>
 
