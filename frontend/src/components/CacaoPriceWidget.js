@@ -10,11 +10,11 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Box, Typography, Paper, Skeleton, Chip, IconButton, Tooltip, Link,
+  Box, Typography, Paper, Skeleton, Chip, IconButton, Tooltip, Link, TextField, InputAdornment
 } from '@mui/material';
 import {
   TrendingUp, TrendingDown, TrendingFlat,
-  Refresh, OpenInNew, Spa
+  Refresh, OpenInNew, Spa, Calculate
 } from '@mui/icons-material';
 import apiClient from '../api';
 import { formatCurrency } from '../utils/formatters';
@@ -46,10 +46,13 @@ const TrendIcon = ({ tendencia, size = 18 }) => {
 
 // ── Componente principal ──────────────────────────────────────────────────────
 const CacaoPriceWidget = () => {
-  const [precio,    setPrecio]    = useState(null);
-  const [loading,   setLoading]   = useState(true);
-  const [error,     setError]     = useState(false);
-  const [lastRefresh, setLastRefresh] = useState(null);
+  const [precio,        setPrecio]        = useState(null);
+  const [loading,       setLoading]       = useState(true);
+  const [error,         setError]         = useState(false);
+  const [lastRefresh,   setLastRefresh]   = useState(null);
+  
+  // Nuevo estado para la calculadora de compra (por defecto 15%)
+  const [descuentoPct,  setDescuentoPct]  = useState(15);
 
   const fetchPrecio = useCallback(async (manual = false) => {
     if (manual) setLoading(true);
@@ -112,6 +115,11 @@ const CacaoPriceWidget = () => {
   const tendenciaColor = precio.tendencia === 'alza' ? GREEN
     : precio.tendencia === 'baja' ? RED : BLUE;
 
+  // ── Cálculos del precio de compra ──────────────────────────────────────────
+  const precioBase = precio.precio_cop_kg || 0;
+  const valorDescuento = (precioBase * (descuentoPct || 0)) / 100;
+  const precioCalculado = precioBase - valorDescuento;
+
   return (
     <Paper sx={{
       p: 0, mb: 2, borderRadius: 3, overflow: 'hidden',
@@ -153,7 +161,7 @@ const CacaoPriceWidget = () => {
             <CacaoIcon size={36} color={CACAO_GOLD} />
             <Box>
               <Typography sx={{ fontSize: 10, color: CACAO_BROWN, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6, opacity: 0.7 }}>
-                Precio del kilo de cacao
+                Precio oficial del kilo
               </Typography>
               {loading ? (
                 <Skeleton width={140} height={34} />
@@ -216,6 +224,51 @@ const CacaoPriceWidget = () => {
                 {precio.tendencia}
               </Typography>
             </Box>
+          </Box>
+        </Box>
+
+        {/* ── Calculadora de Compra (Logística/Transporte) ── */}
+        <Box sx={{
+          mt: 2, p: 1.5, borderRadius: 2,
+          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.6)',
+          border: `1px dashed ${CACAO_GOLD}60`,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Calculate sx={{ color: CACAO_GOLD, fontSize: 24 }} />
+            <Box>
+              <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase' }}>
+                Ajuste / Viáticos / Transporte
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                <Typography sx={{ fontSize: 12, fontWeight: 600, color: CACAO_BROWN }}>Restar:</Typography>
+                <TextField
+                  size="small"
+                  type="number"
+                  value={descuentoPct}
+                  onChange={(e) => setDescuentoPct(e.target.value === '' ? '' : Number(e.target.value))}
+                  sx={{
+                    width: 90,
+                    '& .MuiInputBase-root': { 
+                      height: 30, fontSize: 14, fontWeight: 800, color: CACAO_BROWN, 
+                      bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#fff' 
+                    },
+                  }}
+                  InputProps={{
+                    endAdornment: <InputAdornment position="end" sx={{ '& .MuiTypography-root': { fontSize: 14, fontWeight: 800, color: CACAO_GOLD } }}>%</InputAdornment>,
+                  }}
+                />
+              </Box>
+            </Box>
+          </Box>
+
+          <Box sx={{ textAlign: 'right' }}>
+            <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase' }}>
+              Tu precio de compra
+            </Typography>
+            <Typography sx={{ fontSize: 24, fontWeight: 900, color: GREEN, lineHeight: 1.1 }}>
+              {formatCurrency(precioCalculado)} <span style={{ fontSize: 12, fontWeight: 600, color: 'text.secondary' }}>/ kg</span>
+            </Typography>
           </Box>
         </Box>
 
