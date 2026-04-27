@@ -6,6 +6,7 @@ import logging
 import secrets
 import shutil
 import time
+import requests
 
 from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional
@@ -2483,6 +2484,223 @@ def descargar_recibo_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PEGA ESTE BLOQUE EN main.py
+# Añade el import de requests al tope del archivo si no está:
+#   import requests
+#
+# Pega el resto justo antes de: app.mount("/evidencias" ...)
+# ═══════════════════════════════════════════════════════════════════════════
+
+import re as _re   # ya está en Python stdlib, sin instalar nada
+
+# ─── Cache en memoria del precio del cacao ────────────────────────────────────
+_cacao_cache: dict = {
+    "data":           None,   # dict con los valores calculados
+    "last_fetch_8":   None,   # date del último refresh de las 8:00
+    "last_fetch_14":  None,   # date del último refresh de las 14:00
+}
+
+
+def _cacao_needs_refresh() -> bool:
+    """True si el cache está vacío o si ya pasó la ventana de las 8:00/14:00 sin actualizar."""
+    from zoneinfo import ZoneInfo
+    bogota = ZoneInfo("America/Bogota")
+    ahora  = datetime.now(bogota)
+    hoy    = ahora.date()
+    hora   = ahora.hour
+
+    if _cacao_cache["data"] is None:
+        return True
+    if hora >= 8  and _cacao_cache["last_fetch_8"]  != hoy:
+        return True
+    if hora >= 14 and _cacao_cache["last_fetch_14"] != hoy:
+        return True
+    return False
+
+
+def _fetch_precio_cacao_raw():
+    """
+    Obtiene el precio de los futuros de cacao ICE (USD/ton) y la TRM (COP/USD).
+    Fuentes: Yahoo Finance CC=F  + dolar.wilkinsonpc.com.co
+    Devuelve (cacao_usd_ton: float, trm_cop: float) o (None, None) si falla.
+    """
+    _headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept": "application/json, text/html, */*",
+        "Accept-Language": "es-CO,es;q=0.9,en;q=0.8",
+    }
+
+    # ── 1. Precio cacao: Yahoo Finance CC=F (futuros ICE, USD/MT) ────────────
+    cacao_usd_ton = None
+    for yf_host in ("query1", "query2"):
+        try:
+            url = (
+                f"https://{yf_host}.finance.yahoo.com/v8/finance/chart/"
+                "CC%3DF?interval=1d&range=2d"
+            )
+            r = requests.get(url, headers=_headers, timeout=10)
+            if r.status_code == 200:
+                meta = r.json()["chart"]["result"][0]["meta"]
+                raw  = meta.get("regularMarketPrice") or meta.get("previousClose")
+                if raw:
+                    cacao_usd_ton = float(raw)
+                    break
+        except Exception as exc:
+            logger.warning("Yahoo Finance CC=F (%s) falló: %s", yf_host, exc)
+
+    # ── 2. TRM: dolar.wilkinsonpc.com.co ─────────────────────────────────────
+    trm_cop = None
+    try:
+        r = requests.get(
+            "https://dolar.wilkinsonpc.com.co/",
+            headers=_headers,
+            timeout=10,
+        )
+        if r.status_code == 200:
+            # Busca patrones como: $3,551.17  o  $3.551,17
+            # El primer número grande después de "TRM" o al inicio de la página
+            patterns = [
+                r'TRM[^$]*\$([\d,]+\.[\d]{2})',          # cerca de "TRM"
+                r'\$(3[,.][\d]{3}[.,][\d]{2})',           # 3.NNN.NN o 3,NNN.NN
+                r'(3[\.,]\d{3}[\.,]\d{2})(?=[▼▲])',      # número seguido de flecha
+            ]
+            for pat in patterns:
+                m = _re.search(pat, r.text, _re.DOTALL | _re.IGNORECASE)
+                if m:
+                    raw_trm = m.group(1).replace(',', '').replace('.', '', m.group(1).count('.') - 1)
+                    # Limpieza: quitar separadores de miles, mantener el punto decimal
+                    # Formato puede ser "3,551.17" → "3551.17"  o  "3.551,17" → "3551.17"
+                    clean = m.group(1)
+                    if ',' in clean and '.' in clean:
+                        # Puede ser "3,551.17" (US) o "3.551,17" (ES)
+                        if clean.index(',') < clean.index('.'):
+                            # "3,551.17" → separador miles = coma
+                            clean = clean.replace(',', '')
+                        else:
+                            # "3.551,17" → separador miles = punto
+                            clean = clean.replace('.', '').replace(',', '.')
+                    elif ',' in clean:
+                        clean = clean.replace(',', '.')
+                    trm_cop = float(clean)
+                    break
+    except Exception as exc:
+        logger.warning("TRM wilkinsonpc falló: %s", exc)
+
+    # ── Fallback TRM: Banco de la República (API JSON pública) ───────────────
+    if not trm_cop:
+        try:
+            hoy_str = datetime.now().strftime("%Y-%m-%d")
+            url_br  = (
+                "https://www.banrep.gov.co/es/estadisticas/trm"
+                f"?fecha={hoy_str}&format=json"
+            )
+            r = requests.get(url_br, headers=_headers, timeout=8)
+            # La respuesta del Banrep varía; intentamos extraer número
+            m = _re.search(r'"valor"\s*:\s*([\d.]+)', r.text)
+            if not m:
+                m = _re.search(r'(3[\.,]\d{3}[\.,]\d{2})', r.text)
+            if m:
+                trm_cop = float(m.group(1).replace(',', ''))
+        except Exception as exc:
+            logger.warning("TRM Banrep falló: %s", exc)
+
+    return cacao_usd_ton, trm_cop
+
+
+# ─── Endpoint público ─────────────────────────────────────────────────────────
+
+@app.get("/mercado/precio-cacao")
+def precio_cacao_fedecacao(
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """
+    Precio del kilo de cacao en pesos colombianos.
+
+    Metodología (idéntica a fepcacao.com.co):
+      1. Precio futuros cacao ICE en USD/tonelada (Yahoo Finance, ticker CC=F)
+      2. TRM oficial del día (dolar.wilkinsonpc.com.co)
+      3. Precio COP/kg = (USD/ton × TRM) ÷ 1 000
+
+    Se actualiza automáticamente a las 08:00 y 14:00 hora Colombia.
+    """
+    from zoneinfo import ZoneInfo
+    bogota = ZoneInfo("America/Bogota")
+    ahora  = datetime.now(bogota)
+    hoy    = ahora.date()
+    hora   = ahora.hour
+
+    if _cacao_needs_refresh():
+        try:
+            cacao_usd_ton, trm_cop = _fetch_precio_cacao_raw()
+
+            if cacao_usd_ton and trm_cop:
+                precio_cop_kg = round((cacao_usd_ton * trm_cop) / 1000, 0)
+
+                # Tendencia respecto al valor anterior (si existe)
+                prev = (_cacao_cache["data"] or {}).get("precio_cop_kg")
+                if prev:
+                    variacion_pct = round(((precio_cop_kg - prev) / prev) * 100, 2)
+                    tendencia = "alza" if precio_cop_kg > prev else "baja" if precio_cop_kg < prev else "estable"
+                else:
+                    variacion_pct = 0.0
+                    tendencia     = "estable"
+
+                _cacao_cache["data"] = {
+                    "precio_cop_kg":      precio_cop_kg,
+                    "precio_usd_ton":     round(cacao_usd_ton, 2),
+                    "trm_cop":            round(trm_cop, 2),
+                    "tendencia":          tendencia,
+                    "variacion_pct":      variacion_pct,
+                    "ultima_actualizacion": ahora.strftime("%Y-%m-%dT%H:%M:%S"),
+                    "fecha_precio":       ahora.strftime("%d/%m/%Y"),
+                    "fuente_cacao":       "ICE Cocoa Futures (CC=F) via Yahoo Finance",
+                    "fuente_trm":         "dolar.wilkinsonpc.com.co",
+                    "referencia":         "https://www.fepcacao.com.co/",
+                }
+
+                # Marcar cuál ventana se cubrió
+                if hora >= 14:
+                    _cacao_cache["last_fetch_14"] = hoy
+                    _cacao_cache["last_fetch_8"]  = hoy
+                elif hora >= 8:
+                    _cacao_cache["last_fetch_8"]  = hoy
+
+                logger.info(
+                    "✅ Precio cacao actualizado: $%s COP/kg (USD %.2f/ton × TRM %.2f)",
+                    f"{precio_cop_kg:,.0f}",
+                    cacao_usd_ton,
+                    trm_cop,
+                )
+            else:
+                logger.error(
+                    "No se pudo obtener precio cacao: USD/ton=%s, TRM=%s",
+                    cacao_usd_ton, trm_cop,
+                )
+        except Exception as exc:
+            logger.exception("Error inesperado al actualizar precio cacao: %s", exc)
+
+    if _cacao_cache["data"]:
+        return _cacao_cache["data"]
+
+    raise HTTPException(
+        status_code=503,
+        detail=(
+            "El servicio de precio de cacao no está disponible en este momento. "
+            "Verifica tu conexión a internet desde el servidor y vuelve a intentarlo."
+        ),
+    )
+
+
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
