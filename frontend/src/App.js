@@ -427,7 +427,7 @@ function App() {
             >
               <Box sx={{ flex: 1, p: { xs: 1.5, md: 3 } }}>
                 <Routes>
-                  <Route path="/"                  element={["Admin", "Socio","Consula"].includes(user?.role?.name) ?  <Dashboard /> : <Home />} />
+                  <Route path="/"                  element={["Admin", "Socio","Consulta"].includes(user?.role?.name) ?  <Dashboard /> : <Home />} />
                   <Route path="/ventas"              element={<Ventas />} />
 
                   <Route path="/cotizaciones" element={<Cotizaciones />} />
