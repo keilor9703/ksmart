@@ -48,8 +48,6 @@ const KpiCard = ({ title, value, icon, color, sub, onClick, loading }) => (
   </Paper>
 );
 
-// En el JSX, después del KPI Grid (las 4 tarjetas de arriba):
-{user?.empresa_id === 1 && <CacaoPriceWidget />}
 
 
 
@@ -280,6 +278,11 @@ const Dashboard = () => {
           </>
         )}
       </Grid>
+
+
+// En el JSX, después del KPI Grid (las 4 tarjetas de arriba):
+{user?.empresa_id === 1 && <CacaoPriceWidget />}
+
 
       {/* ── CONTENIDO PRINCIPAL ── */}
       {isZeroState ? (
