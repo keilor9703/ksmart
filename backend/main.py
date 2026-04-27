@@ -2527,14 +2527,15 @@ def _fetch_precio_cacao_raw():
     """
     Obtiene el precio de los futuros de cacao ICE (USD/ton) y la TRM (COP/USD).
 
-    Fuentes cacao (en orden de prioridad):
-      1. Stooq CC.F  — sigue el precio de liquidación oficial ICE (más fiel a fepcacao.com.co)
-      2. Yahoo Finance CC=F query1  — fallback 1
-      3. Yahoo Finance CC=F query2  — fallback 2
+    Fuentes cacao (en orden):
+      1. Yahoo Finance contrato específico del mes vigente (CCK26=F, CCN26=F…)
+      2. Yahoo Finance CC=F front-month genérico  (query1 y query2)
+      3. Stooq CC.F  (fallback final)
 
-    Fuentes TRM (en orden de prioridad):
-      1. dolar.wilkinsonpc.com.co  — misma fuente que fepcacao.com.co
-      2. Banco de la República     — fallback oficial Colombia
+    Fuentes TRM (en orden):
+      1. datos.gov.co API oficial — Superintendencia Financiera (JSON puro)
+      2. dolar.wilkinsonpc.com.co — misma fuente que fepcacao.com.co
+      3. Banco de la República (fallback HTML)
 
     Devuelve (cacao_usd_ton: float, trm_cop: float) o (None, None) si todo falla.
     """
@@ -2549,57 +2550,92 @@ def _fetch_precio_cacao_raw():
     }
 
     # ═══════════════════════════════════════════════════════════════════════
-    # 1. PRECIO CACAO
+    # 1. PRECIO CACAO ICE (USD/tonelada)
+    # Lógica de meses ICE Cocoa: Mar(H), May(K), Jul(N), Sep(U), Dec(Z)
+    # fepcacao.com.co referencia el contrato FRONT MONTH vigente,
+    # pero Yahoo/Stooq a veces ya rotaron al siguiente. Intentamos el
+    # contrato exacto antes de caer al genérico.
     # ═══════════════════════════════════════════════════════════════════════
 
     cacao_usd_ton = None
 
-    # ── Intento 1: Stooq (CSV público, no requiere API key) ─────────────────
-    # Columnas del CSV: Symbol, Date, Time, Open, High, Low, Close, Volume
-    # El Close de Stooq corresponde al settlement price oficial de ICE
-    try:
-        r = requests.get(
-            "https://stooq.com/q/l/?s=cc.f&f=sd2t2ohlcv&h&e=csv",
-            headers=_headers,
-            timeout=10,
-        )
-        if r.status_code == 200:
-            lines = [l.strip() for l in r.text.strip().split('\n') if l.strip()]
-            if len(lines) >= 2:
-                cols = lines[1].split(',')
-                # Posición 6 = Close (Symbol,Date,Time,Open,High,Low,Close,Volume)
-                if len(cols) > 6:
-                    val = float(cols[6])
-                    if 500 < val < 20000:   # rango razonable USD/ton para cacao
-                        cacao_usd_ton = val
-                        logger.info("Cacao Stooq: %.2f USD/ton", cacao_usd_ton)
-    except Exception as exc:
-        logger.warning("Stooq CC.F falló: %s", exc)
+    def _contrato_vigente_yahoo() -> list[str]:
+        """
+        Devuelve los tickers de Yahoo Finance para el contrato ICE Cocoa
+        actual y el siguiente, en orden de prioridad.
+        Meses ICE: H=Mar, K=May, N=Jul, U=Sep, Z=Dec
+        """
+        from zoneinfo import ZoneInfo
+        ahora = datetime.now(ZoneInfo("America/New_York"))
+        anio  = ahora.year
+        mes   = ahora.month
 
-    # ── Intento 2 y 3: Yahoo Finance CC=F (fallback) ─────────────────────────
-    # previousClose = cierre oficial ICE del día anterior (= lo que publica fepcacao)
-    # regularMarketPrice = precio en tiempo real (fluctúa, difiere de fepcacao)
-    if not cacao_usd_ton:
+        # Próximos meses de vencimiento ICE en orden anual
+        meses_ice = [(3, 'H'), (5, 'K'), (7, 'N'), (9, 'U'), (12, 'Z')]
+
+        tickers = []
+        for (m, cod) in meses_ice:
+            if m >= mes:
+                # Año actual
+                tickers.append(f"CC{cod}{str(anio)[2:]}=F")
+            else:
+                # Año siguiente
+                tickers.append(f"CC{cod}{str(anio + 1)[2:]}=F")
+
+        # Tomar los dos primeros (vigente + siguiente) + genérico
+        result = tickers[:2] + ["CC=F"]
+        logger.info("Tickers cacao a intentar: %s", result)
+        return result
+
+    # ── Intento 1-N: Yahoo Finance con contrato específico ────────────────
+    tickers = _contrato_vigente_yahoo()
+    for ticker in tickers:
+        if cacao_usd_ton:
+            break
+        encoded = ticker.replace("=", "%3D")
         for yf_host in ("query1", "query2"):
             try:
                 url = (
                     f"https://{yf_host}.finance.yahoo.com/v8/finance/chart/"
-                    "CC%3DF?interval=1d&range=2d"
+                    f"{encoded}?interval=1d&range=2d"
                 )
                 r = requests.get(url, headers=_headers, timeout=10)
                 if r.status_code == 200:
                     meta = r.json()["chart"]["result"][0]["meta"]
+                    # previousClose = settlement oficial ICE del día anterior
+                    # (= precio que publica fepcacao.com.co / theice.com)
                     raw = meta.get("previousClose") or meta.get("regularMarketPrice")
                     if raw:
                         val = float(raw)
                         if 500 < val < 20000:
                             cacao_usd_ton = val
                             logger.info(
-                                "Cacao Yahoo (%s): %.2f USD/ton", yf_host, cacao_usd_ton
+                                "Cacao Yahoo %s (%s): %.2f USD/ton",
+                                ticker, yf_host, cacao_usd_ton
                             )
                             break
             except Exception as exc:
-                logger.warning("Yahoo Finance CC=F (%s) falló: %s", yf_host, exc)
+                logger.warning("Yahoo %s (%s) falló: %s", ticker, yf_host, exc)
+
+    # ── Fallback final: Stooq CC.F ────────────────────────────────────────
+    if not cacao_usd_ton:
+        try:
+            r = requests.get(
+                "https://stooq.com/q/l/?s=cc.f&f=sd2t2ohlcv&h&e=csv",
+                headers=_headers,
+                timeout=10,
+            )
+            if r.status_code == 200:
+                lines = [l.strip() for l in r.text.strip().split('\n') if l.strip()]
+                if len(lines) >= 2:
+                    cols = lines[1].split(',')
+                    if len(cols) > 6:
+                        val = float(cols[6])   # columna Close
+                        if 500 < val < 20000:
+                            cacao_usd_ton = val
+                            logger.info("Cacao Stooq: %.2f USD/ton", cacao_usd_ton)
+        except Exception as exc:
+            logger.warning("Stooq CC.F falló: %s", exc)
 
     # ═══════════════════════════════════════════════════════════════════════
     # 2. TRM (COP / USD)
@@ -2607,63 +2643,104 @@ def _fetch_precio_cacao_raw():
 
     trm_cop = None
 
-    # ── Intento 1: dolar.wilkinsonpc.com.co (misma fuente que fepcacao) ──────
+    # ── Intento 1: datos.gov.co — API oficial Superintendencia Financiera ──
+    # Endpoint público SODA, sin API key, devuelve JSON puro con la TRM
+    # del día o del día hábil más reciente.
     try:
-        r = requests.get(
-            "https://dolar.wilkinsonpc.com.co/",
-            headers=_headers,
-            timeout=10,
+        from zoneinfo import ZoneInfo
+        hoy_col = datetime.now(ZoneInfo("America/Bogota")).strftime("%Y-%m-%d")
+        url_gov = (
+            "https://www.datos.gov.co/resource/32sa-8pi3.json"
+            f"?vigenciadesde={hoy_col}"
         )
+        r = requests.get(url_gov, headers={**_headers, "Accept": "application/json"}, timeout=10)
         if r.status_code == 200:
-            # El HTML puede contener el número en dos formatos:
-            #   "3,551.17"  (miles=coma, decimal=punto — formato anglosajón)
-            #   "3.551,17"  (miles=punto, decimal=coma — formato colombiano)
-            patterns = [
-                r'TRM[^$\d]{0,30}\$([\d,\.]+)',
-                r'\$(3[,\.][\d]{3}[,\.][\d]{2})',
-                r'(3[\.,]\d{3}[\.,]\d{2})(?=[▼▲\s<])',
-            ]
-            for pat in patterns:
-                m = _re.search(pat, r.text, _re.DOTALL | _re.IGNORECASE)
+            datos = r.json()
+            if datos:
+                val = float(datos[0].get("valor", 0))
+                if 2000 < val < 8000:
+                    trm_cop = val
+                    logger.info("TRM datos.gov.co: %.2f COP/USD", trm_cop)
+    except Exception as exc:
+        logger.warning("TRM datos.gov.co falló: %s", exc)
+
+    # ── Intento 2 (fallback): datos.gov.co con fecha de ayer ─────────────
+    # (días no hábiles no tienen dato; búsqueda con $limit y $order)
+    if not trm_cop:
+        try:
+            url_gov2 = (
+                "https://www.datos.gov.co/resource/32sa-8pi3.json"
+                "?$limit=1&$order=vigenciadesde+DESC"
+            )
+            r = requests.get(url_gov2, headers={**_headers, "Accept": "application/json"}, timeout=10)
+            if r.status_code == 200:
+                datos = r.json()
+                if datos:
+                    val = float(datos[0].get("valor", 0))
+                    if 2000 < val < 8000:
+                        trm_cop = val
+                        logger.info("TRM datos.gov.co (latest): %.2f COP/USD", trm_cop)
+        except Exception as exc:
+            logger.warning("TRM datos.gov.co latest falló: %s", exc)
+
+    # ── Intento 3: dolar.wilkinsonpc.com.co (misma fuente que fepcacao) ───
+    # IMPORTANTE: extraemos SOLO el valor de TRM (no Next Day ni Spot)
+    if not trm_cop:
+        try:
+            r = requests.get(
+                "https://dolar.wilkinsonpc.com.co/",
+                headers=_headers,
+                timeout=10,
+            )
+            if r.status_code == 200:
+                # Buscamos el patrón ESPECÍFICO de TRM en el HTML:
+                # Aparece como: "TRM....$3,551.17" o "TRM...$3.551,17"
+                # Usamos una ventana pequeña después de "TRM" para no capturar
+                # "DÓLAR NEXT DAY" ni "DÓLAR SPOT" que vienen después.
+                m = _re.search(
+                    r'TRM[^$\d]{0,60}\$([\d]{1,2}[,\.][\d]{3}[,\.][\d]{2})',
+                    r.text,
+                    _re.DOTALL | _re.IGNORECASE
+                )
                 if m:
                     clean = m.group(1)
                     if ',' in clean and '.' in clean:
                         if clean.index(',') < clean.index('.'):
-                            clean = clean.replace(',', '')           # "3,551.17"
+                            clean = clean.replace(',', '')        # "3,551.17"
                         else:
                             clean = clean.replace('.', '').replace(',', '.')  # "3.551,17"
                     elif ',' in clean:
                         clean = clean.replace(',', '.')
-                    candidate = float(clean)
-                    if 2000 < candidate < 8000:
-                        trm_cop = candidate
+                    val = float(clean)
+                    if 2000 < val < 8000:
+                        trm_cop = val
                         logger.info("TRM wilkinsonpc: %.2f COP/USD", trm_cop)
-                        break
-    except Exception as exc:
-        logger.warning("TRM wilkinsonpc falló: %s", exc)
+        except Exception as exc:
+            logger.warning("TRM wilkinsonpc falló: %s", exc)
 
-    # ── Intento 2: Banco de la República (fuente oficial Colombia) ───────────
+    # ── Intento 4: Banco de la República (último fallback) ────────────────
     if not trm_cop:
         try:
             hoy_str = datetime.now().strftime("%Y-%m-%d")
-            url_br = (
-                "https://www.banrep.gov.co/es/estadisticas/trm"
-                f"?fecha={hoy_str}&format=json"
+            r = requests.get(
+                f"https://www.banrep.gov.co/es/estadisticas/trm?fecha={hoy_str}&format=json",
+                headers=_headers,
+                timeout=8,
             )
-            r = requests.get(url_br, headers=_headers, timeout=8)
             if r.status_code == 200:
                 m = _re.search(r'"valor"\s*:\s*([\d\.]+)', r.text)
                 if not m:
                     m = _re.search(r'(3[\.,]\d{3}[\.,]\d{2})', r.text)
                 if m:
-                    candidate = float(m.group(1).replace(',', ''))
-                    if 2000 < candidate < 8000:
-                        trm_cop = candidate
+                    val = float(m.group(1).replace(',', ''))
+                    if 2000 < val < 8000:
+                        trm_cop = val
                         logger.info("TRM Banrep: %.2f COP/USD", trm_cop)
         except Exception as exc:
             logger.warning("TRM Banrep falló: %s", exc)
 
     return cacao_usd_ton, trm_cop
+
 
 
 
