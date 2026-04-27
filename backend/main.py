@@ -2550,7 +2550,8 @@ def _fetch_precio_cacao_raw():
             r = requests.get(url, headers=_headers, timeout=10)
             if r.status_code == 200:
                 meta = r.json()["chart"]["result"][0]["meta"]
-                raw  = meta.get("regularMarketPrice") or meta.get("previousClose")
+                raw = 
+meta.get("previousClose") or meta.get("regularMarketPrice")
                 if raw:
                     cacao_usd_ton = float(raw)
                     break
