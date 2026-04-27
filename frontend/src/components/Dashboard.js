@@ -280,7 +280,7 @@ const Dashboard = () => {
       </Grid>
 
 
-// En el JSX, después del KPI Grid (las 4 tarjetas de arriba):
+
 {user?.empresa_id === 1 && <CacaoPriceWidget />}
 
 
