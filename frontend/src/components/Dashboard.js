@@ -16,6 +16,9 @@ import {
 import apiClient from '../api';
 import { formatCurrency } from '../utils/formatters';
 import WompiButton from './WompiButton';
+// Al tope, junto a los otros imports:
+import CacaoPriceWidget from './CacaoPriceWidget';
+
 
 const ACCENT  = '#FF6020';
 const GREEN   = '#10B981';
@@ -44,6 +47,11 @@ const KpiCard = ({ title, value, icon, color, sub, onClick, loading }) => (
     </Box>
   </Paper>
 );
+
+// En el JSX, después del KPI Grid (las 4 tarjetas de arriba):
+{user?.empresa_id === 1 && <CacaoPriceWidget />}
+
+
 
 const Sparkline = ({ data, color, height = 70 }) => {
   if (!data || data.length < 2) return null;
