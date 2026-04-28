@@ -4,12 +4,13 @@ import { toast } from 'react-toastify';
 import apiClient from '../api';
 import {
     Box, TextField, Button, Typography, InputAdornment, IconButton,
-    Grid, Card, CardActionArea
+    Grid, Card, CardActionArea, MenuItem, LinearProgress, Stack, Chip
 } from '@mui/material';
 import { keyframes } from '@mui/system';
 import {
     Visibility, VisibilityOff, AlternateEmail, Lock, Business, Person,
-    Storefront, AttachMoney, Badge
+    Storefront, AttachMoney, Email, Phone, LocationOn, Group,
+    ArrowForward, ArrowBack, CheckCircle
 } from '@mui/icons-material';
 
 // ─── Animaciones ─────────────────────────────────────────────────────────────
@@ -24,11 +25,6 @@ const pulseRing = keyframes`
   100% { transform: scale(1);    opacity: 0.6; }
 `;
 
-const shimmer = keyframes`
-  0%   { background-position: -200% center; }
-  100% { background-position:  200% center; }
-`;
-
 // ─── Estilos de campo reutilizables ──────────────────────────────────────────
 const fieldSx = {
     '& .MuiInputLabel-root': {
@@ -36,13 +32,14 @@ const fieldSx = {
         letterSpacing: 1.4, textTransform: 'uppercase',
     },
     '& .MuiInputLabel-root.Mui-focused': { color: '#22c55e' },
+    '& .MuiFormHelperText-root': { color: '#475569', fontSize: 11, mt: 0.5 },
+    '& .MuiFormHelperText-root.Mui-error': { color: '#f87171' },
     '& .MuiOutlinedInput-root': {
         borderRadius: 2.5,
         backgroundColor: 'rgba(241, 245, 249, 0.05)',
         backdropFilter: 'blur(10px)',
         color: '#f1f5f9',
         fontSize: 15,
-        // Altura ligeramente mayor para dar más presencia al campo
         '& input': {
             padding: '14px 14px',
             color: '#f1f5f9',
@@ -58,24 +55,111 @@ const fieldSx = {
         '& fieldset': { borderColor: 'rgba(148, 163, 184, 0.2)', borderWidth: 1.5 },
         '&:hover fieldset': { borderColor: 'rgba(148, 163, 184, 0.45)' },
         '&.Mui-focused fieldset': { borderColor: '#22c55e', borderWidth: 2 },
+        '&.Mui-error fieldset': { borderColor: '#f87171' },
     },
     '& .MuiInputAdornment-root .MuiSvgIcon-root': { color: '#475569', fontSize: 19 },
     '& .MuiOutlinedInput-root.Mui-focused .MuiInputAdornment-root .MuiSvgIcon-root': { color: '#22c55e' },
+    // Color del label/icono cuando el textfield es naranja (registro)
+    '&.orange-field': {
+        '& .MuiInputLabel-root.Mui-focused': { color: '#f97316' },
+        '& .MuiOutlinedInput-root.Mui-focused fieldset': { borderColor: '#f97316' },
+        '& .MuiOutlinedInput-root.Mui-focused .MuiInputAdornment-root .MuiSvgIcon-root': { color: '#f97316' },
+    },
 };
+
+// ─── Catálogos ──────────────────────────────────────────────────────────────
+const PAISES = [
+    { code: 'CO', label: 'Colombia',        flag: '🇨🇴' },
+    { code: 'MX', label: 'México',          flag: '🇲🇽' },
+    { code: 'EC', label: 'Ecuador',         flag: '🇪🇨' },
+    { code: 'PE', label: 'Perú',            flag: '🇵🇪' },
+    { code: 'VE', label: 'Venezuela',       flag: '🇻🇪' },
+    { code: 'AR', label: 'Argentina',       flag: '🇦🇷' },
+    { code: 'CL', label: 'Chile',           flag: '🇨🇱' },
+    { code: 'ES', label: 'España',          flag: '🇪🇸' },
+    { code: 'US', label: 'Estados Unidos',  flag: '🇺🇸' },
+    { code: 'OTRO', label: 'Otro país',     flag: '🌎' },
+];
+
+const ORIGENES = [
+    'Recomendado por un amigo',
+    'Búsqueda en Google',
+    'Facebook / Instagram',
+    'TikTok',
+    'YouTube',
+    'WhatsApp',
+    'Otro',
+];
+
+const TAMANOS_NEGOCIO = [
+    { value: 'solo',    label: 'Solo yo',  desc: '1 persona' },
+    { value: 'pequeno', label: 'Pequeño',  desc: '2-5' },
+    { value: 'mediano', label: 'Mediano',  desc: '6-20' },
+    { value: 'grande',  label: 'Grande',   desc: '+20' },
+];
+
+// ─── Validaciones ───────────────────────────────────────────────────────────
+const isEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+const isPhone = (v) => /^[\d+\s()-]{7,20}$/.test(v);
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 const Login = ({ onLogin }) => {
     const [isLoginView, setIsLoginView]   = useState(true);
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading]           = useState(false);
+    const [regStep, setRegStep]           = useState(1);   // 1 = negocio, 2 = cuenta
     const navigate = useNavigate();
 
     const [loginData, setLoginData] = useState({ username: '', password: '' });
-    const [regData,   setRegData]   = useState({
-        nombre_empresa: '', nit: '', username: '', password: '', tipo_negocio: 'erp'
-    });
 
-    // ── Handlers ──────────────────────────────────────────────────────────────
+    const initialRegState = {
+        // Paso 1
+        tipo_negocio:    'erp',
+        nombre_empresa:  '',
+        pais:            'CO',
+        ciudad:          '',
+        tamano_negocio:  'pequeno',
+        // Paso 2
+        nombre_completo: '',
+        email:           '',
+        telefono:        '',
+        username:        '',
+        password:        '',
+        // Marketing
+        origen:          '',
+    };
+    const [regData, setRegData] = useState(initialRegState);
+
+    const updateReg = (key) => (e) =>
+        setRegData((prev) => ({ ...prev, [key]: e.target.value }));
+
+    // ── Validación por paso ──────────────────────────────────────────────────
+    const canContinueStep1 = () =>
+        regData.nombre_empresa.trim().length >= 2 &&
+        regData.ciudad.trim().length >= 2 &&
+        regData.pais &&
+        regData.tamano_negocio &&
+        regData.tipo_negocio;
+
+    const canSubmitStep2 = () =>
+        regData.nombre_completo.trim().length >= 3 &&
+        isEmail(regData.email) &&
+        isPhone(regData.telefono) &&
+        regData.username.trim().length >= 3 &&
+        regData.password.length >= 6;
+
+    // ── Cambiar entre login/registro ─────────────────────────────────────────
+    const switchToRegister = () => {
+        setIsLoginView(false);
+        setRegStep(1);
+    };
+
+    const switchToLogin = () => {
+        setIsLoginView(true);
+        setRegStep(1);
+    };
+
+    // ── Handlers ─────────────────────────────────────────────────────────────
     const handleLoginSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -104,18 +188,40 @@ const Login = ({ onLogin }) => {
         }
     };
 
+    const handleNextStep = () => {
+        if (!canContinueStep1()) {
+            toast.warning('Completa los campos del negocio para continuar.');
+            return;
+        }
+        setRegStep(2);
+    };
+
     const handleRegisterSubmit = async (e) => {
         e.preventDefault();
-        if (regData.password.length < 6) {
-            toast.warning('La contraseña debe tener al menos 6 caracteres.');
+        if (!canSubmitStep2()) {
+            toast.warning('Por favor revisa los datos antes de continuar.');
             return;
         }
         setLoading(true);
         try {
-            await apiClient.post('/auth/register', regData);
-            toast.success('¡Cuenta creada con éxito! Por favor, inicia sesión.');
-            setLoginData({ username: regData.username, password: '' });
-            setRegData({ nombre_empresa: '', nit: '', username: '', password: '', tipo_negocio: 'erp' });
+            await apiClient.post('/auth/register', {
+                nombre_empresa:  regData.nombre_empresa.trim(),
+                username:        regData.username.trim().toLowerCase(),
+                password:        regData.password,
+                tipo_negocio:    regData.tipo_negocio,
+                nombre_completo: regData.nombre_completo.trim(),
+                email:           regData.email.trim().toLowerCase(),
+                telefono:        regData.telefono.trim(),
+                pais:            regData.pais,
+                ciudad:          regData.ciudad.trim(),
+                tamano_negocio:  regData.tamano_negocio,
+                origen:          regData.origen || null,
+            });
+            toast.success('¡Cuenta creada con éxito! Ya puedes iniciar sesión.');
+            const usernameUsed = regData.username.trim().toLowerCase();
+            setLoginData({ username: usernameUsed, password: '' });
+            setRegData(initialRegState);
+            setRegStep(1);
             setIsLoginView(true);
         } catch (error) {
             toast.error(error.response?.data?.detail || 'Error al crear la cuenta.');
@@ -124,7 +230,7 @@ const Login = ({ onLogin }) => {
         }
     };
 
-    // ── Render ─────────────────────────────────────────────────────────────────
+    // ── Render ───────────────────────────────────────────────────────────────
     return (
         <Box sx={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
 
@@ -140,13 +246,10 @@ const Login = ({ onLogin }) => {
                 position: 'relative',
                 alignItems: 'flex-end',
             }}>
-                {/* Overlay degradado */}
                 <Box sx={{
                     position: 'absolute', inset: 0,
                     background: 'linear-gradient(135deg, rgba(15,23,42,0.75) 0%, rgba(2,6,23,0.55) 100%)',
                 }} />
-
-                {/* Texto inferior del hero */}
                 <Box sx={{ position: 'relative', p: 6, color: '#fff' }}>
                     <Typography sx={{ fontWeight: 800, fontSize: 36, lineHeight: 1.15, mb: 1 }}>
                         Ksmart360
@@ -167,97 +270,137 @@ const Login = ({ onLogin }) => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 background: 'linear-gradient(160deg, #0f172a 0%, #020617 100%)',
-                // Padding horizontal responsivo; más generoso en desktop
                 px: { xs: 3, sm: 6, lg: 8 },
+                py: { xs: 3, lg: 4 },
                 overflowY: 'auto',
             }}>
-                {/*
-                  * maxWidth aumentado: 460 en móvil-tablet, 520 en desktop.
-                  * Esto es el cambio clave para que se vea más grande en PC.
-                */}
                 <Box sx={{
                     width: '100%',
                     maxWidth: { xs: 460, lg: 520 },
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
+                    my: 'auto',
                 }}>
 
-                    {/* ── Logo prominente ────────────────────────────────── */}
+                    {/* ── Logo prominente (más pequeño en registro para dar espacio) ── */}
                     <Box sx={{
-                        mb: 4,
+                        mb: isLoginView ? 4 : 3,
                         position: 'relative',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        transition: 'all 0.4s ease',
                     }}>
-                        {/* Anillo pulsante exterior */}
                         <Box sx={{
                             position: 'absolute',
-                            width: { xs: 140, lg: 156 },
-                            height: { xs: 140, lg: 156 },
+                            width: isLoginView ? { xs: 140, lg: 156 } : { xs: 110, lg: 120 },
+                            height: isLoginView ? { xs: 140, lg: 156 } : { xs: 110, lg: 120 },
                             borderRadius: '50%',
                             border: '1.5px solid rgba(34,197,94,0.35)',
                             animation: `${pulseRing} 3s ease-in-out infinite`,
+                            transition: 'all 0.4s ease',
                         }} />
-                        {/* Anillo interior */}
                         <Box sx={{
                             position: 'absolute',
-                            width: { xs: 118, lg: 132 },
-                            height: { xs: 118, lg: 132 },
+                            width: isLoginView ? { xs: 118, lg: 132 } : { xs: 92, lg: 102 },
+                            height: isLoginView ? { xs: 118, lg: 132 } : { xs: 92, lg: 102 },
                             borderRadius: '50%',
                             border: '1px solid rgba(34,197,94,0.2)',
+                            transition: 'all 0.4s ease',
                         }} />
-                        {/* Imagen del logo */}
                         <img
                             src="/Logo.jpeg"
                             alt="Ksmart360"
                             style={{
-                                width:        110,
-                                height:       110,
+                                width:        isLoginView ? 110 : 84,
+                                height:       isLoginView ? 110 : 84,
                                 borderRadius: '50%',
                                 objectFit:    'cover',
                                 border:       '3px solid rgba(34,197,94,0.55)',
                                 boxShadow:    '0 0 40px rgba(34,197,94,0.25), 0 0 80px rgba(34,197,94,0.1)',
                                 position:     'relative',
                                 zIndex:       1,
+                                transition:   'all 0.4s ease',
                             }}
                         />
                     </Box>
 
-                    {/* ── Bloque animado: Login / Registro ───────────────── */}
+                    {/* ── Bloque animado: Login / Registro ── */}
                     <Box
-                        key={isLoginView ? 'login' : 'register'}
-                        sx={{
-                            animation: `${fadeIn} 0.4s cubic-bezier(0.4, 0, 0.2, 1)`,
-                            width: '100%',
-                        }}
+                        key={isLoginView ? 'login' : `register-${regStep}`}
+                        sx={{ animation: `${fadeIn} 0.4s cubic-bezier(0.4, 0, 0.2, 1)`, width: '100%' }}
                     >
-                        {/* Título */}
                         <Typography sx={{
                             fontWeight: 800,
-                            fontSize: { xs: 30, lg: 34 },
+                            fontSize: { xs: 28, lg: 32 },
                             color: '#f1f5f9',
                             letterSpacing: -0.8,
                             mb: 0.5,
                             textAlign: 'center',
                         }}>
-                            {isLoginView ? 'Ingresar' : 'Crea tu espacio'}
+                            {isLoginView ? 'Ingresar' : (regStep === 1 ? 'Crea tu espacio' : 'Casi listo')}
                         </Typography>
 
-                        {/* Subtítulo */}
                         <Typography sx={{
                             color: '#64748b',
-                            fontSize: { xs: 14, lg: 15 },
-                            mb: 4,
+                            fontSize: { xs: 13, lg: 14 },
+                            mb: isLoginView ? 4 : 3,
                             textAlign: 'center',
                         }}>
                             {isLoginView
                                 ? 'Ingresa tus credenciales para continuar'
-                                : 'Obtén 14 días gratis · Sin tarjeta de crédito'}
+                                : (regStep === 1
+                                    ? 'Cuéntanos sobre tu negocio · 14 días gratis · Sin tarjeta'
+                                    : 'Crea tu usuario para acceder a tu panel')}
                         </Typography>
 
-                        {/* ── Formulario LOGIN ── */}
+                        {/* ─── PROGRESO (solo en registro) ─── */}
+                        {!isLoginView && (
+                            <Box sx={{ mb: 3 }}>
+                                <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                                    <Chip
+                                        size="small"
+                                        label="1 · Negocio"
+                                        icon={regStep > 1 ? <CheckCircle sx={{ fontSize: 14, color: '#f97316 !important' }} /> : null}
+                                        sx={{
+                                            fontWeight: 700, fontSize: 11, height: 24,
+                                            bgcolor: regStep >= 1 ? 'rgba(249,115,22,0.15)' : 'rgba(148,163,184,0.1)',
+                                            color:   regStep >= 1 ? '#f97316' : '#64748b',
+                                            border: 'none',
+                                        }}
+                                    />
+                                    <Box sx={{
+                                        flex: 1, height: 2, borderRadius: 1,
+                                        bgcolor: regStep === 2 ? '#f97316' : 'rgba(148,163,184,0.15)',
+                                        transition: 'all 0.3s',
+                                    }} />
+                                    <Chip
+                                        size="small"
+                                        label="2 · Cuenta"
+                                        sx={{
+                                            fontWeight: 700, fontSize: 11, height: 24,
+                                            bgcolor: regStep === 2 ? 'rgba(249,115,22,0.15)' : 'rgba(148,163,184,0.1)',
+                                            color:   regStep === 2 ? '#f97316' : '#64748b',
+                                            border: 'none',
+                                        }}
+                                    />
+                                </Stack>
+                                <LinearProgress
+                                    variant="determinate"
+                                    value={regStep === 1 ? 50 : 100}
+                                    sx={{
+                                        height: 3, borderRadius: 2,
+                                        bgcolor: 'rgba(148,163,184,0.1)',
+                                        '& .MuiLinearProgress-bar': { bgcolor: '#f97316' },
+                                    }}
+                                />
+                            </Box>
+                        )}
+
+                        {/* ════════════════════════════════════════════════ */}
+                        {/* ── Formulario LOGIN ──                            */}
+                        {/* ════════════════════════════════════════════════ */}
                         {isLoginView ? (
                             <Box
                                 component="form"
@@ -292,14 +435,11 @@ const Login = ({ onLogin }) => {
                                     }}
                                 />
 
-                                {/* Botón principal con shimmer en hover */}
                                 <Button
                                     type="submit" fullWidth variant="contained"
                                     disabled={loading}
                                     sx={{
-                                        mt: 0.5,
-                                        py: 1.8,
-                                        borderRadius: 2.5,
+                                        mt: 0.5, py: 1.8, borderRadius: 2.5,
                                         fontWeight: 700,
                                         fontSize: { xs: 15, lg: 16 },
                                         letterSpacing: 0.3,
@@ -321,135 +461,329 @@ const Login = ({ onLogin }) => {
                                 <Typography sx={{ mt: 1.5, color: '#94a3b8', fontSize: 13, textAlign: 'center' }}>
                                     ¿No tienes una cuenta?{' '}
                                     <span
-                                        onClick={() => setIsLoginView(false)}
+                                        onClick={switchToRegister}
                                         style={{ color: '#22c55e', fontWeight: 700, cursor: 'pointer' }}
                                     >
                                         Regístrate gratis
                                     </span>
                                 </Typography>
                             </Box>
-
                         ) : (
-                        /* ── Formulario REGISTRO ── */
+                            /* ════════════════════════════════════════════════ */
+                            /* ── Formulario REGISTRO en 2 pasos ──              */
+                            /* ════════════════════════════════════════════════ */
                             <Box
                                 component="form"
-                                onSubmit={handleRegisterSubmit}
-                                sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 2.5 }}
+                                onSubmit={regStep === 2 ? handleRegisterSubmit : (e) => { e.preventDefault(); handleNextStep(); }}
+                                sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 2.2 }}
                             >
-                                {/* Selector de tipo de negocio */}
-                                <Grid container spacing={1.5} sx={{ mb: 0.5 }}>
-                                    {[
-                                        { key: 'erp',       label: 'Comercio / ERP',  Icon: Storefront  },
-                                        { key: 'prestamos', label: 'Prestamista',      Icon: AttachMoney },
-                                    ].map(({ key, label, Icon }) => (
-                                        <Grid item xs={6} key={key}>
-                                            <Card sx={{
-                                                border: regData.tipo_negocio === key
-                                                    ? '2px solid #ea580c'
-                                                    : '2px solid rgba(148,163,184,0.1)',
-                                                bgcolor: regData.tipo_negocio === key
-                                                    ? 'rgba(234,88,12,0.1)'
-                                                    : 'rgba(241,245,249,0.04)',
-                                                transition: 'all 0.2s',
-                                                borderRadius: 2.5,
-                                            }}>
-                                                <CardActionArea
-                                                    onClick={() => setRegData({ ...regData, tipo_negocio: key })}
-                                                    sx={{ p: 2, textAlign: 'center', color: '#f1f5f9' }}
-                                                >
-                                                    <Icon sx={{
-                                                        color: regData.tipo_negocio === key ? '#ea580c' : '#64748b',
-                                                        fontSize: 28, mb: 0.5,
-                                                    }} />
-                                                    <Typography variant="subtitle2" fontWeight={700} fontSize={12}>
-                                                        {label}
-                                                    </Typography>
-                                                </CardActionArea>
-                                            </Card>
+                                {/* ──────── PASO 1 — Negocio ──────── */}
+                                {regStep === 1 && (
+                                    <>
+                                        {/* Selector tipo de negocio */}
+                                        <Grid container spacing={1.5}>
+                                            {[
+                                                { key: 'erp',       label: 'Comercio / ERP',  Icon: Storefront,  desc: 'Ventas e Inventario' },
+                                                { key: 'prestamos', label: 'Cobranzas',        Icon: AttachMoney, desc: 'Rutas de Cobro' },
+                                            ].map(({ key, label, Icon, desc }) => (
+                                                <Grid item xs={6} key={key}>
+                                                    <Card sx={{
+                                                        border: regData.tipo_negocio === key
+                                                            ? '2px solid #ea580c'
+                                                            : '2px solid rgba(148,163,184,0.1)',
+                                                        bgcolor: regData.tipo_negocio === key
+                                                            ? 'rgba(234,88,12,0.1)'
+                                                            : 'rgba(241,245,249,0.04)',
+                                                        transition: 'all 0.2s',
+                                                        borderRadius: 2.5,
+                                                    }}>
+                                                        <CardActionArea
+                                                            onClick={() => setRegData({ ...regData, tipo_negocio: key })}
+                                                            sx={{ p: 1.8, textAlign: 'center', color: '#f1f5f9' }}
+                                                        >
+                                                            <Icon sx={{
+                                                                color: regData.tipo_negocio === key ? '#ea580c' : '#64748b',
+                                                                fontSize: 26, mb: 0.5,
+                                                            }} />
+                                                            <Typography variant="subtitle2" fontWeight={700} fontSize={12}>
+                                                                {label}
+                                                            </Typography>
+                                                            <Typography sx={{ fontSize: 10, color: '#64748b', mt: 0.2 }}>
+                                                                {desc}
+                                                            </Typography>
+                                                        </CardActionArea>
+                                                    </Card>
+                                                </Grid>
+                                            ))}
                                         </Grid>
-                                    ))}
-                                </Grid>
 
-                                <TextField
-                                    fullWidth label="Nombre del Negocio" required sx={fieldSx}
-                                    value={regData.nombre_empresa}
-                                    onChange={e => setRegData({ ...regData, nombre_empresa: e.target.value })}
-                                    InputProps={{ startAdornment: <InputAdornment position="start"><Business /></InputAdornment> }}
-                                />
-                                <TextField
-                                    fullWidth label="NIT o Cédula" required sx={fieldSx}
-                                    value={regData.nit}
-                                    onChange={e => setRegData({ ...regData, nit: e.target.value.trim() })}
-                                    InputProps={{ startAdornment: <InputAdornment position="start"><Badge /></InputAdornment> }}
-                                />
-                                <TextField
-                                    fullWidth label="Usuario para ingresar" required sx={fieldSx}
-                                    value={regData.username}
-                                    onChange={e => setRegData({ ...regData, username: e.target.value.trim() })}
-                                    InputProps={{ startAdornment: <InputAdornment position="start"><Person /></InputAdornment> }}
-                                />
-                                <TextField
-                                    fullWidth label="Contraseña segura"
-                                    type={showPassword ? 'text' : 'password'}
-                                    required sx={fieldSx}
-                                    value={regData.password}
-                                    onChange={e => setRegData({ ...regData, password: e.target.value })}
-                                    InputProps={{
-                                        startAdornment: <InputAdornment position="start"><Lock /></InputAdornment>,
-                                        endAdornment: (
-                                            <InputAdornment position="end">
-                                                <IconButton
-                                                    onClick={() => setShowPassword(!showPassword)}
-                                                    edge="end"
-                                                    sx={{ color: '#64748b' }}
+                                        <TextField
+                                            fullWidth label="Nombre del Negocio" required
+                                            className="orange-field" sx={fieldSx}
+                                            placeholder="Ej: Vialmar Cacao, Almacén Don José…"
+                                            value={regData.nombre_empresa}
+                                            onChange={updateReg('nombre_empresa')}
+                                            InputProps={{ startAdornment: <InputAdornment position="start"><Business /></InputAdornment> }}
+                                        />
+
+                                        <Grid container spacing={1.5}>
+                                            <Grid item xs={5}>
+                                                <TextField
+                                                    select fullWidth required label="País"
+                                                    className="orange-field" sx={fieldSx}
+                                                    value={regData.pais}
+                                                    onChange={updateReg('pais')}
+                                                    SelectProps={{
+                                                        MenuProps: {
+                                                            PaperProps: {
+                                                                sx: { bgcolor: '#1e293b', color: '#f1f5f9', maxHeight: 300 },
+                                                            },
+                                                        },
+                                                    }}
                                                 >
-                                                    {showPassword ? <VisibilityOff /> : <Visibility />}
-                                                </IconButton>
-                                            </InputAdornment>
-                                        ),
-                                    }}
-                                />
+                                                    {PAISES.map((p) => (
+                                                        <MenuItem key={p.code} value={p.code} sx={{ color: '#f1f5f9' }}>
+                                                            <span style={{ marginRight: 8 }}>{p.flag}</span>{p.label}
+                                                        </MenuItem>
+                                                    ))}
+                                                </TextField>
+                                            </Grid>
+                                            <Grid item xs={7}>
+                                                <TextField
+                                                    fullWidth required label="Ciudad"
+                                                    className="orange-field" sx={fieldSx}
+                                                    placeholder="Ej: Bogotá"
+                                                    value={regData.ciudad}
+                                                    onChange={updateReg('ciudad')}
+                                                    InputProps={{ startAdornment: <InputAdornment position="start"><LocationOn /></InputAdornment> }}
+                                                />
+                                            </Grid>
+                                        </Grid>
 
-                                <Button
-                                    type="submit" fullWidth variant="contained"
-                                    disabled={loading}
-                                    sx={{
-                                        mt: 0.5,
-                                        py: 1.8,
-                                        borderRadius: 2.5,
-                                        fontWeight: 700,
-                                        fontSize: { xs: 15, lg: 16 },
-                                        letterSpacing: 0.3,
-                                        background: loading
-                                            ? 'rgba(249,115,22,0.4)'
-                                            : 'linear-gradient(90deg, #f97316 0%, #ea580c 100%)',
-                                        boxShadow: loading ? 'none' : '0 8px 28px rgba(249,115,22,0.3)',
-                                        transition: 'all 0.25s',
-                                        '&:hover:not(:disabled)': {
-                                            background: 'linear-gradient(90deg, #ea580c 0%, #c2410c 100%)',
-                                            boxShadow: '0 12px 36px rgba(249,115,22,0.4)',
-                                            transform: 'translateY(-2px)',
-                                        },
-                                    }}
-                                >
-                                    {loading ? 'Configurando tu cuenta...' : 'Comenzar mi prueba gratis'}
-                                </Button>
+                                        {/* Tamaño del negocio */}
+                                        <Box>
+                                            <Typography sx={{
+                                                fontSize: 11, fontWeight: 700, color: '#64748b',
+                                                letterSpacing: 1.4, textTransform: 'uppercase', mb: 1,
+                                            }}>
+                                                ¿Cuántas personas trabajan contigo?
+                                            </Typography>
+                                            <Grid container spacing={1}>
+                                                {TAMANOS_NEGOCIO.map((t) => (
+                                                    <Grid item xs={6} sm={3} key={t.value}>
+                                                        <Card sx={{
+                                                            border: regData.tamano_negocio === t.value
+                                                                ? '2px solid #ea580c'
+                                                                : '2px solid rgba(148,163,184,0.1)',
+                                                            bgcolor: regData.tamano_negocio === t.value
+                                                                ? 'rgba(234,88,12,0.1)'
+                                                                : 'rgba(241,245,249,0.04)',
+                                                            transition: 'all 0.2s',
+                                                            borderRadius: 2,
+                                                        }}>
+                                                            <CardActionArea
+                                                                onClick={() => setRegData({ ...regData, tamano_negocio: t.value })}
+                                                                sx={{ p: 1.2, textAlign: 'center', color: '#f1f5f9' }}
+                                                            >
+                                                                <Group sx={{
+                                                                    color: regData.tamano_negocio === t.value ? '#ea580c' : '#64748b',
+                                                                    fontSize: 20,
+                                                                }} />
+                                                                <Typography sx={{ fontSize: 11, fontWeight: 700, mt: 0.2 }}>
+                                                                    {t.label}
+                                                                </Typography>
+                                                                <Typography sx={{ fontSize: 9, color: '#64748b' }}>
+                                                                    {t.desc}
+                                                                </Typography>
+                                                            </CardActionArea>
+                                                        </Card>
+                                                    </Grid>
+                                                ))}
+                                            </Grid>
+                                        </Box>
 
-                                <Typography sx={{ mt: 1.5, color: '#94a3b8', fontSize: 13, textAlign: 'center' }}>
+                                        <Button
+                                            type="submit" fullWidth variant="contained"
+                                            disabled={!canContinueStep1()}
+                                            endIcon={<ArrowForward />}
+                                            sx={{
+                                                mt: 0.5, py: 1.8, borderRadius: 2.5,
+                                                fontWeight: 700,
+                                                fontSize: { xs: 15, lg: 16 },
+                                                letterSpacing: 0.3,
+                                                background: !canContinueStep1()
+                                                    ? 'rgba(249,115,22,0.3)'
+                                                    : 'linear-gradient(90deg, #f97316 0%, #ea580c 100%)',
+                                                boxShadow: !canContinueStep1() ? 'none' : '0 8px 28px rgba(249,115,22,0.3)',
+                                                transition: 'all 0.25s',
+                                                '&:hover:not(:disabled)': {
+                                                    background: 'linear-gradient(90deg, #ea580c 0%, #c2410c 100%)',
+                                                    boxShadow: '0 12px 36px rgba(249,115,22,0.4)',
+                                                    transform: 'translateY(-2px)',
+                                                },
+                                            }}
+                                        >
+                                            Continuar
+                                        </Button>
+                                    </>
+                                )}
+
+                                {/* ──────── PASO 2 — Cuenta ──────── */}
+                                {regStep === 2 && (
+                                    <>
+                                        <TextField
+                                            fullWidth required label="Tu nombre completo"
+                                            className="orange-field" sx={fieldSx}
+                                            placeholder="Ej: María Pérez"
+                                            value={regData.nombre_completo}
+                                            onChange={updateReg('nombre_completo')}
+                                            InputProps={{ startAdornment: <InputAdornment position="start"><Person /></InputAdornment> }}
+                                        />
+
+                                        <TextField
+                                            fullWidth required type="email" label="Correo electrónico"
+                                            className="orange-field" sx={fieldSx}
+                                            placeholder="tucorreo@ejemplo.com"
+                                            value={regData.email}
+                                            onChange={updateReg('email')}
+                                            error={regData.email.length > 0 && !isEmail(regData.email)}
+                                            helperText={
+                                                regData.email.length > 0 && !isEmail(regData.email)
+                                                    ? 'Correo no válido'
+                                                    : 'Lo usaremos para recuperar tu cuenta'
+                                            }
+                                            InputProps={{ startAdornment: <InputAdornment position="start"><Email /></InputAdornment> }}
+                                        />
+
+                                        <TextField
+                                            fullWidth required type="tel" label="WhatsApp / Teléfono"
+                                            className="orange-field" sx={fieldSx}
+                                            placeholder="Ej: 300 123 4567"
+                                            value={regData.telefono}
+                                            onChange={updateReg('telefono')}
+                                            helperText="Te avisaremos por aquí si hay algo importante"
+                                            InputProps={{ startAdornment: <InputAdornment position="start"><Phone /></InputAdornment> }}
+                                        />
+
+                                        <TextField
+                                            fullWidth required label="Usuario para ingresar"
+                                            className="orange-field" sx={fieldSx}
+                                            placeholder="Sin espacios. Ej: maria.perez"
+                                            value={regData.username}
+                                            onChange={(e) => setRegData({ ...regData, username: e.target.value.trim() })}
+                                            helperText="Este será tu nombre para iniciar sesión"
+                                            InputProps={{ startAdornment: <InputAdornment position="start"><Person /></InputAdornment> }}
+                                        />
+
+                                        <TextField
+                                            fullWidth required label="Contraseña segura"
+                                            type={showPassword ? 'text' : 'password'}
+                                            className="orange-field" sx={fieldSx}
+                                            value={regData.password}
+                                            onChange={updateReg('password')}
+                                            helperText="Mínimo 6 caracteres"
+                                            InputProps={{
+                                                startAdornment: <InputAdornment position="start"><Lock /></InputAdornment>,
+                                                endAdornment: (
+                                                    <InputAdornment position="end">
+                                                        <IconButton
+                                                            onClick={() => setShowPassword(!showPassword)}
+                                                            edge="end"
+                                                            sx={{ color: '#64748b' }}
+                                                        >
+                                                            {showPassword ? <VisibilityOff /> : <Visibility />}
+                                                        </IconButton>
+                                                    </InputAdornment>
+                                                ),
+                                            }}
+                                        />
+
+                                        <TextField
+                                            select fullWidth label="¿Cómo nos conociste? (opcional)"
+                                            className="orange-field" sx={fieldSx}
+                                            value={regData.origen}
+                                            onChange={updateReg('origen')}
+                                            SelectProps={{
+                                                MenuProps: {
+                                                    PaperProps: {
+                                                        sx: { bgcolor: '#1e293b', color: '#f1f5f9', maxHeight: 280 },
+                                                    },
+                                                },
+                                            }}
+                                        >
+                                            <MenuItem value="" sx={{ color: '#94a3b8' }}>Prefiero no decir</MenuItem>
+                                            {ORIGENES.map((o) => (
+                                                <MenuItem key={o} value={o} sx={{ color: '#f1f5f9' }}>{o}</MenuItem>
+                                            ))}
+                                        </TextField>
+
+                                        <Stack direction="row" spacing={1.5} sx={{ mt: 0.5 }}>
+                                            <Button
+                                                variant="outlined"
+                                                startIcon={<ArrowBack />}
+                                                onClick={() => setRegStep(1)}
+                                                disabled={loading}
+                                                sx={{
+                                                    py: 1.8, borderRadius: 2.5, fontWeight: 700, flex: 0.6,
+                                                    color: '#94a3b8',
+                                                    borderColor: 'rgba(148,163,184,0.3)',
+                                                    '&:hover': {
+                                                        borderColor: '#94a3b8',
+                                                        bgcolor: 'rgba(148,163,184,0.08)',
+                                                    },
+                                                }}
+                                            >
+                                                Atrás
+                                            </Button>
+                                            <Button
+                                                type="submit" variant="contained"
+                                                disabled={loading || !canSubmitStep2()}
+                                                sx={{
+                                                    py: 1.8, borderRadius: 2.5,
+                                                    fontWeight: 700,
+                                                    fontSize: { xs: 14, lg: 15 },
+                                                    letterSpacing: 0.3,
+                                                    flex: 1.4,
+                                                    background: (loading || !canSubmitStep2())
+                                                        ? 'rgba(249,115,22,0.3)'
+                                                        : 'linear-gradient(90deg, #f97316 0%, #ea580c 100%)',
+                                                    boxShadow: (loading || !canSubmitStep2()) ? 'none' : '0 8px 28px rgba(249,115,22,0.3)',
+                                                    transition: 'all 0.25s',
+                                                    '&:hover:not(:disabled)': {
+                                                        background: 'linear-gradient(90deg, #ea580c 0%, #c2410c 100%)',
+                                                        boxShadow: '0 12px 36px rgba(249,115,22,0.4)',
+                                                        transform: 'translateY(-2px)',
+                                                    },
+                                                }}
+                                            >
+                                                {loading ? 'Configurando…' : 'Crear mi cuenta'}
+                                            </Button>
+                                        </Stack>
+                                    </>
+                                )}
+
+                                <Typography sx={{ mt: 1, color: '#94a3b8', fontSize: 13, textAlign: 'center' }}>
                                     ¿Ya tienes una cuenta?{' '}
                                     <span
-                                        onClick={() => setIsLoginView(true)}
+                                        onClick={switchToLogin}
                                         style={{ color: '#f97316', fontWeight: 700, cursor: 'pointer' }}
                                     >
                                         Inicia sesión aquí
                                     </span>
                                 </Typography>
+
+                                {/* Trust indicators */}
+                                <Stack direction="row" spacing={2} justifyContent="center" sx={{ mt: 0.5, opacity: 0.6 }}>
+                                    <Typography sx={{ fontSize: 10, color: '#64748b' }}>🔒 Datos cifrados</Typography>
+                                    <Typography sx={{ fontSize: 10, color: '#64748b' }}>✓ Sin tarjeta</Typography>
+                                    <Typography sx={{ fontSize: 10, color: '#64748b' }}>📧 Cancela cuando quieras</Typography>
+                                </Stack>
                             </Box>
                         )}
                     </Box>
 
                     {/* Footer */}
-                    <Typography sx={{ mt: 6, color: '#1e293b', fontSize: 12, textAlign: 'center' }}>
+                    <Typography sx={{ mt: 4, color: '#1e293b', fontSize: 12, textAlign: 'center' }}>
                         Powered by KSMP Systems · 2026
                     </Typography>
                 </Box>
