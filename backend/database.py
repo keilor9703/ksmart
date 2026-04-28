@@ -268,6 +268,23 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v30)
                 logger.info("V30 aplicada.")
 
+            # Migración: campos nuevos del registro mejorado (Abril 2026)
+            safe_alter_statements = [
+                "ALTER TABLE empresas ADD COLUMN IF NOT EXISTS pais VARCHAR(4)",
+                "ALTER TABLE empresas ADD COLUMN IF NOT EXISTS ciudad VARCHAR(80)",
+                "ALTER TABLE empresas ADD COLUMN IF NOT EXISTS tamano_negocio VARCHAR(20)",
+                "ALTER TABLE empresas ADD COLUMN IF NOT EXISTS origen_marketing VARCHAR(60)",
+                "ALTER TABLE users    ADD COLUMN IF NOT EXISTS nombre_completo VARCHAR(120)",
+                "ALTER TABLE users    ADD COLUMN IF NOT EXISTS email VARCHAR(120)",
+                "ALTER TABLE users    ADD COLUMN IF NOT EXISTS telefono VARCHAR(30)",
+                "CREATE INDEX IF NOT EXISTS ix_users_email ON users(email)",
+            ]
+            for stmt in safe_alter_statements:
+                try:
+                    conn.execute(text(stmt))
+                except Exception as e:
+                    logger.warning(f"Migración omitida (ya existe?): {stmt} | {e}")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
