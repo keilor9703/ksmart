@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // CacaoPriceWidget.jsx
 // Widget exclusivo de Vialmar (empresa_id === 1) para el Dashboard.
-// VERSIÓN: Tipografía aumentada + tooltips informativos sobre fuentes
+// VERSIÓN: Tipografía aumentada + tooltips informativos + dark mode optimizado
 // ═══════════════════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -15,12 +15,29 @@ import {
 import apiClient from '../api';
 import { formatCurrency } from '../utils/formatters';
 
-// ── Colores ──────────────────────────────────────────────────────────────────
-const CACAO_BROWN  = '#5C3317';
-const CACAO_GOLD   = '#C8860A';
+// ── Paleta base ──────────────────────────────────────────────────────────────
+const CACAO_BROWN  = '#5C3317';   // Marrón cacao — uso principal en LIGHT mode
+const CACAO_GOLD   = '#C8860A';   // Dorado — acento (ambos modos)
+const CACAO_CREAM  = '#F5E6D3';   // Crema cálido — texto primario en DARK mode
+const CACAO_HONEY  = '#FFD89B';   // Miel luminoso — énfasis (precio/total) en DARK mode
 const GREEN        = '#10B981';
+const GREEN_DARK   = '#34D399';   // Verde más luminoso para dark mode
 const RED          = '#EF4444';
+const RED_DARK     = '#F87171';   // Rojo más suave para dark mode
 const BLUE         = '#3B82F6';
+const BLUE_DARK    = '#60A5FA';   // Azul más luminoso para dark mode
+
+// ── Helpers de color adaptativos ─────────────────────────────────────────────
+// Texto primario "marca" (marrón en light, crema en dark)
+const brandText  = (theme) => theme.palette.mode === 'dark' ? CACAO_CREAM : CACAO_BROWN;
+// Énfasis fuerte (precio principal, total a pagar)
+const brandHero  = (theme) => theme.palette.mode === 'dark' ? CACAO_HONEY : CACAO_BROWN;
+// Verde adaptativo (precio base)
+const greenAdapt = (theme) => theme.palette.mode === 'dark' ? GREEN_DARK : GREEN;
+// Rojo adaptativo (diferencia, baja)
+const redAdapt   = (theme) => theme.palette.mode === 'dark' ? RED_DARK : RED;
+// Azul adaptativo (Bolsa ICE)
+const blueAdapt  = (theme) => theme.palette.mode === 'dark' ? BLUE_DARK : BLUE;
 
 // ── Ícono SVG de mazorca de cacao ────────────────────────────────────────────
 const CacaoIcon = ({ size = 28, color = CACAO_GOLD }) => (
@@ -35,9 +52,9 @@ const CacaoIcon = ({ size = 28, color = CACAO_GOLD }) => (
 
 // ── Indicador de tendencia ────────────────────────────────────────────────────
 const TrendIcon = ({ tendencia, size = 18 }) => {
-  if (tendencia === 'alza')    return <TrendingUp   sx={{ fontSize: size, color: GREEN }} />;
-  if (tendencia === 'baja')    return <TrendingDown sx={{ fontSize: size, color: RED   }} />;
-  return <TrendingFlat sx={{ fontSize: size, color: BLUE }} />;
+  if (tendencia === 'alza')    return <TrendingUp   sx={{ fontSize: size, color: (t) => greenAdapt(t) }} />;
+  if (tendencia === 'baja')    return <TrendingDown sx={{ fontSize: size, color: (t) => redAdapt(t) }} />;
+  return <TrendingFlat sx={{ fontSize: size, color: (t) => blueAdapt(t) }} />;
 };
 
 // ── Textos de tooltips informativos ──────────────────────────────────────────
@@ -148,14 +165,17 @@ const CacaoPriceWidget = () => {
 
   if (!precio) return null;
 
-  const tendenciaColor = precio.tendencia === 'alza' ? GREEN
-    : precio.tendencia === 'baja' ? RED : BLUE;
-
   // ── Cálculos de la calculadora ─────────────────────────────────────────────
   const precioBase = precio.precio_cop_kg || 0;
   const valorDescuento = (precioBase * (descuentoPct || 0)) / 100;
   const precioCalculado = precioBase - valorDescuento;
   const totalPagar = precioCalculado * (kilos || 0);
+
+  // ── Color de tendencia (adaptativo) ───────────────────────────────────────
+  const tendenciaColor = (theme) =>
+    precio.tendencia === 'alza' ? greenAdapt(theme)
+    : precio.tendencia === 'baja' ? redAdapt(theme)
+    : blueAdapt(theme);
 
   // ── Helper: ícono de info reutilizable ───────────────────────────────────
   const InfoBadge = ({ tooltip, size = 13 }) => (
@@ -164,7 +184,7 @@ const CacaoPriceWidget = () => {
         sx={{
           fontSize: size,
           color: CACAO_GOLD,
-          opacity: 0.7,
+          opacity: 0.85,
           cursor: 'help',
           ml: 0.4,
           verticalAlign: 'middle',
@@ -215,7 +235,12 @@ const CacaoPriceWidget = () => {
             <CacaoIcon size={44} color={CACAO_GOLD} />
             <Box>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Typography sx={{ fontSize: 12, color: CACAO_BROWN, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6, opacity: 0.75 }}>
+                <Typography sx={{
+                  fontSize: 12, fontWeight: 700, textTransform: 'uppercase',
+                  letterSpacing: 0.6,
+                  color: (t) => t.palette.mode === 'dark' ? CACAO_CREAM : CACAO_BROWN,
+                  opacity: (t) => t.palette.mode === 'dark' ? 0.85 : 0.75,
+                }}>
                   Precio oficial del kilo
                 </Typography>
                 <InfoBadge tooltip={INFO_TOOLTIPS.precioKg} size={14} />
@@ -226,7 +251,7 @@ const CacaoPriceWidget = () => {
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Typography sx={{
                     fontSize: 36, fontWeight: 900, lineHeight: 1.1,
-                    color: CACAO_BROWN,
+                    color: brandHero,
                     fontVariantNumeric: 'tabular-nums',
                   }}>
                     {formatCurrency(precio.precio_cop_kg)}
@@ -253,7 +278,7 @@ const CacaoPriceWidget = () => {
                 </Typography>
                 <InfoBadge tooltip={INFO_TOOLTIPS.bolsaIce} size={13} />
               </Box>
-              <Typography sx={{ fontSize: 18, fontWeight: 800, color: BLUE, lineHeight: 1.2 }}>
+              <Typography sx={{ fontSize: 18, fontWeight: 800, color: blueAdapt, lineHeight: 1.2 }}>
                 ${precio.precio_usd_ton?.toLocaleString('en-US', { minimumFractionDigits: 0 })}
               </Typography>
               <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>USD / ton · ICE NY</Typography>
@@ -266,7 +291,7 @@ const CacaoPriceWidget = () => {
                 </Typography>
                 <InfoBadge tooltip={INFO_TOOLTIPS.trm} size={13} />
               </Box>
-              <Typography sx={{ fontSize: 18, fontWeight: 800, color: CACAO_BROWN, lineHeight: 1.2 }}>
+              <Typography sx={{ fontSize: 18, fontWeight: 800, color: brandText, lineHeight: 1.2 }}>
                 ${precio.trm_cop?.toLocaleString('es-CO', { minimumFractionDigits: 2 })}
               </Typography>
               <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>COP / USD</Typography>
@@ -297,7 +322,7 @@ const CacaoPriceWidget = () => {
         {/* ── Calculadora de Compra ── */}
         <Box sx={{
           mt: 2.5, p: 2, borderRadius: 2,
-          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.6)',
+          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.6)',
           border: `1px dashed ${CACAO_GOLD}60`,
         }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
@@ -317,7 +342,7 @@ const CacaoPriceWidget = () => {
                   Ajuste / Viáticos
                 </Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Typography sx={{ fontSize: 14, fontWeight: 600, color: CACAO_BROWN }}>Restar:</Typography>
+                  <Typography sx={{ fontSize: 14, fontWeight: 600, color: brandText }}>Restar:</Typography>
                   <TextField
                     size="small"
                     type="number"
@@ -326,8 +351,12 @@ const CacaoPriceWidget = () => {
                     sx={{
                       width: 110,
                       '& .MuiInputBase-root': {
-                        height: 40, fontSize: 18, fontWeight: 800, color: CACAO_BROWN,
-                        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#fff'
+                        height: 40, fontSize: 18, fontWeight: 800,
+                        color: (t) => t.palette.mode === 'dark' ? CACAO_HONEY : CACAO_BROWN,
+                        bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : '#fff',
+                      },
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: (t) => t.palette.mode === 'dark' ? `${CACAO_GOLD}50` : 'rgba(0,0,0,0.23)',
                       },
                     }}
                     InputProps={{
@@ -336,7 +365,7 @@ const CacaoPriceWidget = () => {
                   />
                 </Box>
                 {/* Diferencia en pesos */}
-                <Typography sx={{ fontSize: 12, color: RED, fontWeight: 700, mt: 0.7 }}>
+                <Typography sx={{ fontSize: 12, color: redAdapt, fontWeight: 700, mt: 0.7 }}>
                   Diferencia: - {formatCurrency(valorDescuento)} / kg
                 </Typography>
               </Box>
@@ -355,8 +384,12 @@ const CacaoPriceWidget = () => {
                   sx={{
                     width: 150,
                     '& .MuiInputBase-root': {
-                      height: 40, fontSize: 18, fontWeight: 800, color: CACAO_BROWN,
-                      bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#fff'
+                      height: 40, fontSize: 18, fontWeight: 800,
+                      color: (t) => t.palette.mode === 'dark' ? CACAO_HONEY : CACAO_BROWN,
+                      bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : '#fff',
+                    },
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: (t) => t.palette.mode === 'dark' ? `${CACAO_GOLD}50` : 'rgba(0,0,0,0.23)',
                     },
                   }}
                   InputProps={{
@@ -372,16 +405,20 @@ const CacaoPriceWidget = () => {
                 <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase' }}>
                   Tu precio base
                 </Typography>
-                <Typography sx={{ fontSize: 22, fontWeight: 800, color: GREEN, lineHeight: 1.15 }}>
+                <Typography sx={{ fontSize: 22, fontWeight: 800, color: greenAdapt, lineHeight: 1.15 }}>
                   {formatCurrency(precioCalculado)} <span style={{ fontSize: 12, fontWeight: 600, color: '#888' }}>/ kg</span>
                 </Typography>
               </Box>
 
               <Box sx={{ pt: 1.2, borderTop: `1px solid ${CACAO_GOLD}30` }}>
-                <Typography sx={{ fontSize: 13, fontWeight: 800, color: CACAO_BROWN, textTransform: 'uppercase' }}>
+                <Typography sx={{ fontSize: 13, fontWeight: 800, color: brandText, textTransform: 'uppercase' }}>
                   Total a pagar
                 </Typography>
-                <Typography sx={{ fontSize: 32, fontWeight: 900, color: CACAO_BROWN, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>
+                <Typography sx={{
+                  fontSize: 32, fontWeight: 900, lineHeight: 1.1,
+                  color: brandHero,
+                  fontVariantNumeric: 'tabular-nums',
+                }}>
                   {formatCurrency(totalPagar)}
                 </Typography>
               </Box>
@@ -431,13 +468,20 @@ const CacaoPriceWidget = () => {
         {/* ── Nota explicativa al pie sobre la diferencia de fuentes ── */}
         <Box sx={{
           mt: 1.5, px: 1.2, py: 1, borderRadius: 1.5,
-          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(200, 134, 10, 0.08)' : 'rgba(200, 134, 10, 0.06)',
+          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(200, 134, 10, 0.12)' : 'rgba(200, 134, 10, 0.06)',
           borderLeft: `3px solid ${CACAO_GOLD}`,
           display: 'flex', alignItems: 'flex-start', gap: 0.8,
         }}>
           <InfoOutlined sx={{ fontSize: 14, color: CACAO_GOLD, mt: 0.2, flexShrink: 0 }} />
-          <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1.45 }}>
-            <strong style={{ color: CACAO_BROWN }}>¿Por qué el precio internacional puede diferir de FEPCACAO?</strong>{' '}
+          <Typography sx={{
+            fontSize: 11,
+            color: (t) => t.palette.mode === 'dark' ? CACAO_CREAM : 'text.secondary',
+            lineHeight: 1.45,
+            opacity: (t) => t.palette.mode === 'dark' ? 0.9 : 1,
+          }}>
+            <Box component="strong" sx={{ color: brandHero, fontWeight: 700 }}>
+              ¿Por qué el precio internacional puede diferir de FEPCACAO?
+            </Box>{' '}
             La Bolsa ICE (Nueva York) cotiza en tiempo real durante horario de mercado, mientras FEPCACAO publica el cierre del último día hábil. Tener ambas referencias permite anticipar el precio interno antes de que se publique oficialmente.
           </Typography>
         </Box>
