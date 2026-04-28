@@ -26,6 +26,11 @@ class Empresa(Base):
     color_primario = Column(String, default="#F43F5E") # Para personalizar el frontend
     is_active      = Column(Boolean, default=True)     # Para suspender si no pagan
     created_at     = Column(DateTime(timezone=True), default=utcnow)
+    pais            = Column(String(4),  nullable=True)
+    ciudad          = Column(String(80), nullable=True)
+    tamano_negocio  = Column(String(20), nullable=True)
+    origen_marketing = Column(String(60), nullable=True)
+
 
     # Opcional: relación inversa para acceder a sus usuarios
     usuarios = relationship("User", back_populates="empresa")
@@ -99,6 +104,10 @@ class User(Base, TenantMixin):
     role_id         = Column(Integer, ForeignKey("roles.id"))
     
     is_active       = Column(Boolean, default=True) # ✅ NUEVO: Para el Soft Delete (Trazabilidad)
+    nombre_completo = Column(String(120), nullable=True)
+    email           = Column(String(120), nullable=True, index=True)
+    telefono        = Column(String(30),  nullable=True)
+
 
     role              = relationship("Role", back_populates="users")
     empresa           = relationship("Empresa", back_populates="usuarios")
