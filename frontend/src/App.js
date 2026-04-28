@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ThemeProvider } from '@mui/material/styles';
 import {
   Box, Typography, IconButton, List, ListItemButton,
@@ -73,6 +73,25 @@ const Home = () => (
     </Box>
   </Box>
 );
+
+// ─── ProtectedRoute ────────────────────────────────────────────────────────────
+// ⚠️ IMPORTANTE: Este componente DEBE estar fuera de App() para que React Router
+// no lo desmonte/remonte cada vez que el sidebar cambie de estado (expandir/contraer).
+// Recibe hasAccess como prop para poder validar permisos sin necesidad de closure.
+const ProtectedRoute = ({ path, hasAccess, children }) => {
+  if (hasAccess(path)) return children;
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', minHeight: '60vh', gap: 2, textAlign: 'center' }}>
+      <Box sx={{ fontSize: 48 }}>🔒</Box>
+      <Typography variant="h5" fontWeight={700}>Acceso restringido</Typography>
+      <Typography color="text.secondary" sx={{ maxWidth: 400 }}>
+        Tu rol no tiene permisos para ver este módulo.<br />
+        Contacta al administrador si crees que es un error.
+      </Typography>
+    </Box>
+  );
+};
 
 // ─── Sidebar Item ──────────────────────────────────────────────────────────────
 const SidebarItem = ({ item, expanded, onClick, onClose, active }) => (
@@ -317,7 +336,9 @@ function App() {
     setLoading(false);
   };
 
-  const hasAccess = (path) => {
+  // ✅ MEMOIZADO: hasAccess solo cambia cuando cambia user.
+  // Esto evita que ProtectedRoute reciba una función nueva en cada render del sidebar.
+  const hasAccess = useCallback((path) => {
     // 1. INMUNIDAD SUPERADMIN: El dueño del SaaS siempre ve absolutamente TODO.
     if (user?.role?.name === 'Admin' && user?.empresa_id === 1) {
       return true;
@@ -335,7 +356,7 @@ function App() {
 
     // Si tiene un array de permisos, verificamos que el módulo esté ahí
     return modulosEmpresa.includes(path);
-  };
+  }, [user]);
 
   const handleLogout = (showToast = true) => {
     localStorage.removeItem('token');
@@ -347,22 +368,6 @@ function App() {
   };
 
   const sidebarWidth = isMobile ? 0 : (sidebarExpanded ? SIDEBAR_FULL : SIDEBAR_MINI);
-
-  // ✅ Paso 1: Añadir componente ProtectedRoute antes del return
-  const ProtectedRoute = ({ path, children }) => {
-    if (hasAccess(path)) return children;
-    return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
-        justifyContent: 'center', minHeight: '60vh', gap: 2, textAlign: 'center' }}>
-        <Box sx={{ fontSize: 48 }}>🔒</Box>
-        <Typography variant="h5" fontWeight={700}>Acceso restringido</Typography>
-        <Typography color="text.secondary" sx={{ maxWidth: 400 }}>
-          Tu rol no tiene permisos para ver este módulo.<br />
-          Contacta al administrador si crees que es un error.
-        </Typography>
-      </Box>
-    );
-  };
 
   return (
     <ThemeProvider theme={appTheme}>
@@ -442,7 +447,7 @@ function App() {
               }}
             >
               <Box sx={{ flex: 1, p: { xs: 1.5, md: 3 } }}>
-                {/* ✅ Paso 2: Reemplazo del bloque de Routes completo con los ProtectedRoutes */}
+                {/* ✅ Routes con ProtectedRoute (ahora externo, recibe hasAccess como prop) */}
                 <Routes>
                   {/* Dashboard — sin restricción, el componente ya maneja quién ve qué */}
                   <Route path="/" element={
@@ -452,23 +457,23 @@ function App() {
                   } />
 
                   {/* Módulos protegidos por rol */}
-                  <Route path="/ventas"             element={<ProtectedRoute path="/ventas">            <Ventas /></ProtectedRoute>} />
-                  <Route path="/cotizaciones"       element={<ProtectedRoute path="/cotizaciones">      <Cotizaciones /></ProtectedRoute>} />
-                  <Route path="/admin/resoluciones" element={<ProtectedRoute path="/admin/resoluciones"><ResolucionesDian /></ProtectedRoute>} />
-                  <Route path="/compras"            element={<ProtectedRoute path="/compras">           <Compras /></ProtectedRoute>} />
-                  <Route path="/clientes"           element={<ProtectedRoute path="/clientes">          <Terceros /></ProtectedRoute>} />
-                  <Route path="/productos"          element={<ProtectedRoute path="/productos">         <Productos /></ProtectedRoute>} />
-                  <Route path="/inventario"         element={<ProtectedRoute path="/inventario">        <Inventario /></ProtectedRoute>} />
-                  <Route path="/inventario/lotes"   element={<ProtectedRoute path="/inventario/lotes"> <InventarioLotes /></ProtectedRoute>} />
-                  <Route path="/caja"               element={<ProtectedRoute path="/caja">              <Caja /></ProtectedRoute>} />
-                  <Route path="/produccion/recetas" element={<ProtectedRoute path="/produccion/recetas"><Recetas /></ProtectedRoute>} />
-                  <Route path="/produccion/lotes"   element={<ProtectedRoute path="/produccion/lotes"> <Lotes /></ProtectedRoute>} />
-                  <Route path="/reportes-inventario"element={<ProtectedRoute path="/reportes-inventario"><InventoryReports /></ProtectedRoute>} />
-                  <Route path="/reportes"           element={<ProtectedRoute path="/reportes">          <Reportes /></ProtectedRoute>} />
-                  <Route path="/ordenes-trabajo"    element={<ProtectedRoute path="/ordenes-trabajo">   <OrdenesTrabajo user={user} /></ProtectedRoute>} />
-                  <Route path="/prestamos"          element={<ProtectedRoute path="/prestamos">         <PrestamoForm /></ProtectedRoute>} />
-                  <Route path="/ruta-cobro"         element={<ProtectedRoute path="/ruta-cobro">        <RutaCobro /></ProtectedRoute>} />
-                  <Route path="/panel-operador"     element={<ProtectedRoute path="/panel-operador">    <PanelOperador /></ProtectedRoute>} />
+                  <Route path="/ventas"             element={<ProtectedRoute path="/ventas"             hasAccess={hasAccess}><Ventas /></ProtectedRoute>} />
+                  <Route path="/cotizaciones"       element={<ProtectedRoute path="/cotizaciones"       hasAccess={hasAccess}><Cotizaciones /></ProtectedRoute>} />
+                  <Route path="/admin/resoluciones" element={<ProtectedRoute path="/admin/resoluciones" hasAccess={hasAccess}><ResolucionesDian /></ProtectedRoute>} />
+                  <Route path="/compras"            element={<ProtectedRoute path="/compras"            hasAccess={hasAccess}><Compras /></ProtectedRoute>} />
+                  <Route path="/clientes"           element={<ProtectedRoute path="/clientes"           hasAccess={hasAccess}><Terceros /></ProtectedRoute>} />
+                  <Route path="/productos"          element={<ProtectedRoute path="/productos"          hasAccess={hasAccess}><Productos /></ProtectedRoute>} />
+                  <Route path="/inventario"         element={<ProtectedRoute path="/inventario"         hasAccess={hasAccess}><Inventario /></ProtectedRoute>} />
+                  <Route path="/inventario/lotes"   element={<ProtectedRoute path="/inventario/lotes"   hasAccess={hasAccess}><InventarioLotes /></ProtectedRoute>} />
+                  <Route path="/caja"               element={<ProtectedRoute path="/caja"               hasAccess={hasAccess}><Caja /></ProtectedRoute>} />
+                  <Route path="/produccion/recetas" element={<ProtectedRoute path="/produccion/recetas" hasAccess={hasAccess}><Recetas /></ProtectedRoute>} />
+                  <Route path="/produccion/lotes"   element={<ProtectedRoute path="/produccion/lotes"   hasAccess={hasAccess}><Lotes /></ProtectedRoute>} />
+                  <Route path="/reportes-inventario"element={<ProtectedRoute path="/reportes-inventario"hasAccess={hasAccess}><InventoryReports /></ProtectedRoute>} />
+                  <Route path="/reportes"           element={<ProtectedRoute path="/reportes"           hasAccess={hasAccess}><Reportes /></ProtectedRoute>} />
+                  <Route path="/ordenes-trabajo"    element={<ProtectedRoute path="/ordenes-trabajo"    hasAccess={hasAccess}><OrdenesTrabajo user={user} /></ProtectedRoute>} />
+                  <Route path="/prestamos"          element={<ProtectedRoute path="/prestamos"          hasAccess={hasAccess}><PrestamoForm /></ProtectedRoute>} />
+                  <Route path="/ruta-cobro"         element={<ProtectedRoute path="/ruta-cobro"         hasAccess={hasAccess}><RutaCobro /></ProtectedRoute>} />
+                  <Route path="/panel-operador"     element={<ProtectedRoute path="/panel-operador"     hasAccess={hasAccess}><PanelOperador /></ProtectedRoute>} />
 
                   {/* Rutas exclusivas de Admin — hasAccess ya cubre esto pero doble-verificamos */}
                   {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (
