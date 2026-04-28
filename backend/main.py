@@ -265,49 +265,95 @@ def get_current_superadmin_user(current_user: schemas.User = Depends(get_current
 
 @app.post("/auth/register", status_code=status.HTTP_201_CREATED)
 def registrar_nuevo_cliente(data: schemas.RegistroSaaS, db: Session = Depends(get_db)):
+    # ── Validaciones de unicidad ─────────────────────────────────────────────
     if db.query(models.User).filter(models.User.username == data.username).first():
-        raise HTTPException(status_code=400, detail="Usuario en uso.")
+        raise HTTPException(status_code=400, detail="Este usuario ya está en uso. Prueba con otro.")
 
+    if data.email:
+        existing_email = db.query(models.User).filter(models.User.email == data.email).first()
+        if existing_email:
+            raise HTTPException(status_code=400, detail="Este correo ya está registrado. ¿Quieres iniciar sesión?")
+
+    # ── Perfilado de módulos según el tipo de negocio ─────────────────────────
     PERFILES = {
-        "erp": ["/ventas", "/compras", "/clientes", "/productos", "/inventario",
-                "/caja", "/produccion/lotes", "/ordenes-trabajo", "/panel-operador", "/reportes"],
-        "prestamos": ["/clientes", "/prestamos", "/ruta-cobro", "/caja", "/reportes"]
+        "erp": [
+            "/ventas", "/compras", "/clientes", "/productos", "/inventario",
+            "/caja", "/produccion/lotes", "/ordenes-trabajo", "/panel-operador",
+            "/reportes", "/cotizaciones",
+        ],
+        "prestamos": [
+            "/clientes", "/prestamos", "/ruta-cobro", "/caja", "/reportes",
+        ],
     }
     modulos = PERFILES.get(data.tipo_negocio, PERFILES["erp"])
 
     try:
+        # ── Crear empresa ─────────────────────────────────────────────────────
         nueva_emp = models.Empresa(
-            nombre=data.nombre_empresa,
-            is_active=True,
-            plan_type="trial",
-            trial_ends_at=datetime.now(timezone.utc) + timedelta(days=14),
-            modulos_habilitados=modulos
+            nombre              = data.nombre_empresa.strip(),
+            is_active           = True,
+            plan_type           = "trial",
+            trial_ends_at       = datetime.now(timezone.utc) + timedelta(days=14),
+            modulos_habilitados = modulos,
+            # Campos nuevos:
+            pais                = data.pais,
+            ciudad              = data.ciudad,
+            tamano_negocio      = data.tamano_negocio,
+            origen_marketing    = data.origen,
         )
         db.add(nueva_emp)
         db.flush()
 
+        # ── Crear usuario admin asociado ──────────────────────────────────────
         rol_admin = db.query(models.Role).filter(models.Role.name == "Admin").first()
+        if not rol_admin:
+            raise HTTPException(status_code=500, detail="Configuración inicial incompleta. Contacta a soporte.")
+
         nuevo_user = models.User(
-            username=data.username,
-            hashed_password=crud.get_password_hash(data.password),
-            role_id=rol_admin.id,
-            empresa_id=nueva_emp.id
+            username        = data.username,
+            hashed_password = crud.get_password_hash(data.password),
+            role_id         = rol_admin.id,
+            empresa_id      = nueva_emp.id,
+            # Campos nuevos:
+            nombre_completo = data.nombre_completo,
+            email           = data.email,
+            telefono        = data.telefono,
         )
         db.add(nuevo_user)
         db.commit()
-        return {"message": "Éxito"}
 
-    # FIX #2: Manejo específico de excepciones en lugar de bare except
+        # ── (Opcional) enviar email de bienvenida o agendar tarea ─────────────
+        # if data.email:
+        #     send_welcome_email(data.email, data.nombre_completo or data.username, nueva_emp.id)
+
+        logger.info(
+            f"✅ Nuevo registro: empresa={nueva_emp.nombre} (id={nueva_emp.id}) | "
+            f"user={data.username} | tipo={data.tipo_negocio} | "
+            f"pais={data.pais} | ciudad={data.ciudad} | tamano={data.tamano_negocio} | "
+            f"origen={data.origen}"
+        )
+
+        return {
+            "message":     "Cuenta creada con éxito",
+            "empresa_id":  nueva_emp.id,
+            "trial_until": nueva_emp.trial_ends_at.isoformat(),
+        }
+
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=400, detail="El usuario o empresa ya existe.")
     except ValueError as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         logger.error(f"Error no controlado en registro: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+
 
 
 @app.post("/token")
