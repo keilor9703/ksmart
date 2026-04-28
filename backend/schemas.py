@@ -845,11 +845,39 @@ class EmpresaPlanUpdate(BaseModel):
 # REGISTRO AUTOSERVICIO (SAAS)
 # =========================
 
+from pydantic import BaseModel, EmailStr, Field, validator
+from typing import Optional
+
 class RegistroSaaS(BaseModel):
-    nombre_empresa: str
-    username: str
-    password: str
-    tipo_negocio: str  # Campo obligatorio para la clasificación automática
+    # ── Negocio (paso 1) ─────────────────────────────────────────────────────
+    nombre_empresa:  str = Field(..., min_length=2, max_length=120)
+    tipo_negocio:    str = Field("erp", description="erp | prestamos")
+    pais:            Optional[str] = Field(None, max_length=4,  description="Código país: CO, MX, PE…")
+    ciudad:          Optional[str] = Field(None, max_length=80)
+    tamano_negocio:  Optional[str] = Field(None, description="solo | pequeno | mediano | grande")
+
+    # ── Cuenta del usuario (paso 2) ──────────────────────────────────────────
+    nombre_completo: Optional[str] = Field(None, min_length=3, max_length=120)
+    email:           Optional[EmailStr] = None
+    telefono:        Optional[str] = Field(None, max_length=30)
+    username:        str = Field(..., min_length=3, max_length=40)
+    password:        str = Field(..., min_length=6, max_length=80)
+
+    # ── Marketing (opcional) ─────────────────────────────────────────────────
+    origen:          Optional[str] = Field(None, max_length=60)
+
+    @validator('tipo_negocio')
+    def _tipo_valido(cls, v):
+        if v not in ('erp', 'prestamos'):
+            raise ValueError('tipo_negocio debe ser "erp" o "prestamos"')
+        return v
+
+    @validator('username')
+    def _username_limpio(cls, v):
+        v = v.strip().lower()
+        if ' ' in v:
+            raise ValueError('El usuario no puede contener espacios')
+        return v
 
 
 # =========================
