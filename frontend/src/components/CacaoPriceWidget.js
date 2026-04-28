@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // CacaoPriceWidget.jsx
 // Widget exclusivo de Vialmar (empresa_id === 1) para el Dashboard.
-// VERSIÓN: Tipografía aumentada para mejor legibilidad (usuarios mayores)
+// VERSIÓN: Tipografía aumentada + tooltips informativos sobre fuentes
 // ═══════════════════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -10,7 +10,7 @@ import {
 } from '@mui/material';
 import {
   TrendingUp, TrendingDown, TrendingFlat,
-  Refresh, OpenInNew, Spa, Calculate
+  Refresh, OpenInNew, Spa, Calculate, InfoOutlined
 } from '@mui/icons-material';
 import apiClient from '../api';
 import { formatCurrency } from '../utils/formatters';
@@ -38,6 +38,45 @@ const TrendIcon = ({ tendencia, size = 18 }) => {
   if (tendencia === 'alza')    return <TrendingUp   sx={{ fontSize: size, color: GREEN }} />;
   if (tendencia === 'baja')    return <TrendingDown sx={{ fontSize: size, color: RED   }} />;
   return <TrendingFlat sx={{ fontSize: size, color: BLUE }} />;
+};
+
+// ── Textos de tooltips informativos ──────────────────────────────────────────
+const INFO_TOOLTIPS = {
+  precioKg: (
+    <Box sx={{ p: 0.5 }}>
+      <Typography sx={{ fontSize: 12, fontWeight: 700, mb: 0.5 }}>Precio oficial del kilo</Typography>
+      <Typography sx={{ fontSize: 11, lineHeight: 1.4 }}>
+        Precio de referencia en pesos colombianos publicado por FEPCACAO. Es el valor base que rige la compra a productores en Colombia. Se actualiza dos veces al día (8:00 AM y 2:00 PM hora Colombia).
+      </Typography>
+    </Box>
+  ),
+  bolsaIce: (
+    <Box sx={{ p: 0.5 }}>
+      <Typography sx={{ fontSize: 12, fontWeight: 700, mb: 0.5 }}>¿Qué es la Bolsa ICE?</Typography>
+      <Typography sx={{ fontSize: 11, lineHeight: 1.4, mb: 1 }}>
+        ICE (Intercontinental Exchange — Nueva York) es el mercado mundial donde se transa el cacao. Es la referencia internacional sobre la cual FEPCACAO calcula el precio interno colombiano.
+      </Typography>
+      <Typography sx={{ fontSize: 11, lineHeight: 1.4, fontStyle: 'italic', opacity: 0.9 }}>
+        Nota: este valor cambia en tiempo real durante horario de mercado. Puede diferir del cierre publicado por FEPCACAO porque ese refleja el último día hábil cerrado.
+      </Typography>
+    </Box>
+  ),
+  trm: (
+    <Box sx={{ p: 0.5 }}>
+      <Typography sx={{ fontSize: 12, fontWeight: 700, mb: 0.5 }}>TRM (Tasa Representativa del Mercado)</Typography>
+      <Typography sx={{ fontSize: 11, lineHeight: 1.4 }}>
+        Tasa oficial de cambio entre el dólar y el peso colombiano publicada por la Superintendencia Financiera. Se usa para convertir el precio internacional (USD) a pesos colombianos (COP).
+      </Typography>
+    </Box>
+  ),
+  tendencia: (
+    <Box sx={{ p: 0.5 }}>
+      <Typography sx={{ fontSize: 12, fontWeight: 700, mb: 0.5 }}>Tendencia del mercado</Typography>
+      <Typography sx={{ fontSize: 11, lineHeight: 1.4 }}>
+        Variación porcentual respecto al precio anterior. Sirve para anticipar movimientos del precio interno antes de que FEPCACAO los refleje al día siguiente.
+      </Typography>
+    </Box>
+  ),
 };
 
 // ── Componente principal ──────────────────────────────────────────────────────
@@ -118,6 +157,23 @@ const CacaoPriceWidget = () => {
   const precioCalculado = precioBase - valorDescuento;
   const totalPagar = precioCalculado * (kilos || 0);
 
+  // ── Helper: ícono de info reutilizable ───────────────────────────────────
+  const InfoBadge = ({ tooltip, size = 13 }) => (
+    <Tooltip title={tooltip} arrow placement="top" enterTouchDelay={0} leaveTouchDelay={6000}>
+      <InfoOutlined
+        sx={{
+          fontSize: size,
+          color: CACAO_GOLD,
+          opacity: 0.7,
+          cursor: 'help',
+          ml: 0.4,
+          verticalAlign: 'middle',
+          '&:hover': { opacity: 1 },
+        }}
+      />
+    </Tooltip>
+  );
+
   return (
     <Paper sx={{
       p: 0, mb: 2, borderRadius: 3, overflow: 'hidden',
@@ -143,7 +199,7 @@ const CacaoPriceWidget = () => {
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <Chip
-            label="Referencia FEPCACAO"
+            label="Fuente: FEPCACAO + ICE"
             size="small"
             sx={{ height: 22, fontSize: 11, fontWeight: 700, bgcolor: 'rgba(255,255,255,0.2)', color: 'white', border: 'none' }}
           />
@@ -158,9 +214,12 @@ const CacaoPriceWidget = () => {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <CacaoIcon size={44} color={CACAO_GOLD} />
             <Box>
-              <Typography sx={{ fontSize: 12, color: CACAO_BROWN, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6, opacity: 0.75 }}>
-                Precio oficial del kilo
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Typography sx={{ fontSize: 12, color: CACAO_BROWN, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6, opacity: 0.75 }}>
+                  Precio oficial del kilo
+                </Typography>
+                <InfoBadge tooltip={INFO_TOOLTIPS.precioKg} size={14} />
+              </Box>
               {loading ? (
                 <Skeleton width={180} height={44} />
               ) : (
@@ -178,25 +237,48 @@ const CacaoPriceWidget = () => {
                   </Box>
                 </Box>
               )}
+              {/* Etiqueta de fuente del precio del kilo */}
+              <Typography sx={{ fontSize: 10, color: 'text.disabled', mt: 0.3, fontWeight: 500 }}>
+                Referencia: FEPCACAO · cierre {precio.fecha_precio || '—'}
+              </Typography>
             </Box>
           </Box>
 
           {/* Datos secundarios */}
           <Box sx={{ display: 'flex', gap: 2.5, flexWrap: 'wrap' }}>
             <Box sx={{ textAlign: 'center' }}>
-              <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase' }}>Bolsa ICE</Typography>
-              <Typography sx={{ fontSize: 18, fontWeight: 800, color: BLUE, lineHeight: 1.2 }}>${precio.precio_usd_ton?.toLocaleString('en-US', { minimumFractionDigits: 0 })}</Typography>
-              <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>USD / ton</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase' }}>
+                  Bolsa ICE
+                </Typography>
+                <InfoBadge tooltip={INFO_TOOLTIPS.bolsaIce} size={13} />
+              </Box>
+              <Typography sx={{ fontSize: 18, fontWeight: 800, color: BLUE, lineHeight: 1.2 }}>
+                ${precio.precio_usd_ton?.toLocaleString('en-US', { minimumFractionDigits: 0 })}
+              </Typography>
+              <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>USD / ton · ICE NY</Typography>
             </Box>
 
             <Box sx={{ textAlign: 'center' }}>
-              <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase' }}>TRM</Typography>
-              <Typography sx={{ fontSize: 18, fontWeight: 800, color: CACAO_BROWN, lineHeight: 1.2 }}>${precio.trm_cop?.toLocaleString('es-CO', { minimumFractionDigits: 2 })}</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase' }}>
+                  TRM
+                </Typography>
+                <InfoBadge tooltip={INFO_TOOLTIPS.trm} size={13} />
+              </Box>
+              <Typography sx={{ fontSize: 18, fontWeight: 800, color: CACAO_BROWN, lineHeight: 1.2 }}>
+                ${precio.trm_cop?.toLocaleString('es-CO', { minimumFractionDigits: 2 })}
+              </Typography>
               <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>COP / USD</Typography>
             </Box>
 
             <Box sx={{ textAlign: 'center' }}>
-              <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase' }}>Tendencia</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase' }}>
+                  Tendencia
+                </Typography>
+                <InfoBadge tooltip={INFO_TOOLTIPS.tendencia} size={13} />
+              </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.4, mt: 0.3 }}>
                 <TrendIcon tendencia={precio.tendencia} size={24} />
                 {precio.variacion_pct !== 0 && (
@@ -344,6 +426,20 @@ const CacaoPriceWidget = () => {
               </IconButton>
             </Tooltip>
           </Box>
+        </Box>
+
+        {/* ── Nota explicativa al pie sobre la diferencia de fuentes ── */}
+        <Box sx={{
+          mt: 1.5, px: 1.2, py: 1, borderRadius: 1.5,
+          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(200, 134, 10, 0.08)' : 'rgba(200, 134, 10, 0.06)',
+          borderLeft: `3px solid ${CACAO_GOLD}`,
+          display: 'flex', alignItems: 'flex-start', gap: 0.8,
+        }}>
+          <InfoOutlined sx={{ fontSize: 14, color: CACAO_GOLD, mt: 0.2, flexShrink: 0 }} />
+          <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1.45 }}>
+            <strong style={{ color: CACAO_BROWN }}>¿Por qué el precio internacional puede diferir de FEPCACAO?</strong>{' '}
+            La Bolsa ICE (Nueva York) cotiza en tiempo real durante horario de mercado, mientras FEPCACAO publica el cierre del último día hábil. Tener ambas referencias permite anticipar el precio interno antes de que se publique oficialmente.
+          </Typography>
         </Box>
       </Box>
     </Paper>
