@@ -147,6 +147,12 @@ def initialize_default_data(db: Session):
         {"name": "Caja",                "description": "Módulo de corte de caja diario.",                 "frontend_path": "/caja"},
         {"name": "Préstamos",           "description": "Módulo de gestión de préstamos.",                 "frontend_path": "/prestamos"},
         {"name": "Ruta de Cobro",       "description": "Módulo de gestión de ruta de cobro.",             "frontend_path": "/ruta-cobro"},
+{"name": "Parqueadero",         "description": "Dashboard del parqueadero.",      "frontend_path": "/parqueadero"},
+    {"name": "Buscar Placa",        "description": "Búsqueda rápida de placas.",      "frontend_path": "/parqueadero/buscar"},
+    {"name": "Vehículos",           "description": "Gestión de vehículos.",            "frontend_path": "/parqueadero/vehiculos"},
+    {"name": "Suscripciones Parq.", "description": "Renovaciones y pagos.",            "frontend_path": "/parqueadero/suscripciones"},
+    {"name": "Config Parqueadero",  "description": "Tarifas y cupo total.",            "frontend_path": "/parqueadero/config"},
+
     ]
 
     admin_role = crud.get_role_by_name(db, name="Admin")
