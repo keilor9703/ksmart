@@ -276,15 +276,27 @@ def registrar_nuevo_cliente(data: schemas.RegistroSaaS, db: Session = Depends(ge
 
     # ── Perfilado de módulos según el tipo de negocio ─────────────────────────
     PERFILES = {
-        "erp": [
-            "/ventas", "/compras", "/clientes", "/productos", "/inventario",
-            "/caja", "/produccion/lotes", "/ordenes-trabajo", "/panel-operador",
-            "/reportes", "/cotizaciones",
-        ],
-        "prestamos": [
-            "/clientes", "/prestamos", "/ruta-cobro", "/caja", "/reportes",
-        ],
-    }
+    "erp": [
+        "/ventas", "/compras", "/clientes", "/productos", "/inventario",
+        "/caja", "/produccion/lotes", "/ordenes-trabajo", "/panel-operador",
+        "/reportes", "/cotizaciones",
+    ],
+    "prestamos": [
+        "/clientes", "/prestamos", "/ruta-cobro", "/caja", "/reportes",
+    ],
+    # ✅ NUEVO PERFIL: PARQUEADERO DE MOTOS
+    "parqueadero": [
+        "/parqueadero",                  # Dashboard del día (pantalla principal)
+        "/parqueadero/buscar",           # Buscar placa (entrada/salida rápida)
+        "/parqueadero/vehiculos",        # Listado de vehículos registrados
+        "/parqueadero/suscripciones",    # Histórico de pagos/renovaciones
+        "/parqueadero/config",           # Tarifas y cupo total
+        "/clientes",                      # Propietarios (reutiliza tu módulo Clientes)
+        "/caja",                          # Corte de caja diario
+        "/reportes",                      # Reportes de ingresos
+    ],
+}
+
     modulos = PERFILES.get(data.tipo_negocio, PERFILES["erp"])
 
     try:
