@@ -489,7 +489,7 @@ const Login = ({ onLogin }) => {
                                                 { key: 'prestamos', label: 'Cobranzas',        Icon: AttachMoney, desc: 'Rutas de Cobro' },
                                                 { key: 'parqueadero',  label: 'Parqueadero',     desc: 'Motos / vehículos',    Icon: TwoWheeler    },  // ← NUEVO
                                             ].map(({ key, label, Icon, desc }) => (
-                                                <Grid item xs={6} key={key}>
+                                                <Grid item xs={4} key={key}>
                                                     <Card sx={{
                                                         border: regData.tipo_negocio === key
                                                             ? '2px solid #ea580c'
