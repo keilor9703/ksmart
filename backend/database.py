@@ -60,230 +60,241 @@ def run_migrations():
         with engine.begin() as conn:
             _ensure_schema_meta(conn)
 
-            # V18 - MULTI-TENANT (BASE)
-            migration_v18 = "inv_v18_multitenant"
-            if not _migration_already_applied(conn, migration_v18):
-                if not _table_exists(conn, "empresas"):
-                    if IS_SQLITE:
-                        conn.execute(text("CREATE TABLE empresas (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, nit TEXT, logo_url TEXT, color_primario TEXT DEFAULT '#F43F5E', is_active INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);"))
-                    else:
-                        conn.execute(text("CREATE TABLE empresas (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL, nit TEXT, logo_url TEXT, color_primario TEXT DEFAULT '#F43F5E', is_active BOOLEAN DEFAULT TRUE, created_at TIMESTAMPTZ DEFAULT NOW());"))
-                conn.execute(text("INSERT INTO empresas (id,nombre,nit,color_primario) VALUES (1,'Ksmart360 (Mi Fábrica)','900000000-1','#F43F5E') ON CONFLICT DO NOTHING;"))
-                tablas_tenant = ['users','clientes','productos','inventory_movements','ventas','detalles_venta','pagos','ordenes_trabajo','orden_productos','orden_servicios','evidencias','notificaciones','registros_productividad','recetas','receta_servicios','receta_items','lotes_produccion','compras','detalles_compra','pagos_compra','devoluciones','devolucion_items','cortes_caja','gastos']
-                for tabla in tablas_tenant:
-                    if _table_exists(conn, tabla):
-                        _add_column_if_missing(conn, tabla, "empresa_id INTEGER", "empresa_id")
-                        conn.execute(text(f"UPDATE {tabla} SET empresa_id=1 WHERE empresa_id IS NULL;"))
-                _mark_migration_applied(conn, migration_v18)
-                logger.info("V18 aplicada.")
+            # ═══════════════════════════════════════════════════════════════════════════════
+# MIGRACIÓN V31 - MÓDULO PARQUEADERO
+# Pega este bloque DENTRO de run_migrations(), DESPUÉS del V30
+# ═══════════════════════════════════════════════════════════════════════════════
 
-            # V19 - SAAS TRIAL
-            migration_v19 = "inv_v20_saas_trial"
-            if not _migration_already_applied(conn, migration_v19):
-                if _table_exists(conn, "empresas"):
-                    _add_column_if_missing(conn, "empresas", "plan_type TEXT DEFAULT 'trial'", "plan_type")
-                    ts_type = "TIMESTAMP" if IS_SQLITE else "TIMESTAMPTZ"
-                    _add_column_if_missing(conn, "empresas", f"trial_ends_at {ts_type}", "trial_ends_at")
-                    conn.execute(text("UPDATE empresas SET plan_type='premium' WHERE id=1;"))
-                _mark_migration_applied(conn, migration_v19)
+            # V31 - PARQUEADERO (Vehículos, Suscripciones, Pagos, Accesos por hora)
+            migration_v31 = "inv_v31_parqueadero"
+            if not _migration_already_applied(conn, migration_v31):
 
-            # V20 - WOMPI
-            migration_v20 = "inv_v21_wompi"
-            if not _migration_already_applied(conn, migration_v20):
-                if _table_exists(conn, "empresas"):
-                    _add_column_if_missing(conn, "empresas", "wompi_customer_id TEXT", "wompi_customer_id")
-                    _add_column_if_missing(conn, "empresas", "wompi_payment_source_id TEXT", "wompi_payment_source_id")
-                _mark_migration_applied(conn, migration_v20)
-
-            # V21 - PRÉSTAMOS
-            migration_v21 = "inv_v22_prestamos"
-            if not _migration_already_applied(conn, migration_v21):
-                Base.metadata.create_all(bind=engine, tables=[models.Prestamo.__table__, models.CuotaPrestamo.__table__])
-                _mark_migration_applied(conn, migration_v21)
-
-            # V22 - MÓDULOS HABILITADOS
-            migration_v22 = "inv_v22_modulos_empresas"
-            if not _migration_already_applied(conn, migration_v22):
-                _add_column_if_missing(conn, "empresas", "modulos_habilitados TEXT", "modulos_habilitados")
-                _mark_migration_applied(conn, migration_v22)
-
-            # V23 - COBRADORES EN CUOTAS
-            migration_v23 = "inv_v23_asignacion_cobradores"
-            if not _migration_already_applied(conn, migration_v23):
-                _add_column_if_missing(conn, "cuotas_prestamo", "usuario_asignado_id INTEGER", "usuario_asignado_id")
-                _mark_migration_applied(conn, migration_v23)
-
-            # V24 - COBRADORES EN PRÉSTAMOS
-            migration_v24 = "inv_v24_asignacion_cobradores_prestamo"
-            if not _migration_already_applied(conn, migration_v24):
-                _add_column_if_missing(conn, "prestamos", "usuario_asignado_id INTEGER", "usuario_asignado_id")
-                _mark_migration_applied(conn, migration_v24)
-
-            # V25 - TASA MORA
-            migration_v25 = "inv_v25_tasa_mora"
-            if not _migration_already_applied(conn, migration_v25):
-                _add_column_if_missing(conn, "prestamos", "tasa_mora REAL DEFAULT 2.0", "tasa_mora")
-                _mark_migration_applied(conn, migration_v25)
-
-            # V26 - LOTES PERECEDEROS
-            migration_v26 = "inv_v26_lotes_perecederos"
-            if not _migration_already_applied(conn, migration_v26):
-                if not _table_exists(conn, "lotes_existencias"):
-                    conn.execute(text("""
-                        CREATE TABLE lotes_existencias (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT, empresa_id INTEGER NOT NULL,
-                            producto_id INTEGER NOT NULL, numero_lote TEXT NOT NULL,
-                            fecha_vencimiento TEXT NOT NULL, fecha_fabricacion TEXT,
-                            cantidad_inicial REAL NOT NULL DEFAULT 0, cantidad_actual REAL NOT NULL DEFAULT 0,
-                            costo_unitario REAL NOT NULL DEFAULT 0, proveedor_id INTEGER,
-                            referencia_compra TEXT, observaciones TEXT,
-                            created_at TEXT DEFAULT (datetime('now')),
-                            UNIQUE(empresa_id, producto_id, numero_lote))"""))
-                if not _index_exists(conn, "idx_lotes_vencimiento"):
-                    conn.execute(text("CREATE INDEX idx_lotes_vencimiento ON lotes_existencias(empresa_id, fecha_vencimiento)"))
-                if not _index_exists(conn, "idx_lotes_producto"):
-                    conn.execute(text("CREATE INDEX idx_lotes_producto ON lotes_existencias(empresa_id, producto_id)"))
-                _add_column_if_missing(conn, "inventory_movements", "lote_id INTEGER", "lote_id")
-                _add_column_if_missing(conn, "inventory_movements", "numero_lote TEXT", "numero_lote")
-                if not _index_exists(conn, "idx_movements_lote"):
-                    conn.execute(text("CREATE INDEX idx_movements_lote ON inventory_movements(lote_id)"))
-                if _table_exists(conn, "productos"):
-                    _add_column_if_missing(conn, "productos", "maneja_lotes INTEGER DEFAULT 0", "maneja_lotes")
-                _mark_migration_applied(conn, migration_v26)
-                logger.info("V26 aplicada.")
-
-            # V27 - RESOLUCIONES DIAN
-            migration_v27 = "inv_v27_resoluciones_dian"
-            if not _migration_already_applied(conn, migration_v27):
-                if not _table_exists(conn, "resoluciones_dian"):
+                # ── 1. parqueadero_config ────────────────────────────────────
+                if not _table_exists(conn, "parqueadero_config"):
                     if IS_SQLITE:
                         conn.execute(text("""
-                            CREATE TABLE resoluciones_dian (
-                                id INTEGER PRIMARY KEY AUTOINCREMENT, empresa_id INTEGER NOT NULL,
-                                prefijo TEXT DEFAULT '', numero_resolucion TEXT,
-                                numero_actual INTEGER NOT NULL DEFAULT 0,
-                                numero_inicial INTEGER NOT NULL DEFAULT 1,
-                                numero_final INTEGER NOT NULL DEFAULT 99999999,
-                                vigencia_desde TEXT, vigencia_hasta TEXT,
-                                is_active INTEGER DEFAULT 0,
-                                created_at TEXT DEFAULT (datetime('now')))"""))
-                    else:
-                        conn.execute(text("""
-                            CREATE TABLE resoluciones_dian (
-                                id SERIAL PRIMARY KEY, empresa_id INTEGER NOT NULL,
-                                prefijo TEXT DEFAULT '', numero_resolucion TEXT,
-                                numero_actual INTEGER NOT NULL DEFAULT 0,
-                                numero_inicial INTEGER NOT NULL DEFAULT 1,
-                                numero_final INTEGER NOT NULL DEFAULT 99999999,
-                                vigencia_desde DATE, vigencia_hasta DATE,
-                                is_active BOOLEAN DEFAULT FALSE,
-                                created_at TIMESTAMPTZ DEFAULT NOW())"""))
-                if not _index_exists(conn, "idx_resoluciones_empresa"):
-                    conn.execute(text("CREATE INDEX idx_resoluciones_empresa ON resoluciones_dian(empresa_id, is_active)"))
-                _add_column_if_missing(conn, "ventas", "numero_factura TEXT", "numero_factura")
-                _add_column_if_missing(conn, "ventas", "resolucion_id INTEGER", "resolucion_id")
-                _mark_migration_applied(conn, migration_v27)
-                logger.info("V27 aplicada.")
-
-            # V28 - COTIZACIONES
-            migration_v28 = "inv_v28_cotizaciones"
-            if not _migration_already_applied(conn, migration_v28):
-                _add_column_if_missing(conn, "ventas", "tipo TEXT DEFAULT 'venta'", "tipo")
-                ts_type = "TIMESTAMP" if IS_SQLITE else "TIMESTAMPTZ"
-                _add_column_if_missing(conn, "ventas", f"valida_hasta {ts_type}", "valida_hasta")
-                _add_column_if_missing(conn, "ventas", "observaciones TEXT", "observaciones")
-                conn.execute(text("UPDATE ventas SET tipo='venta' WHERE tipo IS NULL OR tipo=''"))
-                if not _index_exists(conn, "idx_ventas_tipo"):
-                    conn.execute(text("CREATE INDEX idx_ventas_tipo ON ventas(empresa_id, tipo)"))
-                _mark_migration_applied(conn, migration_v28)
-                logger.info("V28 aplicada.")
-
-            # V29 - FASE 2C: MÚLTIPLES IMPUESTOS POR PRODUCTO
-            migration_v29 = "inv_v29_impuestos_producto"
-            if not _migration_already_applied(conn, migration_v29):
-                if not _table_exists(conn, "tipos_impuesto"):
-                    if IS_SQLITE:
-                        conn.execute(text("""
-                            CREATE TABLE tipos_impuesto (
+                            CREATE TABLE parqueadero_config (
                                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 empresa_id INTEGER NOT NULL,
-                                nombre TEXT NOT NULL,
-                                codigo TEXT NOT NULL DEFAULT 'IVA',
-                                porcentaje REAL NOT NULL DEFAULT 0,
-                                descripcion TEXT,
-                                is_active INTEGER DEFAULT 1,
-                                created_at TEXT DEFAULT (datetime('now')),
-                                UNIQUE(empresa_id, codigo)
-                            )"""))
+                                tarifa_mensual REAL DEFAULT 0,
+                                tarifa_quincenal REAL DEFAULT 0,
+                                tarifa_diaria REAL DEFAULT 0,
+                                tarifa_hora REAL DEFAULT 0,
+                                cupo_total INTEGER DEFAULT 0,
+                                nombre_parqueadero TEXT,
+                                direccion TEXT,
+                                horario_apertura TEXT DEFAULT '06:30',
+                                horario_cierre TEXT DEFAULT '20:00',
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                UNIQUE(empresa_id)
+                            )
+                        """))
                     else:
                         conn.execute(text("""
-                            CREATE TABLE tipos_impuesto (
+                            CREATE TABLE parqueadero_config (
                                 id SERIAL PRIMARY KEY,
                                 empresa_id INTEGER NOT NULL,
-                                nombre TEXT NOT NULL,
-                                codigo TEXT NOT NULL DEFAULT 'IVA',
-                                porcentaje REAL NOT NULL DEFAULT 0,
-                                descripcion TEXT,
+                                tarifa_mensual REAL DEFAULT 0,
+                                tarifa_quincenal REAL DEFAULT 0,
+                                tarifa_diaria REAL DEFAULT 0,
+                                tarifa_hora REAL DEFAULT 0,
+                                cupo_total INTEGER DEFAULT 0,
+                                nombre_parqueadero TEXT,
+                                direccion TEXT,
+                                horario_apertura VARCHAR(5) DEFAULT '06:30',
+                                horario_cierre VARCHAR(5) DEFAULT '20:00',
+                                created_at TIMESTAMPTZ DEFAULT NOW(),
+                                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                                UNIQUE(empresa_id)
+                            )
+                        """))
+                    if not _index_exists(conn, "idx_parq_config_empresa"):
+                        conn.execute(text(
+                            "CREATE INDEX idx_parq_config_empresa ON parqueadero_config(empresa_id)"
+                        ))
+
+                # ── 2. vehiculos ─────────────────────────────────────────────
+                if not _table_exists(conn, "vehiculos"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE vehiculos (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                empresa_id INTEGER NOT NULL,
+                                placa TEXT NOT NULL,
+                                cliente_id INTEGER NOT NULL,
+                                marca TEXT,
+                                modelo TEXT,
+                                color TEXT,
+                                foto_url TEXT,
+                                observaciones TEXT,
+                                is_active INTEGER DEFAULT 1,
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                UNIQUE(empresa_id, placa)
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE vehiculos (
+                                id SERIAL PRIMARY KEY,
+                                empresa_id INTEGER NOT NULL,
+                                placa VARCHAR(10) NOT NULL,
+                                cliente_id INTEGER NOT NULL,
+                                marca VARCHAR(60),
+                                modelo VARCHAR(60),
+                                color VARCHAR(40),
+                                foto_url VARCHAR(255),
+                                observaciones TEXT,
                                 is_active BOOLEAN DEFAULT TRUE,
                                 created_at TIMESTAMPTZ DEFAULT NOW(),
-                                UNIQUE(empresa_id, codigo)
-                            )"""))
-                
-                if not _table_exists(conn, "producto_impuestos"):
-                    conn.execute(text("""
-                        CREATE TABLE producto_impuestos (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT if IS_SQLITE else SERIAL PRIMARY KEY,
-                            producto_id INTEGER NOT NULL,
-                            impuesto_id INTEGER NOT NULL,
-                            empresa_id INTEGER NOT NULL,
-                            UNIQUE(producto_id, impuesto_id)
-                        )""") if IS_SQLITE else text("""
-                        CREATE TABLE producto_impuestos (
-                            id SERIAL PRIMARY KEY,
-                            producto_id INTEGER NOT NULL,
-                            impuesto_id INTEGER NOT NULL,
-                            empresa_id INTEGER NOT NULL,
-                            UNIQUE(producto_id, impuesto_id)
-                        )"""))
+                                UNIQUE(empresa_id, placa)
+                            )
+                        """))
+                    if not _index_exists(conn, "idx_vehiculos_empresa_placa"):
+                        conn.execute(text(
+                            "CREATE INDEX idx_vehiculos_empresa_placa ON vehiculos(empresa_id, placa)"
+                        ))
+                    if not _index_exists(conn, "idx_vehiculos_cliente"):
+                        conn.execute(text(
+                            "CREATE INDEX idx_vehiculos_cliente ON vehiculos(cliente_id)"
+                        ))
 
-                if not _index_exists(conn, "idx_prod_imp_producto"):
-                    conn.execute(text("CREATE INDEX idx_prod_imp_producto ON producto_impuestos(producto_id)"))
-                if not _index_exists(conn, "idx_prod_imp_empresa"):
-                    conn.execute(text("CREATE INDEX idx_prod_imp_empresa ON producto_impuestos(empresa_id)"))
-                _add_column_if_missing(conn, "detalles_venta", "impuesto_total REAL DEFAULT 0", "impuesto_total")
-                _add_column_if_missing(conn, "detalles_venta", "impuestos_json TEXT", "impuestos_json")
+                # ── 3. suscripciones_parqueadero ─────────────────────────────
+                if not _table_exists(conn, "suscripciones_parqueadero"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE suscripciones_parqueadero (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                empresa_id INTEGER NOT NULL,
+                                vehiculo_id INTEGER NOT NULL,
+                                tipo TEXT NOT NULL,
+                                fecha_inicio DATE NOT NULL,
+                                fecha_vencimiento DATE NOT NULL,
+                                monto_total REAL NOT NULL,
+                                monto_pagado REAL DEFAULT 0,
+                                estado_pago TEXT DEFAULT 'pendiente',
+                                estado TEXT DEFAULT 'vigente',
+                                metodo_pago_inicial TEXT,
+                                observaciones TEXT,
+                                es_retroactiva INTEGER DEFAULT 0,
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE suscripciones_parqueadero (
+                                id SERIAL PRIMARY KEY,
+                                empresa_id INTEGER NOT NULL,
+                                vehiculo_id INTEGER NOT NULL,
+                                tipo VARCHAR(20) NOT NULL,
+                                fecha_inicio DATE NOT NULL,
+                                fecha_vencimiento DATE NOT NULL,
+                                monto_total REAL NOT NULL,
+                                monto_pagado REAL DEFAULT 0,
+                                estado_pago VARCHAR(20) DEFAULT 'pendiente',
+                                estado VARCHAR(20) DEFAULT 'vigente',
+                                metodo_pago_inicial VARCHAR(40),
+                                observaciones TEXT,
+                                es_retroactiva BOOLEAN DEFAULT FALSE,
+                                created_at TIMESTAMPTZ DEFAULT NOW(),
+                                updated_at TIMESTAMPTZ DEFAULT NOW()
+                            )
+                        """))
+                    if not _index_exists(conn, "idx_susc_vehiculo"):
+                        conn.execute(text(
+                            "CREATE INDEX idx_susc_vehiculo ON suscripciones_parqueadero(vehiculo_id)"
+                        ))
+                    if not _index_exists(conn, "idx_susc_vencimiento"):
+                        conn.execute(text(
+                            "CREATE INDEX idx_susc_vencimiento ON suscripciones_parqueadero(empresa_id, fecha_vencimiento)"
+                        ))
 
-                conn.execute(text("""
-                    INSERT INTO tipos_impuesto (empresa_id, nombre, codigo, porcentaje, descripcion)
-                    VALUES (1, 'IVA 19%', 'IVA19', 19.0, 'IVA estándar')
-                    ON CONFLICT DO NOTHING
-                """))
-                _mark_migration_applied(conn, migration_v29)
-                logger.info("V29 aplicada.")
+                # ── 4. pagos_parqueadero ─────────────────────────────────────
+                if not _table_exists(conn, "pagos_parqueadero"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE pagos_parqueadero (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                empresa_id INTEGER NOT NULL,
+                                suscripcion_id INTEGER NOT NULL,
+                                monto REAL NOT NULL,
+                                metodo_pago TEXT NOT NULL,
+                                fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                observaciones TEXT,
+                                usuario_id INTEGER
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE pagos_parqueadero (
+                                id SERIAL PRIMARY KEY,
+                                empresa_id INTEGER NOT NULL,
+                                suscripcion_id INTEGER NOT NULL,
+                                monto REAL NOT NULL,
+                                metodo_pago VARCHAR(40) NOT NULL,
+                                fecha TIMESTAMPTZ DEFAULT NOW(),
+                                observaciones VARCHAR(255),
+                                usuario_id INTEGER
+                            )
+                        """))
+                    if not _index_exists(conn, "idx_pagos_parq_susc"):
+                        conn.execute(text(
+                            "CREATE INDEX idx_pagos_parq_susc ON pagos_parqueadero(suscripcion_id)"
+                        ))
+                    if not _index_exists(conn, "idx_pagos_parq_fecha"):
+                        conn.execute(text(
+                            "CREATE INDEX idx_pagos_parq_fecha ON pagos_parqueadero(empresa_id, fecha)"
+                        ))
 
-            # V30 - MÉTODO DE PAGO EN CUOTAS
-            migration_v30 = "inv_v30_metodo_pago_cuotas"
-            if not _migration_already_applied(conn, migration_v30):
-                _add_column_if_missing(conn, "cuotas_prestamo", "metodo_pago TEXT DEFAULT 'Efectivo'", "metodo_pago")
-                _mark_migration_applied(conn, migration_v30)
-                logger.info("V30 aplicada.")
+                # ── 5. accesos_parqueadero (por horas) ───────────────────────
+                if not _table_exists(conn, "accesos_parqueadero"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE accesos_parqueadero (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                empresa_id INTEGER NOT NULL,
+                                vehiculo_id INTEGER,
+                                placa TEXT NOT NULL,
+                                fecha_entrada TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                fecha_salida TIMESTAMP,
+                                horas_cobradas REAL,
+                                monto_cobrado REAL,
+                                metodo_pago TEXT,
+                                estado TEXT DEFAULT 'dentro',
+                                observaciones TEXT,
+                                usuario_id INTEGER
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE accesos_parqueadero (
+                                id SERIAL PRIMARY KEY,
+                                empresa_id INTEGER NOT NULL,
+                                vehiculo_id INTEGER,
+                                placa VARCHAR(10) NOT NULL,
+                                fecha_entrada TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                                fecha_salida TIMESTAMPTZ,
+                                horas_cobradas REAL,
+                                monto_cobrado REAL,
+                                metodo_pago VARCHAR(40),
+                                estado VARCHAR(20) DEFAULT 'dentro',
+                                observaciones VARCHAR(255),
+                                usuario_id INTEGER
+                            )
+                        """))
+                    if not _index_exists(conn, "idx_accesos_placa"):
+                        conn.execute(text(
+                            "CREATE INDEX idx_accesos_placa ON accesos_parqueadero(empresa_id, placa)"
+                        ))
+                    if not _index_exists(conn, "idx_accesos_estado"):
+                        conn.execute(text(
+                            "CREATE INDEX idx_accesos_estado ON accesos_parqueadero(empresa_id, estado)"
+                        ))
 
-            # Migración: campos nuevos del registro mejorado (Abril 2026)
-            safe_alter_statements = [
-                "ALTER TABLE empresas ADD COLUMN IF NOT EXISTS pais VARCHAR(4)",
-                "ALTER TABLE empresas ADD COLUMN IF NOT EXISTS ciudad VARCHAR(80)",
-                "ALTER TABLE empresas ADD COLUMN IF NOT EXISTS tamano_negocio VARCHAR(20)",
-                "ALTER TABLE empresas ADD COLUMN IF NOT EXISTS origen_marketing VARCHAR(60)",
-                "ALTER TABLE users    ADD COLUMN IF NOT EXISTS nombre_completo VARCHAR(120)",
-                "ALTER TABLE users    ADD COLUMN IF NOT EXISTS email VARCHAR(120)",
-                "ALTER TABLE users    ADD COLUMN IF NOT EXISTS telefono VARCHAR(30)",
-                "CREATE INDEX IF NOT EXISTS ix_users_email ON users(email)",
-            ]
-            for stmt in safe_alter_statements:
-                try:
-                    conn.execute(text(stmt))
-                except Exception as e:
-                    logger.warning(f"Migración omitida (ya existe?): {stmt} | {e}")
+                _mark_migration_applied(conn, migration_v31)
+                logger.info("V31 (Parqueadero) aplicada.")
+
 
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
