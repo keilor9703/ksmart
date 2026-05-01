@@ -7,6 +7,16 @@ import {
 } from '@mui/icons-material';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 
+import {
+  TwoWheeler,           // 🏍️ Motocicleta - para el dashboard
+  Search,               // 🔍 Buscar placa
+  DirectionsCar,        // 🚗 Lista de vehículos
+  EventRepeat,          // 🔁 Suscripciones / renovaciones
+  Settings,             // ⚙️ Configuración
+} from '@mui/icons-material';
+
+
+
 // PUNTO ÚNICO DE VERDAD PARA LOS MÓDULOS DEL SISTEMA
 export const APP_MODULES = [
   { path: '/ventas',             label: 'Ventas (POS)',          icon: <ShoppingCart />,               color: '#FF6020' },
@@ -23,7 +33,43 @@ export const APP_MODULES = [
   { path: '/panel-operador',     label: 'Panel de Operador',     icon: <Dashboard />,                  color: '#14B8A6' },
   { path: '/prestamos',          label: 'Préstamos',             icon: <AttachMoney />,                color: '#10B981' },
   { path: '/ruta-cobro',         label: 'Ruta de Cobro',         icon: <DirectionsRun />,              color: '#3B82F6' },
-  { path: '/reportes',           label: 'Reportes Financieros',  icon: <Assessment />,                 color: '#F43F5E' }
+  { path: '/reportes',           label: 'Reportes Financieros',  icon: <Assessment />,                 color: '#F43F5E' },
+
+  {
+    path: '/parqueadero',
+    label: 'Parqueadero',
+    text: 'Parqueadero',
+    icon: <TwoWheeler />,
+    color: '#3B82F6',
+  },
+  {
+    path: '/parqueadero/buscar',
+    label: 'Buscar placa',
+    text: 'Buscar placa',
+    icon: <Search />,
+    color: '#10B981',
+  },
+  {
+    path: '/parqueadero/vehiculos',
+    label: 'Vehículos',
+    text: 'Vehículos',
+    icon: <DirectionsCar />,
+    color: '#8B5CF6',
+  },
+  {
+    path: '/parqueadero/suscripciones',
+    label: 'Suscripciones',
+    text: 'Suscripciones',
+    icon: <EventRepeat />,
+    color: '#F59E0B',
+  },
+  {
+    path: '/parqueadero/config',
+    label: 'Tarifas y cupo',
+    text: 'Tarifas y cupo',
+    icon: <Settings />,
+    color: '#6B7280',
+  }
 ];
 
 // Módulos exclusivos del SuperAdmin
