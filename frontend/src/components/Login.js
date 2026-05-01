@@ -12,6 +12,8 @@ import {
     Storefront, AttachMoney, Email, Phone, LocationOn, Group,
     ArrowForward, ArrowBack, CheckCircle
 } from '@mui/icons-material';
+import { TwoWheeler } from '@mui/icons-material';
+
 
 // ─── Animaciones ─────────────────────────────────────────────────────────────
 const fadeIn = keyframes`
@@ -485,6 +487,7 @@ const Login = ({ onLogin }) => {
                                             {[
                                                 { key: 'erp',       label: 'Comercio / ERP',  Icon: Storefront,  desc: 'Ventas e Inventario' },
                                                 { key: 'prestamos', label: 'Cobranzas',        Icon: AttachMoney, desc: 'Rutas de Cobro' },
+                                                { key: 'parqueadero',  label: 'Parqueadero',     desc: 'Motos / vehículos',    Icon: TwoWheeler    },  // ← NUEVO
                                             ].map(({ key, label, Icon, desc }) => (
                                                 <Grid item xs={6} key={key}>
                                                     <Card sx={{
