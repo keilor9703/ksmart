@@ -617,3 +617,173 @@ class LoteExistencia(Base):
 #     lote_id     = Column(Integer, ForeignKey("lotes_existencias.id"), nullable=True)
 #     numero_lote = Column(String(100), nullable=True)
 #     lote        = relationship("LoteExistencia", back_populates="movimientos")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MÓDULO PARQUEADERO DE MOTOS — Pega este bloque AL FINAL de tu models.py
+# Versión: V31 (compatible con la arquitectura multi-tenant existente)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+# ─── 1. Configuración global de tarifas y cupo del parqueadero ───────────────
+class ParqueaderoConfig(Base, TenantMixin):
+    """
+    Configuración única por empresa: tarifas estándar y cupo total.
+    Solo debe existir UN registro por empresa_id.
+    """
+    __tablename__ = "parqueadero_config"
+
+    id                    = Column(Integer, primary_key=True, index=True)
+    tarifa_mensual        = Column(Float, default=0.0)
+    tarifa_quincenal      = Column(Float, default=0.0)
+    tarifa_diaria         = Column(Float, default=0.0)
+    tarifa_hora           = Column(Float, default=0.0)
+    cupo_total            = Column(Integer, default=0)
+    nombre_parqueadero    = Column(String(120), nullable=True)
+    direccion             = Column(String(200), nullable=True)
+    horario_apertura      = Column(String(5), default="06:30")  # "HH:MM"
+    horario_cierre        = Column(String(5), default="20:00")  # "HH:MM"
+    created_at            = Column(DateTime(timezone=True), default=utcnow)
+    updated_at            = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+# ─── 2. Vehículos (motocicletas) ─────────────────────────────────────────────
+class Vehiculo(Base, TenantMixin):
+    """
+    Una motocicleta registrada en el parqueadero. La placa es única por empresa.
+    Un Cliente (propietario) puede tener N vehículos.
+    """
+    __tablename__ = "vehiculos"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    placa           = Column(String(10), nullable=False, index=True)
+    cliente_id      = Column(Integer, ForeignKey("clientes.id"), nullable=False)
+    marca           = Column(String(60), nullable=True)   # Yamaha, Honda…
+    modelo          = Column(String(60), nullable=True)   # XTZ 125, CB 110…
+    color           = Column(String(40), nullable=True)
+    foto_url        = Column(String(255), nullable=True)
+    observaciones   = Column(Text, nullable=True)
+    is_active       = Column(Boolean, default=True)        # Para "darlo de baja" sin borrar histórico
+    created_at      = Column(DateTime(timezone=True), default=utcnow)
+
+    # Relaciones
+    cliente         = relationship("Cliente", lazy="joined")
+    suscripciones   = relationship(
+        "SuscripcionParqueadero",
+        back_populates="vehiculo",
+        cascade="all, delete-orphan",
+        order_by="desc(SuscripcionParqueadero.fecha_inicio)"
+    )
+    accesos         = relationship(
+        "AccesoParqueadero",
+        back_populates="vehiculo",
+        cascade="all, delete-orphan"
+    )
+
+
+# ─── 3. Suscripciones (mensual / quincenal / diario) ─────────────────────────
+class TipoSuscripcion(str, enum.Enum):
+    MENSUAL    = "mensual"
+    QUINCENAL  = "quincenal"
+    DIARIA     = "diaria"
+    # Nota: "por_horas" NO es suscripción, se maneja como AccesoParqueadero suelto
+
+
+class EstadoSuscripcion(str, enum.Enum):
+    VIGENTE   = "vigente"     # Aún no vencida
+    VENCIDA   = "vencida"     # Pasó la fecha_vencimiento
+    CANCELADA = "cancelada"   # Anulada manualmente por el dueño
+
+
+class SuscripcionParqueadero(Base, TenantMixin):
+    """
+    Cada vez que un cliente paga (mensual/quincenal/diario) se crea una suscripción.
+    El estado_pago funciona idéntico a tu modelo Venta: pagado / parcial / pendiente.
+    """
+    __tablename__ = "suscripciones_parqueadero"
+
+    id                  = Column(Integer, primary_key=True, index=True)
+    vehiculo_id         = Column(Integer, ForeignKey("vehiculos.id"), nullable=False, index=True)
+    tipo                = Column(Enum(TipoSuscripcion), nullable=False)
+    fecha_inicio        = Column(Date, nullable=False)
+    fecha_vencimiento   = Column(Date, nullable=False, index=True)
+
+    # Montos
+    monto_total         = Column(Float, nullable=False)        # Lo que debe pagar (con override aplicado)
+    monto_pagado        = Column(Float, default=0.0)
+    estado_pago         = Column(String(20), default="pendiente")  # 'pagado' | 'parcial' | 'pendiente'
+
+    # Estado de la suscripción
+    estado              = Column(Enum(EstadoSuscripcion), default=EstadoSuscripcion.VIGENTE)
+
+    # Trazabilidad
+    metodo_pago_inicial = Column(String(40), nullable=True)
+    observaciones       = Column(Text, nullable=True)
+
+    # Si la suscripción fue retroactiva (cubre días vencidos previos)
+    es_retroactiva      = Column(Boolean, default=False)
+
+    created_at          = Column(DateTime(timezone=True), default=utcnow)
+    updated_at          = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    # Relaciones
+    vehiculo            = relationship("Vehiculo", back_populates="suscripciones")
+    pagos               = relationship(
+        "PagoParqueadero",
+        back_populates="suscripcion",
+        cascade="all, delete-orphan"
+    )
+
+
+# ─── 4. Pagos (abonos) sobre suscripciones ───────────────────────────────────
+class PagoParqueadero(Base, TenantMixin):
+    """
+    Pago / abono asociado a una suscripción. Permite pagos parciales.
+    Se separa del modelo Pago general porque no apunta a 'ventas' sino a 'suscripciones'.
+    """
+    __tablename__ = "pagos_parqueadero"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    suscripcion_id  = Column(Integer, ForeignKey("suscripciones_parqueadero.id"), nullable=False, index=True)
+    monto           = Column(Float, nullable=False)
+    metodo_pago     = Column(String(40), nullable=False)   # Efectivo, Transferencia, Nequi, Tarjeta
+    fecha           = Column(DateTime(timezone=True), default=utcnow)
+    observaciones   = Column(String(255), nullable=True)
+    usuario_id      = Column(Integer, ForeignKey("users.id"), nullable=True)  # Quién registró el pago
+
+    suscripcion     = relationship("SuscripcionParqueadero", back_populates="pagos")
+    usuario         = relationship("User", lazy="joined")
+
+
+# ─── 5. Accesos por horas (solo para clientes ocasionales del 5%) ────────────
+class EstadoAcceso(str, enum.Enum):
+    DENTRO    = "dentro"
+    SALIO     = "salio"
+
+
+class AccesoParqueadero(Base, TenantMixin):
+    """
+    Solo se usa para clientes que pagan POR HORAS (no mensualidad/quincena).
+    Registra hora de entrada y al salir se calcula el cobro.
+    Para mensualidades NO se usa esta tabla — el dueño no quiere marcar entrada/salida.
+    """
+    __tablename__ = "accesos_parqueadero"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    vehiculo_id     = Column(Integer, ForeignKey("vehiculos.id"), nullable=True, index=True)
+    placa           = Column(String(10), nullable=False, index=True)  # Por si es vehículo no registrado
+
+    fecha_entrada   = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    fecha_salida    = Column(DateTime(timezone=True), nullable=True)
+
+    horas_cobradas  = Column(Float, nullable=True)
+    monto_cobrado   = Column(Float, nullable=True)
+    metodo_pago     = Column(String(40), nullable=True)
+    estado          = Column(Enum(EstadoAcceso), default=EstadoAcceso.DENTRO)
+
+    observaciones   = Column(String(255), nullable=True)
+    usuario_id      = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    vehiculo        = relationship("Vehiculo", back_populates="accesos")
+    usuario         = relationship("User", lazy="joined")
+
+
