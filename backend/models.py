@@ -4,6 +4,7 @@ from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from datetime import datetime, timezone
 import enum
 from sqlalchemy import JSON 
+from sqlalchemy import UniqueConstraint
 
 Base = declarative_base()
 
@@ -787,3 +788,92 @@ class AccesoParqueadero(Base, TenantMixin):
     usuario         = relationship("User", lazy="joined")
 
 
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MÓDULO PARQUEADERO — WHATSAPP + MÉTODOS DE PAGO
+# Pega este bloque AL FINAL de tu models.py (después de los modelos del paso anterior)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+# ─── 1. Modalidades de pago ───────────────────────────────────────────────────
+class ModalidadPago(str, enum.Enum):
+    MENSUAL    = "mensual"
+    QUINCENAL  = "quincenal"
+    DIARIA     = "diaria"
+    LIBRE      = "libre"     # pagos sin valor predefinido
+
+
+# ─── 2. Métodos de pago configurados por modalidad ────────────────────────────
+class MetodoPagoParqueadero(Base, TenantMixin):
+    """
+    Cada modalidad puede tener UN método de pago activo (link, QR o ambos).
+    El QR se guarda como base64 directamente en la BD (a prueba de reinicios).
+    """
+    __tablename__ = "metodos_pago_parqueadero"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    modalidad       = Column(Enum(ModalidadPago), nullable=False)
+    nombre_metodo   = Column(String(60), nullable=True)    # "Nequi", "Bold", "Daviplata"
+    link_pago       = Column(String(500), nullable=True)   # URL completa del link
+    qr_base64       = Column(Text, nullable=True)          # Imagen QR codificada en base64
+    qr_mime_type    = Column(String(40), nullable=True)    # ej: "image/png", "image/jpeg"
+    instrucciones   = Column(Text, nullable=True)          # "Escanea con tu app de banco"
+    is_active       = Column(Boolean, default=True)
+    created_at      = Column(DateTime(timezone=True), default=utcnow)
+    updated_at      = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    # Solo un método activo por modalidad por empresa
+    __table_args__ = (
+        UniqueConstraint('empresa_id', 'modalidad', name='uq_metodo_empresa_modalidad'),
+    )
+
+
+# ─── 3. Tipos de plantilla de WhatsApp ───────────────────────────────────────
+class TipoPlantillaWhatsApp(str, enum.Enum):
+    PAGO              = "pago"               # Recibo + cobros (mismo mensaje base)
+    RECORDATORIO      = "recordatorio"       # Días antes del vencimiento
+    MANUAL            = "manual"             # Genérico, configurable
+
+
+# ─── 4. Plantillas editables ──────────────────────────────────────────────────
+class PlantillaWhatsApp(Base, TenantMixin):
+    """
+    Plantillas editables por el dueño. Variables soportadas:
+      {nombre}, {placa}, {parqueadero}, {tipo_plan}, {fecha_vence},
+      {dias_vencido}, {dias_restantes}, {monto}, {saldo}, {link_pago}, {direccion}
+    """
+    __tablename__ = "plantillas_whatsapp"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    tipo            = Column(Enum(TipoPlantillaWhatsApp), nullable=False)
+    mensaje         = Column(Text, nullable=False)
+    is_active       = Column(Boolean, default=True)
+    created_at      = Column(DateTime(timezone=True), default=utcnow)
+    updated_at      = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    __table_args__ = (
+        UniqueConstraint('empresa_id', 'tipo', name='uq_plantilla_empresa_tipo'),
+    )
+
+
+# ─── 5. Historial de envíos ───────────────────────────────────────────────────
+class EnvioWhatsApp(Base, TenantMixin):
+    """
+    Registro de cada vez que se generó un link wa.me/. No garantiza que el
+    cliente haya recibido el mensaje (depende de que el dueño dé clic en
+    'enviar'), pero sirve para saber qué se envió y cuándo.
+    """
+    __tablename__ = "envios_whatsapp_parqueadero"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    vehiculo_id     = Column(Integer, ForeignKey("vehiculos.id"), nullable=True)
+    suscripcion_id  = Column(Integer, ForeignKey("suscripciones_parqueadero.id"), nullable=True)
+    telefono        = Column(String(20), nullable=False)
+    tipo            = Column(Enum(TipoPlantillaWhatsApp), nullable=False)
+    mensaje_enviado = Column(Text, nullable=True)        # snapshot del mensaje
+    usuario_id      = Column(Integer, ForeignKey("users.id"), nullable=True)
+    fecha           = Column(DateTime(timezone=True), default=utcnow, index=True)
+
+    vehiculo        = relationship("Vehiculo", lazy="joined")
+    usuario         = relationship("User", lazy="joined")

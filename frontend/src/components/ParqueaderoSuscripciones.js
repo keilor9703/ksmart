@@ -1,25 +1,29 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// ParqueaderoSuscripciones.jsx
-// Histórico de todas las suscripciones del parqueadero, con filtros por
-// estado y opción de registrar abonos sobre suscripciones con saldo.
+// ParqueaderoSuscripciones.jsx — VERSIÓN 2 (con botones WhatsApp)
+// REEMPLAZA tu archivo /components/ParqueaderoSuscripciones.jsx por este.
+//
+// Cambios respecto a v1:
+//   ✨ Botón WhatsApp en filas con saldo pendiente
+//   ✨ Botón WhatsApp en cards mobile
 // ═══════════════════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Box, Paper, Typography, Stack, Chip, Avatar, IconButton, Tooltip,
+  Box, Paper, Typography, Stack, Chip, IconButton, Tooltip,
   Skeleton, Alert, Button, ToggleButton, ToggleButtonGroup,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem,
   InputAdornment, Divider, useMediaQuery, useTheme, CircularProgress
 } from '@mui/material';
 import {
-  EventRepeat, Refresh, Payment, Visibility, TwoWheeler,
+  EventRepeat, Refresh, Payment, Visibility,
   AttachMoney, Cancel, Close, Save
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../api';
 import { toast } from 'react-toastify';
 import { formatCurrency } from '../utils/formatters';
+import BotonWhatsApp from './BotonWhatsApp';   // ✨ NUEVO
 
 const ACCENT = '#FF6020';
 const METODOS_PAGO = ['Efectivo', 'Transferencia', 'Nequi', 'Daviplata', 'Tarjeta', 'Otro'];
@@ -28,14 +32,13 @@ export default function ParqueaderoSuscripciones() {
   const [items, setItems]       = useState([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(null);
-  const [filtro, setFiltro]     = useState('todas');     // todas | vigentes | vencidas | con_saldo
+  const [filtro, setFiltro]     = useState('todas');
   const [dlgAbono, setDlgAbono] = useState(null);
   const [confirmCancel, setConfirmCancel] = useState(null);
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
-  // ── Cargar ──────────────────────────────────────────────────────────────
   const cargar = useCallback(async () => {
     setLoading(true);
     try {
@@ -44,7 +47,6 @@ export default function ParqueaderoSuscripciones() {
       if (filtro === 'vencidas') params.append('solo_vencidas', 'true');
       params.append('limit', '300');
       const { data } = await apiClient.get(`/parqueadero/suscripciones?${params}`);
-      // Filtro client-side para "con saldo"
       const filtrado = filtro === 'con_saldo'
         ? data.filter(s => s.saldo_pendiente > 0)
         : data;
@@ -59,12 +61,10 @@ export default function ParqueaderoSuscripciones() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  // ── KPIs rápidos ────────────────────────────────────────────────────────
   const totalFacturado = items.reduce((sum, s) => sum + (s.monto_total || 0), 0);
   const totalPagado    = items.reduce((sum, s) => sum + (s.monto_pagado || 0), 0);
   const totalSaldo     = items.reduce((sum, s) => sum + (s.saldo_pendiente || 0), 0);
 
-  // ── Cancelar ────────────────────────────────────────────────────────────
   const handleCancelar = async () => {
     if (!confirmCancel) return;
     try {
@@ -85,7 +85,6 @@ export default function ParqueaderoSuscripciones() {
   return (
     <Box sx={{ p: { xs: 1, md: 2 }, maxWidth: 1400, mx: 'auto' }}>
 
-      {/* ─── Encabezado ─────────────────────────────────────────── */}
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
         <Stack direction="row" alignItems="center" spacing={1.5}>
           <Box sx={{
@@ -111,15 +110,13 @@ export default function ParqueaderoSuscripciones() {
         </Tooltip>
       </Stack>
 
-      {/* ─── KPIs ───────────────────────────────────────────────── */}
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 2 }}>
-        <KpiSmall label="Facturado" value={formatCurrency(totalFacturado)} color="#1E293B" />
+        <KpiSmall label="Facturado" value={formatCurrency(totalFacturado)} color="text.primary" />
         <KpiSmall label="Pagado" value={formatCurrency(totalPagado)} color="#10B981" />
         <KpiSmall label="Saldo pendiente" value={formatCurrency(totalSaldo)}
           color={totalSaldo > 0 ? '#EF4444' : '#10B981'} />
       </Stack>
 
-      {/* ─── Filtros ────────────────────────────────────────────── */}
       <Paper sx={{ p: 1, mb: 2, borderRadius: 3 }}>
         <ToggleButtonGroup
           exclusive value={filtro}
@@ -140,7 +137,6 @@ export default function ParqueaderoSuscripciones() {
         </ToggleButtonGroup>
       </Paper>
 
-      {/* ─── Estados ────────────────────────────────────────────── */}
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
       {loading ? (
@@ -174,7 +170,7 @@ export default function ParqueaderoSuscripciones() {
         <TableContainer component={Paper} sx={{ borderRadius: 3 }}>
           <Table size="small">
             <TableHead>
-              <TableRow sx={{ bgcolor: 'background.default' }}>
+              <TableRow>
                 <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Placa</TableCell>
                 <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Propietario</TableCell>
                 <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Tipo</TableCell>
@@ -200,7 +196,6 @@ export default function ParqueaderoSuscripciones() {
         </TableContainer>
       )}
 
-      {/* ─── Diálogo de abono ───────────────────────────────────── */}
       {dlgAbono && (
         <AbonoDialog
           open={!!dlgAbono} susc={dlgAbono}
@@ -209,7 +204,6 @@ export default function ParqueaderoSuscripciones() {
         />
       )}
 
-      {/* ─── Confirmar cancelación ──────────────────────────────── */}
       <Dialog open={!!confirmCancel} onClose={() => setConfirmCancel(null)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontWeight: 800 }}>¿Cancelar esta suscripción?</DialogTitle>
         <DialogContent>
@@ -252,6 +246,7 @@ function KpiSmall({ label, value, color }) {
 function SuscripcionRow({ susc, onVer, onAbonar, onCancelar }) {
   const colorEstado = colorPorEstadoPago(susc.estado_pago);
   const colorTipo = colorPorEstado(susc);
+  const tieneSaldo = susc.saldo_pendiente > 0 && susc.estado !== 'cancelada';
 
   return (
     <TableRow hover sx={{ opacity: susc.estado === 'cancelada' ? 0.5 : 1 }}>
@@ -267,7 +262,8 @@ function SuscripcionRow({ susc, onVer, onAbonar, onCancelar }) {
         <Chip size="small" label={susc.tipo?.toUpperCase()}
           sx={{ height: 18, fontSize: 9, fontWeight: 700, bgcolor: 'action.hover' }} />
         {susc.es_retroactiva && (
-          <Chip size="small" label="RETRO" sx={{ height: 18, fontSize: 9, fontWeight: 700, ml: 0.5, bgcolor: '#FEE2E2', color: '#991B1B' }} />
+          <Chip size="small" label="RETRO"
+            sx={{ height: 18, fontSize: 9, fontWeight: 700, ml: 0.5, bgcolor: '#FEE2E2', color: '#991B1B' }} />
         )}
       </TableCell>
       <TableCell>
@@ -286,9 +282,9 @@ function SuscripcionRow({ susc, onVer, onAbonar, onCancelar }) {
       </TableCell>
       <TableCell align="right" sx={{
         fontWeight: 800, fontSize: 13,
-        color: susc.saldo_pendiente > 0 ? '#EF4444' : 'text.disabled',
+        color: tieneSaldo ? '#EF4444' : 'text.disabled',
       }}>
-        {susc.saldo_pendiente > 0 ? formatCurrency(susc.saldo_pendiente) : '—'}
+        {tieneSaldo ? formatCurrency(susc.saldo_pendiente) : '—'}
       </TableCell>
       <TableCell>
         <Chip size="small"
@@ -301,25 +297,37 @@ function SuscripcionRow({ susc, onVer, onAbonar, onCancelar }) {
         />
       </TableCell>
       <TableCell align="right">
-        <Tooltip title="Ver placa">
-          <IconButton size="small" onClick={onVer} sx={{ color: ACCENT }}>
-            <Visibility fontSize="small" />
-          </IconButton>
-        </Tooltip>
-        {susc.saldo_pendiente > 0 && susc.estado !== 'cancelada' && (
-          <Tooltip title="Registrar abono">
-            <IconButton size="small" onClick={onAbonar} sx={{ color: '#10B981' }}>
-              <Payment fontSize="small" />
+        <Stack direction="row" spacing={0} justifyContent="flex-end">
+          <Tooltip title="Ver placa">
+            <IconButton size="small" onClick={onVer} sx={{ color: ACCENT }}>
+              <Visibility fontSize="small" />
             </IconButton>
           </Tooltip>
-        )}
-        {susc.estado !== 'cancelada' && (
-          <Tooltip title="Cancelar suscripción">
-            <IconButton size="small" onClick={onCancelar} sx={{ color: 'error.main' }}>
-              <Cancel fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        )}
+          {tieneSaldo && (
+            <>
+              <Tooltip title="Registrar abono">
+                <IconButton size="small" onClick={onAbonar} sx={{ color: '#10B981' }}>
+                  <Payment fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              {/* ✨ NUEVO: WhatsApp inline para cobros */}
+              <BotonWhatsApp
+                vehiculoId={susc.vehiculo_id}
+                suscripcionId={susc.id}
+                tipo="pago"
+                variante="icon"
+                tamano="small"
+              />
+            </>
+          )}
+          {susc.estado !== 'cancelada' && (
+            <Tooltip title="Cancelar suscripción">
+              <IconButton size="small" onClick={onCancelar} sx={{ color: 'error.main' }}>
+                <Cancel fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+        </Stack>
       </TableCell>
     </TableRow>
   );
@@ -327,6 +335,8 @@ function SuscripcionRow({ susc, onVer, onAbonar, onCancelar }) {
 
 function SuscripcionCard({ susc, onVer, onAbonar, onCancelar }) {
   const colorEstado = colorPorEstadoPago(susc.estado_pago);
+  const tieneSaldo = susc.saldo_pendiente > 0 && susc.estado !== 'cancelada';
+
   return (
     <Paper sx={{
       p: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'divider',
@@ -371,13 +381,13 @@ function SuscripcionCard({ susc, onVer, onAbonar, onCancelar }) {
         </Box>
         <Box sx={{ textAlign: 'right' }}>
           <Typography sx={{ fontSize: 10, color: 'text.secondary', textTransform: 'uppercase' }}>
-            {susc.saldo_pendiente > 0 ? 'Saldo' : 'Total'}
+            {tieneSaldo ? 'Saldo' : 'Total'}
           </Typography>
           <Typography sx={{
             fontSize: 14, fontWeight: 800,
-            color: susc.saldo_pendiente > 0 ? '#EF4444' : '#10B981',
+            color: tieneSaldo ? '#EF4444' : '#10B981',
           }}>
-            {formatCurrency(susc.saldo_pendiente > 0 ? susc.saldo_pendiente : susc.monto_total)}
+            {formatCurrency(tieneSaldo ? susc.saldo_pendiente : susc.monto_total)}
           </Typography>
         </Box>
       </Stack>
@@ -386,11 +396,21 @@ function SuscripcionCard({ susc, onVer, onAbonar, onCancelar }) {
         <Button size="small" startIcon={<Visibility />} onClick={onVer} sx={{ flex: 1, fontSize: 11 }}>
           Ver
         </Button>
-        {susc.saldo_pendiente > 0 && susc.estado !== 'cancelada' && (
-          <Button size="small" startIcon={<Payment />} onClick={onAbonar}
-            variant="contained" sx={{ flex: 1, fontSize: 11, bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' } }}>
-            Abonar
-          </Button>
+        {tieneSaldo && (
+          <>
+            <Button size="small" startIcon={<Payment />} onClick={onAbonar}
+              variant="contained" sx={{ flex: 1, fontSize: 11, bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' } }}>
+              Abonar
+            </Button>
+            {/* ✨ NUEVO: WhatsApp en mobile */}
+            <BotonWhatsApp
+              vehiculoId={susc.vehiculo_id}
+              suscripcionId={susc.id}
+              tipo="pago"
+              variante="icon"
+              tamano="small"
+            />
+          </>
         )}
       </Stack>
     </Paper>
@@ -398,15 +418,11 @@ function SuscripcionCard({ susc, onVer, onAbonar, onCancelar }) {
 }
 
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Diálogo de abono
-// ═══════════════════════════════════════════════════════════════════════════
-
 function AbonoDialog({ open, onClose, susc, onSuccess }) {
-  const [monto, setMonto]         = useState(String(susc.saldo_pendiente || 0));
-  const [metodo, setMetodo]       = useState('Efectivo');
-  const [obs, setObs]             = useState('');
-  const [loading, setLoading]     = useState(false);
+  const [monto, setMonto]     = useState(String(susc.saldo_pendiente || 0));
+  const [metodo, setMetodo]   = useState('Efectivo');
+  const [obs, setObs]         = useState('');
+  const [loading, setLoading] = useState(false);
 
   const montoNum = Number(monto || 0);
   const excede   = montoNum > susc.saldo_pendiente + 0.01;
@@ -453,7 +469,10 @@ function AbonoDialog({ open, onClose, susc, onSuccess }) {
       </DialogTitle>
 
       <DialogContent dividers>
-        <Box sx={{ p: 2, bgcolor: '#FEF2F2', borderRadius: 2, mb: 2, textAlign: 'center' }}>
+        <Box sx={{
+          p: 2, bgcolor: 'rgba(239, 68, 68, 0.08)',
+          borderRadius: 2, mb: 2, textAlign: 'center',
+        }}>
           <Typography sx={{ fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', fontWeight: 700 }}>
             Saldo pendiente
           </Typography>
@@ -504,10 +523,6 @@ function AbonoDialog({ open, onClose, susc, onSuccess }) {
   );
 }
 
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Helpers
-// ═══════════════════════════════════════════════════════════════════════════
 
 function fechaCorta(fechaIso) {
   if (!fechaIso) return '—';

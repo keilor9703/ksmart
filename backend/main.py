@@ -303,9 +303,8 @@ def registrar_nuevo_cliente(data: schemas.RegistroSaaS, db: Session = Depends(ge
         "/parqueadero/vehiculos",        # Listado de vehículos registrados
         "/parqueadero/suscripciones",    # Histórico de pagos/renovaciones
         "/parqueadero/config",           # Tarifas y cupo total
-        "/clientes",                      # Propietarios (reutiliza tu módulo Clientes)
-        "/caja",                          # Corte de caja diario
-        "/reportes",                      # Reportes de ingresos
+        "/clientes"                     # Propietarios (reutiliza tu módulo Clientes)
+       
     ],
 }
 
@@ -3773,4 +3772,148 @@ def cron_notificar_vencimientos_parqueadero(db: Session = Depends(get_db)):
 # REGISTRAR EL ROUTER (al final, junto con tus otros app.include_router)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# ENDPOINTS — WHATSAPP + MÉTODOS DE PAGO
+# Pega este bloque en main.py, junto con el resto de endpoints del parqueadero
+# Reutiliza el `parqueadero_router` que ya creaste, NO crees uno nuevo.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 1. MÉTODOS DE PAGO
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@parqueadero_router.get("/metodos-pago", response_model=List[schemas.MetodoPagoOut])
+def listar_metodos_pago(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Lista todos los métodos de pago configurados (mensual, quincenal, diaria, libre)."""
+    return crud.listar_metodos_pago(db, empresa_id=current_user.empresa_id)
+
+
+@parqueadero_router.put("/metodos-pago", response_model=schemas.MetodoPagoOut)
+def upsert_metodo_pago(
+    payload: schemas.MetodoPagoCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_admin_user),
+):
+    """
+    Crea o actualiza el método de pago de una modalidad. Solo Admin.
+    Si ya existe un método para esa modalidad, lo actualiza.
+    """
+    return crud.upsert_metodo_pago(db, empresa_id=current_user.empresa_id, payload=payload)
+
+
+@parqueadero_router.delete("/metodos-pago/{modalidad}")
+def delete_metodo_pago(
+    modalidad: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_admin_user),
+):
+    """Elimina el método de pago de una modalidad. Solo Admin."""
+    if not crud.delete_metodo_pago(db, empresa_id=current_user.empresa_id, modalidad=modalidad):
+        raise HTTPException(status_code=404, detail="Método no encontrado.")
+    return {"message": "Método de pago eliminado."}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 2. PLANTILLAS DE WHATSAPP
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@parqueadero_router.get("/plantillas-whatsapp", response_model=List[schemas.PlantillaWhatsAppOut])
+def listar_plantillas(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """
+    Lista las 3 plantillas (pago, recordatorio, manual).
+    Si alguna no existe, la crea automáticamente con el texto por defecto.
+    """
+    return crud.listar_plantillas(db, empresa_id=current_user.empresa_id)
+
+
+@parqueadero_router.put("/plantillas-whatsapp/{tipo}", response_model=schemas.PlantillaWhatsAppOut)
+def actualizar_plantilla(
+    tipo: str,
+    payload: schemas.PlantillaWhatsAppUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_admin_user),
+):
+    """Actualiza el texto de una plantilla. Solo Admin."""
+    return crud.update_plantilla(
+        db, empresa_id=current_user.empresa_id, tipo=tipo, payload=payload,
+    )
+
+
+@parqueadero_router.post("/plantillas-whatsapp/{tipo}/restaurar", response_model=schemas.PlantillaWhatsAppOut)
+def restaurar_plantilla(
+    tipo: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_admin_user),
+):
+    """Restaura la plantilla al texto por defecto. Solo Admin."""
+    return crud.restaurar_plantilla_default(
+        db, empresa_id=current_user.empresa_id, tipo=tipo,
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 3. ⭐ GENERAR LINK WHATSAPP — el endpoint clave del módulo
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@parqueadero_router.post("/whatsapp/generar", response_model=schemas.GenerarWhatsAppResponse)
+def generar_whatsapp(
+    payload: schemas.GenerarWhatsAppRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """
+    Genera la URL `wa.me/...` lista para abrir en una pestaña nueva.
+    El frontend hace `window.open(response.wa_url, '_blank')` y listo:
+    se abre WhatsApp con el mensaje pre-llenado.
+
+    Payload típico:
+    {
+      "vehiculo_id": 12,
+      "suscripcion_id": 45,
+      "tipo": "pago"   // o "recordatorio" o "manual"
+    }
+
+    Si el vehículo tiene cliente con teléfono → se autocompleta.
+    Si no, se debe pasar `telefono` en el payload.
+    """
+    return crud.generar_link_whatsapp(
+        db,
+        empresa_id  = current_user.empresa_id,
+        usuario_id  = current_user.id,
+        payload     = payload,
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 4. HISTORIAL DE ENVÍOS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@parqueadero_router.get("/whatsapp/historial", response_model=List[schemas.EnvioWhatsAppOut])
+def historial_envios(
+    skip: int = 0,
+    limit: int = Query(default=100, le=500),
+    vehiculo_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Histórico de mensajes generados (con preview de qué se envió a quién)."""
+    return crud.listar_envios_whatsapp(
+        db, empresa_id=current_user.empresa_id,
+        skip=skip, limit=limit, vehiculo_id=vehiculo_id,
+    )
+
+
+
+
+
 app.include_router(parqueadero_router)
+
+
+

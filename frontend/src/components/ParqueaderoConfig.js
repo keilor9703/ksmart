@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// ParqueaderoConfig.jsx
-// Configuración del parqueadero: tarifas y cupo total. Solo Admin puede editar.
+// ParqueaderoConfig.jsx — VERSIÓN 2 (integra WhatsApp + métodos de pago)
+// REEMPLAZA tu archivo /components/ParqueaderoConfig.jsx por este.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect } from 'react';
 import {
   Box, Paper, Typography, Grid, TextField, Button, InputAdornment,
-  Alert, CircularProgress, Stack, Chip, Divider
+  Alert, CircularProgress, Stack, Chip
 } from '@mui/material';
 import {
   Settings, Save, AttachMoney, LocalParking, Schedule, CheckCircle
@@ -14,6 +14,9 @@ import {
 import apiClient from '../api';
 import { toast } from 'react-toastify';
 import { formatCurrency } from '../utils/formatters';
+
+// ✨ Nueva sección integrada
+import ParqueaderoMetodosPago from './ParqueaderoMetodosPago';
 
 const ACCENT = '#FF6020';
 
@@ -63,11 +66,10 @@ export default function ParqueaderoConfig() {
       setConfig(data);
       toast.success('Configuración guardada.');
     } catch (err) {
-      const msg = err.response?.data?.detail;
       if (err.response?.status === 403) {
         toast.error('Solo el administrador puede modificar la configuración.');
       } else {
-        toast.error(msg || 'Error al guardar.');
+        toast.error(err.response?.data?.detail || 'Error al guardar.');
       }
     } finally {
       setSaving(false);
@@ -86,12 +88,10 @@ export default function ParqueaderoConfig() {
     return <Alert severity="error" sx={{ m: 2 }}>{error}</Alert>;
   }
 
-  const configCompleta =
-    config?.tarifa_mensual > 0 &&
-    config?.cupo_total > 0;
+  const configCompleta = config?.tarifa_mensual > 0 && config?.cupo_total > 0;
 
   return (
-    <Box sx={{ p: { xs: 1, md: 2 }, maxWidth: 900, mx: 'auto' }}>
+    <Box sx={{ p: { xs: 1, md: 2 }, maxWidth: 1100, mx: 'auto' }}>
 
       {/* ─── Encabezado ─────────────────────────────────────────── */}
       <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
@@ -107,26 +107,21 @@ export default function ParqueaderoConfig() {
             Configuración del parqueadero
           </Typography>
           <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-            Tarifas, cupo y datos del establecimiento
+            Tarifas, cupo, métodos de pago y mensajes de WhatsApp
           </Typography>
         </Box>
       </Stack>
 
-      {/* ─── Aviso si está incompleta ───────────────────────────── */}
+      {/* ─── Estado configuración base ──────────────────────────── */}
       {!configCompleta && (
         <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
-          <Typography sx={{ fontSize: 13 }}>
-            <strong>Configuración incompleta.</strong> Establece al menos la tarifa mensual y el cupo total para empezar a usar el módulo.
-          </Typography>
+          <strong>Configuración incompleta.</strong> Establece al menos la tarifa mensual y el cupo total para empezar.
         </Alert>
       )}
 
       {configCompleta && (
-        <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }}
-          icon={<CheckCircle />}>
-          <Typography sx={{ fontSize: 13 }}>
-            Configuración lista. Ya puedes registrar motos y suscripciones.
-          </Typography>
+        <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }} icon={<CheckCircle />}>
+          Configuración base lista.
         </Alert>
       )}
 
@@ -136,8 +131,7 @@ export default function ParqueaderoConfig() {
         <Grid container spacing={2}>
           <Grid item xs={12} md={6}>
             <TextField
-              fullWidth size="small"
-              label="Nombre del parqueadero"
+              fullWidth size="small" label="Nombre del parqueadero"
               placeholder="Ej: Parqueadero Don Carlos"
               value={config?.nombre_parqueadero || ''}
               onChange={handleText('nombre_parqueadero')}
@@ -145,8 +139,7 @@ export default function ParqueaderoConfig() {
           </Grid>
           <Grid item xs={12} md={6}>
             <TextField
-              fullWidth size="small"
-              label="Dirección"
+              fullWidth size="small" label="Dirección"
               placeholder="Ej: Calle 10 #15-20"
               value={config?.direccion || ''}
               onChange={handleText('direccion')}
@@ -154,8 +147,7 @@ export default function ParqueaderoConfig() {
           </Grid>
           <Grid item xs={6} md={3}>
             <TextField
-              fullWidth size="small"
-              label="Cupo total *"
+              fullWidth size="small" label="Cupo total *"
               type="number" inputProps={{ min: 0 }}
               value={config?.cupo_total || ''}
               onChange={handleNumber('cupo_total')}
@@ -219,37 +211,27 @@ export default function ParqueaderoConfig() {
         </Grid>
       </Paper>
 
-      {/* ─── Vista previa ───────────────────────────────────────── */}
-      <Paper sx={{ p: 3, mb: 2, borderRadius: 3, bgcolor: '#F8FAFC' }}>
+      {/* ─── Vista previa de tarifas ────────────────────────────── */}
+      <Paper sx={{ p: 3, mb: 2, borderRadius: 3, bgcolor: 'background.default' }}>
         <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', mb: 1 }}>
           Vista previa
         </Typography>
         <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
-          <Chip
-            label={`Mensual ${formatCurrency(config?.tarifa_mensual || 0)}`}
-            sx={{ bgcolor: '#10B98115', color: '#065F46', fontWeight: 700 }}
-          />
-          <Chip
-            label={`Quincenal ${formatCurrency(config?.tarifa_quincenal || 0)}`}
-            sx={{ bgcolor: '#3B82F615', color: '#1E3A8A', fontWeight: 700 }}
-          />
-          <Chip
-            label={`Diaria ${formatCurrency(config?.tarifa_diaria || 0)}`}
-            sx={{ bgcolor: '#F59E0B15', color: '#78350F', fontWeight: 700 }}
-          />
-          <Chip
-            label={`Hora ${formatCurrency(config?.tarifa_hora || 0)}`}
-            sx={{ bgcolor: '#8B5CF615', color: '#5B21B6', fontWeight: 700 }}
-          />
-          <Chip
-            label={`Cupo ${config?.cupo_total || 0} motos`}
-            sx={{ bgcolor: ACCENT + '15', color: ACCENT, fontWeight: 700 }}
-          />
+          <Chip label={`Mensual ${formatCurrency(config?.tarifa_mensual || 0)}`}
+            sx={{ bgcolor: '#10B98115', color: '#065F46', fontWeight: 700 }} />
+          <Chip label={`Quincenal ${formatCurrency(config?.tarifa_quincenal || 0)}`}
+            sx={{ bgcolor: '#3B82F615', color: '#1E3A8A', fontWeight: 700 }} />
+          <Chip label={`Diaria ${formatCurrency(config?.tarifa_diaria || 0)}`}
+            sx={{ bgcolor: '#F59E0B15', color: '#78350F', fontWeight: 700 }} />
+          <Chip label={`Hora ${formatCurrency(config?.tarifa_hora || 0)}`}
+            sx={{ bgcolor: '#8B5CF615', color: '#5B21B6', fontWeight: 700 }} />
+          <Chip label={`Cupo ${config?.cupo_total || 0} motos`}
+            sx={{ bgcolor: ACCENT + '15', color: ACCENT, fontWeight: 700 }} />
         </Stack>
       </Paper>
 
       {/* ─── Guardar ────────────────────────────────────────────── */}
-      <Stack direction="row" justifyContent="flex-end">
+      <Stack direction="row" justifyContent="flex-end" sx={{ mb: 4 }}>
         <Button
           variant="contained" size="large" onClick={handleGuardar}
           disabled={saving}
@@ -260,17 +242,19 @@ export default function ParqueaderoConfig() {
             boxShadow: `0 6px 18px ${ACCENT}40`,
           }}
         >
-          Guardar configuración
+          Guardar tarifas
         </Button>
       </Stack>
+
+      {/* ═════════════════════════════════════════════════════════════ */}
+      {/* ✨ NUEVA SECCIÓN: Métodos de pago + Plantillas WhatsApp        */}
+      {/* ═════════════════════════════════════════════════════════════ */}
+      <ParqueaderoMetodosPago />
+
     </Box>
   );
 }
 
-
-// ═══════════════════════════════════════════════════════════════════════════
-// SUB-COMPONENTES
-// ═══════════════════════════════════════════════════════════════════════════
 
 function SectionHeader({ icon, title }) {
   return (

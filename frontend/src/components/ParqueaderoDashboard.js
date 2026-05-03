@@ -1,7 +1,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// ParqueaderoDashboard.jsx
-// Panel del día: cupo, vencimientos, ingresos y motos dentro.
-// Se actualiza cada 60 segundos automáticamente.
+// ParqueaderoDashboard.jsx — VERSIÓN 2 (con botones WhatsApp en cada item)
+// REEMPLAZA tu archivo /components/ParqueaderoDashboard.jsx por este.
+//
+// Cambios respecto a v1:
+//   ✨ Botón WhatsApp pequeño en cada item de "Por vencer" y "Vencidas"
+//   ✨ Cliente puede ser cobrado en 2 clicks desde el dashboard
 // ═══════════════════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -17,6 +20,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../api';
 import { formatCurrency } from '../utils/formatters';
+import BotonWhatsApp from './BotonWhatsApp';   // ✨ NUEVO
 
 const ACCENT = '#FF6020';
 
@@ -41,7 +45,7 @@ export default function ParqueaderoDashboard() {
 
   useEffect(() => {
     cargar();
-    const id = setInterval(() => cargar(true), 60000);   // refresh cada minuto
+    const id = setInterval(() => cargar(true), 60000);
     return () => clearInterval(id);
   }, [cargar]);
 
@@ -98,7 +102,7 @@ export default function ParqueaderoDashboard() {
         </Stack>
       </Stack>
 
-      {/* ─── Cupo (banner principal) ────────────────────────────── */}
+      {/* ─── Cupo banner ────────────────────────────────────────── */}
       <Paper sx={{
         p: 3, mb: 3, borderRadius: 3,
         background: `linear-gradient(135deg, ${colorCupo}15 0%, ${colorCupo}25 100%)`,
@@ -143,13 +147,13 @@ export default function ParqueaderoDashboard() {
             <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
               <Chip size="small" icon={<TwoWheeler />}
                 label={`${data?.mensualidades_activas || 0} mensuales activas`}
-                sx={{ bgcolor: 'white', fontWeight: 600 }} />
+                sx={{ bgcolor: 'background.paper', fontWeight: 600 }} />
               <Chip size="small" icon={<AccessTime />}
                 label={`${(data?.accesos_dentro || []).length} por horas`}
-                sx={{ bgcolor: 'white', fontWeight: 600 }} />
+                sx={{ bgcolor: 'background.paper', fontWeight: 600 }} />
               <Chip size="small" icon={<TwoWheeler />}
                 label={`${data?.total_vehiculos || 0} motos registradas`}
-                sx={{ bgcolor: 'white', fontWeight: 600 }} />
+                sx={{ bgcolor: 'background.paper', fontWeight: 600 }} />
             </Stack>
           </Grid>
         </Grid>
@@ -157,32 +161,20 @@ export default function ParqueaderoDashboard() {
 
       {/* ─── KPIs ──────────────────────────────────────────────── */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <KpiCard xs={6} md={3}
-          label="Vencidas" value={data?.vencidas || 0}
-          icon={<ErrorOutline />} color="#EF4444"
-          subtitle="Renovar urgente"
-        />
-        <KpiCard xs={6} md={3}
-          label="Por vencer (5 días)" value={data?.por_vencer_5_dias || 0}
-          icon={<Warning />} color="#F59E0B"
-          subtitle="Avisar al cliente"
-        />
-        <KpiCard xs={6} md={3}
-          label="Ingresos hoy" value={formatCurrency(data?.ingresos_hoy || 0)}
+        <KpiCard xs={6} md={3} label="Vencidas" value={data?.vencidas || 0}
+          icon={<ErrorOutline />} color="#EF4444" subtitle="Renovar urgente" />
+        <KpiCard xs={6} md={3} label="Por vencer (5 días)" value={data?.por_vencer_5_dias || 0}
+          icon={<Warning />} color="#F59E0B" subtitle="Avisar al cliente" />
+        <KpiCard xs={6} md={3} label="Ingresos hoy" value={formatCurrency(data?.ingresos_hoy || 0)}
           icon={<AttachMoney />} color="#10B981"
-          subtitle={`Mes: ${formatCurrency(data?.ingresos_mes || 0)}`}
-        />
-        <KpiCard xs={6} md={3}
-          label="Ingresos semana" value={formatCurrency(data?.ingresos_semana || 0)}
-          icon={<TrendingUp />} color="#3B82F6"
-          subtitle="Últimos 7 días"
-        />
+          subtitle={`Mes: ${formatCurrency(data?.ingresos_mes || 0)}`} />
+        <KpiCard xs={6} md={3} label="Ingresos semana" value={formatCurrency(data?.ingresos_semana || 0)}
+          icon={<TrendingUp />} color="#3B82F6" subtitle="Últimos 7 días" />
       </Grid>
 
       {/* ─── Listas ─────────────────────────────────────────────── */}
       <Grid container spacing={2}>
 
-        {/* Vencidas */}
         <Grid item xs={12} md={6}>
           <ListaPanel
             titulo="Mensualidades vencidas"
@@ -192,20 +184,18 @@ export default function ParqueaderoDashboard() {
             empty="No hay mensualidades vencidas. ¡Todo en orden!"
             renderItem={(s) => (
               <SubscItem
-                placa={s.placa}
-                propietario={s.propietario}
-                telefono={s.telefono}
-                fechaVence={s.fecha_vence}
-                dias={s.dias_vencido}
-                tipoDias="vencido"
+                placa={s.placa} propietario={s.propietario} telefono={s.telefono}
+                fechaVence={s.fecha_vence} dias={s.dias_vencido} tipoDias="vencido"
                 tipo={s.tipo}
+                vehiculoId={s.vehiculo_id}
+                suscripcionId={s.suscripcion_id}
+                tipoMensaje="pago"
                 onClick={() => navigate(`/parqueadero/buscar?placa=${s.placa}`)}
               />
             )}
           />
         </Grid>
 
-        {/* Por vencer */}
         <Grid item xs={12} md={6}>
           <ListaPanel
             titulo="Por vencer (próximos 5 días)"
@@ -215,20 +205,18 @@ export default function ParqueaderoDashboard() {
             empty="Ningún vencimiento próximo."
             renderItem={(s) => (
               <SubscItem
-                placa={s.placa}
-                propietario={s.propietario}
-                telefono={s.telefono}
-                fechaVence={s.fecha_vence}
-                dias={s.dias_restantes}
-                tipoDias="restante"
+                placa={s.placa} propietario={s.propietario} telefono={s.telefono}
+                fechaVence={s.fecha_vence} dias={s.dias_restantes} tipoDias="restante"
                 tipo={s.tipo}
+                vehiculoId={s.vehiculo_id}
+                suscripcionId={s.suscripcion_id}
+                tipoMensaje="recordatorio"
                 onClick={() => navigate(`/parqueadero/buscar?placa=${s.placa}`)}
               />
             )}
           />
         </Grid>
 
-        {/* Motos por horas dentro */}
         {(data?.accesos_dentro || []).length > 0 && (
           <Grid item xs={12}>
             <ListaPanel
@@ -318,15 +306,33 @@ function ListaPanel({ titulo, icono, color, items, empty, renderItem }) {
   );
 }
 
-function SubscItem({ placa, propietario, telefono, fechaVence, dias, tipoDias, tipo, onClick }) {
+function SubscItem({
+  placa, propietario, telefono, fechaVence, dias, tipoDias, tipo,
+  vehiculoId, suscripcionId, tipoMensaje, onClick,
+}) {
   const esVencido = tipoDias === 'vencido';
+
   return (
     <ListItem
-      button onClick={onClick}
       sx={{
-        py: 1.2,
+        py: 1.2, cursor: 'pointer',
         '&:hover': { bgcolor: 'action.hover' },
       }}
+      onClick={onClick}
+      secondaryAction={
+        telefono && (
+          <Box onClick={(e) => e.stopPropagation()}>
+            <BotonWhatsApp
+              vehiculoId={vehiculoId}
+              suscripcionId={suscripcionId}
+              tipo={tipoMensaje}
+              variante="icon"
+              tamano="small"
+              telefono={telefono}
+            />
+          </Box>
+        )
+      }
     >
       <ListItemAvatar>
         <Avatar sx={{
@@ -339,7 +345,7 @@ function SubscItem({ placa, propietario, telefono, fechaVence, dias, tipoDias, t
       </ListItemAvatar>
       <ListItemText
         primary={
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ pr: 5 }}>
             <Typography sx={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 14, letterSpacing: 1 }}>
               {placa}
             </Typography>
@@ -382,8 +388,8 @@ function AccesoItem({ acceso, navigate }) {
 
   return (
     <ListItem
-      button onClick={() => navigate(`/parqueadero/buscar?placa=${acceso.placa}`)}
-      sx={{ py: 1.2, '&:hover': { bgcolor: 'action.hover' } }}
+      sx={{ py: 1.2, cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+      onClick={() => navigate(`/parqueadero/buscar?placa=${acceso.placa}`)}
     >
       <ListItemAvatar>
         <Avatar sx={{ bgcolor: '#DBEAFE', color: '#1E40AF', width: 40, height: 40 }}>

@@ -1527,3 +1527,213 @@ class TopClienteParq(BaseModel):
     total_pagado:      float
     cliente_desde:     date
     ultima_renovacion: Optional[date]
+
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SCHEMAS — WHATSAPP + MÉTODOS DE PAGO
+# Pega al final de schemas.py
+# ═══════════════════════════════════════════════════════════════════════════════
+
+from pydantic import BaseModel, Field, validator
+from datetime import datetime
+from typing import Optional, List
+from enum import Enum
+
+
+# ─── Enums ───────────────────────────────────────────────────────────────────
+class ModalidadPagoEnum(str, Enum):
+    MENSUAL    = "mensual"
+    QUINCENAL  = "quincenal"
+    DIARIA     = "diaria"
+    LIBRE      = "libre"
+
+
+class TipoPlantillaEnum(str, Enum):
+    PAGO         = "pago"
+    RECORDATORIO = "recordatorio"
+    MANUAL       = "manual"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 1. MÉTODOS DE PAGO
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class MetodoPagoBase(BaseModel):
+    modalidad:     ModalidadPagoEnum
+    nombre_metodo: Optional[str] = Field(None, max_length=60)
+    link_pago:     Optional[str] = Field(None, max_length=500)
+    qr_base64:     Optional[str] = None         # data URI o solo el base64
+    qr_mime_type:  Optional[str] = Field(None, max_length=40)
+    instrucciones: Optional[str] = None
+    is_active:     bool = True
+
+    @validator('link_pago')
+    def validar_link(cls, v):
+        if v is None or v.strip() == '':
+            return None
+        v = v.strip()
+        if not (v.startswith('http://') or v.startswith('https://')):
+            raise ValueError('El link debe empezar con http:// o https://')
+        return v
+
+    @validator('qr_base64')
+    def limpiar_qr(cls, v):
+        """Acepta data URI (data:image/png;base64,XXX) o base64 puro."""
+        if not v:
+            return None
+        if v.startswith('data:'):
+            # Es data URI → extraer solo el base64
+            try:
+                header, b64 = v.split(',', 1)
+                return b64
+            except ValueError:
+                return v
+        return v
+
+
+class MetodoPagoCreate(MetodoPagoBase):
+    pass
+
+
+class MetodoPagoUpdate(BaseModel):
+    nombre_metodo: Optional[str] = None
+    link_pago:     Optional[str] = None
+    qr_base64:     Optional[str] = None
+    qr_mime_type:  Optional[str] = None
+    instrucciones: Optional[str] = None
+    is_active:     Optional[bool] = None
+
+
+class MetodoPagoOut(MetodoPagoBase):
+    id:         int
+    empresa_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    # Campo calculado para no enviar el base64 enorme cuando solo se necesita saber si hay QR
+    tiene_qr:        bool = False
+    tiene_link:      bool = False
+    qr_data_uri:     Optional[str] = None  # data URI completo listo para <img src=...>
+
+    class Config:
+        from_attributes = True
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 2. PLANTILLAS DE WHATSAPP
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class PlantillaWhatsAppBase(BaseModel):
+    tipo:      TipoPlantillaEnum
+    mensaje:   str = Field(..., min_length=10)
+    is_active: bool = True
+
+
+class PlantillaWhatsAppUpdate(BaseModel):
+    mensaje:   Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class PlantillaWhatsAppOut(PlantillaWhatsAppBase):
+    id:         int
+    empresa_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 3. GENERACIÓN DE LINK WHATSAPP
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class GenerarWhatsAppRequest(BaseModel):
+    """
+    Request para generar el link wa.me/.
+    Caso típico: el operario está en 'Buscar placa' y quiere enviar mensaje.
+    """
+    vehiculo_id:    Optional[int] = None
+    suscripcion_id: Optional[int] = None
+    telefono:       Optional[str] = None  # Si no se envía, se toma del cliente del vehículo
+    tipo:           TipoPlantillaEnum = TipoPlantillaEnum.PAGO
+    monto_override: Optional[float] = None  # Para pagos libres
+
+    # Permitir editar el mensaje antes de enviarlo (la UI muestra preview editable)
+    mensaje_personalizado: Optional[str] = None
+
+
+class GenerarWhatsAppResponse(BaseModel):
+    wa_url:        str          # https://wa.me/573001234567?text=...
+    mensaje:       str          # Mensaje sin url-encode (para mostrar en preview)
+    telefono:      str          # Teléfono normalizado E.164 (sin +)
+    tiene_qr:      bool
+    qr_data_uri:   Optional[str] = None  # Si hay QR, se devuelve para mostrarlo
+    metodo_nombre: Optional[str] = None  # "Nequi", "Bold"...
+    advertencia:   Optional[str] = None  # ej. "El cliente no tiene teléfono registrado"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 4. HISTORIAL DE ENVÍOS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class EnvioWhatsAppOut(BaseModel):
+    id:               int
+    empresa_id:       int
+    vehiculo_id:      Optional[int]
+    suscripcion_id:   Optional[int]
+    telefono:         str
+    tipo:             TipoPlantillaEnum
+    mensaje_enviado:  Optional[str]
+    usuario_id:       Optional[int]
+    fecha:            datetime
+    # Enriquecimiento
+    placa:            Optional[str] = None
+    cliente_nombre:   Optional[str] = None
+    usuario_username: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 5. PLANTILLAS POR DEFECTO (referencia para inicialización)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+PLANTILLAS_DEFAULT = {
+    "pago": (
+        "Hola {nombre} 👋\n\n"
+        "Te escribo desde *{parqueadero}* para informarte sobre el parqueo de tu moto *{placa}*.\n\n"
+        "📋 *Resumen:*\n"
+        "• Plan: {tipo_plan}\n"
+        "• Vence: {fecha_vence}\n"
+        "• Valor a pagar: *{monto}*\n"
+        "{saldo_linea}\n"
+        "💳 *Paga aquí:*\n"
+        "{link_pago}\n\n"
+        "{instrucciones}\n"
+        "Cualquier duda me escribes por aquí. ¡Gracias!"
+    ),
+    "recordatorio": (
+        "Hola {nombre} 👋\n\n"
+        "Te recuerdo que la mensualidad de tu moto *{placa}* en *{parqueadero}* vence el *{fecha_vence}* "
+        "(en {dias_restantes} días).\n\n"
+        "💰 Valor: *{monto}*\n\n"
+        "Para evitar contratiempos, puedes pagar desde ya:\n"
+        "{link_pago}\n\n"
+        "{instrucciones}\n"
+        "¡Gracias por confiar en nosotros!"
+    ),
+    "manual": (
+        "Hola {nombre} 👋\n\n"
+        "Te contacto desde *{parqueadero}*.\n\n"
+        "Sobre tu moto *{placa}*:\n"
+        "• Plan: {tipo_plan}\n"
+        "• Estado: {fecha_vence}\n"
+        "• Valor: {monto}\n\n"
+        "{link_pago}\n\n"
+        "Quedo atento."
+    ),
+}

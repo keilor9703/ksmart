@@ -1,8 +1,11 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// ParqueaderoBuscar.jsx
-// La pantalla estrella del módulo. El operario escribe una placa y el sistema
-// decide qué mostrar: vigente, vencido, sin suscripción, no registrado o
-// con acceso por horas abierto.
+// ParqueaderoBuscar.jsx — VERSIÓN 2 (con botón WhatsApp)
+// REEMPLAZA tu archivo /components/ParqueaderoBuscar.jsx por este.
+//
+// Cambios respecto a v1:
+//   ✨ Importa BotonWhatsApp
+//   ✨ Botón verde de WhatsApp en el card de resultado (cuando hay vehículo + saldo)
+//   ✨ Auto-precarga placa desde query param (?placa=ABC123)
 // ═══════════════════════════════════════════════════════════════════════════
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -14,6 +17,7 @@ import {
   Search, TwoWheeler, CheckCircle, ErrorOutline, HelpOutline,
   AccessTime, Person, LocalParking, Logout, Refresh, ContentPaste
 } from '@mui/icons-material';
+import { useSearchParams } from 'react-router-dom';
 import apiClient from '../api';
 import { toast } from 'react-toastify';
 import { formatCurrency } from '../utils/formatters';
@@ -23,8 +27,9 @@ import RegistrarVehiculoDialog      from './ParqueaderoVehiculoDialog';
 import CobrarVencidoDialog          from './ParqueaderoCobrarVencidoDialog';
 import RegistrarSalidaHorasDialog   from './ParqueaderoSalidaHorasDialog';
 import EntradaHorasDialog           from './ParqueaderoEntradaHorasDialog';
+import BotonWhatsApp                from './BotonWhatsApp';   // ✨ NUEVO
 
-// ── Paleta del módulo (consistente con tu app) ─────────────────────────────
+// ── Paleta del módulo ─────────────────────────────────────────────────────
 const ACCENT = '#FF6020';
 const SEMAFORO = {
   verde:    { bg: '#10B981', light: '#10B98115', text: '#065F46', label: 'AL DÍA'      },
@@ -40,21 +45,28 @@ export default function ParqueaderoBuscar() {
   const [loading, setLoading]           = useState(false);
   const [error, setError]               = useState(null);
   const inputRef                        = useRef(null);
+  const [searchParams]                  = useSearchParams();
 
-  // ── Diálogos ────────────────────────────────────────────────────────────
   const [dlgSuscripcion,   setDlgSuscripcion]   = useState(false);
   const [dlgVehiculo,      setDlgVehiculo]      = useState(false);
   const [dlgVencido,       setDlgVencido]       = useState(false);
   const [dlgSalidaHoras,   setDlgSalidaHoras]   = useState(false);
   const [dlgEntradaHoras,  setDlgEntradaHoras]  = useState(false);
 
-  // ── Auto-focus en el input al cargar ────────────────────────────────────
-  useEffect(() => { inputRef.current?.focus(); }, []);
+  // ── Auto-focus al cargar y precargar desde query param ──────────────────
+  useEffect(() => {
+    inputRef.current?.focus();
+    const placaParam = searchParams.get('placa');
+    if (placaParam) {
+      setPlaca(placaParam);
+      // Disparar búsqueda automática con la placa del query
+      buscarConPlaca(placaParam);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // ── Buscar placa ────────────────────────────────────────────────────────
-  const buscar = async (e) => {
-    e?.preventDefault();
-    const placaLimpia = placa.trim().toUpperCase().replace(/[\s-]/g, '');
+  const buscarConPlaca = async (placaInput) => {
+    const placaLimpia = placaInput.trim().toUpperCase().replace(/[\s-]/g, '');
     if (placaLimpia.length < 3) {
       toast.warning('Ingresa al menos 3 caracteres de la placa.');
       return;
@@ -72,7 +84,11 @@ export default function ParqueaderoBuscar() {
     }
   };
 
-  // ── Reset para buscar otra placa ────────────────────────────────────────
+  const buscar = (e) => {
+    e?.preventDefault();
+    buscarConPlaca(placa);
+  };
+
   const reset = () => {
     setPlaca('');
     setResultado(null);
@@ -80,7 +96,6 @@ export default function ParqueaderoBuscar() {
     setTimeout(() => inputRef.current?.focus(), 50);
   };
 
-  // ── Pegar desde portapapeles ────────────────────────────────────────────
   const pegarPlaca = async () => {
     try {
       const text = await navigator.clipboard.readText();
@@ -90,7 +105,6 @@ export default function ParqueaderoBuscar() {
     }
   };
 
-  // ── Después de cualquier acción (registro, pago, etc.) volvemos a consultar ──
   const onAccionCompletada = () => {
     setDlgSuscripcion(false);
     setDlgVehiculo(false);
@@ -98,7 +112,6 @@ export default function ParqueaderoBuscar() {
     setDlgSalidaHoras(false);
     setDlgEntradaHoras(false);
     if (resultado?.placa) {
-      // Re-consultar la misma placa para ver el resultado actualizado
       apiClient.get(`/parqueadero/buscar/${resultado.placa}`)
         .then(({ data }) => setResultado(data));
     }
@@ -107,7 +120,7 @@ export default function ParqueaderoBuscar() {
   return (
     <Box sx={{ maxWidth: 900, mx: 'auto', p: { xs: 1, md: 2 } }}>
 
-      {/* ─── Encabezado ──────────────────────────────────────────────── */}
+      {/* ─── Encabezado ──────────────────────────────────────────── */}
       <Box sx={{ textAlign: 'center', mb: 3 }}>
         <Box sx={{
           width: 64, height: 64, borderRadius: '50%',
@@ -125,7 +138,7 @@ export default function ParqueaderoBuscar() {
         </Typography>
       </Box>
 
-      {/* ─── Input de búsqueda ──────────────────────────────────────── */}
+      {/* ─── Input ──────────────────────────────────────────────── */}
       <Paper elevation={0} sx={{
         p: 2, mb: 2, borderRadius: 3,
         border: '2px solid', borderColor: 'divider',
@@ -173,11 +186,8 @@ export default function ParqueaderoBuscar() {
               {loading ? 'Consultando...' : 'Consultar'}
             </Button>
             {resultado && (
-              <Button
-                variant="outlined" size="large" onClick={reset}
-                startIcon={<Refresh />}
-                sx={{ minWidth: 130, borderRadius: 2 }}
-              >
+              <Button variant="outlined" size="large" onClick={reset}
+                startIcon={<Refresh />} sx={{ minWidth: 130, borderRadius: 2 }}>
                 Otra placa
               </Button>
             )}
@@ -185,14 +195,8 @@ export default function ParqueaderoBuscar() {
         </Box>
       </Paper>
 
-      {/* ─── Error ──────────────────────────────────────────────────── */}
-      {error && (
-        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
-          {error}
-        </Alert>
-      )}
+      {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>{error}</Alert>}
 
-      {/* ─── Resultado ──────────────────────────────────────────────── */}
       {resultado && (
         <ResultadoCard
           resultado={resultado}
@@ -204,7 +208,7 @@ export default function ParqueaderoBuscar() {
         />
       )}
 
-      {/* ─── Diálogos ───────────────────────────────────────────────── */}
+      {/* ─── Diálogos ───────────────────────────────────────────── */}
       {resultado && (
         <>
           <RegistrarSuscripcionDialog
@@ -237,7 +241,7 @@ export default function ParqueaderoBuscar() {
 
 
 // ═══════════════════════════════════════════════════════════════════════════
-// CARD DE RESULTADO — muestra el semáforo + datos + acciones según el caso
+// CARD DE RESULTADO
 // ═══════════════════════════════════════════════════════════════════════════
 
 function ResultadoCard({
@@ -246,32 +250,21 @@ function ResultadoCard({
 }) {
   const semaforo = SEMAFORO[resultado.color_semaforo] || SEMAFORO.gris;
 
-  // Header común con el mensaje principal
-  const header = (
-    <Box sx={{
-      bgcolor: semaforo.bg, color: 'white',
-      p: 3, textAlign: 'center', position: 'relative',
-    }}>
-      <IconoEstado tipo={resultado.tipo_resultado} />
-      <Chip
-        label={semaforo.label} size="small"
-        sx={{
-          bgcolor: 'rgba(255,255,255,0.25)', color: 'white',
-          fontWeight: 800, fontSize: 11, letterSpacing: 1,
-          mb: 1.5,
-        }}
-      />
-      <Typography sx={{
-        fontSize: 36, fontWeight: 900, fontFamily: 'monospace',
-        letterSpacing: 4, lineHeight: 1.1,
-      }}>
-        {resultado.placa}
-      </Typography>
-      <Typography sx={{ fontSize: 14, mt: 1, opacity: 0.95, lineHeight: 1.4 }}>
-        {resultado.mensaje}
-      </Typography>
-    </Box>
-  );
+  // ¿Mostrar botón WhatsApp?
+  // Sí cuando hay vehículo + cliente con teléfono (la API valida igual)
+  const mostrarWhatsApp =
+    resultado.vehiculo &&
+    resultado.vehiculo.cliente_telefono &&
+    resultado.tipo_resultado !== 'vehiculo_no_registrado';
+
+  // Tipo de mensaje según contexto
+  const tipoMensaje =
+    resultado.tipo_resultado === 'vehiculo_vencido'    ? 'pago' :
+    resultado.tipo_resultado === 'vehiculo_al_dia' &&
+      resultado.suscripcion_actual?.saldo_pendiente > 0 ? 'pago' :
+    resultado.tipo_resultado === 'vehiculo_al_dia' &&
+      resultado.suscripcion_actual?.dias_restantes <= 5 ? 'recordatorio' :
+    'manual';
 
   return (
     <Paper sx={{
@@ -279,11 +272,33 @@ function ResultadoCard({
       border: '2px solid', borderColor: semaforo.bg,
       boxShadow: `0 8px 32px ${semaforo.bg}30`,
     }}>
-      {header}
+      {/* Header con semáforo */}
+      <Box sx={{
+        bgcolor: semaforo.bg, color: 'white',
+        p: 3, textAlign: 'center', position: 'relative',
+      }}>
+        <IconoEstado tipo={resultado.tipo_resultado} />
+        <Chip label={semaforo.label} size="small"
+          sx={{
+            bgcolor: 'rgba(255,255,255,0.25)', color: 'white',
+            fontWeight: 800, fontSize: 11, letterSpacing: 1,
+            mb: 1.5,
+          }}
+        />
+        <Typography sx={{
+          fontSize: 36, fontWeight: 900, fontFamily: 'monospace',
+          letterSpacing: 4, lineHeight: 1.1,
+        }}>
+          {resultado.placa}
+        </Typography>
+        <Typography sx={{ fontSize: 14, mt: 1, opacity: 0.95, lineHeight: 1.4 }}>
+          {resultado.mensaje}
+        </Typography>
+      </Box>
 
       <Box sx={{ p: 3 }}>
 
-        {/* ── Caso: vigente o vencido (vehículo registrado con suscripción) ── */}
+        {/* ── Vigente / Vencido ── */}
         {(resultado.tipo_resultado === 'vehiculo_al_dia' ||
           resultado.tipo_resultado === 'vehiculo_vencido') && (
           <>
@@ -291,8 +306,9 @@ function ResultadoCard({
             <Divider sx={{ my: 2 }} />
             <DatosSuscripcion susc={resultado.suscripcion_actual} resultado={resultado} />
 
-            {resultado.tipo_resultado === 'vehiculo_vencido' && (
-              <Stack direction="row" spacing={1} sx={{ mt: 3 }}>
+            {/* ✨ NUEVO: bloque de acciones con botón WhatsApp */}
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 3 }}>
+              {resultado.tipo_resultado === 'vehiculo_vencido' && (
                 <Button
                   fullWidth variant="contained" size="large"
                   onClick={onCobrarVencido}
@@ -300,42 +316,59 @@ function ResultadoCard({
                 >
                   Cobrar y dejar entrar
                 </Button>
-              </Stack>
-            )}
+              )}
+              {mostrarWhatsApp && (
+                <Box sx={{ flex: 1 }}>
+                  <BotonWhatsApp
+                    vehiculoId={resultado.vehiculo.id}
+                    suscripcionId={resultado.suscripcion_actual?.id}
+                    tipo={tipoMensaje}
+                    label={
+                      resultado.tipo_resultado === 'vehiculo_vencido'
+                        ? 'Cobrar por WhatsApp'
+                        : 'Enviar por WhatsApp'
+                    }
+                    tamano="large"
+                  />
+                </Box>
+              )}
+            </Stack>
 
             {resultado.tipo_resultado === 'vehiculo_al_dia' &&
               resultado.suscripcion_actual?.saldo_pendiente > 0 && (
               <Alert severity="warning" sx={{ mt: 2, borderRadius: 2 }}>
                 Tiene saldo pendiente de <strong>{formatCurrency(resultado.suscripcion_actual.saldo_pendiente)}</strong>.
-                Puede cobrarlo desde "Suscripciones".
               </Alert>
             )}
           </>
         )}
 
-        {/* ── Caso: vehículo registrado SIN suscripción ── */}
+        {/* ── Sin suscripción ── */}
         {resultado.tipo_resultado === 'vehiculo_sin_susc' && (
           <>
             <DatosVehiculo veh={resultado.vehiculo} />
-            <Stack direction="row" spacing={1} sx={{ mt: 3 }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 3 }}>
               <Button
                 fullWidth variant="contained" size="large"
                 onClick={onRegistrarSuscripcion}
                 sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700 }}
               >
-                Registrar pago / suscripción
+                Registrar pago
               </Button>
-              <Button
-                variant="outlined" size="large"
-                onClick={onCobrarPorHoras}
-              >
+              <Button variant="outlined" size="large" onClick={onCobrarPorHoras}>
                 Por horas
               </Button>
+              {mostrarWhatsApp && (
+                <BotonWhatsApp
+                  vehiculoId={resultado.vehiculo.id}
+                  tipo="manual" label="WhatsApp" tamano="large"
+                />
+              )}
             </Stack>
           </>
         )}
 
-        {/* ── Caso: placa no registrada ── */}
+        {/* ── No registrado ── */}
         {resultado.tipo_resultado === 'vehiculo_no_registrado' && (
           <>
             <Box sx={{ textAlign: 'center', py: 2, color: 'text.secondary' }}>
@@ -344,7 +377,7 @@ function ResultadoCard({
                 Esta placa nunca se ha registrado en el parqueadero.
               </Typography>
             </Box>
-            <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 2 }}>
               <Button
                 fullWidth variant="contained" size="large"
                 onClick={onRegistrarVehiculo}
@@ -352,29 +385,24 @@ function ResultadoCard({
               >
                 Registrar moto + pago
               </Button>
-              <Button
-                variant="outlined" size="large"
-                onClick={onCobrarPorHoras}
-              >
+              <Button variant="outlined" size="large" onClick={onCobrarPorHoras}>
                 Cobrar por horas
               </Button>
             </Stack>
           </>
         )}
 
-        {/* ── Caso: tiene acceso por horas abierto ── */}
+        {/* ── Acceso abierto ── */}
         {resultado.tipo_resultado === 'tiene_acceso_abierto' && (
           <>
-            <Box sx={{
-              bgcolor: '#F8FAFC', borderRadius: 2, p: 2, mb: 2,
-            }}>
+            <Box sx={{ bgcolor: 'background.default', borderRadius: 2, p: 2, mb: 2 }}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
                 <Typography sx={{ fontSize: 12, color: 'text.secondary', textTransform: 'uppercase', fontWeight: 700 }}>
                   Tiempo dentro
                 </Typography>
                 <AccessTime sx={{ color: '#64748B', fontSize: 18 }} />
               </Stack>
-              <Typography sx={{ fontSize: 28, fontWeight: 900, color: '#1E293B' }}>
+              <Typography sx={{ fontSize: 28, fontWeight: 900 }}>
                 {resultado.horas_transcurridas?.toFixed(1)} horas
               </Typography>
               <Divider sx={{ my: 1.5 }} />
@@ -385,14 +413,24 @@ function ResultadoCard({
                 </Typography>
               </Stack>
             </Box>
-            <Button
-              fullWidth variant="contained" size="large"
-              onClick={onRegistrarSalida}
-              startIcon={<Logout />}
-              sx={{ bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' }, fontWeight: 700, py: 1.5 }}
-            >
-              Registrar salida y cobrar
-            </Button>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <Button
+                fullWidth variant="contained" size="large"
+                onClick={onRegistrarSalida}
+                startIcon={<Logout />}
+                sx={{ bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' }, fontWeight: 700, py: 1.5 }}
+              >
+                Registrar salida y cobrar
+              </Button>
+              {mostrarWhatsApp && (
+                <BotonWhatsApp
+                  vehiculoId={resultado.vehiculo?.id}
+                  tipo="pago"
+                  montoOverride={resultado.monto_estimado}
+                  label="Cobrar WhatsApp" tamano="large"
+                />
+              )}
+            </Stack>
           </>
         )}
 
@@ -403,7 +441,7 @@ function ResultadoCard({
 
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SUB-COMPONENTES
+// SUB-COMPONENTES (idénticos a v1)
 // ═══════════════════════════════════════════════════════════════════════════
 
 function IconoEstado({ tipo }) {
@@ -414,7 +452,6 @@ function IconoEstado({ tipo }) {
     vehiculo_no_registrado: <TwoWheeler   sx={{ fontSize: 56 }} />,
     tiene_acceso_abierto:   <AccessTime   sx={{ fontSize: 56 }} />,
   }[tipo] || <LocalParking sx={{ fontSize: 56 }} />;
-
   return <Box sx={{ mb: 1.5, opacity: 0.95 }}>{icon}</Box>;
 }
 
@@ -437,7 +474,7 @@ function DatosVehiculo({ veh }) {
             <Chip size="small" label={`📱 ${veh.cliente_telefono}`} sx={{ fontSize: 11 }} />
           )}
           {(veh.marca || veh.modelo) && (
-            <Chip size="small" color="default"
+            <Chip size="small"
               label={`🏍 ${[veh.marca, veh.modelo].filter(Boolean).join(' ')}`}
               sx={{ fontSize: 11 }} />
           )}
@@ -452,20 +489,19 @@ function DatosVehiculo({ veh }) {
 
 function DatosSuscripcion({ susc, resultado }) {
   if (!susc) return null;
-
   const esVencida = resultado.tipo_resultado === 'vehiculo_vencido';
   const dias = esVencida ? resultado.dias_vencido : susc.dias_restantes;
 
   return (
     <Box sx={{
-      bgcolor: esVencida ? '#FEF2F2' : '#F0FDF4',
+      bgcolor: esVencida ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)',
       borderRadius: 2, p: 2,
     }}>
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
         <Chip
           label={susc.tipo?.toUpperCase()} size="small"
           sx={{
-            bgcolor: esVencida ? '#FEE2E2' : '#DCFCE7',
+            bgcolor: esVencida ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
             color: esVencida ? '#991B1B' : '#166534',
             fontWeight: 800, fontSize: 11,
           }}
@@ -531,7 +567,6 @@ function DatosSuscripcion({ susc, resultado }) {
   );
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
 function fechaCorta(fechaIso) {
   if (!fechaIso) return '—';
   const d = new Date(fechaIso);
