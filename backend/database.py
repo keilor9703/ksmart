@@ -179,7 +179,51 @@ def run_migrations():
 
                 _mark_migration_applied(conn, migration_v32)
                 logger.info("V32 (WhatsApp + Métodos de pago) aplicada.")
+            
 
+
+            # V35 - Tarifa por minuto + datos del cliente ocasional
+            migration_v35 = "inv_v35_cobro_minutos_ocasional"
+            if not _migration_already_applied(conn, migration_v35):
+
+                # ── 1. parqueadero_config: añadir tarifa_minuto y cobro_minimo ─
+                if _table_exists(conn, "parqueadero_config"):
+                    if not _column_exists(conn, "parqueadero_config", "tarifa_minuto"):
+                        conn.execute(text(
+                            "ALTER TABLE parqueadero_config ADD COLUMN tarifa_minuto REAL DEFAULT 0"
+                        ))
+                    if not _column_exists(conn, "parqueadero_config", "cobro_minimo_minutos"):
+                        conn.execute(text(
+                            "ALTER TABLE parqueadero_config ADD COLUMN cobro_minimo_minutos INTEGER DEFAULT 30"
+                        ))
+
+                # ── 2. accesos_parqueadero: añadir telefono, nombre, minutos ──
+                if _table_exists(conn, "accesos_parqueadero"):
+                    if not _column_exists(conn, "accesos_parqueadero", "telefono"):
+                        if IS_SQLITE:
+                            conn.execute(text(
+                                "ALTER TABLE accesos_parqueadero ADD COLUMN telefono TEXT"
+                            ))
+                        else:
+                            conn.execute(text(
+                                "ALTER TABLE accesos_parqueadero ADD COLUMN telefono VARCHAR(20)"
+                            ))
+                    if not _column_exists(conn, "accesos_parqueadero", "nombre_ocasional"):
+                        if IS_SQLITE:
+                            conn.execute(text(
+                                "ALTER TABLE accesos_parqueadero ADD COLUMN nombre_ocasional TEXT"
+                            ))
+                        else:
+                            conn.execute(text(
+                                "ALTER TABLE accesos_parqueadero ADD COLUMN nombre_ocasional VARCHAR(120)"
+                            ))
+                    if not _column_exists(conn, "accesos_parqueadero", "minutos_cobrados"):
+                        conn.execute(text(
+                            "ALTER TABLE accesos_parqueadero ADD COLUMN minutos_cobrados INTEGER"
+                        ))
+
+                _mark_migration_applied(conn, migration_v35)
+                logger.info("V33 (Cobro por minutos + cliente ocasional) aplicada.")
 
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)

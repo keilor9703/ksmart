@@ -638,6 +638,8 @@ class ParqueaderoConfig(Base, TenantMixin):
     tarifa_quincenal      = Column(Float, default=0.0)
     tarifa_diaria         = Column(Float, default=0.0)
     tarifa_hora           = Column(Float, default=0.0)
+    tarifa_minuto         = Column(Float, default=0.0)        # ✨ NUEVO
+    cobro_minimo_minutos  = Column(Integer, default=30)       # ✨ NUEVO (0 = desactivado)
     cupo_total            = Column(Integer, default=0)
     nombre_parqueadero    = Column(String(120), nullable=True)
     direccion             = Column(String(200), nullable=True)
@@ -763,20 +765,23 @@ class EstadoAcceso(str, enum.Enum):
 
 class AccesoParqueadero(Base, TenantMixin):
     """
-    Solo se usa para clientes que pagan POR HORAS (no mensualidad/quincena).
-    Registra hora de entrada y al salir se calcula el cobro.
-    Para mensualidades NO se usa esta tabla — el dueño no quiere marcar entrada/salida.
+    Solo se usa para clientes que pagan POR MINUTOS (ocasionales).
     """
     __tablename__ = "accesos_parqueadero"
 
     id              = Column(Integer, primary_key=True, index=True)
     vehiculo_id     = Column(Integer, ForeignKey("vehiculos.id"), nullable=True, index=True)
-    placa           = Column(String(10), nullable=False, index=True)  # Por si es vehículo no registrado
+    placa           = Column(String(10), nullable=False, index=True)
+
+    # ✨ NUEVOS CAMPOS para cliente ocasional
+    nombre_ocasional = Column(String(120), nullable=True)   # Nombre tomado al ingresar
+    telefono         = Column(String(20), nullable=True)    # Tel. del cliente ocasional para WhatsApp
 
     fecha_entrada   = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     fecha_salida    = Column(DateTime(timezone=True), nullable=True)
 
-    horas_cobradas  = Column(Float, nullable=True)
+    minutos_cobrados = Column(Integer, nullable=True)        # ✨ NUEVO
+    horas_cobradas  = Column(Float, nullable=True)           # se mantiene por compatibilidad
     monto_cobrado   = Column(Float, nullable=True)
     metodo_pago     = Column(String(40), nullable=True)
     estado          = Column(Enum(EstadoAcceso), default=EstadoAcceso.DENTRO)
@@ -786,6 +791,7 @@ class AccesoParqueadero(Base, TenantMixin):
 
     vehiculo        = relationship("Vehiculo", back_populates="accesos")
     usuario         = relationship("User", lazy="joined")
+
 
 
 

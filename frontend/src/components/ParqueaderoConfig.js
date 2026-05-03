@@ -1,21 +1,21 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// ParqueaderoConfig.jsx — VERSIÓN 2 (integra WhatsApp + métodos de pago)
+// ParqueaderoConfig.jsx — VERSIÓN 3
+// Añade: tarifa por minuto + cobro mínimo + indicador de equivalente horario
 // REEMPLAZA tu archivo /components/ParqueaderoConfig.jsx por este.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect } from 'react';
 import {
   Box, Paper, Typography, Grid, TextField, Button, InputAdornment,
-  Alert, CircularProgress, Stack, Chip
+  Alert, CircularProgress, Stack, Chip, Tooltip
 } from '@mui/material';
 import {
-  Settings, Save, AttachMoney, LocalParking, Schedule, CheckCircle
+  Settings, Save, AttachMoney, LocalParking, Schedule, CheckCircle, Timer, InfoOutlined
 } from '@mui/icons-material';
 import apiClient from '../api';
 import { toast } from 'react-toastify';
 import { formatCurrency } from '../utils/formatters';
 
-// ✨ Nueva sección integrada
 import ParqueaderoMetodosPago from './ParqueaderoMetodosPago';
 
 const ACCENT = '#FF6020';
@@ -49,19 +49,33 @@ export default function ParqueaderoConfig() {
     setConfig(prev => ({ ...prev, [campo]: e.target.value }));
   };
 
+  // ✨ NUEVO: cuando se cambia tarifa_minuto, sugerir tarifa_hora automáticamente
+  const handleTarifaMinuto = (e) => {
+    const v = e.target.value.replace(/\D/g, '');
+    const num = v === '' ? 0 : Number(v);
+    setConfig(prev => ({
+      ...prev,
+      tarifa_minuto: num,
+      // Sugerir tarifa_hora SOLO si está en 0 o si no se ha tocado manualmente
+      tarifa_hora: (!prev.tarifa_hora || prev.tarifa_hora === 0) ? num * 60 : prev.tarifa_hora,
+    }));
+  };
+
   const handleGuardar = async () => {
     setSaving(true);
     try {
       const { data } = await apiClient.put('/parqueadero/config', {
-        tarifa_mensual:     config.tarifa_mensual || 0,
-        tarifa_quincenal:   config.tarifa_quincenal || 0,
-        tarifa_diaria:      config.tarifa_diaria || 0,
-        tarifa_hora:        config.tarifa_hora || 0,
-        cupo_total:         config.cupo_total || 0,
-        nombre_parqueadero: config.nombre_parqueadero || null,
-        direccion:          config.direccion || null,
-        horario_apertura:   config.horario_apertura || '06:30',
-        horario_cierre:     config.horario_cierre || '20:00',
+        tarifa_mensual:        config.tarifa_mensual || 0,
+        tarifa_quincenal:      config.tarifa_quincenal || 0,
+        tarifa_diaria:         config.tarifa_diaria || 0,
+        tarifa_hora:           config.tarifa_hora || 0,
+        tarifa_minuto:         config.tarifa_minuto || 0,
+        cobro_minimo_minutos:  config.cobro_minimo_minutos ?? 30,
+        cupo_total:            config.cupo_total || 0,
+        nombre_parqueadero:    config.nombre_parqueadero || null,
+        direccion:             config.direccion || null,
+        horario_apertura:      config.horario_apertura || '06:30',
+        horario_cierre:        config.horario_cierre || '20:00',
       });
       setConfig(data);
       toast.success('Configuración guardada.');
@@ -77,11 +91,7 @@ export default function ParqueaderoConfig() {
   };
 
   if (loading) {
-    return (
-      <Box sx={{ p: 4, textAlign: 'center' }}>
-        <CircularProgress />
-      </Box>
-    );
+    return <Box sx={{ p: 4, textAlign: 'center' }}><CircularProgress /></Box>;
   }
 
   if (error) {
@@ -89,11 +99,16 @@ export default function ParqueaderoConfig() {
   }
 
   const configCompleta = config?.tarifa_mensual > 0 && config?.cupo_total > 0;
+  const horaCalculada = (config?.tarifa_minuto || 0) * 60;
+  const horaConfigurada = config?.tarifa_hora || 0;
+  const diferenciaHora = horaConfigurada > 0 && horaCalculada > 0 && horaConfigurada !== horaCalculada;
+
+  // Cobro mínimo en valor
+  const valorCobroMinimo = (config?.cobro_minimo_minutos || 0) * (config?.tarifa_minuto || 0);
 
   return (
     <Box sx={{ p: { xs: 1, md: 2 }, maxWidth: 1100, mx: 'auto' }}>
 
-      {/* ─── Encabezado ─────────────────────────────────────────── */}
       <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
         <Box sx={{
           width: 48, height: 48, borderRadius: 2,
@@ -112,7 +127,6 @@ export default function ParqueaderoConfig() {
         </Box>
       </Stack>
 
-      {/* ─── Estado configuración base ──────────────────────────── */}
       {!configCompleta && (
         <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
           <strong>Configuración incompleta.</strong> Establece al menos la tarifa mensual y el cupo total para empezar.
@@ -179,11 +193,11 @@ export default function ParqueaderoConfig() {
         </Grid>
       </Paper>
 
-      {/* ─── Tarifas ────────────────────────────────────────────── */}
+      {/* ─── Tarifas para suscripciones ─────────────────────────── */}
       <Paper sx={{ p: 3, mb: 2, borderRadius: 3 }}>
-        <SectionHeader icon={<AttachMoney sx={{ color: ACCENT }} />} title="Tarifas estándar" />
+        <SectionHeader icon={<AttachMoney sx={{ color: ACCENT }} />} title="Tarifas para suscripciones" />
         <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 2 }}>
-          Estas son las tarifas por defecto. Al cobrar puedes ajustar el monto si quieres aplicar un descuento.
+          Tarifas para clientes mensuales o quincenales. Al cobrar puedes ajustar el monto puntualmente.
         </Typography>
 
         <Grid container spacing={2}>
@@ -203,12 +217,109 @@ export default function ParqueaderoConfig() {
             descripcion="1 día completo"
             value={config?.tarifa_diaria} onChange={handleNumber('tarifa_diaria')}
           />
-          <TarifaInput
-            label="Por hora" placeholder="1500"
-            descripcion="Cliente ocasional"
-            value={config?.tarifa_hora} onChange={handleNumber('tarifa_hora')}
-          />
         </Grid>
+      </Paper>
+
+      {/* ─── ✨ NUEVO: Cobro por minutos para clientes ocasionales ─── */}
+      <Paper sx={{ p: 3, mb: 2, borderRadius: 3, border: '2px solid', borderColor: '#10B98140' }}>
+        <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
+          <Box sx={{
+            width: 40, height: 40, borderRadius: 2,
+            bgcolor: '#10B98115', display: 'flex',
+            alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Timer sx={{ color: '#10B981' }} />
+          </Box>
+          <Box>
+            <Typography sx={{ fontSize: 16, fontWeight: 800 }}>
+              Cobro por minutos (clientes ocasionales)
+            </Typography>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+              Para motos que entran por horas y se les cobra el tiempo exacto
+            </Typography>
+          </Box>
+        </Stack>
+
+        <Grid container spacing={2}>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth size="small" label="Tarifa por minuto"
+              type="number" inputProps={{ min: 0 }}
+              placeholder="50"
+              value={config?.tarifa_minuto || ''}
+              onChange={handleTarifaMinuto}
+              helperText="Lo que cobras por cada minuto"
+              InputProps={{
+                startAdornment: <InputAdornment position="start">$</InputAdornment>,
+              }}
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth size="small" label="Tarifa por hora (informativa)"
+              type="number" inputProps={{ min: 0 }}
+              placeholder="3000"
+              value={config?.tarifa_hora || ''}
+              onChange={handleNumber('tarifa_hora')}
+              helperText={
+                config?.tarifa_minuto > 0
+                  ? `Sugerido: ${formatCurrency(horaCalculada)} (60 × min)`
+                  : "Solo se muestra al cliente como referencia"
+              }
+              InputProps={{
+                startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                endAdornment: (
+                  <Tooltip title="Esta tarifa es solo informativa. El cobro real siempre se hace por los minutos exactos.">
+                    <InfoOutlined sx={{ fontSize: 16, color: 'text.secondary' }} />
+                  </Tooltip>
+                ),
+              }}
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth size="small" label="Cobro mínimo"
+              type="number" inputProps={{ min: 0, max: 240 }}
+              placeholder="30"
+              value={config?.cobro_minimo_minutos ?? 30}
+              onChange={handleNumber('cobro_minimo_minutos')}
+              helperText={
+                config?.cobro_minimo_minutos > 0 && config?.tarifa_minuto > 0
+                  ? `= ${formatCurrency(valorCobroMinimo)} mínimo`
+                  : "0 = desactivado"
+              }
+              InputProps={{
+                endAdornment: <InputAdornment position="end">min</InputAdornment>,
+              }}
+            />
+          </Grid>
+        </Grid>
+
+        {diferenciaHora && (
+          <Alert severity="info" sx={{ mt: 2, fontSize: 12 }} icon={<InfoOutlined />}>
+            Tu tarifa por hora ({formatCurrency(horaConfigurada)}) no coincide con la calculada
+            por minuto ({formatCurrency(horaCalculada)}). Esto está bien si lo configuraste a propósito —
+            la tarifa por hora es solo informativa, lo que se cobra es por minutos.
+          </Alert>
+        )}
+
+        {config?.tarifa_minuto > 0 && (
+          <Box sx={{ mt: 2, p: 2, bgcolor: '#10B98110', borderRadius: 2 }}>
+            <Typography sx={{ fontSize: 12, fontWeight: 700, color: '#065F46', mb: 1, textTransform: 'uppercase' }}>
+              Ejemplos de cobro
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
+              <Chip size="small" label={`15 min = ${formatCurrency(15 * config.tarifa_minuto)}`}
+                sx={{ bgcolor: 'background.paper' }} />
+              <Chip size="small" label={`30 min = ${formatCurrency(30 * config.tarifa_minuto)}`}
+                sx={{ bgcolor: 'background.paper' }} />
+              <Chip size="small" label={`60 min = ${formatCurrency(60 * config.tarifa_minuto)}`}
+                sx={{ bgcolor: 'background.paper' }} />
+              <Chip size="small" label={`120 min = ${formatCurrency(120 * config.tarifa_minuto)}`}
+                sx={{ bgcolor: 'background.paper' }} />
+            </Stack>
+          </Box>
+        )}
       </Paper>
 
       {/* ─── Vista previa de tarifas ────────────────────────────── */}
@@ -223,14 +334,15 @@ export default function ParqueaderoConfig() {
             sx={{ bgcolor: '#3B82F615', color: '#1E3A8A', fontWeight: 700 }} />
           <Chip label={`Diaria ${formatCurrency(config?.tarifa_diaria || 0)}`}
             sx={{ bgcolor: '#F59E0B15', color: '#78350F', fontWeight: 700 }} />
-          <Chip label={`Hora ${formatCurrency(config?.tarifa_hora || 0)}`}
-            sx={{ bgcolor: '#8B5CF615', color: '#5B21B6', fontWeight: 700 }} />
+          <Chip label={`Minuto ${formatCurrency(config?.tarifa_minuto || 0)}`}
+            sx={{ bgcolor: '#10B98115', color: '#065F46', fontWeight: 700 }} />
+          <Chip label={`Hora (info) ${formatCurrency(config?.tarifa_hora || 0)}`}
+            sx={{ bgcolor: '#94A3B815', color: '#475569', fontWeight: 700 }} />
           <Chip label={`Cupo ${config?.cupo_total || 0} motos`}
             sx={{ bgcolor: ACCENT + '15', color: ACCENT, fontWeight: 700 }} />
         </Stack>
       </Paper>
 
-      {/* ─── Guardar ────────────────────────────────────────────── */}
       <Stack direction="row" justifyContent="flex-end" sx={{ mb: 4 }}>
         <Button
           variant="contained" size="large" onClick={handleGuardar}
@@ -242,13 +354,11 @@ export default function ParqueaderoConfig() {
             boxShadow: `0 6px 18px ${ACCENT}40`,
           }}
         >
-          Guardar tarifas
+          Guardar configuración
         </Button>
       </Stack>
 
-      {/* ═════════════════════════════════════════════════════════════ */}
-      {/* ✨ NUEVA SECCIÓN: Métodos de pago + Plantillas WhatsApp        */}
-      {/* ═════════════════════════════════════════════════════════════ */}
+      {/* ✨ Sección de WhatsApp + Métodos de pago (sin cambios) */}
       <ParqueaderoMetodosPago />
 
     </Box>

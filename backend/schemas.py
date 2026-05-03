@@ -1226,6 +1226,8 @@ class ParqueaderoConfigBase(BaseModel):
     tarifa_quincenal:   float   = Field(0.0, ge=0)
     tarifa_diaria:      float   = Field(0.0, ge=0)
     tarifa_hora:        float   = Field(0.0, ge=0)
+    tarifa_minuto:         float   = Field(0.0, ge=0)              # ✨ NUEVO
+    cobro_minimo_minutos:  int     = Field(30, ge=0, le=240)       # ✨ NUEVO
     cupo_total:         int     = Field(0, ge=0)
     nombre_parqueadero: Optional[str] = None
     direccion:          Optional[str] = None
@@ -1392,10 +1394,13 @@ class SuscripcionOut(BaseModel):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class AccesoEntradaCreate(BaseModel):
-    """Registra el ingreso de un cliente que paga por horas."""
-    placa:         str = Field(..., min_length=3, max_length=10)
-    vehiculo_id:   Optional[int] = None  # Si la moto ya está registrada
-    observaciones: Optional[str] = None
+    """Registra el ingreso de un cliente que paga por minutos."""
+    placa:            str = Field(..., min_length=3, max_length=10)
+    vehiculo_id:      Optional[int] = None
+    nombre_ocasional: Optional[str] = Field(None, max_length=120)
+    telefono:         Optional[str] = Field(None, max_length=20)
+    observaciones:    Optional[str] = None
+    enviar_whatsapp:  bool = False  # Si True, devuelve también la wa_url al crear
 
     @validator('placa')
     def normalizar_placa(cls, v):
@@ -1414,21 +1419,35 @@ class AccesoSalidaCreate(BaseModel):
 
 
 class AccesoOut(BaseModel):
-    id:             int
-    empresa_id:     int
-    vehiculo_id:    Optional[int]
-    placa:          str
-    fecha_entrada:  datetime
-    fecha_salida:   Optional[datetime]
-    horas_cobradas: Optional[float]
-    monto_cobrado:  Optional[float]
-    metodo_pago:    Optional[str]
-    estado:         EstadoAccesoEnum
-    observaciones:  Optional[str]
-    usuario_id:     Optional[int]
+    id:               int
+    empresa_id:       int
+    vehiculo_id:      Optional[int]
+    placa:            str
+    nombre_ocasional: Optional[str] = None        # ✨ NUEVO
+    telefono:         Optional[str] = None        # ✨ NUEVO
+    fecha_entrada:    datetime
+    fecha_salida:     Optional[datetime]
+    minutos_cobrados: Optional[int] = None        # ✨ NUEVO
+    horas_cobradas:   Optional[float] = None
+    monto_cobrado:    Optional[float] = None
+    metodo_pago:      Optional[str] = None
+    estado:           EstadoAccesoEnum
+    observaciones:    Optional[str] = None
+    usuario_id:       Optional[int] = None
 
     class Config:
         from_attributes = True
+
+
+class AccesoEntradaResponse(BaseModel):
+    """
+    Respuesta al registrar entrada. Si se pidió enviar_whatsapp=True y hay
+    teléfono, devuelve también la wa_url lista para abrir.
+    """
+    acceso:        AccesoOut
+    wa_url:        Optional[str] = None     # URL wa.me/ si se pidió enviar
+    mensaje:       Optional[str] = None     # Texto del mensaje (preview)
+    advertencia:   Optional[str] = None
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1555,9 +1574,12 @@ class ModalidadPagoEnum(str, Enum):
 
 
 class TipoPlantillaEnum(str, Enum):
-    PAGO         = "pago"
-    RECORDATORIO = "recordatorio"
-    MANUAL       = "manual"
+    PAGO                  = "pago"
+    RECORDATORIO          = "recordatorio"
+    MANUAL                = "manual"
+    COMPROBANTE_ENTRADA   = "comprobante_entrada"   # ✨ NUEVO
+    RECIBO_SALIDA         = "recibo_salida"         # ✨ NUEVO
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1739,5 +1761,29 @@ PLANTILLAS_DEFAULT = {
         "• Valor: {monto}\n\n"
         "{link_pago}\n\n"
         "Quedo atento."
+    ),
+    # ✨ NUEVA PLANTILLA
+    "comprobante_entrada": (
+        "Hola {nombre} 👋\n\n"
+        "Tu moto *{placa}* ingresó a *{parqueadero}* el {hora_entrada}.\n\n"
+        "💰 *Tarifa:*\n"
+        "• {tarifa_minuto} por minuto\n"
+        "• Equivalente a {tarifa_hora} por hora (referencial)\n"
+        "{cobro_minimo_linea}\n"
+        "Cuando salgas con tu moto te diremos el valor exacto a pagar según el tiempo.\n\n"
+        "💳 *Cuando llegues, paga rápido aquí:*\n"
+        "{link_pago}\n\n"
+        "{instrucciones}\n"
+        "Conserva este mensaje como comprobante de tu ingreso. ¡Gracias!"
+    ),
+    # ✨ NUEVA PLANTILLA — recibo al salir
+    "recibo_salida": (
+        "Hola {nombre} 👋\n\n"
+        "Confirmamos la salida de tu moto *{placa}* de *{parqueadero}*.\n\n"
+        "📋 *Resumen:*\n"
+        "• Tiempo total: {minutos} min\n"
+        "• Valor pagado: *{monto}*\n"
+        "• Método: {metodo_pago}\n\n"
+        "Gracias por preferirnos. ¡Vuelve pronto!"
     ),
 }

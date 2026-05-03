@@ -3639,17 +3639,25 @@ def registrar_pago(
 # 5. ACCESOS POR HORAS (clientes ocasionales)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@parqueadero_router.post("/accesos/entrada", response_model=schemas.AccesoOut)
+
+@parqueadero_router.post("/accesos/entrada", response_model=schemas.AccesoEntradaResponse)
 def registrar_entrada_horas(
     payload: schemas.AccesoEntradaCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
-    """Registra el ingreso de una moto que paga por horas."""
+    """
+    Registra el ingreso de una moto que paga por minutos.
+    Acepta teléfono opcional para envío de comprobante por WhatsApp.
+
+    Si payload.enviar_whatsapp = True y hay teléfono válido, devuelve
+    también una wa_url lista para abrir en el frontend.
+    """
     return crud.registrar_entrada_horas(
         db, empresa_id=current_user.empresa_id,
         usuario_id=current_user.id, payload=payload,
     )
+
 
 
 @parqueadero_router.post("/accesos/salida", response_model=schemas.AccesoOut)
