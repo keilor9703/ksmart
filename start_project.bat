@@ -1,25 +1,11 @@
 @echo off
-REM Script para iniciar el backend y el frontend de la aplicacion.
+echo Iniciando entorno de desarrollo de Ksmart...
 
-echo Iniciando el servidor del backend (FastAPI)...
-REM Activa el venv y ejecuta uvicorn desde la raiz del proyecto.
-START "Backend Server" cmd /k "cd backend && .\venv\Scripts\activate.bat && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+:: Iniciar el Backend en una nueva ventana
+start "Ksmart - Backend" cmd /k "python -m venv .venv && call .venv\Scripts\activate && pip install -r backend\requirements.txt && cd backend && uvicorn main:app --reload"
 
-echo Iniciando el servidor del frontend (React)...
-START "Frontend Server" cmd /k "cd frontend && npm start"
+:: Iniciar el Frontend en otra nueva ventana
+start "Ksmart - Frontend" cmd /k "cd frontend && npm install && npm start"
 
-echo.
-echo Ambos servidores se estan iniciando en ventanas separadas.
-echo La aplicacion estara lista en unos momentos.
-echo Para detener la aplicacion, simplemente cierra las dos nuevas ventanas de la terminal.
-
-
-
-REM cd /d D:\APP_JEYLOR\APP\peleteria-jeylor-app
-REM call .venv\Scripts\activate.bat
-REM python -V
-REM where python
-
-
-REM cd backend
-REM uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+echo Las terminales se estan abriendo en segundo plano...
+exit
