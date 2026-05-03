@@ -225,6 +225,23 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v35)
                 logger.info("V33 (Cobro por minutos + cliente ocasional) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════════════════════
+            # MIGRACIÓN V35 - ACTUALIZAR ENUM DE POSTGRES (Nuevas plantillas WhatsApp)
+            # ═══════════════════════════════════════════════════════════════════════════════
+            migration_v35 = "inv_v35_update_enum_whatsapp"
+            if not _migration_already_applied(conn, migration_v35):
+                if not IS_SQLITE:
+                    # En Postgres debemos inyectar los nuevos valores al tipo ENUM existente.
+                    # SQLite lo ignora porque maneja los Enum como VARCHAR simples.
+                    try:
+                        conn.execute(text("ALTER TYPE tipoplantillawhatsapp ADD VALUE IF NOT EXISTS 'comprobante_entrada'"))
+                        conn.execute(text("ALTER TYPE tipoplantillawhatsapp ADD VALUE IF NOT EXISTS 'recibo_salida'"))
+                    except Exception as e:
+                        logger.warning("Aviso al alterar ENUM en Postgres: %s", e)
+                
+                _mark_migration_applied(conn, migration_v35)
+                logger.info("V35 (Actualización Enum Postgres WhatsApp) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
