@@ -382,14 +382,32 @@ function SubscItem({
 }
 
 function AccesoItem({ acceso, navigate }) {
-  const entrada = new Date(acceso.fecha_entrada);
+  // Fix para evitar horas negativas (fuerza la interpretación de la fecha en UTC si falta la 'Z')
+  const fechaStr = acceso.fecha_entrada.endsWith('Z') ? acceso.fecha_entrada : `${acceso.fecha_entrada}Z`;
+  const entrada = new Date(fechaStr);
   const ahora = new Date();
-  const horas = ((ahora - entrada) / 3600000).toFixed(1);
+  
+  // Calculamos las horas y evitamos que se muestren números negativos
+  let horas = ((ahora - entrada) / 3600000).toFixed(1);
+  if (horas < 0) horas = "0.0";
 
   return (
     <ListItem
       sx={{ py: 1.2, cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
       onClick={() => navigate(`/parqueadero/buscar?placa=${acceso.placa}`)}
+      // secondaryAction={
+      //   // Quitamos la condición de vehiculo_id para que el botón SIEMPRE aparezca
+      //   <Box onClick={(e) => e.stopPropagation()}>
+      //     <BotonWhatsApp
+      //       vehiculoId={acceso.vehiculo_id} // Si es ocasional será null/undefined, tu BotonWhatsApp debería manejarlo
+      //       placa={acceso.placa}
+      //       tipo="manual" 
+      //       variante="icon"
+      //       tamano="small"
+      //       telefono={acceso.telefono || acceso.cliente_telefono} 
+      //     />
+      //   </Box>
+      // }
     >
       <ListItemAvatar>
         <Avatar sx={{ bgcolor: '#DBEAFE', color: '#1E40AF', width: 40, height: 40 }}>
@@ -398,7 +416,7 @@ function AccesoItem({ acceso, navigate }) {
       </ListItemAvatar>
       <ListItemText
         primary={
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ pr: 5 }}>
             <Typography sx={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 14, letterSpacing: 1 }}>
               {acceso.placa}
             </Typography>
@@ -407,10 +425,17 @@ function AccesoItem({ acceso, navigate }) {
           </Stack>
         }
         secondary={
-          <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-            Entró: {entrada.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
-            {acceso.observaciones && ` · ${acceso.observaciones}`}
-          </Typography>
+          <Stack spacing={0.3}>
+            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+              Entró: {entrada.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+              {acceso.observaciones && ` · ${acceso.observaciones}`}
+            </Typography>
+            {(acceso.telefono || acceso.cliente_telefono) && (
+              <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                📱 {acceso.telefono || acceso.cliente_telefono}
+              </Typography>
+            )}
+          </Stack>
         }
       />
     </ListItem>

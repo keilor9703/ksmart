@@ -5020,6 +5020,106 @@ def registrar_salida_horas(
 # 6. BUSCAR PLACA (la pantalla estrella)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# def buscar_por_placa(db: Session, empresa_id: int, placa: str) -> dict:
+#     """
+#     EL endpoint más usado del sistema. En una sola llamada decide qué mostrar al operario.
+
+#     Casos:
+#       - vehiculo_al_dia          → 🟢 verde, "ENTRA"
+#       - vehiculo_vencido         → 🔴 rojo, ofrecer cobrar
+#       - vehiculo_sin_susc        → 🟡 amarillo, registrar nueva suscripción
+#       - vehiculo_no_registrado   → 🔵 azul, ofrecer registrar o cobrar por horas
+#       - tiene_acceso_abierto     → ⚫ gris, ofrecer registrar salida
+#     """
+#     placa_norm = placa.strip().upper().replace(" ", "").replace("-", "")
+#     hoy = datetime.now(BOGOTA_TZ).date()
+
+#     # 1. ¿Tiene acceso por horas abierto?
+#     acceso_abierto = db.query(models.AccesoParqueadero).filter(
+#         models.AccesoParqueadero.empresa_id == empresa_id,
+#         models.AccesoParqueadero.placa == placa_norm,
+#         models.AccesoParqueadero.estado == "dentro",
+#     ).first()
+
+#     if acceso_abierto:
+#         cfg = get_or_create_parq_config(db, empresa_id)
+#         delta = datetime.now(timezone.utc) - acceso_abierto.fecha_entrada
+#         horas = round(delta.total_seconds() / 3600, 2)
+#         horas_cobrar = max(1.0, horas)
+#         monto_estim = round(horas_cobrar * (cfg.tarifa_hora or 0), 0)
+
+#         return {
+#             "tipo_resultado":      "tiene_acceso_abierto",
+#             "placa":               placa_norm,
+#             "acceso_abierto":      acceso_abierto,
+#             "horas_transcurridas": horas_cobrar,
+#             "monto_estimado":      monto_estim,
+#             "mensaje":             f"Esta moto está dentro hace {horas_cobrar:.1f} horas. Cobro estimado: ${monto_estim:,.0f}",
+#             "color_semaforo":      "gris",
+#         }
+
+#     # 2. ¿El vehículo está registrado?
+#     veh = get_vehiculo_por_placa(db, empresa_id, placa_norm)
+
+#     if not veh:
+#         return {
+#             "tipo_resultado":  "vehiculo_no_registrado",
+#             "placa":           placa_norm,
+#             "mensaje":         "Placa no registrada. ¿Registrar moto nueva o cobrar por horas?",
+#             "color_semaforo":  "azul",
+#         }
+
+#     veh_dict = _enriquecer_vehiculo(veh)
+
+#     # 3. ¿Tiene suscripción?
+#     susc = get_suscripcion_activa(db, empresa_id, veh.id)
+
+#     if not susc:
+#         return {
+#             "tipo_resultado":  "vehiculo_sin_susc",
+#             "placa":           placa_norm,
+#             "vehiculo":        veh_dict,
+#             "mensaje":         f"{veh.cliente.nombre} ({placa_norm}) está registrado pero no tiene suscripción activa. Registrar pago.",
+#             "color_semaforo":  "amarillo",
+#         }
+
+#     susc_dict = _enriquecer_suscripcion(susc)
+
+#     # 4. ¿Está vigente o vencida?
+#     if susc.fecha_vencimiento >= hoy:
+#         dias_restantes = (susc.fecha_vencimiento - hoy).days
+#         return {
+#             "tipo_resultado":     "vehiculo_al_dia",
+#             "placa":              placa_norm,
+#             "vehiculo":           veh_dict,
+#             "suscripcion_actual": susc_dict,
+#             "fecha_vencimiento":  susc.fecha_vencimiento,
+#             "mensaje":            (
+#                 f"✅ {veh.cliente.nombre} · Mensualidad vigente · "
+#                 f"Vence en {dias_restantes} día{'s' if dias_restantes != 1 else ''} ({susc.fecha_vencimiento.strftime('%d/%m/%Y')}). ENTRA."
+#             ),
+#             "color_semaforo":     "verde" if dias_restantes > 5 else "amarillo",
+#         }
+#     else:
+#         dias_vencido = (hoy - susc.fecha_vencimiento).days
+#         return {
+#             "tipo_resultado":     "vehiculo_vencido",
+#             "placa":              placa_norm,
+#             "vehiculo":           veh_dict,
+#             "suscripcion_actual": susc_dict,
+#             "dias_vencido":       dias_vencido,
+#             "fecha_vencimiento":  susc.fecha_vencimiento,
+#             "mensaje":            (
+#                 f"⚠️ {veh.cliente.nombre} · Mensualidad VENCIDA hace {dias_vencido} día{'s' if dias_vencido != 1 else ''}. "
+#                 f"¿Cómo quiere cobrar?"
+#             ),
+#             "color_semaforo":     "rojo",
+#         }
+
+
+
+from datetime import timezone # Asegúrate de tener esta importación al inicio de tu archivo crud.py
+
 def buscar_por_placa(db: Session, empresa_id: int, placa: str) -> dict:
     """
     EL endpoint más usado del sistema. En una sola llamada decide qué mostrar al operario.
@@ -5043,7 +5143,18 @@ def buscar_por_placa(db: Session, empresa_id: int, placa: str) -> dict:
 
     if acceso_abierto:
         cfg = get_or_create_parq_config(db, empresa_id)
-        delta = datetime.now(timezone.utc) - acceso_abierto.fecha_entrada
+        
+        # --- FIX: Inyección de zona horaria UTC ---
+        ahora_utc = datetime.now(timezone.utc)
+        entrada = acceso_abierto.fecha_entrada
+        
+        # Si la fecha viene de SQLite (ingenua), le asignamos explícitamente UTC
+        if entrada.tzinfo is None:
+            entrada = entrada.replace(tzinfo=timezone.utc)
+            
+        delta = ahora_utc - entrada
+        # ------------------------------------------
+
         horas = round(delta.total_seconds() / 3600, 2)
         horas_cobrar = max(1.0, horas)
         monto_estim = round(horas_cobrar * (cfg.tarifa_hora or 0), 0)
