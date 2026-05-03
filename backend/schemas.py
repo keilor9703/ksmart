@@ -868,8 +868,8 @@ class RegistroSaaS(BaseModel):
 
     @validator('tipo_negocio')
     def _tipo_valido(cls, v):
-        if v not in ('erp', 'prestamos'):
-            raise ValueError('tipo_negocio debe ser "erp" o "prestamos"')
+        if v not in ('erp', 'prestamos', 'parqueadero'):
+            raise ValueError('tipo_negocio debe ser "erp" o "prestamos" o "parqueadero"')
         return v
 
     @validator('username')
@@ -1183,3 +1183,347 @@ class CotizacionOut(BaseModel):
     estado_cotizacion: Optional[str] = None  # 'vigente' | 'vencida' | 'convertida'
     numero_factura: Optional[str] = None     # Populated when converted
     model_config = ConfigDict(from_attributes=True)
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SCHEMAS DEL MÓDULO PARQUEADERO — Pega este bloque AL FINAL de tu schemas.py
+# ═══════════════════════════════════════════════════════════════════════════════
+
+from pydantic import BaseModel, Field, validator
+from datetime import datetime, date
+from typing import Optional, List
+from enum import Enum
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ENUMS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TipoSuscripcionEnum(str, Enum):
+    MENSUAL    = "mensual"
+    QUINCENAL  = "quincenal"
+    DIARIA     = "diaria"
+
+
+class EstadoSuscripcionEnum(str, Enum):
+    VIGENTE   = "vigente"
+    VENCIDA   = "vencida"
+    CANCELADA = "cancelada"
+
+
+class EstadoAccesoEnum(str, Enum):
+    DENTRO = "dentro"
+    SALIO  = "salio"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 1. PARQUEADERO CONFIG (Tarifas y cupo)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class ParqueaderoConfigBase(BaseModel):
+    tarifa_mensual:     float   = Field(0.0, ge=0)
+    tarifa_quincenal:   float   = Field(0.0, ge=0)
+    tarifa_diaria:      float   = Field(0.0, ge=0)
+    tarifa_hora:        float   = Field(0.0, ge=0)
+    cupo_total:         int     = Field(0, ge=0)
+    nombre_parqueadero: Optional[str] = None
+    direccion:          Optional[str] = None
+    horario_apertura:   Optional[str] = "06:30"
+    horario_cierre:     Optional[str] = "20:00"
+
+
+class ParqueaderoConfigUpdate(ParqueaderoConfigBase):
+    pass
+
+
+class ParqueaderoConfigOut(ParqueaderoConfigBase):
+    id:         int
+    empresa_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 2. VEHÍCULO
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class VehiculoBase(BaseModel):
+    placa:         str             = Field(..., min_length=3, max_length=10)
+    cliente_id:    int             = Field(..., gt=0)
+    marca:         Optional[str]   = None
+    modelo:        Optional[str]   = None
+    color:         Optional[str]   = None
+    foto_url:      Optional[str]   = None
+    observaciones: Optional[str]   = None
+
+    @validator('placa')
+    def normalizar_placa(cls, v):
+        return v.strip().upper().replace(' ', '').replace('-', '')
+
+
+class VehiculoCreate(VehiculoBase):
+    pass
+
+
+class VehiculoUpdate(BaseModel):
+    placa:         Optional[str]   = None
+    cliente_id:    Optional[int]   = None
+    marca:         Optional[str]   = None
+    modelo:        Optional[str]   = None
+    color:         Optional[str]   = None
+    foto_url:      Optional[str]   = None
+    observaciones: Optional[str]   = None
+    is_active:     Optional[bool]  = None
+
+    @validator('placa')
+    def normalizar_placa(cls, v):
+        if v is None:
+            return v
+        return v.strip().upper().replace(' ', '').replace('-', '')
+
+
+class VehiculoOut(VehiculoBase):
+    id:             int
+    empresa_id:     int
+    is_active:      bool
+    created_at:     datetime
+    # Datos del cliente para no hacer doble query
+    cliente_nombre:    Optional[str] = None
+    cliente_telefono:  Optional[str] = None
+    cliente_cedula:    Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 3. SUSCRIPCIONES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class SuscripcionCreate(BaseModel):
+    vehiculo_id:           int
+    tipo:                  TipoSuscripcionEnum
+    monto_personalizado:   Optional[float] = Field(
+        None, ge=0,
+        description="Si se envía, sobrescribe la tarifa global. Útil para descuentos puntuales."
+    )
+    metodo_pago_inicial:   Optional[str] = "Efectivo"
+    monto_pagado:          Optional[float] = Field(
+        0.0, ge=0,
+        description="Monto que el cliente paga AL MOMENTO de crear la suscripción. Puede ser parcial o total."
+    )
+    fecha_inicio:          Optional[date] = Field(
+        None,
+        description="Si NO se envía, se asume HOY. Para suscripciones retroactivas, enviar la fecha pasada."
+    )
+    es_retroactiva:        bool = False
+    observaciones:         Optional[str] = None
+
+
+class SuscripcionRetroactivaCreate(BaseModel):
+    """
+    Schema para el caso especial: cliente con mensualidad vencida que SÍ entró durante esos días.
+    Crea automáticamente la suscripción retroactiva + opcionalmente otra desde HOY.
+    """
+    vehiculo_id:               int
+    tipo_retroactivo:          TipoSuscripcionEnum  # mensual o diaria (depende de cómo escoja pagar)
+    dias_vencidos_a_cobrar:    int = Field(..., ge=1, le=365)
+    crear_nueva_desde_hoy:     bool = True
+    tipo_nueva_suscripcion:    Optional[TipoSuscripcionEnum] = None
+    monto_pagado_total:        float = Field(0.0, ge=0)
+    metodo_pago:               Optional[str] = "Efectivo"
+    observaciones:             Optional[str] = None
+
+
+class PagoParqueaderoCreate(BaseModel):
+    suscripcion_id: int
+    monto:          float = Field(..., gt=0)
+    metodo_pago:    str   = "Efectivo"
+    observaciones:  Optional[str] = None
+
+
+class PagoParqueaderoOut(BaseModel):
+    id:              int
+    suscripcion_id:  int
+    monto:           float
+    metodo_pago:     str
+    fecha:           datetime
+    observaciones:   Optional[str]
+    usuario_id:      Optional[int]
+    usuario_username: Optional[str] = None  # Se llena en el response
+
+    class Config:
+        from_attributes = True
+
+
+class SuscripcionOut(BaseModel):
+    id:                  int
+    empresa_id:          int
+    vehiculo_id:         int
+    tipo:                TipoSuscripcionEnum
+    fecha_inicio:        date
+    fecha_vencimiento:   date
+    monto_total:         float
+    monto_pagado:        float
+    saldo_pendiente:     float = 0.0   # calculado en runtime
+    estado_pago:         str
+    estado:              EstadoSuscripcionEnum
+    metodo_pago_inicial: Optional[str]
+    observaciones:       Optional[str]
+    es_retroactiva:      bool
+    dias_restantes:      int = 0       # calculado en runtime: positivo = vigente, negativo = vencida
+    created_at:          datetime
+
+    # Datos enriquecidos
+    placa:               Optional[str] = None
+    cliente_nombre:      Optional[str] = None
+    pagos:               List[PagoParqueaderoOut] = []
+
+    class Config:
+        from_attributes = True
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 4. ACCESOS POR HORAS (ocasionales)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class AccesoEntradaCreate(BaseModel):
+    """Registra el ingreso de un cliente que paga por horas."""
+    placa:         str = Field(..., min_length=3, max_length=10)
+    vehiculo_id:   Optional[int] = None  # Si la moto ya está registrada
+    observaciones: Optional[str] = None
+
+    @validator('placa')
+    def normalizar_placa(cls, v):
+        return v.strip().upper().replace(' ', '').replace('-', '')
+
+
+class AccesoSalidaCreate(BaseModel):
+    """Registra la salida y calcula el cobro automático."""
+    acceso_id:     int
+    metodo_pago:   str = "Efectivo"
+    monto_manual:  Optional[float] = Field(
+        None, ge=0,
+        description="Si se envía, sobrescribe el cálculo automático (descuento o ajuste manual)."
+    )
+    observaciones: Optional[str] = None
+
+
+class AccesoOut(BaseModel):
+    id:             int
+    empresa_id:     int
+    vehiculo_id:    Optional[int]
+    placa:          str
+    fecha_entrada:  datetime
+    fecha_salida:   Optional[datetime]
+    horas_cobradas: Optional[float]
+    monto_cobrado:  Optional[float]
+    metodo_pago:    Optional[str]
+    estado:         EstadoAccesoEnum
+    observaciones:  Optional[str]
+    usuario_id:     Optional[int]
+
+    class Config:
+        from_attributes = True
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 5. BUSCAR PLACA (la pantalla estrella)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class BuscarPlacaResponse(BaseModel):
+    """
+    Respuesta unificada cuando el operario escribe una placa.
+    Devuelve TODO lo que necesita la UI en una sola llamada para evitar parpadeos.
+
+    Casos posibles del campo `tipo_resultado`:
+      - 'vehiculo_al_dia'       → Veh. registrado + suscripción vigente. La moto entra.
+      - 'vehiculo_vencido'      → Veh. registrado + suscripción vencida. Pregunta cómo cobrar.
+      - 'vehiculo_sin_susc'     → Veh. registrado pero sin suscripción activa nunca o cancelada.
+      - 'vehiculo_no_registrado' → Placa nueva. Ofrecer registrar o cobrar por horas.
+      - 'tiene_acceso_abierto'  → La moto está dentro pagando por horas (cliente ocasional).
+    """
+    tipo_resultado:      str
+    placa:               str
+
+    # Cuando el vehículo existe
+    vehiculo:            Optional[VehiculoOut] = None
+    suscripcion_actual:  Optional[SuscripcionOut] = None
+    historico_resumen:   Optional[dict] = None  # {"total_pagado": X, "ultima_visita": ..., etc}
+
+    # Cuando hay vencimiento
+    dias_vencido:        Optional[int] = None
+    fecha_vencimiento:   Optional[date] = None
+
+    # Cuando está dentro pagando por horas
+    acceso_abierto:      Optional[AccesoOut] = None
+    horas_transcurridas: Optional[float] = None
+    monto_estimado:      Optional[float] = None
+
+    # Mensaje user-friendly listo para mostrar
+    mensaje:             str
+    color_semaforo:      str  # 'verde' | 'amarillo' | 'rojo' | 'azul' | 'gris'
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 6. DASHBOARD PARQUEADERO
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class DashboardParqueadero(BaseModel):
+    # Cupo
+    cupo_total:               int
+    cupo_ocupado_estimado:    int     # mensuales activos + accesos por hora abiertos
+    cupo_disponible:          int
+    porcentaje_ocupacion:     float
+
+    # Mensualidades
+    mensualidades_activas:    int
+    por_vencer_5_dias:        int
+    vencidas:                 int
+
+    # Ingresos
+    ingresos_hoy:             float
+    ingresos_semana:          float
+    ingresos_mes:             float
+
+    # Listas para mostrar en el dashboard
+    proximos_vencimientos:    List[dict] = []   # [{placa, propietario, fecha_vence, dias_restantes}]
+    suscripciones_vencidas:   List[dict] = []
+    accesos_dentro:           List[AccesoOut] = []
+
+    # Total de vehículos del parqueadero
+    total_vehiculos:          int
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 7. REPORTES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class IngresoPorDiaParq(BaseModel):
+    fecha:               date
+    total_suscripciones: float = 0.0
+    total_horas:         float = 0.0
+    total_general:       float = 0.0
+    cantidad_pagos:      int   = 0
+
+
+class ReporteIngresosParqueadero(BaseModel):
+    start_date:    date
+    end_date:      date
+    total_general: float
+    desglose_por_dia: List[IngresoPorDiaParq]
+    desglose_por_metodo: dict  # {"Efectivo": 1200000, "Transferencia": 450000, ...}
+    desglose_por_tipo:   dict  # {"mensual": 6000000, "quincenal": 800000, ...}
+
+
+class TopClienteParq(BaseModel):
+    cliente_id:        int
+    cliente_nombre:    str
+    cantidad_motos:    int
+    total_pagado:      float
+    cliente_desde:     date
+    ultima_renovacion: Optional[date]

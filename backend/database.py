@@ -61,11 +61,8 @@ def run_migrations():
             _ensure_schema_meta(conn)
 
             # ═══════════════════════════════════════════════════════════════════════════════
-# MIGRACIÓN V31 - MÓDULO PARQUEADERO
-# Pega este bloque DENTRO de run_migrations(), DESPUÉS del V30
-# ═══════════════════════════════════════════════════════════════════════════════
-
-            # V31 - PARQUEADERO (Vehículos, Suscripciones, Pagos, Accesos por hora)
+            # MIGRACIÓN V31 - MÓDULO PARQUEADERO
+            # ═══════════════════════════════════════════════════════════════════════════════
             migration_v31 = "inv_v31_parqueadero"
             if not _migration_already_applied(conn, migration_v31):
 
@@ -110,9 +107,7 @@ def run_migrations():
                             )
                         """))
                     if not _index_exists(conn, "idx_parq_config_empresa"):
-                        conn.execute(text(
-                            "CREATE INDEX idx_parq_config_empresa ON parqueadero_config(empresa_id)"
-                        ))
+                        conn.execute(text("CREATE INDEX idx_parq_config_empresa ON parqueadero_config(empresa_id)"))
 
                 # ── 2. vehiculos ─────────────────────────────────────────────
                 if not _table_exists(conn, "vehiculos"):
@@ -151,13 +146,9 @@ def run_migrations():
                             )
                         """))
                     if not _index_exists(conn, "idx_vehiculos_empresa_placa"):
-                        conn.execute(text(
-                            "CREATE INDEX idx_vehiculos_empresa_placa ON vehiculos(empresa_id, placa)"
-                        ))
+                        conn.execute(text("CREATE INDEX idx_vehiculos_empresa_placa ON vehiculos(empresa_id, placa)"))
                     if not _index_exists(conn, "idx_vehiculos_cliente"):
-                        conn.execute(text(
-                            "CREATE INDEX idx_vehiculos_cliente ON vehiculos(cliente_id)"
-                        ))
+                        conn.execute(text("CREATE INDEX idx_vehiculos_cliente ON vehiculos(cliente_id)"))
 
                 # ── 3. suscripciones_parqueadero ─────────────────────────────
                 if not _table_exists(conn, "suscripciones_parqueadero"):
@@ -202,13 +193,9 @@ def run_migrations():
                             )
                         """))
                     if not _index_exists(conn, "idx_susc_vehiculo"):
-                        conn.execute(text(
-                            "CREATE INDEX idx_susc_vehiculo ON suscripciones_parqueadero(vehiculo_id)"
-                        ))
+                        conn.execute(text("CREATE INDEX idx_susc_vehiculo ON suscripciones_parqueadero(vehiculo_id)"))
                     if not _index_exists(conn, "idx_susc_vencimiento"):
-                        conn.execute(text(
-                            "CREATE INDEX idx_susc_vencimiento ON suscripciones_parqueadero(empresa_id, fecha_vencimiento)"
-                        ))
+                        conn.execute(text("CREATE INDEX idx_susc_vencimiento ON suscripciones_parqueadero(empresa_id, fecha_vencimiento)"))
 
                 # ── 4. pagos_parqueadero ─────────────────────────────────────
                 if not _table_exists(conn, "pagos_parqueadero"):
@@ -239,13 +226,9 @@ def run_migrations():
                             )
                         """))
                     if not _index_exists(conn, "idx_pagos_parq_susc"):
-                        conn.execute(text(
-                            "CREATE INDEX idx_pagos_parq_susc ON pagos_parqueadero(suscripcion_id)"
-                        ))
+                        conn.execute(text("CREATE INDEX idx_pagos_parq_susc ON pagos_parqueadero(suscripcion_id)"))
                     if not _index_exists(conn, "idx_pagos_parq_fecha"):
-                        conn.execute(text(
-                            "CREATE INDEX idx_pagos_parq_fecha ON pagos_parqueadero(empresa_id, fecha)"
-                        ))
+                        conn.execute(text("CREATE INDEX idx_pagos_parq_fecha ON pagos_parqueadero(empresa_id, fecha)"))
 
                 # ── 5. accesos_parqueadero (por horas) ───────────────────────
                 if not _table_exists(conn, "accesos_parqueadero"):
@@ -284,16 +267,50 @@ def run_migrations():
                             )
                         """))
                     if not _index_exists(conn, "idx_accesos_placa"):
-                        conn.execute(text(
-                            "CREATE INDEX idx_accesos_placa ON accesos_parqueadero(empresa_id, placa)"
-                        ))
+                        conn.execute(text("CREATE INDEX idx_accesos_placa ON accesos_parqueadero(empresa_id, placa)"))
                     if not _index_exists(conn, "idx_accesos_estado"):
-                        conn.execute(text(
-                            "CREATE INDEX idx_accesos_estado ON accesos_parqueadero(empresa_id, estado)"
-                        ))
+                        conn.execute(text("CREATE INDEX idx_accesos_estado ON accesos_parqueadero(empresa_id, estado)"))
 
                 _mark_migration_applied(conn, migration_v31)
                 logger.info("V31 (Parqueadero) aplicada.")
+
+            # ═══════════════════════════════════════════════════════════════════════════════
+            # MIGRACIÓN V32 - ACTUALIZACIÓN TABLA EMPRESAS
+            # ═══════════════════════════════════════════════════════════════════════════════
+            migration_v32 = "inv_v32_update_empresas"
+            if not _migration_already_applied(conn, migration_v32):
+                if _table_exists(conn, "empresas"):
+                    _add_column_if_missing(conn, "empresas", "pais TEXT", "pais")
+                    _add_column_if_missing(conn, "empresas", "ciudad TEXT", "ciudad")
+                    _add_column_if_missing(conn, "empresas", "tamano_negocio TEXT", "tamano_negocio")
+                    _add_column_if_missing(conn, "empresas", "origen_marketing TEXT", "origen_marketing")
+                    _add_column_if_missing(conn, "empresas", "plan_type TEXT", "plan_type")
+                    _add_column_if_missing(conn, "empresas", "trial_ends_at TIMESTAMP", "trial_ends_at")
+                    _add_column_if_missing(conn, "empresas", "wompi_customer_id TEXT", "wompi_customer_id")
+                    _add_column_if_missing(conn, "empresas", "wompi_payment_source_id TEXT", "wompi_payment_source_id")
+                    _add_column_if_missing(conn, "empresas", "modulos_habilitados TEXT", "modulos_habilitados")
+                
+                _mark_migration_applied(conn, migration_v32)
+                logger.info("V32 (Actualización Empresas) aplicada.")
+
+            # ═══════════════════════════════════════════════════════════════════════════════
+            # MIGRACIÓN V33 - ACTUALIZACIÓN TABLA USERS
+            # ═══════════════════════════════════════════════════════════════════════════════
+            migration_v33 = "inv_v33_update_users"
+            if not _migration_already_applied(conn, migration_v33):
+                if _table_exists(conn, "users"):
+                    # Añadir las columnas que faltan en la tabla users
+                    _add_column_if_missing(conn, "users", "nombre_completo TEXT", "nombre_completo")
+                    _add_column_if_missing(conn, "users", "email TEXT", "email")
+                    _add_column_if_missing(conn, "users", "telefono TEXT", "telefono")
+                    _add_column_if_missing(conn, "users", "empresa_id INTEGER", "empresa_id")
+
+                    # Crear índice para empresa_id ya que será una relación muy consultada
+                    if not _index_exists(conn, "idx_users_empresa"):
+                        conn.execute(text("CREATE INDEX idx_users_empresa ON users(empresa_id)"))
+                
+                _mark_migration_applied(conn, migration_v33)
+                logger.info("V33 (Actualización Users) aplicada.")
 
 
     except Exception as e:

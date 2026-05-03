@@ -8,6 +8,12 @@ import shutil
 import time
 import requests
 
+from datetime import date, datetime, timedelta
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+import crud, models, schemas
+
 from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional
 
@@ -147,11 +153,11 @@ def initialize_default_data(db: Session):
         {"name": "Caja",                "description": "Módulo de corte de caja diario.",                 "frontend_path": "/caja"},
         {"name": "Préstamos",           "description": "Módulo de gestión de préstamos.",                 "frontend_path": "/prestamos"},
         {"name": "Ruta de Cobro",       "description": "Módulo de gestión de ruta de cobro.",             "frontend_path": "/ruta-cobro"},
-{"name": "Parqueadero",         "description": "Dashboard del parqueadero.",      "frontend_path": "/parqueadero"},
-    {"name": "Buscar Placa",        "description": "Búsqueda rápida de placas.",      "frontend_path": "/parqueadero/buscar"},
-    {"name": "Vehículos",           "description": "Gestión de vehículos.",            "frontend_path": "/parqueadero/vehiculos"},
-    {"name": "Suscripciones Parq.", "description": "Renovaciones y pagos.",            "frontend_path": "/parqueadero/suscripciones"},
-    {"name": "Config Parqueadero",  "description": "Tarifas y cupo total.",            "frontend_path": "/parqueadero/config"},
+        {"name": "Parqueadero",         "description": "Dashboard del parqueadero.",                      "frontend_path": "/parqueadero"},
+        {"name": "Buscar Placa",        "description": "Búsqueda rápida de placas.",                      "frontend_path": "/parqueadero/buscar"},
+        {"name": "Vehículos",           "description": "Gestión de vehículos.",                           "frontend_path": "/parqueadero/vehiculos"},
+        {"name": "Suscripciones Parq.", "description": "Renovaciones y pagos.",                           "frontend_path": "/parqueadero/suscripciones"},
+        {"name": "Config Parqueadero",  "description": "Tarifas y cupo total.",                           "frontend_path": "/parqueadero/config"},
 
     ]
 
@@ -3411,3 +3417,360 @@ def reporte_caja_rango(
         "dias": dias_ordenados,
     }
 
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ENDPOINTS DEL MÓDULO PARQUEADERO
+# Pega este bloque en main.py, en la zona donde tienes otros routers
+# (después de los routers de "compras" o "produccion" por ejemplo)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+
+
+
+parqueadero_router = APIRouter(
+    prefix="/parqueadero",
+    tags=["Parqueadero"],
+    dependencies=[Depends(get_current_active_user)],
+)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 1. CONFIG (Tarifas + cupo)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@parqueadero_router.get("/config", response_model=schemas.ParqueaderoConfigOut)
+def get_parqueadero_config(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Obtiene la configuración del parqueadero (tarifas y cupo)."""
+    return crud.get_or_create_parq_config(db, empresa_id=current_user.empresa_id)
+
+
+@parqueadero_router.put("/config", response_model=schemas.ParqueaderoConfigOut)
+def update_parqueadero_config(
+    payload: schemas.ParqueaderoConfigUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_admin_user),
+):
+    """Solo el Admin puede modificar tarifas y cupo."""
+    return crud.update_parq_config(db, empresa_id=current_user.empresa_id, payload=payload)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 2. VEHÍCULOS (motos)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@parqueadero_router.get("/vehiculos", response_model=List[schemas.VehiculoOut])
+def listar_vehiculos(
+    skip: int = 0,
+    limit: int = Query(default=200, le=500),
+    search: Optional[str] = None,
+    solo_activos: bool = True,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Lista los vehículos del parqueadero. Soporta búsqueda por placa, nombre o cédula."""
+    return crud.list_vehiculos(
+        db, empresa_id=current_user.empresa_id,
+        skip=skip, limit=limit, search=search, solo_activos=solo_activos,
+    )
+
+
+@parqueadero_router.get("/vehiculos/{vehiculo_id}", response_model=schemas.VehiculoOut)
+def get_vehiculo_detalle(
+    vehiculo_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    veh = crud.get_vehiculo(db, empresa_id=current_user.empresa_id, vehiculo_id=vehiculo_id)
+    if not veh:
+        raise HTTPException(status_code=404, detail="Vehículo no encontrado.")
+    return crud._enriquecer_vehiculo(veh)
+
+
+@parqueadero_router.post("/vehiculos", response_model=schemas.VehiculoOut)
+def crear_vehiculo(
+    payload: schemas.VehiculoCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Registra un nuevo vehículo. La placa debe ser única en la empresa."""
+    veh = crud.create_vehiculo(db, empresa_id=current_user.empresa_id, payload=payload)
+    return crud._enriquecer_vehiculo(veh)
+
+
+@parqueadero_router.put("/vehiculos/{vehiculo_id}", response_model=schemas.VehiculoOut)
+def actualizar_vehiculo(
+    vehiculo_id: int,
+    payload: schemas.VehiculoUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    veh = crud.update_vehiculo(
+        db, empresa_id=current_user.empresa_id, vehiculo_id=vehiculo_id, payload=payload,
+    )
+    if not veh:
+        raise HTTPException(status_code=404, detail="Vehículo no encontrado.")
+    return crud._enriquecer_vehiculo(veh)
+
+
+@parqueadero_router.delete("/vehiculos/{vehiculo_id}")
+def eliminar_vehiculo(
+    vehiculo_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_admin_user),
+):
+    """
+    Borrado lógico (is_active=False). Solo Admin.
+    Conserva el histórico de suscripciones para auditoría.
+    """
+    if not crud.delete_vehiculo(db, empresa_id=current_user.empresa_id, vehiculo_id=vehiculo_id):
+        raise HTTPException(status_code=404, detail="Vehículo no encontrado.")
+    return {"message": "Vehículo dado de baja correctamente."}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 3. SUSCRIPCIONES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@parqueadero_router.get("/suscripciones", response_model=List[dict])
+def listar_suscripciones(
+    skip: int = 0,
+    limit: int = Query(default=100, le=500),
+    solo_vigentes: bool = False,
+    solo_vencidas: bool = False,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    return crud.list_todas_suscripciones(
+        db, empresa_id=current_user.empresa_id,
+        skip=skip, limit=limit,
+        solo_vigentes=solo_vigentes, solo_vencidas=solo_vencidas,
+    )
+
+
+@parqueadero_router.get("/vehiculos/{vehiculo_id}/suscripciones", response_model=List[dict])
+def historico_suscripciones_vehiculo(
+    vehiculo_id: int,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Histórico de suscripciones de un vehículo (todas las renovaciones)."""
+    return crud.list_suscripciones_vehiculo(
+        db, empresa_id=current_user.empresa_id, vehiculo_id=vehiculo_id, limit=limit,
+    )
+
+
+@parqueadero_router.post("/suscripciones", response_model=dict)
+def crear_suscripcion(
+    payload: schemas.SuscripcionCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """
+    Crea una nueva suscripción (mensual/quincenal/diaria).
+    Caso 1 — Cliente nuevo: registrar pago.
+    Caso 2 — Cliente vencido que NO entró en los días vencidos: registrar nueva suscripción desde hoy.
+    Permite pago parcial: si payload.monto_pagado < monto_total, queda como 'parcial'.
+    """
+    return crud.create_suscripcion(
+        db, empresa_id=current_user.empresa_id,
+        usuario_id=current_user.id, payload=payload,
+    )
+
+
+@parqueadero_router.post("/suscripciones/retroactiva", response_model=dict)
+def crear_suscripcion_retroactiva(
+    payload: schemas.SuscripcionRetroactivaCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """
+    Caso 3 — Cliente vencido que SÍ entró durante los días vencidos:
+    crea una suscripción retroactiva (deuda) + opcional una nueva desde hoy.
+    El pago total se distribuye automáticamente: primero la deuda, luego la nueva.
+    """
+    return crud.create_suscripcion_retroactiva(
+        db, empresa_id=current_user.empresa_id,
+        usuario_id=current_user.id, payload=payload,
+    )
+
+
+@parqueadero_router.delete("/suscripciones/{suscripcion_id}")
+def cancelar_suscripcion(
+    suscripcion_id: int,
+    motivo: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_admin_user),
+):
+    """Cancela una suscripción. Solo Admin (no borra, deja registro)."""
+    if not crud.cancelar_suscripcion(
+        db, empresa_id=current_user.empresa_id, suscripcion_id=suscripcion_id, motivo=motivo,
+    ):
+        raise HTTPException(status_code=404, detail="Suscripción no encontrada.")
+    return {"message": "Suscripción cancelada."}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 4. PAGOS / ABONOS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@parqueadero_router.post("/pagos", response_model=dict)
+def registrar_pago(
+    payload: schemas.PagoParqueaderoCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """
+    Registra un abono sobre una suscripción existente.
+    Útil cuando el cliente quedó debiendo y vuelve a pagar parte/todo el saldo.
+    Recalcula automáticamente estado_pago a pagado/parcial/pendiente.
+    """
+    return crud.registrar_pago_suscripcion(
+        db, empresa_id=current_user.empresa_id,
+        usuario_id=current_user.id, payload=payload,
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 5. ACCESOS POR HORAS (clientes ocasionales)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@parqueadero_router.post("/accesos/entrada", response_model=schemas.AccesoOut)
+def registrar_entrada_horas(
+    payload: schemas.AccesoEntradaCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Registra el ingreso de una moto que paga por horas."""
+    return crud.registrar_entrada_horas(
+        db, empresa_id=current_user.empresa_id,
+        usuario_id=current_user.id, payload=payload,
+    )
+
+
+@parqueadero_router.post("/accesos/salida", response_model=schemas.AccesoOut)
+def registrar_salida_horas(
+    payload: schemas.AccesoSalidaCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """
+    Registra la salida y calcula el cobro automático.
+    El operario puede sobrescribir el monto con `monto_manual` para descuentos o redondeos.
+    """
+    return crud.registrar_salida_horas(
+        db, empresa_id=current_user.empresa_id, payload=payload,
+    )
+
+
+@parqueadero_router.get("/accesos/dentro", response_model=List[schemas.AccesoOut])
+def listar_accesos_dentro(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Lista las motos que están dentro del parqueadero pagando por horas."""
+    return db.query(models.AccesoParqueadero).filter(
+        models.AccesoParqueadero.empresa_id == current_user.empresa_id,
+        models.AccesoParqueadero.estado == "dentro",
+    ).order_by(models.AccesoParqueadero.fecha_entrada.asc()).all()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 6. ⭐ BUSCAR PLACA — La pantalla estrella
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@parqueadero_router.get("/buscar/{placa}", response_model=schemas.BuscarPlacaResponse)
+def buscar_placa(
+    placa: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """
+    EL endpoint más usado. El operario escribe una placa y el sistema responde
+    todo en una sola llamada con un mensaje listo para mostrar y un color de semáforo.
+
+    Tipos de respuesta:
+    - vehiculo_al_dia          🟢 verde     → "ENTRA"
+    - vehiculo_vencido         🔴 rojo      → ofrecer cobrar (regla 2)
+    - vehiculo_sin_susc        🟡 amarillo  → registrar nueva suscripción
+    - vehiculo_no_registrado   🔵 azul      → registrar moto o cobrar por horas
+    - tiene_acceso_abierto     ⚫ gris       → registrar salida
+    """
+    return crud.buscar_por_placa(db, empresa_id=current_user.empresa_id, placa=placa)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 7. DASHBOARD
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@parqueadero_router.get("/dashboard", response_model=dict)
+def dashboard_parqueadero(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """
+    Resumen completo del día:
+    - Cupo total / ocupado / disponible
+    - Mensualidades activas / por vencer / vencidas
+    - Ingresos hoy / semana / mes
+    - Listas de próximos vencimientos y suscripciones vencidas
+    - Motos que están dentro pagando por horas
+    """
+    return crud.get_dashboard_parqueadero(db, empresa_id=current_user.empresa_id)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 8. REPORTES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@parqueadero_router.get("/reportes/ingresos", response_model=dict)
+def reporte_ingresos(
+    start_date: date,
+    end_date: date,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """
+    Reporte de ingresos por rango de fechas.
+    Devuelve:
+    - Total general del período
+    - Desglose día a día (suscripciones + horas)
+    - Desglose por método de pago
+    - Desglose por tipo (mensual/quincenal/diaria/por_horas)
+    """
+    if start_date > end_date:
+        raise HTTPException(status_code=400, detail="start_date debe ser anterior a end_date.")
+    return crud.reporte_ingresos_parqueadero(
+        db, empresa_id=current_user.empresa_id,
+        start_date=start_date, end_date=end_date,
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 9. CRON: NOTIFICACIONES DE VENCIMIENTO (sin auth, llamado por scheduler externo)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Ojo: este endpoint está FUERA del router porque NO requiere auth de usuario.
+# Lo llama un cron-job.org diariamente. Puedes protegerlo con un header secreto.
+
+@app.post("/superadmin/notificar-vencimientos-parqueadero")
+def cron_notificar_vencimientos_parqueadero(db: Session = Depends(get_db)):
+    """
+    Cron job diario: genera notificaciones a admins de empresas tipo parqueadero
+    sobre suscripciones por vencer (≤5 días) o ya vencidas.
+    Llamar desde cron-job.org u otro scheduler externo.
+    """
+    total = crud.notificar_vencimientos_parqueadero(db)
+    return {"msg": f"Se generaron {total} notificaciones de vencimiento de parqueadero."}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# REGISTRAR EL ROUTER (al final, junto con tus otros app.include_router)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+app.include_router(parqueadero_router)

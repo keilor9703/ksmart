@@ -4310,3 +4310,1116 @@ def delete_cotizacion(
     return True
 
 
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CRUD DEL MÓDULO PARQUEADERO
+# Pega este bloque AL FINAL de tu crud.py
+#
+# Reutiliza helpers existentes: BOGOTA_TZ, get_utc_boundaries, get_cliente
+# ═══════════════════════════════════════════════════════════════════════════════
+
+from datetime import date, datetime, timedelta, timezone
+from typing import Optional, List
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func, and_, or_
+from fastapi import HTTPException
+from dateutil.relativedelta import relativedelta   # ← clave para "mismo día del mes siguiente"
+
+import models
+import schemas
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# HELPERS INTERNOS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _calcular_fecha_vencimiento(fecha_inicio: date, tipo: str) -> date:
+    """
+    Calcula la fecha de vencimiento según el tipo de suscripción.
+    - mensual:   mismo día del mes siguiente (relativedelta maneja febrero, etc.)
+    - quincenal: 15 días exactos
+    - diaria:    1 día
+    """
+    if tipo == "mensual":
+        return fecha_inicio + relativedelta(months=+1)
+    if tipo == "quincenal":
+        return fecha_inicio + timedelta(days=15)
+    if tipo == "diaria":
+        return fecha_inicio + timedelta(days=1)
+    raise ValueError(f"Tipo de suscripción desconocido: {tipo}")
+
+
+def _obtener_tarifa_por_tipo(config: models.ParqueaderoConfig, tipo: str) -> float:
+    """Devuelve la tarifa global configurada para el tipo de suscripción."""
+    if tipo == "mensual":
+        return config.tarifa_mensual or 0.0
+    if tipo == "quincenal":
+        return config.tarifa_quincenal or 0.0
+    if tipo == "diaria":
+        return config.tarifa_diaria or 0.0
+    raise ValueError(f"Tipo no válido: {tipo}")
+
+
+def _actualizar_estado_pago(suscripcion: models.SuscripcionParqueadero):
+    """Recalcula estado_pago según monto_pagado vs monto_total."""
+    if suscripcion.monto_pagado >= suscripcion.monto_total:
+        suscripcion.estado_pago = "pagado"
+    elif suscripcion.monto_pagado > 0:
+        suscripcion.estado_pago = "parcial"
+    else:
+        suscripcion.estado_pago = "pendiente"
+
+
+def _enriquecer_suscripcion(susc: models.SuscripcionParqueadero) -> dict:
+    """Convierte una suscripción a dict con campos calculados (saldo, días restantes)."""
+    hoy = datetime.now(BOGOTA_TZ).date()
+    saldo = max(0.0, (susc.monto_total or 0) - (susc.monto_pagado or 0))
+    dias_restantes = (susc.fecha_vencimiento - hoy).days
+
+    pagos_data = []
+    for p in (susc.pagos or []):
+        pagos_data.append({
+            "id":               p.id,
+            "suscripcion_id":   p.suscripcion_id,
+            "monto":            p.monto,
+            "metodo_pago":      p.metodo_pago,
+            "fecha":            p.fecha,
+            "observaciones":    p.observaciones,
+            "usuario_id":       p.usuario_id,
+            "usuario_username": p.usuario.username if getattr(p, "usuario", None) else None,
+        })
+
+    return {
+        "id":                  susc.id,
+        "empresa_id":          susc.empresa_id,
+        "vehiculo_id":         susc.vehiculo_id,
+        "tipo":                susc.tipo,
+        "fecha_inicio":        susc.fecha_inicio,
+        "fecha_vencimiento":   susc.fecha_vencimiento,
+        "monto_total":         susc.monto_total,
+        "monto_pagado":        susc.monto_pagado,
+        "saldo_pendiente":     saldo,
+        "estado_pago":         susc.estado_pago,
+        "estado":              susc.estado,
+        "metodo_pago_inicial": susc.metodo_pago_inicial,
+        "observaciones":       susc.observaciones,
+        "es_retroactiva":      susc.es_retroactiva,
+        "dias_restantes":      dias_restantes,
+        "created_at":          susc.created_at,
+        "placa":               susc.vehiculo.placa if susc.vehiculo else None,
+        "cliente_nombre":      susc.vehiculo.cliente.nombre if (susc.vehiculo and susc.vehiculo.cliente) else None,
+        "pagos":               pagos_data,
+    }
+
+
+def _enriquecer_vehiculo(veh: models.Vehiculo) -> dict:
+    """Convierte un vehículo a dict con datos del cliente."""
+    return {
+        "id":                veh.id,
+        "empresa_id":        veh.empresa_id,
+        "placa":             veh.placa,
+        "cliente_id":        veh.cliente_id,
+        "marca":             veh.marca,
+        "modelo":            veh.modelo,
+        "color":             veh.color,
+        "foto_url":          veh.foto_url,
+        "observaciones":     veh.observaciones,
+        "is_active":         veh.is_active,
+        "created_at":        veh.created_at,
+        "cliente_nombre":    veh.cliente.nombre if veh.cliente else None,
+        "cliente_telefono":  veh.cliente.telefono if veh.cliente else None,
+        "cliente_cedula":    veh.cliente.cedula if veh.cliente else None,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 1. CONFIG (Tarifas + Cupo)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def get_or_create_parq_config(db: Session, empresa_id: int) -> models.ParqueaderoConfig:
+    """Obtiene la config de la empresa, o la crea con valores por defecto."""
+    cfg = db.query(models.ParqueaderoConfig).filter(
+        models.ParqueaderoConfig.empresa_id == empresa_id
+    ).first()
+    if cfg:
+        return cfg
+
+    cfg = models.ParqueaderoConfig(empresa_id=empresa_id)
+    db.add(cfg)
+    db.commit()
+    db.refresh(cfg)
+    return cfg
+
+
+def update_parq_config(
+    db: Session, empresa_id: int, payload: schemas.ParqueaderoConfigUpdate
+) -> models.ParqueaderoConfig:
+    cfg = get_or_create_parq_config(db, empresa_id)
+    for k, v in payload.dict(exclude_unset=True).items():
+        setattr(cfg, k, v)
+    cfg.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(cfg)
+    return cfg
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 2. VEHÍCULOS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def get_vehiculo(db: Session, empresa_id: int, vehiculo_id: int) -> Optional[models.Vehiculo]:
+    return (
+        db.query(models.Vehiculo)
+        .options(joinedload(models.Vehiculo.cliente))
+        .filter(
+            models.Vehiculo.id == vehiculo_id,
+            models.Vehiculo.empresa_id == empresa_id,
+        )
+        .first()
+    )
+
+
+def get_vehiculo_por_placa(db: Session, empresa_id: int, placa: str) -> Optional[models.Vehiculo]:
+    placa_norm = placa.strip().upper().replace(" ", "").replace("-", "")
+    return (
+        db.query(models.Vehiculo)
+        .options(joinedload(models.Vehiculo.cliente))
+        .filter(
+            models.Vehiculo.empresa_id == empresa_id,
+            models.Vehiculo.placa == placa_norm,
+        )
+        .first()
+    )
+
+
+def list_vehiculos(
+    db: Session, empresa_id: int, skip: int = 0, limit: int = 200,
+    search: Optional[str] = None, solo_activos: bool = True,
+) -> List[dict]:
+    q = (
+        db.query(models.Vehiculo)
+        .options(joinedload(models.Vehiculo.cliente))
+        .filter(models.Vehiculo.empresa_id == empresa_id)
+    )
+    if solo_activos:
+        q = q.filter(models.Vehiculo.is_active == True)
+    if search:
+        s = f"%{search.strip().upper()}%"
+        q = q.outerjoin(models.Cliente, models.Vehiculo.cliente_id == models.Cliente.id).filter(
+            or_(
+                models.Vehiculo.placa.ilike(s),
+                models.Cliente.nombre.ilike(s),
+                models.Cliente.cedula.ilike(s),
+            )
+        )
+    vehiculos = q.order_by(models.Vehiculo.created_at.desc()).offset(skip).limit(limit).all()
+    return [_enriquecer_vehiculo(v) for v in vehiculos]
+
+
+def create_vehiculo(
+    db: Session, empresa_id: int, payload: schemas.VehiculoCreate
+) -> models.Vehiculo:
+    # Validar que el cliente existe y pertenece a la empresa
+    cliente = get_cliente(db, empresa_id, payload.cliente_id)
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Propietario no encontrado en esta empresa.")
+
+    # Validar placa única
+    existente = get_vehiculo_por_placa(db, empresa_id, payload.placa)
+    if existente:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Ya existe un vehículo con placa {payload.placa} en este parqueadero."
+        )
+
+    veh = models.Vehiculo(empresa_id=empresa_id, **payload.dict())
+    db.add(veh)
+    db.commit()
+    db.refresh(veh)
+    return veh
+
+
+def update_vehiculo(
+    db: Session, empresa_id: int, vehiculo_id: int, payload: schemas.VehiculoUpdate
+) -> Optional[models.Vehiculo]:
+    veh = get_vehiculo(db, empresa_id, vehiculo_id)
+    if not veh:
+        return None
+
+    data = payload.dict(exclude_unset=True)
+
+    # Si se cambia la placa, validar unicidad
+    if "placa" in data and data["placa"] != veh.placa:
+        otro = get_vehiculo_por_placa(db, empresa_id, data["placa"])
+        if otro and otro.id != vehiculo_id:
+            raise HTTPException(status_code=400, detail="Ya existe otro vehículo con esa placa.")
+
+    for k, v in data.items():
+        setattr(veh, k, v)
+    db.commit()
+    db.refresh(veh)
+    return veh
+
+
+def delete_vehiculo(db: Session, empresa_id: int, vehiculo_id: int) -> bool:
+    """
+    Borrado lógico: marca is_active=False. Conserva el histórico de suscripciones.
+    """
+    veh = get_vehiculo(db, empresa_id, vehiculo_id)
+    if not veh:
+        return False
+    veh.is_active = False
+    db.commit()
+    return True
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 3. SUSCRIPCIONES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def get_suscripcion_activa(
+    db: Session, empresa_id: int, vehiculo_id: int
+) -> Optional[models.SuscripcionParqueadero]:
+    """
+    Devuelve la suscripción VIGENTE más reciente. Si no hay vigente,
+    devuelve la última vencida (para mostrar 'vencida hace X días').
+    No considera las canceladas.
+    """
+    hoy = datetime.now(BOGOTA_TZ).date()
+
+    vigente = (
+        db.query(models.SuscripcionParqueadero)
+        .options(joinedload(models.SuscripcionParqueadero.pagos))
+        .filter(
+            models.SuscripcionParqueadero.empresa_id == empresa_id,
+            models.SuscripcionParqueadero.vehiculo_id == vehiculo_id,
+            models.SuscripcionParqueadero.estado != "cancelada",
+            models.SuscripcionParqueadero.fecha_vencimiento >= hoy,
+        )
+        .order_by(models.SuscripcionParqueadero.fecha_vencimiento.desc())
+        .first()
+    )
+    if vigente:
+        return vigente
+
+    return (
+        db.query(models.SuscripcionParqueadero)
+        .options(joinedload(models.SuscripcionParqueadero.pagos))
+        .filter(
+            models.SuscripcionParqueadero.empresa_id == empresa_id,
+            models.SuscripcionParqueadero.vehiculo_id == vehiculo_id,
+            models.SuscripcionParqueadero.estado != "cancelada",
+        )
+        .order_by(models.SuscripcionParqueadero.fecha_vencimiento.desc())
+        .first()
+    )
+
+
+def list_suscripciones_vehiculo(
+    db: Session, empresa_id: int, vehiculo_id: int, limit: int = 50
+) -> List[dict]:
+    suscripciones = (
+        db.query(models.SuscripcionParqueadero)
+        .options(
+            joinedload(models.SuscripcionParqueadero.vehiculo).joinedload(models.Vehiculo.cliente),
+            joinedload(models.SuscripcionParqueadero.pagos),
+        )
+        .filter(
+            models.SuscripcionParqueadero.empresa_id == empresa_id,
+            models.SuscripcionParqueadero.vehiculo_id == vehiculo_id,
+        )
+        .order_by(models.SuscripcionParqueadero.fecha_inicio.desc())
+        .limit(limit)
+        .all()
+    )
+    return [_enriquecer_suscripcion(s) for s in suscripciones]
+
+
+def list_todas_suscripciones(
+    db: Session, empresa_id: int, skip: int = 0, limit: int = 100,
+    solo_vigentes: bool = False, solo_vencidas: bool = False,
+) -> List[dict]:
+    hoy = datetime.now(BOGOTA_TZ).date()
+    q = (
+        db.query(models.SuscripcionParqueadero)
+        .options(
+            joinedload(models.SuscripcionParqueadero.vehiculo).joinedload(models.Vehiculo.cliente),
+            joinedload(models.SuscripcionParqueadero.pagos),
+        )
+        .filter(
+            models.SuscripcionParqueadero.empresa_id == empresa_id,
+            models.SuscripcionParqueadero.estado != "cancelada",
+        )
+    )
+    if solo_vigentes:
+        q = q.filter(models.SuscripcionParqueadero.fecha_vencimiento >= hoy)
+    elif solo_vencidas:
+        q = q.filter(models.SuscripcionParqueadero.fecha_vencimiento < hoy)
+
+    suscripciones = q.order_by(
+        models.SuscripcionParqueadero.fecha_vencimiento.desc()
+    ).offset(skip).limit(limit).all()
+
+    return [_enriquecer_suscripcion(s) for s in suscripciones]
+
+
+def create_suscripcion(
+    db: Session, empresa_id: int, usuario_id: int, payload: schemas.SuscripcionCreate
+) -> dict:
+    """
+    Crea una nueva suscripción. La regla del dueño:
+      - Los días vencidos NO se cobran si el cliente NO entró durante ellos.
+      - Por eso este endpoint asume "no entró" → arranca desde HOY (o fecha enviada).
+      - Para el caso "sí entró durante los vencidos", usar create_suscripcion_retroactiva().
+    """
+    veh = get_vehiculo(db, empresa_id, payload.vehiculo_id)
+    if not veh:
+        raise HTTPException(status_code=404, detail="Vehículo no encontrado.")
+
+    cfg = get_or_create_parq_config(db, empresa_id)
+
+    # Determinar monto: el operario puede usar tarifa global o un monto personalizado (descuento)
+    monto_total = payload.monto_personalizado if payload.monto_personalizado is not None \
+        else _obtener_tarifa_por_tipo(cfg, payload.tipo.value)
+
+    if monto_total <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No hay tarifa configurada para el tipo '{payload.tipo.value}'. Configúrala primero."
+        )
+
+    fecha_inicio = payload.fecha_inicio or datetime.now(BOGOTA_TZ).date()
+    fecha_vence  = _calcular_fecha_vencimiento(fecha_inicio, payload.tipo.value)
+
+    monto_pagado = min(payload.monto_pagado or 0.0, monto_total)
+
+    susc = models.SuscripcionParqueadero(
+        empresa_id          = empresa_id,
+        vehiculo_id         = payload.vehiculo_id,
+        tipo                = payload.tipo.value,
+        fecha_inicio        = fecha_inicio,
+        fecha_vencimiento   = fecha_vence,
+        monto_total         = monto_total,
+        monto_pagado        = monto_pagado,
+        metodo_pago_inicial = payload.metodo_pago_inicial,
+        observaciones       = payload.observaciones,
+        es_retroactiva      = payload.es_retroactiva,
+        estado              = "vigente",
+    )
+    _actualizar_estado_pago(susc)
+    db.add(susc)
+    db.flush()
+
+    # Si pagó algo de entrada, registrar el primer pago
+    if monto_pagado > 0:
+        primer_pago = models.PagoParqueadero(
+            empresa_id     = empresa_id,
+            suscripcion_id = susc.id,
+            monto          = monto_pagado,
+            metodo_pago    = payload.metodo_pago_inicial or "Efectivo",
+            usuario_id     = usuario_id,
+            observaciones  = "Pago al crear la suscripción",
+        )
+        db.add(primer_pago)
+
+    db.commit()
+    db.refresh(susc)
+
+    # Cargar relaciones para el response
+    susc = (
+        db.query(models.SuscripcionParqueadero)
+        .options(
+            joinedload(models.SuscripcionParqueadero.vehiculo).joinedload(models.Vehiculo.cliente),
+            joinedload(models.SuscripcionParqueadero.pagos),
+        )
+        .filter(models.SuscripcionParqueadero.id == susc.id)
+        .first()
+    )
+    return _enriquecer_suscripcion(susc)
+
+
+def create_suscripcion_retroactiva(
+    db: Session, empresa_id: int, usuario_id: int, payload: schemas.SuscripcionRetroactivaCreate
+) -> dict:
+    """
+    Caso especial: el cliente SÍ entró durante los días vencidos. Acumula deuda + opcional renovación.
+
+    Lógica:
+      1. Crea suscripción retroactiva por los días vencidos (tipo y monto según escoja)
+      2. Opcionalmente, crea una nueva suscripción desde HOY
+      3. Distribuye el monto_pagado_total entre ambas (primero la retroactiva)
+    """
+    veh = get_vehiculo(db, empresa_id, payload.vehiculo_id)
+    if not veh:
+        raise HTTPException(status_code=404, detail="Vehículo no encontrado.")
+
+    cfg = get_or_create_parq_config(db, empresa_id)
+    hoy = datetime.now(BOGOTA_TZ).date()
+
+    # ── 1. Suscripción retroactiva ────────────────────────────────────────────
+    fecha_inicio_retro = hoy - timedelta(days=payload.dias_vencidos_a_cobrar)
+
+    if payload.tipo_retroactivo.value == "diaria":
+        # Cobrar X días sueltos a tarifa diaria
+        monto_retro = (cfg.tarifa_diaria or 0) * payload.dias_vencidos_a_cobrar
+        # El "vencimiento" técnico de esta retroactiva es ayer (ya pasó)
+        fecha_vence_retro = hoy - timedelta(days=1)
+    else:
+        # Mensualidad/quincenal retroactiva: una sola tarifa que cubre desde el primer día vencido
+        monto_retro = _obtener_tarifa_por_tipo(cfg, payload.tipo_retroactivo.value)
+        fecha_vence_retro = _calcular_fecha_vencimiento(fecha_inicio_retro, payload.tipo_retroactivo.value)
+
+    if monto_retro <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tarifa no configurada para el tipo retroactivo '{payload.tipo_retroactivo.value}'."
+        )
+
+    susc_retro = models.SuscripcionParqueadero(
+        empresa_id          = empresa_id,
+        vehiculo_id         = payload.vehiculo_id,
+        tipo                = payload.tipo_retroactivo.value,
+        fecha_inicio        = fecha_inicio_retro,
+        fecha_vencimiento   = fecha_vence_retro,
+        monto_total         = monto_retro,
+        monto_pagado        = 0.0,
+        metodo_pago_inicial = payload.metodo_pago,
+        observaciones       = (
+            f"Retroactiva: {payload.dias_vencidos_a_cobrar} días vencidos. "
+            + (payload.observaciones or "")
+        ).strip(),
+        es_retroactiva      = True,
+        estado              = "vencida" if fecha_vence_retro < hoy else "vigente",
+    )
+    db.add(susc_retro)
+    db.flush()
+
+    # ── 2. Nueva suscripción desde HOY (opcional) ──────────────────────────────
+    susc_nueva = None
+    monto_nueva = 0.0
+    if payload.crear_nueva_desde_hoy and payload.tipo_nueva_suscripcion:
+        monto_nueva = _obtener_tarifa_por_tipo(cfg, payload.tipo_nueva_suscripcion.value)
+        if monto_nueva <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Tarifa no configurada para '{payload.tipo_nueva_suscripcion.value}'."
+            )
+        fecha_vence_nueva = _calcular_fecha_vencimiento(hoy, payload.tipo_nueva_suscripcion.value)
+
+        susc_nueva = models.SuscripcionParqueadero(
+            empresa_id          = empresa_id,
+            vehiculo_id         = payload.vehiculo_id,
+            tipo                = payload.tipo_nueva_suscripcion.value,
+            fecha_inicio        = hoy,
+            fecha_vencimiento   = fecha_vence_nueva,
+            monto_total         = monto_nueva,
+            monto_pagado        = 0.0,
+            metodo_pago_inicial = payload.metodo_pago,
+            observaciones       = "Renovación tras pagar deuda atrasada.",
+            es_retroactiva      = False,
+            estado              = "vigente",
+        )
+        db.add(susc_nueva)
+        db.flush()
+
+    # ── 3. Distribuir el pago: primero retro, luego nueva ──────────────────────
+    monto_disponible = payload.monto_pagado_total
+    metodo = payload.metodo_pago or "Efectivo"
+
+    if monto_disponible > 0 and susc_retro:
+        a_aplicar = min(monto_disponible, susc_retro.monto_total)
+        susc_retro.monto_pagado = a_aplicar
+        _actualizar_estado_pago(susc_retro)
+        db.add(models.PagoParqueadero(
+            empresa_id     = empresa_id,
+            suscripcion_id = susc_retro.id,
+            monto          = a_aplicar,
+            metodo_pago    = metodo,
+            usuario_id     = usuario_id,
+            observaciones  = "Pago de deuda retroactiva",
+        ))
+        monto_disponible -= a_aplicar
+
+    if monto_disponible > 0 and susc_nueva:
+        a_aplicar = min(monto_disponible, susc_nueva.monto_total)
+        susc_nueva.monto_pagado = a_aplicar
+        _actualizar_estado_pago(susc_nueva)
+        db.add(models.PagoParqueadero(
+            empresa_id     = empresa_id,
+            suscripcion_id = susc_nueva.id,
+            monto          = a_aplicar,
+            metodo_pago    = metodo,
+            usuario_id     = usuario_id,
+            observaciones  = "Pago de nueva suscripción",
+        ))
+
+    db.commit()
+    db.refresh(susc_retro)
+    if susc_nueva:
+        db.refresh(susc_nueva)
+
+    return {
+        "msg": "Suscripción retroactiva procesada correctamente.",
+        "suscripcion_retroactiva": _enriquecer_suscripcion(susc_retro),
+        "suscripcion_nueva":       _enriquecer_suscripcion(susc_nueva) if susc_nueva else None,
+        "total_facturado":         (susc_retro.monto_total + monto_nueva),
+        "total_pagado":            payload.monto_pagado_total,
+        "saldo_total":             max(0, (susc_retro.monto_total + monto_nueva) - payload.monto_pagado_total),
+    }
+
+
+def cancelar_suscripcion(
+    db: Session, empresa_id: int, suscripcion_id: int, motivo: Optional[str] = None
+) -> bool:
+    susc = db.query(models.SuscripcionParqueadero).filter(
+        models.SuscripcionParqueadero.id == suscripcion_id,
+        models.SuscripcionParqueadero.empresa_id == empresa_id,
+    ).first()
+    if not susc:
+        return False
+    susc.estado = "cancelada"
+    if motivo:
+        susc.observaciones = (susc.observaciones or "") + f" | Cancelada: {motivo}"
+    db.commit()
+    return True
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 4. PAGOS / ABONOS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def registrar_pago_suscripcion(
+    db: Session, empresa_id: int, usuario_id: int, payload: schemas.PagoParqueaderoCreate
+) -> dict:
+    """Registra un abono sobre una suscripción existente y recalcula su estado_pago."""
+    susc = db.query(models.SuscripcionParqueadero).filter(
+        models.SuscripcionParqueadero.id == payload.suscripcion_id,
+        models.SuscripcionParqueadero.empresa_id == empresa_id,
+    ).first()
+    if not susc:
+        raise HTTPException(status_code=404, detail="Suscripción no encontrada.")
+
+    saldo = (susc.monto_total or 0) - (susc.monto_pagado or 0)
+    if payload.monto > saldo + 0.01:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El abono ({payload.monto}) excede el saldo pendiente ({saldo:.0f})."
+        )
+
+    pago = models.PagoParqueadero(
+        empresa_id     = empresa_id,
+        suscripcion_id = susc.id,
+        monto          = payload.monto,
+        metodo_pago    = payload.metodo_pago,
+        usuario_id     = usuario_id,
+        observaciones  = payload.observaciones,
+    )
+    db.add(pago)
+
+    susc.monto_pagado = (susc.monto_pagado or 0) + payload.monto
+    _actualizar_estado_pago(susc)
+
+    db.commit()
+    db.refresh(susc)
+
+    susc = (
+        db.query(models.SuscripcionParqueadero)
+        .options(
+            joinedload(models.SuscripcionParqueadero.vehiculo).joinedload(models.Vehiculo.cliente),
+            joinedload(models.SuscripcionParqueadero.pagos),
+        )
+        .filter(models.SuscripcionParqueadero.id == susc.id)
+        .first()
+    )
+    return _enriquecer_suscripcion(susc)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 5. ACCESOS POR HORAS (clientes ocasionales)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def registrar_entrada_horas(
+    db: Session, empresa_id: int, usuario_id: int, payload: schemas.AccesoEntradaCreate
+) -> models.AccesoParqueadero:
+    """Registra un ingreso por horas. Si la placa ya está dentro, lanza error."""
+    placa_norm = payload.placa.strip().upper().replace(" ", "").replace("-", "")
+
+    # Validar que esa placa NO tenga un acceso abierto
+    abierto = db.query(models.AccesoParqueadero).filter(
+        models.AccesoParqueadero.empresa_id == empresa_id,
+        models.AccesoParqueadero.placa == placa_norm,
+        models.AccesoParqueadero.estado == "dentro",
+    ).first()
+    if abierto:
+        raise HTTPException(
+            status_code=400,
+            detail=f"La placa {placa_norm} ya tiene un acceso abierto desde {abierto.fecha_entrada}."
+        )
+
+    veh_id = payload.vehiculo_id
+    if not veh_id:
+        veh = get_vehiculo_por_placa(db, empresa_id, placa_norm)
+        veh_id = veh.id if veh else None
+
+    acceso = models.AccesoParqueadero(
+        empresa_id    = empresa_id,
+        vehiculo_id   = veh_id,
+        placa         = placa_norm,
+        fecha_entrada = datetime.now(timezone.utc),
+        estado        = "dentro",
+        observaciones = payload.observaciones,
+        usuario_id    = usuario_id,
+    )
+    db.add(acceso)
+    db.commit()
+    db.refresh(acceso)
+    return acceso
+
+
+def registrar_salida_horas(
+    db: Session, empresa_id: int, payload: schemas.AccesoSalidaCreate
+) -> models.AccesoParqueadero:
+    """
+    Cierra un acceso, calcula horas y monto. El operario puede sobrescribir el monto
+    con `monto_manual` para aplicar descuentos o redondeos.
+    """
+    acceso = db.query(models.AccesoParqueadero).filter(
+        models.AccesoParqueadero.id == payload.acceso_id,
+        models.AccesoParqueadero.empresa_id == empresa_id,
+    ).first()
+    if not acceso:
+        raise HTTPException(status_code=404, detail="Acceso no encontrado.")
+    if acceso.estado == "salio":
+        raise HTTPException(status_code=400, detail="Este acceso ya fue cerrado.")
+
+    cfg = get_or_create_parq_config(db, empresa_id)
+    ahora = datetime.now(timezone.utc)
+    delta = ahora - acceso.fecha_entrada
+    horas = round(delta.total_seconds() / 3600, 2)
+    horas_cobrar = max(1.0, horas)   # mínimo 1 hora
+
+    monto_calc = round(horas_cobrar * (cfg.tarifa_hora or 0), 0)
+    monto_final = payload.monto_manual if payload.monto_manual is not None else monto_calc
+
+    acceso.fecha_salida   = ahora
+    acceso.horas_cobradas = horas_cobrar
+    acceso.monto_cobrado  = monto_final
+    acceso.metodo_pago    = payload.metodo_pago
+    acceso.estado         = "salio"
+    if payload.observaciones:
+        acceso.observaciones = (acceso.observaciones or "") + " | Salida: " + payload.observaciones
+
+    db.commit()
+    db.refresh(acceso)
+    return acceso
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 6. BUSCAR PLACA (la pantalla estrella)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def buscar_por_placa(db: Session, empresa_id: int, placa: str) -> dict:
+    """
+    EL endpoint más usado del sistema. En una sola llamada decide qué mostrar al operario.
+
+    Casos:
+      - vehiculo_al_dia          → 🟢 verde, "ENTRA"
+      - vehiculo_vencido         → 🔴 rojo, ofrecer cobrar
+      - vehiculo_sin_susc        → 🟡 amarillo, registrar nueva suscripción
+      - vehiculo_no_registrado   → 🔵 azul, ofrecer registrar o cobrar por horas
+      - tiene_acceso_abierto     → ⚫ gris, ofrecer registrar salida
+    """
+    placa_norm = placa.strip().upper().replace(" ", "").replace("-", "")
+    hoy = datetime.now(BOGOTA_TZ).date()
+
+    # 1. ¿Tiene acceso por horas abierto?
+    acceso_abierto = db.query(models.AccesoParqueadero).filter(
+        models.AccesoParqueadero.empresa_id == empresa_id,
+        models.AccesoParqueadero.placa == placa_norm,
+        models.AccesoParqueadero.estado == "dentro",
+    ).first()
+
+    if acceso_abierto:
+        cfg = get_or_create_parq_config(db, empresa_id)
+        delta = datetime.now(timezone.utc) - acceso_abierto.fecha_entrada
+        horas = round(delta.total_seconds() / 3600, 2)
+        horas_cobrar = max(1.0, horas)
+        monto_estim = round(horas_cobrar * (cfg.tarifa_hora or 0), 0)
+
+        return {
+            "tipo_resultado":      "tiene_acceso_abierto",
+            "placa":               placa_norm,
+            "acceso_abierto":      acceso_abierto,
+            "horas_transcurridas": horas_cobrar,
+            "monto_estimado":      monto_estim,
+            "mensaje":             f"Esta moto está dentro hace {horas_cobrar:.1f} horas. Cobro estimado: ${monto_estim:,.0f}",
+            "color_semaforo":      "gris",
+        }
+
+    # 2. ¿El vehículo está registrado?
+    veh = get_vehiculo_por_placa(db, empresa_id, placa_norm)
+
+    if not veh:
+        return {
+            "tipo_resultado":  "vehiculo_no_registrado",
+            "placa":           placa_norm,
+            "mensaje":         "Placa no registrada. ¿Registrar moto nueva o cobrar por horas?",
+            "color_semaforo":  "azul",
+        }
+
+    veh_dict = _enriquecer_vehiculo(veh)
+
+    # 3. ¿Tiene suscripción?
+    susc = get_suscripcion_activa(db, empresa_id, veh.id)
+
+    if not susc:
+        return {
+            "tipo_resultado":  "vehiculo_sin_susc",
+            "placa":           placa_norm,
+            "vehiculo":        veh_dict,
+            "mensaje":         f"{veh.cliente.nombre} ({placa_norm}) está registrado pero no tiene suscripción activa. Registrar pago.",
+            "color_semaforo":  "amarillo",
+        }
+
+    susc_dict = _enriquecer_suscripcion(susc)
+
+    # 4. ¿Está vigente o vencida?
+    if susc.fecha_vencimiento >= hoy:
+        dias_restantes = (susc.fecha_vencimiento - hoy).days
+        return {
+            "tipo_resultado":     "vehiculo_al_dia",
+            "placa":              placa_norm,
+            "vehiculo":           veh_dict,
+            "suscripcion_actual": susc_dict,
+            "fecha_vencimiento":  susc.fecha_vencimiento,
+            "mensaje":            (
+                f"✅ {veh.cliente.nombre} · Mensualidad vigente · "
+                f"Vence en {dias_restantes} día{'s' if dias_restantes != 1 else ''} ({susc.fecha_vencimiento.strftime('%d/%m/%Y')}). ENTRA."
+            ),
+            "color_semaforo":     "verde" if dias_restantes > 5 else "amarillo",
+        }
+    else:
+        dias_vencido = (hoy - susc.fecha_vencimiento).days
+        return {
+            "tipo_resultado":     "vehiculo_vencido",
+            "placa":              placa_norm,
+            "vehiculo":           veh_dict,
+            "suscripcion_actual": susc_dict,
+            "dias_vencido":       dias_vencido,
+            "fecha_vencimiento":  susc.fecha_vencimiento,
+            "mensaje":            (
+                f"⚠️ {veh.cliente.nombre} · Mensualidad VENCIDA hace {dias_vencido} día{'s' if dias_vencido != 1 else ''}. "
+                f"¿Cómo quiere cobrar?"
+            ),
+            "color_semaforo":     "rojo",
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 7. DASHBOARD
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def get_dashboard_parqueadero(db: Session, empresa_id: int) -> dict:
+    """
+    Resumen completo para la pantalla principal del operario:
+    - Cupo
+    - Vencimientos
+    - Ingresos
+    - Listas
+    """
+    hoy = datetime.now(BOGOTA_TZ).date()
+    inicio_hoy_utc, fin_hoy_utc = get_utc_boundaries(hoy)
+    inicio_semana = hoy - timedelta(days=hoy.weekday())
+    inicio_mes    = hoy.replace(day=1)
+    inicio_sem_utc, _ = get_utc_boundaries(inicio_semana)
+    inicio_mes_utc, _ = get_utc_boundaries(inicio_mes)
+
+    cfg = get_or_create_parq_config(db, empresa_id)
+
+    # ── Cupo ──────────────────────────────────────────────────────────────────
+    mensualidades_activas = db.query(models.SuscripcionParqueadero).filter(
+        models.SuscripcionParqueadero.empresa_id == empresa_id,
+        models.SuscripcionParqueadero.estado == "vigente",
+        models.SuscripcionParqueadero.fecha_vencimiento >= hoy,
+    ).count()
+
+    accesos_dentro_count = db.query(models.AccesoParqueadero).filter(
+        models.AccesoParqueadero.empresa_id == empresa_id,
+        models.AccesoParqueadero.estado == "dentro",
+    ).count()
+
+    cupo_ocupado = mensualidades_activas + accesos_dentro_count
+    cupo_disp    = max(0, (cfg.cupo_total or 0) - cupo_ocupado)
+    pct_ocup     = round((cupo_ocupado / cfg.cupo_total * 100), 1) if (cfg.cupo_total or 0) > 0 else 0.0
+
+    # ── Vencimientos ──────────────────────────────────────────────────────────
+    en_5_dias = hoy + timedelta(days=5)
+
+    por_vencer_q = (
+        db.query(models.SuscripcionParqueadero)
+        .options(joinedload(models.SuscripcionParqueadero.vehiculo).joinedload(models.Vehiculo.cliente))
+        .filter(
+            models.SuscripcionParqueadero.empresa_id == empresa_id,
+            models.SuscripcionParqueadero.estado != "cancelada",
+            models.SuscripcionParqueadero.fecha_vencimiento >= hoy,
+            models.SuscripcionParqueadero.fecha_vencimiento <= en_5_dias,
+        )
+        .order_by(models.SuscripcionParqueadero.fecha_vencimiento.asc())
+        .all()
+    )
+    proximos_vencimientos = [
+        {
+            "suscripcion_id":  s.id,
+            "vehiculo_id":     s.vehiculo_id,
+            "placa":           s.vehiculo.placa if s.vehiculo else "—",
+            "propietario":     s.vehiculo.cliente.nombre if (s.vehiculo and s.vehiculo.cliente) else "—",
+            "telefono":        s.vehiculo.cliente.telefono if (s.vehiculo and s.vehiculo.cliente) else None,
+            "fecha_vence":     s.fecha_vencimiento,
+            "dias_restantes":  (s.fecha_vencimiento - hoy).days,
+            "tipo":            s.tipo,
+        }
+        for s in por_vencer_q
+    ]
+
+    vencidas_q = (
+        db.query(models.SuscripcionParqueadero)
+        .options(joinedload(models.SuscripcionParqueadero.vehiculo).joinedload(models.Vehiculo.cliente))
+        .filter(
+            models.SuscripcionParqueadero.empresa_id == empresa_id,
+            models.SuscripcionParqueadero.estado != "cancelada",
+            models.SuscripcionParqueadero.fecha_vencimiento < hoy,
+        )
+        .order_by(models.SuscripcionParqueadero.fecha_vencimiento.desc())
+        .limit(50)
+        .all()
+    )
+
+    # Filtrar solo las que NO han sido reemplazadas por una nueva vigente
+    suscripciones_vencidas = []
+    for s in vencidas_q:
+        nueva = db.query(models.SuscripcionParqueadero).filter(
+            models.SuscripcionParqueadero.empresa_id == empresa_id,
+            models.SuscripcionParqueadero.vehiculo_id == s.vehiculo_id,
+            models.SuscripcionParqueadero.fecha_vencimiento >= hoy,
+            models.SuscripcionParqueadero.estado != "cancelada",
+        ).first()
+        if not nueva:
+            suscripciones_vencidas.append({
+                "suscripcion_id": s.id,
+                "vehiculo_id":    s.vehiculo_id,
+                "placa":          s.vehiculo.placa if s.vehiculo else "—",
+                "propietario":    s.vehiculo.cliente.nombre if (s.vehiculo and s.vehiculo.cliente) else "—",
+                "telefono":       s.vehiculo.cliente.telefono if (s.vehiculo and s.vehiculo.cliente) else None,
+                "fecha_vence":    s.fecha_vencimiento,
+                "dias_vencido":   (hoy - s.fecha_vencimiento).days,
+                "tipo":           s.tipo,
+            })
+
+    # ── Ingresos ──────────────────────────────────────────────────────────────
+    def _ingresos_rango(utc_start, utc_end):
+        """Suma pagos de suscripciones + accesos por horas en el rango."""
+        susc_total = db.query(func.sum(models.PagoParqueadero.monto)).filter(
+            models.PagoParqueadero.empresa_id == empresa_id,
+            models.PagoParqueadero.fecha >= utc_start,
+            models.PagoParqueadero.fecha <= utc_end,
+        ).scalar() or 0.0
+
+        acc_total = db.query(func.sum(models.AccesoParqueadero.monto_cobrado)).filter(
+            models.AccesoParqueadero.empresa_id == empresa_id,
+            models.AccesoParqueadero.estado == "salio",
+            models.AccesoParqueadero.fecha_salida >= utc_start,
+            models.AccesoParqueadero.fecha_salida <= utc_end,
+        ).scalar() or 0.0
+
+        return float(susc_total) + float(acc_total)
+
+    ingresos_hoy    = _ingresos_rango(inicio_hoy_utc, fin_hoy_utc)
+    ingresos_semana = _ingresos_rango(inicio_sem_utc, fin_hoy_utc)
+    ingresos_mes    = _ingresos_rango(inicio_mes_utc, fin_hoy_utc)
+
+    # ── Accesos dentro (motos por horas) ──────────────────────────────────────
+    accesos_dentro = db.query(models.AccesoParqueadero).filter(
+        models.AccesoParqueadero.empresa_id == empresa_id,
+        models.AccesoParqueadero.estado == "dentro",
+    ).order_by(models.AccesoParqueadero.fecha_entrada.asc()).all()
+
+    # ── Total vehículos ───────────────────────────────────────────────────────
+    total_veh = db.query(models.Vehiculo).filter(
+        models.Vehiculo.empresa_id == empresa_id,
+        models.Vehiculo.is_active == True,
+    ).count()
+
+    return {
+        "cupo_total":               cfg.cupo_total or 0,
+        "cupo_ocupado_estimado":    cupo_ocupado,
+        "cupo_disponible":          cupo_disp,
+        "porcentaje_ocupacion":     pct_ocup,
+        "mensualidades_activas":    mensualidades_activas,
+        "por_vencer_5_dias":        len(proximos_vencimientos),
+        "vencidas":                 len(suscripciones_vencidas),
+        "ingresos_hoy":             ingresos_hoy,
+        "ingresos_semana":          ingresos_semana,
+        "ingresos_mes":             ingresos_mes,
+        "proximos_vencimientos":    proximos_vencimientos,
+        "suscripciones_vencidas":   suscripciones_vencidas,
+        "accesos_dentro":           accesos_dentro,
+        "total_vehiculos":          total_veh,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 8. REPORTES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def reporte_ingresos_parqueadero(
+    db: Session, empresa_id: int, start_date: date, end_date: date
+) -> dict:
+    utc_start, _ = get_utc_boundaries(start_date)
+    _, utc_end   = get_utc_boundaries(end_date)
+
+    # ── Pagos de suscripciones ────────────────────────────────────────────────
+    pagos = (
+        db.query(models.PagoParqueadero)
+        .options(joinedload(models.PagoParqueadero.suscripcion))
+        .filter(
+            models.PagoParqueadero.empresa_id == empresa_id,
+            models.PagoParqueadero.fecha >= utc_start,
+            models.PagoParqueadero.fecha <= utc_end,
+        )
+        .all()
+    )
+
+    # ── Accesos por horas cerrados ────────────────────────────────────────────
+    accesos = db.query(models.AccesoParqueadero).filter(
+        models.AccesoParqueadero.empresa_id == empresa_id,
+        models.AccesoParqueadero.estado == "salio",
+        models.AccesoParqueadero.fecha_salida >= utc_start,
+        models.AccesoParqueadero.fecha_salida <= utc_end,
+    ).all()
+
+    # ── Agregaciones ──────────────────────────────────────────────────────────
+    desglose_dia = {}
+    desglose_metodo = {}
+    desglose_tipo = {"mensual": 0.0, "quincenal": 0.0, "diaria": 0.0, "por_horas": 0.0}
+    total_general = 0.0
+
+    def _key_dia(dt) -> str:
+        return dt.astimezone(BOGOTA_TZ).date().isoformat()
+
+    for p in pagos:
+        k = _key_dia(p.fecha)
+        if k not in desglose_dia:
+            desglose_dia[k] = {"total_suscripciones": 0.0, "total_horas": 0.0, "cantidad_pagos": 0}
+        desglose_dia[k]["total_suscripciones"] += p.monto
+        desglose_dia[k]["cantidad_pagos"]      += 1
+        total_general += p.monto
+        desglose_metodo[p.metodo_pago] = desglose_metodo.get(p.metodo_pago, 0.0) + p.monto
+        if p.suscripcion:
+            tipo = p.suscripcion.tipo
+            if tipo in desglose_tipo:
+                desglose_tipo[tipo] += p.monto
+
+    for a in accesos:
+        k = _key_dia(a.fecha_salida)
+        if k not in desglose_dia:
+            desglose_dia[k] = {"total_suscripciones": 0.0, "total_horas": 0.0, "cantidad_pagos": 0}
+        desglose_dia[k]["total_horas"]    += (a.monto_cobrado or 0)
+        desglose_dia[k]["cantidad_pagos"] += 1
+        total_general += (a.monto_cobrado or 0)
+        if a.metodo_pago:
+            desglose_metodo[a.metodo_pago] = desglose_metodo.get(a.metodo_pago, 0.0) + (a.monto_cobrado or 0)
+        desglose_tipo["por_horas"] += (a.monto_cobrado or 0)
+
+    # ── Construir lista ordenada ──────────────────────────────────────────────
+    desglose_list = []
+    cur = start_date
+    while cur <= end_date:
+        k = cur.isoformat()
+        d = desglose_dia.get(k, {"total_suscripciones": 0.0, "total_horas": 0.0, "cantidad_pagos": 0})
+        desglose_list.append({
+            "fecha":               cur,
+            "total_suscripciones": d["total_suscripciones"],
+            "total_horas":         d["total_horas"],
+            "total_general":       d["total_suscripciones"] + d["total_horas"],
+            "cantidad_pagos":      d["cantidad_pagos"],
+        })
+        cur += timedelta(days=1)
+
+    return {
+        "start_date":          start_date,
+        "end_date":            end_date,
+        "total_general":       round(total_general, 2),
+        "desglose_por_dia":    desglose_list,
+        "desglose_por_metodo": {k: round(v, 2) for k, v in desglose_metodo.items()},
+        "desglose_por_tipo":   {k: round(v, 2) for k, v in desglose_tipo.items()},
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 9. NOTIFICACIONES AUTOMÁTICAS DE VENCIMIENTO (cron diario)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def notificar_vencimientos_parqueadero(db: Session) -> int:
+    """
+    Genera notificaciones para admins de empresas con tipo 'parqueadero'
+    sobre suscripciones que vencen en ≤5 días o ya vencidas.
+    Llamar diariamente desde un cron job.
+    """
+    hoy = datetime.now(BOGOTA_TZ).date()
+    en_5_dias = hoy + timedelta(days=5)
+    total_creadas = 0
+
+    empresas = db.query(models.Empresa).filter(models.Empresa.is_active == True).all()
+
+    for empresa in empresas:
+        # Solo procesar empresas con módulo de parqueadero habilitado
+        modulos = empresa.modulos_habilitados or []
+        if "/parqueadero" not in modulos:
+            continue
+
+        por_vencer = db.query(models.SuscripcionParqueadero).filter(
+            models.SuscripcionParqueadero.empresa_id == empresa.id,
+            models.SuscripcionParqueadero.estado != "cancelada",
+            models.SuscripcionParqueadero.fecha_vencimiento >= hoy,
+            models.SuscripcionParqueadero.fecha_vencimiento <= en_5_dias,
+        ).count()
+
+        vencidas = db.query(models.SuscripcionParqueadero).filter(
+            models.SuscripcionParqueadero.empresa_id == empresa.id,
+            models.SuscripcionParqueadero.estado != "cancelada",
+            models.SuscripcionParqueadero.fecha_vencimiento < hoy,
+        ).count()
+
+        if por_vencer == 0 and vencidas == 0:
+            continue
+
+        admins = db.query(models.User).join(models.Role).filter(
+            models.User.empresa_id == empresa.id,
+            models.Role.name == "Admin",
+            models.User.is_active == True,
+        ).all()
+
+        for admin in admins:
+            if vencidas > 0:
+                db.add(models.Notificacion(
+                    usuario_id = admin.id,
+                    empresa_id = empresa.id,
+                    mensaje    = f"🔴 Tienes {vencidas} mensualidad(es) VENCIDA(S) en el parqueadero.",
+                    tipo       = "error",
+                    leido      = False,
+                ))
+                total_creadas += 1
+            if por_vencer > 0:
+                db.add(models.Notificacion(
+                    usuario_id = admin.id,
+                    empresa_id = empresa.id,
+                    mensaje    = f"🟡 {por_vencer} mensualidad(es) vence(n) en los próximos 5 días.",
+                    tipo       = "warning",
+                    leido      = False,
+                ))
+                total_creadas += 1
+
+    db.commit()
+    return total_creadas

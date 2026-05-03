@@ -51,6 +51,13 @@ import Registro from './components/Registro';
 import PrestamoForm from './components/PrestamoForm';
 import RutaCobro from './components/RutaCobro';
 
+// ✅ MÓDULO PARQUEADERO
+import ParqueaderoDashboard      from './components/ParqueaderoDashboard';
+import ParqueaderoBuscar         from './components/ParqueaderoBuscar';
+import ParqueaderoVehiculos      from './components/ParqueaderoVehiculos';
+import ParqueaderoSuscripciones  from './components/ParqueaderoSuscripciones';
+import ParqueaderoConfig         from './components/ParqueaderoConfig';
+
 // ─── Constantes ────────────────────────────────────────────────────────────────
 const SIDEBAR_FULL   = 240;
 const SIDEBAR_MINI   = 68;
@@ -474,6 +481,12 @@ function App() {
                   <Route path="/prestamos"          element={<ProtectedRoute path="/prestamos"          hasAccess={hasAccess}><PrestamoForm /></ProtectedRoute>} />
                   <Route path="/ruta-cobro"         element={<ProtectedRoute path="/ruta-cobro"         hasAccess={hasAccess}><RutaCobro /></ProtectedRoute>} />
                   <Route path="/panel-operador"     element={<ProtectedRoute path="/panel-operador"     hasAccess={hasAccess}><PanelOperador /></ProtectedRoute>} />
+                  {/* ✅ MÓDULO PARQUEADERO */}
+                  <Route path="/parqueadero"                element={<ProtectedRoute path="/parqueadero"                hasAccess={hasAccess}><ParqueaderoDashboard      /></ProtectedRoute>} />
+                  <Route path="/parqueadero/buscar"         element={<ProtectedRoute path="/parqueadero/buscar"         hasAccess={hasAccess}><ParqueaderoBuscar         /></ProtectedRoute>} />
+                  <Route path="/parqueadero/vehiculos"      element={<ProtectedRoute path="/parqueadero/vehiculos"      hasAccess={hasAccess}><ParqueaderoVehiculos      /></ProtectedRoute>} />
+                  <Route path="/parqueadero/suscripciones"  element={<ProtectedRoute path="/parqueadero/suscripciones"  hasAccess={hasAccess}><ParqueaderoSuscripciones  /></ProtectedRoute>} />
+                  <Route path="/parqueadero/config"         element={<ProtectedRoute path="/parqueadero/config"         hasAccess={hasAccess}><ParqueaderoConfig         /></ProtectedRoute>} />
 
                   {/* Rutas exclusivas de Admin — hasAccess ya cubre esto pero doble-verificamos */}
                   {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (
