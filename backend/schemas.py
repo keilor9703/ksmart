@@ -1498,6 +1498,10 @@ class DashboardParqueadero(BaseModel):
     # Total de vehículos del parqueadero
     total_vehiculos:          int
 
+    # 👇 Añade esto al final de la clase
+    class Config:
+        from_attributes = True
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 7. REPORTES

@@ -3707,7 +3707,22 @@ def buscar_placa(
 # 7. DASHBOARD
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@parqueadero_router.get("/dashboard", response_model=dict)
+# @parqueadero_router.get("/dashboard", response_model=dict)
+# def dashboard_parqueadero(
+#     db: Session = Depends(get_db),
+#     current_user: models.User = Depends(get_current_active_user),
+# ):
+#     """
+#     Resumen completo del día:
+#     - Cupo total / ocupado / disponible
+#     - Mensualidades activas / por vencer / vencidas
+#     - Ingresos hoy / semana / mes
+#     - Listas de próximos vencimientos y suscripciones vencidas
+#     - Motos que están dentro pagando por horas
+#     """
+#     return crud.get_dashboard_parqueadero(db, empresa_id=current_user.empresa_id)
+# ✅ SOLUCIÓN: Usar el schema que ya creaste
+@parqueadero_router.get("/dashboard", response_model=schemas.DashboardParqueadero)
 def dashboard_parqueadero(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
@@ -3721,7 +3736,6 @@ def dashboard_parqueadero(
     - Motos que están dentro pagando por horas
     """
     return crud.get_dashboard_parqueadero(db, empresa_id=current_user.empresa_id)
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 8. REPORTES
