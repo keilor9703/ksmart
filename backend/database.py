@@ -242,6 +242,15 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v35)
                 logger.info("V35 (Actualización Enum Postgres WhatsApp) aplicada.")
 
+            # ...
+            # ═══════════════════════════════════════════════════════════════════════════════
+            # MIGRACIÓN V36 - ACTUALIZAR ENUM DE POSTGRES (Nuevas plantillas WhatsApp)
+            # ═══════════════════════════════════════════════════════════════════════════════
+            migration_v36 = "inv_v36_update_enum_whatsapp"
+            if not _migration_already_applied(conn, migration_v36):
+            # ... resto del bloque igual, solo cambiando v35 a v36
+
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
