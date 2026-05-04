@@ -837,22 +837,20 @@ class MetodoPagoParqueadero(Base, TenantMixin):
 
 # ─── 3. Tipos de plantilla de WhatsApp ───────────────────────────────────────
 class TipoPlantillaWhatsApp(str, enum.Enum):
-    PAGO              = "pago"               # Recibo + cobros (mismo mensaje base)
-    RECORDATORIO      = "recordatorio"       # Días antes del vencimiento
-    MANUAL            = "manual"             # Genérico, configurable
+    PAGO                = "pago"
+    RECORDATORIO        = "recordatorio"
+    MANUAL              = "manual"
+    COMPROBANTE_ENTRADA = "comprobante_entrada"  # ✨ NUEVO: Faltaba en tu código
+    RECIBO_SALIDA       = "recibo_salida"       # ✨ NUEVO: Faltaba en tu código
 
 
 # ─── 4. Plantillas editables ──────────────────────────────────────────────────
 class PlantillaWhatsApp(Base, TenantMixin):
-    """
-    Plantillas editables por el dueño. Variables soportadas:
-      {nombre}, {placa}, {parqueadero}, {tipo_plan}, {fecha_vence},
-      {dias_vencido}, {dias_restantes}, {monto}, {saldo}, {link_pago}, {direccion}
-    """
     __tablename__ = "plantillas_whatsapp"
 
     id              = Column(Integer, primary_key=True, index=True)
-    tipo            = Column(Enum(TipoPlantillaWhatsApp), nullable=False)
+    # ✅ CAMBIO: Usamos String(255) en lugar de Enum para total compatibilidad con Postgres
+    tipo            = Column(String(255), nullable=False) 
     mensaje         = Column(Text, nullable=False)
     is_active       = Column(Boolean, default=True)
     created_at      = Column(DateTime(timezone=True), default=utcnow)
@@ -865,19 +863,15 @@ class PlantillaWhatsApp(Base, TenantMixin):
 
 # ─── 5. Historial de envíos ───────────────────────────────────────────────────
 class EnvioWhatsApp(Base, TenantMixin):
-    """
-    Registro de cada vez que se generó un link wa.me/. No garantiza que el
-    cliente haya recibido el mensaje (depende de que el dueño dé clic en
-    'enviar'), pero sirve para saber qué se envió y cuándo.
-    """
     __tablename__ = "envios_whatsapp_parqueadero"
 
     id              = Column(Integer, primary_key=True, index=True)
     vehiculo_id     = Column(Integer, ForeignKey("vehiculos.id"), nullable=True)
     suscripcion_id  = Column(Integer, ForeignKey("suscripciones_parqueadero.id"), nullable=True)
     telefono        = Column(String(20), nullable=False)
-    tipo            = Column(Enum(TipoPlantillaWhatsApp), nullable=False)
-    mensaje_enviado = Column(Text, nullable=True)        # snapshot del mensaje
+    # ✅ CAMBIO: Usamos String(255) aquí también
+    tipo            = Column(String(255), nullable=False)
+    mensaje_enviado = Column(Text, nullable=True)
     usuario_id      = Column(Integer, ForeignKey("users.id"), nullable=True)
     fecha           = Column(DateTime(timezone=True), default=utcnow, index=True)
 
