@@ -1,4 +1,6 @@
 # ─── Imports consolidados (sin duplicados) ───────────────────────────────────
+
+
 import os
 import io
 import hashlib
@@ -7,6 +9,7 @@ import secrets
 import shutil
 import time
 import requests
+import uvicorn
 
 from datetime import date, datetime, timedelta
 from typing import List, Optional
@@ -42,6 +45,9 @@ from sqlalchemy.orm import Session, joinedload
 import crud, models, schemas
 from database import SessionLocal, engine, run_migrations
 from models import Base, utcnow
+
+
+
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO)
@@ -4062,7 +4068,5 @@ def eliminar_mi_credencial(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 app.include_router(biometric_router)
-
-
 
 

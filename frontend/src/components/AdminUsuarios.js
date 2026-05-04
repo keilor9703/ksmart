@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import apiClient from '../api';
 import { toast } from 'react-toastify';
 import ConfirmationDialog from './ConfirmationDialog';
+import AlertaRolModulos from './AlertaRolModulos'; // ✨ IMPORTACIÓN AÑADIDA AQUÍ
+
 import {
   Box, Paper, Typography, Grid, TextField, Button, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, IconButton, FormControl,
@@ -250,6 +252,15 @@ export default function AdminUsuarios() {
                         </Select>
                       </FormControl>
                     </Grid>
+
+                    {/* ✨ ALERTA ROL MODULOS AÑADIDA AQUÍ COMO UN GRID ITEM DE ANCHO COMPLETO ✨ */}
+                    <Grid item xs={12}>
+                      <AlertaRolModulos
+                        rolSeleccionado={roles.find(r => r.id === roleId)}
+                        empresaActual={currentUser?.empresa}
+                      />
+                    </Grid>
+
                     <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
                       <Button type="submit" variant="contained" sx={{ bgcolor: ACCENT, fontWeight: 700 }}>
                         {editingUser ? 'Actualizar' : 'Guardar'}

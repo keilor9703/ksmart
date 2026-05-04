@@ -1,0 +1,80 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+
+    // ════════════════════════════════════════════════════════════════════
+    // 1. BACKEND — FastAPI con uvicorn + breakpoints en Python
+    // ════════════════════════════════════════════════════════════════════
+    {
+      "name": "🐍 Backend (FastAPI)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "main:app",
+        "--reload",
+        "--host", "0.0.0.0",
+        "--port", "8000"
+      ],
+      "cwd": "${workspaceFolder}/backend",
+      "jinja": true,
+      "justMyCode": false,
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "console": "integratedTerminal"
+    },
+
+    // ════════════════════════════════════════════════════════════════════
+    // 2. FRONTEND — Chrome con breakpoints en React/JS
+    // ════════════════════════════════════════════════════════════════════
+    {
+      "name": "🌐 Frontend (Chrome)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}/frontend/src",
+      "sourceMapPathOverrides": {
+        "webpack:///src/*": "${webRoot}/*",
+        "webpack:///./src/*": "${webRoot}/*"
+      },
+      "userDataDir": "${workspaceFolder}/.vscode/chrome-debug-profile",
+      "runtimeArgs": [
+        "--auto-open-devtools-for-tabs"
+      ]
+    },
+
+    // ════════════════════════════════════════════════════════════════════
+    // 3. FRONTEND alternativo — Edge en lugar de Chrome (opcional)
+    // ════════════════════════════════════════════════════════════════════
+    {
+      "name": "🌐 Frontend (Edge)",
+      "type": "msedge",
+      "request": "launch",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}/frontend/src",
+      "sourceMapPathOverrides": {
+        "webpack:///src/*": "${webRoot}/*",
+        "webpack:///./src/*": "${webRoot}/*"
+      }
+    }
+  ],
+
+  // ════════════════════════════════════════════════════════════════════
+  // COMPOUND — arranca BACKEND + FRONTEND juntos con un solo click
+  // ════════════════════════════════════════════════════════════════════
+  "compounds": [
+    {
+      "name": "🚀 Full Stack (Backend + Frontend)",
+      "configurations": ["🐍 Backend (FastAPI)", "🌐 Frontend (Chrome)"],
+      "stopAll": true,
+      "presentation": {
+        "hidden": false,
+        "group": "1_main",
+        "order": 1
+      }
+    }
+  ]
+}

@@ -18,8 +18,11 @@ import { Route, Routes, Link, useNavigate, useLocation } from 'react-router-dom'
 
 import apiClient from './api';
 import getAppTheme from './theme';
-import { APP_MODULES, ADMIN_MODULES } from './utils/modulesConfig';
+// 🔹 CAMBIOS DE MÓDULOS: Si necesitas agregar o quitar elementos del Sidebar, debes editar este archivo de utilidades.
+import { MODULE_ICONS, ADMIN_MODULES, getModuleConfig } from './utils/modulesConfig';
 
+// ✅ IMPORTACIÓN DE COMPONENTES PRIVADOS (PANTALLAS)
+// 🔹 NUEVAS PANTALLAS: Cuando crees una nueva vista en tu app, impórtala aquí primero.
 import Productos from './components/Productos';
 import Ventas from './components/Ventas';
 import Reportes from './components/Reportes';
@@ -39,11 +42,10 @@ import Caja from './components/Caja';
 import AdminUsuarios from './components/AdminUsuarios';
 import GestionEmpresas from './components/GestionEmpresas';
 import InventarioLotes from './components/InventarioLotes';
-
 import Cotizaciones from './components/Cotizaciones';
 import ResolucionesDian from './components/ResolucionesDian';
 
-// ✅ IMPORTAMOS LAS PANTALLAS PÚBLICAS
+// ✅ IMPORTAMOS LAS PANTALLAS PÚBLICAS (Login, Registro, etc.)
 import SuscripcionExpirada from './components/SuscripcionExpirada';
 import Registro from './components/Registro'; 
 
@@ -58,27 +60,25 @@ import ParqueaderoVehiculos      from './components/ParqueaderoVehiculos';
 import ParqueaderoSuscripciones  from './components/ParqueaderoSuscripciones';
 import ParqueaderoConfig         from './components/ParqueaderoConfig';
 
-
-// ✅ IMPORTAMOS LAS PANTALLAS PÚBLICAS
-
-
-
 // ✨ IMPORTAMOS EL MODAL DE BIOMETRÍA
 import ModalHuella from './components/ModalHuella';
 
-// ─── Constantes ────────────────────────────────────────────────────────────────
+// ─── Constantes de Diseño ──────────────────────────────────────────────────────
+// 🔹 ESTILOS: Si el cliente pide cambiar el ancho del menú lateral, cambia estos valores.
 const SIDEBAR_FULL   = 240;
 const SIDEBAR_MINI   = 68;
 
 // ─── Paleta unificada (dark sidebar + light content) ──────────────────────────
+// 🔹 COLORES: Si necesitas cambiar el "Branding" o los colores principales, hazlo aquí.
 const SIDEBAR_BG     = '#0f172a';
 const SIDEBAR_HOVER  = 'rgba(255,255,255,0.06)';
 const SIDEBAR_ACTIVE = 'rgba(255,100,30,0.18)';
-const ACCENT         = '#FF6020'; 
+const ACCENT         = '#FF6020'; // Color naranja principal
 const PAGE_BG_LIGHT  = '#F4F6F9';
 const PAGE_BG_DARK   = '#0d1117';
 
 // ─── Home ──────────────────────────────────────────────────────────────────────
+// Pantalla genérica cuando un usuario entra y no tiene un dashboard específico asignado.
 const Home = () => (
   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 3 }}>
     <Box component="img" src={process.env.PUBLIC_URL + '/Logo1.jpg'} alt="Ksmart360" sx={{ width: 120, height: 120, borderRadius: 4, boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }} />
@@ -90,11 +90,13 @@ const Home = () => (
 );
 
 // ─── ProtectedRoute ────────────────────────────────────────────────────────────
-// ⚠️ IMPORTANTE: Este componente DEBE estar fuera de App() para que React Router
-// no lo desmonte/remonte cada vez que el sidebar cambie de estado (expandir/contraer).
-// Recibe hasAccess como prop para poder validar permisos sin necesidad de closure.
+// ⚠️ COMPONENTE DE SEGURIDAD VISUAL: Envuelve cada ruta privada.
+// 🔹 CAMBIOS: Si quieres cambiar el diseño o el mensaje de "No tienes permisos", edita el JSX aquí dentro.
 const ProtectedRoute = ({ path, hasAccess, children }) => {
+  // Verifica si el usuario tiene acceso a la ruta solicitada.
   if (hasAccess(path)) return children;
+  
+  // Vista de error por falta de permisos.
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
       justifyContent: 'center', minHeight: '60vh', gap: 2, textAlign: 'center' }}>
@@ -109,6 +111,7 @@ const ProtectedRoute = ({ path, hasAccess, children }) => {
 };
 
 // ─── Sidebar Item ──────────────────────────────────────────────────────────────
+// Componente que renderiza CADA BOTÓN del menú lateral.
 const SidebarItem = ({ item, expanded, onClick, onClose, active }) => (
   <Tooltip title={!expanded ? (item.label || item.text) : ''} placement="right" arrow>
     <ListItemButton
@@ -138,13 +141,54 @@ const SidebarItem = ({ item, expanded, onClick, onClose, active }) => (
 );
 
 // ─── Sidebar ───────────────────────────────────────────────────────────────────
+// ─── PASO 3: REEMPLAZA TU COMPONENTE Sidebar COMPLETO POR ESTE ────────────
+// El cambio clave: el sidebar AHORA itera los módulos del USUARIO (backend)
+// en lugar de la lista hardcodeada. Lo mejor de los dos mundos:
+//   - El backend manda qué módulos existen
+//   - El frontend aporta el icono y el orden visual
+
 const Sidebar = ({ expanded, user, hasAccess, onClose, mobile }) => {
   const location = useLocation();
   const [adminOpen, setAdminOpen] = useState(false);
   const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
 
+  // ✨ CONSTRUIR la lista de módulos visibles para este usuario
+  // Combina lo que el rol permite + lo que la empresa habilita + el orden del MODULE_ICONS
+  const modulosVisibles = useMemo(() => {
+    if (!user) return [];
+
+    // Caso especial: SuperAdmin ve TODOS los módulos del MODULE_ICONS
+    if (user.role?.name === 'Admin' && user.empresa_id === 1) {
+      return Object.keys(MODULE_ICONS).map(path => {
+        const cfg = getModuleConfig(path);
+        return { path, ...cfg };
+      });
+    }
+
+    // Caso normal: intersección de rol y empresa
+    const modulosDelRol = user.role?.modules || [];
+
+    return modulosDelRol
+      .filter(m => hasAccess(m.frontend_path))
+      .map(m => {
+        const cfg = getModuleConfig(m.frontend_path, m.name);
+        return {
+          path:  m.frontend_path,
+          label: cfg.label,    // Usamos el label del frontend (más bonito que el del backend)
+          icon:  cfg.icon,
+          color: cfg.color,
+        };
+      })
+      // Ordenar según el orden definido en MODULE_ICONS (más estable que el orden del backend)
+      .sort((a, b) => {
+        const orderKeys = Object.keys(MODULE_ICONS);
+        return orderKeys.indexOf(a.path) - orderKeys.indexOf(b.path);
+      });
+  }, [user, hasAccess]);
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', background: SIDEBAR_BG, overflowX: 'hidden' }}>
+      {/* Logo header (sin cambios) */}
       <Box component={Link} to="/" onClick={mobile ? onClose : undefined} sx={{ display: 'flex', alignItems: 'center', px: expanded ? 2.5 : 1.5, py: 2.5, minHeight: 64, borderBottom: '1px solid rgba(255,255,255,0.06)', gap: 1.5, textDecoration: 'none', cursor: 'pointer', transition: 'opacity 0.15s', '&:hover': { opacity: 0.85 } }}>
         <Box component="img" src="/Logo2.png" alt="Logo" sx={{ width: 34, height: 34, borderRadius: 1.5, flexShrink: 0 }} />
         {expanded && (
@@ -155,6 +199,8 @@ const Sidebar = ({ expanded, user, hasAccess, onClose, mobile }) => {
       </Box>
 
       <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', py: 1.5, '&::-webkit-scrollbar': { width: 4 }, '&::-webkit-scrollbar-thumb': { background: 'rgba(255,255,255,0.1)', borderRadius: 4 } }}>
+
+        {/* SuperAdmin: módulo de empresas */}
         {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (
           <>
             <SidebarItem expanded={expanded} item={{ path: '/superadmin/empresas', label: 'Clientes SaaS', icon: <Business />, color: '#F43F5E' }} active={isActive('/superadmin/empresas')} onClose={mobile ? onClose : undefined} />
@@ -162,6 +208,7 @@ const Sidebar = ({ expanded, user, hasAccess, onClose, mobile }) => {
           </>
         )}
 
+        {/* Admin: submenú de administración */}
         {user?.role?.name === 'Admin' && (
           <>
             <SidebarItem expanded={expanded} item={{ label: 'Administración', icon: <AdminPanelSettings />, color: '#a78bfa' }} onClick={() => setAdminOpen(o => !o)} active={false} />
@@ -179,11 +226,31 @@ const Sidebar = ({ expanded, user, hasAccess, onClose, mobile }) => {
           </>
         )}
 
-        {APP_MODULES.map(item => hasAccess(item.path) ? (
-          <SidebarItem key={item.path} item={item} expanded={expanded} active={isActive(item.path)} onClose={mobile ? onClose : undefined} />
-        ) : null)}
+        {/* ✨ MENÚ DINÁMICO desde backend (en lugar de APP_MODULES) */}
+        {modulosVisibles.map(item => (
+          <SidebarItem
+            key={item.path}
+            item={item}
+            expanded={expanded}
+            active={isActive(item.path)}
+            onClose={mobile ? onClose : undefined}
+          />
+        ))}
+
+        {/* ✨ Mensaje cuando no hay módulos (caso Sandra) */}
+        {modulosVisibles.length === 0 && expanded && user?.role?.name !== 'Admin' && (
+          <Box sx={{ p: 2, mx: 1, mt: 2, bgcolor: 'rgba(239,68,68,0.08)', borderRadius: 2, border: '1px solid rgba(239,68,68,0.2)' }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#FCA5A5', mb: 0.5 }}>
+              ⚠️ Sin módulos asignados
+            </Typography>
+            <Typography sx={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.5 }}>
+              Tu rol no tiene módulos habilitados por la empresa. Contacta a tu administrador.
+            </Typography>
+          </Box>
+        )}
       </Box>
 
+      {/* Footer del sidebar (sin cambios) */}
       <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)', px: expanded ? 2 : 1, py: 1.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
         <Avatar sx={{ width: 34, height: 34, flexShrink: 0, background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`, fontSize: 13, fontWeight: 700 }}>
           {user?.username?.[0]?.toUpperCase()}
@@ -199,14 +266,27 @@ const Sidebar = ({ expanded, user, hasAccess, onClose, mobile }) => {
   );
 };
 
+
 // ─── TopBar ────────────────────────────────────────────────────────────────────
+// Barra superior con título de la vista actual, notificaciones, cambio de tema y botón de cierre de sesión.
 const TopBar = ({ sidebarExpanded, isMobile, onMobileMenuOpen, mode, onThemeToggle, onLogout, user, anchorEl, openMenu, onMenuOpen, onMenuClose }) => {
   const location = useLocation();
-  const currentPageItem = [...APP_MODULES, ...ADMIN_MODULES, { path: '/superadmin/empresas', label: 'Clientes SaaS' }]
-    .find(i => location.pathname === i.path || location.pathname.startsWith(i.path + '/'));
-  const currentPage = currentPageItem ? (currentPageItem.label || currentPageItem.text) : 'Inicio';
+  // Busca el nombre de la página actual para mostrarlo en el Header
+const path = location.pathname;
+const adminItem = ADMIN_MODULES.find(i => path === i.path);
+const moduleConfig = MODULE_ICONS[path] || (() => {
+  // Buscar match parcial: ej. /parqueadero/buscar empieza con /parqueadero
+  const match = Object.keys(MODULE_ICONS).find(p => path.startsWith(p + '/'));
+  return match ? MODULE_ICONS[match] : null;
+})();
 
-  // LÓGICA INYECTADA: Detectar si estamos suplantando identidad
+const currentPage =
+  adminItem?.label ||
+  moduleConfig?.label ||
+  (path === '/superadmin/empresas' ? 'Clientes SaaS' : 'Inicio');
+
+
+  // 🔹 LÓGICA DE SUPLANTACIÓN: Revisa el token JWT para saber si un superadmin está conectado como un cliente.
   let isImpersonated = false;
   try {
     const token = localStorage.getItem('token');
@@ -226,13 +306,14 @@ const TopBar = ({ sidebarExpanded, isMobile, onMobileMenuOpen, mode, onThemeTogg
       </Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
 
-        {/* LÓGICA INYECTADA: Botón rojo para salir del soporte */}
+        {/* BOTÓN ROJO DE EMERGENCIA: Aparece si el Superadmin está suplantando a un cliente */}
         {isImpersonated && (
           <Button 
             variant="contained" 
             color="error" 
             size="small"
             onClick={() => {
+              // 🔹 CAMBIO DE SUPLANTACIÓN: Si necesitas cambiar cómo termina el soporte, edita esta función.
               localStorage.removeItem('token');
               localStorage.removeItem('userModules');
               window.location.href = '/login';
@@ -240,7 +321,7 @@ const TopBar = ({ sidebarExpanded, isMobile, onMobileMenuOpen, mode, onThemeTogg
             sx={{ 
               mr: { xs: 0, md: 2 }, 
               fontWeight: 800, 
-              animation: 'pulse 2s infinite',
+              animation: 'pulse 2s infinite', // Animación de latido definida abajo en GlobalStyles
               whiteSpace: 'nowrap'
             }}
           >
@@ -253,7 +334,10 @@ const TopBar = ({ sidebarExpanded, isMobile, onMobileMenuOpen, mode, onThemeTogg
             {mode === 'dark' ? <LightMode fontSize="small" /> : <DarkMode fontSize="small" />}
           </IconButton>
         </Tooltip>
+        
+        {/* Componente de notificaciones (Campanita) */}
         <Notifications mode={mode} />
+        
         {!isMobile && (
           <>
             <Tooltip title="Cerrar sesión">
@@ -261,6 +345,7 @@ const TopBar = ({ sidebarExpanded, isMobile, onMobileMenuOpen, mode, onThemeTogg
                 <LogoutIcon fontSize="small" />
               </IconButton>
             </Tooltip>
+            {/* Pequeño badge con el nombre del usuario en desktop */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 1, pl: 1.5, pr: 2, py: 0.75, borderRadius: 3, backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#F4F6F9', border: `1px solid ${mode === 'dark' ? 'rgba(255,255,255,0.08)' : '#E5E7EB'}` }}>
               <Avatar sx={{ width: 26, height: 26, background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`, fontSize: 11, fontWeight: 700 }}>
                 {user?.username?.[0]?.toUpperCase()}
@@ -269,6 +354,8 @@ const TopBar = ({ sidebarExpanded, isMobile, onMobileMenuOpen, mode, onThemeTogg
             </Box>
           </>
         )}
+        
+        {/* Menú de los 3 puntos en versión Mobile */}
         {isMobile && (
           <>
             <IconButton onClick={onMenuOpen} size="small"><MoreVertIcon /></IconButton>
@@ -284,8 +371,9 @@ const TopBar = ({ sidebarExpanded, isMobile, onMobileMenuOpen, mode, onThemeTogg
   );
 };
 
-// ─── App ───────────────────────────────────────────────────────────────────────
+// ─── App (COMPONENTE PRINCIPAL) ────────────────────────────────────────────────
 function App() {
+  // 🔹 ESTADOS GLOBALES: Manejan la autenticación, datos del usuario, carga y UI.
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser]       = useState(null);
   const [loading, setLoading] = useState(true);
@@ -294,6 +382,7 @@ function App() {
   const [anchorEl, setAnchorEl]   = useState(null);
   const navigate = useNavigate();
 
+  // Gestión del tema Oscuro/Claro basado en localStorage
   const [mode, setMode] = useState(() =>
     localStorage.getItem('themeMode') === 'dark' ? 'dark' : 'light'
   );
@@ -303,13 +392,14 @@ function App() {
   const openMenu = Boolean(anchorEl);
 
   useEffect(() => { localStorage.setItem('themeMode', mode); }, [mode]);
+  useEffect(() => { checkAuth(); }, []); // Verifica sesión al cargar la app.
 
-  useEffect(() => { checkAuth(); }, []);
-
+  // ⚠️ LÓGICA CORE: Autorización y permisos al arrancar.
   const checkAuth = async () => {
       const token = localStorage.getItem('token');
       if (token) {
         try {
+          // Solicitud al backend para traer los datos del usuario logueado.
           const res = await apiClient.get('/users/me', {
             headers: { Authorization: `Bearer ${token}` },
           });
@@ -317,17 +407,18 @@ function App() {
           setUser(res.data);
 
           // ✅ LÓGICA DE INTERSECCIÓN (SAAS FEATURE TOGGLING)
-          // 1. ¿Qué módulos permite el Rol de este usuario?
+          // 🔹 CAMBIOS DE PERMISOS: Si necesitas cambiar cómo se calculan los permisos, es aquí.
+          // 1. ¿Qué módulos permite el Rol de este usuario? (Ej: Cajero puede ver caja)
           const modulosDelRol = res.data.role.modules.map(m => m.frontend_path);
 
-          // 2. ¿Qué módulos le habilitó el SuperAdmin a esta EMPRESA?
+          // 2. ¿Qué módulos le habilitó el SuperAdmin a esta EMPRESA? (El inquilino)
           const modulosDeLaEmpresa = res.data.empresa?.modulos_habilitados;
 
-          // 3. Cruzamos los datos:
+          // 3. Cruzamos los datos (Intersección):
           let modulosFinales = modulosDelRol;
 
           if (modulosDeLaEmpresa && Array.isArray(modulosDeLaEmpresa)) {
-            // Si el SuperAdmin definió módulos, filtramos: Solo dejamos los que están en ambos lados
+            // Filtramos: El usuario SOLO verá lo que su rol permite Y que la empresa haya pagado/habilitado.
             modulosFinales = modulosDelRol.filter(path => modulosDeLaEmpresa.includes(path));
           }
 
@@ -335,44 +426,49 @@ function App() {
           localStorage.setItem('userModules', JSON.stringify(modulosFinales));
 
         } catch (error) {
+        // Manejo de errores específicos
         if (error.response && error.response.status === 402) {
+          // 402 Payment Required: La empresa no ha pagado su suscripción SaaS.
           setIsAuthenticated(false);
           navigate('/suscripcion-expirada');
         } else {
+          // Otro error (Token inválido o expirado)
           handleLogout(false);
           toast.error('Sesión expirada. Por favor inicia sesión nuevamente.');
         }
       }
     } else {
+      // No hay token, forzar cierre.
       setIsAuthenticated(false);
       setUser(null);
       localStorage.removeItem('userModules');
     }
-    setLoading(false);
+    setLoading(false); // Quitar pantalla de carga
   };
 
-  // ✅ MEMOIZADO: hasAccess solo cambia cuando cambia user.
-  // Esto evita que ProtectedRoute reciba una función nueva en cada render del sidebar.
-  const hasAccess = useCallback((path) => {
-    // 1. INMUNIDAD SUPERADMIN: El dueño del SaaS siempre ve absolutamente TODO.
-    if (user?.role?.name === 'Admin' && user?.empresa_id === 1) {
-      return true;
-    }
+  // ✅ VALIDACIÓN DE ACCESO DE RUTAS (Memoizado para rendimiento)
+  // 🔹 CAMBIOS: Si quieres crear reglas especiales (ej. "Nadie entra a ventas los domingos"), modifícalo aquí.
+const hasAccess = useCallback((path) => {
+  // 1. INMUNIDAD SUPERADMIN
+  if (user?.role?.name === 'Admin' && user?.empresa_id === 1) {
+    return true;
+  }
 
-    // 2. Verificación del Rol: ¿El rol de este empleado tiene acceso al módulo?
-    const rolTieneModulo = user?.role?.modules?.some(m => m.frontend_path === path);
-    if (!rolTieneModulo) return false;
+  // 2. ¿El rol del usuario tiene este módulo?
+  const rolTieneModulo = user?.role?.modules?.some(m => m.frontend_path === path);
+  if (!rolTieneModulo) return false;
 
-    // 3. Verificación SaaS: ¿La empresa (Inquilino) tiene este módulo habilitado?
-    const modulosEmpresa = user?.empresa?.modulos_habilitados;
+  // 3. ¿La empresa tiene este módulo habilitado?
+  const modulosEmpresa = user?.empresa?.modulos_habilitados;
 
-    // Si es null, significa que la empresa no tiene restricciones (Retrocompatibilidad)
-    if (!modulosEmpresa) return true;
+  // Si la empresa NO tiene definida la lista (null/undefined) → permitir todo (legacy)
+  if (modulosEmpresa === null || modulosEmpresa === undefined) return true;
 
-    // Si tiene un array de permisos, verificamos que el módulo esté ahí
-    return modulosEmpresa.includes(path);
-  }, [user]);
+  // Si la empresa tiene una lista (incluso vacía) → verificar que el path esté
+  return Array.isArray(modulosEmpresa) && modulosEmpresa.includes(path);
+}, [user]);
 
+  // Función para cerrar sesión y limpiar datos.
   const handleLogout = (showToast = true) => {
     localStorage.removeItem('token');
     localStorage.removeItem('userModules');
@@ -387,6 +483,7 @@ function App() {
   return (
     <ThemeProvider theme={appTheme}>
       <CssBaseline />
+      {/* Estilos globales inyectados */}
       <GlobalStyles
         styles={(theme) => ({
           '@import': "url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap')",
@@ -398,7 +495,7 @@ function App() {
           },
           '#root': { width: '100%', minHeight: '100vh', display: 'flex', flexDirection: 'column' },
           '*': { boxSizing: 'border-box' },
-          // LÓGICA INYECTADA: Animación para el botón de emergencia
+          // 🔹 ESTILOS: Animación de "latido" para el botón rojo de suplantación de soporte.
           '@keyframes pulse': {
             '0%': { boxShadow: '0 0 0 0 rgba(239, 68, 68, 0.7)' },
             '70%': { boxShadow: '0 0 0 8px rgba(239, 68, 68, 0)' },
@@ -409,16 +506,17 @@ function App() {
 
       <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
         {loading ? (
+          // PANTALLA DE CARGA INICIAL
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100%' }}>
             <CircularProgress sx={{ color: ACCENT }} />
           </Box>
         ) : isAuthenticated ? (
+          // 🟩 BLOQUE PRINCIPAL CUANDO EL USUARIO ESTÁ LOGUEADO
           <>
-
-          {/* ✨ AQUÍ INYECTAMOS EL MODAL DE BIOMETRÍA ✨ */}
-            {/* El modal internamente decidirá si debe mostrarse o no */}
+          {/* ✨ MODAL DE BIOMETRÍA: Se encarga de su propia lógica de aparecer/ocultar */}
             <ModalHuella />
-            {/* ── Sidebar desktop ── */}
+            
+            {/* ── Sidebar desktop (Menú lateral para PC) ── */}
             {!isMobile && (
               <Box
                 onMouseEnter={() => setSidebarExpanded(true)}
@@ -434,7 +532,7 @@ function App() {
               </Box>
             )}
 
-            {/* ── Sidebar mobile ── */}
+            {/* ── Sidebar mobile (Menú tipo "Drawer" para celulares) ── */}
             {isMobile && (
               <Drawer
                 variant="temporary" open={mobileOpen} onClose={() => setMobileOpen(false)}
@@ -445,7 +543,7 @@ function App() {
               </Drawer>
             )}
 
-            {/* ── TopBar ── */}
+            {/* ── TopBar (Barra superior) ── */}
             <TopBar
               sidebarExpanded={sidebarExpanded} isMobile={isMobile}
               onMobileMenuOpen={() => setMobileOpen(true)} mode={mode}
@@ -455,7 +553,7 @@ function App() {
               onMenuClose={() => setAnchorEl(null)}
             />
 
-            {/* ── Contenido principal protegido ── */}
+            {/* ── CONTENEDOR PRINCIPAL DONDE CARGAN LAS PANTALLAS ── */}
             <Box
               component="main"
               sx={{
@@ -466,16 +564,18 @@ function App() {
               }}
             >
               <Box sx={{ flex: 1, p: { xs: 1.5, md: 3 } }}>
-                {/* ✅ Routes con ProtectedRoute (ahora externo, recibe hasAccess como prop) */}
+                
+                {/* ⚠️ ZONA DE RUTAS (ROUTER): ⚠️ */}
+                {/* 🔹 NUEVAS RUTAS: Si creaste una nueva pantalla y quieres enlazarla a un path, AGREGALA AQUÍ. */}
                 <Routes>
-                  {/* Dashboard — sin restricción, el componente ya maneja quién ve qué */}
+                  {/* Dashboard — sin restricción dura, el componente Dashboard ya maneja internamente quién ve qué gráficos */}
                   <Route path="/" element={
                     ["Admin", "Socio", "Consulta"].includes(user?.role?.name)
                       ? <Dashboard />
                       : <Home />
                   } />
 
-                  {/* Módulos protegidos por rol */}
+                  {/* 🔹 MÓDULOS PROTEGIDOS POR ROL Y SAAS (Envueltos en ProtectedRoute) */}
                   <Route path="/ventas"             element={<ProtectedRoute path="/ventas"             hasAccess={hasAccess}><Ventas /></ProtectedRoute>} />
                   <Route path="/cotizaciones"       element={<ProtectedRoute path="/cotizaciones"       hasAccess={hasAccess}><Cotizaciones /></ProtectedRoute>} />
                   <Route path="/admin/resoluciones" element={<ProtectedRoute path="/admin/resoluciones" hasAccess={hasAccess}><ResolucionesDian /></ProtectedRoute>} />
@@ -493,6 +593,7 @@ function App() {
                   <Route path="/prestamos"          element={<ProtectedRoute path="/prestamos"          hasAccess={hasAccess}><PrestamoForm /></ProtectedRoute>} />
                   <Route path="/ruta-cobro"         element={<ProtectedRoute path="/ruta-cobro"         hasAccess={hasAccess}><RutaCobro /></ProtectedRoute>} />
                   <Route path="/panel-operador"     element={<ProtectedRoute path="/panel-operador"     hasAccess={hasAccess}><PanelOperador /></ProtectedRoute>} />
+                  
                   {/* ✅ MÓDULO PARQUEADERO */}
                   <Route path="/parqueadero"                element={<ProtectedRoute path="/parqueadero"                hasAccess={hasAccess}><ParqueaderoDashboard      /></ProtectedRoute>} />
                   <Route path="/parqueadero/buscar"         element={<ProtectedRoute path="/parqueadero/buscar"         hasAccess={hasAccess}><ParqueaderoBuscar         /></ProtectedRoute>} />
@@ -500,16 +601,19 @@ function App() {
                   <Route path="/parqueadero/suscripciones"  element={<ProtectedRoute path="/parqueadero/suscripciones"  hasAccess={hasAccess}><ParqueaderoSuscripciones  /></ProtectedRoute>} />
                   <Route path="/parqueadero/config"         element={<ProtectedRoute path="/parqueadero/config"         hasAccess={hasAccess}><ParqueaderoConfig         /></ProtectedRoute>} />
 
-                  {/* Rutas exclusivas de Admin — hasAccess ya cubre esto pero doble-verificamos */}
+                  {/* 🔹 RUTAS EXCLUSIVAS DE ADMINISTRACIÓN */}
+                  {/* Gestión de Empresas (Solo el dueño del SaaS lo ve) */}
                   {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (
                     <Route path="/superadmin/empresas" element={<GestionEmpresas />} />
                   )}
+                  {/* Gestión de Usuarios (Solo Admins) */}
                   {user?.role?.name === 'Admin' && (
                     <Route path="/admin/usuarios" element={<AdminUsuarios />} />
                   )}
                 </Routes>
               </Box>
 
+              {/* FOOTER DEL SISTEMA */}
               <Box component="footer" sx={{ py: 2, px: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, borderTop: `1px solid ${mode === 'dark' ? 'rgba(255,255,255,0.06)' : '#E5E7EB'}`, }}>
                 <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                   Powered KSMP Systems - 2026
@@ -519,17 +623,20 @@ function App() {
             </Box>
           </>
         ) : (
-          // ✅ AQUÍ ESTÁN LAS RUTAS PÚBLICAS
+          // 🟥 ZONA DE RUTAS PÚBLICAS (USUARIO NO LOGUEADO)
+          // 🔹 NUEVAS RUTAS PÚBLICAS: Si necesitas crear pantallas de "Olvidé mi contraseña", agrégalas aquí.
           <Box sx={{ width: '100%', minHeight: '100vh' }}>
             <Routes>
               <Route path="/suscripcion-expirada" element={<SuscripcionExpirada />} />
               <Route path="/registro" element={<Registro />} />
+              {/* Cualquier otra ruta no reconocida o el inicio ('*') forzará la vista de Login */}
               <Route path="*" element={<Login onLogin={checkAuth} />} />
             </Routes>
           </Box>
         )}
       </Box>
 
+      {/* COMPONENTE DE NOTIFICACIONES TOAST (Los mensajes que aparecen abajo a la derecha) */}
       <ToastContainer
         position="bottom-right" autoClose={3500} hideProgressBar={false} newestOnTop closeOnClick pauseOnHover draggable
         toastStyle={{
@@ -538,6 +645,7 @@ function App() {
         }}
         style={{ bottom: 24, right: 16 }}
       />
+      {/* Vercel Speed Insights */}
       <SpeedInsights />
     </ThemeProvider>
   );
