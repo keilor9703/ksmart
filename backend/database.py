@@ -234,8 +234,7 @@ def run_migrations():
             if not _migration_already_applied(conn, migration_v36):
                 if not IS_SQLITE:
                     try:
-                        # ALTER TYPE ADD VALUE en Postgres no puede correr en transacciones normales.
-                        # Usamos una conexión paralela con autocommit exclusivo para esto.
+                        # Usamos una conexión paralela con autocommit exclusivo para modificar el tipo
                         with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn_auto:
                             conn_auto.execute(text("ALTER TYPE tipoplantillawhatsapp ADD VALUE IF NOT EXISTS 'comprobante_entrada'"))
                             conn_auto.execute(text("ALTER TYPE tipoplantillawhatsapp ADD VALUE IF NOT EXISTS 'recibo_salida'"))
@@ -245,7 +244,6 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v36)
                 logger.info("V36 (Actualización Enum Postgres WhatsApp) aplicada.")
 
-
             # ═══════════════════════════════════════════════════════════════════════════════
             # MIGRACIÓN V37 - ELIMINAR RESTRICCIÓN ENUM EN POSTGRES (Solución Definitiva)
             # ═══════════════════════════════════════════════════════════════════════════════
@@ -254,14 +252,11 @@ def run_migrations():
                 if not IS_SQLITE:
                     # Convertimos las columnas de Enum a Texto plano (VARCHAR) en Postgres.
                     # Esto soluciona definitivamente el error "invalid input value for enum"
-                    # y permite agregar cualquier plantilla en el futuro sin modificar la BD.
                     try:
                         conn.execute(text("ALTER TABLE plantillas_whatsapp ALTER COLUMN tipo TYPE VARCHAR(255) USING tipo::text;"))
                         conn.execute(text("ALTER TABLE envios_whatsapp_parqueadero ALTER COLUMN tipo TYPE VARCHAR(255) USING tipo::text;"))
-                        # (Opcional) Borrar el tipo Enum viejo para limpiar la base de datos
-                        conn.execute(text("DROP TYPE IF EXISTS tipoplantillawhatsapp CASCADE;"))
                     except Exception as e:
-                        logger.error("Error convirtiendo ENUM a VARCHAR: %s", e)
+                        logger.error("Error convirtiendo ENUM a VARCHAR en V37: %s", e)
                 
                 _mark_migration_applied(conn, migration_v37)
                 logger.info("V37 (Conversión de ENUM a VARCHAR en Postgres) aplicada.")
