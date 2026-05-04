@@ -20,4 +20,7 @@ reportlab
 requests>=2.31.0
 email-validator>=2.0.0
 
+webauthn>=2.0.0
 python-dateutil>=2.8.2
+
+
