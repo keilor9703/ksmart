@@ -60,7 +60,9 @@ def run_migrations():
         with engine.begin() as conn:
             _ensure_schema_meta(conn)
 
-           # V32 - WhatsApp + Métodos de pago del Parqueadero
+            # ═══════════════════════════════════════════════════════════════════════════════
+            # MIGRACIÓN V32 - WhatsApp + Métodos de pago del Parqueadero
+            # ═══════════════════════════════════════════════════════════════════════════════
             migration_v32 = "inv_v32_whatsapp_metodos_pago"
             if not _migration_already_applied(conn, migration_v32):
 
@@ -180,9 +182,9 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v32)
                 logger.info("V32 (WhatsApp + Métodos de pago) aplicada.")
             
-
-
-            # V35 - Tarifa por minuto + datos del cliente ocasional
+            # ═══════════════════════════════════════════════════════════════════════════════
+            # MIGRACIÓN V35 - Tarifa por minuto + datos del cliente ocasional
+            # ═══════════════════════════════════════════════════════════════════════════════
             migration_v35 = "inv_v35_cobro_minutos_ocasional"
             if not _migration_already_applied(conn, migration_v35):
 
@@ -223,33 +225,25 @@ def run_migrations():
                         ))
 
                 _mark_migration_applied(conn, migration_v35)
-                logger.info("V33 (Cobro por minutos + cliente ocasional) aplicada.")
+                logger.info("V35 (Cobro por minutos + cliente ocasional) aplicada.")
 
-            # ═══════════════════════════════════════════════════════════════════════════════
-            # MIGRACIÓN V35 - ACTUALIZAR ENUM DE POSTGRES (Nuevas plantillas WhatsApp)
-            # ═══════════════════════════════════════════════════════════════════════════════
-            migration_v35 = "inv_v35_update_enum_whatsapp"
-            if not _migration_already_applied(conn, migration_v35):
-                if not IS_SQLITE:
-                    # En Postgres debemos inyectar los nuevos valores al tipo ENUM existente.
-                    # SQLite lo ignora porque maneja los Enum como VARCHAR simples.
-                    try:
-                        conn.execute(text("ALTER TYPE tipoplantillawhatsapp ADD VALUE IF NOT EXISTS 'comprobante_entrada'"))
-                        conn.execute(text("ALTER TYPE tipoplantillawhatsapp ADD VALUE IF NOT EXISTS 'recibo_salida'"))
-                    except Exception as e:
-                        logger.warning("Aviso al alterar ENUM en Postgres: %s", e)
-                
-                _mark_migration_applied(conn, migration_v35)
-                logger.info("V35 (Actualización Enum Postgres WhatsApp) aplicada.")
-
-            # ...
             # ═══════════════════════════════════════════════════════════════════════════════
             # MIGRACIÓN V36 - ACTUALIZAR ENUM DE POSTGRES (Nuevas plantillas WhatsApp)
             # ═══════════════════════════════════════════════════════════════════════════════
             migration_v36 = "inv_v36_update_enum_whatsapp"
             if not _migration_already_applied(conn, migration_v36):
-            # ... resto del bloque igual, solo cambiando v35 a v36
-
+                if not IS_SQLITE:
+                    try:
+                        # ALTER TYPE ADD VALUE en Postgres no puede correr en transacciones normales.
+                        # Usamos una conexión paralela con autocommit exclusivo para esto.
+                        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn_auto:
+                            conn_auto.execute(text("ALTER TYPE tipoplantillawhatsapp ADD VALUE IF NOT EXISTS 'comprobante_entrada'"))
+                            conn_auto.execute(text("ALTER TYPE tipoplantillawhatsapp ADD VALUE IF NOT EXISTS 'recibo_salida'"))
+                    except Exception as e:
+                        logger.warning("Aviso al alterar ENUM en Postgres: %s", e)
+                
+                _mark_migration_applied(conn, migration_v36)
+                logger.info("V36 (Actualización Enum Postgres WhatsApp) aplicada.")
 
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
