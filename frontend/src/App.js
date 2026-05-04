@@ -58,6 +58,14 @@ import ParqueaderoVehiculos      from './components/ParqueaderoVehiculos';
 import ParqueaderoSuscripciones  from './components/ParqueaderoSuscripciones';
 import ParqueaderoConfig         from './components/ParqueaderoConfig';
 
+
+// ✅ IMPORTAMOS LAS PANTALLAS PÚBLICAS
+
+
+
+// ✨ IMPORTAMOS EL MODAL DE BIOMETRÍA
+import ModalHuella from './components/ModalHuella';
+
 // ─── Constantes ────────────────────────────────────────────────────────────────
 const SIDEBAR_FULL   = 240;
 const SIDEBAR_MINI   = 68;
@@ -406,6 +414,10 @@ function App() {
           </Box>
         ) : isAuthenticated ? (
           <>
+
+          {/* ✨ AQUÍ INYECTAMOS EL MODAL DE BIOMETRÍA ✨ */}
+            {/* El modal internamente decidirá si debe mostrarse o no */}
+            <ModalHuella />
             {/* ── Sidebar desktop ── */}
             {!isMobile && (
               <Box
