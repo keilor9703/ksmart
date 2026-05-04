@@ -567,8 +567,18 @@ function DatosSuscripcion({ susc, resultado }) {
   );
 }
 
+// ════ REEMPLAZA ESTO AL FINAL DE ParqueaderoBuscar.jsx ════
+
 function fechaCorta(fechaIso) {
   if (!fechaIso) return '—';
+  
+  // 🛠️ FIX: Extraemos estrictamente el Año, Mes y Día ignorando la zona horaria UTC
+  const partes = fechaIso.split('T')[0].split('-');
+  if (partes.length === 3) {
+    const d = new Date(partes[0], partes[1] - 1, partes[2]);
+    return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+  
   const d = new Date(fechaIso);
   if (isNaN(d)) return fechaIso;
   return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
