@@ -245,6 +245,27 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v36)
                 logger.info("V36 (Actualización Enum Postgres WhatsApp) aplicada.")
 
+
+            # ═══════════════════════════════════════════════════════════════════════════════
+            # MIGRACIÓN V37 - ELIMINAR RESTRICCIÓN ENUM EN POSTGRES (Solución Definitiva)
+            # ═══════════════════════════════════════════════════════════════════════════════
+            migration_v37 = "inv_v37_enum_to_varchar"
+            if not _migration_already_applied(conn, migration_v37):
+                if not IS_SQLITE:
+                    # Convertimos las columnas de Enum a Texto plano (VARCHAR) en Postgres.
+                    # Esto soluciona definitivamente el error "invalid input value for enum"
+                    # y permite agregar cualquier plantilla en el futuro sin modificar la BD.
+                    try:
+                        conn.execute(text("ALTER TABLE plantillas_whatsapp ALTER COLUMN tipo TYPE VARCHAR(255) USING tipo::text;"))
+                        conn.execute(text("ALTER TABLE envios_whatsapp_parqueadero ALTER COLUMN tipo TYPE VARCHAR(255) USING tipo::text;"))
+                        # (Opcional) Borrar el tipo Enum viejo para limpiar la base de datos
+                        conn.execute(text("DROP TYPE IF EXISTS tipoplantillawhatsapp CASCADE;"))
+                    except Exception as e:
+                        logger.error("Error convirtiendo ENUM a VARCHAR: %s", e)
+                
+                _mark_migration_applied(conn, migration_v37)
+                logger.info("V37 (Conversión de ENUM a VARCHAR en Postgres) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
