@@ -1787,3 +1787,94 @@ PLANTILLAS_DEFAULT = {
         "Gracias por preferirnos. ¡Vuelve pronto!"
     ),
 }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SCHEMAS — WebAuthn / Biometría
+# Pega al final de tu schemas.py
+# ═══════════════════════════════════════════════════════════════════════════════
+
+from pydantic import BaseModel, Field
+from datetime import datetime
+from typing import Optional, Any
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# REGISTRO DE NUEVA CREDENCIAL
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class BiometricRegisterOptionsResponse(BaseModel):
+    """
+    Respuesta del endpoint /auth/biometric/register/options
+    Contiene las opciones que el navegador necesita para crear la credencial.
+    El campo 'options' contiene el JSON completo de PublicKeyCredentialCreationOptions.
+    """
+    options: Any   # dict con challenge, user, rp, pubKeyCredParams, etc.
+
+
+class BiometricRegisterVerifyRequest(BaseModel):
+    """
+    Lo que el frontend envía después de que el navegador generó la credencial.
+    """
+    credential:    Any                    # respuesta del navegador (PublicKeyCredential)
+    device_name:   Optional[str] = None   # "iPhone de Keilor", "Samsung Galaxy A52"
+
+
+class BiometricRegisterVerifyResponse(BaseModel):
+    success:        bool
+    credential_id:  Optional[int] = None
+    device_name:    Optional[str] = None
+    message:        str
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LOGIN CON BIOMETRÍA
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class BiometricLoginOptionsRequest(BaseModel):
+    """
+    Para iniciar el login. El usuario es opcional: si lo envía, el sistema
+    busca solo credenciales de ese usuario. Si no, el navegador permite al
+    usuario elegir cuál huella usar (estilo "passkey").
+    """
+    username: Optional[str] = None
+
+
+class BiometricLoginOptionsResponse(BaseModel):
+    options: Any   # PublicKeyCredentialRequestOptions
+
+
+class BiometricLoginVerifyRequest(BaseModel):
+    """
+    Lo que envía el frontend tras autenticarse con la huella.
+    """
+    credential: Any   # respuesta del navegador
+
+
+class BiometricLoginVerifyResponse(BaseModel):
+    """
+    Respuesta exitosa: incluye el JWT igual que un login normal.
+    """
+    access_token:    str
+    token_type:      str = "bearer"
+    user_id:         int
+    username:        str
+    empresa_id:      int
+    rol:             Optional[str] = None
+    device_name:     Optional[str] = None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# GESTIÓN DE CREDENCIALES (vista en "Mi Perfil")
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class CredencialBiometricaOut(BaseModel):
+    id:           int
+    device_name:  Optional[str]
+    user_agent:   Optional[str]
+    last_used_at: Optional[datetime]
+    created_at:   datetime
+
+    class Config:
+        from_attributes = True
+
