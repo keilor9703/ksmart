@@ -3,21 +3,9 @@
 // Botón circular estilo Wompi con icono de huella + texto debajo.
 //
 // Coloca en frontend/src/components/BotonHuella.jsx
-//
-// Modos de uso:
-//   1. modo="login"    → Para la pantalla de login (autentica + devuelve JWT)
-//   2. modo="register" → Para activar la huella desde "Mi Perfil" o banner
-//
-// Props:
-//   modo:       'login' | 'register'  (default: 'login')
-//   username:   (opcional) si en modo login se conoce el usuario
-//   onSuccess:  callback cuando funciona OK (recibe data del backend)
-//   onError:    callback cuando falla
-//   label:      (opcional) texto debajo del botón
-//   size:       (opcional) tamaño del botón en px (default: 80)
 // ═══════════════════════════════════════════════════════════════════════════
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Box, IconButton, Typography, CircularProgress, Tooltip } from '@mui/material';
 import { Fingerprint } from '@mui/icons-material';
 import useBiometricAuth from '../hooks/useBiometricAuth';
@@ -41,12 +29,18 @@ export default function BotonHuella({
     loading,
     registerBiometric,
     loginWithBiometric,
+    hasLocalCredential, // ✨ NUEVO: Importamos la bandera
   } = useBiometricAuth();
 
   const [hovered, setHovered] = useState(false);
 
-  // Si el dispositivo no soporta biometría y queremos ocultarlo, no renderiza
+  // 1. Si el dispositivo no soporta biometría y queremos ocultarlo, no renderiza
   if (hideIfUnsupported && (!isSupported || !isPlatformAuthAvailable)) {
+    return null;
+  }
+
+  // ✨ 2. NUEVA REGLA: Ocultar en login si NO hay credencial guardada localmente
+  if (modo === 'login' && !hasLocalCredential) {
     return null;
   }
 

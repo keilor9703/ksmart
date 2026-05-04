@@ -4,9 +4,6 @@
 //
 // Coloca este archivo en frontend/src/hooks/useBiometricAuth.js
 // Si no tienes carpeta hooks, créala.
-//
-// Uso:
-//   const { isSupported, registerBiometric, loginWithBiometric, ... } = useBiometricAuth();
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { useState, useEffect, useCallback } from 'react';
@@ -32,28 +29,32 @@ function bufferToBase64url(buffer) {
     .replace(/=+$/, '');
 }
 
-
 export default function useBiometricAuth() {
   const [isSupported, setIsSupported] = useState(false);
   const [isPlatformAuthAvailable, setIsPlatformAuthAvailable] = useState(false);
   const [loading, setLoading] = useState(false);
 
-// ── Detectar si el dispositivo soporta WebAuthn al montar ───────────────
-    useEffect(() => {
-      const supported = !!(
-        window.PublicKeyCredential &&
-        typeof navigator.credentials?.create === 'function' &&
-        typeof navigator.credentials?.get === 'function'
-      );
-      setIsSupported(supported);
+  // ✨ NUEVO: Estado que lee si dejamos la marca en este navegador
+  const [hasLocalCredential, setHasLocalCredential] = useState(
+    () => localStorage.getItem('biometric_enabled') === 'true'
+  );
 
-      // ✨ CORRECCIÓN: Agregamos window. a PublicKeyCredential
-      if (supported && window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) {
-        window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
-          .then(setIsPlatformAuthAvailable)
-          .catch(() => setIsPlatformAuthAvailable(false));
-      }
-    }, []);
+  // ── Detectar si el dispositivo soporta WebAuthn al montar ───────────────
+  useEffect(() => {
+    const supported = !!(
+      window.PublicKeyCredential &&
+      typeof navigator.credentials?.create === 'function' &&
+      typeof navigator.credentials?.get === 'function'
+    );
+    setIsSupported(supported);
+
+    // ✨ CORRECCIÓN APLICADA: window.PublicKeyCredential
+    if (supported && window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) {
+      window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+        .then(setIsPlatformAuthAvailable)
+        .catch(() => setIsPlatformAuthAvailable(false));
+    }
+  }, []);
 
   // ─────────────────────────────────────────────────────────────────────────
   // REGISTRO DE CREDENCIAL (usuario ya autenticado)
@@ -105,12 +106,17 @@ export default function useBiometricAuth() {
         device_name: deviceName,
       });
 
+      // ✨ NUEVO: Si el registro es exitoso, dejamos la marca en este navegador
+      if (result.success) {
+        localStorage.setItem('biometric_enabled', 'true');
+        setHasLocalCredential(true);
+      }
+
       return result;  // { success, credential_id, device_name, message }
     } finally {
       setLoading(false);
     }
   }, [isSupported]);
-
 
   // ─────────────────────────────────────────────────────────────────────────
   // LOGIN CON HUELLA (sin sesión previa)
@@ -169,7 +175,6 @@ export default function useBiometricAuth() {
     }
   }, [isSupported]);
 
-
   // ─────────────────────────────────────────────────────────────────────────
   // GESTIÓN DE CREDENCIALES (perfil)
   // ─────────────────────────────────────────────────────────────────────────
@@ -180,8 +185,11 @@ export default function useBiometricAuth() {
 
   const deleteCredential = useCallback(async (id) => {
     await apiClient.delete(`/auth/biometric/credentials/${id}`);
+    
+    // Opcional: Si el usuario borra todas sus credenciales, podrías limpiar el localStorage,
+    // pero requeriría lógica extra para saber si borró "la última" de este navegador específico.
+    // De momento, si lo borra, simplemente fallará el intento de login con huella, lo cual es seguro.
   }, []);
-
 
   return {
     isSupported,
@@ -191,5 +199,6 @@ export default function useBiometricAuth() {
     loginWithBiometric,
     listCredentials,
     deleteCredential,
+    hasLocalCredential, // ✨ NUEVO: Exportamos la bandera
   };
 }
