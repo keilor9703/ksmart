@@ -235,20 +235,24 @@ const Login = ({ onLogin }) => {
     };
 
     // ─── NUEVA FUNCIÓN BIOMÉTRICA ───────────────────────────────────────────────
+
+
     const handleBiometricSuccess = (data) => {
-        // Guardar token igual que login normal
-        localStorage.setItem('token', data.access_token);
+    // Guardar token igual que cuando hace login normal
+    localStorage.setItem('token', data.access_token);
+    localStorage.setItem('user', JSON.stringify({
+        id:         data.user_id,
+        username:   data.username,
+        empresa_id: data.empresa_id,
+        rol:        data.rol,
+    }));
 
-        localStorage.setItem('user', JSON.stringify({
-            id:         data.user_id,
-            username:   data.username,
-            empresa_id: data.empresa_id,
-            rol:        data.rol,
-        }));
+    // ✨ LA LÍNEA QUE FALTABA ✨
+    // Le avisa a App.js que actualice el estado y renderice el Dashboard
+    onLogin(); 
 
-        toast.success('¡Bienvenido de vuelta!');
-
-        navigate('/');
+    toast.success('¡Bienvenido de vuelta!');
+    navigate('/');
     };
 
     // ── Render ───────────────────────────────────────────────────────────────
