@@ -63,7 +63,6 @@ const fieldSx = {
     },
     '& .MuiInputAdornment-root .MuiSvgIcon-root': { color: '#475569', fontSize: 19 },
     '& .MuiOutlinedInput-root.Mui-focused .MuiInputAdornment-root .MuiSvgIcon-root': { color: '#22c55e' },
-    // Color del label/icono cuando el textfield es naranja (registro)
     '&.orange-field': {
         '& .MuiInputLabel-root.Mui-focused': { color: '#f97316' },
         '& .MuiOutlinedInput-root.Mui-focused fieldset': { borderColor: '#f97316' },
@@ -102,7 +101,6 @@ const TAMANOS_NEGOCIO = [
     { value: 'grande',  label: 'Grande',   desc: '+20' },
 ];
 
-// ─── Validaciones ───────────────────────────────────────────────────────────
 const isEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 const isPhone = (v) => /^[\d+\s()-]{7,20}$/.test(v);
 
@@ -111,25 +109,26 @@ const Login = ({ onLogin }) => {
     const [isLoginView, setIsLoginView]   = useState(true);
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading]           = useState(false);
-    const [regStep, setRegStep]           = useState(1);   // 1 = negocio, 2 = cuenta
+    const [regStep, setRegStep]           = useState(1);
     const navigate = useNavigate();
 
-    const [loginData, setLoginData] = useState({ username: '', password: '' });
+    // ✨ NUEVO: Cargar el último usuario si existe
+    const [loginData, setLoginData] = useState({ 
+        username: localStorage.getItem('last_username') || '', 
+        password: '' 
+    });
 
     const initialRegState = {
-        // Paso 1
         tipo_negocio:    'erp',
         nombre_empresa:  '',
         pais:            'CO',
         ciudad:          '',
         tamano_negocio:  'pequeno',
-        // Paso 2
         nombre_completo: '',
         email:           '',
         telefono:        '',
         username:        '',
         password:        '',
-        // Marketing
         origen:          '',
     };
     const [regData, setRegData] = useState(initialRegState);
@@ -137,7 +136,6 @@ const Login = ({ onLogin }) => {
     const updateReg = (key) => (e) =>
         setRegData((prev) => ({ ...prev, [key]: e.target.value }));
 
-    // ── Validación por paso ──────────────────────────────────────────────────
     const canContinueStep1 = () =>
         regData.nombre_empresa.trim().length >= 2 &&
         regData.ciudad.trim().length >= 2 &&
@@ -152,7 +150,6 @@ const Login = ({ onLogin }) => {
         regData.username.trim().length >= 3 &&
         regData.password.length >= 6;
 
-    // ── Cambiar entre login/registro ─────────────────────────────────────────
     const switchToRegister = () => {
         setIsLoginView(false);
         setRegStep(1);
@@ -173,8 +170,13 @@ const Login = ({ onLogin }) => {
                 new URLSearchParams({ username: loginData.username, password: loginData.password }),
                 { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
             );
+            
             localStorage.setItem('token', response.data.access_token);
+            // ✨ NUEVO: Guardar el usuario exitoso para la próxima
+            localStorage.setItem('last_username', loginData.username);
+            
             onLogin();
+            
             if (response.data.is_expired) {
                 toast.warning('Tu suscripción ha expirado. Redirigiendo a pagos...', { autoClose: 5000 });
                 navigate('/planes');
@@ -222,7 +224,11 @@ const Login = ({ onLogin }) => {
                 origen:          regData.origen || null,
             });
             toast.success('¡Cuenta creada con éxito! Ya puedes iniciar sesión.');
+            
             const usernameUsed = regData.username.trim().toLowerCase();
+            // ✨ NUEVO: Autocompletar el login tras registrarse
+            localStorage.setItem('last_username', usernameUsed);
+            
             setLoginData({ username: usernameUsed, password: '' });
             setRegData(initialRegState);
             setRegStep(1);
@@ -234,25 +240,25 @@ const Login = ({ onLogin }) => {
         }
     };
 
-    // ─── NUEVA FUNCIÓN BIOMÉTRICA ───────────────────────────────────────────────
-
-
+    // ─── FUNCIÓN BIOMÉTRICA ACTUALIZADA ─────────────────────────────────────
     const handleBiometricSuccess = (data) => {
-    // Guardar token igual que cuando hace login normal
-    localStorage.setItem('token', data.access_token);
-    localStorage.setItem('user', JSON.stringify({
-        id:         data.user_id,
-        username:   data.username,
-        empresa_id: data.empresa_id,
-        rol:        data.rol,
-    }));
+        localStorage.setItem('token', data.access_token);
+        
+        // ✨ NUEVO: Guardar el usuario que viene de la huella
+        localStorage.setItem('last_username', data.username);
 
-    // ✨ LA LÍNEA QUE FALTABA ✨
-    // Le avisa a App.js que actualice el estado y renderice el Dashboard
-    onLogin(); 
+        localStorage.setItem('user', JSON.stringify({
+            id:         data.user_id,
+            username:   data.username,
+            empresa_id: data.empresa_id,
+            rol:        data.rol,
+        }));
 
-    toast.success('¡Bienvenido de vuelta!');
-    navigate('/');
+        // ✨ NUEVO: Llamar a onLogin() para que React actualice el estado
+        onLogin();
+
+        toast.success('¡Bienvenido de vuelta!');
+        navigate('/');
     };
 
     // ── Render ───────────────────────────────────────────────────────────────
@@ -308,7 +314,7 @@ const Login = ({ onLogin }) => {
                     my: 'auto',
                 }}>
 
-                    {/* ── Logo prominente (más pequeño en registro para dar espacio) ── */}
+                    {/* ── Logo ── */}
                     <Box sx={{
                         mb: isLoginView ? 4 : 3,
                         position: 'relative',
@@ -483,7 +489,7 @@ const Login = ({ onLogin }) => {
                                     {loading ? 'Ingresando…' : 'Ingresar al sistema'}
                                 </Button>
 
-                                {/* ✨ NUEVO: Botón de huella estilo Wompi integrado aquí ✨ */}
+                                {/* ✨ Botón de huella integrado */}
                                 <BotonHuella
                                     modo="login"
                                     username={loginData.username}
@@ -517,7 +523,7 @@ const Login = ({ onLogin }) => {
                                             {[
                                                 { key: 'erp',       label: 'Comercio / ERP',  Icon: Storefront,  desc: 'Ventas e Inventario' },
                                                 { key: 'prestamos', label: 'Cobranzas',       Icon: AttachMoney, desc: 'Rutas de Cobro' },
-                                                { key: 'parqueadero',  label: 'Parqueadero',     desc: 'Motos / vehículos',    Icon: TwoWheeler    },  // ← NUEVO
+                                                { key: 'parqueadero',  label: 'Parqueadero',     desc: 'Motos / vehículos',    Icon: TwoWheeler    },
                                             ].map(({ key, label, Icon, desc }) => (
                                                 <Grid item xs={4} key={key}>
                                                     <Card sx={{
