@@ -183,13 +183,27 @@ export default function useBiometricAuth() {
     return data;
   }, []);
 
-  const deleteCredential = useCallback(async (id) => {
-    await apiClient.delete(`/auth/biometric/credentials/${id}`);
+//   const deleteCredential = useCallback(async (id) => {
+//     await apiClient.delete(`/auth/biometric/credentials/${id}`);
     
-    // Opcional: Si el usuario borra todas sus credenciales, podrías limpiar el localStorage,
-    // pero requeriría lógica extra para saber si borró "la última" de este navegador específico.
-    // De momento, si lo borra, simplemente fallará el intento de login con huella, lo cual es seguro.
-  }, []);
+//     // Opcional: Si el usuario borra todas sus credenciales, podrías limpiar el localStorage,
+//     // pero requeriría lógica extra para saber si borró "la última" de este navegador específico.
+//     // De momento, si lo borra, simplemente fallará el intento de login con huella, lo cual es seguro.
+//   }, []);
+
+const deleteCredential = useCallback(async (id) => {
+  await apiClient.delete(`/auth/biometric/credentials/${id}`);
+  // Si el usuario quedó sin credenciales, ocultar el botón en este navegador
+  try {
+    const restantes = await apiClient.get('/auth/biometric/credentials');
+    if (restantes.data.length === 0) {
+      localStorage.removeItem('biometric_enabled');
+      setHasLocalCredential(false);
+    }
+  } catch {
+    // Si falla la consulta, no pasa nada
+  }
+}, []);
 
   return {
     isSupported,

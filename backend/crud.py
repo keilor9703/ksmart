@@ -5890,12 +5890,24 @@ def get_plantilla(
     return p
 
 
+    # def listar_plantillas(db: Session, empresa_id: int) -> List[models.PlantillaWhatsApp]:
+    #     """Lista las 3 plantillas. Si alguna no existe, la crea con el default."""
+    #     resultado = []
+    #     for tipo in ["pago", "recordatorio", "manual"]:
+    #         resultado.append(get_plantilla(db, empresa_id, tipo))
+    #     return resultado
+
+
 def listar_plantillas(db: Session, empresa_id: int) -> List[models.PlantillaWhatsApp]:
-    """Lista las 3 plantillas. Si alguna no existe, la crea con el default."""
+    """Lista todas las plantillas disponibles. Si alguna no existe, la crea con el default."""
     resultado = []
-    for tipo in ["pago", "recordatorio", "manual"]:
+    
+    # Iterar dinámicamente sobre todas las llaves definidas en PLANTILLAS_DEFAULT
+    for tipo in PLANTILLAS_DEFAULT.keys():
         resultado.append(get_plantilla(db, empresa_id, tipo))
+        
     return resultado
+
 
 
 def update_plantilla(

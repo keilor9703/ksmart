@@ -523,21 +523,36 @@ function AbonoDialog({ open, onClose, susc, onSuccess }) {
   );
 }
 
+// ════ REEMPLAZA ESTAS FUNCIONES AL FINAL DE TUS ARCHIVOS ════
 
 function fechaCorta(fechaIso) {
   if (!fechaIso) return '—';
+  
+  // 🛠️ FIX: Ignoramos la 'Z' y la hora UTC para que no reste 5 horas
+  const partes = fechaIso.split('T')[0].split('-');
+  if (partes.length === 3) {
+    const d = new Date(partes[0], partes[1] - 1, partes[2]);
+    return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+  
   const d = new Date(fechaIso);
   if (isNaN(d)) return fechaIso;
-  return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: '2-digit' });
+  return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function colorPorEstado(susc) {
+  // 🛠️ FIX: Comparamos fechas ignorando las horas
   const hoy = new Date();
-  const vence = new Date(susc.fecha_vencimiento);
-  if (vence < hoy) return { text: '#EF4444' };
+  hoy.setHours(0, 0, 0, 0); // Normalizamos "hoy" a la medianoche local
+
+  const partes = susc.fecha_vencimiento.split('T')[0].split('-');
+  const vence = new Date(partes[0], partes[1] - 1, partes[2]);
+  vence.setHours(0, 0, 0, 0);
+
+  if (vence < hoy) return { text: '#EF4444' }; // Vencida (Rojo)
   const diff = (vence - hoy) / (1000 * 60 * 60 * 24);
-  if (diff <= 5) return { text: '#F59E0B' };
-  return { text: '#10B981' };
+  if (diff <= 5) return { text: '#F59E0B' }; // Por vencer (Amarillo)
+  return { text: '#10B981' }; // Vigente (Verde)
 }
 
 function colorPorEstadoPago(estado) {

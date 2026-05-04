@@ -59,6 +59,20 @@ export default function BotonHuella({
       // Errores comunes y amigables
       let mensaje = 'No se pudo completar la autenticación.';
       const errMsg = err.message || err.toString();
+       if (
+        err.name === 'NotAllowedError' ||
+        errMsg.includes('no credentials') ||
+        errMsg.includes('llaves de acceso') ||
+        errMsg.includes('no se encontró') ||
+        err.response?.status === 401  // backend dijo "esta credencial no existe"
+        ) {
+            // Solo quitamos la bandera si fue error real, no cancelación del usuario
+            if (!errMsg.toLowerCase().includes('cancel')) {
+            localStorage.removeItem('biometric_enabled');
+            // Forzar re-render del padre para ocultar el botón
+            window.location.reload();
+            }
+        }
 
       if (err.name === 'NotAllowedError' || errMsg.includes('cancel')) {
         mensaje = 'Autenticación cancelada.';

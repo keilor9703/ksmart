@@ -2,18 +2,13 @@
 // ParqueaderoMetodosPago.jsx
 // Configuración de métodos de pago (links + QR) + plantillas de WhatsApp.
 // Se importa desde ParqueaderoConfig.jsx como sección extra.
-//
-// Uso:
-//   import ParqueaderoMetodosPago from './ParqueaderoMetodosPago';
-//   ...
-//   <ParqueaderoMetodosPago />
 // ═══════════════════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Box, Paper, Typography, Stack, Grid, Card, CardContent, CardActions,
   TextField, Button, Chip, IconButton, Tooltip, CircularProgress, Alert,
-  Tabs, Tab, Divider, MenuItem, InputAdornment, Avatar, Dialog, DialogTitle,
+  Tabs, Tab, MenuItem, InputAdornment, Avatar, Dialog, DialogTitle,
   DialogContent, DialogActions
 } from '@mui/material';
 import {
@@ -28,7 +23,7 @@ const WA_GREEN = '#25D366';
 
 // ─── Modalidades disponibles ────────────────────────────────────────────────
 const MODALIDADES = [
-  { key: 'mensual',   label: 'Mensual',   icon: <EventRepeat />,    color: '#10B981' },
+  { key: 'mensual',   label: 'Mensual',  icon: <EventRepeat />,    color: '#10B981' },
   { key: 'quincenal', label: 'Quincenal', icon: <EventRepeat />,    color: '#3B82F6' },
   { key: 'diaria',    label: 'Diaria',    icon: <Today />,          color: '#F59E0B' },
   { key: 'libre',     label: 'Pago libre', icon: <AllInclusive />,  color: '#8B5CF6' },
@@ -54,23 +49,43 @@ const TIPOS_PLANTILLA = [
     desc:  'Mensaje genérico para cualquier ocasión',
     color: '#8B5CF6',
   },
+  // ✨ NUEVAS PLANTILLAS AGREGADAS AQUÍ ✨
+  {
+    key:   'comprobante_entrada',
+    label: 'Comprobante de Entrada',
+    desc:  'Se envía cuando un cliente ocasional (por horas/minutos) ingresa su moto',
+    color: '#3B82F6', // Azul
+  },
+  {
+    key:   'recibo_salida',
+    label: 'Recibo de Salida',
+    desc:  'Se envía cuando el cliente ocasional paga y retira su moto',
+    color: '#EC4899', // Rosa
+  },
 ];
 
 // ─── Variables disponibles en plantillas ────────────────────────────────────
 const VARIABLES = [
-  { v: '{nombre}',          d: 'Primer nombre del cliente' },
-  { v: '{placa}',           d: 'Placa de la moto' },
-  { v: '{parqueadero}',     d: 'Nombre del parqueadero' },
-  { v: '{tipo_plan}',       d: 'mensual / quincenal / diaria' },
-  { v: '{fecha_vence}',     d: 'Fecha de vencimiento legible' },
-  { v: '{dias_restantes}',  d: 'Días que faltan para vencer' },
-  { v: '{dias_vencido}',    d: 'Días que lleva vencida' },
-  { v: '{monto}',           d: 'Valor a pagar formateado' },
-  { v: '{saldo}',           d: 'Saldo pendiente' },
-  { v: '{saldo_linea}',     d: 'Línea con saldo (solo si > 0)' },
-  { v: '{link_pago}',       d: 'Link de pago de la modalidad' },
-  { v: '{instrucciones}',   d: 'Instrucciones del método' },
-  { v: '{direccion}',       d: 'Dirección del parqueadero' },
+  { v: '{nombre}',            d: 'Primer nombre del cliente' },
+  { v: '{placa}',             d: 'Placa de la moto' },
+  { v: '{parqueadero}',       d: 'Nombre del parqueadero' },
+  { v: '{tipo_plan}',         d: 'mensual / quincenal / diaria / ocasional' },
+  { v: '{fecha_vence}',       d: 'Fecha de vencimiento legible' },
+  { v: '{dias_restantes}',    d: 'Días que faltan para vencer' },
+  { v: '{dias_vencido}',      d: 'Días que lleva vencida' },
+  { v: '{monto}',             d: 'Valor a pagar formateado' },
+  { v: '{saldo}',             d: 'Saldo pendiente' },
+  { v: '{saldo_linea}',       d: 'Línea con saldo (solo si > 0)' },
+  { v: '{link_pago}',         d: 'Link de pago de la modalidad' },
+  { v: '{instrucciones}',     d: 'Instrucciones del método' },
+  { v: '{direccion}',         d: 'Dirección del parqueadero' },
+  // ✨ NUEVAS VARIABLES AGREGADAS AQUÍ ✨
+  { v: '{hora_entrada}',      d: 'Hora a la que ingresó la moto' },
+  { v: '{tarifa_minuto}',     d: 'Valor de la tarifa por minuto' },
+  { v: '{tarifa_hora}',       d: 'Valor de la tarifa por hora' },
+  { v: '{cobro_minimo_linea}',d: 'Aviso del cobro mínimo (si aplica)' },
+  { v: '{minutos}',           d: 'Total de minutos de estadía' },
+  { v: '{metodo_pago}',       d: 'Método usado para pagar la salida' },
 ];
 
 
@@ -169,7 +184,7 @@ function MetodoCard({ modalidad, data, onChange }) {
   const [link, setLink]         = useState(data?.link_pago || '');
   const [instr, setInstr]       = useState(data?.instrucciones || '');
   const [qrUri, setQrUri]       = useState(data?.qr_data_uri || null);
-  const [qrBase64, setQrBase64] = useState(null);   // nuevo QR si se subió
+  const [qrBase64, setQrBase64] = useState(null);
   const [qrMime, setQrMime]     = useState(null);
   const [saving, setSaving]     = useState(false);
   const fileRef = useRef(null);
@@ -203,7 +218,7 @@ function MetodoCard({ modalidad, data, onChange }) {
     }
     const reader = new FileReader();
     reader.onload = () => {
-      const dataUri = reader.result;       // "data:image/png;base64,XXX"
+      const dataUri = reader.result;
       const b64 = dataUri.split(',')[1];
       setQrUri(dataUri);
       setQrBase64(b64);
@@ -232,12 +247,10 @@ function MetodoCard({ modalidad, data, onChange }) {
         instrucciones: instr.trim() || null,
         is_active:     true,
       };
-      // Solo enviar QR si cambió
       if (qrBase64) {
         payload.qr_base64    = qrBase64;
         payload.qr_mime_type = qrMime;
       } else if (qrUri === null && data?.qr_base64) {
-        // Usuario quitó el QR
         payload.qr_base64    = null;
         payload.qr_mime_type = null;
       }
@@ -304,7 +317,6 @@ function MetodoCard({ modalidad, data, onChange }) {
         </Stack>
 
         {!editing ? (
-          // ── Vista resumen ──────────────────────────────────────────────
           <Box sx={{ mt: 2 }}>
             {data?.link_pago && (
               <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
@@ -330,7 +342,6 @@ function MetodoCard({ modalidad, data, onChange }) {
             )}
           </Box>
         ) : (
-          // ── Modo edición ──────────────────────────────────────────────
           <Stack spacing={1.5} sx={{ mt: 2 }}>
             <TextField
               size="small" label="Nombre del método"
@@ -352,7 +363,6 @@ function MetodoCard({ modalidad, data, onChange }) {
               value={instr} onChange={(e) => setInstr(e.target.value)}
             />
 
-            {/* QR */}
             <Box sx={{
               p: 1.5, border: '1px dashed', borderColor: 'divider',
               borderRadius: 2, textAlign: 'center',
@@ -516,6 +526,11 @@ function PlantillaCard({ tipo, data, onChange }) {
   const [editing, setEditing] = useState(false);
   const [mensaje, setMensaje] = useState(data?.mensaje || '');
   const [saving, setSaving]   = useState(false);
+
+  // Asegurarnos de que el estado local se actualice si la data del backend cambia
+  useEffect(() => {
+    setMensaje(data?.mensaje || '');
+  }, [data]);
 
   const startEdit = () => {
     setMensaje(data?.mensaje || '');
