@@ -1,3 +1,4 @@
+
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, Enum, Text, func, Date
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
@@ -5,6 +6,10 @@ from datetime import datetime, timezone
 import enum
 from sqlalchemy import JSON 
 from sqlalchemy import UniqueConstraint
+
+from sqlalchemy import (
+   Column, Integer, String, Text, BigInteger, DateTime, ForeignKey, Boolean,
+   Float, Date, Enum, UniqueConstraint)
 
 Base = declarative_base()
 
@@ -114,6 +119,11 @@ class User(Base, TenantMixin):
     empresa           = relationship("Empresa", back_populates="usuarios")
     ordenes_trabajo   = relationship("OrdenTrabajo", back_populates="operador")
     notificaciones    = relationship("Notificacion", back_populates="usuario")
+    credenciales_biometricas = relationship(
+        "CredencialBiometrica",
+         back_populates="usuario",
+         cascade="all, delete-orphan"    )
+
 
 class Cliente(Base, TenantMixin):
     __tablename__ = "clientes"
@@ -877,3 +887,80 @@ class EnvioWhatsApp(Base, TenantMixin):
 
     vehiculo        = relationship("Vehiculo", lazy="joined")
     usuario         = relationship("User", lazy="joined")
+
+
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MODELO — CredencialBiometrica
+# Pega al final de tu models.py
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class CredencialBiometrica(Base):
+    """
+    Una credencial WebAuthn registrada para un usuario en un dispositivo
+    específico. Un usuario puede tener N credenciales (ej. su iPhone, su laptop,
+    su PC del trabajo) y cada una se gestiona independientemente.
+
+    NOTA: Esta tabla NO usa TenantMixin porque es global a nivel de usuario,
+    no a nivel de empresa. Un usuario puede acceder con su huella sin importar
+    en qué empresa está actuando.
+    """
+    __tablename__ = "credenciales_biometricas"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    user_id         = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    # Identificador único generado por el dispositivo (base64url)
+    credential_id   = Column(Text, nullable=False, unique=True, index=True)
+
+    # Clave pública del par criptográfico (la privada nunca sale del dispositivo)
+    public_key      = Column(Text, nullable=False)
+
+    # Contador anti-replay (se incrementa en cada uso)
+    sign_count      = Column(BigInteger, default=0)
+
+    # Metadata para mostrar al usuario
+    device_name     = Column(String(120), nullable=True)   # "Samsung Galaxy A52", "iPhone de Keilor"
+    user_agent      = Column(String(500), nullable=True)   # browser/SO completo
+    transports      = Column(String(120), nullable=True)   # "internal,hybrid" — cómo se autentica
+
+    # Auditoría
+    last_used_at    = Column(DateTime(timezone=True), nullable=True)
+    created_at      = Column(DateTime(timezone=True), default=utcnow)
+
+    # Relación con User
+    usuario         = relationship("User", back_populates="credenciales_biometricas", lazy="joined")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MODIFICACIÓN AL MODELO USER — añadir relación inversa
+# Busca tu clase User en models.py y añade esta línea junto a las otras
+# relaciones (relationships) que ya tenga:
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# class User(Base, TenantMixin):
+#     __tablename__ = "users"
+#     ... (campos existentes) ...
+#
+#     # ✨ AÑADIR esta relación junto a las demás:
+#     credenciales_biometricas = relationship(
+#         "CredencialBiometrica",
+#         back_populates="usuario",
+#         cascade="all, delete-orphan"
+#     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# IMPORTS NECESARIOS
+# Verifica que en el TOPE de models.py tengas estos imports. Si falta alguno,
+# agrégalo:
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# from sqlalchemy import (
+#     Column, Integer, String, Text, BigInteger, DateTime, ForeignKey, Boolean,
+#     Float, Date, Enum, UniqueConstraint
+# )
+# from sqlalchemy.orm import relationship
+# # ... resto de imports ...
