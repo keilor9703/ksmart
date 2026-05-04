@@ -3939,3 +3939,130 @@ app.include_router(parqueadero_router)
 
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# ENDPOINTS — WebAuthn / Biometría
+# Pega en main.py donde tienes los demás endpoints
+# ═══════════════════════════════════════════════════════════════════════════════
+
+from fastapi import APIRouter, Depends, Request, HTTPException
+from typing import List
+
+# IMPORTANTE: si tu función de crear JWT tiene otro nombre, ajusta
+# la línea "create_access_token" en biometric_login_verify_endpoint.
+
+biometric_router = APIRouter(
+    prefix="/auth/biometric",
+    tags=["Biometric Auth"],
+)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# REGISTRO — requiere usuario autenticado por contraseña primero
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@biometric_router.post("/register/options")
+def biometric_register_options_endpoint(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """
+    Paso 1 del registro: obtener las opciones para crear una credencial.
+    El usuario YA debe estar autenticado (sesión iniciada con contraseña).
+    """
+    return crud.biometric_register_options(db, user=current_user)
+
+
+@biometric_router.post(
+    "/register/verify",
+    response_model=schemas.BiometricRegisterVerifyResponse
+)
+def biometric_register_verify_endpoint(
+    payload: schemas.BiometricRegisterVerifyRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """
+    Paso 2 del registro: verificar la credencial generada por el navegador
+    y guardarla en BD.
+    """
+    user_agent = request.headers.get('user-agent', '')
+    return crud.biometric_register_verify(
+        db, user=current_user, payload=payload, user_agent=user_agent,
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LOGIN CON HUELLA — sin auth previa
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@biometric_router.post("/login/options")
+def biometric_login_options_endpoint(
+    payload: schemas.BiometricLoginOptionsRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Paso 1 del login: el frontend pide opciones de autenticación.
+    Si pasa username, restringe a las credenciales de ese usuario.
+    Si no, modo passkey-discovery (el navegador elige).
+    """
+    return crud.biometric_login_options(db, username=payload.username)
+
+
+@biometric_router.post(
+    "/login/verify",
+    response_model=schemas.BiometricLoginVerifyResponse
+)
+def biometric_login_verify_endpoint(
+    payload: schemas.BiometricLoginVerifyRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Paso 2 del login: verificar la firma. Si es válida, devolver el JWT.
+
+    Inyectamos `create_access_token` (la función que ya tienes en main.py
+    para emitir tokens) para reutilizar la lógica de tokens.
+    """
+    return crud.biometric_login_verify(
+        db, payload=payload,
+        create_access_token_func=create_access_token,
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# GESTIÓN DE CREDENCIALES — requiere auth
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@biometric_router.get(
+    "/credentials",
+    response_model=List[schemas.CredencialBiometricaOut]
+)
+def listar_mis_credenciales(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Lista las credenciales biométricas del usuario actual."""
+    return crud.listar_credenciales_usuario(db, user_id=current_user.id)
+
+
+@biometric_router.delete("/credentials/{credencial_id}")
+def eliminar_mi_credencial(
+    credencial_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Elimina una credencial del usuario. Útil si pierde un dispositivo."""
+    if not crud.eliminar_credencial(db, user_id=current_user.id, credencial_id=credencial_id):
+        raise HTTPException(404, "Credencial no encontrada.")
+    return {"message": "Credencial eliminada."}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# REGISTRAR EL ROUTER (al final de main.py, junto con los demás include_router)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+app.include_router(biometric_router)
+
+
+
+
