@@ -1600,7 +1600,7 @@ class MetodoPagoBase(BaseModel):
         if v is None or v.strip() == '':
             return None
         v = v.strip()
-        if not (v.startswith('http://') or v.startswith('https://')):
+        if not (v.startswith('http://') or v.startswith('https://') or v.startswith('31')):
             raise ValueError('El link debe empezar con http:// o https://')
         return v
 
