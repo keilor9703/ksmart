@@ -14,6 +14,8 @@ import {
 } from '@mui/icons-material';
 import { TwoWheeler } from '@mui/icons-material';
 
+// ─── NUEVO IMPORT ────────────────────────────────────────────────────────────
+import BotonHuella from './BotonHuella';
 
 // ─── Animaciones ─────────────────────────────────────────────────────────────
 const fadeIn = keyframes`
@@ -232,6 +234,23 @@ const Login = ({ onLogin }) => {
         }
     };
 
+    // ─── NUEVA FUNCIÓN BIOMÉTRICA ───────────────────────────────────────────────
+    const handleBiometricSuccess = (data) => {
+        // Guardar token igual que login normal
+        localStorage.setItem('token', data.access_token);
+
+        localStorage.setItem('user', JSON.stringify({
+            id:         data.user_id,
+            username:   data.username,
+            empresa_id: data.empresa_id,
+            rol:        data.rol,
+        }));
+
+        toast.success('¡Bienvenido de vuelta!');
+
+        navigate('/');
+    };
+
     // ── Render ───────────────────────────────────────────────────────────────
     return (
         <Box sx={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
@@ -401,7 +420,7 @@ const Login = ({ onLogin }) => {
                         )}
 
                         {/* ════════════════════════════════════════════════ */}
-                        {/* ── Formulario LOGIN ──                            */}
+                        {/* ── Formulario LOGIN ──                           */}
                         {/* ════════════════════════════════════════════════ */}
                         {isLoginView ? (
                             <Box
@@ -460,6 +479,13 @@ const Login = ({ onLogin }) => {
                                     {loading ? 'Ingresando…' : 'Ingresar al sistema'}
                                 </Button>
 
+                                {/* ✨ NUEVO: Botón de huella estilo Wompi integrado aquí ✨ */}
+                                <BotonHuella
+                                    modo="login"
+                                    username={loginData.username}
+                                    onSuccess={handleBiometricSuccess}
+                                />
+
                                 <Typography sx={{ mt: 1.5, color: '#94a3b8', fontSize: 13, textAlign: 'center' }}>
                                     ¿No tienes una cuenta?{' '}
                                     <span
@@ -472,7 +498,7 @@ const Login = ({ onLogin }) => {
                             </Box>
                         ) : (
                             /* ════════════════════════════════════════════════ */
-                            /* ── Formulario REGISTRO en 2 pasos ──              */
+                            /* ── Formulario REGISTRO en 2 pasos ──             */
                             /* ════════════════════════════════════════════════ */
                             <Box
                                 component="form"
@@ -486,7 +512,7 @@ const Login = ({ onLogin }) => {
                                         <Grid container spacing={1.5}>
                                             {[
                                                 { key: 'erp',       label: 'Comercio / ERP',  Icon: Storefront,  desc: 'Ventas e Inventario' },
-                                                { key: 'prestamos', label: 'Cobranzas',        Icon: AttachMoney, desc: 'Rutas de Cobro' },
+                                                { key: 'prestamos', label: 'Cobranzas',       Icon: AttachMoney, desc: 'Rutas de Cobro' },
                                                 { key: 'parqueadero',  label: 'Parqueadero',     desc: 'Motos / vehículos',    Icon: TwoWheeler    },  // ← NUEVO
                                             ].map(({ key, label, Icon, desc }) => (
                                                 <Grid item xs={4} key={key}>
