@@ -1,19 +1,17 @@
-
 import React, { useState, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField,
   Box, Typography, Stack, RadioGroup, Radio, FormControlLabel, Alert,
   Divider, MenuItem, InputAdornment, CircularProgress, IconButton,
-  Autocomplete, Chip
+  useTheme // ✨ NUEVO IMPORT
 } from '@mui/material';
-import { Close, TwoWheeler, Person, AttachMoney, Save } from '@mui/icons-material';
+import { Close, Save } from '@mui/icons-material';
 import apiClient from '../api';
 import { toast } from 'react-toastify';
 import { formatCurrency } from '../utils/formatters';
 
 const ACCENT = '#FF6020';
 const METODOS_PAGO = ['Efectivo', 'Transferencia', 'Nequi', 'Daviplata', 'Tarjeta', 'Otro'];
-
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 3. CobrarVencidoDialog
@@ -22,6 +20,16 @@ const METODOS_PAGO = ['Efectivo', 'Transferencia', 'Nequi', 'Daviplata', 'Tarjet
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function ParqueaderoCobrarVencidoDialog({ open, onClose, resultado, onSuccess }) {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark'; // ✨ Detectamos el modo
+
+  // Paleta dinámica
+  const redBg = isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2';
+  const redText = isDark ? '#FCA5A5' : '#991B1B';
+  const greenBg = isDark ? 'rgba(16, 185, 129, 0.15)' : '#F0FDF4';
+  const darkBoxBg = isDark ? 'rgba(0, 0, 0, 0.4)' : '#1E293B';
+  const borderStyle = isDark ? '1px solid rgba(255,255,255,0.08)' : 'none';
+
   const [entroEnVencidos, setEntroEnVencidos] = useState('no');  // 'no' | 'si'
   const [diasEntro, setDiasEntro]             = useState('');
   const [tipoRetro, setTipoRetro]             = useState('mensual');
@@ -68,11 +76,11 @@ export function ParqueaderoCobrarVencidoDialog({ open, onClose, resultado, onSuc
       if (entroEnVencidos === 'no') {
         // Caso simple: solo cobramos nueva suscripción desde HOY
         await apiClient.post('/parqueadero/suscripciones', {
-          vehiculo_id:        resultado.vehiculo.id,
-          tipo:               tipoNueva,
-          monto_pagado:       pagaAhora,
+          vehiculo_id:          resultado.vehiculo.id,
+          tipo:                 tipoNueva,
+          monto_pagado:         pagaAhora,
           metodo_pago_inicial: metodoPago,
-          observaciones:      obs || 'Renovación tras vencimiento (no entró en días vencidos).',
+          observaciones:        obs || 'Renovación tras vencimiento (no entró en días vencidos).',
         });
       } else {
         // Caso retroactivo
@@ -98,14 +106,14 @@ export function ParqueaderoCobrarVencidoDialog({ open, onClose, resultado, onSuc
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ bgcolor: '#FEF2F2' }}>
+      <DialogTitle sx={{ bgcolor: redBg, borderBottom: borderStyle }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Typography sx={{ fontWeight: 800, color: '#991B1B' }}>
+          <Typography sx={{ fontWeight: 800, color: redText }}>
             Cobrar mensualidad vencida
           </Typography>
-          <IconButton onClick={onClose} size="small"><Close /></IconButton>
+          <IconButton onClick={onClose} size="small" sx={{ color: redText }}><Close /></IconButton>
         </Stack>
-        <Typography sx={{ fontSize: 12, color: '#991B1B', mt: 0.5 }}>
+        <Typography sx={{ fontSize: 12, color: redText, mt: 0.5, opacity: 0.8 }}>
           {resultado?.placa} · Vencida hace {resultado?.dias_vencido} día{resultado?.dias_vencido !== 1 ? 's' : ''}
         </Typography>
       </DialogTitle>
@@ -130,8 +138,8 @@ export function ParqueaderoCobrarVencidoDialog({ open, onClose, resultado, onSuc
 
         {/* Caso "sí entró" */}
         {entroEnVencidos === 'si' && (
-          <Box sx={{ p: 2, bgcolor: '#FEF2F2', borderRadius: 2, mb: 2 }}>
-            <Typography sx={{ fontSize: 12, fontWeight: 700, mb: 1, color: '#991B1B', textTransform: 'uppercase' }}>
+          <Box sx={{ p: 2, bgcolor: redBg, borderRadius: 2, mb: 2, border: borderStyle }}>
+            <Typography sx={{ fontSize: 12, fontWeight: 700, mb: 1, color: redText, textTransform: 'uppercase' }}>
               Cobro de deuda
             </Typography>
             <TextField
@@ -157,7 +165,7 @@ export function ParqueaderoCobrarVencidoDialog({ open, onClose, resultado, onSuc
         )}
 
         {/* Crear nueva desde hoy */}
-        <Box sx={{ p: 2, bgcolor: '#F0FDF4', borderRadius: 2, mb: 2 }}>
+        <Box sx={{ p: 2, bgcolor: greenBg, borderRadius: 2, mb: 2, border: borderStyle }}>
           {entroEnVencidos === 'si' && (
             <FormControlLabel
               control={<Radio
@@ -214,7 +222,7 @@ export function ParqueaderoCobrarVencidoDialog({ open, onClose, resultado, onSuc
         />
 
         {/* Resumen final */}
-        <Box sx={{ mt: 2, p: 2, bgcolor: '#1E293B', color: 'white', borderRadius: 2 }}>
+        <Box sx={{ mt: 2, p: 2, bgcolor: darkBoxBg, color: 'white', borderRadius: 2, border: borderStyle }}>
           <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
             <Typography sx={{ fontSize: 13, opacity: 0.85 }}>Total facturado</Typography>
             <Typography sx={{ fontSize: 14, fontWeight: 700 }}>{formatCurrency(total)}</Typography>
@@ -249,7 +257,6 @@ export function ParqueaderoCobrarVencidoDialog({ open, onClose, resultado, onSuc
     </Dialog>
   );
 }
-
 
 export const CobrarVencidoDialog  = ParqueaderoCobrarVencidoDialog;
 export default ParqueaderoCobrarVencidoDialog;
