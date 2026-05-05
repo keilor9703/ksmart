@@ -113,7 +113,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
 # ─── Datos iniciales ──────────────────────────────────────────────────────────
 def initialize_default_data(db: Session):
     # AUTO-HEALING: Asegurarnos de que la Empresa Maestra (1) exista Y ESTÉ ACTIVA
@@ -141,35 +140,38 @@ def initialize_default_data(db: Session):
     default_modules_data = [
         {"name": "Ventas",              "description": "Módulo para la gestión de ventas.",              "frontend_path": "/ventas"},
         {"name": "Cotizaciones",        "description": "Módulo para la gestión de cotizaciones.",          "frontend_path": "/cotizaciones"},
-        {"name": "Resoluciones DIAN",              "description": "Módulo para la gestión de resoluciones de la DIAN.",    "frontend_path": "/admin/resoluciones"},
-        {"name": "Clientes",            "description": "Módulo para la gestión de clientes.",             "frontend_path": "/clientes"},
-        {"name": "Productos",           "description": "Módulo para la gestión de productos.",            "frontend_path": "/productos"},
+        {"name": "Resoluciones DIAN",   "description": "Módulo para la gestión de resoluciones de la DIAN.",    "frontend_path": "/admin/resoluciones"},
+        {"name": "Clientes",            "description": "Módulo para la gestión de clientes.",              "frontend_path": "/clientes"},
+        {"name": "Productos",           "description": "Módulo para la gestión de productos.",             "frontend_path": "/productos"},
         {"name": "Reportes",            "description": "Módulo para la visualización de reportes.",       "frontend_path": "/reportes"},
-        {"name": "Gestion Usuarios",    "description": "Módulo de administración de usuarios.",           "frontend_path": "/admin/users"},
-        {"name": "Gestion Roles",       "description": "Módulo de administración de roles.",              "frontend_path": "/admin/roles"},
-        {"name": "Gestion Modulos",     "description": "Módulo de administración de módulos.",            "frontend_path": "/admin/modules"},
+        {"name": "Gestion Usuarios",    "description": "Módulo de administración de usuarios.",            "frontend_path": "/admin/users"},
+        {"name": "Gestion Roles",       "description": "Módulo de administración de roles.",               "frontend_path": "/admin/roles"},
+        {"name": "Gestion Modulos",     "description": "Módulo de administración de módulos.",             "frontend_path": "/admin/modules"},
         {"name": "Órdenes de Trabajo",  "description": "Módulo para la gestión de órdenes de trabajo.",  "frontend_path": "/ordenes-trabajo"},
-        {"name": "Panel del Operador",  "description": "Panel de productividad para operadores.",         "frontend_path": "/panel-operador"},
+        {"name": "Panel del Operador",  "description": "Panel de productividad para operadores.",          "frontend_path": "/panel-operador"},
         {"name": "Recetas",             "description": "Gestión de fórmulas de producción (BOM).",        "frontend_path": "/produccion/recetas"},
-        {"name": "Producción",          "description": "Gestión de lotes y transformaciones.",            "frontend_path": "/produccion/lotes"},
-        {"name": "Compras",             "description": "Módulo para la gestión de compras.",              "frontend_path": "/compras"},
-        {"name": "Inventarios",         "description": "Módulo para movimientos y alertas de stock.",     "frontend_path": "/inventario"},
-        {"name": "lotes      ",         "description": "Módulo para productos perecederos.",              "frontend_path": "/inventario/lotes"},
+        {"name": "Producción",          "description": "Gestión de lotes y transformaciones.",             "frontend_path": "/produccion/lotes"},
+        {"name": "Compras",             "description": "Módulo para la gestión de compras.",               "frontend_path": "/compras"},
+        {"name": "Inventarios",         "description": "Módulo para movimientos y alertas de stock.",      "frontend_path": "/inventario"},
+        {"name": "lotes      ",         "description": "Módulo para productos perecederos.",               "frontend_path": "/inventario/lotes"},
         {"name": "Reportes inventario", "description": "Reportes de inventario y kardex.",                "frontend_path": "/reportes-inventario"},
-        {"name": "Caja",                "description": "Módulo de corte de caja diario.",                 "frontend_path": "/caja"},
-        {"name": "Préstamos",           "description": "Módulo de gestión de préstamos.",                 "frontend_path": "/prestamos"},
-        {"name": "Ruta de Cobro",       "description": "Módulo de gestión de ruta de cobro.",             "frontend_path": "/ruta-cobro"},
-        {"name": "Parqueadero",         "description": "Dashboard del parqueadero.",                      "frontend_path": "/parqueadero"},
-        {"name": "Buscar Placa",        "description": "Búsqueda rápida de placas.",                      "frontend_path": "/parqueadero/buscar"},
-        {"name": "Vehículos",           "description": "Gestión de vehículos.",                           "frontend_path": "/parqueadero/vehiculos"},
-        {"name": "Suscripciones Parq.", "description": "Renovaciones y pagos.",                           "frontend_path": "/parqueadero/suscripciones"},
-        {"name": "Config Parqueadero",  "description": "Tarifas y cupo total.",                           "frontend_path": "/parqueadero/config"},
-
+        {"name": "Caja",                "description": "Módulo de corte de caja diario.",                  "frontend_path": "/caja"},
+        {"name": "Préstamos",           "description": "Módulo de gestión de préstamos.",                  "frontend_path": "/prestamos"},
+        {"name": "Ruta de Cobro",       "description": "Módulo de gestión de ruta de cobro.",              "frontend_path": "/ruta-cobro"},
+        {"name": "Parqueadero",         "description": "Dashboard del parqueadero.",                       "frontend_path": "/parqueadero"},
+        {"name": "Buscar Placa",        "description": "Búsqueda rápida de placas.",                       "frontend_path": "/parqueadero/buscar"},
+        {"name": "Vehículos",           "description": "Gestión de vehículos.",                            "frontend_path": "/parqueadero/vehiculos"},
+        {"name": "Suscripciones Parq.", "description": "Renovaciones y pagos.",                            "frontend_path": "/parqueadero/suscripciones"},
+        {"name": "Config Parqueadero",  "description": "Tarifas y cupo total.",                            "frontend_path": "/parqueadero/config"},
     ]
 
-    admin_role = crud.get_role_by_name(db, name="Admin")
+    # ✅ AJUSTE: Buscar o crear el rol Admin específicamente para la Empresa 1
+    admin_role = crud.get_role_by_name(db, name="Admin", empresa_id=1)
     if not admin_role:
-        admin_role = crud.create_role(db, schemas.RoleCreate(name="Admin"))
+        admin_role = models.Role(name="Admin", empresa_id=1)
+        db.add(admin_role)
+        db.commit()
+        db.refresh(admin_role)
 
     created_modules = []
     for mod_data in default_modules_data:
@@ -178,7 +180,8 @@ def initialize_default_data(db: Session):
             modulo = crud.create_modulo(db, schemas.ModuloCreate(**mod_data))
         created_modules.append(modulo)
 
-    crud.set_modules_for_role(db, admin_role.id, [m.id for m in created_modules])
+    # ✅ AJUSTE: Le pasamos empresa_id=1 a la función del CRUD
+    crud.set_modules_for_role(db, role_id=admin_role.id, module_ids=[m.id for m in created_modules], empresa_id=1)
 
     admin_user = crud.get_user_by_username(db, username="admin")
     if not admin_user:
@@ -294,25 +297,19 @@ def registrar_nuevo_cliente(data: schemas.RegistroSaaS, db: Session = Depends(ge
 
     # ── Perfilado de módulos según el tipo de negocio ─────────────────────────
     PERFILES = {
-    "erp": [
-        "/ventas", "/compras", "/clientes", "/productos", "/inventario",
-        "/caja", "/produccion/lotes", "/ordenes-trabajo", "/panel-operador",
-        "/reportes", "/cotizaciones",
-    ],
-    "prestamos": [
-        "/clientes", "/prestamos", "/ruta-cobro", "/caja", "/reportes",
-    ],
-    # ✅ NUEVO PERFIL: PARQUEADERO DE MOTOS
-    "parqueadero": [
-        "/parqueadero",                  # Dashboard del día (pantalla principal)
-        "/parqueadero/buscar",           # Buscar placa (entrada/salida rápida)
-        "/parqueadero/vehiculos",        # Listado de vehículos registrados
-        "/parqueadero/suscripciones",    # Histórico de pagos/renovaciones
-        "/parqueadero/config",           # Tarifas y cupo total
-        "/clientes"                     # Propietarios (reutiliza tu módulo Clientes)
-       
-    ],
-}
+        "erp": [
+            "/ventas", "/compras", "/clientes", "/productos", "/inventario",
+            "/caja", "/produccion/lotes", "/ordenes-trabajo", "/panel-operador",
+            "/reportes", "/cotizaciones",
+        ],
+        "prestamos": [
+            "/clientes", "/prestamos", "/ruta-cobro", "/caja", "/reportes",
+        ],
+        "parqueadero": [
+            "/parqueadero", "/parqueadero/buscar", "/parqueadero/vehiculos", 
+            "/parqueadero/suscripciones", "/parqueadero/config", "/clientes"
+        ],
+    }
 
     modulos = PERFILES.get(data.tipo_negocio, PERFILES["erp"])
 
@@ -324,42 +321,45 @@ def registrar_nuevo_cliente(data: schemas.RegistroSaaS, db: Session = Depends(ge
             plan_type           = "trial",
             trial_ends_at       = datetime.now(timezone.utc) + timedelta(days=14),
             modulos_habilitados = modulos,
-            # Campos nuevos:
             pais                = data.pais,
             ciudad              = data.ciudad,
             tamano_negocio      = data.tamano_negocio,
             origen_marketing    = data.origen,
         )
         db.add(nueva_emp)
+        db.flush() # Guardamos para obtener nueva_emp.id sin hacer commit todavía
+
+        # ✅ NUEVO: Crear un ROL "Admin" EXCLUSIVO para esta nueva empresa ───────────
+        nuevo_rol_admin = models.Role(
+            name="Admin", 
+            empresa_id=nueva_emp.id
+        )
+        db.add(nuevo_rol_admin)
         db.flush()
 
-        # ── Crear usuario admin asociado ──────────────────────────────────────
-        rol_admin = db.query(models.Role).filter(models.Role.name == "Admin").first()
-        if not rol_admin:
-            raise HTTPException(status_code=500, detail="Configuración inicial incompleta. Contacta a soporte.")
+        # Asignarle al rol todos los módulos que su plan le permite
+        modulos_db = db.query(models.Modulo).filter(models.Modulo.frontend_path.in_(modulos)).all()
+        nuevo_rol_admin.modules = modulos_db
+        db.flush()
 
+        # ── Crear usuario admin asociado usando el nuevo ROL ──────────────────
         nuevo_user = models.User(
             username        = data.username,
             hashed_password = crud.get_password_hash(data.password),
-            role_id         = rol_admin.id,
+            role_id         = nuevo_rol_admin.id,  # ✅ Usamos el rol recién creado
             empresa_id      = nueva_emp.id,
-            # Campos nuevos:
             nombre_completo = data.nombre_completo,
             email           = data.email,
             telefono        = data.telefono,
+            is_active       = True
         )
         db.add(nuevo_user)
         db.commit()
 
-        # ── (Opcional) enviar email de bienvenida o agendar tarea ─────────────
-        # if data.email:
-        #     send_welcome_email(data.email, data.nombre_completo or data.username, nueva_emp.id)
-
         logger.info(
             f"✅ Nuevo registro: empresa={nueva_emp.nombre} (id={nueva_emp.id}) | "
             f"user={data.username} | tipo={data.tipo_negocio} | "
-            f"pais={data.pais} | ciudad={data.ciudad} | tamano={data.tamano_negocio} | "
-            f"origen={data.origen}"
+            f"pais={data.pais} | ciudad={data.ciudad} | tamano={data.tamano_negocio}"
         )
 
         return {
@@ -381,9 +381,7 @@ def registrar_nuevo_cliente(data: schemas.RegistroSaaS, db: Session = Depends(ge
         db.rollback()
         logger.error(f"Error no controlado en registro: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error interno del servidor")
-
-
-
+    
 
 @app.post("/token")
 def login_for_access_token(
