@@ -101,24 +101,42 @@ def delete_modulo(db: Session, modulo_id: int):
         db.commit()
     return db_modulo
 
-def get_role(db: Session, role_id: int):
-    return db.query(models.Role).options(joinedload(models.Role.modules)).filter(models.Role.id == role_id).first()
 
-def get_role_by_name(db: Session, name: str):
-    return db.query(models.Role).options(joinedload(models.Role.modules)).filter(models.Role.name == name).first()
+# ═══════════════════════════════════════════════════════════════════════════════
+# ROLES (AHORA POR EMPRESA)
+# ═══════════════════════════════════════════════════════════════════════════════
 
-def get_roles(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Role).options(joinedload(models.Role.modules)).offset(skip).limit(limit).all()
+def get_role(db: Session, role_id: int, empresa_id: int):
+    # ✅ Filtrar por ID y por la empresa del usuario
+    return db.query(models.Role).options(joinedload(models.Role.modules)).filter(
+        models.Role.id == role_id,
+        models.Role.empresa_id == empresa_id
+    ).first()
 
-def create_role(db: Session, role: schemas.RoleCreate):
-    db_role = models.Role(name=role.name)
+def get_role_by_name(db: Session, name: str, empresa_id: int):
+    # ✅ Filtrar por nombre y por empresa
+    return db.query(models.Role).options(joinedload(models.Role.modules)).filter(
+        models.Role.name == name,
+        models.Role.empresa_id == empresa_id
+    ).first()
+
+def get_roles(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
+    # ✅ Traer solo los roles de ESA empresa
+    return db.query(models.Role).options(joinedload(models.Role.modules)).filter(
+        models.Role.empresa_id == empresa_id
+    ).offset(skip).limit(limit).all()
+
+def create_role(db: Session, role: schemas.RoleCreate, empresa_id: int):
+    # ✅ Crear el rol asociándolo a la empresa
+    db_role = models.Role(name=role.name, empresa_id=empresa_id)
     db.add(db_role)
     db.commit()
     db.refresh(db_role)
     return db_role
 
-def add_modules_to_role(db: Session, role_id: int, module_ids: List[int]):
-    db_role = get_role(db, role_id)
+# Funciones de asociación de módulos al rol
+def add_modules_to_role(db: Session, role_id: int, module_ids: List[int], empresa_id: int):
+    db_role = get_role(db, role_id, empresa_id) # Validación de tenant
     if not db_role:
         return None
     for module_id in module_ids:
@@ -129,8 +147,8 @@ def add_modules_to_role(db: Session, role_id: int, module_ids: List[int]):
     db.refresh(db_role)
     return db_role
 
-def remove_modules_from_role(db: Session, role_id: int, module_ids: List[int]):
-    db_role = get_role(db, role_id)
+def remove_modules_from_role(db: Session, role_id: int, module_ids: List[int], empresa_id: int):
+    db_role = get_role(db, role_id, empresa_id) # Validación de tenant
     if not db_role:
         return None
     for module_id in module_ids:
@@ -141,8 +159,8 @@ def remove_modules_from_role(db: Session, role_id: int, module_ids: List[int]):
     db.refresh(db_role)
     return db_role
 
-def set_modules_for_role(db: Session, role_id: int, module_ids: List[int]):
-    db_role = get_role(db, role_id)
+def set_modules_for_role(db: Session, role_id: int, module_ids: List[int], empresa_id: int):
+    db_role = get_role(db, role_id, empresa_id) # Validación de tenant
     if not db_role:
         return None
     db_role.modules.clear()
@@ -177,11 +195,18 @@ def get_users(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
     ).offset(skip).limit(limit).all()
 
 def create_user(db: Session, user: schemas.UserCreate, empresa_id: int):
-    # ✅ 1. VERIFICACIÓN DE LÍMITE DE USUARIOS (MONETIZACIÓN)
+    # ✅ 1. VERIFICAR QUE EL ROL ASIGNADO PERTENECE A ESTA EMPRESA
+    rol_asignado = get_role(db, role_id=user.role_id, empresa_id=empresa_id)
+    if not rol_asignado:
+        raise HTTPException(
+            status_code=400, 
+            detail="El rol seleccionado no es válido o no pertenece a tu empresa."
+        )
+
+    # 2. VERIFICACIÓN DE LÍMITE DE USUARIOS (MONETIZACIÓN)
     total_users = db.query(models.User).filter(models.User.empresa_id == empresa_id).count()
     empresa = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
     
-    # Lógica de negocio: 7 usuarios en Trial, 20 en Premium (puedes ajustar estos números)
     limite = 6 if empresa.plan_type == "trial" else 50 
     
     if total_users >= limite:
@@ -190,7 +215,7 @@ def create_user(db: Session, user: schemas.UserCreate, empresa_id: int):
             detail=f"Has alcanzado el límite de {limite} usuarios de tu plan. Mejora tu suscripción para expandir tu equipo."
         )
 
-    # 2. Creación normal
+    # 3. Creación normal
     hashed_password = get_password_hash(user.password)
     db_user = models.User(
         username=user.username,
@@ -204,11 +229,20 @@ def create_user(db: Session, user: schemas.UserCreate, empresa_id: int):
     db.refresh(db_user)
     return db_user
 
+
 def update_user(db: Session, user_id: int, user: schemas.UserCreate, empresa_id: int):
+    # ✨ NUEVA VALIDACIÓN: Verificar que el nuevo rol pertenezca a la empresa
+    if user.role_id:
+        rol_asignado = get_role(db, role_id=user.role_id, empresa_id=empresa_id)
+        if not rol_asignado:
+            raise HTTPException(status_code=400, detail="El rol seleccionado no pertenece a tu empresa.")
+
     db_user = db.query(models.User).filter(
         models.User.id == user_id,
         models.User.empresa_id == empresa_id 
     ).first()
+    
+    # ... (el resto de tu función queda exactamente igual) ...
     if db_user:
         for key, value in user.dict(exclude_unset=True).items():
             if key == "password":

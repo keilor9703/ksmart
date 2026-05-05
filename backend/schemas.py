@@ -71,9 +71,9 @@ class RoleCreate(RoleBase):
 
 class Role(RoleBase):
     id: int
+    empresa_id: Optional[int] = None # ✅ Añadir esto
     modules: List[Modulo] = []
     model_config = ConfigDict(from_attributes=True)
-
 class UserBase(BaseModel):
     username: str
     role_id: int

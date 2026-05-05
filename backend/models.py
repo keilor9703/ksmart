@@ -82,13 +82,21 @@ class Modulo(Base):
     description    = Column(String, nullable=True)
     frontend_path  = Column(String, unique=True)
 
-class Role(Base):
+
+# ... (tus otros imports)
+
+class Role(Base, TenantMixin): # ✅ 1. Heredar de TenantMixin
     __tablename__ = "roles"
     id      = Column(Integer, primary_key=True, index=True)
-    name    = Column(String, unique=True, index=True)
+    name    = Column(String, index=True) # ✅ 2. Quitar el unique=True de aquí
 
     users   = relationship("User", back_populates="role")
     modules = relationship("Modulo", secondary="role_modules", back_populates="roles")
+
+    # ✅ 3. Añadir restricción: El nombre del rol no se puede repetir DENTRO de la misma empresa
+    __table_args__ = (
+        UniqueConstraint('name', 'empresa_id', name='uq_role_name_per_empresa'),
+    )
 
 class RoleModule(Base):
     __tablename__ = "role_modules"

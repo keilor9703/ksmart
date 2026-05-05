@@ -565,25 +565,34 @@ app.include_router(superadmin_router)
 # ROLES / MÓDULOS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# ENDPOINTS DE ROLES (Multi-Tenant)
+# ═══════════════════════════════════════════════════════════════════════════════
+
 @app.post("/roles/", response_model=schemas.Role)
 def create_role(role: schemas.RoleCreate, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_admin_user)):
-    if crud.get_role_by_name(db, name=role.name):
-        raise HTTPException(status_code=400, detail="Rol ya registrado")
-    return crud.create_role(db=db, role=role)
-
+    # ✅ Pasa el empresa_id del usuario actual
+    if crud.get_role_by_name(db, name=role.name, empresa_id=current_user.empresa_id):
+        raise HTTPException(status_code=400, detail="Ya tienes un rol con este nombre en tu empresa")
+    return crud.create_role(db=db, role=role, empresa_id=current_user.empresa_id)
 
 @app.get("/roles/", response_model=List[schemas.Role])
 def read_roles(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_admin_user)):
-    return crud.get_roles(db, skip=skip, limit=limit)
-
+    # ✅ Retorna solo los roles de la empresa actual
+    return crud.get_roles(db, empresa_id=current_user.empresa_id, skip=skip, limit=limit)
 
 @app.put("/roles/{role_id}/modules", response_model=schemas.Role)
 def set_role_modules(role_id: int, module_ids: List[int], db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_admin_user)):
-    db_role = crud.set_modules_for_role(db, role_id=role_id, module_ids=module_ids)
+    # ✅ Pasa el empresa_id para evitar que modifiquen roles ajenos
+    db_role = crud.set_modules_for_role(
+        db, 
+        role_id=role_id, 
+        module_ids=module_ids, 
+        empresa_id=current_user.empresa_id
+    )
     if db_role is None:
-        raise HTTPException(status_code=404, detail="Rol no encontrado")
+        raise HTTPException(status_code=404, detail="Rol no encontrado o no pertenece a tu empresa")
     return db_role
-
 
 @app.post("/modulos/", response_model=schemas.Modulo)
 def create_modulo(modulo: schemas.ModuloCreate, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_admin_user)):
