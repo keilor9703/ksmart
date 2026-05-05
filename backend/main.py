@@ -368,9 +368,17 @@ def registrar_nuevo_cliente(data: schemas.RegistroSaaS, db: Session = Depends(ge
             "trial_until": nueva_emp.trial_ends_at.isoformat(),
         }
 
-    except IntegrityError:
+    except IntegrityError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail="El usuario o empresa ya existe.")
+        # 👇 Extraemos el error original de la base de datos
+        error_exacto = str(e.orig)
+        logger.error(f"Error de integridad en BD: {error_exacto}")
+        
+        # Le enviamos el error al frontend/Postman para que lo leas de inmediato
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Error en la base de datos: {error_exacto}"
+        )
     except ValueError as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
