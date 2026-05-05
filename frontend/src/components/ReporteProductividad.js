@@ -80,8 +80,8 @@ const OperadorCard = ({ row }) => {
 };
 
 const ReporteProductividad = ({ accentColor = ACCENT }) => {
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate]     = useState(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(new Date().toLocaleDateString('en-CA'));
+  const [endDate, setEndDate]     = useState(new Date().toLocaleDateString('en-CA'));
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading]     = useState(false);
   const [showAll, setShowAll]     = useState(false);

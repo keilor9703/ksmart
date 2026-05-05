@@ -166,7 +166,7 @@ const Login = ({ onLogin }) => {
         setLoading(true);
         try {
             const response = await apiClient.post(
-                '/token',
+                '/auth/token',
                 new URLSearchParams({ username: loginData.username, password: loginData.password }),
                 { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
             );

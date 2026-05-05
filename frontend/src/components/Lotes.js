@@ -533,7 +533,7 @@ const Lotes = () => {
                     InputLabelProps={{ shrink: true }}
                     value={confirmData.fecha_vencimiento}
                     onChange={(e) => setConfirmData({ ...confirmData, fecha_vencimiento: e.target.value })}
-                    inputProps={{ min: new Date().toISOString().split('T')[0] }}
+                    inputProps={{ min: new Date().toLocaleDateString('en-CA') }}
                     helperText="Fecha límite de consumo"
                   />
                 </Grid>

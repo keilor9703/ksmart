@@ -11,7 +11,7 @@ const WompiButton = ({ planName, onSuccess }) => {
     setLoading(true);
     try {
       // 1. Obtener datos del backend
-      const { data } = await apiClient.post('/pagos/generar-hash-wompi', {
+      const { data } = await apiClient.post('/wompi/generar-hash', {
         plan_name: planName
       });
 

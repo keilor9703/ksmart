@@ -557,7 +557,7 @@ const Compras = () => {
                        }}>
                           <Typography sx={{ display: {xs:'none', md:'flex'}, color: '#10B981' }}><Science fontSize="small"/></Typography>
                           <TextField size="small" label="Número de Lote *" value={det.numero_lote || ''} onChange={e => handleDetalleChange(idx, 'numero_lote', e.target.value.toUpperCase())} sx={{ flex: 1, width: isMobile ? '100%' : 'auto' }} />
-                          <TextField size="small" type="date" label="Fecha Vencimiento *" InputLabelProps={{ shrink: true }} value={det.fecha_vencimiento || ''} onChange={e => handleDetalleChange(idx, 'fecha_vencimiento', e.target.value)} inputProps={{ min: new Date().toISOString().split('T')[0] }} sx={{ flex: 1, width: isMobile ? '100%' : 'auto' }} />
+                          <TextField size="small" type="date" label="Fecha Vencimiento *" InputLabelProps={{ shrink: true }} value={det.fecha_vencimiento || ''} onChange={e => handleDetalleChange(idx, 'fecha_vencimiento', e.target.value)} inputProps={{ min: new Date().toLocaleDateString('en-CA') }} sx={{ flex: 1, width: isMobile ? '100%' : 'auto' }} />
                           <TextField size="small" type="date" label="Fabricación" InputLabelProps={{ shrink: true }} value={det.fecha_fabricacion || ''} onChange={e => handleDetalleChange(idx, 'fecha_fabricacion', e.target.value)} sx={{ flex: 1, width: isMobile ? '100%' : 'auto' }} />
                        </Box>
                     )}

@@ -413,7 +413,7 @@ const MovementForm = ({ onCreated }) => {
                     InputLabelProps={{ shrink: true }}
                     value={nuevoLote.fecha_vencimiento}
                     onChange={e => setNuevoLote(p => ({ ...p, fecha_vencimiento: e.target.value }))}
-                    inputProps={{ min: new Date().toISOString().split('T')[0] }}
+                    inputProps={{ min: new Date().toLocaleDateString('en-CA') }}
                     sx={{ flex: 1 }}
                   />
                   <TextField

@@ -266,14 +266,14 @@ const Prestamos = () => {
 
   const [fechaInicio, setFechaInicio] = useState(() => {
   // Por defecto: hoy
-  return new Date().toISOString().split('T')[0];
+  return new Date().toLocaleDateString('en-CA');
 });
 
 // Helper: calcula la fecha de inicio con N días de gracia
 const agregarDiasGracia = (dias) => {
   const d = new Date();
   d.setDate(d.getDate() + parseInt(dias || 0));
-  setFechaInicio(d.toISOString().split('T')[0]);
+  setFechaInicio(d.toLocaleDateString('en-CA'));
 };
 
   // ── Modal abono a capital ──────────────────────────────────────────────────
@@ -398,7 +398,7 @@ const agregarDiasGracia = (dias) => {
     });
       toast.success('Préstamo generado');
       setMonto(''); setTasaInteres(''); setCuotas('');
-      setFechaInicio(new Date().toISOString().split('T')[0]);
+      setFechaInicio(new Date().toLocaleDateString('en-CA'));
       setTasaMora('2'); setSelectedCliente(null);
       fetchData();
       setTab(1);
@@ -538,7 +538,7 @@ const agregarDiasGracia = (dias) => {
                             InputLabelProps={{ shrink: true }}
                             value={fechaInicio}
                             onChange={e => setFechaInicio(e.target.value)}
-                            inputProps={{ min: new Date().toISOString().split('T')[0] }}
+                            inputProps={{ min: new Date().toLocaleDateString('en-CA') }}
                             helperText={`Las cuotas se generarán a partir del ${new Date(fechaInicio + 'T00:00:00').toLocaleDateString('es-CO', { weekday: 'long', day: '2-digit', month: 'long' })}`}
                           />
                         </Box>

@@ -151,7 +151,7 @@ const RutaCobro = () => {
   const [resumenDias,  setResumenDias]  = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [searchTerm,   setSearchTerm]   = useState('');
-  const [filtroFecha,  setFiltroFecha]  = useState(new Date().toISOString().split('T')[0]);
+  const [filtroFecha,  setFiltroFecha]  = useState(new Date().toLocaleDateString('en-CA'));
   const [currentUser,  setCurrentUser]  = useState(null);
 
   const [asignacionGlobal,   setAsignacionGlobal]   = useState({});
@@ -293,7 +293,7 @@ const confirmarPago = async () => {
     try {
       await apiClient.post(
         `/prestamos/cuotas/${cuota.cuota_id}/reprogramar`,
-        { nueva_fecha: new Date(nuevaFecha).toISOString() }
+        { nueva_fecha: new Date(nuevaFecha + 'T23:59:59').toISOString() }
       );
       toast.success('Compromiso actualizado');
       setReprogramarModal({ open: false, cuota: null, nuevaFecha: '' });
@@ -425,7 +425,7 @@ const confirmarPago = async () => {
                   const fecha = new Date(d.fecha + 'T00:00:00');
                   const labelStr = fecha.toLocaleDateString('es-CO', { weekday: 'short', day: '2-digit', month: 'short' });
                   const isSelected = filtroFecha === d.fecha;
-                  const isToday = d.fecha === new Date().toISOString().split('T')[0];
+                  const isToday = d.fecha === new Date().toLocaleDateString('en-CA');
                   return (
                     <Badge
                       key={d.fecha}

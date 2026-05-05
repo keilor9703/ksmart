@@ -26,7 +26,7 @@ const fmtDate = (val) => {
   const d = parseUTC(val);
   if (!d) return '—';
   return d.toLocaleDateString('es-CO', {
-    timeZone: 'America/Bogota',
+    timeZone: 'UTC',
     day: '2-digit', month: 'short', year: 'numeric'
   });
 };

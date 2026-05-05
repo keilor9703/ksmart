@@ -188,6 +188,22 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v36)
                 logger.info("V36 (Auditoría de baja de vehículos) aplicada.")
 
+            # V37 - Reparar índice UNIQUE en Roles para SQLite (Multi-tenant)
+            migration_v37 = "inv_v37_fix_roles_unique_sqlite"
+            if IS_SQLITE and not _migration_already_applied(conn, migration_v37):
+                if _index_exists(conn, "ix_roles_name"):
+                    conn.execute(text("DROP INDEX ix_roles_name"))
+                    logger.info("V37: Eliminado índice global ix_roles_name")
+                
+                if not _index_exists(conn, "uq_role_name_per_empresa"):
+                    conn.execute(text(
+                        "CREATE UNIQUE INDEX uq_role_name_per_empresa ON roles(name, empresa_id)"
+                    ))
+                    logger.info("V37: Creado índice multi-tenant uq_role_name_per_empresa")
+                
+                _mark_migration_applied(conn, migration_v37)
+                logger.info("V37 (Fix Roles Unique SQLite) aplicada.")
+
 
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)

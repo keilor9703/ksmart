@@ -553,7 +553,8 @@ const InventarioLotes = () => {
             <Grid item xs={6}>
               <TextField fullWidth required label="Fecha Vencimiento" type="date" InputLabelProps={{ shrink: true }}
                 value={form.fecha_vencimiento} onChange={e => setForm(p => ({ ...p, fecha_vencimiento: e.target.value }))}
-                inputProps={{ min: new Date().toISOString().split('T')[0] }} />
+                inputProps={{ min: new Date().toLocaleDateString('en-CA') }}
+ />
             </Grid>
             <Grid item xs={6}>
               <TextField fullWidth label="Fabricación (Opc.)" type="date" InputLabelProps={{ shrink: true }}

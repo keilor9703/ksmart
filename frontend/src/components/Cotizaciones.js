@@ -46,7 +46,7 @@ const fmtDate = (val) => {
   const d = parseUTC(val);
   if (!d) return '—';
   return d.toLocaleDateString('es-CO', {
-    timeZone: 'America/Bogota',
+    timeZone: 'UTC',
     day: '2-digit', month: 'short', year: 'numeric'
   });
 };
@@ -287,7 +287,7 @@ const Cotizaciones = () => {
           precio_unitario: parseFloat(d.precio_unitario),
         })),
         iva_porcentaje: parseFloat(ivaPorcentaje) || 0,
-        valida_hasta:   validaHasta ? new Date(validaHasta).toISOString() : null,
+        valida_hasta:   validaHasta ? new Date(validaHasta + 'T23:59:59').toISOString() : null,
         observaciones:  observaciones || null,
       });
       toast.success('Cotización creada correctamente.');
@@ -490,7 +490,7 @@ const Cotizaciones = () => {
                   InputLabelProps={{ shrink: true }}
                   value={validaHasta}
                   onChange={e => setValidaHasta(e.target.value)}
-                  inputProps={{ min: new Date().toISOString().split('T')[0] }}
+                  inputProps={{ min: new Date().toLocaleDateString('en-CA') }}
                   size="small"
                 />
               </Grid>

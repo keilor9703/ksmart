@@ -192,7 +192,7 @@ export default function GestionSaaS() {
   const handleUpdateSuscripcion = async (e) => {
     e.preventDefault(); setLoading(true);
     try {
-      await apiClient.patch(`/superadmin/empresas/${empresaSeleccionada.id}/plan`, { plan_type: formAsignarPlan.plan_type, trial_ends_at: formAsignarPlan.trial_ends_at ? new Date(formAsignarPlan.trial_ends_at).toISOString() : null });
+      await apiClient.patch(`/superadmin/empresas/${empresaSeleccionada.id}/plan`, { plan_type: formAsignarPlan.plan_type, trial_ends_at: formAsignarPlan.trial_ends_at ? new Date(formAsignarPlan.trial_ends_at + 'T23:59:59').toISOString() : null });
       toast.success('Suscripción actualizada'); setOpenPlanDialog(false); fetchEmpresas();
     } catch (err) { toast.error('Error al actualizar el plan'); } finally { setLoading(false); }
   };
@@ -231,7 +231,7 @@ export default function GestionSaaS() {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a"); link.setAttribute("href", url);
-    link.setAttribute("download", `Reporte_Pagos_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute("download", `Reporte_Pagos_${new Date().toLocaleDateString('en-CA')}.csv`);
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
     toast.success("Reporte exportado.");
   };

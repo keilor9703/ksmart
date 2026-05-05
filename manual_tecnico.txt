@@ -83,7 +83,7 @@ Seguridad basada en JWT sin estado (Stateless):
 ================================================================================
 El sistema se auto-monetiza mediante integración con Bancolombia/Wompi.
 - **Frontend (`WompiButton.js`):** Instancia el `WidgetCheckout` de Wompi. Exige configuración estricta de firma en formato `{ integrity: "hash" }`.
-- **Backend (`/pagos/generar-hash-wompi`):** Genera firma HMAC SHA-256 usando `WOMPI_INTEGRITY_SECRET` para prevenir manipulación de precios.
+- **Backend (`/wompi/generar-hash`):** Genera firma HMAC SHA-256 usando `WOMPI_INTEGRITY_SECRET` para prevenir manipulación de precios.
 - **Webhook (`/webhooks/wompi`):**
   - Verifica firmas criptográficas entrantes de Wompi.
   - Implementa **Idempotencia** (verifica `bold_tx_id` en `registros_pagos`) para evitar sumar meses dobles ante reintentos de la pasarela.

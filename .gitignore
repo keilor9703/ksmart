@@ -42,7 +42,10 @@ yarn-error.log
 # OS generated files
 .DS_Store
 Thumbs.db
+._*
 
 # Build artifacts
 build/
 dist/
+.aider*
+.claude/
