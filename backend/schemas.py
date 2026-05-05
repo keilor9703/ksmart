@@ -1878,3 +1878,72 @@ class CredencialBiometricaOut(BaseModel):
     class Config:
         from_attributes = True
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# SCHEMAS — Dar de baja con flujo mixto
+# Pega al final de schemas.py
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class SuscripcionEnBaja(BaseModel):
+    """Resumen de una suscripción afectada al dar de baja."""
+    id:                int
+    tipo:              str            # mensual / quincenal / diaria
+    fecha_vencimiento: date
+    monto_total:       float
+    monto_pagado:      float
+    saldo_pendiente:   float
+    dias_para_vencer:  int            # negativo si ya está vencida
+    es_vigente:        bool
+
+    class Config:
+        from_attributes = True
+
+
+class AccesoAbiertoEnBaja(BaseModel):
+    """Resumen de un acceso por horas abierto al dar de baja."""
+    id:                int
+    fecha_entrada:     datetime
+    minutos_dentro:    int
+    monto_estimado:    float
+
+    class Config:
+        from_attributes = True
+
+
+class VehiculoBajaInfo(BaseModel):
+    """Respuesta del endpoint GET /parqueadero/vehiculos/{id}/baja-info"""
+    vehiculo_id:               int
+    placa:                     str
+    cliente_nombre:            Optional[str] = None
+    cliente_cedula:            Optional[str] = None
+    suscripciones_activas:     List[SuscripcionEnBaja] = []
+    accesos_abiertos:          List[AccesoAbiertoEnBaja] = []
+    saldo_total_pendiente:     float = 0.0
+    puede_dar_baja_directo:    bool = True   # True solo si NO hay suscripciones ni accesos
+    advertencias:              List[str] = []
+
+
+# ─── Solicitud para dar de baja con flags ─────────────────────────────────
+
+class DarBajaRequest(BaseModel):
+    """
+    Body del POST /parqueadero/vehiculos/{id}/dar-baja
+    El frontend manda los flags según los checkboxes que marque el usuario.
+    """
+    cancelar_suscripciones:    bool = False    # Cancela todas las activas
+    marcar_saldo_incobrable:   bool = False    # Solo aplica si cancelar_suscripciones=True
+    cerrar_accesos_abiertos:   bool = False    # Cierra accesos sin cobrar
+    cobrar_acceso_abierto:     bool = False    # Si True, registra el cobro y luego cierra
+    metodo_pago_acceso:        Optional[str] = "Efectivo"  # solo si cobrar_acceso_abierto=True
+    motivo:                    Optional[str] = None        # opcional, queda en motivo_baja
+
+
+class DarBajaResponse(BaseModel):
+    """Respuesta tras dar de baja exitosamente."""
+    vehiculo_id:                  int
+    placa:                        str
+    suscripciones_canceladas:     int = 0
+    accesos_cerrados:             int = 0
+    accesos_cobrados:             int = 0
+    monto_cobrado_accesos:        float = 0.0
+    saldo_marcado_incobrable:     float = 0.0
+    mensaje:                      str

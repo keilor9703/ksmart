@@ -3955,6 +3955,51 @@ def historial_envios(
 
 
 
+# ─── 1. PREVIEW: ¿Qué pasaría si doy de baja? ────────────────────────────────
+@parqueadero_router.get("/vehiculos/{vehiculo_id}/baja-info",
+         response_model=schemas.VehiculoBajaInfo)
+def get_vehiculo_baja_info_endpoint(
+    vehiculo_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """
+    Devuelve un análisis estructurado de qué se vería afectado al dar de baja
+    este vehículo: suscripciones activas, accesos abiertos, saldo total.
+    El frontend usa esto para mostrar checkboxes en el diálogo.
+    """
+    return crud.get_baja_info(db, current_user.empresa_id, vehiculo_id)
+
+
+# ─── 2. EJECUTAR: dar de baja con flags ──────────────────────────────────────
+@parqueadero_router.post("/vehiculos/{vehiculo_id}/dar-baja",
+                          response_model=schemas.DarBajaResponse)
+def dar_baja_vehiculo_endpoint(
+    vehiculo_id: int,
+    payload: schemas.DarBajaRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """
+    Da de baja un vehículo aplicando los flags del payload.
+    Todo se ejecuta en una transacción atómica: o todo o nada.
+
+    Permisos: cualquier usuario con acceso al módulo. Si quieres restringir
+    a Admin, descomenta las líneas indicadas.
+    """
+    # 🔒 OPCIONAL: descomenta para restringir a Admin
+    # if current_user.role.name != "Admin":
+    #     raise HTTPException(403, "Solo el administrador puede dar de baja vehículos.")
+
+    return crud.dar_baja_vehiculo(
+        db,
+        empresa_id  = current_user.empresa_id,
+        usuario_id  = current_user.id,
+        vehiculo_id = vehiculo_id,
+        payload     = payload,
+    )
+
+
 
 app.include_router(parqueadero_router)
 
@@ -4083,5 +4128,7 @@ def eliminar_mi_credencial(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 app.include_router(biometric_router)
+
+
 
 

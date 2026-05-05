@@ -4597,16 +4597,219 @@ def update_vehiculo(
     return veh
 
 
+# def delete_vehiculo(db: Session, empresa_id: int, vehiculo_id: int) -> bool:
+#     """
+#     Borrado lógico: marca is_active=False. Conserva el histórico de suscripciones.
+#     """
+#     veh = get_vehiculo(db, empresa_id, vehiculo_id)
+#     if not veh:
+#         return False
+#     veh.is_active = False
+#     db.commit()
+#     return True
+
+
+
 def delete_vehiculo(db: Session, empresa_id: int, vehiculo_id: int) -> bool:
     """
-    Borrado lógico: marca is_active=False. Conserva el histórico de suscripciones.
+    🛠️ DEPRECATED en favor de dar_baja_vehiculo() con flags.
+    Esta versión solo permite dar de baja si NO hay actividad pendiente.
+    Para casos con suscripciones activas o accesos abiertos, usar el nuevo flow.
     """
     veh = get_vehiculo(db, empresa_id, vehiculo_id)
     if not veh:
         return False
-    veh.is_active = False
+    if not veh.is_active:
+        return True   # ya está inactiva, idempotente
+
+    # Verificar que no haya nada pendiente
+    info = get_baja_info(db, empresa_id, vehiculo_id)
+    if not info["puede_dar_baja_directo"]:
+        raise HTTPException(
+            status_code=409,   # 409 Conflict
+            detail={
+                "msg": "El vehículo tiene actividad pendiente. Usa el flujo nuevo de baja con confirmación.",
+                "advertencias":           info["advertencias"],
+                "saldo_total_pendiente":  info["saldo_total_pendiente"],
+                "requiere_confirmacion":  True,
+            }
+        )
+
+    veh.is_active   = False
+    veh.fecha_baja  = datetime.now(timezone.utc)
     db.commit()
     return True
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 5. NUEVA — dar_baja_vehiculo (transacción atómica con flags)
+#    REEMPLAZA tu delete_vehiculo viejo por este nuevo
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def dar_baja_vehiculo(
+    db: Session, empresa_id: int, usuario_id: int,
+    vehiculo_id: int, payload: schemas.DarBajaRequest,
+) -> dict:
+    """
+    Da de baja un vehículo aplicando los flags que el usuario marcó en el
+    diálogo. TODO se ejecuta en una transacción atómica: si algo falla,
+    nada se aplica.
+
+    Reglas:
+      - Si hay suscripciones activas pero cancelar_suscripciones=False → error 400
+      - Si hay accesos abiertos pero ni cerrar_accesos_abiertos ni
+        cobrar_acceso_abierto están activos → error 400
+      - cobrar_acceso_abierto tiene prioridad sobre cerrar_accesos_abiertos
+        (si ambos están en True, se cobra)
+    """
+    veh = get_vehiculo(db, empresa_id, vehiculo_id)
+    if not veh:
+        raise HTTPException(status_code=404, detail="Vehículo no encontrado.")
+    if not veh.is_active:
+        raise HTTPException(status_code=400, detail="Este vehículo ya está dado de baja.")
+
+    hoy = datetime.now(BOGOTA_TZ).date()
+
+    # ── Validar consistencia ANTES de hacer cambios ──────────────────────────
+    suscripciones_activas = (
+        db.query(models.SuscripcionParqueadero)
+        .filter(
+            models.SuscripcionParqueadero.empresa_id == empresa_id,
+            models.SuscripcionParqueadero.vehiculo_id == vehiculo_id,
+            models.SuscripcionParqueadero.estado != "cancelada",
+        )
+        .all()
+    )
+    # Filtrar a las relevantes (vigentes o con saldo)
+    suscripciones_a_actuar = [
+        s for s in suscripciones_activas
+        if s.fecha_vencimiento >= hoy or (s.monto_total or 0) > (s.monto_pagado or 0)
+    ]
+
+    accesos_abiertos = db.query(models.AccesoParqueadero).filter(
+        models.AccesoParqueadero.empresa_id == empresa_id,
+        models.AccesoParqueadero.vehiculo_id == vehiculo_id,
+        models.AccesoParqueadero.estado == "dentro",
+    ).all()
+
+    if suscripciones_a_actuar and not payload.cancelar_suscripciones:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Este vehículo tiene {len(suscripciones_a_actuar)} suscripción(es) activa(s). "
+                f"Marca 'cancelar suscripciones' para continuar."
+            )
+        )
+
+    if accesos_abiertos and not (payload.cerrar_accesos_abiertos or payload.cobrar_acceso_abierto):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Este vehículo tiene {len(accesos_abiertos)} acceso(s) por horas abierto(s). "
+                f"Indica si cobrar o cerrar sin cobrar."
+            )
+        )
+
+    # ── Ejecutar todo en una transacción ─────────────────────────────────────
+    suscripciones_canceladas = 0
+    accesos_cerrados = 0
+    accesos_cobrados = 0
+    monto_cobrado_accesos = 0.0
+    saldo_marcado_incobrable = 0.0
+
+    try:
+        # 1. Cancelar suscripciones (si así lo pidió)
+        if payload.cancelar_suscripciones:
+            for s in suscripciones_a_actuar:
+                saldo = (s.monto_total or 0) - (s.monto_pagado or 0)
+                s.estado = "cancelada"
+                obs_extra = f" | Cancelada por baja de vehículo"
+                if payload.marcar_saldo_incobrable and saldo > 0:
+                    obs_extra += f" | Saldo ${saldo:,.0f} marcado como incobrable"
+                    saldo_marcado_incobrable += saldo
+                if payload.motivo:
+                    obs_extra += f" | Motivo: {payload.motivo}"
+                s.observaciones = (s.observaciones or "") + obs_extra
+                suscripciones_canceladas += 1
+
+        # 2. Manejar accesos abiertos
+        if accesos_abiertos:
+            cfg = get_or_create_parq_config(db, empresa_id)
+            ahora = datetime.now(timezone.utc)
+
+            for a in accesos_abiertos:
+                if payload.cobrar_acceso_abierto:
+                    # Cobrar y cerrar (lógica similar a registrar_salida_horas)
+                    entrada = a.fecha_entrada
+                    if entrada.tzinfo is None:
+                        entrada = entrada.replace(tzinfo=timezone.utc)
+                    delta = ahora - entrada
+                    minutos_reales = max(1, int(round(delta.total_seconds() / 60)))
+                    cobro_minimo = cfg.cobro_minimo_minutos or 0
+                    minutos_cobrar = max(minutos_reales, cobro_minimo) if cobro_minimo > 0 else minutos_reales
+                    tarifa_min = cfg.tarifa_minuto or 0
+                    monto = round(minutos_cobrar * tarifa_min, 0)
+
+                    a.fecha_salida     = ahora
+                    a.minutos_cobrados = minutos_cobrar
+                    a.horas_cobradas   = round(minutos_cobrar / 60, 2)
+                    a.monto_cobrado    = monto
+                    a.metodo_pago      = payload.metodo_pago_acceso or "Efectivo"
+                    a.estado           = "salio"
+                    a.observaciones    = (a.observaciones or "") + " | Cerrado por baja del vehículo (cobrado)"
+
+                    accesos_cobrados += 1
+                    monto_cobrado_accesos += monto
+                else:
+                    # Cerrar sin cobrar
+                    a.fecha_salida     = ahora
+                    a.minutos_cobrados = 0
+                    a.horas_cobradas   = 0
+                    a.monto_cobrado    = 0
+                    a.estado           = "salio"
+                    a.observaciones    = (a.observaciones or "") + " | Cerrado por baja del vehículo (sin cobro)"
+                    accesos_cerrados += 1
+
+        # 3. Marcar el vehículo como inactivo + auditoría
+        veh.is_active   = False
+        veh.fecha_baja  = datetime.now(timezone.utc)
+        veh.motivo_baja = (payload.motivo or "")[:500] if payload.motivo else None
+
+        # 4. Commit todo de una vez
+        db.commit()
+
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as ex:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al dar de baja: {str(ex)}"
+        )
+
+    # ── Construir respuesta ──────────────────────────────────────────────────
+    partes_msg = [f"Vehículo {veh.placa} dado de baja."]
+    if suscripciones_canceladas:
+        partes_msg.append(f"{suscripciones_canceladas} suscripción(es) cancelada(s).")
+    if accesos_cobrados:
+        partes_msg.append(f"{accesos_cobrados} acceso(s) cobrado(s) por ${monto_cobrado_accesos:,.0f}.")
+    if accesos_cerrados:
+        partes_msg.append(f"{accesos_cerrados} acceso(s) cerrado(s) sin cobro.")
+    if saldo_marcado_incobrable > 0:
+        partes_msg.append(f"${saldo_marcado_incobrable:,.0f} marcado(s) como incobrable.")
+
+    return {
+        "vehiculo_id":              veh.id,
+        "placa":                    veh.placa,
+        "suscripciones_canceladas": suscripciones_canceladas,
+        "accesos_cerrados":         accesos_cerrados,
+        "accesos_cobrados":         accesos_cobrados,
+        "monto_cobrado_accesos":    monto_cobrado_accesos,
+        "saldo_marcado_incobrable": saldo_marcado_incobrable,
+        "mensaje":                  " ".join(partes_msg),
+    }
+
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -4674,10 +4877,16 @@ def list_suscripciones_vehiculo(
 def list_todas_suscripciones(
     db: Session, empresa_id: int, skip: int = 0, limit: int = 100,
     solo_vigentes: bool = False, solo_vencidas: bool = False,
+    incluir_inactivos: bool = False,   # ✨ NUEVO: si True, incluye motos dadas de baja
 ) -> List[dict]:
+    """
+    🛠️ FIX BUG #2: Por defecto NO devuelve suscripciones de motos dadas de baja.
+    Si necesitas verlas (ej. para reportes históricos), pasa incluir_inactivos=True.
+    """
     hoy = datetime.now(BOGOTA_TZ).date()
     q = (
         db.query(models.SuscripcionParqueadero)
+        .join(models.Vehiculo, models.SuscripcionParqueadero.vehiculo_id == models.Vehiculo.id)
         .options(
             joinedload(models.SuscripcionParqueadero.vehiculo).joinedload(models.Vehiculo.cliente),
             joinedload(models.SuscripcionParqueadero.pagos),
@@ -4687,6 +4896,11 @@ def list_todas_suscripciones(
             models.SuscripcionParqueadero.estado != "cancelada",
         )
     )
+
+    # 🛠️ FIX: solo motos activas por defecto
+    if not incluir_inactivos:
+        q = q.filter(models.Vehiculo.is_active == True)
+
     if solo_vigentes:
         q = q.filter(models.SuscripcionParqueadero.fecha_vencimiento >= hoy)
     elif solo_vencidas:
@@ -5312,9 +5526,14 @@ def registrar_salida_horas(
 
 from datetime import timezone # Asegúrate de tener esta importación al inicio de tu archivo crud.py
 
+
 def buscar_por_placa(db: Session, empresa_id: int, placa: str) -> dict:
     """
-    EL endpoint más usado del sistema. En una sola llamada decide qué mostrar al operario.
+    EL endpoint más usado del sistema. En una sola llamada decide qué mostrar.
+
+    🛠️ FIX BUG #2: Si el vehículo está dado de baja, lo trata como "no registrado"
+    para que el operario pueda registrarlo de nuevo o cobrarlo por horas como
+    cliente ocasional. (Antes lo trataba como activo causando inconsistencias).
 
     Casos:
       - vehiculo_al_dia          → 🟢 verde, "ENTRA"
@@ -5326,7 +5545,7 @@ def buscar_por_placa(db: Session, empresa_id: int, placa: str) -> dict:
     placa_norm = placa.strip().upper().replace(" ", "").replace("-", "")
     hoy = datetime.now(BOGOTA_TZ).date()
 
-    # 1. ¿Tiene acceso por horas/minutos abierto?
+    # 1. ¿Tiene acceso por horas/minutos abierto? (no depende de is_active)
     acceso_abierto = db.query(models.AccesoParqueadero).filter(
         models.AccesoParqueadero.empresa_id == empresa_id,
         models.AccesoParqueadero.placa == placa_norm,
@@ -5335,18 +5554,12 @@ def buscar_por_placa(db: Session, empresa_id: int, placa: str) -> dict:
 
     if acceso_abierto:
         cfg = get_or_create_parq_config(db, empresa_id)
-        
-        # --- FIX: Inyección de zona horaria UTC ---
         ahora_utc = datetime.now(timezone.utc)
         entrada = acceso_abierto.fecha_entrada
-        
-        # Si la fecha viene de SQLite (ingenua), le asignamos explícitamente UTC
         if entrada.tzinfo is None:
             entrada = entrada.replace(tzinfo=timezone.utc)
-            
-        delta = ahora_utc - entrada
-        # ------------------------------------------
 
+        delta = ahora_utc - entrada
         minutos_reales = max(1, int(round(delta.total_seconds() / 60)))
 
         cobro_minimo = cfg.cobro_minimo_minutos or 0
@@ -5359,7 +5572,7 @@ def buscar_por_placa(db: Session, empresa_id: int, placa: str) -> dict:
             "tipo_resultado":      "tiene_acceso_abierto",
             "placa":               placa_norm,
             "acceso_abierto":      acceso_abierto,
-            "horas_transcurridas": horas_display,        # se mantiene por compat con frontend
+            "horas_transcurridas": horas_display,
             "monto_estimado":      monto_estim,
             "mensaje":             (
                 f"Esta moto está dentro hace {minutos_reales} min "
@@ -5368,20 +5581,31 @@ def buscar_por_placa(db: Session, empresa_id: int, placa: str) -> dict:
             ),
             "color_semaforo":      "gris",
         }
-    # 2. ¿El vehículo está registrado?
+
+    # 2. ¿El vehículo está registrado? (incluyendo los dados de baja)
     veh = get_vehiculo_por_placa(db, empresa_id, placa_norm)
 
-    if not veh:
+    # 🛠️ FIX BUG #2: Si NO existe, O si existe pero está dado de baja, tratar igual
+    if not veh or not veh.is_active:
+        # Mensaje distinto si la moto fue dada de baja antes (para contexto al operario)
+        if veh and not veh.is_active:
+            mensaje = (
+                f"Esta placa estaba registrada a nombre de {veh.cliente.nombre if veh.cliente else 'cliente anterior'} "
+                f"pero fue dada de baja. ¿Registrar de nuevo o cobrar por horas?"
+            )
+        else:
+            mensaje = "Placa no registrada. ¿Registrar moto nueva o cobrar por horas?"
+
         return {
             "tipo_resultado":  "vehiculo_no_registrado",
             "placa":           placa_norm,
-            "mensaje":         "Placa no registrada. ¿Registrar moto nueva o cobrar por horas?",
+            "mensaje":         mensaje,
             "color_semaforo":  "azul",
         }
 
     veh_dict = _enriquecer_vehiculo(veh)
 
-    # 3. ¿Tiene suscripción?
+    # 3. ¿Tiene suscripción activa?
     susc = get_suscripcion_activa(db, empresa_id, veh.id)
 
     if not susc:
@@ -5427,17 +5651,127 @@ def buscar_por_placa(db: Session, empresa_id: int, placa: str) -> dict:
         }
 
 
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 4. NUEVA — get_baja_info (preview antes de dar de baja)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def get_baja_info(db: Session, empresa_id: int, vehiculo_id: int) -> dict:
+    """
+    Devuelve un análisis estructurado de qué se vería afectado al dar de baja
+    este vehículo. El frontend usa esto para mostrar checkboxes en el diálogo.
+    """
+    veh = get_vehiculo(db, empresa_id, vehiculo_id)
+    if not veh:
+        raise HTTPException(status_code=404, detail="Vehículo no encontrado.")
+    if not veh.is_active:
+        raise HTTPException(
+            status_code=400,
+            detail="Este vehículo ya está dado de baja."
+        )
+
+    hoy = datetime.now(BOGOTA_TZ).date()
+
+    # Suscripciones NO canceladas (activas o vencidas con saldo)
+    suscripciones = (
+        db.query(models.SuscripcionParqueadero)
+        .filter(
+            models.SuscripcionParqueadero.empresa_id == empresa_id,
+            models.SuscripcionParqueadero.vehiculo_id == vehiculo_id,
+            models.SuscripcionParqueadero.estado != "cancelada",
+        )
+        .all()
+    )
+
+    # Solo mostrar las relevantes: vigentes o con saldo pendiente
+    suscripciones_relevantes = []
+    for s in suscripciones:
+        saldo = max(0.0, (s.monto_total or 0) - (s.monto_pagado or 0))
+        es_vigente = s.fecha_vencimiento >= hoy
+        # Mostrar si está vigente O si tiene saldo pendiente
+        if es_vigente or saldo > 0:
+            suscripciones_relevantes.append({
+                "id":                s.id,
+                "tipo":              s.tipo,
+                "fecha_vencimiento": s.fecha_vencimiento,
+                "monto_total":       s.monto_total or 0,
+                "monto_pagado":      s.monto_pagado or 0,
+                "saldo_pendiente":   saldo,
+                "dias_para_vencer":  (s.fecha_vencimiento - hoy).days,
+                "es_vigente":        es_vigente,
+            })
+
+    # Accesos por horas abiertos
+    accesos = db.query(models.AccesoParqueadero).filter(
+        models.AccesoParqueadero.empresa_id == empresa_id,
+        models.AccesoParqueadero.vehiculo_id == vehiculo_id,
+        models.AccesoParqueadero.estado == "dentro",
+    ).all()
+
+    cfg = get_or_create_parq_config(db, empresa_id)
+    accesos_data = []
+    for a in accesos:
+        ahora_utc = datetime.now(timezone.utc)
+        entrada = a.fecha_entrada
+        if entrada.tzinfo is None:
+            entrada = entrada.replace(tzinfo=timezone.utc)
+        delta = ahora_utc - entrada
+        minutos_reales = max(1, int(round(delta.total_seconds() / 60)))
+        cobro_minimo = cfg.cobro_minimo_minutos or 0
+        minutos_cobrar = max(minutos_reales, cobro_minimo) if cobro_minimo > 0 else minutos_reales
+        monto_estim = round(minutos_cobrar * (cfg.tarifa_minuto or 0), 0)
+
+        accesos_data.append({
+            "id":              a.id,
+            "fecha_entrada":   a.fecha_entrada,
+            "minutos_dentro":  minutos_reales,
+            "monto_estimado":  monto_estim,
+        })
+
+    # Calcular saldo total
+    saldo_total = sum(s["saldo_pendiente"] for s in suscripciones_relevantes)
+
+    # Construir advertencias legibles
+    advertencias = []
+    if suscripciones_relevantes:
+        cnt = len(suscripciones_relevantes)
+        advertencias.append(
+            f"Tiene {cnt} suscripción{'es' if cnt > 1 else ''} activa{'s' if cnt > 1 else ''}"
+            + (f" con saldo pendiente de ${saldo_total:,.0f}" if saldo_total > 0 else "")
+        )
+    if accesos_data:
+        cnt = len(accesos_data)
+        advertencias.append(
+            f"Tiene {cnt} acceso{'s' if cnt > 1 else ''} por horas abierto{'s' if cnt > 1 else ''}"
+        )
+
+    puede_directo = len(suscripciones_relevantes) == 0 and len(accesos_data) == 0
+
+    return {
+        "vehiculo_id":            veh.id,
+        "placa":                  veh.placa,
+        "cliente_nombre":         veh.cliente.nombre if veh.cliente else None,
+        "cliente_cedula":         veh.cliente.cedula if veh.cliente else None,
+        "suscripciones_activas":  suscripciones_relevantes,
+        "accesos_abiertos":       accesos_data,
+        "saldo_total_pendiente":  saldo_total,
+        "puede_dar_baja_directo": puede_directo,
+        "advertencias":           advertencias,
+    }
+
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 7. DASHBOARD
 # ═══════════════════════════════════════════════════════════════════════════════
-
 def get_dashboard_parqueadero(db: Session, empresa_id: int) -> dict:
     """
-    Resumen completo para la pantalla principal del operario:
-    - Cupo
-    - Vencimientos
-    - Ingresos
-    - Listas
+    Resumen completo para la pantalla principal del operario.
+
+    🛠️ FIX BUG #2: TODAS las queries ahora hacen JOIN con Vehiculo y filtran
+    por is_active=True para no contar suscripciones huérfanas o de motos
+    dadas de baja.
     """
     hoy = datetime.now(BOGOTA_TZ).date()
     inicio_hoy_utc, fin_hoy_utc = get_utc_boundaries(hoy)
@@ -5448,12 +5782,18 @@ def get_dashboard_parqueadero(db: Session, empresa_id: int) -> dict:
 
     cfg = get_or_create_parq_config(db, empresa_id)
 
-    # ── Cupo ──────────────────────────────────────────────────────────────────
-    mensualidades_activas = db.query(models.SuscripcionParqueadero).filter(
-        models.SuscripcionParqueadero.empresa_id == empresa_id,
-        models.SuscripcionParqueadero.estado == "vigente",
-        models.SuscripcionParqueadero.fecha_vencimiento >= hoy,
-    ).count()
+    # ── Cupo (FIX: solo de vehículos activos) ─────────────────────────────────
+    mensualidades_activas = (
+        db.query(models.SuscripcionParqueadero)
+        .join(models.Vehiculo, models.SuscripcionParqueadero.vehiculo_id == models.Vehiculo.id)
+        .filter(
+            models.SuscripcionParqueadero.empresa_id == empresa_id,
+            models.SuscripcionParqueadero.estado == "vigente",
+            models.SuscripcionParqueadero.fecha_vencimiento >= hoy,
+            models.Vehiculo.is_active == True,   # 🛠️ FIX
+        )
+        .count()
+    )
 
     accesos_dentro_count = db.query(models.AccesoParqueadero).filter(
         models.AccesoParqueadero.empresa_id == empresa_id,
@@ -5469,12 +5809,14 @@ def get_dashboard_parqueadero(db: Session, empresa_id: int) -> dict:
 
     por_vencer_q = (
         db.query(models.SuscripcionParqueadero)
+        .join(models.Vehiculo, models.SuscripcionParqueadero.vehiculo_id == models.Vehiculo.id)
         .options(joinedload(models.SuscripcionParqueadero.vehiculo).joinedload(models.Vehiculo.cliente))
         .filter(
             models.SuscripcionParqueadero.empresa_id == empresa_id,
             models.SuscripcionParqueadero.estado != "cancelada",
             models.SuscripcionParqueadero.fecha_vencimiento >= hoy,
             models.SuscripcionParqueadero.fecha_vencimiento <= en_5_dias,
+            models.Vehiculo.is_active == True,   # 🛠️ FIX
         )
         .order_by(models.SuscripcionParqueadero.fecha_vencimiento.asc())
         .all()
@@ -5495,26 +5837,31 @@ def get_dashboard_parqueadero(db: Session, empresa_id: int) -> dict:
 
     vencidas_q = (
         db.query(models.SuscripcionParqueadero)
+        .join(models.Vehiculo, models.SuscripcionParqueadero.vehiculo_id == models.Vehiculo.id)
         .options(joinedload(models.SuscripcionParqueadero.vehiculo).joinedload(models.Vehiculo.cliente))
         .filter(
             models.SuscripcionParqueadero.empresa_id == empresa_id,
             models.SuscripcionParqueadero.estado != "cancelada",
             models.SuscripcionParqueadero.fecha_vencimiento < hoy,
+            models.Vehiculo.is_active == True,   # 🛠️ FIX
         )
         .order_by(models.SuscripcionParqueadero.fecha_vencimiento.desc())
         .limit(50)
         .all()
     )
 
-    # Filtrar solo las que NO han sido reemplazadas por una nueva vigente
+    # Filtrar las que NO han sido reemplazadas por una nueva vigente
     suscripciones_vencidas = []
     for s in vencidas_q:
-        nueva = db.query(models.SuscripcionParqueadero).filter(
-            models.SuscripcionParqueadero.empresa_id == empresa_id,
-            models.SuscripcionParqueadero.vehiculo_id == s.vehiculo_id,
-            models.SuscripcionParqueadero.fecha_vencimiento >= hoy,
-            models.SuscripcionParqueadero.estado != "cancelada",
-        ).first()
+        nueva = (
+            db.query(models.SuscripcionParqueadero)
+            .filter(
+                models.SuscripcionParqueadero.empresa_id == empresa_id,
+                models.SuscripcionParqueadero.vehiculo_id == s.vehiculo_id,
+                models.SuscripcionParqueadero.fecha_vencimiento >= hoy,
+                models.SuscripcionParqueadero.estado != "cancelada",
+            ).first()
+        )
         if not nueva:
             suscripciones_vencidas.append({
                 "suscripcion_id": s.id,
@@ -5527,9 +5874,8 @@ def get_dashboard_parqueadero(db: Session, empresa_id: int) -> dict:
                 "tipo":           s.tipo,
             })
 
-    # ── Ingresos ──────────────────────────────────────────────────────────────
+    # ── Ingresos (sin cambios — los pagos pasados deben contar siempre) ──────
     def _ingresos_rango(utc_start, utc_end):
-        """Suma pagos de suscripciones + accesos por horas en el rango."""
         susc_total = db.query(func.sum(models.PagoParqueadero.monto)).filter(
             models.PagoParqueadero.empresa_id == empresa_id,
             models.PagoParqueadero.fecha >= utc_start,
@@ -5555,7 +5901,7 @@ def get_dashboard_parqueadero(db: Session, empresa_id: int) -> dict:
         models.AccesoParqueadero.estado == "dentro",
     ).order_by(models.AccesoParqueadero.fecha_entrada.asc()).all()
 
-    # ── Total vehículos ───────────────────────────────────────────────────────
+    # ── Total vehículos (ya filtraba bien) ────────────────────────────────────
     total_veh = db.query(models.Vehiculo).filter(
         models.Vehiculo.empresa_id == empresa_id,
         models.Vehiculo.is_active == True,
@@ -5577,6 +5923,7 @@ def get_dashboard_parqueadero(db: Session, empresa_id: int) -> dict:
         "accesos_dentro":           accesos_dentro,
         "total_vehiculos":          total_veh,
     }
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

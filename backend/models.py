@@ -685,6 +685,8 @@ class Vehiculo(Base, TenantMixin):
     observaciones   = Column(Text, nullable=True)
     is_active       = Column(Boolean, default=True)        # Para "darlo de baja" sin borrar histórico
     created_at      = Column(DateTime(timezone=True), default=utcnow)
+    fecha_baja      = Column(DateTime(timezone=True), nullable=True)
+    motivo_baja     = Column(String(500), nullable=True)
 
     # Relaciones
     cliente         = relationship("Cliente", lazy="joined")

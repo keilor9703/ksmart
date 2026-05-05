@@ -20,6 +20,7 @@ import { useNavigate } from 'react-router-dom';
 import apiClient from '../api';
 import { toast } from 'react-toastify';
 import { ParqueaderoVehiculoDialog } from './ParqueaderoVehiculoDialog';
+import DialogoDarBaja from './DialogoDarBaja';
 
 const ACCENT = '#FF6020';
 
@@ -60,22 +61,22 @@ export default function ParqueaderoVehiculos() {
   }, [cargar]);
 
   // ── Eliminar ────────────────────────────────────────────────────────────
-  const handleEliminar = async () => {
-    if (!confirmDel) return;
-    try {
-      await apiClient.delete(`/parqueadero/vehiculos/${confirmDel.id}`);
-      toast.success(`Vehículo ${confirmDel.placa} dado de baja.`);
-      setConfirmDel(null);
-      cargar();
-    } catch (err) {
-      const status = err.response?.status;
-      if (status === 403) {
-        toast.error('Solo el administrador puede dar de baja vehículos.');
-      } else {
-        toast.error(err.response?.data?.detail || 'Error al eliminar.');
-      }
-    }
-  };
+  // const handleEliminar = async () => {
+  //   if (!confirmDel) return;
+  //   try {
+  //     await apiClient.delete(`/parqueadero/vehiculos/${confirmDel.id}`);
+  //     toast.success(`Vehículo ${confirmDel.placa} dado de baja.`);
+  //     setConfirmDel(null);
+  //     cargar();
+  //   } catch (err) {
+  //     const status = err.response?.status;
+  //     if (status === 403) {
+  //       toast.error('Solo el administrador puede dar de baja vehículos.');
+  //     } else {
+  //       toast.error(err.response?.data?.detail || 'Error al eliminar.');
+  //     }
+  //   }
+  // };
 
   return (
     <Box sx={{ p: { xs: 1, md: 2 }, maxWidth: 1400, mx: 'auto' }}>
@@ -234,7 +235,7 @@ export default function ParqueaderoVehiculos() {
         />
       )}
 
-      <Dialog open={!!confirmDel} onClose={() => setConfirmDel(null)} maxWidth="xs" fullWidth>
+      {/* <Dialog open={!!confirmDel} onClose={() => setConfirmDel(null)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontWeight: 800 }}>¿Dar de baja esta moto?</DialogTitle>
         <DialogContent>
           <Typography sx={{ fontSize: 14 }}>
@@ -250,7 +251,19 @@ export default function ParqueaderoVehiculos() {
             Dar de baja
           </Button>
         </DialogActions>
-      </Dialog>
+      </Dialog> */}
+
+       {confirmDel && (
+          <DialogoDarBaja
+            open={!!confirmDel}
+            vehiculo={confirmDel}
+            onClose={() => setConfirmDel(null)}
+            onSuccess={() => { setConfirmDel(null); cargar(); }}
+          />
+        )}
+
+
+      
     </Box>
   );
 }
