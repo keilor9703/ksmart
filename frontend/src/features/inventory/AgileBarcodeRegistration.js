@@ -1,21 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Box, Typography, TextField, Button, Card, Grid, 
-  InputAdornment, IconButton, CircularProgress, Divider,
-  MenuItem, Select, FormControl, InputLabel, Paper,
+  Box, Typography, TextField, Button, Grid, 
+  InputAdornment, IconButton, CircularProgress,
   Switch, FormControlLabel, Collapse, Dialog, DialogContent, 
-  AppBar, Toolbar, Slide
+  AppBar, Toolbar, Slide, Paper, Stack, Divider
 } from '@mui/material';
 import {
-  QrCodeScanner, Save, Clear, Inventory, Close,
+  QrCodeScanner, Inventory, Close,
   AttachMoney, ShoppingCart, ShoppingBag, Videocam, VideocamOff,
-  Description, Science, Event
+  Description, Science, Event, LocalOffer
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import { apiClient, getProductoByBarcode } from '../../api';
 import { Html5QrcodeScanner, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
-const ACCENT = '#10B981'; // Esmeralda/Verde
+// Ajustado al color naranja que muestras en tu captura
+const ACCENT = '#FF723B'; 
 
 const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
@@ -26,19 +26,9 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
   const [searching, setSearching] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [formData, setFormData] = useState({
-    nombre: '',
-    codigo_barras: '',
-    descripcion: '',
-    precio: '',
-    costo: '',
-    stock_actual: '',
-    stock_minimo: 0,
-    unidad_medida: 'UND',
-    grupo_item: 2,
-    es_servicio: false,
-    maneja_lotes: false,
-    numero_lote: '',
-    fecha_vencimiento: ''
+    nombre: '', codigo_barras: '', descripcion: '', precio: '', costo: '',
+    stock_actual: '', stock_minimo: 0, unidad_medida: 'UND', grupo_item: 2,
+    es_servicio: false, maneja_lotes: false, numero_lote: '', fecha_vencimiento: ''
   });
 
   const scannerRef = useRef(null);
@@ -50,14 +40,12 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
   const stockRef = useRef(null);
   const loteRef = useRef(null);
 
-  // Efecto para mantener el foco en el código de barras al abrir el modal
   useEffect(() => {
     if (open) {
         setTimeout(() => barcodeRef.current?.focus(), 500);
     }
   }, [open]);
 
-  // Lógica para el escáner de cámara
   useEffect(() => {
     if (cameraActive && open) {
       const scanner = new Html5QrcodeScanner(
@@ -73,7 +61,7 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
             Html5QrcodeSupportedFormats.QR_CODE 
           ]
         },
-        /* verbose= */ false
+        false
       );
 
       scanner.render(onScanSuccess, onScanFailure);
@@ -90,12 +78,10 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
   const onScanSuccess = (decodedText) => {
     setFormData(prev => ({ ...prev, codigo_barras: decodedText }));
     handleSearch(decodedText);
-    setCameraActive(false); // Apagar cámara tras éxito
+    setCameraActive(false);
   };
 
-  const onScanFailure = (error) => {
-    // Errores de escaneo comunes
-  };
+  const onScanFailure = (error) => {};
 
   const playBeep = (type = 'success') => {
     try {
@@ -122,36 +108,27 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
     try {
       const res = await getProductoByBarcode(barcode);
       if (res.data) {
-        const isMatch = res.data.id !== undefined; // Si tiene ID, es de MI empresa
+        const isMatch = res.data.id !== undefined; 
         
         setFormData({
           ...res.data,
           precio: isMatch ? (res.data.precio || '') : '',
           costo: isMatch ? (res.data.costo || '') : '',
           stock_actual: isMatch ? (res.data.stock_actual || '') : '',
-          numero_lote: '',
-          fecha_vencimiento: ''
+          numero_lote: '', fecha_vencimiento: ''
         });
 
-        if (isMatch) {
-            toast.info(`Producto encontrado: ${res.data.nombre}`);
-        } else {
-            toast.success(`Info obtenida automáticamente: ${res.data.nombre}`);
-        }
+        if (isMatch) toast.info(`Producto encontrado: ${res.data.nombre}`);
+        else toast.success(`Info obtenida automáticamente: ${res.data.nombre}`);
         
         playBeep('success');
-        
-        if (res.data.nombre) {
-            setTimeout(() => precioRef.current?.focus(), 150);
-        } else {
-            setTimeout(() => nombreRef.current?.focus(), 150);
-        }
+        if (res.data.nombre) setTimeout(() => precioRef.current?.focus(), 150);
+        else setTimeout(() => nombreRef.current?.focus(), 150);
       } else {
         toast.warning('Producto no encontrado');
         playBeep('success');
         setFormData(prev => ({
-          ...prev,
-          nombre: '', precio: '', costo: '', descripcion: '', stock_actual: '', 
+          ...prev, nombre: '', precio: '', costo: '', descripcion: '', stock_actual: '', 
           maneja_lotes: false, numero_lote: '', fecha_vencimiento: '', id: undefined
         }));
         setTimeout(() => nombreRef.current?.focus(), 150);
@@ -164,9 +141,7 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      handleSearch(formData.codigo_barras.trim());
-    }
+    if (e.key === 'Enter') handleSearch(formData.codigo_barras.trim());
   };
 
   const handleSave = async () => {
@@ -226,171 +201,219 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
       open={open}
       onClose={onClose}
       TransitionComponent={Transition}
-      sx={{ '& .MuiDialog-paper': { bgcolor: 'background.default' } }}
+      sx={{ '& .MuiDialog-paper': { bgcolor: '#121418' } }} // Fondo oscuro consistente
     >
-      <AppBar sx={{ position: 'relative', bgcolor: ACCENT }}>
+      <AppBar sx={{ position: 'relative', bgcolor: '#1A1D23', boxShadow: 'none', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         <Toolbar>
-          <IconButton edge="start" color="inherit" onClick={onClose} aria-label="close">
+          <IconButton edge="start" sx={{ color: 'white' }} onClick={onClose} aria-label="close">
             <Close />
           </IconButton>
-          <Typography sx={{ ml: 2, flex: 1, fontWeight: 700 }} variant="h6" component="div">
+          <Typography sx={{ ml: 2, flex: 1, fontWeight: 700, color: 'white' }} variant="h6" component="div">
             Registro Ágil de Productos
           </Typography>
-          <Button autoFocus color="inherit" onClick={onClose} sx={{ fontWeight: 600 }}>
-            Cerrar Modo Ágil
-          </Button>
         </Toolbar>
       </AppBar>
       
       <DialogContent sx={{ p: { xs: 2, md: 5 } }}>
-        <Box sx={{ maxWidth: 900, mx: 'auto' }}>
+        <Box sx={{ maxWidth: 750, mx: 'auto', pb: 5 }}>
+            
+            {/* Header y Botón Cámara */}
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 4, flexWrap: 'wrap', gap: 2 }}>
                 <Box>
-                    <Typography variant="h5" fontWeight={800}>Entrada Rápida</Typography>
-                    <Typography variant="body2" color="text.secondary">Escanea códigos de barras para registrar stock en segundos</Typography>
+                    <Typography variant="h4" fontWeight={800} color="white">Entrada Rápida</Typography>
+                    <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.6)', mt: 0.5 }}>
+                        Escanea o digita el código de barras para registrar stock en segundos
+                    </Typography>
                 </Box>
-
                 <Button
-                    variant={cameraActive ? "outlined" : "contained"}
-                    color={cameraActive ? "error" : "primary"}
+                    variant="contained"
                     startIcon={cameraActive ? <VideocamOff /> : <Videocam />}
                     onClick={() => setCameraActive(!cameraActive)}
-                    sx={{ borderRadius: 2, fontWeight: 700 }}
+                    sx={{ 
+                        bgcolor: cameraActive ? '#ef4444' : ACCENT,
+                        borderRadius: 2, fontWeight: 700, px: 3, py: 1.5, textTransform: 'none',
+                        '&:hover': { bgcolor: cameraActive ? '#dc2626' : '#E65D2A' }
+                    }}
                 >
                     {cameraActive ? "Cerrar Cámara" : "Usar Cámara"}
                 </Button>
             </Box>
 
             {cameraActive && (
-                <Paper elevation={4} sx={{ mb: 4, p: 2, borderRadius: 4, bgcolor: '#000', overflow: 'hidden' }}>
+                <Paper elevation={0} sx={{ mb: 4, p: 2, borderRadius: 4, bgcolor: '#1A1D23', border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden' }}>
                     <div id="reader" style={{ width: '100%', minHeight: '300px' }}></div>
                 </Paper>
             )}
 
-            <Card sx={{ p: { xs: 2, md: 4 }, borderRadius: 5, boxShadow: '0 12px 48px rgba(0,0,0,0.12)' }}>
-                <Grid container spacing={3}>
-                    <Grid item xs={12}>
-                        <TextField
-                            fullWidth label="Escanear Código de Barras"
-                            value={formData.codigo_barras}
-                            onChange={(e) => setFormData({...formData, codigo_barras: e.target.value})}
-                            onKeyDown={handleKeyDown}
-                            inputRef={barcodeRef}
-                            autoComplete="off"
-                            disabled={loading || searching}
-                            InputProps={{
-                                startAdornment: <InputAdornment position="start"><QrCodeScanner color="primary" /></InputAdornment>,
-                                endAdornment: searching && <CircularProgress size={20} />,
-                                sx: { fontSize: { xs: '1.2rem', md: '1.6rem' }, fontWeight: 800, bgcolor: `${ACCENT}08` }
-                            }}
-                        />
-                    </Grid>
+            {/* Contenedor Principal: Stack asegura flujo vertical perfecto */}
+            <Stack spacing={4}>
+                
+                {/* SECCIÓN 1: Código de Barras */}
+                <Paper elevation={0} sx={{ p: 3, borderRadius: 3, bgcolor: '#1A1D23', border: `1px solid rgba(255,114,59,0.3)` }}>
+                    <TextField
+                        fullWidth label="Código de Barras"
+                        placeholder="Escanea o escribe y presiona Enter..."
+                        value={formData.codigo_barras}
+                        onChange={(e) => setFormData({...formData, codigo_barras: e.target.value})}
+                        onKeyDown={handleKeyDown}
+                        inputRef={barcodeRef}
+                        autoComplete="off"
+                        disabled={loading || searching}
+                        InputLabelProps={{ sx: { color: 'rgba(255,255,255,0.7)' } }}
+                        sx={{ input: { color: 'white' } }}
+                        InputProps={{
+                            startAdornment: <InputAdornment position="start"><QrCodeScanner sx={{ color: ACCENT }} fontSize="large" /></InputAdornment>,
+                            endAdornment: searching && <CircularProgress size={24} sx={{ color: ACCENT }} />,
+                            sx: { fontSize: { xs: '1.2rem', md: '1.4rem' }, fontWeight: 700 }
+                        }}
+                    />
+                </Paper>
 
-                    <Grid item xs={12}><Divider sx={{ my: 1 }}>Detalles del Producto</Divider></Grid>
-
-                    <Grid item xs={12} md={6}>
-                        <TextField
-                            fullWidth label="Nombre del Producto"
-                            value={formData.nombre}
-                            onChange={(e) => setFormData({...formData, nombre: e.target.value})}
-                            inputRef={nombreRef}
-                            onKeyDown={(e) => e.key === 'Enter' && descRef.current?.focus()}
-                            InputProps={{ startAdornment: <InputAdornment position="start"><Inventory /></InputAdornment> }}
-                        />
-                    </Grid>
-
-                    <Grid item xs={12} md={6}>
-                        <TextField
-                            fullWidth label="Característica / Descripción"
-                            value={formData.descripcion}
-                            onChange={(e) => setFormData({...formData, descripcion: e.target.value})}
-                            inputRef={descRef}
-                            onKeyDown={(e) => e.key === 'Enter' && precioRef.current?.focus()}
-                            InputProps={{ startAdornment: <InputAdornment position="start"><Description /></InputAdornment> }}
-                        />
-                    </Grid>
-
-                    <Grid item xs={12} md={6}>
-                        <TextField
-                            fullWidth type="number" label="Precio de Venta"
-                            value={formData.precio}
-                            onChange={(e) => setFormData({...formData, precio: e.target.value})}
-                            inputRef={precioRef}
-                            onKeyDown={(e) => e.key === 'Enter' && costoRef.current?.focus()}
-                            InputProps={{ startAdornment: <InputAdornment position="start"><AttachMoney color="success" /></InputAdornment> }}
-                        />
-                    </Grid>
-
-                    <Grid item xs={12} md={6}>
-                        <TextField
-                            fullWidth type="number" label="Costo de Compra"
-                            value={formData.costo}
-                            onChange={(e) => setFormData({...formData, costo: e.target.value})}
-                            inputRef={costoRef}
-                            onKeyDown={(e) => e.key === 'Enter' && stockRef.current?.focus()}
-                            InputProps={{ startAdornment: <InputAdornment position="start"><ShoppingBag color="warning" /></InputAdornment> }}
-                        />
-                    </Grid>
-
-                    <Grid item xs={12}><Divider sx={{ my: 1 }}>Inventario</Divider></Grid>
-
-                    <Grid item xs={12} md={4}>
-                        <TextField
-                            fullWidth type="number" label="Stock Inicial"
-                            value={formData.stock_actual}
-                            onChange={(e) => setFormData({...formData, stock_actual: e.target.value})}
-                            inputRef={stockRef}
-                            onKeyDown={(e) => e.key === 'Enter' && (formData.maneja_lotes ? loteRef.current?.focus() : handleSave())}
-                            InputProps={{ startAdornment: <InputAdornment position="start"><ShoppingCart color="primary" /></InputAdornment> }}
-                        />
-                    </Grid>
-
-                    <Grid item xs={12} md={8}>
-                        <Box sx={{ p: 1.5, borderRadius: 2, border: '1px solid', borderColor: formData.maneja_lotes ? '#10B981' : 'divider', bgcolor: formData.maneja_lotes ? '#ECFDF5' : 'transparent', height: '100%', display: 'flex', alignItems: 'center' }}>
-                        <FormControlLabel 
-                            control={<Switch checked={formData.maneja_lotes} onChange={(e) => setFormData({...formData, maneja_lotes: e.target.checked})} color="success" />} 
-                            label={<Typography sx={{ fontWeight: 600, fontSize: 14, color: formData.maneja_lotes ? '#059669' : 'text.primary' }}>Maneja Lotes y Vencimiento</Typography>} 
-                            sx={{ m: 0 }}
-                        />
-                        </Box>
-                    </Grid>
-
-                    <Grid item xs={12}>
-                        <Collapse in={formData.maneja_lotes && formData.stock_actual > 0}>
-                            <Grid container spacing={3} sx={{ pt: 1 }}>
-                                <Grid item xs={12} md={6}>
-                                    <TextField
-                                        fullWidth label="Número de Lote"
-                                        value={formData.numero_lote}
-                                        onChange={(e) => setFormData({...formData, numero_lote: e.target.value})}
-                                        inputRef={loteRef}
-                                        InputProps={{ startAdornment: <InputAdornment position="start"><Science color="secondary" /></InputAdornment> }}
-                                    />
-                                </Grid>
-                                <Grid item xs={12} md={6}>
-                                    <TextField
-                                        fullWidth type="date" label="Fecha de Vencimiento"
-                                        value={formData.fecha_vencimiento}
-                                        onChange={(e) => setFormData({...formData, fecha_vencimiento: e.target.value})}
-                                        InputLabelProps={{ shrink: true }}
-                                        InputProps={{ startAdornment: <InputAdornment position="start"><Event color="error" /></InputAdornment> }}
-                                    />
-                                </Grid>
+                {/* SECCIÓN 2: Detalles del Producto */}
+                <Box>
+                    <Typography variant="h6" fontWeight={700} sx={{ color: 'white', display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+                        <LocalOffer sx={{ color: ACCENT }} /> Detalles del Producto
+                    </Typography>
+                    <Paper elevation={0} sx={{ p: { xs: 2, md: 4 }, borderRadius: 3, bgcolor: '#1A1D23', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <Grid container spacing={3}>
+                            <Grid item xs={12} md={6}>
+                                <TextField
+                                    fullWidth label="Nombre del Producto"
+                                    value={formData.nombre}
+                                    onChange={(e) => setFormData({...formData, nombre: e.target.value})}
+                                    inputRef={nombreRef}
+                                    onKeyDown={(e) => e.key === 'Enter' && descRef.current?.focus()}
+                                    InputLabelProps={{ sx: { color: 'rgba(255,255,255,0.7)' } }}
+                                    sx={{ input: { color: 'white' } }}
+                                    InputProps={{ startAdornment: <InputAdornment position="start"><Inventory sx={{ color: 'rgba(255,255,255,0.5)' }} /></InputAdornment> }}
+                                />
                             </Grid>
-                        </Collapse>
-                    </Grid>
+                            <Grid item xs={12} md={6}>
+                                <TextField
+                                    fullWidth label="Característica / Descripción"
+                                    value={formData.descripcion}
+                                    onChange={(e) => setFormData({...formData, descripcion: e.target.value})}
+                                    inputRef={descRef}
+                                    onKeyDown={(e) => e.key === 'Enter' && precioRef.current?.focus()}
+                                    InputLabelProps={{ sx: { color: 'rgba(255,255,255,0.7)' } }}
+                                    sx={{ input: { color: 'white' } }}
+                                    InputProps={{ startAdornment: <InputAdornment position="start"><Description sx={{ color: 'rgba(255,255,255,0.5)' }} /></InputAdornment> }}
+                                />
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                                <TextField
+                                    fullWidth type="number" label="Precio de Venta"
+                                    value={formData.precio}
+                                    onChange={(e) => setFormData({...formData, precio: e.target.value})}
+                                    inputRef={precioRef}
+                                    onKeyDown={(e) => e.key === 'Enter' && costoRef.current?.focus()}
+                                    InputLabelProps={{ sx: { color: 'rgba(255,255,255,0.7)' } }}
+                                    sx={{ input: { color: 'white' } }}
+                                    InputProps={{ startAdornment: <InputAdornment position="start"><AttachMoney sx={{ color: '#4ade80' }} /></InputAdornment> }}
+                                />
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                                <TextField
+                                    fullWidth type="number" label="Costo de Compra"
+                                    value={formData.costo}
+                                    onChange={(e) => setFormData({...formData, costo: e.target.value})}
+                                    inputRef={costoRef}
+                                    onKeyDown={(e) => e.key === 'Enter' && stockRef.current?.focus()}
+                                    InputLabelProps={{ sx: { color: 'rgba(255,255,255,0.7)' } }}
+                                    sx={{ input: { color: 'white' } }}
+                                    InputProps={{ startAdornment: <InputAdornment position="start"><ShoppingBag sx={{ color: '#fbbf24' }} /></InputAdornment> }}
+                                />
+                            </Grid>
+                        </Grid>
+                    </Paper>
+                </Box>
 
-                    <Grid item xs={12} sx={{ mt: 2 }}>
-                        <Button
-                            fullWidth variant="contained" size="large"
-                            onClick={handleSave} disabled={loading}
-                            sx={{ height: 64, borderRadius: 3, bgcolor: ACCENT, fontSize: '1.2rem', fontWeight: 800, '&:hover': { bgcolor: '#059669' } }}
-                        >
-                            {formData.id ? 'Actualizar Producto' : 'Guardar y Siguiente'}
-                        </Button>
-                    </Grid>
-                </Grid>
-            </Card>
+                {/* SECCIÓN 3: Control de Inventario */}
+                <Box>
+                    <Typography variant="h6" fontWeight={700} sx={{ color: 'white', display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+                        <ShoppingCart sx={{ color: ACCENT }} /> Control de Inventario
+                    </Typography>
+                    <Paper elevation={0} sx={{ p: { xs: 2, md: 4 }, borderRadius: 3, bgcolor: '#1A1D23', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <Grid container spacing={3} alignItems="center">
+                            <Grid item xs={12} md={5}>
+                                <TextField
+                                    fullWidth type="number" label="Stock Inicial"
+                                    value={formData.stock_actual}
+                                    onChange={(e) => setFormData({...formData, stock_actual: e.target.value})}
+                                    inputRef={stockRef}
+                                    onKeyDown={(e) => e.key === 'Enter' && (formData.maneja_lotes ? loteRef.current?.focus() : handleSave())}
+                                    InputLabelProps={{ sx: { color: 'rgba(255,255,255,0.7)' } }}
+                                    sx={{ input: { color: 'white' } }}
+                                    InputProps={{ startAdornment: <InputAdornment position="start"><ShoppingCart sx={{ color: 'rgba(255,255,255,0.5)' }} /></InputAdornment> }}
+                                />
+                            </Grid>
+
+                            <Grid item xs={12} md={7}>
+                                <Box sx={{ 
+                                    p: 1.5, borderRadius: 2, 
+                                    border: '1px solid', borderColor: formData.maneja_lotes ? ACCENT : 'rgba(255,255,255,0.1)', 
+                                    bgcolor: formData.maneja_lotes ? 'rgba(255,114,59,0.05)' : 'transparent', 
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center' 
+                                }}>
+                                    <FormControlLabel 
+                                        control={<Switch checked={formData.maneja_lotes} onChange={(e) => setFormData({...formData, maneja_lotes: e.target.checked})} sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: ACCENT }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: ACCENT } }} />} 
+                                        label={<Typography sx={{ fontWeight: 600, color: formData.maneja_lotes ? ACCENT : 'rgba(255,255,255,0.7)' }}>Requiere Lotes y Vencimiento</Typography>} 
+                                        sx={{ m: 0 }}
+                                    />
+                                </Box>
+                            </Grid>
+
+                            <Grid item xs={12}>
+                                <Collapse in={formData.maneja_lotes && formData.stock_actual > 0}>
+                                    <Box sx={{ pt: 1 }}>
+                                        <Divider sx={{ mb: 3, borderColor: 'rgba(255,255,255,0.05)' }} />
+                                        <Grid container spacing={3}>
+                                            <Grid item xs={12} md={6}>
+                                                <TextField
+                                                    fullWidth label="Número de Lote"
+                                                    value={formData.numero_lote}
+                                                    onChange={(e) => setFormData({...formData, numero_lote: e.target.value})}
+                                                    inputRef={loteRef}
+                                                    InputLabelProps={{ sx: { color: 'rgba(255,255,255,0.7)' } }}
+                                                    sx={{ input: { color: 'white' } }}
+                                                    InputProps={{ startAdornment: <InputAdornment position="start"><Science sx={{ color: '#a78bfa' }} /></InputAdornment> }}
+                                                />
+                                            </Grid>
+                                            <Grid item xs={12} md={6}>
+                                                <TextField
+                                                    fullWidth type="date" label="Fecha de Vencimiento"
+                                                    value={formData.fecha_vencimiento}
+                                                    onChange={(e) => setFormData({...formData, fecha_vencimiento: e.target.value})}
+                                                    InputLabelProps={{ shrink: true, sx: { color: 'rgba(255,255,255,0.7)' } }}
+                                                    sx={{ input: { color: 'white', colorScheme: 'dark' } }}
+                                                    InputProps={{ startAdornment: <InputAdornment position="start"><Event sx={{ color: '#f87171' }} /></InputAdornment> }}
+                                                />
+                                            </Grid>
+                                        </Grid>
+                                    </Box>
+                                </Collapse>
+                            </Grid>
+                        </Grid>
+                    </Paper>
+                </Box>
+
+                {/* Botón de Acción Principal */}
+                <Button
+                    fullWidth variant="contained" size="large"
+                    onClick={handleSave} disabled={loading}
+                    sx={{ 
+                        height: 64, borderRadius: 3, bgcolor: ACCENT, 
+                        fontSize: '1.2rem', fontWeight: 800, textTransform: 'none',
+                        color: '#fff',
+                        '&:hover': { bgcolor: '#E65D2A', transform: 'translateY(-2px)' },
+                        transition: 'all 0.2s ease-in-out',
+                        boxShadow: `0 8px 24px rgba(255,114,59,0.3)`
+                    }}
+                >
+                    {formData.id ? 'Actualizar Producto' : 'Guardar y Continuar Escaneando'}
+                </Button>
+
+            </Stack>
         </Box>
       </DialogContent>
     </Dialog>
