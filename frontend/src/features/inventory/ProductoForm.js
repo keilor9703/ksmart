@@ -207,7 +207,7 @@ const ProductoForm = ({ onProductoAdded, productoToEdit, onProductoUpdated, forc
 
       {!isEditing && (
         <Panel title="Carga Masiva de Inventario" icon={<Upload fontSize="small" />} chip={<Chip label="Excel / CSV" size="small" sx={{ bgcolor: 'rgba(139,92,246,0.1)', color: accentColor, fontWeight: 600, fontSize: 11 }} />} open={bulkOpen} onToggle={() => setBulkOpen(o => !o)} accentColor={accentColor}>
-         // ✅ DESPUÉS — llama al prop que ya tienes para refrescar la lista
+         
           <BulkUpload uploadType="productos" onUploadSuccess={onProductoAdded} />
         </Panel>
       )}
