@@ -40,12 +40,15 @@ def get_cotizaciones(
         if c.numero_factura:          # fue convertida
             estado = "convertida"
         elif c.valida_hasta:
-            # Si c.valida_hasta es aware, lo pasamos a Bogota. Si es naive, asumimos que es UTC.
+            # ✅ Nueva lógica: Se compara solo la FECHA (Date) en horario de Bogotá
             valida_dt = c.valida_hasta
             if valida_dt.tzinfo is None:
                 valida_dt = valida_dt.replace(tzinfo=timezone.utc)
             
-            if valida_dt.astimezone(BOGOTA_TZ).date() < hoy:
+            # Pasamos el vencimiento a Bogotá para saber qué día es allá
+            fecha_vencimiento_bogota = valida_dt.astimezone(BOGOTA_TZ).date()
+
+            if fecha_vencimiento_bogota < hoy:
                 estado = "vencida"
 
         resultado.append({

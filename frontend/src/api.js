@@ -125,6 +125,9 @@ export const fetchRecetas = (params = {}) =>
 export const createReceta = (data) =>
   apiClient.post('/produccion/recetas/', data);
 
+export const updateReceta = (id, data) =>
+  apiClient.put(`/produccion/recetas/${id}`, data);
+
 export const deleteReceta = (id) =>
   apiClient.delete(`/produccion/recetas/${id}`);
 

@@ -40,6 +40,25 @@ def crear_receta(
     return crud.create_receta(db, empresa_id=current_user.empresa_id, receta=receta)
 
 
+@router.put("/recetas/{receta_id}", response_model=schemas.Receta)
+def actualizar_receta(
+    receta_id: int,
+    receta: schemas.RecetaCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    try:
+        result = crud.update_receta(
+            db, empresa_id=current_user.empresa_id,
+            receta_id=receta_id, receta=receta,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not result:
+        raise HTTPException(status_code=404, detail="Receta no encontrada")
+    return result
+
+
 @router.delete("/recetas/{receta_id}")
 def eliminar_receta(
     receta_id: int,

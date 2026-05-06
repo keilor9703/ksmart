@@ -78,6 +78,47 @@ def create_receta(db: Session, empresa_id: int, receta: schemas.RecetaCreate):
     db.refresh(db_receta)
     return db_receta
 
+def update_receta(db: Session, empresa_id: int, receta_id: int, receta: schemas.RecetaCreate):
+    db_receta = db.query(models.Receta).filter(
+        models.Receta.id == receta_id,
+        models.Receta.empresa_id == empresa_id
+    ).first()
+    if not db_receta:
+        raise ValueError("Receta no encontrada")
+
+    producto = get_producto(db, empresa_id, receta.producto_id)
+    if not producto:
+        raise ValueError("Producto resultante no encontrado")
+
+    for item in receta.items:
+        db_prod = get_producto(db, empresa_id, item.insumo_id)
+        if not db_prod:
+            raise ValueError(f"Insumo con ID {item.insumo_id} no encontrado")
+        if db_prod.grupo_item not in [1, 4]:
+            raise ValueError(f"El ítem '{db_prod.nombre}' no puede ser insumo.")
+
+    db_receta.producto_id = receta.producto_id
+    db_receta.nombre = receta.nombre
+    db_receta.descripcion = receta.descripcion
+
+    # Reemplazar items
+    db.query(models.RecetaItem).filter(models.RecetaItem.receta_id == receta_id).delete()
+    for item in receta.items:
+        db.add(models.RecetaItem(receta_id=receta_id, insumo_id=item.insumo_id, cantidad=item.cantidad))
+
+    # Reemplazar servicios
+    db.query(models.RecetaServicio).filter(models.RecetaServicio.receta_id == receta_id).delete()
+    for srv in receta.servicios:
+        serv = get_producto(db, empresa_id, srv.servicio_id)
+        if not serv:
+            raise ValueError(f"Servicio {srv.servicio_id} no encontrado")
+        db.add(models.RecetaServicio(receta_id=receta_id, servicio_id=srv.servicio_id))
+
+    db.commit()
+    db.refresh(db_receta)
+    return db_receta
+
+
 def delete_receta(db: Session, empresa_id: int, receta_id: int):
     db_receta = db.query(models.Receta).filter(
         models.Receta.id == receta_id,

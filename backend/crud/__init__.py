@@ -56,7 +56,7 @@ from crud.ordenes_trabajo import (
 )
 
 from crud.produccion import (
-    get_recetas, get_receta, get_receta_by_producto, create_receta, delete_receta,
+    get_recetas, get_receta, get_receta_by_producto, create_receta, update_receta, delete_receta,
     get_lotes, get_lote, create_lote,
     get_or_create_cliente_interno, confirmar_lote_produccion, cancelar_lote,
 )

@@ -1,81 +1,67 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ThemeProvider } from '@mui/material/styles';
 import {
-  Box, Typography, IconButton, List, ListItemButton,
-  ListItemText, ListItemIcon, Collapse, CircularProgress, Divider,
-  Drawer, Tooltip, CssBaseline, GlobalStyles, Menu, MenuItem,
-  Avatar, Button 
+  Box, Typography, CircularProgress, Drawer,
+  CssBaseline, GlobalStyles,
 } from '@mui/material';
-import {
-  AdminPanelSettings, ExpandLess, ExpandMore, Dashboard as DashboardIcon,
-  Logout as LogoutIcon, Menu as MenuIcon, MoreVert as MoreVertIcon,
-  KeyboardArrowRight, LightMode, DarkMode, Business, SupportAgent
-} from '@mui/icons-material';
 import useMediaQueryHook from '@mui/material/useMediaQuery';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { Route, Routes, Link, useNavigate, useLocation } from 'react-router-dom';
+import { Route, Routes, useNavigate } from 'react-router-dom';
 
 import apiClient from './api';
 import getAppTheme from './theme';
-// 🔹 CAMBIOS DE MÓDULOS: Si necesitas agregar o quitar elementos del Sidebar, debes editar este archivo de utilidades.
-import { MODULE_ICONS, ADMIN_MODULES, getModuleConfig } from './utils/modulesConfig';
+
+// ✅ IMPORTACIÓN DE COMPONENTES DE LAYOUT
+import Sidebar from './layout/Sidebar';
+import TopBar from './layout/TopBar';
 
 // ✅ IMPORTACIÓN DE COMPONENTES PRIVADOS (PANTALLAS)
-// 🔹 NUEVAS PANTALLAS: Cuando crees una nueva vista en tu app, impórtala aquí primero.
-import Productos from './components/Productos';
-import Ventas from './components/Ventas';
-import Reportes from './components/Reportes';
-import Login from './components/Login';
-import OrdenesTrabajo from './components/OrdenesTrabajo';
-import Recetas from './components/Recetas';
-import Lotes from './components/Lotes';
-import Terceros from './components/Terceros';
-import Compras from './components/Compras';
-import PanelOperador from './components/PanelOperador';
+import Productos from './features/inventory/Productos';
+import Ventas from './features/sales/Ventas';
+import Reportes from './features/reports/Reportes';
+import Login from './features/auth/Login';
+import OrdenesTrabajo from './features/workOrders/OrdenesTrabajo';
+import Recetas from './features/production/Recetas';
+import Lotes from './features/inventory/Lotes';
+import Terceros from './features/clients/Terceros';
+import Compras from './features/purchases/Compras';
+import PanelOperador from './features/workOrders/PanelOperador';
 import { SpeedInsights } from '@vercel/speed-insights/react';
-import Inventario from './components/Inventario';
-import InventoryReports from './components/InventoryReports';
-import Dashboard from './components/Dashboard';
-import Notifications from './components/Notifications';
-import Caja from './components/Caja';
-import AdminUsuarios from './components/AdminUsuarios';
-import GestionEmpresas from './components/GestionEmpresas';
-import InventarioLotes from './components/InventarioLotes';
-import Cotizaciones from './components/Cotizaciones';
-import ResolucionesDian from './components/ResolucionesDian';
+import Inventario from './features/inventory/Inventario';
+import InventoryReports from './features/inventory/InventoryReports';
+import Dashboard from './features/dashboard/Dashboard';
+import Caja from './features/finance/Caja';
+import AdminUsuarios from './features/admin/AdminUsuarios';
+import GestionEmpresas from './features/admin/GestionEmpresas';
+import InventarioLotes from './features/inventory/InventarioLotes';
+import Cotizaciones from './features/sales/Cotizaciones';
+import ResolucionesDian from './features/dian/ResolucionesDian';
 
 // ✅ IMPORTAMOS LAS PANTALLAS PÚBLICAS (Login, Registro, etc.)
-import SuscripcionExpirada from './components/SuscripcionExpirada';
-import Registro from './components/Registro'; 
+import SuscripcionExpirada from './features/auth/SuscripcionExpirada';
+import Registro from './features/auth/Registro'; 
 
 // ✅ IMPORTAMOS LOS NUEVOS MÓDULOS DE PRÉSTAMOS
-import PrestamoForm from './components/PrestamoForm';
-import RutaCobro from './components/RutaCobro';
+import PrestamoForm from './features/loans/PrestamoForm';
+import RutaCobro from './features/loans/RutaCobro';
 
 // ✅ MÓDULO PARQUEADERO
-import ParqueaderoDashboard      from './components/ParqueaderoDashboard';
-import ParqueaderoBuscar         from './components/ParqueaderoBuscar';
-import ParqueaderoVehiculos      from './components/ParqueaderoVehiculos';
-import ParqueaderoSuscripciones  from './components/ParqueaderoSuscripciones';
-import ParqueaderoConfig         from './components/ParqueaderoConfig';
+import ParqueaderoDashboard      from './features/parking/ParqueaderoDashboard';
+import ParqueaderoBuscar         from './features/parking/ParqueaderoBuscar';
+import ParqueaderoVehiculos      from './features/parking/ParqueaderoVehiculos';
+import ParqueaderoSuscripciones  from './features/parking/ParqueaderoSuscripciones';
+import ParqueaderoConfig         from './features/parking/ParqueaderoConfig';
 
 // ✨ IMPORTAMOS EL MODAL DE BIOMETRÍA
-import ModalHuella from './components/ModalHuella';
+import ModalHuella from './components/common/ModalHuella';
 
-// ─── Constantes de Diseño ──────────────────────────────────────────────────────
-// 🔹 ESTILOS: Si el cliente pide cambiar el ancho del menú lateral, cambia estos valores.
-const SIDEBAR_FULL   = 240;
-const SIDEBAR_MINI   = 68;
-
-// ─── Paleta unificada (dark sidebar + light content) ──────────────────────────
-// 🔹 COLORES: Si necesitas cambiar el "Branding" o los colores principales, hazlo aquí.
-const SIDEBAR_BG     = '#0f172a';
-const SIDEBAR_HOVER  = 'rgba(255,255,255,0.06)';
-const SIDEBAR_ACTIVE = 'rgba(255,100,30,0.18)';
-const ACCENT         = '#FF6020'; // Color naranja principal
-const PAGE_BG_LIGHT  = '#F4F6F9';
-const PAGE_BG_DARK   = '#0d1117';
+// ─── Constantes de Layout ──────────────────────────────────────────────────────
+const SIDEBAR_FULL  = 240;
+const SIDEBAR_MINI  = 68;
+const ACCENT        = '#FF6020';
+const PAGE_BG_LIGHT = '#F4F6F9';
+const PAGE_BG_DARK  = '#0d1117';
 
 // ─── Home ──────────────────────────────────────────────────────────────────────
 // Pantalla genérica cuando un usuario entra y no tiene un dashboard específico asignado.
@@ -110,266 +96,7 @@ const ProtectedRoute = ({ path, hasAccess, children }) => {
   );
 };
 
-// ─── Sidebar Item ──────────────────────────────────────────────────────────────
-// Componente que renderiza CADA BOTÓN del menú lateral.
-const SidebarItem = ({ item, expanded, onClick, onClose, active }) => (
-  <Tooltip title={!expanded ? (item.label || item.text) : ''} placement="right" arrow>
-    <ListItemButton
-      component={onClick ? 'div' : Link}   
-      to={onClick ? undefined : item.path} 
-      onClick={onClick ?? onClose}         
-      sx={{
-        mx: 1, mb: 0.5, borderRadius: 2, minHeight: 44,
-        px: expanded ? 2 : 1.5, justifyContent: expanded ? 'flex-start' : 'center',
-        backgroundColor: active ? SIDEBAR_ACTIVE : 'transparent',
-        borderLeft: active ? `3px solid ${ACCENT}` : '3px solid transparent',
-        transition: 'all 0.18s ease',
-        '&:hover': { backgroundColor: active ? SIDEBAR_ACTIVE : SIDEBAR_HOVER },
-      }}
-    >
-      <ListItemIcon sx={{ minWidth: 0, mr: expanded ? 1.5 : 0, color: active ? ACCENT : (item.color || '#94a3b8'), transition: 'margin 0.2s', fontSize: 20 }}>
-        {item.icon}
-      </ListItemIcon>
-      {expanded && (
-        <ListItemText
-          primary={item.label || item.text}
-          primaryTypographyProps={{ fontSize: 13.5, fontWeight: active ? 600 : 400, fontFamily: "'Plus Jakarta Sans', sans-serif", color: active ? '#fff' : '#cbd5e1', noWrap: true }}
-        />
-      )}
-    </ListItemButton>
-  </Tooltip>
-);
-
-// ─── Sidebar ───────────────────────────────────────────────────────────────────
-// ─── PASO 3: REEMPLAZA TU COMPONENTE Sidebar COMPLETO POR ESTE ────────────
-// El cambio clave: el sidebar AHORA itera los módulos del USUARIO (backend)
-// en lugar de la lista hardcodeada. Lo mejor de los dos mundos:
-//   - El backend manda qué módulos existen
-//   - El frontend aporta el icono y el orden visual
-
-const Sidebar = ({ expanded, user, hasAccess, onClose, mobile }) => {
-  const location = useLocation();
-  const [adminOpen, setAdminOpen] = useState(false);
-  const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
-
-  // ✨ CONSTRUIR la lista de módulos visibles para este usuario
-  // Combina lo que el rol permite + lo que la empresa habilita + el orden del MODULE_ICONS
-  const modulosVisibles = useMemo(() => {
-    if (!user) return [];
-
-    // Caso especial: SuperAdmin ve TODOS los módulos del MODULE_ICONS
-    if (user.role?.name === 'Admin' && user.empresa_id === 1) {
-      return Object.keys(MODULE_ICONS).map(path => {
-        const cfg = getModuleConfig(path);
-        return { path, ...cfg };
-      });
-    }
-
-    // Caso normal: intersección de rol y empresa
-    const modulosDelRol = user.role?.modules || [];
-
-    return modulosDelRol
-      .filter(m => hasAccess(m.frontend_path))
-      .map(m => {
-        const cfg = getModuleConfig(m.frontend_path, m.name);
-        return {
-          path:  m.frontend_path,
-          label: cfg.label,    // Usamos el label del frontend (más bonito que el del backend)
-          icon:  cfg.icon,
-          color: cfg.color,
-        };
-      })
-      // Ordenar según el orden definido en MODULE_ICONS (más estable que el orden del backend)
-      .sort((a, b) => {
-        const orderKeys = Object.keys(MODULE_ICONS);
-        return orderKeys.indexOf(a.path) - orderKeys.indexOf(b.path);
-      });
-  }, [user, hasAccess]);
-
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', background: SIDEBAR_BG, overflowX: 'hidden' }}>
-      {/* Logo header (sin cambios) */}
-      <Box component={Link} to="/" onClick={mobile ? onClose : undefined} sx={{ display: 'flex', alignItems: 'center', px: expanded ? 2.5 : 1.5, py: 2.5, minHeight: 64, borderBottom: '1px solid rgba(255,255,255,0.06)', gap: 1.5, textDecoration: 'none', cursor: 'pointer', transition: 'opacity 0.15s', '&:hover': { opacity: 0.85 } }}>
-        <Box component="img" src="/Logo2.png" alt="Logo" sx={{ width: 34, height: 34, borderRadius: 1.5, flexShrink: 0 }} />
-        {expanded && (
-          <Typography sx={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 16, color: '#fff', whiteSpace: 'nowrap' }}>
-            Ksmart<span style={{ color: ACCENT }}>360</span>
-          </Typography>
-        )}
-      </Box>
-
-      <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', py: 1.5, '&::-webkit-scrollbar': { width: 4 }, '&::-webkit-scrollbar-thumb': { background: 'rgba(255,255,255,0.1)', borderRadius: 4 } }}>
-
-        {/* SuperAdmin: módulo de empresas */}
-        {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (
-          <>
-            <SidebarItem expanded={expanded} item={{ path: '/superadmin/empresas', label: 'Clientes SaaS', icon: <Business />, color: '#F43F5E' }} active={isActive('/superadmin/empresas')} onClose={mobile ? onClose : undefined} />
-            {expanded && <Divider sx={{ mx: 2, my: 1, borderColor: 'rgba(255,255,255,0.06)' }} />}
-          </>
-        )}
-
-        {/* Admin: submenú de administración */}
-        {user?.role?.name === 'Admin' && (
-          <>
-            <SidebarItem expanded={expanded} item={{ label: 'Administración', icon: <AdminPanelSettings />, color: '#a78bfa' }} onClick={() => setAdminOpen(o => !o)} active={false} />
-            <Collapse in={adminOpen && expanded} timeout="auto" unmountOnExit>
-              <List disablePadding>
-                {ADMIN_MODULES.map(sub => (
-                  <ListItemButton key={sub.path} component={Link} to={sub.path} onClick={mobile ? onClose : undefined} sx={{ pl: 5, pr: 2, py: 0.75, mx: 1, mb: 0.25, borderRadius: 2, backgroundColor: isActive(sub.path) ? SIDEBAR_ACTIVE : 'transparent', '&:hover': { backgroundColor: SIDEBAR_HOVER } }}>
-                    <KeyboardArrowRight sx={{ fontSize: 14, color: '#64748b', mr: 1 }} />
-                    <ListItemText primary={sub.label} primaryTypographyProps={{ fontSize: 13, color: isActive(sub.path) ? '#fff' : '#94a3b8', fontFamily: "'Plus Jakarta Sans', sans-serif" }} />
-                  </ListItemButton>
-                ))}
-              </List>
-            </Collapse>
-            {expanded && <Typography sx={{ px: 2.5, pt: 2, pb: 0.5, fontSize: 10, fontWeight: 600, color: '#475569', letterSpacing: 1.2, textTransform: 'uppercase', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Módulos</Typography>}
-          </>
-        )}
-
-        {/* ✨ MENÚ DINÁMICO desde backend (en lugar de APP_MODULES) */}
-        {modulosVisibles.map(item => (
-          <SidebarItem
-            key={item.path}
-            item={item}
-            expanded={expanded}
-            active={isActive(item.path)}
-            onClose={mobile ? onClose : undefined}
-          />
-        ))}
-
-        {/* ✨ Mensaje cuando no hay módulos (caso Sandra) */}
-        {modulosVisibles.length === 0 && expanded && user?.role?.name !== 'Admin' && (
-          <Box sx={{ p: 2, mx: 1, mt: 2, bgcolor: 'rgba(239,68,68,0.08)', borderRadius: 2, border: '1px solid rgba(239,68,68,0.2)' }}>
-            <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#FCA5A5', mb: 0.5 }}>
-              ⚠️ Sin módulos asignados
-            </Typography>
-            <Typography sx={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.5 }}>
-              Tu rol no tiene módulos habilitados por la empresa. Contacta a tu administrador.
-            </Typography>
-          </Box>
-        )}
-      </Box>
-
-      {/* Footer del sidebar (sin cambios) */}
-      <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)', px: expanded ? 2 : 1, py: 1.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <Avatar sx={{ width: 34, height: 34, flexShrink: 0, background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`, fontSize: 13, fontWeight: 700 }}>
-          {user?.username?.[0]?.toUpperCase()}
-        </Avatar>
-        {expanded && (
-          <Box sx={{ overflow: 'hidden', flex: 1 }}>
-            <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0', fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.username}</Typography>
-            <Typography sx={{ fontSize: 11, color: '#64748b' }}>{user?.role?.name}</Typography>
-          </Box>
-        )}
-      </Box>
-    </Box>
-  );
-};
-
-
-// ─── TopBar ────────────────────────────────────────────────────────────────────
-// Barra superior con título de la vista actual, notificaciones, cambio de tema y botón de cierre de sesión.
-const TopBar = ({ sidebarExpanded, isMobile, onMobileMenuOpen, mode, onThemeToggle, onLogout, user, anchorEl, openMenu, onMenuOpen, onMenuClose }) => {
-  const location = useLocation();
-  // Busca el nombre de la página actual para mostrarlo en el Header
-const path = location.pathname;
-const adminItem = ADMIN_MODULES.find(i => path === i.path);
-const moduleConfig = MODULE_ICONS[path] || (() => {
-  // Buscar match parcial: ej. /parqueadero/buscar empieza con /parqueadero
-  const match = Object.keys(MODULE_ICONS).find(p => path.startsWith(p + '/'));
-  return match ? MODULE_ICONS[match] : null;
-})();
-
-const currentPage =
-  adminItem?.label ||
-  moduleConfig?.label ||
-  (path === '/superadmin/empresas' ? 'Clientes SaaS' : 'Inicio');
-
-
-  // 🔹 LÓGICA DE SUPLANTACIÓN: Revisa el token JWT para saber si un superadmin está conectado como un cliente.
-  let isImpersonated = false;
-  try {
-    const token = localStorage.getItem('token');
-    if (token) {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      isImpersonated = payload.is_impersonated === true;
-    }
-  } catch (e) { }
-
-  return (
-    <Box component="header" sx={{ position: 'fixed', top: 0, right: 0, zIndex: 1100, left: isMobile ? 0 : (sidebarExpanded ? SIDEBAR_FULL : SIDEBAR_MINI), height: 60, display: 'flex', alignItems: 'center', px: { xs: 2, md: 3 }, backgroundColor: mode === 'dark' ? '#0d1117' : '#fff', borderBottom: `1px solid ${mode === 'dark' ? 'rgba(255,255,255,0.06)' : '#E5E7EB'}`, gap: 2, transition: 'left 0.25s ease' }}>
-      {isMobile && (
-        <IconButton onClick={onMobileMenuOpen} size="small"><MenuIcon /></IconButton>
-      )}
-      <Box sx={{ flex: 1 }}>
-        <Typography sx={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 16, color: mode === 'dark' ? '#f1f5f9' : '#111827' }}>{currentPage}</Typography>
-      </Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-
-        {/* BOTÓN ROJO DE EMERGENCIA: Aparece si el Superadmin está suplantando a un cliente */}
-        {isImpersonated && (
-          <Button 
-            variant="contained" 
-            color="error" 
-            size="small"
-            onClick={() => {
-              // 🔹 CAMBIO DE SUPLANTACIÓN: Si necesitas cambiar cómo termina el soporte, edita esta función.
-              localStorage.removeItem('token');
-              localStorage.removeItem('userModules');
-              window.location.href = '/login';
-            }}
-            sx={{ 
-              mr: { xs: 0, md: 2 }, 
-              fontWeight: 800, 
-              animation: 'pulse 2s infinite', // Animación de latido definida abajo en GlobalStyles
-              whiteSpace: 'nowrap'
-            }}
-          >
-            {isMobile ? 'SALIR' : 'FINALIZAR SOPORTE'}
-          </Button>
-        )}
-
-        <Tooltip title={mode === 'dark' ? 'Modo claro' : 'Modo oscuro'}>
-          <IconButton onClick={onThemeToggle} size="small" sx={{ color: mode === 'dark' ? '#94a3b8' : '#6B7280' }}>
-            {mode === 'dark' ? <LightMode fontSize="small" /> : <DarkMode fontSize="small" />}
-          </IconButton>
-        </Tooltip>
-        
-        {/* Componente de notificaciones (Campanita) */}
-        <Notifications mode={mode} />
-        
-        {!isMobile && (
-          <>
-            <Tooltip title="Cerrar sesión">
-              <IconButton onClick={onLogout} size="small" sx={{ color: mode === 'dark' ? '#94a3b8' : '#6B7280' }}>
-                <LogoutIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            {/* Pequeño badge con el nombre del usuario en desktop */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 1, pl: 1.5, pr: 2, py: 0.75, borderRadius: 3, backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#F4F6F9', border: `1px solid ${mode === 'dark' ? 'rgba(255,255,255,0.08)' : '#E5E7EB'}` }}>
-              <Avatar sx={{ width: 26, height: 26, background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`, fontSize: 11, fontWeight: 700 }}>
-                {user?.username?.[0]?.toUpperCase()}
-              </Avatar>
-              <Typography sx={{ fontSize: 13, fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif", color: mode === 'dark' ? '#e2e8f0' : '#374151' }}>{user?.username}</Typography>
-            </Box>
-          </>
-        )}
-        
-        {/* Menú de los 3 puntos en versión Mobile */}
-        {isMobile && (
-          <>
-            <IconButton onClick={onMenuOpen} size="small"><MoreVertIcon /></IconButton>
-            <Menu anchorEl={anchorEl} open={openMenu} onClose={onMenuClose} PaperProps={{ sx: { mt: 1, minWidth: 160, borderRadius: 2 } }}>
-              <MenuItem onClick={() => { onLogout(); onMenuClose(); }} sx={{ color: 'error.main' }}>
-                <LogoutIcon fontSize="small" sx={{ mr: 1.5 }} /> Cerrar sesión
-              </MenuItem>
-            </Menu>
-          </>
-        )}
-      </Box>
-    </Box>
-  );
-};
+// ─── App (COMPONENTE PRINCIPAL) ────────────────────────────────────────────────
 
 // ─── App (COMPONENTE PRINCIPAL) ────────────────────────────────────────────────
 function App() {

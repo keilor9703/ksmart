@@ -1,0 +1,585 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// ParqueaderoBuscar.jsx — VERSIÓN 2 (con botón WhatsApp)
+// REEMPLAZA tu archivo /components/ParqueaderoBuscar.jsx por este.
+//
+// Cambios respecto a v1:
+//   ✨ Importa BotonWhatsApp
+//   ✨ Botón verde de WhatsApp en el card de resultado (cuando hay vehículo + saldo)
+//   ✨ Auto-precarga placa desde query param (?placa=ABC123)
+// ═══════════════════════════════════════════════════════════════════════════
+
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  Box, Paper, TextField, InputAdornment, Typography, Button, Stack,
+  CircularProgress, Chip, Avatar, Divider, IconButton, Alert
+} from '@mui/material';
+import {
+  Search, TwoWheeler, CheckCircle, ErrorOutline, HelpOutline,
+  AccessTime, Person, LocalParking, Logout, Refresh, ContentPaste
+} from '@mui/icons-material';
+import { useSearchParams } from 'react-router-dom';
+import apiClient from '../../api';
+import { toast } from 'react-toastify';
+import { formatCurrency } from '../../utils/formatters';
+
+import RegistrarSuscripcionDialog   from './ParqueaderoSuscripcionDialog';
+import RegistrarVehiculoDialog      from './ParqueaderoVehiculoDialog';
+import CobrarVencidoDialog          from './ParqueaderoCobrarVencidoDialog';
+import RegistrarSalidaHorasDialog   from './ParqueaderoSalidaHorasDialog';
+import EntradaHorasDialog           from './ParqueaderoEntradaHorasDialog';
+import BotonWhatsApp                from '../../components/common/BotonWhatsApp';   // ✨ NUEVO
+
+// ── Paleta del módulo ─────────────────────────────────────────────────────
+const ACCENT = '#FF6020';
+const SEMAFORO = {
+  verde:    { bg: '#10B981', light: '#10B98115', text: '#065F46', label: 'AL DÍA'      },
+  amarillo: { bg: '#F59E0B', light: '#F59E0B15', text: '#78350F', label: 'POR VENCER'  },
+  rojo:     { bg: '#EF4444', light: '#EF444415', text: '#7F1D1D', label: 'VENCIDA'     },
+  azul:     { bg: '#3B82F6', light: '#3B82F615', text: '#1E3A8A', label: 'NO REGISTRADA' },
+  gris:     { bg: '#64748B', light: '#64748B15', text: '#1E293B', label: 'DENTRO'      },
+};
+
+export default function ParqueaderoBuscar() {
+  const [placa, setPlaca]               = useState('');
+  const [resultado, setResultado]       = useState(null);
+  const [loading, setLoading]           = useState(false);
+  const [error, setError]               = useState(null);
+  const inputRef                        = useRef(null);
+  const [searchParams]                  = useSearchParams();
+
+  const [dlgSuscripcion,   setDlgSuscripcion]   = useState(false);
+  const [dlgVehiculo,      setDlgVehiculo]      = useState(false);
+  const [dlgVencido,       setDlgVencido]       = useState(false);
+  const [dlgSalidaHoras,   setDlgSalidaHoras]   = useState(false);
+  const [dlgEntradaHoras,  setDlgEntradaHoras]  = useState(false);
+
+  // ── Auto-focus al cargar y precargar desde query param ──────────────────
+  useEffect(() => {
+    inputRef.current?.focus();
+    const placaParam = searchParams.get('placa');
+    if (placaParam) {
+      setPlaca(placaParam);
+      // Disparar búsqueda automática con la placa del query
+      buscarConPlaca(placaParam);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const buscarConPlaca = async (placaInput) => {
+    const placaLimpia = placaInput.trim().toUpperCase().replace(/[\s-]/g, '');
+    if (placaLimpia.length < 3) {
+      toast.warning('Ingresa al menos 3 caracteres de la placa.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setResultado(null);
+    try {
+      const { data } = await apiClient.get(`/parqueadero/buscar/${placaLimpia}`);
+      setResultado(data);
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Error al consultar la placa.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const buscar = (e) => {
+    e?.preventDefault();
+    buscarConPlaca(placa);
+  };
+
+  const reset = () => {
+    setPlaca('');
+    setResultado(null);
+    setError(null);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  const pegarPlaca = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      setPlaca(text.trim().toUpperCase().replace(/[\s-]/g, '').slice(0, 10));
+    } catch {
+      toast.info('No se pudo acceder al portapapeles.');
+    }
+  };
+
+  const onAccionCompletada = () => {
+    setDlgSuscripcion(false);
+    setDlgVehiculo(false);
+    setDlgVencido(false);
+    setDlgSalidaHoras(false);
+    setDlgEntradaHoras(false);
+    if (resultado?.placa) {
+      apiClient.get(`/parqueadero/buscar/${resultado.placa}`)
+        .then(({ data }) => setResultado(data));
+    }
+  };
+
+  return (
+    <Box sx={{ maxWidth: 900, mx: 'auto', p: { xs: 1, md: 2 } }}>
+
+      {/* ─── Encabezado ──────────────────────────────────────────── */}
+      <Box sx={{ textAlign: 'center', mb: 3 }}>
+        <Box sx={{
+          width: 64, height: 64, borderRadius: '50%',
+          background: `linear-gradient(135deg, ${ACCENT} 0%, #ff9a62 100%)`,
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          mb: 1.5, boxShadow: `0 8px 24px ${ACCENT}40`,
+        }}>
+          <Search sx={{ fontSize: 32, color: 'white' }} />
+        </Box>
+        <Typography sx={{ fontSize: 22, fontWeight: 800, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          Buscar placa
+        </Typography>
+        <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+          Escribe la placa para verificar el estado de la moto
+        </Typography>
+      </Box>
+
+      {/* ─── Input ──────────────────────────────────────────────── */}
+      <Paper elevation={0} sx={{
+        p: 2, mb: 2, borderRadius: 3,
+        border: '2px solid', borderColor: 'divider',
+      }}>
+        <Box component="form" onSubmit={buscar}>
+          <TextField
+            inputRef={inputRef}
+            fullWidth autoFocus
+            placeholder="ABC123"
+            value={placa}
+            onChange={(e) => setPlaca(e.target.value.toUpperCase().replace(/[\s-]/g, '').slice(0, 10))}
+            disabled={loading}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <TwoWheeler sx={{ color: ACCENT, fontSize: 28 }} />
+                </InputAdornment>
+              ),
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton onClick={pegarPlaca} title="Pegar" size="small">
+                    <ContentPaste fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+              sx: {
+                fontSize: 32, fontWeight: 900, letterSpacing: 4,
+                fontFamily: 'monospace', textAlign: 'center',
+                '& input': { textAlign: 'center' },
+              },
+            }}
+          />
+          <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+            <Button
+              type="submit"
+              variant="contained" fullWidth size="large"
+              disabled={loading || placa.length < 3}
+              startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <Search />}
+              sx={{
+                bgcolor: ACCENT, py: 1.5, fontSize: 15, fontWeight: 800, borderRadius: 2,
+                boxShadow: `0 6px 18px ${ACCENT}40`,
+                '&:hover': { bgcolor: '#e6561c' },
+              }}
+            >
+              {loading ? 'Consultando...' : 'Consultar'}
+            </Button>
+            {resultado && (
+              <Button variant="outlined" size="large" onClick={reset}
+                startIcon={<Refresh />} sx={{ minWidth: 130, borderRadius: 2 }}>
+                Otra placa
+              </Button>
+            )}
+          </Stack>
+        </Box>
+      </Paper>
+
+      {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>{error}</Alert>}
+
+      {resultado && (
+        <ResultadoCard
+          resultado={resultado}
+          onCobrarVencido={() => setDlgVencido(true)}
+          onRegistrarSuscripcion={() => setDlgSuscripcion(true)}
+          onRegistrarVehiculo={() => setDlgVehiculo(true)}
+          onRegistrarSalida={() => setDlgSalidaHoras(true)}
+          onCobrarPorHoras={() => setDlgEntradaHoras(true)}
+        />
+      )}
+
+      {/* ─── Diálogos ───────────────────────────────────────────── */}
+      {resultado && (
+        <>
+          <RegistrarSuscripcionDialog
+            open={dlgSuscripcion} onClose={() => setDlgSuscripcion(false)}
+            vehiculo={resultado.vehiculo} onSuccess={onAccionCompletada}
+          />
+          <RegistrarVehiculoDialog
+            open={dlgVehiculo} onClose={() => setDlgVehiculo(false)}
+            placaSugerida={resultado.placa} onSuccess={onAccionCompletada}
+          />
+          <CobrarVencidoDialog
+            open={dlgVencido} onClose={() => setDlgVencido(false)}
+            resultado={resultado} onSuccess={onAccionCompletada}
+          />
+          <RegistrarSalidaHorasDialog
+            open={dlgSalidaHoras} onClose={() => setDlgSalidaHoras(false)}
+            acceso={resultado.acceso_abierto} onSuccess={onAccionCompletada}
+          />
+          <EntradaHorasDialog
+            open={dlgEntradaHoras} onClose={() => setDlgEntradaHoras(false)}
+            placaSugerida={resultado.placa}
+            vehiculoId={resultado.vehiculo?.id}
+            onSuccess={onAccionCompletada}
+          />
+        </>
+      )}
+    </Box>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CARD DE RESULTADO
+// ═══════════════════════════════════════════════════════════════════════════
+
+function ResultadoCard({
+  resultado, onCobrarVencido, onRegistrarSuscripcion,
+  onRegistrarVehiculo, onRegistrarSalida, onCobrarPorHoras,
+}) {
+  const semaforo = SEMAFORO[resultado.color_semaforo] || SEMAFORO.gris;
+
+  // ¿Mostrar botón WhatsApp?
+  // Sí cuando hay vehículo + cliente con teléfono (la API valida igual)
+  const mostrarWhatsApp =
+    resultado.vehiculo &&
+    resultado.vehiculo.cliente_telefono &&
+    resultado.tipo_resultado !== 'vehiculo_no_registrado';
+
+  // Tipo de mensaje según contexto
+  const tipoMensaje =
+    resultado.tipo_resultado === 'vehiculo_vencido'    ? 'pago' :
+    resultado.tipo_resultado === 'vehiculo_al_dia' &&
+      resultado.suscripcion_actual?.saldo_pendiente > 0 ? 'pago' :
+    resultado.tipo_resultado === 'vehiculo_al_dia' &&
+      resultado.suscripcion_actual?.dias_restantes <= 5 ? 'recordatorio' :
+    'manual';
+
+  return (
+    <Paper sx={{
+      borderRadius: 3, overflow: 'hidden',
+      border: '2px solid', borderColor: semaforo.bg,
+      boxShadow: `0 8px 32px ${semaforo.bg}30`,
+    }}>
+      {/* Header con semáforo */}
+      <Box sx={{
+        bgcolor: semaforo.bg, color: 'white',
+        p: 3, textAlign: 'center', position: 'relative',
+      }}>
+        <IconoEstado tipo={resultado.tipo_resultado} />
+        <Chip label={semaforo.label} size="small"
+          sx={{
+            bgcolor: 'rgba(255,255,255,0.25)', color: 'white',
+            fontWeight: 800, fontSize: 11, letterSpacing: 1,
+            mb: 1.5,
+          }}
+        />
+        <Typography sx={{
+          fontSize: 36, fontWeight: 900, fontFamily: 'monospace',
+          letterSpacing: 4, lineHeight: 1.1,
+        }}>
+          {resultado.placa}
+        </Typography>
+        <Typography sx={{ fontSize: 14, mt: 1, opacity: 0.95, lineHeight: 1.4 }}>
+          {resultado.mensaje}
+        </Typography>
+      </Box>
+
+      <Box sx={{ p: 3 }}>
+
+        {/* ── Vigente / Vencido ── */}
+        {(resultado.tipo_resultado === 'vehiculo_al_dia' ||
+          resultado.tipo_resultado === 'vehiculo_vencido') && (
+          <>
+            <DatosVehiculo veh={resultado.vehiculo} />
+            <Divider sx={{ my: 2 }} />
+            <DatosSuscripcion susc={resultado.suscripcion_actual} resultado={resultado} />
+
+            {/* ✨ NUEVO: bloque de acciones con botón WhatsApp */}
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 3 }}>
+              {resultado.tipo_resultado === 'vehiculo_vencido' && (
+                <Button
+                  fullWidth variant="contained" size="large"
+                  onClick={onCobrarVencido}
+                  sx={{ bgcolor: '#EF4444', '&:hover': { bgcolor: '#dc2626' }, fontWeight: 700 }}
+                >
+                  Cobrar y dejar entrar
+                </Button>
+              )}
+              {mostrarWhatsApp && (
+                <Box sx={{ flex: 1 }}>
+                  <BotonWhatsApp
+                    vehiculoId={resultado.vehiculo.id}
+                    suscripcionId={resultado.suscripcion_actual?.id}
+                    tipo={tipoMensaje}
+                    label={
+                      resultado.tipo_resultado === 'vehiculo_vencido'
+                        ? 'Cobrar por WhatsApp'
+                        : 'Enviar por WhatsApp'
+                    }
+                    tamano="large"
+                  />
+                </Box>
+              )}
+            </Stack>
+
+            {resultado.tipo_resultado === 'vehiculo_al_dia' &&
+              resultado.suscripcion_actual?.saldo_pendiente > 0 && (
+              <Alert severity="warning" sx={{ mt: 2, borderRadius: 2 }}>
+                Tiene saldo pendiente de <strong>{formatCurrency(resultado.suscripcion_actual.saldo_pendiente)}</strong>.
+              </Alert>
+            )}
+          </>
+        )}
+
+        {/* ── Sin suscripción ── */}
+        {resultado.tipo_resultado === 'vehiculo_sin_susc' && (
+          <>
+            <DatosVehiculo veh={resultado.vehiculo} />
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 3 }}>
+              <Button
+                fullWidth variant="contained" size="large"
+                onClick={onRegistrarSuscripcion}
+                sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700 }}
+              >
+                Registrar pago
+              </Button>
+              <Button variant="outlined" size="large" onClick={onCobrarPorHoras}>
+                Por horas
+              </Button>
+              {mostrarWhatsApp && (
+                <BotonWhatsApp
+                  vehiculoId={resultado.vehiculo.id}
+                  tipo="manual" label="WhatsApp" tamano="large"
+                />
+              )}
+            </Stack>
+          </>
+        )}
+
+        {/* ── No registrado ── */}
+        {resultado.tipo_resultado === 'vehiculo_no_registrado' && (
+          <>
+            <Box sx={{ textAlign: 'center', py: 2, color: 'text.secondary' }}>
+              <HelpOutline sx={{ fontSize: 48, opacity: 0.3, mb: 1 }} />
+              <Typography sx={{ fontSize: 14 }}>
+                Esta placa nunca se ha registrado en el parqueadero.
+              </Typography>
+            </Box>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 2 }}>
+              <Button
+                fullWidth variant="contained" size="large"
+                onClick={onRegistrarVehiculo}
+                sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700 }}
+              >
+                Registrar moto + pago
+              </Button>
+              <Button variant="outlined" size="large" onClick={onCobrarPorHoras}>
+                Cobrar por horas
+              </Button>
+            </Stack>
+          </>
+        )}
+
+        {/* ── Acceso abierto ── */}
+        {resultado.tipo_resultado === 'tiene_acceso_abierto' && (
+          <>
+            <Box sx={{ bgcolor: 'background.default', borderRadius: 2, p: 2, mb: 2 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                <Typography sx={{ fontSize: 12, color: 'text.secondary', textTransform: 'uppercase', fontWeight: 700 }}>
+                  Tiempo dentro
+                </Typography>
+                <AccessTime sx={{ color: '#64748B', fontSize: 18 }} />
+              </Stack>
+              <Typography sx={{ fontSize: 28, fontWeight: 900 }}>
+                {resultado.horas_transcurridas?.toFixed(1)} horas
+              </Typography>
+              <Divider sx={{ my: 1.5 }} />
+              <Stack direction="row" justifyContent="space-between">
+                <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Cobro estimado</Typography>
+                <Typography sx={{ fontSize: 18, fontWeight: 800, color: ACCENT }}>
+                  {formatCurrency(resultado.monto_estimado)}
+                </Typography>
+              </Stack>
+            </Box>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <Button
+                fullWidth variant="contained" size="large"
+                onClick={onRegistrarSalida}
+                startIcon={<Logout />}
+                sx={{ bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' }, fontWeight: 700, py: 1.5 }}
+              >
+                Registrar salida y cobrar
+              </Button>
+              {mostrarWhatsApp && (
+                <BotonWhatsApp
+                  vehiculoId={resultado.vehiculo?.id}
+                  tipo="pago"
+                  montoOverride={resultado.monto_estimado}
+                  label="Cobrar WhatsApp" tamano="large"
+                />
+              )}
+            </Stack>
+          </>
+        )}
+
+      </Box>
+    </Paper>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SUB-COMPONENTES (idénticos a v1)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function IconoEstado({ tipo }) {
+  const icon = {
+    vehiculo_al_dia:        <CheckCircle  sx={{ fontSize: 56 }} />,
+    vehiculo_vencido:       <ErrorOutline sx={{ fontSize: 56 }} />,
+    vehiculo_sin_susc:      <HelpOutline  sx={{ fontSize: 56 }} />,
+    vehiculo_no_registrado: <TwoWheeler   sx={{ fontSize: 56 }} />,
+    tiene_acceso_abierto:   <AccessTime   sx={{ fontSize: 56 }} />,
+  }[tipo] || <LocalParking sx={{ fontSize: 56 }} />;
+  return <Box sx={{ mb: 1.5, opacity: 0.95 }}>{icon}</Box>;
+}
+
+function DatosVehiculo({ veh }) {
+  if (!veh) return null;
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+      <Avatar sx={{ bgcolor: ACCENT, width: 48, height: 48 }}>
+        <Person />
+      </Avatar>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography sx={{ fontSize: 17, fontWeight: 700, lineHeight: 1.2 }} noWrap>
+          {veh.cliente_nombre || '—'}
+        </Typography>
+        <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: 'wrap', gap: 0.5 }}>
+          {veh.cliente_cedula && (
+            <Chip size="small" label={`CC ${veh.cliente_cedula}`} sx={{ fontSize: 11 }} />
+          )}
+          {veh.cliente_telefono && (
+            <Chip size="small" label={`📱 ${veh.cliente_telefono}`} sx={{ fontSize: 11 }} />
+          )}
+          {(veh.marca || veh.modelo) && (
+            <Chip size="small"
+              label={`🏍 ${[veh.marca, veh.modelo].filter(Boolean).join(' ')}`}
+              sx={{ fontSize: 11 }} />
+          )}
+          {veh.color && (
+            <Chip size="small" label={veh.color} sx={{ fontSize: 11 }} />
+          )}
+        </Stack>
+      </Box>
+    </Box>
+  );
+}
+
+function DatosSuscripcion({ susc, resultado }) {
+  if (!susc) return null;
+  const esVencida = resultado.tipo_resultado === 'vehiculo_vencido';
+  const dias = esVencida ? resultado.dias_vencido : susc.dias_restantes;
+
+  return (
+    <Box sx={{
+      bgcolor: esVencida ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)',
+      borderRadius: 2, p: 2,
+    }}>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+        <Chip
+          label={susc.tipo?.toUpperCase()} size="small"
+          sx={{
+            bgcolor: esVencida ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+            color: esVencida ? '#991B1B' : '#166534',
+            fontWeight: 800, fontSize: 11,
+          }}
+        />
+        <Typography sx={{
+          fontSize: 13, fontWeight: 700,
+          color: esVencida ? '#991B1B' : '#166534',
+        }}>
+          {esVencida
+            ? `Vencida hace ${dias} día${dias !== 1 ? 's' : ''}`
+            : `Vence en ${dias} día${dias !== 1 ? 's' : ''}`}
+        </Typography>
+      </Stack>
+
+      <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
+        <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Inicio</Typography>
+        <Typography sx={{ fontSize: 12, fontWeight: 600 }}>
+          {fechaCorta(susc.fecha_inicio)}
+        </Typography>
+      </Stack>
+      <Stack direction="row" justifyContent="space-between" sx={{ mb: 1.5 }}>
+        <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Vencimiento</Typography>
+        <Typography sx={{
+          fontSize: 12, fontWeight: 800,
+          color: esVencida ? '#991B1B' : '#166534',
+        }}>
+          {fechaCorta(susc.fecha_vencimiento)}
+        </Typography>
+      </Stack>
+
+      <Divider sx={{ my: 1 }} />
+
+      <Stack direction="row" justifyContent="space-between" alignItems="center">
+        <Box>
+          <Typography sx={{ fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', fontWeight: 700 }}>
+            Pagado
+          </Typography>
+          <Typography sx={{ fontSize: 16, fontWeight: 800, color: '#10B981' }}>
+            {formatCurrency(susc.monto_pagado)}
+          </Typography>
+        </Box>
+        <Box sx={{ textAlign: 'right' }}>
+          <Typography sx={{ fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', fontWeight: 700 }}>
+            Total
+          </Typography>
+          <Typography sx={{ fontSize: 16, fontWeight: 800 }}>
+            {formatCurrency(susc.monto_total)}
+          </Typography>
+        </Box>
+      </Stack>
+
+      {susc.saldo_pendiente > 0 && (
+        <Box sx={{ mt: 1, pt: 1, borderTop: '1px dashed', borderColor: 'divider', textAlign: 'center' }}>
+          <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+            Saldo pendiente
+          </Typography>
+          <Typography sx={{ fontSize: 18, fontWeight: 900, color: '#EF4444' }}>
+            {formatCurrency(susc.saldo_pendiente)}
+          </Typography>
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+// ════ REEMPLAZA ESTO AL FINAL DE ParqueaderoBuscar.jsx ════
+
+function fechaCorta(fechaIso) {
+  if (!fechaIso) return '—';
+  
+  // 🛠️ FIX: Extraemos estrictamente el Año, Mes y Día ignorando la zona horaria UTC
+  const partes = fechaIso.split('T')[0].split('-');
+  if (partes.length === 3) {
+    const d = new Date(partes[0], partes[1] - 1, partes[2]);
+    return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+  
+  const d = new Date(fechaIso);
+  if (isNaN(d)) return fechaIso;
+  return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+}
