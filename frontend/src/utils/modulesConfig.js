@@ -22,7 +22,7 @@ import {
 } from '@mui/icons-material';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import {
-  TwoWheeler, Search, DirectionsCar, EventRepeat, Settings,
+  TwoWheeler, Search, DirectionsCar, EventRepeat, Settings, QrCodeScanner
 } from '@mui/icons-material';
 
 

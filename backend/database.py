@@ -204,6 +204,45 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v37)
                 logger.info("V37 (Fix Roles Unique SQLite) aplicada.")
 
+            # V38 - Añadir código de barras a productos
+            migration_v38 = "inv_v38_productos_codigo_barras"
+            if not _migration_already_applied(conn, migration_v38):
+                if not _column_exists(conn, "productos", "codigo_barras"):
+                    if IS_SQLITE:
+                        conn.execute(text(
+                            "ALTER TABLE productos ADD COLUMN codigo_barras TEXT NULL"
+                        ))
+                    else:
+                        conn.execute(text(
+                            "ALTER TABLE productos ADD COLUMN codigo_barras VARCHAR(255) NULL"
+                        ))
+                    logger.info("V38: añadido productos.codigo_barras")
+
+                if not _index_exists(conn, "ix_productos_codigo_barras"):
+                    conn.execute(text(
+                        "CREATE INDEX ix_productos_codigo_barras ON productos(codigo_barras)"
+                    ))
+                    logger.info("V38: creado índice ix_productos_codigo_barras")
+
+                _mark_migration_applied(conn, migration_v38)
+                logger.info("V38 (Código de barras a productos) aplicada.")
+
+            # V39 - Añadir descripción a productos
+            migration_v39 = "inv_v39_productos_descripcion"
+            if not _migration_already_applied(conn, migration_v39):
+                if not _column_exists(conn, "productos", "descripcion"):
+                    if IS_SQLITE:
+                        conn.execute(text(
+                            "ALTER TABLE productos ADD COLUMN descripcion TEXT NULL"
+                        ))
+                    else:
+                        conn.execute(text(
+                            "ALTER TABLE productos ADD COLUMN descripcion TEXT NULL"
+                        ))
+                    logger.info("V39: añadido productos.descripcion")
+
+                _mark_migration_applied(conn, migration_v39)
+                logger.info("V39 (Descripción a productos) aplicada.")
 
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)

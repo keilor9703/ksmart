@@ -45,6 +45,8 @@ apiClient.interceptors.response.use(
   }
 );
 
+export const getProductoByBarcode = (barcode) => apiClient.get(`/productos/barcode/${barcode}`);
+
 export const fetchMovimientosTemplate = () => apiClient.get('/inventario/movimientos/template', { responseType: 'blob' });
 
 // --- API para Panel del Operador ---

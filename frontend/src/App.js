@@ -30,6 +30,7 @@ import PanelOperador from './features/workOrders/PanelOperador';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import Inventario from './features/inventory/Inventario';
 import InventoryReports from './features/inventory/InventoryReports';
+import AgileBarcodeRegistration from './features/inventory/AgileBarcodeRegistration'; 
 import Dashboard from './features/dashboard/Dashboard';
 import Caja from './features/finance/Caja';
 import AdminUsuarios from './features/admin/AdminUsuarios';

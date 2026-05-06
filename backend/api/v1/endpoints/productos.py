@@ -15,6 +15,62 @@ from api.deps import get_db, get_current_active_user
 
 router = APIRouter()
 
+@router.get("/barcode/{barcode}", response_model=Optional[schemas.Producto])
+def get_producto_por_barcode(
+    barcode: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    # 1. Buscar en mi empresa (Resultado exacto)
+    local_prod = db.query(models.Producto).filter(
+        models.Producto.codigo_barras == barcode,
+        models.Producto.empresa_id == current_user.empresa_id
+    ).first()
+    
+    if local_prod:
+        return local_prod
+
+    # 2. Si no existe en mi empresa, buscar en el SISTEMA GLOBAL (Sugerencia)
+    # Solo tomamos el nombre y unidad para evitar fugas de precios.
+    global_prod = db.query(models.Producto).filter(
+        models.Producto.codigo_barras == barcode
+    ).first()
+
+    if global_prod:
+        return models.Producto(
+            nombre=global_prod.nombre,
+            codigo_barras=barcode,
+            unidad_medida=global_prod.unidad_medida,
+            grupo_item=global_prod.grupo_item,
+            precio=0.0,
+            costo=0.0,
+            descripcion=global_prod.descripcion
+        )
+
+    # 3. Si no existe en el sistema, buscar en API EXTERNA (Open Food Facts)
+    try:
+        url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
+        with httpx.Client(timeout=3.0) as client:
+            response = client.get(url)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("status") == 1:
+                    product = data.get("product", {})
+                    # Devolvemos un producto "fantasma" con la info de la API
+                    return models.Producto(
+                        nombre=product.get("product_name", ""),
+                        codigo_barras=barcode,
+                        unidad_medida="UND",
+                        grupo_item=2,
+                        precio=0.0,
+                        costo=0.0,
+                        descripcion=product.get("generic_name", "")
+                    )
+    except Exception as e:
+        print(f"Error consultando API externa: {e}")
+
+    return None
+
 @router.get("/template")
 def get_productos_template(current_user: models.User = Depends(get_current_active_user)):
     wb = openpyxl.Workbook()

@@ -124,6 +124,8 @@ class ClienteDetails(Cliente):
 # En schemas.py, busca la clase ProductoBase y añádelo al final:
 class ProductoBase(BaseModel):
     nombre: str
+    codigo_barras: Optional[str] = None # ✨ NUEVO
+    descripcion: Optional[str] = None   # ✨ NUEVO
     precio: float
     costo: float = 0.0
     es_servicio: bool = False
@@ -134,7 +136,9 @@ class ProductoBase(BaseModel):
     # 👇 NUEVO CAMPO: Se valida desde la API
     maneja_lotes: bool = False
 class ProductoCreate(ProductoBase):
-    pass
+    stock_inicial:     Optional[float] = 0.0
+    numero_lote:       Optional[str]   = None
+    fecha_vencimiento: Optional[date]  = None
 
 # ← AÑADIR ESTE VALIDATOR:
     @validator('maneja_lotes', pre=True, always=True)

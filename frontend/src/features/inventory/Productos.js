@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Box, Typography, Tabs, Tab, Button } from '@mui/material';
-import { Inventory, ReceiptLong, Add } from '@mui/icons-material';
+import { Inventory, ReceiptLong, Add, QrCodeScanner } from '@mui/icons-material';
 import ProductoList from './ProductoList';
 import ProductoForm from './ProductoForm';
 import Recetas from '../production/Recetas';
+import AgileBarcodeRegistration from './AgileBarcodeRegistration';
 
 const ACCENT = '#8B5CF6'; // violeta — color semántico para Productos
 
@@ -20,6 +21,7 @@ const Productos = () => {
   const [key, setKey]                       = useState(0);
   const [editingProducto, setEditingProducto] = useState(null);
   const [formOpen, setFormOpen]             = useState(false);
+  const [agileOpen, setAgileOpen]           = useState(false);
 
   const handleRefresh = () => { setKey(p => p + 1); setEditingProducto(null); setFormOpen(false); };
 
@@ -50,15 +52,31 @@ const Productos = () => {
           </Box>
         </Box>
         {tab === 0 && (
-          <Button
-            variant="contained" startIcon={<Add />}
-            onClick={handleNewProducto}
-            sx={{ background: `linear-gradient(135deg, ${ACCENT}, #a78bfa)`, boxShadow: `0 4px 14px rgba(139,92,246,0.35)`, borderRadius: 2, fontWeight: 600, flexShrink: 0 }}
-          >
-            Nuevo Producto
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1.5 }}>
+            <Button
+              variant="outlined" startIcon={<QrCodeScanner />}
+              onClick={() => setAgileOpen(true)}
+              sx={{ borderRadius: 2, fontWeight: 600, color: '#10B981', borderColor: '#10B981', '&:hover': { borderColor: '#059669', bgcolor: '#10B98108' } }}
+            >
+              Modo Ágil
+            </Button>
+            <Button
+              variant="contained" startIcon={<Add />}
+              onClick={handleNewProducto}
+              sx={{ background: `linear-gradient(135deg, ${ACCENT}, #a78bfa)`, boxShadow: `0 4px 14px rgba(139,92,246,0.35)`, borderRadius: 2, fontWeight: 600, flexShrink: 0 }}
+            >
+              Nuevo Producto
+            </Button>
+          </Box>
         )}
       </Box>
+
+      {/* ── MODO ÁGIL (MODAL FULLSCREEN) ── */}
+      <AgileBarcodeRegistration 
+        open={agileOpen} 
+        onClose={() => setAgileOpen(false)} 
+        onProductoAdded={handleRefresh} 
+      />
 
       {/* ── Tabs ── */}
       <Box sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', width: '100%' }}>

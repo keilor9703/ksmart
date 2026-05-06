@@ -152,6 +152,8 @@ class Producto(Base, TenantMixin):
     __tablename__ = "productos"
     id            = Column(Integer, primary_key=True, index=True)
     nombre        = Column(String, index=True)
+    codigo_barras = Column(String, index=True, nullable=True) # ✨ NUEVO: Para búsqueda ágil
+    descripcion   = Column(Text, nullable=True)               # ✨ NUEVO: Característica opcional
     precio        = Column(Float)
     costo         = Column(Float, default=0.0)
     es_servicio   = Column(Boolean, default=False)

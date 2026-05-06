@@ -1,22 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
 import { toast } from 'react-toastify';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
 import VentaDetailDialog from './VentaDetailDialog';
 import DevolucionDialog from './DevolucionDialog';
-import QuickCreateModal from '../../components/common/QuickCreateModal'; // ✅ NUEVO
+import QuickCreateModal from '../../components/common/QuickCreateModal';
 import {
     Box, Paper, Typography, Grid, TextField, Button, IconButton,
     Autocomplete, Table, TableBody, TableCell, TableContainer,
     TableHead, TableRow, Chip, useMediaQuery, useTheme, Tabs, Tab,
-    TablePagination, Divider, Tooltip, InputAdornment
+    TablePagination, Divider, Tooltip, InputAdornment, CircularProgress
 } from '@mui/material';
 import {
     AddCircleOutline, RemoveCircleOutline, Edit, Delete, Visibility,
     Search, ShoppingCart, TrendingUp, Receipt, AttachMoney,
-    AssignmentReturn, Add // ✅ Añadido el ícono Add
+    AssignmentReturn, Add, QrCodeScanner, Videocam, VideocamOff
 } from '@mui/icons-material';
+import { Html5QrcodeScanner, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { getProductoByBarcode } from '../../api';
 
 // ─── Constantes de diseño ──────────────────────────────────────────────────────
 const ACCENT = '#FF6020';
@@ -272,7 +274,7 @@ const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRe
                     </Typography>
                 </Box>
                 <Tooltip title="Quitar">
-                    <IconButton onClick={() => onRemove(detail.id)} size="small" disabled={!isMobile && !detail.producto && detail.cantidad === 1 && !detail.precioUnitario} // Opcional: previene quitar el único si está vacío
+                    <IconButton onClick={() => onRemove(detail.id)} size="small" disabled={!isMobile && !detail.producto && detail.cantidad === 1 && !detail.precioUnitario}
                         sx={{ color: '#EF4444', bgcolor: '#FEF2F2', borderRadius: 1.5 }}>
                         <RemoveCircleOutline fontSize="small" />
                     </IconButton>
@@ -297,11 +299,18 @@ const Ventas = () => {
     const [estadoPago, setEstadoPago]     = useState('pagada');
     const [metodoPago, setMetodoPago]     = useState('Efectivo');
 
-    // ✅ NUEVO: Input states para Autocompletes
+    // ✅ NUEVO: Estados para escaneo de códigos de barras
+    const [barcodeInput, setBarcodeInput] = useState('');
+    const [cameraActive, setCameraActive] = useState(false);
+    const [searchingBarcode, setSearchingBarcode] = useState(false);
+    const barcodeFieldRef = useRef(null);
+    const scannerRef = useRef(null);
+
+    // Input states para Autocompletes
     const [clienteInput, setClienteInput] = useState('');
     const [productoInputs, setProductoInputs] = useState({});
 
-    // ✅ NUEVO: Control del QuickCreate Modal
+    // Control del QuickCreate Modal
     const [quickCreate, setQuickCreate] = useState({ open: false, type: 'tercero', initialName: '', targetIdx: null });
 
     const [showConfirmDialog, setShowConfirmDialog]         = useState(false);
@@ -326,6 +335,99 @@ const Ventas = () => {
     useEffect(() => {
         fetchVentas(); fetchClientes(); fetchProductos(); fetchVentasSummary();
     }, []);
+
+    // ✅ NUEVO: Lógica para el escáner de cámara en Ventas
+    useEffect(() => {
+        if (cameraActive && tabValue === 0) {
+            const scanner = new Html5QrcodeScanner(
+                "reader-sales", 
+                { 
+                    fps: 10, 
+                    qrbox: { width: 250, height: 150 },
+                    formatsToSupport: [ 
+                        Html5QrcodeSupportedFormats.EAN_13, 
+                        Html5QrcodeSupportedFormats.EAN_8, 
+                        Html5QrcodeSupportedFormats.CODE_128 
+                    ]
+                },
+                false
+            );
+            scanner.render(handleCameraScanSuccess, () => {});
+            scannerRef.current = scanner;
+        }
+        return () => {
+            if (scannerRef.current) {
+                scannerRef.current.clear().catch(err => console.error("Error clearing scanner", err));
+            }
+        };
+    }, [cameraActive, tabValue]);
+
+    const handleCameraScanSuccess = (decodedText) => {
+        handleProcessBarcode(decodedText);
+        setCameraActive(false); // Apagar cámara tras éxito
+    };
+
+    const handleProcessBarcode = async (code) => {
+        const barcode = code.trim();
+        if (!barcode) return;
+
+        setSearchingBarcode(true);
+        try {
+            const res = await getProductoByBarcode(barcode);
+            if (res.data) {
+                const producto = res.data;
+                // Verificar si ya está en el carrito
+                const existingIdx = saleDetails.findIndex(d => d.producto?.id === producto.id);
+                
+                if (existingIdx !== -1) {
+                    // Incrementar cantidad
+                    const newDetails = [...saleDetails];
+                    newDetails[existingIdx].cantidad += 1;
+                    setSaleDetails(newDetails);
+                    toast.success(`+1 ${producto.nombre}`);
+                } else {
+                    // Añadir nuevo
+                    const newRow = { 
+                        id: Date.now(), 
+                        producto, 
+                        cantidad: 1, 
+                        precioUnitario: producto.precio || 0, 
+                        descuentoPct: 0 
+                    };
+                    
+                    // Si la primera fila está vacía, reemplazarla
+                    if (saleDetails.length === 1 && !saleDetails[0].producto) {
+                        setSaleDetails([newRow]);
+                    } else {
+                        setSaleDetails(prev => [...prev, newRow]);
+                    }
+                    toast.success(`${producto.nombre} añadido`);
+                }
+                playScanBeep();
+            } else {
+                toast.warning(`Código ${barcode} no encontrado`);
+            }
+        } catch (error) {
+            toast.error("Error al buscar por código de barras");
+        } finally {
+            setSearchingBarcode(false);
+            setBarcodeInput('');
+            // Devolver foco al campo de barcode
+            setTimeout(() => barcodeFieldRef.current?.focus(), 100);
+        }
+    };
+
+    const playScanBeep = () => {
+        try {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode); gainNode.connect(audioCtx.destination);
+            oscillator.frequency.setValueAtTime(1000, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            oscillator.start(); oscillator.stop(audioCtx.currentTime + 0.1);
+        } catch (e) {}
+    };
 
     const fetchVentas    = () => apiClient.get('/ventas/').then(r => setVentas(r.data)).catch(console.error);
     const fetchClientes  = () => apiClient.get('/clientes/').then(r => setClientes(r.data)).catch(console.error);
@@ -372,7 +474,6 @@ const Ventas = () => {
         setEditingVenta(null);
     };
 
-    // ✅ NUEVO: Handlers de QuickCreate
     const openQuickCreate = (type, initialName = '', targetIdx = null) =>
         setQuickCreate({ open: true, type, initialName, targetIdx });
     
@@ -489,7 +590,7 @@ const Ventas = () => {
     return (
         <Box sx={{ width: '100%' }}>
 
-            {/* ── Header ── */}
+            {/* Header */}
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                     <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT }}>
@@ -510,7 +611,7 @@ const Ventas = () => {
                 </Button>
             </Box>
 
-            {/* ── KPIs ── */}
+            {/* KPIs */}
             <Grid container spacing={2} sx={{ mb: 3 }}>
                 <Grid item xs={12} sm={4}>
                     <KpiCard label="Ventas hoy" value={formatCurrency(totalVentasHoy)} icon={<TrendingUp />} color={ACCENT} />
@@ -523,7 +624,7 @@ const Ventas = () => {
                 </Grid>
             </Grid>
 
-            {/* ── Tabs container ── */}
+            {/* Tabs container */}
             <Paper sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
                 <Tabs
                     value={tabValue}
@@ -540,12 +641,12 @@ const Ventas = () => {
                     <Tab label={`📋 Historial (${ventas.length})`} />
                 </Tabs>
 
-                {/* ══ Tab 0: Formulario ══ */}
+                {/* Tab 0: Formulario */}
                 <TabPanel value={tabValue} index={0}>
                     <Box sx={{ p: { xs: 2, md: 3 } }}>
                         <Box component="form" onSubmit={handleSubmit}>
 
-                            {/* Cliente - Reemplazado por Autocomplete Inline */}
+                            {/* Cliente */}
                             <Box sx={{ mb: 3 }}>
                                 <Typography sx={{ fontWeight: 600, fontSize: 12, mb: 1, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6 }}>
                                     Cliente
@@ -623,15 +724,52 @@ const Ventas = () => {
 
                             {/* Productos */}
                             <Box sx={{ mb: 3 }}>
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 2 }}>
                                     <Typography sx={{ fontWeight: 600, fontSize: 12, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6 }}>
                                         Productos / Servicios
                                     </Typography>
-                                    <Button size="small" startIcon={<AddCircleOutline />} onClick={handleAddSaleDetail}
-                                        sx={{ color: ACCENT, fontWeight: 600 }}>
-                                        Añadir ítem
-                                    </Button>
+
+                                    {/* SELECTOR ÁGIL (BARCODE) */}
+                                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flex: { xs: '1 1 100%', md: '0 1 auto' } }}>
+                                        <TextField
+                                            size="small"
+                                            placeholder="Escanear código…"
+                                            value={barcodeInput}
+                                            onChange={(e) => setBarcodeInput(e.target.value)}
+                                            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleProcessBarcode(barcodeInput))}
+                                            inputRef={barcodeFieldRef}
+                                            autoComplete="off"
+                                            disabled={searchingBarcode}
+                                            InputProps={{
+                                                startAdornment: (
+                                                    <InputAdornment position="start">
+                                                        <QrCodeScanner sx={{ color: ACCENT, fontSize: 20 }} />
+                                                    </InputAdornment>
+                                                ),
+                                                endAdornment: searchingBarcode && <CircularProgress size={16} />,
+                                                sx: { borderRadius: 2, bgcolor: 'background.paper', width: { xs: '100%', md: 200 } }
+                                            }}
+                                        />
+                                        <IconButton 
+                                            onClick={() => setCameraActive(!cameraActive)}
+                                            sx={{ color: cameraActive ? '#EF4444' : '#3B82F6', bgcolor: cameraActive ? '#FEF2F2' : '#EFF6FF' }}
+                                        >
+                                            {cameraActive ? <VideocamOff /> : <Videocam />}
+                                        </IconButton>
+                                        <Button size="small" startIcon={<AddCircleOutline />} onClick={handleAddSaleDetail}
+                                            sx={{ color: ACCENT, fontWeight: 600, ml: 1 }}>
+                                            Añadir manual
+                                        </Button>
+                                    </Box>
                                 </Box>
+
+                                {/* VISOR DE CÁMARA */}
+                                {cameraActive && (
+                                    <Paper elevation={3} sx={{ mb: 2, p: 1, borderRadius: 3, bgcolor: '#000', overflow: 'hidden' }}>
+                                        <div id="reader-sales" style={{ width: '100%', minHeight: '250px' }}></div>
+                                    </Paper>
+                                )}
+
                                 {saleDetails.map(detail => (
                                     <SaleDetailRow
                                         key={detail.id}
@@ -755,7 +893,7 @@ const Ventas = () => {
                     </Box>
                 </TabPanel>
 
-                {/* ══ Tab 1: Historial ══ */}
+                {/* Tab 1: Historial */}
                 <TabPanel value={tabValue} index={1}>
                     <Box sx={{ px: { xs: 2, md: 3 }, pb: 3 }}>
                         <Box sx={{ mb: 2.5 }}>
@@ -879,7 +1017,6 @@ const Ventas = () => {
                 </TabPanel>
             </Paper>
 
-            {/* Diálogos */}
             <ConfirmationDialog
                 open={showConfirmDialog}
                 handleClose={() => setShowConfirmDialog(false)}
@@ -905,8 +1042,6 @@ const Ventas = () => {
                 venta={ventaDevolucion}
                 onSuccess={handleDevolucionSuccess}
             />
-
-            {/* ── QuickCreateModal — creación inline de terceros y productos ── */}
             <QuickCreateModal
                 open={quickCreate.open}
                 onClose={closeQuickCreate}
@@ -914,7 +1049,6 @@ const Ventas = () => {
                 initialName={quickCreate.initialName}
                 onCreated={handleQuickCreated}
             />
-
         </Box>
     );
 };
