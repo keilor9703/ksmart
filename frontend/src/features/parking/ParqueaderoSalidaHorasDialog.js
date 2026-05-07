@@ -10,6 +10,7 @@ import {
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
 import { formatCurrency } from '../../utils/formatters';
+import CurrencyField from '../../components/common/CurrencyField';
 
 const ACCENT = '#FF6020';
 const WA_GREEN = '#25D366';
@@ -142,12 +143,11 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
           )}
         </Box>
 
-        <TextField
+        <CurrencyField
           fullWidth size="small" label="Cobrar otro monto (descuento)"
           value={montoManual}
-          onChange={(e) => setMontoManual(e.target.value.replace(/\D/g, ''))}
+          onChange={(val) => setMontoManual(val)}
           placeholder={`${formatCurrency(monto)} (cálculo automático)`}
-          InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
           sx={{ mb: 2 }}
         />
 

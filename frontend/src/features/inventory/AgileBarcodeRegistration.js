@@ -12,6 +12,7 @@ import {
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import { apiClient, getProductoByBarcode } from '../../api';
+import CurrencyField from '../../components/common/CurrencyField';
 import { Html5QrcodeScanner, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
 // Ajustado al color naranja que muestras en tu captura
@@ -304,27 +305,25 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
                                 />
                             </Grid>
                             <Grid item xs={12} md={6}>
-                                <TextField
-                                    fullWidth type="number" label="Precio de Venta"
+                                <CurrencyField
+                                    fullWidth label="Precio de Venta"
                                     value={formData.precio}
-                                    onChange={(e) => setFormData({...formData, precio: e.target.value})}
+                                    onChange={(val) => setFormData({...formData, precio: val})}
                                     inputRef={precioRef}
                                     onKeyDown={(e) => e.key === 'Enter' && costoRef.current?.focus()}
                                     InputLabelProps={{ sx: { color: 'rgba(255,255,255,0.7)' } }}
                                     sx={{ input: { color: 'white' } }}
-                                    InputProps={{ startAdornment: <InputAdornment position="start"><AttachMoney sx={{ color: '#4ade80' }} /></InputAdornment> }}
                                 />
                             </Grid>
                             <Grid item xs={12} md={6}>
-                                <TextField
-                                    fullWidth type="number" label="Costo de Compra"
+                                <CurrencyField
+                                    fullWidth label="Costo de Compra"
                                     value={formData.costo}
-                                    onChange={(e) => setFormData({...formData, costo: e.target.value})}
+                                    onChange={(val) => setFormData({...formData, costo: val})}
                                     inputRef={costoRef}
                                     onKeyDown={(e) => e.key === 'Enter' && stockRef.current?.focus()}
                                     InputLabelProps={{ sx: { color: 'rgba(255,255,255,0.7)' } }}
                                     sx={{ input: { color: 'white' } }}
-                                    InputProps={{ startAdornment: <InputAdornment position="start"><ShoppingBag sx={{ color: '#fbbf24' }} /></InputAdornment> }}
                                 />
                             </Grid>
                         </Grid>

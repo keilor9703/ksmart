@@ -14,6 +14,7 @@ import {
 import apiClient, { fetchCompras, createCompra, addPagoCompra } from '../../api';
 import { formatCurrency } from '../../utils/formatters';
 import { toast } from 'react-toastify';
+import CurrencyField from '../../components/common/CurrencyField';
 import QuickCreateModal from '../../components/common/QuickCreateModal';
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
@@ -520,11 +521,10 @@ const Compras = () => {
                         sx={{ width: isMobile ? '100%' : 110 }}
                         size="small"
                       />
-                      <TextField
-                        type="number" label="Precio Unit. (Costo)"
+                      <CurrencyField
+                        label="Precio Unit. (Costo)"
                         value={det.precio_unitario}
-                        onChange={(e) => handleDetalleChange(idx, 'precio_unitario', e.target.value)}
-                        InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+                        onChange={(val) => handleDetalleChange(idx, 'precio_unitario', val)}
                         sx={{ width: isMobile ? '100%' : 160 }}
                         size="small"
                       />
@@ -882,11 +882,10 @@ const Compras = () => {
 
           <Grid container spacing={2}>
             <Grid item xs={12}>
-              <TextField
-                fullWidth label="Monto a pagar" type="number"
-                value={montoAbono} onChange={(e) => setMontoAbono(e.target.value)}
+              <CurrencyField
+                fullWidth label="Monto a pagar"
+                value={montoAbono} onChange={(val) => setMontoAbono(val)}
                 required autoFocus
-                InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
               />
             </Grid>
             <Grid item xs={12}>

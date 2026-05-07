@@ -14,6 +14,7 @@ import {
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
 import { toast } from 'react-toastify';
+import CurrencyField from '../../components/common/CurrencyField';
 
 const PURPLE = '#8B5CF6';
 const ACCENT = '#FF6020';
@@ -564,9 +565,10 @@ const InventarioLotes = () => {
             <Grid item xs={12}><Divider><Chip label="Financiero y Origen" size="small" /></Divider></Grid>
 
             <Grid item xs={12} sm={6}>
-              <TextField fullWidth required label="Costo Unitario" type="number"
-                value={form.costo_unitario} onChange={e => setForm(p => ({ ...p, costo_unitario: e.target.value }))}
-                InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }} />
+              <CurrencyField fullWidth required label="Costo Unitario"
+                value={form.costo_unitario}
+                onChange={val => setForm({ ...form, costo_unitario: val })}
+              />
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField fullWidth label="Referencia / Factura" placeholder="Ej: FACT-9902"

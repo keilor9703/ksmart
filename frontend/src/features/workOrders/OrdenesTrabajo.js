@@ -7,6 +7,7 @@ import RechazoDialog from './RechazoDialog';
 import OrdenTrabajoDetailDialog from './OrdenTrabajoDetailDialog';
 import QuickCreateModal from '../../components/common/QuickCreateModal';
 import CloseOrderPaymentDialog from '../sales/CloseOrderPaymentDialog';
+import CurrencyField from '../../components/common/CurrencyField';
 import { useLocation } from 'react-router-dom';
 import {
   Box, Paper, Typography, Grid, TextField, Button, IconButton, Autocomplete,
@@ -427,7 +428,12 @@ const OrdenesTrabajo = ({ user }) => {
                     <Box key={p.id} sx={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 1.5, alignItems: isMobile ? 'stretch' : 'center', p: 1.5, borderRadius: 2, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider' }}>
                       <Autocomplete options={productos.filter(prod => !prod.es_servicio)} getOptionLabel={(opt) => opt?.nombre || ''} value={p.producto} onChange={(_, v) => { handleProductoChange(p.id, 'producto', v); handleProductoChange(p.id, 'precioUnitario', v ? v.precio : 0); }} inputValue={productoInputs[p.id] || ''} onInputChange={(_, v) => handleProductoInputChange(p.id, v)} noOptionsText={<Box sx={{ py: 0.5 }}><Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>No se encontró ningún producto</Typography><Button size="small" variant="contained" fullWidth startIcon={<Add />} onClick={() => openQuickCreate('producto', productoInputs[p.id] || '', p.id)} sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12, bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' } }}>Crear "{productoInputs[p.id] || 'nuevo producto'}"</Button></Box>} renderInput={(params) => (<TextField {...params} label="Producto" size="small" placeholder="Busca por nombre…" InputProps={{ ...params.InputProps, endAdornment: (<>{params.InputProps.endAdornment}<Tooltip title="Crear nuevo producto"><IconButton size="small" onClick={() => openQuickCreate('producto', productoInputs[p.id] || '', p.id)} sx={{ color: '#10B981', p: 0.5 }}><Add fontSize="small" /></IconButton></Tooltip></>), }} />)} sx={{ flex: 2, minWidth: isMobile ? '100%' : 220 }} />
                       <TextField type="number" label="Cantidad" size="small" value={p.cantidad} onChange={e => handleProductoChange(p.id, 'cantidad', parseFloat(e.target.value))} sx={{ width: isMobile ? '100%' : 110 }} InputProps={{ inputProps: { min: 0, step: 'any' } }} />
-                      <TextField type="number" label="Precio Unit." size="small" value={p.precioUnitario} onChange={e => handleProductoChange(p.id, 'precioUnitario', parseFloat(e.target.value))} sx={{ width: isMobile ? '100%' : 140 }} InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }} />
+                      <CurrencyField
+                        label="Precio Unit."
+                        value={p.precioUnitario}
+                        onChange={val => handleProductoChange(p.id, 'precioUnitario', val)}
+                        sx={{ width: isMobile ? '100%' : 140 }}
+                      />
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}><Typography sx={{ fontWeight: 700, fontSize: 14, color: ACCENT, minWidth: 90 }}>{formatCurrency(p.cantidad * p.precioUnitario)}</Typography><Tooltip title="Quitar"><IconButton size="small" onClick={() => handleRemoveProducto(p.id)} sx={{ color: RED, bgcolor: '#FEF2F2', borderRadius: 1.5 }}><Delete fontSize="small" /></IconButton></Tooltip></Box>
                     </Box>
                   ))}
@@ -441,7 +447,12 @@ const OrdenesTrabajo = ({ user }) => {
                     <Box key={s.id} sx={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 1.5, alignItems: isMobile ? 'stretch' : 'center', p: 1.5, borderRadius: 2, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider' }}>
                       <Autocomplete options={productos.filter(prod => prod.es_servicio)} getOptionLabel={(opt) => opt?.nombre || ''} value={s.servicio} onChange={(_, v) => { handleServicioChange(s.id, 'servicio', v); handleServicioChange(s.id, 'precioUnitario', v ? v.precio : 0); }} renderInput={(params) => (<TextField {...params} label="Servicio" size="small" placeholder="Busca..." />)} sx={{ flex: 2, minWidth: isMobile ? '100%' : 220 }} />
                       <TextField type="number" label="Cantidad" size="small" value={s.cantidad} onChange={e => handleServicioChange(s.id, 'cantidad', parseFloat(e.target.value))} sx={{ width: isMobile ? '100%' : 110 }} />
-                      <TextField type="number" label="Precio Unit." size="small" value={s.precioUnitario} onChange={e => handleServicioChange(s.id, 'precioUnitario', parseFloat(e.target.value))} sx={{ width: isMobile ? '100%' : 140 }} InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }} />
+                      <CurrencyField
+                        label="Precio Unit."
+                        value={s.precioUnitario}
+                        onChange={val => handleServicioChange(s.id, 'precioUnitario', val)}
+                        sx={{ width: isMobile ? '100%' : 140 }}
+                      />
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}><Typography sx={{ fontWeight: 700, fontSize: 14, color: BLUE, minWidth: 90 }}>{formatCurrency(s.cantidad * s.precioUnitario)}</Typography><Tooltip title="Quitar"><IconButton size="small" onClick={() => handleRemoveServicio(s.id)} sx={{ color: RED, bgcolor: '#FEF2F2', borderRadius: 1.5 }}><Delete fontSize="small" /></IconButton></Tooltip></Box>
                     </Box>
                   ))}

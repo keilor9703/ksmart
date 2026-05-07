@@ -5,6 +5,7 @@ import {
 } from '@mui/material';
 import { toast } from 'react-toastify';
 import { formatCurrency } from '../../utils/formatters';
+import CurrencyField from '../../components/common/CurrencyField';
 
 const CloseOrderPaymentDialog = ({ open, handleClose, orden, onConfirmClose }) => {
     const [wasPaid, setWasPaid] = useState(''); // 'yes' or 'no'
@@ -72,17 +73,14 @@ const CloseOrderPaymentDialog = ({ open, handleClose, orden, onConfirmClose }) =
                         </FormControl>
 
                         {paymentType === 'partial' && (
-                            <TextField
+                            <CurrencyField
                                 autoFocus
-                                margin="dense"
-                                id="paidAmount"
                                 label={`Monto pagado (Total: ${formatCurrency(orden?.total)})`}
-                                type="number"
                                 fullWidth
                                 variant="outlined"
                                 value={paidAmount}
-                                onChange={(e) => {
-                                    setPaidAmount(e.target.value);
+                                onChange={(val) => {
+                                    setPaidAmount(val);
                                     setAmountError(false);
                                 }}
                                 error={amountError}

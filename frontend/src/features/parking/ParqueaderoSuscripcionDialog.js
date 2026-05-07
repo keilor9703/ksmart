@@ -9,6 +9,7 @@ import { Close, TwoWheeler, Person, AttachMoney, Save } from '@mui/icons-materia
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
 import { formatCurrency } from '../../utils/formatters';
+import CurrencyField from '../../components/common/CurrencyField';
 
 const ACCENT = '#FF6020';
 const METODOS_PAGO = ['Efectivo', 'Transferencia', 'Nequi', 'Daviplata', 'Tarjeta', 'Otro'];
@@ -105,12 +106,11 @@ export function ParqueaderoSuscripcionDialog({ open, onClose, vehiculo, onSucces
         </RadioGroup>
 
         {/* Override de monto */}
-        <TextField
+        <CurrencyField
           fullWidth size="small" label="Monto personalizado (descuento o ajuste)"
           placeholder={`Tarifa estándar: ${formatCurrency(tarifa)}`}
           value={montoPersonalizado}
-          onChange={(e) => setMontoPer(e.target.value.replace(/\D/g, ''))}
-          InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+          onChange={(val) => setMontoPer(val)}
           sx={{ mb: 2 }}
         />
 
@@ -119,13 +119,12 @@ export function ParqueaderoSuscripcionDialog({ open, onClose, vehiculo, onSucces
         </Divider>
 
         {/* Monto pagado ahora */}
-        <TextField
+        <CurrencyField
           fullWidth size="small" label="Monto pagado ahora"
           helperText="Si paga menos del total, queda con saldo pendiente"
-          value={montoPagado === '' ? '' : montoPagado}
-          onChange={(e) => setMontoPagado(e.target.value.replace(/\D/g, ''))}
+          value={montoPagado}
+          onChange={(val) => setMontoPagado(val)}
           placeholder={`${formatCurrency(montoFinal)} (paga completo)`}
-          InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
           sx={{ mb: 2 }}
         />
 

@@ -9,6 +9,7 @@ import { Close, Save } from '@mui/icons-material';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
 import { formatCurrency } from '../../utils/formatters';
+import CurrencyField from '../../components/common/CurrencyField';
 
 const ACCENT = '#FF6020';
 const METODOS_PAGO = ['Efectivo', 'Transferencia', 'Nequi', 'Daviplata', 'Tarjeta', 'Otro'];
@@ -197,13 +198,12 @@ export function ParqueaderoCobrarVencidoDialog({ open, onClose, resultado, onSuc
 
         <Divider sx={{ my: 2 }} />
 
-        <TextField
+        <CurrencyField
           fullWidth size="small" label="Monto pagado ahora"
           helperText={pagaAhora < total ? 'Quedará saldo pendiente' : 'Cobro completo'}
           value={montoPagado}
-          onChange={(e) => setMontoPagado(e.target.value.replace(/\D/g, ''))}
+          onChange={(val) => setMontoPagado(val)}
           placeholder={`${formatCurrency(total)} (paga completo)`}
-          InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
           sx={{ mb: 2 }}
         />
 

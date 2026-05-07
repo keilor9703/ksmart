@@ -14,6 +14,7 @@ import {
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
 import { toast } from 'react-toastify';
+import CurrencyField from '../../components/common/CurrencyField';
 import QuickCreateModal from '../../components/common/QuickCreateModal';
 
 // ─── Palette ─────────────────────────────────────────────────────────────────
@@ -142,11 +143,10 @@ const DetalleRow = ({ det, idx, productos, productoInput, onProductoInputChange,
           InputProps={{ inputProps: { min: 0.01, step: 'any' } }}
           sx={{ width: isMobile ? '100%' : 100 }}
         />
-        <TextField
-          type="number" label="Precio unit." size="small"
+        <CurrencyField
+          label="Precio unit." size="small"
           value={det.precio_unitario}
-          onChange={e => onFieldChange(idx, 'precio_unitario', parseFloat(e.target.value) || 0)}
-          InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+          onChange={(val) => onFieldChange(idx, 'precio_unitario', val)}
           sx={{ width: isMobile ? '100%' : 140 }}
         />
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

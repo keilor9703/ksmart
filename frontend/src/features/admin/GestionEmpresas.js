@@ -12,6 +12,7 @@ import {
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient, { fetchPlanesAdmin, createPlan, updatePlan, impersonateCompany } from '../../api';
+import CurrencyField from '../../components/common/CurrencyField';
 
 import ModulosEmpresaDialog from './ModulosEmpresaDialog';
 import { ViewModule } from '@mui/icons-material';
@@ -482,7 +483,7 @@ export default function GestionSaaS() {
               <TextField label="Código Interno" required size="small" value={formPlan.codigo_interno} onChange={e => setFormPlan({...formPlan, codigo_interno: e.target.value.toLowerCase().replace(/ /g, '_')})} disabled={!!editingPlanId} />
 
               <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
-                <TextField label="Precio (COP)" type="number" required size="small" fullWidth value={formPlan.precio} onChange={e => setFormPlan({...formPlan, precio: e.target.value})} />
+                <CurrencyField label="Precio (COP)" required size="small" fullWidth value={formPlan.precio} onChange={val => setFormPlan({...formPlan, precio: val})} />
                 <TextField label="Duración (Días)" type="number" required size="small" fullWidth value={formPlan.dias_duracion} onChange={e => setFormPlan({...formPlan, dias_duracion: e.target.value})} />
               </Box>
 

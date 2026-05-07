@@ -88,9 +88,15 @@ const INFO_TOOLTIPS = {
   ),
   tendencia: (
     <Box sx={{ p: 0.5 }}>
-      <Typography sx={{ fontSize: 12, fontWeight: 700, mb: 0.5 }}>Tendencia del mercado</Typography>
+      <Typography sx={{ fontSize: 12, fontWeight: 700, mb: 0.5 }}>Tendencias del mercado</Typography>
+      <Typography sx={{ fontSize: 11, lineHeight: 1.4, mb: 1 }}>
+        Análisis comparativo en dos periodos de tiempo:
+      </Typography>
       <Typography sx={{ fontSize: 11, lineHeight: 1.4 }}>
-        Variación porcentual respecto al precio anterior. Sirve para anticipar movimientos del precio interno antes de que FEPCACAO los refleje al día siguiente.
+        • <strong>24h:</strong> Muestra el cambio respecto al precio de ayer (corto plazo).
+      </Typography>
+      <Typography sx={{ fontSize: 11, lineHeight: 1.4 }}>
+        • <strong>7 Días:</strong> Muestra la evolución en la última semana (largo plazo).
       </Typography>
     </Box>
   ),
@@ -170,12 +176,6 @@ const CacaoPriceWidget = () => {
   const valorDescuento = (precioBase * (descuentoPct || 0)) / 100;
   const precioCalculado = precioBase - valorDescuento;
   const totalPagar = precioCalculado * (kilos || 0);
-
-  // ── Color de tendencia (adaptativo) ───────────────────────────────────────
-  const tendenciaColor = (theme) =>
-    precio.tendencia === 'alza' ? greenAdapt(theme)
-    : precio.tendencia === 'baja' ? redAdapt(theme)
-    : blueAdapt(theme);
 
   // ── Helper: ícono de info reutilizable ───────────────────────────────────
   const InfoBadge = ({ tooltip, size = 13 }) => (
@@ -300,21 +300,32 @@ const CacaoPriceWidget = () => {
             <Box sx={{ textAlign: 'center' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase' }}>
-                  Tendencia
+                  Tendencias
                 </Typography>
                 <InfoBadge tooltip={INFO_TOOLTIPS.tendencia} size={13} />
               </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.4, mt: 0.3 }}>
-                <TrendIcon tendencia={precio.tendencia} size={24} />
-                {precio.variacion_pct !== 0 && (
-                  <Typography sx={{ fontSize: 16, fontWeight: 800, color: tendenciaColor }}>
-                    {precio.variacion_pct > 0 ? '+' : ''}{precio.variacion_pct}%
-                  </Typography>
-                )}
+              
+              <Box sx={{ display: 'flex', gap: 2, mt: 0.5 }}>
+                {/* Corto Plazo */}
+                <Tooltip title={`Corto Plazo: Variación en las últimas 24h (${precio.tendencia_corto?.variacion > 0 ? '+' : ''}${precio.tendencia_corto?.variacion || 0}%)`}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 50 }}>
+                    <TrendIcon tendencia={precio.tendencia_corto?.tendencia} size={22} />
+                    <Typography sx={{ fontSize: 10, fontWeight: 800, color: (t) => precio.tendencia_corto?.tendencia === 'alza' ? greenAdapt(t) : precio.tendencia_corto?.tendencia === 'baja' ? redAdapt(t) : blueAdapt(t) }}>
+                      24h
+                    </Typography>
+                  </Box>
+                </Tooltip>
+
+                {/* Largo Plazo */}
+                <Tooltip title={`Largo Plazo: Variación en los últimos 7 días (${precio.tendencia_largo?.variacion > 0 ? '+' : ''}${precio.tendencia_largo?.variacion || 0}%)`}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 50 }}>
+                    <TrendIcon tendencia={precio.tendencia_largo?.tendencia} size={22} />
+                    <Typography sx={{ fontSize: 10, fontWeight: 800, color: (t) => precio.tendencia_largo?.tendencia === 'alza' ? greenAdapt(t) : precio.tendencia_largo?.tendencia === 'baja' ? redAdapt(t) : blueAdapt(t) }}>
+                      7 Días
+                    </Typography>
+                  </Box>
+                </Tooltip>
               </Box>
-              <Typography sx={{ fontSize: 12, color: tendenciaColor, fontWeight: 700, textTransform: 'capitalize' }}>
-                {precio.tendencia}
-              </Typography>
             </Box>
           </Box>
         </Box>

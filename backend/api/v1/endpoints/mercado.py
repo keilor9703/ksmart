@@ -1,14 +1,14 @@
 import re as _re
 import logging
 import requests
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 import models
 import schemas
-from api.deps import get_current_active_user
+from api.deps import get_current_active_user, get_db
 
 router = APIRouter()
 logger = logging.getLogger("mercado")
@@ -160,6 +160,7 @@ def _fetch_precio_cacao_raw():
 
 @router.get("/precio-cacao")
 def precio_cacao_fedecacao(
+    db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
     from zoneinfo import ZoneInfo
@@ -173,20 +174,47 @@ def precio_cacao_fedecacao(
             cacao_usd_ton, trm_cop = _fetch_precio_cacao_raw()
             if cacao_usd_ton and trm_cop:
                 precio_cop_kg = round((cacao_usd_ton * trm_cop) / 1000, 0)
-                prev = (_cacao_cache["data"] or {}).get("precio_cop_kg")
-                if prev:
-                    variacion_pct = round(((precio_cop_kg - prev) / prev) * 100, 2)
-                    tendencia = "alza" if precio_cop_kg > prev else "baja" if precio_cop_kg < prev else "estable"
-                else:
-                    variacion_pct = 0.0
-                    tendencia     = "estable"
+                
+                # Guardar en histórico
+                nuevo_hist = models.HistoricoPrecioCacao(
+                    precio_cop_kg=precio_cop_kg,
+                    precio_usd_ton=cacao_usd_ton,
+                    trm_cop=trm_cop,
+                    fecha=ahora
+                )
+                db.add(nuevo_hist)
+                db.commit()
+
+                # Calcular tendencias
+                def _calc_trend(precio_actual, ref_val):
+                    if not ref_val: return "estable", 0.0
+                    var = round(((precio_actual - ref_val) / ref_val) * 100, 2)
+                    tend = "alza" if precio_actual > ref_val else "baja" if precio_actual < ref_val else "estable"
+                    return tend, var
+
+                # Obtener referencias históricas
+                hace_24h = ahora - timedelta(hours=24)
+                hace_7d  = ahora - timedelta(days=7)
+
+                ref_24h = db.query(models.HistoricoPrecioCacao).filter(models.HistoricoPrecioCacao.fecha <= hace_24h).order_by(models.HistoricoPrecioCacao.fecha.desc()).first()
+                ref_7d  = db.query(models.HistoricoPrecioCacao).filter(models.HistoricoPrecioCacao.fecha <= hace_7d).order_by(models.HistoricoPrecioCacao.fecha.desc()).first()
+
+                tend_24h, var_24h = _calc_trend(precio_cop_kg, ref_24h.precio_cop_kg if ref_24h else None)
+                tend_7d,  var_7d  = _calc_trend(precio_cop_kg, ref_7d.precio_cop_kg  if ref_7d  else None)
 
                 _cacao_cache["data"] = {
                     "precio_cop_kg":      precio_cop_kg,
                     "precio_usd_ton":     round(cacao_usd_ton, 2),
                     "trm_cop":            round(trm_cop, 2),
-                    "tendencia":          tendencia,
-                    "variacion_pct":      variacion_pct,
+                    
+                    # Tendencia principal (mantenida por compatibilidad)
+                    "tendencia":          tend_24h,
+                    "variacion_pct":      var_24h,
+                    
+                    # Nuevas tendencias detalladas
+                    "tendencia_corto":    {"label": "24 Horas", "tendencia": tend_24h, "variacion": var_24h},
+                    "tendencia_largo":    {"label": "7 Días",    "tendencia": tend_7d,  "variacion": var_7d},
+
                     "ultima_actualizacion": ahora.strftime("%Y-%m-%dT%H:%M:%S"),
                     "fecha_precio":       ahora.strftime("%d/%m/%Y"),
                     "fuente_cacao":       "ICE Cocoa Futures (CC=F) via Yahoo Finance",
@@ -198,8 +226,9 @@ def precio_cacao_fedecacao(
                     _cacao_cache["last_fetch_8"]  = hoy
                 elif hora >= 8:
                     _cacao_cache["last_fetch_8"]  = hoy
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"Error actualizando precio cacao: {str(e)}")
+            db.rollback()
 
     if _cacao_cache["data"]:
         return _cacao_cache["data"]

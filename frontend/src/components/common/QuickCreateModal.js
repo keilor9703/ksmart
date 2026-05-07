@@ -11,6 +11,7 @@ import {
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
 import { GRUPOS_PRODUCTO, UNIDADES_MEDIDA } from '../../utils/constants';
+import CurrencyField from './CurrencyField';
 
 // ─── Colores y configuración por tipo ─────────────────────────────────────────
 const TYPE_CONFIG = {
@@ -50,7 +51,12 @@ const TerceroForm = ({ data, onChange, errors }) => (
       <TextField label="Teléfono" value={data.telefono} onChange={e => onChange('telefono', e.target.value)} size="small" sx={{ flex: 1 }} />
     </Box>
     <TextField label="Dirección" value={data.direccion} onChange={e => onChange('direccion', e.target.value)} size="small" fullWidth />
-    <TextField label="Cupo de crédito" type="number" value={data.cupo_credito} onChange={e => onChange('cupo_credito', e.target.value)} size="small" fullWidth InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }} inputProps={{ min: 0, step: 1000 }} helperText="Límite máximo de ventas a crédito. Deja en 0 si no aplica." />
+    <CurrencyField
+      label="Cupo de crédito"
+      value={data.cupo_credito}
+      onChange={val => onChange('cupo_credito', val)}
+      helperText="Límite máximo de ventas a crédito. Deja en 0 si no aplica."
+    />
     
     <Box>
       <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', mb: 0.8 }}>Tipo de tercero</Typography>
@@ -92,8 +98,20 @@ const ProductoForm = ({ data, onChange, errors }) => (
       autoFocus
     />
     <Box sx={{ display: 'flex', gap: 1.5 }}>
-      <TextField label="Costo de compra *" type="number" value={data.costo} onChange={e => onChange('costo', e.target.value)} size="small" error={!!errors.costo} helperText={errors.costo} sx={{ flex: 1 }} InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }} />
-      <TextField label="Precio de venta" type="number" value={data.precio} onChange={e => onChange('precio', e.target.value)} size="small" sx={{ flex: 1 }} InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }} />
+      <CurrencyField
+        label="Costo de compra *"
+        value={data.costo}
+        onChange={val => onChange('costo', val)}
+        error={!!errors.costo}
+        helperText={errors.costo}
+        sx={{ flex: 1 }}
+      />
+      <CurrencyField
+        label="Precio de venta"
+        value={data.precio}
+        onChange={val => onChange('precio', val)}
+        sx={{ flex: 1 }}
+      />
     </Box>
 
     <Box>

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
 import { toast } from 'react-toastify';
+import CurrencyField from '../../components/common/CurrencyField';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
 import VentaDetailDialog from './VentaDetailDialog';
 import DevolucionDialog from './DevolucionDialog';
@@ -241,12 +242,10 @@ const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRe
                 sx={{ width: isMobile ? '100%' : 110 }}
             />
 
-            <TextField
-                type="number"
+            <CurrencyField
                 label="Precio Unit."
                 value={detail.precioUnitario}
-                onChange={(e) => onFieldChange(detail.id, 'precioUnitario', parseFloat(e.target.value))}
-                InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+                onChange={(val) => onFieldChange(detail.id, 'precioUnitario', val)}
                 sx={{ width: isMobile ? '100%' : 140 }}
             />
 

@@ -902,7 +902,19 @@ class EnvioWhatsApp(Base, TenantMixin):
     usuario         = relationship("User", lazy="joined")
 
 
+# ─── 6. Histórico de precios del Cacao ───────────────────────────────────────
+class HistoricoPrecioCacao(Base):
+    """
+    Almacena el histórico de precios internacionales (USD) y locales (COP) del cacao.
+    Permite calcular tendencias a corto y largo plazo.
+    """
+    __tablename__ = "historico_precio_cacao"
 
+    id             = Column(Integer, primary_key=True, index=True)
+    precio_cop_kg  = Column(Float, nullable=False)
+    precio_usd_ton = Column(Float, nullable=False)
+    trm_cop        = Column(Float, nullable=False)
+    fecha          = Column(DateTime(timezone=True), default=utcnow, index=True)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

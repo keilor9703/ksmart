@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
+import CurrencyField from '../../components/common/CurrencyField';
 import BulkUpload from '../../components/common/BulkUpload';
 import {
   Box, Typography, Grid, TextField, Button, InputAdornment,
@@ -212,16 +213,14 @@ const ClienteForm = ({
               </Grid>
 
               <Grid item xs={12} sm={6}>
-                <TextField
+                <CurrencyField
                   label="Cupo de Crédito"
                   value={cupoCredito}
-                  onChange={(e) => setCupoCredito(e.target.value.replace(/[^0-9.]/g, ''))}
+                  onChange={setCupoCredito}
                   fullWidth size="small"
                   helperText="Solo aplica para clientes"
-                  InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
                 />
               </Grid>
-
               {/* Tipo de tercero */}
               <Grid item xs={12} sm={6}>
                 <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>

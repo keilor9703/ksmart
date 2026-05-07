@@ -23,6 +23,7 @@ import { useNavigate } from 'react-router-dom';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
 import { formatCurrency } from '../../utils/formatters';
+import CurrencyField from '../../components/common/CurrencyField';
 import BotonWhatsApp from '../../components/common/BotonWhatsApp';   // ✨ NUEVO
 
 const ACCENT = '#FF6020';
@@ -484,13 +485,12 @@ function AbonoDialog({ open, onClose, susc, onSuccess }) {
           </Typography>
         </Box>
 
-        <TextField
+        <CurrencyField
           fullWidth size="small" label="Monto del abono"
           value={monto}
-          onChange={(e) => setMonto(e.target.value.replace(/\D/g, ''))}
+          onChange={(val) => setMonto(val)}
           error={excede}
           helperText={excede ? 'Excede el saldo pendiente' : 'Puede ser parcial o total'}
-          InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
           sx={{ mb: 2 }}
         />
 

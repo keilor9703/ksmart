@@ -15,6 +15,7 @@ import {
 } from '@mui/icons-material';
 import apiClient, { createPrestamo } from '../../api';
 import { formatCurrency } from '../../utils/formatters';
+import CurrencyField from '../../components/common/CurrencyField';
 import { toast } from 'react-toastify';
 
 const ACCENT = '#FF6020';
@@ -464,9 +465,12 @@ const agregarDiasGracia = (dias) => {
                     </Typography>
                     <Grid container spacing={2}>
                       <Grid item xs={12} sm={6}>
-                        <TextField fullWidth required label="Capital" type="number"
-                          value={monto} onChange={e => setMonto(e.target.value)}
-                          InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }} />
+                        <CurrencyField
+                          label="Capital"
+                          value={monto}
+                          onChange={val => setMonto(val)}
+                          required
+                        />
                       </Grid>
                       <Grid item xs={12} sm={6}>
                         <TextField fullWidth required label="Tasa interés %" type="number"
@@ -1065,12 +1069,12 @@ const agregarDiasGracia = (dias) => {
               Si el abono cubre el saldo completo, el préstamo queda <strong>liquidado</strong>.
             </Typography>
           </Box>
-          <TextField
-            fullWidth autoFocus type="number"
+          <CurrencyField
+            autoFocus
             label="Monto del abono a capital"
             value={abonoMonto}
-            onChange={e => setAbonoMonto(e.target.value)}
-            InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }} />
+            onChange={val => setAbonoMonto(val)}
+          />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
           <Button color="inherit" disabled={abonoLoading}

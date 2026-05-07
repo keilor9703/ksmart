@@ -13,6 +13,7 @@ import {
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
 import { toast } from 'react-toastify';
+import CurrencyField from '../../components/common/CurrencyField';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -680,12 +681,11 @@ const confirmarPago = async () => {
             </Box>
 
             {/* Monto */}
-            <TextField
-              fullWidth autoFocus type="number"
+            <CurrencyField
+              fullWidth autoFocus
               label="Monto recibido *"
               value={pagoModal.monto}
-              onChange={e => setPagoModal({ ...pagoModal, monto: e.target.value })}
-              InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+              onChange={val => setPagoModal({ ...pagoModal, monto: val })}
               sx={{ mb: 2.5 }}
             />
 

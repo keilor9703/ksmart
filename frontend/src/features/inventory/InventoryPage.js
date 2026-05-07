@@ -12,6 +12,7 @@ import { fetchMovements, createMovement, fetchLowStockAlerts } from '../../api';
 import apiClient from '../../api';
 import Autocomplete from '@mui/material/Autocomplete';
 import BulkUpload from '../../components/common/BulkUpload';
+import CurrencyField from '../../components/common/CurrencyField';
 import {
   Warning, ExpandMore, ExpandLess, Search,
   Upload, SwapVert, TrendingUp, TrendingDown, Tune, Layers
@@ -426,11 +427,10 @@ const MovementForm = ({ onCreated }) => {
                 </Box>
 
                 <Box sx={{ display: 'flex', gap: 1.5 }}>
-                  <TextField
-                    label="Costo Unitario *" type="number" size="small"
+                  <CurrencyField
+                    label="Costo Unitario *"
                     value={nuevoLote.costo_unitario}
-                    onChange={e => setNuevoLote(p => ({ ...p, costo_unitario: e.target.value }))}
-                    InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+                    onChange={val => setNuevoLote(p => ({ ...p, costo_unitario: val }))}
                     sx={{ flex: 1 }}
                   />
                   <TextField

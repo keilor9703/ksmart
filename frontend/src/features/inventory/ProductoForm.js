@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
 import BulkUpload from '../../components/common/BulkUpload';
+import CurrencyField from '../../components/common/CurrencyField';
 import {
   Box, Typography, Grid, TextField, Button, InputAdornment,
   Collapse, Divider, Chip, MenuItem, Select, FormControl, InputLabel, IconButton,
@@ -121,14 +122,24 @@ const ProductoForm = ({ onProductoAdded, productoToEdit, onProductoUpdated, forc
               <TextField label={esServicio ? "Nombre del Servicio *" : "Nombre del Producto *"} value={nombre} onChange={e => setNombre(e.target.value)} fullWidth required />
             </Grid>
             <Grid item xs={12} sm={esServicio ? 4 : 3}>
-              <TextField label={esServicio ? "Precio de Venta *" : "Precio de Venta (Opcional)"} value={precio} onChange={e => setPrecio(e.target.value.replace(/[^0-9.]/g, ''))} fullWidth required={esServicio} InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }} />
+              <CurrencyField
+                label={esServicio ? "Precio de Venta *" : "Precio de Venta (Opcional)"}
+                value={precio}
+                onChange={val => setPrecio(val)}
+                required={esServicio}
+              />
             </Grid>
 
             {/* CAMPOS EXCLUSIVOS DE PRODUCTOS FÍSICOS */}
             {!esServicio && (
               <>
                 <Grid item xs={12} sm={3}>
-                  <TextField label="Costo Actual *" value={costo} onChange={e => setCosto(e.target.value.replace(/[^0-9.]/g, ''))} fullWidth required InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }} />
+                  <CurrencyField
+                    label="Costo Actual *"
+                    value={costo}
+                    onChange={val => setCosto(val)}
+                    required
+                  />
                 </Grid>
                 
                 {/* 👇 MODIFICADO: Selector moderno de Grupos */}

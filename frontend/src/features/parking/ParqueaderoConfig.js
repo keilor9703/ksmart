@@ -15,6 +15,7 @@ import {
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
 import { formatCurrency } from '../../utils/formatters';
+import CurrencyField from '../../components/common/CurrencyField';
 
 import ParqueaderoMetodosPago from './ParqueaderoMetodosPago';
 
@@ -40,9 +41,8 @@ export default function ParqueaderoConfig() {
     }
   };
 
-  const handleNumber = (campo) => (e) => {
-    const v = e.target.value.replace(/\D/g, '');
-    setConfig(prev => ({ ...prev, [campo]: v === '' ? 0 : Number(v) }));
+  const handleNumber = (campo) => (val) => {
+    setConfig(prev => ({ ...prev, [campo]: val }));
   };
 
   const handleText = (campo) => (e) => {
@@ -50,9 +50,8 @@ export default function ParqueaderoConfig() {
   };
 
   // ✨ NUEVO: cuando se cambia tarifa_minuto, sugerir tarifa_hora automáticamente
-  const handleTarifaMinuto = (e) => {
-    const v = e.target.value.replace(/\D/g, '');
-    const num = v === '' ? 0 : Number(v);
+  const handleTarifaMinuto = (val) => {
+    const num = val || 0;
     setConfig(prev => ({
       ...prev,
       tarifa_minuto: num,
@@ -242,38 +241,25 @@ export default function ParqueaderoConfig() {
 
         <Grid container spacing={2}>
           <Grid item xs={12} md={4}>
-            <TextField
+            <CurrencyField
               fullWidth size="small" label="Tarifa por minuto"
-              type="number" inputProps={{ min: 0 }}
               placeholder="50"
-              value={config?.tarifa_minuto || ''}
+              value={config?.tarifa_minuto}
               onChange={handleTarifaMinuto}
               helperText="Lo que cobras por cada minuto"
-              InputProps={{
-                startAdornment: <InputAdornment position="start">$</InputAdornment>,
-              }}
             />
           </Grid>
           <Grid item xs={12} md={4}>
-            <TextField
+            <CurrencyField
               fullWidth size="small" label="Tarifa por hora (informativa)"
-              type="number" inputProps={{ min: 0 }}
               placeholder="3000"
-              value={config?.tarifa_hora || ''}
+              value={config?.tarifa_hora}
               onChange={handleNumber('tarifa_hora')}
               helperText={
                 config?.tarifa_minuto > 0
                   ? `Sugerido: ${formatCurrency(horaCalculada)} (60 × min)`
                   : "Solo se muestra al cliente como referencia"
               }
-              InputProps={{
-                startAdornment: <InputAdornment position="start">$</InputAdornment>,
-                endAdornment: (
-                  <Tooltip title="Esta tarifa es solo informativa. El cobro real siempre se hace por los minutos exactos.">
-                    <InfoOutlined sx={{ fontSize: 16, color: 'text.secondary' }} />
-                  </Tooltip>
-                ),
-              }}
             />
           </Grid>
           <Grid item xs={12} md={4}>
@@ -378,17 +364,13 @@ function SectionHeader({ icon, title }) {
 function TarifaInput({ label, placeholder, descripcion, value, onChange, requerido }) {
   return (
     <Grid item xs={6} md={3}>
-      <TextField
+      <CurrencyField
         fullWidth size="small"
         label={`${label}${requerido ? ' *' : ''}`}
-        type="number" inputProps={{ min: 0 }}
         placeholder={placeholder}
-        value={value || ''}
+        value={value}
         onChange={onChange}
         helperText={descripcion}
-        InputProps={{
-          startAdornment: <InputAdornment position="start">$</InputAdornment>,
-        }}
       />
     </Grid>
   );
