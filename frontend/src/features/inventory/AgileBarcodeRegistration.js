@@ -107,11 +107,14 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
     setSearching(true);
     try {
       const res = await getProductoByBarcode(barcode);
-      if (res.data) {
-        const isMatch = res.data.id !== undefined; 
+    if (res.data) {
+        // ✅ CORRECCIÓN: Un producto real tiene ID mayor a 0. Si es 0, es una sugerencia.
+        const isMatch = res.data.id > 0; 
         
         setFormData({
           ...res.data,
+          // ✅ CORRECCIÓN: Si es sugerencia (0), quitamos el ID para forzar un POST (Crear)
+          id: isMatch ? res.data.id : undefined, 
           precio: isMatch ? (res.data.precio || '') : '',
           costo: isMatch ? (res.data.costo || '') : '',
           stock_actual: isMatch ? (res.data.stock_actual || '') : '',

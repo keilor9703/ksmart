@@ -366,8 +366,7 @@ const Ventas = () => {
         handleProcessBarcode(decodedText);
         setCameraActive(false); // Apagar cámara tras éxito
     };
-
-    const handleProcessBarcode = async (code) => {
+const handleProcessBarcode = async (code) => {
         const barcode = code.trim();
         if (!barcode) return;
 
@@ -376,6 +375,15 @@ const Ventas = () => {
             const res = await getProductoByBarcode(barcode);
             if (res.data) {
                 const producto = res.data;
+
+                // ✅ NUEVA VALIDACIÓN CRÍTICA: Evitar vender productos "fantasma"
+                if (producto.id === 0) {
+                    toast.warning(`"${producto.nombre}" no está en tu inventario. Regístralo primero.`);
+                    // Opcional: Puedes abrirle el modal de creación rápida automáticamente
+                    openQuickCreate('producto', producto.nombre);
+                    return; // Detenemos la ejecución aquí
+                }
+
                 // Verificar si ya está en el carrito
                 const existingIdx = saleDetails.findIndex(d => d.producto?.id === producto.id);
                 

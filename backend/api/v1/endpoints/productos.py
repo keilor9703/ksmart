@@ -1,4 +1,5 @@
 import io
+import httpx
 import openpyxl
 import pandas as pd
 from typing import List, Optional
@@ -13,10 +14,78 @@ import models
 import schemas
 from api.deps import get_db, get_current_active_user
 
+
+
+import httpx
+
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from typing import Optional
+
+
 router = APIRouter()
 
+# ─── FUNCIONES DE BÚSQUEDA EN APIs EXTERNAS ─────────────────────────────────────
+
+async def fetch_openfoodfacts(client: httpx.AsyncClient, barcode: str):
+    """Busca en la base de datos de alimentos"""
+    try:
+        response = await client.get(f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json")
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("status") == 1:
+                p = data.get("product", {})
+                return {
+                    "nombre": p.get("product_name") or p.get("generic_name", ""),
+                    "descripcion": p.get("brands", "")
+                }
+    except Exception:
+        pass
+    return None
+
+async def fetch_upcitemdb(client: httpx.AsyncClient, barcode: str):
+    """Busca en una de las bases de datos de retail más grandes (Electrónica, ropa, etc.)"""
+    try:
+        # Nota: La API gratuita de UPCitemdb permite ~100 peticiones diarias
+        response = await client.get(f"https://api.upcitemdb.com/prod/trial/lookup?upc={barcode}")
+        if response.status_code == 200:
+            data = response.json()
+            items = data.get("items", [])
+            if items:
+                item = items[0]
+                return {
+                    "nombre": item.get("title", ""),
+                    "descripcion": item.get("brand", "") or item.get("description", "")
+                }
+    except Exception:
+        pass
+    return None
+
+async def fetch_openbeauty_and_pets(client: httpx.AsyncClient, barcode: str):
+    """Busca en bases de datos hermanas de OFF (Belleza y Mascotas)"""
+    urls = [
+        f"https://world.openbeautyfacts.org/api/v0/product/{barcode}.json",
+        f"https://world.openpetfoodfacts.org/api/v0/product/{barcode}.json"
+    ]
+    for url in urls:
+        try:
+            response = await client.get(url)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("status") == 1:
+                    p = data.get("product", {})
+                    return {
+                        "nombre": p.get("product_name", ""),
+                        "descripcion": p.get("brands", "")
+                    }
+        except Exception:
+            continue
+    return None
+
+# ─── ENDPOINT PRINCIPAL ─────────────────────────────────────────────────────────
+
 @router.get("/barcode/{barcode}", response_model=Optional[schemas.Producto])
-def get_producto_por_barcode(
+async def get_producto_por_barcode(
     barcode: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
@@ -31,44 +100,50 @@ def get_producto_por_barcode(
         return local_prod
 
     # 2. Si no existe en mi empresa, buscar en el SISTEMA GLOBAL (Sugerencia)
-    # Solo tomamos el nombre y unidad para evitar fugas de precios.
     global_prod = db.query(models.Producto).filter(
         models.Producto.codigo_barras == barcode
     ).first()
 
     if global_prod:
-        return models.Producto(
-            nombre=global_prod.nombre,
-            codigo_barras=barcode,
-            unidad_medida=global_prod.unidad_medida,
-            grupo_item=global_prod.grupo_item,
-            precio=0.0,
-            costo=0.0,
-            descripcion=global_prod.descripcion
-        )
+        return {
+            "id": 0, 
+            "nombre": global_prod.nombre,
+            "codigo_barras": barcode,
+            "unidad_medida": global_prod.unidad_medida,
+            "grupo_item": global_prod.grupo_item,
+            "precio": 0.0,
+            "costo": 0.0,
+            "descripcion": global_prod.descripcion,
+            "empresa_id": current_user.empresa_id
+        }
 
-    # 3. Si no existe en el sistema, buscar en API EXTERNA (Open Food Facts)
-    try:
-        url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
-        with httpx.Client(timeout=3.0) as client:
-            response = client.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("status") == 1:
-                    product = data.get("product", {})
-                    # Devolvemos un producto "fantasma" con la info de la API
-                    return models.Producto(
-                        nombre=product.get("product_name", ""),
-                        codigo_barras=barcode,
-                        unidad_medida="UND",
-                        grupo_item=2,
-                        precio=0.0,
-                        costo=0.0,
-                        descripcion=product.get("generic_name", "")
-                    )
-    except Exception as e:
-        print(f"Error consultando API externa: {e}")
+    # 3. BÚSQUEDA EN CASCADA POR APIs PÚBLICAS
+    async with httpx.AsyncClient(timeout=4.0) as client:
+        # Definimos el orden de las APIs a consultar
+        buscadores = [
+            fetch_openfoodfacts,
+            fetch_upcitemdb,
+            fetch_openbeauty_and_pets
+        ]
 
+        for buscador in buscadores:
+            resultado_api = await buscador(client, barcode)
+            
+            if resultado_api and resultado_api["nombre"]:
+                # ¡Bingo! Encontramos el producto en alguna de las APIs
+                return {
+                    "id": 0,
+                    "nombre": resultado_api["nombre"],
+                    "codigo_barras": barcode,
+                    "unidad_medida": "UND",
+                    "grupo_item": 2,
+                    "precio": 0.0,
+                    "costo": 0.0,
+                    "descripcion": resultado_api["descripcion"],
+                    "empresa_id": current_user.empresa_id
+                }
+
+    # 4. Si fallaron todas las APIs y la base de datos local
     return None
 
 @router.get("/template")
