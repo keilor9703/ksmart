@@ -1,6 +1,7 @@
 import io
 import openpyxl
-from datetime import datetime
+import pandas as pd
+from datetime import datetime, date
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, File, UploadFile
 from fastapi.responses import StreamingResponse
@@ -68,35 +69,50 @@ def get_movimientos_template(current_user: models.User = Depends(get_current_act
 @router.get("/kardex/{producto_id}", response_model=schemas.KardexResponse)
 def kardex_producto(
     producto_id: int,
-    start_date: Optional[str] = Query(None),
-    end_date: Optional[str] = Query(None),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    sd = datetime.strptime(start_date, "%Y-%m-%d") if start_date else None
-    ed = datetime.strptime(end_date, "%Y-%m-%d") if end_date else None
-    return crud.get_kardex_promedio_ponderado(db, empresa_id=current_user.empresa_id, producto_id=producto_id, start_date=sd, end_date=ed)
+    return crud.get_kardex_promedio_ponderado(db, empresa_id=current_user.empresa_id, producto_id=producto_id, start_date=start_date, end_date=end_date)
 
 @router.get("/kardex/{producto_id}/export")
-def kardex_export_csv(
+def kardex_export_excel(
     producto_id: int,
-    start_date: Optional[str] = Query(None),
-    end_date: Optional[str] = Query(None),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    sd = datetime.strptime(start_date, "%Y-%m-%d") if start_date else None
-    ed = datetime.strptime(end_date, "%Y-%m-%d") if end_date else None
-    rep = crud.get_kardex_promedio_ponderado(db, empresa_id=current_user.empresa_id, producto_id=producto_id, start_date=sd, end_date=ed)
-    lines = ["fecha,tipo,cantidad,costo_unit,referencia,saldo_cant,saldo_costo,saldo_valor"]
-    for it in rep.items:
-        lines.append(f"{it.fecha.isoformat()},{it.tipo},{it.cantidad},{it.costo_unitario},{it.referencia or ''},{it.saldo_cantidad},{it.saldo_costo_unitario},{it.saldo_valor}")
-    return Response(
-        content="\n".join(lines),
-        headers={"Content-Disposition": f'attachment; filename="kardex_{producto_id}.csv"', "Content-Type": "text/csv; charset=utf-8"}
-    )
+    rep = crud.get_kardex_promedio_ponderado(db, empresa_id=current_user.empresa_id, producto_id=producto_id, start_date=start_date, end_date=end_date)
 
-@router.post("/movimientos", response_model=schemas.InventoryMovementOut)
+    data = []
+    for it in rep.items:
+        data.append({
+            "Fecha": it.fecha.strftime("%Y-%m-%d %H:%M") if it.fecha else "",
+            "Tipo": it.tipo.capitalize(),
+            "Cantidad": it.cantidad,
+            "Costo Unit.": it.costo_unitario,
+            "Referencia": it.referencia or "",
+            "Saldo Cant.": it.saldo_cantidad,
+            "Saldo Costo": it.saldo_costo_unitario,
+            "Saldo Valor": it.saldo_valor
+        })
+
+    df = pd.DataFrame(data)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Kardex")
+
+    output.seek(0)
+
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="kardex_producto_{producto_id}.xlsx"',
+        },
+    )
 def crear_movimiento(
     payload: schemas.InventoryMovementCreate,
     db: Session = Depends(get_db),

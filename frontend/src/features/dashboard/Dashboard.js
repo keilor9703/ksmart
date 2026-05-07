@@ -11,7 +11,8 @@ import {
   TrendingUp, PointOfSale, AttachMoney, AccountBalance, 
   Business, RocketLaunch, Storefront, PeopleOutline, 
   AddShoppingCart, DirectionsRun, Savings, Gavel, 
-  Inventory2Outlined, Close, WorkspacePremium, ShoppingCart
+  Inventory2Outlined, Close, WorkspacePremium, ShoppingCart,
+  LocalParking, TwoWheeler
 } from '@mui/icons-material';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
@@ -168,6 +169,10 @@ const Dashboard = () => {
     return mods?.includes('/prestamos') && !mods?.includes('/ventas');
   }, [user]);
 
+  const esParqueadero = useMemo(() => {
+    return user?.empresa?.modulos_habilitados?.includes('/parqueadero');
+  }, [user]);
+
   const accesosRapidos = useMemo(() => {
     const todos = [
       { label: 'Simular Préstamo', icon: <AttachMoney sx={{ fontSize: 14 }} />, color: GREEN,  path: '/prestamos' },
@@ -216,14 +221,14 @@ const Dashboard = () => {
             display: 'flex', alignItems: 'center', justifyContent: 'center', 
             color: ACCENT, border: `1px solid ${ACCENT}30` 
           }}>
-            {esPrestamista ? <Savings /> : <TrendingUp />}
+            {esPrestamista ? <Savings /> : (esParqueadero ? <LocalParking /> : <TrendingUp />)}
           </Box>
           <Box>
             <Typography sx={{ fontSize: 10, fontWeight: 800, color: ACCENT, textTransform: 'uppercase', letterSpacing: 1.2, mb: 0.1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <Business sx={{ fontSize: 12 }} /> {user?.empresa?.nombre || 'Mi Empresa'}
             </Typography>
             <Typography sx={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1, color: 'text.primary' }}>
-              {esPrestamista ? 'Panel Financiero' : 'Resumen General'}
+              {esPrestamista ? 'Panel de Cobranzas' : (esParqueadero ? 'Panel de Parqueadero' : 'Resumen General')}
             </Typography>
             <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.2 }}>
               {new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}
@@ -261,6 +266,21 @@ const Dashboard = () => {
               <KpiCard title="Mora Crítica" value={data?.cuotas_mora || 0} icon={<Gavel />} color={RED} sub="Cuotas vencidas" onClick={() => navigate('/ruta-cobro')} loading={loadingMain}/>
             </Grid>
           </>
+        ) : esParqueadero ? (
+          <>
+            <Grid item xs={6} sm={3}>
+              <KpiCard title="Vehículos Dentro" value={data?.accesos_dentro?.length || 0} icon={<LocalParking />} color={BLUE} sub="Por horas" onClick={() => navigate('/parqueadero')} loading={loadingMain}/>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <KpiCard title="Ingresos Hoy" value={formatCurrency(data?.ingresos_hoy || 0)} icon={<AttachMoney />} color={GREEN} sub="Mensualidades y horas" onClick={() => navigate('/parqueadero')} loading={loadingMain}/>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <KpiCard title="Vencimientos" value={data?.vencidas || 0} icon={<Warning />} color={RED} sub="Mensualidades por cobrar" onClick={() => navigate('/parqueadero')} loading={loadingMain}/>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <KpiCard title="Caja hoy" value={formatCurrency(caja?.total_dia || 0)} icon={<PointOfSale />} color={PURPLE} loading={loadingCaja}/>
+            </Grid>
+          </>
         ) : (
           <>
             <Grid item xs={6} sm={3}>
@@ -286,30 +306,58 @@ const Dashboard = () => {
 
       {/* ── CONTENIDO PRINCIPAL ── */}
       {isZeroState ? (
-        <Paper sx={{ p: { xs: 3, md: 5 }, borderRadius: 3, boxShadow: '0 2px 24px rgba(0,0,0,0.04)', textAlign: 'center', mb: 3 }}>
-          <Box sx={{ width: 64, height: 64, borderRadius: '50%', bgcolor: `${ACCENT}15`, color: ACCENT, display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 2 }}>
-            <RocketLaunch sx={{ fontSize: 32 }} />
+        <Paper sx={{ p: { xs: 3, md: 5 }, borderRadius: 4, boxShadow: '0 10px 40px rgba(0,0,0,0.04)', textAlign: 'center', mb: 3, border: '1px solid rgba(0,0,0,0.05)', background: 'linear-gradient(to bottom, #ffffff, #fcfcfc)' }}>
+          <Box sx={{ width: 80, height: 80, borderRadius: '24px', bgcolor: `${ACCENT}10`, color: ACCENT, display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 3, transform: 'rotate(-5deg)', boxShadow: `0 8px 20px ${ACCENT}20` }}>
+            <RocketLaunch sx={{ fontSize: 40 }} />
           </Box>
-          <Typography variant="h5" sx={{ fontWeight: 800, mb: 1 }}>¡Bienvenido a Ksmart360!</Typography>
-          <Typography sx={{ color: 'text.secondary', maxWidth: 500, mx: 'auto', mb: 4 }}>
-            {esPrestamista ? 'Configura tu negocio de préstamos para empezar a recaudar intereses.' : 'Tu espacio de trabajo está listo. Sigue estos pasos para empezar a vender.'}
+          <Typography variant="h4" sx={{ fontWeight: 900, mb: 1, letterSpacing: -0.5 }}>¡Bienvenido, {user?.nombre_completo?.split(' ')[0] || 'Usuario'}!</Typography>
+          <Typography sx={{ color: 'text.secondary', maxWidth: 600, mx: 'auto', mb: 5, fontSize: 16 }}>
+            {esPrestamista 
+              ? 'Estamos listos para potenciar tu negocio de cobranzas. Sigue esta guía rápida para empezar a gestionar tus rutas y capital.' 
+              : (esParqueadero 
+                  ? 'Configura tu parqueadero y empieza a controlar los ingresos de vehículos de forma eficiente.'
+                  : 'Tu espacio de trabajo inteligente está listo. Sigue estos pasos para realizar tu primera operación.')}
           </Typography>
-          <Grid container spacing={2} justifyContent="center" sx={{ maxWidth: 900, mx: 'auto' }}>
+          
+          <Grid container spacing={3} justifyContent="center" sx={{ maxWidth: 1000, mx: 'auto' }}>
             {[
-              { title: esPrestamista ? '1. Registra Deudores' : '1. Agrega Productos', path: esPrestamista ? '/clientes' : '/productos', icon: esPrestamista ? <PeopleOutline /> : <Storefront />, color: PURPLE },
-              { title: esPrestamista ? '2. Simula un Préstamo' : '2. Registra Clientes', path: esPrestamista ? '/prestamos' : '/clientes', icon: esPrestamista ? <AttachMoney /> : <PeopleOutline />, color: BLUE },
-              { title: esPrestamista ? '3. Gestiona tus Cobros' : '3. Tu Primera Venta', path: esPrestamista ? '/ruta-cobro' : '/ventas', icon: esPrestamista ? <DirectionsRun /> : <AddShoppingCart />, color: GREEN },
+              { 
+                title: esPrestamista ? 'Registra Clientes' : (esParqueadero ? 'Configura Tarifas' : 'Agrega Productos'), 
+                desc: esPrestamista ? 'Crea tu base de deudores y rutas.' : (esParqueadero ? 'Define precios por hora y mes.' : 'Sube tu inventario inicial.'),
+                path: esPrestamista ? '/clientes' : (esParqueadero ? '/parqueadero/config' : '/productos'), 
+                icon: esPrestamista ? <PeopleOutline /> : (esParqueadero ? <Gavel /> : <Storefront />), 
+                color: PURPLE 
+              },
+              { 
+                title: esPrestamista ? 'Simula un Préstamo' : (esParqueadero ? 'Registra Vehículos' : 'Crea Clientes'), 
+                desc: esPrestamista ? 'Calcula cuotas e intereses fácilmente.' : (esParqueadero ? 'Añade motos y autos frecuentes.' : 'Organiza tu cartera de clientes.'),
+                path: esPrestamista ? '/prestamos' : (esParqueadero ? '/parqueadero/vehiculos' : '/clientes'), 
+                icon: esPrestamista ? <AttachMoney /> : (esParqueadero ? <TwoWheeler /> : <PeopleOutline />), 
+                color: BLUE 
+              },
+              { 
+                title: esPrestamista ? 'Inicia tu Ruta' : (esParqueadero ? 'Control de Accesos' : 'Primera Venta'), 
+                desc: esPrestamista ? 'Realiza los cobros del día hoy mismo.' : (esParqueadero ? 'Registra entradas y salidas.' : 'Usa el POS para facturar rápido.'),
+                path: esPrestamista ? '/ruta-cobro' : (esParqueadero ? '/parqueadero/buscar' : '/ventas'), 
+                icon: esPrestamista ? <DirectionsRun /> : (esParqueadero ? <LocalParking /> : <AddShoppingCart />), 
+                color: GREEN 
+              },
             ].map((step, idx) => (
               <Grid item xs={12} sm={4} key={idx}>
-                <CardActionArea onClick={() => navigate(step.path)} sx={{ height: '100%', borderRadius: 3 }}>
-                  <Paper sx={{ p: 3, height: '100%', borderRadius: 3, border: '1px dashed', borderColor: 'divider', transition: 'all 0.2s', '&:hover': { borderColor: step.color, bgcolor: `${step.color}05` } }}>
-                    <Box sx={{ color: step.color, mb: 1, display: 'flex', justifyContent: 'center' }}>{React.cloneElement(step.icon, { sx: { fontSize: 30 } })}</Box>
-                    <Typography sx={{ fontWeight: 700, fontSize: 15 }}>{step.title}</Typography>
+                <CardActionArea onClick={() => navigate(step.path)} sx={{ height: '100%', borderRadius: 4, transition: 'all 0.3s' }}>
+                  <Paper sx={{ p: 4, height: '100%', borderRadius: 4, border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', transition: 'all 0.3s', '&:hover': { borderColor: step.color, bgcolor: `${step.color}05`, transform: 'translateY(-5px)', boxShadow: `0 12px 30px ${step.color}15` } }}>
+                    <Box sx={{ width: 56, height: 56, borderRadius: '16px', bgcolor: `${step.color}10`, color: step.color, mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{React.cloneElement(step.icon, { sx: { fontSize: 28 } })}</Box>
+                    <Typography sx={{ fontWeight: 800, fontSize: 16, mb: 1 }}>{step.title}</Typography>
+                    <Typography sx={{ fontSize: 12, color: 'text.secondary', textAlign: 'center' }}>{step.desc}</Typography>
                   </Paper>
                 </CardActionArea>
               </Grid>
             ))}
           </Grid>
+          
+          <Box sx={{ mt: 6, pt: 4, borderTop: '1px solid', borderColor: 'divider' }}>
+            <Typography variant="caption" color="text.secondary">¿Necesitas ayuda personalizada? Contacta a nuestro equipo de soporte.</Typography>
+          </Box>
         </Paper>
       ) : (
         <Grid container spacing={1.5} sx={{ mb: 3 }}>

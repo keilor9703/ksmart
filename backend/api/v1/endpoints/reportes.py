@@ -1,6 +1,9 @@
 from typing import List, Optional
 from datetime import date, datetime, timedelta
+import io
+import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -169,26 +172,136 @@ def inventario_actual(
     return crud.get_inventario_actual(db, empresa_id=current_user.empresa_id)
 
 
-@router.get("/inventario-actual/export")
-def inventario_actual_export(
+@router.get("/rotacion", response_model=schemas.ReporteRotacion)
+def get_rotacion_productos(
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    limit: int = 10,
+    incluir_servicios: bool = False,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
-    from fastapi.responses import Response
-    snap = crud.get_inventario_actual(db, empresa_id=current_user.empresa_id)
-    lines = ["id,nombre,es_servicio,unidad,stock_actual,costo,precio,valor_costo,valor_venta"]
-    for it in snap.items:
-        lines.append(
-            f"{it.id},{it.nombre},{1 if it.es_servicio else 0},"
-            f"{it.unidad_medida or ''},{it.stock_actual},{it.costo},"
-            f"{it.precio},{it.valor_costo},{it.valor_venta}"
-        )
-    lines.append(f"TOTALS,,,,,,,{snap.total_valor_costo},{snap.total_valor_venta}")
-    return Response(
-        content="\n".join(lines),
+    return crud.get_rotacion_productos(
+        db,
+        empresa_id=current_user.empresa_id,
+        start_date=start_date,
+        end_date=end_date,
+        limit=limit,
+        incluir_servicios=incluir_servicios
+    )
+
+
+@router.get("/rotacion/export")
+def rotacion_export_excel(
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    limit: int = 10,
+    incluir_servicios: bool = False,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    rot = crud.get_rotacion_productos(
+        db,
+        empresa_id=current_user.empresa_id,
+        start_date=start_date,
+        end_date=end_date,
+        limit=limit,
+        incluir_servicios=incluir_servicios
+    )
+    
+    # Preparar datos para Top Vendidos
+    data_top = []
+    for it in rot.top:
+        data_top.append({
+            "Producto": it.nombre,
+            "Es Servicio": "Sí" if it.es_servicio else "No",
+            "Cantidad Vendida": it.total_cantidad_vendida,
+            "Total Ingresos": it.total_ingresos
+        })
+    
+    # Preparar datos para Menor Rotación
+    data_slow = []
+    for it in rot.slow:
+        data_slow.append({
+            "Producto": it.nombre,
+            "Es Servicio": "Sí" if it.es_servicio else "No",
+            "Cantidad Vendida": it.total_cantidad_vendida,
+            "Total Ingresos": it.total_ingresos
+        })
+
+    df_top = pd.DataFrame(data_top)
+    df_slow = pd.DataFrame(data_slow)
+    
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df_top.to_excel(writer, index=False, sheet_name="Más Vendidos")
+        df_slow.to_excel(writer, index=False, sheet_name="Menor Rotación")
+    
+    output.seek(0)
+    
+    filename = f"rotacion_inventario_{start_date or 'inicio'}_a_{end_date or 'hoy'}.xlsx"
+    
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
-            "Content-Disposition": 'attachment; filename="inventario_actual.csv"',
-            "Content-Type": "text/csv; charset=utf-8",
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
+
+
+@router.get("/inventario-actual/export")
+def inventario_actual_export(
+    search: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    snap = crud.get_inventario_actual(db, empresa_id=current_user.empresa_id)
+    
+    items = snap.items
+    if search:
+        search_lower = search.lower()
+        items = [it for it in items if search_lower in it.nombre.lower()]
+
+    data = []
+    total_costo = 0.0
+    total_venta = 0.0
+    for it in items:
+        data.append({
+            "ID": it.id,
+            "Nombre": it.nombre,
+            "Es Servicio": "Sí" if it.es_servicio else "No",
+            "Unidad": it.unidad_medida or "",
+            "Stock Actual": it.stock_actual,
+            "Costo Unit.": it.costo,
+            "Precio Venta": it.precio,
+            "Valor Total Costo": it.valor_costo,
+            "Valor Total Venta": it.valor_venta
+        })
+        total_costo += it.valor_costo
+        total_venta += it.valor_venta
+    
+    # Añadir fila de totales
+    data.append({
+        "ID": "", "Nombre": "TOTALES (Filtrado)" if search else "TOTALES", 
+        "Es Servicio": "", "Unidad": "", 
+        "Stock Actual": "", "Costo Unit.": "", "Precio Venta": "",
+        "Valor Total Costo": total_costo,
+        "Valor Total Venta": total_venta
+    })
+
+    df = pd.DataFrame(data)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Inventario Actual")
+    
+    output.seek(0)
+    
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": 'attachment; filename="inventario_actual.xlsx"',
         },
     )
 
@@ -247,7 +360,7 @@ def reporte_caja_rango(
         models.Venta.empresa_id == empresa_id,
         models.Venta.fecha >= start_date,
         models.Venta.fecha < end_date + timedelta(days=1),
-        models.Venta.pagada == True,
+        models.Venta.estado_pago == "pagado",
         models.Venta.monto_pagado >= models.Venta.total
     ).all()
     for v in ventas:
@@ -256,21 +369,21 @@ def reporte_caja_rango(
     # --- 2. Abonos Cartera ---
     abonos = db.query(models.Pago).filter(
         models.Pago.empresa_id == empresa_id,
-        models.Pago.fecha_pago >= start_date,
-        models.Pago.fecha_pago < end_date + timedelta(days=1)
+        models.Pago.fecha >= start_date,
+        models.Pago.fecha < end_date + timedelta(days=1)
     ).all()
     for a in abonos:
-        _acumular(_fecha_col(a.fecha_pago), a.metodo_pago, a.monto, "ingreso")
+        _acumular(_fecha_col(a.fecha), a.metodo_pago, a.monto, "ingreso")
 
     # --- 3. Cuotas Préstamo ---
     cuotas = db.query(models.CuotaPrestamo).join(models.Prestamo).filter(
         models.Prestamo.empresa_id == empresa_id,
-        models.CuotaPrestamo.fecha_pago_real >= start_date,
-        models.CuotaPrestamo.fecha_pago_real < end_date + timedelta(days=1),
-        models.CuotaPrestamo.estado == "Pagado"
+        models.CuotaPrestamo.fecha_pago >= start_date,
+        models.CuotaPrestamo.fecha_pago < end_date + timedelta(days=1),
+        models.CuotaPrestamo.estado_pago == "Pagado"
     ).all()
     for c in cuotas:
-        _acumular(_fecha_col(c.fecha_pago_real), c.metodo_pago or "Efectivo", c.monto_pagado, "ingreso")
+        _acumular(_fecha_col(c.fecha_pago), c.metodo_pago or "Efectivo", c.monto_cuota, "ingreso")
 
     # --- 4. Gastos (Egresos) ---
     gastos = db.query(models.Gasto).filter(

@@ -11,6 +11,7 @@ import {
 } from '@mui/icons-material';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
+import { toast } from 'react-toastify';
 
 const ACCENT = '#F59E0B';
 const GREEN  = '#10B981';
@@ -162,6 +163,28 @@ export default function InventoryReports() {
     finally { setRotLoading(false); }
   };
 
+  const handleExportRotacion = async () => {
+    try {
+      const params = new URLSearchParams();
+      params.set('limit', rotLimit);
+      params.set('incluir_servicios', rotIncServ);
+      if (rotStart) params.set('start_date', rotStart);
+      if (rotEnd)   params.set('end_date', rotEnd);
+
+      const res = await apiClient.get(`/reportes/rotacion/export?${params}`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      const filename = `rotacion_${rotStart || 'inicio'}_a_${rotEnd || 'hoy'}.xlsx`;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch {
+      toast.error('Error al exportar reporte de rotación');
+    }
+  };
+
   const loadKardex = async () => {
     if (!producto) return;
     setKLoading(true);
@@ -175,10 +198,46 @@ export default function InventoryReports() {
     finally { setKLoading(false); }
   };
 
+  const handleExportKardex = async () => {
+    if (!producto) return;
+    try {
+      const params = new URLSearchParams();
+      if (kStart) params.set('start_date', kStart);
+      if (kEnd)   params.set('end_date', kEnd);
+      const res = await apiClient.get(`/inventario/kardex/${producto.id}/export?${params}`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `kardex_${producto.nombre.replace(/\s+/g, '_')}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch {
+      toast.error('Error al exportar kardex');
+    }
+  };
+
   useEffect(() => {
     loadInventario();
     apiClient.get('/productos/').then(res => setProductos(res.data || []));
   }, []);
+
+  const handleExportInventario = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (invSearch) params.set('search', invSearch);
+      const res = await apiClient.get(`/reportes/inventario-actual/export?${params}`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'inventario_actual.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch {
+      toast.error('Error al exportar inventario');
+    }
+  };
 
   const invFiltered = inv.items.filter(it =>
     it.nombre.toLowerCase().includes(invSearch.toLowerCase())
@@ -269,9 +328,9 @@ export default function InventoryReports() {
                 {invLoading ? <CircularProgress size={14} /> : 'Actualizar'}
               </Button>
               <Button size="small" startIcon={<Download />} variant="contained"
-                onClick={() => window.open(`${apiClient.defaults.baseURL}/reportes/inventario-actual/export`, '_blank')}
+                onClick={handleExportInventario}
                 sx={{ background: `linear-gradient(135deg, ${ACCENT}, #fcd34d)`, borderRadius: 2, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                CSV
+                Excel
               </Button>
             </Box>
 
@@ -375,12 +434,23 @@ export default function InventoryReports() {
                   </TextField>
                 </Grid>
                 <Grid item xs={12} sm={2}>
-                  <Button variant="contained" onClick={loadRotacion} fullWidth size="small"
-                    disabled={rotLoading}
-                    startIcon={rotLoading ? <CircularProgress size={14} color="inherit" /> : <BarChart />}
-                    sx={{ background: `linear-gradient(135deg, ${ACCENT}, #fcd34d)`, borderRadius: 2, fontWeight: 600 }}>
-                    {rotLoading ? 'Cargando…' : 'Consultar'}
-                  </Button>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Button variant="contained" onClick={loadRotacion} fullWidth size="small"
+                      disabled={rotLoading}
+                      startIcon={rotLoading ? <CircularProgress size={14} color="inherit" /> : <BarChart />}
+                      sx={{ background: `linear-gradient(135deg, ${ACCENT}, #fcd34d)`, borderRadius: 2, fontWeight: 600 }}>
+                      {rotLoading ? 'Cargando…' : 'Consultar'}
+                    </Button>
+                    <Tooltip title="Exportar Rotación a Excel">
+                      <span>
+                        <Button variant="outlined" onClick={handleExportRotacion} size="small"
+                          disabled={rotLoading || !rotLoaded}
+                          sx={{ borderRadius: 2, minWidth: 44, p: 0, height: 38, borderColor: 'divider', color: 'text.secondary' }}>
+                          <Download fontSize="small" />
+                        </Button>
+                      </span>
+                    </Tooltip>
+                  </Box>
                 </Grid>
               </Grid>
             </Paper>
@@ -463,18 +533,13 @@ export default function InventoryReports() {
                   </Button>
                 </Grid>
                 <Grid item xs={4} sm={2}>
-                  <Tooltip title="Exportar Kardex a CSV">
+                  <Tooltip title="Exportar Kardex a Excel">
                     <span style={{ display: 'block' }}>
                       <Button variant="outlined" disabled={!producto} fullWidth size="small"
                         startIcon={<Download />}
-                        onClick={() => {
-                          const params = new URLSearchParams();
-                          if (kStart) params.set('start_date', kStart);
-                          if (kEnd)   params.set('end_date', kEnd);
-                          window.open(`${apiClient.defaults.baseURL}/inventario/kardex/${producto.id}/export?${params}`, '_blank');
-                        }}
+                        onClick={handleExportKardex}
                         sx={{ borderRadius: 2, fontWeight: 600, borderColor: 'divider' }}>
-                        CSV
+                        Excel
                       </Button>
                     </span>
                   </Tooltip>

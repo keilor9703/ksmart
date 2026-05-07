@@ -583,6 +583,7 @@ class CuotaPrestamo(Base, TenantMixin):
     fecha_vencimiento = Column(DateTime(timezone=True), nullable=False)
     estado_pago = Column(String, default="Pendiente") # Pendiente, Parcial, Pagado
     fecha_pago = Column(DateTime(timezone=True), nullable=True)
+    metodo_pago = Column(String, nullable=True)  # Efectivo, Transferencia, Nequi, Tarjeta
 
     # Dentro de la clase CuotaPrestamo en models.py
     usuario_asignado_id = Column(Integer, ForeignKey("users.id"), nullable=True)

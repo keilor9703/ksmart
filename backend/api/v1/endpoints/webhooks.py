@@ -11,7 +11,12 @@ logger = logging.getLogger("webhooks")
 
 @router.post("/wompi")
 async def webhook_wompi(request: Request, db: Session = Depends(get_db)):
-    payload = await request.json()
+    try:
+        payload = await request.json()
+    except Exception:
+        logger.error("⚠️ Webhook Wompi: Se recibió un body vacío o JSON inválido.")
+        return {"status": "error", "message": "Invalid JSON or empty body"}
+
     event = payload.get("event")
     data = payload.get("data", {}).get("transaction", {})
 

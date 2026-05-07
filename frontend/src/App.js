@@ -296,10 +296,12 @@ const hasAccess = useCallback((path) => {
                 {/* ⚠️ ZONA DE RUTAS (ROUTER): ⚠️ */}
                 {/* 🔹 NUEVAS RUTAS: Si creaste una nueva pantalla y quieres enlazarla a un path, AGREGALA AQUÍ. */}
                 <Routes>
-                  {/* Dashboard — sin restricción dura, el componente Dashboard ya maneja internamente quién ve qué gráficos */}
+                  {/* Dashboard — inteligente: decide qué dashboard mostrar según el tipo de empresa */}
                   <Route path="/" element={
                     ["Admin", "Socio", "Consulta"].includes(user?.role?.name)
-                      ? <Dashboard />
+                      ? (user?.empresa?.modulos_habilitados?.includes('/parqueadero') 
+                          ? <ParqueaderoDashboard /> 
+                          : <Dashboard />)
                       : <Home />
                   } />
 
