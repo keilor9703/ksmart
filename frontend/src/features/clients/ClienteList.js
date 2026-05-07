@@ -235,7 +235,7 @@ const ClienteList = ({ onEditCliente, onClienteDeleted, filterType, accentColor 
           <Table size="small">
             <TableHead>
               <TableRow>
-                {['#', 'Nombre / Razón Social', 'Cédula / NIT', 'Teléfono', 'Dirección',
+                {['ID', 'Nombre / Razón Social', 'Cédula / NIT', 'Teléfono', 'Dirección',
                   ...(filterType === 'cliente' ? ['Cupo Crédito'] : []),
                   'Tipo', 'Acciones'
                 ].map(h => <TableCell key={h}>{h}</TableCell>)}

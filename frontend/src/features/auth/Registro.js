@@ -60,6 +60,7 @@ export default function Registro() {
     // Paso 1 — Perfil del negocio
     tipo_negocio:    'erp',
     nombre_empresa:  '',
+    nit:             '', // ✨ NUEVO
     pais:            'CO',
     ciudad:          '',
     tamano_negocio:  'pequeno',
@@ -81,6 +82,7 @@ export default function Registro() {
   // ── Validación por paso ────────────────────────────────────────────────────
   const canContinueStep1 = () =>
     formData.nombre_empresa.trim().length >= 2 &&
+    formData.nit.trim().length >= 5 && // ✨ Validación básica para NIT
     formData.ciudad.trim().length >= 2 &&
     formData.pais &&
     formData.tamano_negocio &&
@@ -116,8 +118,10 @@ export default function Registro() {
     setLoading(true);
     try {
       // El backend espera estos campos. Si aún no los soporta, los ignora.
+
       await apiClient.post('/auth/register', {
         nombre_empresa:  formData.nombre_empresa.trim(),
+        nit:             formData.nit.trim(), // ✨ NUEVO: Enviar NIT
         username:        formData.username.trim().toLowerCase(),
         password:        formData.password,
         tipo_negocio:    formData.tipo_negocio,
@@ -130,6 +134,7 @@ export default function Registro() {
         tamano_negocio:  formData.tamano_negocio,
         origen:          formData.origen || null,
       });
+
       toast.success('¡Bienvenido a Ksmart360! Tu espacio fue creado.');
       navigate('/login');
     } catch (error) {
@@ -244,6 +249,16 @@ export default function Registro() {
                   value={formData.nombre_empresa}
                   onChange={update('nombre_empresa')}
                   InputProps={{ startAdornment: <InputAdornment position="start"><Business fontSize="small" /></InputAdornment> }}
+                />
+
+                {/* NIT / Cédula */}
+                <TextField
+                  fullWidth required label="NIT o Cédula de Ciudadanía"
+                  placeholder="Ej: 901.123.456-7"
+                  value={formData.nit}
+                  onChange={update('nit')}
+                  helperText="Requerido para la identificación legal de tu espacio"
+                  InputProps={{ startAdornment: <InputAdornment position="start"><CheckCircle fontSize="small" /></InputAdornment> }}
                 />
 
                 {/* País + Ciudad */}

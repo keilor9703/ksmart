@@ -543,7 +543,10 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
               filterOptions={(opts, state) => {
                 const q = (state.inputValue || '').toLowerCase().trim();
                 if (!q) return opts;
-                return opts.filter(o => o.nombre.toLowerCase().includes(q));
+                return opts.filter(o => 
+                  o.nombre.toLowerCase().includes(q) ||
+                  (o.codigo_barras && o.codigo_barras.toLowerCase().includes(q))
+                );
               }}
               noOptionsText={
                 <Box sx={{ py: 0.5 }}>
@@ -663,7 +666,10 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
                     filterOptions={(opts, state) => {
                       const q = (state.inputValue || '').toLowerCase().trim();
                       if (!q) return opts;
-                      return opts.filter(o => o.nombre.toLowerCase().includes(q));
+                      return opts.filter(o => 
+                        o.nombre.toLowerCase().includes(q) ||
+                        (o.codigo_barras && o.codigo_barras.toLowerCase().includes(q))
+                      );
                     }}
                     renderOption={(props, option) => (
                       <li {...props} key={option.id} style={{ padding: '10px 14px' }}>
@@ -742,7 +748,10 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
                     filterOptions={(opts, state) => {
                       const q = (state.inputValue || '').toLowerCase().trim();
                       if (!q) return opts;
-                      return opts.filter(o => o.nombre.toLowerCase().includes(q));
+                      return opts.filter(o => 
+                        o.nombre.toLowerCase().includes(q) ||
+                        (o.codigo_barras && o.codigo_barras.toLowerCase().includes(q))
+                      );
                     }}
                     noOptionsText={
                       <Box sx={{ py: 0.5 }}>

@@ -58,9 +58,15 @@ def crear_orden(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
+    # Por defecto, el operador es quien crea la orden (si es un operador)
+    # Pero si un Admin especifica un operador_id, se respeta.
+    op_id = current_user.id
+    if orden.operador_id and current_user.role.name == "Admin":
+        op_id = orden.operador_id
+
     return crud.create_orden_trabajo(
         db, empresa_id=current_user.empresa_id,
-        orden=orden, operador_id=current_user.id,
+        orden=orden, operador_id=op_id,
     )
 
 

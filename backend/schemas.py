@@ -30,7 +30,7 @@ class EmpresaBase(BaseModel):
         return v  # Si ya es lista o None, pasa directo
 
 class EmpresaCreate(EmpresaBase):
-    pass
+    tipo_negocio: Optional[str] = "erp"
 
 class Empresa(EmpresaBase):
     id: int
@@ -47,6 +47,9 @@ class EmpresaWithAdminCreate(BaseModel):
     empresa: EmpresaCreate
     admin_username: str
     admin_password: str
+    admin_nombre_completo: Optional[str] = None
+    admin_email: Optional[str] = None
+    admin_telefono: Optional[str] = None
 
 # =========================
 # MÓDULOS / ROLES / USUARIOS
@@ -855,6 +858,7 @@ from typing import Optional
 class RegistroSaaS(BaseModel):
     # ── Negocio (paso 1) ─────────────────────────────────────────────────────
     nombre_empresa:  str = Field(..., min_length=2, max_length=120)
+    nit:             Optional[str] = Field(None, max_length=20) # ✨ NUEVO
     tipo_negocio:    str = Field("erp", description="erp | prestamos")
     pais:            Optional[str] = Field(None, max_length=4,  description="Código país: CO, MX, PE…")
     ciudad:          Optional[str] = Field(None, max_length=80)

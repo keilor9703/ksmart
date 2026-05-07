@@ -69,7 +69,7 @@ def initialize_default_data(db: Session):
     if not empresa_default:
         empresa_default = models.Empresa(
             nombre="Vialmar Cacao (Mi Fábrica)",
-            nit="900000000-1",
+            nit="1234188418-2",
             color_primario="#F43F5E",
             is_active=True
         )
@@ -85,8 +85,8 @@ def initialize_default_data(db: Session):
         {"name": "Clientes",            "description": "Módulo para la gestión de clientes.",              "frontend_path": "/clientes"},
         {"name": "Productos",           "description": "Módulo para la gestión de productos.",             "frontend_path": "/productos"},
         {"name": "Reportes",            "description": "Módulo para la visualización de reportes.",       "frontend_path": "/reportes"},
-        {"name": "Gestion Usuarios",    "description": "Módulo de administración de usuarios.",            "frontend_path": "/admin/users"},
-        {"name": "Gestion Roles",       "description": "Módulo de administración de roles.",               "frontend_path": "/admin/roles"},
+        # {"name": "Gestion Usuarios",    "description": "Módulo de administración de usuarios.",            "frontend_path": "/admin/users"},
+        # {"name": "Gestion Roles",       "description": "Módulo de administración de roles.",               "frontend_path": "/admin/roles"},
         {"name": "Gestion Modulos",     "description": "Módulo de administración de módulos.",             "frontend_path": "/admin/modules"},
         {"name": "Órdenes de Trabajo",  "description": "Módulo para la gestión de órdenes de trabajo.",  "frontend_path": "/ordenes-trabajo"},
         {"name": "Panel del Operador",  "description": "Panel de productividad para operadores.",          "frontend_path": "/panel-operador"},

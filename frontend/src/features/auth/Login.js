@@ -121,6 +121,7 @@ const Login = ({ onLogin }) => {
     const initialRegState = {
         tipo_negocio:    'erp',
         nombre_empresa:  '',
+        nit:             '', // ✨ NUEVO
         pais:            'CO',
         ciudad:          '',
         tamano_negocio:  'pequeno',
@@ -138,6 +139,7 @@ const Login = ({ onLogin }) => {
 
     const canContinueStep1 = () =>
         regData.nombre_empresa.trim().length >= 2 &&
+        regData.nit.trim().length >= 5 && // ✨ NUEVO: Validación NIT
         regData.ciudad.trim().length >= 2 &&
         regData.pais &&
         regData.tamano_negocio &&
@@ -212,6 +214,7 @@ const Login = ({ onLogin }) => {
         try {
             await apiClient.post('/auth/register', {
                 nombre_empresa:  regData.nombre_empresa.trim(),
+                nit:             regData.nit.trim(), // ✨ NUEVO: Enviar NIT
                 username:        regData.username.trim().toLowerCase(),
                 password:        regData.password,
                 tipo_negocio:    regData.tipo_negocio,
@@ -563,6 +566,17 @@ const Login = ({ onLogin }) => {
                                             value={regData.nombre_empresa}
                                             onChange={updateReg('nombre_empresa')}
                                             InputProps={{ startAdornment: <InputAdornment position="start"><Business /></InputAdornment> }}
+                                        />
+
+                                        {/* NIT / Cédula */}
+                                        <TextField
+                                            fullWidth label="NIT o Cédula de Ciudadanía" required
+                                            className="orange-field" sx={fieldSx}
+                                            placeholder="Ej: 901.123.456-7"
+                                            value={regData.nit}
+                                            onChange={updateReg('nit')}
+                                            helperText="Requerido para la identificación legal de tu espacio"
+                                            InputProps={{ startAdornment: <InputAdornment position="start"><CheckCircle /></InputAdornment> }}
                                         />
 
                                         <Grid container spacing={1.5}>

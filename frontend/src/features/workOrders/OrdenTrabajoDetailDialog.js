@@ -4,9 +4,15 @@ import {
     Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, Divider, List, ListItem, ListItemText
 } from '@mui/material';
 import { formatCurrency } from '../../utils/formatters';
+import apiClient from '../../api';
 
 const OrdenTrabajoDetailDialog = ({ open, handleClose, orden }) => {
     if (!orden) return null;
+
+    const getFileUrl = (path) => {
+        const base = apiClient.defaults.baseURL;
+        return `${base}/${path}`;
+    };
 
     return (
         <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
@@ -65,7 +71,7 @@ const OrdenTrabajoDetailDialog = ({ open, handleClose, orden }) => {
                             {orden.evidencias.map(item => (
                                 <ListItem key={item.id}>
                                     <ListItemText
-                                        primary={<a href={`http://localhost:8000/${item.file_path}`} target="_blank" rel="noopener noreferrer">{item.file_path.split('/').pop()}</a>}
+                                        primary={<a href={getFileUrl(item.file_path)} target="_blank" rel="noopener noreferrer">{item.file_path.split('/').pop()}</a>}
                                         secondary={`Subido el: ${new Date(item.uploaded_at + 'Z').toLocaleString()}`}
                                     />
                                 </ListItem>

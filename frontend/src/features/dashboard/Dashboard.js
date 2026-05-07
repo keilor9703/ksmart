@@ -28,26 +28,30 @@ const YELLOW  = '#F59E0B';
 const RED     = '#EF4444';
 const PURPLE  = '#8B5CF6';
 
-const KpiCard = ({ title, value, icon, color, sub, onClick, loading }) => (
-  <Paper onClick={onClick} sx={{
-    p: 1.5, borderRadius: 3,
-    display: 'flex', alignItems: 'center', gap: 1.5,
-    boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
-    cursor: onClick ? 'pointer' : 'default',
-    transition: 'transform 0.15s, box-shadow 0.15s',
-    width: '100%', boxSizing: 'border-box',
-    '&:hover': onClick ? { transform: 'translateY(-2px)', boxShadow: '0 6px 20px rgba(0,0,0,0.1)' } : {},
-  }}>
-    <Box sx={{ width: 40, height: 40, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: `${color}18`, color }}>
-      {icon}
-    </Box>
-    <Box sx={{ minWidth: 0, flex: 1 }}>
-      <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 500 }}>{title}</Typography>
-      {loading ? <Skeleton width={80} height={24} /> : <Typography sx={{ fontSize: 17, fontWeight: 800, lineHeight: 1.2 }}>{value}</Typography>}
-      {sub && !loading && <Typography sx={{ fontSize: 10, color: 'text.secondary', mt: 0.2 }}>{sub}</Typography>}
-    </Box>
-  </Paper>
-);
+const KpiCard = ({ title, value, icon, color, sub, onClick, loading }) => {
+  const theme = useTheme();
+  return (
+    <Paper onClick={onClick} sx={{
+      p: 1.5, borderRadius: 3,
+      display: 'flex', alignItems: 'center', gap: 1.5,
+      boxShadow: theme.palette.mode === 'dark' ? '0 2px 12px rgba(0,0,0,0.3)' : '0 2px 12px rgba(0,0,0,0.06)',
+      cursor: onClick ? 'pointer' : 'default',
+      transition: 'transform 0.15s, box-shadow 0.15s',
+      width: '100%', boxSizing: 'border-box',
+      bgcolor: 'background.paper',
+      '&:hover': onClick ? { transform: 'translateY(-2px)', boxShadow: theme.palette.mode === 'dark' ? '0 6px 20px rgba(0,0,0,0.4)' : '0 6px 20px rgba(0,0,0,0.1)' } : {},
+    }}>
+      <Box sx={{ width: 40, height: 40, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: `${color}18`, color }}>
+        {icon}
+      </Box>
+      <Box sx={{ minWidth: 0, flex: 1 }}>
+        <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 500 }}>{title}</Typography>
+        {loading ? <Skeleton width={80} height={24} /> : <Typography sx={{ fontSize: 17, fontWeight: 800, lineHeight: 1.2, color: 'text.primary' }}>{value}</Typography>}
+        {sub && !loading && <Typography sx={{ fontSize: 10, color: 'text.secondary', mt: 0.2 }}>{sub}</Typography>}
+      </Box>
+    </Paper>
+  );
+};
 
 
 
@@ -239,8 +243,14 @@ const Dashboard = () => {
 
       {/* ── TRIAL BANNER ── */}
       {user?.empresa?.plan_type === 'trial' && user?.empresa_id !== 1 && diasRestantes > 0 && (
-        <Box sx={{ mb: 3, p: 1.5, borderRadius: 2, bgcolor: '#EFF6FF', border: '1px solid #BFDBFE', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
-          <Typography sx={{ fontSize: 12, color: '#1E3A8A', fontWeight: 600 }}>
+        <Box sx={{ 
+          mb: 3, p: 1.5, borderRadius: 2, 
+          bgcolor: theme.palette.mode === 'dark' ? 'rgba(37, 99, 235, 0.15)' : '#EFF6FF', 
+          border: '1px solid',
+          borderColor: theme.palette.mode === 'dark' ? 'rgba(37, 99, 235, 0.3)' : '#BFDBFE', 
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 
+        }}>
+          <Typography sx={{ fontSize: 12, color: theme.palette.mode === 'dark' ? '#93C5FD' : '#1E3A8A', fontWeight: 600 }}>
             ⏱ Estás en tu periodo de prueba. Te quedan {diasRestantes} días gratis.
           </Typography>
           <Button size="small" variant="contained" onClick={handleOpenUpgrade} sx={{ bgcolor: '#2563EB', fontSize: 11, fontWeight: 700, boxShadow: 'none' }}>
@@ -306,11 +316,21 @@ const Dashboard = () => {
 
       {/* ── CONTENIDO PRINCIPAL ── */}
       {isZeroState ? (
-        <Paper sx={{ p: { xs: 3, md: 5 }, borderRadius: 4, boxShadow: '0 10px 40px rgba(0,0,0,0.04)', textAlign: 'center', mb: 3, border: '1px solid rgba(0,0,0,0.05)', background: 'linear-gradient(to bottom, #ffffff, #fcfcfc)' }}>
+        <Paper sx={{ 
+          p: { xs: 3, md: 5 }, 
+          borderRadius: 4, 
+          textAlign: 'center', 
+          mb: 3, 
+          border: '1px solid',
+          borderColor: 'divider',
+          bgcolor: 'background.paper',
+          backgroundImage: 'none',
+          boxShadow: theme.palette.mode === 'dark' ? '0 10px 40px rgba(0,0,0,0.3)' : '0 10px 40px rgba(0,0,0,0.04)',
+        }}>
           <Box sx={{ width: 80, height: 80, borderRadius: '24px', bgcolor: `${ACCENT}10`, color: ACCENT, display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 3, transform: 'rotate(-5deg)', boxShadow: `0 8px 20px ${ACCENT}20` }}>
             <RocketLaunch sx={{ fontSize: 40 }} />
           </Box>
-          <Typography variant="h4" sx={{ fontWeight: 900, mb: 1, letterSpacing: -0.5 }}>¡Bienvenido, {user?.nombre_completo?.split(' ')[0] || 'Usuario'}!</Typography>
+          <Typography variant="h4" sx={{ fontWeight: 900, mb: 1, letterSpacing: -0.5, color: 'text.primary' }}>¡Bienvenido, {user?.nombre_completo?.split(' ')[0] || 'Usuario'}!</Typography>
           <Typography sx={{ color: 'text.secondary', maxWidth: 600, mx: 'auto', mb: 5, fontSize: 16 }}>
             {esPrestamista 
               ? 'Estamos listos para potenciar tu negocio de cobranzas. Sigue esta guía rápida para empezar a gestionar tus rutas y capital.' 
@@ -345,9 +365,21 @@ const Dashboard = () => {
             ].map((step, idx) => (
               <Grid item xs={12} sm={4} key={idx}>
                 <CardActionArea onClick={() => navigate(step.path)} sx={{ height: '100%', borderRadius: 4, transition: 'all 0.3s' }}>
-                  <Paper sx={{ p: 4, height: '100%', borderRadius: 4, border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', transition: 'all 0.3s', '&:hover': { borderColor: step.color, bgcolor: `${step.color}05`, transform: 'translateY(-5px)', boxShadow: `0 12px 30px ${step.color}15` } }}>
+                  <Paper sx={{ 
+                    p: 4, 
+                    height: '100%', 
+                    borderRadius: 4, 
+                    border: '1px solid', 
+                    borderColor: 'divider', 
+                    bgcolor: 'background.paper',
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    transition: 'all 0.3s', 
+                    '&:hover': { borderColor: step.color, bgcolor: `${step.color}05`, transform: 'translateY(-5px)', boxShadow: `0 12px 30px ${step.color}15` } 
+                  }}>
                     <Box sx={{ width: 56, height: 56, borderRadius: '16px', bgcolor: `${step.color}10`, color: step.color, mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{React.cloneElement(step.icon, { sx: { fontSize: 28 } })}</Box>
-                    <Typography sx={{ fontWeight: 800, fontSize: 16, mb: 1 }}>{step.title}</Typography>
+                    <Typography sx={{ fontWeight: 800, fontSize: 16, mb: 1, color: 'text.primary' }}>{step.title}</Typography>
                     <Typography sx={{ fontSize: 12, color: 'text.secondary', textAlign: 'center' }}>{step.desc}</Typography>
                   </Paper>
                 </CardActionArea>
@@ -362,10 +394,19 @@ const Dashboard = () => {
       ) : (
         <Grid container spacing={1.5} sx={{ mb: 3 }}>
           <Grid item xs={12} md={8}>
-            <Paper sx={{ p: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', height: '100%', boxSizing: 'border-box' }}>
+            <Paper sx={{ 
+              p: 2, 
+              borderRadius: 3, 
+              bgcolor: 'background.paper',
+              border: '1px solid',
+              borderColor: 'divider',
+              height: '100%', 
+              boxSizing: 'border-box',
+              boxShadow: theme.palette.mode === 'dark' ? '0 2px 12px rgba(0,0,0,0.3)' : '0 2px 12px rgba(0,0,0,0.06)',
+            }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1, flexWrap: 'wrap', gap: 1 }}>
                 <Box>
-                  <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{esPrestamista ? 'Historial de Recaudos' : 'Ventas — últimos 30 días'}</Typography>
+                  <Typography sx={{ fontWeight: 700, fontSize: 14, color: 'text.primary' }}>{esPrestamista ? 'Historial de Recaudos' : 'Ventas — últimos 30 días'}</Typography>
                   <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Total: <strong>{formatCurrency(totalUltimos30)}</strong></Typography>
                 </Box>
                 {mejorDia.total > 0 && <Chip label={`🏆 Mejor: ${formatCurrency(mejorDia.total)}`} size="small" sx={{ bgcolor: `${ACCENT}12`, color: ACCENT, fontWeight: 700, fontSize: 10 }} />}
@@ -374,10 +415,18 @@ const Dashboard = () => {
             </Paper>
           </Grid>
           <Grid item xs={12} md={4}>
-            <Paper sx={{ p: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', boxSizing: 'border-box' }}>
+            <Paper sx={{ 
+              p: 2, 
+              borderRadius: 3, 
+              bgcolor: 'background.paper',
+              border: '1px solid',
+              borderColor: 'divider',
+              boxSizing: 'border-box',
+              boxShadow: theme.palette.mode === 'dark' ? '0 2px 12px rgba(0,0,0,0.3)' : '0 2px 12px rgba(0,0,0,0.06)',
+            }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                 <PointOfSale sx={{ color: YELLOW, fontSize: 16 }} />
-                <Typography sx={{ fontWeight: 700, fontSize: 13 }}>Caja actual</Typography>
+                <Typography sx={{ fontWeight: 700, fontSize: 13, color: 'text.primary' }}>Caja actual</Typography>
               </Box>
               {caja ? (
                 <>
@@ -385,7 +434,7 @@ const Dashboard = () => {
                   <MetodoBarra icon={<AccountBalance sx={{ fontSize: 13 }} />} label="Transferencia" value={caja.transferencia} total={caja.total_dia} color={BLUE} />
                   <Divider sx={{ my: 1 }} />
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography sx={{ fontSize: 12, fontWeight: 700 }}>Saldo Neto</Typography>
+                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.primary' }}>Saldo Neto</Typography>
                     <Typography sx={{ fontSize: 14, fontWeight: 800, color: YELLOW }}>{formatCurrency(caja.total_dia - (caja.total_gastos || 0))}</Typography>
                   </Box>
                 </>
@@ -398,7 +447,15 @@ const Dashboard = () => {
       {/* ── ACCESOS RÁPIDOS ── */}
       <Grid container spacing={1.5}>
         <Grid item xs={12}>
-          <Paper sx={{ p: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', boxSizing: 'border-box' }}>
+          <Paper sx={{ 
+            p: 2, 
+            borderRadius: 3, 
+            bgcolor: 'background.paper',
+            border: '1px solid',
+            borderColor: 'divider',
+            boxSizing: 'border-box',
+            boxShadow: theme.palette.mode === 'dark' ? '0 2px 12px rgba(0,0,0,0.3)' : '0 2px 12px rgba(0,0,0,0.06)',
+          }}>
             <Typography sx={{ fontWeight: 700, fontSize: 10, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 1.5 }}>Acceso rápido autorizado</Typography>
             <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
               {accesosRapidos.map(({ label, icon, color, path }) => (

@@ -119,8 +119,13 @@ export default function GestionSaaS() {
   const [filterState, setFilterState] = useState('all');
 
   const [openDialogEmpresa, setOpenDialogEmpresa] = useState(false);
-  // ✅ ACTUALIZADO: Añadido "tipo_negocio" al formulario manual
-  const [formEmpresa, setFormEmpresa] = useState({ nombre: '', nit: '', admin_username: '', admin_password: '', tipo_negocio: 'erp' });
+  // ✅ ACTUALIZADO: Añadido campos completos para el administrador
+  const [formEmpresa, setFormEmpresa] = useState({ 
+    nombre: '', nit: '', 
+    admin_username: '', admin_password: '', 
+    admin_nombre_completo: '', admin_email: '', admin_telefono: '',
+    tipo_negocio: 'erp' 
+  });
   
   const [openPlanDialog, setOpenPlanDialog] = useState(false);
   const [empresaSeleccionada, setEmpresaSeleccionada] = useState(null);
@@ -151,19 +156,28 @@ export default function GestionSaaS() {
   const handleSubmitEmpresa = async (e) => {
     e.preventDefault(); setLoading(true);
     try {
-      // ✅ ACTUALIZADO: Para evitar que tengas que hacer un endpoint de SuperAdmin nuevo,
-      // la forma más elegante es re-utilizar el `/auth/register` (ya que hace exactamente la magia de los módulos)
-      await apiClient.post('/auth/register', { 
-        nombre_empresa: formEmpresa.nombre, 
-        nit: formEmpresa.nit,
-        username: formEmpresa.admin_username,
-        password: formEmpresa.admin_password,
-        tipo_negocio: formEmpresa.tipo_negocio // 👈 Esto asigna los módulos correctos
+      // ✅ ACTUALIZADO: Usando el endpoint de SuperAdmin con el payload sincronizado
+      await apiClient.post('/superadmin/empresas', { 
+        empresa: {
+          nombre: formEmpresa.nombre, 
+          nit: formEmpresa.nit,
+          tipo_negocio: formEmpresa.tipo_negocio
+        },
+        admin_username: formEmpresa.admin_username,
+        admin_password: formEmpresa.admin_password,
+        admin_nombre_completo: formEmpresa.admin_nombre_completo,
+        admin_email: formEmpresa.admin_email,
+        admin_telefono: formEmpresa.admin_telefono
       });
       
-      toast.success('Empresa registrada con 14 días de prueba y módulos automáticos.');
+      toast.success('Empresa registrada con éxito.');
       setOpenDialogEmpresa(false); 
-      setFormEmpresa({ nombre: '', nit: '', admin_username: '', admin_password: '', tipo_negocio: 'erp' }); 
+      setFormEmpresa({ 
+        nombre: '', nit: '', 
+        admin_username: '', admin_password: '', 
+        admin_nombre_completo: '', admin_email: '', admin_telefono: '',
+        tipo_negocio: 'erp' 
+      }); 
       fetchEmpresas();
     } catch (err) { toast.error('Error al crear la empresa. ' + (err.response?.data?.detail || '')); } finally { setLoading(false); }
   };
@@ -442,34 +456,64 @@ export default function GestionSaaS() {
 
       {/* ── Modales Base ── */}
       <Dialog open={openDialogEmpresa} onClose={() => setOpenDialogEmpresa(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
-         <DialogTitle>Alta de Cliente</DialogTitle>
+         <DialogTitle sx={{ fontWeight: 800 }}>Alta de Nuevo Cliente SaaS</DialogTitle>
          <form onSubmit={handleSubmitEmpresa}>
             <DialogContent dividers>
-              <Stack spacing={2.5}>
-                {/* ✅ AÑADIDO: Selector de Tipo de Negocio (Igual al Login) */}
-                <TextField 
-                  select 
-                  label="Tipo de Negocio (Módulos)" 
-                  value={formEmpresa.tipo_negocio} 
-                  onChange={e => setFormEmpresa({...formEmpresa, tipo_negocio: e.target.value})} 
-                  fullWidth 
-                  size="small"
-                  helperText="Esto define qué menús verá la empresa al iniciar sesión."
-                >
-                  <MenuItem value="erp">Comercio / ERP (Ventas, Inv, Cajas...)</MenuItem>
-                  <MenuItem value="prestamos">Prestamista (Cartera, Rutas...)</MenuItem>
-                </TextField>
+              <Stack spacing={3}>
+                <Box>
+                  <Typography variant="caption" sx={{ fontWeight: 800, color: ACCENT, textTransform: 'uppercase' }}>Información del Negocio</Typography>
+                  <Grid container spacing={2} sx={{ mt: 0.5 }}>
+                    <Grid item xs={12} sm={8}>
+                      <TextField label="Nombre de la Empresa" required fullWidth size="small" value={formEmpresa.nombre} onChange={e => setFormEmpresa({...formEmpresa, nombre: e.target.value})} />
+                    </Grid>
+                    <Grid item xs={12} sm={4}>
+                      <TextField label="NIT / Cédula" fullWidth size="small" value={formEmpresa.nit} onChange={e => setFormEmpresa({...formEmpresa, nit: e.target.value})} />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField 
+                        select 
+                        label="Tipo de Negocio (Perfiles de Módulos)" 
+                        value={formEmpresa.tipo_negocio} 
+                        onChange={e => setFormEmpresa({...formEmpresa, tipo_negocio: e.target.value})} 
+                        fullWidth 
+                        size="small"
+                        helperText="Habilita automáticamente los módulos correspondientes."
+                      >
+                        <MenuItem value="erp">Comercio / ERP (Ventas, Inventario, Producción...)</MenuItem>
+                        <MenuItem value="prestamos">Prestamista (Cartera, Cuotas, Cobros...)</MenuItem>
+                        <MenuItem value="parqueadero">Parqueadero (Mensualidades, Entradas/Salidas...)</MenuItem>
+                      </TextField>
+                    </Grid>
+                  </Grid>
+                </Box>
 
-                <TextField label="Nombre de la Empresa" required size="small" value={formEmpresa.nombre} onChange={e => setFormEmpresa({...formEmpresa, nombre: e.target.value})} />
-                <TextField label="NIT o Cédula" size="small" value={formEmpresa.nit} onChange={e => setFormEmpresa({...formEmpresa, nit: e.target.value})} />
-                <Divider sx={{ my: 1 }} />
-                <TextField label="Usuario Admin (Log-in)" required size="small" value={formEmpresa.admin_username} onChange={e => setFormEmpresa({...formEmpresa, admin_username: e.target.value})} />
-                <TextField label="Password" required type="password" size="small" value={formEmpresa.admin_password} onChange={e => setFormEmpresa({...formEmpresa, admin_password: e.target.value})} />
+                <Divider />
+
+                <Box>
+                  <Typography variant="caption" sx={{ fontWeight: 800, color: BLUE, textTransform: 'uppercase' }}>Información del Administrador</Typography>
+                  <Grid container spacing={2} sx={{ mt: 0.5 }}>
+                    <Grid item xs={12}>
+                      <TextField label="Nombre Completo" fullWidth size="small" value={formEmpresa.admin_nombre_completo} onChange={e => setFormEmpresa({...formEmpresa, admin_nombre_completo: e.target.value})} />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField label="Email de Contacto" type="email" fullWidth size="small" value={formEmpresa.admin_email} onChange={e => setFormEmpresa({...formEmpresa, admin_email: e.target.value})} />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField label="Teléfono / WhatsApp" fullWidth size="small" value={formEmpresa.admin_telefono} onChange={e => setFormEmpresa({...formEmpresa, admin_telefono: e.target.value})} />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField label="Usuario (Log-in)" required fullWidth size="small" value={formEmpresa.admin_username} onChange={e => setFormEmpresa({...formEmpresa, admin_username: e.target.value})} />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField label="Password Inicial" required type="password" fullWidth size="small" value={formEmpresa.admin_password} onChange={e => setFormEmpresa({...formEmpresa, admin_password: e.target.value})} />
+                    </Grid>
+                  </Grid>
+                </Box>
               </Stack>
             </DialogContent>
-            <DialogActions sx={{ p: 2 }}>
+            <DialogActions sx={{ p: 2.5 }}>
                 <Button onClick={() => setOpenDialogEmpresa(false)} variant="outlined" sx={{ borderRadius: 2 }}>Cancelar</Button>
-                <Button type="submit" variant="contained" disabled={loading} sx={{ bgcolor: ACCENT, borderRadius: 2 }}>Crear Inquilino</Button>
+                <Button type="submit" variant="contained" disabled={loading} sx={{ bgcolor: ACCENT, borderRadius: 2, px: 4, fontWeight: 700 }}>Crear Inquilino</Button>
             </DialogActions>
          </form>
       </Dialog>

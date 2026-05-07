@@ -1,25 +1,27 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import apiClient, { getPanelOperadorPendientes, getPanelOperadorProductividad, getPanelOperadorHistorial } from '../../api';
 import {
   Box, Typography, Grid, Card, CardContent, CircularProgress, Alert,
   List, ListItem, ListItemText, Divider, Chip, Tabs, Tab,
   TableContainer, Table, TableBody, TableCell, TableHead, TableRow, Paper,
-  useMediaQuery, useTheme, Button, TextField, Stack, IconButton
+  useMediaQuery, useTheme, Button, TextField, Stack, IconButton, Tooltip
 } from '@mui/material';
 import { Doughnut } from 'react-chartjs-2';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
+import { Chart as ChartJS, ArcElement, Tooltip as ChartTooltip, Legend } from 'chart.js';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
 import {
   Assignment, TrendingUp, CheckCircle, PendingActions,
-  Refresh, CalendarToday, PrecisionManufacturing, PlayArrow, Check
+  Refresh, CalendarToday, PrecisionManufacturing, PlayArrow, Check,
+  Visibility, PhotoCamera, AttachFile
 } from '@mui/icons-material';
 import { formatCurrency } from '../../utils/formatters';
 import { toast } from 'react-toastify';
+import OrdenTrabajoDetailDialog from './OrdenTrabajoDetailDialog';
 
-ChartJS.register(ArcElement, Tooltip, Legend);
+ChartJS.register(ArcElement, ChartTooltip, Legend);
 
 const ACCENT = '#14B8A6'; 
 const GREEN = '#10B981';
@@ -48,7 +50,9 @@ const KpiCard = ({ label, value, icon, color, subtitle }) => (
   </Paper>
 );
 
-const OrdenCard = ({ orden, onIniciar, onTerminar }) => {
+const OrdenCard = ({ orden, onIniciar, onTerminar, onView, onUploadEvidence }) => {
+  const fileInputRef = useRef(null);
+
   const getEstadoChip = (estado) => {
     const map = {
       'Pendiente': { label: 'Pendiente', color: 'info' },
@@ -59,6 +63,12 @@ const OrdenCard = ({ orden, onIniciar, onTerminar }) => {
     return <Chip label={props.label} color={props.color} size="small" sx={{ fontWeight: 600, fontSize: 11, borderRadius: 1.5 }} />;
   };
 
+  const handleFileChange = (e) => {
+    if (e.target.files?.[0]) {
+      onUploadEvidence(orden.id, e.target.files[0]);
+    }
+  };
+
   return (
     <Paper sx={{ p: 2.5, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
@@ -66,8 +76,27 @@ const OrdenCard = ({ orden, onIniciar, onTerminar }) => {
           <Typography sx={{ fontWeight: 700, fontSize: 15 }}>Orden #{orden.id}</Typography>
           <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{orden.cliente_nombre}</Typography>
         </Box>
-        {getEstadoChip(orden.estado)}
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          <IconButton size="small" onClick={() => onView(orden)} sx={{ color: BLUE }}>
+            <Visibility fontSize="small" />
+          </IconButton>
+          {getEstadoChip(orden.estado)}
+        </Box>
       </Box>
+      
+      <Box sx={{ mb: 1.5 }}>
+        {orden.servicios?.length > 0 && (
+            <Typography sx={{ fontSize: 12, fontWeight: 600, color: BLUE, mb: 0.5 }}>
+                🛠 {orden.servicios.map(s => s.servicio.nombre).join(', ')}
+            </Typography>
+        )}
+        {orden.productos?.length > 0 && (
+            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                📦 {orden.productos.map(p => `${p.producto.nombre} (x${p.cantidad})`).join(', ')}
+            </Typography>
+        )}
+      </Box>
+
       <Divider sx={{ my: 1.5 }} />
       <Grid container spacing={1} sx={{ mb: 1.5 }}>
         <Grid item xs={6}><Box sx={{ textAlign: 'center', p: 1, borderRadius: 2, bgcolor: 'action.hover' }}><Typography sx={{ fontSize: 10, color: 'text.secondary', mb: 0.2 }}>Total</Typography><Typography sx={{ fontSize: 13, fontWeight: 700 }}>{formatCurrency(orden.total)}</Typography></Box></Grid>
@@ -75,30 +104,45 @@ const OrdenCard = ({ orden, onIniciar, onTerminar }) => {
       </Grid>
       
       {/* ── BOTONES DE ACCIÓN PARA OPERADOR ── */}
-      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 2 }}>
-        {orden.estado === 'Pendiente' && (
-          <Button size="small" variant="contained" color="info" startIcon={<PlayArrow />} onClick={() => onIniciar(orden.id)} sx={{ borderRadius: 2, fontWeight: 700 }}>
-            Iniciar Trabajo
-          </Button>
-        )}
-        {orden.estado === 'Iniciada' && (
-          <Button size="small" variant="contained" color="primary" startIcon={<Check />} onClick={() => onTerminar(orden.id)} sx={{ borderRadius: 2, fontWeight: 700 }}>
-            Terminar y Enviar
-          </Button>
-        )}
+      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
+        <Box>
+            <input type="file" hidden ref={fileInputRef} onChange={handleFileChange} accept="image/*" />
+            <Tooltip title="Subir evidencia/foto">
+                <IconButton size="small" onClick={() => fileInputRef.current?.click()} sx={{ color: ACCENT, bgcolor: `${ACCENT}12` }}>
+                    <PhotoCamera fontSize="small" />
+                </IconButton>
+            </Tooltip>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+            {orden.estado === 'Pendiente' && (
+            <Button size="small" variant="contained" color="info" startIcon={<PlayArrow />} onClick={() => onIniciar(orden.id)} sx={{ borderRadius: 2, fontWeight: 700 }}>
+                Iniciar
+            </Button>
+            )}
+            {orden.estado === 'Iniciada' && (
+            <Button size="small" variant="contained" color="primary" startIcon={<Check />} onClick={() => onTerminar(orden.id)} sx={{ borderRadius: 2, fontWeight: 700 }}>
+                Terminar
+            </Button>
+            )}
+        </Box>
       </Box>
     </Paper>
   );
 };
 
-const HistorialCard = ({ orden }) => (
+const HistorialCard = ({ orden, onView }) => (
   <Paper sx={{ p: 2.5, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
       <Box>
         <Typography sx={{ fontWeight: 700, fontSize: 15 }}>Orden #{orden.id}</Typography>
         <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{orden.cliente_nombre}</Typography>
       </Box>
-      <Chip label={orden.estado_pago_venta === 'pagado' ? 'Pagado' : 'Pendiente'} color={orden.estado_pago_venta === 'pagado' ? 'success' : 'warning'} size="small" sx={{ fontWeight: 600, fontSize: 10, borderRadius: 1.5 }} />
+      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+        <IconButton size="small" onClick={() => onView(orden)} sx={{ color: BLUE }}>
+            <Visibility fontSize="small" />
+        </IconButton>
+        <Chip label={orden.estado_pago_venta === 'pagado' ? 'Pagado' : 'Pendiente'} color={orden.estado_pago_venta === 'pagado' ? 'success' : 'warning'} size="small" sx={{ fontWeight: 600, fontSize: 10, borderRadius: 1.5 }} />
+      </Box>
     </Box>
     <Divider sx={{ my: 1.5 }} />
     <Grid container spacing={1}>
@@ -120,6 +164,9 @@ const PanelOperador = () => {
   const [currentTab, setCurrentTab] = useState(0);
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
+
+  const [selectedOrden, setSelectedOrden] = useState(null);
+  const [showDetailDialog, setShowDetailDialog] = useState(false);
 
   const fetchPanelData = useCallback(async () => {
     try {
@@ -154,6 +201,25 @@ const PanelOperador = () => {
         toast.success("Orden terminada y enviada a revisión");
         fetchPanelData();
     } catch (e) { toast.error("Error al terminar la orden"); }
+  };
+
+  const handleViewDetails = async (ordenSummary) => {
+    try {
+        const res = await apiClient.get(`/ordenes-trabajo/${ordenSummary.id}`);
+        setSelectedOrden(res.data);
+        setShowDetailDialog(true);
+    } catch (e) { toast.error("Error al cargar detalles"); }
+  };
+
+  const handleUploadEvidence = async (id, file) => {
+    try {
+        const formData = new FormData();
+        formData.append("file", file);
+        await apiClient.post(`/ordenes-trabajo/${id}/evidencia`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        toast.success("Evidencia subida correctamente");
+    } catch (e) { toast.error("Error al subir evidencia"); }
   };
 
   const handleTabChange = (event, newValue) => setCurrentTab(newValue);
@@ -200,7 +266,7 @@ const PanelOperador = () => {
                 {pendientes.length === 0 ? (
                   <Box sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}><CheckCircle sx={{ fontSize: 48, mb: 1, opacity: 0.3 }} /><Typography>No hay órdenes pendientes</Typography></Box>
                 ) : (
-                  pendientes.map(orden => <OrdenCard key={orden.id} orden={orden} onIniciar={handleIniciar} onTerminar={handleTerminar} />)
+                  pendientes.map(orden => <OrdenCard key={orden.id} orden={orden} onIniciar={handleIniciar} onTerminar={handleTerminar} onView={handleViewDetails} onUploadEvidence={handleUploadEvidence} />)
                 )}
               </Box>
             ) : (
@@ -208,12 +274,12 @@ const PanelOperador = () => {
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      {['ID', 'Cliente', 'Estado', 'Productos', 'Total', 'Acciones'].map(h => <TableCell key={h} sx={{ fontWeight: 600 }}>{h}</TableCell>)}
+                      {['ID', 'Cliente', 'Estado', 'Servicios', 'Productos', 'Total', 'Acciones'].map(h => <TableCell key={h} sx={{ fontWeight: 600 }}>{h}</TableCell>)}
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {pendientes.length === 0 ? (
-                      <TableRow><TableCell colSpan={6} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>No hay órdenes pendientes</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={7} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>No hay órdenes pendientes</TableCell></TableRow>
                     ) : (
                       pendientes.map(orden => (
                         <TableRow key={orden.id} hover>
@@ -222,21 +288,37 @@ const PanelOperador = () => {
                           <TableCell>
                             <Chip label={orden.estado} color={orden.estado === 'Iniciada' ? 'primary' : 'info'} size="small" sx={{ fontWeight: 600, fontSize: 10, borderRadius: 1.5 }} />
                           </TableCell>
+                          <TableCell sx={{ fontSize: 11, color: BLUE, fontWeight: 600 }}>
+                            {orden.servicios?.length > 0 ? orden.servicios.map(s => s.servicio.nombre).join(', ') : 'N/A'}
+                          </TableCell>
                           <TableCell sx={{ fontSize: 11 }}>
                             {orden.productos?.length > 0 ? orden.productos.map(p => `${p.producto.nombre} (×${p.cantidad})`).join(', ') : 'N/A'}
                           </TableCell>
                           <TableCell sx={{ fontWeight: 700 }}>{formatCurrency(orden.total)}</TableCell>
                           <TableCell>
-                            {orden.estado === 'Pendiente' && (
-                                <Button size="small" variant="contained" color="info" startIcon={<PlayArrow />} onClick={() => handleIniciar(orden.id)} sx={{ borderRadius: 2, fontWeight: 700 }}>
-                                    Iniciar
-                                </Button>
-                            )}
-                            {orden.estado === 'Iniciada' && (
-                                <Button size="small" variant="contained" color="primary" startIcon={<Check />} onClick={() => handleTerminar(orden.id)} sx={{ borderRadius: 2, fontWeight: 700 }}>
-                                    Terminar
-                                </Button>
-                            )}
+                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                <Tooltip title="Ver detalles">
+                                    <IconButton size="small" onClick={() => handleViewDetails(orden)} sx={{ color: BLUE }}>
+                                        <Visibility fontSize="small" />
+                                    </IconButton>
+                                </Tooltip>
+                                <input type="file" hidden id={`file-up-${orden.id}`} onChange={(e) => handleUploadEvidence(orden.id, e.target.files[0])} accept="image/*" />
+                                <Tooltip title="Subir evidencia">
+                                    <IconButton size="small" component="label" htmlFor={`file-up-${orden.id}`} sx={{ color: ACCENT }}>
+                                        <PhotoCamera fontSize="small" />
+                                    </IconButton>
+                                </Tooltip>
+                                {orden.estado === 'Pendiente' && (
+                                    <Button size="small" variant="contained" color="info" startIcon={<PlayArrow />} onClick={() => handleIniciar(orden.id)} sx={{ borderRadius: 2, fontWeight: 700 }}>
+                                        Iniciar
+                                    </Button>
+                                )}
+                                {orden.estado === 'Iniciada' && (
+                                    <Button size="small" variant="contained" color="primary" startIcon={<Check />} onClick={() => handleTerminar(orden.id)} sx={{ borderRadius: 2, fontWeight: 700 }}>
+                                        Terminar
+                                    </Button>
+                                )}
+                            </Box>
                           </TableCell>
                         </TableRow>
                       ))
@@ -284,21 +366,26 @@ const PanelOperador = () => {
           <Box sx={{ px: { xs: 2, md: 3 }, pb: 3 }}>
             <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 2 }}>Últimos 7 días</Typography>
             {isMobile ? (
-              <Box>{historial.length === 0 ? <Box sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}><Assignment sx={{ fontSize: 48, mb: 1, opacity: 0.3 }} /><Typography>No hay órdenes cerradas recientemente</Typography></Box> : historial.map(orden => <HistorialCard key={orden.id} orden={orden} />)}</Box>
+              <Box>{historial.length === 0 ? <Box sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}><Assignment sx={{ fontSize: 48, mb: 1, opacity: 0.3 }} /><Typography>No hay órdenes cerradas recientemente</Typography></Box> : historial.map(orden => <HistorialCard key={orden.id} orden={orden} onView={handleViewDetails} />)}</Box>
             ) : (
               <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
                 <Table size="small">
                   <TableHead>
-                    <TableRow>{['ID', 'Cliente', 'Total', 'Estado Pago', 'Fecha'].map(h => <TableCell key={h} sx={{ fontWeight: 600 }}>{h}</TableCell>)}</TableRow>
+                    <TableRow>{['ID', 'Cliente', 'Total', 'Estado Pago', 'Fecha', 'Acciones'].map(h => <TableCell key={h} sx={{ fontWeight: 600 }}>{h}</TableCell>)}</TableRow>
                   </TableHead>
                   <TableBody>
-                    {historial.length === 0 ? <TableRow><TableCell colSpan={5} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>No hay órdenes cerradas recientemente</TableCell></TableRow> : historial.map(orden => (
+                    {historial.length === 0 ? <TableRow><TableCell colSpan={6} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>No hay órdenes cerradas recientemente</TableCell></TableRow> : historial.map(orden => (
                       <TableRow key={orden.id} hover>
                         <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>#{orden.id}</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>{orden.cliente_nombre}</TableCell>
                         <TableCell sx={{ fontWeight: 700 }}>{formatCurrency(orden.total)}</TableCell>
                         <TableCell><Chip label={orden.estado_pago_venta === 'pagado' ? 'Pagado' : 'Pendiente'} color={orden.estado_pago_venta === 'pagado' ? 'success' : 'warning'} size="small" sx={{ fontWeight: 600, fontSize: 10, borderRadius: 1.5 }} /></TableCell>
                         <TableCell sx={{ fontSize: 11 }}>{new Date(orden.fecha_actualizacion).toLocaleDateString()}</TableCell>
+                        <TableCell>
+                            <IconButton size="small" onClick={() => handleViewDetails(orden)} sx={{ color: BLUE }}>
+                                <Visibility fontSize="small" />
+                            </IconButton>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -308,6 +395,8 @@ const PanelOperador = () => {
           </Box>
         </TabPanel>
       </Paper>
+
+      <OrdenTrabajoDetailDialog open={showDetailDialog} handleClose={() => setShowDetailDialog(false)} orden={selectedOrden} />
     </Box>
   );
 };

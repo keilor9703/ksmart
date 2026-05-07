@@ -257,19 +257,23 @@ const InventarioLotes = () => {
   };
 
   const lotesFiltrados = useMemo(() => lotes.filter(l => {
+    const q = busqueda.toLowerCase();
     const matchBusqueda = !busqueda || (
-      l.producto_nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      l.numero_lote?.toLowerCase().includes(busqueda.toLowerCase())
+      l.producto_nombre?.toLowerCase().includes(q) ||
+      l.numero_lote?.toLowerCase().includes(q) ||
+      (l.producto_barcode && l.producto_barcode.toLowerCase().includes(q))
     );
     const matchUrgencia = filtroUrgencia === 'todos' || l.urgencia === filtroUrgencia;
     return matchBusqueda && matchUrgencia;
   }), [lotes, busqueda, filtroUrgencia]);
 
-  const alertasFiltradas = useMemo(() => alertas.filter(a =>
-    !busqueda ||
-    a.producto_nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
-    a.numero_lote?.toLowerCase().includes(busqueda.toLowerCase())
-  ), [alertas, busqueda]);
+  const alertasFiltradas = useMemo(() => alertas.filter(a => {
+    const q = busqueda.toLowerCase();
+    return !busqueda ||
+      a.producto_nombre?.toLowerCase().includes(q) ||
+      a.numero_lote?.toLowerCase().includes(q) ||
+      (a.producto_barcode && a.producto_barcode.toLowerCase().includes(q));
+  }), [alertas, busqueda]);
 
   if (loading) return <Box sx={{ p: 5, textAlign: 'center' }}><CircularProgress sx={{ color: PURPLE }} /></Box>;
 
@@ -536,7 +540,15 @@ const InventarioLotes = () => {
                 getOptionLabel={o => `${o.nombre} (${o.unidad_medida || 'UND'})`}
                 value={form.producto_id}
                 onChange={(_, v) => setForm(p => ({ ...p, producto_id: v }))}
-                renderInput={params => <TextField {...params} placeholder="Busca por nombre del producto..." fullWidth required />}
+                filterOptions={(opts, state) => {
+                  const q = (state.inputValue || '').toLowerCase().trim();
+                  if (!q) return opts;
+                  return opts.filter(o => 
+                    o.nombre.toLowerCase().includes(q) ||
+                    (o.codigo_barras && o.codigo_barras.toLowerCase().includes(q))
+                  );
+                }}
+                renderInput={params => <TextField {...params} placeholder="Busca por nombre del producto o código..." fullWidth required />}
               />
             </Grid>
 

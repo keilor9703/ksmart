@@ -136,9 +136,13 @@ export default function Inventario() {
 
   const filteredData = useMemo(() => {
     if (!currentGrupo) return [];
+    const q = searchTerm.toLowerCase();
     return productos
       .filter(p => p.grupo_item === currentGrupo.id && !p.es_servicio &&
-        p.nombre.toLowerCase().includes(searchTerm.toLowerCase()))
+        (p.nombre.toLowerCase().includes(q) ||
+         (p.codigo_barras && p.codigo_barras.toLowerCase().includes(q)) ||
+         (p.descripcion && p.descripcion.toLowerCase().includes(q)))
+      )
       .sort((a, b) => a.nombre.localeCompare(b.nombre));
   }, [productos, tab, searchTerm]);
 
@@ -278,7 +282,7 @@ export default function Inventario() {
               {/* Buscador */}
               <TextField
                 fullWidth size="small"
-                placeholder={`Buscar en ${currentGrupo?.label}…`}
+                placeholder={`Buscar por nombre, código o descripción en ${currentGrupo?.label}…`}
                 value={searchTerm}
                 onChange={e => { setSearchTerm(e.target.value); setPage(0); }}
                 sx={{ mb: 2 }}

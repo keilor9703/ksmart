@@ -12,7 +12,7 @@ import models
 import schemas
 from api.deps import get_db
 from core import security
-from core.config import ACCESS_TOKEN_EXPIRE_MINUTES
+from core.config import ACCESS_TOKEN_EXPIRE_MINUTES, PERFILES
 
 router = APIRouter()
 logger = logging.getLogger("auth")
@@ -27,26 +27,12 @@ def registrar_nuevo_cliente(data: schemas.RegistroSaaS, db: Session = Depends(ge
         if existing_email:
             raise HTTPException(status_code=400, detail="Este correo ya está registrado. ¿Quieres iniciar sesión?")
 
-    PERFILES = {
-        "erp": [
-            "/ventas", "/compras", "/clientes", "/productos", "/inventario",
-            "/caja", "/produccion/lotes", "/ordenes-trabajo", "/panel-operador",
-            "/reportes", "/cotizaciones",
-        ],
-        "prestamos": [
-            "/clientes", "/prestamos", "/ruta-cobro", "/caja", "/reportes",
-        ],
-        "parqueadero": [
-            "/parqueadero", "/parqueadero/buscar", "/parqueadero/vehiculos", 
-            "/parqueadero/suscripciones", "/parqueadero/config", "/clientes"
-        ],
-    }
-
     modulos = PERFILES.get(data.tipo_negocio, PERFILES["erp"])
 
     try:
         nueva_emp = models.Empresa(
             nombre              = data.nombre_empresa.strip(),
+            nit                 = data.nit, # ✨ NUEVO: Guardar NIT
             is_active           = True,
             plan_type           = "trial",
             trial_ends_at       = datetime.now(timezone.utc) + timedelta(days=14),

@@ -17,3 +17,22 @@ PROJECT_NAME = "Ksmart360 API"
 VERSION = "2.1.0"
 
 CRON_API_KEY = os.getenv("CRON_API_KEY", "ksmart-cron-internal")
+
+# Perfiles de módulos por defecto según el tipo de negocio
+PERFILES = {
+    "erp": [
+        "/ventas", "/cotizaciones", "/admin/resoluciones", "/compras", 
+        "/clientes", "/productos", "/inventario", "/inventario/lotes", 
+        "/reportes-inventario", "/caja", "/produccion/recetas", "/produccion/lotes", 
+        "/ordenes-trabajo", "/panel-operador", "/reportes", "/admin/usuarios",
+    ],
+    "prestamos": [
+        "/clientes", "/prestamos", "/ruta-cobro", "/caja", "/reportes",
+        "/admin/usuarios",
+    ],
+    "parqueadero": [
+        "/parqueadero", "/parqueadero/buscar", "/parqueadero/vehiculos", 
+        "/parqueadero/suscripciones", "/parqueadero/config", "/clientes",
+        "/caja", "/reportes", "/admin/usuarios",
+    ],
+}

@@ -268,7 +268,11 @@ const MovementForm = ({ onCreated }) => {
           filterOptions={(opts, state) => {
             const q = (state.inputValue || '').toLowerCase().trim();
             if (!q) return opts;
-            return opts.filter(o => o.nombre.toLowerCase().includes(q) || String(o.id).includes(q));
+            return opts.filter(o => 
+              o.nombre.toLowerCase().includes(q) || 
+              String(o.id).includes(q) ||
+              (o.codigo_barras && o.codigo_barras.toLowerCase().includes(q))
+            );
           }}
           renderOption={(props, option) => (
             <li {...props} key={option.id} style={{ padding: '10px 14px' }}>
@@ -606,6 +610,7 @@ const MovementsTable = ({ refreshKey }) => {
     const q = searchTerm.toLowerCase();
     return String(r.id).includes(q) ||
       r.producto?.nombre?.toLowerCase().includes(q) ||
+      (r.producto?.codigo_barras && r.producto.codigo_barras.toLowerCase().includes(q)) ||
       (r.tipo && r.tipo.toLowerCase().includes(q)) ||
       (r.motivo && r.motivo.toLowerCase().includes(q)) ||
       (r.referencia && r.referencia.toLowerCase().includes(q));

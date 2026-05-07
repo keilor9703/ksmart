@@ -5,6 +5,7 @@ import {
   Switch, FormControlLabel, Collapse, Dialog, DialogContent, 
   AppBar, Toolbar, Slide, Paper, Stack, Divider
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import {
   QrCodeScanner, Inventory, Close,
   AttachMoney, ShoppingCart, ShoppingBag, Videocam, VideocamOff,
@@ -23,6 +24,9 @@ const Transition = React.forwardRef(function Transition(props, ref) {
 });
 
 const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
@@ -205,9 +209,15 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
       open={open}
       onClose={onClose}
       TransitionComponent={Transition}
-      sx={{ '& .MuiDialog-paper': { bgcolor: '#121418' } }} // Fondo oscuro consistente
+      sx={{ '& .MuiDialog-paper': { bgcolor: 'background.default' } }}
     >
-      <AppBar sx={{ position: 'relative', bgcolor: '#1A1D23', boxShadow: 'none', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <AppBar sx={{ 
+        position: 'relative', 
+        bgcolor: isDark ? '#1A1D23' : 'primary.main', 
+        boxShadow: 'none', 
+        borderBottom: '1px solid',
+        borderColor: 'divider'
+      }}>
         <Toolbar>
           <IconButton edge="start" sx={{ color: 'white' }} onClick={onClose} aria-label="close">
             <Close />
@@ -218,14 +228,14 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
         </Toolbar>
       </AppBar>
       
-      <DialogContent sx={{ p: { xs: 2, md: 5 } }}>
+      <DialogContent sx={{ p: { xs: 2, md: 5 }, bgcolor: 'background.default' }}>
         <Box sx={{ maxWidth: 750, mx: 'auto', pb: 5 }}>
             
             {/* Header y Botón Cámara */}
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 4, flexWrap: 'wrap', gap: 2 }}>
                 <Box>
-                    <Typography variant="h4" fontWeight={800} color="white">Entrada Rápida</Typography>
-                    <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.6)', mt: 0.5 }}>
+                    <Typography variant="h4" fontWeight={800} color="text.primary">Entrada Rápida</Typography>
+                    <Typography variant="body1" sx={{ color: 'text.secondary', mt: 0.5 }}>
                         Escanea o digita el código de barras para registrar stock en segundos
                     </Typography>
                 </Box>
@@ -244,7 +254,13 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
             </Box>
 
             {cameraActive && (
-                <Paper elevation={0} sx={{ mb: 4, p: 2, borderRadius: 4, bgcolor: '#1A1D23', border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+                <Paper elevation={0} sx={{ 
+                  mb: 4, p: 2, borderRadius: 4, 
+                  bgcolor: 'background.paper', 
+                  border: '1px solid',
+                  borderColor: 'divider', 
+                  overflow: 'hidden' 
+                }}>
                     <div id="reader" style={{ width: '100%', minHeight: '300px' }}></div>
                 </Paper>
             )}
@@ -253,7 +269,7 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
             <Stack spacing={4}>
                 
                 {/* SECCIÓN 1: Código de Barras */}
-                <Paper elevation={0} sx={{ p: 3, borderRadius: 3, bgcolor: '#1A1D23', border: `1px solid rgba(255,114,59,0.3)` }}>
+                <Paper elevation={0} sx={{ p: 3, borderRadius: 3, bgcolor: 'background.paper', border: `1px solid ${ACCENT}80` }}>
                     <TextField
                         fullWidth label="Código de Barras"
                         placeholder="Escanea o escribe y presiona Enter..."
@@ -263,8 +279,6 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
                         inputRef={barcodeRef}
                         autoComplete="off"
                         disabled={loading || searching}
-                        InputLabelProps={{ sx: { color: 'rgba(255,255,255,0.7)' } }}
-                        sx={{ input: { color: 'white' } }}
                         InputProps={{
                             startAdornment: <InputAdornment position="start"><QrCodeScanner sx={{ color: ACCENT }} fontSize="large" /></InputAdornment>,
                             endAdornment: searching && <CircularProgress size={24} sx={{ color: ACCENT }} />,
@@ -275,10 +289,10 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
 
                 {/* SECCIÓN 2: Detalles del Producto */}
                 <Box>
-                    <Typography variant="h6" fontWeight={700} sx={{ color: 'white', display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+                    <Typography variant="h6" fontWeight={700} sx={{ color: 'text.primary', display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
                         <LocalOffer sx={{ color: ACCENT }} /> Detalles del Producto
                     </Typography>
-                    <Paper elevation={0} sx={{ p: { xs: 2, md: 4 }, borderRadius: 3, bgcolor: '#1A1D23', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <Paper elevation={0} sx={{ p: { xs: 2, md: 4 }, borderRadius: 3, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
                         <Grid container spacing={3}>
                             <Grid item xs={12} md={6}>
                                 <TextField
@@ -287,9 +301,7 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
                                     onChange={(e) => setFormData({...formData, nombre: e.target.value})}
                                     inputRef={nombreRef}
                                     onKeyDown={(e) => e.key === 'Enter' && descRef.current?.focus()}
-                                    InputLabelProps={{ sx: { color: 'rgba(255,255,255,0.7)' } }}
-                                    sx={{ input: { color: 'white' } }}
-                                    InputProps={{ startAdornment: <InputAdornment position="start"><Inventory sx={{ color: 'rgba(255,255,255,0.5)' }} /></InputAdornment> }}
+                                    InputProps={{ startAdornment: <InputAdornment position="start"><Inventory sx={{ color: 'text.secondary', opacity: 0.5 }} /></InputAdornment> }}
                                 />
                             </Grid>
                             <Grid item xs={12} md={6}>
@@ -299,9 +311,7 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
                                     onChange={(e) => setFormData({...formData, descripcion: e.target.value})}
                                     inputRef={descRef}
                                     onKeyDown={(e) => e.key === 'Enter' && precioRef.current?.focus()}
-                                    InputLabelProps={{ sx: { color: 'rgba(255,255,255,0.7)' } }}
-                                    sx={{ input: { color: 'white' } }}
-                                    InputProps={{ startAdornment: <InputAdornment position="start"><Description sx={{ color: 'rgba(255,255,255,0.5)' }} /></InputAdornment> }}
+                                    InputProps={{ startAdornment: <InputAdornment position="start"><Description sx={{ color: 'text.secondary', opacity: 0.5 }} /></InputAdornment> }}
                                 />
                             </Grid>
                             <Grid item xs={12} md={6}>
@@ -311,8 +321,6 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
                                     onChange={(val) => setFormData({...formData, precio: val})}
                                     inputRef={precioRef}
                                     onKeyDown={(e) => e.key === 'Enter' && costoRef.current?.focus()}
-                                    InputLabelProps={{ sx: { color: 'rgba(255,255,255,0.7)' } }}
-                                    sx={{ input: { color: 'white' } }}
                                 />
                             </Grid>
                             <Grid item xs={12} md={6}>
@@ -322,8 +330,6 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
                                     onChange={(val) => setFormData({...formData, costo: val})}
                                     inputRef={costoRef}
                                     onKeyDown={(e) => e.key === 'Enter' && stockRef.current?.focus()}
-                                    InputLabelProps={{ sx: { color: 'rgba(255,255,255,0.7)' } }}
-                                    sx={{ input: { color: 'white' } }}
                                 />
                             </Grid>
                         </Grid>
@@ -332,10 +338,10 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
 
                 {/* SECCIÓN 3: Control de Inventario */}
                 <Box>
-                    <Typography variant="h6" fontWeight={700} sx={{ color: 'white', display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+                    <Typography variant="h6" fontWeight={700} sx={{ color: 'text.primary', display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
                         <ShoppingCart sx={{ color: ACCENT }} /> Control de Inventario
                     </Typography>
-                    <Paper elevation={0} sx={{ p: { xs: 2, md: 4 }, borderRadius: 3, bgcolor: '#1A1D23', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <Paper elevation={0} sx={{ p: { xs: 2, md: 4 }, borderRadius: 3, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
                         <Grid container spacing={3} alignItems="center">
                             <Grid item xs={12} md={5}>
                                 <TextField
@@ -344,22 +350,20 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
                                     onChange={(e) => setFormData({...formData, stock_actual: e.target.value})}
                                     inputRef={stockRef}
                                     onKeyDown={(e) => e.key === 'Enter' && (formData.maneja_lotes ? loteRef.current?.focus() : handleSave())}
-                                    InputLabelProps={{ sx: { color: 'rgba(255,255,255,0.7)' } }}
-                                    sx={{ input: { color: 'white' } }}
-                                    InputProps={{ startAdornment: <InputAdornment position="start"><ShoppingCart sx={{ color: 'rgba(255,255,255,0.5)' }} /></InputAdornment> }}
+                                    InputProps={{ startAdornment: <InputAdornment position="start"><ShoppingCart sx={{ color: 'text.secondary', opacity: 0.5 }} /></InputAdornment> }}
                                 />
                             </Grid>
 
                             <Grid item xs={12} md={7}>
                                 <Box sx={{ 
                                     p: 1.5, borderRadius: 2, 
-                                    border: '1px solid', borderColor: formData.maneja_lotes ? ACCENT : 'rgba(255,255,255,0.1)', 
-                                    bgcolor: formData.maneja_lotes ? 'rgba(255,114,59,0.05)' : 'transparent', 
+                                    border: '1px solid', borderColor: formData.maneja_lotes ? ACCENT : 'divider', 
+                                    bgcolor: formData.maneja_lotes ? `${ACCENT}08` : 'transparent', 
                                     display: 'flex', alignItems: 'center', justifyContent: 'center' 
                                 }}>
                                     <FormControlLabel 
                                         control={<Switch checked={formData.maneja_lotes} onChange={(e) => setFormData({...formData, maneja_lotes: e.target.checked})} sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: ACCENT }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: ACCENT } }} />} 
-                                        label={<Typography sx={{ fontWeight: 600, color: formData.maneja_lotes ? ACCENT : 'rgba(255,255,255,0.7)' }}>Requiere Lotes y Vencimiento</Typography>} 
+                                        label={<Typography sx={{ fontWeight: 600, color: formData.maneja_lotes ? ACCENT : 'text.secondary' }}>Requiere Lotes y Vencimiento</Typography>} 
                                         sx={{ m: 0 }}
                                     />
                                 </Box>
@@ -368,7 +372,7 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
                             <Grid item xs={12}>
                                 <Collapse in={formData.maneja_lotes && formData.stock_actual > 0}>
                                     <Box sx={{ pt: 1 }}>
-                                        <Divider sx={{ mb: 3, borderColor: 'rgba(255,255,255,0.05)' }} />
+                                        <Divider sx={{ mb: 3 }} />
                                         <Grid container spacing={3}>
                                             <Grid item xs={12} md={6}>
                                                 <TextField
@@ -376,8 +380,6 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
                                                     value={formData.numero_lote}
                                                     onChange={(e) => setFormData({...formData, numero_lote: e.target.value})}
                                                     inputRef={loteRef}
-                                                    InputLabelProps={{ sx: { color: 'rgba(255,255,255,0.7)' } }}
-                                                    sx={{ input: { color: 'white' } }}
                                                     InputProps={{ startAdornment: <InputAdornment position="start"><Science sx={{ color: '#a78bfa' }} /></InputAdornment> }}
                                                 />
                                             </Grid>
@@ -386,8 +388,8 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
                                                     fullWidth type="date" label="Fecha de Vencimiento"
                                                     value={formData.fecha_vencimiento}
                                                     onChange={(e) => setFormData({...formData, fecha_vencimiento: e.target.value})}
-                                                    InputLabelProps={{ shrink: true, sx: { color: 'rgba(255,255,255,0.7)' } }}
-                                                    sx={{ input: { color: 'white', colorScheme: 'dark' } }}
+                                                    InputLabelProps={{ shrink: true }}
+                                                    sx={{ input: { colorScheme: isDark ? 'dark' : 'light' } }}
                                                     InputProps={{ startAdornment: <InputAdornment position="start"><Event sx={{ color: '#f87171' }} /></InputAdornment> }}
                                                 />
                                             </Grid>
@@ -409,7 +411,7 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
                         color: '#fff',
                         '&:hover': { bgcolor: '#E65D2A', transform: 'translateY(-2px)' },
                         transition: 'all 0.2s ease-in-out',
-                        boxShadow: `0 8px 24px rgba(255,114,59,0.3)`
+                        boxShadow: `0 8px 24px ${ACCENT}40`
                     }}
                 >
                     {formData.id ? 'Actualizar Producto' : 'Guardar y Continuar Escaneando'}

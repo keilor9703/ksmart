@@ -35,6 +35,7 @@ const Panel = ({ title, icon, chip, open, onToggle, forceOpen, onClose, children
 
 const ProductoForm = ({ onProductoAdded, productoToEdit, onProductoUpdated, forceOpen, onClose, accentColor = DEFAULT_ACCENT }) => {
   const [nombre, setNombre]         = useState('');
+  const [codigoBarras, setCodigoBarras] = useState('');
   const [precio, setPrecio]         = useState('');
   const [costo, setCosto]           = useState('');
   const [esServicio, setEsServicio] = useState(false);
@@ -52,6 +53,7 @@ const ProductoForm = ({ onProductoAdded, productoToEdit, onProductoUpdated, forc
   useEffect(() => {
     if (productoToEdit) {
       setNombre(productoToEdit.nombre);
+      setCodigoBarras(productoToEdit.codigo_barras || '');
       setPrecio(productoToEdit.precio || '');
       setCosto(productoToEdit.costo || '');
       setEsServicio(productoToEdit.es_servicio);
@@ -66,7 +68,7 @@ const ProductoForm = ({ onProductoAdded, productoToEdit, onProductoUpdated, forc
   }, [productoToEdit]);
 
   const resetFields = () => {
-    setNombre(''); setPrecio(''); setCosto(''); setEsServicio(false); setUnidadMedida('UND'); setGrupoItem(2); setStockMinimo(''); setStockActual(0); setManejaLotes(false);
+    setNombre(''); setCodigoBarras(''); setPrecio(''); setCosto(''); setEsServicio(false); setUnidadMedida('UND'); setGrupoItem(2); setStockMinimo(''); setStockActual(0); setManejaLotes(false);
   };
 
   const handleClose = () => { resetFields(); setFormOpen(false); if (onClose) onClose(); };
@@ -75,6 +77,7 @@ const ProductoForm = ({ onProductoAdded, productoToEdit, onProductoUpdated, forc
     e.preventDefault();
     const data = {
       nombre,
+      codigo_barras: codigoBarras || null,
       precio: parseFloat(precio) || 0.0,
       costo: esServicio ? 0.0 : (parseFloat(costo) || 0.0),
       es_servicio: esServicio,
@@ -118,9 +121,14 @@ const ProductoForm = ({ onProductoAdded, productoToEdit, onProductoUpdated, forc
 
           {/* ── 2. CAMPOS DEL FORMULARIO DINÁMICO ── */}
           <Grid container spacing={3}>
-            <Grid item xs={12} sm={esServicio ? 8 : 6}>
+            <Grid item xs={12} sm={esServicio ? 8 : 3}>
               <TextField label={esServicio ? "Nombre del Servicio *" : "Nombre del Producto *"} value={nombre} onChange={e => setNombre(e.target.value)} fullWidth required />
             </Grid>
+            {!esServicio && (
+              <Grid item xs={12} sm={3}>
+                <TextField label="Código de Barras" value={codigoBarras} onChange={e => setCodigoBarras(e.target.value)} fullWidth placeholder="Escanea o escribe..." />
+              </Grid>
+            )}
             <Grid item xs={12} sm={esServicio ? 4 : 3}>
               <CurrencyField
                 label={esServicio ? "Precio de Venta *" : "Precio de Venta (Opcional)"}

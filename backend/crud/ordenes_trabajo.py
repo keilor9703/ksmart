@@ -120,6 +120,11 @@ def update_orden_trabajo(db: Session, empresa_id: int, orden_id: int, orden: sch
     if hasattr(orden, "operador_id") and orden.operador_id is not None:
         db_orden.operador_id = orden.operador_id
 
+    # ✅ CORRECCIÓN LÓGICA: Si se edita una orden rechazada o borrador, 
+    # vuelve a Pendiente para que el operador la vea y la trabaje de nuevo.
+    if db_orden.estado in ["Rechazada", "Borrador"]:
+        db_orden.estado = "Pendiente"
+
     db_orden.productos = []
     db_orden.servicios = []
 

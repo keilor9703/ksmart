@@ -111,7 +111,12 @@ const DetalleRow = ({ det, idx, productos, productoInput, onProductoInputChange,
           onInputChange={(_, v) => onProductoInputChange(idx, v)}
           filterOptions={(opts, state) => {
             const q = (state.inputValue || '').toLowerCase().trim();
-            return q ? opts.filter(o => o.nombre.toLowerCase().includes(q)) : opts;
+            if (!q) return opts;
+            return opts.filter(o => 
+              o.nombre.toLowerCase().includes(q) ||
+              (o.codigo_barras && o.codigo_barras.toLowerCase().includes(q)) ||
+              (o.descripcion && o.descripcion.toLowerCase().includes(q))
+            );
           }}
           noOptionsText={
             <Box sx={{ py: 0.5 }}>

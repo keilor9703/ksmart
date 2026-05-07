@@ -45,23 +45,38 @@ const ProductoCard = ({ producto, onEditProducto, handleDelete, accentColor }) =
   const stockActual = producto.stock_actual ?? 0;
   const stockMinimo = producto.stock_minimo ?? 0;
   const isService   = !!producto.es_servicio;
-  const low         = !isService && stockActual < stockMinimo;
+  const isLow       = !isService && stockActual <= stockMinimo;
+  const isCritical  = !isService && stockActual <= 0;
   const group       = getGroup(producto.grupo_item);
 
   return (
     <Paper sx={{ p: 2.5, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
-        <Box>
-          <Typography sx={{ fontWeight: 700, fontSize: 15 }}>{producto.nombre}</Typography>
-          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>#{producto.id}</Typography>
+        <Box sx={{ minWidth: 0, flex: 1, mr: 1 }}>
+          <Typography sx={{ fontWeight: 700, fontSize: 15, lineHeight: 1.2 }}>{producto.nombre}</Typography>
+          {producto.descripcion && (
+            <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.2, noWrap: false }}>
+              {producto.descripcion}
+            </Typography>
+          )}
+          <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 600, mt: 0.5, letterSpacing: 0.5 }}>
+            {producto.codigo_barras || 'N/A'}
+          </Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', justifyContent: 'flex-end', flexShrink: 0 }}>
           <Chip label={group.label} size="small"
             sx={{ bgcolor: `${group.color}18`, color: group.color, fontWeight: 700, fontSize: 10, borderRadius: 1 }} />
+          {producto.maneja_lotes && (
+            <Chip label="LOTES" size="small" sx={{ bgcolor: '#F59E0B18', color: '#F59E0B', fontWeight: 800, fontSize: 9, borderRadius: 1, height: 20 }} />
+          )}
           {isService
             ? <Chip label="Servicio" size="small" sx={{ bgcolor: 'rgba(100,116,139,0.1)', color: '#64748b', fontWeight: 600, fontSize: 10, borderRadius: 1 }} />
-            : <Chip label={low ? '⚠ Stock bajo' : '✓ Stock OK'} size="small" color={low ? 'error' : 'success'}
-                sx={{ fontWeight: 600, fontSize: 10, borderRadius: 1 }} />
+            : <Chip 
+                label={isCritical ? '⚠ Sin Stock' : (isLow ? '⚠ Bajo' : '✓ OK')} 
+                size="small" 
+                color={isCritical ? 'error' : (isLow ? 'warning' : 'success')}
+                sx={{ fontWeight: 600, fontSize: 10, borderRadius: 1 }} 
+              />
           }
         </Box>
       </Box>
@@ -159,7 +174,11 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
     }
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
-      list = list.filter(p => p.nombre.toLowerCase().includes(q));
+      list = list.filter(p => 
+        p.nombre.toLowerCase().includes(q) ||
+        (p.codigo_barras && p.codigo_barras.toLowerCase().includes(q)) ||
+        (p.descripcion && p.descripcion.toLowerCase().includes(q))
+      );
     }
     return list;
   }, [productos, searchTerm, filterGroup]);
@@ -200,7 +219,7 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
       {/* ── Buscador ── */}
       <TextField
         fullWidth
-        placeholder="Buscar producto o servicio…"
+        placeholder="Buscar por nombre, código de barras o descripción…"
         value={searchTerm}
         onChange={e => { setSearchTerm(e.target.value); setPage(0); }}
         sx={{ mb: 1.5 }}
@@ -262,8 +281,8 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
           <Table size="small">
             <TableHead>
               <TableRow>
-                {['#', 'Nombre', 'Grupo', 'Unidad', 'Costo', 'Precio', 'Stock', 'Tipo', 'Acciones'].map(h => (
-                  <TableCell key={h}>{h}</TableCell>
+                {['CÓDIGO', 'Nombre', 'Grupo', 'Unidad', 'Costo', 'Precio', 'Stock', 'Tipo', 'Acciones'].map(h => (
+                  <TableCell key={h} sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>{h}</TableCell>
                 ))}
               </TableRow>
             </TableHead>
@@ -278,31 +297,52 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
                     const stockActual = producto.stock_actual ?? 0;
                     const stockMinimo = producto.stock_minimo ?? 0;
                     const isService   = !!producto.es_servicio;
-                    const low         = !isService && stockActual < stockMinimo;
+                    const isLow       = !isService && stockActual <= stockMinimo;
+                    const isCritical  = !isService && stockActual <= 0;
                     const group       = getGroup(producto.grupo_item);
 
                     return (
                       <TableRow key={producto.id} hover>
-                        <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{producto.id}</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>{producto.nombre}</TableCell>
+                        <TableCell sx={{ color: 'text.secondary', fontSize: 12, fontWeight: 700, fontFamily: 'monospace' }}>
+                          {producto.codigo_barras || '—'}
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ py: 0.5 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography sx={{ fontWeight: 700, fontSize: 13.5 }}>{producto.nombre}</Typography>
+                              {producto.maneja_lotes && (
+                                <Tooltip title="Maneja control por lotes">
+                                  <Chip label="LOTES" size="small" sx={{ height: 16, fontSize: 8, fontWeight: 900, bgcolor: '#F59E0B18', color: '#F59E0B', borderRadius: 0.5 }} />
+                                </Tooltip>
+                              )}
+                            </Box>
+                            {producto.descripcion && (
+                              <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1, mt: 0.3 }}>
+                                {producto.descripcion}
+                              </Typography>
+                            )}
+                          </Box>
+                        </TableCell>
                         <TableCell>
                           <Chip label={group.label} size="small"
                             sx={{ bgcolor: `${group.color}18`, color: group.color, fontWeight: 700, fontSize: 10, borderRadius: 1 }} />
                         </TableCell>
                         <TableCell sx={{ fontSize: 12 }}>{producto.unidad_medida}</TableCell>
-                        <TableCell>{formatCurrency(producto.costo)}</TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>{formatCurrency(producto.precio)}</TableCell>
+                        <TableCell sx={{ fontSize: 12 }}>{formatCurrency(producto.costo)}</TableCell>
+                        <TableCell sx={{ fontWeight: 800, fontSize: 13 }}>{formatCurrency(producto.precio)}</TableCell>
                         <TableCell>
                           {isService ? (
                             <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>—</Typography>
                           ) : (
-                            <Chip
-                              label={`${stockActual} / ${stockMinimo}`}
-                              size="small"
-                              color={low ? 'error' : 'success'}
-                              variant={low ? 'filled' : 'outlined'}
-                              sx={{ fontWeight: 600, fontSize: 11, borderRadius: 1.5 }}
-                            />
+                            <Tooltip title={isCritical ? 'Sin existencias' : (isLow ? 'Stock por debajo del mínimo' : 'Stock saludable')}>
+                              <Chip
+                                label={`${stockActual} / ${stockMinimo}`}
+                                size="small"
+                                color={isCritical || isLow ? 'error' : 'success'}
+                                variant={isCritical || isLow ? 'filled' : 'outlined'}
+                                sx={{ fontWeight: 600, fontSize: 11, borderRadius: 1.5 }}
+                              />
+                            </Tooltip>
                           )}
                         </TableCell>
                         <TableCell>
