@@ -307,7 +307,11 @@ def run_migrations():
                 
                 # 1. Añadir is_protected a empresas
                 if not _column_exists(conn, "empresas", "is_protected"):
-                    conn.execute(text("ALTER TABLE empresas ADD COLUMN is_protected BOOLEAN DEFAULT 0"))
+                    # Fix for PostgreSQL: use FALSE instead of 0 for BOOLEAN
+                    if IS_SQLITE:
+                        conn.execute(text("ALTER TABLE empresas ADD COLUMN is_protected BOOLEAN DEFAULT 0"))
+                    else:
+                        conn.execute(text("ALTER TABLE empresas ADD COLUMN is_protected BOOLEAN DEFAULT FALSE"))
                     logger.info("V42: añadido empresas.is_protected")
 
                 # 2. Crear tabla saas_announcements
