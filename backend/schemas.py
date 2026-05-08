@@ -41,6 +41,51 @@ class EmpresaOut(EmpresaBase):
     id: int
     is_active: bool
     created_at: Optional[datetime] = None
+    last_activity_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class EmpresaMetricsOut(EmpresaOut):
+    count_usuarios: int = 0
+    count_ventas: int = 0
+    count_productos: int = 0
+    dias_restantes: int = 0
+
+class SaaSAuditLogOut(BaseModel):
+    id: int
+    admin_id: Optional[int] = None
+    admin_username: Optional[str] = None
+    empresa_id: Optional[int] = None
+    empresa_nombre: Optional[str] = None
+    accion: str
+    detalle: Optional[dict] = None
+    fecha: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class SaaSAnnouncementBase(BaseModel):
+    titulo: str
+    mensaje: str
+    tipo: str = "info"
+    is_active: bool = True
+    expires_at: Optional[datetime] = None
+
+class SaaSAnnouncementCreate(SaaSAnnouncementBase):
+    pass
+
+class SaaSAnnouncementOut(SaaSAnnouncementBase):
+    id: int
+    created_at: datetime
+    created_by: int
+    model_config = ConfigDict(from_attributes=True)
+
+class SaaSJobRegistryOut(BaseModel):
+    id: int
+    job_name: str
+    execution_id: str
+    status: str
+    started_at: datetime
+    finished_at: Optional[datetime] = None
+    metrics: Optional[dict] = None
+    error_log: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class EmpresaWithAdminCreate(BaseModel):

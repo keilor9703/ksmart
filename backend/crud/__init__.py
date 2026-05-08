@@ -83,8 +83,9 @@ from crud.bulk_operations import (
 )
 
 from crud.empresas import (
-    create_empresa, get_empresas, toggle_empresa_status,
+    get_empresas, toggle_empresa_status,
     create_empresa_with_admin, update_empresa_plan,
+    log_saas_event,
 )
 
 from crud.notificaciones import (

@@ -54,6 +54,9 @@ import ParqueaderoVehiculos      from './features/parking/ParqueaderoVehiculos';
 import ParqueaderoSuscripciones  from './features/parking/ParqueaderoSuscripciones';
 import ParqueaderoConfig         from './features/parking/ParqueaderoConfig';
 
+// ✅ MÓDULO SAAS (ANUNCIOS)
+import AnnouncementBanner from './features/saas/components/AnnouncementBanner';
+
 // ✨ IMPORTAMOS EL MODAL DE BIOMETRÍA
 import ModalHuella from './components/common/ModalHuella';
 
@@ -293,6 +296,9 @@ const hasAccess = useCallback((path) => {
             >
               <Box sx={{ flex: 1, p: { xs: 1.5, md: 3 } }}>
                 
+                {/* ✅ BANNER DE ANUNCIOS SAAS */}
+                <AnnouncementBanner />
+
                 {/* ⚠️ ZONA DE RUTAS (ROUTER): ⚠️ */}
                 {/* 🔹 NUEVAS RUTAS: Si creaste una nueva pantalla y quieres enlazarla a un path, AGREGALA AQUÍ. */}
                 <Routes>

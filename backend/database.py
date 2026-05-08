@@ -244,6 +244,140 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v39)
                 logger.info("V39 (Descripción a productos) aplicada.")
 
+            # V40 - SaaS Telemetry y Audit Logs (Fase 1)
+            migration_v40 = "inv_v40_saas_telemetry_audit"
+            if not _migration_already_applied(conn, migration_v40):
+                
+                # 1. Añadir last_activity_at a empresas
+                if not _column_exists(conn, "empresas", "last_activity_at"):
+                    if IS_SQLITE:
+                        conn.execute(text("ALTER TABLE empresas ADD COLUMN last_activity_at TIMESTAMP NULL"))
+                    else:
+                        conn.execute(text("ALTER TABLE empresas ADD COLUMN last_activity_at TIMESTAMPTZ NULL"))
+                    logger.info("V40: añadido empresas.last_activity_at")
+
+                # 2. Crear tabla saas_audit_logs
+                if not _table_exists(conn, "saas_audit_logs"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE saas_audit_logs (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                admin_id INTEGER NOT NULL,
+                                empresa_id INTEGER,
+                                accion TEXT NOT NULL,
+                                detalle TEXT, -- SQLite guarda JSON como texto
+                                fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                FOREIGN KEY(admin_id) REFERENCES users(id),
+                                FOREIGN KEY(empresa_id) REFERENCES empresas(id)
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE saas_audit_logs (
+                                id SERIAL PRIMARY KEY,
+                                admin_id INTEGER NOT NULL REFERENCES users(id),
+                                empresa_id INTEGER REFERENCES empresas(id),
+                                accion VARCHAR(100) NOT NULL,
+                                detalle JSONB,
+                                fecha TIMESTAMPTZ DEFAULT NOW()
+                            )
+                        """))
+                    logger.info("V40: creada tabla saas_audit_logs")
+
+                _mark_migration_applied(conn, migration_v40)
+                logger.info("V40 (SaaS Telemetry y Audit) aplicada.")
+
+            # V41 - Índices de performance para SaaS Audit Logs
+            migration_v41 = "inv_v41_saas_audit_indices"
+            if not _migration_already_applied(conn, migration_v41):
+                if not _index_exists(conn, "ix_saas_audit_empresa_id"):
+                    conn.execute(text("CREATE INDEX ix_saas_audit_empresa_id ON saas_audit_logs(empresa_id)"))
+                    logger.info("V41: creado índice ix_saas_audit_empresa_id")
+                
+                if not _index_exists(conn, "ix_saas_audit_fecha"):
+                    conn.execute(text("CREATE INDEX ix_saas_audit_fecha ON saas_audit_logs(fecha)"))
+                    logger.info("V41: creado índice ix_saas_audit_fecha")
+
+                _mark_migration_applied(conn, migration_v41)
+                logger.info("V41 (Índices Audit SaaS) aplicada.")
+
+            # V42 - SaaS Phase 2: Communication, Jobs and Protection
+            migration_v42 = "inv_v42_saas_comm_jobs_prot"
+            if not _migration_already_applied(conn, migration_v42):
+                
+                # 1. Añadir is_protected a empresas
+                if not _column_exists(conn, "empresas", "is_protected"):
+                    conn.execute(text("ALTER TABLE empresas ADD COLUMN is_protected BOOLEAN DEFAULT 0"))
+                    logger.info("V42: añadido empresas.is_protected")
+
+                # 2. Crear tabla saas_announcements
+                if not _table_exists(conn, "saas_announcements"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE saas_announcements (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                titulo TEXT NOT NULL,
+                                mensaje TEXT NOT NULL,
+                                tipo TEXT DEFAULT 'info',
+                                is_active BOOLEAN DEFAULT 1,
+                                expires_at TIMESTAMP,
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                created_by INTEGER,
+                                FOREIGN KEY(created_by) REFERENCES users(id)
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE saas_announcements (
+                                id SERIAL PRIMARY KEY,
+                                titulo VARCHAR(100) NOT NULL,
+                                mensaje TEXT NOT NULL,
+                                tipo VARCHAR(20) DEFAULT 'info',
+                                is_active BOOLEAN DEFAULT TRUE,
+                                expires_at TIMESTAMPTZ,
+                                created_at TIMESTAMPTZ DEFAULT NOW(),
+                                created_by INTEGER REFERENCES users(id)
+                            )
+                        """))
+                    logger.info("V42: creada tabla saas_announcements")
+
+                # 3. Crear tabla saas_jobs_registry
+                if not _table_exists(conn, "saas_jobs_registry"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE saas_jobs_registry (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                job_name TEXT NOT NULL,
+                                execution_id TEXT UNIQUE NOT NULL,
+                                status TEXT NOT NULL,
+                                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                finished_at TIMESTAMP,
+                                metrics TEXT, -- JSON en SQLite
+                                error_log TEXT
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE saas_jobs_registry (
+                                id SERIAL PRIMARY KEY,
+                                job_name VARCHAR(100) NOT NULL,
+                                execution_id VARCHAR(100) UNIQUE NOT NULL,
+                                status VARCHAR(20) NOT NULL,
+                                started_at TIMESTAMPTZ DEFAULT NOW(),
+                                finished_at TIMESTAMPTZ,
+                                metrics JSONB,
+                                error_log TEXT
+                            )
+                        """))
+                    
+                    if not _index_exists(conn, "ix_saas_jobs_name"):
+                        conn.execute(text("CREATE INDEX ix_saas_jobs_name ON saas_jobs_registry(job_name)"))
+                    
+                    logger.info("V42: creada tabla saas_jobs_registry")
+
+                _mark_migration_applied(conn, migration_v42)
+                logger.info("V42 (SaaS Phase 2 Infrastructure) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

@@ -22,6 +22,8 @@ def utcnow():
 # ARQUITECTURA MULTI-TENANT (SAAS)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+from core.constants import PlanType, AccessStatus, SaaSJobStatus, SaaSAnnouncementType
+
 class Empresa(Base):
     """Tabla madre: Cada cliente de tu SaaS es una Empresa"""
     __tablename__ = "empresas"
@@ -41,7 +43,7 @@ class Empresa(Base):
     # Opcional: relación inversa para acceder a sus usuarios
     usuarios = relationship("User", back_populates="empresa")
 
-    plan_type = Column(String, default="trial") # Puede ser: 'trial', 'premium', 'anual'
+    plan_type = Column(String, default=PlanType.TRIAL) # trial, premium, vitalicio, canceled
     trial_ends_at = Column(DateTime(timezone=True), nullable=True)
 
     # 👇 NUEVAS COLUMNAS PARA WOMPI (Cobro Recurrente)
@@ -51,8 +53,54 @@ class Empresa(Base):
     # 👇 NUEVA COLUMNA PARA CONTROL SAAS (Feature Toggles)
     # Guardará una lista de paths, ej: ["/clientes", "/prestamos", "/ruta-cobro"]
     # Si es NULL, significa que la empresa tiene acceso a TODO (retrocompatibilidad para tu fábrica actual)
-    
+
     modulos_habilitados = Column(JSON, nullable=True) # Guarda ["/ruta1", "/ruta2"]
+
+    # 👇 NUEVOS CAMPOS FASE 1 - VISIBILIDAD
+    last_activity_at = Column(DateTime(timezone=True), nullable=True)
+
+    # 👇 NUEVOS CAMPOS FASE 2 - AUTOMATIZACIÓN
+    is_protected = Column(Boolean, default=False) # QA, Partners, Demos
+
+
+class SaaSAnnouncement(Base):
+    """Anuncios globales para todos los inquilinos"""
+    __tablename__ = "saas_announcements"
+    id          = Column(Integer, primary_key=True, index=True)
+    titulo      = Column(String(100))
+    mensaje     = Column(Text)
+    tipo        = Column(String(20), default=SaaSAnnouncementType.INFO) 
+    is_active   = Column(Boolean, default=True)
+    expires_at  = Column(DateTime(timezone=True), nullable=True)
+    created_at  = Column(DateTime(timezone=True), default=utcnow)
+    created_by  = Column(Integer, ForeignKey("users.id"))
+
+
+class SaaSJobRegistry(Base):
+    """Control de ejecución y locking de tareas programadas"""
+    __tablename__ = "saas_jobs_registry"
+    id              = Column(Integer, primary_key=True, index=True)
+    job_name        = Column(String(100), index=True) # ej: "AUTO_EXPIRATION"
+    execution_id    = Column(String(100), unique=True)
+    status          = Column(String(20)) # running, success, failed
+    started_at      = Column(DateTime(timezone=True), default=utcnow)
+    finished_at     = Column(DateTime(timezone=True), nullable=True)
+    metrics         = Column(JSON, nullable=True) # Summary statistics
+    error_log       = Column(Text, nullable=True)
+
+
+class SaaSAuditLog(Base):
+    """Registro de acciones críticas realizadas por SuperAdmins"""
+    __tablename__ = "saas_audit_logs"
+    id          = Column(Integer, primary_key=True, index=True)
+    admin_id    = Column(Integer, ForeignKey("users.id"))
+    empresa_id  = Column(Integer, ForeignKey("empresas.id"), nullable=True)
+    accion      = Column(String(100)) # ej: "CHANGE_PLAN", "SUSPEND", "ACTIVATE"
+    detalle     = Column(JSON, nullable=True)
+    fecha       = Column(DateTime(timezone=True), default=utcnow)
+
+    admin   = relationship("User")
+    empresa = relationship("Empresa")
 
 
 class TenantMixin:

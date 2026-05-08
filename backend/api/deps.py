@@ -1,5 +1,5 @@
 from typing import Generator, Optional
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
@@ -10,6 +10,7 @@ import models
 import schemas
 import crud
 from core.config import SECRET_KEY, ALGORITHM
+from services.saas_service import TenantAccessService
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
@@ -43,28 +44,44 @@ def get_current_user(
     return user
 
 def get_current_active_user(
+    request: Request,
     current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> models.User:
-    if not current_user:
+    if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Usuario inactivo")
-
+    
     empresa = current_user.empresa
-    if not empresa.is_active:
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada para este usuario")
+
+    # 👇 EVALUACIÓN CENTRALIZADA DE ACCESO (Fase 2)
+    can_login, access_mode, reason = TenantAccessService.evaluate_access(db, empresa.id)
+    
+    if not can_login:
+        detail = "Acceso denegado."
+        if reason == "TRIAL_EXPIRED": detail = "Suscripción expirada. Por favor contacte a soporte para renovar."
+        if reason == "MANUAL_SUSPENSION": detail = "Cuenta suspendida temporalmente."
+        
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
+
+    # 👇 ENFORCEMENT DE MODO RESTRINGIDO (Read-Only)
+    if not TenantAccessService.is_mutation_allowed(access_mode, request.method):
         raise HTTPException(
-            status_code=403,
-            detail="Suscripción suspendida. Contacte a soporte."
+            status_code=status.HTTP_402_PAYMENT_REQUIRED, 
+            detail="Modo lectura activo. Por favor renueve su suscripción para realizar cambios."
         )
 
-    if empresa.trial_ends_at:
-        ahora_utc = datetime.now(timezone.utc)
-        fecha_limite = empresa.trial_ends_at
-        if fecha_limite.tzinfo is None:
-            fecha_limite = fecha_limite.replace(tzinfo=timezone.utc)
-        if ahora_utc > fecha_limite:
-            raise HTTPException(
-                status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                detail="Suscripción expirada."
-            )
+    # 👇 ACTUALIZACIÓN DE TELEMETRÍA (Throttle 15 min para no saturar la BD)
+    ahora = datetime.now(timezone.utc)
+    last_act = empresa.last_activity_at
+    if last_act and last_act.tzinfo is None:
+        last_act = last_act.replace(tzinfo=timezone.utc)
+
+    if not last_act or (ahora - last_act).total_seconds() > 900:
+        empresa.last_activity_at = ahora
+        db.add(empresa)
+        db.commit()
 
     return current_user
 

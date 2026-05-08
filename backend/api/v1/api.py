@@ -5,12 +5,13 @@ from .endpoints import (
     devoluciones, notificaciones, wompi, prestamos,
     resoluciones, cotizaciones, parqueadero, mercado,
     biometric, webhooks,
-    compras, produccion, ordenes_trabajo, panel_operador, planes,
+    compras, produccion, ordenes_trabajo, panel_operador, planes, saas,
 )
 
 api_router = APIRouter()
 
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+api_router.include_router(saas.router, prefix="/saas", tags=["SaaS Core"])
 api_router.include_router(superadmin.router, prefix="/superadmin", tags=["superadmin"])
 api_router.include_router(planes.router, prefix="", tags=["planes"])
 api_router.include_router(users.router, prefix="", tags=["users"])

@@ -171,5 +171,8 @@ export const createPlan = (data) => apiClient.post('/superadmin/planes', data);
 export const updatePlan = (id, data) => apiClient.patch(`/superadmin/planes/${id}`, data);
 export const fetchPlanesPublicos = () => apiClient.get('/planes-activos');
 
+// ✅ NUEVOS ENDPOINTS SUPERADMIN FASE 1
+export const fetchDashboardStats = () => apiClient.get('/superadmin/dashboard-stats');
+export const fetchAuditLogs = (params = {}) => apiClient.get('/superadmin/audit-logs', { params });
 
 export default apiClient;
