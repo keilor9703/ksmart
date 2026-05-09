@@ -65,6 +65,14 @@ def eliminar_receta(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
+    # ✅ VALIDACIÓN: Verificar que la receta no tenga lotes asociados
+    bloqueos = crud.check_can_delete_receta(db, empresa_id=current_user.empresa_id, receta_id=receta_id)
+    if bloqueos:
+        raise HTTPException(
+            status_code=409,
+            detail=f"No se puede eliminar la receta porque {', '.join(bloqueos)}"
+        )
+    
     crud.delete_receta(db, empresa_id=current_user.empresa_id, receta_id=receta_id)
     return {"message": "Receta eliminada"}
 
