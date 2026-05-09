@@ -174,14 +174,16 @@ const Login = ({ onLogin }) => {
             );
             
             localStorage.setItem('token', response.data.access_token);
-            // ✨ NUEVO: Guardar el usuario exitoso para la próxima
             localStorage.setItem('last_username', loginData.username);
             
             onLogin();
-            
+
             if (response.data.is_expired) {
-                toast.warning('Tu suscripción ha expirado. Redirigiendo a pagos...', { autoClose: 5000 });
-                navigate('/planes');
+                // 🚀 CASO SAAS: Suscripción Expirada
+                toast.warning('Tu acceso ha expirado. Redirigiendo a renovación...');
+                setTimeout(() => {
+                    navigate('/suscripcion-expirada');
+                }, 1500);
             } else {
                 toast.success('Inicio de sesión exitoso');
                 navigate('/');
@@ -189,8 +191,12 @@ const Login = ({ onLogin }) => {
         } catch (err) {
             const status = err.response?.status;
             const detail = err.response?.data?.detail;
-            if (status === 403) toast.error(detail || 'Cuenta suspendida por el administrador.');
-            else                 toast.error(detail || 'Usuario o contraseña incorrectos');
+
+            if (status === 403) {
+                toast.error(detail || 'Cuenta suspendida por el administrador.');
+            } else {
+                toast.error(detail || 'Usuario o contraseña incorrectos');
+            }
         } finally {
             setLoading(false);
         }

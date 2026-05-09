@@ -3,7 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
-import crud
+from crud import empresas as crud_empresas
+from crud import planes as crud_planes
+from crud import perecederos as crud_perecederos
 import models
 import schemas
 from api.deps import get_db, get_current_superadmin_user
@@ -18,7 +20,7 @@ from services.jobs_service import SaaSJobService
 
 @router.get("/empresas", response_model=List[schemas.EmpresaMetricsOut])
 def listar_empresas(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return crud.get_empresas(db, skip=skip, limit=limit)
+    return crud_empresas.get_empresas(db, skip=skip, limit=limit)
 
 @router.post("/empresas", response_model=schemas.EmpresaOut)
 def registrar_nueva_empresa(
@@ -27,7 +29,7 @@ def registrar_nueva_empresa(
     current_admin: models.User = Depends(get_current_superadmin_user)
 ):
     try:
-        return crud.create_empresa_with_admin(db, data, admin_id=current_admin.id)
+        return crud_empresas.create_empresa_with_admin(db, data, admin_id=current_admin.id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -39,7 +41,7 @@ def suspender_activar_empresa(
 ):
     if empresa_id == 1:
         raise HTTPException(status_code=400, detail="No puedes suspender la empresa maestra del SaaS.")
-    empresa = crud.toggle_empresa_status(db, empresa_id, admin_id=current_admin.id)
+    empresa = crud_empresas.toggle_empresa_status(db, empresa_id, admin_id=current_admin.id)
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
     return empresa
@@ -53,7 +55,21 @@ def actualizar_plan_empresa(
 ):
     if empresa_id == 1:
         raise HTTPException(status_code=400, detail="La empresa maestra no puede modificar su plan vitalicio.")
-    empresa = crud.update_empresa_plan(db, empresa_id, plan_data, admin_id=current_admin.id)
+    empresa = crud_empresas.update_empresa_plan(db, empresa_id, plan_data, admin_id=current_admin.id)
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+    return empresa
+
+@router.patch("/empresas/{empresa_id}/modulos", response_model=schemas.EmpresaOut)
+def actualizar_modulos_empresa(
+    empresa_id: int, 
+    modulos_data: schemas.EmpresaModulosUpdate, 
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(get_current_superadmin_user)
+):
+    if empresa_id == 1:
+        raise HTTPException(status_code=400, detail="No puedes modificar los módulos de la empresa maestra desde aquí.")
+    empresa = crud_empresas.update_empresa_modulos(db, empresa_id, modulos_data.modulos, admin_id=current_admin.id)
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
     return empresa
@@ -70,7 +86,7 @@ def toggle_protection_empresa(
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
     
     empresa.is_protected = not empresa.is_protected
-    crud.log_saas_event(db, current_admin.id, "TOGGLE_PROTECTION", empresa_id, {"is_protected": empresa.is_protected})
+    crud_empresas.log_saas_event(db, current_admin.id, "TOGGLE_PROTECTION", empresa_id, {"is_protected": empresa.is_protected})
     db.commit()
     db.refresh(empresa)
     return empresa
@@ -131,7 +147,7 @@ def crear_anuncio(
     db.add(db_ann)
     db.commit()
     db.refresh(db_ann)
-    crud.log_saas_event(db, current_admin.id, "CREATE_ANNOUNCEMENT", None, {"titulo": data.titulo})
+    crud_empresas.log_saas_event(db, current_admin.id, "CREATE_ANNOUNCEMENT", None, {"titulo": data.titulo})
     return db_ann
 
 @router.patch("/announcements/{ann_id}/toggle")
@@ -166,7 +182,7 @@ def listar_historial_jobs(limit: int = 20, db: Session = Depends(get_db)):
 
 @router.get("/planes", response_model=List[schemas.PlanSuscripcionOut])
 def listar_planes_admin(db: Session = Depends(get_db)):
-    return crud.get_planes(db, include_inactive=True)
+    return crud_planes.get_planes(db, include_inactive=True)
 
 @router.post("/planes", response_model=schemas.PlanSuscripcionOut)
 def crear_plan(plan: schemas.PlanSuscripcionCreate, db: Session = Depends(get_db)):
@@ -175,11 +191,11 @@ def crear_plan(plan: schemas.PlanSuscripcionCreate, db: Session = Depends(get_db
     ).first()
     if existente:
         raise HTTPException(status_code=400, detail="Ya existe un plan con este código interno.")
-    return crud.create_plan(db, plan)
+    return crud_planes.create_plan(db, plan)
 
 @router.patch("/planes/{plan_id}", response_model=schemas.PlanSuscripcionOut)
 def actualizar_plan(plan_id: int, plan_update: schemas.PlanSuscripcionUpdate, db: Session = Depends(get_db)):
-    plan_actualizado = crud.update_plan(db, plan_id, plan_update)
+    plan_actualizado = crud_planes.update_plan(db, plan_id, plan_update)
     if not plan_actualizado:
         raise HTTPException(status_code=404, detail="Plan no encontrado")
     return plan_actualizado
@@ -200,7 +216,7 @@ def listar_historial_pagos(db: Session = Depends(get_db)):
 def impersonate_company(
     empresa_id: int,
     db: Session = Depends(get_db),
-    current_admin: schemas.User = Depends(get_current_superadmin_user)
+    current_admin: models.User = Depends(get_current_superadmin_user)
 ):
     target_user = db.query(models.User).filter(
         models.User.empresa_id == empresa_id
@@ -223,5 +239,5 @@ def notificar_vencimientos_lotes(db: Session = Depends(get_db)):
     """
     Genera notificaciones de vencimiento para todas las empresas activas.
     """
-    total = crud.notificar_vencimientos_proximos(db)
+    total = crud_perecederos.notificar_vencimientos_proximos(db)
     return {"msg": f"Se generaron {total} notificaciones de vencimiento."}

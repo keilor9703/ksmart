@@ -26,19 +26,27 @@ export const parseCurrencyInput = (formatted) => {
   return digits ? parseInt(digits, 10) : 0;
 };
 
-// ─── Formatea fecha ISO a string legible ──────────────────────────────────────
+// ─── Formatea fecha ISO a string legible (Forzando Colombia UTC-5) ────────────
 export const formatDate = (isoString) => {
   if (!isoString) return '—';
-  return new Date(isoString).toLocaleDateString('es-CO', {
-    day: '2-digit', month: 'short', year: 'numeric',
-  });
+  try {
+    const date = new Date(isoString);
+    return new Intl.DateTimeFormat('es-CO', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      timeZone: 'America/Bogota'
+    }).format(date);
+  } catch (e) { return 'Fecha inválida'; }
 };
 
-// ─── Formatea fecha+hora ──────────────────────────────────────────────────────
+// ─── Formatea fecha+hora (Forzando Colombia UTC-5) ────────────────────────────
 export const formatDateTime = (isoString) => {
   if (!isoString) return '—';
-  return new Date(isoString).toLocaleString('es-CO', {
-    day: '2-digit', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  });
+  try {
+    const date = new Date(isoString);
+    return new Intl.DateTimeFormat('es-CO', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', hour12: true,
+      timeZone: 'America/Bogota'
+    }).format(date);
+  } catch (e) { return 'Fecha/Hora inválida'; }
 };

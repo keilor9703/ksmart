@@ -5,10 +5,16 @@
 # =========================
 
 import json
-from pydantic import BaseModel, ConfigDict, validator
+from pydantic import BaseModel, ConfigDict, validator, field_validator
 from typing import Optional, List
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from enum import Enum
+
+# Helper para normalizar datetimes en toda la API
+def ensure_utc(v):
+    if v and isinstance(v, datetime) and v.tzinfo is None:
+        return v.replace(tzinfo=timezone.utc)
+    return v
 
 class EmpresaBase(BaseModel):
     nombre: str
@@ -18,6 +24,7 @@ class EmpresaBase(BaseModel):
     plan_type: Optional[str] = "trial"
     trial_ends_at: Optional[datetime] = None
     modulos_habilitados: Optional[List[str]] = None
+    is_protected: bool = False
 
     # ✅ FIX: La BD guarda esto como string JSON, Pydantic necesita lista
     @validator('modulos_habilitados', pre=True, always=True)
@@ -35,14 +42,49 @@ class EmpresaCreate(EmpresaBase):
 class Empresa(EmpresaBase):
     id: int
     is_active: bool
+    is_plan_expired: bool = False  # 🚀 CAMBIO CORE: Disponible en todo el sistema
     model_config = ConfigDict(from_attributes=True)
+
+    @validator('is_plan_expired', pre=True, always=True)
+    def check_expiration(cls, v, values):
+        """Calcula si el plan ha expirado en tiempo real"""
+        # En Pydantic v1/v2, 'values' puede ser un dict o el objeto base
+        trial_ends_at = values.get('trial_ends_at')
+        empresa_id = values.get('id')
+        is_protected = values.get('is_protected', False)
+
+        if not trial_ends_at or empresa_id == 1 or is_protected:
+            return False
+            
+        ahora = datetime.now(timezone.utc)
+        # Aseguramos que trial_ends_at sea timezone-aware
+        if trial_ends_at.tzinfo is None:
+            trial_ends_at = trial_ends_at.replace(tzinfo=timezone.utc)
+            
+        return ahora > trial_ends_at
 
 class EmpresaOut(EmpresaBase):
     id: int
     is_active: bool
+    is_plan_expired: bool = False
     created_at: Optional[datetime] = None
     last_activity_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
+
+    @validator('created_at', 'last_activity_at', pre=True, always=True)
+    def normalize_dt(cls, v):
+        return ensure_utc(v)
+    
+    # Redundante aquí pero mantenemos por consistencia de tipos
+    @validator('is_plan_expired', pre=True, always=True)
+    def check_expiration_out(cls, v, values):
+        trial_ends_at = values.get('trial_ends_at')
+        empresa_id = values.get('id')
+        is_protected = values.get('is_protected', False)
+        if not trial_ends_at or empresa_id == 1 or is_protected: return False
+        ahora = datetime.now(timezone.utc)
+        if trial_ends_at.tzinfo is None: trial_ends_at = trial_ends_at.replace(tzinfo=timezone.utc)
+        return ahora > trial_ends_at
 
 class EmpresaMetricsOut(EmpresaOut):
     count_usuarios: int = 0
@@ -60,6 +102,10 @@ class SaaSAuditLogOut(BaseModel):
     detalle: Optional[dict] = None
     fecha: datetime
     model_config = ConfigDict(from_attributes=True)
+
+    @validator('fecha', pre=True, always=True)
+    def normalize_fecha(cls, v):
+        return ensure_utc(v)
 
 class SaaSAnnouncementBase(BaseModel):
     titulo: str
@@ -890,6 +936,9 @@ DashboardData.model_rebuild()
 class EmpresaPlanUpdate(BaseModel):
     plan_type: str
     trial_ends_at: Optional[datetime] = None
+
+class EmpresaModulosUpdate(BaseModel):
+    modulos: List[str]
 
 
 

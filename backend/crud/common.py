@@ -24,6 +24,24 @@ def _is_postgres(db: Session) -> bool:
 BOGOTA_TZ = ZoneInfo("America/Bogota")
 UTC_TZ = ZoneInfo("UTC")
 
+def get_now_bogota():
+    """Devuelve la fecha y hora actual en Bogotá"""
+    return datetime.now(BOGOTA_TZ)
+
+def get_now_utc():
+    """Devuelve la fecha y hora actual en UTC"""
+    return datetime.now(timezone.utc)
+
+def ensure_utc(dt: datetime):
+    """
+    Asegura que un datetime sea aware en UTC.
+    Si es naive, asume que viene de la BD y que representa UTC.
+    """
+    if dt is None: return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
 def get_utc_boundaries(local_date: date, db: Session = None):
     """
     Toma una fecha local (date) y devuelve el inicio y fin de ese día en UTC.

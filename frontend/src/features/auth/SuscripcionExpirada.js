@@ -10,7 +10,7 @@ const ACCENT = '#F43F5E'; // Rojo/Rosa corporativo
 
 const formatCurrency = (val) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(val);
 
-export default function SuscripcionExpirada() {
+export default function SuscripcionExpirada({ onActive }) {
   const [planes, setPlanes] = useState([]);
   const [loadingPlanes, setLoadingPlanes] = useState(true);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -31,34 +31,41 @@ export default function SuscripcionExpirada() {
     };
     fetchPlanes();
 
-    // 2. 🚀 MAGIA: Polling en segundo plano. 
-    // Revisa cada 5 segundos si el webhook de WOMPI ya activó la cuenta.
+    // 2. 🚀 SILENT POLLING: Revisa en segundo plano sin refrescar la página
     const checkInterval = setInterval(async () => {
       try {
         const res = await apiClient.get('/users/me');
-        if (res.status === 200) {
+        // 💡 CAMBIO CRÍTICO: Usamos is_plan_expired (snake_case) que viene del backend
+        const empresa = res.data.empresa;
+        if (res.status === 200 && empresa?.is_active && !empresa?.is_plan_expired) {
           clearInterval(checkInterval);
-          toast.success('¡Pago detectado! Tu cuenta ha sido activada.');
-          window.location.href = '/'; // Redirección absoluta a la raíz
+          toast.success('¡Suscripción detectada! Activando sistema...');
+          // Llamamos a la función de App.js para reactivar el estado global
+          if (onActive) await onActive(); 
+          navigate('/'); // Navegación SPA suave
         }
       } catch (error) {
-        // Ignoramos errores mientras esperamos la activación
+        // Ignoramos 402/401 mientras esperamos el pago
       }
-    }, 5000);
+    }, 15000); 
 
     return () => clearInterval(checkInterval);
-  }, []);
+  }, [navigate, onActive]);
 
   const verificarPagoManual = async () => {
     setIsVerifying(true);
     try {
       const res = await apiClient.get('/users/me');
-      if (res.status === 200) {
-        toast.success('¡Tu cuenta está activa!');
-        window.location.href = '/';
+      const empresa = res.data.empresa;
+      if (res.status === 200 && empresa?.is_active && !empresa?.is_plan_expired) {
+        toast.success('¡Pago confirmado! Bienvenido.');
+        if (onActive) await onActive();
+        navigate('/');
+      } else {
+        toast.info('Aún no recibimos la confirmación. Si ya pagaste, espera unos segundos.');
       }
     } catch (error) {
-      toast.info('Aún no recibimos confirmación de Wompi. Intenta en un momento.');
+      toast.info('Aún no se refleja el pago en el sistema.');
     } finally {
       setIsVerifying(false);
     }
@@ -120,7 +127,7 @@ export default function SuscripcionExpirada() {
                     {/* ✅ EL NUEVO BOTÓN DE WOMPI */}
                     <WompiButton 
                       planName={plan.codigo_interno} 
-                      onSuccess={() => { window.location.href = '/'; }} 
+                      onSuccess={() => { if(onActive) onActive(); navigate('/'); }} 
                     />
                   </Box>
                 </Grid>

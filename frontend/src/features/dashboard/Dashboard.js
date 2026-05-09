@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Paper, Grid, CircularProgress,
   Divider, Chip, useMediaQuery, Skeleton, Button,
-  CardActionArea, Dialog, DialogTitle, DialogContent, IconButton
+  CardActionArea
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import {
@@ -11,12 +11,12 @@ import {
   TrendingUp, PointOfSale, AttachMoney, AccountBalance, 
   Business, RocketLaunch, Storefront, PeopleOutline, 
   AddShoppingCart, DirectionsRun, Savings, Gavel, 
-  Inventory2Outlined, Close, WorkspacePremium, ShoppingCart,
+  Inventory2Outlined, ShoppingCart,
   LocalParking, TwoWheeler
 } from '@mui/icons-material';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
-import WompiButton from '../../components/common/WompiButton';
+import SaaSUpgradeManager from '../saas/components/SaaSUpgradeManager';
 // Al tope, junto a los otros imports:
 import CacaoPriceWidget from './CacaoPriceWidget';
 
@@ -109,17 +109,12 @@ const MetodoBarra = ({ label, value, total, color, icon }) => {
   );
 };
 
-const Dashboard = () => {
+const Dashboard = ({ user }) => {
   const [data, setData]           = useState(null);
   const [caja, setCaja]           = useState(null);
-  const [user, setUser]           = useState(null);
   
   const [loadingMain, setLoadingMain] = useState(true);
   const [loadingCaja, setLoadingCaja] = useState(true);
-
-  const [upgradeOpen, setUpgradeOpen] = useState(false);
-  const [planes, setPlanes] = useState([]);
-  const [loadingPlanes, setLoadingPlanes] = useState(false);
 
   const navigate  = useNavigate();
   const theme     = useTheme();
@@ -129,15 +124,13 @@ const Dashboard = () => {
     setLoadingMain(true);
     setLoadingCaja(true);
     try { 
-      const [dashRes, cajaRes, userRes] = await Promise.allSettled([
+      const [dashRes, cajaRes] = await Promise.allSettled([
         apiClient.get('/reportes/dashboard'),
-        apiClient.get('/caja/corte/preview'),
-        apiClient.get('/users/me')
+        apiClient.get('/caja/corte/preview')
       ]);
       
       if (dashRes.status === 'fulfilled') setData(dashRes.value.data);
       if (cajaRes.status === 'fulfilled') setCaja(cajaRes.value.data);
-      if (userRes.status === 'fulfilled') setUser(userRes.value.data);
     } finally {
       setLoadingMain(false);
       setLoadingCaja(false);
@@ -145,21 +138,6 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
-
-  const handleOpenUpgrade = async () => {
-    setUpgradeOpen(true);
-    if (planes.length === 0) {
-      setLoadingPlanes(true);
-      try {
-        const { data: resPlanes } = await apiClient.get('/planes-activos');
-        setPlanes(resPlanes);
-      } catch (error) {
-        console.error("Error cargando planes:", error);
-      } finally {
-        setLoadingPlanes(false);
-      }
-    }
-  };
 
   const hasAccess = (path) => {
     if (user?.role?.name === 'Admin' && user?.empresa_id === 1) return true;
@@ -201,20 +179,17 @@ const Dashboard = () => {
   const totalUltimos30 = ventas30.reduce((s, d) => s + d.total, 0);
   const mejorDia = ventas30.reduce((mx, d) => d.total > mx.total ? d : mx, { total: 0, day: '' });
 
-  const calculateDaysLeft = (dateString) => {
-    if (!dateString) return 0;
-    const endsAt = new Date(dateString.endsWith('Z') ? dateString : dateString + 'Z');
-    const diffTime = endsAt - new Date();
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  };
-
-  const diasRestantes = calculateDaysLeft(user?.empresa?.trial_ends_at);
   const isZeroState = esPrestamista 
     ? (data?.capital_en_calle || 0) === 0 && (caja?.total_dia || 0) === 0
-    : totalUltimos30 === 0 && (data?.cuentas_por_cobrar || 0) === 0 && (caja?.total_dia || 0) === 0;
+    : esParqueadero
+      ? (data?.ingresos_hoy || 0) === 0 && (data?.accesos_dentro?.length || 0) === 0 && (caja?.total_dia || 0) === 0
+      : totalUltimos30 === 0 && (data?.cuentas_por_cobrar || 0) === 0 && (caja?.total_dia || 0) === 0;
 
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+
+      {/* ── SaaS Activation Manager (Trial Banner & Upgrade Modal) ── */}
+      <SaaSUpgradeManager user={user} />
 
       {/* ── HEADER ── */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
@@ -240,24 +215,6 @@ const Dashboard = () => {
           </Box>
         </Box>
       </Box>
-
-      {/* ── TRIAL BANNER ── */}
-      {user?.empresa?.plan_type === 'trial' && user?.empresa_id !== 1 && diasRestantes > 0 && (
-        <Box sx={{ 
-          mb: 3, p: 1.5, borderRadius: 2, 
-          bgcolor: theme.palette.mode === 'dark' ? 'rgba(37, 99, 235, 0.15)' : '#EFF6FF', 
-          border: '1px solid',
-          borderColor: theme.palette.mode === 'dark' ? 'rgba(37, 99, 235, 0.3)' : '#BFDBFE', 
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 
-        }}>
-          <Typography sx={{ fontSize: 12, color: theme.palette.mode === 'dark' ? '#93C5FD' : '#1E3A8A', fontWeight: 600 }}>
-            ⏱ Estás en tu periodo de prueba. Te quedan {diasRestantes} días gratis.
-          </Typography>
-          <Button size="small" variant="contained" onClick={handleOpenUpgrade} sx={{ bgcolor: '#2563EB', fontSize: 11, fontWeight: 700, boxShadow: 'none' }}>
-            Activar mi cuenta
-          </Button>
-        </Box>
-      )}
 
       {/* ── KPI GRID ── */}
       <Grid container spacing={1.5} sx={{ mb: 3 }}>
@@ -468,35 +425,6 @@ const Dashboard = () => {
           </Paper>
         </Grid>
       </Grid>
-
-      {/* ── MODAL DE SUSCRIPCIÓN ── */}
-      <Dialog open={upgradeOpen} onClose={() => setUpgradeOpen(false)} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 3, bgcolor: 'background.default' } }}>
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: 'rgba(244, 63, 94, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#F43F5E' }}>
-              <WorkspacePremium />
-            </Box>
-            <Typography sx={{ fontWeight: 800, fontSize: 18 }}>Elige tu Plan</Typography>
-          </Box>
-          <IconButton onClick={() => setUpgradeOpen(false)}><Close /></IconButton>
-        </DialogTitle>
-        <DialogContent sx={{ p: { xs: 2, md: 4 } }}>
-          {loadingPlanes ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 5 }}><CircularProgress sx={{ color: '#F43F5E' }} /></Box> :
-            <Grid container spacing={3}>
-              {planes.map(plan => (
-                <Grid item xs={12} sm={6} md={4} key={plan.id}>
-                  <Paper sx={{ p: 3, textAlign: 'center', borderRadius: 3, border: '1px solid', borderColor: 'divider', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', bgcolor: 'background.paper' }}>
-                    <Typography sx={{ fontWeight: 800, fontSize: 18, mb: 1 }}>{plan.nombre}</Typography>
-                    <Typography sx={{ fontSize: 24, fontWeight: 800, color: '#F43F5E', mb: 1 }}>{formatCurrency(plan.precio)}</Typography>
-                    <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 3 }}>Acceso total por {plan.dias_duracion} días</Typography>
-                    <WompiButton planName={plan.codigo_interno} onSuccess={() => { setUpgradeOpen(false); window.location.reload(); }} />
-                  </Paper>
-                </Grid>
-              ))}
-            </Grid>
-          }
-        </DialogContent>
-      </Dialog>
 
     </Box>
   );

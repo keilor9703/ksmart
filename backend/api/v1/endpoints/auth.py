@@ -116,12 +116,14 @@ def login_for_access_token(
     if not empresa.is_active:
         raise HTTPException(status_code=403, detail="La suscripción de la empresa se encuentra suspendida. Contacte a soporte.")
 
+    # 🚀 VALIDACIÓN DE EXPIRACIÓN (SaaS)
     is_expired = False
-    if empresa.trial_ends_at:
+    if empresa.trial_ends_at and empresa.id != 1: # Ignorar empresa maestra
         ahora_utc = datetime.now(timezone.utc)
         fecha_limite = empresa.trial_ends_at
         if fecha_limite.tzinfo is None:
             fecha_limite = fecha_limite.replace(tzinfo=timezone.utc)
+        
         if ahora_utc > fecha_limite:
             is_expired = True
 

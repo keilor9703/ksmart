@@ -165,3 +165,19 @@ def update_empresa_plan(db: Session, empresa_id: int, plan_data: schemas.Empresa
         db.commit()
         db.refresh(db_empresa)
     return db_empresa
+
+def update_empresa_modulos(db: Session, empresa_id: int, modulos: List[str], admin_id: int):
+    """Actualiza la lista de módulos habilitados para una empresa"""
+    db_empresa = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
+    if db_empresa:
+        old_modulos = db_empresa.modulos_habilitados
+        db_empresa.modulos_habilitados = modulos
+        
+        log_saas_event(db, admin_id, "UPDATE_MODULES", empresa_id, {
+            "old_count": len(old_modulos) if old_modulos else 0,
+            "new_count": len(modulos)
+        })
+        
+        db.commit()
+        db.refresh(db_empresa)
+    return db_empresa

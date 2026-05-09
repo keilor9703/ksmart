@@ -37,10 +37,8 @@ class TenantAccessService:
                     trial_end = trial_end.replace(tzinfo=timezone.utc)
                 
                 if ahora > trial_end:
-                    # Aquí decidimos si bloqueamos total o restringimos
-                    # Por ahora el diseño dice BLOCKED para trial vencido,
-                    # pero RESTRICTED si queremos que vea su data.
-                    # Implementamos BLOCKED por ahora para ser consistentes con is_active=False
+                    # 💡 BLOQUEO SAAS:
+                    # El usuario no puede entrar al sistema operativo.
                     return False, AccessStatus.BLOCKED, "TRIAL_EXPIRED"
 
         # 4. Caso por defecto

@@ -79,8 +79,14 @@ export default function GestionSaaS() {
   const [editingPlanId, setEditingPlanId] = useState(null);
   const [formPlan, setFormPlan] = useState({ nombre: '', codigo_interno: '', precio: '', dias_duracion: '', caracteristicas: '', is_active: true });
   const [openModulosDialog, setOpenModulosDialog] = useState(false);
+  const [empresaParaModulos, setEmpresaParaModulos] = useState(null);
 
   const handleOpenDrawer = (tenant) => { setTenantForDrawer(tenant); setOpenDrawer(true); };
+
+  const handleOpenModulos = (empresa) => {
+    setEmpresaParaModulos(empresa);
+    setOpenModulosDialog(true);
+  };
 
   const handleSubmitEmpresa = async (e) => {
     e.preventDefault();
@@ -119,9 +125,14 @@ export default function GestionSaaS() {
   const handleUpdateSuscripcion = async (e) => {
     e.preventDefault();
     try {
+      // Forzamos el fin del día en la zona horaria de Colombia (-05:00) para evitar saltos de día al convertir a UTC
+      const trial_ends_at = formAsignarPlan.trial_ends_at 
+        ? new Date(formAsignarPlan.trial_ends_at + 'T23:59:59-05:00').toISOString() 
+        : null;
+
       await apiClient.patch(`/superadmin/empresas/${empresaSeleccionada.id}/plan`, { 
         plan_type: formAsignarPlan.plan_type, 
-        trial_ends_at: formAsignarPlan.trial_ends_at ? new Date(formAsignarPlan.trial_ends_at + 'T23:59:59').toISOString() : null 
+        trial_ends_at
       });
       toast.success('Suscripción actualizada');
       setOpenPlanDialog(false);
@@ -244,7 +255,7 @@ export default function GestionSaaS() {
             <Box sx={{ width: '100%', overflowX: 'auto' }}>
               <TenantsTable 
                 empresas={filteredEmpresas} onOpenDrawer={handleOpenDrawer} onImpersonate={handleImpersonate} 
-                onOpenPlan={handleOpenAsignarPlan} onToggleProtection={handleToggleProtection} 
+                onOpenPlan={handleOpenAsignarPlan} onOpenModulos={handleOpenModulos} onToggleProtection={handleToggleProtection} 
               />
             </Box>
           </TabPanel>
@@ -290,8 +301,57 @@ export default function GestionSaaS() {
       <TenantDrawer360 
         open={openDrawer} onClose={() => setOpenDrawer(false)} tenant={tenantForDrawer} 
         onImpersonate={handleImpersonate} onOpenPlan={handleOpenAsignarPlan}
+        onOpenModulos={handleOpenModulos}
         onToggleStatus={async (id, status) => { if(await handleToggleStatus(id, status)) setOpenDrawer(false); }}
       />
+
+      <ModulosEmpresaDialog 
+        open={openModulosDialog} 
+        handleClose={() => setOpenModulosDialog(false)} 
+        empresa={empresaParaModulos}
+        onModulosUpdated={refreshAll}
+      />
+
+      <Dialog open={openPlanDialog} onClose={() => setOpenPlanDialog(false)} fullScreen={isMobile} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800 }}>Gestionar Suscripción</DialogTitle>
+        <form onSubmit={handleUpdateSuscripcion}>
+          <DialogContent>
+            <Stack spacing={3} sx={{ mt: 1 }}>
+              <TextField
+                select
+                fullWidth
+                label="Seleccionar Plan"
+                value={formAsignarPlan.plan_selector}
+                onChange={handleSelectPlanChange}
+                size="small"
+              >
+                <MenuItem value="trial">Trial (Prueba Corta)</MenuItem>
+                <MenuItem value="premium">Premium (Manual)</MenuItem>
+                <Divider />
+                {planesCatalog.map(p => (
+                  <MenuItem key={p.id} value={p.codigo_interno}>
+                    {p.nombre} (${new Intl.NumberFormat().format(p.precio)})
+                  </MenuItem>
+                ))}
+              </TextField>
+
+              <TextField
+                label="Fecha de Vencimiento"
+                type="date"
+                fullWidth
+                size="small"
+                InputLabelProps={{ shrink: true }}
+                value={formAsignarPlan.trial_ends_at}
+                onChange={(e) => setFormAsignarPlan({ ...formAsignarPlan, trial_ends_at: e.target.value })}
+              />
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ p: 2.5 }}>
+            <Button onClick={() => setOpenPlanDialog(false)} sx={{ fontWeight: 700 }}>Cancelar</Button>
+            <Button type="submit" variant="contained" sx={{ bgcolor: BLUE, fontWeight: 700 }}>Actualizar Plan</Button>
+          </DialogActions>
+        </form>
+      </Dialog>
 
       <Dialog open={openDialogEmpresa} onClose={() => setOpenDialogEmpresa(false)} fullScreen={isMobile} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontWeight: 800 }}>Nuevo Cliente SaaS</DialogTitle>
@@ -300,12 +360,33 @@ export default function GestionSaaS() {
             <Stack spacing={2.5}>
               <TextField label="Nombre Empresa" required fullWidth size="small" value={formEmpresa.nombre} onChange={e => setFormEmpresa({...formEmpresa, nombre: e.target.value})} />
               <TextField label="NIT" fullWidth size="small" value={formEmpresa.nit} onChange={e => setFormEmpresa({...formEmpresa, nit: e.target.value})} />
-              <TextField select label="Perfil" value={formEmpresa.tipo_negocio} onChange={e => setFormEmpresa({...formEmpresa, tipo_negocio: e.target.value})} fullWidth size="small">
-                <MenuItem value="erp">Comercio / ERP</MenuItem><MenuItem value="prestamos">Prestamista</MenuItem>
+              <TextField select label="Perfil de Negocio" value={formEmpresa.tipo_negocio} onChange={e => setFormEmpresa({...formEmpresa, tipo_negocio: e.target.value})} fullWidth size="small">
+                <MenuItem value="erp">Comercio / ERP</MenuItem>
+                <MenuItem value="prestamos">Prestamista / Cobranzas</MenuItem>
+                <MenuItem value="parqueadero">Parqueadero / Parking</MenuItem>
               </TextField>
-              <Divider><Chip label="ADMINISTRADOR" size="small" /></Divider>
-              <TextField label="Usuario" required fullWidth size="small" value={formEmpresa.admin_username} onChange={e => setFormEmpresa({...formEmpresa, admin_username: e.target.value})} />
-              <TextField label="Password" required type="password" fullWidth size="small" value={formEmpresa.admin_password} onChange={e => setFormEmpresa({...formEmpresa, admin_password: e.target.value})} />
+              
+              <Divider><Chip label="DATOS DEL ADMINISTRADOR" size="small" /></Divider>
+              
+              <TextField label="Nombre Completo" required fullWidth size="small" value={formEmpresa.admin_nombre_completo} onChange={e => setFormEmpresa({...formEmpresa, admin_nombre_completo: e.target.value})} />
+              
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <TextField label="Correo Electrónico" type="email" required fullWidth size="small" value={formEmpresa.admin_email} onChange={e => setFormEmpresa({...formEmpresa, admin_email: e.target.value})} />
+                </Grid>
+                <Grid item xs={6}>
+                  <TextField label="WhatsApp / Teléfono" required fullWidth size="small" value={formEmpresa.admin_telefono} onChange={e => setFormEmpresa({...formEmpresa, admin_telefono: e.target.value})} />
+                </Grid>
+              </Grid>
+
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <TextField label="Usuario de Ingreso" required fullWidth size="small" value={formEmpresa.admin_username} onChange={e => setFormEmpresa({...formEmpresa, admin_username: e.target.value})} />
+                </Grid>
+                <Grid item xs={6}>
+                  <TextField label="Contraseña" required type="password" fullWidth size="small" value={formEmpresa.admin_password} onChange={e => setFormEmpresa({...formEmpresa, admin_password: e.target.value})} />
+                </Grid>
+              </Grid>
             </Stack>
           </DialogContent>
           <DialogActions sx={{ p: 2 }}>
@@ -322,9 +403,29 @@ export default function GestionSaaS() {
           <DialogContent>
             <Stack spacing={2.5}>
               <TextField label="Nombre del Plan" required fullWidth size="small" value={formPlan.nombre} onChange={e => setFormPlan({...formPlan, nombre: e.target.value})} />
-              <CurrencyField label="Precio" required fullWidth value={formPlan.precio} onChange={val => setFormPlan({...formPlan, precio: val})} />
-              <TextField label="Días de duración" type="number" required fullWidth size="small" value={formPlan.dias_duracion} onChange={e => setFormPlan({...formPlan, dias_duracion: e.target.value})} />
-              <FormControlLabel control={<Switch checked={formPlan.is_active} onChange={e => setFormPlan({...formPlan, is_active: e.target.checked})} />} label="Plan Activo" />
+              <TextField label="Código Interno (ej: plan_oro)" required fullWidth size="small" value={formPlan.codigo_interno} onChange={e => setFormPlan({...formPlan, codigo_interno: e.target.value})} disabled={!!editingPlanId} />
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <CurrencyField label="Precio Mensual" required fullWidth value={formPlan.precio} onChange={val => setFormPlan({...formPlan, precio: val})} />
+                </Grid>
+                <Grid item xs={6}>
+                  <TextField label="Días de duración" type="number" required fullWidth size="small" value={formPlan.dias_duracion} onChange={e => setFormPlan({...formPlan, dias_duracion: e.target.value})} />
+                </Grid>
+              </Grid>
+              
+              <TextField 
+                label="Características del Plan" 
+                placeholder="Ej: Facturación Ilimitada, Soporte 24/7, Módulo de Inventario..." 
+                multiline rows={4} fullWidth size="small" 
+                value={formPlan.caracteristicas} 
+                onChange={e => setFormPlan({...formPlan, caracteristicas: e.target.value})} 
+                helperText="Escribe las ventajas principales separadas por comas."
+              />
+
+              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                 <TextField label="Color (Hex)" size="small" value={formPlan.color || '#3B82F6'} onChange={e => setFormPlan({...formPlan, color: e.target.value})} sx={{ width: 120 }} />
+                 <FormControlLabel control={<Switch checked={formPlan.is_active} onChange={e => setFormPlan({...formPlan, is_active: e.target.checked})} />} label="Plan Activo y Visible" />
+              </Box>
             </Stack>
           </DialogContent>
           <DialogActions sx={{ p: 2 }}>

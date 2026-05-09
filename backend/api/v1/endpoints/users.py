@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 import crud
 import models
 import schemas
-from api.deps import get_db, get_current_active_user, get_current_admin_user
+from api.deps import get_db, get_current_user, get_current_active_user, get_current_admin_user
 
 router = APIRouter()
 
@@ -67,7 +67,12 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db), current
     return crud.create_user(db=db, user=user, empresa_id=current_user.empresa_id)
 
 @router.get("/users/me", response_model=schemas.User, tags=["users"])
-def read_users_me(current_user: models.User = Depends(get_current_active_user)):
+def read_users_me(current_user: models.User = Depends(get_current_user)):
+    """
+    IMPORTANTE: Usa get_current_user (sin validación de suscripción activa) 
+    para permitir que el usuario vea su perfil incluso si su plan ha expirado.
+    Esto es necesario para el flujo de renovación SaaS.
+    """
     return current_user
 
 @router.get("/users/", response_model=List[schemas.User], tags=["users"])

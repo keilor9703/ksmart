@@ -21,10 +21,11 @@ import { useNavigate } from 'react-router-dom';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
 import BotonWhatsApp from '../../components/common/BotonWhatsApp';   // ✨ NUEVO
+import SaaSUpgradeManager from '../saas/components/SaaSUpgradeManager';
 
 const ACCENT = '#FF6020';
 
-export default function ParqueaderoDashboard() {
+export default function ParqueaderoDashboard({ user }) {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
@@ -73,6 +74,9 @@ export default function ParqueaderoDashboard() {
 
   return (
     <Box sx={{ p: { xs: 1, md: 2 }, maxWidth: 1400, mx: 'auto' }}>
+
+      {/* ─── SaaS Activation Manager (Trial Banner & Upgrade Modal) ─── */}
+      <SaaSUpgradeManager user={user} />
 
       {/* ─── Encabezado ─────────────────────────────────────────── */}
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>

@@ -134,8 +134,19 @@ function App() {
           const res = await apiClient.get('/users/me', {
             headers: { Authorization: `Bearer ${token}` },
           });
-          setIsAuthenticated(true);
-          setUser(res.data);
+          const emp = res.data.empresa;
+          const expirado = emp?.is_plan_expired;
+
+          if (expirado && emp.id !== 1 && !emp.is_protected) {
+             // 💡 BLOQUEO ESTRICTO: Si expiró, NO está autenticado para el sistema privado
+             setIsAuthenticated(false);
+             setUser({ ...res.data, isPlanExpired: true });
+             navigate('/suscripcion-expirada');
+          } else {
+             // Plan vigente o empresa protegida
+             setIsAuthenticated(true);
+             setUser({ ...res.data, isPlanExpired: false });
+          }
 
           // ✅ LÓGICA DE INTERSECCIÓN (SAAS FEATURE TOGGLING)
           // 🔹 CAMBIOS DE PERMISOS: Si necesitas cambiar cómo se calculan los permisos, es aquí.
@@ -157,17 +168,19 @@ function App() {
           localStorage.setItem('userModules', JSON.stringify(modulosFinales));
 
         } catch (error) {
-        // Manejo de errores específicos
-        if (error.response && error.response.status === 402) {
-          // 402 Payment Required: La empresa no ha pagado su suscripción SaaS.
-          setIsAuthenticated(false);
-          navigate('/suscripcion-expirada');
-        } else {
-          // Otro error (Token inválido o expirado)
-          handleLogout(false);
-          toast.error('Sesión expirada. Por favor inicia sesión nuevamente.');
+          const status = error.response?.status;
+          
+          if (status === 402 || status === 403) {
+            // 💡 CASO SAAS: El token es válido pero el acceso está restringido.
+            // NO limpiamos el token, solo cambiamos el estado visual.
+            setIsAuthenticated(false);
+            navigate('/suscripcion-expirada');
+          } else {
+            // El token es realmente inválido o expiró el JWT.
+            handleLogout(false);
+            toast.error('Sesión expirada. Por favor inicia sesión nuevamente.');
+          }
         }
-      }
     } else {
       // No hay token, forzar cierre.
       setIsAuthenticated(false);
@@ -306,8 +319,8 @@ const hasAccess = useCallback((path) => {
                   <Route path="/" element={
                     ["Admin", "Socio", "Consulta"].includes(user?.role?.name)
                       ? (user?.empresa?.modulos_habilitados?.includes('/parqueadero') 
-                          ? <ParqueaderoDashboard /> 
-                          : <Dashboard />)
+                          ? <ParqueaderoDashboard user={user} /> 
+                          : <Dashboard user={user} />)
                       : <Home />
                   } />
 
@@ -331,7 +344,7 @@ const hasAccess = useCallback((path) => {
                   <Route path="/panel-operador"     element={<ProtectedRoute path="/panel-operador"     hasAccess={hasAccess}><PanelOperador /></ProtectedRoute>} />
                   
                   {/* ✅ MÓDULO PARQUEADERO */}
-                  <Route path="/parqueadero"                element={<ProtectedRoute path="/parqueadero"                hasAccess={hasAccess}><ParqueaderoDashboard      /></ProtectedRoute>} />
+                  <Route path="/parqueadero"                element={<ProtectedRoute path="/parqueadero"                hasAccess={hasAccess}><ParqueaderoDashboard user={user} /></ProtectedRoute>} />
                   <Route path="/parqueadero/buscar"         element={<ProtectedRoute path="/parqueadero/buscar"         hasAccess={hasAccess}><ParqueaderoBuscar         /></ProtectedRoute>} />
                   <Route path="/parqueadero/vehiculos"      element={<ProtectedRoute path="/parqueadero/vehiculos"      hasAccess={hasAccess}><ParqueaderoVehiculos      /></ProtectedRoute>} />
                   <Route path="/parqueadero/suscripciones"  element={<ProtectedRoute path="/parqueadero/suscripciones"  hasAccess={hasAccess}><ParqueaderoSuscripciones  /></ProtectedRoute>} />
@@ -363,7 +376,7 @@ const hasAccess = useCallback((path) => {
           // 🔹 NUEVAS RUTAS PÚBLICAS: Si necesitas crear pantallas de "Olvidé mi contraseña", agrégalas aquí.
           <Box sx={{ width: '100%', minHeight: '100vh' }}>
             <Routes>
-              <Route path="/suscripcion-expirada" element={<SuscripcionExpirada />} />
+              <Route path="/suscripcion-expirada" element={<SuscripcionExpirada onActive={checkAuth} />} />
               <Route path="/registro" element={<Registro />} />
               {/* Cualquier otra ruta no reconocida o el inicio ('*') forzará la vista de Login */}
               <Route path="*" element={<Login onLogin={checkAuth} />} />

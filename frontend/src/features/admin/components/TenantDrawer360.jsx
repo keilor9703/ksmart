@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import { 
   Close, People, ShoppingBag, Info, AccessTime, 
-  SupportAgent, CardMembership, Block, CheckCircle 
+  SupportAgent, CardMembership, Block, CheckCircle, ViewModule 
 } from '@mui/icons-material';
 
 const ACCENT = '#F43F5E';
@@ -32,7 +32,7 @@ const getActivityColor = (lastActivity) => {
 const formatDateShort = (d) => d ? new Date(d).toLocaleDateString('es-CO') : 'N/A';
 const formatDateFull = (d) => d ? new Date(d).toLocaleString('es-CO') : 'N/A';
 
-const TenantDrawer360 = ({ open, onClose, tenant, onImpersonate, onOpenPlan, onToggleStatus }) => {
+const TenantDrawer360 = ({ open, onClose, tenant, onImpersonate, onOpenPlan, onOpenModulos, onToggleStatus }) => {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -112,10 +112,11 @@ const TenantDrawer360 = ({ open, onClose, tenant, onImpersonate, onOpenPlan, onT
                     <Button fullWidth variant="contained" startIcon={<SupportAgent />} onClick={() => onImpersonate(tenant.id)} sx={{ bgcolor: BLUE, borderRadius: 2, fontWeight: 700, py: 1.2 }}>Entrar como Soporte</Button>
                     <Box sx={{ display: 'flex', gap: 2 }}>
                         <Button fullWidth variant="outlined" startIcon={<CardMembership />} onClick={() => onOpenPlan(tenant)} sx={{ borderRadius: 2, fontWeight: 700 }}>Plan</Button>
-                        <Button fullWidth variant="outlined" color={tenant.is_active ? "error" : "success"} startIcon={tenant.is_active ? <Block /> : <CheckCircle />} onClick={() => onToggleStatus(tenant.id, tenant.is_active)} sx={{ borderRadius: 2, fontWeight: 700 }}>
-                            {tenant.is_active ? "Suspender" : "Activar"}
-                        </Button>
+                        <Button fullWidth variant="outlined" startIcon={<ViewModule />} onClick={() => onOpenModulos(tenant)} sx={{ borderRadius: 2, fontWeight: 700 }}>Módulos</Button>
                     </Box>
+                    <Button fullWidth variant="outlined" color={tenant.is_active ? "error" : "success"} startIcon={tenant.is_active ? <Block /> : <CheckCircle />} onClick={() => onToggleStatus(tenant.id, tenant.is_active)} sx={{ borderRadius: 2, fontWeight: 700 }}>
+                        {tenant.is_active ? "Suspender Inquilino" : "Activar Inquilino"}
+                    </Button>
                 </Stack>
             </Box>
         </Drawer>

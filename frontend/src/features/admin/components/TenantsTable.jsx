@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import { 
   ShoppingBag, Description, People, Info, SupportAgent, Settings, Shield, ShieldOutlined,
-  MoreVert
+  ViewModule
 } from '@mui/icons-material';
 
 const ACCENT = '#F43F5E';
@@ -32,7 +32,7 @@ const getActivityColor = (lastActivity) => {
 const formatDateShort = (d) => d ? new Date(d).toLocaleDateString('es-CO') : 'N/A';
 const formatDateFull = (d) => d ? new Date(d).toLocaleString('es-CO') : 'N/A';
 
-const TenantMobileCard = ({ emp, onOpenDrawer, onImpersonate, onOpenPlan, onToggleProtection }) => (
+const TenantMobileCard = ({ emp, onOpenDrawer, onImpersonate, onOpenPlan, onOpenModulos, onToggleProtection }) => (
     <Paper sx={{ p: 2, mb: 2, borderRadius: 3, boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -68,13 +68,14 @@ const TenantMobileCard = ({ emp, onOpenDrawer, onImpersonate, onOpenPlan, onTogg
             <Stack direction="row" spacing={1}>
                 <IconButton size="small" onClick={() => onToggleProtection(emp.id)} color={emp.is_protected ? "primary" : "default"}><Shield fontSize="small" /></IconButton>
                 <IconButton size="small" onClick={() => onImpersonate(emp.id)} sx={{ color: PURPLE }}><SupportAgent fontSize="small" /></IconButton>
+                <IconButton size="small" disabled={emp.id === 1} onClick={() => onOpenModulos(emp)} sx={{ color: ACCENT }}><ViewModule fontSize="small" /></IconButton>
                 <IconButton size="small" disabled={emp.id === 1} onClick={() => onOpenPlan(emp)}><Settings fontSize="small" /></IconButton>
             </Stack>
         </Box>
     </Paper>
 );
 
-const TenantsTable = ({ empresas, onOpenDrawer, onImpersonate, onOpenPlan, onToggleProtection }) => {
+const TenantsTable = ({ empresas, onOpenDrawer, onImpersonate, onOpenPlan, onOpenModulos, onToggleProtection }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
@@ -88,6 +89,7 @@ const TenantsTable = ({ empresas, onOpenDrawer, onImpersonate, onOpenPlan, onTog
                     onOpenDrawer={onOpenDrawer} 
                     onImpersonate={onImpersonate} 
                     onOpenPlan={onOpenPlan} 
+                    onOpenModulos={onOpenModulos}
                     onToggleProtection={onToggleProtection} 
                   />
               ))}
@@ -152,12 +154,27 @@ const TenantsTable = ({ empresas, onOpenDrawer, onImpersonate, onOpenPlan, onTog
                     </Box>
                 </TableCell>
                 <TableCell align="right">
-                  <IconButton size="small" onClick={() => onToggleProtection(emp.id)} sx={{ color: emp.is_protected ? BLUE : 'action.disabled' }}>
-                      {emp.is_protected ? <Shield fontSize="small" /> : <ShieldOutlined fontSize="small" />}
-                  </IconButton>
-                  <IconButton size="small" onClick={() => onOpenDrawer(emp)} sx={{ color: BLUE }}><Info fontSize="small" /></IconButton>
-                  <IconButton size="small" onClick={() => onImpersonate(emp.id)} sx={{ color: PURPLE }}><SupportAgent fontSize="small" /></IconButton>
-                  <IconButton size="small" disabled={emp.id === 1} onClick={() => onOpenPlan(emp)} sx={{ color: 'text.secondary' }}><Settings fontSize="small" /></IconButton>
+                  <Tooltip title={emp.is_protected ? "Quitar Protección" : "Activar Protección (Inmunidad SaaS)"} arrow>
+                    <IconButton size="small" onClick={() => onToggleProtection(emp.id)} sx={{ color: emp.is_protected ? BLUE : 'action.disabled' }}>
+                        {emp.is_protected ? <Shield fontSize="small" /> : <ShieldOutlined fontSize="small" />}
+                    </IconButton>
+                  </Tooltip>
+
+                  <Tooltip title="Ver Visión 360°" arrow>
+                    <IconButton size="small" onClick={() => onOpenDrawer(emp)} sx={{ color: BLUE }}><Info fontSize="small" /></IconButton>
+                  </Tooltip>
+
+                  <Tooltip title="Entrar como Soporte (Impersonate)" arrow>
+                    <IconButton size="small" onClick={() => onImpersonate(emp.id)} sx={{ color: PURPLE }}><SupportAgent fontSize="small" /></IconButton>
+                  </Tooltip>
+
+                  <Tooltip title="Configurar Módulos Habilitados" arrow>
+                    <IconButton size="small" disabled={emp.id === 1} onClick={() => onOpenModulos(emp)} sx={{ color: ACCENT }}><ViewModule fontSize="small" /></IconButton>
+                  </Tooltip>
+
+                  <Tooltip title="Gestionar Suscripción y Vencimiento" arrow>
+                    <IconButton size="small" disabled={emp.id === 1} onClick={() => onOpenPlan(emp)} sx={{ color: 'text.secondary' }}><Settings fontSize="small" /></IconButton>
+                  </Tooltip>
                 </TableCell>
               </TableRow>
             ))}
