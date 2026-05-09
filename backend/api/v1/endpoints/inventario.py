@@ -113,6 +113,7 @@ def kardex_export_excel(
             "Content-Disposition": f'attachment; filename="kardex_producto_{producto_id}.xlsx"',
         },
     )
+@router.post("/movimientos", response_model=schemas.InventoryMovementOut)
 def crear_movimiento(
     payload: schemas.InventoryMovementCreate,
     db: Session = Depends(get_db),
