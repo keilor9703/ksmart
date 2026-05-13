@@ -22,6 +22,7 @@ import TenantDrawer360 from './components/TenantDrawer360';
 import AuditLogsTable from './components/AuditLogsTable';
 import AnnouncementsManager from './components/AnnouncementsManager';
 import JobsControl from './components/JobsControl';
+import PlanFormDialog from './components/PlanFormDialog'; // ✅ Nuevo Componente Importado
 
 const ACCENT = '#F43F5E';
 const BLUE = '#3B82F6';
@@ -274,7 +275,7 @@ export default function GestionSaaS() {
                 </Grid>
               ))}
               <Grid item xs={12} sm={6} md={4}>
-                <Button fullWidth onClick={() => { setEditingPlanId(null); setOpenCatalogDialog(true); }} sx={{ border: '2px dashed #CBD5E1', height: '100%', minHeight: 100, borderRadius: 3 }}>
+                <Button fullWidth onClick={() => { setEditingPlanId(null); setFormPlan({ nombre: '', codigo_interno: '', precio: '', dias_duracion: '', caracteristicas: '', is_active: true }); setOpenCatalogDialog(true); }} sx={{ border: '2px dashed #CBD5E1', height: '100%', minHeight: 100, borderRadius: 3 }}>
                    <Stack alignItems="center"><Add /><Typography sx={{ fontWeight: 700 }}>Nuevo Plan</Typography></Stack>
                 </Button>
               </Grid>
@@ -297,7 +298,7 @@ export default function GestionSaaS() {
         </Box>
       </Box>
 
-      {/* ── DIALOGS ── (Ajustados con fullScreen={isMobile}) */}
+      {/* ── DIALOGS ── */}
       <TenantDrawer360 
         open={openDrawer} onClose={() => setOpenDrawer(false)} tenant={tenantForDrawer} 
         onImpersonate={handleImpersonate} onOpenPlan={handleOpenAsignarPlan}
@@ -396,44 +397,15 @@ export default function GestionSaaS() {
         </form>
       </Dialog>
       
-      {/* Diálogo de Catálogo de Planes */}
-      <Dialog open={openCatalogDialog} onClose={() => setOpenCatalogDialog(false)} fullScreen={isMobile} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 800 }}>{editingPlanId ? 'Editar Plan' : 'Nuevo Plan'}</DialogTitle>
-        <form onSubmit={handleSubmitPlan}>
-          <DialogContent>
-            <Stack spacing={2.5}>
-              <TextField label="Nombre del Plan" required fullWidth size="small" value={formPlan.nombre} onChange={e => setFormPlan({...formPlan, nombre: e.target.value})} />
-              <TextField label="Código Interno (ej: plan_oro)" required fullWidth size="small" value={formPlan.codigo_interno} onChange={e => setFormPlan({...formPlan, codigo_interno: e.target.value})} disabled={!!editingPlanId} />
-              <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <CurrencyField label="Precio Mensual" required fullWidth value={formPlan.precio} onChange={val => setFormPlan({...formPlan, precio: val})} />
-                </Grid>
-                <Grid item xs={6}>
-                  <TextField label="Días de duración" type="number" required fullWidth size="small" value={formPlan.dias_duracion} onChange={e => setFormPlan({...formPlan, dias_duracion: e.target.value})} />
-                </Grid>
-              </Grid>
-              
-              <TextField 
-                label="Características del Plan" 
-                placeholder="Ej: Facturación Ilimitada, Soporte 24/7, Módulo de Inventario..." 
-                multiline rows={4} fullWidth size="small" 
-                value={formPlan.caracteristicas} 
-                onChange={e => setFormPlan({...formPlan, caracteristicas: e.target.value})} 
-                helperText="Escribe las ventajas principales separadas por comas."
-              />
-
-              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                 <TextField label="Color (Hex)" size="small" value={formPlan.color || '#3B82F6'} onChange={e => setFormPlan({...formPlan, color: e.target.value})} sx={{ width: 120 }} />
-                 <FormControlLabel control={<Switch checked={formPlan.is_active} onChange={e => setFormPlan({...formPlan, is_active: e.target.checked})} />} label="Plan Activo y Visible" />
-              </Box>
-            </Stack>
-          </DialogContent>
-          <DialogActions sx={{ p: 2 }}>
-            <Button onClick={() => setOpenCatalogDialog(false)}>Cerrar</Button>
-            <Button type="submit" variant="contained">Guardar</Button>
-          </DialogActions>
-        </form>
-      </Dialog>
+      {/* ✅ Componente Refactorizado de Planes */}
+      <PlanFormDialog 
+        open={openCatalogDialog}
+        onClose={() => setOpenCatalogDialog(false)}
+        onSubmit={handleSubmitPlan}
+        formPlan={formPlan}
+        setFormPlan={setFormPlan}
+        isEditing={!!editingPlanId}
+      />
 
     </Box>
   );
