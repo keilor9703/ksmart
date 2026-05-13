@@ -5,7 +5,7 @@ import {
   FormControlLabel, Switch, useMediaQuery, useTheme, Typography, IconButton
 } from '@mui/material';
 import { Close } from '@mui/icons-material';
-import CurrencyField from '../../components/common/CurrencyField'; // Ajusta la ruta si es necesario
+import CurrencyField from '../../../components/common/CurrencyField'; // Ajusta la ruta si es necesario
 
 export default function PlanFormDialog({
   open, onClose, onSubmit, formPlan, setFormPlan, isEditing
