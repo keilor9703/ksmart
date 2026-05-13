@@ -213,6 +213,32 @@ class ClienteDetails(Cliente):
     deuda_actual: float
 
 # =========================
+# GRUPOS DE PRODUCTO
+# =========================
+
+class GrupoProductoBase(BaseModel):
+    nombre: str
+    codigo: str
+    color: str = '#94a3b8'
+    orden: int = 99
+
+class GrupoProductoCreate(GrupoProductoBase):
+    pass
+
+class GrupoProductoUpdate(BaseModel):
+    nombre: Optional[str] = None
+    codigo: Optional[str] = None
+    color: Optional[str] = None
+    orden: Optional[int] = None
+
+class GrupoProductoOut(GrupoProductoBase):
+    id: int
+    empresa_id: Optional[int] = None
+    es_predefinido: bool
+    model_config = ConfigDict(from_attributes=True)
+
+
+# =========================
 # PRODUCTOS / INVENTARIO
 # =========================
 # En schemas.py, busca la clase ProductoBase y añádelo al final:

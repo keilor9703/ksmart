@@ -7,6 +7,7 @@ from crud.common import BOGOTA_TZ
 from crud.productos import get_producto, create_producto
 from crud.clientes import create_cliente
 from crud.inventario import create_movement
+from crud.grupos_producto import resolve_grupo_by_name
 
 
 def bulk_create_productos(db: Session, empresa_id: int, file: IO, filename: str):
@@ -68,12 +69,7 @@ def bulk_create_productos(db: Session, empresa_id: int, file: IO, filename: str)
     seen_names = set()
 
     def map_group(val):
-        v = str(val).upper().strip()
-        if 'MP' in v or 'MATERIA' in v or v == '1': return 1
-        if 'PT' in v or 'TERMINADO' in v or v == '2': return 2
-        if 'AF' in v or 'ACTIVO' in v or v == '3': return 3
-        if 'INS' in v or 'INSUMO' in v or v == '4': return 4
-        return 2
+        return resolve_grupo_by_name(db, empresa_id, str(val))
 
     for index, row in df.iterrows():
         try:

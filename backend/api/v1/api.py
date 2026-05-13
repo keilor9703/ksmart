@@ -6,6 +6,7 @@ from .endpoints import (
     resoluciones, cotizaciones, parqueadero, mercado,
     biometric, webhooks,
     compras, produccion, ordenes_trabajo, panel_operador, planes, saas,
+    grupos_producto,
 )
 
 api_router = APIRouter()
@@ -17,6 +18,7 @@ api_router.include_router(planes.router, prefix="", tags=["planes"])
 api_router.include_router(users.router, prefix="", tags=["users"])
 api_router.include_router(clientes.router, prefix="/clientes", tags=["clientes"])
 api_router.include_router(productos.router, prefix="/productos", tags=["productos"])
+api_router.include_router(grupos_producto.router, prefix="/grupos-producto", tags=["grupos-producto"])
 api_router.include_router(inventario.router, prefix="/inventario", tags=["inventario"])
 api_router.include_router(ventas.router, prefix="/ventas", tags=["ventas"])
 api_router.include_router(pagos.router, prefix="/pagos", tags=["pagos"])
