@@ -28,3 +28,12 @@ def registrar_gasto(data: schemas.GastoCreate, db: Session = Depends(get_db), cu
 @router.get("/gastos", response_model=List[schemas.GastoOut])
 def listar_gastos(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
     return crud.get_gastos(db, empresa_id=current_user.empresa_id, skip=skip, limit=limit)
+
+@router.patch("/gastos/{gasto_id}", response_model=schemas.GastoOut)
+def actualizar_gasto(gasto_id: int, data: schemas.GastoCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+    return crud.update_gasto(db, empresa_id=current_user.empresa_id, gasto_id=gasto_id, data=data)
+
+@router.delete("/gastos/{gasto_id}")
+def eliminar_gasto(gasto_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+    crud.delete_gasto(db, empresa_id=current_user.empresa_id, gasto_id=gasto_id)
+    return {"message": "Gasto eliminado correctamente"}

@@ -166,3 +166,39 @@ def get_gastos(db: Session, empresa_id: int, skip: int = 0, limit: int = 100) ->
         .order_by(models.Gasto.fecha.desc())
         .offset(skip).limit(limit).all()
     )
+
+def update_gasto(db: Session, empresa_id: int, gasto_id: int, data: schemas.GastoCreate) -> models.Gasto:
+    db_gasto = db.query(models.Gasto).filter(
+        models.Gasto.id == gasto_id,
+        models.Gasto.empresa_id == empresa_id
+    ).first()
+    
+    if not db_gasto:
+        raise HTTPException(status_code=404, detail="Gasto no encontrado")
+    
+    if data.tercero_id:
+        tercero = get_cliente(db, empresa_id, data.tercero_id)
+        if not tercero:
+            raise HTTPException(status_code=404, detail="Tercero no encontrado")
+        db_gasto.tercero_id = data.tercero_id
+
+    db_gasto.monto = data.monto
+    db_gasto.concepto = data.concepto
+    db_gasto.metodo_pago = data.metodo_pago
+    
+    db.commit()
+    db.refresh(db_gasto)
+    return db_gasto
+
+def delete_gasto(db: Session, empresa_id: int, gasto_id: int) -> bool:
+    db_gasto = db.query(models.Gasto).filter(
+        models.Gasto.id == gasto_id,
+        models.Gasto.empresa_id == empresa_id
+    ).first()
+    
+    if not db_gasto:
+        raise HTTPException(status_code=404, detail="Gasto no encontrado")
+    
+    db.delete(db_gasto)
+    db.commit()
+    return True

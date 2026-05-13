@@ -571,6 +571,14 @@ class CompraCreate(BaseModel):
     pagada: bool = False
     iva_porcentaje: float = 0.0
 
+class CompraUpdate(BaseModel):
+    proveedor_id: Optional[int] = None
+    referencia_factura: Optional[str] = None
+    fecha: Optional[datetime] = None
+    iva_porcentaje: Optional[float] = None
+    detalles: Optional[List[DetalleCompraCreate]] = None
+    pagada: Optional[bool] = None
+
 class Compra(CompraBase):
     id: int
     total: float

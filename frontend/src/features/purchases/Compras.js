@@ -120,6 +120,12 @@ const Compras = () => {
   const [openDetailDialog, setOpenDetailDialog] = useState(false);
   const [compraDetalle, setCompraDetalle]       = useState(null);
 
+  // -- NUEVOS ESTADOS PARA EDICIÓN Y ELIMINACIÓN --
+  const [editingCompraId, setEditingCompraId] = useState(null);
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [deleteId, setDeleteId] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+
   // Paginación
   const [page, setPage]               = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -189,7 +195,7 @@ const Compras = () => {
 
     setLoading(true);
     try {
-      await createCompra({
+      const payload = {
         proveedor_id: proveedorSel.id,
         referencia_factura: refFactura,
         detalles: detalles.map(d => ({
@@ -198,19 +204,68 @@ const Compras = () => {
           cantidad:        parseFloat(d.cantidad),
           precio_unitario: parseFloat(d.precio_unitario),
           iva_porcentaje:  0.0,
-          // Se envían los datos de lotes al backend
           numero_lote: d.numero_lote || undefined,
           fecha_vencimiento: d.fecha_vencimiento || undefined,
           fecha_fabricacion: d.fecha_fabricacion || undefined,
         })),
         pagada: pagadaAlCrear,
         iva_porcentaje: parseFloat(ivaPorcentajeGlobal),
-      });
-      toast.success('Compra registrada e inventario actualizado.');
-      resetForm(); fetchHistorial(); setTab(1);
+      };
+
+      if (editingCompraId) {
+        await apiClient.patch(`/compras/${editingCompraId}`, payload);
+        toast.success('Compra actualizada e inventario ajustado.');
+      } else {
+        await createCompra(payload);
+        toast.success('Compra registrada e inventario actualizado.');
+      }
+      
+      resetForm(); setEditingCompraId(null); fetchHistorial(); setTab(1);
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Error al registrar compra');
+      toast.error(err.response?.data?.detail || 'Error al procesar compra');
     } finally { setLoading(false); }
+  };
+
+  const handleEditCompra = (c) => {
+    setEditingCompraId(c.id);
+    setProveedorSel(c.proveedor);
+    setProveedorInput(c.proveedor.nombre);
+    setRefFactura(c.referencia_factura || '');
+    setIvaPorcentajeGlobal(c.iva_porcentaje || 0);
+    setPagadaAlCrear(c.estado_pago === 'pagado');
+    
+    const d = c.detalles.map(item => ({
+      producto_id: item.producto_id,
+      cantidad: item.cantidad,
+      precio_unitario: item.precio_unitario,
+      numero_lote: item.numero_lote || '',
+      fecha_vencimiento: item.fecha_vencimiento || '',
+      fecha_fabricacion: item.fecha_fabricacion || '',
+    }));
+    setDetalles(d);
+    setProductoInputs(d.map(item => productos.find(p => p.id === item.producto_id)?.nombre || ''));
+    setTab(0);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDeleteCompra = (id) => {
+    setDeleteId(id);
+    setOpenDeleteDialog(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    setSubmitting(true);
+    try {
+      await apiClient.delete(`/compras/${deleteId}`);
+      toast.success('Compra eliminada e inventario revertido');
+      setOpenDeleteDialog(false);
+      fetchHistorial();
+    } catch (err) {
+      toast.error('Error al eliminar la compra');
+    } finally {
+      setSubmitting(false);
+      setDeleteId(null);
+    }
   };
 
   // ── Pagos ────────────────────────────────────────────────────────────────
@@ -650,11 +705,23 @@ const Compras = () => {
                             </Grid>
                           ))}
                         </Grid>
-                        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
                           <Tooltip title="Ver detalle">
                             <IconButton size="small" onClick={() => { setCompraDetalle(c); setOpenDetailDialog(true); }}
                               sx={{ color: BLUE, bgcolor: '#EFF6FF', borderRadius: 1.5 }}>
                               <Visibility fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Editar">
+                            <IconButton size="small" onClick={() => handleEditCompra(c)}
+                              sx={{ color: BLUE, bgcolor: '#EFF6FF', borderRadius: 1.5 }}>
+                              <TrendingDown fontSize="small" sx={{ transform: 'rotate(180deg)' }} />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Eliminar">
+                            <IconButton size="small" onClick={() => handleDeleteCompra(c.id)}
+                              sx={{ color: RED, bgcolor: '#FEF2F2', borderRadius: 1.5 }}>
+                              <Delete fontSize="small" />
                             </IconButton>
                           </Tooltip>
                         </Box>
@@ -692,12 +759,26 @@ const Compras = () => {
                             </TableCell>
                             <TableCell><EstadoChip estado={c.estado_pago} /></TableCell>
                             <TableCell>
-                              <Tooltip title="Ver detalle">
-                                <IconButton size="small" onClick={() => { setCompraDetalle(c); setOpenDetailDialog(true); }}
-                                  sx={{ color: BLUE, '&:hover': { bgcolor: '#EFF6FF' } }}>
-                                  <Visibility fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
+                              <Stack direction="row" spacing={0.5}>
+                                <Tooltip title="Ver detalle">
+                                  <IconButton size="small" onClick={() => { setCompraDetalle(c); setOpenDetailDialog(true); }}
+                                    sx={{ color: BLUE, '&:hover': { bgcolor: '#EFF6FF' } }}>
+                                    <Visibility fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Editar">
+                                  <IconButton size="small" onClick={() => handleEditCompra(c)}
+                                    sx={{ color: BLUE, '&:hover': { bgcolor: '#EFF6FF' } }}>
+                                    <TrendingDown fontSize="small" sx={{ transform: 'rotate(180deg)' }} />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Eliminar">
+                                  <IconButton size="small" onClick={() => handleDeleteCompra(c.id)}
+                                    sx={{ color: RED, '&:hover': { bgcolor: '#FEF2F2' } }}>
+                                    <Delete fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              </Stack>
                             </TableCell>
                           </TableRow>
                         ))
@@ -1068,6 +1149,33 @@ const Compras = () => {
         initialName={quickCreate.initialName}
         onCreated={handleQuickCreated}
       />
+
+      {/* ── DIALOG: ELIMINAR COMPRA ── */}
+      <Dialog open={openDeleteDialog} onClose={() => !submitting && setOpenDeleteDialog(false)} maxWidth="xs" fullWidth
+        PaperProps={{ sx: { borderRadius: 3, overflow: 'hidden' } }}>
+        <Box sx={{ height: 4, bgcolor: RED }} />
+        <DialogTitle sx={{ pb: 1, pt: 2.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ width: 38, height: 38, borderRadius: 2, bgcolor: `${RED}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: RED }}>
+              <Delete />
+            </Box>
+            <Typography sx={{ fontWeight: 700, fontSize: 16 }}>¿Eliminar esta compra?</Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: 14, color: 'text.secondary', mt: 1 }}>
+            Esta acción <strong>revertirá el stock</strong> de los productos ingresados y eliminará el registro permanentemente. Esta acción no se puede deshacer.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5, pt: 1, gap: 1 }}>
+          <Button onClick={() => setOpenDeleteDialog(false)} disabled={submitting} variant="outlined" size="small" fullWidth sx={{ borderRadius: 2, fontWeight: 600, borderColor: 'divider', color: 'text.secondary' }}>
+            Cancelar
+          </Button>
+          <Button onClick={handleConfirmDelete} disabled={submitting} variant="contained" size="small" fullWidth sx={{ borderRadius: 2, fontWeight: 600, bgcolor: RED, '&:hover': { bgcolor: '#d32f2f' } }}>
+            {submitting ? 'Eliminando...' : 'Confirmar Eliminación'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
     </Box>
   );

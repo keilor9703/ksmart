@@ -72,10 +72,12 @@ from crud.devoluciones import (
 
 from crud.compras import (
     get_compras, get_compra, create_compra, create_pago_compra,
+    update_compra, delete_compra,
 )
 
 from crud.caja import (
     calcular_totales_dia, crear_corte_caja, get_cortes_caja, crear_gasto, get_gastos,
+    update_gasto, delete_gasto,
 )
 
 from crud.bulk_operations import (

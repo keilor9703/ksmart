@@ -45,3 +45,23 @@ def registrar_pago_compra(
     current_user: models.User = Depends(get_current_active_user),
 ):
     return crud.create_pago_compra(db, empresa_id=current_user.empresa_id, pago=pago)
+
+
+@router.patch("/{compra_id}", response_model=schemas.Compra)
+def actualizar_compra(
+    compra_id: int,
+    compra_data: schemas.CompraUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    return crud.update_compra(db, empresa_id=current_user.empresa_id, compra_id=compra_id, data=compra_data)
+
+
+@router.delete("/{compra_id}")
+def eliminar_compra(
+    compra_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    crud.delete_compra(db, empresa_id=current_user.empresa_id, compra_id=compra_id)
+    return {"message": "Compra eliminada correctamente"}

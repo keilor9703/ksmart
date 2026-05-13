@@ -188,7 +188,7 @@ const InventarioLotes = () => {
       setLotes(resLotes.data);
       setAlertas(resAlertas.data);
       setResumen(resResumen.data);
-      setProductos(resProd.data.filter(p => !p.es_servicio));
+      setProductos(resProd.data.filter(p => p.maneja_lotes));
       setClientes(resClie.data.filter(c => c.es_proveedor));
     } catch {
       toast.error('Error al cargar los datos de lotes');
@@ -676,7 +676,7 @@ const InventarioLotes = () => {
           </Typography>
           <Stack spacing={2} sx={{ mb: 2 }}>
             <Autocomplete
-              options={productos.filter(p => !p.es_servicio)} getOptionLabel={o => o.nombre}
+              options={productos} getOptionLabel={o => o.nombre}
               value={modalFefo.producto}
               onChange={(_, v) => setModalFefo(p => ({ ...p, producto: v, resultado: null }))}
               renderInput={params => <TextField {...params} label="Producto" size="small" fullWidth />}

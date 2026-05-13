@@ -180,8 +180,11 @@ def add_evidencia_orden_trabajo(db: Session, empresa_id: int, orden_id: int, fil
 
 def aprobar_orden_trabajo(db: Session, empresa_id: int, orden_id: int, admin_user: models.User):
     db_orden = get_orden_trabajo(db, empresa_id, orden_id)
-    if not db_orden or db_orden.estado != 'En revisión':
-        return None
+    if not db_orden:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    
+    if db_orden.estado != 'En revisión':
+        raise HTTPException(status_code=400, detail=f"La orden no se puede aprobar porque está en estado: {db_orden.estado}")
 
     db_orden.estado = 'Aprobada'
     db_orden.observaciones_aprobador = f"Aprobado por {admin_user.username}"
@@ -229,8 +232,11 @@ def aprobar_orden_trabajo(db: Session, empresa_id: int, orden_id: int, admin_use
 
 def rechazar_orden_trabajo(db: Session, empresa_id: int, orden_id: int, observaciones: str, admin_user: models.User):
     db_orden = get_orden_trabajo(db, empresa_id, orden_id)
-    if not db_orden or db_orden.estado != 'En revisión':
-        return None
+    if not db_orden:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    
+    if db_orden.estado != 'En revisión':
+        raise HTTPException(status_code=400, detail=f"La orden no se puede rechazar porque está en estado: {db_orden.estado}")
 
     db_orden.estado = 'Rechazada'
     db_orden.observaciones_aprobador = f"Rechazado por {admin_user.username}: {observaciones}"
@@ -242,15 +248,26 @@ def rechazar_orden_trabajo(db: Session, empresa_id: int, orden_id: int, observac
 
 def cerrar_orden_trabajo(db: Session, empresa_id: int, orden_id: int, admin_user: models.User, close_data: schemas.OrdenTrabajoClose):
     db_orden = get_orden_trabajo(db, empresa_id, orden_id)
-    if not db_orden or db_orden.estado not in ['Aprobada', 'Rechazada']:
-        return None
+    if not db_orden:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    
+    if db_orden.estado not in ['Aprobada', 'Rechazada']:
+        raise HTTPException(status_code=400, detail=f"Solo se pueden cerrar órdenes Aprobadas o Rechazadas. Estado actual: {db_orden.estado}")
 
     if not db_orden.venta_id:
-        return None
+        # Si fue rechazada, puede no tener venta. Permitimos cerrar sin venta si el estado es Rechazada.
+        if db_orden.estado == 'Rechazada':
+             db_orden.estado = 'Cerrada'
+             db_orden.observaciones_aprobador = f"Cerrada por {admin_user.username}"
+             db_orden.fecha_actualizacion = datetime.now(timezone.utc)
+             db.commit()
+             db.refresh(db_orden)
+             return db_orden
+        raise HTTPException(status_code=400, detail="La orden no tiene una venta asociada y no puede ser cerrada.")
 
     db_venta = get_venta(db, empresa_id, db_orden.venta_id)
     if not db_venta:
-        return None
+        raise HTTPException(status_code=404, detail="Venta asociada a la orden no encontrada")
 
     if close_data.was_paid:
         if close_data.payment_type == "total":
@@ -266,11 +283,11 @@ def cerrar_orden_trabajo(db: Session, empresa_id: int, orden_id: int, admin_user
             db_venta.monto_pagado = db_venta.total
         elif close_data.payment_type == "partial":
             if close_data.paid_amount is None or close_data.paid_amount <= 0:
-                return None
+                raise HTTPException(status_code=400, detail="Debes indicar un monto válido para el pago parcial")
 
             monto_pendiente = db_venta.total - db_venta.monto_pagado
             if close_data.paid_amount > monto_pendiente:
-                return None
+                raise HTTPException(status_code=400, detail=f"El monto a pagar ({close_data.paid_amount}) supera el saldo pendiente ({monto_pendiente})")
 
             pago_schema = schemas.PagoCreate(
                 venta_id=db_venta.id,

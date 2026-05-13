@@ -145,3 +145,136 @@ def create_pago_compra(db: Session, empresa_id: int, pago: schemas.PagoCompraCre
     db.commit()
     db.refresh(db_compra)
     return db_pago
+
+
+def update_compra(db: Session, empresa_id: int, compra_id: int, data: schemas.CompraUpdate):
+    """
+    Actualiza una compra. Para simplificar y asegurar consistencia de inventario,
+    revertimos los movimientos de la compra anterior y aplicamos los nuevos.
+    """
+    db_compra = get_compra(db, empresa_id, compra_id)
+    if not db_compra:
+        raise HTTPException(status_code=404, detail="Compra no encontrada")
+
+    # 1. Revertir inventario de la compra actual
+    for detalle in db_compra.detalles:
+        # Buscar movimiento de inventario asociado
+        mov = db.query(models.InventoryMovement).filter(
+            models.InventoryMovement.referencia == f"Compra #{db_compra.id}",
+            models.InventoryMovement.producto_id == detalle.producto_id
+        ).first()
+        
+        if mov:
+            # Revertir stock (salida por el mismo valor)
+            reversa = schemas.InventoryMovementCreate(
+                producto_id=detalle.producto_id,
+                tipo=schemas.MovementType.salida,
+                cantidad=detalle.cantidad,
+                motivo="Anulación por edición de compra",
+                referencia=f"Reversa Compra #{db_compra.id}"
+            )
+            create_movement(db, empresa_id, reversa)
+            db.delete(mov)
+
+    # 2. Actualizar datos básicos
+    if data.proveedor_id:
+        db_compra.proveedor_id = data.proveedor_id
+    if data.referencia_factura:
+        db_compra.referencia_factura = data.referencia_factura
+    if data.fecha:
+        db_compra.fecha = data.fecha
+    if data.iva_porcentaje is not None:
+        db_compra.iva_porcentaje = data.iva_porcentaje
+
+    # 3. Si vienen detalles, reemplazarlos y re-aplicar inventario
+    if data.detalles is not None:
+        # Eliminar detalles viejos
+        for d in db_compra.detalles:
+            db.delete(d)
+        db_compra.detalles = []
+        db.flush()
+
+        total_bruto = 0.0
+        for item in data.detalles:
+            total_bruto += item.cantidad * item.precio_unitario
+            
+            db_detalle = models.DetalleCompra(
+                compra_id=db_compra.id,
+                producto_id=item.producto_id,
+                cantidad=item.cantidad,
+                precio_unitario=item.precio_unitario,
+                iva_porcentaje=0.0,
+                empresa_id=empresa_id
+            )
+            db.add(db_detalle)
+
+            # Aplicar nuevo inventario
+            prod = get_producto(db, empresa_id, item.producto_id)
+            if prod:
+                payload_mov = schemas.InventoryMovementCreate(
+                    producto_id=item.producto_id,
+                    tipo=schemas.MovementType.entrada,
+                    cantidad=item.cantidad,
+                    costo_unitario=item.precio_unitario,
+                    motivo="Compra (Editada)",
+                    referencia=f"Compra #{db_compra.id}",
+                    observacion=f"Factura: {db_compra.referencia_factura or 'N/A'}"
+                )
+                create_movement(db, empresa_id, payload_mov)
+                prod.costo = item.precio_unitario
+
+        db_compra.total = total_bruto
+        subtotal_base = total_bruto / (1 + (db_compra.iva_porcentaje / 100))
+        db_compra.iva_total = total_bruto - subtotal_base
+
+    # 4. Manejo Inteligente de Pago
+    if data.pagada is True:
+        # Si se marca como pagada en la edición, actualizamos el monto pagado al nuevo total
+        db_compra.monto_pagado = db_compra.total
+        db_compra.estado_pago = "pagado"
+    elif data.pagada is False:
+        # Si se desmarca explícitamente, queda pendiente o parcial según lo que ya tuviera
+        if db_compra.monto_pagado >= db_compra.total and db_compra.total > 0:
+             # Caso raro: estaba pagada y la desmarcan. Bajamos el monto pagado? 
+             # Para evitar líos contables, si la desmarcan pero el monto coincide, la dejamos como estaba o bajamos a 0?
+             # Decisión: si la desmarcan explícitamente, asumimos que quieren ver el saldo.
+             db_compra.estado_pago = "pendiente"
+             db_compra.monto_pagado = 0 
+        else:
+             db_compra.estado_pago = "pendiente" if db_compra.monto_pagado == 0 else "parcial"
+    else:
+        # Si no viene el flag de pagada, recalculamos estado basado en el monto pagado previo y nuevo total
+        if db_compra.monto_pagado >= db_compra.total and db_compra.total > 0:
+            db_compra.estado_pago = "pagado"
+        elif db_compra.monto_pagado > 0:
+            db_compra.estado_pago = "parcial"
+        else:
+            db_compra.estado_pago = "pendiente"
+
+    db.commit()
+    db.refresh(db_compra)
+    return db_compra
+
+
+def delete_compra(db: Session, empresa_id: int, compra_id: int):
+    """
+    Elimina una compra y revierte su impacto en inventario.
+    """
+    db_compra = get_compra(db, empresa_id, compra_id)
+    if not db_compra:
+        raise HTTPException(status_code=404, detail="Compra no encontrada")
+
+    # Revertir inventario
+    for detalle in db_compra.detalles:
+        reversa = schemas.InventoryMovementCreate(
+            producto_id=detalle.producto_id,
+            tipo=schemas.MovementType.salida,
+            cantidad=detalle.cantidad,
+            motivo="Eliminación de compra",
+            referencia=f"Eliminación Compra #{db_compra.id}"
+        )
+        create_movement(db, empresa_id, reversa)
+
+    db.delete(db_compra)
+    db.commit()
+    return True

@@ -9,7 +9,7 @@ import {
 import {
   PointOfSale, CheckCircle, Close, Add,
   TrendingUp, AttachMoney, CreditCard, AccountBalance,
-  Refresh, ReceiptLong, MoneyOff
+  Refresh, ReceiptLong, MoneyOff, Edit, Delete
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
@@ -77,7 +77,7 @@ const MetodoRow = ({ icon, label, value, color }) => (
 );
 
 // ─── Gasto Card Mobile ─────────────────────────────────────────────────────────
-const GastoCard = ({ gasto }) => (
+const GastoCard = ({ gasto, onEdit, onDelete }) => (
   <Paper sx={{ p: 2, mb: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
       <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -98,9 +98,19 @@ const GastoCard = ({ gasto }) => (
           </Typography>
         </Box>
       </Box>
-      <Typography sx={{ fontWeight: 800, fontSize: 16, color: RED, ml: 1 }}>
-        {formatCurrency(gasto.monto)}
-      </Typography>
+      <Box sx={{ textAlign: 'right' }}>
+        <Typography sx={{ fontWeight: 800, fontSize: 16, color: RED, ml: 1, mb: 1 }}>
+          {formatCurrency(gasto.monto)}
+        </Typography>
+        <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+          <IconButton size="small" onClick={() => onEdit(gasto)} color="primary">
+            <Edit fontSize="small" />
+          </IconButton>
+          <IconButton size="small" onClick={() => onDelete(gasto.id)} color="error">
+            <Delete fontSize="small" />
+          </IconButton>
+        </Stack>
+      </Box>
     </Box>
   </Paper>
 );
@@ -187,8 +197,11 @@ export default function Caja() {
   const [gastos, setGastos] = useState([]);
   const [terceros, setTerceros] = useState([]);
   const [loadingGastos, setLoadingGastos] = useState(false);
+  const [deleteGastoId, setDeleteGastoId] = useState(null);
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
 
   // Formulario Gasto
+  const [editingGastoId, setEditingGastoId] = useState(null);
   const [gastoTercero, setGastoTercero] = useState(null);
   const [terceroInput, setTerceroInput] = useState('');
   const [gastoMonto, setGastoMonto] = useState('');
@@ -265,18 +278,57 @@ export default function Caja() {
     }
     setSubmitting(true);
     try {
-      await apiClient.post('/caja/gastos', {
+      const payload = {
         tercero_id: gastoTercero.id,
         monto: parseFloat(gastoMonto),
         concepto: gastoConcepto,
         metodo_pago: gastoMetodo
-      });
-      toast.success('Gasto registrado correctamente');
+      };
+
+      if (editingGastoId) {
+        await apiClient.patch(`/caja/gastos/${editingGastoId}`, payload);
+        toast.success('Gasto actualizado correctamente');
+      } else {
+        await apiClient.post('/caja/gastos', payload);
+        toast.success('Gasto registrado correctamente');
+      }
+      
+      setEditingGastoId(null);
       setGastoTercero(null); setTerceroInput(''); setGastoMonto(''); setGastoConcepto('');
       fetchGastos(); fetchPreview();
     } catch (err) {
-      toast.error('Error al registrar el gasto');
+      toast.error(err.response?.data?.detail || 'Error al procesar el gasto');
     } finally { setSubmitting(false); }
+  };
+
+  const handleEditGasto = (g) => {
+    setEditingGastoId(g.id);
+    setGastoTercero(g.tercero);
+    setTerceroInput(g.tercero?.nombre || '');
+    setGastoMonto(g.monto.toString());
+    setGastoConcepto(g.concepto);
+    setGastoMetodo(g.metodo_pago);
+    // Scroll up to the form on mobile if needed or just let the user see it
+  };
+
+  const handleDeleteGasto = (id) => {
+    setDeleteGastoId(id);
+    setOpenDeleteDialog(true);
+  };
+
+  const handleConfirmDeleteGasto = async () => {
+    setSubmitting(true);
+    try {
+      await apiClient.delete(`/caja/gastos/${deleteGastoId}`);
+      toast.success('Gasto eliminado correctamente');
+      setOpenDeleteDialog(false);
+      fetchGastos(); fetchPreview();
+    } catch (err) {
+      toast.error('Error al eliminar el gasto');
+    } finally {
+      setSubmitting(false);
+      setDeleteGastoId(null);
+    }
   };
 
   const openQuickCreate = (initialName = '') => setQuickCreate({ open: true, type: 'tercero', initialName });
@@ -447,7 +499,9 @@ export default function Caja() {
         <Grid container spacing={3}>
           <Grid item xs={12} md={5}>
             <Paper sx={{ p: 3, borderRadius: 3, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-              <Typography sx={{ fontWeight: 700, fontSize: 15, mb: 2 }}>Registrar nuevo gasto</Typography>
+              <Typography sx={{ fontWeight: 700, fontSize: 15, mb: 2 }}>
+                {editingGastoId ? 'Modificar gasto' : 'Registrar nuevo gasto'}
+              </Typography>
               <Box component="form" onSubmit={handleRegistrarGasto}>
                 <Stack spacing={2}>
                   <Autocomplete
@@ -495,9 +549,16 @@ export default function Caja() {
                       ))}
                     </Box>
                   </Box>
-                  <Button type="submit" variant="contained" disabled={submitting} sx={{ mt: 1, background: `linear-gradient(135deg, ${RED}, #f87171)`, boxShadow: `0 4px 14px rgba(239,68,68,0.3)`, borderRadius: 2, fontWeight: 600 }}>
-                    {submitting ? 'Guardando...' : 'Registrar Salida'}
-                  </Button>
+                  <Stack direction="row" spacing={1}>
+                    <Button type="submit" variant="contained" fullWidth disabled={submitting} sx={{ mt: 1, background: editingGastoId ? `linear-gradient(135deg, ${BLUE}, #60a5fa)` : `linear-gradient(135deg, ${RED}, #f87171)`, boxShadow: `0 4px 14px rgba(239,68,68,0.3)`, borderRadius: 2, fontWeight: 600 }}>
+                      {submitting ? 'Guardando...' : editingGastoId ? 'Actualizar Salida' : 'Registrar Salida'}
+                    </Button>
+                    {editingGastoId && (
+                      <Button variant="outlined" fullWidth onClick={() => { setEditingGastoId(null); setGastoTercero(null); setTerceroInput(''); setGastoMonto(''); setGastoConcepto(''); }} sx={{ mt: 1, borderRadius: 2, fontWeight: 600 }}>
+                        Cancelar
+                      </Button>
+                    )}
+                  </Stack>
                 </Stack>
               </Box>
             </Paper>
@@ -510,7 +571,7 @@ export default function Caja() {
               ) : gastos.length === 0 ? (
                 <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}><ReceiptLong sx={{ fontSize: 40, opacity: 0.2, mb: 1 }} /><Typography fontSize={13}>No hay gastos registrados</Typography></Box>
               ) : isMobile ? (
-                <Box>{gastos.map(g => <GastoCard key={g.id} gasto={g} />)}</Box>
+                <Box>{gastos.map(g => <GastoCard key={g.id} gasto={g} onEdit={handleEditGasto} onDelete={handleDeleteGasto} />)}</Box>
               ) : (
                 <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', maxHeight: 400 }}>
                   <Table size="small" stickyHeader>
@@ -521,6 +582,7 @@ export default function Caja() {
                         <TableCell sx={{ fontSize: 11 }}>Concepto</TableCell>
                         <TableCell sx={{ fontSize: 11 }}>Método</TableCell>
                         <TableCell sx={{ fontSize: 11 }}>Monto</TableCell>
+                        <TableCell sx={{ fontSize: 11 }} align="center">Acciones</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -531,6 +593,20 @@ export default function Caja() {
                           <TableCell sx={{ fontSize: 12, color: 'text.secondary' }}>{g.concepto}</TableCell>
                           <TableCell sx={{ fontSize: 11 }}>{g.metodo_pago}</TableCell>
                           <TableCell sx={{ color: RED, fontWeight: 700 }}>{formatCurrency(g.monto)}</TableCell>
+                          <TableCell align="center">
+                            <Stack direction="row" spacing={1} justifyContent="center">
+                              <Tooltip title="Editar">
+                                <IconButton size="small" onClick={() => handleEditGasto(g)} color="primary">
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Eliminar">
+                                <IconButton size="small" onClick={() => handleDeleteGasto(g.id)} color="error">
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Stack>
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -623,6 +699,33 @@ export default function Caja() {
       </Dialog>
 
       <QuickCreateModal open={quickCreate.open} onClose={closeQuickCreate} type={quickCreate.type} initialName={quickCreate.initialName} onCreated={handleQuickCreated} />
-    </Box>
-  );
-}
+
+      {/* ── DIALOG: ELIMINAR GASTO ── */}
+      <Dialog open={openDeleteDialog} onClose={() => !submitting && setOpenDeleteDialog(false)} maxWidth="xs" fullWidth
+        PaperProps={{ sx: { borderRadius: 3, overflow: 'hidden' } }}>
+        <Box sx={{ height: 4, bgcolor: RED }} />
+        <DialogTitle sx={{ pb: 1, pt: 2.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ width: 38, height: 38, borderRadius: 2, bgcolor: `${RED}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: RED }}>
+              <Delete />
+            </Box>
+            <Typography sx={{ fontWeight: 700, fontSize: 16 }}>¿Eliminar este gasto?</Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: 14, color: 'text.secondary', mt: 1 }}>
+            Esta acción no se puede deshacer. El registro del gasto será eliminado permanentemente del sistema y se recalculará el balance de caja.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5, pt: 1, gap: 1 }}>
+          <Button onClick={() => setOpenDeleteDialog(false)} disabled={submitting} variant="outlined" size="small" fullWidth sx={{ borderRadius: 2, fontWeight: 600, borderColor: 'divider', color: 'text.secondary' }}>
+            Cancelar
+          </Button>
+          <Button onClick={handleConfirmDeleteGasto} disabled={submitting} variant="contained" size="small" fullWidth sx={{ borderRadius: 2, fontWeight: 600, bgcolor: RED, '&:hover': { bgcolor: '#d32f2f' } }}>
+            {submitting ? 'Eliminando...' : 'Confirmar Eliminación'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      </Box>
+      );
+      }
