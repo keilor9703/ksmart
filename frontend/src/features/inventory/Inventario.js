@@ -10,15 +10,9 @@ import {
 import apiClient from "../../api";
 import { formatCurrency } from "../../utils/formatters";
 import InventoryPage from "./InventoryPage";
+import GruposProductoManager from "./GruposProductoManager";
 
 const ACCENT = '#F59E0B';
-
-const GRUPOS = [
-  { id: 1, label: 'Materia Prima',      short: 'Materia Prima',  color: '#3B82F6', hover: { textOverflow: 'ellipsis' } },
-  { id: 2, label: 'Producto Terminado', short: 'P. Terminado',  color: '#10B981', hover: { textOverflow: 'ellipsis' } },
-  { id: 3, label: 'Activo Fijo',        short: 'Activo Fijo',  color: '#F59E0B', hover: { textOverflow: 'ellipsis' } },
-  { id: 4, label: 'Insumos',            short: 'Insumos', color: '#8B5CF6', hover: { textOverflow: 'ellipsis' } },
-];
 
 function TabPanel({ children, value, index }) {
   return (
@@ -28,7 +22,7 @@ function TabPanel({ children, value, index }) {
   );
 }
 
-// ─── KPI Card — usa Grid xs para nunca desbordar ───────────────────────────────
+// ─── KPI Card ─────────────────────────────────────────────────────────────────
 const KpiCard = ({ label, value, icon, color, sub }) => (
   <Paper sx={{
     p: 2, borderRadius: 2.5,
@@ -51,12 +45,12 @@ const KpiCard = ({ label, value, icon, color, sub }) => (
   </Paper>
 );
 
-// ─── Mini KPI — crece y se encoge con flexbox ────────────────────────────────
+// ─── Mini KPI ─────────────────────────────────────────────────────────────────
 const MiniKpi = ({ label, value, color }) => (
   <Box sx={{
     px: 1.5, py: 1, borderRadius: 2,
     bgcolor: `${color}0D`, border: `1px solid ${color}25`,
-    flex: '1 1 0', minWidth: 0,   // flex-grow igual para todos, se encogen si hace falta
+    flex: '1 1 0', minWidth: 0,
   }}>
     <Typography sx={{ fontSize: 9, color: 'text.secondary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
       {label}
@@ -67,12 +61,12 @@ const MiniKpi = ({ label, value, color }) => (
   </Box>
 );
 
-// ─── Card mobile de stock ─────────────────────────────────────────────────────
-const StockCard = ({ producto }) => {
+// ─── Card mobile de stock ──────────────────────────────────────────────────────
+const StockCard = ({ producto, grupos }) => {
   const stock  = producto.stock_actual ?? 0;
   const minimo = producto.stock_minimo ?? 0;
   const low    = stock < minimo;
-  const grupo  = GRUPOS.find(g => g.id === producto.grupo_item) || { short: '—', color: '#94a3b8' };
+  const grupo  = grupos.find(g => g.id === producto.grupo_item) || { codigo: '—', color: '#94a3b8' };
 
   return (
     <Paper sx={{ p: 2, mb: 1.5, borderRadius: 3, boxShadow: '0 2px 10px rgba(0,0,0,0.06)', width: '100%', boxSizing: 'border-box' }}>
@@ -86,7 +80,7 @@ const StockCard = ({ producto }) => {
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, flexShrink: 0, alignItems: 'flex-end' }}>
-          <Chip label={grupo.short} size="small"
+          <Chip label={grupo.codigo} size="small"
             sx={{ bgcolor: `${grupo.color}18`, color: grupo.color, fontWeight: 700, fontSize: 9, borderRadius: 1, height: 17 }} />
           <Chip label={low ? '⚠ Bajo' : '✓ OK'} size="small" color={low ? 'error' : 'success'}
             sx={{ fontWeight: 600, fontSize: 9, borderRadius: 1, height: 17 }} />
@@ -116,6 +110,7 @@ const StockCard = ({ producto }) => {
 export default function Inventario() {
   const [tab, setTab]               = useState(0);
   const [productos, setProductos]   = useState([]);
+  const [grupos, setGrupos]         = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage]             = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -123,7 +118,10 @@ export default function Inventario() {
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  useEffect(() => { fetchStock(); }, []);
+  useEffect(() => {
+    fetchStock();
+    fetchGrupos();
+  }, []);
 
   const fetchStock = async () => {
     try {
@@ -132,28 +130,39 @@ export default function Inventario() {
     } catch (err) { console.error(err); }
   };
 
-  const currentGrupo = tab <= 3 ? GRUPOS[tab] : null;
+  const fetchGrupos = async () => {
+    try {
+      const res = await apiClient.get('/grupos-producto/');
+      setGrupos(res.data || []);
+    } catch (err) { console.error(err); }
+  };
+
+  // Índices: 0..N-1 → grupos, N → inventario/movimientos, N+1 → configuración
+  const TAB_INVENTARIO = grupos.length;
+  const TAB_CONFIG     = grupos.length + 1;
+
+  const currentGrupo = tab < grupos.length ? grupos[tab] : null;
+
+  const soloProductos  = productos.filter(p => !p.es_servicio);
+  const stockBajoCount = soloProductos.filter(p => (p.stock_actual ?? 0) < (p.stock_minimo ?? 0)).length;
+  const valorTotal     = soloProductos.reduce((s, p) => s + (p.stock_actual ?? 0) * p.costo, 0);
 
   const filteredData = useMemo(() => {
     if (!currentGrupo) return [];
     const q = searchTerm.toLowerCase();
-    return productos
-      .filter(p => p.grupo_item === currentGrupo.id && !p.es_servicio &&
+    return soloProductos
+      .filter(p => p.grupo_item === currentGrupo.id &&
         (p.nombre.toLowerCase().includes(q) ||
          (p.codigo_barras && p.codigo_barras.toLowerCase().includes(q)) ||
          (p.descripcion && p.descripcion.toLowerCase().includes(q)))
       )
       .sort((a, b) => a.nombre.localeCompare(b.nombre));
-  }, [productos, tab, searchTerm]);
+  }, [productos, tab, searchTerm, grupos]);
 
   const paginatedData = useMemo(() =>
     filteredData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
     [filteredData, page, rowsPerPage]
   );
-
-  const soloProductos  = productos.filter(p => !p.es_servicio);
-  const stockBajoCount = soloProductos.filter(p => (p.stock_actual ?? 0) < (p.stock_minimo ?? 0)).length;
-  const valorTotal     = soloProductos.reduce((s, p) => s + (p.stock_actual ?? 0) * p.costo, 0);
 
   const grupoItems = currentGrupo ? soloProductos.filter(p => p.grupo_item === currentGrupo.id) : [];
   const grupoValor = grupoItems.reduce((s, p) => s + (p.stock_actual ?? 0) * p.costo, 0);
@@ -173,7 +182,7 @@ export default function Inventario() {
         </Box>
       </Box>
 
-      {/* ── KPIs globales: 2 por fila en mobile, 3 en sm+ ── */}
+      {/* ── KPIs globales ── */}
       <Grid container spacing={1.5} sx={{ mb: 2 }}>
         <Grid item xs={6} sm={4}>
           <KpiCard label="Valorización total" value={formatCurrency(valorTotal)} icon={<AttachMoney />} color={ACCENT} />
@@ -190,15 +199,14 @@ export default function Inventario() {
         </Grid>
       </Grid>
 
-      {/* ── Paper sin overflow:hidden ── */}
       <Paper sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: '1px solid', borderColor: 'divider', width: '100%', boxSizing: 'border-box' }}>
 
-        {/* Tabs: fullWidth con íconos en mobile, scrollable con texto en desktop */}
+        {/* ── Tabs dinámicos ── */}
         <Tabs
           value={tab}
           onChange={(_, v) => { setTab(v); setPage(0); setSearchTerm(''); }}
-          variant={isMobile ? 'fullWidth' : 'scrollable'}
-          scrollButtons={isMobile ? false : 'auto'}
+          variant={isMobile ? 'scrollable' : 'scrollable'}
+          scrollButtons="auto"
           sx={{
             borderBottom: '1px solid', borderColor: 'divider',
             '& .MuiTab-root': {
@@ -212,19 +220,18 @@ export default function Inventario() {
             '& .Mui-selected': { color: `${ACCENT} !important` },
           }}
         >
-          {GRUPOS.map(g => {
+          {grupos.map(g => {
             const bajos = soloProductos.filter(p => p.grupo_item === g.id)
               .filter(p => (p.stock_actual ?? 0) < (p.stock_minimo ?? 0)).length;
             return (
               <Tab
                 key={g.id}
-                title={g.label}
+                title={g.nombre}
                 label={
                   isMobile ? (
-                    // Mobile: solo punto de color + abreviatura corta
                     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.3 }}>
                       <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: g.color }} />
-                      <Typography sx={{ fontSize: 10, fontWeight: 700, lineHeight: 1 }}>{g.short}</Typography>
+                      <Typography sx={{ fontSize: 10, fontWeight: 700, lineHeight: 1 }}>{g.codigo}</Typography>
                       {bajos > 0 && (
                         <Chip label={bajos} size="small" sx={{
                           height: 12, fontSize: 8, fontWeight: 700,
@@ -234,10 +241,9 @@ export default function Inventario() {
                       )}
                     </Box>
                   ) : (
-                    // Desktop: punto + nombre completo
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
                       <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: g.color, flexShrink: 0 }} />
-                      <span style={{ whiteSpace: 'nowrap' }}>{g.label}</span>
+                      <span style={{ whiteSpace: 'nowrap' }}>{g.nombre}</span>
                       {bajos > 0 && (
                         <Chip label={bajos} size="small" sx={{
                           height: 14, fontSize: 8, fontWeight: 700,
@@ -251,38 +257,44 @@ export default function Inventario() {
               />
             );
           })}
+
+          {/* Tab Movimientos/Config */}
           <Tab
-            title="Configuración"
-            label={isMobile ? '⚙️' : '⚙️ Config.'}
+            title="Movimientos de inventario"
+            label={isMobile ? '📋' : '📋 Movimientos'}
             sx={{ fontWeight: 700, color: '#06B6D4 !important', minWidth: isMobile ? 0 : 'auto' }}
+          />
+          <Tab
+            title="Configurar categorías"
+            label={isMobile ? '⚙️' : '⚙️ Categorías'}
+            sx={{ fontWeight: 700, color: '#6366F1 !important', minWidth: isMobile ? 0 : 'auto' }}
           />
         </Tabs>
 
-        {/* Nombre del tab activo en mobile — compensa la ausencia de texto */}
-        {isMobile && (
+        {/* Nombre del tab activo en mobile */}
+        {isMobile && currentGrupo && (
           <Box sx={{ px: 2, pt: 1, pb: 0.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-            <Typography sx={{ fontWeight: 700, fontSize: 13, color: tab <= 3 ? GRUPOS[tab]?.color : '#06B6D4' }}>
-              {tab <= 3 ? GRUPOS[tab]?.label : 'Configuración de Stock'}
+            <Typography sx={{ fontWeight: 700, fontSize: 13, color: currentGrupo.color }}>
+              {currentGrupo.nombre}
             </Typography>
           </Box>
         )}
 
         <Box sx={{ p: { xs: 1.5, md: 3 } }}>
-          {tab <= 3 ? (
+          {tab < grupos.length ? (
+            /* ── Vista de grupo de inventario ── */
             <>
-              {/* Mini KPIs del grupo activo — flex row con wrap */}
               {currentGrupo && (
                 <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'nowrap' }}>
-                  <MiniKpi label={`Ítems en ${currentGrupo.short}`} value={grupoItems.length} color={currentGrupo.color} />
-                  <MiniKpi label={`Valorización ${currentGrupo.short}`} value={formatCurrency(grupoValor)} color={ACCENT} />
+                  <MiniKpi label={`Ítems en ${currentGrupo.nombre}`} value={grupoItems.length} color={currentGrupo.color} />
+                  <MiniKpi label={`Valorización`} value={formatCurrency(grupoValor)} color={ACCENT} />
                   {grupoBajo > 0 && <MiniKpi label="Stock bajo" value={grupoBajo} color="#EF4444" />}
                 </Box>
               )}
 
-              {/* Buscador */}
               <TextField
                 fullWidth size="small"
-                placeholder={`Buscar por nombre, código o descripción en ${currentGrupo?.label}…`}
+                placeholder={`Buscar en ${currentGrupo?.nombre}…`}
                 value={searchTerm}
                 onChange={e => { setSearchTerm(e.target.value); setPage(0); }}
                 sx={{ mb: 2 }}
@@ -295,7 +307,6 @@ export default function Inventario() {
                 }}
               />
 
-              {/* Lista mobile / Tabla desktop */}
               {isMobile ? (
                 <Box>
                   {paginatedData.length === 0
@@ -303,7 +314,7 @@ export default function Inventario() {
                         <Inventory2Outlined sx={{ fontSize: 44, mb: 1, opacity: 0.3 }} />
                         <Typography fontSize={13}>No hay productos en este grupo</Typography>
                       </Box>
-                    : paginatedData.map(p => <StockCard key={p.id} producto={p} />)
+                    : paginatedData.map(p => <StockCard key={p.id} producto={p} grupos={grupos} />)
                   }
                 </Box>
               ) : (
@@ -311,7 +322,7 @@ export default function Inventario() {
                   <Table size="small">
                     <TableHead>
                       <TableRow>
-                        {['#', 'Nombre', 'Grupo', 'U.M.', 'Stock', 'Mínimo', 'Costo', 'Valorización', 'Estado'].map(h => (
+                        {['#', 'Nombre', 'Categoría', 'U.M.', 'Stock', 'Mínimo', 'Costo', 'Valorización', 'Estado'].map(h => (
                           <TableCell key={h}>{h}</TableCell>
                         ))}
                       </TableRow>
@@ -325,13 +336,13 @@ export default function Inventario() {
                             const stock  = p.stock_actual ?? 0;
                             const minimo = p.stock_minimo ?? 0;
                             const low    = stock < minimo;
-                            const grupo  = GRUPOS.find(g => g.id === p.grupo_item) || { short: '—', color: '#94a3b8' };
+                            const grupo  = grupos.find(g => g.id === p.grupo_item) || { codigo: '—', color: '#94a3b8' };
                             return (
                               <TableRow key={p.id} hover>
                                 <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{p.id}</TableCell>
                                 <TableCell sx={{ fontWeight: 600 }}>{p.nombre}</TableCell>
                                 <TableCell>
-                                  <Chip label={grupo.short} size="small"
+                                  <Chip label={grupo.codigo} size="small"
                                     sx={{ bgcolor: `${grupo.color}18`, color: grupo.color, fontWeight: 700, fontSize: 10, borderRadius: 1 }} />
                                 </TableCell>
                                 <TableCell sx={{ fontSize: 12 }}>{p.unidad_medida}</TableCell>
@@ -342,7 +353,7 @@ export default function Inventario() {
                                 <TableCell>
                                   <Chip label={low ? 'Stock bajo' : 'Normal'} color={low ? 'error' : 'success'}
                                     size="small" sx={{ fontWeight: 600, fontSize: 10, borderRadius: 1.5 }} />
-                                </TableCell> 
+                                </TableCell>
                               </TableRow>
                             );
                           })
@@ -352,7 +363,6 @@ export default function Inventario() {
                 </TableContainer>
               )}
 
-              {/* Paginación adaptada a mobile */}
               <TablePagination
                 rowsPerPageOptions={[5, 10, 25]}
                 component="div"
@@ -371,8 +381,15 @@ export default function Inventario() {
                 }}
               />
             </>
-          ) : (
+          ) : tab === TAB_INVENTARIO ? (
+            /* ── Movimientos de inventario ── */
             <InventoryPage />
+          ) : (
+            /* ── Gestión de categorías ── */
+            <GruposProductoManager onGruposChange={(nuevos) => {
+              setGrupos(nuevos);
+              if (tab >= nuevos.length + 1) setTab(0);
+            }} />
           )}
         </Box>
       </Paper>

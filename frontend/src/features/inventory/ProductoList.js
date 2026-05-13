@@ -15,16 +15,6 @@ import {
 
 const DEFAULT_ACCENT = '#8B5CF6';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-const GROUP_MAP = {
-  1: { label: 'MP',  full: 'Materia Prima',       color: '#3B82F6' },
-  2: { label: 'PT',  full: 'Prod. Terminado',      color: '#10B981' },
-  3: { label: 'AF',  full: 'Activo Fijo',          color: '#F59E0B' },
-  4: { label: 'INS', full: 'Insumo',               color: '#8B5CF6' },
-};
-
-const getGroup = (id) => GROUP_MAP[id] || { label: '—', full: 'Sin Grupo', color: '#94a3b8' };
-
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
 const KpiCard = ({ label, value, icon, color }) => (
   <Box sx={{
@@ -64,7 +54,7 @@ const ProductoCard = ({ producto, onEditProducto, handleDelete, accentColor }) =
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', justifyContent: 'flex-end', flexShrink: 0 }}>
-          <Chip label={group.label} size="small"
+          <Chip label={group.codigo} size="small"
             sx={{ bgcolor: `${group.color}18`, color: group.color, fontWeight: 700, fontSize: 10, borderRadius: 1 }} />
           {producto.maneja_lotes && (
             <Chip label="LOTES" size="small" sx={{ bgcolor: '#F59E0B18', color: '#F59E0B', fontWeight: 800, fontSize: 9, borderRadius: 1, height: 20 }} />
@@ -120,6 +110,7 @@ const ProductoCard = ({ producto, onEditProducto, handleDelete, accentColor }) =
 // ─── Componente principal ──────────────────────────────────────────────────────
 const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT_ACCENT }) => {
   const [productos, setProductos]         = useState([]);
+  const [grupos, setGrupos]               = useState([]);
   const [searchTerm, setSearchTerm]       = useState('');
   const [filterGroup, setFilterGroup]     = useState('all');
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -130,7 +121,12 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  useEffect(() => { fetchProductos(); }, []);
+  const getGroup = (id) => grupos.find(g => g.id === id) || { codigo: '—', nombre: 'Sin Grupo', color: '#94a3b8' };
+
+  useEffect(() => {
+    fetchProductos();
+    apiClient.get('/grupos-producto/').then(r => setGrupos(r.data || [])).catch(() => {});
+  }, []);
 
   const fetchProductos = () =>
     apiClient.get('/productos/').then(r => setProductos(r.data)).catch(console.error);
@@ -195,13 +191,10 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
   const servicios   = productos.filter(p => p.es_servicio).length;
   const productosN  = productos.filter(p => !p.es_servicio).length;
 
-  // ── Filtros de grupo ─────────────────────────────────────────────────────
+  // ── Filtros de grupo dinámicos ────────────────────────────────────────────
   const groupFilters = [
     { value: 'all',      label: 'Todos' },
-    { value: '1',        label: 'Materia Prima' },
-    { value: '2',        label: 'Producto Terminado' },
-    { value: '3',        label: 'Activo Fijo' },
-    { value: '4',        label: 'Insumo' },
+    ...grupos.map(g => ({ value: String(g.id), label: g.nombre, color: g.color })),
     { value: 'servicio', label: 'Servicios' },
   ];
 
@@ -244,18 +237,25 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
         </Tooltip>
       </Box>
 
-      {/* ── Filtros de grupo ── */}
+      {/* ── Filtros de grupo dinámicos ── */}
       <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
         {groupFilters.map(f => (
           <Chip
             key={f.value}
-            label={f.label}
+            label={
+              f.color
+                ? <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: filterGroup === f.value ? '#fff' : f.color, display: 'inline-block' }} />
+                    {f.label}
+                  </Box>
+                : f.label
+            }
             onClick={() => { setFilterGroup(f.value); setPage(0); }}
             size="small"
             sx={{
               fontWeight: 600, fontSize: 12, borderRadius: 1.5, cursor: 'pointer',
               ...(filterGroup === f.value
-                ? { bgcolor: accentColor, color: '#fff' }
+                ? { bgcolor: f.color || accentColor, color: '#fff' }
                 : { bgcolor: 'action.hover', color: 'text.secondary' }),
             }}
           />
@@ -324,7 +324,7 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
                           </Box>
                         </TableCell>
                         <TableCell>
-                          <Chip label={group.label} size="small"
+                          <Chip label={group.codigo} size="small"
                             sx={{ bgcolor: `${group.color}18`, color: group.color, fontWeight: 700, fontSize: 10, borderRadius: 1 }} />
                         </TableCell>
                         <TableCell sx={{ fontSize: 12 }}>{producto.unidad_medida}</TableCell>

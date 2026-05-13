@@ -382,6 +382,77 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v42)
                 logger.info("V42 (SaaS Phase 2 Infrastructure) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V43 - GRUPOS DE PRODUCTO DINÁMICOS (multitenant)
+            # ═══════════════════════════════════════════════════════════════
+
+            migration_v43 = "inv_v43_grupos_producto_dinamicos"
+
+            if not _migration_already_applied(conn, migration_v43):
+
+                if not _table_exists(conn, "grupos_producto"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE grupos_producto (
+                                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                                empresa_id     INTEGER REFERENCES empresas(id),
+                                nombre         VARCHAR(100) NOT NULL,
+                                codigo         VARCHAR(20)  NOT NULL,
+                                color          VARCHAR(20)  DEFAULT '#94a3b8',
+                                es_predefinido BOOLEAN      DEFAULT 0,
+                                orden          INTEGER      DEFAULT 99
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE grupos_producto (
+                                id             SERIAL PRIMARY KEY,
+                                empresa_id     INTEGER REFERENCES empresas(id),
+                                nombre         VARCHAR(100) NOT NULL,
+                                codigo         VARCHAR(20)  NOT NULL,
+                                color          VARCHAR(20)  DEFAULT '#94a3b8',
+                                es_predefinido BOOLEAN      DEFAULT FALSE,
+                                orden          INTEGER      DEFAULT 99
+                            )
+                        """))
+                    conn.execute(text("CREATE INDEX ix_grupos_producto_empresa ON grupos_producto(empresa_id)"))
+                    logger.info("V43: tabla grupos_producto creada")
+
+                # Insertar los 4 grupos predefinidos si no existen (empresa_id NULL)
+                existing = conn.execute(
+                    text("SELECT COUNT(*) FROM grupos_producto WHERE es_predefinido = :v"),
+                    {"v": True if not IS_SQLITE else 1}
+                ).scalar()
+
+                if existing == 0:
+                    predefinidos = [
+                        (1, "Materia Prima",      "MP",  "#3B82F6", 1),
+                        (2, "Producto Terminado", "PT",  "#10B981", 2),
+                        (3, "Activo Fijo",        "AF",  "#F59E0B", 3),
+                        (4, "Insumos",            "INS", "#8B5CF6", 4),
+                    ]
+                    for gid, nombre, codigo, color, orden in predefinidos:
+                        if IS_SQLITE:
+                            conn.execute(text("""
+                                INSERT INTO grupos_producto(id, empresa_id, nombre, codigo, color, es_predefinido, orden)
+                                VALUES(:id, NULL, :nombre, :codigo, :color, 1, :orden)
+                            """), {"id": gid, "nombre": nombre, "codigo": codigo, "color": color, "orden": orden})
+                        else:
+                            conn.execute(text("""
+                                INSERT INTO grupos_producto(id, empresa_id, nombre, codigo, color, es_predefinido, orden)
+                                VALUES(:id, NULL, :nombre, :codigo, :color, TRUE, :orden)
+                                ON CONFLICT (id) DO NOTHING
+                            """), {"id": gid, "nombre": nombre, "codigo": codigo, "color": color, "orden": orden})
+
+                    # Resetear la secuencia en PostgreSQL para que el próximo auto-increment sea 5+
+                    if not IS_SQLITE:
+                        conn.execute(text("SELECT setval('grupos_producto_id_seq', 4, true)"))
+
+                    logger.info("V43: 4 grupos predefinidos insertados")
+
+                _mark_migration_applied(conn, migration_v43)
+                logger.info("V43 (grupos de producto dinámicos) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

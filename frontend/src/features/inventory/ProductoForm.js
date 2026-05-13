@@ -9,7 +9,7 @@ import {
   ButtonGroup, Switch, FormControlLabel, Autocomplete
 } from '@mui/material';
 import { Inventory, ExpandMore, ExpandLess, Upload, Close, Category, Science } from '@mui/icons-material';
-import { GRUPOS_PRODUCTO, UNIDADES_MEDIDA } from '../../utils/constants';
+import { UNIDADES_MEDIDA } from '../../utils/constants';
 
 const DEFAULT_ACCENT = '#8B5CF6';
 
@@ -44,9 +44,14 @@ const ProductoForm = ({ onProductoAdded, productoToEdit, onProductoUpdated, forc
   const [stockMinimo, setStockMinimo] = useState('');
   const [stockActual, setStockActual] = useState(0);
   const [manejaLotes, setManejaLotes] = useState(false);
+  const [grupos, setGrupos]         = useState([]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
+
+  useEffect(() => {
+    apiClient.get('/grupos-producto/').then(r => setGrupos(r.data || [])).catch(() => {});
+  }, []);
 
   useEffect(() => { if (forceOpen !== undefined) setFormOpen(forceOpen); }, [forceOpen]);
 
@@ -150,13 +155,20 @@ const ProductoForm = ({ onProductoAdded, productoToEdit, onProductoUpdated, forc
                   />
                 </Grid>
                 
-                {/* 👇 MODIFICADO: Selector moderno de Grupos */}
+                {/* Selector de Grupos dinámico */}
                 <Grid item xs={12} sm={4}>
                   <Autocomplete
-                    options={GRUPOS_PRODUCTO}
-                    getOptionLabel={(option) => option.label || ''}
-                    value={GRUPOS_PRODUCTO.find(g => g.id === grupoItem) || null}
+                    options={grupos}
+                    getOptionLabel={(option) => option.nombre || ''}
+                    value={grupos.find(g => g.id === grupoItem) || null}
                     onChange={(_, newValue) => setGrupoItem(newValue ? newValue.id : 2)}
+                    renderOption={(props, option) => (
+                      <Box component="li" {...props} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: option.color, flexShrink: 0 }} />
+                        <span>{option.nombre}</span>
+                        <Typography sx={{ ml: 'auto', fontSize: 10, color: 'text.secondary' }}>{option.codigo}</Typography>
+                      </Box>
+                    )}
                     renderInput={(params) => (
                       <TextField {...params} label="Grupo o Categoría *" required />
                     )}

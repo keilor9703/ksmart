@@ -196,6 +196,25 @@ class Cliente(Base, TenantMixin):
     ordenes_trabajo = relationship("OrdenTrabajo", back_populates="cliente")
 
 
+class GrupoProducto(Base):
+    """
+    Categorías/grupos de productos.
+    - empresa_id = NULL → grupo predefinido del sistema (compartido por todos los tenants)
+    - empresa_id = X   → grupo personalizado creado por el tenant X
+    Los productos referencian el id de esta tabla en grupo_item.
+    """
+    __tablename__ = "grupos_producto"
+    id             = Column(Integer, primary_key=True, index=True)
+    empresa_id     = Column(Integer, ForeignKey('empresas.id'), nullable=True, index=True)
+    nombre         = Column(String(100), nullable=False)
+    codigo         = Column(String(20), nullable=False)
+    color          = Column(String(20), default='#94a3b8')
+    es_predefinido = Column(Boolean, default=False)
+    orden          = Column(Integer, default=99)
+
+    empresa = relationship("Empresa")
+
+
 class Producto(Base, TenantMixin):
     __tablename__ = "productos"
     id            = Column(Integer, primary_key=True, index=True)
