@@ -107,7 +107,7 @@ const ProductoForm = ({ onProductoAdded, productoToEdit, onProductoUpdated, forc
       <Panel title={isEditing ? 'Editar Ítem' : 'Agregar Nuevo Ítem'} icon={<Category fontSize="small" />} chip={isEditing && <Chip label="Editando" size="small" sx={{ bgcolor: `${accentColor}18`, color: accentColor, fontWeight: 600, fontSize: 11 }} />} open={formOpen} onToggle={() => setFormOpen(o => !o)} forceOpen={forceOpen && formOpen} onClose={handleClose} accentColor={accentColor}>
         <Box component="form" onSubmit={handleSubmit}>
           
-          {/* ── 1. SELECTOR PRINCIPAL DE TIPO DE ÍTEM ── */}
+          {/* ── 1. SELECTOR PRINCIPAL DE TIPO DE ÍTEM nuevo── */}
           <Box sx={{ mb: 4, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8, mb: 1.5 }}>
               ¿Qué tipo de ítem deseas crear?
