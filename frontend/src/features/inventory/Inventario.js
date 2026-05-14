@@ -392,7 +392,8 @@ export default function Inventario() {
               } else {
                 setCurrentGrupo(null);
               }
-              setVista('grupo');
+              // ✅ FIX: No forzar el cambio de vista aquí para permitir múltiples ediciones.
+              // El usuario puede volver seleccionando una categoría en el buscador superior.
             }} />
           )}
 
