@@ -107,9 +107,8 @@ const Reportes = () => {
             <Tabs
               value={tab}
               onChange={(_, v) => setTab(v)}
-              variant="scrollable"
-              scrollButtons="auto"
-              allowScrollButtonsMobile
+              variant={isMobile ? 'fullWidth' : 'scrollable'}
+              scrollButtons={isMobile ? false : 'auto'}
               sx={{
                 borderBottom: '1px solid', borderColor: 'divider',
                 '& .MuiTab-root': {
