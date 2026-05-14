@@ -207,17 +207,19 @@ export default function Inventario() {
           onChange={(_, v) => { setTab(v); setPage(0); setSearchTerm(''); }}
           variant="scrollable"
           scrollButtons="auto"
+          allowScrollButtonsMobile
           sx={{
             borderBottom: '1px solid', borderColor: 'divider',
             '& .MuiTab-root': {
               fontWeight: 600, textTransform: 'none',
-              minHeight: isMobile ? 52 : 48,
-              minWidth: isMobile ? 70 : 'auto',
-              px: isMobile ? 2 : 1.5,
-              fontSize: isMobile ? 11 : 12,
+              minHeight: isMobile ? 50 : 48,
+              minWidth: isMobile ? 0 : 'auto',
+              px: isMobile ? 1 : 1.5,
+              fontSize: isMobile ? 10 : 12,
             },
             '& .MuiTabs-indicator': { backgroundColor: ACCENT, height: 3, borderRadius: 3 },
             '& .Mui-selected': { color: `${ACCENT} !important` },
+            '& .MuiTabs-scrollButtons': { width: 28, opacity: 0.6 },
           }}
         >
           {grupos.map(g => {

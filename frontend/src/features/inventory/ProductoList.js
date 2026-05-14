@@ -31,16 +31,13 @@ const KpiCard = ({ label, value, icon, color }) => (
 );
 
 // ─── Card mobile ──────────────────────────────────────────────────────────────
-// ─── Card mobile ──────────────────────────────────────────────────────────────
-const ProductoCard = ({ producto, onEditProducto, handleDelete, accentColor, getGroup }) => { // <-- Añadimos getGroup aquí
+const ProductoCard = ({ producto, grupos, onEditProducto, handleDelete, accentColor }) => {
   const stockActual = producto.stock_actual ?? 0;
   const stockMinimo = producto.stock_minimo ?? 0;
   const isService   = !!producto.es_servicio;
   const isLow       = !isService && stockActual <= stockMinimo;
   const isCritical  = !isService && stockActual <= 0;
-  const group       = getGroup(producto.grupo_item); // Ahora ya sabe qué es getGroup
-
-  // ... (el resto del código de ProductoCard queda igual)
+  const group       = grupos.find(g => g.id === producto.grupo_item) || { codigo: '—', color: '#94a3b8' };
 
   return (
     <Paper sx={{ p: 2.5, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
@@ -274,14 +271,8 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
                 <Typography>No se encontraron productos</Typography>
               </Box>
             : paginatedProductos.map(p => (
-                <ProductoCard 
-                  key={p.id} 
-                  producto={p} 
-                  onEditProducto={onEditProducto}
-                  handleDelete={handleDelete} 
-                  accentColor={accentColor} 
-                  getGroup={getGroup} // <--- Pásale la función aquí
-                />
+                <ProductoCard key={p.id} producto={p} grupos={grupos} onEditProducto={onEditProducto}
+                  handleDelete={handleDelete} accentColor={accentColor} />
               ))
           }
         </Box>

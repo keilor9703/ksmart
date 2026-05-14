@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import {
-  Box, Typography, Paper, Button, Grid, useTheme, useMediaQuery, 
-  Tabs, Tab, IconButton, TextField, InputAdornment, Dialog, DialogTitle, 
+  Box, Typography, Paper, Button, Grid, useTheme, useMediaQuery,
+  Tabs, Tab, IconButton, TextField, InputAdornment, Dialog, DialogTitle,
   DialogContent, DialogActions, Stack, MenuItem, FormControlLabel, Switch, Chip,Divider
 } from '@mui/material';
-import { 
-  Add, AdminPanelSettings, Autorenew, TrendingUp, Business, LocalOffer, 
+import {
+  Add, AdminPanelSettings, Autorenew, TrendingUp, Business, LocalOffer,
   History, Campaign, Engineering, ReceiptLong, Search, Edit, Payments
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
@@ -57,7 +57,7 @@ const formatDateForInput = (dateString) => dateString ? new Date(dateString).toI
 export default function GestionSaaS() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  
+
   const {
     loading, filteredEmpresas, planesCatalog, pagos, stats, auditLogs,
     announcements, searchTerm, setSearchTerm, filterState, setFilterState,
@@ -69,9 +69,9 @@ export default function GestionSaaS() {
   const [openDrawer, setOpenDrawer] = useState(false);
   const [tenantForDrawer, setTenantForDrawer] = useState(null);
   const [openDialogEmpresa, setOpenDialogEmpresa] = useState(false);
-  const [formEmpresa, setFormEmpresa] = useState({ 
-    nombre: '', nit: '', admin_username: '', admin_password: '', 
-    admin_nombre_completo: '', admin_email: '', admin_telefono: '', tipo_negocio: 'erp' 
+  const [formEmpresa, setFormEmpresa] = useState({
+    nombre: '', nit: '', admin_username: '', admin_password: '',
+    admin_nombre_completo: '', admin_email: '', admin_telefono: '', tipo_negocio: 'erp'
   });
   const [openPlanDialog, setOpenPlanDialog] = useState(false);
   const [empresaSeleccionada, setEmpresaSeleccionada] = useState(null);
@@ -92,7 +92,7 @@ export default function GestionSaaS() {
   const handleSubmitEmpresa = async (e) => {
     e.preventDefault();
     try {
-      await apiClient.post('/superadmin/empresas', { 
+      await apiClient.post('/superadmin/empresas', {
         empresa: { nombre: formEmpresa.nombre, nit: formEmpresa.nit, tipo_negocio: formEmpresa.tipo_negocio },
         admin_username: formEmpresa.admin_username, admin_password: formEmpresa.admin_password,
         admin_nombre_completo: formEmpresa.admin_nombre_completo, admin_email: formEmpresa.admin_email, admin_telefono: formEmpresa.admin_telefono
@@ -115,9 +115,9 @@ export default function GestionSaaS() {
     let realPlanType = 'premium';
     if (selectedValue === 'trial' || selectedValue === 'premium') { realPlanType = selectedValue; } else {
       const planObj = planesCatalog.find(p => p.codigo_interno === selectedValue);
-      if (planObj) { 
-        const today = new Date(); today.setDate(today.getDate() + planObj.dias_duracion); 
-        newDate = today.toISOString().split('T')[0]; 
+      if (planObj) {
+        const today = new Date(); today.setDate(today.getDate() + planObj.dias_duracion);
+        newDate = today.toISOString().split('T')[0];
       }
     }
     setFormAsignarPlan({ ...formAsignarPlan, plan_type: realPlanType, plan_selector: selectedValue, trial_ends_at: newDate });
@@ -127,12 +127,12 @@ export default function GestionSaaS() {
     e.preventDefault();
     try {
       // Forzamos el fin del día en la zona horaria de Colombia (-05:00) para evitar saltos de día al convertir a UTC
-      const trial_ends_at = formAsignarPlan.trial_ends_at 
-        ? new Date(formAsignarPlan.trial_ends_at + 'T23:59:59-05:00').toISOString() 
+      const trial_ends_at = formAsignarPlan.trial_ends_at
+        ? new Date(formAsignarPlan.trial_ends_at + 'T23:59:59-05:00').toISOString()
         : null;
 
-      await apiClient.patch(`/superadmin/empresas/${empresaSeleccionada.id}/plan`, { 
-        plan_type: formAsignarPlan.plan_type, 
+      await apiClient.patch(`/superadmin/empresas/${empresaSeleccionada.id}/plan`, {
+        plan_type: formAsignarPlan.plan_type,
         trial_ends_at
       });
       toast.success('Suscripción actualizada');
@@ -156,7 +156,7 @@ export default function GestionSaaS() {
 
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box', pb: 4 }}>
-      
+
       {/* ── HEADER PRINCIPAL ── */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5, gap: 1.5 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
@@ -169,11 +169,11 @@ export default function GestionSaaS() {
           </Box>
         </Box>
         <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button 
-            variant="contained" 
+          <Button
+            variant="contained"
             size={isMobile ? "small" : "medium"}
-            startIcon={<Add />} 
-            onClick={() => setOpenDialogEmpresa(true)} 
+            startIcon={<Add />}
+            onClick={() => setOpenDialogEmpresa(true)}
             sx={{ bgcolor: ACCENT, borderRadius: 2, fontWeight: 700, px: { xs: 1.5, sm: 3 } }}
           >
             {isMobile ? 'Nuevo' : 'Nueva Empresa'}
@@ -183,27 +183,27 @@ export default function GestionSaaS() {
       </Box>
 
       {/* ── CONTENEDOR TABS Y CONTENIDO ── */}
-      <Box sx={{ 
-        borderRadius: 3, 
-        boxShadow: '0 2px 12px rgba(0,0,0,0.06)', 
-        border: '1px solid', 
-        borderColor: 'divider', 
-        bgcolor: 'background.paper', 
-        width: '100%', 
+      <Box sx={{
+        borderRadius: 3,
+        boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+        border: '1px solid',
+        borderColor: 'divider',
+        bgcolor: 'background.paper',
+        width: '100%',
         boxSizing: 'border-box',
         overflow: 'hidden'
       }}>
-        <Tabs 
-          value={tabValue} 
-          onChange={(_, v) => setTabValue(v)} 
+        <Tabs
+          value={tabValue}
+          onChange={(_, v) => setTabValue(v)}
           variant={isMobile ? 'fullWidth' : 'scrollable'}
           scrollButtons={isMobile ? false : 'auto'}
-          sx={{ 
+          sx={{
             borderBottom: '1px solid', borderColor: 'divider',
-            '& .MuiTab-root': { 
-              fontWeight: 700, 
-              fontSize: 11, 
-              textTransform: 'none', 
+            '& .MuiTab-root': {
+              fontWeight: 700,
+              fontSize: 11,
+              textTransform: 'none',
               minHeight: isMobile ? 50 : 56,
               minWidth: isMobile ? 0 : 'auto',
               px: isMobile ? 0.5 : 2.5
@@ -213,11 +213,11 @@ export default function GestionSaaS() {
           }}
         >
           {TABS_CONFIG.map((t, i) => (
-            <Tab 
-              key={i} 
-              icon={t.icon} 
-              iconPosition={isMobile ? 'top' : 'start'} 
-              label={isMobile ? undefined : t.label} 
+            <Tab
+              key={i}
+              icon={t.icon}
+              iconPosition={isMobile ? 'top' : 'start'}
+              label={isMobile ? undefined : t.label}
               sx={isMobile ? { gap: 0, '& .MuiTab-iconWrapper': { mb: 0 } } : { gap: 1 }}
             />
           ))}
@@ -236,27 +236,27 @@ export default function GestionSaaS() {
           <TabPanel value={tabValue} index={0}>
             <SaaSOverview stats={stats} empresas={filteredEmpresas} onViewTenants={() => setTabValue(1)} onOpenTenant={handleOpenDrawer} />
           </TabPanel>
-          
+
           <TabPanel value={tabValue} index={1}>
             <Box sx={{ mb: 2 }}>
-              <TextField 
-                size="small" fullWidth placeholder="Buscar cliente..." 
-                value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} 
-                InputProps={{ startAdornment: <InputAdornment position="start"><Search /></InputAdornment> }} 
+              <TextField
+                size="small" fullWidth placeholder="Buscar cliente..."
+                value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                InputProps={{ startAdornment: <InputAdornment position="start"><Search /></InputAdornment> }}
               />
               <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto', py: 1.5, '&::-webkit-scrollbar': { display: 'none' } }}>
                 {[{ id: 'all', label: 'Todos' }, { id: 'premium', label: 'Premium' }, { id: 'trial', label: 'Trials' }, { id: 'expired', label: 'Expirados' }].map(f => (
-                  <Chip 
-                    key={f.id} label={f.label} size="small" onClick={() => setFilterState(f.id)} 
-                    sx={{ fontWeight: 700, flexShrink: 0, bgcolor: filterState === f.id ? BLUE : 'transparent', color: filterState === f.id ? 'white' : 'text.primary' }} 
+                  <Chip
+                    key={f.id} label={f.label} size="small" onClick={() => setFilterState(f.id)}
+                    sx={{ fontWeight: 700, flexShrink: 0, bgcolor: filterState === f.id ? BLUE : 'transparent', color: filterState === f.id ? 'white' : 'text.primary' }}
                   />
                 ))}
               </Box>
             </Box>
             <Box sx={{ width: '100%', overflowX: 'auto' }}>
-              <TenantsTable 
-                empresas={filteredEmpresas} onOpenDrawer={handleOpenDrawer} onImpersonate={handleImpersonate} 
-                onOpenPlan={handleOpenAsignarPlan} onOpenModulos={handleOpenModulos} onToggleProtection={handleToggleProtection} 
+              <TenantsTable
+                empresas={filteredEmpresas} onOpenDrawer={handleOpenDrawer} onImpersonate={handleImpersonate}
+                onOpenPlan={handleOpenAsignarPlan} onOpenModulos={handleOpenModulos} onToggleProtection={handleToggleProtection}
               />
             </Box>
           </TabPanel>
@@ -285,7 +285,7 @@ export default function GestionSaaS() {
           <TabPanel value={tabValue} index={3}><AuditLogsTable logs={auditLogs} /></TabPanel>
           <TabPanel value={tabValue} index={4}><AnnouncementsManager announcements={announcements} onRefresh={fetchAnnouncements} onToggle={handleToggleAnnouncement} /></TabPanel>
           <TabPanel value={tabValue} index={5}><JobsControl /></TabPanel>
-          
+
           <TabPanel value={tabValue} index={6}>
             <Paper sx={{ p: 2, borderRadius: 3, bgcolor: `${GREEN}08`, border: `1px solid ${GREEN}20` }}>
               <Typography variant="caption" sx={{ fontWeight: 800, color: GREEN, textTransform: 'uppercase' }}>Ingresos Totales</Typography>
@@ -299,16 +299,16 @@ export default function GestionSaaS() {
       </Box>
 
       {/* ── DIALOGS ── */}
-      <TenantDrawer360 
-        open={openDrawer} onClose={() => setOpenDrawer(false)} tenant={tenantForDrawer} 
+      <TenantDrawer360
+        open={openDrawer} onClose={() => setOpenDrawer(false)} tenant={tenantForDrawer}
         onImpersonate={handleImpersonate} onOpenPlan={handleOpenAsignarPlan}
         onOpenModulos={handleOpenModulos}
         onToggleStatus={async (id, status) => { if(await handleToggleStatus(id, status)) setOpenDrawer(false); }}
       />
 
-      <ModulosEmpresaDialog 
-        open={openModulosDialog} 
-        handleClose={() => setOpenModulosDialog(false)} 
+      <ModulosEmpresaDialog
+        open={openModulosDialog}
+        handleClose={() => setOpenModulosDialog(false)}
         empresa={empresaParaModulos}
         onModulosUpdated={refreshAll}
       />
@@ -366,11 +366,11 @@ export default function GestionSaaS() {
                 <MenuItem value="prestamos">Prestamista / Cobranzas</MenuItem>
                 <MenuItem value="parqueadero">Parqueadero / Parking</MenuItem>
               </TextField>
-              
+
               <Divider><Chip label="DATOS DEL ADMINISTRADOR" size="small" /></Divider>
-              
+
               <TextField label="Nombre Completo" required fullWidth size="small" value={formEmpresa.admin_nombre_completo} onChange={e => setFormEmpresa({...formEmpresa, admin_nombre_completo: e.target.value})} />
-              
+
               <Grid container spacing={2}>
                 <Grid item xs={6}>
                   <TextField label="Correo Electrónico" type="email" required fullWidth size="small" value={formEmpresa.admin_email} onChange={e => setFormEmpresa({...formEmpresa, admin_email: e.target.value})} />
@@ -396,9 +396,9 @@ export default function GestionSaaS() {
           </DialogActions>
         </form>
       </Dialog>
-      
+
       {/* ✅ Componente Refactorizado de Planes */}
-      <PlanFormDialog 
+      <PlanFormDialog
         open={openCatalogDialog}
         onClose={() => setOpenCatalogDialog(false)}
         onSubmit={handleSubmitPlan}

@@ -3,7 +3,7 @@ import {
   Box, Typography, Button, TextField, IconButton, Chip,
   Dialog, DialogTitle, DialogContent, DialogActions,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Paper, Tooltip, Alert
+  Paper, Tooltip, Alert, useTheme, useMediaQuery, Divider
 } from '@mui/material';
 import { Add, Edit, Delete, Lock } from '@mui/icons-material';
 import { toast } from 'react-toastify';
@@ -17,13 +17,65 @@ const COLOR_PRESETS = [
 
 const DEFAULT_FORM = { nombre: '', codigo: '', color: '#6366F1', orden: 99 };
 
+// ── Card móvil por categoría ──────────────────────────────────────────────────
+const GrupoCard = ({ grupo, onEdit, onDelete }) => (
+  <Paper sx={{
+    p: 2, mb: 1.5, borderRadius: 2.5,
+    border: '1px solid', borderColor: 'divider',
+    boxShadow: '0 1px 6px rgba(0,0,0,0.05)',
+    width: '100%', boxSizing: 'border-box',
+  }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+      <Box sx={{ width: 26, height: 26, borderRadius: 1.5, bgcolor: grupo.color, flexShrink: 0, border: '2px solid', borderColor: 'divider' }} />
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography sx={{ fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>{grupo.nombre}</Typography>
+        <Chip label={grupo.codigo} size="small"
+          sx={{ bgcolor: `${grupo.color}18`, color: grupo.color, fontWeight: 700, fontSize: 10, borderRadius: 1, height: 18, mt: 0.3 }} />
+      </Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+        {grupo.es_predefinido
+          ? <Chip label="Sistema" size="small" icon={<Lock sx={{ fontSize: '11px !important' }} />}
+              sx={{ fontSize: 9, bgcolor: 'action.hover', color: 'text.secondary', height: 20 }} />
+          : <>
+              <Tooltip title="Editar">
+                <IconButton size="small" onClick={() => onEdit(grupo)}
+                  sx={{ color: '#6366F1', bgcolor: '#EEF2FF', borderRadius: 1.5, width: 28, height: 28 }}>
+                  <Edit sx={{ fontSize: 14 }} />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Eliminar">
+                <IconButton size="small" onClick={() => onDelete(grupo.id)}
+                  sx={{ color: '#EF4444', bgcolor: '#FEF2F2', borderRadius: 1.5, width: 28, height: 28 }}>
+                  <Delete sx={{ fontSize: 14 }} />
+                </IconButton>
+              </Tooltip>
+            </>
+        }
+      </Box>
+    </Box>
+    <Box sx={{ display: 'flex', gap: 1 }}>
+      <Box sx={{ px: 1.5, py: 0.5, borderRadius: 1.5, bgcolor: 'action.hover', textAlign: 'center' }}>
+        <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>Orden</Typography>
+        <Typography sx={{ fontSize: 12, fontWeight: 700 }}>{grupo.orden}</Typography>
+      </Box>
+      <Box sx={{ px: 1.5, py: 0.5, borderRadius: 1.5, bgcolor: 'action.hover', textAlign: 'center' }}>
+        <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>Tipo</Typography>
+        <Typography sx={{ fontSize: 12, fontWeight: 700 }}>{grupo.es_predefinido ? 'Sistema' : 'Custom'}</Typography>
+      </Box>
+    </Box>
+  </Paper>
+);
+
 export default function GruposProductoManager({ onGruposChange }) {
-  const [grupos, setGrupos]       = useState([]);
-  const [open, setOpen]           = useState(false);
-  const [editing, setEditing]     = useState(null);
-  const [form, setForm]           = useState(DEFAULT_FORM);
-  const [saving, setSaving]       = useState(false);
-  const [deleteId, setDeleteId]   = useState(null);
+  const [grupos, setGrupos]     = useState([]);
+  const [open, setOpen]         = useState(false);
+  const [editing, setEditing]   = useState(null);
+  const [form, setForm]         = useState(DEFAULT_FORM);
+  const [saving, setSaving]     = useState(false);
+  const [deleteId, setDeleteId] = useState(null);
+
+  const theme    = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   useEffect(() => { fetchGrupos(); }, []);
 
@@ -79,7 +131,9 @@ export default function GruposProductoManager({ onGruposChange }) {
   };
 
   return (
-    <Box>
+    <Box sx={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+
+      {/* ── Header ── */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Typography sx={{ fontWeight: 700, fontSize: 14 }}>Categorías / Grupos de Producto</Typography>
         <Button
@@ -87,72 +141,82 @@ export default function GruposProductoManager({ onGruposChange }) {
           onClick={openCreate}
           sx={{ borderRadius: 2, fontWeight: 600, textTransform: 'none', fontSize: 13 }}
         >
-          Nueva Categoría
+          {isMobile ? 'Nueva' : 'Nueva Categoría'}
         </Button>
       </Box>
 
       <Alert severity="info" sx={{ mb: 2, fontSize: 12 }}>
         Las categorías con <Lock fontSize="inherit" sx={{ verticalAlign: 'middle', fontSize: 13 }} /> son predefinidas del sistema y no se pueden eliminar.
-        Puedes agregar las tuyas propias según el tipo de negocio.
+        Puedes agregar las tuyas según el tipo de negocio.
       </Alert>
 
-      <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              {['Color', 'Nombre', 'Código', 'Orden', 'Tipo', 'Acciones'].map(h => (
-                <TableCell key={h} sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase' }}>{h}</TableCell>
-              ))}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {grupos.map(g => (
-              <TableRow key={g.id} hover>
-                <TableCell>
-                  <Box sx={{ width: 22, height: 22, borderRadius: 1, bgcolor: g.color, border: '2px solid #e2e8f0' }} />
-                </TableCell>
-                <TableCell sx={{ fontWeight: 600, fontSize: 13 }}>{g.nombre}</TableCell>
-                <TableCell>
-                  <Chip label={g.codigo} size="small"
-                    sx={{ bgcolor: `${g.color}18`, color: g.color, fontWeight: 700, fontSize: 10, borderRadius: 1 }} />
-                </TableCell>
-                <TableCell sx={{ color: 'text.secondary', fontSize: 12 }}>{g.orden}</TableCell>
-                <TableCell>
-                  {g.es_predefinido
-                    ? <Chip label="Sistema" size="small" icon={<Lock sx={{ fontSize: '12px !important' }} />}
-                        sx={{ fontSize: 10, bgcolor: 'action.hover', color: 'text.secondary' }} />
-                    : <Chip label="Personalizado" size="small"
-                        sx={{ fontSize: 10, bgcolor: '#EFF6FF', color: '#3B82F6' }} />
-                  }
-                </TableCell>
-                <TableCell>
-                  <Box sx={{ display: 'flex', gap: 0.5 }}>
-                    {!g.es_predefinido && (
-                      <>
-                        <Tooltip title="Editar">
-                          <IconButton size="small" onClick={() => openEdit(g)}
-                            sx={{ color: '#6366F1', '&:hover': { bgcolor: '#EEF2FF' } }}>
-                            <Edit fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Eliminar">
-                          <IconButton size="small" onClick={() => setDeleteId(g.id)}
-                            sx={{ color: '#EF4444', '&:hover': { bgcolor: '#FEF2F2' } }}>
-                            <Delete fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </>
-                    )}
-                  </Box>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+      {/* ── Vista móvil: cards ── */}
+      {isMobile ? (
+        <Box>
+          {grupos.map(g => (
+            <GrupoCard key={g.id} grupo={g} onEdit={openEdit} onDelete={setDeleteId} />
+          ))}
+        </Box>
+      ) : (
+        /* ── Vista desktop: tabla ── */
+        <Box sx={{ width: '100%', overflowX: 'auto' }}>
+          <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, minWidth: 480 }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  {['Color', 'Nombre', 'Código', 'Orden', 'Tipo', 'Acciones'].map(h => (
+                    <TableCell key={h} sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase' }}>{h}</TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {grupos.map(g => (
+                  <TableRow key={g.id} hover>
+                    <TableCell>
+                      <Box sx={{ width: 22, height: 22, borderRadius: 1, bgcolor: g.color, border: '2px solid #e2e8f0' }} />
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600, fontSize: 13 }}>{g.nombre}</TableCell>
+                    <TableCell>
+                      <Chip label={g.codigo} size="small"
+                        sx={{ bgcolor: `${g.color}18`, color: g.color, fontWeight: 700, fontSize: 10, borderRadius: 1 }} />
+                    </TableCell>
+                    <TableCell sx={{ color: 'text.secondary', fontSize: 12 }}>{g.orden}</TableCell>
+                    <TableCell>
+                      {g.es_predefinido
+                        ? <Chip label="Sistema" size="small" icon={<Lock sx={{ fontSize: '12px !important' }} />}
+                            sx={{ fontSize: 10, bgcolor: 'action.hover', color: 'text.secondary' }} />
+                        : <Chip label="Personalizado" size="small"
+                            sx={{ fontSize: 10, bgcolor: '#EFF6FF', color: '#3B82F6' }} />
+                      }
+                    </TableCell>
+                    <TableCell>
+                      {!g.es_predefinido && (
+                        <Box sx={{ display: 'flex', gap: 0.5 }}>
+                          <Tooltip title="Editar">
+                            <IconButton size="small" onClick={() => openEdit(g)}
+                              sx={{ color: '#6366F1', '&:hover': { bgcolor: '#EEF2FF' } }}>
+                              <Edit fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Eliminar">
+                            <IconButton size="small" onClick={() => setDeleteId(g.id)}
+                              sx={{ color: '#EF4444', '&:hover': { bgcolor: '#FEF2F2' } }}>
+                              <Delete fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
+      )}
 
-      {/* Modal crear/editar */}
-      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="xs" fullWidth>
+      {/* ── Modal crear/editar ── */}
+      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="xs" fullWidth fullScreen={isMobile}>
         <DialogTitle sx={{ fontWeight: 700, fontSize: 16 }}>
           {editing ? 'Editar Categoría' : 'Nueva Categoría'}
         </DialogTitle>
@@ -175,7 +239,7 @@ export default function GruposProductoManager({ onGruposChange }) {
               label="Orden de visualización" fullWidth size="small" type="number"
               value={form.orden}
               onChange={e => setForm(f => ({ ...f, orden: parseInt(e.target.value) || 99 }))}
-              helperText="Menor número = aparece primero en los tabs"
+              helperText="Menor número = aparece primero"
             />
             <Box>
               <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1 }}>Color</Typography>
@@ -210,12 +274,12 @@ export default function GruposProductoManager({ onGruposChange }) {
           <Button onClick={() => setOpen(false)} sx={{ color: 'text.secondary', fontWeight: 600 }}>Cancelar</Button>
           <Button onClick={handleSave} variant="contained" disabled={saving}
             sx={{ borderRadius: 2, fontWeight: 600, textTransform: 'none' }}>
-            {saving ? 'Guardando...' : (editing ? 'Actualizar' : 'Crear')}
+            {saving ? 'Guardando...' : editing ? 'Actualizar' : 'Crear'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Confirmación eliminar */}
+      {/* ── Confirmación eliminar ── */}
       <Dialog open={Boolean(deleteId)} onClose={() => setDeleteId(null)} maxWidth="xs">
         <DialogTitle sx={{ fontWeight: 700 }}>Eliminar categoría</DialogTitle>
         <DialogContent>

@@ -11,7 +11,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Paper, Typography, Grid, Stack, Chip, Avatar, Skeleton, IconButton,
   LinearProgress, Tooltip, List, ListItem, ListItemText, ListItemAvatar, Divider,
-  Button, Alert
+  Button, Alert, useTheme, useMediaQuery
 } from '@mui/material';
 import {
   LocalParking, TrendingUp, Warning, ErrorOutline, CheckCircle,
@@ -30,6 +30,8 @@ export default function ParqueaderoDashboard({ user }) {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
   const navigate              = useNavigate();
+  const theme                 = useTheme();
+  const isMobile              = useMediaQuery(theme.breakpoints.down('sm'));
 
   const cargar = useCallback(async (silencioso = false) => {
     if (!silencioso) setLoading(true);
@@ -79,32 +81,40 @@ export default function ParqueaderoDashboard({ user }) {
       <SaaSUpgradeManager user={user} />
 
       {/* ─── Encabezado ─────────────────────────────────────────── */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-        <Box>
-          <Typography sx={{ fontSize: 22, fontWeight: 800, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            Panel del parqueadero
-          </Typography>
-          <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-            {new Date().toLocaleDateString('es-CO', {
-              weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-            })}
-          </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{
+            width: 38, height: 38, borderRadius: 2,
+            bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            <LocalParking sx={{ fontSize: 20, color: ACCENT }} />
+          </Box>
+          <Box>
+            <Typography sx={{ fontSize: 18, fontWeight: 700, lineHeight: 1.2 }}>
+              Panel del parqueadero
+            </Typography>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+              {new Date().toLocaleDateString('es-CO', {
+                weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+              })}
+            </Typography>
+          </Box>
         </Box>
-        <Stack direction="row" spacing={1}>
+        <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
           <Button
             variant="contained" startIcon={<Search />}
             onClick={() => navigate('/parqueadero/buscar')}
-            sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700 }}
+            sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700, textTransform: 'none', borderRadius: 2 }}
           >
-            Buscar placa
+            {isMobile ? 'Buscar' : 'Buscar placa'}
           </Button>
           <Tooltip title="Actualizar">
-            <IconButton onClick={() => cargar()} sx={{ border: '1px solid', borderColor: 'divider' }}>
+            <IconButton onClick={() => cargar()} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
               <Refresh />
             </IconButton>
           </Tooltip>
-        </Stack>
-      </Stack>
+        </Box>
+      </Box>
 
       {/* ─── Cupo banner ────────────────────────────────────────── */}
       <Paper sx={{
