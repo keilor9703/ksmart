@@ -262,8 +262,20 @@ class ProductoBase(BaseModel):
     maneja_lotes: bool = False
 
     # 👇 NUEVOS CAMPOS CATÁLOGO VIRTUAL
-    imagen: Optional[str] = None
+    imagenes: Optional[List[str]] = None # Lista de Base64
     mostrar_en_catalogo: bool = False
+
+    # ✅ FIX: La BD guarda esto como string JSON, Pydantic necesita lista
+    @validator('imagenes', pre=True, always=True)
+    def parse_imagenes(cls, v):
+        if isinstance(v, str):
+            try:
+                import json
+                return json.loads(v)
+            except:
+                return []
+        return v or []
+
 class ProductoCreate(ProductoBase):
     stock_inicial:     Optional[float] = 0.0
     numero_lote:       Optional[str]   = None
@@ -2117,7 +2129,7 @@ class CatalogoProductoOut(BaseModel):
     descripcion: Optional[str] = None
     precio: float
     categoria: Optional[str] = None
-    has_image: bool = False
+    image_count: int = 0
     
     model_config = ConfigDict(from_attributes=True)
 

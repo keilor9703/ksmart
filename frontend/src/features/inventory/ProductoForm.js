@@ -174,7 +174,7 @@ const ProductoForm = ({
   const [grupos, setGrupos] = useState([]);
 
   // 👇 NUEVOS ESTADOS CATÁLOGO
-  const [imagen, setImagen] = useState(null);
+  const [imagenes, setImagenes] = useState([]);
   const [mostrarEnCatalogo, setMostrarEnCatalogo] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
 
@@ -209,8 +209,8 @@ const ProductoForm = ({
       setStockActual(productoToEdit.stock_actual ?? 0);
       setManejaLotes(productoToEdit.maneja_lotes || false);
       
-      // 👇 CARGAR NUEVOS CAMPOS
-      setImagen(productoToEdit.imagen || null);
+      // 👇 CARGAR NUEVOS CAMPOS (Array de imágenes)
+      setImagenes(productoToEdit.imagenes || []);
       setMostrarEnCatalogo(productoToEdit.mostrar_en_catalogo || false);
     } else {
       resetFields();
@@ -228,25 +228,39 @@ const ProductoForm = ({
     setStockMinimo('');
     setStockActual(0);
     setManejaLotes(false);
-    setImagen(null);
+    setImagenes([]);
     setMostrarEnCatalogo(false);
   };
 
   const handleImageChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+
+    // Límite de 4 imágenes
+    if (imagenes.length + files.length > 4) {
+      toast.warning("Máximo 4 imágenes por producto");
+      return;
+    }
 
     try {
       setIsCompressing(true);
-      const webpBase64 = await compressImageToWebP(file);
-      setImagen(webpBase64);
-      setMostrarEnCatalogo(true); // Activar por defecto si sube imagen
+      const newImages = [];
+      for (const file of files) {
+        const webpBase64 = await compressImageToWebP(file);
+        newImages.push(webpBase64);
+      }
+      setImagenes(prev => [...prev, ...newImages]);
+      setMostrarEnCatalogo(true);
     } catch (error) {
-      toast.error("Error al procesar la imagen. Intenta con otro archivo.");
+      toast.error("Error al procesar las imágenes");
       console.error(error);
     } finally {
       setIsCompressing(false);
     }
+  };
+
+  const removeImage = (index) => {
+    setImagenes(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleClose = () => {
@@ -273,7 +287,7 @@ const ProductoForm = ({
           : parseFloat(stockMinimo),
       maneja_lotes: esServicio ? false : manejaLotes,
       // 👇 ENVIAR NUEVOS CAMPOS
-      imagen: imagen,
+      imagenes: imagenes,
       mostrar_en_catalogo: mostrarEnCatalogo
     };
 
@@ -692,98 +706,85 @@ const ProductoForm = ({
                       <Switch 
                         checked={mostrarEnCatalogo} 
                         onChange={(e) => setMostrarEnCatalogo(e.target.checked)}
-                        disabled={!imagen && !mostrarEnCatalogo} // Obligar a tener imagen si se activa por primera vez
+                        disabled={imagenes.length === 0 && !mostrarEnCatalogo} 
                       />
                     }
                     label={mostrarEnCatalogo ? "Visible al público" : "Oculto"}
                   />
                 </Box>
 
-                <Grid container spacing={2} alignItems="center">
-                  <Grid item xs={12} md={4}>
-                    <Box 
-                      sx={{ 
-                        width: '100%', 
-                        aspectRatio: '1/1', 
-                        borderRadius: 2, 
-                        border: '2px dashed',
-                        borderColor: 'divider',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        position: 'relative',
-                        overflow: 'hidden',
-                        bgcolor: 'background.default'
-                      }}
-                    >
-                      {imagen ? (
-                        <>
-                          <img 
-                            src={imagen} 
-                            alt="Preview" 
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                          />
-                          <Box sx={{ position: 'absolute', top: 5, right: 5, display: 'flex', gap: 0.5 }}>
-                            <Tooltip title="Cambiar imagen">
-                              <IconButton 
-                                size="small" 
-                                component="label"
-                                sx={{ bgcolor: 'rgba(255,255,255,0.8)', '&:hover': { bgcolor: '#fff' } }}
-                              >
-                                <input hidden accept="image/*" type="file" onChange={handleImageChange} />
-                                <Upload fontSize="small" color="primary" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Eliminar">
-                              <IconButton 
-                                size="small" 
-                                onClick={() => { setImagen(null); setMostrarEnCatalogo(false); }}
-                                sx={{ bgcolor: 'rgba(255,255,255,0.8)', '&:hover': { bgcolor: '#fff' } }}
-                              >
-                                <Delete fontSize="small" color="error" />
-                              </IconButton>
-                            </Tooltip>
-                          </Box>
-                        </>
-                      ) : (
-                        <Button
-                          component="label"
-                          disabled={isCompressing}
-                          sx={{ 
-                            flexDirection: 'column', 
-                            gap: 1, 
-                            width: '100%', 
-                            height: '100%',
-                            color: 'text.secondary',
-                            textTransform: 'none'
-                          }}
-                        >
-                          <input hidden accept="image/*" type="file" onChange={handleImageChange} />
-                          {isCompressing ? (
-                            <Typography variant="caption">Procesando...</Typography>
-                          ) : (
-                            <>
-                              <AddPhotoAlternate fontSize="large" />
-                              <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                                Subir Imagen WebP
-                              </Typography>
-                            </>
-                          )}
-                        </Button>
-                      )}
-                    </Box>
-                  </Grid>
-                  <Grid item xs={12} md={8}>
-                    <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>
-                      • Se recomienda una imagen cuadrada de alta calidad.
-                    </Typography>
-                    <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>
-                      • La imagen se comprimirá automáticamente a WebP para carga rápida.
-                    </Typography>
-                    <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-                      • Si activas la visibilidad, este ítem aparecerá en tu catálogo público 
-                        <code>/{'su-empresa'}</code>
+                <Grid container spacing={2}>
+                  {/* Slots de Imágenes */}
+                  {[0, 1, 2, 3].map((idx) => (
+                    <Grid item xs={6} sm={3} key={idx}>
+                      <Box 
+                        sx={{ 
+                          width: '100%', 
+                          aspectRatio: '1/1', 
+                          borderRadius: 2, 
+                          border: '2px dashed',
+                          borderColor: imagenes[idx] ? accentColor : 'divider',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          position: 'relative',
+                          overflow: 'hidden',
+                          bgcolor: 'background.default',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {imagenes[idx] ? (
+                          <>
+                            <img 
+                              src={imagenes[idx]} 
+                              alt={`Product ${idx}`} 
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                            />
+                            <IconButton 
+                              size="small" 
+                              onClick={() => removeImage(idx)}
+                              sx={{ 
+                                position: 'absolute', top: 5, right: 5,
+                                bgcolor: 'rgba(255,255,255,0.8)', '&:hover': { bgcolor: '#fff' } 
+                              }}
+                            >
+                              <Delete fontSize="small" color="error" />
+                            </IconButton>
+                          </>
+                        ) : (
+                          <Button
+                            component="label"
+                            disabled={isCompressing || (idx > 0 && !imagenes[idx-1])}
+                            sx={{ 
+                              flexDirection: 'column', 
+                              gap: 0.5, 
+                              width: '100%', 
+                              height: '100%',
+                              color: 'text.secondary',
+                              textTransform: 'none'
+                            }}
+                          >
+                            <input hidden accept="image/*" type="file" multiple onChange={handleImageChange} />
+                            {isCompressing ? (
+                              <Typography variant="caption" sx={{ fontSize: 9 }}>Procesando...</Typography>
+                            ) : (
+                              <>
+                                <AddPhotoAlternate fontSize="medium" />
+                                <Typography variant="caption" sx={{ fontWeight: 600, fontSize: 9 }}>
+                                  Subir
+                                </Typography>
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </Box>
+                    </Grid>
+                  ))}
+                  
+                  <Grid item xs={12}>
+                    <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                      • Puedes subir hasta <strong>4 fotos</strong> por producto. Se recomienda formato cuadrado.
                     </Typography>
                   </Grid>
                 </Grid>

@@ -32,6 +32,10 @@ const CatalogoVirtual = () => {
   });
   const [cartOpen, setCartOpen] = useState(false);
   const [orderModalOpen, setOrderModalOpen] = useState(false);
+  
+  // Detalle de Producto
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [currentImgIndex, setCurrentImgIndex] = useState(0);
 
   // Formulario de Pedido
   const [nombre, setNombre] = useState('');
@@ -208,12 +212,19 @@ const CatalogoVirtual = () => {
             const inCart = cart.find(item => item.id === p.id);
             return (
               <Grid item xs={6} sm={4} md={3} key={p.id}>
-                <Card sx={{ borderRadius: 4, height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.04)', border: '1px solid #F1F5F9' }}>
+                <Card 
+                  sx={{ 
+                    borderRadius: 4, height: '100%', display: 'flex', flexDirection: 'column', 
+                    overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.04)', border: '1px solid #F1F5F9',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => { setSelectedProduct(p); setCurrentImgIndex(0); }}
+                >
                   <Box sx={{ position: 'relative' }}>
                     <CardMedia
                       component="img"
                       sx={{ aspectRatio: '1/1', objectFit: 'cover' }}
-                      image={p.has_image ? `${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${p.id}/imagen` : 'https://placehold.co/400x400?text=No+Image'}
+                      image={p.image_count > 0 ? `${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${p.id}/imagen?index=0` : 'https://placehold.co/400x400?text=No+Image'}
                       alt={p.nombre}
                     />
                     {p.categoria && (
@@ -222,6 +233,13 @@ const CatalogoVirtual = () => {
                         size="small" 
                         sx={{ position: 'absolute', top: 8, left: 8, bgcolor: 'rgba(255,255,255,0.9)', fontWeight: 700, fontSize: 10, height: 20 }} 
                       />
+                    )}
+                    {p.image_count > 1 && (
+                      <Box sx={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 0.5 }}>
+                        {[...Array(p.image_count)].map((_, i) => (
+                          <Box key={i} sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: i === 0 ? accentColor : 'rgba(255,255,255,0.5)' }} />
+                        ))}
+                      </Box>
                     )}
                   </Box>
                   <CardContent sx={{ p: 1.5, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
@@ -232,7 +250,7 @@ const CatalogoVirtual = () => {
                       ${new Intl.NumberFormat('es-CO').format(p.precio)}
                     </Typography>
                     
-                    <Box sx={{ mt: 1.5 }}>
+                    <Box sx={{ mt: 1.5 }} onClick={(e) => e.stopPropagation()}>
                       {inCart ? (
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: '#F1F5F9', borderRadius: 2, p: 0.5 }}>
                           <IconButton size="small" onClick={() => removeFromCart(p.id)} sx={{ bgcolor: '#fff', color: accentColor }}><Remove fontSize="small" /></IconButton>
@@ -259,6 +277,89 @@ const CatalogoVirtual = () => {
           })}
         </Grid>
       </Box>
+
+      {/* DETALLE DE PRODUCTO (NUEVO) */}
+      <Dialog
+        open={Boolean(selectedProduct)}
+        onClose={() => setSelectedProduct(null)}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{ sx: { borderRadius: isMobile ? '24px 24px 0 0' : 4, mt: isMobile ? 'auto' : 0, mb: isMobile ? 0 : 'auto' } }}
+        TransitionComponent={Zoom}
+      >
+        {selectedProduct && (
+          <>
+            <Box sx={{ position: 'relative' }}>
+              <IconButton 
+                onClick={() => setSelectedProduct(null)} 
+                sx={{ position: 'absolute', top: 12, right: 12, zIndex: 10, bgcolor: 'rgba(0,0,0,0.4)', color: '#fff', '&:hover': { bgcolor: 'rgba(0,0,0,0.6)' } }}
+              >
+                <Close fontSize="small" />
+              </IconButton>
+              
+              {/* Galería Principal */}
+              <Box sx={{ width: '100%', aspectRatio: '1/1', bgcolor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                <img 
+                  src={selectedProduct.image_count > 0 ? `${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${selectedProduct.id}/imagen?index=${currentImgIndex}` : 'https://placehold.co/400x400?text=No+Image'}
+                  alt={selectedProduct.nombre}
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                />
+                
+                {selectedProduct.image_count > 1 && (
+                  <>
+                    <IconButton 
+                      onClick={() => setCurrentImgIndex(prev => (prev > 0 ? prev - 1 : selectedProduct.image_count - 1))}
+                      sx={{ position: 'absolute', left: 8, bgcolor: 'rgba(255,255,255,0.3)', color: '#fff' }}
+                    >
+                      <ArrowForward sx={{ transform: 'rotate(180deg)' }} />
+                    </IconButton>
+                    <IconButton 
+                      onClick={() => setCurrentImgIndex(prev => (prev < selectedProduct.image_count - 1 ? prev + 1 : 0))}
+                      sx={{ position: 'absolute', right: 8, bgcolor: 'rgba(255,255,255,0.3)', color: '#fff' }}
+                    >
+                      <ArrowForward />
+                    </IconButton>
+                    
+                    <Box sx={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 1 }}>
+                      {[...Array(selectedProduct.image_count)].map((_, i) => (
+                        <Box key={i} sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: i === currentImgIndex ? accentColor : 'rgba(255,255,255,0.5)', transition: 'all 0.2s' }} />
+                      ))}
+                    </Box>
+                  </>
+                )}
+              </Box>
+            </Box>
+
+            <DialogContent sx={{ p: 3 }}>
+              <Chip label={selectedProduct.categoria} size="small" sx={{ mb: 1, fontWeight: 700, bgcolor: `${accentColor}15`, color: accentColor }} />
+              <Typography variant="h5" sx={{ fontWeight: 800, mb: 1 }}>{selectedProduct.nombre}</Typography>
+              <Typography variant="h4" sx={{ fontWeight: 800, color: accentColor, mb: 3 }}>
+                ${new Intl.NumberFormat('es-CO').format(selectedProduct.precio)}
+              </Typography>
+              
+              {selectedProduct.descripcion && (
+                <Box sx={{ mb: 3 }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 0.5, color: 'text.secondary' }}>Descripción</Typography>
+                  <Typography sx={{ color: 'text.primary', whiteSpace: 'pre-line' }}>{selectedProduct.descripcion}</Typography>
+                </Box>
+              )}
+            </DialogContent>
+
+            <DialogActions sx={{ p: 3, pt: 0 }}>
+              <Button
+                fullWidth
+                variant="contained"
+                size="large"
+                startIcon={<ShoppingCart />}
+                onClick={() => { addToCart(selectedProduct); setSelectedProduct(null); }}
+                sx={{ bgcolor: accentColor, borderRadius: 3, py: 1.5, fontWeight: 800, '&:hover': { bgcolor: accentColor, opacity: 0.9 } }}
+              >
+                Agregar al Carrito
+              </Button>
+            </DialogActions>
+          </>
+        )}
+      </Dialog>
 
       {/* CARRITO FLOTANTE */}
       {cartCount > 0 && (

@@ -62,6 +62,14 @@ def get_public_catalogo(
     # Mapear a esquema de catálogo (sin el Base64 de la imagen para ligereza)
     productos_out = []
     for p in db_productos:
+        # Contar cuántas imágenes tiene
+        count = 0
+        if p.imagenes:
+            try:
+                imgs = json.loads(p.imagenes)
+                count = len(imgs) if isinstance(imgs, list) else 0
+            except: pass
+
         # Buscar nombre de categoría
         categoria = db.query(models.GrupoProducto).filter(models.GrupoProducto.id == p.grupo_item).first()
         productos_out.append(schemas.CatalogoProductoOut(
@@ -70,7 +78,7 @@ def get_public_catalogo(
             descripcion=p.descripcion,
             precio=p.precio,
             categoria=categoria.nombre if categoria else "General",
-            has_image=bool(p.imagen)
+            image_count=count
         ))
 
     empresa_out = schemas.CatalogoEmpresaOut(
@@ -117,6 +125,13 @@ def get_catalogo_productos(
     
     results = []
     for p in db_productos:
+        count = 0
+        if p.imagenes:
+            try:
+                imgs = json.loads(p.imagenes)
+                count = len(imgs) if isinstance(imgs, list) else 0
+            except: pass
+
         cat = db.query(models.GrupoProducto).filter(models.GrupoProducto.id == p.grupo_item).first()
         results.append(schemas.CatalogoProductoOut(
             id=p.id,
@@ -124,7 +139,7 @@ def get_catalogo_productos(
             descripcion=p.descripcion,
             precio=p.precio,
             categoria=cat.nombre if cat else "General",
-            has_image=bool(p.imagen)
+            image_count=count
         ))
     
     return results
@@ -133,9 +148,10 @@ def get_catalogo_productos(
 def get_producto_imagen(
     slug: str,
     producto_id: int,
+    index: int = 0,
     db: Session = Depends(deps.get_db)
 ):
-    """Sirve la imagen del producto como un stream binario con cache."""
+    """Sirve una imagen específica del producto como un stream binario con cache."""
     # PREVENCIÓN IDOR: Validar que el producto pertenezca a la empresa del slug
     db_producto = db.query(models.Producto).join(models.Empresa).filter(
         models.Empresa.slug_catalogo == slug,
@@ -144,12 +160,15 @@ def get_producto_imagen(
         models.Producto.mostrar_en_catalogo == True
     ).first()
 
-    if not db_producto or not db_producto.imagen:
+    if not db_producto or not db_producto.imagenes:
         raise HTTPException(status_code=404, detail="Imagen no disponible.")
 
     try:
-        # La imagen está en Base64 (WebP)
-        img_data = db_producto.imagen
+        imgs = json.loads(db_producto.imagenes)
+        if not isinstance(imgs, list) or index < 0 or index >= len(imgs):
+            raise HTTPException(status_code=404, detail="Índice de imagen no válido.")
+        
+        img_data = imgs[index]
         if "," in img_data:
             img_data = img_data.split(",")[1]
         
@@ -163,5 +182,6 @@ def get_producto_imagen(
                 "Access-Control-Allow-Origin": "*"       # CORS explícito
             }
         )
+    except HTTPException: raise
     except Exception:
         raise HTTPException(status_code=500, detail="Error al procesar la imagen.")

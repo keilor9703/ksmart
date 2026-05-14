@@ -486,9 +486,9 @@ def run_migrations():
                     logger.info("V44: añadido empresas.logo_base64")
 
                 # ── Campos en PRODUCTOS ──
-                if not _column_exists(conn, "productos", "imagen"):
-                    conn.execute(text("ALTER TABLE productos ADD COLUMN imagen TEXT NULL"))
-                    logger.info("V44: añadido productos.imagen")
+                if not _column_exists(conn, "productos", "imagenes"):
+                    conn.execute(text("ALTER TABLE productos ADD COLUMN imagenes TEXT NULL"))
+                    logger.info("V44: añadido productos.imagenes")
 
                 if not _column_exists(conn, "productos", "mostrar_en_catalogo"):
                     if IS_SQLITE:
