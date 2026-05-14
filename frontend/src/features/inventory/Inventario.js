@@ -205,16 +205,16 @@ export default function Inventario() {
         <Tabs
           value={tab}
           onChange={(_, v) => { setTab(v); setPage(0); setSearchTerm(''); }}
-          variant={isMobile ? 'scrollable' : 'scrollable'}
+          variant="scrollable"
           scrollButtons="auto"
           sx={{
             borderBottom: '1px solid', borderColor: 'divider',
             '& .MuiTab-root': {
               fontWeight: 600, textTransform: 'none',
-              minHeight: isMobile ? 50 : 48,
-              minWidth: isMobile ? 0 : 'auto',
-              px: isMobile ? 0.5 : 1.5,
-              fontSize: isMobile ? 10 : 12,
+              minHeight: isMobile ? 52 : 48,
+              minWidth: isMobile ? 70 : 'auto',
+              px: isMobile ? 2 : 1.5,
+              fontSize: isMobile ? 11 : 12,
             },
             '& .MuiTabs-indicator': { backgroundColor: ACCENT, height: 3, borderRadius: 3 },
             '& .Mui-selected': { color: `${ACCENT} !important` },
@@ -262,12 +262,12 @@ export default function Inventario() {
           <Tab
             title="Movimientos de inventario"
             label={isMobile ? '📋' : '📋 Movimientos'}
-            sx={{ fontWeight: 700, color: '#06B6D4 !important', minWidth: isMobile ? 0 : 'auto' }}
+            sx={{ fontWeight: 700, color: '#06B6D4 !important' }}
           />
           <Tab
             title="Configurar categorías"
             label={isMobile ? '⚙️' : '⚙️ Categorías'}
-            sx={{ fontWeight: 700, color: '#6366F1 !important', minWidth: isMobile ? 0 : 'auto' }}
+            sx={{ fontWeight: 700, color: '#6366F1 !important' }}
           />
         </Tabs>
 
@@ -388,7 +388,8 @@ export default function Inventario() {
             /* ── Gestión de categorías ── */
             <GruposProductoManager onGruposChange={(nuevos) => {
               setGrupos(nuevos);
-              if (tab >= nuevos.length + 1) setTab(0);
+              // Solo reseteamos si el tab actual es mayor a los tabs disponibles (grupos + movimientos + config)
+              if (tab > nuevos.length + 1) setTab(0);
             }} />
           )}
         </Box>
