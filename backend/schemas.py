@@ -5,7 +5,7 @@
 # =========================
 
 import json
-from pydantic import BaseModel, ConfigDict, validator, field_validator
+from pydantic import BaseModel, ConfigDict, validator, field_validator, Field
 from typing import Optional, List
 from datetime import datetime, date, timezone
 from enum import Enum
@@ -25,6 +25,11 @@ class EmpresaBase(BaseModel):
     trial_ends_at: Optional[datetime] = None
     modulos_habilitados: Optional[List[str]] = None
     is_protected: bool = False
+    
+    # 👇 NUEVOS CAMPOS CATÁLOGO VIRTUAL
+    slug_catalogo: Optional[str] = None
+    whatsapp_pedidos: Optional[str] = None
+    logo_base64: Optional[str] = None
 
     # ✅ FIX: La BD guarda esto como string JSON, Pydantic necesita lista
     @validator('modulos_habilitados', pre=True, always=True)
@@ -255,6 +260,10 @@ class ProductoBase(BaseModel):
     
     # 👇 NUEVO CAMPO: Se valida desde la API
     maneja_lotes: bool = False
+
+    # 👇 NUEVOS CAMPOS CATÁLOGO VIRTUAL
+    imagen: Optional[str] = None
+    mostrar_en_catalogo: bool = False
 class ProductoCreate(ProductoBase):
     stock_inicial:     Optional[float] = 0.0
     numero_lote:       Optional[str]   = None
@@ -2083,3 +2092,36 @@ class DarBajaResponse(BaseModel):
     monto_cobrado_accesos:        float = 0.0
     saldo_marcado_incobrable:     float = 0.0
     mensaje:                      str
+
+
+# =========================
+# CATÁLOGO VIRTUAL
+# =========================
+
+class CatalogoConfigUpdate(BaseModel):
+    slug_catalogo: str = Field(..., pattern=r"^[a-z0-9-]+$")
+    whatsapp_pedidos: Optional[str] = None
+    logo_base64: Optional[str] = None
+
+class CatalogoEmpresaOut(BaseModel):
+    nombre: str
+    slug_catalogo: str
+    whatsapp_pedidos: Optional[str] = None
+    logo_base64: Optional[str] = None
+    color_primario: str
+    direccion: Optional[str] = None
+
+class CatalogoProductoOut(BaseModel):
+    id: int
+    nombre: str
+    descripcion: Optional[str] = None
+    precio: float
+    categoria: Optional[str] = None
+    has_image: bool = False
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class CatalogoPublicoOut(BaseModel):
+    empresa: CatalogoEmpresaOut
+    productos: List[CatalogoProductoOut]
+    total_productos: int

@@ -191,6 +191,11 @@ def run_migrations():
             # V37 - Reparar índice UNIQUE en Roles para SQLite (Multi-tenant)
             migration_v37 = "inv_v37_fix_roles_unique_sqlite"
             if IS_SQLITE and not _migration_already_applied(conn, migration_v37):
+                # Asegurar que empresa_id exista en roles antes de crear el índice
+                if not _column_exists(conn, "roles", "empresa_id"):
+                    conn.execute(text("ALTER TABLE roles ADD COLUMN empresa_id INTEGER REFERENCES empresas(id)"))
+                    logger.info("V37: añadido roles.empresa_id")
+
                 if _index_exists(conn, "ix_roles_name"):
                     conn.execute(text("DROP INDEX ix_roles_name"))
                     logger.info("V37: Eliminado índice global ix_roles_name")
@@ -452,6 +457,52 @@ def run_migrations():
 
                 _mark_migration_applied(conn, migration_v43)
                 logger.info("V43 (grupos de producto dinámicos) aplicada.")
+
+            # ═══════════════════════════════════════════════════════════════
+            # V44 - CATÁLOGO VIRTUAL (Nuevos campos)
+            # ═══════════════════════════════════════════════════════════════
+
+            migration_v44 = "inv_v44_catalogo_virtual_fields"
+            logger.info("Verificando migración V44...")
+
+            if not _migration_already_applied(conn, migration_v44):
+                logger.info("Aplicando migración V44...")
+                
+                # ── Campos en EMPRESAS ──
+                if not _column_exists(conn, "empresas", "slug_catalogo"):
+                    conn.execute(text("ALTER TABLE empresas ADD COLUMN slug_catalogo TEXT NULL"))
+                    logger.info("V44: añadido empresas.slug_catalogo")
+                
+                if not _index_exists(conn, "ix_empresas_slug_catalogo"):
+                    conn.execute(text("CREATE UNIQUE INDEX ix_empresas_slug_catalogo ON empresas(slug_catalogo)"))
+                    logger.info("V44: creado índice UNIQUE ix_empresas_slug_catalogo")
+
+                if not _column_exists(conn, "empresas", "whatsapp_pedidos"):
+                    conn.execute(text("ALTER TABLE empresas ADD COLUMN whatsapp_pedidos TEXT NULL"))
+                    logger.info("V44: añadido empresas.whatsapp_pedidos")
+
+                if not _column_exists(conn, "empresas", "logo_base64"):
+                    conn.execute(text("ALTER TABLE empresas ADD COLUMN logo_base64 TEXT NULL"))
+                    logger.info("V44: añadido empresas.logo_base64")
+
+                # ── Campos en PRODUCTOS ──
+                if not _column_exists(conn, "productos", "imagen"):
+                    conn.execute(text("ALTER TABLE productos ADD COLUMN imagen TEXT NULL"))
+                    logger.info("V44: añadido productos.imagen")
+
+                if not _column_exists(conn, "productos", "mostrar_en_catalogo"):
+                    if IS_SQLITE:
+                        conn.execute(text("ALTER TABLE productos ADD COLUMN mostrar_en_catalogo BOOLEAN DEFAULT 0"))
+                    else:
+                        conn.execute(text("ALTER TABLE productos ADD COLUMN mostrar_en_catalogo BOOLEAN DEFAULT FALSE"))
+                    logger.info("V44: añadido productos.mostrar_en_catalogo")
+
+                if not _index_exists(conn, "ix_productos_mostrar_en_catalogo"):
+                    conn.execute(text("CREATE INDEX ix_productos_mostrar_en_catalogo ON productos(mostrar_en_catalogo)"))
+                    logger.info("V44: creado índice ix_productos_mostrar_en_catalogo")
+
+                _mark_migration_applied(conn, migration_v44)
+                logger.info("V44 (Catálogo Virtual fields) aplicada.")
 
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)

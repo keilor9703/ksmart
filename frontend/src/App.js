@@ -39,6 +39,10 @@ import InventarioLotes from './features/inventory/InventarioLotes';
 import Cotizaciones from './features/sales/Cotizaciones';
 import ResolucionesDian from './features/dian/ResolucionesDian';
 
+// ✅ CATÁLOGO VIRTUAL
+import CatalogoConfig from './features/saas/CatalogoConfig';
+import CatalogoVirtual from './features/saas/CatalogoVirtual';
+
 // ✅ IMPORTAMOS LAS PANTALLAS PÚBLICAS (Login, Registro, etc.)
 import SuscripcionExpirada from './features/auth/SuscripcionExpirada';
 import Registro from './features/auth/Registro'; 
@@ -357,7 +361,10 @@ const hasAccess = useCallback((path) => {
                   )}
                   {/* Gestión de Usuarios (Solo Admins) */}
                   {user?.role?.name === 'Admin' && (
-                    <Route path="/admin/usuarios" element={<AdminUsuarios />} />
+                    <>
+                      <Route path="/admin/usuarios" element={<AdminUsuarios />} />
+                      <Route path="/admin/catalogo" element={<CatalogoConfig />} />
+                    </>
                   )}
                 </Routes>
               </Box>
@@ -378,7 +385,12 @@ const hasAccess = useCallback((path) => {
             <Routes>
               <Route path="/suscripcion-expirada" element={<SuscripcionExpirada onActive={checkAuth} />} />
               <Route path="/registro" element={<Registro />} />
-              {/* Cualquier otra ruta no reconocida o el inicio ('*') forzará la vista de Login */}
+              <Route path="/login" element={<Login onLogin={checkAuth} />} />
+              
+              {/* ✅ CATÁLOGO VIRTUAL PÚBLICO (Cualquier otra palabra se toma como SLUG) */}
+              <Route path="/:slug" element={<CatalogoVirtual />} />
+              
+              {/* El inicio ('/') o cualquier ruta no reconocida redirige a Login */}
               <Route path="*" element={<Login onLogin={checkAuth} />} />
             </Routes>
           </Box>

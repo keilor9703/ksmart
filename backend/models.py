@@ -39,6 +39,10 @@ class Empresa(Base):
     tamano_negocio  = Column(String(20), nullable=True)
     origen_marketing = Column(String(60), nullable=True)
 
+    # 👇 NUEVOS CAMPOS CATÁLOGO VIRTUAL
+    slug_catalogo     = Column(String(100), unique=True, index=True, nullable=True)
+    whatsapp_pedidos  = Column(String(20), nullable=True)
+    logo_base64       = Column(Text, nullable=True) # WebP comprimido
 
     # Opcional: relación inversa para acceder a sus usuarios
     usuarios = relationship("User", back_populates="empresa")
@@ -231,6 +235,10 @@ class Producto(Base, TenantMixin):
     
     # 👇 NUEVA COLUMNA: Control maestro para perecederos
     maneja_lotes  = Column(Boolean, default=False)
+
+    # 👇 NUEVOS CAMPOS CATÁLOGO VIRTUAL
+    imagen              = Column(Text, nullable=True) # WebP comprimido
+    mostrar_en_catalogo = Column(Boolean, default=False, index=True)
 
     lotes = relationship("LoteExistencia", back_populates="producto", cascade="all, delete-orphan")
 
