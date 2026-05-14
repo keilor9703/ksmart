@@ -262,7 +262,7 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
         ))}
       </Box>
 
-      {/* ── Lista ── */}
+     {/* ── Lista ── */}
       {isMobile ? (
         <Box>
           {paginatedProductos.length === 0

@@ -264,12 +264,12 @@ export default function Inventario() {
           <Tab
             title="Movimientos de inventario"
             label={isMobile ? '📋' : '📋 Movimientos'}
-            sx={{ fontWeight: 700, color: '#06B6D4 !important', minWidth: isMobile ? 0 : 'auto' }}
+            sx={{ fontWeight: 700, color: '#06B6D4 !important' }}
           />
           <Tab
             title="Configurar categorías"
             label={isMobile ? '⚙️' : '⚙️ Categorías'}
-            sx={{ fontWeight: 700, color: '#6366F1 !important', minWidth: isMobile ? 0 : 'auto' }}
+            sx={{ fontWeight: 700, color: '#6366F1 !important' }}
           />
         </Tabs>
 
@@ -390,7 +390,8 @@ export default function Inventario() {
             /* ── Gestión de categorías ── */
             <GruposProductoManager onGruposChange={(nuevos) => {
               setGrupos(nuevos);
-              if (tab >= nuevos.length + 1) setTab(0);
+              // Solo reseteamos si el tab actual es mayor a los tabs disponibles (grupos + movimientos + config)
+              if (tab > nuevos.length + 1) setTab(0);
             }} />
           )}
         </Box>
