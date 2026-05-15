@@ -504,6 +504,130 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v44)
                 logger.info("V44 (Catálogo Virtual fields) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V45 - FACTURACIÓN ELECTRÓNICA (Campos DIAN)
+            # ═══════════════════════════════════════════════════════════════
+
+            migration_v45 = "inv_v45_facturacion_electronica_fields"
+
+            if not _migration_already_applied(conn, migration_v45):
+                logger.info("Aplicando migración V45 (Facturación Electrónica)...")
+                
+                # Campos en EMPRESAS
+                new_columns = [
+                    ("dv", "TEXT NULL"),
+                    ("tipo_organizacion_id", "INTEGER DEFAULT 1"),
+                    ("tipo_regimen_id", "INTEGER DEFAULT 48"),
+                    ("responsabilidad_fiscal_codes", "TEXT DEFAULT 'O-13'"),
+                    ("matricula_mercantil", "TEXT NULL"),
+                    ("departamento_code", "TEXT NULL"),
+                    ("ciudad_code", "TEXT NULL"),
+                    ("correo_facturacion", "TEXT NULL"),
+                    ("facturacion_electronica_activa", "BOOLEAN DEFAULT 0" if IS_SQLITE else "BOOLEAN DEFAULT FALSE"),
+                    ("matias_api_key", "TEXT NULL"),
+                    ("matias_test_mode", "BOOLEAN DEFAULT 1" if IS_SQLITE else "BOOLEAN DEFAULT TRUE")
+                ]
+
+                for col_name, col_type in new_columns:
+                    if not _column_exists(conn, "empresas", col_name):
+                        conn.execute(text(f"ALTER TABLE empresas ADD COLUMN {col_name} {col_type}"))
+                        logger.info(f"V45: añadido empresas.{col_name}")
+
+                _mark_migration_applied(conn, migration_v45)
+                logger.info("V45 (Facturación Electrónica fields) aplicada.")
+
+            # ═══════════════════════════════════════════════════════════════
+            # V46 - FACTURACIÓN ELECTRÓNICA VENTAS (Campos DIAN)
+            # ═══════════════════════════════════════════════════════════════
+
+            migration_v46 = "inv_v46_facturacion_electronica_ventas"
+
+            if not _migration_already_applied(conn, migration_v46):
+                logger.info("Aplicando migración V46 (Facturación Electrónica Ventas)...")
+                
+                # 1. Asegurar tabla resoluciones_dian
+                if not _table_exists(conn, "resoluciones_dian"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE resoluciones_dian (
+                                id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                                empresa_id        INTEGER REFERENCES empresas(id),
+                                prefijo           TEXT DEFAULT '',
+                                numero_resolucion TEXT,
+                                numero_actual     INTEGER DEFAULT 0,
+                                numero_inicial    INTEGER DEFAULT 1,
+                                numero_final      INTEGER DEFAULT 99999999,
+                                vigencia_desde    DATE,
+                                vigencia_hasta    DATE,
+                                is_active         BOOLEAN DEFAULT 0,
+                                created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE resoluciones_dian (
+                                id                SERIAL PRIMARY KEY,
+                                empresa_id        INTEGER REFERENCES empresas(id),
+                                prefijo           VARCHAR(10) DEFAULT '',
+                                numero_resolucion VARCHAR(50),
+                                numero_actual     INTEGER DEFAULT 0,
+                                numero_inicial    INTEGER DEFAULT 1,
+                                numero_final      INTEGER DEFAULT 99999999,
+                                vigencia_desde    DATE,
+                                vigencia_hasta    DATE,
+                                is_active         BOOLEAN DEFAULT FALSE,
+                                created_at        TIMESTAMPTZ DEFAULT NOW()
+                            )
+                        """))
+                    logger.info("V46: creada tabla resoluciones_dian")
+
+                # 2. Campos en VENTAS
+                ventas_columns = [
+                    ("cufe", "TEXT NULL"),
+                    ("qr_data", "TEXT NULL"),
+                    ("xml_url", "TEXT NULL"),
+                    ("pdf_url", "TEXT NULL"),
+                    ("estado_electronico", "TEXT DEFAULT 'no_enviado'"),
+                    ("mensaje_proveedor", "TEXT NULL")
+                ]
+
+                for col_name, col_type in ventas_columns:
+                    if not _column_exists(conn, "ventas", col_name):
+                        conn.execute(text(f"ALTER TABLE ventas ADD COLUMN {col_name} {col_type}"))
+                        logger.info(f"V46: añadido ventas.{col_name}")
+
+                _mark_migration_applied(conn, migration_v46)
+                logger.info("V46 (Facturación Electrónica Ventas fields) aplicada.")
+
+            # ═══════════════════════════════════════════════════════════════
+            # V47 - FACTURACIÓN ELECTRÓNICA CLIENTES (Campos DIAN)
+            # ═══════════════════════════════════════════════════════════════
+
+            migration_v47 = "inv_v47_facturacion_electronica_clientes"
+
+            if not _migration_already_applied(conn, migration_v47):
+                logger.info("Aplicando migración V47 (Facturación Electrónica Clientes)...")
+                
+                # Campos en CLIENTES
+                clientes_columns = [
+                    ("email", "TEXT NULL"),
+                    ("tipo_documento_id", "INTEGER DEFAULT 13"),
+                    ("dv", "TEXT NULL"),
+                    ("tipo_organizacion_id", "INTEGER DEFAULT 2"),
+                    ("tipo_regimen_id", "INTEGER DEFAULT 49"),
+                    ("responsabilidad_fiscal_codes", "TEXT DEFAULT 'R-99-PN'"),
+                    ("departamento_code", "TEXT NULL"),
+                    ("ciudad_code", "TEXT NULL")
+                ]
+
+                for col_name, col_type in clientes_columns:
+                    if not _column_exists(conn, "clientes", col_name):
+                        conn.execute(text(f"ALTER TABLE clientes ADD COLUMN {col_name} {col_type}"))
+                        logger.info(f"V47: añadido clientes.{col_name}")
+
+                _mark_migration_applied(conn, migration_v47)
+                logger.info("V47 (Facturación Electrónica Clientes fields) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

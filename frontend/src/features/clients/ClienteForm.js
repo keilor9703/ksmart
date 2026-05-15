@@ -39,6 +39,13 @@ const ClienteForm = ({
   const [cedula, setCedula]         = useState('');
   const [telefono, setTelefono]     = useState('');
   const [direccion, setDireccion]   = useState('');
+  const [email, setEmail]           = useState('');
+  const [tipoDocumento, setTipoDocumento] = useState(13); // 13: Cédula
+  const [dv, setDv]                 = useState('');
+  const [tipoOrganizacion, setTipoOrganizacion] = useState(2); // 2: Natural
+  const [tipoRegimen, setTipoRegimen] = useState(49); // 49: No responsable
+  const [responsabilidadFiscal, setResponsabilidadFiscal] = useState('R-99-PN');
+
   const [cupoCredito, setCupoCredito] = useState('');
   const [esCliente, setEsCliente]   = useState(true);
   const [esProveedor, setEsProveedor] = useState(false);
@@ -46,6 +53,7 @@ const ClienteForm = ({
   const [formOpen, setFormOpen]     = useState(false);
   const [bulkOpen, setBulkOpen]     = useState(false);
   const [clientes, setClientes]     = useState([]);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Sincronizar apertura con prop externa (cuando se edita o se hace clic en "Nuevo Tercero")
   useEffect(() => {
@@ -64,6 +72,12 @@ const ClienteForm = ({
       setCedula(clienteToEdit.cedula || '');
       setTelefono(clienteToEdit.telefono || '');
       setDireccion(clienteToEdit.direccion || '');
+      setEmail(clienteToEdit.email || '');
+      setTipoDocumento(clienteToEdit.tipo_documento_id || 13);
+      setDv(clienteToEdit.dv || '');
+      setTipoOrganizacion(clienteToEdit.tipo_organizacion_id || 2);
+      setTipoRegimen(clienteToEdit.tipo_regimen_id || 49);
+      setResponsabilidadFiscal(clienteToEdit.responsabilidad_fiscal_codes || 'R-99-PN');
       setCupoCredito(clienteToEdit.cupo_credito || '');
       setEsCliente(clienteToEdit.es_cliente ?? true);
       setEsProveedor(clienteToEdit.es_proveedor ?? false);
@@ -74,8 +88,12 @@ const ClienteForm = ({
 
   const resetFields = () => {
     setNombre(''); setCedula(''); setTelefono('');
-    setDireccion(''); setCupoCredito('');
+    setDireccion(''); setEmail(''); setTipoDocumento(13);
+    setDv(''); setTipoOrganizacion(2); setTipoRegimen(49);
+    setResponsabilidadFiscal('R-99-PN');
+    setCupoCredito('');
     setEsCliente(true); setEsProveedor(false);
+    setShowAdvanced(false);
   };
 
   const handleClose = () => {
@@ -92,6 +110,12 @@ const ClienteForm = ({
     }
     const data = {
       nombre, cedula, telefono, direccion,
+      email,
+      tipo_documento_id: tipoDocumento,
+      dv,
+      tipo_organizacion_id: tipoOrganizacion,
+      tipo_regimen_id: tipoRegimen,
+      responsabilidad_fiscal_codes: responsabilidadFiscal,
       cupo_credito: parseFloat(cupoCredito) || 0,
       es_cliente: esCliente,
       es_proveedor: esProveedor,
@@ -230,6 +254,105 @@ const ClienteForm = ({
                   <TipoToggle label="Es Cliente"   icon={<Person fontSize="small" />}   checked={esCliente}   onChange={setEsCliente}   color={ACCENT}    />
                   <TipoToggle label="Es Proveedor" icon={<Business fontSize="small" />} checked={esProveedor} onChange={setEsProveedor} color="#10B981" />
                 </Box>
+              </Grid>
+
+              <Grid item xs={12}>
+                <Divider sx={{ my: 1 }}><Chip label="FACTURACIÓN ELECTRÓNICA" size="small" sx={{ fontSize: 10, fontWeight: 700 }} /></Divider>
+              </Grid>
+
+              <Grid item xs={12} sm={8}>
+                <TextField
+                  label="Correo Electrónico (Para Factura Electrónica)"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  fullWidth size="small"
+                  type="email"
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={4}>
+                 <Button 
+                    fullWidth 
+                    variant="text" 
+                    size="small" 
+                    onClick={() => setShowAdvanced(!showAdvanced)}
+                    endIcon={showAdvanced ? <ExpandLess /> : <ExpandMore />}
+                    sx={{ height: '100%', textTransform: 'none', fontWeight: 700, color: 'text.secondary' }}
+                 >
+                    {showAdvanced ? "Ocultar Datos DIAN" : "Ver Datos DIAN"}
+                 </Button>
+              </Grid>
+
+              <Grid item xs={12}>
+                <Collapse in={showAdvanced}>
+                  <Grid container spacing={1.5} sx={{ pt: 1 }}>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        select
+                        label="Tipo de Documento"
+                        value={tipoDocumento}
+                        onChange={(e) => setTipoDocumento(e.target.value)}
+                        fullWidth size="small"
+                        SelectProps={{ native: true }}
+                      >
+                        <option value={13}>Cédula de Ciudadanía</option>
+                        <option value={31}>NIT (Número de Identificación Tributaria)</option>
+                        <option value={11}>Registro Civil</option>
+                        <option value={12}>Tarjeta de Identidad</option>
+                        <option value={22}>Cédula de Extranjería</option>
+                        <option value={41}>Pasaporte</option>
+                        <option value={42}>Tipo de documento extranjero</option>
+                        <option value={50}>NIT de otro país</option>
+                        <option value={91}>NUIP</option>
+                      </TextField>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        label="DV (Dígito de Verificación)"
+                        value={dv}
+                        onChange={(e) => setDv(e.target.value)}
+                        fullWidth size="small"
+                        placeholder="Solo para NIT"
+                        disabled={tipoDocumento !== 31}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={4}>
+                      <TextField
+                        select
+                        label="Tipo Organización"
+                        value={tipoOrganizacion}
+                        onChange={(e) => setTipoOrganizacion(e.target.value)}
+                        fullWidth size="small"
+                        SelectProps={{ native: true }}
+                      >
+                        <option value={1}>Jurídica</option>
+                        <option value={2}>Natural</option>
+                      </TextField>
+                    </Grid>
+                    <Grid item xs={12} sm={4}>
+                      <TextField
+                        select
+                        label="Régimen Fiscal"
+                        value={tipoRegimen}
+                        onChange={(e) => setTipoRegimen(e.target.value)}
+                        fullWidth size="small"
+                        SelectProps={{ native: true }}
+                      >
+                        <option value={48}>Responsable de IVA</option>
+                        <option value={49}>No responsable de IVA</option>
+                      </TextField>
+                    </Grid>
+                    <Grid item xs={12} sm={4}>
+                      <TextField
+                        label="Responsabilidades Fiscales"
+                        value={responsabilidadFiscal}
+                        onChange={(e) => setResponsabilidadFiscal(e.target.value)}
+                        fullWidth size="small"
+                        placeholder="O-13, R-99-PN"
+                      />
+                    </Grid>
+                  </Grid>
+                </Collapse>
               </Grid>
 
               <Grid item xs={12}>

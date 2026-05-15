@@ -5,7 +5,7 @@
 # =========================
 
 import json
-from pydantic import BaseModel, ConfigDict, validator, field_validator, Field
+from pydantic import BaseModel, ConfigDict, validator, field_validator, Field, EmailStr
 from typing import Optional, List
 from datetime import datetime, date, timezone
 from enum import Enum
@@ -30,6 +30,19 @@ class EmpresaBase(BaseModel):
     slug_catalogo: Optional[str] = None
     whatsapp_pedidos: Optional[str] = None
     logo_base64: Optional[str] = None
+
+    # 🧾 CAMPOS FACTURACIÓN ELECTRÓNICA
+    dv: Optional[str] = None
+    tipo_organizacion_id: int = 1
+    tipo_regimen_id: int = 48
+    responsabilidad_fiscal_codes: str = "O-13"
+    matricula_mercantil: Optional[str] = None
+    departamento_code: Optional[str] = None
+    ciudad_code: Optional[str] = None
+    correo_facturacion: Optional[str] = None
+    facturacion_electronica_activa: bool = False
+    matias_api_key: Optional[str] = None
+    matias_test_mode: bool = True
 
     # ✅ FIX: La BD guarda esto como string JSON, Pydantic necesita lista
     @validator('modulos_habilitados', pre=True, always=True)
@@ -206,6 +219,16 @@ class ClienteBase(BaseModel):
     cupo_credito: Optional[float] = 0.0
     es_cliente: bool = True
     es_proveedor: bool = False
+
+    # 🧾 CAMPOS FACTURACIÓN ELECTRÓNICA (DIAN)
+    email: Optional[EmailStr] = None
+    tipo_documento_id: int = 13       # 13: Cédula, 31: NIT
+    dv: Optional[str] = None
+    tipo_organizacion_id: int = 2     # 1: Jurídica, 2: Natural
+    tipo_regimen_id: int = 49          # 48: Responsable IVA, 49: No responsable
+    responsabilidad_fiscal_codes: str = "R-99-PN"
+    departamento_code: Optional[str] = None
+    ciudad_code: Optional[str] = None
 
 class ClienteCreate(ClienteBase):
     pass
@@ -395,6 +418,15 @@ class Venta(VentaBase):
     # ← Nuevos campos Fase 2
     numero_factura: Optional[str] = None
     resolucion_id: Optional[int] = None
+    
+    # 🧾 CAMPOS FACTURACIÓN ELECTRÓNICA
+    cufe: Optional[str] = None
+    qr_data: Optional[str] = None
+    xml_url: Optional[str] = None
+    pdf_url: Optional[str] = None
+    estado_electronico: str = "no_enviado"
+    mensaje_proveedor: Optional[str] = None
+
     model_config = ConfigDict(from_attributes=True)
 
 # =========================

@@ -66,6 +66,21 @@ class Empresa(Base):
     # 👇 NUEVOS CAMPOS FASE 2 - AUTOMATIZACIÓN
     is_protected = Column(Boolean, default=False) # QA, Partners, Demos
 
+    # 🧾 CAMPOS FACTURACIÓN ELECTRÓNICA (DIAN / MATIAS API)
+    dv                    = Column(String(1), nullable=True)  # Dígito de Verificación
+    tipo_organizacion_id  = Column(Integer, default=1)        # 1: Jurídica, 2: Natural
+    tipo_regimen_id       = Column(Integer, default=48)       # 48: Responsable IVA, 49: No responsable
+    responsabilidad_fiscal_codes = Column(String, default="O-13") # ej: "O-13, O-15"
+    matricula_mercantil   = Column(String, nullable=True)
+    departamento_code     = Column(String(5), nullable=True)  # ej: "05" (Antioquia)
+    ciudad_code           = Column(String(5), nullable=True)  # ej: "05001" (Medellín)
+    correo_facturacion    = Column(String, nullable=True)     # Donde llegan las notificaciones DIAN
+
+    # Configuración de Integración
+    facturacion_electronica_activa = Column(Boolean, default=False)
+    matias_api_key        = Column(String, nullable=True)
+    matias_test_mode      = Column(Boolean, default=True)
+
 
 class SaaSAnnouncement(Base):
     """Anuncios globales para todos los inquilinos"""
@@ -195,6 +210,16 @@ class Cliente(Base, TenantMixin):
     cupo_credito  = Column(Float, default=0.0)
     es_cliente    = Column(Boolean, default=True)
     es_proveedor  = Column(Boolean, default=False)
+
+    # 🧾 CAMPOS FACTURACIÓN ELECTRÓNICA (DIAN)
+    email                 = Column(String, index=True, nullable=True) # Obligatorio para FE
+    tipo_documento_id     = Column(Integer, default=13)       # 13: Cédula, 31: NIT, etc.
+    dv                    = Column(String(1), nullable=True)  # Dígito de Verificación (para NIT)
+    tipo_organizacion_id  = Column(Integer, default=2)        # 1: Jurídica, 2: Natural
+    tipo_regimen_id       = Column(Integer, default=49)       # 48: Responsable IVA, 49: No responsable
+    responsabilidad_fiscal_codes = Column(String, default="R-99-PN")
+    departamento_code     = Column(String(5), nullable=True)
+    ciudad_code           = Column(String(5), nullable=True)
 
     ventas          = relationship("Venta", back_populates="cliente")
     ordenes_trabajo = relationship("OrdenTrabajo", back_populates="cliente")
@@ -336,6 +361,14 @@ class Venta(Base, TenantMixin):
     tipo            = Column(String(20), default="venta")    # 'venta' | 'cotizacion'
     valida_hasta    = Column(DateTime(timezone=True), nullable=True)
     observaciones   = Column(Text, nullable=True)
+
+    # 🧾 CAMPOS FACTURACIÓN ELECTRÓNICA (DIAN / MATIAS API)
+    cufe                = Column(String, nullable=True, index=True)
+    qr_data             = Column(Text, nullable=True)
+    xml_url             = Column(String, nullable=True)
+    pdf_url             = Column(String, nullable=True)
+    estado_electronico  = Column(String, default="no_enviado") # 'no_enviado', 'exitoso', 'fallido'
+    mensaje_proveedor   = Column(Text, nullable=True)
 
     cliente                = relationship("Cliente", back_populates="ventas")
     detalles               = relationship("DetalleVenta", back_populates="venta", cascade="all, delete-orphan")
