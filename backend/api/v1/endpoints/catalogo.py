@@ -5,6 +5,7 @@ from typing import List, Optional
 import models, schemas
 from api import deps
 import base64
+import json
 
 router = APIRouter()
 
@@ -62,13 +63,16 @@ def get_public_catalogo(
     # Mapear a esquema de catálogo (sin el Base64 de la imagen para ligereza)
     productos_out = []
     for p in db_productos:
-        # Contar cuántas imágenes tiene
+        # Contar cuántas imágenes tiene (manejo robusto de string vs list)
         count = 0
         if p.imagenes:
-            try:
-                imgs = json.loads(p.imagenes)
-                count = len(imgs) if isinstance(imgs, list) else 0
-            except: pass
+            if isinstance(p.imagenes, list):
+                count = len(p.imagenes)
+            elif isinstance(p.imagenes, str):
+                try:
+                    imgs = json.loads(p.imagenes)
+                    count = len(imgs) if isinstance(imgs, list) else 0
+                except: pass
 
         # Buscar nombre de categoría
         categoria = db.query(models.GrupoProducto).filter(models.GrupoProducto.id == p.grupo_item).first()
@@ -125,12 +129,16 @@ def get_catalogo_productos(
     
     results = []
     for p in db_productos:
+        # Contar cuántas imágenes tiene (manejo robusto)
         count = 0
         if p.imagenes:
-            try:
-                imgs = json.loads(p.imagenes)
-                count = len(imgs) if isinstance(imgs, list) else 0
-            except: pass
+            if isinstance(p.imagenes, list):
+                count = len(p.imagenes)
+            elif isinstance(p.imagenes, str):
+                try:
+                    imgs = json.loads(p.imagenes)
+                    count = len(imgs) if isinstance(imgs, list) else 0
+                except: pass
 
         cat = db.query(models.GrupoProducto).filter(models.GrupoProducto.id == p.grupo_item).first()
         results.append(schemas.CatalogoProductoOut(
@@ -164,7 +172,11 @@ def get_producto_imagen(
         raise HTTPException(status_code=404, detail="Imagen no disponible.")
 
     try:
-        imgs = json.loads(db_producto.imagenes)
+        # Manejo robusto de string vs list para la extracción
+        imgs = db_producto.imagenes
+        if isinstance(imgs, str):
+            imgs = json.loads(imgs)
+            
         if not isinstance(imgs, list) or index < 0 or index >= len(imgs):
             raise HTTPException(status_code=404, detail="Índice de imagen no válido.")
         

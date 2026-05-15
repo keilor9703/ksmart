@@ -227,6 +227,7 @@ const CatalogoVirtual = () => {
                       image={p.image_count > 0 ? `${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${p.id}/imagen?index=0` : 'https://placehold.co/400x400?text=No+Image'}
                       alt={p.nombre}
                     />
+
                     {p.categoria && (
                       <Chip 
                         label={p.categoria} 
@@ -413,12 +414,13 @@ const CatalogoVirtual = () => {
                 <ListItemAvatar>
                   <Avatar 
                     variant="rounded" 
-                    src={item.has_image ? `${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${item.id}/imagen` : null}
+                    src={item.image_count > 0 ? `${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${item.id}/imagen?index=0` : null}
                     sx={{ bgcolor: '#F1F5F9', color: '#94A3B8' }}
                   >
                     <ShoppingBag />
                   </Avatar>
                 </ListItemAvatar>
+
                 <ListItemText
                   primary={<Typography sx={{ fontWeight: 700, fontSize: 14 }}>{item.nombre}</Typography>}
                   secondary={<Typography sx={{ color: accentColor, fontWeight: 700, fontSize: 13 }}>${new Intl.NumberFormat('es-CO').format(item.precio)}</Typography>}
