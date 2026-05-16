@@ -583,6 +583,8 @@ def run_migrations():
 
                 # 2. Campos en VENTAS
                 ventas_columns = [
+                    ("numero_factura", "VARCHAR(20) NULL"),
+                    ("resolucion_id", "INTEGER NULL REFERENCES resoluciones_dian(id)"),
                     ("cufe", "TEXT NULL"),
                     ("qr_data", "TEXT NULL"),
                     ("xml_url", "TEXT NULL"),
@@ -593,8 +595,16 @@ def run_migrations():
 
                 for col_name, col_type in ventas_columns:
                     if not _column_exists(conn, "ventas", col_name):
-                        conn.execute(text(f"ALTER TABLE ventas ADD COLUMN {col_name} {col_type}"))
+                        # Ajuste para SQLite en tipo de columna si es necesario
+                        actual_type = col_type
+                        if IS_SQLITE and "VARCHAR" in col_type:
+                            actual_type = "TEXT NULL"
+                        
+                        conn.execute(text(f"ALTER TABLE ventas ADD COLUMN {col_name} {actual_type}"))
                         logger.info(f"V46: añadido ventas.{col_name}")
+
+                if not _index_exists(conn, "ix_ventas_numero_factura"):
+                    conn.execute(text("CREATE INDEX ix_ventas_numero_factura ON ventas(numero_factura)"))
 
                 _mark_migration_applied(conn, migration_v46)
                 logger.info("V46 (Facturación Electrónica Ventas fields) aplicada.")
@@ -627,6 +637,50 @@ def run_migrations():
 
                 _mark_migration_applied(conn, migration_v47)
                 logger.info("V47 (Facturación Electrónica Clientes fields) aplicada.")
+
+            # ═══════════════════════════════════════════════════════════════
+            # V48 - REPARAR CLAVE FORÁNEA RESOLUCIONES (Producción Postgres)
+            # ═══════════════════════════════════════════════════════════════
+
+            migration_v48 = "inv_v48_fix_resoluciones_fk_postgres"
+
+            if not _migration_already_applied(conn, migration_v48):
+                logger.info("Aplicando migración V48 (Reparar FK Resoluciones)...")
+                
+                # 1. Asegurar columnas faltantes en VENTAS (por si acaso)
+                if not _column_exists(conn, "ventas", "numero_factura"):
+                    if IS_SQLITE:
+                        conn.execute(text("ALTER TABLE ventas ADD COLUMN numero_factura TEXT NULL"))
+                    else:
+                        conn.execute(text("ALTER TABLE ventas ADD COLUMN numero_factura VARCHAR(20) NULL"))
+                    logger.info("V48: añadido ventas.numero_factura")
+                
+                if not _index_exists(conn, "ix_ventas_numero_factura"):
+                    conn.execute(text("CREATE INDEX ix_ventas_numero_factura ON ventas(numero_factura)"))
+
+                if not _column_exists(conn, "ventas", "resolucion_id"):
+                    conn.execute(text("ALTER TABLE ventas ADD COLUMN resolucion_id INTEGER NULL"))
+                    logger.info("V48: añadido ventas.resolucion_id")
+
+                # 2. Corregir restricción de clave foránea en Postgres
+                if not IS_SQLITE:
+                    try:
+                        # Eliminar la restricción antigua que apunta a 'resoluciones_facturacion'
+                        # El log indica que el nombre es 'ventas_resolucion_id_fkey'
+                        conn.execute(text("ALTER TABLE ventas DROP CONSTRAINT IF EXISTS ventas_resolucion_id_fkey"))
+                        
+                        # Crear la nueva restricción apuntando a 'resoluciones_dian'
+                        conn.execute(text("""
+                            ALTER TABLE ventas 
+                            ADD CONSTRAINT ventas_resolucion_id_fkey 
+                            FOREIGN KEY (resolucion_id) REFERENCES resoluciones_dian(id)
+                        """))
+                        logger.info("V48: FK ventas_resolucion_id_fkey redirigida a resoluciones_dian")
+                    except Exception as e:
+                        logger.warning(f"V48: No se pudo actualizar la FK (posiblemente ya está bien): {e}")
+
+                _mark_migration_applied(conn, migration_v48)
+                logger.info("V48 (Reparar FK Resoluciones) aplicada.")
 
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
