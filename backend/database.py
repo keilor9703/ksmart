@@ -682,6 +682,41 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v48)
                 logger.info("V48 (Reparar FK Resoluciones) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V49 - TABLA DE CHALLENGES BIOMÉTRICOS (WebAuthn Multi-Worker)
+            # ═══════════════════════════════════════════════════════════════
+
+            migration_v49 = "inv_v49_biometric_challenges_table"
+
+            if not _migration_already_applied(conn, migration_v49):
+                logger.info("Aplicando migración V49 (Tabla de Challenges)...")
+                
+                if not _table_exists(conn, "biometric_challenges"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE biometric_challenges (
+                                key TEXT PRIMARY KEY,
+                                challenge TEXT NOT NULL,
+                                expires_at REAL NOT NULL
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE biometric_challenges (
+                                key VARCHAR(100) PRIMARY KEY,
+                                challenge TEXT NOT NULL,
+                                expires_at DOUBLE PRECISION NOT NULL
+                            )
+                        """))
+                    
+                    if not _index_exists(conn, "ix_biometric_challenges_key"):
+                        conn.execute(text("CREATE INDEX ix_biometric_challenges_key ON biometric_challenges(key)"))
+                    
+                    logger.info("V49: creada tabla biometric_challenges")
+
+                _mark_migration_applied(conn, migration_v49)
+                logger.info("V49 (Challenges Biométricos) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

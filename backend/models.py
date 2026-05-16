@@ -1091,9 +1091,17 @@ class CredencialBiometrica(Base):
 # agrégalo:
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# from sqlalchemy import (
-#     Column, Integer, String, Text, BigInteger, DateTime, ForeignKey, Boolean,
-#     Float, Date, Enum, UniqueConstraint
-# )
-# from sqlalchemy.orm import relationship
-# # ... resto de imports ...
+# ═══════════════════════════════════════════════════════════════════════════════
+# WEBAUTHN CHALLENGES (PERSISTENCIA PARA MULTI-WORKER)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class BiometricChallenge(Base):
+    """
+    Almacena temporalmente los challenges de WebAuthn para que funcionen
+    en entornos con múltiples workers (Gunicorn/Uvicorn).
+    """
+    __tablename__ = "biometric_challenges"
+
+    key        = Column(String(100), primary_key=True, index=True) # ej: "reg:5" o "auth:12"
+    challenge  = Column(Text, nullable=False)                      # Challenge en base64
+    expires_at = Column(Float, nullable=False)                     # Timestamp de expiración

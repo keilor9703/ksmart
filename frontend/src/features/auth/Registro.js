@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   Box, Typography, TextField, Button, Paper, Container,
   InputAdornment, IconButton, Card, CardActionArea, Grid, CircularProgress,
-  MenuItem, LinearProgress, Stack, Chip
+  MenuItem, LinearProgress, Stack, Chip, Autocomplete
 } from '@mui/material';
 import {
   Visibility, VisibilityOff, Business, Person, Lock,
@@ -12,6 +12,7 @@ import {
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
+import { CIUDADES_COLOMBIA } from '../../utils/colombiaData';
 
 const ACCENT = '#FF6020';
 
@@ -262,8 +263,8 @@ export default function Registro() {
                 />
 
                 {/* País + Ciudad */}
-                <Grid container spacing={1.5}>
-                  <Grid item xs={5}>
+                <Grid container spacing={2}>
+                  <Grid item xs={12}>
                     <TextField
                       select fullWidth required label="País"
                       value={formData.pais}
@@ -276,13 +277,29 @@ export default function Registro() {
                       ))}
                     </TextField>
                   </Grid>
-                  <Grid item xs={7}>
-                    <TextField
-                      fullWidth required label="Ciudad"
-                      placeholder="Ej: Bogotá"
+                  <Grid item xs={12}>
+                    <Autocomplete
+                      options={CIUDADES_COLOMBIA}
                       value={formData.ciudad}
-                      onChange={update('ciudad')}
-                      InputProps={{ startAdornment: <InputAdornment position="start"><LocationOn fontSize="small" /></InputAdornment> }}
+                      onChange={(e, newValue) => setFormData({ ...formData, ciudad: newValue || '' })}
+                      onInputChange={(e, newInputValue) => setFormData({ ...formData, ciudad: newInputValue })}
+                      freeSolo
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          fullWidth required label="Ciudad"
+                          placeholder="Ej: Buenaventura"
+                          InputProps={{
+                            ...params.InputProps,
+                            startAdornment: (
+                              <>
+                                <InputAdornment position="start"><LocationOn fontSize="small" /></InputAdornment>
+                                {params.InputProps.startAdornment}
+                              </>
+                            )
+                          }}
+                        />
+                      )}
                     />
                   </Grid>
                 </Grid>
