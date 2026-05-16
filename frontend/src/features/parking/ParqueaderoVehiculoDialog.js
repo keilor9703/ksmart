@@ -1,14 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // DIÁLOGOS DEL MÓDULO PARQUEADERO
-// Coloca cada componente en su propio archivo dentro de /components/:
-//
-//   - ParqueaderoSuscripcionDialog.jsx
-//   - ParqueaderoVehiculoDialog.jsx
-//   - ParqueaderoCobrarVencidoDialog.jsx
-//   - ParqueaderoSalidaHorasDialog.jsx
-//   - ParqueaderoEntradaHorasDialog.jsx
-//
-// O en uno solo si prefieres (sólo recuerda exportarlos correctamente).
 // ═══════════════════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect } from 'react';
@@ -18,11 +9,12 @@ import {
   Divider, MenuItem, InputAdornment, CircularProgress, IconButton,
   Autocomplete, Chip
 } from '@mui/material';
-import { Close, TwoWheeler, Person, AttachMoney, Save } from '@mui/icons-material';
+import { Close, DirectionsCar, Person, AttachMoney, Save } from '@mui/icons-material';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
 import { formatCurrency } from '../../utils/formatters';
 import { ParqueaderoSuscripcionDialog } from './ParqueaderoSuscripcionDialog';
+import { BRAND_OPTIONS, getModelOptions } from './vehicleBrands';
 
 const ACCENT = '#FF6020';
 const METODOS_PAGO = ['Efectivo', 'Transferencia', 'Nequi', 'Daviplata', 'Tarjeta', 'Otro'];
@@ -32,19 +24,21 @@ const METODOS_PAGO = ['Efectivo', 'Transferencia', 'Nequi', 'Daviplata', 'Tarjet
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 2. RegistrarVehiculoDialog
-//    Caso: placa nueva → registrar moto y opcionalmente crear suscripción
+//    Caso: placa nueva → registrar vehículo y opcionalmente crear suscripción
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function ParqueaderoVehiculoDialog({ open, onClose, placaSugerida, onSuccess }) {
-  const [paso, setPaso]               = useState(1);  // 1 = datos moto, 2 = suscripción
+  const [paso, setPaso]               = useState(1);
   const [clientes, setClientes]       = useState([]);
   const [clienteSel, setClienteSel]   = useState(null);
   const [crearCliente, setCrearCl]    = useState(false);
 
-  // Datos moto
+  // Datos vehículo
   const [placa, setPlaca]             = useState('');
   const [marca, setMarca]             = useState('');
+  const [marcaInput, setMarcaInput]   = useState('');
   const [modelo, setModelo]           = useState('');
+  const [modeloInput, setModeloInput] = useState('');
   const [color, setColor]             = useState('');
 
   // Si crea cliente nuevo
@@ -55,11 +49,15 @@ export function ParqueaderoVehiculoDialog({ open, onClose, placaSugerida, onSucc
   const [vehiculoCreado, setVehCreado] = useState(null);
   const [loading, setLoading]          = useState(false);
 
+  const modelOptions = getModelOptions(marca);
+
   useEffect(() => {
     if (!open) return;
     setPaso(1);
     setPlaca(placaSugerida || '');
-    setMarca(''); setModelo(''); setColor('');
+    setMarca(''); setMarcaInput('');
+    setModelo(''); setModeloInput('');
+    setColor('');
     setClienteSel(null); setCrearCl(false);
     setNuevoNombre(''); setNuevaCedula(''); setNuevoTel('');
     setVehCreado(null);
@@ -75,7 +73,6 @@ export function ParqueaderoVehiculoDialog({ open, onClose, placaSugerida, onSucc
     try {
       let clienteId = clienteSel?.id;
 
-      // Crear cliente si no existe
       if (crearCliente) {
         if (!nuevoNombre.trim()) {
           toast.warning('Falta el nombre del propietario.');
@@ -102,8 +99,8 @@ export function ParqueaderoVehiculoDialog({ open, onClose, placaSugerida, onSucc
         placa, cliente_id: clienteId, marca, modelo, color,
       });
       setVehCreado(veh);
-      setPaso(2);   // pasar a registrar suscripción
-      toast.success('Moto registrada. Ahora el pago.');
+      setPaso(2);
+      toast.success('Vehículo registrado. Ahora el pago.');
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al registrar.');
     } finally {
@@ -111,7 +108,6 @@ export function ParqueaderoVehiculoDialog({ open, onClose, placaSugerida, onSucc
     }
   };
 
-  // Cuando creamos la moto y luego la suscripción
   if (vehiculoCreado && paso === 2) {
     return (
       <ParqueaderoSuscripcionDialog
@@ -127,8 +123,8 @@ export function ParqueaderoVehiculoDialog({ open, onClose, placaSugerida, onSucc
       <DialogTitle>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Stack direction="row" spacing={1} alignItems="center">
-            <TwoWheeler sx={{ color: ACCENT }} />
-            <Typography sx={{ fontWeight: 800 }}>Registrar nueva moto</Typography>
+            <DirectionsCar sx={{ color: ACCENT }} />
+            <Typography sx={{ fontWeight: 800 }}>Registrar nuevo vehículo</Typography>
           </Stack>
           <IconButton onClick={onClose} size="small"><Close /></IconButton>
         </Stack>
@@ -136,12 +132,12 @@ export function ParqueaderoVehiculoDialog({ open, onClose, placaSugerida, onSucc
 
       <DialogContent dividers>
         <Alert severity="info" sx={{ mb: 2, fontSize: 13 }}>
-          Después de registrar la moto, podrás registrar el pago de su mensualidad.
+          Después de registrar el vehículo, podrás registrar el pago de su mensualidad.
         </Alert>
 
-        {/* Datos moto */}
+        {/* Datos vehículo */}
         <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.secondary', mb: 1, textTransform: 'uppercase' }}>
-          Datos de la moto
+          Datos del vehículo
         </Typography>
         <Stack spacing={1.5}>
           <TextField
@@ -150,11 +146,51 @@ export function ParqueaderoVehiculoDialog({ open, onClose, placaSugerida, onSucc
             onChange={(e) => setPlaca(e.target.value.toUpperCase().replace(/[\s-]/g, '').slice(0, 10))}
             inputProps={{ style: { fontFamily: 'monospace', fontWeight: 700, letterSpacing: 2 } }}
           />
+
           <Stack direction="row" spacing={1}>
-            <TextField fullWidth size="small" label="Marca" value={marca} onChange={(e) => setMarca(e.target.value)} placeholder="Yamaha, Honda…" />
-            <TextField fullWidth size="small" label="Modelo" value={modelo} onChange={(e) => setModelo(e.target.value)} placeholder="XTZ 125…" />
+            {/* Marca */}
+            <Autocomplete
+              sx={{ flex: 1 }}
+              size="small"
+              freeSolo
+              options={BRAND_OPTIONS}
+              value={marca}
+              inputValue={marcaInput}
+              onInputChange={(_, val) => setMarcaInput(val)}
+              onChange={(_, val) => {
+                const v = val || '';
+                setMarca(v);
+                setMarcaInput(v);
+                setModelo('');
+                setModeloInput('');
+              }}
+              renderInput={(params) => (
+                <TextField {...params} label="Marca" placeholder="Ej: Honda, Yamaha…" />
+              )}
+            />
+
+            {/* Modelo — filtrado por marca */}
+            <Autocomplete
+              sx={{ flex: 1 }}
+              size="small"
+              freeSolo
+              options={modelOptions}
+              value={modelo}
+              inputValue={modeloInput}
+              onInputChange={(_, val) => setModeloInput(val)}
+              onChange={(_, val) => {
+                const v = val || '';
+                setModelo(v);
+                setModeloInput(v);
+              }}
+              noOptionsText={marca ? 'Sin modelos para esta marca' : 'Selecciona una marca primero'}
+              renderInput={(params) => (
+                <TextField {...params} label="Modelo" placeholder="Ej: CB 190R…" />
+              )}
+            />
           </Stack>
-          <TextField fullWidth size="small" label="Color" value={color} onChange={(e) => setColor(e.target.value)} placeholder="Negra, roja…" />
+
+          <TextField fullWidth size="small" label="Color" value={color} onChange={(e) => setColor(e.target.value)} placeholder="Negro, rojo, blanco…" />
         </Stack>
 
         <Divider sx={{ my: 2 }} />
@@ -201,7 +237,7 @@ export function ParqueaderoVehiculoDialog({ open, onClose, placaSugerida, onSucc
           startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <Save />}
           sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700 }}
         >
-          Registrar moto y continuar
+          Registrar vehículo y continuar
         </Button>
       </DialogActions>
     </Dialog>
