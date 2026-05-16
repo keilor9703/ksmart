@@ -23,7 +23,7 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
         prod = crud.get_producto(db, empresa_id=empresa_id, producto_id=d.producto_id)
         if not prod:
             raise HTTPException(status_code=404, detail=f"Producto {d.producto_id} no existe")
-        if not prod.es_servicio and prod.grupo_item != 2:
+        if not prod.es_servicio:
             raise HTTPException(status_code=400, detail=f"'{prod.nombre}' no es un Producto Terminado y no puede venderse.")
         if not prod.es_servicio:
             if (prod.stock_actual or 0) < d.cantidad:
