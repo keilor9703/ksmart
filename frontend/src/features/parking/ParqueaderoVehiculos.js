@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // ParqueaderoVehiculos.jsx
-// Listado, búsqueda y edición de motos registradas en el parqueadero.
-// El alta de nuevas motos se hace desde "Buscar placa" (más natural).
+// Listado, búsqueda y edición de vehículos registrados en el parqueadero.
+// El alta de nuevos vehículos se hace desde "Buscar placa" (más natural).
 // ═══════════════════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -10,10 +10,10 @@ import {
   Avatar, IconButton, Tooltip, CircularProgress, Alert, Skeleton,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Dialog, DialogTitle, DialogContent, DialogActions, Menu, MenuItem,
-  Grid, useMediaQuery, useTheme
+  Grid, useMediaQuery, useTheme, Autocomplete
 } from '@mui/material';
 import {
-  Search, TwoWheeler, MoreVert, Edit, Delete, Add,
+  Search, DirectionsCar, MoreVert, Edit, Delete, Add,
   Person, Phone, Refresh, History, Visibility
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
@@ -21,6 +21,7 @@ import apiClient from '../../api';
 import { toast } from 'react-toastify';
 import { ParqueaderoVehiculoDialog } from './ParqueaderoVehiculoDialog';
 import DialogoDarBaja from '../inventory/DialogoDarBaja';
+import { BRAND_OPTIONS, getModelOptions } from './vehicleBrands';
 
 const ACCENT = '#FF6020';
 
@@ -89,14 +90,14 @@ export default function ParqueaderoVehiculos() {
             background: `linear-gradient(135deg, ${ACCENT} 0%, #ff9a62 100%)`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <TwoWheeler sx={{ color: 'white' }} />
+            <DirectionsCar sx={{ color: 'white' }} />
           </Box>
           <Box>
-            <Typography sx={{ fontSize: 20, fontWeight: 800, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            <Typography sx={{ fontSize: 20, fontWeight: 800 }}>
               Vehículos registrados
             </Typography>
             <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-              {vehiculos.length} moto{vehiculos.length !== 1 ? 's' : ''} {soloActivos ? 'activas' : 'en total'}
+              {vehiculos.length} vehículo{vehiculos.length !== 1 ? 's' : ''} {soloActivos ? 'activos' : 'en total'}
             </Typography>
           </Box>
         </Stack>
@@ -105,7 +106,7 @@ export default function ParqueaderoVehiculos() {
           onClick={() => setDlgNuevo(true)}
           sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700, borderRadius: 2 }}
         >
-          Nueva moto
+          Nuevo vehículo
         </Button>
       </Stack>
 
@@ -133,7 +134,7 @@ export default function ParqueaderoVehiculos() {
               ...(soloActivos && { bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' } }),
             }}
           >
-            {soloActivos ? '✓ Solo activas' : 'Mostrar todas'}
+            {soloActivos ? '✓ Solo activos' : 'Mostrar todos'}
           </Button>
           <Tooltip title="Actualizar">
             <IconButton onClick={cargar} sx={{ border: '1px solid', borderColor: 'divider' }}>
@@ -152,14 +153,14 @@ export default function ParqueaderoVehiculos() {
         </Stack>
       ) : vehiculos.length === 0 ? (
         <Paper sx={{ p: 4, textAlign: 'center', borderRadius: 3 }}>
-          <TwoWheeler sx={{ fontSize: 64, color: 'text.disabled', mb: 1 }} />
+          <DirectionsCar sx={{ fontSize: 64, color: 'text.disabled', mb: 1 }} />
           <Typography sx={{ fontSize: 16, fontWeight: 700, mb: 0.5 }}>
-            {search ? 'No se encontraron motos con ese criterio' : 'Aún no hay motos registradas'}
+            {search ? 'No se encontraron vehículos con ese criterio' : 'Aún no hay vehículos registrados'}
           </Typography>
           <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 2 }}>
             {search
               ? 'Prueba con otra búsqueda o limpia el filtro'
-              : 'Empieza registrando la primera moto del parqueadero'}
+              : 'Empieza registrando el primer vehículo del parqueadero'}
           </Typography>
           {!search && (
             <Button
@@ -167,7 +168,7 @@ export default function ParqueaderoVehiculos() {
               onClick={() => setDlgNuevo(true)}
               sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700 }}
             >
-              Registrar primera moto
+              Registrar primer vehículo
             </Button>
           )}
         </Paper>
@@ -193,7 +194,7 @@ export default function ParqueaderoVehiculos() {
                 <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Placa</TableCell>
                 <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Propietario</TableCell>
                 <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Contacto</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Moto</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Vehículo</TableCell>
                 <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Estado</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Acciones</TableCell>
               </TableRow>
@@ -421,7 +422,7 @@ function VehiculoCard({ veh, onVer, onHistorial, onEditar, onEliminar }) {
 
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Diálogo: editar datos de moto
+// Diálogo: editar datos de vehículo
 // ═══════════════════════════════════════════════════════════════════════════
 
 function EditarVehiculoDialog({ open, onClose, veh, onSuccess }) {
@@ -432,7 +433,11 @@ function EditarVehiculoDialog({ open, onClose, veh, onSuccess }) {
     color: veh.color || '',
     observaciones: veh.observaciones || '',
   });
+  const [marcaInput, setMarcaInput]   = useState(veh.marca || '');
+  const [modeloInput, setModeloInput] = useState(veh.modelo || '');
   const [loading, setLoading] = useState(false);
+
+  const modelOptions = getModelOptions(data.marca);
 
   const handleGuardar = async () => {
     setLoading(true);
@@ -449,7 +454,7 @@ function EditarVehiculoDialog({ open, onClose, veh, onSuccess }) {
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ fontWeight: 800 }}>Editar moto</DialogTitle>
+      <DialogTitle sx={{ fontWeight: 800 }}>Editar vehículo</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={1.5} sx={{ mt: 0.5 }}>
           <TextField
@@ -459,10 +464,38 @@ function EditarVehiculoDialog({ open, onClose, veh, onSuccess }) {
             inputProps={{ style: { fontFamily: 'monospace', fontWeight: 700, letterSpacing: 2 } }}
           />
           <Stack direction="row" spacing={1}>
-            <TextField fullWidth size="small" label="Marca"
-              value={data.marca} onChange={(e) => setData({ ...data, marca: e.target.value })} />
-            <TextField fullWidth size="small" label="Modelo"
-              value={data.modelo} onChange={(e) => setData({ ...data, modelo: e.target.value })} />
+            <Autocomplete
+              sx={{ flex: 1 }}
+              size="small"
+              freeSolo
+              options={BRAND_OPTIONS}
+              value={data.marca}
+              inputValue={marcaInput}
+              onInputChange={(_, val) => setMarcaInput(val)}
+              onChange={(_, val) => {
+                const v = val || '';
+                setData({ ...data, marca: v, modelo: '' });
+                setMarcaInput(v);
+                setModeloInput('');
+              }}
+              renderInput={(params) => <TextField {...params} label="Marca" />}
+            />
+            <Autocomplete
+              sx={{ flex: 1 }}
+              size="small"
+              freeSolo
+              options={modelOptions}
+              value={data.modelo}
+              inputValue={modeloInput}
+              onInputChange={(_, val) => setModeloInput(val)}
+              onChange={(_, val) => {
+                const v = val || '';
+                setData({ ...data, modelo: v });
+                setModeloInput(v);
+              }}
+              noOptionsText={data.marca ? 'Sin modelos para esta marca' : 'Selecciona una marca primero'}
+              renderInput={(params) => <TextField {...params} label="Modelo" />}
+            />
           </Stack>
           <TextField fullWidth size="small" label="Color"
             value={data.color} onChange={(e) => setData({ ...data, color: e.target.value })} />

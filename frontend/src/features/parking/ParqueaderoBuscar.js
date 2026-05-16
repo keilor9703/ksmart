@@ -14,7 +14,7 @@ import {
   CircularProgress, Chip, Avatar, Divider, IconButton, Alert
 } from '@mui/material';
 import {
-  Search, TwoWheeler, CheckCircle, ErrorOutline, HelpOutline,
+  Search, TwoWheeler, DirectionsCar, CheckCircle, ErrorOutline, HelpOutline,
   AccessTime, Person, LocalParking, Logout, Refresh, ContentPaste
 } from '@mui/icons-material';
 import { useSearchParams } from 'react-router-dom';
@@ -134,7 +134,7 @@ export default function ParqueaderoBuscar() {
           Buscar placa
         </Typography>
         <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-          Escribe la placa para verificar el estado de la moto
+          Escribe la placa para verificar el estado del vehículo
         </Typography>
       </Box>
 
@@ -154,7 +154,7 @@ export default function ParqueaderoBuscar() {
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <TwoWheeler sx={{ color: ACCENT, fontSize: 28 }} />
+                  <DirectionsCar sx={{ color: ACCENT, fontSize: 28 }} />
                 </InputAdornment>
               ),
               endAdornment: (
@@ -383,7 +383,7 @@ function ResultadoCard({
                 onClick={onRegistrarVehiculo}
                 sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700 }}
               >
-                Registrar moto + pago
+                Registrar vehículo + pago
               </Button>
               <Button variant="outlined" size="large" onClick={onCobrarPorHoras}>
                 Cobrar por horas
@@ -449,7 +449,7 @@ function IconoEstado({ tipo }) {
     vehiculo_al_dia:        <CheckCircle  sx={{ fontSize: 56 }} />,
     vehiculo_vencido:       <ErrorOutline sx={{ fontSize: 56 }} />,
     vehiculo_sin_susc:      <HelpOutline  sx={{ fontSize: 56 }} />,
-    vehiculo_no_registrado: <TwoWheeler   sx={{ fontSize: 56 }} />,
+    vehiculo_no_registrado: <DirectionsCar sx={{ fontSize: 56 }} />,
     tiene_acceso_abierto:   <AccessTime   sx={{ fontSize: 56 }} />,
   }[tipo] || <LocalParking sx={{ fontSize: 56 }} />;
   return <Box sx={{ mb: 1.5, opacity: 0.95 }}>{icon}</Box>;
