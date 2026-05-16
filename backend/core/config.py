@@ -32,7 +32,7 @@ PERFILES = {
     ],
     "parqueadero": [
         "/parqueadero", "/parqueadero/buscar", "/parqueadero/vehiculos", 
-        "/parqueadero/suscripciones", "/parqueadero/config", "/clientes",
-        "/caja", "/reportes", "/admin/usuarios",
+        "/parqueadero/suscripciones", "/parqueadero/config",
+         "/admin/usuarios",
     ],
 }

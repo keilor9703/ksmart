@@ -24,13 +24,10 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
         if not prod:
             raise HTTPException(status_code=404, detail=f"Producto {d.producto_id} no existe")
         
-        # Bloquear servicios en el módulo de ventas directas
-        if prod.es_servicio:
-            raise HTTPException(status_code=400, detail=f"'{prod.nombre}' es un servicio y debe gestionarse desde el módulo de Órdenes de Trabajo.")
-        
-        # Validación de stock para productos físicos
-        if (prod.stock_actual or 0) < d.cantidad:
-            raise HTTPException(status_code=400, detail=f"Stock insuficiente para '{prod.nombre}'. Disponible: {prod.stock_actual}, requerido: {d.cantidad}")
+        # Validación de stock solo para productos físicos
+        if not prod.es_servicio:
+            if (prod.stock_actual or 0) < d.cantidad:
+                raise HTTPException(status_code=400, detail=f"Stock insuficiente para '{prod.nombre}'. Disponible: {prod.stock_actual}, requerido: {d.cantidad}")
 
     if not venta.pagada:
         total_nueva = sum(
@@ -117,8 +114,6 @@ def update_venta(venta_id: int, venta: schemas.VentaCreate, db: Session = Depend
         prod = crud.get_producto(db, empresa_id=empresa_id, producto_id=detalle.producto_id)
         if not prod:
             raise HTTPException(status_code=404, detail=f"Producto {detalle.producto_id} no encontrado.")
-        if prod.es_servicio:
-            raise HTTPException(status_code=400, detail=f"'{prod.nombre}' es un servicio y no puede registrarse como venta en este módulo.")
     db_venta = crud.update_venta(db, empresa_id=empresa_id, venta_id=venta_id, venta=venta)
     if db_venta is None:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
