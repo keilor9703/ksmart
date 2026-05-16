@@ -296,7 +296,8 @@ const Ventas = () => {
 
     const [cliente, setCliente]   = useState(null);
     const [saleDetails, setSaleDetails] = useState([{ id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0, descuentoPct: 0 }]);
-    const [ivaPorcentajeGlobal, setIvaPorcentajeGlobal] = useState(0);
+    const [ivaPorcentajeGlobal, setIvaPorcentajeGlobal] = useState(19);
+    const [valorRecibido, setValorRecibido] = useState(0);
     const [pagada, setPagada]     = useState(true);
     const [editingVenta, setEditingVenta] = useState(null);
     const [estadoPago, setEstadoPago]     = useState('pagada');
@@ -478,7 +479,8 @@ const handleProcessBarcode = async (code) => {
         const initialId = Date.now();
         setSaleDetails([{ id: initialId, producto: null, cantidad: 1, precioUnitario: 0, descuentoPct: 0 }]);
         setProductoInputs({});
-        setIvaPorcentajeGlobal(0);
+        setIvaPorcentajeGlobal(19);
+        setValorRecibido(0);
         setPagada(true);
         setEstadoPago('pagada');
         setMetodoPago('Efectivo');
@@ -836,6 +838,38 @@ const handleProcessBarcode = async (code) => {
 
                                 <Grid item xs={12} sm={6}>
                                     <Box sx={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 2, alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'flex-end' }}>
+
+                                        {/* Valor recibido / Cambio — solo efectivo */}
+                                        {pagada && metodoPago === 'Efectivo' && (() => {
+                                            const cambio = valorRecibido - calculateSubtotal();
+                                            return (
+                                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: isMobile ? '100%' : 200 }}>
+                                                    <CurrencyField
+                                                        label="Valor recibido"
+                                                        value={valorRecibido}
+                                                        onChange={setValorRecibido}
+                                                        size="small"
+                                                        fullWidth
+                                                    />
+                                                    <Box sx={{
+                                                        px: 2, py: 1, borderRadius: 2, textAlign: 'center',
+                                                        bgcolor: cambio >= 0 ? '#10B98112' : '#EF444412',
+                                                        border: '1.5px solid',
+                                                        borderColor: cambio >= 0 ? '#10B98140' : '#EF444440',
+                                                    }}>
+                                                        <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Cambio a devolver</Typography>
+                                                        <Typography sx={{ fontSize: 17, fontWeight: 800, color: cambio >= 0 ? '#10B981' : '#EF4444' }}>
+                                                            {formatCurrency(cambio >= 0 ? cambio : 0)}
+                                                        </Typography>
+                                                        {cambio < 0 && valorRecibido > 0 && (
+                                                            <Typography sx={{ fontSize: 10, color: '#EF4444' }}>
+                                                                Faltan {formatCurrency(Math.abs(cambio))}
+                                                            </Typography>
+                                                        )}
+                                                    </Box>
+                                                </Box>
+                                            );
+                                        })()}
 
                                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.8, minWidth: isMobile ? '100%' : 'auto' }}>
                                             <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6 }}>
