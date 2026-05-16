@@ -262,7 +262,7 @@ class Producto(Base, TenantMixin):
     maneja_lotes  = Column(Boolean, default=False)
 
     # 👇 NUEVOS CAMPOS CATÁLOGO VIRTUAL
-    imagenes            = Column(Text, nullable=True) # JSON list de WebP comprimidos
+    imagenes            = Column(JSON, nullable=True) # JSON list de WebP comprimidos
     mostrar_en_catalogo = Column(Boolean, default=False, index=True)
 
     lotes = relationship("LoteExistencia", back_populates="producto", cascade="all, delete-orphan")
