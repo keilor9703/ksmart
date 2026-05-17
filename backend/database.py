@@ -191,11 +191,6 @@ def run_migrations():
             # V37 - Reparar índice UNIQUE en Roles para SQLite (Multi-tenant)
             migration_v37 = "inv_v37_fix_roles_unique_sqlite"
             if IS_SQLITE and not _migration_already_applied(conn, migration_v37):
-                # Asegurar que empresa_id exista en roles antes de crear el índice
-                if not _column_exists(conn, "roles", "empresa_id"):
-                    conn.execute(text("ALTER TABLE roles ADD COLUMN empresa_id INTEGER REFERENCES empresas(id)"))
-                    logger.info("V37: añadido roles.empresa_id")
-
                 if _index_exists(conn, "ix_roles_name"):
                     conn.execute(text("DROP INDEX ix_roles_name"))
                     logger.info("V37: Eliminado índice global ix_roles_name")
@@ -458,264 +453,25 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v43)
                 logger.info("V43 (grupos de producto dinámicos) aplicada.")
 
-            # ═══════════════════════════════════════════════════════════════
-            # V44 - CATÁLOGO VIRTUAL (Nuevos campos)
-            # ═══════════════════════════════════════════════════════════════
+            # V44 - CAMPOS LAVADERO EN VENTAS
+            migration_v44 = "inv_v44_lavadero_ventas_campos"
+            if not _meta_exists(conn, migration_v44):
+                # Add operador_id column to ventas
+                try:
+                    conn.execute(text("ALTER TABLE ventas ADD COLUMN operador_id INTEGER REFERENCES users(id)"))
+                    logger.info("V44: columna operador_id agregada a ventas")
+                except Exception:
+                    pass  # Column may already exist
 
-            migration_v44 = "inv_v44_catalogo_virtual_fields"
-            logger.info("Verificando migración V44...")
-
-            if not _migration_already_applied(conn, migration_v44):
-                logger.info("Aplicando migración V44...")
-                
-                # ── Campos en EMPRESAS ──
-                if not _column_exists(conn, "empresas", "slug_catalogo"):
-                    conn.execute(text("ALTER TABLE empresas ADD COLUMN slug_catalogo TEXT NULL"))
-                    logger.info("V44: añadido empresas.slug_catalogo")
-                
-                if not _index_exists(conn, "ix_empresas_slug_catalogo"):
-                    conn.execute(text("CREATE UNIQUE INDEX ix_empresas_slug_catalogo ON empresas(slug_catalogo)"))
-                    logger.info("V44: creado índice UNIQUE ix_empresas_slug_catalogo")
-
-                if not _column_exists(conn, "empresas", "whatsapp_pedidos"):
-                    conn.execute(text("ALTER TABLE empresas ADD COLUMN whatsapp_pedidos TEXT NULL"))
-                    logger.info("V44: añadido empresas.whatsapp_pedidos")
-
-                if not _column_exists(conn, "empresas", "logo_base64"):
-                    conn.execute(text("ALTER TABLE empresas ADD COLUMN logo_base64 TEXT NULL"))
-                    logger.info("V44: añadido empresas.logo_base64")
-
-                # ── Campos en PRODUCTOS ──
-                if not _column_exists(conn, "productos", "imagenes"):
-                    conn.execute(text("ALTER TABLE productos ADD COLUMN imagenes TEXT NULL"))
-                    logger.info("V44: añadido productos.imagenes")
-
-                if not _column_exists(conn, "productos", "mostrar_en_catalogo"):
-                    if IS_SQLITE:
-                        conn.execute(text("ALTER TABLE productos ADD COLUMN mostrar_en_catalogo BOOLEAN DEFAULT 0"))
-                    else:
-                        conn.execute(text("ALTER TABLE productos ADD COLUMN mostrar_en_catalogo BOOLEAN DEFAULT FALSE"))
-                    logger.info("V44: añadido productos.mostrar_en_catalogo")
-
-                if not _index_exists(conn, "ix_productos_mostrar_en_catalogo"):
-                    conn.execute(text("CREATE INDEX ix_productos_mostrar_en_catalogo ON productos(mostrar_en_catalogo)"))
-                    logger.info("V44: creado índice ix_productos_mostrar_en_catalogo")
+                # Add placa_vehiculo column to ventas
+                try:
+                    conn.execute(text("ALTER TABLE ventas ADD COLUMN placa_vehiculo VARCHAR(15)"))
+                    logger.info("V44: columna placa_vehiculo agregada a ventas")
+                except Exception:
+                    pass  # Column may already exist
 
                 _mark_migration_applied(conn, migration_v44)
-                logger.info("V44 (Catálogo Virtual fields) aplicada.")
-
-            # ═══════════════════════════════════════════════════════════════
-            # V45 - FACTURACIÓN ELECTRÓNICA (Campos DIAN)
-            # ═══════════════════════════════════════════════════════════════
-
-            migration_v45 = "inv_v45_facturacion_electronica_fields"
-
-            if not _migration_already_applied(conn, migration_v45):
-                logger.info("Aplicando migración V45 (Facturación Electrónica)...")
-                
-                # Campos en EMPRESAS
-                new_columns = [
-                    ("dv", "TEXT NULL"),
-                    ("tipo_organizacion_id", "INTEGER DEFAULT 1"),
-                    ("tipo_regimen_id", "INTEGER DEFAULT 48"),
-                    ("responsabilidad_fiscal_codes", "TEXT DEFAULT 'O-13'"),
-                    ("matricula_mercantil", "TEXT NULL"),
-                    ("departamento_code", "TEXT NULL"),
-                    ("ciudad_code", "TEXT NULL"),
-                    ("correo_facturacion", "TEXT NULL"),
-                    ("facturacion_electronica_activa", "BOOLEAN DEFAULT 0" if IS_SQLITE else "BOOLEAN DEFAULT FALSE"),
-                    ("matias_api_key", "TEXT NULL"),
-                    ("matias_test_mode", "BOOLEAN DEFAULT 1" if IS_SQLITE else "BOOLEAN DEFAULT TRUE")
-                ]
-
-                for col_name, col_type in new_columns:
-                    if not _column_exists(conn, "empresas", col_name):
-                        conn.execute(text(f"ALTER TABLE empresas ADD COLUMN {col_name} {col_type}"))
-                        logger.info(f"V45: añadido empresas.{col_name}")
-
-                _mark_migration_applied(conn, migration_v45)
-                logger.info("V45 (Facturación Electrónica fields) aplicada.")
-
-            # ═══════════════════════════════════════════════════════════════
-            # V46 - FACTURACIÓN ELECTRÓNICA VENTAS (Campos DIAN)
-            # ═══════════════════════════════════════════════════════════════
-
-            migration_v46 = "inv_v46_facturacion_electronica_ventas"
-
-            if not _migration_already_applied(conn, migration_v46):
-                logger.info("Aplicando migración V46 (Facturación Electrónica Ventas)...")
-                
-                # 1. Asegurar tabla resoluciones_dian
-                if not _table_exists(conn, "resoluciones_dian"):
-                    if IS_SQLITE:
-                        conn.execute(text("""
-                            CREATE TABLE resoluciones_dian (
-                                id                INTEGER PRIMARY KEY AUTOINCREMENT,
-                                empresa_id        INTEGER REFERENCES empresas(id),
-                                prefijo           TEXT DEFAULT '',
-                                numero_resolucion TEXT,
-                                numero_actual     INTEGER DEFAULT 0,
-                                numero_inicial    INTEGER DEFAULT 1,
-                                numero_final      INTEGER DEFAULT 99999999,
-                                vigencia_desde    DATE,
-                                vigencia_hasta    DATE,
-                                is_active         BOOLEAN DEFAULT 0,
-                                created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                            )
-                        """))
-                    else:
-                        conn.execute(text("""
-                            CREATE TABLE resoluciones_dian (
-                                id                SERIAL PRIMARY KEY,
-                                empresa_id        INTEGER REFERENCES empresas(id),
-                                prefijo           VARCHAR(10) DEFAULT '',
-                                numero_resolucion VARCHAR(50),
-                                numero_actual     INTEGER DEFAULT 0,
-                                numero_inicial    INTEGER DEFAULT 1,
-                                numero_final      INTEGER DEFAULT 99999999,
-                                vigencia_desde    DATE,
-                                vigencia_hasta    DATE,
-                                is_active         BOOLEAN DEFAULT FALSE,
-                                created_at        TIMESTAMPTZ DEFAULT NOW()
-                            )
-                        """))
-                    logger.info("V46: creada tabla resoluciones_dian")
-
-                # 2. Campos en VENTAS
-                ventas_columns = [
-                    ("numero_factura", "VARCHAR(20) NULL"),
-                    ("resolucion_id", "INTEGER NULL REFERENCES resoluciones_dian(id)"),
-                    ("cufe", "TEXT NULL"),
-                    ("qr_data", "TEXT NULL"),
-                    ("xml_url", "TEXT NULL"),
-                    ("pdf_url", "TEXT NULL"),
-                    ("estado_electronico", "TEXT DEFAULT 'no_enviado'"),
-                    ("mensaje_proveedor", "TEXT NULL")
-                ]
-
-                for col_name, col_type in ventas_columns:
-                    if not _column_exists(conn, "ventas", col_name):
-                        # Ajuste para SQLite en tipo de columna si es necesario
-                        actual_type = col_type
-                        if IS_SQLITE and "VARCHAR" in col_type:
-                            actual_type = "TEXT NULL"
-                        
-                        conn.execute(text(f"ALTER TABLE ventas ADD COLUMN {col_name} {actual_type}"))
-                        logger.info(f"V46: añadido ventas.{col_name}")
-
-                if not _index_exists(conn, "ix_ventas_numero_factura"):
-                    conn.execute(text("CREATE INDEX ix_ventas_numero_factura ON ventas(numero_factura)"))
-
-                _mark_migration_applied(conn, migration_v46)
-                logger.info("V46 (Facturación Electrónica Ventas fields) aplicada.")
-
-            # ═══════════════════════════════════════════════════════════════
-            # V47 - FACTURACIÓN ELECTRÓNICA CLIENTES (Campos DIAN)
-            # ═══════════════════════════════════════════════════════════════
-
-            migration_v47 = "inv_v47_facturacion_electronica_clientes"
-
-            if not _migration_already_applied(conn, migration_v47):
-                logger.info("Aplicando migración V47 (Facturación Electrónica Clientes)...")
-                
-                # Campos en CLIENTES
-                clientes_columns = [
-                    ("email", "TEXT NULL"),
-                    ("tipo_documento_id", "INTEGER DEFAULT 13"),
-                    ("dv", "TEXT NULL"),
-                    ("tipo_organizacion_id", "INTEGER DEFAULT 2"),
-                    ("tipo_regimen_id", "INTEGER DEFAULT 49"),
-                    ("responsabilidad_fiscal_codes", "TEXT DEFAULT 'R-99-PN'"),
-                    ("departamento_code", "TEXT NULL"),
-                    ("ciudad_code", "TEXT NULL")
-                ]
-
-                for col_name, col_type in clientes_columns:
-                    if not _column_exists(conn, "clientes", col_name):
-                        conn.execute(text(f"ALTER TABLE clientes ADD COLUMN {col_name} {col_type}"))
-                        logger.info(f"V47: añadido clientes.{col_name}")
-
-                _mark_migration_applied(conn, migration_v47)
-                logger.info("V47 (Facturación Electrónica Clientes fields) aplicada.")
-
-            # ═══════════════════════════════════════════════════════════════
-            # V48 - REPARAR CLAVE FORÁNEA RESOLUCIONES (Producción Postgres)
-            # ═══════════════════════════════════════════════════════════════
-
-            migration_v48 = "inv_v48_fix_resoluciones_fk_postgres"
-
-            if not _migration_already_applied(conn, migration_v48):
-                logger.info("Aplicando migración V48 (Reparar FK Resoluciones)...")
-                
-                # 1. Asegurar columnas faltantes en VENTAS (por si acaso)
-                if not _column_exists(conn, "ventas", "numero_factura"):
-                    if IS_SQLITE:
-                        conn.execute(text("ALTER TABLE ventas ADD COLUMN numero_factura TEXT NULL"))
-                    else:
-                        conn.execute(text("ALTER TABLE ventas ADD COLUMN numero_factura VARCHAR(20) NULL"))
-                    logger.info("V48: añadido ventas.numero_factura")
-                
-                if not _index_exists(conn, "ix_ventas_numero_factura"):
-                    conn.execute(text("CREATE INDEX ix_ventas_numero_factura ON ventas(numero_factura)"))
-
-                if not _column_exists(conn, "ventas", "resolucion_id"):
-                    conn.execute(text("ALTER TABLE ventas ADD COLUMN resolucion_id INTEGER NULL"))
-                    logger.info("V48: añadido ventas.resolucion_id")
-
-                # 2. Corregir restricción de clave foránea en Postgres
-                if not IS_SQLITE:
-                    try:
-                        # Eliminar la restricción antigua que apunta a 'resoluciones_facturacion'
-                        # El log indica que el nombre es 'ventas_resolucion_id_fkey'
-                        conn.execute(text("ALTER TABLE ventas DROP CONSTRAINT IF EXISTS ventas_resolucion_id_fkey"))
-                        
-                        # Crear la nueva restricción apuntando a 'resoluciones_dian'
-                        conn.execute(text("""
-                            ALTER TABLE ventas 
-                            ADD CONSTRAINT ventas_resolucion_id_fkey 
-                            FOREIGN KEY (resolucion_id) REFERENCES resoluciones_dian(id)
-                        """))
-                        logger.info("V48: FK ventas_resolucion_id_fkey redirigida a resoluciones_dian")
-                    except Exception as e:
-                        logger.warning(f"V48: No se pudo actualizar la FK (posiblemente ya está bien): {e}")
-
-                _mark_migration_applied(conn, migration_v48)
-                logger.info("V48 (Reparar FK Resoluciones) aplicada.")
-
-            # ═══════════════════════════════════════════════════════════════
-            # V49 - TABLA DE CHALLENGES BIOMÉTRICOS (WebAuthn Multi-Worker)
-            # ═══════════════════════════════════════════════════════════════
-
-            migration_v49 = "inv_v49_biometric_challenges_table"
-
-            if not _migration_already_applied(conn, migration_v49):
-                logger.info("Aplicando migración V49 (Tabla de Challenges)...")
-                
-                if not _table_exists(conn, "biometric_challenges"):
-                    if IS_SQLITE:
-                        conn.execute(text("""
-                            CREATE TABLE biometric_challenges (
-                                key TEXT PRIMARY KEY,
-                                challenge TEXT NOT NULL,
-                                expires_at REAL NOT NULL
-                            )
-                        """))
-                    else:
-                        conn.execute(text("""
-                            CREATE TABLE biometric_challenges (
-                                key VARCHAR(100) PRIMARY KEY,
-                                challenge TEXT NOT NULL,
-                                expires_at DOUBLE PRECISION NOT NULL
-                            )
-                        """))
-                    
-                    if not _index_exists(conn, "ix_biometric_challenges_key"):
-                        conn.execute(text("CREATE INDEX ix_biometric_challenges_key ON biometric_challenges(key)"))
-                    
-                    logger.info("V49: creada tabla biometric_challenges")
-
-                _mark_migration_applied(conn, migration_v49)
-                logger.info("V49 (Challenges Biométricos) aplicada.")
+                logger.info("V44 (campos lavadero en ventas) aplicada.")
 
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)

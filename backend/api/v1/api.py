@@ -6,13 +6,12 @@ from .endpoints import (
     resoluciones, cotizaciones, parqueadero, mercado,
     biometric, webhooks,
     compras, produccion, ordenes_trabajo, panel_operador, planes, saas,
-    grupos_producto, catalogo
+    grupos_producto, lavadero,
 )
 
 api_router = APIRouter()
 
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
-api_router.include_router(catalogo.router, prefix="/catalogo", tags=["catalogo"])
 api_router.include_router(saas.router, prefix="/saas", tags=["SaaS Core"])
 api_router.include_router(superadmin.router, prefix="/superadmin", tags=["superadmin"])
 api_router.include_router(planes.router, prefix="", tags=["planes"])
@@ -40,3 +39,4 @@ api_router.include_router(compras.router, prefix="/compras", tags=["compras"])
 api_router.include_router(produccion.router, prefix="/produccion", tags=["produccion"])
 api_router.include_router(ordenes_trabajo.router, prefix="/ordenes-trabajo", tags=["ordenes-trabajo"])
 api_router.include_router(panel_operador.router, prefix="/panel_operador", tags=["panel_operador"])
+api_router.include_router(lavadero.router, prefix="/lavadero", tags=["lavadero"])

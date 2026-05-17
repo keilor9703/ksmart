@@ -288,7 +288,7 @@ const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRe
 };
 
 // ─── Componente principal ──────────────────────────────────────────────────────
-const Ventas = () => {
+const Ventas = ({ user }) => {
     const [totalVentasHoy, setTotalVentasHoy] = useState(0);
     const [ventas, setVentas]     = useState([]);
     const [clientes, setClientes] = useState([]);
@@ -561,6 +561,7 @@ const handleProcessBarcode = async (code) => {
             pagada,
             metodo_pago: pagada ? metodoPago : null,
             iva_porcentaje: parseFloat(ivaPorcentajeGlobal),
+            operador_id: user?.id,
         };
         setSaleToConfirm(ventaData);
         setShowConfirmSaleDialog(true);

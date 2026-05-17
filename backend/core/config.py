@@ -31,8 +31,18 @@ PERFILES = {
         "/admin/usuarios",
     ],
     "parqueadero": [
-        "/parqueadero", "/parqueadero/buscar", "/parqueadero/vehiculos", 
-        "/parqueadero/suscripciones", "/parqueadero/config",
-         "/admin/usuarios",
+        "/parqueadero", "/parqueadero/buscar", "/parqueadero/vehiculos",
+        "/parqueadero/suscripciones", "/parqueadero/config", "/clientes",
+        "/caja", "/reportes", "/admin/usuarios",
+    ],
+    "lavadero": [
+        "/ventas",
+        "/lavadero/ventas",
+        "/lavadero/reporte",
+        "/clientes",
+        "/productos",
+        "/caja",
+        "/reportes",
+        "/admin/usuarios",
     ],
 }

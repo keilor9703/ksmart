@@ -13,6 +13,10 @@ router = APIRouter()
 def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
     empresa_id = current_user.empresa_id
 
+    # Auto-assign current user as operador if not explicitly set
+    if not venta.operador_id:
+        venta = venta.model_copy(update={'operador_id': current_user.id})
+
     db_cliente = crud.get_cliente(db, empresa_id=empresa_id, cliente_id=venta.cliente_id)
     if not db_cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
