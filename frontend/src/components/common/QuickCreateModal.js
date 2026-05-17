@@ -2,15 +2,16 @@ import React, { useState, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Box, Typography, TextField, Button, IconButton,
-  CircularProgress, InputAdornment, Divider, Switch, FormControlLabel
+  CircularProgress, InputAdornment, Divider, Switch, FormControlLabel,
+  Autocomplete
 } from '@mui/material';
 import {
   Close, PersonAdd, Inventory2Outlined,
-  CheckCircle, Science
+  CheckCircle, Science, Add
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
-import { GRUPOS_PRODUCTO, UNIDADES_MEDIDA } from '../../utils/constants';
+import { UNIDADES_MEDIDA } from '../../utils/constants';
 import CurrencyField from './CurrencyField';
 
 // ─── Colores y configuración por tipo ─────────────────────────────────────────
@@ -86,80 +87,132 @@ const TerceroForm = ({ data, onChange, errors }) => (
 );
 
 // ─── Formulario de Producto ───────────────────────────────────────────────────
-const ProductoForm = ({ data, onChange, errors }) => (
-  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-    <TextField
-      label="Nombre del producto *"
-      value={data.nombre}
-      onChange={e => onChange('nombre', e.target.value)}
-      fullWidth size="small"
-      error={!!errors.nombre}
-      helperText={errors.nombre}
-      autoFocus
-    />
-    <Box sx={{ display: 'flex', gap: 1.5 }}>
-      <CurrencyField
-        label="Costo de compra *"
-        value={data.costo}
-        onChange={val => onChange('costo', val)}
-        error={!!errors.costo}
-        helperText={errors.costo}
-        sx={{ flex: 1 }}
-      />
-      <CurrencyField
-        label="Precio de venta"
-        value={data.precio}
-        onChange={val => onChange('precio', val)}
-        sx={{ flex: 1 }}
-      />
-    </Box>
+const ProductoForm = ({ data, onChange, errors }) => {
+  const [grupos, setGrupos] = useState([]);
+  const [creatingGroup, setCreatingGroup] = useState(false);
 
-    <Box>
-      <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', mb: 0.8 }}>Unidad de medida</Typography>
-      <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-        {UNIDADES_MEDIDA.map(u => (
-          <Box key={u.value} onClick={() => onChange('unidad_medida', u.value)}
-            sx={{ px: 1.4, py: 0.6, borderRadius: 1.5, cursor: 'pointer', fontSize: 12, fontWeight: 600, border: '1.5px solid', borderColor: data.unidad_medida === u.value ? '#10B981' : 'divider', bgcolor: data.unidad_medida === u.value ? '#ECFDF5' : 'transparent', color: data.unidad_medida === u.value ? '#10B981' : 'text.secondary', userSelect: 'none' }}
-          >
-            {u.value}
+  useEffect(() => {
+    apiClient.get('/grupos-producto/')
+      .then(r => setGrupos(r.data || []))
+      .catch(() => {});
+  }, []);
+
+  const handleCreateGroup = async (nombre) => {
+    const codigo = nombre.trim().substring(0, 4).toUpperCase().replace(/\s+/g, '');
+    setCreatingGroup(true);
+    try {
+      const res = await apiClient.post('/grupos-producto/', { nombre: nombre.trim(), codigo, color: '#94a3b8', orden: 99 });
+      const newGroup = res.data;
+      setGrupos(prev => [...prev, newGroup]);
+      onChange('grupo_item', newGroup.id);
+      toast.success(`Categoría "${newGroup.nombre}" creada`);
+    } catch {
+      toast.error('Error al crear la categoría');
+    } finally {
+      setCreatingGroup(false);
+    }
+  };
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <TextField
+        label="Nombre del producto *"
+        value={data.nombre}
+        onChange={e => onChange('nombre', e.target.value)}
+        fullWidth size="small"
+        error={!!errors.nombre}
+        helperText={errors.nombre}
+        autoFocus
+      />
+      <Box sx={{ display: 'flex', gap: 1.5 }}>
+        <CurrencyField
+          label="Costo de compra *"
+          value={data.costo}
+          onChange={val => onChange('costo', val)}
+          error={!!errors.costo}
+          helperText={errors.costo}
+          sx={{ flex: 1 }}
+        />
+        <CurrencyField
+          label="Precio de venta"
+          value={data.precio}
+          onChange={val => onChange('precio', val)}
+          sx={{ flex: 1 }}
+        />
+      </Box>
+
+      <Autocomplete
+        size="small"
+        freeSolo
+        options={UNIDADES_MEDIDA.map(u => u.value)}
+        value={data.unidad_medida}
+        onChange={(_, newValue) => onChange('unidad_medida', newValue || 'UND')}
+        onInputChange={(_, newValue) => onChange('unidad_medida', newValue ? newValue.toUpperCase() : '')}
+        renderInput={(params) => (
+          <TextField {...params} label="Unidad de medida" size="small" placeholder="UND, KGS, LTS, CJA..." />
+        )}
+      />
+
+      <Autocomplete
+        size="small"
+        options={grupos}
+        getOptionLabel={(option) => option.nombre || ''}
+        value={grupos.find(g => g.id === data.grupo_item) || null}
+        loading={creatingGroup}
+        onChange={(_, newValue) => {
+          if (newValue?.id === '__create__') {
+            handleCreateGroup(newValue._inputValue);
+          } else {
+            onChange('grupo_item', newValue?.id || 2);
+          }
+        }}
+        filterOptions={(options, state) => {
+          const q = (state.inputValue || '').toLowerCase();
+          const filtered = options.filter(o => o.nombre.toLowerCase().includes(q));
+          if (state.inputValue.trim() && !filtered.some(o => o.nombre.toLowerCase() === state.inputValue.toLowerCase())) {
+            filtered.push({ id: '__create__', nombre: `Crear "${state.inputValue}"`, _inputValue: state.inputValue });
+          }
+          return filtered;
+        }}
+        renderOption={(props, option) => (
+          <Box component="li" {...props} key={option.id}>
+            {option.id === '__create__'
+              ? <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#10B981', fontWeight: 700 }}>
+                  <Add fontSize="small" />{option.nombre}
+                </Box>
+              : <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: option.color || '#94a3b8', flexShrink: 0 }} />
+                  {option.nombre}
+                  <Typography sx={{ ml: 'auto', fontSize: 10, color: 'text.secondary' }}>{option.codigo}</Typography>
+                </Box>
+            }
           </Box>
-        ))}
+        )}
+        renderInput={(params) => (
+          <TextField {...params} label="Categoría / Grupo" size="small" />
+        )}
+      />
+
+      <Box sx={{
+        p: 1.5, borderRadius: 2, border: '1px solid',
+        borderColor: data.maneja_lotes ? '#10B981' : 'divider',
+        bgcolor: data.maneja_lotes ? '#ECFDF5' : 'transparent',
+        transition: 'all 0.2s'
+      }}>
+        <FormControlLabel
+          control={<Switch checked={data.maneja_lotes} onChange={(e) => onChange('maneja_lotes', e.target.checked)} color="success" />}
+          label={<Typography sx={{ fontWeight: 600, fontSize: 14, color: data.maneja_lotes ? '#059669' : 'text.primary' }}>Producto Perecedero (Maneja Lotes)</Typography>}
+          sx={{ m: 0 }}
+        />
+        {data.maneja_lotes && (
+          <Typography sx={{ fontSize: 11, color: '#059669', mt: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Science fontSize="small" /> Las entradas requerirán fecha de vencimiento y las salidas usarán lógica FEFO.
+          </Typography>
+        )}
       </Box>
     </Box>
-
-    <Box>
-      <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', mb: 0.8 }}>Tipo de producto</Typography>
-      <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap' }}>
-        {GRUPOS_PRODUCTO.map(g => (
-          <Box key={g.id} onClick={() => onChange('grupo_item', g.id)}
-            sx={{ flex: '1 1 0', minWidth: 0, py: 0.8, borderRadius: 2, textAlign: 'center', cursor: 'pointer', fontSize: 12, fontWeight: 600, border: '1.5px solid', borderColor: data.grupo_item === g.id ? g.color : 'divider', bgcolor: data.grupo_item === g.id ? `${g.color}12` : 'background.paper', color: data.grupo_item === g.id ? g.color : 'text.secondary', userSelect: 'none' }}
-          >
-            {g.emoji} {g.short}
-          </Box>
-        ))}
-      </Box>
-    </Box>
-
-    {/* 👇 NUEVO SWITCH INTELIGENTE PARA LOTES 👇 */}
-    <Box sx={{ 
-      p: 1.5, borderRadius: 2, border: '1px solid', 
-      borderColor: data.maneja_lotes ? '#10B981' : 'divider', 
-      bgcolor: data.maneja_lotes ? '#ECFDF5' : 'transparent',
-      transition: 'all 0.2s'
-    }}>
-      <FormControlLabel 
-        control={<Switch checked={data.maneja_lotes} onChange={(e) => onChange('maneja_lotes', e.target.checked)} color="success" />} 
-        label={<Typography sx={{ fontWeight: 600, fontSize: 14, color: data.maneja_lotes ? '#059669' : 'text.primary' }}>Producto Perecedero (Maneja Lotes)</Typography>} 
-        sx={{ m: 0 }}
-      />
-      {data.maneja_lotes && (
-        <Typography sx={{ fontSize: 11, color: '#059669', mt: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <Science fontSize="small" /> Las entradas requerirán fecha de vencimiento y las salidas usarán lógica FEFO.
-        </Typography>
-      )}
-    </Box>
-  </Box>
-);
+  );
+};
 
 // ─── Componente principal ──────────────────────────────────────────────────────
 const QuickCreateModal = ({ open, onClose, type, initialName = '', onCreated }) => {

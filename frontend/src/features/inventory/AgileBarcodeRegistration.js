@@ -1,19 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Box, Typography, TextField, Button, Grid, 
+  Box, Typography, TextField, Button, Grid,
   InputAdornment, IconButton, CircularProgress,
-  Switch, FormControlLabel, Collapse, Dialog, DialogContent, 
-  AppBar, Toolbar, Slide, Paper, Stack, Divider
+  Switch, FormControlLabel, Collapse, Dialog, DialogContent,
+  AppBar, Toolbar, Slide, Paper, Stack, Divider, Autocomplete
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import {
   QrCodeScanner, Inventory, Close,
   AttachMoney, ShoppingCart, ShoppingBag, Videocam, VideocamOff,
-  Description, Science, Event, LocalOffer
+  Description, Science, Event, LocalOffer, Add, Category, Straighten
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import { apiClient, getProductoByBarcode } from '../../api';
 import CurrencyField from '../../components/common/CurrencyField';
+import { UNIDADES_MEDIDA } from '../../utils/constants';
 import { Html5QrcodeScanner, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
 // Ajustado al color naranja que muestras en tu captura
@@ -30,6 +31,8 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
+  const [grupos, setGrupos] = useState([]);
+  const [creatingGroup, setCreatingGroup] = useState(false);
   const [formData, setFormData] = useState({
     nombre: '', codigo_barras: '', descripcion: '', precio: '', costo: '',
     stock_actual: '', stock_minimo: 0, unidad_medida: 'UND', grupo_item: 2,
@@ -47,9 +50,28 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
 
   useEffect(() => {
     if (open) {
-        setTimeout(() => barcodeRef.current?.focus(), 500);
+      setTimeout(() => barcodeRef.current?.focus(), 500);
+      apiClient.get('/grupos-producto/')
+        .then(r => setGrupos(r.data || []))
+        .catch(() => {});
     }
   }, [open]);
+
+  const handleCreateGroup = async (nombre) => {
+    const codigo = nombre.trim().substring(0, 4).toUpperCase().replace(/\s+/g, '');
+    setCreatingGroup(true);
+    try {
+      const res = await apiClient.post('/grupos-producto/', { nombre: nombre.trim(), codigo, color: '#94a3b8', orden: 99 });
+      const newGroup = res.data;
+      setGrupos(prev => [...prev, newGroup]);
+      setFormData(prev => ({ ...prev, grupo_item: newGroup.id }));
+      toast.success(`Categoría "${newGroup.nombre}" creada`);
+    } catch {
+      toast.error('Error al crear la categoría');
+    } finally {
+      setCreatingGroup(false);
+    }
+  };
 
   useEffect(() => {
     if (cameraActive && open) {
@@ -312,6 +334,64 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
                                     inputRef={descRef}
                                     onKeyDown={(e) => e.key === 'Enter' && precioRef.current?.focus()}
                                     InputProps={{ startAdornment: <InputAdornment position="start"><Description sx={{ color: 'text.secondary', opacity: 0.5 }} /></InputAdornment> }}
+                                />
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                                <Autocomplete
+                                    fullWidth
+                                    options={grupos}
+                                    getOptionLabel={(option) => option.nombre || ''}
+                                    value={grupos.find(g => g.id === formData.grupo_item) || null}
+                                    onChange={(_, newValue) => {
+                                        if (newValue?.id === '__create__') {
+                                            handleCreateGroup(newValue._inputValue);
+                                        } else {
+                                            setFormData(prev => ({ ...prev, grupo_item: newValue?.id || 2 }));
+                                        }
+                                    }}
+                                    filterOptions={(options, state) => {
+                                        const q = (state.inputValue || '').toLowerCase();
+                                        const filtered = options.filter(o => o.nombre.toLowerCase().includes(q));
+                                        if (state.inputValue.trim() && !filtered.some(o => o.nombre.toLowerCase() === state.inputValue.toLowerCase())) {
+                                            filtered.push({ id: '__create__', nombre: `Crear "${state.inputValue}"`, _inputValue: state.inputValue, color: ACCENT });
+                                        }
+                                        return filtered;
+                                    }}
+                                    loading={creatingGroup}
+                                    renderOption={(props, option) => (
+                                        <Box component="li" {...props} key={option.id}>
+                                            {option.id === '__create__'
+                                                ? <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: ACCENT, fontWeight: 700 }}>
+                                                    <Add fontSize="small" />{option.nombre}
+                                                  </Box>
+                                                : <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: option.color || '#94a3b8', flexShrink: 0 }} />
+                                                    {option.nombre}
+                                                    <Typography variant="caption" sx={{ ml: 'auto', color: 'text.secondary' }}>{option.codigo}</Typography>
+                                                  </Box>
+                                            }
+                                        </Box>
+                                    )}
+                                    renderInput={(params) => (
+                                        <TextField {...params} label="Categoría / Grupo"
+                                            InputProps={{ ...params.InputProps, startAdornment: <><InputAdornment position="start"><Category sx={{ color: 'text.secondary', opacity: 0.5 }} /></InputAdornment>{params.InputProps.startAdornment}</> }}
+                                        />
+                                    )}
+                                />
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                                <Autocomplete
+                                    fullWidth
+                                    freeSolo
+                                    options={UNIDADES_MEDIDA.map(u => u.value)}
+                                    value={formData.unidad_medida}
+                                    onChange={(_, newValue) => setFormData(prev => ({ ...prev, unidad_medida: newValue || 'UND' }))}
+                                    onInputChange={(_, newValue) => setFormData(prev => ({ ...prev, unidad_medida: newValue ? newValue.toUpperCase() : '' }))}
+                                    renderInput={(params) => (
+                                        <TextField {...params} label="Unidad de Medida" placeholder="UND, KGS, LTS..."
+                                            InputProps={{ ...params.InputProps, startAdornment: <><InputAdornment position="start"><Straighten sx={{ color: 'text.secondary', opacity: 0.5 }} /></InputAdornment>{params.InputProps.startAdornment}</> }}
+                                        />
+                                    )}
                                 />
                             </Grid>
                             <Grid item xs={12} md={6}>
