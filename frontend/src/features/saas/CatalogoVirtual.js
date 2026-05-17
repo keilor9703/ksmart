@@ -11,7 +11,7 @@ import {
 import {
   Search, ShoppingCart, Add, Remove, WhatsApp,
   Storefront, LocationOn, Person, Phone, Close,
-  ArrowForward, ShoppingBag
+  ArrowForward, ShoppingBag, RocketLaunch, BarChart, Inventory2
 } from '@mui/icons-material';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
@@ -167,10 +167,22 @@ const CatalogoVirtual = () => {
           ) : (
             <Avatar sx={{ bgcolor: accentColor, width: 50, height: 50 }} variant="rounded"><Storefront /></Avatar>
           )}
-          <Box>
+          <Box sx={{ flexGrow: 1 }}>
             <Typography sx={{ fontWeight: 800, fontSize: 18, color: '#1E293B' }}>{empresa.nombre}</Typography>
             <Typography variant="caption" color="text.secondary">Catálogo Virtual</Typography>
           </Box>
+          {/* Powered by — sutil, solo texto */}
+          <Typography
+            component="a"
+            href="/login"
+            sx={{
+              fontSize: 10, color: '#94A3B8', textDecoration: 'none', whiteSpace: 'nowrap',
+              fontWeight: 600, letterSpacing: 0.3, flexShrink: 0,
+              '&:hover': { color: '#FF6020' }, transition: 'color 0.2s'
+            }}
+          >
+            Powered by Ksmart360
+          </Typography>
         </Box>
 
         <TextField
@@ -361,6 +373,88 @@ const CatalogoVirtual = () => {
           </>
         )}
       </Dialog>
+
+      {/* ── BANNER PROMOCIONAL ──────────────────────────────────────────────── */}
+      <Box sx={{ px: 2, pt: 2, pb: 1 }}>
+        <Box
+          sx={{
+            borderRadius: 4,
+            background: 'linear-gradient(135deg, #1E293B 0%, #0F172A 100%)',
+            p: { xs: 3, sm: 4 },
+            textAlign: 'center',
+            position: 'relative',
+            overflow: 'hidden',
+            '&::before': {
+              content: '""',
+              position: 'absolute', top: -40, right: -40,
+              width: 160, height: 160, borderRadius: '50%',
+              background: 'rgba(255,96,32,0.12)'
+            },
+            '&::after': {
+              content: '""',
+              position: 'absolute', bottom: -30, left: -30,
+              width: 120, height: 120, borderRadius: '50%',
+              background: 'rgba(255,96,32,0.08)'
+            }
+          }}
+        >
+          {/* Ícono */}
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+            <Box sx={{
+              width: 52, height: 52, borderRadius: 2.5,
+              bgcolor: '#FF6020', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 8px 24px rgba(255,96,32,0.35)'
+            }}>
+              <RocketLaunch sx={{ color: '#fff', fontSize: 26 }} />
+            </Box>
+          </Box>
+
+          {/* Headline */}
+          <Typography sx={{ fontWeight: 900, fontSize: { xs: 20, sm: 22 }, color: '#fff', mb: 0.8, lineHeight: 1.2 }}>
+            ¿Tienes un negocio?
+          </Typography>
+          <Typography sx={{ fontSize: 14, color: '#94A3B8', mb: 2.5, lineHeight: 1.6, maxWidth: 340, mx: 'auto' }}>
+            Crea tu catálogo virtual, gestiona ventas, inventario y clientes — todo desde un solo lugar con{' '}
+            <Box component="span" sx={{ color: '#FF6020', fontWeight: 700 }}>Ksmart360</Box>.
+          </Typography>
+
+          {/* Feature pills */}
+          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, flexWrap: 'wrap', mb: 3 }}>
+            {[
+              { icon: <Storefront sx={{ fontSize: 13 }} />, label: 'Catálogo virtual' },
+              { icon: <BarChart sx={{ fontSize: 13 }} />, label: 'Ventas y reportes' },
+              { icon: <Inventory2 sx={{ fontSize: 13 }} />, label: 'Control de inventario' },
+            ].map(f => (
+              <Box key={f.label} sx={{
+                display: 'flex', alignItems: 'center', gap: 0.6,
+                bgcolor: 'rgba(255,255,255,0.07)', borderRadius: 10,
+                px: 1.5, py: 0.5, color: '#CBD5E1', fontSize: 11, fontWeight: 600
+              }}>
+                {f.icon} {f.label}
+              </Box>
+            ))}
+          </Box>
+
+          {/* CTA button */}
+          <Button
+            variant="contained"
+            endIcon={<ArrowForward />}
+            href="/login"
+            sx={{
+              bgcolor: '#FF6020', borderRadius: 3, fontWeight: 800,
+              textTransform: 'none', px: 3.5, py: 1.3, fontSize: 15,
+              boxShadow: '0 6px 20px rgba(255,96,32,0.4)',
+              '&:hover': { bgcolor: '#e65520', boxShadow: '0 8px 28px rgba(255,96,32,0.5)' }
+            }}
+          >
+            Comenzar gratis
+          </Button>
+
+          <Typography sx={{ mt: 1.5, fontSize: 11, color: '#475569' }}>
+            Sin tarjeta de crédito · Configuración en minutos
+          </Typography>
+        </Box>
+      </Box>
 
       {/* CARRITO FLOTANTE */}
       {cartCount > 0 && (
