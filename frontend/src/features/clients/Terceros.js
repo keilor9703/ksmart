@@ -207,40 +207,37 @@ export default function Terceros() {
       <Paper sx={{
         borderRadius: 3,
         boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
-        overflow: 'visible',          // 'hidden' bloqueaba scroll buttons en móvil
-        maxWidth: '100%',
+        overflow: 'hidden',
       }}>
-        <Box sx={{ borderRadius: '12px 12px 0 0', overflow: 'hidden' }}>
-          <Tabs
-            value={tab}
-            onChange={(_, v) => setTab(v)}
-            variant={isMobile ? 'fullWidth' : 'standard'}
-            scrollButtons={false}
-            sx={{
-              px: isMobile ? 0 : 2,
-              borderBottom: '1px solid',
-              borderColor: 'divider',
-              '& .MuiTab-root': {
-                fontWeight: 600,
-                fontSize: isMobile ? 11 : 13,
-                textTransform: 'none',
-                minHeight: isMobile ? 44 : 52,
-                minWidth: 0,
-                px: isMobile ? 0.5 : 2,
-              },
-              '& .MuiTabs-indicator': {
-                backgroundColor: ACCENT,
-                height: 3,
-                borderRadius: 3,
-              },
-              '& .Mui-selected': { color: `${ACCENT} !important` },
-            }}
-          >
-            <Tab label={isMobile ? '👥 Clientes' : '👥 Clientes'} />
-            <Tab label={isMobile ? '🏭 Proveedores' : '🏭 Proveedores'} />
-            <Tab label={isMobile ? '💰 Por Cobrar' : '💰 Cuentas por Cobrar'} />
-          </Tabs>
-        </Box>
+        <Tabs
+          value={tab}
+          onChange={(_, v) => setTab(v)}
+          variant={isMobile ? 'fullWidth' : 'standard'}
+          scrollButtons={false}
+          sx={{
+            px: isMobile ? 0 : 2,
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+            '& .MuiTab-root': {
+              fontWeight: 600,
+              fontSize: isMobile ? 11 : 13,
+              textTransform: 'none',
+              minHeight: isMobile ? 44 : 52,
+              minWidth: 0,
+              px: isMobile ? 0.5 : 2,
+            },
+            '& .MuiTabs-indicator': {
+              backgroundColor: ACCENT,
+              height: 3,
+              borderRadius: 3,
+            },
+            '& .Mui-selected': { color: `${ACCENT} !important` },
+          }}
+        >
+          <Tab label={isMobile ? '👥 Clientes' : '👥 Clientes'} />
+          <Tab label={isMobile ? '🏭 Proveedores' : '🏭 Proveedores'} />
+          <Tab label={isMobile ? '💰 Por Cobrar' : '💰 Cuentas por Cobrar'} />
+        </Tabs>
 
         {/* ── Contenido de Tabs ── */}
         <TabPanel value={tab} index={0}>
@@ -270,7 +267,7 @@ export default function Terceros() {
             <CuentasPorCobrar key={`cxc-${refreshList}`} />
           </Box>
         </TabPanel>
-      </Paper>  {/* ← cierre Paper */}
+      </Paper>
     </Box>
   );
 }
