@@ -7,6 +7,7 @@ import ConfirmationDialog from '../../components/common/ConfirmationDialog';
 import VentaDetailDialog from './VentaDetailDialog';
 import DevolucionDialog from './DevolucionDialog';
 import QuickCreateModal from '../../components/common/QuickCreateModal';
+import ReciboDialog from '../../components/common/ReciboDialog';
 import {
     Box, Paper, Typography, Grid, TextField, Button, IconButton,
     Autocomplete, Table, TableBody, TableCell, TableContainer,
@@ -328,6 +329,10 @@ const Ventas = ({ user }) => {
     const [devolucionOpen, setDevolucionOpen]   = useState(false);
     const [ventaDevolucion, setVentaDevolucion] = useState(null);
 
+    // Recibo dialog
+    const [reciboOpen, setReciboOpen]     = useState(false);
+    const [reciboVenta, setReciboVenta]   = useState(null);
+
     const [tabValue, setTabValue]       = useState(0);
     const [page, setPage]               = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -569,12 +574,45 @@ const handleProcessBarcode = async (code) => {
 
     const confirmSale = () => {
         if (!saleToConfirm) return;
+
+        // Snapshot state BEFORE reset to build receipt data
+        const snapDetails  = saleDetails.map(d => ({
+            producto:       d.producto,
+            cantidad:       d.cantidad,
+            precio_unitario: d.precioUnitario * (1 - (d.descuentoPct || 0) / 100),
+            descuento_pct:  d.descuentoPct || 0,
+        }));
+        const snapCliente  = cliente;
+        const snapMetodo   = saleToConfirm.metodo_pago;
+        const snapPagada   = saleToConfirm.pagada;
+        const snapIva      = parseFloat(saleToConfirm.iva_porcentaje) || 0;
+
         const req = editingVenta
             ? apiClient.put(`/ventas/${editingVenta.id}`, saleToConfirm)
             : apiClient.post('/ventas/', saleToConfirm);
-        req.then(() => {
+
+        req.then((res) => {
+            const saved = res.data || {};
             toast.success(`Venta ${editingVenta ? 'actualizada' : 'registrada'} exitosamente`);
-            fetchVentas(); fetchVentasSummary(); resetForm(); setTabValue(1);
+            fetchVentas(); fetchVentasSummary();
+
+            // Build receipt object and show dialog
+            const totalBruto = snapDetails.reduce((s, d) => s + d.precio_unitario * d.cantidad, 0);
+            setReciboVenta({
+                id:           saved.id,
+                fecha:        saved.fecha || new Date().toISOString(),
+                cliente:      snapCliente,
+                detalles:     snapDetails,
+                total:        saved.total ?? totalBruto,
+                iva_porcentaje: snapIva,
+                iva_total:    saved.iva_total ?? 0,
+                monto_pagado: snapPagada ? (saved.total ?? totalBruto) : 0,
+                metodo_pago:  snapMetodo,
+                estado_pago:  snapPagada ? 'pagado' : 'pendiente',
+            });
+            setReciboOpen(true);
+
+            resetForm(); setTabValue(1);
         }).catch(err => toast.error(err.response?.data?.detail || 'Error al guardar la venta.'))
           .finally(() => { setShowConfirmSaleDialog(false); setSaleToConfirm(null); });
     };
@@ -1081,6 +1119,8 @@ const handleProcessBarcode = async (code) => {
                 open={detailModalOpen}
                 handleClose={handleCloseDetails}
                 venta={selectedVenta}
+                empresa={user?.empresa}
+                vendedor={user?.nombre_completo || user?.username}
             />
             <DevolucionDialog
                 open={devolucionOpen}
@@ -1094,6 +1134,13 @@ const handleProcessBarcode = async (code) => {
                 type={quickCreate.type}
                 initialName={quickCreate.initialName}
                 onCreated={handleQuickCreated}
+            />
+            <ReciboDialog
+                open={reciboOpen}
+                onClose={() => setReciboOpen(false)}
+                venta={reciboVenta}
+                empresa={user?.empresa}
+                vendedor={user?.nombre_completo || user?.username}
             />
         </Box>
     );
