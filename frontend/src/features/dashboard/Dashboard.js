@@ -287,7 +287,7 @@ const Dashboard = ({ user }) => {
           <Box sx={{ width: 80, height: 80, borderRadius: '24px', bgcolor: `${ACCENT}10`, color: ACCENT, display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 3, transform: 'rotate(-5deg)', boxShadow: `0 8px 20px ${ACCENT}20` }}>
             <RocketLaunch sx={{ fontSize: 40 }} />
           </Box>
-          <Typography variant="h4" sx={{ fontWeight: 900, mb: 1, letterSpacing: -0.5, color: 'text.primary' }}>¡Bienvenido, {user?.nombre_completo?.split(' ')[0] || 'Usuario'}!</Typography>
+          <Typography variant="h4" sx={{ fontWeight: 900, mb: 1, letterSpacing: -0.5, color: 'text.primary' }}>¡Bienvenido, {user?.empresa?.nombre || user?.nombre_completo?.split(' ')[0] || 'Usuario'}!</Typography>
           <Typography sx={{ color: 'text.secondary', maxWidth: 600, mx: 'auto', mb: 5, fontSize: 16 }}>
             {esPrestamista 
               ? 'Estamos listos para potenciar tu negocio de cobranzas. Sigue esta guía rápida para empezar a gestionar tus rutas y capital.' 
