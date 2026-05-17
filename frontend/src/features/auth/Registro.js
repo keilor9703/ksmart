@@ -7,7 +7,8 @@ import {
 import {
   Visibility, VisibilityOff, Business, Person, Lock,
   Storefront, AttachMoney, Email, Phone, LocationOn,
-  ArrowForward, ArrowBack, CheckCircle, Group
+  ArrowForward, ArrowBack, CheckCircle, Group,
+  LocalParking, LocalCarWash
 } from '@mui/icons-material';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -214,32 +215,28 @@ export default function Registro() {
                     Tipo de negocio
                   </Typography>
                   <Grid container spacing={1.5}>
-                    <Grid item xs={6}>
-                      <Card sx={{
-                        border: formData.tipo_negocio === 'erp' ? `2px solid ${ACCENT}` : '2px solid transparent',
-                        bgcolor: formData.tipo_negocio === 'erp' ? `${ACCENT}08` : 'background.paper',
-                        transition: '0.25s',
-                      }}>
-                        <CardActionArea onClick={() => setFormData({ ...formData, tipo_negocio: 'erp' })} sx={{ p: 1.5 }}>
-                          <Storefront sx={{ color: formData.tipo_negocio === 'erp' ? ACCENT : 'text.disabled', fontSize: 28 }} />
-                          <Typography variant="subtitle2" fontWeight={700} sx={{ mt: 0.5 }}>Comercio / ERP</Typography>
-                          <Typography variant="caption" color="text.secondary">Ventas e Inventario</Typography>
-                        </CardActionArea>
-                      </Card>
-                    </Grid>
-                    <Grid item xs={6}>
-                      <Card sx={{
-                        border: formData.tipo_negocio === 'prestamos' ? `2px solid ${ACCENT}` : '2px solid transparent',
-                        bgcolor: formData.tipo_negocio === 'prestamos' ? `${ACCENT}08` : 'background.paper',
-                        transition: '0.25s',
-                      }}>
-                        <CardActionArea onClick={() => setFormData({ ...formData, tipo_negocio: 'prestamos' })} sx={{ p: 1.5 }}>
-                          <AttachMoney sx={{ color: formData.tipo_negocio === 'prestamos' ? ACCENT : 'text.disabled', fontSize: 28 }} />
-                          <Typography variant="subtitle2" fontWeight={700} sx={{ mt: 0.5 }}>Cobranzas</Typography>
-                          <Typography variant="caption" color="text.secondary">Rutas de cobro</Typography>
-                        </CardActionArea>
-                      </Card>
-                    </Grid>
+                    {[
+                      { value: 'erp',         icon: <Storefront   fontSize="inherit" />, label: 'Comercio / ERP',  desc: 'Ventas e Inventario'   },
+                      { value: 'prestamos',   icon: <AttachMoney  fontSize="inherit" />, label: 'Cobranzas',       desc: 'Rutas de cobro'        },
+                      { value: 'parqueadero', icon: <LocalParking fontSize="inherit" />, label: 'Parqueadero',     desc: 'Control de vehículos'  },
+                      { value: 'lavadero',    icon: <LocalCarWash fontSize="inherit" />, label: 'Lavadero',        desc: 'POS + productividad'   },
+                    ].map((t) => (
+                      <Grid item xs={6} key={t.value}>
+                        <Card sx={{
+                          border: formData.tipo_negocio === t.value ? `2px solid ${ACCENT}` : '2px solid transparent',
+                          bgcolor: formData.tipo_negocio === t.value ? `${ACCENT}08` : 'background.paper',
+                          transition: '0.25s',
+                        }}>
+                          <CardActionArea onClick={() => setFormData({ ...formData, tipo_negocio: t.value })} sx={{ p: 1.5 }}>
+                            <Box sx={{ fontSize: 28, color: formData.tipo_negocio === t.value ? ACCENT : 'text.disabled' }}>
+                              {t.icon}
+                            </Box>
+                            <Typography variant="subtitle2" fontWeight={700} sx={{ mt: 0.5 }}>{t.label}</Typography>
+                            <Typography variant="caption" color="text.secondary">{t.desc}</Typography>
+                          </CardActionArea>
+                        </Card>
+                      </Grid>
+                    ))}
                   </Grid>
                 </Box>
 

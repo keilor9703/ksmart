@@ -1060,8 +1060,8 @@ class RegistroSaaS(BaseModel):
 
     @validator('tipo_negocio')
     def _tipo_valido(cls, v):
-        if v not in ('erp', 'prestamos', 'parqueadero'):
-            raise ValueError('tipo_negocio debe ser "erp" o "prestamos" o "parqueadero"')
+        if v not in ('erp', 'prestamos', 'parqueadero', 'lavadero'):
+            raise ValueError('tipo_negocio debe ser "erp", "prestamos", "parqueadero" o "lavadero"')
         return v
 
     @validator('username')
