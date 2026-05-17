@@ -16,9 +16,9 @@
 
 import React from 'react';
 import {
-   
+
   PointOfSale,TwoWheeler,DirectionsRun
-  
+
 } from '@mui/icons-material';
 // Importaciones individuales (Best Practice para evitar lentitud de compilación)
 import ShoppingCart from '@mui/icons-material/ShoppingCart';
@@ -41,6 +41,8 @@ import BarChart from '@mui/icons-material/BarChart';
 import LocalParking from '@mui/icons-material/LocalParking';
 import ManageSearch from '@mui/icons-material/ManageSearch';
 import Commute from '@mui/icons-material/Commute';
+import DirectionsCar from '@mui/icons-material/DirectionsCar';
+import LocalCarWash from '@mui/icons-material/LocalCarWash';
 
 import Autorenew from '@mui/icons-material/Autorenew';
 import SettingsSuggest from '@mui/icons-material/SettingsSuggest';
@@ -84,9 +86,13 @@ export const MODULE_ICONS = {
   // Parqueadero (Paleta de grises y colores vibrantes específicos)
   '/parqueadero':                { icon: <LocalParking />,    color: '#3B82F6', label: 'Parqueadero' },
   '/parqueadero/buscar':         { icon: <ManageSearch />,    color: '#CDDC39', label: 'Buscar placa' },
-  '/parqueadero/vehiculos':      { icon: <TwoWheeler />,         color: '#9C27B0', label: 'Vehículos' },
-  '/parqueadero/suscripciones':  { icon: <Autorenew />, color: '#FF4081', label: 'Suscripciones' },
+  '/parqueadero/vehiculos':      { icon: <TwoWheeler />,      color: '#9C27B0', label: 'Vehículos' },
+  '/parqueadero/suscripciones':  { icon: <Autorenew />,       color: '#FF4081', label: 'Suscripciones' },
   '/parqueadero/config':         { icon: <SettingsSuggest />, color: '#6B7280', label: 'Tarifas y cupo' },
+
+  // Lavadero
+  '/lavadero/ventas':   { icon: <LocalCarWash />,  color: '#0EA5E9', label: 'POS Lavadero' },
+  '/lavadero/reporte':  { icon: <DirectionsCar />, color: '#0284C7', label: 'Reporte por trabajador' },
 };
 
 

@@ -354,6 +354,9 @@ class VentaBase(BaseModel):
     tipo: str = "venta"                          # 'venta' | 'cotizacion'
     valida_hasta: Optional[datetime] = None      # Solo cotizaciones
     observaciones: Optional[str] = None          # Notas internas
+    # Lavadero
+    operador_id: Optional[int] = None
+    placa_vehiculo: Optional[str] = None
 
 
 class VentaCreate(VentaBase):
@@ -374,6 +377,9 @@ class Venta(VentaBase):
     # ← Nuevos campos Fase 2
     numero_factura: Optional[str] = None
     resolucion_id: Optional[int] = None
+    # Lavadero
+    operador_id: Optional[int] = None
+    placa_vehiculo: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 # =========================

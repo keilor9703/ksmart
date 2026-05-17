@@ -453,6 +453,26 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v43)
                 logger.info("V43 (grupos de producto dinámicos) aplicada.")
 
+            # V44 - CAMPOS LAVADERO EN VENTAS
+            migration_v44 = "inv_v44_lavadero_ventas_campos"
+            if not _meta_exists(conn, migration_v44):
+                # Add operador_id column to ventas
+                try:
+                    conn.execute(text("ALTER TABLE ventas ADD COLUMN operador_id INTEGER REFERENCES users(id)"))
+                    logger.info("V44: columna operador_id agregada a ventas")
+                except Exception:
+                    pass  # Column may already exist
+
+                # Add placa_vehiculo column to ventas
+                try:
+                    conn.execute(text("ALTER TABLE ventas ADD COLUMN placa_vehiculo VARCHAR(15)"))
+                    logger.info("V44: columna placa_vehiculo agregada a ventas")
+                except Exception:
+                    pass  # Column may already exist
+
+                _mark_migration_applied(conn, migration_v44)
+                logger.info("V44 (campos lavadero en ventas) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

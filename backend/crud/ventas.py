@@ -100,9 +100,11 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate):
             _asignar_numero_factura(db, empresa_id, db_venta)
 
     #     # Fase 2B: campos extra
-        db_venta.tipo         = getattr(venta, 'tipo', 'venta')
-        db_venta.valida_hasta = getattr(venta, 'valida_hasta', None)
+        db_venta.tipo          = getattr(venta, 'tipo', 'venta')
+        db_venta.valida_hasta  = getattr(venta, 'valida_hasta', None)
         db_venta.observaciones = getattr(venta, 'observaciones', None)
+        db_venta.operador_id   = getattr(venta, 'operador_id', None)
+        db_venta.placa_vehiculo = getattr(venta, 'placa_vehiculo', None)
 
 
 

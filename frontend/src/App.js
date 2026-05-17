@@ -53,6 +53,8 @@ import ParqueaderoBuscar         from './features/parking/ParqueaderoBuscar';
 import ParqueaderoVehiculos      from './features/parking/ParqueaderoVehiculos';
 import ParqueaderoSuscripciones  from './features/parking/ParqueaderoSuscripciones';
 import ParqueaderoConfig         from './features/parking/ParqueaderoConfig';
+import LavaderoVentas            from './features/lavadero/LavaderoVentas';
+import LavaderoReporte           from './features/lavadero/LavaderoReporte';
 
 // ✅ MÓDULO SAAS (ANUNCIOS)
 import AnnouncementBanner from './features/saas/components/AnnouncementBanner';
@@ -325,7 +327,7 @@ const hasAccess = useCallback((path) => {
                   } />
 
                   {/* 🔹 MÓDULOS PROTEGIDOS POR ROL Y SAAS (Envueltos en ProtectedRoute) */}
-                  <Route path="/ventas"             element={<ProtectedRoute path="/ventas"             hasAccess={hasAccess}><Ventas /></ProtectedRoute>} />
+                  <Route path="/ventas"             element={<ProtectedRoute path="/ventas"             hasAccess={hasAccess}><Ventas user={user} /></ProtectedRoute>} />
                   <Route path="/cotizaciones"       element={<ProtectedRoute path="/cotizaciones"       hasAccess={hasAccess}><Cotizaciones /></ProtectedRoute>} />
                   <Route path="/admin/resoluciones" element={<ProtectedRoute path="/admin/resoluciones" hasAccess={hasAccess}><ResolucionesDian /></ProtectedRoute>} />
                   <Route path="/compras"            element={<ProtectedRoute path="/compras"            hasAccess={hasAccess}><Compras /></ProtectedRoute>} />
@@ -349,6 +351,10 @@ const hasAccess = useCallback((path) => {
                   <Route path="/parqueadero/vehiculos"      element={<ProtectedRoute path="/parqueadero/vehiculos"      hasAccess={hasAccess}><ParqueaderoVehiculos      /></ProtectedRoute>} />
                   <Route path="/parqueadero/suscripciones"  element={<ProtectedRoute path="/parqueadero/suscripciones"  hasAccess={hasAccess}><ParqueaderoSuscripciones  /></ProtectedRoute>} />
                   <Route path="/parqueadero/config"         element={<ProtectedRoute path="/parqueadero/config"         hasAccess={hasAccess}><ParqueaderoConfig         /></ProtectedRoute>} />
+
+                  {/* 🚗 MÓDULO LAVADERO */}
+                  <Route path="/lavadero/ventas"   element={<ProtectedRoute path="/lavadero/ventas"  hasAccess={hasAccess}><LavaderoVentas  user={user} /></ProtectedRoute>} />
+                  <Route path="/lavadero/reporte"  element={<ProtectedRoute path="/lavadero/reporte" hasAccess={hasAccess}><LavaderoReporte user={user} /></ProtectedRoute>} />
 
                   {/* 🔹 RUTAS EXCLUSIVAS DE ADMINISTRACIÓN */}
                   {/* Gestión de Empresas (Solo el dueño del SaaS lo ve) */}

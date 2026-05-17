@@ -329,10 +329,15 @@ class Venta(Base, TenantMixin):
     valida_hasta    = Column(DateTime(timezone=True), nullable=True)
     observaciones   = Column(Text, nullable=True)
 
+    # Lavadero
+    operador_id     = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    placa_vehiculo  = Column(String(15), nullable=True)
+
     cliente                = relationship("Cliente", back_populates="ventas")
     detalles               = relationship("DetalleVenta", back_populates="venta", cascade="all, delete-orphan")
     pagos                  = relationship("Pago", back_populates="venta", cascade="all, delete-orphan")
     orden_trabajo_asociada = relationship("OrdenTrabajo", back_populates="venta_asociada", uselist=False)
+    operador               = relationship("User", foreign_keys=[operador_id])
 
 class OrdenProducto(Base, TenantMixin):
     __tablename__ = "orden_productos"
