@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  Dialog, DialogTitle, DialogContent, Box, Typography,
+  Dialog, DialogTitle, DialogContent, DialogActions, Box, Typography,
   IconButton, Divider, Chip, Table, TableBody, TableCell,
-  TableHead, TableRow, Paper, Grid
+  TableHead, TableRow, Paper, Grid, Button
 } from '@mui/material';
-import { Close, Receipt, AttachMoney, CreditCard, AccountBalance, AccessTime } from '@mui/icons-material';
+import { Close, Receipt, AttachMoney, CreditCard, AccountBalance, AccessTime, Print } from '@mui/icons-material';
 import { formatCurrency } from '../../utils/formatters';
+import ReciboDialog from '../../components/common/ReciboDialog';
 
 const ACCENT  = '#FF6020';
 const GREEN   = '#10B981';
@@ -40,7 +41,8 @@ const EstadoChip = ({ estado }) => {
 };
 
 // ─── Componente ────────────────────────────────────────────────────────────
-const VentaDetailDialog = ({ open, handleClose, venta }) => {
+const VentaDetailDialog = ({ open, handleClose, venta, empresa, vendedor }) => {
+  const [reciboOpen, setReciboOpen] = useState(false);
   if (!venta) return null;
 
   const metodo    = getMetodoPago(venta);
@@ -184,6 +186,19 @@ const VentaDetailDialog = ({ open, handleClose, venta }) => {
           </Grid>
         </Grid>
 
+        {/* ── Botón recibo ── */}
+        <Box sx={{ mt: 2.5, display: 'flex', justifyContent: 'flex-end' }}>
+          <Button
+            startIcon={<Print />}
+            variant="outlined"
+            size="small"
+            onClick={() => setReciboOpen(true)}
+            sx={{ borderRadius: 2, fontWeight: 600, textTransform: 'none', color: '#FF6020', borderColor: '#FF6020', '&:hover': { bgcolor: '#FF602010', borderColor: '#FF6020' } }}
+          >
+            Imprimir / Compartir recibo
+          </Button>
+        </Box>
+
         {/* Historial de pagos si hay abonos */}
         {(venta.pagos || []).length > 0 && (
           <>
@@ -215,6 +230,14 @@ const VentaDetailDialog = ({ open, handleClose, venta }) => {
           </>
         )}
       </DialogContent>
+
+      <ReciboDialog
+        open={reciboOpen}
+        onClose={() => setReciboOpen(false)}
+        venta={venta}
+        empresa={empresa}
+        vendedor={vendedor}
+      />
     </Dialog>
   );
 };
