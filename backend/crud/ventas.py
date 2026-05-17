@@ -43,9 +43,10 @@ def get_venta(db: Session, empresa_id: int, venta_id: int):
     )
 
 def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate):
-    cliente = get_cliente(db, empresa_id, venta.cliente_id)
-    if not cliente:
-        raise HTTPException(status_code=404, detail="Cliente no encontrado o no pertenece a esta empresa")
+    if venta.cliente_id is not None:
+        cliente = get_cliente(db, empresa_id, venta.cliente_id)
+        if not cliente:
+            raise HTTPException(status_code=404, detail="Cliente no encontrado o no pertenece a esta empresa")
 
     total_bruto = 0.0
     detalles_objs = []

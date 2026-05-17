@@ -12,8 +12,9 @@ import CurrencyField from '../../components/common/CurrencyField';
 
 const ACCENT = '#FF6020';
 
-const TIPOS_VEHICULO = ['Moto', 'Carro', 'SUV/Camioneta', 'Otro'];
-const METODOS_PAGO   = ['Efectivo', 'Transferencia', 'Tarjeta'];
+const TIPOS_VEHICULO    = ['Moto', 'Carro', 'SUV/Camioneta', 'Otro'];
+const METODOS_PAGO      = ['Efectivo', 'Transferencia', 'Tarjeta'];
+const CONSUMIDOR_FINAL  = { id: null, nombre: 'Consumidor final / Otros' };
 
 function buildEmptyCart() { return []; }
 
@@ -35,7 +36,7 @@ export default function LavaderoVentas({ user }) {
   const [operadorObj, setOperadorObj]     = useState(null);
   const [metodoPago, setMetodoPago]       = useState('Efectivo');
   const [valorRecibido, setValorRecibido] = useState(0);
-  const [clienteObj, setClienteObj]       = useState(null);
+  const [clienteObj, setClienteObj]       = useState(CONSUMIDOR_FINAL);
   const [saving, setSaving]               = useState(false);
 
   // ─── Fetch services ────────────────────────────────────────────────────────
@@ -138,14 +139,7 @@ export default function LavaderoVentas({ user }) {
     if (!placa.trim()) { toast.warning('Ingresa la placa del vehículo.'); return; }
     if (carrito.length === 0) { toast.warning('Agrega al menos un servicio.'); return; }
 
-    let clienteId = clienteObj?.id ?? null;
-    if (!clienteId) {
-      if (clientes.length === 0) {
-        toast.error('No hay clientes registrados. Crea uno primero.');
-        return;
-      }
-      clienteId = clientes[0].id;
-    }
+    const clienteId = clienteObj?.id ?? null;
 
     setSaving(true);
     try {
@@ -168,7 +162,7 @@ export default function LavaderoVentas({ user }) {
       setCarrito(buildEmptyCart());
       setMetodoPago('Efectivo');
       setValorRecibido(0);
-      setClienteObj(null);
+      setClienteObj(CONSUMIDOR_FINAL);
       fetchVentas();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al registrar la venta.');
@@ -370,13 +364,14 @@ export default function LavaderoVentas({ user }) {
               Cliente (opcional)
             </Typography>
             <Autocomplete
-              options={[{ id: null, nombre: 'Sin cliente / Consumidor final' }, ...clientes]}
+              options={[CONSUMIDOR_FINAL, ...clientes]}
               getOptionLabel={c => c.nombre || ''}
-              value={clienteObj}
-              onChange={(_, v) => setClienteObj(v?.id ? v : null)}
+              value={clienteObj ?? CONSUMIDOR_FINAL}
+              onChange={(_, v) => setClienteObj(v ?? CONSUMIDOR_FINAL)}
+              isOptionEqualToValue={(opt, val) => (opt.id ?? null) === (val.id ?? null)}
               size="small"
               renderInput={params => (
-                <TextField {...params} placeholder="Sin cliente / Consumidor final" />
+                <TextField {...params} placeholder="Consumidor final / Otros" />
               )}
             />
           </Paper>
