@@ -389,7 +389,7 @@ class DetalleVenta(DetalleVentaBase):
     model_config = ConfigDict(from_attributes=True)
 
 class VentaBase(BaseModel):
-    cliente_id: int
+    cliente_id: Optional[int] = None
     detalles: List[DetalleVentaCreate]
     pagada: bool = True
     iva_porcentaje: float = 0.0
