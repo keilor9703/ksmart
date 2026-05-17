@@ -455,7 +455,7 @@ def run_migrations():
 
             # V44 - CAMPOS LAVADERO EN VENTAS
             migration_v44 = "inv_v44_lavadero_ventas_campos"
-            if not _meta_exists(conn, migration_v44):
+            if not _migration_already_applied(conn, migration_v44):
                 # Add operador_id column to ventas
                 try:
                     conn.execute(text("ALTER TABLE ventas ADD COLUMN operador_id INTEGER REFERENCES users(id)"))
