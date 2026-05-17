@@ -63,16 +63,51 @@ const TenantDrawer360 = ({ open, onClose, tenant, onImpersonate, onOpenPlan, onO
                     </Avatar>
                     <Box>
                         <Typography sx={{ fontWeight: 800, fontSize: 18 }}>{tenant.nombre}</Typography>
-                        <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>ID: #{tenant.id} • NIT: {tenant.nit || 'Sin NIT'}</Typography>
-                        <Chip 
-                            label={tenant.is_active ? 'ACTIVO' : 'SUSPENDIDO'} 
-                            size="small" 
-                            sx={{ mt: 1, height: 20, fontSize: 10, fontWeight: 800, bgcolor: tenant.is_active ? `${GREEN}15` : `${ACCENT}15`, color: tenant.is_active ? GREEN : ACCENT }} 
-                        />
+                        <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+                            ID: #{tenant.id} • NIT: {tenant.nit}{tenant.dv ? `-${tenant.dv}` : ''}
+                        </Typography>
+                        <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                            <Chip 
+                                label={tenant.is_active ? 'ACTIVO' : 'SUSPENDIDO'} 
+                                size="small" 
+                                sx={{ height: 20, fontSize: 10, fontWeight: 800, bgcolor: tenant.is_active ? `${GREEN}15` : `${ACCENT}15`, color: tenant.is_active ? GREEN : ACCENT }} 
+                            />
+                            {tenant.facturacion_electronica_activa && (
+                                <Chip 
+                                    label="FE ACTIVA" 
+                                    size="small" 
+                                    sx={{ height: 20, fontSize: 10, fontWeight: 800, bgcolor: `${BLUE}15`, color: BLUE }} 
+                                />
+                            )}
+                        </Stack>
                     </Box>
                 </Box>
 
                 <Divider sx={{ mb: 3 }} />
+
+                <Typography sx={{ fontWeight: 800, fontSize: 14, mb: 2, color: 'text.secondary', textTransform: 'uppercase' }}>Información Legal & DIAN</Typography>
+                <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, mb: 3, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
+                    <Grid container spacing={2}>
+                        <Grid item xs={6}>
+                            <Typography variant="caption" color="text.secondary">Organización</Typography>
+                            <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{tenant.tipo_organizacion_id === 1 ? 'Jurídica' : 'Natural'}</Typography>
+                        </Grid>
+                        <Grid item xs={6}>
+                            <Typography variant="caption" color="text.secondary">Régimen</Typography>
+                            <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{tenant.tipo_regimen_id === 48 ? 'Responsable IVA' : 'Simplificado'}</Typography>
+                        </Grid>
+                        <Grid item xs={12}>
+                            <Typography variant="caption" color="text.secondary">Responsabilidades</Typography>
+                            <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{tenant.responsabilidad_fiscal_codes || 'R-99-PN'}</Typography>
+                        </Grid>
+                        {tenant.correo_facturacion && (
+                            <Grid item xs={12}>
+                                <Typography variant="caption" color="text.secondary">Correo Facturación</Typography>
+                                <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{tenant.correo_facturacion}</Typography>
+                            </Grid>
+                        )}
+                    </Grid>
+                </Paper>
 
                 <Typography sx={{ fontWeight: 800, fontSize: 14, mb: 2, color: 'text.secondary', textTransform: 'uppercase' }}>Suscripción</Typography>
                 <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, mb: 4, bgcolor: 'action.hover', border: 'none' }}>

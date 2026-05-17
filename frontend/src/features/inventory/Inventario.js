@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
-  Box, Typography, Tabs, Tab, Table, TableBody, TableCell, TableContainer,
+  Box, Typography, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Chip, TextField, TablePagination, useTheme, useMediaQuery,
-  Paper, Grid, Divider, InputAdornment
+  Paper, Grid, InputAdornment, Button, Autocomplete
 } from "@mui/material";
 import {
-  Inventory2Outlined, Search, Warning, AttachMoney, Category
+  Inventory2Outlined, Search, Warning, AttachMoney, Category,
+  Receipt, Settings
 } from "@mui/icons-material";
 import apiClient from "../../api";
 import { formatCurrency } from "../../utils/formatters";
@@ -13,14 +14,6 @@ import InventoryPage from "./InventoryPage";
 import GruposProductoManager from "./GruposProductoManager";
 
 const ACCENT = '#F59E0B';
-
-function TabPanel({ children, value, index }) {
-  return (
-    <div role="tabpanel" hidden={value !== index}>
-      {value === index && <Box sx={{ pt: 2 }}>{children}</Box>}
-    </div>
-  );
-}
 
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
 const KpiCard = ({ label, value, icon, color, sub }) => (
@@ -86,7 +79,6 @@ const StockCard = ({ producto, grupos }) => {
             sx={{ fontWeight: 600, fontSize: 9, borderRadius: 1, height: 17 }} />
         </Box>
       </Box>
-
       <Grid container spacing={1}>
         {[
           { label: 'Stock actual', val: stock,                            color: low ? '#EF4444' : 'text.primary' },
@@ -107,10 +99,12 @@ const StockCard = ({ producto, grupos }) => {
 };
 
 // ─── Componente principal ──────────────────────────────────────────────────────
+// Vistas posibles: 'grupo' | 'movimientos' | 'config'
 export default function Inventario() {
-  const [tab, setTab]               = useState(0);
+  const [vista, setVista]           = useState('grupo');
   const [productos, setProductos]   = useState([]);
   const [grupos, setGrupos]         = useState([]);
+  const [currentGrupo, setCurrentGrupo] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage]             = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -118,30 +112,21 @@ export default function Inventario() {
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  useEffect(() => {
-    fetchStock();
-    fetchGrupos();
-  }, []);
+  useEffect(() => { fetchStock(); fetchGrupos(); }, []);
 
   const fetchStock = async () => {
-    try {
-      const res = await apiClient.get('/productos/');
-      setProductos(res.data || []);
-    } catch (err) { console.error(err); }
+    try { const res = await apiClient.get('/productos/'); setProductos(res.data || []); }
+    catch (err) { console.error(err); }
   };
 
   const fetchGrupos = async () => {
     try {
       const res = await apiClient.get('/grupos-producto/');
-      setGrupos(res.data || []);
+      const data = res.data || [];
+      setGrupos(data);
+      if (data.length > 0 && !currentGrupo) setCurrentGrupo(data[0]);
     } catch (err) { console.error(err); }
   };
-
-  // Índices: 0..N-1 → grupos, N → inventario/movimientos, N+1 → configuración
-  const TAB_INVENTARIO = grupos.length;
-  const TAB_CONFIG     = grupos.length + 1;
-
-  const currentGrupo = tab < grupos.length ? grupos[tab] : null;
 
   const soloProductos  = productos.filter(p => !p.es_servicio);
   const stockBajoCount = soloProductos.filter(p => (p.stock_actual ?? 0) < (p.stock_minimo ?? 0)).length;
@@ -157,7 +142,7 @@ export default function Inventario() {
          (p.descripcion && p.descripcion.toLowerCase().includes(q)))
       )
       .sort((a, b) => a.nombre.localeCompare(b.nombre));
-  }, [productos, tab, searchTerm, grupos]);
+  }, [productos, currentGrupo, searchTerm]);
 
   const paginatedData = useMemo(() =>
     filteredData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
@@ -167,6 +152,13 @@ export default function Inventario() {
   const grupoItems = currentGrupo ? soloProductos.filter(p => p.grupo_item === currentGrupo.id) : [];
   const grupoValor = grupoItems.reduce((s, p) => s + (p.stock_actual ?? 0) * p.costo, 0);
   const grupoBajo  = grupoItems.filter(p => (p.stock_actual ?? 0) < (p.stock_minimo ?? 0)).length;
+
+  const handleGrupoChange = (_, newGrupo) => {
+    setCurrentGrupo(newGrupo);
+    setSearchTerm('');
+    setPage(0);
+    if (newGrupo) setVista('grupo');
+  };
 
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
@@ -199,104 +191,106 @@ export default function Inventario() {
         </Grid>
       </Grid>
 
-      <Paper sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: '1px solid', borderColor: 'divider', width: '100%', boxSizing: 'border-box' }}>
+      <Paper sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
 
-        {/* ── Tabs dinámicos ── */}
-        <Tabs
-          value={tab}
-          onChange={(_, v) => { setTab(v); setPage(0); setSearchTerm(''); }}
-          variant="scrollable"
-          scrollButtons="auto"
-          allowScrollButtonsMobile
-          sx={{
-            borderBottom: '1px solid', borderColor: 'divider',
-            '& .MuiTab-root': {
-              fontWeight: 600, textTransform: 'none',
-              minHeight: isMobile ? 50 : 48,
-              minWidth: isMobile ? 0 : 'auto',
-              px: isMobile ? 1 : 1.5,
-              fontSize: isMobile ? 10 : 12,
-            },
-            '& .MuiTabs-indicator': { backgroundColor: ACCENT, height: 3, borderRadius: 3 },
-            '& .Mui-selected': { color: `${ACCENT} !important` },
-            '& .MuiTabs-scrollButtons': { width: 28, opacity: 0.6 },
-          }}
-        >
-          {grupos.map(g => {
-            const bajos = soloProductos.filter(p => p.grupo_item === g.id)
-              .filter(p => (p.stock_actual ?? 0) < (p.stock_minimo ?? 0)).length;
-            return (
-              <Tab
-                key={g.id}
-                title={g.nombre}
-                label={
-                  isMobile ? (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.3 }}>
-                      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: g.color }} />
-                      <Typography sx={{ fontSize: 10, fontWeight: 700, lineHeight: 1 }}>{g.codigo}</Typography>
-                      {bajos > 0 && (
-                        <Chip label={bajos} size="small" sx={{
-                          height: 12, fontSize: 8, fontWeight: 700,
-                          bgcolor: '#EF444420', color: '#EF4444',
-                          '& .MuiChip-label': { px: 0.4 },
-                        }} />
-                      )}
+        {/* ── Selector de categoría + botones de acción ── */}
+        <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+
+          {/* Autocomplete con búsqueda — escala a miles de categorías */}
+          <Autocomplete
+            options={grupos}
+            getOptionLabel={(g) => g.nombre}
+            value={currentGrupo}
+            onChange={handleGrupoChange}
+            isOptionEqualToValue={(a, b) => a.id === b.id}
+            disableClearable
+            renderOption={(props, g) => {
+              const bajos = soloProductos.filter(p => p.grupo_item === g.id)
+                .filter(p => (p.stock_actual ?? 0) < (p.stock_minimo ?? 0)).length;
+              return (
+                <Box component="li" {...props} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: '10px !important' }}>
+                  <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: g.color, flexShrink: 0 }} />
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{g.nombre}</Typography>
+                    <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{g.codigo}</Typography>
+                  </Box>
+                  {bajos > 0 && (
+                    <Chip label={`${bajos} bajo`} size="small"
+                      sx={{ height: 18, fontSize: 9, fontWeight: 700, bgcolor: '#EF444420', color: '#EF4444', '& .MuiChip-label': { px: 0.8 } }} />
+                  )}
+                </Box>
+              );
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                size="small"
+                placeholder="Buscar categoría…"
+                InputProps={{
+                  ...params.InputProps,
+                  startAdornment: currentGrupo ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', pl: 0.5, pr: 0.5 }}>
+                      <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: currentGrupo.color }} />
                     </Box>
-                  ) : (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
-                      <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: g.color, flexShrink: 0 }} />
-                      <span style={{ whiteSpace: 'nowrap' }}>{g.nombre}</span>
-                      {bajos > 0 && (
-                        <Chip label={bajos} size="small" sx={{
-                          height: 14, fontSize: 8, fontWeight: 700,
-                          bgcolor: '#EF444420', color: '#EF4444',
-                          '& .MuiChip-label': { px: 0.4 },
-                        }} />
-                      )}
-                    </Box>
-                  )
-                }
+                  ) : params.InputProps.startAdornment,
+                  sx: { borderRadius: 2, fontSize: 13 }
+                }}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
-            );
-          })}
-
-          {/* Tab Movimientos/Config */}
-          <Tab
-            title="Movimientos de inventario"
-            label={isMobile ? '📋' : '📋 Movimientos'}
-            sx={{ fontWeight: 700, color: '#06B6D4 !important' }}
+            )}
+            sx={{ flex: 1, minWidth: 160 }}
+            noOptionsText="Sin categorías"
           />
-          <Tab
-            title="Configurar categorías"
-            label={isMobile ? '⚙️' : '⚙️ Categorías'}
-            sx={{ fontWeight: 700, color: '#6366F1 !important' }}
-          />
-        </Tabs>
 
-        {/* Nombre del tab activo en mobile */}
-        {isMobile && currentGrupo && (
-          <Box sx={{ px: 2, pt: 1, pb: 0.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-            <Typography sx={{ fontWeight: 700, fontSize: 13, color: currentGrupo.color }}>
-              {currentGrupo.nombre}
-            </Typography>
+          {/* Botones fijos: Movimientos y Categorías */}
+          <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+            <Button
+              size="small"
+              variant={vista === 'movimientos' ? 'contained' : 'outlined'}
+              startIcon={<Receipt sx={{ fontSize: 16 }} />}
+              onClick={() => setVista('movimientos')}
+              sx={{
+                borderRadius: 2, fontWeight: 600, fontSize: 11, textTransform: 'none',
+                ...(vista === 'movimientos'
+                  ? { bgcolor: '#06B6D4', '&:hover': { bgcolor: '#0891B2' }, boxShadow: 'none' }
+                  : { borderColor: '#06B6D4', color: '#06B6D4' }),
+              }}
+            >
+              {isMobile ? '' : 'Movimientos'}
+            </Button>
+            <Button
+              size="small"
+              variant={vista === 'config' ? 'contained' : 'outlined'}
+              startIcon={<Settings sx={{ fontSize: 16 }} />}
+              onClick={() => setVista('config')}
+              sx={{
+                borderRadius: 2, fontWeight: 600, fontSize: 11, textTransform: 'none',
+                ...(vista === 'config'
+                  ? { bgcolor: '#6366F1', '&:hover': { bgcolor: '#4F46E5' }, boxShadow: 'none' }
+                  : { borderColor: '#6366F1', color: '#6366F1' }),
+              }}
+            >
+              {isMobile ? '' : 'Categorías'}
+            </Button>
           </Box>
-        )}
+        </Box>
 
         <Box sx={{ p: { xs: 1.5, md: 3 } }}>
-          {tab < grupos.length ? (
-            /* ── Vista de grupo de inventario ── */
+
+          {/* ── Vista: stock de la categoría seleccionada ── */}
+          {vista === 'grupo' && (
             <>
               {currentGrupo && (
                 <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'nowrap' }}>
                   <MiniKpi label={`Ítems en ${currentGrupo.nombre}`} value={grupoItems.length} color={currentGrupo.color} />
-                  <MiniKpi label={`Valorización`} value={formatCurrency(grupoValor)} color={ACCENT} />
+                  <MiniKpi label="Valorización" value={formatCurrency(grupoValor)} color={ACCENT} />
                   {grupoBajo > 0 && <MiniKpi label="Stock bajo" value={grupoBajo} color="#EF4444" />}
                 </Box>
               )}
 
               <TextField
                 fullWidth size="small"
-                placeholder={`Buscar en ${currentGrupo?.nombre}…`}
+                placeholder={`Buscar en ${currentGrupo?.nombre ?? 'categoría'}…`}
                 value={searchTerm}
                 onChange={e => { setSearchTerm(e.target.value); setPage(0); }}
                 sx={{ mb: 2 }}
@@ -314,7 +308,7 @@ export default function Inventario() {
                   {paginatedData.length === 0
                     ? <Box sx={{ textAlign: 'center', py: 5, color: 'text.secondary' }}>
                         <Inventory2Outlined sx={{ fontSize: 44, mb: 1, opacity: 0.3 }} />
-                        <Typography fontSize={13}>No hay productos en este grupo</Typography>
+                        <Typography fontSize={13}>No hay productos en esta categoría</Typography>
                       </Box>
                     : paginatedData.map(p => <StockCard key={p.id} producto={p} grupos={grupos} />)
                   }
@@ -332,7 +326,7 @@ export default function Inventario() {
                     <TableBody>
                       {paginatedData.length === 0
                         ? <TableRow><TableCell colSpan={9} sx={{ textAlign: 'center', py: 5, color: 'text.secondary' }}>
-                            No hay productos en este grupo
+                            No hay productos en esta categoría
                           </TableCell></TableRow>
                         : paginatedData.map(p => {
                             const stock  = p.stock_actual ?? 0;
@@ -383,17 +377,26 @@ export default function Inventario() {
                 }}
               />
             </>
-          ) : tab === TAB_INVENTARIO ? (
-            /* ── Movimientos de inventario ── */
-            <InventoryPage />
-          ) : (
-            /* ── Gestión de categorías ── */
+          )}
+
+          {/* ── Vista: movimientos ── */}
+          {vista === 'movimientos' && <InventoryPage />}
+
+          {/* ── Vista: gestión de categorías ── */}
+          {vista === 'config' && (
             <GruposProductoManager onGruposChange={(nuevos) => {
               setGrupos(nuevos);
-              // Solo reseteamos si el tab actual es mayor a los tabs disponibles (grupos + movimientos + config)
-              if (tab > nuevos.length + 1) setTab(0);
+              if (nuevos.length > 0) {
+                const still = nuevos.find(g => g.id === currentGrupo?.id);
+                setCurrentGrupo(still ?? nuevos[0]);
+              } else {
+                setCurrentGrupo(null);
+              }
+              // ✅ FIX: No forzar el cambio de vista aquí para permitir múltiples ediciones.
+              // El usuario puede volver seleccionando una categoría en el buscador superior.
             }} />
           )}
+
         </Box>
       </Paper>
     </Box>

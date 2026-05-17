@@ -444,7 +444,7 @@ const handleProcessBarcode = async (code) => {
     const fetchVentas    = () => apiClient.get('/ventas/').then(r => setVentas(r.data)).catch(console.error);
     const fetchClientes  = () => apiClient.get('/clientes/').then(r => setClientes(r.data)).catch(console.error);
     const fetchProductos = () => apiClient.get('/productos/').then(r =>
-        setProductos(r.data.filter(p => p.es_servicio || p.grupo_item === 2))
+        setProductos(r.data)
     ).catch(console.error);
     const fetchVentasSummary = () =>
         apiClient.get('/reportes/ventas_summary').then(r => setTotalVentasHoy(r.data.total_ventas_hoy)).catch(console.error);

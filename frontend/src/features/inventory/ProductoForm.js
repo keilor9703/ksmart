@@ -3,6 +3,8 @@ import apiClient from '../../api';
 import { toast } from 'react-toastify';
 import BulkUpload from '../../components/common/BulkUpload';
 import CurrencyField from '../../components/common/CurrencyField';
+import ImageCropperDialog from '../../components/common/ImageCropperDialog';
+import { compressImageToWebP } from '../../utils/imageOptimizer';
 
 import {
   Box,
@@ -17,7 +19,9 @@ import {
   ButtonGroup,
   Switch,
   FormControlLabel,
-  Autocomplete
+  Autocomplete,
+  Tooltip,
+  Paper
 } from '@mui/material';
 
 import {
@@ -27,7 +31,10 @@ import {
   Upload,
   Close,
   Category,
-  Science
+  Science,
+  Storefront,
+  AddPhotoAlternate,
+  Delete
 } from '@mui/icons-material';
 
 import { UNIDADES_MEDIDA } from '../../utils/constants';
@@ -167,6 +174,16 @@ const ProductoForm = ({
   const [manejaLotes, setManejaLotes] = useState(false);
   const [grupos, setGrupos] = useState([]);
 
+  // 👇 ESTADOS CATÁLOGO
+  const [imagenes, setImagenes] = useState([]);
+  const [mostrarEnCatalogo, setMostrarEnCatalogo] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
+
+  // 👇 ESTADOS CROPPER
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const [imageToCrop, setImageToCrop] = useState(null);
+  const [pendingFiles, setPendingFiles] = useState([]);
+
   const [formOpen, setFormOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
 
@@ -197,6 +214,10 @@ const ProductoForm = ({
       );
       setStockActual(productoToEdit.stock_actual ?? 0);
       setManejaLotes(productoToEdit.maneja_lotes || false);
+
+      // 👇 CARGAR CAMPOS DE CATÁLOGO
+      setImagenes(productoToEdit.imagenes || []);
+      setMostrarEnCatalogo(productoToEdit.mostrar_en_catalogo || false);
     } else {
       resetFields();
     }
@@ -213,6 +234,74 @@ const ProductoForm = ({
     setStockMinimo('');
     setStockActual(0);
     setManejaLotes(false);
+    setImagenes([]);
+    setMostrarEnCatalogo(false);
+  };
+
+  // 👇 NUEVO FLUJO DE IMÁGENES CON CROPPER
+  const handleImageChange = (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+
+    // Límite de 4 imágenes
+    if (imagenes.length + files.length > 4) {
+      toast.warning('Máximo 4 imágenes por producto');
+      return;
+    }
+
+    // Cargamos el primer archivo en el cropper.
+    // Los demás quedan en cola para procesarse uno por uno.
+    const [first, ...rest] = files;
+    setPendingFiles(rest);
+    openCropperWithFile(first);
+
+    // Limpiamos el input para permitir re-subir el mismo archivo si se cancela
+    e.target.value = '';
+  };
+
+  const openCropperWithFile = (file) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      setImageToCrop(reader.result);
+      setCropperOpen(true);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCropComplete = async (croppedFile) => {
+    try {
+      setIsCompressing(true);
+      const webpBase64 = await compressImageToWebP(croppedFile);
+      setImagenes((prev) => [...prev, webpBase64]);
+      setMostrarEnCatalogo(true);
+
+      // Cerrar cropper
+      setCropperOpen(false);
+      setImageToCrop(null);
+
+      // Si hay más archivos en cola, abrir el siguiente
+      if (pendingFiles.length > 0) {
+        const [next, ...rest] = pendingFiles;
+        setPendingFiles(rest);
+        // Pequeño delay para que el dialog se cierre suavemente
+        setTimeout(() => openCropperWithFile(next), 200);
+      }
+    } catch (error) {
+      toast.error('Error al procesar la imagen');
+      console.error(error);
+    } finally {
+      setIsCompressing(false);
+    }
+  };
+
+  const handleCropCancel = () => {
+    setCropperOpen(false);
+    setImageToCrop(null);
+    setPendingFiles([]); // descartamos la cola si cancela
+  };
+
+  const removeImage = (index) => {
+    setImagenes((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleClose = () => {
@@ -237,7 +326,9 @@ const ProductoForm = ({
         esServicio || stockMinimo === ''
           ? 0
           : parseFloat(stockMinimo),
-      maneja_lotes: esServicio ? false : manejaLotes
+      maneja_lotes: esServicio ? false : manejaLotes,
+      imagenes: imagenes,
+      mostrar_en_catalogo: mostrarEnCatalogo
     };
 
     const req = productoToEdit
@@ -631,6 +722,173 @@ const ProductoForm = ({
               </Grid>
             )}
 
+            {/* 👇 SECCIÓN CATÁLOGO VIRTUAL */}
+            <Grid item xs={12}>
+              <Paper
+                variant="outlined"
+                sx={{
+                  p: 2,
+                  borderRadius: 3,
+                  bgcolor: mostrarEnCatalogo
+                    ? `${accentColor}05`
+                    : 'transparent',
+                  borderColor: mostrarEnCatalogo
+                    ? accentColor
+                    : 'divider',
+                  transition: 'all 0.3s'
+                }}
+              >
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    mb: 2
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1
+                    }}
+                  >
+                    <Storefront
+                      sx={{
+                        color: mostrarEnCatalogo
+                          ? accentColor
+                          : 'text.secondary'
+                      }}
+                    />
+                    <Typography sx={{ fontWeight: 700, fontSize: 15 }}>
+                      Catálogo Virtual / Tienda Online
+                    </Typography>
+                  </Box>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={mostrarEnCatalogo}
+                        onChange={(e) =>
+                          setMostrarEnCatalogo(e.target.checked)
+                        }
+                        disabled={
+                          imagenes.length === 0 && !mostrarEnCatalogo
+                        }
+                      />
+                    }
+                    label={
+                      mostrarEnCatalogo ? 'Visible al público' : 'Oculto'
+                    }
+                  />
+                </Box>
+
+                <Grid container spacing={2}>
+                  {/* Slots de Imágenes */}
+                  {[0, 1, 2, 3].map((idx) => (
+                    <Grid item xs={6} sm={3} key={idx}>
+                      <Box
+                        sx={{
+                          width: '100%',
+                          aspectRatio: '1/1',
+                          borderRadius: 2,
+                          border: '2px dashed',
+                          borderColor: imagenes[idx]
+                            ? accentColor
+                            : 'divider',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          position: 'relative',
+                          overflow: 'hidden',
+                          bgcolor: 'background.default',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {imagenes[idx] ? (
+                          <>
+                            <img
+                              src={imagenes[idx]}
+                              alt={`Product ${idx}`}
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover'
+                              }}
+                            />
+                            <IconButton
+                              size="small"
+                              onClick={() => removeImage(idx)}
+                              sx={{
+                                position: 'absolute',
+                                top: 5,
+                                right: 5,
+                                bgcolor: 'rgba(255,255,255,0.8)',
+                                '&:hover': { bgcolor: '#fff' }
+                              }}
+                            >
+                              <Delete fontSize="small" color="error" />
+                            </IconButton>
+                          </>
+                        ) : (
+                          <Button
+                            component="label"
+                            disabled={
+                              isCompressing ||
+                              (idx > 0 && !imagenes[idx - 1])
+                            }
+                            sx={{
+                              flexDirection: 'column',
+                              gap: 0.5,
+                              width: '100%',
+                              height: '100%',
+                              color: 'text.secondary',
+                              textTransform: 'none'
+                            }}
+                          >
+                            <input
+                              hidden
+                              accept="image/*"
+                              type="file"
+                              multiple
+                              onChange={handleImageChange}
+                            />
+                            {isCompressing ? (
+                              <Typography
+                                variant="caption"
+                                sx={{ fontSize: 9 }}
+                              >
+                                Procesando...
+                              </Typography>
+                            ) : (
+                              <>
+                                <AddPhotoAlternate fontSize="medium" />
+                                <Typography
+                                  variant="caption"
+                                  sx={{ fontWeight: 600, fontSize: 9 }}
+                                >
+                                  Subir
+                                </Typography>
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </Box>
+                    </Grid>
+                  ))}
+
+                  <Grid item xs={12}>
+                    <Typography
+                      sx={{ fontSize: 12, color: 'text.secondary' }}
+                    >
+                      • Puedes subir hasta <strong>4 fotos</strong> por
+                      producto. Se recomienda formato cuadrado.
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Paper>
+            </Grid>
+
             {/* STOCK */}
             {!esServicio && isEditing && (
               <Grid item xs={12}>
@@ -758,6 +1016,15 @@ const ProductoForm = ({
           />
         </Panel>
       )}
+
+      {/* 👇 MODAL DE RECORTE DE IMAGEN */}
+      <ImageCropperDialog
+        open={cropperOpen}
+        imageSrc={imageToCrop}
+        onClose={handleCropCancel}
+        onCropComplete={handleCropComplete}
+        accentColor={accentColor}
+      />
     </Box>
   );
 };

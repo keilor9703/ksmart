@@ -4,7 +4,8 @@ import { toast } from 'react-toastify';
 import apiClient from '../../api';
 import {
     Box, TextField, Button, Typography, InputAdornment, IconButton,
-    Grid, Card, CardActionArea, MenuItem, LinearProgress, Stack, Chip
+    Grid, Card, CardActionArea, MenuItem, LinearProgress, Stack, Chip,
+    Autocomplete
 } from '@mui/material';
 import { keyframes } from '@mui/system';
 import {
@@ -14,8 +15,8 @@ import {
 } from '@mui/icons-material';
 import { TwoWheeler } from '@mui/icons-material';
 
-// ─── NUEVO IMPORT ────────────────────────────────────────────────────────────
 import BotonHuella from '../../components/common/BotonHuella';
+import { CIUDADES_COLOMBIA } from '../../utils/colombiaData';
 
 // ─── Animaciones ─────────────────────────────────────────────────────────────
 const fadeIn = keyframes`
@@ -112,7 +113,6 @@ const Login = ({ onLogin }) => {
     const [regStep, setRegStep]           = useState(1);
     const navigate = useNavigate();
 
-    // ✨ NUEVO: Cargar el último usuario si existe
     const [loginData, setLoginData] = useState({ 
         username: localStorage.getItem('last_username') || '', 
         password: '' 
@@ -121,7 +121,7 @@ const Login = ({ onLogin }) => {
     const initialRegState = {
         tipo_negocio:    'erp',
         nombre_empresa:  '',
-        nit:             '', // ✨ NUEVO
+        nit:             '', 
         pais:            'CO',
         ciudad:          '',
         tamano_negocio:  'pequeno',
@@ -139,7 +139,7 @@ const Login = ({ onLogin }) => {
 
     const canContinueStep1 = () =>
         regData.nombre_empresa.trim().length >= 2 &&
-        regData.nit.trim().length >= 5 && // ✨ NUEVO: Validación NIT
+        regData.nit.trim().length >= 5 && 
         regData.ciudad.trim().length >= 2 &&
         regData.pais &&
         regData.tamano_negocio &&
@@ -179,7 +179,6 @@ const Login = ({ onLogin }) => {
             onLogin();
 
             if (response.data.is_expired) {
-                // 🚀 CASO SAAS: Suscripción Expirada
                 toast.warning('Tu acceso ha expirado. Redirigiendo a renovación...');
                 setTimeout(() => {
                     navigate('/suscripcion-expirada');
@@ -220,7 +219,7 @@ const Login = ({ onLogin }) => {
         try {
             await apiClient.post('/auth/register', {
                 nombre_empresa:  regData.nombre_empresa.trim(),
-                nit:             regData.nit.trim(), // ✨ NUEVO: Enviar NIT
+                nit:             regData.nit.trim(), 
                 username:        regData.username.trim().toLowerCase(),
                 password:        regData.password,
                 tipo_negocio:    regData.tipo_negocio,
@@ -235,7 +234,6 @@ const Login = ({ onLogin }) => {
             toast.success('¡Cuenta creada con éxito! Ya puedes iniciar sesión.');
             
             const usernameUsed = regData.username.trim().toLowerCase();
-            // ✨ NUEVO: Autocompletar el login tras registrarse
             localStorage.setItem('last_username', usernameUsed);
             
             setLoginData({ username: usernameUsed, password: '' });
@@ -249,11 +247,8 @@ const Login = ({ onLogin }) => {
         }
     };
 
-    // ─── FUNCIÓN BIOMÉTRICA ACTUALIZADA ─────────────────────────────────────
     const handleBiometricSuccess = (data) => {
         localStorage.setItem('token', data.access_token);
-        
-        // ✨ NUEVO: Guardar el usuario que viene de la huella
         localStorage.setItem('last_username', data.username);
 
         localStorage.setItem('user', JSON.stringify({
@@ -263,7 +258,6 @@ const Login = ({ onLogin }) => {
             rol:        data.rol,
         }));
 
-        // ✨ NUEVO: Llamar a onLogin() para que React actualice el estado
         onLogin();
 
         toast.success('¡Bienvenido de vuelta!');
@@ -438,9 +432,6 @@ const Login = ({ onLogin }) => {
                             </Box>
                         )}
 
-                        {/* ════════════════════════════════════════════════ */}
-                        {/* ── Formulario LOGIN ──                           */}
-                        {/* ════════════════════════════════════════════════ */}
                         {isLoginView ? (
                             <Box
                                 component="form"
@@ -498,7 +489,6 @@ const Login = ({ onLogin }) => {
                                     {loading ? 'Ingresando…' : 'Ingresar al sistema'}
                                 </Button>
 
-                                {/* ✨ Botón de huella integrado */}
                                 <BotonHuella
                                     modo="login"
                                     username={loginData.username}
@@ -516,9 +506,6 @@ const Login = ({ onLogin }) => {
                                 </Typography>
                             </Box>
                         ) : (
-                            /* ════════════════════════════════════════════════ */
-                            /* ── Formulario REGISTRO en 2 pasos ──             */
-                            /* ════════════════════════════════════════════════ */
                             <Box
                                 component="form"
                                 onSubmit={regStep === 2 ? handleRegisterSubmit : (e) => { e.preventDefault(); handleNextStep(); }}
@@ -527,7 +514,6 @@ const Login = ({ onLogin }) => {
                                 {/* ──────── PASO 1 — Negocio ──────── */}
                                 {regStep === 1 && (
                                     <>
-                                        {/* Selector tipo de negocio */}
                                         <Grid container spacing={1.5}>
                                             {[
                                                 { key: 'erp',       label: 'Comercio / ERP',  Icon: Storefront,  desc: 'Ventas e Inventario' },
@@ -574,7 +560,6 @@ const Login = ({ onLogin }) => {
                                             InputProps={{ startAdornment: <InputAdornment position="start"><Business /></InputAdornment> }}
                                         />
 
-                                        {/* NIT / Cédula */}
                                         <TextField
                                             fullWidth label="NIT o Cédula de Ciudadanía" required
                                             className="orange-field" sx={fieldSx}
@@ -585,8 +570,9 @@ const Login = ({ onLogin }) => {
                                             InputProps={{ startAdornment: <InputAdornment position="start"><CheckCircle /></InputAdornment> }}
                                         />
 
-                                        <Grid container spacing={1.5}>
-                                            <Grid item xs={5}>
+                                        {/* ── SOLUCIÓN: STACK en lugar de GRID para el 100% real ── */}
+                                        <Stack direction="row" spacing={2} sx={{ width: '100%' }}>
+                                            <Box sx={{ width: { xs: '45%', sm: '35%' } }}>
                                                 <TextField
                                                     select fullWidth required label="País"
                                                     className="orange-field" sx={fieldSx}
@@ -606,20 +592,43 @@ const Login = ({ onLogin }) => {
                                                         </MenuItem>
                                                     ))}
                                                 </TextField>
-                                            </Grid>
-                                            <Grid item xs={7}>
-                                                <TextField
-                                                    fullWidth required label="Ciudad"
-                                                    className="orange-field" sx={fieldSx}
-                                                    placeholder="Ej: Bogotá"
-                                                    value={regData.ciudad}
-                                                    onChange={updateReg('ciudad')}
-                                                    InputProps={{ startAdornment: <InputAdornment position="start"><LocationOn /></InputAdornment> }}
-                                                />
-                                            </Grid>
-                                        </Grid>
+                                            </Box>
 
-                                        {/* Tamaño del negocio */}
+                                            <Box sx={{ flex: 1 }}>
+                                                <Autocomplete
+                                                    options={CIUDADES_COLOMBIA}
+                                                    value={regData.ciudad}
+                                                    onChange={(e, newValue) => setRegData({ ...regData, ciudad: newValue || '' })}
+                                                    onInputChange={(e, newInputValue) => setRegData({ ...regData, ciudad: newInputValue })}
+                                                    freeSolo
+                                                    renderInput={(params) => (
+                                                        <TextField
+                                                            {...params}
+                                                            fullWidth required label="Ciudad"
+                                                            className="orange-field" 
+                                                            sx={{
+                                                                ...fieldSx,
+                                                                '& .MuiOutlinedInput-root': {
+                                                                    ...fieldSx['& .MuiOutlinedInput-root'],
+                                                                    pr: '35px !important' 
+                                                                }
+                                                            }}
+                                                            placeholder="Ej: Buenaventura"
+                                                            InputProps={{
+                                                                ...params.InputProps,
+                                                                startAdornment: (
+                                                                    <>
+                                                                        <InputAdornment position="start"><LocationOn /></InputAdornment>
+                                                                        {params.InputProps.startAdornment}
+                                                                    </>
+                                                                )
+                                                            }}
+                                                        />
+                                                    )}
+                                                />
+                                            </Box>
+                                        </Stack>
+
                                         <Box>
                                             <Typography sx={{
                                                 fontSize: 11, fontWeight: 700, color: '#64748b',
@@ -831,7 +840,6 @@ const Login = ({ onLogin }) => {
                                     </span>
                                 </Typography>
 
-                                {/* Trust indicators */}
                                 <Stack direction="row" spacing={2} justifyContent="center" sx={{ mt: 0.5, opacity: 0.6 }}>
                                     <Typography sx={{ fontSize: 10, color: '#64748b' }}>🔒 Datos cifrados</Typography>
                                     <Typography sx={{ fontSize: 10, color: '#64748b' }}>✓ Sin tarjeta</Typography>
@@ -841,7 +849,6 @@ const Login = ({ onLogin }) => {
                         )}
                     </Box>
 
-                    {/* Footer */}
                     <Typography sx={{ mt: 4, color: '#1e293b', fontSize: 12, textAlign: 'center' }}>
                         Powered by KSMP Systems · 2026
                     </Typography>

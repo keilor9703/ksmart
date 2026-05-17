@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import {
   Box, Typography, Paper, Button, Grid, useTheme, useMediaQuery,
   Tabs, Tab, IconButton, TextField, InputAdornment, Dialog, DialogTitle,
-  DialogContent, DialogActions, Stack, MenuItem, FormControlLabel, Switch, Chip,Divider
+  DialogContent, DialogActions, Stack, MenuItem, FormControlLabel, Switch, Chip, Divider, Collapse
 } from '@mui/material';
 import {
   Add, AdminPanelSettings, Autorenew, TrendingUp, Business, LocalOffer,
-  History, Campaign, Engineering, ReceiptLong, Search, Edit, Payments
+  History, Campaign, Engineering, ReceiptLong, Search, Edit, Payments,
+  ExpandLess, ExpandMore
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 
@@ -70,8 +71,11 @@ export default function GestionSaaS() {
   const [tenantForDrawer, setTenantForDrawer] = useState(null);
   const [openDialogEmpresa, setOpenDialogEmpresa] = useState(false);
   const [formEmpresa, setFormEmpresa] = useState({
-    nombre: '', nit: '', admin_username: '', admin_password: '',
-    admin_nombre_completo: '', admin_email: '', admin_telefono: '', tipo_negocio: 'erp'
+    nombre: '', nit: '', dv: '', admin_username: '', admin_password: '',
+    admin_nombre_completo: '', admin_email: '', admin_telefono: '', tipo_negocio: 'erp',
+    tipo_organizacion_id: 1, tipo_regimen_id: 48, responsabilidad_fiscal_codes: 'O-13',
+    departamento_code: '', ciudad_code: '', correo_facturacion: '',
+    facturacion_electronica_activa: false, matias_api_key: '', matias_test_mode: true
   });
   const [openPlanDialog, setOpenPlanDialog] = useState(false);
   const [empresaSeleccionada, setEmpresaSeleccionada] = useState(null);
@@ -81,6 +85,7 @@ export default function GestionSaaS() {
   const [formPlan, setFormPlan] = useState({ nombre: '', codigo_interno: '', precio: '', dias_duracion: '', caracteristicas: '', is_active: true });
   const [openModulosDialog, setOpenModulosDialog] = useState(false);
   const [empresaParaModulos, setEmpresaParaModulos] = useState(null);
+  const [showAdvancedEmpresa, setShowAdvancedEmpresa] = useState(false);
 
   const handleOpenDrawer = (tenant) => { setTenantForDrawer(tenant); setOpenDrawer(true); };
 
@@ -93,7 +98,21 @@ export default function GestionSaaS() {
     e.preventDefault();
     try {
       await apiClient.post('/superadmin/empresas', {
-        empresa: { nombre: formEmpresa.nombre, nit: formEmpresa.nit, tipo_negocio: formEmpresa.tipo_negocio },
+        empresa: { 
+          nombre: formEmpresa.nombre, 
+          nit: formEmpresa.nit, 
+          dv: formEmpresa.dv,
+          tipo_negocio: formEmpresa.tipo_negocio,
+          tipo_organizacion_id: formEmpresa.tipo_organizacion_id,
+          tipo_regimen_id: formEmpresa.tipo_regimen_id,
+          responsabilidad_fiscal_codes: formEmpresa.responsabilidad_fiscal_codes,
+          departamento_code: formEmpresa.departamento_code,
+          ciudad_code: formEmpresa.ciudad_code,
+          correo_facturacion: formEmpresa.correo_facturacion,
+          facturacion_electronica_activa: formEmpresa.facturacion_electronica_activa,
+          matias_api_key: formEmpresa.matias_api_key,
+          matias_test_mode: formEmpresa.matias_test_mode
+        },
         admin_username: formEmpresa.admin_username, admin_password: formEmpresa.admin_password,
         admin_nombre_completo: formEmpresa.admin_nombre_completo, admin_email: formEmpresa.admin_email, admin_telefono: formEmpresa.admin_telefono
       });
@@ -388,6 +407,62 @@ export default function GestionSaaS() {
                   <TextField label="Contraseña" required type="password" fullWidth size="small" value={formEmpresa.admin_password} onChange={e => setFormEmpresa({...formEmpresa, admin_password: e.target.value})} />
                 </Grid>
               </Grid>
+
+              <Divider><Button size="small" onClick={() => setShowAdvancedEmpresa(!showAdvancedEmpresa)} endIcon={showAdvancedEmpresa ? <ExpandLess /> : <ExpandMore />}>Facturación Electrónica</Button></Divider>
+
+              <Collapse in={showAdvancedEmpresa}>
+                <Stack spacing={2} sx={{ pt: 1 }}>
+                  <Grid container spacing={2}>
+                    <Grid item xs={4}>
+                      <TextField label="DV" fullWidth size="small" value={formEmpresa.dv} onChange={e => setFormEmpresa({...formEmpresa, dv: e.target.value})} />
+                    </Grid>
+                    <Grid item xs={8}>
+                      <TextField label="Correo Facturación" fullWidth size="small" type="email" value={formEmpresa.correo_facturacion} onChange={e => setFormEmpresa({...formEmpresa, correo_facturacion: e.target.value})} />
+                    </Grid>
+                  </Grid>
+
+                  <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                      <TextField select label="Tipo Organización" fullWidth size="small" value={formEmpresa.tipo_organizacion_id} onChange={e => setFormEmpresa({...formEmpresa, tipo_organizacion_id: e.target.value})}>
+                        <MenuItem value={1}>Jurídica</MenuItem>
+                        <MenuItem value={2}>Natural</MenuItem>
+                      </TextField>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <TextField select label="Régimen Fiscal" fullWidth size="small" value={formEmpresa.tipo_regimen_id} onChange={e => setFormEmpresa({...formEmpresa, tipo_regimen_id: e.target.value})}>
+                        <MenuItem value={48}>Responsable de IVA</MenuItem>
+                        <MenuItem value={49}>No responsable de IVA</MenuItem>
+                      </TextField>
+                    </Grid>
+                  </Grid>
+
+                  <TextField label="Responsabilidades Fiscales" fullWidth size="small" placeholder="O-13, O-15" value={formEmpresa.responsabilidad_fiscal_codes} onChange={e => setFormEmpresa({...formEmpresa, responsabilidad_fiscal_codes: e.target.value})} />
+                  
+                  <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                       <TextField label="Cód. Departamento" fullWidth size="small" value={formEmpresa.departamento_code} onChange={e => setFormEmpresa({...formEmpresa, departamento_code: e.target.value})} />
+                    </Grid>
+                    <Grid item xs={6}>
+                       <TextField label="Cód. Ciudad" fullWidth size="small" value={formEmpresa.ciudad_code} onChange={e => setFormEmpresa({...formEmpresa, ciudad_code: e.target.value})} />
+                    </Grid>
+                  </Grid>
+
+                  <FormControlLabel
+                    control={<Switch checked={formEmpresa.facturacion_electronica_activa} onChange={e => setFormEmpresa({...formEmpresa, facturacion_electronica_activa: e.target.checked})} />}
+                    label="Activar Facturación Electrónica"
+                  />
+                  
+                  {formEmpresa.facturacion_electronica_activa && (
+                    <>
+                      <TextField label="MATIAS API KEY" fullWidth size="small" value={formEmpresa.matias_api_key} onChange={e => setFormEmpresa({...formEmpresa, matias_api_key: e.target.value})} />
+                      <FormControlLabel
+                        control={<Switch checked={formEmpresa.matias_test_mode} onChange={e => setFormEmpresa({...formEmpresa, matias_test_mode: e.target.checked})} />}
+                        label="Modo Pruebas (MATIAS)"
+                      />
+                    </>
+                  )}
+                </Stack>
+              </Collapse>
             </Stack>
           </DialogContent>
           <DialogActions sx={{ p: 2 }}>

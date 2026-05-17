@@ -36,35 +36,48 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
 ]
 
-_challenges_store: dict = {}
-
-
-def _save_challenge(key: str, challenge: bytes, ttl_seconds: int = 300):
-    """Guarda un challenge con expiración."""
-    expira = datetime.now(timezone.utc).timestamp() + ttl_seconds
-    _challenges_store[key] = (challenge, expira)
+def _save_challenge(db: Session, key: str, challenge: bytes, ttl_seconds: int = 300):
+    """Guarda un challenge en la base de datos con expiración."""
     ahora = datetime.now(timezone.utc).timestamp()
-    expirados = [k for k, (_, exp) in _challenges_store.items() if exp < ahora]
-    for k in expirados:
-        _challenges_store.pop(k, None)
+    expira = ahora + ttl_seconds
+    
+    # Limpiar expirados antiguos de forma periódica (simple)
+    if os.urandom(1)[0] % 10 == 0: # 10% de probabilidad de limpieza en cada guardado
+        db.query(models.BiometricChallenge).filter(models.BiometricChallenge.expires_at < ahora).delete()
+
+    challenge_b64 = base64.b64encode(challenge).decode('ascii')
+    
+    db_item = db.query(models.BiometricChallenge).filter(models.BiometricChallenge.key == key).first()
+    if db_item:
+        db_item.challenge = challenge_b64
+        db_item.expires_at = expira
+    else:
+        db_item = models.BiometricChallenge(key=key, challenge=challenge_b64, expires_at=expira)
+        db.add(db_item)
+    
+    db.commit()
 
 
-def _get_challenge(key: str) -> Optional[bytes]:
-    """Recupera un challenge si aún es válido."""
-    item = _challenges_store.get(key)
-    if not item:
+def _get_challenge(db: Session, key: str) -> Optional[bytes]:
+    """Recupera un challenge de la base de datos si aún es válido."""
+    ahora = datetime.now(timezone.utc).timestamp()
+    db_item = db.query(models.BiometricChallenge).filter(
+        models.BiometricChallenge.key == key,
+        models.BiometricChallenge.expires_at > ahora
+    ).first()
+    
+    if not db_item:
         return None
-    challenge, expira = item
-    if datetime.now(timezone.utc).timestamp() > expira:
-        _challenges_store.pop(key, None)
-        return None
-    return challenge
+    
+    return base64.b64decode(db_item.challenge)
 
 
-def _consume_challenge(key: str) -> Optional[bytes]:
-    """Recupera y elimina (un solo uso)."""
-    challenge = _get_challenge(key)
-    _challenges_store.pop(key, None)
+def _consume_challenge(db: Session, key: str) -> Optional[bytes]:
+    """Recupera y elimina de la base de datos (un solo uso)."""
+    challenge = _get_challenge(db, key)
+    if challenge:
+        db.query(models.BiometricChallenge).filter(models.BiometricChallenge.key == key).delete()
+        db.commit()
     return challenge
 
 
@@ -107,7 +120,7 @@ def biometric_register_options(
         ],
     )
 
-    _save_challenge(f"reg:{user.id}", options.challenge)
+    _save_challenge(db, f"reg:{user.id}", options.challenge)
     return json.loads(options_to_json(options))
 
 
@@ -118,7 +131,7 @@ def biometric_register_verify(
     """
     Verifica la respuesta del navegador y guarda la credencial nueva en BD.
     """
-    challenge = _consume_challenge(f"reg:{user.id}")
+    challenge = _consume_challenge(db, f"reg:{user.id}")
     if not challenge:
         raise HTTPException(
             status_code=400,
@@ -210,7 +223,7 @@ def biometric_login_options(
         user_verification=UserVerificationRequirement.PREFERRED,
     )
 
-    _save_challenge(f"auth:{user_for_challenge_key}", options.challenge)
+    _save_challenge(db, f"auth:{user_for_challenge_key}", options.challenge)
     return json.loads(options_to_json(options))
 
 
@@ -234,9 +247,9 @@ def biometric_login_verify(
     if not cred:
         raise HTTPException(401, "Esta huella no está registrada en el sistema.")
 
-    challenge = _consume_challenge(f"auth:{cred.user_id}")
+    challenge = _consume_challenge(db, f"auth:{cred.user_id}")
     if not challenge:
-        challenge = _consume_challenge("auth:anon")
+        challenge = _consume_challenge(db, "auth:anon")
     if not challenge:
         raise HTTPException(400, "La sesión de huella expiró. Intenta de nuevo.")
 

@@ -4,6 +4,8 @@ from datetime import timedelta
 import models, schemas
 from crud.perecederos import crear_lote_existencia
 
+import json
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # PRODUCTOS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -32,6 +34,8 @@ def create_producto(db: Session, empresa_id: int, producto: schemas.ProductoCrea
     db.add(db_producto)
     db.commit()
     db.refresh(db_producto)
+    
+    # ... rest of logic unchanged ...
 
     # Lógica de inicialización de Stock / Lotes
     if stock_inicial and stock_inicial > 0:
@@ -63,10 +67,12 @@ def create_producto(db: Session, empresa_id: int, producto: schemas.ProductoCrea
     db.refresh(db_producto)
     return db_producto
 
-def update_producto(db: Session, empresa_id: int, producto_id: int, producto: schemas.ProductoCreate):
+def update_producto(db: Session, empresa_id: int, producto_id: int, producto: schemas.ProductoBase):
     db_producto = get_producto(db, empresa_id, producto_id)
     if db_producto:
-        for key, value in producto.dict(exclude_unset=True).items():
+        update_data = producto.dict(exclude_unset=True)
+        
+        for key, value in update_data.items():
             setattr(db_producto, key, value)
         db.commit()
         db.refresh(db_producto)

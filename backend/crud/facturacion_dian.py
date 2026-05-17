@@ -42,6 +42,12 @@ def _asignar_numero_factura(db: Session, empresa_id: int, venta: models.Venta) -
     numero_str = f"{resolucion.prefijo}{siguiente}"
     venta.numero_factura = numero_str
     venta.resolucion_id  = resolucion.id
+
+    # 👇 NUEVO: Marcar como pendiente si la empresa tiene FE activa
+    empresa = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
+    if empresa and empresa.facturacion_electronica_activa:
+        venta.estado_electronico = "pendiente"
+
     db.add(resolucion)
     return numero_str
 

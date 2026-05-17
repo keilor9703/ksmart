@@ -223,7 +223,7 @@ const Cotizaciones = () => {
       ]);
       setCotizaciones(cotRes.data);
       setClientes(cliRes.data.filter(c => c.es_cliente));
-      setProductos(prodRes.data.filter(p => p.es_servicio || p.grupo_item === 2));
+      setProductos(prodRes.data);
     } catch {
       toast.error('Error cargando cotizaciones');
     }

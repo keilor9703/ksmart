@@ -47,6 +47,7 @@ import LocalCarWash from '@mui/icons-material/LocalCarWash';
 import Autorenew from '@mui/icons-material/Autorenew';
 import SettingsSuggest from '@mui/icons-material/SettingsSuggest';
 import HelpOutline from '@mui/icons-material/HelpOutline';
+import Storefront from '@mui/icons-material/Storefront';
 
 
 // ─── DICCIONARIO de iconos y colores por frontend_path ────────────────────
@@ -116,7 +117,8 @@ export const getModuleConfig = (frontendPath, backendName = null) => {
 // Estos no vienen del backend porque son del propio sistema, no de roles
 // ───────────────────────────────────────────────────────────────────────────
 export const ADMIN_MODULES = [
-  { path: '/admin/usuarios', label: 'Usuarios y Permisos', icon: null, color: '#a78bfa' }
+  { path: '/admin/usuarios', label: 'Usuarios y Permisos', icon: null, color: '#a78bfa' },
+  { path: '/admin/catalogo', label: 'Catálogo Virtual', icon: <Storefront />, color: '#F43F5E' }
 ];
 
 
