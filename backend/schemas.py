@@ -5,7 +5,7 @@
 # =========================
 
 import json
-from pydantic import BaseModel, ConfigDict, validator, field_validator
+from pydantic import BaseModel, ConfigDict, validator, field_validator, Field, EmailStr
 from typing import Optional, List
 from datetime import datetime, date, timezone
 from enum import Enum
@@ -25,6 +25,24 @@ class EmpresaBase(BaseModel):
     trial_ends_at: Optional[datetime] = None
     modulos_habilitados: Optional[List[str]] = None
     is_protected: bool = False
+    
+    # 👇 NUEVOS CAMPOS CATÁLOGO VIRTUAL
+    slug_catalogo: Optional[str] = None
+    whatsapp_pedidos: Optional[str] = None
+    logo_base64: Optional[str] = None
+
+    # 🧾 CAMPOS FACTURACIÓN ELECTRÓNICA
+    dv: Optional[str] = None
+    tipo_organizacion_id: int = 1
+    tipo_regimen_id: int = 48
+    responsabilidad_fiscal_codes: str = "O-13"
+    matricula_mercantil: Optional[str] = None
+    departamento_code: Optional[str] = None
+    ciudad_code: Optional[str] = None
+    correo_facturacion: Optional[str] = None
+    facturacion_electronica_activa: bool = False
+    matias_api_key: Optional[str] = None
+    matias_test_mode: bool = True
 
     # ✅ FIX: La BD guarda esto como string JSON, Pydantic necesita lista
     @validator('modulos_habilitados', pre=True, always=True)
@@ -202,6 +220,16 @@ class ClienteBase(BaseModel):
     es_cliente: bool = True
     es_proveedor: bool = False
 
+    # 🧾 CAMPOS FACTURACIÓN ELECTRÓNICA (DIAN)
+    email: Optional[EmailStr] = None
+    tipo_documento_id: int = 13       # 13: Cédula, 31: NIT
+    dv: Optional[str] = None
+    tipo_organizacion_id: int = 2     # 1: Jurídica, 2: Natural
+    tipo_regimen_id: int = 49          # 48: Responsable IVA, 49: No responsable
+    responsabilidad_fiscal_codes: str = "R-99-PN"
+    departamento_code: Optional[str] = None
+    ciudad_code: Optional[str] = None
+
 class ClienteCreate(ClienteBase):
     pass
 
@@ -255,6 +283,22 @@ class ProductoBase(BaseModel):
     
     # 👇 NUEVO CAMPO: Se valida desde la API
     maneja_lotes: bool = False
+
+    # 👇 NUEVOS CAMPOS CATÁLOGO VIRTUAL
+    imagenes: Optional[List[str]] = None # Lista de Base64
+    mostrar_en_catalogo: bool = False
+
+    # ✅ FIX: La BD guarda esto como string JSON, Pydantic necesita lista
+    @validator('imagenes', pre=True, always=True)
+    def parse_imagenes(cls, v):
+        if isinstance(v, str):
+            try:
+                import json
+                return json.loads(v)
+            except:
+                return []
+        return v or []
+
 class ProductoCreate(ProductoBase):
     stock_inicial:     Optional[float] = 0.0
     numero_lote:       Optional[str]   = None
@@ -377,9 +421,15 @@ class Venta(VentaBase):
     # ← Nuevos campos Fase 2
     numero_factura: Optional[str] = None
     resolucion_id: Optional[int] = None
-    # Lavadero
-    operador_id: Optional[int] = None
-    placa_vehiculo: Optional[str] = None
+    
+    # 🧾 CAMPOS FACTURACIÓN ELECTRÓNICA
+    cufe: Optional[str] = None
+    qr_data: Optional[str] = None
+    xml_url: Optional[str] = None
+    pdf_url: Optional[str] = None
+    estado_electronico: str = "no_enviado"
+    mensaje_proveedor: Optional[str] = None
+
     model_config = ConfigDict(from_attributes=True)
 
 # =========================
@@ -2089,3 +2139,36 @@ class DarBajaResponse(BaseModel):
     monto_cobrado_accesos:        float = 0.0
     saldo_marcado_incobrable:     float = 0.0
     mensaje:                      str
+
+
+# =========================
+# CATÁLOGO VIRTUAL
+# =========================
+
+class CatalogoConfigUpdate(BaseModel):
+    slug_catalogo: str = Field(..., pattern=r"^[a-z0-9-]+$")
+    whatsapp_pedidos: Optional[str] = None
+    logo_base64: Optional[str] = None
+
+class CatalogoEmpresaOut(BaseModel):
+    nombre: str
+    slug_catalogo: str
+    whatsapp_pedidos: Optional[str] = None
+    logo_base64: Optional[str] = None
+    color_primario: str
+    direccion: Optional[str] = None
+
+class CatalogoProductoOut(BaseModel):
+    id: int
+    nombre: str
+    descripcion: Optional[str] = None
+    precio: float
+    categoria: Optional[str] = None
+    image_count: int = 0
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class CatalogoPublicoOut(BaseModel):
+    empresa: CatalogoEmpresaOut
+    productos: List[CatalogoProductoOut]
+    total_productos: int
