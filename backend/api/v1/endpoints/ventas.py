@@ -17,9 +17,13 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
     if not venta.operador_id:
         venta = venta.model_copy(update={'operador_id': current_user.id})
 
-    db_cliente = crud.get_cliente(db, empresa_id=empresa_id, cliente_id=venta.cliente_id)
-    if not db_cliente:
-        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    # Cliente es opcional (lavadero y otros módulos sin cliente obligatorio)
+    db_cliente = None
+    if venta.cliente_id is not None:
+        db_cliente = crud.get_cliente(db, empresa_id=empresa_id, cliente_id=venta.cliente_id)
+        if not db_cliente:
+            raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
     if not venta.detalles:
         raise HTTPException(status_code=400, detail="Debe proporcionar al menos un producto.")
 
@@ -27,13 +31,14 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
         prod = crud.get_producto(db, empresa_id=empresa_id, producto_id=d.producto_id)
         if not prod:
             raise HTTPException(status_code=404, detail=f"Producto {d.producto_id} no existe")
-        
+
         # Validación de stock solo para productos físicos
         if not prod.es_servicio:
             if (prod.stock_actual or 0) < d.cantidad:
                 raise HTTPException(status_code=400, detail=f"Stock insuficiente para '{prod.nombre}'. Disponible: {prod.stock_actual}, requerido: {d.cantidad}")
 
-    if not venta.pagada:
+    # Validación de crédito solo si hay cliente y la venta es a crédito
+    if not venta.pagada and db_cliente is not None:
         total_nueva = sum(
             (d.precio_unitario if d.precio_unitario is not None else crud.get_producto(db, empresa_id, d.producto_id).precio) * d.cantidad
             for d in venta.detalles
@@ -110,7 +115,7 @@ def read_venta(venta_id: int, db: Session = Depends(get_db), current_user: model
 @router.put("/{venta_id}", response_model=schemas.Venta)
 def update_venta(venta_id: int, venta: schemas.VentaCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
     empresa_id = current_user.empresa_id
-    if not crud.get_cliente(db, empresa_id=empresa_id, cliente_id=venta.cliente_id):
+    if venta.cliente_id is not None and not crud.get_cliente(db, empresa_id=empresa_id, cliente_id=venta.cliente_id):
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
     if not venta.detalles:
         raise HTTPException(status_code=400, detail="Debe proporcionar al menos un producto.")
