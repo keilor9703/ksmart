@@ -36,7 +36,6 @@ PERFILES = {
         "/caja", "/reportes", "/admin/usuarios",
     ],
     "lavadero": [
-        "/ventas",
         "/lavadero/ventas",
         "/lavadero/reporte",
         "/clientes",
