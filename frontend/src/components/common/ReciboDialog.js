@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import {
   Dialog, DialogContent, Box, Typography, Button, IconButton,
   TextField, Divider, Collapse, InputAdornment, ToggleButtonGroup,
-  ToggleButton, Chip, Stack, Paper
+  ToggleButton, Chip, Stack, Paper, useTheme
 } from '@mui/material';
 import {
   Close, Print, WhatsApp, ExpandMore, ExpandLess,
@@ -368,6 +368,8 @@ const A4Preview = ({ venta, empresa, vendedor, dateStr, saldo }) => {
 
 // ─── Main dialog ──────────────────────────────────────────────────────────────
 const ReciboDialog = ({ open, onClose, venta, empresa, vendedor }) => {
+  const theme   = useTheme();
+  const isDark  = theme.palette.mode === 'dark';
   const [paperSize, setPaperSize]     = useState('a4');
   const [waOpen, setWaOpen]           = useState(false);
   const [waNumber, setWaNumber]       = useState('');
@@ -402,8 +404,20 @@ const ReciboDialog = ({ open, onClose, venta, empresa, vendedor }) => {
   const handleWhatsApp = () => {
     const num = waNumber.replace(/\D/g, '');
     if (!num) return;
+    // Step 1: open A4 print window so user can save PDF
+    const a4Html = buildPrintHTML(venta, empresa, vendedor, SIZES.a4);
+    const w = window.open('', '_blank', 'width=700,height=900');
+    if (w) {
+      w.document.write(a4Html);
+      w.document.close();
+      w.focus();
+      setTimeout(() => w.print(), 350);
+    }
+    // Step 2: open WhatsApp with receipt text after short delay
     const text = buildWhatsAppText(venta, empresa, vendedor);
-    window.open(`https://wa.me/${num}?text=${encodeURIComponent(text)}`, '_blank');
+    setTimeout(() => {
+      window.open(`https://wa.me/${num}?text=${encodeURIComponent(text)}`, '_blank');
+    }, 1500);
   };
 
   return (
@@ -438,9 +452,15 @@ const ReciboDialog = ({ open, onClose, venta, empresa, vendedor }) => {
       </Box>
 
       {/* ── Venta registrada ─ success banner ──────── */}
-      <Box sx={{ mx: 2.5, mb: 1.5, px: 2, py: 1, borderRadius: 2, bgcolor: '#f0fdf4', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
-        <CheckCircleOutline sx={{ color: '#16a34a', fontSize: 18 }} />
-        <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#16a34a' }}>
+      <Box sx={{
+        mx: 2.5, mb: 1.5, px: 2, py: 1, borderRadius: 2,
+        bgcolor: isDark ? 'rgba(22,163,74,0.12)' : '#f0fdf4',
+        border: '1px solid',
+        borderColor: isDark ? 'rgba(22,163,74,0.3)' : '#bbf7d0',
+        display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0
+      }}>
+        <CheckCircleOutline sx={{ color: isDark ? '#4ade80' : '#16a34a', fontSize: 18 }} />
+        <Typography sx={{ fontSize: 13, fontWeight: 600, color: isDark ? '#4ade80' : '#16a34a' }}>
           Venta registrada — Total: {formatCurrency(venta.total)}
         </Typography>
       </Box>
@@ -499,8 +519,13 @@ const ReciboDialog = ({ open, onClose, venta, empresa, vendedor }) => {
 
       {/* ── WhatsApp collapsible panel ──────────────── */}
       <Collapse in={waOpen} sx={{ flexShrink: 0 }}>
-        <Box sx={{ px: 2.5, py: 2, bgcolor: '#f0fdf4', borderTop: '1px solid #bbf7d0' }}>
-          <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#166534', mb: 1.2 }}>
+        <Box sx={{
+          px: 2.5, py: 2,
+          bgcolor: isDark ? 'rgba(37,211,102,0.08)' : '#f0fdf4',
+          borderTop: '1px solid',
+          borderColor: isDark ? 'rgba(37,211,102,0.22)' : '#bbf7d0',
+        }}>
+          <Typography sx={{ fontSize: 12, fontWeight: 600, color: isDark ? '#4ade80' : '#166534', mb: 1.2 }}>
             📲 Enviar comprobante por WhatsApp
           </Typography>
           <Stack direction="row" spacing={1}>
@@ -530,6 +555,9 @@ const ReciboDialog = ({ open, onClose, venta, empresa, vendedor }) => {
               Enviar
             </Button>
           </Stack>
+          <Typography sx={{ fontSize: 11, color: isDark ? '#86efac' : '#15803d', mt: 1 }}>
+            💡 Se abrirá el PDF para guardar y luego se abrirá WhatsApp. Adjunta el PDF en la conversación.
+          </Typography>
         </Box>
       </Collapse>
 
