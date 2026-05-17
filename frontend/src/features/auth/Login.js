@@ -11,9 +11,8 @@ import { keyframes } from '@mui/system';
 import {
     Visibility, VisibilityOff, AlternateEmail, Lock, Business, Person,
     Storefront, AttachMoney, Email, Phone, LocationOn, Group,
-    ArrowForward, ArrowBack, CheckCircle
+    ArrowForward, ArrowBack, CheckCircle, LocalParking, LocalCarWash
 } from '@mui/icons-material';
-import { TwoWheeler } from '@mui/icons-material';
 
 import BotonHuella from '../../components/common/BotonHuella';
 import { CIUDADES_COLOMBIA } from '../../utils/colombiaData';
@@ -516,11 +515,12 @@ const Login = ({ onLogin }) => {
                                     <>
                                         <Grid container spacing={1.5}>
                                             {[
-                                                { key: 'erp',       label: 'Comercio / ERP',  Icon: Storefront,  desc: 'Ventas e Inventario' },
-                                                { key: 'prestamos', label: 'Cobranzas',       Icon: AttachMoney, desc: 'Rutas de Cobro' },
-                                                { key: 'parqueadero',  label: 'Parqueadero',     desc: 'Motos / vehículos',    Icon: TwoWheeler    },
+                                                { key: 'erp',         label: 'Comercio / ERP', Icon: Storefront,   desc: 'Ventas e Inventario'  },
+                                                { key: 'prestamos',   label: 'Cobranzas',      Icon: AttachMoney,  desc: 'Rutas de Cobro'       },
+                                                { key: 'parqueadero', label: 'Parqueadero',    Icon: LocalParking, desc: 'Control vehículos'    },
+                                                { key: 'lavadero',    label: 'Lavadero',       Icon: LocalCarWash, desc: 'POS + productividad'  },
                                             ].map(({ key, label, Icon, desc }) => (
-                                                <Grid item xs={4} key={key}>
+                                                <Grid item xs={6} key={key}>
                                                     <Card sx={{
                                                         border: regData.tipo_negocio === key
                                                             ? '2px solid #ea580c'
