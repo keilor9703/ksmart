@@ -122,8 +122,8 @@ const CatalogoConfig = () => {
                   helperText="Solo letras minúsculas, números y guiones. Será tu enlace público."
                   InputProps={{
                     startAdornment: (
-                      <Typography sx={{ color: 'text.secondary', fontSize: 14, mr: 0.5 }}>
-                        ksmart.app/
+                      <Typography sx={{ color: 'text.secondary', fontSize: 13, mr: 0.5, whiteSpace: 'nowrap' }}>
+                        {window.location.hostname}/
                       </Typography>
                     )
                   }}
