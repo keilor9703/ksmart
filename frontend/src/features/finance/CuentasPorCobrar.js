@@ -29,13 +29,13 @@ const formatearFechaExacta = (fechaString) => {
 };
 
 const KpiCard = ({ label, value, icon, color }) => (
-  <Paper sx={{ p: 2, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-    <Box sx={{ width: 38, height: 38, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: `${color}18`, color }}>
+  <Paper sx={{ p: { xs: 1.5, sm: 2 }, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 1, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+    <Box sx={{ width: 34, height: 34, borderRadius: 1.5, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: `${color}18`, color }}>
       {icon}
     </Box>
-    <Box sx={{ minWidth: 0 }}>
-      <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 500 }}>{label}</Typography>
-      <Typography sx={{ fontSize: 15, fontWeight: 700, lineHeight: 1.2 }}>{value}</Typography>
+    <Box sx={{ minWidth: 0, flex: 1 }}>
+      <Typography sx={{ fontSize: 10, color: 'text.secondary', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</Typography>
+      <Typography sx={{ fontSize: 13, fontWeight: 700, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</Typography>
     </Box>
   </Paper>
 );
@@ -320,29 +320,29 @@ const CuentasPorCobrar = () => {
   }
 
   return (
-    <Box>
-      <Grid container spacing={1.5} sx={{ mb: 2 }}>
+    <Box sx={{ maxWidth: '100%', overflow: 'hidden' }}>
+      <Grid container spacing={1} sx={{ mb: 2 }}>
         <Grid item xs={6} sm={4}><KpiCard label="Total por cobrar" value={formatCurrency(totalPendiente)} icon={<AccountBalanceWallet />} color={RED} /></Grid>
         <Grid item xs={6} sm={4}><KpiCard label="Con deuda" value={cuentasPorCobrar.length} icon={<People />} color={YELLOW} /></Grid>
         <Grid item xs={12} sm={4}><KpiCard label="Deuda promedio" value={formatCurrency(totalPendiente / cuentasPorCobrar.length)} icon={<TrendingDown />} color={ACCENT} /></Grid>
       </Grid>
 
-      <Paper sx={{ p: 2, mb: 2, borderRadius: 3, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+      <Paper sx={{ p: 2, mb: 2, borderRadius: 3, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
         <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1.5 }}>Top clientes con mayor deuda</Typography>
         {top5.map((c, i) => (
           <Box key={c.cliente_id} sx={{ mb: i < top5.length - 1 ? 1.5 : 0 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-              <Typography sx={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '65%' }}>{c.cliente_nombre}</Typography>
-              <Typography sx={{ fontSize: 12, fontWeight: 700, color: RED, flexShrink: 0, ml: 1 }}>{formatCurrency(c.monto_pendiente)}</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 0.5, minWidth: 0 }}>
+              <Typography sx={{ fontSize: 12, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{c.cliente_nombre}</Typography>
+              <Typography sx={{ fontSize: 12, fontWeight: 700, color: RED, flexShrink: 0, whiteSpace: 'nowrap' }}>{formatCurrency(c.monto_pendiente)}</Typography>
             </Box>
             <LinearProgress variant="determinate" value={top5[0].monto_pendiente > 0 ? (c.monto_pendiente / top5[0].monto_pendiente) * 100 : 0} sx={{ height: 6, borderRadius: 3, bgcolor: `${RED}18`, '& .MuiLinearProgress-bar': { bgcolor: RED, borderRadius: 3 } }} />
           </Box>
         ))}
       </Paper>
 
-      <Paper sx={{ p: 1.5, mb: 2, borderRadius: 2, bgcolor: `${RED}08`, border: `1px solid ${RED}30`, display: 'flex', alignItems: 'center', gap: 1.5, boxShadow: 'none' }}>
-        <Warning sx={{ color: RED, flexShrink: 0, fontSize: 18 }} />
-        <Box>
+      <Paper sx={{ p: 1.5, mb: 2, borderRadius: 2, bgcolor: `${RED}08`, border: `1px solid ${RED}30`, display: 'flex', alignItems: 'flex-start', gap: 1, boxShadow: 'none', overflow: 'hidden' }}>
+        <Warning sx={{ color: RED, flexShrink: 0, fontSize: 18, mt: 0.2 }} />
+        <Box sx={{ minWidth: 0 }}>
           <Typography sx={{ fontWeight: 700, color: RED, fontSize: 13 }}>{cuentasPorCobrar.length} cliente{cuentasPorCobrar.length > 1 ? 's' : ''} con saldo pendiente</Typography>
           <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Total a recuperar: <strong>{formatCurrency(totalPendiente)}</strong></Typography>
         </Box>
