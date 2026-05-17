@@ -99,7 +99,22 @@ def login_for_access_token(
     db: Session = Depends(get_db)
 ):
     user = crud.get_user_by_username(db, username=form_data.username)
-    if not user or not security.verify_password(form_data.password, user.hashed_password):
+    if not user:
+        logger.warning(f"Login fallido: usuario '{form_data.username}' no existe en BD")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuario o contraseña incorrectos",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not user.hashed_password:
+        logger.error(f"Login fallido: usuario '{form_data.username}' existe pero hashed_password es NULL")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuario o contraseña incorrectos",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not security.verify_password(form_data.password, user.hashed_password):
+        logger.warning(f"Login fallido: contraseña incorrecta para '{form_data.username}' (hash prefix: {user.hashed_password[:10]})")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuario o contraseña incorrectos",
