@@ -104,6 +104,10 @@ def initialize_default_data(db: Session):
         {"name": "Vehículos",           "description": "Gestión de vehículos.",                            "frontend_path": "/parqueadero/vehiculos"},
         {"name": "Suscripciones Parq.", "description": "Renovaciones y pagos.",                            "frontend_path": "/parqueadero/suscripciones"},
         {"name": "Config Parqueadero",  "description": "Tarifas y cupo total.",                            "frontend_path": "/parqueadero/config"},
+        {"name": "POS Lavadero",         "description": "Punto de venta especializado para lavadero.",       "frontend_path": "/lavadero/ventas"},
+        {"name": "Reporte Lavadero",     "description": "Reporte de productividad por trabajador.",          "frontend_path": "/lavadero/reporte"},
+        {"name": "Gestión Usuarios",     "description": "Administración de usuarios y roles.",               "frontend_path": "/admin/usuarios"},
+        {"name": "Catálogo Virtual",     "description": "Tienda virtual con pedidos por WhatsApp.",          "frontend_path": "/admin/catalogo"},
     ]
 
     admin_role = crud.get_role_by_name(db, name="Admin", empresa_id=empresa_default.id)
