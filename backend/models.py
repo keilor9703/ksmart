@@ -39,6 +39,10 @@ class Empresa(Base):
     tamano_negocio  = Column(String(20), nullable=True)
     origen_marketing = Column(String(60), nullable=True)
 
+    # 👇 NUEVOS CAMPOS CATÁLOGO VIRTUAL
+    slug_catalogo     = Column(String(100), unique=True, index=True, nullable=True)
+    whatsapp_pedidos  = Column(String(20), nullable=True)
+    logo_base64       = Column(Text, nullable=True) # WebP comprimido
 
     # Opcional: relación inversa para acceder a sus usuarios
     usuarios = relationship("User", back_populates="empresa")
@@ -61,6 +65,21 @@ class Empresa(Base):
 
     # 👇 NUEVOS CAMPOS FASE 2 - AUTOMATIZACIÓN
     is_protected = Column(Boolean, default=False) # QA, Partners, Demos
+
+    # 🧾 CAMPOS FACTURACIÓN ELECTRÓNICA (DIAN / MATIAS API)
+    dv                    = Column(String(1), nullable=True)  # Dígito de Verificación
+    tipo_organizacion_id  = Column(Integer, default=1)        # 1: Jurídica, 2: Natural
+    tipo_regimen_id       = Column(Integer, default=48)       # 48: Responsable IVA, 49: No responsable
+    responsabilidad_fiscal_codes = Column(String, default="O-13") # ej: "O-13, O-15"
+    matricula_mercantil   = Column(String, nullable=True)
+    departamento_code     = Column(String(5), nullable=True)  # ej: "05" (Antioquia)
+    ciudad_code           = Column(String(5), nullable=True)  # ej: "05001" (Medellín)
+    correo_facturacion    = Column(String, nullable=True)     # Donde llegan las notificaciones DIAN
+
+    # Configuración de Integración
+    facturacion_electronica_activa = Column(Boolean, default=False)
+    matias_api_key        = Column(String, nullable=True)
+    matias_test_mode      = Column(Boolean, default=True)
 
 
 class SaaSAnnouncement(Base):
@@ -192,6 +211,16 @@ class Cliente(Base, TenantMixin):
     es_cliente    = Column(Boolean, default=True)
     es_proveedor  = Column(Boolean, default=False)
 
+    # 🧾 CAMPOS FACTURACIÓN ELECTRÓNICA (DIAN)
+    email                 = Column(String, index=True, nullable=True) # Obligatorio para FE
+    tipo_documento_id     = Column(Integer, default=13)       # 13: Cédula, 31: NIT, etc.
+    dv                    = Column(String(1), nullable=True)  # Dígito de Verificación (para NIT)
+    tipo_organizacion_id  = Column(Integer, default=2)        # 1: Jurídica, 2: Natural
+    tipo_regimen_id       = Column(Integer, default=49)       # 48: Responsable IVA, 49: No responsable
+    responsabilidad_fiscal_codes = Column(String, default="R-99-PN")
+    departamento_code     = Column(String(5), nullable=True)
+    ciudad_code           = Column(String(5), nullable=True)
+
     ventas          = relationship("Venta", back_populates="cliente")
     ordenes_trabajo = relationship("OrdenTrabajo", back_populates="cliente")
 
@@ -231,6 +260,10 @@ class Producto(Base, TenantMixin):
     
     # 👇 NUEVA COLUMNA: Control maestro para perecederos
     maneja_lotes  = Column(Boolean, default=False)
+
+    # 👇 NUEVOS CAMPOS CATÁLOGO VIRTUAL
+    imagenes            = Column(JSON, nullable=True) # JSON list de WebP comprimidos
+    mostrar_en_catalogo = Column(Boolean, default=False, index=True)
 
     lotes = relationship("LoteExistencia", back_populates="producto", cascade="all, delete-orphan")
 
@@ -329,7 +362,15 @@ class Venta(Base, TenantMixin):
     valida_hasta    = Column(DateTime(timezone=True), nullable=True)
     observaciones   = Column(Text, nullable=True)
 
-    # Lavadero
+    # 🧾 CAMPOS FACTURACIÓN ELECTRÓNICA (DIAN / MATIAS API)
+    cufe                = Column(String, nullable=True, index=True)
+    qr_data             = Column(Text, nullable=True)
+    xml_url             = Column(String, nullable=True)
+    pdf_url             = Column(String, nullable=True)
+    estado_electronico  = Column(String, default="no_enviado") # 'no_enviado', 'exitoso', 'fallido'
+    mensaje_proveedor   = Column(Text, nullable=True)
+
+    # Lavadero de vehículos
     operador_id     = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     placa_vehiculo  = Column(String(15), nullable=True)
 
@@ -1055,9 +1096,17 @@ class CredencialBiometrica(Base):
 # agrégalo:
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# from sqlalchemy import (
-#     Column, Integer, String, Text, BigInteger, DateTime, ForeignKey, Boolean,
-#     Float, Date, Enum, UniqueConstraint
-# )
-# from sqlalchemy.orm import relationship
-# # ... resto de imports ...
+# ═══════════════════════════════════════════════════════════════════════════════
+# WEBAUTHN CHALLENGES (PERSISTENCIA PARA MULTI-WORKER)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class BiometricChallenge(Base):
+    """
+    Almacena temporalmente los challenges de WebAuthn para que funcionen
+    en entornos con múltiples workers (Gunicorn/Uvicorn).
+    """
+    __tablename__ = "biometric_challenges"
+
+    key        = Column(String(100), primary_key=True, index=True) # ej: "reg:5" o "auth:12"
+    challenge  = Column(Text, nullable=False)                      # Challenge en base64
+    expires_at = Column(Float, nullable=False)                     # Timestamp de expiración
