@@ -21,7 +21,9 @@ def update_catalogo_config(
 ):
     """Actualiza la configuración del catálogo para la empresa del usuario actual."""
     db_empresa = db.query(models.Empresa).filter(models.Empresa.id == current_user.empresa_id).first()
-    
+    if not db_empresa:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada.")
+
     # Validar unicidad del slug si ha cambiado
     if payload.slug_catalogo != db_empresa.slug_catalogo:
         existing = db.query(models.Empresa).filter(models.Empresa.slug_catalogo == payload.slug_catalogo).first()
@@ -161,10 +163,13 @@ def get_producto_imagen(
 ):
     """Sirve una imagen específica del producto como un stream binario con cache."""
     # PREVENCIÓN IDOR: Validar que el producto pertenezca a la empresa del slug
-    db_producto = db.query(models.Producto).join(models.Empresa).filter(
-        models.Empresa.slug_catalogo == slug,
+    db_empresa = db.query(models.Empresa).filter(models.Empresa.slug_catalogo == slug).first()
+    if not db_empresa:
+        raise HTTPException(status_code=404, detail="Catálogo no encontrado.")
+
+    db_producto = db.query(models.Producto).filter(
         models.Producto.id == producto_id,
-        models.Producto.empresa_id == models.Empresa.id,
+        models.Producto.empresa_id == db_empresa.id,
         models.Producto.mostrar_en_catalogo == True
     ).first()
 
