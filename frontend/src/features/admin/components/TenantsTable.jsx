@@ -1,10 +1,10 @@
-import React from 'react';
-import { 
-  Paper, TableContainer, Table, TableHead, TableRow, TableCell, 
-  TableBody, Box, Avatar, Typography, Chip, Tooltip, IconButton,
-  useTheme, useMediaQuery, Stack, Divider
+import React, { useState, useMemo } from 'react';
+import {
+  Paper, TableContainer, Table, TableHead, TableRow, TableCell,
+  TableBody, TablePagination, Box, Avatar, Typography, Chip, Tooltip, IconButton,
+  useTheme, useMediaQuery, Stack, Divider, TableSortLabel
 } from '@mui/material';
-import { 
+import {
   ShoppingBag, Description, People, Info, SupportAgent, Settings, Shield, ShieldOutlined,
   ViewModule
 } from '@mui/icons-material';
@@ -75,22 +75,49 @@ const TenantMobileCard = ({ emp, onOpenDrawer, onImpersonate, onOpenPlan, onOpen
     </Paper>
 );
 
+const COLUMNS = [
+  { id: 'nombre', label: 'Inquilino', sortFn: (a, b) => a.nombre.localeCompare(b.nombre) },
+  { id: 'plan_type', label: 'Plan / Estado', sortFn: (a, b) => a.plan_type.localeCompare(b.plan_type) },
+  { id: 'last_activity_at', label: 'Actividad', sortFn: (a, b) => new Date(b.last_activity_at || 0) - new Date(a.last_activity_at || 0) },
+  { id: 'count_ventas', label: 'Uso (V / P / U)', sortFn: (a, b) => b.count_ventas - a.count_ventas },
+  { id: 'acciones', label: 'Acciones', sortable: false },
+];
+
 const TenantsTable = ({ empresas, onOpenDrawer, onImpersonate, onOpenPlan, onOpenModulos, onToggleProtection }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [sortBy, setSortBy] = useState('nombre');
+  const [sortDir, setSortDir] = useState('asc');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  const handleSort = (colId) => {
+    if (sortBy === colId) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortBy(colId); setSortDir('asc'); }
+    setPage(0);
+  };
+
+  const sorted = useMemo(() => {
+    const col = COLUMNS.find(c => c.id === sortBy);
+    if (!col?.sortFn) return empresas;
+    const copy = [...empresas].sort(col.sortFn);
+    return sortDir === 'desc' ? copy.reverse() : copy;
+  }, [empresas, sortBy, sortDir]);
+
+  const paginated = sorted.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   if (isMobile) {
       return (
           <Box sx={{ pb: 5 }}>
               {empresas.map(emp => (
-                  <TenantMobileCard 
-                    key={emp.id} 
-                    emp={emp} 
-                    onOpenDrawer={onOpenDrawer} 
-                    onImpersonate={onImpersonate} 
-                    onOpenPlan={onOpenPlan} 
+                  <TenantMobileCard
+                    key={emp.id}
+                    emp={emp}
+                    onOpenDrawer={onOpenDrawer}
+                    onImpersonate={onImpersonate}
+                    onOpenPlan={onOpenPlan}
                     onOpenModulos={onOpenModulos}
-                    onToggleProtection={onToggleProtection} 
+                    onToggleProtection={onToggleProtection}
                   />
               ))}
           </Box>
@@ -103,15 +130,28 @@ const TenantsTable = ({ empresas, onOpenDrawer, onImpersonate, onOpenPlan, onOpe
         <Table>
           <TableHead sx={{ bgcolor: 'action.hover' }}>
             <TableRow>
-              <TableCell sx={{ fontWeight: 800 }}>Inquilino</TableCell>
-              <TableCell sx={{ fontWeight: 800 }}>Plan / Estado</TableCell>
-              <TableCell sx={{ fontWeight: 800 }}>Actividad</TableCell>
-              <TableCell sx={{ fontWeight: 800 }}>Uso (V / P / U)</TableCell>
-              <TableCell align="right" sx={{ fontWeight: 800 }}>Acciones</TableCell>
+              {COLUMNS.map(col => (
+                <TableCell
+                  key={col.id}
+                  align={col.id === 'acciones' ? 'right' : 'left'}
+                  sx={{ fontWeight: 800 }}
+                  sortDirection={sortBy === col.id ? sortDir : false}
+                >
+                  {col.sortFn !== undefined ? (
+                    <TableSortLabel
+                      active={sortBy === col.id}
+                      direction={sortBy === col.id ? sortDir : 'asc'}
+                      onClick={() => handleSort(col.id)}
+                    >
+                      {col.label}
+                    </TableSortLabel>
+                  ) : col.label}
+                </TableCell>
+              ))}
             </TableRow>
           </TableHead>
           <TableBody>
-            {empresas.map((emp) => (
+            {paginated.map((emp) => (
               <TableRow key={emp.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
                 <TableCell>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -159,19 +199,15 @@ const TenantsTable = ({ empresas, onOpenDrawer, onImpersonate, onOpenPlan, onOpe
                         {emp.is_protected ? <Shield fontSize="small" /> : <ShieldOutlined fontSize="small" />}
                     </IconButton>
                   </Tooltip>
-
                   <Tooltip title="Ver Visión 360°" arrow>
                     <IconButton size="small" onClick={() => onOpenDrawer(emp)} sx={{ color: BLUE }}><Info fontSize="small" /></IconButton>
                   </Tooltip>
-
                   <Tooltip title="Entrar como Soporte (Impersonate)" arrow>
                     <IconButton size="small" onClick={() => onImpersonate(emp.id)} sx={{ color: PURPLE }}><SupportAgent fontSize="small" /></IconButton>
                   </Tooltip>
-
                   <Tooltip title="Configurar Módulos Habilitados" arrow>
                     <IconButton size="small" disabled={emp.id === 1} onClick={() => onOpenModulos(emp)} sx={{ color: ACCENT }}><ViewModule fontSize="small" /></IconButton>
                   </Tooltip>
-
                   <Tooltip title="Gestionar Suscripción y Vencimiento" arrow>
                     <IconButton size="small" disabled={emp.id === 1} onClick={() => onOpenPlan(emp)} sx={{ color: 'text.secondary' }}><Settings fontSize="small" /></IconButton>
                   </Tooltip>
@@ -181,6 +217,17 @@ const TenantsTable = ({ empresas, onOpenDrawer, onImpersonate, onOpenPlan, onOpe
           </TableBody>
         </Table>
       </TableContainer>
+      <TablePagination
+        component="div"
+        count={sorted.length}
+        page={page}
+        onPageChange={(_, p) => setPage(p)}
+        rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+        rowsPerPageOptions={[10, 25, 50]}
+        labelRowsPerPage="Por página:"
+        labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
+      />
     </Paper>
   );
 };

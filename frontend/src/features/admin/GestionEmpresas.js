@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import {
   Box, Typography, Paper, Button, Grid, useTheme, useMediaQuery,
   Tabs, Tab, IconButton, TextField, InputAdornment, Dialog, DialogTitle,
-  DialogContent, DialogActions, Stack, MenuItem, FormControlLabel, Switch, Chip, Divider, Collapse
+  DialogContent, DialogActions, Stack, MenuItem, FormControlLabel, Switch, Chip, Divider, Collapse,
+  Table, TableHead, TableRow, TableCell, TableBody, TableContainer
 } from '@mui/material';
 import {
   Add, AdminPanelSettings, Autorenew, TrendingUp, Business, LocalOffer,
   History, Campaign, Engineering, ReceiptLong, Search, Edit, Payments,
-  ExpandLess, ExpandMore
+  ExpandLess, ExpandMore, Warning, SupportAgent
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 
@@ -65,6 +66,33 @@ export default function GestionSaaS() {
     refreshAll, handleToggleStatus, handleToggleAnnouncement, handleToggleProtection,
     handleImpersonate, fetchCatalogoPlanes, fetchAnnouncements
   } = useSaaSData();
+
+  const [confirmState, setConfirmState] = useState({ open: false, title: '', body: '', icon: null, color: ACCENT, action: null, loading: false });
+
+  const askConfirm = (title, body, icon, color, action) => {
+    setConfirmState({ open: true, title, body, icon, color, action, loading: false });
+  };
+
+  const handleConfirm = async () => {
+    setConfirmState(prev => ({ ...prev, loading: true }));
+    try { await confirmState.action(); } finally {
+      setConfirmState({ open: false, title: '', body: '', icon: null, color: ACCENT, action: null, loading: false });
+    }
+  };
+
+  const onImpersonate = (id) => askConfirm(
+    '¿Entrar como Soporte?',
+    'Tu sesión de Admin se cerrará temporalmente. Se iniciará sesión como este cliente.',
+    <SupportAgent sx={{ fontSize: 40, color: PURPLE }} />, PURPLE,
+    () => handleImpersonate(id)
+  );
+
+  const onToggleStatus = (id, is_active) => askConfirm(
+    is_active ? '¿Suspender Inquilino?' : '¿Reactivar Inquilino?',
+    is_active ? 'La cuenta será desactivada de inmediato. El cliente no podrá acceder al sistema.' : 'La cuenta será reactivada y el cliente podrá acceder nuevamente.',
+    <Warning sx={{ fontSize: 40, color: is_active ? ACCENT : GREEN }} />, is_active ? ACCENT : GREEN,
+    async () => { if (await handleToggleStatus(id, is_active)) setOpenDrawer(false); }
+  );
 
   const [tabValue, setTabValue] = useState(0);
   const [openDrawer, setOpenDrawer] = useState(false);
@@ -264,7 +292,13 @@ export default function GestionSaaS() {
                 InputProps={{ startAdornment: <InputAdornment position="start"><Search /></InputAdornment> }}
               />
               <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto', py: 1.5, '&::-webkit-scrollbar': { display: 'none' } }}>
-                {[{ id: 'all', label: 'Todos' }, { id: 'premium', label: 'Premium' }, { id: 'trial', label: 'Trials' }, { id: 'expired', label: 'Expirados' }].map(f => (
+                {[
+                  { id: 'all', label: 'Todos' },
+                  { id: 'premium', label: 'Premium' },
+                  { id: 'trial', label: 'Trials' },
+                  { id: 'expired', label: 'Expirados' },
+                  { id: 'inactive', label: 'Inactivos +7d' }
+                ].map(f => (
                   <Chip
                     key={f.id} label={f.label} size="small" onClick={() => setFilterState(f.id)}
                     sx={{ fontWeight: 700, flexShrink: 0, bgcolor: filterState === f.id ? BLUE : 'transparent', color: filterState === f.id ? 'white' : 'text.primary' }}
@@ -274,7 +308,7 @@ export default function GestionSaaS() {
             </Box>
             <Box sx={{ width: '100%', overflowX: 'auto' }}>
               <TenantsTable
-                empresas={filteredEmpresas} onOpenDrawer={handleOpenDrawer} onImpersonate={handleImpersonate}
+                empresas={filteredEmpresas} onOpenDrawer={handleOpenDrawer} onImpersonate={onImpersonate}
                 onOpenPlan={handleOpenAsignarPlan} onOpenModulos={handleOpenModulos} onToggleProtection={handleToggleProtection}
               />
             </Box>
@@ -306,13 +340,62 @@ export default function GestionSaaS() {
           <TabPanel value={tabValue} index={5}><JobsControl /></TabPanel>
 
           <TabPanel value={tabValue} index={6}>
-            <Paper sx={{ p: 2, borderRadius: 3, bgcolor: `${GREEN}08`, border: `1px solid ${GREEN}20` }}>
-              <Typography variant="caption" sx={{ fontWeight: 800, color: GREEN, textTransform: 'uppercase' }}>Ingresos Totales</Typography>
-              <Typography sx={{ fontWeight: 900, fontSize: 28, color: GREEN }}>
-                ${new Intl.NumberFormat().format(pagos.reduce((acc, p) => acc + p.monto, 0))}
-              </Typography>
-              <Button variant="contained" startIcon={<Payments />} fullWidth sx={{ mt: 2, bgcolor: GREEN }}>Exportar CSV</Button>
-            </Paper>
+            <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+              <Paper sx={{ p: 2.5, borderRadius: 3, bgcolor: `${GREEN}08`, border: `1px solid ${GREEN}20`, flex: 1, minWidth: 200 }}>
+                <Typography variant="caption" sx={{ fontWeight: 800, color: GREEN, textTransform: 'uppercase' }}>Ingresos Totales</Typography>
+                <Typography sx={{ fontWeight: 900, fontSize: 28, color: GREEN }}>
+                  ${new Intl.NumberFormat('es-CO').format(pagos.reduce((acc, p) => acc + (p.monto || 0), 0))}
+                </Typography>
+                <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.5 }}>{pagos.length} transacciones registradas</Typography>
+              </Paper>
+              <Button
+                variant="contained"
+                startIcon={<Payments />}
+                sx={{ bgcolor: GREEN, borderRadius: 2, fontWeight: 700, alignSelf: 'center', px: 3 }}
+                onClick={() => {
+                  if (!pagos.length) return;
+                  const headers = Object.keys(pagos[0]).join(',');
+                  const rows = pagos.map(p => Object.values(p).map(v => `"${v ?? ''}"`).join(','));
+                  const csv = [headers, ...rows].join('\n');
+                  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'historial_pagos.csv'; a.click();
+                }}
+              >
+                Exportar CSV
+              </Button>
+            </Box>
+            {pagos.length > 0 ? (
+              <Paper sx={{ borderRadius: 3, overflow: 'hidden' }}>
+                <TableContainer sx={{ maxHeight: '60vh' }}>
+                  <Table size="small" stickyHeader>
+                    <TableHead>
+                      <TableRow>
+                        {Object.keys(pagos[0]).map(k => (
+                          <TableCell key={k} sx={{ fontWeight: 800, bgcolor: 'action.hover', textTransform: 'capitalize', fontSize: 12 }}>{k.replace(/_/g, ' ')}</TableCell>
+                        ))}
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {pagos.map((p, i) => (
+                        <TableRow key={i} hover>
+                          {Object.values(p).map((v, j) => (
+                            <TableCell key={j} sx={{ fontSize: 12 }}>
+                              {typeof v === 'number' && Object.keys(p)[j] === 'monto'
+                                ? `$${new Intl.NumberFormat('es-CO').format(v)}`
+                                : String(v ?? '-')}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Paper>
+            ) : (
+              <Paper sx={{ p: 6, textAlign: 'center', borderRadius: 3 }}>
+                <ReceiptLong sx={{ fontSize: 48, color: 'action.disabled', mb: 1 }} />
+                <Typography color="text.secondary">No hay registros de pagos aún.</Typography>
+              </Paper>
+            )}
           </TabPanel>
         </Box>
       </Box>
@@ -320,9 +403,9 @@ export default function GestionSaaS() {
       {/* ── DIALOGS ── */}
       <TenantDrawer360
         open={openDrawer} onClose={() => setOpenDrawer(false)} tenant={tenantForDrawer}
-        onImpersonate={handleImpersonate} onOpenPlan={handleOpenAsignarPlan}
+        onImpersonate={onImpersonate} onOpenPlan={handleOpenAsignarPlan}
         onOpenModulos={handleOpenModulos}
-        onToggleStatus={async (id, status) => { if(await handleToggleStatus(id, status)) setOpenDrawer(false); }}
+        onToggleStatus={onToggleStatus}
       />
 
       <ModulosEmpresaDialog
@@ -481,6 +564,21 @@ export default function GestionSaaS() {
         setFormPlan={setFormPlan}
         isEditing={!!editingPlanId}
       />
+
+      {/* ── CONFIRM DIALOG ── */}
+      <Dialog open={confirmState.open} onClose={() => !confirmState.loading && setConfirmState(prev => ({ ...prev, open: false }))} maxWidth="xs" fullWidth>
+        <DialogContent sx={{ textAlign: 'center', pt: 4, pb: 2 }}>
+          {confirmState.icon && <Box sx={{ mb: 2 }}>{confirmState.icon}</Box>}
+          <Typography sx={{ fontWeight: 800, fontSize: 18, mb: 1 }}>{confirmState.title}</Typography>
+          <Typography sx={{ color: 'text.secondary', fontSize: 14 }}>{confirmState.body}</Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5, pt: 1, gap: 1 }}>
+          <Button fullWidth onClick={() => setConfirmState(prev => ({ ...prev, open: false }))} disabled={confirmState.loading} sx={{ fontWeight: 700 }}>Cancelar</Button>
+          <Button fullWidth variant="contained" onClick={handleConfirm} disabled={confirmState.loading} sx={{ bgcolor: confirmState.color, fontWeight: 700 }}>
+            {confirmState.loading ? 'Procesando...' : 'Confirmar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
     </Box>
   );

@@ -97,7 +97,7 @@ const SaaSOverview = ({ stats, empresas, onViewTenants, onOpenTenant }) => {
                   
                   {isMobile ? (
                       <Box sx={{ maxHeight: 400, overflowY: 'auto', pr: 1 }}>
-                          {empresas.slice(0, 8).map(emp => (
+                          {empresas.slice(0, 20).map(emp => (
                               <ActivityCard key={emp.id} emp={emp} onClick={() => onOpenTenant(emp)} />
                           ))}
                       </Box>
@@ -112,7 +112,7 @@ const SaaSOverview = ({ stats, empresas, onViewTenants, onOpenTenant }) => {
                                   </TableRow>
                               </TableHead>
                               <TableBody>
-                                  {empresas.slice(0, 8).map(emp => (
+                                  {empresas.slice(0, 20).map(emp => (
                                       <TableRow key={emp.id} hover sx={{ cursor: 'pointer' }} onClick={() => onOpenTenant(emp)}>
                                           <TableCell sx={{ fontWeight: 600 }}>{emp.nombre}</TableCell>
                                           <TableCell>

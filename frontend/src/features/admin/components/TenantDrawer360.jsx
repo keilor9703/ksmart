@@ -4,9 +4,10 @@ import {
   Divider, Grid, Paper, List, ListItem, ListItemIcon, 
   ListItemText, Stack, Button, useTheme, useMediaQuery 
 } from '@mui/material';
-import { 
-  Close, People, ShoppingBag, Info, AccessTime, 
-  SupportAgent, CardMembership, Block, CheckCircle, ViewModule 
+import {
+  Close, People, ShoppingBag, Info, AccessTime,
+  SupportAgent, CardMembership, Block, CheckCircle, ViewModule,
+  Email, Phone, CalendarMonth
 } from '@mui/icons-material';
 
 const ACCENT = '#F43F5E';
@@ -109,6 +110,38 @@ const TenantDrawer360 = ({ open, onClose, tenant, onImpersonate, onOpenPlan, onO
                     </Grid>
                 </Paper>
 
+                {(tenant.admin_email || tenant.admin_telefono) && (
+                  <>
+                    <Typography sx={{ fontWeight: 800, fontSize: 14, mb: 2, color: 'text.secondary', textTransform: 'uppercase' }}>Contacto Admin</Typography>
+                    <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, mb: 3, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
+                      <Grid container spacing={2}>
+                        {tenant.admin_email && (
+                          <Grid item xs={12}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Email sx={{ fontSize: 16, color: BLUE }} />
+                              <Box>
+                                <Typography variant="caption" color="text.secondary">Correo</Typography>
+                                <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{tenant.admin_email}</Typography>
+                              </Box>
+                            </Box>
+                          </Grid>
+                        )}
+                        {tenant.admin_telefono && (
+                          <Grid item xs={12}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Phone sx={{ fontSize: 16, color: GREEN }} />
+                              <Box>
+                                <Typography variant="caption" color="text.secondary">Teléfono / WhatsApp</Typography>
+                                <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{tenant.admin_telefono}</Typography>
+                              </Box>
+                            </Box>
+                          </Grid>
+                        )}
+                      </Grid>
+                    </Paper>
+                  </>
+                )}
+
                 <Typography sx={{ fontWeight: 800, fontSize: 14, mb: 2, color: 'text.secondary', textTransform: 'uppercase' }}>Suscripción</Typography>
                 <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, mb: 4, bgcolor: 'action.hover', border: 'none' }}>
                     <Grid container spacing={2}>
@@ -122,6 +155,19 @@ const TenantDrawer360 = ({ open, onClose, tenant, onImpersonate, onOpenPlan, onO
                                 {tenant.id === 1 ? '∞' : `${tenant.dias_restantes} días`}
                             </Typography>
                         </Grid>
+                        {tenant.trial_ends_at && tenant.id !== 1 && (
+                          <Grid item xs={12}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <CalendarMonth sx={{ fontSize: 16, color: getStatusColor(tenant.dias_restantes) }} />
+                              <Box>
+                                <Typography variant="caption" color="text.secondary">Fecha exacta de vencimiento</Typography>
+                                <Typography sx={{ fontWeight: 700, fontSize: 13, color: getStatusColor(tenant.dias_restantes) }}>
+                                  {formatDateFull(tenant.trial_ends_at)}
+                                </Typography>
+                              </Box>
+                            </Box>
+                          </Grid>
+                        )}
                     </Grid>
                 </Paper>
 

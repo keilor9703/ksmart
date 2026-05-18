@@ -103,9 +103,6 @@ export const useSaaSData = () => {
 
   // Acciones Administrativas
   const handleToggleStatus = async (id, is_active) => {
-    const action = is_active ? 'suspender' : 'reactivar';
-    if (!window.confirm(`¿Estás seguro de que deseas ${action} esta cuenta?`)) return false;
-    
     try {
       await apiClient.patch(`/superadmin/empresas/${id}/toggle`);
       toast.success(`Cuenta ${is_active ? 'suspendida' : 'reactivada'}`);
@@ -137,7 +134,6 @@ export const useSaaSData = () => {
   };
 
   const handleImpersonate = async (empresaId) => {
-    if (!window.confirm("¿Entrar al sistema como este cliente? Tu sesión de Admin se cerrará temporalmente.")) return;
     try {
       const { data } = await impersonateCompany(empresaId);
       localStorage.setItem('token', data.access_token);
