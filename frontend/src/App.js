@@ -307,13 +307,13 @@ const hasAccess = useCallback((path) => {
             <Box
               component="main"
               sx={{
-                flexGrow: 1, ml: isMobile ? 0 : `${sidebarWidth}px`, mt: '60px',
+                flexGrow: 1, minWidth: 0, ml: isMobile ? 0 : `${sidebarWidth}px`, mt: '60px',
                 minHeight: 'calc(100vh - 60px)', transition: 'margin-left 0.22s cubic-bezier(0.4,0,0.2,1)',
                 backgroundColor: mode === 'dark' ? PAGE_BG_DARK : PAGE_BG_LIGHT,
-                display: 'flex', flexDirection: 'column',
+                display: 'flex', flexDirection: 'column', overflow: 'hidden',
               }}
             >
-              <Box sx={{ flex: 1, p: { xs: 1.5, md: 3 } }}>
+              <Box sx={{ flex: 1, p: { xs: 1.5, md: 3 }, minWidth: 0, overflow: 'hidden' }}>
                 
                 {/* ✅ BANNER DE ANUNCIOS SAAS */}
                 <AnnouncementBanner />

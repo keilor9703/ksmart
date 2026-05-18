@@ -114,7 +114,7 @@ export default function Terceros() {
   };
 
   return (
-    <Box sx={{ width: '100%' }}>
+    <Box sx={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
 
       {/* ── Header ── */}
       <Box sx={{ 
