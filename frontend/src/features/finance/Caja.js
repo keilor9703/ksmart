@@ -5,13 +5,14 @@ import {
   TableContainer, TableHead, TableRow, CircularProgress, TablePagination,
   Dialog, DialogTitle, DialogContent, DialogActions, MenuItem, Select,
   FormControl, InputLabel, InputAdornment,
-  IconButton, Alert, useTheme, useMediaQuery
+  IconButton, Alert, useTheme, useMediaQuery,
+  TableSortLabel, LinearProgress,
 } from '@mui/material';
 import {
   PointOfSale, CheckCircle, Close, Add,
   TrendingUp, AttachMoney, CreditCard, AccountBalance,
   Refresh, ReceiptLong, MoneyOff, Edit, Delete, Search, FileDownload,
-  Category, CalendarToday, FilterList
+  Category, CalendarToday, FilterList,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
@@ -19,11 +20,14 @@ import { formatCurrency } from '../../utils/formatters';
 import CurrencyField from '../../components/common/CurrencyField';
 import QuickCreateModal from '../../components/common/QuickCreateModal';
 
-const ACCENT = '#FF6020';
-const GREEN  = '#10B981';
-const RED    = '#EF4444';
-const BLUE   = '#3B82F6';
-const YELLOW = '#F59E0B';
+const ACCENT  = '#FF6020';
+const GREEN   = '#10B981';
+const RED     = '#EF4444';
+const BLUE    = '#3B82F6';
+const YELLOW  = '#F59E0B';
+
+const BILLETES = [100000, 50000, 20000, 10000, 5000, 2000, 1000];
+const MONEDAS  = [500, 200, 100, 50];
 
 const CATEGORIAS_GASTO = [
   'Servicios públicos', 'Arriendo', 'Nómina', 'Proveedores',
@@ -46,12 +50,12 @@ const KpiCard = ({ label, value, icon, color, sub }) => (
   <Paper sx={{
     p: 2, borderRadius: 3,
     display: 'flex', alignItems: 'center', gap: 1.5,
-    boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
   }}>
     <Box sx={{
       width: 42, height: 42, borderRadius: 2, flexShrink: 0,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      bgcolor: `${color}18`, color
+      bgcolor: `${color}18`, color,
     }}>
       {icon}
     </Box>
@@ -71,13 +75,13 @@ const KpiCard = ({ label, value, icon, color, sub }) => (
 const MetodoRow = ({ icon, label, value, color }) => (
   <Box sx={{
     display: 'flex', alignItems: 'center', gap: 1.5,
-    py: 1.2, borderBottom: '1px solid', borderColor: 'divider'
+    py: 1.2, borderBottom: '1px solid', borderColor: 'divider',
   }}>
     <Box sx={{
       width: 30, height: 30, borderRadius: 1.5,
       bgcolor: `${color}15`,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      color, flexShrink: 0
+      color, flexShrink: 0,
     }}>
       {icon}
     </Box>
@@ -85,6 +89,67 @@ const MetodoRow = ({ icon, label, value, color }) => (
     <Typography sx={{ fontSize: 14, fontWeight: 700, color }}>{formatCurrency(value)}</Typography>
   </Box>
 );
+
+// ─── SortTh ────────────────────────────────────────────────────────────────────
+const SortTh = ({ col, label, sortCol, sortDir, onSort, align, sx }) => (
+  <TableCell align={align} sx={{ fontSize: 11, fontWeight: 600, ...sx }}>
+    <TableSortLabel active={sortCol === col} direction={sortCol === col ? sortDir : 'asc'} onClick={() => onSort(col)}>
+      {label}
+    </TableSortLabel>
+  </TableCell>
+);
+
+// ─── DenomGrid ─────────────────────────────────────────────────────────────────
+const DenomGrid = ({ denoms, onChange }) => {
+  const update = (d, val) => {
+    const n = Math.max(0, parseInt(val, 10) || 0);
+    onChange({ ...denoms, [d]: n });
+  };
+  const subBilletes = BILLETES.reduce((s, d) => s + d * (parseInt(denoms[d] || 0, 10) || 0), 0);
+  const subMonedas  = MONEDAS.reduce((s, d) => s + d * (parseInt(denoms[d] || 0, 10) || 0), 0);
+  return (
+    <Box>
+      <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 1 }}>Billetes</Typography>
+      <Grid container spacing={1} sx={{ mb: 1 }}>
+        {BILLETES.map(d => (
+          <Grid item xs={6} key={d}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>${(d).toLocaleString('es-CO')}</Typography>
+                <Typography sx={{ fontSize: 11, fontWeight: 700, color: GREEN }}>{formatCurrency(d * (parseInt(denoms[d] || 0, 10) || 0))}</Typography>
+              </Box>
+              <TextField type="number" size="small" value={denoms[d] || ''} onChange={e => update(d, e.target.value)}
+                inputProps={{ min: 0, style: { width: 52, textAlign: 'center', fontWeight: 700, padding: '4px 6px' } }}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }} />
+            </Box>
+          </Grid>
+        ))}
+      </Grid>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.5 }}>
+        <Typography sx={{ fontSize: 12, fontWeight: 700 }}>Subtotal billetes: <Box component="span" sx={{ color: GREEN }}>{formatCurrency(subBilletes)}</Box></Typography>
+      </Box>
+      <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 1 }}>Monedas</Typography>
+      <Grid container spacing={1} sx={{ mb: 1 }}>
+        {MONEDAS.map(d => (
+          <Grid item xs={6} key={d}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>${d}</Typography>
+                <Typography sx={{ fontSize: 11, fontWeight: 700, color: BLUE }}>{formatCurrency(d * (parseInt(denoms[d] || 0, 10) || 0))}</Typography>
+              </Box>
+              <TextField type="number" size="small" value={denoms[d] || ''} onChange={e => update(d, e.target.value)}
+                inputProps={{ min: 0, style: { width: 52, textAlign: 'center', fontWeight: 700, padding: '4px 6px' } }}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }} />
+            </Box>
+          </Grid>
+        ))}
+      </Grid>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <Typography sx={{ fontSize: 12, fontWeight: 700 }}>Subtotal monedas: <Box component="span" sx={{ color: BLUE }}>{formatCurrency(subMonedas)}</Box></Typography>
+      </Box>
+    </Box>
+  );
+};
 
 // ─── Gasto Card Mobile ─────────────────────────────────────────────────────────
 const GastoCard = ({ gasto, onEdit, onDelete }) => (
@@ -153,7 +218,7 @@ const CorteCard = ({ corte }) => {
           sx={{
             bgcolor: corte.estado === 'cerrado' ? `${GREEN}15` : `${YELLOW}15`,
             color: corte.estado === 'cerrado' ? GREEN : YELLOW,
-            fontWeight: 600, fontSize: 10, borderRadius: 1.5
+            fontWeight: 600, fontSize: 10, borderRadius: 1.5,
           }}
         />
       </Box>
@@ -216,9 +281,18 @@ export default function Caja() {
   const [observaciones, setObservaciones] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Historial de cortes paginación
+  // Denominaciones
+  const [useDenoms, setUseDenoms] = useState(false);
+  const [denoms, setDenoms] = useState({});
+
+  // Historial de cortes paginación y filtros
   const [cortesPage, setCortesPage] = useState(0);
   const [cortesRowsPerPage, setCortesRowsPerPage] = useState(10);
+  const [cortesSortCol, setCortesSortCol] = useState('fecha');
+  const [cortesSortDir, setCortesSortDir] = useState('desc');
+  const [cortesDesde, setCortesDesde] = useState('');
+  const [cortesHasta, setCortesHasta] = useState('');
+  const [cortesEstado, setCortesEstado] = useState('');
 
   // Estados Gastos
   const [gastos, setGastos] = useState([]);
@@ -232,8 +306,11 @@ export default function Caja() {
   const [filtroMetodo, setFiltroMetodo] = useState('');
   const [filtroGastoDesde, setFiltroGastoDesde] = useState('');
   const [filtroGastoHasta, setFiltroGastoHasta] = useState('');
+  const [filtroCategoria, setFiltroCategoria] = useState('');
   const [gastosPage, setGastosPage] = useState(0);
   const [gastosRowsPerPage, setGastosRowsPerPage] = useState(10);
+  const [gastosSortCol, setGastosSortCol] = useState('fecha');
+  const [gastosSortDir, setGastosSortDir] = useState('desc');
 
   // Formulario Gasto
   const [editingGastoId, setEditingGastoId] = useState(null);
@@ -248,12 +325,21 @@ export default function Caja() {
   // QuickCreate
   const [quickCreate, setQuickCreate] = useState({ open: false, type: 'tercero', initialName: '' });
 
-  useEffect(() => {
+  useEffect(() => { // eslint-disable-line react-hooks/exhaustive-deps
     fetchPreview();
     fetchHistorial();
     fetchGastos();
     fetchTerceros();
   }, []);
+
+  const denomTotal = useMemo(() =>
+    [...BILLETES, ...MONEDAS].reduce((s, d) => s + d * (parseInt(denoms[d] || 0, 10) || 0), 0),
+    [denoms]
+  );
+
+  useEffect(() => { // eslint-disable-line react-hooks/exhaustive-deps
+    if (useDenoms) setEfectivoFisico(denomTotal > 0 ? String(denomTotal) : '');
+  }, [useDenoms, denomTotal]);
 
   const fetchPreview = async () => {
     setLoadingPreview(true);
@@ -294,12 +380,14 @@ export default function Caja() {
     try {
       await apiClient.post('/caja/corte', {
         efectivo_fisico: efectivoFisico === '' ? 0 : parseFloat(efectivoFisico),
-        observaciones
+        observaciones,
       });
       toast.success('¡Caja cerrada exitosamente!');
       setOpenDialog(false);
       setEfectivoFisico('');
       setObservaciones('');
+      setUseDenoms(false);
+      setDenoms({});
       fetchPreview();
       fetchHistorial();
     } catch (err) {
@@ -377,13 +465,27 @@ export default function Caja() {
     }
   };
 
-  // ─── Gastos filtrados y paginados ───────────────────────────────────────────
+  // ─── Sort handlers ──────────────────────────────────────────────────────────
+  const handleGastoSort = (col) => {
+    setGastosSortDir(prev => col === gastosSortCol ? (prev === 'asc' ? 'desc' : 'asc') : 'asc');
+    setGastosSortCol(col);
+    setGastosPage(0);
+  };
+
+  const handleCorteSort = (col) => {
+    setCortesSortDir(prev => col === cortesSortCol ? (prev === 'asc' ? 'desc' : 'asc') : 'asc');
+    setCortesSortCol(col);
+    setCortesPage(0);
+  };
+
+  // ─── Gastos filtrados, ordenados y paginados ────────────────────────────────
   const filteredGastos = useMemo(() => {
     return gastos.filter(g => {
+      if (filtroCategoria && g.categoria !== filtroCategoria) return false;
       if (filtroMetodo && g.metodo_pago !== filtroMetodo) return false;
       if (busquedaGasto) {
         const q = busquedaGasto.toLowerCase();
-        const inTercero = g.tercero?.nombre?.toLowerCase().includes(q);
+        const inTercero  = g.tercero?.nombre?.toLowerCase().includes(q);
         const inConcepto = g.concepto?.toLowerCase().includes(q);
         const inCategoria = g.categoria?.toLowerCase().includes(q);
         if (!inTercero && !inConcepto && !inCategoria) return false;
@@ -397,14 +499,61 @@ export default function Caja() {
       }
       return true;
     });
-  }, [gastos, busquedaGasto, filtroMetodo, filtroGastoDesde, filtroGastoHasta]);
+  }, [gastos, busquedaGasto, filtroMetodo, filtroGastoDesde, filtroGastoHasta, filtroCategoria]);
 
-  const paginatedGastos = filteredGastos.slice(
+  const sortedGastos = useMemo(() => {
+    return [...filteredGastos].sort((a, b) => {
+      if (gastosSortCol === 'beneficiario') {
+        const va = a.tercero?.nombre || ''; const vb = b.tercero?.nombre || '';
+        return gastosSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+      }
+      if (gastosSortCol === 'categoria') {
+        const va = a.categoria || ''; const vb = b.categoria || '';
+        return gastosSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+      }
+      if (gastosSortCol === 'metodo') {
+        return gastosSortDir === 'asc'
+          ? (a.metodo_pago || '').localeCompare(b.metodo_pago || '')
+          : (b.metodo_pago || '').localeCompare(a.metodo_pago || '');
+      }
+      const va = gastosSortCol === 'monto' ? a.monto : new Date(a.fecha);
+      const vb = gastosSortCol === 'monto' ? b.monto : new Date(b.fecha);
+      return gastosSortDir === 'asc' ? va - vb : vb - va;
+    });
+  }, [filteredGastos, gastosSortCol, gastosSortDir]);
+
+  const paginatedGastos = sortedGastos.slice(
     gastosPage * gastosRowsPerPage,
     gastosPage * gastosRowsPerPage + gastosRowsPerPage
   );
 
-  const paginatedCortes = historial.slice(
+  // ─── Cortes filtrados, ordenados y paginados ────────────────────────────────
+  const filteredCortes = useMemo(() => {
+    return historial.filter(c => {
+      if (cortesEstado && c.estado !== cortesEstado) return false;
+      if (cortesDesde && new Date(c.fecha) < new Date(cortesDesde)) return false;
+      if (cortesHasta) {
+        const h = new Date(cortesHasta); h.setHours(23, 59, 59);
+        if (new Date(c.fecha) > h) return false;
+      }
+      return true;
+    });
+  }, [historial, cortesDesde, cortesHasta, cortesEstado]);
+
+  const sortedCortes = useMemo(() => {
+    return [...filteredCortes].sort((a, b) => {
+      let va, vb;
+      switch (cortesSortCol) {
+        case 'ingresos':    va = a.total_ventas_dia;    vb = b.total_ventas_dia;    break;
+        case 'gastos':      va = a.total_gastos || 0;   vb = b.total_gastos || 0;   break;
+        case 'diferencia':  va = a.diferencia;           vb = b.diferencia;           break;
+        default:            va = new Date(a.fecha);      vb = new Date(b.fecha);
+      }
+      return cortesSortDir === 'asc' ? va - vb : vb - va;
+    });
+  }, [filteredCortes, cortesSortCol, cortesSortDir]);
+
+  const paginatedCortes = sortedCortes.slice(
     cortesPage * cortesRowsPerPage,
     cortesPage * cortesRowsPerPage + cortesRowsPerPage
   );
@@ -413,14 +562,57 @@ export default function Caja() {
   const hoy = todayISO();
   const mesActual = hoy.slice(0, 7);
   const gastosHoy = useMemo(() => gastos.filter(g => g.fecha?.startsWith(hoy)), [gastos, hoy]);
-  const gastosMes  = useMemo(() => gastos.filter(g => g.fecha?.startsWith(mesActual)), [gastos, mesActual]);
-  const totalHoy   = gastosHoy.reduce((s, g) => s + g.monto, 0);
-  const totalMes   = gastosMes.reduce((s, g) => s + g.monto, 0);
-  const topMetodo  = useMemo(() => {
+  const gastosMes = useMemo(() => gastos.filter(g => g.fecha?.startsWith(mesActual)), [gastos, mesActual]);
+  const totalHoy  = gastosHoy.reduce((s, g) => s + g.monto, 0);
+  const totalMes  = gastosMes.reduce((s, g) => s + g.monto, 0);
+  const topMetodo = useMemo(() => {
     const tally = {};
     gastos.forEach(g => { tally[g.metodo_pago] = (tally[g.metodo_pago] || 0) + g.monto; });
     return Object.entries(tally).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
   }, [gastos]);
+
+  // ─── Análisis ──────────────────────────────────────────────────────────────
+  const categoriasDisponibles = useMemo(() => {
+    const cats = [...new Set(gastos.map(g => g.categoria).filter(Boolean))].sort();
+    return cats;
+  }, [gastos]);
+
+  const categoriasCounts = useMemo(() => {
+    const counts = {};
+    gastos.forEach(g => { if (g.categoria) counts[g.categoria] = (counts[g.categoria] || 0) + 1; });
+    return counts;
+  }, [gastos]);
+
+  const gastosPorCategoria = useMemo(() => {
+    const map = {};
+    gastos.forEach(g => {
+      const cat = g.categoria || 'Sin categoría';
+      if (!map[cat]) map[cat] = { total: 0, count: 0 };
+      map[cat].total += g.monto;
+      map[cat].count++;
+    });
+    const totalAll = gastos.reduce((s, g) => s + g.monto, 0);
+    return Object.entries(map)
+      .map(([cat, { total, count }]) => ({ cat, total, count, pct: totalAll > 0 ? Math.round(total / totalAll * 100) : 0 }))
+      .sort((a, b) => b.total - a.total);
+  }, [gastos]);
+
+  const topBeneficiarios = useMemo(() => {
+    const map = {};
+    gastos.forEach(g => {
+      const nom = g.tercero?.nombre || 'Desconocido';
+      if (!map[nom]) map[nom] = { total: 0, count: 0 };
+      map[nom].total += g.monto;
+      map[nom].count++;
+    });
+    return Object.entries(map)
+      .map(([nombre, { total, count }]) => ({ nombre, total, count }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+  }, [gastos]);
+
+  const cortesMes = useMemo(() => historial.filter(c => c.fecha?.startsWith(mesActual)), [historial, mesActual]);
+  const diferenciaAcumuladaMes = useMemo(() => cortesMes.reduce((s, c) => s + (c.diferencia || 0), 0), [cortesMes]);
 
   // ─── CSV Export ────────────────────────────────────────────────────────────
   const handleExportCSV = () => {
@@ -442,7 +634,28 @@ export default function Caja() {
     a.click(); URL.revokeObjectURL(url);
   };
 
-  const hasGastoFilters = busquedaGasto || filtroMetodo || filtroGastoDesde || filtroGastoHasta;
+  const handleExportCSVCortes = () => {
+    const rows = [
+      ['Fecha', 'Ingresos', 'Gastos', 'Efectivo Esperado', 'Efectivo Físico', 'Diferencia', 'Estado', 'Observaciones'],
+      ...sortedCortes.map(c => [
+        new Date(c.fecha).toLocaleDateString('es-CO'),
+        c.total_ventas_dia,
+        c.total_gastos || 0,
+        c.total_efectivo_ventas,
+        c.efectivo_fisico,
+        c.diferencia,
+        c.estado,
+        c.observaciones || '',
+      ]),
+    ];
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'cortes-caja.csv';
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  const hasGastoFilters = busquedaGasto || filtroMetodo || filtroGastoDesde || filtroGastoHasta || filtroCategoria;
 
   const openQuickCreate = (initialName = '') => setQuickCreate({ open: true, type: 'tercero', initialName });
   const closeQuickCreate = () => setQuickCreate({ ...quickCreate, open: false });
@@ -468,6 +681,12 @@ export default function Caja() {
             <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Arqueo, cortes y gastos menores</Typography>
           </Box>
         </Box>
+        <Tooltip title="Actualizar datos">
+          <IconButton onClick={() => { fetchPreview(); fetchHistorial(); fetchGastos(); }} size="small"
+            sx={{ bgcolor: 'action.hover', borderRadius: 2 }}>
+            <Refresh fontSize="small" />
+          </IconButton>
+        </Tooltip>
       </Box>
 
       {/* ── Tabs ── */}
@@ -479,11 +698,12 @@ export default function Caja() {
             px: 2, borderBottom: '1px solid', borderColor: 'divider',
             '& .MuiTab-root': { fontWeight: 600, fontSize: 13, textTransform: 'none', minHeight: 52 },
             '& .MuiTabs-indicator': { backgroundColor: ACCENT, height: 3, borderRadius: 3 },
-            '& .Mui-selected': { color: `${ACCENT} !important` }
+            '& .Mui-selected': { color: `${ACCENT} !important` },
           }}
         >
           <Tab label="Corte y Resumen" />
           <Tab label="Registrar Gasto (Egreso)" />
+          <Tab label="Análisis" />
         </Tabs>
       </Paper>
 
@@ -504,19 +724,27 @@ export default function Caja() {
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress sx={{ color: ACCENT }} /></Box>
         ) : preview && (
           <>
-            {/* KPIs */}
+            {/* KPIs — 5 cards */}
             <Grid container spacing={1.5} sx={{ mb: 2 }}>
-              <Grid item xs={6} sm={3}>
+              <Grid item xs={6} sm={4}>
                 <KpiCard label="Ingresos Totales" value={formatCurrency(preview.total_dia)} icon={<TrendingUp />} color={ACCENT} sub={preview.fecha} />
               </Grid>
-              <Grid item xs={6} sm={3}>
+              <Grid item xs={6} sm={4}>
                 <KpiCard label="Caja (Efectivo)" value={formatCurrency(preview.efectivo)} icon={<AttachMoney />} color={preview.efectivo < 0 ? RED : GREEN} />
               </Grid>
-              <Grid item xs={6} sm={3}>
+              <Grid item xs={6} sm={4}>
                 <KpiCard label="Bancos (Transf.)" value={formatCurrency(preview.transferencia)} icon={<AccountBalance />} color={BLUE} />
               </Grid>
-              <Grid item xs={6} sm={3}>
+              <Grid item xs={6} sm={6}>
                 <KpiCard label="Total Gastos" value={formatCurrency(preview.total_gastos)} icon={<MoneyOff />} color={RED} />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <KpiCard
+                  label="Neto del Día"
+                  value={formatCurrency((preview.total_dia || 0) - (preview.total_gastos || 0))}
+                  icon={<AccountBalance />}
+                  color={((preview.total_dia || 0) - (preview.total_gastos || 0)) >= 0 ? BLUE : RED}
+                />
               </Grid>
             </Grid>
 
@@ -560,21 +788,52 @@ export default function Caja() {
         {/* Historial de Cortes */}
         <Paper sx={{ p: 2.5, borderRadius: 3, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
           <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1.5 }}>Historial de cortes</Typography>
+
+          {/* Filtros de cortes */}
+          {!isMobile && (
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mb: 2, flexWrap: 'wrap' }} alignItems="center">
+              <TextField size="small" label="Desde" type="date" value={cortesDesde}
+                onChange={e => { setCortesDesde(e.target.value); setCortesPage(0); }}
+                InputLabelProps={{ shrink: true }} sx={{ flex: 1, minWidth: 140 }} />
+              <TextField size="small" label="Hasta" type="date" value={cortesHasta}
+                onChange={e => { setCortesHasta(e.target.value); setCortesPage(0); }}
+                InputLabelProps={{ shrink: true }} sx={{ flex: 1, minWidth: 140 }} />
+              <Box sx={{ display: 'flex', gap: 0.5 }}>
+                {['', 'abierto', 'cerrado'].map(e => (
+                  <Chip key={e || 'todos'} label={e ? e.charAt(0).toUpperCase() + e.slice(1) : 'Todos'}
+                    onClick={() => { setCortesEstado(e); setCortesPage(0); }} size="small"
+                    sx={{ fontWeight: 600, fontSize: 11, borderRadius: 1.5, cursor: 'pointer',
+                      bgcolor: cortesEstado === e ? `${ACCENT}20` : 'background.paper',
+                      color: cortesEstado === e ? ACCENT : 'text.secondary',
+                      border: '1.5px solid', borderColor: cortesEstado === e ? ACCENT : 'divider' }} />
+                ))}
+              </Box>
+              <Tooltip title="Exportar CSV">
+                <IconButton size="small" onClick={handleExportCSVCortes}><FileDownload fontSize="small" /></IconButton>
+              </Tooltip>
+            </Stack>
+          )}
+
           {loadingHistorial ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress size={24} sx={{ color: ACCENT }} /></Box>
           ) : historial.length === 0 ? (
             <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}><PointOfSale sx={{ fontSize: 40, opacity: 0.2, mb: 1 }} /><Typography fontSize={13}>No hay cortes registrados</Typography></Box>
           ) : isMobile ? (
-            <Box>{historial.map(c => <CorteCard key={c.id} corte={c} />)}</Box>
+            <Box>{filteredCortes.map(c => <CorteCard key={c.id} corte={c} />)}</Box>
           ) : (
             <>
               <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', overflowX: 'auto' }}>
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      {['Fecha', 'Ingresos Día', 'Gastos', 'Efectivo Esperado', 'Efectivo Físico', 'Diferencia', 'Estado', 'Observaciones'].map(h => (
-                        <TableCell key={h} sx={{ fontSize: 11, fontWeight: 600 }}>{h}</TableCell>
-                      ))}
+                      <SortTh col="fecha" label="Fecha" sortCol={cortesSortCol} sortDir={cortesSortDir} onSort={handleCorteSort} />
+                      <SortTh col="ingresos" label="Ingresos Día" sortCol={cortesSortCol} sortDir={cortesSortDir} onSort={handleCorteSort} />
+                      <SortTh col="gastos" label="Gastos" sortCol={cortesSortCol} sortDir={cortesSortDir} onSort={handleCorteSort} />
+                      <TableCell sx={{ fontSize: 11, fontWeight: 600 }}>Efectivo Esperado</TableCell>
+                      <TableCell sx={{ fontSize: 11, fontWeight: 600 }}>Efectivo Físico</TableCell>
+                      <SortTh col="diferencia" label="Diferencia" sortCol={cortesSortCol} sortDir={cortesSortDir} onSort={handleCorteSort} />
+                      <TableCell sx={{ fontSize: 11, fontWeight: 600 }}>Estado</TableCell>
+                      <TableCell sx={{ fontSize: 11, fontWeight: 600 }}>Observaciones</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -611,7 +870,7 @@ export default function Caja() {
               </TableContainer>
               <TablePagination
                 component="div"
-                count={historial.length}
+                count={filteredCortes.length}
                 page={cortesPage}
                 onPageChange={(_, p) => setCortesPage(p)}
                 rowsPerPage={cortesRowsPerPage}
@@ -742,6 +1001,7 @@ export default function Caja() {
               </Box>
             </Paper>
           </Grid>
+
           <Grid item xs={12} md={7}>
             <Paper sx={{ p: 3, borderRadius: 3, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               {/* Header historial */}
@@ -751,6 +1011,29 @@ export default function Caja() {
                   CSV
                 </Button>
               </Box>
+
+              {/* Filtros por categoría */}
+              {categoriasDisponibles.length > 0 && (
+                <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 1 }}>
+                  <Chip
+                    label={`Todas (${gastos.length})`}
+                    onClick={() => { setFiltroCategoria(''); setGastosPage(0); }}
+                    size="small"
+                    sx={{ fontWeight: 600, fontSize: 11, borderRadius: 1.5, cursor: 'pointer',
+                      bgcolor: !filtroCategoria ? `${BLUE}20` : 'background.paper',
+                      color: !filtroCategoria ? BLUE : 'text.secondary',
+                      border: '1.5px solid', borderColor: !filtroCategoria ? BLUE : 'divider' }} />
+                  {categoriasDisponibles.map(cat => (
+                    <Chip key={cat} label={`${cat} (${categoriasCounts[cat] || 0})`}
+                      onClick={() => { setFiltroCategoria(cat); setGastosPage(0); }}
+                      size="small"
+                      sx={{ fontWeight: 600, fontSize: 11, borderRadius: 1.5, cursor: 'pointer',
+                        bgcolor: filtroCategoria === cat ? `${BLUE}20` : 'background.paper',
+                        color: filtroCategoria === cat ? BLUE : 'text.secondary',
+                        border: '1.5px solid', borderColor: filtroCategoria === cat ? BLUE : 'divider' }} />
+                  ))}
+                </Box>
+              )}
 
               {/* Filtros */}
               <Stack spacing={1} sx={{ mb: 2 }}>
@@ -790,7 +1073,7 @@ export default function Caja() {
                       <FilterList sx={{ fontSize: 13, verticalAlign: 'middle', mr: 0.5 }} />
                       {filteredGastos.length} de {gastos.length} registros
                     </Typography>
-                    <Chip label="Limpiar filtros" size="small" onDelete={() => { setBusquedaGasto(''); setFiltroMetodo(''); setFiltroGastoDesde(''); setFiltroGastoHasta(''); setGastosPage(0); }} sx={{ fontSize: 10 }} />
+                    <Chip label="Limpiar filtros" size="small" onDelete={() => { setBusquedaGasto(''); setFiltroMetodo(''); setFiltroGastoDesde(''); setFiltroGastoHasta(''); setFiltroCategoria(''); setGastosPage(0); }} sx={{ fontSize: 10 }} />
                   </Box>
                 )}
               </Stack>
@@ -809,12 +1092,12 @@ export default function Caja() {
                   <Table size="small" stickyHeader>
                     <TableHead>
                       <TableRow>
-                        <TableCell sx={{ fontSize: 11, fontWeight: 600 }}>Fecha</TableCell>
-                        <TableCell sx={{ fontSize: 11, fontWeight: 600 }}>Beneficiario</TableCell>
+                        <SortTh col="fecha" label="Fecha" sortCol={gastosSortCol} sortDir={gastosSortDir} onSort={handleGastoSort} />
+                        <SortTh col="beneficiario" label="Beneficiario" sortCol={gastosSortCol} sortDir={gastosSortDir} onSort={handleGastoSort} />
                         <TableCell sx={{ fontSize: 11, fontWeight: 600 }}>Concepto</TableCell>
-                        <TableCell sx={{ fontSize: 11, fontWeight: 600 }}>Categoría</TableCell>
-                        <TableCell sx={{ fontSize: 11, fontWeight: 600 }}>Método</TableCell>
-                        <TableCell sx={{ fontSize: 11, fontWeight: 600 }}>Monto</TableCell>
+                        <SortTh col="categoria" label="Categoría" sortCol={gastosSortCol} sortDir={gastosSortDir} onSort={handleGastoSort} />
+                        <SortTh col="metodo" label="Método" sortCol={gastosSortCol} sortDir={gastosSortDir} onSort={handleGastoSort} />
+                        <SortTh col="monto" label="Monto" sortCol={gastosSortCol} sortDir={gastosSortDir} onSort={handleGastoSort} />
                         <TableCell sx={{ fontSize: 11, fontWeight: 600 }} align="center">Acc.</TableCell>
                       </TableRow>
                     </TableHead>
@@ -870,10 +1153,116 @@ export default function Caja() {
       </TabPanel>
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* ── TAB 2: ANÁLISIS ─────────────────────────────────────────────────── */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      <TabPanel value={tab} index={2} sx={{ pt: 0 }}>
+        <Grid container spacing={3}>
+          {/* Gastos por categoría */}
+          <Grid item xs={12} md={6}>
+            <Paper sx={{ p: 2.5, borderRadius: 3, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+              <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 2 }}>Gastos por Categoría</Typography>
+              {gastosPorCategoria.length === 0 ? (
+                <Typography sx={{ color: 'text.secondary', fontSize: 13, textAlign: 'center', py: 3 }}>Sin gastos registrados</Typography>
+              ) : gastosPorCategoria.map(({ cat, total, count, pct }) => (
+                <Box key={cat} sx={{ mb: 2 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                    <Typography sx={{ fontSize: 12, fontWeight: 600 }}>
+                      {cat} <Typography component="span" sx={{ fontSize: 10, color: 'text.secondary' }}>({count})</Typography>
+                    </Typography>
+                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: RED }}>
+                      {formatCurrency(total)} <Typography component="span" sx={{ fontSize: 10, color: 'text.secondary' }}>{pct}%</Typography>
+                    </Typography>
+                  </Box>
+                  <LinearProgress variant="determinate" value={pct}
+                    sx={{ borderRadius: 2, height: 6, bgcolor: `${RED}15`, '& .MuiLinearProgress-bar': { bgcolor: RED, borderRadius: 2 } }} />
+                </Box>
+              ))}
+            </Paper>
+          </Grid>
+
+          {/* Top beneficiarios */}
+          <Grid item xs={12} md={6}>
+            <Paper sx={{ p: 2.5, borderRadius: 3, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+              <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 2 }}>Top Beneficiarios por Monto</Typography>
+              {topBeneficiarios.length === 0 ? (
+                <Typography sx={{ color: 'text.secondary', fontSize: 13, textAlign: 'center', py: 3 }}>Sin datos</Typography>
+              ) : topBeneficiarios.map(({ nombre, total, count }, idx) => (
+                <Box key={nombre} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1.2, borderBottom: idx < topBeneficiarios.length - 1 ? '1px solid' : 'none', borderColor: 'divider' }}>
+                  <Box sx={{ width: 28, height: 28, borderRadius: 1.5, bgcolor: `${ACCENT}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Typography sx={{ fontSize: 12, fontWeight: 800, color: ACCENT }}>{idx + 1}</Typography>
+                  </Box>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography sx={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nombre}</Typography>
+                    <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>{count} egreso{count !== 1 ? 's' : ''}</Typography>
+                  </Box>
+                  <Typography sx={{ fontSize: 14, fontWeight: 700, color: RED, flexShrink: 0 }}>{formatCurrency(total)}</Typography>
+                </Box>
+              ))}
+            </Paper>
+          </Grid>
+
+          {/* Distribución por método de pago */}
+          <Grid item xs={12}>
+            <Paper sx={{ p: 2.5, borderRadius: 3, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+              <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 2 }}>Gastos por Método de Pago</Typography>
+              <Grid container spacing={2}>
+                {['Efectivo', 'Transferencia', 'Tarjeta'].map(m => {
+                  const mGastos = gastos.filter(g => g.metodo_pago === m);
+                  const mTotal = mGastos.reduce((s, g) => s + g.monto, 0);
+                  const mPct = gastos.length > 0 ? Math.round(mGastos.length / gastos.length * 100) : 0;
+                  const colors = { Efectivo: GREEN, Transferencia: BLUE, Tarjeta: YELLOW };
+                  const c = colors[m];
+                  return (
+                    <Grid item xs={12} sm={4} key={m}>
+                      <Box sx={{ p: 2, borderRadius: 2, border: '1.5px solid', borderColor: `${c}30`, bgcolor: `${c}08`, textAlign: 'center' }}>
+                        <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.5 }}>{m}</Typography>
+                        <Typography sx={{ fontSize: 20, fontWeight: 800, color: c }}>{formatCurrency(mTotal)}</Typography>
+                        <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{mGastos.length} transacciones · {mPct}%</Typography>
+                      </Box>
+                    </Grid>
+                  );
+                })}
+              </Grid>
+            </Paper>
+          </Grid>
+
+          {/* Resumen del mes en curso */}
+          {cortesMes.length > 0 && (
+            <Grid item xs={12}>
+              <Paper sx={{ p: 2.5, borderRadius: 3, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 2 }}>Resumen del Mes en Curso</Typography>
+                <Grid container spacing={2}>
+                  {[
+                    { label: 'Cortes realizados', val: cortesMes.length, color: ACCENT, isMoney: false },
+                    { label: 'Total ingresos', val: cortesMes.reduce((s, c) => s + c.total_ventas_dia, 0), color: GREEN, isMoney: true },
+                    { label: 'Total gastos', val: cortesMes.reduce((s, c) => s + (c.total_gastos || 0), 0), color: RED, isMoney: true },
+                    { label: 'Diferencia acumulada', val: diferenciaAcumuladaMes, color: diferenciaAcumuladaMes >= 0 ? BLUE : RED, isMoney: true },
+                  ].map(({ label, val, color, isMoney }) => (
+                    <Grid item xs={6} sm={3} key={label}>
+                      <Box sx={{ textAlign: 'center', p: 1.5, borderRadius: 2, bgcolor: `${color}08`, border: `1px solid ${color}20` }}>
+                        <Typography sx={{ fontSize: 10, color: 'text.secondary', mb: 0.5 }}>{label}</Typography>
+                        <Typography sx={{ fontSize: isMoney ? 15 : 22, fontWeight: 800, color }}>
+                          {isMoney ? formatCurrency(val) : val}
+                        </Typography>
+                      </Box>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Paper>
+            </Grid>
+          )}
+        </Grid>
+      </TabPanel>
+
+      {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* ── DIALOG: CERRAR CAJA ─────────────────────────────────────────────── */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      <Dialog open={openDialog} onClose={() => !submitting && setOpenDialog(false)} maxWidth="xs" fullWidth fullScreen={isMobile}
-        PaperProps={{ sx: { borderRadius: isMobile ? 0 : 3, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' } }}>
+      <Dialog
+        open={openDialog}
+        onClose={() => { if (!submitting) { setOpenDialog(false); setUseDenoms(false); setDenoms({}); } }}
+        maxWidth="sm" fullWidth fullScreen={isMobile}
+        PaperProps={{ sx: { borderRadius: isMobile ? 0 : 3, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' } }}
+      >
         <Box sx={{ height: 4, bgcolor: ACCENT }} />
         <DialogTitle sx={{ pb: 1, pt: 2.5, pr: 6 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -885,36 +1274,70 @@ export default function Caja() {
               <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{preview?.fecha}</Typography>
             </Box>
           </Box>
-          <IconButton size="small" onClick={() => setOpenDialog(false)} disabled={submitting} sx={{ position: 'absolute', right: 12, top: 16, color: 'text.secondary' }}>
+          <IconButton size="small" onClick={() => { setOpenDialog(false); setUseDenoms(false); setDenoms({}); }} disabled={submitting} sx={{ position: 'absolute', right: 12, top: 16, color: 'text.secondary' }}>
             <Close fontSize="small" />
           </IconButton>
         </DialogTitle>
 
         <DialogContent sx={{ pt: 1 }}>
+          {/* Composición del efectivo esperado */}
           <Paper sx={{ p: 2, mb: 2, borderRadius: 2, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider' }}>
-            <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 1 }}>
-              Arqueo de Caja (Efectivo)
+            <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 1.5 }}>
+              Composición del Efectivo Esperado
             </Typography>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+            {[
+              { label: 'Ventas en efectivo', value: preview?.ventas_contado || 0, color: GREEN },
+              { label: 'Abonos en efectivo', value: preview?.abonos_cartera || 0, color: BLUE },
+              { label: 'Gastos en efectivo', value: -(preview?.total_gastos || 0), color: RED },
+            ].map(({ label, value, color }) => (
+              <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{label}</Typography>
+                <Typography sx={{ fontSize: 12, fontWeight: 700, color }}>{value >= 0 ? '' : '-'}{formatCurrency(Math.abs(value))}</Typography>
+              </Box>
+            ))}
+            <Divider sx={{ my: 1 }} />
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
               <Typography sx={{ fontSize: 13, fontWeight: 700 }}>Efectivo Esperado en Caja</Typography>
               <Typography sx={{ fontSize: 15, fontWeight: 800, color: preview?.efectivo < 0 ? RED : GREEN }}>
                 {formatCurrency(preview?.efectivo || 0)}
               </Typography>
             </Box>
             {preview?.efectivo < 0 && (
-                <Typography sx={{ fontSize: 11, color: RED, mt: 1, lineHeight: 1.3 }}>
-                  *El valor esperado es negativo porque has registrado más gastos en efectivo que ventas en efectivo.
-                </Typography>
+              <Typography sx={{ fontSize: 11, color: RED, mt: 1, lineHeight: 1.3 }}>
+                *Negativo porque los gastos en efectivo superan las ventas en efectivo.
+              </Typography>
             )}
           </Paper>
 
+          {/* Toggle denominaciones */}
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => { setUseDenoms(p => !p); if (useDenoms) { setDenoms({}); setEfectivoFisico(''); } }}
+              sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12, borderColor: ACCENT, color: ACCENT, '&:hover': { borderColor: ACCENT, bgcolor: `${ACCENT}08` } }}
+            >
+              {useDenoms ? 'Ingresar total directo' : 'Contar por denominaciones'}
+            </Button>
+          </Box>
+
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-            <CurrencyField
-              label="Dinero físico contado en la gaveta *"
-              value={efectivoFisico}
-              onChange={setEfectivoFisico}
-              helperText="Digita el total de billetes y monedas"
-            />
+            {useDenoms ? (
+              <>
+                <DenomGrid denoms={denoms} onChange={setDenoms} />
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1.5, borderRadius: 2, bgcolor: `${GREEN}08`, border: `1px solid ${GREEN}20` }}>
+                  <Typography sx={{ fontSize: 13, fontWeight: 700 }}>Total contado</Typography>
+                  <Typography sx={{ fontSize: 17, fontWeight: 800, color: GREEN }}>{formatCurrency(denomTotal)}</Typography>
+                </Box>
+              </>
+            ) : (
+              <CurrencyField
+                label="Dinero físico contado en la gaveta *"
+                value={efectivoFisico}
+                onChange={setEfectivoFisico}
+                helperText="Digita el total de billetes y monedas"
+              />
+            )}
             {efectivoFisico !== '' && (
               <Alert
                 severity={diferencia === 0 ? 'success' : diferencia > 0 ? 'info' : 'error'}
@@ -929,9 +1352,9 @@ export default function Caja() {
                   }
                 </Typography>
                 {preview?.efectivo < 0 && diferencia > 0 && (
-                   <Typography variant="body2" sx={{ fontSize: 11, mt: 0.5, lineHeight: 1.2, opacity: 0.9 }}>
-                     Al ingresar dinero físico cubriendo un saldo negativo, el sistema asume que usaste dinero externo para pagar gastos, reflejándolo como sobrante.
-                   </Typography>
+                  <Typography variant="body2" sx={{ fontSize: 11, mt: 0.5, lineHeight: 1.2, opacity: 0.9 }}>
+                    Al ingresar dinero físico cubriendo un saldo negativo, el sistema asume que usaste dinero externo para pagar gastos, reflejándolo como sobrante.
+                  </Typography>
                 )}
               </Alert>
             )}
@@ -940,7 +1363,7 @@ export default function Caja() {
         </DialogContent>
 
         <DialogActions sx={{ px: 3, pb: 2.5, pt: 1, gap: 1 }}>
-          <Button onClick={() => setOpenDialog(false)} disabled={submitting} variant="outlined" size="small" fullWidth={isMobile} sx={{ borderRadius: 2, fontWeight: 600, borderColor: 'divider', color: 'text.secondary', flex: isMobile ? 1 : 'auto' }}>
+          <Button onClick={() => { setOpenDialog(false); setUseDenoms(false); setDenoms({}); }} disabled={submitting} variant="outlined" size="small" fullWidth={isMobile} sx={{ borderRadius: 2, fontWeight: 600, borderColor: 'divider', color: 'text.secondary', flex: isMobile ? 1 : 'auto' }}>
             Cancelar
           </Button>
           <Button onClick={handleCerrarCaja} disabled={submitting} variant="contained" size="small" fullWidth={isMobile} startIcon={submitting ? <CircularProgress size={14} color="inherit" /> : <CheckCircle sx={{ fontSize: 16 }} />} sx={{ borderRadius: 2, fontWeight: 600, flex: isMobile ? 1 : 'auto', background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`, boxShadow: `0 4px 14px rgba(255,96,32,0.3)`, color: '#fff' }}>

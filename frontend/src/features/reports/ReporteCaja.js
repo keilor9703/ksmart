@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box, Typography, Button, TextField, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, Paper, Grid, CircularProgress,
-  Chip, useMediaQuery, TableSortLabel, Stack, IconButton, Tooltip,
+  TableContainer, TableHead, TableRow, Paper, CircularProgress,
+  Chip, TableSortLabel, Stack,
 } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
 import {
   PointOfSale, TrendingUp, TrendingDown, AccountBalance,
   FileDownload, CalendarToday,
@@ -52,8 +51,6 @@ const PRESETS = [
 ];
 
 const ReporteCaja = ({ accentColor = '#FF6020' }) => {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const [startDate, setStartDate] = useState(firstOfMonth());
   const [endDate, setEndDate] = useState(today());
