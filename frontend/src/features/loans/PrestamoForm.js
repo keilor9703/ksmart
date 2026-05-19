@@ -5,13 +5,15 @@ import {
   TableContainer, TableHead, TableRow, Chip, IconButton,
   Collapse, Autocomplete, InputAdornment, Stack, CircularProgress,
   useTheme, useMediaQuery, Avatar, Tooltip, LinearProgress,
-  Dialog, DialogTitle, DialogContent, DialogActions
+  Dialog, DialogTitle, DialogContent, DialogActions,
+  TableSortLabel, TablePagination
 } from '@mui/material';
 import {
   AttachMoney, Calculate, Visibility, Info,
   KeyboardArrowUp, Person,
   AccountBalance, PriceCheck, Warning,
-  Savings, ErrorOutline, PictureAsPdf
+  Savings, ErrorOutline, PictureAsPdf,
+  Search, FileDownload
 } from '@mui/icons-material';
 import apiClient, { createPrestamo } from '../../api';
 import { formatCurrency } from '../../utils/formatters';
@@ -282,6 +284,14 @@ const agregarDiasGracia = (dias) => {
   const [abonoMonto,   setAbonoMonto]   = useState('');
   const [abonoLoading, setAbonoLoading] = useState(false);
 
+  // ── Cartera filter / sort / pagination state ───────────────────────────────
+  const [busquedaCartera, setBusquedaCartera] = useState('');
+  const [filtroMora, setFiltroMora]           = useState('todos');
+  const [sortCartera, setSortCartera]         = useState('mora');
+  const [sortDirCartera, setSortDirCartera]   = useState('desc');
+  const [pageCartera, setPageCartera]         = useState(0);
+  const [rowsCartera, setRowsCartera]         = useState(10);
+
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
@@ -352,6 +362,33 @@ const agregarDiasGracia = (dias) => {
     }
   };
 
+  // ── CSV export for cartera ─────────────────────────────────────────────────
+  const handleExportCarteraCSV = () => {
+    if (!prestamosFiltrados.length) return;
+    const rows = [
+      ['#', 'Cliente', 'Capital', 'Saldo Pendiente', 'Mora', 'Modalidad', 'Cuotas pagadas', 'Total cuotas', 'Inicio', 'Vencimiento', 'Estado'],
+      ...prestamosFiltrados.map((p, i) => {
+        const nombre    = p.cliente?.nombre || clientes.find(c => c.id === p.cliente_id)?.nombre || 'N/A';
+        const saldo     = (p.cuotas || []).reduce((acc, c) => acc + (c.estado_pago !== 'Pagado' ? (c.saldo_pendiente || 0) : 0), 0);
+        const tm        = p.tasa_mora ?? 2;
+        const mora      = (p.cuotas || []).reduce((acc, c) => { const { mora: m } = calcularMoraCliente(c, tm); return acc + m; }, 0);
+        const pagadas   = (p.cuotas || []).filter(c => c.estado_pago === 'Pagado').length;
+        const total     = p.numero_cuotas || p.cantidad_cuotas || 0;
+        const ultima    = (p.cuotas || []).slice().sort((a, b) => b.numero_cuota - a.numero_cuota)[0];
+        return [
+          i + 1, nombre, p.monto_prestado, saldo, mora,
+          p.modalidad_cobro || p.modalidad, pagadas, total,
+          fmtDate(p.fecha_inicio), fmtDate(ultima?.fecha_vencimiento || null), p.estado || 'Activo',
+        ];
+      }),
+    ];
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a'); a.href = url; a.download = 'cartera-prestamos.csv';
+    a.click(); URL.revokeObjectURL(url);
+  };
+
   // ── cobradoresMap ──────────────────────────────────────────────────────────
   const cobradoresMap = useMemo(() => {
     const map = {};
@@ -370,6 +407,52 @@ const agregarDiasGracia = (dias) => {
       result[pid] = Object.values(usersObj);
     return result;
   }, [cuotasPendientes, usuarios]);
+
+  // ── Filtered + sorted + paginated cartera ─────────────────────────────────
+  const prestamosFiltrados = useMemo(() => {
+    let list = [...prestamosActivos];
+
+    if (busquedaCartera.trim()) {
+      const q = busquedaCartera.toLowerCase();
+      list = list.filter(p => {
+        const nombre = (p.cliente?.nombre || clientes.find(c => c.id === p.cliente_id)?.nombre || '').toLowerCase();
+        return nombre.includes(q) || String(p.id).includes(q);
+      });
+    }
+
+    if (filtroMora === 'mora') {
+      list = list.filter(p => {
+        const tm = p.tasa_mora ?? 2;
+        return (p.cuotas || []).some(c => calcularMoraCliente(c, tm).mora > 0);
+      });
+    } else if (filtroMora === 'activo') {
+      list = list.filter(p => p.estado === 'Activo');
+    } else if (filtroMora === 'liquidado') {
+      list = list.filter(p => p.estado !== 'Activo');
+    }
+
+    const getMora  = p => (p.cuotas || []).reduce((acc, c) => { const { mora } = calcularMoraCliente(c, p.tasa_mora ?? 2); return acc + mora; }, 0);
+    const getSaldo = p => (p.cuotas || []).reduce((acc, c) => acc + (c.estado_pago !== 'Pagado' ? (c.saldo_pendiente || 0) : 0), 0);
+    const getCliente = p => p.cliente?.nombre || clientes.find(c => c.id === p.cliente_id)?.nombre || '';
+
+    list.sort((a, b) => {
+      const dir = sortDirCartera === 'asc' ? 1 : -1;
+      switch (sortCartera) {
+        case 'nombre':  return dir * getCliente(a).localeCompare(getCliente(b));
+        case 'capital': return dir * ((a.monto_prestado || 0) - (b.monto_prestado || 0));
+        case 'saldo':   return dir * (getSaldo(a) - getSaldo(b));
+        case 'mora':    return dir * (getMora(a) - getMora(b));
+        default:        return dir * (getMora(a) - getMora(b));
+      }
+    });
+
+    return list;
+  }, [prestamosActivos, busquedaCartera, filtroMora, sortCartera, sortDirCartera, clientes]);
+
+  const prestamosPaginados = useMemo(() =>
+    prestamosFiltrados.slice(pageCartera * rowsCartera, pageCartera * rowsCartera + rowsCartera),
+    [prestamosFiltrados, pageCartera, rowsCartera]
+  );
 
   // ── Simulación ─────────────────────────────────────────────────────────────
   const simulacion = useMemo(() => {
@@ -436,6 +519,23 @@ const agregarDiasGracia = (dias) => {
       setIsSubmitting(false);
     }
   };
+
+  // ── SortThC: sortable table header cell for cartera ───────────────────────
+  const SortThC = ({ col, children, align = 'left' }) => (
+    <TableCell align={align} sx={{ fontWeight: 700 }}>
+      <TableSortLabel
+        active={sortCartera === col}
+        direction={sortCartera === col ? sortDirCartera : 'asc'}
+        onClick={() => {
+          setSortDirCartera(prev => col === sortCartera ? (prev === 'asc' ? 'desc' : 'asc') : 'desc');
+          setSortCartera(col);
+          setPageCartera(0);
+        }}
+      >
+        {children}
+      </TableSortLabel>
+    </TableCell>
+  );
 
   // ── RENDER ─────────────────────────────────────────────────────────────────
   return (
@@ -652,6 +752,54 @@ const agregarDiasGracia = (dias) => {
             ══════════════════════════════════════════════════════ */}
         <TabPanel value={tab} index={1}>
           <Box sx={{ p: { xs: 2, md: 3 } }}>
+
+            {/* Filter toolbar */}
+            {!loading && (
+              <Box sx={{ mb: 2 }}>
+                {/* Filter chips */}
+                <Box sx={{ display: 'flex', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
+                  {[
+                    { key: 'todos',     label: `Todos (${prestamosActivos.length})`  },
+                    { key: 'mora',      label: 'Con mora'                            },
+                    { key: 'activo',    label: 'Activos'                             },
+                    { key: 'liquidado', label: 'Liquidados'                          },
+                  ].map(f => {
+                    const sel = filtroMora === f.key;
+                    return (
+                      <Chip key={f.key} label={f.label} size="small"
+                        onClick={() => { setFiltroMora(f.key); setPageCartera(0); }}
+                        sx={{
+                          fontWeight: 700, fontSize: 11,
+                          bgcolor: sel ? ACCENT : 'transparent',
+                          color:   sel ? 'white' : 'text.secondary',
+                          border: '1px solid', borderColor: sel ? ACCENT : 'divider',
+                          cursor: 'pointer',
+                        }}
+                      />
+                    );
+                  })}
+                </Box>
+                {/* Search + CSV */}
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                  <TextField
+                    size="small"
+                    placeholder="Buscar cliente o ID..."
+                    value={busquedaCartera}
+                    onChange={e => { setBusquedaCartera(e.target.value); setPageCartera(0); }}
+                    InputProps={{
+                      startAdornment: <InputAdornment position="start"><Search sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment>,
+                    }}
+                    sx={{ flex: 1, maxWidth: 320 }}
+                  />
+                  <Button size="small" variant="outlined" startIcon={<FileDownload />}
+                    onClick={handleExportCarteraCSV} disabled={!prestamosFiltrados.length}
+                    sx={{ borderRadius: 2, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                    CSV
+                  </Button>
+                </Box>
+              </Box>
+            )}
+
             {loading ? (
               <Box sx={{ textAlign: 'center', py: 6 }}>
                 <CircularProgress sx={{ color: ACCENT }} />
@@ -659,7 +807,7 @@ const agregarDiasGracia = (dias) => {
             ) : isMobile ? (
 
               /* ── Vista móvil ── */
-              prestamosActivos.map(p => (
+              prestamosFiltrados.map(p => (
                 <PrestamoCard
                   key={p.id}
                   prestamo={p}
@@ -674,131 +822,152 @@ const agregarDiasGracia = (dias) => {
             ) : (
 
               /* ── Vista desktop ── */
-              <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                <Table size="small">
-                  <TableHead sx={{ bgcolor: 'action.hover' }}>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 700 }}>CLIENTE</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>CAPITAL</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>SALDO</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>MORA</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>MODALIDAD</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>PROGRESO</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>INICIO / VENCE</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>COBRADOR(ES)</TableCell>
-                      <TableCell align="right">ACCIONES</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {prestamosActivos.map(p => {
-                      const nombreCliente = p.cliente?.nombre || clientes.find(c => c.id === p.cliente_id)?.nombre || 'N/A';
-                      const totalCuotas   = p.numero_cuotas || p.cantidad_cuotas || 0;
-                      const cuotasPagadas = p.cuotas?.filter(c => c.estado_pago === 'Pagado').length || 0;
-                      const saldoAdeudado = p.cuotas?.reduce((acc, c) => acc + (c.estado_pago !== 'Pagado' ? c.saldo_pendiente : 0), 0) || 0;
-                      const pct           = totalCuotas ? Math.round((cuotasPagadas / totalCuotas) * 100) : 0;
-                      const ultimaCuota   = p.cuotas?.slice().sort((a, b) => b.numero_cuota - a.numero_cuota)[0];
-                      const fechaFin      = ultimaCuota?.fecha_vencimiento || null;
-                      const tasaMoraP     = p.tasa_mora ?? 2;
+              <>
+                <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                  <Table size="small">
+                    <TableHead sx={{ bgcolor: 'action.hover' }}>
+                      <TableRow>
+                        <SortThC col="nombre">CLIENTE</SortThC>
+                        <SortThC col="capital">CAPITAL</SortThC>
+                        <SortThC col="saldo">SALDO</SortThC>
+                        <SortThC col="mora">MORA</SortThC>
+                        <TableCell sx={{ fontWeight: 700 }}>MODALIDAD</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>PROGRESO</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>INICIO / VENCE</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>COBRADOR(ES)</TableCell>
+                        <TableCell align="right">ACCIONES</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {prestamosPaginados.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={9} sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
+                            {busquedaCartera ? `Sin resultados para "${busquedaCartera}"` : 'Sin préstamos en esta categoría'}
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        prestamosPaginados.map(p => {
+                          const nombreCliente = p.cliente?.nombre || clientes.find(c => c.id === p.cliente_id)?.nombre || 'N/A';
+                          const totalCuotas   = p.numero_cuotas || p.cantidad_cuotas || 0;
+                          const cuotasPagadas = p.cuotas?.filter(c => c.estado_pago === 'Pagado').length || 0;
+                          const saldoAdeudado = p.cuotas?.reduce((acc, c) => acc + (c.estado_pago !== 'Pagado' ? c.saldo_pendiente : 0), 0) || 0;
+                          const pct           = totalCuotas ? Math.round((cuotasPagadas / totalCuotas) * 100) : 0;
+                          const ultimaCuota   = p.cuotas?.slice().sort((a, b) => b.numero_cuota - a.numero_cuota)[0];
+                          const fechaFin      = ultimaCuota?.fecha_vencimiento || null;
+                          const tasaMoraP     = p.tasa_mora ?? 2;
 
-                      const moraTotal = (p.cuotas || []).reduce((acc, c) => {
-                        const { mora } = calcularMoraCliente(c, tasaMoraP);
-                        return acc + mora;
-                      }, 0);
+                          const moraTotal = (p.cuotas || []).reduce((acc, c) => {
+                            const { mora } = calcularMoraCliente(c, tasaMoraP);
+                            return acc + mora;
+                          }, 0);
 
-                      return (
-                        <React.Fragment key={p.id}>
-                          <TableRow hover sx={{ bgcolor: moraTotal > 0 ? `${RED}03` : 'transparent' }}>
+                          return (
+                            <React.Fragment key={p.id}>
+                              <TableRow hover sx={{ bgcolor: moraTotal > 0 ? `${RED}03` : 'transparent' }}>
 
-                            <TableCell sx={{ fontWeight: 700 }}>{nombreCliente}</TableCell>
-                            <TableCell>{formatCurrency(p.monto_prestado)}</TableCell>
-                            <TableCell sx={{ fontWeight: 900, color: ACCENT }}>{formatCurrency(saldoAdeudado)}</TableCell>
+                                <TableCell sx={{ fontWeight: 700 }}>{nombreCliente}</TableCell>
+                                <TableCell>{formatCurrency(p.monto_prestado)}</TableCell>
+                                <TableCell sx={{ fontWeight: 900, color: ACCENT }}>{formatCurrency(saldoAdeudado)}</TableCell>
 
-                            {/* Mora */}
-                            <TableCell>
-                              {moraTotal > 0 ? (
-                                <Box>
-                                  <Typography sx={{ fontSize: 11, fontWeight: 800, color: RED }}>
-                                    {formatCurrency(moraTotal)}
-                                  </Typography>
-                                  <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>
-                                    {tasaMoraP}% / mes
-                                  </Typography>
-                                </Box>
-                              ) : (
-                                <Typography sx={{ fontSize: 11, color: GREEN, fontWeight: 700 }}>Al día ✓</Typography>
-                              )}
-                            </TableCell>
+                                {/* Mora */}
+                                <TableCell>
+                                  {moraTotal > 0 ? (
+                                    <Box>
+                                      <Typography sx={{ fontSize: 11, fontWeight: 800, color: RED }}>
+                                        {formatCurrency(moraTotal)}
+                                      </Typography>
+                                      <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>
+                                        {tasaMoraP}% / mes
+                                      </Typography>
+                                    </Box>
+                                  ) : (
+                                    <Typography sx={{ fontSize: 11, color: GREEN, fontWeight: 700 }}>Al día ✓</Typography>
+                                  )}
+                                </TableCell>
 
-                            <TableCell>{p.modalidad_cobro || p.modalidad}</TableCell>
+                                <TableCell>{p.modalidad_cobro || p.modalidad}</TableCell>
 
-                            <TableCell>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Typography variant="body2" sx={{ fontWeight: 700 }}>{cuotasPagadas} / {totalCuotas}</Typography>
-                                <Typography variant="caption" color="text.secondary">({pct}%)</Typography>
-                              </Box>
-                            </TableCell>
-
-                            {/* Fechas */}
-                            <TableCell>
-                              <Typography sx={{ fontSize: 11, color: BLUE,   fontWeight: 700 }}>📅 {fmtDate(p.fecha_inicio)}</Typography>
-                              <Typography sx={{ fontSize: 11, color: ACCENT, fontWeight: 700 }}>🏁 {fmtDate(fechaFin)}</Typography>
-                            </TableCell>
-
-                            <TableCell>
-                              <CobradorChips prestamoId={p.id} cobradoresMap={cobradoresMap} />
-                            </TableCell>
-
-                            <TableCell align="right">
-                              <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                                <Tooltip title="Abono a capital" arrow>
-                                  <IconButton size="small"
-                                    onClick={() => { setAbonoModal({ open: true, prestamoId: p.id }); setAbonoMonto(''); }}
-                                    sx={{ color: BLUE, bgcolor: `${BLUE}10`, '&:hover': { bgcolor: `${BLUE}20` } }}>
-                                    <Savings fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                                <IconButton size="small" color="primary"
-                                  onClick={() => setExpandedId(expandedId === p.id ? null : p.id)}>
-                                  {expandedId === p.id ? <KeyboardArrowUp /> : <Visibility />}
-                                </IconButton>
-                              </Stack>
-                            </TableCell>
-                          </TableRow>
-
-                          {/* Fila expandida: cuotas con mora */}
-                          <TableRow>
-                            <TableCell colSpan={9} sx={{ p: 0 }}>
-                              <Collapse in={expandedId === p.id}>
-                                <Box sx={{ p: 3, bgcolor: 'action.hover' }}>
-                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: ACCENT }}>
-                                      Plan de Pagos Actualizado
-                                    </Typography>
-                                    {moraTotal > 0 && (
-                                      <Chip
-                                        icon={<ErrorOutline sx={{ fontSize: '14px !important' }} />}
-                                        label={`Mora total: ${formatCurrency(moraTotal)}`}
-                                        size="small"
-                                        sx={{ bgcolor: `${RED}15`, color: RED, fontWeight: 700, fontSize: 11 }} />
-                                    )}
+                                <TableCell>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{cuotasPagadas} / {totalCuotas}</Typography>
+                                    <Typography variant="caption" color="text.secondary">({pct}%)</Typography>
                                   </Box>
-                                  <Grid container spacing={2}>
-                                    {p.cuotas?.map(c => (
-                                      <Grid item xs={12} sm={4} md={3} key={c.id}>
-                                        <CuotaItem cuota={c} tasaMora={tasaMoraP} />
+                                </TableCell>
+
+                                {/* Fechas */}
+                                <TableCell>
+                                  <Typography sx={{ fontSize: 11, color: BLUE,   fontWeight: 700 }}>📅 {fmtDate(p.fecha_inicio)}</Typography>
+                                  <Typography sx={{ fontSize: 11, color: ACCENT, fontWeight: 700 }}>🏁 {fmtDate(fechaFin)}</Typography>
+                                </TableCell>
+
+                                <TableCell>
+                                  <CobradorChips prestamoId={p.id} cobradoresMap={cobradoresMap} />
+                                </TableCell>
+
+                                <TableCell align="right">
+                                  <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                                    <Tooltip title="Abono a capital" arrow>
+                                      <IconButton size="small"
+                                        onClick={() => { setAbonoModal({ open: true, prestamoId: p.id }); setAbonoMonto(''); }}
+                                        sx={{ color: BLUE, bgcolor: `${BLUE}10`, '&:hover': { bgcolor: `${BLUE}20` } }}>
+                                        <Savings fontSize="small" />
+                                      </IconButton>
+                                    </Tooltip>
+                                    <IconButton size="small" color="primary"
+                                      onClick={() => setExpandedId(expandedId === p.id ? null : p.id)}>
+                                      {expandedId === p.id ? <KeyboardArrowUp /> : <Visibility />}
+                                    </IconButton>
+                                  </Stack>
+                                </TableCell>
+                              </TableRow>
+
+                              {/* Fila expandida: cuotas con mora */}
+                              <TableRow>
+                                <TableCell colSpan={9} sx={{ p: 0 }}>
+                                  <Collapse in={expandedId === p.id}>
+                                    <Box sx={{ p: 3, bgcolor: 'action.hover' }}>
+                                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: ACCENT }}>
+                                          Plan de Pagos Actualizado
+                                        </Typography>
+                                        {moraTotal > 0 && (
+                                          <Chip
+                                            icon={<ErrorOutline sx={{ fontSize: '14px !important' }} />}
+                                            label={`Mora total: ${formatCurrency(moraTotal)}`}
+                                            size="small"
+                                            sx={{ bgcolor: `${RED}15`, color: RED, fontWeight: 700, fontSize: 11 }} />
+                                        )}
+                                      </Box>
+                                      <Grid container spacing={2}>
+                                        {p.cuotas?.map(c => (
+                                          <Grid item xs={12} sm={4} md={3} key={c.id}>
+                                            <CuotaItem cuota={c} tasaMora={tasaMoraP} />
+                                          </Grid>
+                                        ))}
                                       </Grid>
-                                    ))}
-                                  </Grid>
-                                </Box>
-                              </Collapse>
-                            </TableCell>
-                          </TableRow>
-                        </React.Fragment>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                                    </Box>
+                                  </Collapse>
+                                </TableCell>
+                              </TableRow>
+                            </React.Fragment>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+                <TablePagination
+                  component="div"
+                  count={prestamosFiltrados.length}
+                  page={pageCartera}
+                  onPageChange={(_, p) => setPageCartera(p)}
+                  rowsPerPage={rowsCartera}
+                  onRowsPerPageChange={e => { setRowsCartera(parseInt(e.target.value)); setPageCartera(0); }}
+                  rowsPerPageOptions={[5, 10, 25, 50]}
+                  labelRowsPerPage="Filas:"
+                  labelDisplayedRows={({ from, to, count }) => `${from}-${to} de ${count}`}
+                />
+              </>
             )}
           </Box>
         </TabPanel>
