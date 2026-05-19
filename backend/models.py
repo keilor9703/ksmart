@@ -605,6 +605,7 @@ class Gasto(Base, TenantMixin):
     tercero_id  = Column(Integer, ForeignKey("clientes.id"), nullable=True)
     monto       = Column(Float, default=0.0, nullable=False)
     concepto    = Column(Text, nullable=True)
+    categoria   = Column(String, nullable=True)  # ej: Arriendo, Servicios, Nómina
     metodo_pago = Column(String, default="Efectivo")
     fecha       = Column(DateTime(timezone=True), default=utcnow)
 

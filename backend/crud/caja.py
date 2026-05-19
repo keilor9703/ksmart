@@ -150,6 +150,7 @@ def crear_gasto(db: Session, empresa_id: int, usuario_id: int, data: schemas.Gas
         tercero_id=data.tercero_id,
         monto=data.monto,
         concepto=data.concepto,
+        categoria=data.categoria,
         metodo_pago=data.metodo_pago,
         empresa_id=empresa_id
     )
@@ -184,6 +185,7 @@ def update_gasto(db: Session, empresa_id: int, gasto_id: int, data: schemas.Gast
 
     db_gasto.monto = data.monto
     db_gasto.concepto = data.concepto
+    db_gasto.categoria = data.categoria
     db_gasto.metodo_pago = data.metodo_pago
     
     db.commit()

@@ -5,6 +5,8 @@ import ProductoList from './ProductoList';
 import ProductoForm from './ProductoForm';
 import Recetas from '../production/Recetas';
 import AgileBarcodeRegistration from './AgileBarcodeRegistration';
+import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
+import SmartTooltip from '../../components/onboarding/SmartTooltip';
 
 const ACCENT = '#8B5CF6'; // violeta — color semántico para Productos
 
@@ -22,6 +24,13 @@ const Productos = () => {
   const [editingProducto, setEditingProducto] = useState(null);
   const [formOpen, setFormOpen]             = useState(false);
   const [agileOpen, setAgileOpen]           = useState(false);
+
+  const productSteps = [
+    { title: 'Gestión de Ítems', description: 'Crea productos físicos o servicios intangibles con precios y costos.' },
+    { title: 'Modo Ágil', description: 'Usa el escáner de barras para registrar múltiples productos rápidamente.' },
+    { title: 'Recetas (BOM)', description: 'Define fórmulas de producción para productos compuestos.' },
+    { title: 'Catálogo Virtual', description: 'Activa la visibilidad de tus productos para que aparezcan en tu tienda online.' }
+  ];
 
   const handleRefresh = () => { setKey(p => p + 1); setEditingProducto(null); setFormOpen(false); };
 
@@ -47,26 +56,42 @@ const Productos = () => {
             <Inventory />
           </Box>
           <Box sx={{ minWidth: 0 }}>
-            <Typography sx={{ fontWeight: 700, fontSize: 19, lineHeight: 1.2 }}>Productos</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography sx={{ fontWeight: 700, fontSize: 19, lineHeight: 1.2 }}>Productos</Typography>
+              <HelpGuideTopBar moduleName="Productos" steps={productSteps} />
+            </Box>
             <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Catálogo, servicios y fórmulas de producción</Typography>
           </Box>
         </Box>
         {tab === 0 && (
           <Box sx={{ display: 'flex', gap: 1.5 }}>
-            <Button
-              variant="outlined" startIcon={<QrCodeScanner />}
-              onClick={() => setAgileOpen(true)}
-              sx={{ borderRadius: 2, fontWeight: 600, color: '#10B981', borderColor: '#10B981', '&:hover': { borderColor: '#059669', bgcolor: '#10B98108' } }}
+            <SmartTooltip 
+              id="prod_agile_mode" 
+              title="Registro Veloz" 
+              description="Ideal para inventariar mucha mercancía usando solo el lector de barras."
             >
-              Modo Ágil
-            </Button>
-            <Button
-              variant="contained" startIcon={<Add />}
-              onClick={handleNewProducto}
-              sx={{ background: `linear-gradient(135deg, ${ACCENT}, #a78bfa)`, boxShadow: `0 4px 14px rgba(139,92,246,0.35)`, borderRadius: 2, fontWeight: 600, flexShrink: 0 }}
+              <Button
+                variant="outlined" startIcon={<QrCodeScanner />}
+                onClick={() => setAgileOpen(true)}
+                sx={{ borderRadius: 2, fontWeight: 600, color: '#10B981', borderColor: '#10B981', '&:hover': { borderColor: '#059669', bgcolor: '#10B98108' } }}
+              >
+                Modo Ágil
+              </Button>
+            </SmartTooltip>
+            
+            <SmartTooltip 
+              id="prod_new_btn" 
+              title="Nuevo Ítem" 
+              description="Crea un producto desde cero con todos sus detalles técnicos."
             >
-              Nuevo Producto
-            </Button>
+              <Button
+                variant="contained" startIcon={<Add />}
+                onClick={handleNewProducto}
+                sx={{ background: `linear-gradient(135deg, ${ACCENT}, #a78bfa)`, boxShadow: `0 4px 14px rgba(139,92,246,0.35)`, borderRadius: 2, fontWeight: 600, flexShrink: 0 }}
+              >
+                Nuevo Producto
+              </Button>
+            </SmartTooltip>
           </Box>
         )}
       </Box>

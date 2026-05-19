@@ -5,6 +5,7 @@ import BulkUpload from '../../components/common/BulkUpload';
 import CurrencyField from '../../components/common/CurrencyField';
 import ImageCropperDialog from '../../components/common/ImageCropperDialog';
 import { compressImageToWebP } from '../../utils/imageOptimizer';
+import SmartTooltip from '../../components/onboarding/SmartTooltip';
 
 import {
   Box,
@@ -20,7 +21,6 @@ import {
   Switch,
   FormControlLabel,
   Autocomplete,
-  Tooltip,
   Paper
 } from '@mui/material';
 
@@ -175,12 +175,10 @@ const ProductoForm = ({
   const [descripcion, setDescripcion] = useState('');
   const [grupos, setGrupos] = useState([]);
 
-  // 👇 ESTADOS CATÁLOGO
   const [imagenes, setImagenes] = useState([]);
   const [mostrarEnCatalogo, setMostrarEnCatalogo] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
 
-  // 👇 ESTADOS CROPPER
   const [cropperOpen, setCropperOpen] = useState(false);
   const [imageToCrop, setImageToCrop] = useState(null);
   const [pendingFiles, setPendingFiles] = useState([]);
@@ -215,8 +213,6 @@ const ProductoForm = ({
       );
       setStockActual(productoToEdit.stock_actual ?? 0);
       setManejaLotes(productoToEdit.maneja_lotes || false);
-
-      // 👇 CARGAR CAMPOS DE CATÁLOGO
       setImagenes(productoToEdit.imagenes || []);
       setMostrarEnCatalogo(productoToEdit.mostrar_en_catalogo || false);
       setDescripcion(productoToEdit.descripcion || '');
@@ -241,24 +237,18 @@ const ProductoForm = ({
     setDescripcion('');
   };
 
-  // 👇 NUEVO FLUJO DE IMÁGENES CON CROPPER
   const handleImageChange = (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
 
-    // Límite de 4 imágenes
     if (imagenes.length + files.length > 4) {
       toast.warning('Máximo 4 imágenes por producto');
       return;
     }
 
-    // Cargamos el primer archivo en el cropper.
-    // Los demás quedan en cola para procesarse uno por uno.
     const [first, ...rest] = files;
     setPendingFiles(rest);
     openCropperWithFile(first);
-
-    // Limpiamos el input para permitir re-subir el mismo archivo si se cancela
     e.target.value = '';
   };
 
@@ -277,16 +267,12 @@ const ProductoForm = ({
       const webpBase64 = await compressImageToWebP(croppedFile);
       setImagenes((prev) => [...prev, webpBase64]);
       setMostrarEnCatalogo(true);
-
-      // Cerrar cropper
       setCropperOpen(false);
       setImageToCrop(null);
 
-      // Si hay más archivos en cola, abrir el siguiente
       if (pendingFiles.length > 0) {
         const [next, ...rest] = pendingFiles;
         setPendingFiles(rest);
-        // Pequeño delay para que el dialog se cierre suavemente
         setTimeout(() => openCropperWithFile(next), 200);
       }
     } catch (error) {
@@ -300,7 +286,7 @@ const ProductoForm = ({
   const handleCropCancel = () => {
     setCropperOpen(false);
     setImageToCrop(null);
-    setPendingFiles([]); // descartamos la cola si cancela
+    setPendingFiles([]);
   };
 
   const removeImage = (index) => {
@@ -310,7 +296,6 @@ const ProductoForm = ({
   const handleClose = () => {
     resetFields();
     setFormOpen(false);
-
     if (onClose) onClose();
   };
 
@@ -366,7 +351,6 @@ const ProductoForm = ({
   };
 
   const isEditing = Boolean(productoToEdit);
-
   const precioN = parseFloat(precio) || 0;
   const costoN  = parseFloat(costo) || 0;
   const margenPct = precioN > 0 ? ((precioN - costoN) / precioN * 100) : 0;
@@ -399,7 +383,6 @@ const ProductoForm = ({
         accentColor={accentColor}
       >
         <Box component="form" onSubmit={handleSubmit}>
-          {/* SELECTOR PRINCIPAL */}
           <Box
             sx={{
               mb: 4,
@@ -471,9 +454,7 @@ const ProductoForm = ({
 
           <Divider sx={{ mb: 3 }} />
 
-          {/* FORMULARIO */}
           <Grid container spacing={2.5}>
-            {/* FILA 1 */}
             <Grid item xs={12} md={esServicio ? 8 : 4}>
               <TextField
                 label={
@@ -532,7 +513,6 @@ const ProductoForm = ({
               </>
             )}
 
-            {/* FILA 2 */}
             <Grid
               item
               xs={12}
@@ -543,7 +523,6 @@ const ProductoForm = ({
                 alignItems: 'stretch'
               }}
             >
-              {/* PRECIO */}
               <Box
                 sx={{
                   flex: '1 1 220px',
@@ -564,7 +543,6 @@ const ProductoForm = ({
 
               {!esServicio && (
                 <>
-                  {/* COSTO */}
                   <Box
                     sx={{
                       flex: '1 1 220px',
@@ -589,7 +567,6 @@ const ProductoForm = ({
                     </Box>
                   )}
 
-                  {/* GRUPO */}
                   <Box
                     sx={{
                       flex: '2 1 420px',
@@ -628,9 +605,7 @@ const ProductoForm = ({
                               flexShrink: 0
                             }}
                           />
-
                           <span>{option.nombre}</span>
-
                           <Typography
                             sx={{
                               ml: 'auto',
@@ -652,7 +627,6 @@ const ProductoForm = ({
                     />
                   </Box>
 
-                  {/* UNIDAD */}
                   <Box
                     sx={{
                       flex: '1 1 auto',
@@ -691,7 +665,6 @@ const ProductoForm = ({
               )}
             </Grid>
 
-            {/* LOTES */}
             {!esServicio && (
               <Grid item xs={12}>
                 <Box
@@ -734,7 +707,6 @@ const ProductoForm = ({
                     }
                     sx={{ m: 0 }}
                   />
-
                   {manejaLotes && (
                     <Typography
                       sx={{
@@ -755,7 +727,6 @@ const ProductoForm = ({
               </Grid>
             )}
 
-            {/* 👇 SECCIÓN CATÁLOGO VIRTUAL */}
             <Grid item xs={12}>
               <Paper
                 variant="outlined"
@@ -786,37 +757,48 @@ const ProductoForm = ({
                       gap: 1
                     }}
                   >
-                    <Storefront
-                      sx={{
-                        color: mostrarEnCatalogo
-                          ? accentColor
-                          : 'text.secondary'
-                      }}
-                    />
+                    <SmartTooltip 
+                      id="prod_catalog_section" 
+                      title="Venta Online" 
+                      description="Configura aquí cómo se verá este producto en tu catálogo público."
+                    >
+                      <Storefront
+                        sx={{
+                          color: mostrarEnCatalogo
+                            ? accentColor
+                            : 'text.secondary'
+                        }}
+                      />
+                    </SmartTooltip>
                     <Typography sx={{ fontWeight: 700, fontSize: 15 }}>
                       Catálogo Virtual / Tienda Online
                     </Typography>
                   </Box>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={mostrarEnCatalogo}
-                        onChange={(e) =>
-                          setMostrarEnCatalogo(e.target.checked)
-                        }
-                        disabled={
-                          imagenes.length === 0 && !mostrarEnCatalogo
-                        }
-                      />
-                    }
-                    label={
-                      mostrarEnCatalogo ? 'Visible al público' : 'Oculto'
-                    }
-                  />
+                  <SmartTooltip 
+                    id="prod_visible_switch" 
+                    title="Visibilidad" 
+                    description="Activa esto para que tus clientes puedan ver y pedir este producto desde el catálogo."
+                  >
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={mostrarEnCatalogo}
+                          onChange={(e) =>
+                            setMostrarEnCatalogo(e.target.checked)
+                          }
+                          disabled={
+                            imagenes.length === 0 && !mostrarEnCatalogo
+                          }
+                        />
+                      }
+                      label={
+                        mostrarEnCatalogo ? 'Visible al público' : 'Oculto'
+                      }
+                    />
+                  </SmartTooltip>
                 </Box>
 
                 <Grid container spacing={2}>
-                  {/* Slots de Imágenes */}
                   {[0, 1, 2, 3].map((idx) => (
                     <Grid item xs={6} sm={3} key={idx}>
                       <Box
@@ -909,7 +891,6 @@ const ProductoForm = ({
                       </Box>
                     </Grid>
                   ))}
-
                   <Grid item xs={12}>
                     <Typography
                       sx={{ fontSize: 12, color: 'text.secondary' }}
@@ -922,7 +903,6 @@ const ProductoForm = ({
               </Paper>
             </Grid>
 
-            {/* STOCK */}
             {!esServicio && isEditing && (
               <Grid item xs={12}>
                 <Box
@@ -938,7 +918,6 @@ const ProductoForm = ({
                   }}
                 >
                   <Inventory color="action" />
-
                   <Box>
                     <Typography
                       sx={{
@@ -948,7 +927,6 @@ const ProductoForm = ({
                     >
                       Stock Actual en Bodega
                     </Typography>
-
                     <Typography
                       sx={{
                         fontWeight: 700,
@@ -957,7 +935,6 @@ const ProductoForm = ({
                     >
                       {stockActual} {unidadMedida}
                     </Typography>
-
                     <Typography
                       sx={{
                         fontSize: 11,
@@ -971,7 +948,6 @@ const ProductoForm = ({
               </Grid>
             )}
 
-            {/* BOTONES */}
             <Grid item xs={12}>
               <Box
                 sx={{
@@ -995,7 +971,6 @@ const ProductoForm = ({
                 >
                   Cancelar
                 </Button>
-
                 <Button
                   type="submit"
                   variant="contained"
@@ -1050,7 +1025,6 @@ const ProductoForm = ({
         </Panel>
       )}
 
-      {/* 👇 MODAL DE RECORTE DE IMAGEN */}
       <ImageCropperDialog
         open={cropperOpen}
         imageSrc={imageToCrop}

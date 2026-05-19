@@ -783,6 +783,7 @@ class GastoCreate(BaseModel):
     tercero_id: int
     monto: float
     concepto: str
+    categoria: Optional[str] = None
     metodo_pago: str = "Efectivo"
 
 class GastoOut(BaseModel):
@@ -792,6 +793,7 @@ class GastoOut(BaseModel):
     tercero: Optional[TerceroReducido] = None
     monto: float
     concepto: str
+    categoria: Optional[str] = None
     metodo_pago: str
     fecha: datetime
     model_config = ConfigDict(from_attributes=True)

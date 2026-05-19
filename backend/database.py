@@ -737,6 +737,53 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v50)
                 logger.info("V50 (campos lavadero en ventas) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V51 - LOGÍSTICA & RUTAS CLIENTES (zona, latitud, longitud)
+            # ═══════════════════════════════════════════════════════════════
+
+            migration_v51 = "inv_v51_clientes_logistica_fields"
+
+            if not _migration_already_applied(conn, migration_v51):
+                logger.info("Aplicando migración V51 (Logística & Rutas Clientes)...")
+                
+                # Campos en CLIENTES
+                logistica_columns = [
+                    ("zona", "TEXT NULL"),
+                    ("latitud", "FLOAT NULL"),
+                    ("longitud", "FLOAT NULL")
+                ]
+
+                for col_name, col_type in logistica_columns:
+                    if not _column_exists(conn, "clientes", col_name):
+                        conn.execute(text(f"ALTER TABLE clientes ADD COLUMN {col_name} {col_type}"))
+                        logger.info(f"V51: añadido clientes.{col_name}")
+
+                if not _index_exists(conn, "ix_clientes_zona"):
+                    conn.execute(text("CREATE INDEX ix_clientes_zona ON clientes(zona)"))
+                    logger.info("V51: creado índice ix_clientes_zona")
+
+                _mark_migration_applied(conn, migration_v51)
+                logger.info("V51 (Logística & Rutas Clientes fields) aplicada.")
+
+            # ═══════════════════════════════════════════════════════════════
+            # V52 - CATEGORÍA EN GASTOS
+            # ═══════════════════════════════════════════════════════════════
+
+            migration_v52 = "inv_v52_gastos_categoria_field"
+
+            if not _migration_already_applied(conn, migration_v52):
+                logger.info("Aplicando migración V52 (Categoría en Gastos)...")
+                
+                if not _column_exists(conn, "gastos", "categoria"):
+                    if IS_SQLITE:
+                        conn.execute(text("ALTER TABLE gastos ADD COLUMN categoria TEXT NULL"))
+                    else:
+                        conn.execute(text("ALTER TABLE gastos ADD COLUMN categoria VARCHAR(100) NULL"))
+                    logger.info("V52: añadido gastos.categoria")
+
+                _mark_migration_applied(conn, migration_v52)
+                logger.info("V52 (Categoría en Gastos) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

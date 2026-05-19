@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, TextField, Button, Grid, Divider, 
-  IconButton, Tooltip, Switch, FormControlLabel, Alert, 
+  IconButton, Switch, FormControlLabel, Alert, 
   CircularProgress, Card, CardContent
 } from '@mui/material';
 import { 
@@ -11,6 +11,8 @@ import {
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
 import { compressImageToWebP } from '../../utils/imageOptimizer';
+import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
+import SmartTooltip from '../../components/onboarding/SmartTooltip';
 
 const CatalogoConfig = () => {
   const [loading, setLoading] = useState(true);
@@ -61,7 +63,6 @@ const CatalogoConfig = () => {
       return;
     }
 
-    // Validación básica de slug: minúsculas, números y guiones
     const slugRegex = /^[a-z0-9-]+$/;
     if (!slugRegex.test(slug)) {
       toast.error("El slug solo permite letras minúsculas, números y guiones");
@@ -90,22 +91,31 @@ const CatalogoConfig = () => {
     toast.info("Enlace copiado al portapapeles");
   };
 
+  const catalogSteps = [
+    { title: 'Define tu URL', description: 'El slug será la dirección única de tu tienda (ej: ksmart.com/tu-tienda).' },
+    { title: 'Vincula WhatsApp', description: 'Asegúrate de incluir el código de país para recibir pedidos directamente.' },
+    { title: 'Sube tu Logo', description: 'Un logo profesional genera confianza en tus clientes.' },
+    { title: 'Activa tus Productos', description: 'Recuerda marcar "Mostrar en catálogo" en la edición de cada producto.' }
+  ];
+
   if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}><CircularProgress /></Box>;
 
   const catalogUrl = `${window.location.origin}/${slug}`;
 
   return (
     <Box sx={{ maxWidth: 900, mx: 'auto', p: { xs: 1, md: 3 } }}>
-      <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <Storefront sx={{ color: 'primary.main', fontSize: 32 }} />
-        Configuración de Catálogo Virtual
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.5 }}>
+        <Typography variant="h5" sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Storefront sx={{ color: 'primary.main', fontSize: 32 }} />
+          Configuración de Catálogo Virtual
+        </Typography>
+        <HelpGuideTopBar moduleName="Catálogo Virtual" steps={catalogSteps} />
+      </Box>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
         Personaliza tu tienda online y comparte el enlace directo con tus clientes para recibir pedidos por WhatsApp.
       </Typography>
 
       <Grid container spacing={3}>
-        {/* PANEL DE CONFIGURACIÓN */}
         <Grid item xs={12} md={7}>
           <Paper variant="outlined" sx={{ p: 3, borderRadius: 4 }}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -114,33 +124,45 @@ const CatalogoConfig = () => {
                 <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Link fontSize="small" color="primary" /> URL del Catálogo (Slug)
                 </Typography>
-                <TextField
-                  fullWidth
-                  placeholder="ej: mi-tienda-pro"
-                  value={slug}
-                  onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
-                  helperText="Solo letras minúsculas, números y guiones. Será tu enlace público."
-                  InputProps={{
-                    startAdornment: (
-                      <Typography sx={{ color: 'text.secondary', fontSize: 13, mr: 0.5, whiteSpace: 'nowrap' }}>
-                        {window.location.hostname}/
-                      </Typography>
-                    )
-                  }}
-                />
+                <SmartTooltip 
+                  id="cat_slug_tip" 
+                  title="Tu enlace único" 
+                  description="Este nombre identificará tu tienda. Usa algo corto y fácil de recordar para tus clientes."
+                >
+                  <TextField
+                    fullWidth
+                    placeholder="ej: mi-tienda-pro"
+                    value={slug}
+                    onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
+                    helperText="Solo letras minúsculas, números y guiones. Será tu enlace público."
+                    InputProps={{
+                      startAdornment: (
+                        <Typography sx={{ color: 'text.secondary', fontSize: 13, mr: 0.5, whiteSpace: 'nowrap' }}>
+                          {window.location.hostname}/
+                        </Typography>
+                      )
+                    }}
+                  />
+                </SmartTooltip>
               </Box>
 
               <Box>
                 <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
                   <WhatsApp fontSize="small" sx={{ color: '#25D366' }} /> WhatsApp para Pedidos
                 </Typography>
-                <TextField
-                  fullWidth
-                  placeholder="ej: 573001234567"
-                  value={whatsapp}
-                  onChange={(e) => setWhatsapp(e.target.value.replace(/\D/g, ''))}
-                  helperText="Incluye código de país sin el signo +. Ejemplo: 57 para Colombia."
-                />
+                <SmartTooltip 
+                  id="cat_whatsapp_tip" 
+                  title="Formato Internacional" 
+                  description="Es vital incluir el código de país (ej: 57 para Colombia) para que el botón de pedido funcione correctamente."
+                >
+                  <TextField
+                    fullWidth
+                    placeholder="ej: 573001234567"
+                    value={whatsapp}
+                    onChange={(e) => setWhatsapp(e.target.value.replace(/\D/g, ''))}
+                    helperText="Incluye código de país sin el signo +. Ejemplo: 57 para Colombia."
+                  />
+                </SmartTooltip>
               </Box>
 
               <Box>
@@ -202,7 +224,6 @@ const CatalogoConfig = () => {
           </Paper>
         </Grid>
 
-        {/* PANEL DE VISTA PREVIA Y COMPARTIR */}
         <Grid item xs={12} md={5}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'primary.main', color: '#fff', border: 'none' }}>
