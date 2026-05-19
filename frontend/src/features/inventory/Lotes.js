@@ -1,11 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Box, Typography, Button, Paper, Table, TableBody, TableCell, TableContainer, 
-  TableHead, TableRow, Chip, IconButton, Dialog, DialogTitle, DialogContent, 
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Box, Typography, Button, Paper, Table, TableBody, TableCell, TableContainer,
+  TableHead, TableRow, Chip, IconButton, Dialog, DialogTitle, DialogContent,
   DialogActions, TextField, MenuItem, Grid, Divider, useTheme, useMediaQuery,
-  Tabs, Tab, Stack, Tooltip, Autocomplete, Alert, InputAdornment
+  Tabs, Tab, Stack, Tooltip, Autocomplete, Alert, InputAdornment,
+  TableSortLabel, TablePagination
 } from '@mui/material';
-import { Add, Cancel, PrecisionManufacturing, Assignment, CheckCircleOutline, History, Inventory2 } from '@mui/icons-material';
+import {
+  Add, Cancel, PrecisionManufacturing, Assignment, CheckCircleOutline,
+  History, Inventory2, Search, FileDownload
+} from '@mui/icons-material';
 import { fetchLotes, createLote, confirmarLote, cancelarLote, fetchRecetas } from '../../api';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
@@ -28,32 +32,65 @@ const esPerecible = (producto) => {
   return Boolean(v);
 };
 
+// SortHeader helper for historial table
+function SortHeader({ col, label, histSortCol, histSortDir, onSort }) {
+  return (
+    <TableCell
+      sortDirection={histSortCol === col ? histSortDir : false}
+      sx={{ fontWeight: 600 }}
+    >
+      <TableSortLabel
+        active={histSortCol === col}
+        direction={histSortCol === col ? histSortDir : 'asc'}
+        onClick={() => onSort(col)}
+      >
+        {label}
+      </TableSortLabel>
+    </TableCell>
+  );
+}
+
 const Lotes = () => {
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const [tab, setTab]       = useState(0);
-  const [lotes, setLotes]   = useState([]);
+  const [tab, setTab]         = useState(0);
+  const [lotes, setLotes]     = useState([]);
   const [recetas, setRecetas] = useState([]);
   const [clientes, setClientes] = useState([]);
 
-  const [open, setOpen]           = useState(false);
+  const [open, setOpen]               = useState(false);
   const [openConfirm, setOpenConfirm] = useState(false);
   const [selectedLote, setSelectedLote] = useState(null);
-  const [loading, setLoading]     = useState(false);
+  const [loading, setLoading]         = useState(false);
 
-  const [formData, setFormData]     = useState({ receta_id: '', cantidad_a_producir: '', cliente_id: '', observaciones: '' });
+  const [formData, setFormData]       = useState({ receta_id: '', cantidad_a_producir: '', cliente_id: '', observaciones: '' });
   const [confirmData, setConfirmData] = useState({
-    cantidad_real:    '',
-    observaciones:    '',
-    // Campos perecedero
-    numero_lote:      '',
+    cantidad_real:     '',
+    observaciones:     '',
+    numero_lote:       '',
     fecha_vencimiento: '',
     fecha_fabricacion: '',
   });
 
-  const [simulacion, setSimulacion] = useState(null);
-  const [simulando, setSimulando]   = useState(false);
+  const [simulacion, setSimulacion]   = useState(null);
+  const [simulando, setSimulando]     = useState(false);
+
+  // ── Confirm-cancel dialog (replaces window.confirm)
+  const [confirmCancelId, setConfirmCancelId] = useState(null);
+
+  // ── Historial search + date filter
+  const [busquedaHist, setBusquedaHist] = useState('');
+  const [histDesde, setHistDesde]       = useState('');
+  const [histHasta, setHistHasta]       = useState('');
+
+  // ── Historial sort
+  const [histSortCol, setHistSortCol] = useState('fecha');
+  const [histSortDir, setHistSortDir] = useState('desc');
+
+  // ── Historial pagination
+  const [histPage, setHistPage] = useState(0);
+  const [histPP, setHistPP]     = useState(10);
 
   useEffect(() => { loadData(); }, []);
 
@@ -81,11 +118,10 @@ const Lotes = () => {
   };
 
   // ¿El producto resultante del lote seleccionado maneja_lotes?
-  const productoResultante = selectedLote?.receta?.producto_resultante;
-  const productoEsPerecible = esPerecible(productoResultante);
+  const productoResultante   = selectedLote?.receta?.producto_resultante;
+  const productoEsPerecible  = esPerecible(productoResultante);
 
   const handleConfirmarFinal = async () => {
-    // Validación extra si el producto es perecedero
     if (productoEsPerecible) {
       if (!confirmData.numero_lote.trim()) {
         toast.warning('El producto es perecedero. Debes ingresar el Número de Lote.');
@@ -103,7 +139,6 @@ const Lotes = () => {
         cantidad_real:     parseFloat(confirmData.cantidad_real),
         precios_servicios: [],
         observaciones:     confirmData.observaciones,
-        // Solo se envían si el producto es perecedero
         ...(productoEsPerecible && {
           numero_lote:       confirmData.numero_lote.trim().toUpperCase(),
           fecha_vencimiento: confirmData.fecha_vencimiento,
@@ -118,17 +153,24 @@ const Lotes = () => {
     } finally { setLoading(false); }
   };
 
-  const handleCancelar = async (id) => {
-    if (window.confirm('¿Seguro que deseas cancelar esta orden de producción?')) {
-      await cancelarLote(id);
+  // ── Cancel handlers (MUI Dialog instead of window.confirm)
+  const handleCancelarConfirmado = async () => {
+    if (!confirmCancelId) return;
+    try {
+      await cancelarLote(confirmCancelId);
       toast.info('Orden de producción cancelada');
       loadData();
+    } catch {
+      toast.error('Error al cancelar la orden');
+    } finally {
+      setConfirmCancelId(null);
     }
   };
 
-  const lotesEnPlanta   = lotes.filter(l => l.estado === 'En produccion');
-  const lotesHistorial  = lotes.filter(l => l.estado !== 'En produccion');
+  const lotesEnPlanta  = lotes.filter(l => l.estado === 'En produccion');
+  const lotesHistorial = lotes.filter(l => l.estado !== 'En produccion');
 
+  // ── Simulation debounce
   useEffect(() => {
     if (formData.receta_id && formData.cantidad_a_producir > 0) {
       setSimulando(true);
@@ -143,6 +185,103 @@ const Lotes = () => {
       setSimulacion(null);
     }
   }, [formData.receta_id, formData.cantidad_a_producir]);
+
+  // ── Historial filter
+  const lotesHistorialFiltrado = useMemo(() => {
+    const q = busquedaHist.toLowerCase();
+    return lotesHistorial.filter(l => {
+      const matchBusqueda = !busquedaHist ||
+        l.receta?.producto_resultante?.nombre?.toLowerCase().includes(q) ||
+        String(l.id).includes(q);
+      const fechaCierre = l.fecha_confirmacion ? new Date(l.fecha_confirmacion) : null;
+      const matchDesde  = !histDesde || (fechaCierre && fechaCierre >= new Date(histDesde));
+      const matchHasta  = !histHasta || (fechaCierre && fechaCierre <= new Date(histHasta + 'T23:59:59'));
+      return matchBusqueda && matchDesde && matchHasta;
+    });
+  }, [lotesHistorial, busquedaHist, histDesde, histHasta]);
+
+  // ── Historial sort
+  const handleHistSort = (col) => {
+    if (histSortCol === col) {
+      setHistSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setHistSortCol(col);
+      setHistSortDir('asc');
+    }
+    setHistPage(0);
+  };
+
+  const lotesHistorialOrdenado = useMemo(() => {
+    return [...lotesHistorialFiltrado].sort((a, b) => {
+      if (histSortCol === 'fecha') {
+        const da = a.fecha_confirmacion ? new Date(a.fecha_confirmacion) : new Date(0);
+        const db = b.fecha_confirmacion ? new Date(b.fecha_confirmacion) : new Date(0);
+        return histSortDir === 'asc' ? da - db : db - da;
+      }
+      if (histSortCol === 'producto') {
+        const na = a.receta?.producto_resultante?.nombre ?? '';
+        const nb = b.receta?.producto_resultante?.nombre ?? '';
+        return histSortDir === 'asc' ? na.localeCompare(nb) : nb.localeCompare(na);
+      }
+      if (histSortCol === 'cantidad') {
+        return histSortDir === 'asc'
+          ? (a.cantidad_real || 0) - (b.cantidad_real || 0)
+          : (b.cantidad_real || 0) - (a.cantidad_real || 0);
+      }
+      if (histSortCol === 'costo') {
+        return histSortDir === 'asc'
+          ? (a.costo_unitario_resultado || 0) - (b.costo_unitario_resultado || 0)
+          : (b.costo_unitario_resultado || 0) - (a.costo_unitario_resultado || 0);
+      }
+      return 0;
+    });
+  }, [lotesHistorialFiltrado, histSortCol, histSortDir]);
+
+  // ── Historial pagination
+  const lotesHistorialPaginado = useMemo(() =>
+    lotesHistorialOrdenado.slice(histPage * histPP, histPage * histPP + histPP),
+    [lotesHistorialOrdenado, histPage, histPP]
+  );
+
+  // Reset page when filter changes
+  useEffect(() => { setHistPage(0); }, [busquedaHist, histDesde, histHasta]);
+
+  // ── CSV export
+  const exportHistorialCSV = () => {
+    const headers = ['#', 'Producto', 'Fecha Cierre', 'Cant. Esperada', 'Cant. Real', 'Merma/Sobrante', 'Costo Unit.', 'Estado'];
+    const rows = lotesHistorialOrdenado.map(l => {
+      const merma = l.estado === 'Confirmado' ? (l.cantidad_real || 0) - l.cantidad_a_producir : 0;
+      return [
+        l.id,
+        l.receta?.producto_resultante?.nombre ?? '',
+        l.fecha_confirmacion ? new Date(l.fecha_confirmacion).toLocaleDateString('es-CO') : '',
+        l.cantidad_a_producir,
+        l.cantidad_real ?? '',
+        merma !== 0 ? merma : '',
+        l.costo_unitario_resultado ?? '',
+        l.estado,
+      ];
+    });
+    const csv = [headers, ...rows]
+      .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'historial_produccion.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
+  // ── KPI derived values
+  const kpiCanceladas   = lotesHistorial.filter(l => l.estado === 'Cancelado').length;
+  const kpiCostoTotal   = formatCurrency(
+    lotesHistorial
+      .filter(l => l.estado === 'Confirmado')
+      .reduce((s, l) => s + (l.cantidad_real || 0) * (l.costo_unitario_resultado || 0), 0)
+  );
 
   return (
     <Box sx={{ width: '100%', overflowX: 'hidden' }}>
@@ -166,7 +305,7 @@ const Lotes = () => {
 
       {/* ── KPIs ── */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={6} sm={6} md={3}>
           <Paper sx={{ p: 2.5, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 2, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
             <Assignment sx={{ color: '#F59E0B', fontSize: 32 }} />
             <Box>
@@ -177,7 +316,7 @@ const Lotes = () => {
             </Box>
           </Paper>
         </Grid>
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={6} sm={6} md={3}>
           <Paper sx={{ p: 2.5, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 2, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
             <CheckCircleOutline sx={{ color: GREEN, fontSize: 32 }} />
             <Box>
@@ -185,6 +324,28 @@ const Lotes = () => {
               <Typography sx={{ fontSize: 22, fontWeight: 800 }}>
                 {lotesHistorial.filter(l => l.estado === 'Confirmado').reduce((acc, l) => acc + (l.cantidad_real || 0), 0)}{' '}
                 <span style={{ fontSize: 14, fontWeight: 500, color: '#64748b' }}>Unidades Creadas</span>
+              </Typography>
+            </Box>
+          </Paper>
+        </Grid>
+        <Grid item xs={6} sm={6} md={3}>
+          <Paper sx={{ p: 2.5, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 2, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+            <Cancel sx={{ color: RED, fontSize: 32 }} />
+            <Box>
+              <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 600 }}>ÓRDENES CANCELADAS</Typography>
+              <Typography sx={{ fontSize: 22, fontWeight: 800 }}>
+                {kpiCanceladas} <span style={{ fontSize: 14, fontWeight: 500, color: '#64748b' }}>Canceladas</span>
+              </Typography>
+            </Box>
+          </Paper>
+        </Grid>
+        <Grid item xs={6} sm={6} md={3}>
+          <Paper sx={{ p: 2.5, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 2, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+            <Inventory2 sx={{ color: PURPLE, fontSize: 32 }} />
+            <Box>
+              <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 600 }}>COSTO TOTAL PRODUCIDO</Typography>
+              <Typography sx={{ fontSize: 18, fontWeight: 800, lineHeight: 1.3 }}>
+                {kpiCostoTotal}
               </Typography>
             </Box>
           </Paper>
@@ -254,7 +415,7 @@ const Lotes = () => {
                           Finalizar Lote
                         </Button>
                         <Tooltip title="Cancelar Orden">
-                          <IconButton onClick={() => handleCancelar(l.id)} sx={{ color: RED, bgcolor: '#FEF2F2', borderRadius: 2 }}>
+                          <IconButton onClick={() => setConfirmCancelId(l.id)} sx={{ color: RED, bgcolor: '#FEF2F2', borderRadius: 2 }}>
                             <Cancel />
                           </IconButton>
                         </Tooltip>
@@ -268,12 +429,63 @@ const Lotes = () => {
 
           {/* TAB 1: HISTORIAL */}
           <TabPanel value={tab} index={1}>
+            {/* Filter bar */}
+            <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+              <TextField
+                size="small"
+                placeholder="Buscar producto..."
+                value={busquedaHist}
+                onChange={e => setBusquedaHist(e.target.value)}
+                sx={{ flex: 1, minWidth: 160 }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Search sx={{ fontSize: 18 }} />
+                    </InputAdornment>
+                  )
+                }}
+              />
+              <TextField
+                type="date" label="Desde" size="small"
+                value={histDesde}
+                onChange={e => setHistDesde(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                sx={{ minWidth: 140 }}
+              />
+              <TextField
+                type="date" label="Hasta" size="small"
+                value={histHasta}
+                onChange={e => setHistHasta(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                sx={{ minWidth: 140 }}
+              />
+              {(busquedaHist || histDesde || histHasta) && (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => { setBusquedaHist(''); setHistDesde(''); setHistHasta(''); }}
+                  sx={{ borderRadius: 2, borderColor: 'divider', color: 'text.secondary', fontWeight: 600 }}
+                >
+                  Limpiar
+                </Button>
+              )}
+              <Tooltip title="Exportar CSV">
+                <IconButton
+                  size="small"
+                  onClick={exportHistorialCSV}
+                  sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, color: GREEN }}
+                >
+                  <FileDownload fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
+
             {isMobile ? (
               <Box>
-                {lotesHistorial.length === 0
+                {lotesHistorialPaginado.length === 0
                   ? <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}><Typography>No hay historial</Typography></Box>
-                  : lotesHistorial.map(l => {
-                      const merma = l.estado === 'Confirmado' ? l.cantidad_real - l.cantidad_a_producir : 0;
+                  : lotesHistorialPaginado.map(l => {
+                      const merma     = l.estado === 'Confirmado' ? l.cantidad_real - l.cantidad_a_producir : 0;
                       const isSuccess = l.estado === 'Confirmado';
                       return (
                         <Paper key={l.id} sx={{ p: 2, mb: 2, borderRadius: 3, borderLeft: `4px solid ${isSuccess ? GREEN : RED}`, border: '1px solid', borderColor: 'divider' }}>
@@ -305,50 +517,85 @@ const Lotes = () => {
                       );
                     })
                 }
+                <TablePagination
+                  component="div"
+                  count={lotesHistorialOrdenado.length}
+                  page={histPage}
+                  onPageChange={(_, p) => setHistPage(p)}
+                  rowsPerPage={histPP}
+                  onRowsPerPageChange={e => { setHistPP(parseInt(e.target.value, 10)); setHistPage(0); }}
+                  rowsPerPageOptions={[5, 10, 25, 50]}
+                  labelRowsPerPage="Por página:"
+                  labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
+                />
               </Box>
             ) : (
-              <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                <Table size="small">
-                  <TableHead sx={{ bgcolor: 'action.hover' }}>
-                    <TableRow>
-                      {['Lote', 'Fecha Fin', 'Producto Creado', 'Rendimiento (Mermas)', 'Costo Unitario', 'Estado'].map(h => (
-                        <TableCell key={h} sx={{ fontWeight: 600 }}>{h}</TableCell>
-                      ))}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {lotesHistorial.length === 0
-                      ? <TableRow><TableCell colSpan={6} align="center" sx={{ py: 4 }}>No hay historial</TableCell></TableRow>
-                      : lotesHistorial.map(l => {
-                          const merma = l.estado === 'Confirmado' ? l.cantidad_real - l.cantidad_a_producir : 0;
-                          return (
-                            <TableRow key={l.id} hover>
-                              <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{l.id}</TableCell>
-                              <TableCell sx={{ fontSize: 12 }}>{l.fecha_confirmacion ? new Date(l.fecha_confirmacion).toLocaleDateString() : '—'}</TableCell>
-                              <TableCell sx={{ fontWeight: 700 }}>{l.receta.producto_resultante.nombre}</TableCell>
-                              <TableCell>
-                                {l.estado === 'Confirmado' ? (
-                                  <Box>
-                                    <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{l.cantidad_real} Unds</Typography>
-                                    {merma !== 0 && (
-                                      <Typography sx={{ fontSize: 11, fontWeight: 600, color: merma > 0 ? GREEN : RED }}>
-                                        {merma > 0 ? `+${merma} sobrante` : `${merma} merma`} vs Plan
-                                      </Typography>
-                                    )}
-                                  </Box>
-                                ) : '—'}
-                              </TableCell>
-                              <TableCell sx={{ fontWeight: 600 }}>{l.estado === 'Confirmado' ? formatCurrency(l.costo_unitario_resultado) : '—'}</TableCell>
-                              <TableCell>
-                                <Chip label={l.estado} size="small" sx={{ bgcolor: l.estado === 'Confirmado' ? `${GREEN}15` : `${RED}15`, color: l.estado === 'Confirmado' ? GREEN : RED, fontWeight: 600, fontSize: 10, borderRadius: 1 }} />
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })
-                    }
-                  </TableBody>
-                </Table>
-              </TableContainer>
+              <>
+                <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                  <Table size="small">
+                    <TableHead sx={{ bgcolor: 'action.hover' }}>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600 }}>Lote</TableCell>
+                        <SortHeader col="fecha"    label="Fecha Fin"           histSortCol={histSortCol} histSortDir={histSortDir} onSort={handleHistSort} />
+                        <SortHeader col="producto" label="Producto Creado"     histSortCol={histSortCol} histSortDir={histSortDir} onSort={handleHistSort} />
+                        <SortHeader col="cantidad" label="Rendimiento (Mermas)" histSortCol={histSortCol} histSortDir={histSortDir} onSort={handleHistSort} />
+                        <SortHeader col="costo"    label="Costo Unitario"      histSortCol={histSortCol} histSortDir={histSortDir} onSort={handleHistSort} />
+                        <TableCell sx={{ fontWeight: 600 }}>Estado</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {lotesHistorialPaginado.length === 0
+                        ? <TableRow><TableCell colSpan={6} align="center" sx={{ py: 4 }}>No hay historial</TableCell></TableRow>
+                        : lotesHistorialPaginado.map(l => {
+                            const merma = l.estado === 'Confirmado' ? l.cantidad_real - l.cantidad_a_producir : 0;
+                            return (
+                              <TableRow key={l.id} hover>
+                                <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{l.id}</TableCell>
+                                <TableCell sx={{ fontSize: 12 }}>{l.fecha_confirmacion ? new Date(l.fecha_confirmacion).toLocaleDateString() : '—'}</TableCell>
+                                <TableCell sx={{ fontWeight: 700 }}>{l.receta.producto_resultante.nombre}</TableCell>
+                                <TableCell>
+                                  {l.estado === 'Confirmado' ? (
+                                    <Box>
+                                      <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{l.cantidad_real} Unds</Typography>
+                                      {merma !== 0 && (
+                                        <Typography sx={{ fontSize: 11, fontWeight: 600, color: merma > 0 ? GREEN : RED }}>
+                                          {merma > 0 ? `+${merma} sobrante` : `${merma} merma`} vs Plan
+                                        </Typography>
+                                      )}
+                                    </Box>
+                                  ) : '—'}
+                                </TableCell>
+                                <TableCell sx={{ fontWeight: 600 }}>{l.estado === 'Confirmado' ? formatCurrency(l.costo_unitario_resultado) : '—'}</TableCell>
+                                <TableCell>
+                                  <Chip
+                                    label={l.estado}
+                                    size="small"
+                                    sx={{
+                                      bgcolor: l.estado === 'Confirmado' ? `${GREEN}15` : `${RED}15`,
+                                      color: l.estado === 'Confirmado' ? GREEN : RED,
+                                      fontWeight: 600, fontSize: 10, borderRadius: 1
+                                    }}
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
+                      }
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+                <TablePagination
+                  component="div"
+                  count={lotesHistorialOrdenado.length}
+                  page={histPage}
+                  onPageChange={(_, p) => setHistPage(p)}
+                  rowsPerPage={histPP}
+                  onRowsPerPageChange={e => { setHistPP(parseInt(e.target.value, 10)); setHistPage(0); }}
+                  rowsPerPageOptions={[5, 10, 25, 50]}
+                  labelRowsPerPage="Por página:"
+                  labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
+                />
+              </>
             )}
           </TabPanel>
         </Box>
@@ -494,7 +741,7 @@ const Lotes = () => {
             helperText="El sistema calculará automáticamente el nuevo costo unitario promediando las mermas."
           />
 
-          {/* ════ SECCIÓN PERECEDERO — solo si el producto maneja_lotes ════ */}
+          {/* SECCIÓN PERECEDERO */}
           {productoEsPerecible && (
             <>
               <Divider sx={{ my: 2.5 }}>
@@ -580,6 +827,40 @@ const Lotes = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* ════ DIALOG: Confirmar Cancelación ════ */}
+      <Dialog
+        open={!!confirmCancelId}
+        onClose={() => setConfirmCancelId(null)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 700 }}>¿Cancelar orden?</DialogTitle>
+        <DialogContent>
+          <Typography color="text.secondary" fontSize={14}>
+            Esta acción no se puede deshacer. Los insumos reservados no se devolverán automáticamente al inventario.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
+          <Button
+            onClick={() => setConfirmCancelId(null)}
+            sx={{ flex: 1, fontWeight: 600 }}
+            variant="outlined"
+          >
+            Volver
+          </Button>
+          <Button
+            onClick={handleCancelarConfirmado}
+            variant="contained"
+            color="error"
+            sx={{ flex: 1, fontWeight: 600, borderRadius: 2 }}
+          >
+            Sí, cancelar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
     </Box>
   );
 };

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Box, Typography, Paper, Grid, TextField, Button, MenuItem,
+  Box, Typography, Paper, Grid, TextField, Button,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  TableSortLabel, TablePagination,
   Chip, IconButton, Stack, CircularProgress, Avatar, Tooltip,
   Dialog, DialogTitle, DialogContent, DialogActions, InputAdornment,
   Tabs, Tab, Autocomplete, LinearProgress, Alert, useTheme, useMediaQuery, Divider
@@ -9,7 +10,8 @@ import {
 import {
   Warning, Error as ErrorIcon, CheckCircle, Info,
   Add, Layers, Science, TrendingDown,
-  CalendarMonth, Edit, Close, Search
+  CalendarMonth, Edit, Close, Search,
+  Refresh, FileDownload, AttachMoney
 } from '@mui/icons-material';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
@@ -17,11 +19,11 @@ import { toast } from 'react-toastify';
 import CurrencyField from '../../components/common/CurrencyField';
 
 const PURPLE = '#8B5CF6';
-const ACCENT = '#FF6020';
-const GREEN  = '#10B981';
-const YELLOW = '#F59E0B';
-const RED    = '#EF4444';
-const BLUE   = '#3B82F6';
+const ACCENT  = '#FF6020';
+const GREEN   = '#10B981';
+const YELLOW  = '#F59E0B';
+const RED     = '#EF4444';
+const BLUE    = '#3B82F6';
 
 const URGENCIA_CONFIG = {
   vencido: { color: RED,    bg: '#FEF2F2', label: 'VENCIDO',   icon: <ErrorIcon />,   chipColor: 'error'   },
@@ -72,7 +74,7 @@ const BarraConsumo = ({ inicial, actual }) => {
 
 // ─── Tarjeta mobile de un lote ────────────────────────────────────────────────
 const LoteCard = ({ lote, onAjustar }) => {
-  const cfg      = URGENCIA_CONFIG[lote.urgencia] || URGENCIA_CONFIG.ok;
+  const cfg       = URGENCIA_CONFIG[lote.urgencia] || URGENCIA_CONFIG.ok;
   const isVencido = lote.urgencia === 'vencido';
   const isCritico = lote.urgencia === 'critico';
 
@@ -127,9 +129,12 @@ const LoteCard = ({ lote, onAjustar }) => {
         </Grid>
       </Grid>
 
-      {/* Barra de consumo */}
+      {/* Barra de consumo o chip Agotado */}
       <Box sx={{ mb: 1.5 }}>
-        <BarraConsumo inicial={lote.cantidad_inicial} actual={lote.cantidad_actual} />
+        {lote.cantidad_actual <= 0
+          ? <Chip label="Agotado" size="small" sx={{ bgcolor: '#F1F5F9', color: '#64748b', fontWeight: 700, fontSize: 10 }} />
+          : <BarraConsumo inicial={lote.cantidad_inicial} actual={lote.cantidad_actual} />
+        }
       </Box>
 
       {/* Botón ajustar */}
@@ -161,6 +166,17 @@ const InventarioLotes = () => {
   const [filtroUrgencia, setFiltroUrgencia] = useState('todos');
   const [busqueda, setBusqueda]   = useState('');
 
+  // Sorting
+  const [sortCol, setSortCol] = useState('vencimiento');
+  const [sortDir, setSortDir] = useState('asc');
+
+  // Pagination
+  const [lotesPage, setLotesPage] = useState(0);
+  const [lotesPP, setLotesPP]     = useState(15);
+
+  // Dias alerta
+  const [diasAlerta, setDiasAlerta] = useState(30);
+
   const [modalLote,   setModalLote]   = useState({ open: false });
   const [modalAjuste, setModalAjuste] = useState({ open: false, lote: null });
   const [modalFefo,   setModalFefo]   = useState({ open: false, producto: null, cantidad: '', resultado: null });
@@ -173,14 +189,20 @@ const InventarioLotes = () => {
 
   const [ajusteForm, setAjusteForm] = useState({ cantidad: '', motivo: '', referencia: '' });
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-fetch alertas when diasAlerta changes (after initial load)
+  useEffect(() => {
+    if (!loading) recargarAlertas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [diasAlerta]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const [resLotes, resAlertas, resResumen, resProd, resClie] = await Promise.all([
         apiClient.get('/inventario/lotes?solo_activos=true'),
-        apiClient.get('/reportes/proximos-a-vencer?dias=30'),
+        apiClient.get(`/reportes/proximos-a-vencer?dias=${diasAlerta}`),
         apiClient.get('/reportes/resumen-alertas-vencimiento'),
         apiClient.get('/productos/'),
         apiClient.get('/clientes/'),
@@ -194,6 +216,15 @@ const InventarioLotes = () => {
       toast.error('Error al cargar los datos de lotes');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const recargarAlertas = async () => {
+    try {
+      const res = await apiClient.get(`/reportes/proximos-a-vencer?dias=${diasAlerta}`);
+      setAlertas(res.data);
+    } catch {
+      toast.error('Error al recargar alertas');
     }
   };
 
@@ -256,6 +287,26 @@ const InventarioLotes = () => {
     }
   };
 
+  // ── Sort handler ──
+  const handleSort = (col) => {
+    setSortDir(d => sortCol === col ? (d === 'asc' ? 'desc' : 'asc') : 'asc');
+    setSortCol(col);
+    setLotesPage(0);
+  };
+
+  const SortHeader = ({ col, label }) => (
+    <TableCell sx={{ fontWeight: 800 }}>
+      <TableSortLabel
+        active={sortCol === col}
+        direction={sortCol === col ? sortDir : 'asc'}
+        onClick={() => handleSort(col)}
+      >
+        {label}
+      </TableSortLabel>
+    </TableCell>
+  );
+
+  // ── Filtered ──
   const lotesFiltrados = useMemo(() => lotes.filter(l => {
     const q = busqueda.toLowerCase();
     const matchBusqueda = !busqueda || (
@@ -267,6 +318,38 @@ const InventarioLotes = () => {
     return matchBusqueda && matchUrgencia;
   }), [lotes, busqueda, filtroUrgencia]);
 
+  // ── Sorted ──
+  const lotesSorted = useMemo(() => {
+    return [...lotesFiltrados].sort((a, b) => {
+      if (sortCol === 'producto') {
+        return sortDir === 'asc'
+          ? a.producto_nombre.localeCompare(b.producto_nombre)
+          : b.producto_nombre.localeCompare(a.producto_nombre);
+      }
+      if (sortCol === 'vencimiento') {
+        const da = new Date(a.fecha_vencimiento || 0), db = new Date(b.fecha_vencimiento || 0);
+        return sortDir === 'asc' ? da - db : db - da;
+      }
+      if (sortCol === 'stock') {
+        return sortDir === 'asc'
+          ? (a.cantidad_actual - b.cantidad_actual)
+          : (b.cantidad_actual - a.cantidad_actual);
+      }
+      if (sortCol === 'valor') {
+        const va = a.cantidad_actual * a.costo_unitario;
+        const vb = b.cantidad_actual * b.costo_unitario;
+        return sortDir === 'asc' ? va - vb : vb - va;
+      }
+      return 0;
+    });
+  }, [lotesFiltrados, sortCol, sortDir]);
+
+  // ── Paginated ──
+  const lotesPaginated = useMemo(
+    () => lotesSorted.slice(lotesPage * lotesPP, lotesPage * lotesPP + lotesPP),
+    [lotesSorted, lotesPage, lotesPP]
+  );
+
   const alertasFiltradas = useMemo(() => alertas.filter(a => {
     const q = busqueda.toLowerCase();
     return !busqueda ||
@@ -274,6 +357,35 @@ const InventarioLotes = () => {
       a.numero_lote?.toLowerCase().includes(q) ||
       (a.producto_barcode && a.producto_barcode.toLowerCase().includes(q));
   }), [alertas, busqueda]);
+
+  // ── KPI derived values ──
+  const valorizacionTotal = lotes.reduce((s, l) => s + (l.cantidad_actual * l.costo_unitario), 0);
+  const totalLotesActivos = lotes.length;
+
+  // ── CSV export ──
+  const exportCSV = () => {
+    const headers = ['Producto', 'N° Lote', 'Vencimiento', 'Estado', 'Stock actual', 'Stock inicial', 'Costo unit.', 'Valor total', 'Ref. compra'];
+    const rows = lotesSorted.map(l => [
+      l.producto_nombre,
+      l.numero_lote,
+      l.fecha_vencimiento,
+      l.urgencia,
+      l.cantidad_actual,
+      l.cantidad_inicial,
+      l.costo_unitario,
+      l.cantidad_actual * l.costo_unitario,
+      l.referencia_compra || ''
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'lotes_perecederos.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
 
   if (loading) return <Box sx={{ p: 5, textAlign: 'center' }}><CircularProgress sx={{ color: PURPLE }} /></Box>;
 
@@ -293,7 +405,13 @@ const InventarioLotes = () => {
         </Box>
 
         {/* Botones: en móvil se apilan verticalmente */}
-        <Stack direction={isMobile ? 'column' : 'row'} spacing={1.5} sx={{ width: isMobile ? '100%' : 'auto' }}>
+        <Stack direction={isMobile ? 'column' : 'row'} spacing={1.5} sx={{ width: isMobile ? '100%' : 'auto' }} alignItems="center">
+          <IconButton
+            onClick={fetchData} size="small"
+            sx={{ color: 'text.secondary', border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}
+          >
+            <Refresh fontSize="small" />
+          </IconButton>
           <Button
             fullWidth={isMobile}
             variant="outlined" startIcon={<Science />}
@@ -317,22 +435,26 @@ const InventarioLotes = () => {
       {resumen && (
         <Grid container spacing={2} sx={{ mb: 3 }}>
           {[
-            { label: 'Vencidos',     val: resumen.vencidos,  color: RED,    bg: '#FEF2F2', icon: <ErrorIcon /> },
-            { label: 'Críticos ≤5d', val: resumen.criticos,  color: RED,    bg: '#FEF2F2', icon: <Warning /> },
-            { label: 'Alertas ≤15d', val: resumen.alertas,   color: YELLOW, bg: '#FFFBEB', icon: <Warning /> },
-            { label: 'Avisos ≤30d',  val: resumen.avisos,    color: BLUE,   bg: '#EFF6FF', icon: <CalendarMonth /> },
+            { label: 'Total lotes',   val: totalLotesActivos,              color: PURPLE, bg: '#F5F3FF', icon: <Layers /> },
+            { label: 'Valorización',  val: formatCurrency(valorizacionTotal), color: GREEN,  bg: '#ECFDF5', icon: <AttachMoney /> },
+            { label: 'Vencidos',      val: resumen.vencidos,               color: RED,    bg: '#FEF2F2', icon: <ErrorIcon /> },
+            { label: 'Críticos ≤5d',  val: resumen.criticos,               color: RED,    bg: '#FEF2F2', icon: <Warning /> },
+            { label: 'Alertas ≤15d',  val: resumen.alertas,                color: YELLOW, bg: '#FFFBEB', icon: <Warning /> },
+            { label: 'Avisos ≤30d',   val: resumen.avisos,                 color: BLUE,   bg: '#EFF6FF', icon: <CalendarMonth /> },
           ].map(({ label, val, color, bg, icon }) => (
-            <Grid item xs={6} md={3} key={label}>
+            <Grid item xs={6} sm={4} md={2} key={label}>
               <Paper sx={(theme) => ({
                 p: 2, borderRadius: 3, border: '1px solid', borderColor: 'divider',
-                bgcolor: val > 0 ? (theme.palette.mode === 'dark' ? `${color}15` : bg) : 'background.paper'
+                bgcolor: (typeof val === 'number' && val > 0) || typeof val === 'string'
+                  ? (theme.palette.mode === 'dark' ? `${color}15` : bg)
+                  : 'background.paper'
               })}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                   <Avatar sx={{ width: 36, height: 36, bgcolor: `${color}20`, color }}>
                     {icon}
                   </Avatar>
-                  <Box>
-                    <Typography sx={{ fontSize: 22, fontWeight: 900, color: val > 0 ? color : 'text.primary', lineHeight: 1 }}>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontSize: typeof val === 'string' ? 13 : 22, fontWeight: 900, color: (typeof val === 'number' && val > 0) ? color : (typeof val === 'string' ? color : 'text.primary'), lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {val}
                     </Typography>
                     <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 600 }}>
@@ -379,88 +501,155 @@ const InventarioLotes = () => {
             InputProps={{ startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment> }}
           />
           {tab === 0 && (
-            <TextField
-              select size="small" label="Urgencia" value={filtroUrgencia}
-              onChange={e => setFiltroUrgencia(e.target.value)}
-              sx={{ minWidth: isMobile ? '100%' : 140 }}
-            >
-              <MenuItem value="todos">Todos</MenuItem>
-              <MenuItem value="vencido">Vencidos</MenuItem>
-              <MenuItem value="critico">Críticos</MenuItem>
-              <MenuItem value="alerta">Alertas</MenuItem>
-              <MenuItem value="aviso">Avisos</MenuItem>
-              <MenuItem value="ok">Vigentes</MenuItem>
-            </TextField>
+            <>
+              {/* Urgency filter chips */}
+              <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap' }}>
+                {[
+                  { key: 'todos',   label: 'Todos' },
+                  { key: 'vencido', label: 'Vencidos' },
+                  { key: 'critico', label: 'Críticos' },
+                  { key: 'alerta',  label: 'Alertas' },
+                  { key: 'aviso',   label: 'Avisos' },
+                  { key: 'ok',      label: 'Vigentes' },
+                ].map(({ key, label }) => {
+                  const cfg = key === 'todos' ? { color: '#64748b' } : (URGENCIA_CONFIG[key] || { color: '#64748b' });
+                  const count = key === 'todos' ? lotes.length : lotes.filter(l => l.urgencia === key).length;
+                  return (
+                    <Chip
+                      key={key}
+                      label={`${label} (${count})`}
+                      onClick={() => { setFiltroUrgencia(key); setLotesPage(0); }}
+                      size="small"
+                      sx={{
+                        fontWeight: 700, fontSize: 11, cursor: 'pointer',
+                        bgcolor: filtroUrgencia === key ? cfg.color : 'transparent',
+                        color: filtroUrgencia === key ? '#fff' : 'text.secondary',
+                        border: `1px solid ${filtroUrgencia === key ? cfg.color : 'divider'}`,
+                      }}
+                    />
+                  );
+                })}
+              </Box>
+              {/* CSV export button */}
+              <Tooltip title="Exportar CSV" arrow>
+                <IconButton size="small" onClick={exportCSV} sx={{ color: 'text.secondary', border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+                  <FileDownload fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </>
+          )}
+          {tab === 1 && (
+            /* Dias alerta button group */
+            <Box sx={{ display: 'flex', gap: 0.5 }}>
+              {[15, 30, 60, 90].map(d => (
+                <Button
+                  key={d} size="small"
+                  variant={diasAlerta === d ? 'contained' : 'outlined'}
+                  onClick={() => setDiasAlerta(d)}
+                  sx={{
+                    minWidth: 40, borderRadius: 2, fontWeight: 600,
+                    ...(diasAlerta === d
+                      ? { bgcolor: PURPLE }
+                      : { borderColor: `${PURPLE}40`, color: PURPLE })
+                  }}
+                >
+                  {d}d
+                </Button>
+              ))}
+            </Box>
           )}
         </Box>
 
         {/* ════ TAB 0: STOCK POR LOTES ════ */}
         {tab === 0 && (
           <Box sx={{ p: 2 }}>
-            {lotesFiltrados.length === 0 ? (
+            {lotesSorted.length === 0 ? (
               <Box sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
                 <Layers sx={{ fontSize: 48, mb: 1, opacity: 0.2 }} />
                 <Typography>No hay lotes que coincidan con los filtros.</Typography>
               </Box>
             ) : isMobile ? (
               /* ─ Cards mobile ─ */
-              lotesFiltrados.map(lote => (
+              lotesSorted.map(lote => (
                 <LoteCard key={lote.id} lote={lote} onAjustar={abrirAjuste} />
               ))
             ) : (
               /* ─ Tabla desktop ─ */
-              <TableContainer>
-                <Table size="small">
-                  <TableHead sx={{ bgcolor: 'action.hover' }}>
-                    <TableRow>
-                      {['PRODUCTO', 'N° LOTE', 'VENCIMIENTO', 'ESTADO', 'STOCK / CONSUMO', 'COSTO UNIT.', 'VALOR', ''].map(h => (
-                        <TableCell key={h} sx={{ fontWeight: 800 }}>{h}</TableCell>
-                      ))}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {lotesFiltrados.map(lote => {
-                      const cfg = URGENCIA_CONFIG[lote.urgencia] || URGENCIA_CONFIG.ok;
-                      const isVencido = lote.urgencia === 'vencido';
-                      const isCritico = lote.urgencia === 'critico';
-                      return (
-                        <TableRow key={lote.id} hover
-                          sx={(theme) => ({
-                            bgcolor: theme.palette.mode === 'dark'
-                              ? (isVencido ? 'rgba(239,68,68,0.15)' : isCritico ? 'rgba(239,68,68,0.08)' : 'transparent')
-                              : (isVencido ? '#FEF2F2' : isCritico ? '#FFF5F5' : 'transparent'),
-                          })}
-                        >
-                          <TableCell sx={{ fontWeight: 700 }}>{lote.producto_nombre}</TableCell>
-                          <TableCell>
-                            <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12 }}>{lote.numero_lote}</Typography>
-                            {lote.referencia_compra && (
-                              <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>Ref: {lote.referencia_compra}</Typography>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: cfg.color }}>{fmtFecha(lote.fecha_vencimiento)}</Typography>
-                            {lote.fecha_fabricacion && (
-                              <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>Fab: {fmtFecha(lote.fecha_fabricacion)}</Typography>
-                            )}
-                          </TableCell>
-                          <TableCell><UrgenciaChip urgencia={lote.urgencia} dias={lote.dias_restantes} /></TableCell>
-                          <TableCell><BarraConsumo inicial={lote.cantidad_inicial} actual={lote.cantidad_actual} /></TableCell>
-                          <TableCell>{formatCurrency(lote.costo_unitario)}</TableCell>
-                          <TableCell sx={{ fontWeight: 700 }}>{formatCurrency(lote.cantidad_actual * lote.costo_unitario)}</TableCell>
-                          <TableCell align="right">
-                            <Tooltip title="Ajustar cantidad" arrow>
-                              <IconButton size="small" onClick={() => abrirAjuste(lote)} sx={{ color: BLUE, bgcolor: `${BLUE}10` }}>
-                                <Edit fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+              <>
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead sx={{ bgcolor: 'action.hover' }}>
+                      <TableRow>
+                        <SortHeader col="producto"    label="PRODUCTO" />
+                        <TableCell sx={{ fontWeight: 800 }}>N° LOTE</TableCell>
+                        <SortHeader col="vencimiento" label="VENCIMIENTO" />
+                        <TableCell sx={{ fontWeight: 800 }}>ESTADO</TableCell>
+                        <SortHeader col="stock"       label="STOCK / CONSUMO" />
+                        <TableCell sx={{ fontWeight: 800 }}>COSTO UNIT.</TableCell>
+                        <SortHeader col="valor"       label="VALOR" />
+                        <TableCell />
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {lotesPaginated.map(lote => {
+                        const cfg = URGENCIA_CONFIG[lote.urgencia] || URGENCIA_CONFIG.ok;
+                        const isVencido = lote.urgencia === 'vencido';
+                        const isCritico = lote.urgencia === 'critico';
+                        return (
+                          <TableRow key={lote.id} hover
+                            sx={(theme) => ({
+                              bgcolor: theme.palette.mode === 'dark'
+                                ? (isVencido ? 'rgba(239,68,68,0.15)' : isCritico ? 'rgba(239,68,68,0.08)' : 'transparent')
+                                : (isVencido ? '#FEF2F2' : isCritico ? '#FFF5F5' : 'transparent'),
+                            })}
+                          >
+                            <TableCell sx={{ fontWeight: 700 }}>{lote.producto_nombre}</TableCell>
+                            <TableCell>
+                              <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12 }}>{lote.numero_lote}</Typography>
+                              {lote.referencia_compra && (
+                                <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>Ref: {lote.referencia_compra}</Typography>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Typography sx={{ fontSize: 12, fontWeight: 700, color: cfg.color }}>{fmtFecha(lote.fecha_vencimiento)}</Typography>
+                              {lote.fecha_fabricacion && (
+                                <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>Fab: {fmtFecha(lote.fecha_fabricacion)}</Typography>
+                              )}
+                            </TableCell>
+                            <TableCell><UrgenciaChip urgencia={lote.urgencia} dias={lote.dias_restantes} /></TableCell>
+                            <TableCell>
+                              {lote.cantidad_actual <= 0
+                                ? <Chip label="Agotado" size="small" sx={{ bgcolor: '#F1F5F9', color: '#64748b', fontWeight: 700, fontSize: 10 }} />
+                                : <BarraConsumo inicial={lote.cantidad_inicial} actual={lote.cantidad_actual} />
+                              }
+                            </TableCell>
+                            <TableCell>{formatCurrency(lote.costo_unitario)}</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>{formatCurrency(lote.cantidad_actual * lote.costo_unitario)}</TableCell>
+                            <TableCell align="right">
+                              <Tooltip title="Ajustar cantidad" arrow>
+                                <IconButton size="small" onClick={() => abrirAjuste(lote)} sx={{ color: BLUE, bgcolor: `${BLUE}10` }}>
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+                <TablePagination
+                  component="div"
+                  count={lotesSorted.length}
+                  page={lotesPage}
+                  onPageChange={(_, newPage) => setLotesPage(newPage)}
+                  rowsPerPage={lotesPP}
+                  onRowsPerPageChange={e => { setLotesPP(parseInt(e.target.value, 10)); setLotesPage(0); }}
+                  rowsPerPageOptions={[10, 15, 25, 50]}
+                  labelRowsPerPage="Filas por página:"
+                  labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
+                />
+              </>
             )}
           </Box>
         )}
@@ -471,12 +660,13 @@ const InventarioLotes = () => {
             {alertasFiltradas.length === 0 ? (
               <Box sx={{ textAlign: 'center', py: 6 }}>
                 <CheckCircle sx={{ fontSize: 48, color: PURPLE, mb: 1 }} />
-                <Typography color="text.secondary">No hay lotes próximos a vencer en los próximos 30 días.</Typography>
+                <Typography color="text.secondary">No hay lotes próximos a vencer en los próximos {diasAlerta} días.</Typography>
               </Box>
             ) : (
               <Stack spacing={2}>
                 {alertasFiltradas.map(alerta => {
                   const cfg = URGENCIA_CONFIG[alerta.urgencia] || URGENCIA_CONFIG.ok;
+                  const loteRef = lotes.find(l => l.id === alerta.lote_id);
                   return (
                     <Paper key={alerta.lote_id} variant="outlined" sx={(theme) => ({
                       p: 2, borderRadius: 2,
@@ -491,6 +681,16 @@ const InventarioLotes = () => {
                             </Avatar>
                             <Typography sx={{ fontWeight: 800, fontSize: 15 }}>{alerta.producto_nombre}</Typography>
                             <UrgenciaChip urgencia={alerta.urgencia} dias={alerta.dias_restantes} />
+                            {loteRef && (
+                              <Button
+                                size="small"
+                                onClick={() => abrirAjuste(loteRef)}
+                                startIcon={<Edit fontSize="small" />}
+                                sx={{ color: BLUE, bgcolor: `${BLUE}10`, borderRadius: 1.5, fontWeight: 600, fontSize: 11, ml: 1, flexShrink: 0 }}
+                              >
+                                Ajustar
+                              </Button>
+                            )}
                           </Box>
                           <Typography sx={{ fontSize: 12, color: 'text.secondary', ml: 0.5 }}>
                             Lote: <strong>{alerta.numero_lote}</strong>
@@ -543,7 +743,7 @@ const InventarioLotes = () => {
                 filterOptions={(opts, state) => {
                   const q = (state.inputValue || '').toLowerCase().trim();
                   if (!q) return opts;
-                  return opts.filter(o => 
+                  return opts.filter(o =>
                     o.nombre.toLowerCase().includes(q) ||
                     (o.codigo_barras && o.codigo_barras.toLowerCase().includes(q))
                   );
@@ -567,7 +767,7 @@ const InventarioLotes = () => {
               <TextField fullWidth required label="Fecha Vencimiento" type="date" InputLabelProps={{ shrink: true }}
                 value={form.fecha_vencimiento} onChange={e => setForm(p => ({ ...p, fecha_vencimiento: e.target.value }))}
                 inputProps={{ min: new Date().toLocaleDateString('en-CA') }}
- />
+              />
             </Grid>
             <Grid item xs={6}>
               <TextField fullWidth label="Fabricación (Opc.)" type="date" InputLabelProps={{ shrink: true }}
@@ -716,6 +916,14 @@ const InventarioLotes = () => {
                   </Paper>
                 ))}
               </Stack>
+              {modalFefo.resultado?.lotes_sugeridos?.length > 0 && (
+                <Box sx={{ mt: 1.5, p: 1.5, borderRadius: 2, bgcolor: `${PURPLE}08`, border: `1px dashed ${PURPLE}30` }}>
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Costo estimado del despacho</Typography>
+                  <Typography sx={{ fontSize: 15, fontWeight: 800, color: PURPLE }}>
+                    {formatCurrency(modalFefo.resultado.lotes_sugeridos.reduce((s, l) => s + (l.a_consumir * (l.costo_unitario || 0)), 0))}
+                  </Typography>
+                </Box>
+              )}
             </Box>
           )}
         </DialogContent>
