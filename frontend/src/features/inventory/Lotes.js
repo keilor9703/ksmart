@@ -79,6 +79,9 @@ const Lotes = () => {
   // ── Confirm-cancel dialog (replaces window.confirm)
   const [confirmCancelId, setConfirmCancelId] = useState(null);
 
+  // ── Búsqueda en tab activo
+  const [busquedaActivo, setBusquedaActivo] = useState('');
+
   // ── Historial search + date filter
   const [busquedaHist, setBusquedaHist] = useState('');
   const [histDesde, setHistDesde]       = useState('');
@@ -169,6 +172,25 @@ const Lotes = () => {
 
   const lotesEnPlanta  = lotes.filter(l => l.estado === 'En produccion');
   const lotesHistorial = lotes.filter(l => l.estado !== 'En produccion');
+
+  // ── Filtro tab activo
+  const lotesEnPlantaFiltrados = useMemo(() => {
+    if (!busquedaActivo) return lotesEnPlanta;
+    const q = busquedaActivo.toLowerCase();
+    return lotesEnPlanta.filter(l =>
+      l.receta?.producto_resultante?.nombre?.toLowerCase().includes(q) ||
+      l.receta?.nombre?.toLowerCase().includes(q) ||
+      String(l.id).includes(q)
+    );
+  }, [lotesEnPlanta, busquedaActivo]);
+
+  // ── Eficiencia promedio (confirmados)
+  const eficienciaPromedio = useMemo(() => {
+    const confirmados = lotesHistorial.filter(l => l.estado === 'Confirmado' && l.cantidad_a_producir > 0);
+    if (confirmados.length === 0) return null;
+    const suma = confirmados.reduce((s, l) => s + (l.cantidad_real || 0) / l.cantidad_a_producir * 100, 0);
+    return suma / confirmados.length;
+  }, [lotesHistorial]);
 
   // ── Simulation debounce
   useEffect(() => {
@@ -344,12 +366,24 @@ const Lotes = () => {
             <Inventory2 sx={{ color: PURPLE, fontSize: 32 }} />
             <Box>
               <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 600 }}>COSTO TOTAL PRODUCIDO</Typography>
-              <Typography sx={{ fontSize: 18, fontWeight: 800, lineHeight: 1.3 }}>
-                {kpiCostoTotal}
-              </Typography>
+              <Typography sx={{ fontSize: 18, fontWeight: 800, lineHeight: 1.3 }}>{kpiCostoTotal}</Typography>
             </Box>
           </Paper>
         </Grid>
+        {eficienciaPromedio !== null && (
+          <Grid item xs={12} sm={6} md={3}>
+            <Paper sx={{ p: 2.5, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 2, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+              <CheckCircleOutline sx={{ color: eficienciaPromedio >= 95 ? GREEN : eficienciaPromedio >= 80 ? '#F59E0B' : RED, fontSize: 32 }} />
+              <Box>
+                <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 600 }}>EFICIENCIA PROMEDIO</Typography>
+                <Typography sx={{ fontSize: 22, fontWeight: 800, color: eficienciaPromedio >= 95 ? GREEN : eficienciaPromedio >= 80 ? '#F59E0B' : RED }}>
+                  {eficienciaPromedio.toFixed(1)}%
+                </Typography>
+                <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>real vs planificado</Typography>
+              </Box>
+            </Paper>
+          </Grid>
+        )}
       </Grid>
 
       {/* ── TABS ── */}
@@ -372,14 +406,30 @@ const Lotes = () => {
         <Box sx={{ p: { xs: 2, md: 3 } }}>
           {/* TAB 0: EN PLANTA */}
           <TabPanel value={tab} index={0}>
-            {lotesEnPlanta.length === 0 ? (
+            {lotesEnPlanta.length > 0 && (
+              <Box sx={{ mb: 2 }}>
+                <TextField
+                  size="small" fullWidth placeholder="Buscar por producto, receta o N° orden…"
+                  value={busquedaActivo}
+                  onChange={e => setBusquedaActivo(e.target.value)}
+                  InputProps={{ startAdornment: <InputAdornment position="start"><Search sx={{ fontSize: 18 }} /></InputAdornment> }}
+                  sx={{ maxWidth: 400 }}
+                />
+                {busquedaActivo && (
+                  <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
+                    {lotesEnPlantaFiltrados.length} de {lotesEnPlanta.length} órdenes
+                  </Typography>
+                )}
+              </Box>
+            )}
+            {lotesEnPlantaFiltrados.length === 0 ? (
               <Box sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
                 <PrecisionManufacturing sx={{ fontSize: 48, mb: 1, opacity: 0.2 }} />
-                <Typography>La planta está libre. No hay órdenes en proceso.</Typography>
+                <Typography>{lotesEnPlanta.length === 0 ? 'La planta está libre. No hay órdenes en proceso.' : 'Sin resultados para esta búsqueda.'}</Typography>
               </Box>
             ) : (
               <Grid container spacing={2}>
-                {lotesEnPlanta.map(l => (
+                {lotesEnPlantaFiltrados.map(l => (
                   <Grid item xs={12} md={6} key={l.id}>
                     <Paper sx={{ p: 2.5, borderRadius: 3, borderLeft: '4px solid #F59E0B', border: '1px solid', borderColor: 'divider', position: 'relative' }}>
                       <Box sx={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 0.5, alignItems: 'center' }}>
@@ -560,6 +610,11 @@ const Lotes = () => {
                                       {merma !== 0 && (
                                         <Typography sx={{ fontSize: 11, fontWeight: 600, color: merma > 0 ? GREEN : RED }}>
                                           {merma > 0 ? `+${merma} sobrante` : `${merma} merma`} vs Plan
+                                        </Typography>
+                                      )}
+                                      {l.cantidad_a_producir > 0 && (
+                                        <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
+                                          {((l.cantidad_real / l.cantidad_a_producir) * 100).toFixed(1)}% efic.
                                         </Typography>
                                       )}
                                     </Box>
