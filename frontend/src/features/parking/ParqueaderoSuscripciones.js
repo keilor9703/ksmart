@@ -12,12 +12,13 @@ import {
   Box, Paper, Typography, Stack, Chip, IconButton, Tooltip,
   Skeleton, Alert, Button, ToggleButton, ToggleButtonGroup,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  TableSortLabel, TablePagination,
   Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem,
   InputAdornment, Divider, useMediaQuery, useTheme, CircularProgress
 } from '@mui/material';
 import {
   EventRepeat, Refresh, Payment, Visibility,
-  AttachMoney, Cancel, Close, Save
+  AttachMoney, Cancel, Close, Save, Search, FileDownload
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../api';
@@ -36,6 +37,11 @@ export default function ParqueaderoSuscripciones() {
   const [filtro, setFiltro]     = useState('todas');
   const [dlgAbono, setDlgAbono] = useState(null);
   const [confirmCancel, setConfirmCancel] = useState(null);
+  const [busqueda, setBusqueda]       = useState('');
+  const [sortCol, setSortCol]         = useState('fecha_vencimiento');
+  const [sortDir, setSortDir]         = useState('asc');
+  const [page, setPage]               = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(15);
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -62,9 +68,56 @@ export default function ParqueaderoSuscripciones() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
+  const itemsFiltrados = React.useMemo(() => {
+    let list = [...items];
+    if (busqueda.trim()) {
+      const q = busqueda.toLowerCase();
+      list = list.filter(s =>
+        (s.placa || '').toLowerCase().includes(q) ||
+        (s.cliente_nombre || '').toLowerCase().includes(q)
+      );
+    }
+    list.sort((a, b) => {
+      const dir = sortDir === 'asc' ? 1 : -1;
+      switch (sortCol) {
+        case 'placa':   return dir * (a.placa || '').localeCompare(b.placa || '');
+        case 'cliente': return dir * (a.cliente_nombre || '').localeCompare(b.cliente_nombre || '');
+        case 'tipo':    return dir * (a.tipo || '').localeCompare(b.tipo || '');
+        case 'total':   return dir * ((a.monto_total || 0) - (b.monto_total || 0));
+        case 'pagado':  return dir * ((a.monto_pagado || 0) - (b.monto_pagado || 0));
+        case 'saldo':   return dir * ((a.saldo_pendiente || 0) - (b.saldo_pendiente || 0));
+        default:        return dir * (a.fecha_vencimiento || '').localeCompare(b.fecha_vencimiento || '');
+      }
+    });
+    return list;
+  }, [items, busqueda, sortCol, sortDir]);
+
+  const itemsPaginados = React.useMemo(() =>
+    itemsFiltrados.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [itemsFiltrados, page, rowsPerPage]
+  );
+
   const totalFacturado = items.reduce((sum, s) => sum + (s.monto_total || 0), 0);
   const totalPagado    = items.reduce((sum, s) => sum + (s.monto_pagado || 0), 0);
   const totalSaldo     = items.reduce((sum, s) => sum + (s.saldo_pendiente || 0), 0);
+
+  const vigentesCount = items.filter(s => {
+    if (s.estado === 'cancelada') return false;
+    const partes = (s.fecha_vencimiento || '').split('T')[0].split('-');
+    if (partes.length !== 3) return false;
+    const vence = new Date(partes[0], partes[1] - 1, partes[2]);
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    return vence >= hoy;
+  }).length;
+
+  const vencidasCount = items.filter(s => {
+    if (s.estado === 'cancelada') return false;
+    const partes = (s.fecha_vencimiento || '').split('T')[0].split('-');
+    if (partes.length !== 3) return false;
+    const vence = new Date(partes[0], partes[1] - 1, partes[2]);
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    return vence < hoy;
+  }).length;
 
   const handleCancelar = async () => {
     if (!confirmCancel) return;
@@ -82,6 +135,41 @@ export default function ParqueaderoSuscripciones() {
       }
     }
   };
+
+  const handleExportCSV = () => {
+    if (!itemsFiltrados.length) return;
+    const rows = [
+      ['#', 'Placa', 'Propietario', 'Tipo', 'Inicio', 'Vencimiento', 'Total', 'Pagado', 'Saldo', 'Estado'],
+      ...itemsFiltrados.map((s, i) => [
+        i + 1, s.placa || '', s.cliente_nombre || '', (s.tipo || '').toUpperCase(),
+        fechaCorta(s.fecha_inicio), fechaCorta(s.fecha_vencimiento),
+        s.monto_total || 0, s.monto_pagado || 0, s.saldo_pendiente || 0,
+        s.estado === 'cancelada' ? 'Cancelada' : (s.estado_pago || '').toUpperCase(),
+      ]),
+      ['', 'TOTALES', '', '', '', '', totalFacturado, totalPagado, totalSaldo, ''],
+    ];
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a'); a.href = url; a.download = 'suscripciones-parqueadero.csv';
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  const SortTh = ({ col, children, align = 'left' }) => (
+    <TableCell align={align} sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>
+      <TableSortLabel
+        active={sortCol === col}
+        direction={sortCol === col ? sortDir : 'asc'}
+        onClick={() => {
+          setSortDir(prev => col === sortCol ? (prev === 'asc' ? 'desc' : 'asc') : 'asc');
+          setSortCol(col);
+          setPage(0);
+        }}
+      >
+        {children}
+      </TableSortLabel>
+    </TableCell>
+  );
 
   return (
     <Box sx={{ p: { xs: 1, md: 2 }, maxWidth: 1400, mx: 'auto' }}>
@@ -111,12 +199,31 @@ export default function ParqueaderoSuscripciones() {
         </Tooltip>
       </Stack>
 
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 2 }}>
+      <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
         <KpiSmall label="Facturado" value={formatCurrency(totalFacturado)} color="text.primary" />
         <KpiSmall label="Pagado" value={formatCurrency(totalPagado)} color="#10B981" />
-        <KpiSmall label="Saldo pendiente" value={formatCurrency(totalSaldo)}
-          color={totalSaldo > 0 ? '#EF4444' : '#10B981'} />
+        <KpiSmall label="Saldo pendiente" value={formatCurrency(totalSaldo)} color={totalSaldo > 0 ? '#EF4444' : '#10B981'} />
+        <KpiSmall label="Vigentes" value={String(vigentesCount)} color="#10B981" />
+        <KpiSmall label="Vencidas" value={String(vencidasCount)} color={vencidasCount > 0 ? '#EF4444' : 'text.secondary'} />
       </Stack>
+
+      <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+        <TextField
+          size="small"
+          placeholder="Buscar por placa o cliente…"
+          value={busqueda}
+          onChange={e => { setBusqueda(e.target.value); setPage(0); }}
+          InputProps={{
+            startAdornment: <InputAdornment position="start"><Search sx={{ fontSize: 18, color: 'text.disabled' }} /></InputAdornment>,
+          }}
+          sx={{ flex: 1, minWidth: 200 }}
+        />
+        <Button size="small" variant="outlined" startIcon={<FileDownload />}
+          onClick={handleExportCSV} disabled={!itemsFiltrados.length}
+          sx={{ borderRadius: 2, fontWeight: 600, whiteSpace: 'nowrap' }}>
+          CSV
+        </Button>
+      </Box>
 
       <Paper sx={{ p: 1, mb: 2, borderRadius: 3 }}>
         <ToggleButtonGroup
@@ -158,7 +265,7 @@ export default function ParqueaderoSuscripciones() {
         </Paper>
       ) : isMobile ? (
         <Stack spacing={1}>
-          {items.map(s => (
+          {itemsFiltrados.map(s => (
             <SuscripcionCard
               key={s.id} susc={s}
               onVer={() => navigate(`/parqueadero/buscar?placa=${s.placa}`)}
@@ -168,33 +275,52 @@ export default function ParqueaderoSuscripciones() {
           ))}
         </Stack>
       ) : (
-        <TableContainer component={Paper} sx={{ borderRadius: 3 }}>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Placa</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Propietario</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Tipo</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Vigencia</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Total</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Pagado</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Saldo</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Estado</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Acciones</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {items.map(s => (
-                <SuscripcionRow
-                  key={s.id} susc={s}
-                  onVer={() => navigate(`/parqueadero/buscar?placa=${s.placa}`)}
-                  onAbonar={() => setDlgAbono(s)}
-                  onCancelar={() => setConfirmCancel(s)}
-                />
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <>
+          <TableContainer component={Paper} sx={{ borderRadius: 3 }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <SortTh col="placa">Placa</SortTh>
+                  <SortTh col="cliente">Propietario</SortTh>
+                  <SortTh col="tipo">Tipo</SortTh>
+                  <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Vigencia</TableCell>
+                  <SortTh col="total" align="right">Total</SortTh>
+                  <SortTh col="pagado" align="right">Pagado</SortTh>
+                  <SortTh col="saldo" align="right">Saldo</SortTh>
+                  <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Estado</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Acciones</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {itemsPaginados.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
+                      {busqueda ? `Sin resultados para "${busqueda}"` : 'Sin suscripciones en esta categoría'}
+                    </TableCell>
+                  </TableRow>
+                ) : itemsPaginados.map(s => (
+                  <SuscripcionRow
+                    key={s.id} susc={s}
+                    onVer={() => navigate(`/parqueadero/buscar?placa=${s.placa}`)}
+                    onAbonar={() => setDlgAbono(s)}
+                    onCancelar={() => setConfirmCancel(s)}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <TablePagination
+            component="div"
+            count={itemsFiltrados.length}
+            page={page}
+            onPageChange={(_, p) => setPage(p)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={e => { setRowsPerPage(parseInt(e.target.value)); setPage(0); }}
+            rowsPerPageOptions={[10, 15, 25, 50]}
+            labelRowsPerPage="Filas:"
+            labelDisplayedRows={({ from, to, count }) => `${from}-${to} de ${count}`}
+          />
+        </>
       )}
 
       {dlgAbono && (
@@ -374,10 +500,10 @@ function SuscripcionCard({ susc, onVer, onAbonar, onCancelar }) {
       <Stack direction="row" justifyContent="space-between" alignItems="center">
         <Box>
           <Typography sx={{ fontSize: 10, color: 'text.secondary', textTransform: 'uppercase' }}>
-            Vence
+            Período
           </Typography>
-          <Typography sx={{ fontSize: 12, fontWeight: 700 }}>
-            {fechaCorta(susc.fecha_vencimiento)}
+          <Typography sx={{ fontSize: 11, fontWeight: 600 }}>
+            {fechaCorta(susc.fecha_inicio)} → {fechaCorta(susc.fecha_vencimiento)}
           </Typography>
         </Box>
         <Box sx={{ textAlign: 'right' }}>
@@ -527,14 +653,14 @@ function AbonoDialog({ open, onClose, susc, onSuccess }) {
 
 function fechaCorta(fechaIso) {
   if (!fechaIso) return '—';
-  
+
   // 🛠️ FIX: Ignoramos la 'Z' y la hora UTC para que no reste 5 horas
   const partes = fechaIso.split('T')[0].split('-');
   if (partes.length === 3) {
     const d = new Date(partes[0], partes[1] - 1, partes[2]);
     return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
   }
-  
+
   const d = new Date(fechaIso);
   if (isNaN(d)) return fechaIso;
   return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });

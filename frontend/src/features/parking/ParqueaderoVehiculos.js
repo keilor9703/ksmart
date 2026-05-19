@@ -9,12 +9,13 @@ import {
   Box, Paper, Typography, TextField, InputAdornment, Button, Stack, Chip,
   Avatar, IconButton, Tooltip, CircularProgress, Alert, Skeleton,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  TableSortLabel, TablePagination,
   Dialog, DialogTitle, DialogContent, DialogActions, Menu, MenuItem,
   Grid, useMediaQuery, useTheme, Autocomplete
 } from '@mui/material';
 import {
   Search, DirectionsCar, MoreVert, Edit, Delete, Add,
-  Person, Phone, Refresh, History, Visibility
+  Person, Phone, Refresh, History, Visibility, FileDownload
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../api';
@@ -35,6 +36,10 @@ export default function ParqueaderoVehiculos() {
   const [dlgEditar, setDlgEditar]     = useState(null);
   const [dlgHistorial, setDlgHistorial] = useState(null);
   const [confirmDel, setConfirmDel]   = useState(null);
+  const [sortCol, setSortCol]         = useState('placa');
+  const [sortDir, setSortDir]         = useState('asc');
+  const [page, setPage]               = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(15);
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -56,10 +61,45 @@ export default function ParqueaderoVehiculos() {
     }
   }, [search, soloActivos]);
 
+  const handleExportCSV = () => {
+    if (!vehiculosSorted.length) return;
+    const rows = [
+      ['#', 'Placa', 'Propietario', 'Cédula', 'Teléfono', 'Marca', 'Modelo', 'Color', 'Estado'],
+      ...vehiculosSorted.map((v, i) => [
+        i + 1, v.placa || '', v.cliente_nombre || '', v.cliente_cedula || '',
+        v.cliente_telefono || '', v.marca || '', v.modelo || '', v.color || '',
+        v.is_active ? 'Activo' : 'Inactivo',
+      ]),
+    ];
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a'); a.href = url; a.download = 'vehiculos-parqueadero.csv';
+    a.click(); URL.revokeObjectURL(url);
+  };
+
   useEffect(() => {
     const t = setTimeout(cargar, 300);   // debounce
     return () => clearTimeout(t);
   }, [cargar]);
+
+  const vehiculosSorted = React.useMemo(() => {
+    const list = [...vehiculos];
+    list.sort((a, b) => {
+      const dir = sortDir === 'asc' ? 1 : -1;
+      switch (sortCol) {
+        case 'propietario': return dir * (a.cliente_nombre || '').localeCompare(b.cliente_nombre || '');
+        case 'vehiculo':    return dir * (a.marca || '').localeCompare(b.marca || '');
+        default:            return dir * (a.placa || '').localeCompare(b.placa || '');
+      }
+    });
+    return list;
+  }, [vehiculos, sortCol, sortDir]);
+
+  const vehiculosPaginados = React.useMemo(() =>
+    vehiculosSorted.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [vehiculosSorted, page, rowsPerPage]
+  );
 
   // ── Eliminar ────────────────────────────────────────────────────────────
   // const handleEliminar = async () => {
@@ -78,6 +118,22 @@ export default function ParqueaderoVehiculos() {
   //     }
   //   }
   // };
+
+  const SortTh = ({ col, children, align = 'left' }) => (
+    <TableCell align={align} sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+      <TableSortLabel
+        active={sortCol === col}
+        direction={sortCol === col ? sortDir : 'asc'}
+        onClick={() => {
+          setSortDir(prev => col === sortCol ? (prev === 'asc' ? 'desc' : 'asc') : 'asc');
+          setSortCol(col);
+          setPage(0);
+        }}
+      >
+        {children}
+      </TableSortLabel>
+    </TableCell>
+  );
 
   return (
     <Box sx={{ p: { xs: 1, md: 2 }, maxWidth: 1400, mx: 'auto' }}>
@@ -117,7 +173,7 @@ export default function ParqueaderoVehiculos() {
             fullWidth size="small"
             placeholder="Buscar por placa, nombre o cédula…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -128,7 +184,7 @@ export default function ParqueaderoVehiculos() {
           />
           <Button
             variant={soloActivos ? "contained" : "outlined"}
-            onClick={() => setSoloActivos(!soloActivos)}
+            onClick={() => { setSoloActivos(!soloActivos); setPage(0); }}
             sx={{
               minWidth: 160, fontWeight: 700,
               ...(soloActivos && { bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' } }),
@@ -141,6 +197,11 @@ export default function ParqueaderoVehiculos() {
               <Refresh />
             </IconButton>
           </Tooltip>
+          <Button size="small" variant="outlined" startIcon={<FileDownload />}
+            onClick={handleExportCSV} disabled={!vehiculosSorted.length}
+            sx={{ borderRadius: 2, fontWeight: 600, whiteSpace: 'nowrap' }}>
+            CSV
+          </Button>
         </Stack>
       </Paper>
 
@@ -187,31 +248,51 @@ export default function ParqueaderoVehiculos() {
         </Stack>
       ) : (
         // ─── Vista desktop: tabla ──────────────────────────────
-        <TableContainer component={Paper} sx={{ borderRadius: 3 }}>
-          <Table size="small">
-            <TableHead>
-              <TableRow sx={{ bgcolor: 'background.default' }}>
-                <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Placa</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Propietario</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Contacto</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Vehículo</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Estado</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Acciones</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {vehiculos.map(v => (
-                <VehiculoRow
-                  key={v.id} veh={v}
-                  onVer={() => navigate(`/parqueadero/buscar?placa=${v.placa}`)}
-                  onHistorial={() => setDlgHistorial(v)}
-                  onEditar={() => setDlgEditar(v)}
-                  onEliminar={() => setConfirmDel(v)}
-                />
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <>
+          <TableContainer component={Paper} sx={{ borderRadius: 3 }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: 'background.default' }}>
+                  <SortTh col="placa">Placa</SortTh>
+                  <SortTh col="propietario">Propietario</SortTh>
+                  <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Contacto</TableCell>
+                  <SortTh col="vehiculo">Vehículo</SortTh>
+                  <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Estado</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Acciones</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {vehiculosPaginados.map(v => (
+                  <VehiculoRow
+                    key={v.id} veh={v}
+                    onVer={() => navigate(`/parqueadero/buscar?placa=${v.placa}`)}
+                    onHistorial={() => setDlgHistorial(v)}
+                    onEditar={() => setDlgEditar(v)}
+                    onEliminar={() => setConfirmDel(v)}
+                  />
+                ))}
+                {vehiculosPaginados.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
+                      Sin resultados
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <TablePagination
+            component="div"
+            count={vehiculosSorted.length}
+            page={page}
+            onPageChange={(_, p) => setPage(p)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={e => { setRowsPerPage(parseInt(e.target.value)); setPage(0); }}
+            rowsPerPageOptions={[10, 15, 25, 50]}
+            labelRowsPerPage="Filas:"
+            labelDisplayedRows={({ from, to, count }) => `${from}-${to} de ${count}`}
+          />
+        </>
       )}
 
       {/* ─── Diálogos ───────────────────────────────────────────── */}
@@ -264,7 +345,7 @@ export default function ParqueaderoVehiculos() {
         )}
 
 
-      
+
     </Box>
   );
 }

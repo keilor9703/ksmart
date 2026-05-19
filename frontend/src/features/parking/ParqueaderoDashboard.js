@@ -29,6 +29,8 @@ export default function ParqueaderoDashboard({ user }) {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
+  const [reporte, setReporte]             = useState(null);
+  const [loadingReporte, setLoadingReporte] = useState(false);
   const navigate              = useNavigate();
   const theme                 = useTheme();
   const isMobile              = useMediaQuery(theme.breakpoints.down('sm'));
@@ -46,11 +48,29 @@ export default function ParqueaderoDashboard({ user }) {
     }
   }, []);
 
+  const cargarReporte = React.useCallback(async () => {
+    setLoadingReporte(true);
+    try {
+      const hoy = new Date();
+      const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toLocaleDateString('en-CA');
+      const hoyStr = hoy.toLocaleDateString('en-CA');
+      const { data } = await apiClient.get('/parqueadero/reportes/ingresos', {
+        params: { start_date: inicioMes, end_date: hoyStr }
+      });
+      setReporte(data);
+    } catch {
+      /* silent — reporte is optional */
+    } finally {
+      setLoadingReporte(false);
+    }
+  }, []);
+
   useEffect(() => {
     cargar();
+    cargarReporte();
     const id = setInterval(() => cargar(true), 60000);
     return () => clearInterval(id);
-  }, [cargar]);
+  }, [cargar, cargarReporte]);
 
   if (loading && !data) {
     return (
@@ -175,15 +195,19 @@ export default function ParqueaderoDashboard({ user }) {
 
       {/* ─── KPIs ──────────────────────────────────────────────── */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <KpiCard xs={6} md={3} label="Vencidas" value={data?.vencidas || 0}
+        <KpiCard xs={6} md={2.4} label="Vencidas" value={data?.vencidas || 0}
           icon={<ErrorOutline />} color="#EF4444" subtitle="Renovar urgente" />
-        <KpiCard xs={6} md={3} label="Por vencer (5 días)" value={data?.por_vencer_5_dias || 0}
+        <KpiCard xs={6} md={2.4} label="Por vencer (5d)" value={data?.por_vencer_5_dias || 0}
           icon={<Warning />} color="#F59E0B" subtitle="Avisar al cliente" />
-        <KpiCard xs={6} md={3} label="Ingresos hoy" value={formatCurrency(data?.ingresos_hoy || 0)}
+        <KpiCard xs={6} md={2.4} label="Ingresos hoy" value={formatCurrency(data?.ingresos_hoy || 0)}
           icon={<AttachMoney />} color="#10B981"
-          subtitle={`Mes: ${formatCurrency(data?.ingresos_mes || 0)}`} />
-        <KpiCard xs={6} md={3} label="Ingresos semana" value={formatCurrency(data?.ingresos_semana || 0)}
-          icon={<TrendingUp />} color="#3B82F6" subtitle="Últimos 7 días" />
+          subtitle={`Semana: ${formatCurrency(data?.ingresos_semana || 0)}`} />
+        <KpiCard xs={6} md={2.4} label="Ingresos del mes" value={formatCurrency(data?.ingresos_mes || 0)}
+          icon={<TrendingUp />} color="#3B82F6"
+          subtitle={`Desde el 1° del mes`} />
+        <KpiCard xs={12} md={2.4} label="Mensualidades activas" value={data?.mensualidades_activas || 0}
+          icon={<LocalParking />} color={ACCENT}
+          subtitle={`${(data?.accesos_dentro || []).length} por horas dentro`} />
       </Grid>
 
       {/* ─── Listas ─────────────────────────────────────────────── */}
@@ -244,6 +268,112 @@ export default function ParqueaderoDashboard({ user }) {
           </Grid>
         )}
       </Grid>
+
+      {/* ─── Desglose de ingresos del mes ────────────────────────── */}
+      {(reporte || loadingReporte) && (
+        <Paper sx={{ p: { xs: 2, md: 3 }, mt: 2, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <TrendingUp sx={{ color: '#3B82F6', fontSize: 20 }} />
+              <Typography sx={{ fontSize: 14, fontWeight: 800 }}>
+                Desglose de ingresos — mes actual
+              </Typography>
+            </Stack>
+            {loadingReporte && <Skeleton variant="rounded" width={80} height={20} />}
+          </Stack>
+
+          {reporte && (
+            <Grid container spacing={2}>
+
+              {/* Por tipo */}
+              <Grid item xs={12} md={6}>
+                <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, mb: 1.5 }}>
+                  Por tipo de suscripción
+                </Typography>
+                <Stack spacing={1}>
+                  {[
+                    { key: 'mensual',    label: 'Mensual',    color: '#10B981' },
+                    { key: 'quincenal',  label: 'Quincenal',  color: '#3B82F6' },
+                    { key: 'diaria',     label: 'Diaria',     color: '#F59E0B' },
+                    { key: 'por_horas',  label: 'Por horas',  color: ACCENT },
+                  ].map(({ key, label, color }) => {
+                    const val = reporte.desglose_por_tipo?.[key] || 0;
+                    const total = reporte.total_general || 1;
+                    const pct = Math.round((val / total) * 100);
+                    return (
+                      <Box key={key}>
+                        <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.3 }}>
+                          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{label}</Typography>
+                          <Stack direction="row" spacing={1}>
+                            <Typography sx={{ fontSize: 12, fontWeight: 700, color }}>{pct}%</Typography>
+                            <Typography sx={{ fontSize: 12, fontWeight: 800 }}>{formatCurrency(val)}</Typography>
+                          </Stack>
+                        </Stack>
+                        <LinearProgress
+                          variant="determinate" value={Math.min(pct, 100)}
+                          sx={{ height: 6, borderRadius: 3, bgcolor: `${color}20`,
+                            '& .MuiLinearProgress-bar': { bgcolor: color, borderRadius: 3 } }}
+                        />
+                      </Box>
+                    );
+                  })}
+                </Stack>
+              </Grid>
+
+              {/* Por método de pago */}
+              <Grid item xs={12} md={6}>
+                <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, mb: 1.5 }}>
+                  Por método de pago
+                </Typography>
+                {Object.keys(reporte.desglose_por_metodo || {}).length === 0 ? (
+                  <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>Sin cobros registrados este mes.</Typography>
+                ) : (
+                  <Stack spacing={1}>
+                    {Object.entries(reporte.desglose_por_metodo || {})
+                      .filter(([, v]) => v > 0)
+                      .sort(([, a], [, b]) => b - a)
+                      .map(([metodo, valor]) => {
+                        const total = reporte.total_general || 1;
+                        const pct = Math.round((valor / total) * 100);
+                        const color = metodo === 'Efectivo' ? '#10B981' : metodo === 'Nequi' ? '#8B5CF6' : metodo === 'Transferencia' ? '#3B82F6' : '#F59E0B';
+                        return (
+                          <Box key={metodo}>
+                            <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.3 }}>
+                              <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{metodo}</Typography>
+                              <Stack direction="row" spacing={1}>
+                                <Typography sx={{ fontSize: 12, fontWeight: 700, color }}>{pct}%</Typography>
+                                <Typography sx={{ fontSize: 12, fontWeight: 800 }}>{formatCurrency(valor)}</Typography>
+                              </Stack>
+                            </Stack>
+                            <LinearProgress
+                              variant="determinate" value={Math.min(pct, 100)}
+                              sx={{ height: 6, borderRadius: 3, bgcolor: `${color}20`,
+                                '& .MuiLinearProgress-bar': { bgcolor: color, borderRadius: 3 } }}
+                            />
+                          </Box>
+                        );
+                      })}
+                  </Stack>
+                )}
+              </Grid>
+
+              {/* Total general */}
+              <Grid item xs={12}>
+                <Box sx={{ pt: 1.5, borderTop: '1px dashed', borderColor: 'divider',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography sx={{ fontSize: 13, color: 'text.secondary', fontWeight: 600 }}>
+                    Total acumulado este mes
+                  </Typography>
+                  <Typography sx={{ fontSize: 20, fontWeight: 900, color: '#10B981' }}>
+                    {formatCurrency(reporte.total_general || 0)}
+                  </Typography>
+                </Box>
+              </Grid>
+
+            </Grid>
+          )}
+        </Paper>
+      )}
     </Box>
   );
 }
@@ -400,7 +530,7 @@ function AccesoItem({ acceso, navigate }) {
   const fechaStr = acceso.fecha_entrada.endsWith('Z') ? acceso.fecha_entrada : `${acceso.fecha_entrada}Z`;
   const entrada = new Date(fechaStr);
   const ahora = new Date();
-  
+
   // Calculamos las horas y evitamos que se muestren números negativos
   let horas = ((ahora - entrada) / 3600000).toFixed(1);
   if (horas < 0) horas = "0.0";
@@ -415,10 +545,10 @@ function AccesoItem({ acceso, navigate }) {
       //     <BotonWhatsApp
       //       vehiculoId={acceso.vehiculo_id} // Si es ocasional será null/undefined, tu BotonWhatsApp debería manejarlo
       //       placa={acceso.placa}
-      //       tipo="manual" 
+      //       tipo="manual"
       //       variante="icon"
       //       tamano="small"
-      //       telefono={acceso.telefono || acceso.cliente_telefono} 
+      //       telefono={acceso.telefono || acceso.cliente_telefono}
       //     />
       //   </Box>
       // }
