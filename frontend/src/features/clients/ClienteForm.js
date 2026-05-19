@@ -14,6 +14,18 @@ import {
 
 const ACCENT = '#3B82F6';
 
+// ─── Algoritmo DIAN para calcular DV a partir del NIT ─────────────────────────
+// https://www.dian.gov.co — pesos oficiales para el dígito de verificación
+const PESOS_DV = [71, 67, 59, 53, 47, 43, 41, 37, 29, 23, 19, 17, 13, 7, 3];
+const calcularDV = (nit) => {
+  const digits = String(nit).replace(/\D/g, '');
+  if (!digits || digits.length < 4) return '';
+  const padded = digits.padStart(15, '0');
+  const suma = padded.split('').reduce((acc, d, i) => acc + parseInt(d) * PESOS_DV[i], 0);
+  const residuo = suma % 11;
+  return String(residuo === 0 || residuo === 1 ? residuo : 11 - residuo);
+};
+
 // ─── Toggle tipo tercero ───────────────────────────────────────────────────────
 const TipoToggle = ({ label, icon, checked, onChange, color }) => (
   <Button
@@ -57,6 +69,15 @@ const ClienteForm = ({
   useEffect(() => {
     if (forceOpen !== undefined) setFormOpen(forceOpen);
   }, [forceOpen]);
+
+  // Auto-calcular DV cada vez que cambia el NIT (cedula) y el tipo es NIT (31)
+  useEffect(() => {
+    if (Number(tipoDocumento) === 31 && cedula) {
+      setDv(calcularDV(cedula));
+    } else if (Number(tipoDocumento) !== 31) {
+      setDv('');
+    }
+  }, [cedula, tipoDocumento]);
 
   // Cargar datos al editar
   useEffect(() => {
@@ -286,7 +307,7 @@ const ClienteForm = ({
                         select
                         label="Tipo de Documento"
                         value={tipoDocumento}
-                        onChange={(e) => setTipoDocumento(e.target.value)}
+                        onChange={(e) => setTipoDocumento(Number(e.target.value))}
                         fullWidth size="small"
                         SelectProps={{ native: true }}
                       >
@@ -307,8 +328,11 @@ const ClienteForm = ({
                         value={dv}
                         onChange={(e) => setDv(e.target.value)}
                         fullWidth size="small"
-                        placeholder="Solo para NIT"
-                        disabled={tipoDocumento !== 31}
+                        placeholder={Number(tipoDocumento) === 31 ? 'Se calcula automáticamente' : 'Solo aplica para NIT'}
+                        disabled={Number(tipoDocumento) !== 31}
+                        InputProps={{ readOnly: Number(tipoDocumento) === 31 }}
+                        helperText={Number(tipoDocumento) === 31 ? (dv ? `DV calculado automáticamente: ${dv}` : 'Ingresa el NIT para calcular') : ''}
+                        sx={{ '& .MuiInputBase-input': { fontWeight: dv ? 700 : 400, color: dv ? '#10B981' : undefined } }}
                       />
                     </Grid>
                     <Grid item xs={12} sm={4}>
@@ -316,7 +340,7 @@ const ClienteForm = ({
                         select
                         label="Tipo Organización"
                         value={tipoOrganizacion}
-                        onChange={(e) => setTipoOrganizacion(e.target.value)}
+                        onChange={(e) => setTipoOrganizacion(Number(e.target.value))}
                         fullWidth size="small"
                         SelectProps={{ native: true }}
                       >
@@ -329,7 +353,7 @@ const ClienteForm = ({
                         select
                         label="Régimen Fiscal"
                         value={tipoRegimen}
-                        onChange={(e) => setTipoRegimen(e.target.value)}
+                        onChange={(e) => setTipoRegimen(Number(e.target.value))}
                         fullWidth size="small"
                         SelectProps={{ native: true }}
                       >
