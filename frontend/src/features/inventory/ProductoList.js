@@ -5,7 +5,8 @@ import { toast } from 'react-toastify';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
 import {
   Table, TableBody, TableCell, TableContainer, TablePagination,
-  TableHead, TableRow, IconButton, Typography, useMediaQuery, useTheme,
+  TableHead, TableRow, TableSortLabel, IconButton, Typography,
+  useMediaQuery, useTheme,
   Box, TextField, Chip, Button, Grid, Paper, Divider, Tooltip, InputAdornment
 } from '@mui/material';
 import {
@@ -16,18 +17,24 @@ import {
 const DEFAULT_ACCENT = '#8B5CF6';
 
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
-const KpiCard = ({ label, value, icon, color }) => (
-  <Box sx={{
-    display: 'flex', alignItems: 'center', gap: 1.5,
-    px: 2, py: 1.2, borderRadius: 2,
-    bgcolor: `${color}0D`, border: `1px solid ${color}25`,
+const KpiCard = ({ label, value, icon, color, sub }) => (
+  <Paper sx={{
+    p: 2, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 1.5,
+    boxShadow: '0 2px 8px rgba(0,0,0,0.06)', height: '100%',
   }}>
-    <Box sx={{ color, display: 'flex' }}>{icon}</Box>
-    <Box>
-      <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>{label}</Typography>
-      <Typography sx={{ fontWeight: 700, fontSize: 16, color }}>{value}</Typography>
+    <Box sx={{
+      width: 42, height: 42, borderRadius: 2, flexShrink: 0,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      bgcolor: `${color}18`, color,
+    }}>
+      {icon}
     </Box>
-  </Box>
+    <Box sx={{ minWidth: 0 }}>
+      <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 500 }}>{label}</Typography>
+      <Typography sx={{ fontSize: 17, fontWeight: 800, lineHeight: 1.2 }}>{value}</Typography>
+      {sub && <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>{sub}</Typography>}
+    </Box>
+  </Paper>
 );
 
 // ─── Card mobile ──────────────────────────────────────────────────────────────
@@ -61,11 +68,11 @@ const ProductoCard = ({ producto, grupos, onEditProducto, handleDelete, accentCo
           )}
           {isService
             ? <Chip label="Servicio" size="small" sx={{ bgcolor: 'rgba(100,116,139,0.1)', color: '#64748b', fontWeight: 600, fontSize: 10, borderRadius: 1 }} />
-            : <Chip 
-                label={isCritical ? '⚠ Sin Stock' : (isLow ? '⚠ Bajo' : '✓ OK')} 
-                size="small" 
+            : <Chip
+                label={isCritical ? '⚠ Sin Stock' : (isLow ? '⚠ Bajo' : '✓ OK')}
+                size="small"
                 color={isCritical ? 'error' : (isLow ? 'warning' : 'success')}
-                sx={{ fontWeight: 600, fontSize: 10, borderRadius: 1 }} 
+                sx={{ fontWeight: 600, fontSize: 10, borderRadius: 1 }}
               />
           }
         </Box>
@@ -113,6 +120,9 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
   const [grupos, setGrupos]               = useState([]);
   const [searchTerm, setSearchTerm]       = useState('');
   const [filterGroup, setFilterGroup]     = useState('all');
+  const [filterStock, setFilterStock]     = useState('all');
+  const [sortBy, setSortBy]               = useState('nombre');
+  const [sortDir, setSortDir]             = useState('asc');
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [productoToDelete, setProductoToDelete]   = useState(null);
   const [page, setPage]               = useState(0);
@@ -161,35 +171,85 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
     } catch { toast.error('Error al descargar plantilla'); }
   };
 
+  // ── Sort handler ──────────────────────────────────────────────────────────
+  const handleSort = (column) => {
+    if (column === sortBy) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortDir('asc');
+    }
+    setPage(0);
+  };
+
   // ── Filtrado ─────────────────────────────────────────────────────────────
   const filteredProductos = useMemo(() => {
     let list = productos;
+
+    // Group filter
     if (filterGroup !== 'all') {
       if (filterGroup === 'servicio') list = list.filter(p => p.es_servicio);
       else list = list.filter(p => !p.es_servicio && String(p.grupo_item) === filterGroup);
     }
+
+    // Stock filter (applied after group filter)
+    if (filterStock !== 'all') {
+      if (filterStock === 'ok') {
+        list = list.filter(p => !p.es_servicio && (p.stock_actual ?? 0) > (p.stock_minimo ?? 0));
+      } else if (filterStock === 'bajo') {
+        list = list.filter(p => !p.es_servicio && (p.stock_actual ?? 0) <= (p.stock_minimo ?? 0) && (p.stock_actual ?? 0) > 0);
+      } else if (filterStock === 'sinStock') {
+        list = list.filter(p => !p.es_servicio && (p.stock_actual ?? 0) <= 0);
+      }
+    }
+
+    // Search filter
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
-      list = list.filter(p => 
+      list = list.filter(p =>
         p.nombre.toLowerCase().includes(q) ||
         (p.codigo_barras && p.codigo_barras.toLowerCase().includes(q)) ||
         (p.descripcion && p.descripcion.toLowerCase().includes(q))
       );
     }
-    return list;
-  }, [productos, searchTerm, filterGroup]);
 
-  const paginatedProductos = useMemo(() =>
-    [...filteredProductos]
-      .sort((a, b) => a.nombre.localeCompare(b.nombre))
-      .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
-    [filteredProductos, page, rowsPerPage]
-  );
+    return list;
+  }, [productos, searchTerm, filterGroup, filterStock]);
+
+  // ── Sorted + paginated ────────────────────────────────────────────────────
+  const paginatedProductos = useMemo(() => {
+    const sorted = [...filteredProductos].sort((a, b) => {
+      let aVal, bVal;
+      if (sortBy === 'nombre') {
+        aVal = a.nombre || '';
+        bVal = b.nombre || '';
+        return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      } else if (sortBy === 'precio') {
+        aVal = a.precio ?? 0;
+        bVal = b.precio ?? 0;
+      } else if (sortBy === 'costo') {
+        aVal = a.costo ?? 0;
+        bVal = b.costo ?? 0;
+      } else if (sortBy === 'stock') {
+        aVal = a.stock_actual ?? 0;
+        bVal = b.stock_actual ?? 0;
+      } else {
+        aVal = a.nombre || '';
+        bVal = b.nombre || '';
+        return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      }
+      return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+    });
+    return sorted.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  }, [filteredProductos, page, rowsPerPage, sortBy, sortDir]);
 
   // ── Stats ────────────────────────────────────────────────────────────────
-  const stockBajo   = productos.filter(p => !p.es_servicio && (p.stock_actual ?? 0) < (p.stock_minimo ?? 0)).length;
-  const servicios   = productos.filter(p => p.es_servicio).length;
-  const productosN  = productos.filter(p => !p.es_servicio).length;
+  const stockBajo        = productos.filter(p => !p.es_servicio && (p.stock_actual ?? 0) <= (p.stock_minimo ?? 0)).length;
+  const servicios        = productos.filter(p => p.es_servicio).length;
+  const productosN       = productos.filter(p => !p.es_servicio).length;
+  const valorInventario  = productos
+    .filter(p => !p.es_servicio)
+    .reduce((sum, p) => sum + (p.stock_actual ?? 0) * (p.costo ?? 0), 0);
 
   // ── Filtros de grupo dinámicos ────────────────────────────────────────────
   const groupFilters = [
@@ -198,16 +258,63 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
     { value: 'servicio', label: 'Servicios' },
   ];
 
+  const stockFilters = [
+    { value: 'all',      label: 'Todos' },
+    { value: 'ok',       label: '✓ Stock OK' },
+    { value: 'bajo',     label: '⚠ Bajo mínimo' },
+    { value: 'sinStock', label: '⛔ Sin stock' },
+  ];
+
+  // ── Margen helper ─────────────────────────────────────────────────────────
+  const getMargen = (precio, costo) => {
+    const p = precio ?? 0;
+    const c = costo ?? 0;
+    return p > 0 ? ((p - c) / p) * 100 : 0;
+  };
+
+  const margenColor = (m) => {
+    if (m >= 30) return '#10B981';
+    if (m >= 10) return '#F59E0B';
+    return '#EF4444';
+  };
+
   return (
     <Box sx={{ width: '100%', maxWidth: '100%' }}>
-      {/* ── Stats ── */}
-      <Box sx={{ display: 'flex', gap: 1.5, mb: 2, flexWrap: 'wrap' }}>
-        <KpiCard label="Productos" value={productosN} icon={<Inventory fontSize="small" />} color={accentColor} />
-        <KpiCard label="Servicios" value={servicios} icon={<Settings fontSize="small" />} color="#06B6D4" />
-        {stockBajo > 0 && (
-          <KpiCard label="Stock bajo" value={stockBajo} icon={<Warning fontSize="small" />} color="#EF4444" />
-        )}
-      </Box>
+      {/* ── KPI Cards ── */}
+      <Grid container spacing={1.5} sx={{ mb: 2 }}>
+        <Grid item xs={6} sm={3}>
+          <KpiCard
+            label="Productos"
+            value={productosN}
+            icon={<Inventory fontSize="small" />}
+            color={accentColor}
+          />
+        </Grid>
+        <Grid item xs={6} sm={3}>
+          <KpiCard
+            label="Servicios"
+            value={servicios}
+            icon={<Settings fontSize="small" />}
+            color="#06B6D4"
+          />
+        </Grid>
+        <Grid item xs={6} sm={3}>
+          <KpiCard
+            label="Stock bajo"
+            value={stockBajo}
+            icon={<Warning fontSize="small" />}
+            color="#EF4444"
+          />
+        </Grid>
+        <Grid item xs={6} sm={3}>
+          <KpiCard
+            label="Valor inventario"
+            value={formatCurrency(valorInventario)}
+            icon={<CheckCircle fontSize="small" />}
+            color="#10B981"
+          />
+        </Grid>
+      </Grid>
 
       {/* ── Buscador ── */}
       <TextField
@@ -221,7 +328,7 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
         }}
       />
 
-      {/* ── Botones exportar (en fila separada en mobile) ── */}
+      {/* ── Botones exportar ── */}
       <Box sx={{ display: 'flex', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
         <Tooltip title="Descargar plantilla Excel">
           <Button variant="outlined" size="small" startIcon={<Download />} onClick={handleTemplate}
@@ -237,8 +344,8 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
         </Tooltip>
       </Box>
 
-      {/* ── Filtros de grupo dinámicos ── */}
-      <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+      {/* ── Filtros de grupo ── */}
+      <Box sx={{ display: 'flex', gap: 1, mb: 1, flexWrap: 'wrap' }}>
         {groupFilters.map(f => (
           <Chip
             key={f.value}
@@ -250,7 +357,7 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
                   </Box>
                 : f.label
             }
-            onClick={() => { setFilterGroup(f.value); setPage(0); }}
+            onClick={() => { setFilterGroup(f.value); setFilterStock('all'); setPage(0); }}
             size="small"
             sx={{
               fontWeight: 600, fontSize: 12, borderRadius: 1.5, cursor: 'pointer',
@@ -262,7 +369,27 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
         ))}
       </Box>
 
-     {/* ── Lista ── */}
+      {/* ── Filtros de stock (ocultos cuando se filtra por servicios) ── */}
+      {filterGroup !== 'servicio' && (
+        <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+          {stockFilters.map(f => (
+            <Chip
+              key={f.value}
+              label={f.label}
+              onClick={() => { setFilterStock(f.value); setPage(0); }}
+              size="small"
+              sx={{
+                fontWeight: 600, fontSize: 12, borderRadius: 1.5, cursor: 'pointer',
+                ...(filterStock === f.value
+                  ? { bgcolor: accentColor, color: '#fff' }
+                  : { bgcolor: 'action.hover', color: 'text.secondary' }),
+              }}
+            />
+          ))}
+        </Box>
+      )}
+
+      {/* ── Lista ── */}
       {isMobile ? (
         <Box>
           {paginatedProductos.length === 0
@@ -280,16 +407,55 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
         <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
           <Table size="small">
             <TableHead>
-              <TableRow>
-                {['CÓDIGO', 'Nombre', 'Grupo', 'Unidad', 'Costo', 'Precio', 'Stock', 'Tipo', 'Acciones'].map(h => (
-                  <TableCell key={h} sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>{h}</TableCell>
-                ))}
+              <TableRow sx={{ bgcolor: 'action.hover' }}>
+                <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>CÓDIGO</TableCell>
+                <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>
+                  <TableSortLabel
+                    active={sortBy === 'nombre'}
+                    direction={sortBy === 'nombre' ? sortDir : 'asc'}
+                    onClick={() => handleSort('nombre')}
+                  >
+                    Nombre
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>Grupo</TableCell>
+                <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>Unidad</TableCell>
+                <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>
+                  <TableSortLabel
+                    active={sortBy === 'costo'}
+                    direction={sortBy === 'costo' ? sortDir : 'asc'}
+                    onClick={() => handleSort('costo')}
+                  >
+                    Costo
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>
+                  <TableSortLabel
+                    active={sortBy === 'precio'}
+                    direction={sortBy === 'precio' ? sortDir : 'asc'}
+                    onClick={() => handleSort('precio')}
+                  >
+                    Precio
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>Margen</TableCell>
+                <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>
+                  <TableSortLabel
+                    active={sortBy === 'stock'}
+                    direction={sortBy === 'stock' ? sortDir : 'asc'}
+                    onClick={() => handleSort('stock')}
+                  >
+                    Stock
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>Tipo</TableCell>
+                <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>Acciones</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {paginatedProductos.length === 0
                 ? <TableRow>
-                    <TableCell colSpan={9} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
+                    <TableCell colSpan={10} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
                       No se encontraron productos
                     </TableCell>
                   </TableRow>
@@ -300,6 +466,7 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
                     const isLow       = !isService && stockActual <= stockMinimo;
                     const isCritical  = !isService && stockActual <= 0;
                     const group       = getGroup(producto.grupo_item);
+                    const margen      = getMargen(producto.precio, producto.costo);
 
                     return (
                       <TableRow key={producto.id} hover>
@@ -330,6 +497,15 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
                         <TableCell sx={{ fontSize: 12 }}>{producto.unidad_medida}</TableCell>
                         <TableCell sx={{ fontSize: 12 }}>{formatCurrency(producto.costo)}</TableCell>
                         <TableCell sx={{ fontWeight: 800, fontSize: 13 }}>{formatCurrency(producto.precio)}</TableCell>
+                        <TableCell>
+                          {isService ? (
+                            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>—</Typography>
+                          ) : (
+                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: margenColor(margen) }}>
+                              {margen.toFixed(1)}%
+                            </Typography>
+                          )}
+                        </TableCell>
                         <TableCell>
                           {isService ? (
                             <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>—</Typography>

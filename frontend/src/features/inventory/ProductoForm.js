@@ -172,6 +172,7 @@ const ProductoForm = ({
   const [stockMinimo, setStockMinimo] = useState('');
   const [stockActual, setStockActual] = useState(0);
   const [manejaLotes, setManejaLotes] = useState(false);
+  const [descripcion, setDescripcion] = useState('');
   const [grupos, setGrupos] = useState([]);
 
   // 👇 ESTADOS CATÁLOGO
@@ -218,6 +219,7 @@ const ProductoForm = ({
       // 👇 CARGAR CAMPOS DE CATÁLOGO
       setImagenes(productoToEdit.imagenes || []);
       setMostrarEnCatalogo(productoToEdit.mostrar_en_catalogo || false);
+      setDescripcion(productoToEdit.descripcion || '');
     } else {
       resetFields();
     }
@@ -236,6 +238,7 @@ const ProductoForm = ({
     setManejaLotes(false);
     setImagenes([]);
     setMostrarEnCatalogo(false);
+    setDescripcion('');
   };
 
   // 👇 NUEVO FLUJO DE IMÁGENES CON CROPPER
@@ -328,7 +331,8 @@ const ProductoForm = ({
           : parseFloat(stockMinimo),
       maneja_lotes: esServicio ? false : manejaLotes,
       imagenes: imagenes,
-      mostrar_en_catalogo: mostrarEnCatalogo
+      mostrar_en_catalogo: mostrarEnCatalogo,
+      descripcion: descripcion || null,
     };
 
     const req = productoToEdit
@@ -362,6 +366,12 @@ const ProductoForm = ({
   };
 
   const isEditing = Boolean(productoToEdit);
+
+  const precioN = parseFloat(precio) || 0;
+  const costoN  = parseFloat(costo) || 0;
+  const margenPct = precioN > 0 ? ((precioN - costoN) / precioN * 100) : 0;
+  const margenAbs = precioN - costoN;
+  const margenColor = margenPct >= 30 ? '#10B981' : margenPct >= 10 ? '#F59E0B' : '#EF4444';
 
   return (
     <Box sx={{ mb: 3 }}>
@@ -478,6 +488,19 @@ const ProductoForm = ({
               />
             </Grid>
 
+            <Grid item xs={12}>
+              <TextField
+                label="Descripción del producto"
+                value={descripcion}
+                onChange={(e) => setDescripcion(e.target.value)}
+                fullWidth
+                multiline
+                rows={2}
+                placeholder={esServicio ? 'Ej: Servicio de instalación y configuración incluida...' : 'Ej: Presentación de 500g, sabor original, apto para veganos...'}
+                helperText="Opcional — aparece en el catálogo virtual y en cotizaciones"
+              />
+            </Grid>
+
             {!esServicio && (
               <>
                 <Grid item xs={12} md={3}>
@@ -555,6 +578,16 @@ const ProductoForm = ({
                       required
                     />
                   </Box>
+
+                  {precio && costo && (
+                    <Box sx={{ flex: '1 1 180px', minWidth: 160, display: 'flex', alignItems: 'center' }}>
+                      <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: `${margenColor}10`, border: `1px solid ${margenColor}30`, width: '100%' }}>
+                        <Typography sx={{ fontSize: 10, color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, mb: 0.3 }}>Margen</Typography>
+                        <Typography sx={{ fontWeight: 800, fontSize: 18, color: margenColor, lineHeight: 1 }}>{margenPct.toFixed(1)}%</Typography>
+                        <Typography sx={{ fontSize: 11, color: margenColor, fontWeight: 600 }}>+{new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(margenAbs)}</Typography>
+                      </Box>
+                    </Box>
+                  )}
 
                   {/* GRUPO */}
                   <Box
