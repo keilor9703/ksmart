@@ -11,7 +11,7 @@ import {
   AttachMoney, Calculate, Visibility, Info,
   KeyboardArrowUp, Person,
   AccountBalance, PriceCheck, Warning,
-  Savings, ErrorOutline
+  Savings, ErrorOutline, PictureAsPdf
 } from '@mui/icons-material';
 import apiClient, { createPrestamo } from '../../api';
 import { formatCurrency } from '../../utils/formatters';
@@ -382,6 +382,33 @@ const agregarDiasGracia = (dias) => {
     return { capital, gananciaInteres, totalPagar, valorCuota: totalPagar / numeroCuotas, numeroCuotas };
   }, [monto, tasaInteres, cuotas]);
 
+  // ── Descargar PDF de Proyección ──────────────────────────────────────────
+  const handleDownloadProyeccion = async () => {
+    if (!simulacion) return;
+    try {
+      const { data } = await apiClient.get('/prestamos/proyeccion/pdf', {
+        params: {
+          cliente_nombre: selectedCliente?.nombre || 'CLIENTE',
+          monto_prestado: simulacion.capital,
+          tasa_interes:   parseFloat(tasaInteres),
+          cantidad_cuotas: simulacion.numeroCuotas,
+          modalidad,
+          fecha_inicio:    fechaInicio
+        },
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Proyeccion_${selectedCliente?.nombre || 'Prestamo'}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch {
+      toast.error('Error al generar PDF');
+    }
+  };
+
   // ── Submit nuevo préstamo ──────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -595,10 +622,17 @@ const agregarDiasGracia = (dias) => {
                           <Chip label={`${simulacion.numeroCuotas} PAGOS ${modalidad.toUpperCase()}S`}
                             size="small" sx={{ fontWeight: 800, mt: 1 }} />
                         </Box>
-                        <Button variant="contained" fullWidth onClick={handleSubmit} disabled={isSubmitting}
-                          sx={{ mt: 2, py: 2, borderRadius: 3, fontWeight: 800, bgcolor: ACCENT }}>
-                          {isSubmitting ? <CircularProgress size={24} color="inherit" /> : 'Confirmar Préstamo'}
-                        </Button>
+                        <Stack spacing={1.5}>
+                          <Button variant="contained" fullWidth onClick={handleSubmit} disabled={isSubmitting}
+                            sx={{ py: 2, borderRadius: 3, fontWeight: 800, bgcolor: ACCENT }}>
+                            {isSubmitting ? <CircularProgress size={24} color="inherit" /> : 'Confirmar Préstamo'}
+                          </Button>
+                          <Button variant="outlined" fullWidth onClick={handleDownloadProyeccion}
+                            startIcon={<PictureAsPdf />}
+                            sx={{ py: 1.5, borderRadius: 3, fontWeight: 700, borderColor: ACCENT, color: ACCENT, '&:hover': { borderColor: ACCENT, bgcolor: `${ACCENT}08` } }}>
+                            Descargar Plan de Pagos (PDF)
+                          </Button>
+                        </Stack>
                       </Stack>
                     ) : (
                       <Box sx={{ textAlign: 'center', opacity: 0.4 }}>

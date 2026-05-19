@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box, Typography, Paper, CircularProgress, IconButton, Tooltip, Button,
   Divider, Chip, Grid, TextField, InputAdornment, Autocomplete,
-  FormControlLabel, Switch, Badge, Stack, Avatar
+  FormControlLabel, Switch, Badge, Stack, Avatar, MenuItem
 } from '@mui/material';
 import {
   WhatsApp, CheckCircle, Search, DirectionsRun, LocationOn,
   PersonSearch, MoreTime, FilterList, AccountBalanceWallet,
   AssignmentInd, TrendingUp, PointOfSale, Receipt, Edit, Print,
-  PictureAsPdf
+  PictureAsPdf, Map as MapIcon, FilterAlt, PhotoCamera, NotInterested
 } from '@mui/icons-material';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
@@ -153,46 +153,63 @@ const RutaCobro = () => {
   const [loading,      setLoading]      = useState(true);
   const [searchTerm,   setSearchTerm]   = useState('');
   const [filtroFecha,  setFiltroFecha]  = useState(new Date().toLocaleDateString('en-CA'));
+  const [filtroZona,   setFiltroZona]   = useState('');
   const [currentUser,  setCurrentUser]  = useState(null);
+
+  const [mapaModal,    setMapaModal]    = useState(false);
+  const [evidenciaModal, setEvidenciaModal] = useState({ open: false, cuota: null, tipo: 'No encontrado', comentario: '', foto: null, uploading: false });
 
   const [asignacionGlobal,   setAsignacionGlobal]   = useState({});
   const [editandoAsignacion, setEditandoAsignacion] = useState({});
 
- 
-  const [reprogramarModal, setReprogramarModal] = useState({ open: false, cuota: null, nuevaFecha: '' });
+  // Estados faltantes identificados por ESLint
+  const [pagoModal,        setPagoModal]        = useState({ open: false, cuota: null, monto: '', metodoPago: 'Efectivo' });
   const [reciboModal,      setReciboModal]      = useState({ open: false, cuota: null, monto: 0, saldoRestante: 0 });
-  const [pdfLoading,       setPdfLoading]       = useState(false);
-  const [pagoModal, setPagoModal]               = useState({ open: false, cuota: null, monto: '', metodoPago: 'Efectivo' });
-
+  const [reprogramarModal, setReprogramarModal] = useState({ open: false, cuota: null, nuevaFecha: '' });
   const [liquidacionModal, setLiquidacionModal] = useState(false);
   const [datosLiquidacion, setDatosLiquidacion] = useState(null);
-
-  useEffect(() => { fetchInicial(); }, []);
-
-  const fetchInicial = async () => {
-    setLoading(true);
-    try {
-      const [cRes, meRes, calRes] = await Promise.all([
-        apiClient.get('/prestamos/cuotas-pendientes'),
-        apiClient.get('/users/me'),
-        apiClient.get('/reportes/calendario-cobros'),
-      ]);
-      setCuotas(cRes.data);
-      setCurrentUser(meRes.data);
-      setResumenDias(calRes.data);
-
-      if (meRes.data?.role?.name === 'Admin') {
-        const uRes = await apiClient.get('/admin/usuarios');
-        setUsuarios(uRes.data);
-      }
-    } catch {
-      toast.error('Error al sincronizar datos de ruta');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [pdfLoading,       setPdfLoading]       = useState(false);
 
   const esAdmin = currentUser?.role?.name === 'Admin';
+
+  // ── Carga de datos ────────────────────────────────────────────────────────
+  const fetchInicial = useCallback(async () => {
+    try {
+      const [resCuotas, resResumen] = await Promise.all([
+        apiClient.get('/prestamos/cuotas-pendientes'),
+        apiClient.get('/prestamos/calendario-resumen')
+      ]);
+      setCuotas(resCuotas.data);
+      setResumenDias(resResumen.data);
+    } catch (e) {
+      console.error("Error al refrescar cuotas:", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    const cargarTodo = async () => {
+      setLoading(true);
+      try {
+        const [resUser, resUsuarios] = await Promise.all([
+          apiClient.get('/users/me'),
+          apiClient.get('/users')
+        ]);
+        setCurrentUser(resUser.data);
+        setUsuarios(resUsuarios.data.filter(u => u.is_active !== false));
+        await fetchInicial();
+      } catch (e) {
+        toast.error("Error al cargar la ruta de cobro");
+      } finally {
+        setLoading(false);
+      }
+    };
+    cargarTodo();
+  }, [fetchInicial]);
+
+  const zonasDisponibles = useMemo(() => {
+    const zs = new Set(cuotas.map(c => c.zona).filter(Boolean));
+    return Array.from(zs).sort();
+  }, [cuotas]);
 
   // ── Filtrado de cuotas ────────────────────────────────────────────────────
   const cuotasFiltradas = useMemo(() => {
@@ -203,9 +220,35 @@ const RutaCobro = () => {
         (c.cliente_direccion || '').toLowerCase().includes(searchTerm.toLowerCase());
       const fechaCuota = c.fecha_vencimiento ? c.fecha_vencimiento.split('T')[0] : '';
       const matchFecha = filtroFecha ? fechaCuota === filtroFecha : true;
-      return asignadaAMi && matchSearch && matchFecha;
+      const matchZona  = filtroZona ? c.zona === filtroZona : true;
+      return asignadaAMi && matchSearch && matchFecha && matchZona;
     });
-  }, [cuotas, searchTerm, filtroFecha, esAdmin, currentUser]);
+  }, [cuotas, searchTerm, filtroFecha, filtroZona, esAdmin, currentUser]);
+
+  // ── Registrar Evidencia ──────────────────────────────────────────────────
+  const guardarEvidencia = async () => {
+    const { cuota, tipo, comentario, foto } = evidenciaModal;
+    setEvidenciaModal(prev => ({ ...prev, uploading: true }));
+    try {
+      const formData = new FormData();
+      if (foto) formData.append('foto', foto);
+      
+      await apiClient.post(`/prestamos/evidencia`, formData, {
+        params: {
+          cuota_id: cuota.cuota_id,
+          tipo,
+          comentario
+        },
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      toast.success('Evidencia guardada correctamente');
+      setEvidenciaModal({ open: false, cuota: null, tipo: 'No encontrado', comentario: '', foto: null, uploading: false });
+      fetchInicial();
+    } catch {
+      toast.error('Error al guardar evidencia');
+      setEvidenciaModal(prev => ({ ...prev, uploading: false }));
+    }
+  };
 
   const kpis = useMemo(() => ({
     total:    cuotasFiltradas.reduce((s, c) => s + (c.saldo_pendiente || 0), 0),
@@ -348,6 +391,10 @@ const confirmarPago = async () => {
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Button variant="outlined" startIcon={<MapIcon />} onClick={() => setMapaModal(true)}
+            sx={{ color: BLUE, borderColor: BLUE, fontWeight: 700, borderRadius: 3, height: 45 }}>
+            Mapa
+          </Button>
           {esAdmin && (
             <Button variant="contained" startIcon={<PointOfSale />} onClick={abrirLiquidacion}
               sx={{ bgcolor: ACCENT, fontWeight: 800, borderRadius: 3, height: 45 }}>
@@ -463,19 +510,37 @@ const confirmarPago = async () => {
     );
   })()}
 
-  {/* Buscador */}
-  <TextField
-    fullWidth
-    placeholder="Buscar por cliente o dirección..."
-    value={searchTerm}
-    onChange={e => setSearchTerm(e.target.value)}
-    InputProps={{
-      disableUnderline: true,
-      startAdornment: <InputAdornment position="start"><Search sx={{ color: 'text.secondary' }} /></InputAdornment>,
-      sx: { borderRadius: 3, bgcolor: 'background.default', px: 2, py: 0.5, border: '1px solid', borderColor: 'divider' },
-    }}
-    variant="standard"
-  />
+  {/* Buscador y Filtro de Zona */}
+  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+    <TextField
+      fullWidth
+      placeholder="Buscar por cliente o dirección..."
+      value={searchTerm}
+      onChange={e => setSearchTerm(e.target.value)}
+      InputProps={{
+        disableUnderline: true,
+        startAdornment: <InputAdornment position="start"><Search sx={{ color: 'text.secondary' }} /></InputAdornment>,
+        sx: { borderRadius: 3, bgcolor: 'background.default', px: 2, py: 0.5, border: '1px solid', borderColor: 'divider' },
+      }}
+      variant="standard"
+    />
+    <TextField
+      select
+      sx={{ minWidth: { sm: 200 } }}
+      label="Filtrar por Zona"
+      value={filtroZona}
+      onChange={e => setFiltroZona(e.target.value)}
+      size="small"
+      InputProps={{
+        sx: { borderRadius: 3, bgcolor: 'background.default' },
+      }}
+    >
+      <MenuItem value="">Todas las zonas</MenuItem>
+      {zonasDisponibles.map(z => (
+        <MenuItem key={z} value={z}>{z}</MenuItem>
+      ))}
+    </TextField>
+  </Stack>
 </Paper>
 
       {/* ── Lista de cuotas ── */}
@@ -634,6 +699,14 @@ const confirmarPago = async () => {
                           sx={{ bgcolor: YELLOW, color: 'white', '&:hover': { bgcolor: '#D97706' },
                             width: 44, height: 44, boxShadow: '0 4px 10px rgba(245,158,11,0.3)' }}>
                           <MoreTime fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Registrar Novedad (Sin pago)">
+                        <IconButton
+                          onClick={() => setEvidenciaModal({ ...evidenciaModal, open: true, cuota })}
+                          sx={{ bgcolor: '#64748b', color: 'white', '&:hover': { bgcolor: '#475569' },
+                            width: 44, height: 44, boxShadow: '0 4px 10px rgba(100,116,139,0.3)' }}>
+                          <NotInterested fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     </Box>
@@ -921,6 +994,83 @@ const confirmarPago = async () => {
             disabled={!datosLiquidacion?.cobradores?.length}
             sx={{ bgcolor: ACCENT, fontWeight: 800 }}>
             Recibir Dinero
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ════════════════════════════════════════════════════
+          MODAL: Mapa de Ruta
+          ════════════════════════════════════════════════════ */}
+      <Dialog open={mapaModal} onClose={() => setMapaModal(false)}
+        maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 4 } }}>
+        <DialogTitle sx={{ fontWeight: 900, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <MapIcon sx={{ color: BLUE }} /> Orden de Visita Sugerido
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" mb={3}>
+            Esta es la secuencia lógica de cobro según tu ubicación actual y las zonas asignadas.
+          </Typography>
+          <Stack spacing={2}>
+            {cuotasFiltradas.map((c, i) => (
+              <Paper key={i} variant="outlined" sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2, borderRadius: 2 }}>
+                <Avatar sx={{ bgcolor: BLUE, width: 28, height: 28, fontSize: 14, fontWeight: 800 }}>{i + 1}</Avatar>
+                <Box sx={{ flex: 1 }}>
+                  <Typography fontWeight={700} fontSize={14}>{c.cliente_nombre}</Typography>
+                  <Typography variant="caption" color="text.secondary">{c.cliente_direccion}</Typography>
+                </Box>
+                <IconButton size="small" onClick={() => handleOpenMaps(c.cliente_direccion)} sx={{ color: BLUE }}>
+                  <LocationOn />
+                </IconButton>
+              </Paper>
+            ))}
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: 3 }}>
+          <Button onClick={() => setMapaModal(false)} sx={{ fontWeight: 700 }}>Cerrar</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ════════════════════════════════════════════════════
+          MODAL: Registrar Evidencia (Novedad)
+          ════════════════════════════════════════════════════ */}
+      <Dialog open={evidenciaModal.open} onClose={() => !evidenciaModal.uploading && setEvidenciaModal({ ...evidenciaModal, open: false })}
+        maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 4 } }}>
+        <DialogTitle sx={{ fontWeight: 900 }}>Registrar Novedad</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" mb={2}>
+            ¿Por qué no se pudo realizar el recaudo con <strong>{evidenciaModal.cuota?.cliente_nombre}</strong>?
+          </Typography>
+          
+          <TextField select fullWidth label="Motivo de la novedad" sx={{ mb: 2 }}
+            value={evidenciaModal.tipo}
+            onChange={e => setEvidenciaModal({ ...evidenciaModal, tipo: e.target.value })}>
+            {['No encontrado', 'Local cerrado', 'Promesa de pago', 'Sin dinero', 'Dirección errada', 'Otro'].map(t => (
+              <MenuItem key={t} value={t}>{t}</MenuItem>
+            ))}
+          </TextField>
+
+          <TextField fullWidth multiline rows={3} label="Comentarios adicionales" placeholder="Escribe detalles de la visita..."
+            value={evidenciaModal.comentario}
+            onChange={e => setEvidenciaModal({ ...evidenciaModal, comentario: e.target.value })}
+            sx={{ mb: 2 }} />
+
+          <Button component="label" variant="outlined" fullWidth startIcon={<PhotoCamera />}
+            sx={{ py: 1.5, borderRadius: 2, borderStyle: 'dashed' }}>
+            {evidenciaModal.foto ? `Foto: ${evidenciaModal.foto.name.substring(0, 20)}...` : 'Subir Foto de Evidencia'}
+            <input type="file" hidden accept="image/*" capture="environment"
+              onChange={e => setEvidenciaModal({ ...evidenciaModal, foto: e.target.files[0] })} />
+          </Button>
+          {evidenciaModal.foto && (
+            <Typography variant="caption" color="success.main" sx={{ mt: 0.5, display: 'block', textAlign: 'center' }}>
+              ✓ Imagen lista para subir
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 3, gap: 1 }}>
+          <Button disabled={evidenciaModal.uploading} onClick={() => setEvidenciaModal({ ...evidenciaModal, open: false })}>Cancelar</Button>
+          <Button variant="contained" disabled={evidenciaModal.uploading} onClick={guardarEvidencia}
+            sx={{ bgcolor: '#64748b', fontWeight: 800 }}>
+            {evidenciaModal.uploading ? <CircularProgress size={20} color="inherit" /> : 'Guardar Novedad'}
           </Button>
         </DialogActions>
       </Dialog>

@@ -221,6 +221,11 @@ class Cliente(Base, TenantMixin):
     departamento_code     = Column(String(5), nullable=True)
     ciudad_code           = Column(String(5), nullable=True)
 
+    # 🌍 LOGÍSTICA & RUTAS
+    zona = Column(String(60), nullable=True, index=True) # ej: "Norte", "Barrio El Centro", "Ruta 1"
+    latitud = Column(Float, nullable=True)
+    longitud = Column(Float, nullable=True)
+
     ventas          = relationship("Venta", back_populates="cliente")
     ordenes_trabajo = relationship("OrdenTrabajo", back_populates="cliente")
 
@@ -676,15 +681,18 @@ class Prestamo(Base, TenantMixin):
     monto_total_pagar = Column(Float, nullable=False) # Capital + Intereses
     fecha_inicio = Column(DateTime(timezone=True), default=utcnow)
     estado = Column(String, default="Activo") # Activo, Pagado, En Mora
-    # Dentro de class Prestamo(Base):
-    tasa_mora = Column(Float, default=2.0)  # % mensual, ej: 2% = 0.066% diario
+    tasa_mora = Column(Float, default=2.0)  # % mensual
+
+    # Para refinanciación
+    prestamo_anterior_id = Column(Integer, ForeignKey("prestamos.id"), nullable=True)
 
     cliente = relationship("Cliente")
     cuotas = relationship("CuotaPrestamo", back_populates="prestamo", cascade="all, delete-orphan")
 
     usuario_asignado_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    # Y la relación
     cobrador = relationship("User")
+    
+    refinanciado_de = relationship("Prestamo", remote_side=[id])
 
 class CuotaPrestamo(Base, TenantMixin):
     __tablename__ = "cuotas_prestamo"
@@ -697,14 +705,27 @@ class CuotaPrestamo(Base, TenantMixin):
     estado_pago = Column(String, default="Pendiente") # Pendiente, Parcial, Pagado
     fecha_pago = Column(DateTime(timezone=True), nullable=True)
     metodo_pago = Column(String, nullable=True)  # Efectivo, Transferencia, Nequi, Tarjeta
-
-    # Dentro de la clase CuotaPrestamo en models.py
     usuario_asignado_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
-    # Relación para poder saber quién es el cobrador desde la cuota
     cobrador = relationship("User")
-
     prestamo = relationship("Prestamo", back_populates="cuotas")
+    evidencias = relationship("EvidenciaCobro", back_populates="cuota", cascade="all, delete-orphan")
+
+class EvidenciaCobro(Base, TenantMixin):
+    """Registro fotográfico y geolocalizado de visitas de cobro (No encontrado, Local cerrado, etc)"""
+    __tablename__ = "evidencias_cobro"
+    id           = Column(Integer, primary_key=True, index=True)
+    cuota_id     = Column(Integer, ForeignKey("cuotas_prestamo.id"), index=True)
+    usuario_id   = Column(Integer, ForeignKey("users.id"))
+    tipo         = Column(String(30)) # "No encontrado", "Local cerrado", "Promesa de pago", "Otro"
+    comentario   = Column(Text, nullable=True)
+    foto_url     = Column(String(255), nullable=True)
+    latitud      = Column(Float, nullable=True)
+    longitud     = Column(Float, nullable=True)
+    fecha        = Column(DateTime(timezone=True), default=utcnow)
+
+    cuota        = relationship("CuotaPrestamo", back_populates="evidencias")
+    usuario      = relationship("User")
 
 
 

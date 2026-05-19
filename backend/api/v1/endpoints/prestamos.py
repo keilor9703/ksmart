@@ -64,7 +64,11 @@ def listar_prestamos(db: Session = Depends(get_db), current_user: models.User = 
     )
 
 @router.get("/cuotas-pendientes")
-def cuotas_pendientes(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+def cuotas_pendientes(
+    zona: Optional[str] = Query(None),
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_active_user)
+):
     query = (
         db.query(models.CuotaPrestamo, models.Prestamo, models.Cliente)
         .join(models.Prestamo, models.CuotaPrestamo.prestamo_id == models.Prestamo.id)
@@ -74,6 +78,10 @@ def cuotas_pendientes(db: Session = Depends(get_db), current_user: models.User =
             models.CuotaPrestamo.estado_pago != "Pagado"
         )
     )
+    
+    if zona:
+        query = query.filter(models.Cliente.zona == zona)
+
     if current_user.role.name != "Admin":
         query = query.filter(models.CuotaPrestamo.usuario_asignado_id == current_user.id)
 
@@ -86,7 +94,8 @@ def cuotas_pendientes(db: Session = Depends(get_db), current_user: models.User =
             "saldo_pendiente": cuota.saldo_pendiente, "fecha_vencimiento": cuota.fecha_vencimiento,
             "estado_pago": cuota.estado_pago, "cliente_nombre": cliente.nombre,
             "cliente_telefono": cliente.telefono, "cliente_direccion": cliente.direccion,
-            "cliente_id": cliente.id, "usuario_asignado_id": cuota.usuario_asignado_id
+            "cliente_id": cliente.id, "usuario_asignado_id": cuota.usuario_asignado_id,
+            "zona": cliente.zona
         }
         for cuota, prestamo, cliente in cuotas
     ]
@@ -464,8 +473,160 @@ def descargar_recibo_pdf(
 
     from fastapi.responses import StreamingResponse
     filename = f"recibo_cuota_{cuota_id}_{ahora.strftime('%Y%m%d')}.pdf"
-    return StreamingResponse(
-        buffer,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+@router.get("/proyeccion", response_model=schemas.ProyeccionPrestamo)
+def proyeccion_prestamo(
+    monto_prestado: float = Query(...),
+    tasa_interes: float = Query(...),
+    cantidad_cuotas: int = Query(...),
+    modalidad: str = Query(...),
+    fecha_inicio: Optional[datetime] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    data = schemas.PrestamoCreate(
+        cliente_id=0, # No importa para la proyección pura
+        monto_prestado=monto_prestado,
+        tasa_interes=tasa_interes,
+        cantidad_cuotas=cantidad_cuotas,
+        modalidad=modalidad,
+        fecha_inicio=fecha_inicio
     )
+    return crud.get_proyeccion_prestamo(db, current_user.empresa_id, data)
+
+@router.get("/proyeccion/pdf")
+def descargar_proyeccion_pdf(
+    cliente_nombre: str = Query("CLIENTE"),
+    monto_prestado: float = Query(...),
+    tasa_interes: float = Query(...),
+    cantidad_cuotas: int = Query(...),
+    modalidad: str = Query(...),
+    fecha_inicio: Optional[datetime] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    data = schemas.PrestamoCreate(
+        cliente_id=0,
+        monto_prestado=monto_prestado,
+        tasa_interes=tasa_interes,
+        cantidad_cuotas=cantidad_cuotas,
+        modalidad=modalidad,
+        fecha_inicio=fecha_inicio
+    )
+    proyeccion = crud.get_proyeccion_prestamo(db, current_user.empresa_id, data)
+    proyeccion.cliente_nombre = cliente_nombre
+
+    buffer = _io.BytesIO()
+    W, H = 215.9 * mm, 279.4 * mm # Carta
+    c = pdf_canvas.Canvas(buffer, pagesize=(W, H))
+    
+    # Estilos
+    GRAY = colors.HexColor("#64748b")
+    DARK = colors.HexColor("#0f172a")
+    ORANGE = colors.HexColor("#FF6020")
+    
+    y = H - 20 * mm
+    c.setFont("Helvetica-Bold", 16)
+    c.setFillColor(ORANGE)
+    c.drawCentredString(W/2, y, f"PLAN DE PAGOS PROYECTADO - {current_user.empresa.nombre.upper()}")
+    y -= 15 * mm
+    
+    c.setFont("Helvetica-Bold", 12)
+    c.setFillColor(DARK)
+    c.drawString(20 * mm, y, f"Cliente: {cliente_nombre}")
+    c.drawRightString(W - 20 * mm, y, f"Fecha: {datetime.now().strftime('%d/%m/%Y')}")
+    y -= 10 * mm
+    
+    c.setFont("Helvetica", 10)
+    c.drawString(20 * mm, y, f"Monto Prestado: ${monto_prestado:,.0f}")
+    c.drawString(80 * mm, y, f"Tasa: {tasa_interes}%")
+    c.drawString(130 * mm, y, f"Modalidad: {modalidad}")
+    y -= 15 * mm
+    
+    # Tabla
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(30 * mm, y, "Cuota #")
+    c.drawString(70 * mm, y, "Fecha Vencimiento")
+    c.drawString(130 * mm, y, "Valor Cuota")
+    y -= 5 * mm
+    c.line(20 * mm, y, W - 20 * mm, y)
+    y -= 8 * mm
+    
+    c.setFont("Helvetica", 10)
+    for cuota in proyeccion.cuotas:
+        if y < 30 * mm:
+            c.showPage()
+            y = H - 20 * mm
+            c.setFont("Helvetica", 10)
+            
+        c.drawString(35 * mm, y, str(cuota.numero_cuota))
+        c.drawString(70 * mm, y, cuota.fecha_vencimiento.strftime('%d/%m/%Y'))
+        c.drawString(130 * mm, y, f"${cuota.monto_cuota:,.0f}")
+        y -= 7 * mm
+        
+    y -= 10 * mm
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(100 * mm, y, f"TOTAL A PAGAR: ${proyeccion.total_a_pagar:,.0f}")
+    
+    y -= 40 * mm
+    c.line(40 * mm, y, 90 * mm, y)
+    c.line(120 * mm, y, 170 * mm, y)
+    y -= 5 * mm
+    c.drawCentredString(65 * mm, y, "Firma Prestamista")
+    c.drawCentredString(145 * mm, y, "Firma Deudor")
+    
+    c.save()
+    buffer.seek(0)
+    return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": "attachment; filename=plan_pagos.pdf"})
+
+from fastapi import UploadFile, File
+import shutil
+import os
+
+@router.post("/evidencia")
+def registrar_evidencia(
+    cuota_id: int = Query(...),
+    tipo: str = Query(...),
+    comentario: Optional[str] = Query(None),
+    latitud: Optional[float] = Query(None),
+    longitud: Optional[float] = Query(None),
+    foto: Optional[UploadFile] = File(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    foto_url = None
+    if foto:
+        upload_dir = f"evidencias/prestamos/{current_user.empresa_id}"
+        os.makedirs(upload_dir, exist_ok=True)
+        filename = f"{cuota_id}_{int(datetime.now().timestamp())}_{foto.filename}"
+        file_path = os.path.join(upload_dir, filename)
+        with open(file_path, "wb") as buff:
+            shutil.copyfileobj(foto.file, buff)
+        foto_url = f"/{file_path}"
+
+    evidencia_data = schemas.EvidenciaCobroCreate(
+        cuota_id=cuota_id,
+        tipo=tipo,
+        comentario=comentario,
+        foto_url=foto_url,
+        latitud=latitud,
+        longitud=longitud
+    )
+    return crud.create_evidencia_cobro(db, current_user.empresa_id, current_user.id, evidencia_data)
+
+@router.post("/{prestamo_id}/refinanciar", response_model=schemas.PrestamoResponse)
+def refinanciar(
+    prestamo_id: int,
+    data: schemas.PrestamoCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    return crud.refinanciar_prestamo(db, current_user.empresa_id, prestamo_id, data)
+
+@router.get("/mapa")
+def obtener_puntos_mapa(
+    zona: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    # Usamos la lógica de cuotas pendientes enriquecida con coordenadas
+    return cuotas_pendientes(zona=zona, db=db, current_user=current_user)

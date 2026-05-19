@@ -229,6 +229,7 @@ class ClienteBase(BaseModel):
     responsabilidad_fiscal_codes: str = "R-99-PN"
     departamento_code: Optional[str] = None
     ciudad_code: Optional[str] = None
+    zona: Optional[str] = None
 
 class ClienteCreate(ClienteBase):
     pass
@@ -1146,6 +1147,35 @@ class PrestamoCreate(BaseModel):
     modalidad: str
     tasa_mora: float = 2.0          # ← nuevo: mora mensual por defecto 2%
     fecha_inicio: Optional[datetime] = None
+    prestamo_anterior_id: Optional[int] = None # ✨ NUEVO: Para refinanciar cartera antigua
+
+class EvidenciaCobroCreate(BaseModel):
+    cuota_id:   int
+    tipo:       str  # "No encontrado", "Local cerrado", "Promesa de pago", "Otro"
+    comentario: Optional[str] = None
+    foto_url:   Optional[str] = None
+    latitud:    Optional[float] = None
+    longitud:   Optional[float] = None
+
+class EvidenciaCobroOut(EvidenciaCobroCreate):
+    id:         int
+    usuario_id: int
+    fecha:      datetime
+    class Config:
+        from_attributes = True
+
+class ProyeccionCuota(BaseModel):
+    numero_cuota: int
+    monto_cuota: float
+    fecha_vencimiento: datetime
+
+class ProyeccionPrestamo(BaseModel):
+    cliente_nombre: str
+    monto_prestado: float
+    tasa_interes: float
+    total_intereses: float
+    total_a_pagar: float
+    cuotas: List[ProyeccionCuota]
     
 
 class CuotaResponse(BaseModel):

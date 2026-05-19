@@ -5,7 +5,7 @@ import apiClient from '../../api';
 import {
     Box, TextField, Button, Typography, InputAdornment, IconButton,
     Grid, Card, CardActionArea, MenuItem, LinearProgress, Stack, Chip,
-    Autocomplete
+    Autocomplete, FormControlLabel, Checkbox
 } from '@mui/material';
 import { keyframes } from '@mui/system';
 import {
@@ -13,6 +13,7 @@ import {
     Storefront, AttachMoney, Email, Phone, LocationOn, Group,
     ArrowForward, ArrowBack, CheckCircle, LocalParking, LocalCarWash
 } from '@mui/icons-material';
+import { Link } from 'react-router-dom';
 
 import BotonHuella from '../../components/common/BotonHuella';
 import { CIUDADES_COLOMBIA } from '../../utils/colombiaData';
@@ -130,11 +131,12 @@ const Login = ({ onLogin }) => {
         username:        '',
         password:        '',
         origen:          '',
+        acepta_terminos: false,
     };
     const [regData, setRegData] = useState(initialRegState);
 
     const updateReg = (key) => (e) =>
-        setRegData((prev) => ({ ...prev, [key]: e.target.value }));
+        setRegData((prev) => ({ ...prev, [key]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
 
     const canContinueStep1 = () =>
         regData.nombre_empresa.trim().length >= 2 &&
@@ -149,7 +151,8 @@ const Login = ({ onLogin }) => {
         isEmail(regData.email) &&
         isPhone(regData.telefono) &&
         regData.username.trim().length >= 3 &&
-        regData.password.length >= 6;
+        regData.password.length >= 6 &&
+        regData.acepta_terminos;
 
     const switchToRegister = () => {
         setIsLoginView(false);
@@ -785,6 +788,24 @@ const Login = ({ onLogin }) => {
                                             ))}
                                         </TextField>
 
+                                        {/* ✅ ACEPTACIÓN LEGAL */}
+                                        <Box sx={{ textAlign: 'left', mt: 1 }}>
+                                            <FormControlLabel
+                                                control={
+                                                    <Checkbox 
+                                                        checked={regData.acepta_terminos} 
+                                                        onChange={updateReg('acepta_terminos')}
+                                                        sx={{ color: '#f97316', '&.Mui-checked': { color: '#f97316' } }}
+                                                    />
+                                                }
+                                                label={
+                                                    <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                                                        Acepto los <Link to="/terminos" target="_blank" style={{ color: '#f97316', fontWeight: 700 }}>Términos</Link>, la <Link to="/privacidad" target="_blank" style={{ color: '#f97316', fontWeight: 700 }}>Privacidad</Link> y el <Link to="/habeas-data" target="_blank" style={{ color: '#f97316', fontWeight: 700 }}>Tratamiento de Datos</Link>.
+                                                    </Typography>
+                                                }
+                                            />
+                                        </Box>
+
                                         <Stack direction="row" spacing={1.5} sx={{ mt: 0.5 }}>
                                             <Button
                                                 variant="outlined"
@@ -840,16 +861,16 @@ const Login = ({ onLogin }) => {
                                     </span>
                                 </Typography>
 
-                                <Stack direction="row" spacing={2} justifyContent="center" sx={{ mt: 0.5, opacity: 0.6 }}>
-                                    <Typography sx={{ fontSize: 10, color: '#64748b' }}>🔒 Datos cifrados</Typography>
-                                    <Typography sx={{ fontSize: 10, color: '#64748b' }}>✓ Sin tarjeta</Typography>
-                                    <Typography sx={{ fontSize: 10, color: '#64748b' }}>📧 Cancela cuando quieras</Typography>
+                                <Stack direction="row" spacing={2} justifyContent="center" sx={{ mt: 1, opacity: 0.85 }}>
+                                    <Typography sx={{ fontSize: 10, color: '#94a3b8', fontWeight: 500 }}>🔒 Datos cifrados</Typography>
+                                    <Typography sx={{ fontSize: 10, color: '#94a3b8', fontWeight: 500 }}>✓ Sin tarjeta</Typography>
+                                    <Typography sx={{ fontSize: 10, color: '#94a3b8', fontWeight: 500 }}>📧 Cancela cuando quieras</Typography>
                                 </Stack>
                             </Box>
                         )}
                     </Box>
 
-                    <Typography sx={{ mt: 4, color: '#1e293b', fontSize: 12, textAlign: 'center' }}>
+                    <Typography sx={{ mt: 4, color: '#64748b', fontSize: 12, textAlign: 'center', fontWeight: 500, letterSpacing: 0.5 }}>
                         Powered by KSMP Systems · 2026
                     </Typography>
                 </Box>

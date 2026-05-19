@@ -45,7 +45,7 @@ import CatalogoVirtual from './features/saas/CatalogoVirtual';
 
 // ✅ IMPORTAMOS LAS PANTALLAS PÚBLICAS (Login, Registro, etc.)
 import SuscripcionExpirada from './features/auth/SuscripcionExpirada';
-import Registro from './features/auth/Registro'; 
+import { Terminos, Privacidad, HabeasData } from './features/legal/LegalPages';
 
 // ✅ IMPORTAMOS LOS NUEVOS MÓDULOS DE PRÉSTAMOS
 import PrestamoForm from './features/loans/PrestamoForm';
@@ -372,14 +372,32 @@ const hasAccess = useCallback((path) => {
                       <Route path="/admin/catalogo" element={<CatalogoConfig />} />
                     </>
                   )}
+                  {/* ✅ RUTAS LEGALES (ACCESIBLES DESDE ADENTRO) */}
+                  <Route path="/terminos" element={<Terminos />} />
+                  <Route path="/privacidad" element={<Privacidad />} />
+                  <Route path="/habeas-data" element={<HabeasData />} />
                 </Routes>
               </Box>
 
               {/* FOOTER DEL SISTEMA */}
-              <Box component="footer" sx={{ py: 2, px: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, borderTop: `1px solid ${mode === 'dark' ? 'rgba(255,255,255,0.06)' : '#E5E7EB'}`, }}>
+              <Box component="footer" sx={{ 
+                py: 2, 
+                px: 3, 
+                display: 'flex', 
+                flexDirection: { xs: 'column', sm: 'row' },
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                gap: { xs: 1, sm: 3 }, 
+                borderTop: `1px solid ${mode === 'dark' ? 'rgba(255,255,255,0.06)' : '#E5E7EB'}`, 
+              }}>
                 <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                   Powered KSMP Systems - 2026
                 </Typography>
+                <Box sx={{ display: 'flex', gap: 2 }}>
+                  <Typography variant="caption" component="a" href="/terminos" sx={{ color: 'text.secondary', textDecoration: 'none', '&:hover': { color: ACCENT } }}>Términos</Typography>
+                  <Typography variant="caption" component="a" href="/privacidad" sx={{ color: 'text.secondary', textDecoration: 'none', '&:hover': { color: ACCENT } }}>Privacidad</Typography>
+                  <Typography variant="caption" component="a" href="/habeas-data" sx={{ color: 'text.secondary', textDecoration: 'none', '&:hover': { color: ACCENT } }}>Habeas Data</Typography>
+                </Box>
                 <Box component="img" src="/Logo2.png" alt="Logo" sx={{ height: 20 }} />
               </Box>
             </Box>
@@ -390,9 +408,12 @@ const hasAccess = useCallback((path) => {
           <Box sx={{ width: '100%', minHeight: '100vh' }}>
             <Routes>
               <Route path="/suscripcion-expirada" element={<SuscripcionExpirada onActive={checkAuth} />} />
-              <Route path="/registro" element={<Registro />} />
               <Route path="/login" element={<Login onLogin={checkAuth} />} />
               
+              <Route path="/terminos" element={<Terminos />} />
+              <Route path="/privacidad" element={<Privacidad />} />
+              <Route path="/habeas-data" element={<HabeasData />} />
+
               {/* ✅ CATÁLOGO VIRTUAL PÚBLICO (Cualquier otra palabra se toma como SLUG) */}
               <Route path="/:slug" element={<CatalogoVirtual />} />
               
