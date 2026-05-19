@@ -3,16 +3,28 @@ import {
   Box, Typography, Grid, TextField, Button, Table, TableHead, TableRow,
   TableCell, TableBody, Tabs, Tab, Chip, TableContainer, Paper,
   Autocomplete, useMediaQuery, InputAdornment, Tooltip, Divider, CircularProgress,
-  TableSortLabel, TablePagination,
+  TableSortLabel, TablePagination, LinearProgress,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import {
   Inventory2Outlined, Refresh, Download, TrendingUp, TrendingDown,
-  Search, BarChart, ReceiptLong, AttachMoney,
+  Search, BarChart, ReceiptLong, AttachMoney, WarningAmber, CheckCircle,
 } from '@mui/icons-material';
+import { Bar } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip as ChartTooltip,
+  Legend,
+} from 'chart.js';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
 import { toast } from 'react-toastify';
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, ChartTooltip, Legend);
 
 const ACCENT = '#F59E0B';
 const GREEN  = '#10B981';
@@ -74,8 +86,42 @@ const MargenChip = ({ precio, costo }) => {
   );
 };
 
+// ─── Date preset helper ────────────────────────────────────────────────────────
+function getPresetDates(key) {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  const todayStr = `${yyyy}-${mm}-${dd}`;
+
+  const fmt = d => {
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, '0');
+    const dy = String(d.getDate()).padStart(2, '0');
+    return `${y}-${mo}-${dy}`;
+  };
+
+  if (key === 'mes') {
+    return { start: `${yyyy}-${mm}-01`, end: todayStr };
+  }
+  if (key === 'trim') {
+    const d = new Date(today);
+    d.setMonth(d.getMonth() - 3);
+    return { start: fmt(d), end: todayStr };
+  }
+  if (key === 'semestre' || key === 'sem') {
+    const d = new Date(today);
+    d.setMonth(d.getMonth() - 6);
+    return { start: fmt(d), end: todayStr };
+  }
+  if (key === 'año') {
+    return { start: `${yyyy}-01-01`, end: todayStr };
+  }
+  return { start: '', end: todayStr };
+}
+
 // ─── Tabla de rotación (desktop) ──────────────────────────────────────────────
-const RotTable = ({ rows, emptyText }) => (
+const RotTable = ({ rows, emptyText, totalIngresos }) => (
   <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
     <Table size="small">
       <TableHead>
@@ -83,11 +129,12 @@ const RotTable = ({ rows, emptyText }) => (
           <TableCell>Producto</TableCell>
           <TableCell align="right">Cant. vendida</TableCell>
           <TableCell align="right">Ingresos</TableCell>
+          <TableCell align="right">% Ingr.</TableCell>
         </TableRow>
       </TableHead>
       <TableBody>
         {rows.length === 0
-          ? <TableRow><TableCell colSpan={3} sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>{emptyText}</TableCell></TableRow>
+          ? <TableRow><TableCell colSpan={4} sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>{emptyText}</TableCell></TableRow>
           : rows.map((r, i) => (
             <TableRow key={r.producto_id} hover>
               <TableCell>
@@ -100,6 +147,9 @@ const RotTable = ({ rows, emptyText }) => (
               </TableCell>
               <TableCell align="right" sx={{ fontWeight: 700 }}>{r.total_cantidad_vendida}</TableCell>
               <TableCell align="right" sx={{ fontWeight: 700, color: GREEN }}>{formatCurrency(r.total_ingresos)}</TableCell>
+              <TableCell align="right" sx={{ fontSize: 12, color: 'text.secondary' }}>
+                {totalIngresos > 0 ? `${(r.total_ingresos / totalIngresos * 100).toFixed(1)}%` : '—'}
+              </TableCell>
             </TableRow>
           ))
         }
@@ -133,6 +183,21 @@ const RotCards = ({ rows, emptyText, accentPill }) => {
   ));
 };
 
+// ─── Presets chip row ──────────────────────────────────────────────────────────
+const PresetChips = ({ presets, onSelect }) => (
+  <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', mb: 1.5 }}>
+    {presets.map(p => (
+      <Chip
+        key={p.key}
+        label={p.label}
+        size="small"
+        onClick={() => onSelect(p.key)}
+        sx={{ fontSize: 11, fontWeight: 600, borderRadius: 1.5, cursor: 'pointer', '&:hover': { bgcolor: `${ACCENT}18`, color: ACCENT } }}
+      />
+    ))}
+  </Box>
+);
+
 // ─── Componente principal ──────────────────────────────────────────────────────
 export default function InventoryReports() {
   const [tab, setTab] = useState(0);
@@ -147,6 +212,8 @@ export default function InventoryReports() {
   const [invSortDir, setInvSortDir]   = useState('asc');
   const [invPage, setInvPage]         = useState(0);
   const [invRowsPerPage, setInvRowsPerPage] = useState(25);
+  const [invTipo, setInvTipo]         = useState('todos'); // 'todos' | 'productos' | 'servicios'
+  const [invStockFiltro, setInvStockFiltro] = useState('todos'); // 'todos' | 'bajo' | 'agotado'
 
   // Rotación
   const [rotStart, setRotStart]     = useState('');
@@ -241,6 +308,24 @@ export default function InventoryReports() {
     }
   };
 
+  const handleExportKardexCSV = () => {
+    if (!kRows.length) return;
+    const rows = [
+      ['Fecha', 'Tipo', 'Cantidad', 'Costo Unit.', 'Referencia', 'Saldo Cant.', 'Saldo Costo', 'Saldo Valor'],
+      ...kRows.map(r => [
+        new Date(r.fecha).toLocaleDateString('es-CO'),
+        r.tipo, r.cantidad, r.costo_unitario, r.referencia || '',
+        r.saldo_cantidad, r.saldo_costo_unitario, r.saldo_valor,
+      ]),
+    ];
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url;
+    a.download = `kardex_${producto?.nombre.replace(/\s+/g, '_') || 'producto'}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
   useEffect(() => {
     loadInventario();
     apiClient.get('/productos/').then(res => setProductos(res.data || []));
@@ -266,7 +351,19 @@ export default function InventoryReports() {
   // ── Sort + filter + paginate ────────────────────────────────────────────────
   const invFiltered = useMemo(() => {
     const q = invSearch.toLowerCase();
-    const filtered = inv.items.filter(it => it.nombre.toLowerCase().includes(q));
+    let filtered = inv.items.filter(it => it.nombre.toLowerCase().includes(q));
+
+    // Type filter
+    if (invTipo === 'productos') filtered = filtered.filter(it => !it.es_servicio);
+    else if (invTipo === 'servicios') filtered = filtered.filter(it => it.es_servicio);
+
+    // Stock status filter
+    if (invStockFiltro === 'bajo') {
+      filtered = filtered.filter(it => it.stock_actual <= it.stock_minimo && it.stock_actual > 0);
+    } else if (invStockFiltro === 'agotado') {
+      filtered = filtered.filter(it => it.stock_actual === 0);
+    }
+
     return [...filtered].sort((a, b) => {
       if (invSortCol === 'nombre') {
         return invSortDir === 'asc'
@@ -275,6 +372,7 @@ export default function InventoryReports() {
       }
       const fields = {
         stock:    'stock_actual',
+        minimo:   'stock_minimo',
         costo:    'costo',
         precio:   'precio',
         valCosto: 'valor_costo',
@@ -286,11 +384,21 @@ export default function InventoryReports() {
         : (b[f] ?? 0) - (a[f] ?? 0);
       return 0;
     });
-  }, [inv.items, invSearch, invSortCol, invSortDir]);
+  }, [inv.items, invSearch, invSortCol, invSortDir, invTipo, invStockFiltro]);
 
   const invPaginated = useMemo(() =>
     invFiltered.slice(invPage * invRowsPerPage, invPage * invRowsPerPage + invRowsPerPage),
     [invFiltered, invPage, invRowsPerPage]
+  );
+
+  // ── Inventory KPI counts ─────────────────────────────────────────────────────
+  const invBajoMinimo = useMemo(
+    () => inv.items.filter(it => it.stock_actual <= it.stock_minimo && it.stock_actual > 0).length,
+    [inv.items]
+  );
+  const invAgotados = useMemo(
+    () => inv.items.filter(it => it.stock_actual === 0).length,
+    [inv.items]
   );
 
   // ── InvSortHeader helper (defined inside component to close over state) ──────
@@ -309,10 +417,93 @@ export default function InventoryReports() {
     </TableCell>
   );
 
+  // ── Rotación: total ingresos for % column ────────────────────────────────────
+  const totalTopIngresos = useMemo(
+    () => rot.top.reduce((s, r) => s + (r.total_ingresos || 0), 0),
+    [rot.top]
+  );
+
+  // ── Rotación: bar chart data ─────────────────────────────────────────────────
+  const rotBarData = useMemo(() => ({
+    labels: rot.top.map(r => r.nombre),
+    datasets: [{
+      label: 'Ingresos',
+      data: rot.top.map(r => r.total_ingresos),
+      backgroundColor: `${GREEN}CC`,
+      borderColor: GREEN,
+      borderWidth: 1,
+      borderRadius: 4,
+    }],
+  }), [rot.top]);
+
+  const rotBarOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => formatCurrency(ctx.parsed.y),
+        },
+      },
+    },
+    scales: {
+      x: { ticks: { font: { size: 10 }, maxRotation: 35, minRotation: 20 } },
+      y: { ticks: { font: { size: 10 }, callback: v => formatCurrency(v) } },
+    },
+  };
+
+  // ── Kardex: entry/exit summaries ─────────────────────────────────────────────
+  const kEntradas = useMemo(
+    () => kRows.filter(r => ['entrada', 'compra'].includes(r.tipo)),
+    [kRows]
+  );
+  const kSalidas = useMemo(
+    () => kRows.filter(r => ['salida', 'venta'].includes(r.tipo)),
+    [kRows]
+  );
+  const totalEntradas = useMemo(() => kEntradas.reduce((s, r) => s + r.cantidad, 0), [kEntradas]);
+  const totalSalidas  = useMemo(() => kSalidas.reduce((s, r) => s + r.cantidad, 0), [kSalidas]);
+
+  // ── Alertas de stock (derived from inv.items) ────────────────────────────────
+  const alertasAgotado = useMemo(
+    () => inv.items.filter(it => !it.es_servicio && it.stock_actual === 0),
+    [inv.items]
+  );
+  const alertasBajo = useMemo(
+    () => inv.items.filter(it => !it.es_servicio && it.stock_actual > 0 && it.stock_actual <= it.stock_minimo && it.stock_minimo > 0),
+    [inv.items]
+  );
+  const alertasSinMin = useMemo(
+    () => inv.items.filter(it => !it.es_servicio && it.stock_actual > 0 && (!it.stock_minimo || it.stock_minimo === 0)),
+    [inv.items]
+  );
+  const alertasTotal = alertasAgotado.length + alertasBajo.length;
+
+  // ── Preset definitions ───────────────────────────────────────────────────────
+  const PRESETS_ROT = [
+    { key: 'mes',      label: 'Este mes'   },
+    { key: 'trim',     label: 'Trimestre'  },
+    { key: 'semestre', label: 'Semestre'   },
+    { key: 'año',      label: 'Este año'   },
+  ];
+
+  const PRESETS_K = [
+    { key: 'mes',  label: 'Este mes'         },
+    { key: 'trim', label: 'Últimos 3 meses'  },
+    { key: 'sem',  label: 'Últimos 6 meses'  },
+    { key: 'año',  label: 'Este año'         },
+  ];
+
   const TABS = [
     { label: 'Inventario', icon: <Inventory2Outlined fontSize="small" />, fullLabel: 'Inventario Actual' },
     { label: 'Rotación',   icon: <BarChart fontSize="small" />,           fullLabel: 'Rotación'          },
     { label: 'Kardex',     icon: <ReceiptLong fontSize="small" />,        fullLabel: 'Kardex (PPP)'      },
+    {
+      label: alertasTotal > 0 ? `Alertas (${alertasTotal})` : 'Alertas',
+      icon: <WarningAmber fontSize="small" />,
+      fullLabel: 'Alertas de Stock',
+    },
   ];
 
   return (
@@ -365,16 +556,66 @@ export default function InventoryReports() {
           <TabPanel value={tab} index={0}>
             {/* KPIs */}
             <Grid container spacing={1.5} sx={{ mb: 2.5 }}>
-              <Grid item xs={12} sm={4}>
+              <Grid item xs={6} sm={4} md={2.4}>
                 <KpiCard label="Valor a costo" value={formatCurrency(inv.total_valor_costo)} icon={<AttachMoney />} color={ACCENT} />
               </Grid>
-              <Grid item xs={12} sm={4}>
+              <Grid item xs={6} sm={4} md={2.4}>
                 <KpiCard label="Valor a precio venta" value={formatCurrency(inv.total_valor_venta)} icon={<TrendingUp />} color={GREEN} />
               </Grid>
-              <Grid item xs={12} sm={4}>
+              <Grid item xs={6} sm={4} md={2.4}>
                 <KpiCard label="Total ítems" value={inv.items.length} icon={<Inventory2Outlined />} color={BLUE} />
               </Grid>
+              <Grid item xs={6} sm={6} md={2.4}>
+                <KpiCard label="Bajo mínimo" value={invBajoMinimo} icon={<WarningAmber />} color={RED} />
+              </Grid>
+              <Grid item xs={6} sm={6} md={2.4}>
+                <KpiCard label="Agotados" value={invAgotados} icon={<WarningAmber />} color="#7C3AED" />
+              </Grid>
             </Grid>
+
+            {/* Type filter chips */}
+            <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', mb: 1 }}>
+              {[
+                { key: 'todos',     label: 'Todos'     },
+                { key: 'productos', label: 'Productos' },
+                { key: 'servicios', label: 'Servicios' },
+              ].map(c => (
+                <Chip
+                  key={c.key}
+                  label={c.label}
+                  size="small"
+                  onClick={() => { setInvTipo(c.key); setInvPage(0); }}
+                  sx={{
+                    fontSize: 11, fontWeight: 600, borderRadius: 1.5, cursor: 'pointer',
+                    bgcolor: invTipo === c.key ? `${ACCENT}18` : undefined,
+                    color:   invTipo === c.key ? ACCENT : 'text.secondary',
+                    border:  invTipo === c.key ? `1px solid ${ACCENT}40` : '1px solid transparent',
+                  }}
+                />
+              ))}
+
+              <Box sx={{ width: 1, height: 0, flexBasis: '100%', display: { xs: 'none', sm: 'none' } }} />
+
+              {/* Stock status chips */}
+              {[
+                { key: 'todos',   label: 'Todos'        },
+                { key: 'bajo',    label: 'Bajo mínimo'  },
+                { key: 'agotado', label: 'Agotados'     },
+              ].map(c => (
+                <Chip
+                  key={`stock-${c.key}`}
+                  label={c.label}
+                  size="small"
+                  onClick={() => { setInvStockFiltro(c.key); setInvPage(0); }}
+                  sx={{
+                    fontSize: 11, fontWeight: 600, borderRadius: 1.5, cursor: 'pointer',
+                    bgcolor: invStockFiltro === c.key ? `${RED}12` : undefined,
+                    color:   invStockFiltro === c.key ? RED : 'text.secondary',
+                    border:  invStockFiltro === c.key ? `1px solid ${RED}40` : '1px solid transparent',
+                  }}
+                />
+              ))}
+            </Box>
 
             {/* Toolbar */}
             <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -405,38 +646,46 @@ export default function InventoryReports() {
               <Box>
                 {invFiltered.length === 0
                   ? <Box sx={{ textAlign: 'center', py: 5, color: 'text.secondary' }}><Typography>Sin resultados</Typography></Box>
-                  : invFiltered.map(it => (
-                    <Paper key={it.id} sx={{ p: 2, mb: 1.5, borderRadius: 2.5, border: '1px solid', borderColor: 'divider' }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <Box sx={{ minWidth: 0, flex: 1 }}>
-                          <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 0.3 }}>{it.nombre}</Typography>
-                          <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{it.unidad_medida || '—'}</Typography>
+                  : invFiltered.map(it => {
+                    const bgColor = it.stock_actual === 0
+                      ? '#FEF2F2'
+                      : (it.stock_actual <= it.stock_minimo && it.stock_actual > 0 ? '#FFFBEB' : undefined);
+                    return (
+                      <Paper key={it.id} sx={{ p: 2, mb: 1.5, borderRadius: 2.5, border: '1px solid', borderColor: 'divider', bgcolor: bgColor }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <Box sx={{ minWidth: 0, flex: 1 }}>
+                            <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 0.3 }}>{it.nombre}</Typography>
+                            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{it.unidad_medida || '—'}</Typography>
+                          </Box>
+                          <Box sx={{ textAlign: 'right', flexShrink: 0, ml: 1 }}>
+                            <Typography sx={{ fontSize: 15, fontWeight: 800, color: ACCENT }}>
+                              {it.stock_actual} <Typography component="span" sx={{ fontSize: 10, fontWeight: 400, color: 'text.secondary' }}>uds.</Typography>
+                            </Typography>
+                            {it.stock_minimo > 0 && (
+                              <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Mín: {it.stock_minimo}</Typography>
+                            )}
+                          </Box>
                         </Box>
-                        <Box sx={{ textAlign: 'right', flexShrink: 0, ml: 1 }}>
-                          <Typography sx={{ fontSize: 15, fontWeight: 800, color: ACCENT }}>
-                            {it.stock_actual} <Typography component="span" sx={{ fontSize: 10, fontWeight: 400, color: 'text.secondary' }}>uds.</Typography>
-                          </Typography>
+                        <Divider sx={{ my: 1 }} />
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                          <Box>
+                            <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Val. costo</Typography>
+                            <Typography sx={{ fontSize: 13, fontWeight: 700, color: ACCENT }}>{formatCurrency(it.valor_costo)}</Typography>
+                          </Box>
+                          <Box sx={{ textAlign: 'right' }}>
+                            <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Val. venta</Typography>
+                            <Typography sx={{ fontSize: 13, fontWeight: 700, color: GREEN }}>{formatCurrency(it.valor_venta)}</Typography>
+                          </Box>
                         </Box>
-                      </Box>
-                      <Divider sx={{ my: 1 }} />
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                        <Box>
-                          <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Val. costo</Typography>
-                          <Typography sx={{ fontSize: 13, fontWeight: 700, color: ACCENT }}>{formatCurrency(it.valor_costo)}</Typography>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                          <Box>
+                            <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Margen</Typography>
+                            <MargenChip precio={it.precio} costo={it.costo} />
+                          </Box>
                         </Box>
-                        <Box sx={{ textAlign: 'right' }}>
-                          <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Val. venta</Typography>
-                          <Typography sx={{ fontSize: 13, fontWeight: 700, color: GREEN }}>{formatCurrency(it.valor_venta)}</Typography>
-                        </Box>
-                      </Box>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
-                        <Box>
-                          <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Margen</Typography>
-                          <MargenChip precio={it.precio} costo={it.costo} />
-                        </Box>
-                      </Box>
-                    </Paper>
-                  ))
+                      </Paper>
+                    );
+                  })
                 }
               </Box>
             ) : (
@@ -447,11 +696,12 @@ export default function InventoryReports() {
                     <TableHead>
                       <TableRow>
                         <TableCell>#</TableCell>
-                        <InvSortHeader col="nombre"   label="Nombre"    align="left"  />
+                        <InvSortHeader col="nombre"   label="Nombre"     align="left"  />
                         <TableCell>Unidad</TableCell>
-                        <InvSortHeader col="stock"    label="Stock"     align="right" />
-                        <InvSortHeader col="costo"    label="Costo"     align="right" />
-                        <InvSortHeader col="precio"   label="Precio"    align="right" />
+                        <InvSortHeader col="stock"    label="Stock"      align="right" />
+                        <InvSortHeader col="minimo"   label="Mín."       align="right" />
+                        <InvSortHeader col="costo"    label="Costo"      align="right" />
+                        <InvSortHeader col="precio"   label="Precio"     align="right" />
                         <InvSortHeader col="valCosto" label="Val. Costo" align="right" />
                         <InvSortHeader col="valVenta" label="Val. Venta" align="right" />
                         <TableCell align="right">Margen</TableCell>
@@ -459,25 +709,31 @@ export default function InventoryReports() {
                     </TableHead>
                     <TableBody>
                       {invPaginated.length === 0
-                        ? <TableRow><TableCell colSpan={9} sx={{ textAlign: 'center', py: 5, color: 'text.secondary' }}>No hay ítems</TableCell></TableRow>
-                        : invPaginated.map(it => (
-                          <TableRow key={it.id} hover>
-                            <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{it.id}</TableCell>
-                            <TableCell>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Typography sx={{ fontWeight: 600, fontSize: 13 }}>{it.nombre}</Typography>
-                                {it.es_servicio && <Chip label="Servicio" size="small" sx={{ fontSize: 9, height: 16, borderRadius: 1 }} />}
-                              </Box>
-                            </TableCell>
-                            <TableCell sx={{ fontSize: 12 }}>{it.unidad_medida || '—'}</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 700 }}>{it.stock_actual}</TableCell>
-                            <TableCell align="right">{formatCurrency(it.costo)}</TableCell>
-                            <TableCell align="right">{formatCurrency(it.precio)}</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 700, color: ACCENT }}>{formatCurrency(it.valor_costo)}</TableCell>
-                            <TableCell align="right" sx={{ color: GREEN, fontWeight: 600 }}>{formatCurrency(it.valor_venta)}</TableCell>
-                            <TableCell align="right"><MargenChip precio={it.precio} costo={it.costo} /></TableCell>
-                          </TableRow>
-                        ))
+                        ? <TableRow><TableCell colSpan={10} sx={{ textAlign: 'center', py: 5, color: 'text.secondary' }}>No hay ítems</TableCell></TableRow>
+                        : invPaginated.map(it => {
+                          const rowBg = it.stock_actual === 0
+                            ? '#FEF2F2'
+                            : (it.stock_actual <= it.stock_minimo && it.stock_actual > 0 ? '#FFFBEB' : undefined);
+                          return (
+                            <TableRow key={it.id} hover sx={{ bgcolor: rowBg }}>
+                              <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{it.id}</TableCell>
+                              <TableCell>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <Typography sx={{ fontWeight: 600, fontSize: 13 }}>{it.nombre}</Typography>
+                                  {it.es_servicio && <Chip label="Servicio" size="small" sx={{ fontSize: 9, height: 16, borderRadius: 1 }} />}
+                                </Box>
+                              </TableCell>
+                              <TableCell sx={{ fontSize: 12 }}>{it.unidad_medida || '—'}</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 700 }}>{it.stock_actual}</TableCell>
+                              <TableCell align="right" sx={{ fontSize: 12, color: 'text.secondary' }}>{it.stock_minimo ?? '—'}</TableCell>
+                              <TableCell align="right">{formatCurrency(it.costo)}</TableCell>
+                              <TableCell align="right">{formatCurrency(it.precio)}</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 700, color: ACCENT }}>{formatCurrency(it.valor_costo)}</TableCell>
+                              <TableCell align="right" sx={{ color: GREEN, fontWeight: 600 }}>{formatCurrency(it.valor_venta)}</TableCell>
+                              <TableCell align="right"><MargenChip precio={it.precio} costo={it.costo} /></TableCell>
+                            </TableRow>
+                          );
+                        })
                       }
                     </TableBody>
                   </Table>
@@ -505,6 +761,16 @@ export default function InventoryReports() {
 
           {/* ══ Tab 1: Rotación ══ */}
           <TabPanel value={tab} index={1}>
+            {/* Date preset chips */}
+            <PresetChips
+              presets={PRESETS_ROT}
+              onSelect={key => {
+                const { start, end } = getPresetDates(key);
+                setRotStart(start);
+                setRotEnd(end);
+              }}
+            />
+
             <Paper sx={{ p: 2, borderRadius: 2.5, mb: 3, boxShadow: 'none', border: '1px solid', borderColor: 'divider' }}>
               <Typography sx={{ fontWeight: 600, fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 1.5 }}>
                 Parámetros
@@ -559,35 +825,59 @@ export default function InventoryReports() {
                 <Typography>Define los parámetros y presiona Consultar</Typography>
               </Box>
             ) : (
-              <Grid container spacing={2.5}>
-                <Grid item xs={12} md={6}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                    <TrendingUp sx={{ color: GREEN, fontSize: 20 }} />
-                    <Typography sx={{ fontWeight: 700, fontSize: 14 }}>Más vendidos</Typography>
-                    <Chip label={`Top ${rotLimit}`} size="small" sx={{ bgcolor: `${GREEN}12`, color: GREEN, fontWeight: 600, fontSize: 10 }} />
-                  </Box>
-                  {isMobile
-                    ? <RotCards rows={rot.top} emptyText="Sin datos de ventas en el período" accentPill={GREEN} />
-                    : <RotTable rows={rot.top} emptyText="Sin datos de ventas en el período" />
-                  }
+              <>
+                {/* Bar chart for top sellers */}
+                {rot.top.length > 0 && (
+                  <Paper sx={{ p: 2, borderRadius: 2.5, mb: 3, boxShadow: 'none', border: '1px solid', borderColor: 'divider' }}>
+                    <Typography sx={{ fontWeight: 600, fontSize: 12, color: 'text.secondary', mb: 1.5 }}>
+                      Ingresos por producto (más vendidos)
+                    </Typography>
+                    <Box sx={{ height: 180 }}>
+                      <Bar data={rotBarData} options={rotBarOptions} />
+                    </Box>
+                  </Paper>
+                )}
+
+                <Grid container spacing={2.5}>
+                  <Grid item xs={12} md={6}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                      <TrendingUp sx={{ color: GREEN, fontSize: 20 }} />
+                      <Typography sx={{ fontWeight: 700, fontSize: 14 }}>Más vendidos</Typography>
+                      <Chip label={`Top ${rotLimit}`} size="small" sx={{ bgcolor: `${GREEN}12`, color: GREEN, fontWeight: 600, fontSize: 10 }} />
+                    </Box>
+                    {isMobile
+                      ? <RotCards rows={rot.top} emptyText="Sin datos de ventas en el período" accentPill={GREEN} />
+                      : <RotTable rows={rot.top} emptyText="Sin datos de ventas en el período" totalIngresos={totalTopIngresos} />
+                    }
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                      <TrendingDown sx={{ color: RED, fontSize: 20 }} />
+                      <Typography sx={{ fontWeight: 700, fontSize: 14 }}>Menor rotación</Typography>
+                      <Chip label={`Top ${rotLimit}`} size="small" sx={{ bgcolor: `${RED}12`, color: RED, fontWeight: 600, fontSize: 10 }} />
+                    </Box>
+                    {isMobile
+                      ? <RotCards rows={rot.slow} emptyText="Sin datos de rotación baja" accentPill={RED} />
+                      : <RotTable rows={rot.slow} emptyText="Sin datos de rotación baja" totalIngresos={0} />
+                    }
+                  </Grid>
                 </Grid>
-                <Grid item xs={12} md={6}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                    <TrendingDown sx={{ color: RED, fontSize: 20 }} />
-                    <Typography sx={{ fontWeight: 700, fontSize: 14 }}>Menor rotación</Typography>
-                    <Chip label={`Top ${rotLimit}`} size="small" sx={{ bgcolor: `${RED}12`, color: RED, fontWeight: 600, fontSize: 10 }} />
-                  </Box>
-                  {isMobile
-                    ? <RotCards rows={rot.slow} emptyText="Sin datos de rotación baja" accentPill={RED} />
-                    : <RotTable rows={rot.slow} emptyText="Sin datos de rotación baja" />
-                  }
-                </Grid>
-              </Grid>
+              </>
             )}
           </TabPanel>
 
           {/* ══ Tab 2: Kardex ══ */}
           <TabPanel value={tab} index={2}>
+            {/* Date preset chips */}
+            <PresetChips
+              presets={PRESETS_K}
+              onSelect={key => {
+                const { start, end } = getPresetDates(key);
+                setKStart(start);
+                setKEnd(end);
+              }}
+            />
+
             <Paper sx={{ p: 2, borderRadius: 2.5, mb: 2.5, boxShadow: 'none', border: '1px solid', borderColor: 'divider' }}>
               <Typography sx={{ fontWeight: 600, fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 1.5 }}>
                 Producto y rango de fechas
@@ -631,16 +921,27 @@ export default function InventoryReports() {
                   </Button>
                 </Grid>
                 <Grid item xs={4} sm={2}>
-                  <Tooltip title="Exportar Kardex a Excel">
-                    <span style={{ display: 'block' }}>
-                      <Button variant="outlined" disabled={!producto} fullWidth size="small"
-                        startIcon={<Download />}
-                        onClick={handleExportKardex}
-                        sx={{ borderRadius: 2, fontWeight: 600, borderColor: 'divider' }}>
-                        Excel
-                      </Button>
-                    </span>
-                  </Tooltip>
+                  <Box sx={{ display: 'flex', gap: 0.5 }}>
+                    <Tooltip title="Exportar Kardex a Excel">
+                      <span style={{ flex: 1 }}>
+                        <Button variant="outlined" disabled={!producto} fullWidth size="small"
+                          startIcon={<Download />}
+                          onClick={handleExportKardex}
+                          sx={{ borderRadius: 2, fontWeight: 600, borderColor: 'divider' }}>
+                          Excel
+                        </Button>
+                      </span>
+                    </Tooltip>
+                    <Tooltip title="Exportar Kardex a CSV">
+                      <span>
+                        <Button variant="outlined" disabled={!kRows.length} size="small"
+                          onClick={handleExportKardexCSV}
+                          sx={{ borderRadius: 2, minWidth: 44, p: 0, height: 38, borderColor: 'divider', color: 'text.secondary' }}>
+                          CSV
+                        </Button>
+                      </span>
+                    </Tooltip>
+                  </Box>
                 </Grid>
               </Grid>
             </Paper>
@@ -659,10 +960,12 @@ export default function InventoryReports() {
                 {/* Mini KPIs kardex */}
                 <Box sx={{ display: 'flex', gap: 1.5, mb: 2.5, flexWrap: 'wrap' }}>
                   {[
-                    { label: 'Movimientos',    val: kRows.length,                                                       color: BLUE      },
-                    { label: 'Saldo final',    val: kRows[kRows.length - 1]?.saldo_cantidad ?? 0,                      color: ACCENT    },
-                    { label: 'Valor final',    val: formatCurrency(kRows[kRows.length - 1]?.saldo_valor ?? 0),         color: GREEN     },
-                    { label: 'Costo promedio', val: formatCurrency(kRows[kRows.length - 1]?.saldo_costo_unitario ?? 0),color: '#8B5CF6' },
+                    { label: 'Movimientos',    val: kRows.length,                                                        color: BLUE      },
+                    { label: 'Saldo final',    val: kRows[kRows.length - 1]?.saldo_cantidad ?? 0,                       color: ACCENT    },
+                    { label: 'Valor final',    val: formatCurrency(kRows[kRows.length - 1]?.saldo_valor ?? 0),          color: GREEN     },
+                    { label: 'Costo promedio', val: formatCurrency(kRows[kRows.length - 1]?.saldo_costo_unitario ?? 0), color: '#8B5CF6' },
+                    { label: 'Total entradas', val: totalEntradas,                                                       color: GREEN     },
+                    { label: 'Total salidas',  val: totalSalidas,                                                        color: RED       },
                   ].map(({ label, val, color }) => (
                     <Box key={label} sx={{ px: 2, py: 1, borderRadius: 2, bgcolor: `${color}0D`, border: `1px solid ${color}25`, minWidth: isMobile ? 'calc(50% - 8px)' : 'auto' }}>
                       <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>{label}</Typography>
@@ -737,6 +1040,172 @@ export default function InventoryReports() {
               </>
             )}
           </TabPanel>
+
+          {/* ══ Tab 3: Alertas de Stock ══ */}
+          <TabPanel value={tab} index={3}>
+            {/* KPI cards */}
+            <Grid container spacing={1.5} sx={{ mb: 2.5 }}>
+              <Grid item xs={12} sm={4}>
+                <KpiCard label="Agotados" value={alertasAgotado.length} icon={<WarningAmber />} color="#7C3AED" />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <KpiCard label="Bajo mínimo" value={alertasBajo.length} icon={<WarningAmber />} color={RED} />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <KpiCard label="Sin mínimo config." value={alertasSinMin.length} icon={<WarningAmber />} color="#94A3B8" />
+              </Grid>
+            </Grid>
+
+            {alertasAgotado.length === 0 && alertasBajo.length === 0 ? (
+              <Box sx={{ textAlign: 'center', py: 8, color: 'text.secondary' }}>
+                <CheckCircle sx={{ fontSize: 52, mb: 1.5, color: GREEN, opacity: 0.6 }} />
+                <Typography sx={{ fontWeight: 600, fontSize: 15 }}>¡Sin alertas de stock!</Typography>
+                <Typography sx={{ fontSize: 13, mt: 0.5 }}>Todo el inventario está en niveles correctos.</Typography>
+              </Box>
+            ) : (
+              <>
+                {/* Sección: Agotados */}
+                {alertasAgotado.length > 0 && (
+                  <Box sx={{ mb: 3 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                      <Typography sx={{ fontWeight: 700, fontSize: 14, color: '#7C3AED' }}>🔴 Agotados</Typography>
+                      <Chip label={alertasAgotado.length} size="small" sx={{ bgcolor: '#7C3AED18', color: '#7C3AED', fontWeight: 700, fontSize: 11 }} />
+                    </Box>
+
+                    {isMobile ? (
+                      <Box>
+                        {alertasAgotado.map(it => (
+                          <Paper key={it.id} sx={{ p: 2, mb: 1.5, borderRadius: 2.5, border: `1px solid #7C3AED30`, bgcolor: '#FEF2F2' }}>
+                            <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{it.nombre}</Typography>
+                            <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.5 }}>{it.unidad_medida || '—'}</Typography>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <Box>
+                                <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Stock</Typography>
+                                <Typography sx={{ fontWeight: 800, fontSize: 14, color: RED }}>0</Typography>
+                              </Box>
+                              <Box sx={{ textAlign: 'center' }}>
+                                <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Mín.</Typography>
+                                <Typography sx={{ fontWeight: 700, fontSize: 14, color: '#7C3AED' }}>{it.stock_minimo ?? '—'}</Typography>
+                              </Box>
+                              <Box sx={{ textAlign: 'right' }}>
+                                <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Val. costo perdida</Typography>
+                                <Typography sx={{ fontWeight: 700, fontSize: 13, color: ACCENT }}>{formatCurrency(it.valor_costo)}</Typography>
+                              </Box>
+                            </Box>
+                          </Paper>
+                        ))}
+                      </Box>
+                    ) : (
+                      <TableContainer sx={{ borderRadius: 2, border: '1px solid #7C3AED30' }}>
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow sx={{ bgcolor: '#7C3AED08' }}>
+                              <TableCell>Nombre</TableCell>
+                              <TableCell>Unidad</TableCell>
+                              <TableCell align="right">Stock</TableCell>
+                              <TableCell align="right">Mín</TableCell>
+                              <TableCell align="right">Val. Costo perdida</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {alertasAgotado.map(it => (
+                              <TableRow key={it.id} sx={{ bgcolor: '#FEF2F2' }}>
+                                <TableCell sx={{ fontWeight: 600, fontSize: 13 }}>{it.nombre}</TableCell>
+                                <TableCell sx={{ fontSize: 12, color: 'text.secondary' }}>{it.unidad_medida || '—'}</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 800, color: RED }}>0</TableCell>
+                                <TableCell align="right" sx={{ color: '#7C3AED' }}>{it.stock_minimo ?? '—'}</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 700, color: ACCENT }}>{formatCurrency(it.valor_costo)}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    )}
+                  </Box>
+                )}
+
+                {/* Sección: Bajo mínimo */}
+                {alertasBajo.length > 0 && (
+                  <Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                      <Typography sx={{ fontWeight: 700, fontSize: 14, color: RED }}>🟡 Bajo mínimo</Typography>
+                      <Chip label={alertasBajo.length} size="small" sx={{ bgcolor: `${RED}12`, color: RED, fontWeight: 700, fontSize: 11 }} />
+                    </Box>
+
+                    {isMobile ? (
+                      <Box>
+                        {alertasBajo.map(it => (
+                          <Paper key={it.id} sx={{ p: 2, mb: 1.5, borderRadius: 2.5, border: `1px solid ${RED}30`, bgcolor: '#FFFBEB' }}>
+                            <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{it.nombre}</Typography>
+                            <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.5 }}>{it.unidad_medida || '—'}</Typography>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                              <Box>
+                                <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Stock actual</Typography>
+                                <Typography sx={{ fontWeight: 800, fontSize: 14, color: RED }}>{it.stock_actual}</Typography>
+                              </Box>
+                              <Box sx={{ textAlign: 'center' }}>
+                                <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Mín.</Typography>
+                                <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{it.stock_minimo}</Typography>
+                              </Box>
+                              <Box sx={{ textAlign: 'center' }}>
+                                <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Diferencia</Typography>
+                                <Typography sx={{ fontWeight: 700, fontSize: 14, color: ACCENT }}>{it.stock_minimo - it.stock_actual}</Typography>
+                              </Box>
+                              <Box sx={{ textAlign: 'right' }}>
+                                <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Val. costo</Typography>
+                                <Typography sx={{ fontWeight: 700, fontSize: 13, color: GREEN }}>{formatCurrency(it.valor_costo)}</Typography>
+                              </Box>
+                            </Box>
+                            <LinearProgress
+                              variant="determinate"
+                              value={Math.min((it.stock_actual / it.stock_minimo) * 100, 100)}
+                              sx={{ height: 4, borderRadius: 2, bgcolor: `${RED}20`, '& .MuiLinearProgress-bar': { bgcolor: RED } }}
+                            />
+                          </Paper>
+                        ))}
+                      </Box>
+                    ) : (
+                      <TableContainer sx={{ borderRadius: 2, border: `1px solid ${RED}30` }}>
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow sx={{ bgcolor: `${RED}08` }}>
+                              <TableCell>Nombre</TableCell>
+                              <TableCell>Unidad</TableCell>
+                              <TableCell align="right">Stock</TableCell>
+                              <TableCell align="right">Mín</TableCell>
+                              <TableCell align="right">Diferencia</TableCell>
+                              <TableCell align="right">Val. Costo</TableCell>
+                              <TableCell sx={{ minWidth: 120 }}>Nivel</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {alertasBajo.map(it => (
+                              <TableRow key={it.id} sx={{ bgcolor: '#FFFBEB' }}>
+                                <TableCell sx={{ fontWeight: 600, fontSize: 13 }}>{it.nombre}</TableCell>
+                                <TableCell sx={{ fontSize: 12, color: 'text.secondary' }}>{it.unidad_medida || '—'}</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 800, color: RED }}>{it.stock_actual}</TableCell>
+                                <TableCell align="right">{it.stock_minimo}</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 700, color: ACCENT }}>{it.stock_minimo - it.stock_actual}</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 700, color: GREEN }}>{formatCurrency(it.valor_costo)}</TableCell>
+                                <TableCell sx={{ minWidth: 120 }}>
+                                  <LinearProgress
+                                    variant="determinate"
+                                    value={Math.min((it.stock_actual / it.stock_minimo) * 100, 100)}
+                                    sx={{ height: 4, borderRadius: 2, mt: 0.5, bgcolor: `${RED}20`, '& .MuiLinearProgress-bar': { bgcolor: RED } }}
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    )}
+                  </Box>
+                )}
+              </>
+            )}
+          </TabPanel>
+
         </Box>
       </Paper>
     </Box>

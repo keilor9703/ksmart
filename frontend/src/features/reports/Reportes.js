@@ -3,7 +3,7 @@ import { Box, Typography, Tabs, Tab, useMediaQuery, CircularProgress } from '@mu
 import { useTheme } from '@mui/material/styles';
 import {
   Assessment, ShoppingCart, TrendingUp, People,
-  AccountBalanceWallet, Engineering, Receipt, AttachMoney, PointOfSale
+  AccountBalanceWallet, Engineering, Receipt, AttachMoney, PointOfSale, AccountBalance,
 } from '@mui/icons-material';
 import ResumenVentas from '../sales/ResumenVentas';
 import ProductSales from '../inventory/ProductSales';
@@ -14,6 +14,7 @@ import ReporteProductividad from './ReporteProductividad';
 import ReporteIVA from './ReporteIVA';
 import ReportePrestamos from '../loans/ReportePrestamos';
 import ReporteCaja from './ReporteCaja';
+import ReporteEstadoResultados from './ReporteEstadoResultados';
 import apiClient from '../../api';
 
 const ACCENT = '#F43F5E';
@@ -31,14 +32,15 @@ function TabPanel({ children, value, index }) {
 }
 
 const TABS_ERP = [
-  { label: 'Resumen',       icon: <Assessment fontSize="small" />,           fullLabel: 'Resumen General'   },
-  { label: 'Ventas',        icon: <ShoppingCart fontSize="small" />,         fullLabel: 'Ventas x Producto' },
-  { label: 'Rentab.',       icon: <TrendingUp fontSize="small" />,           fullLabel: 'Rentabilidad'      },
-  { label: 'Clientes',      icon: <People fontSize="small" />,               fullLabel: 'Ventas x Cliente'  },
-  { label: 'Deudores',      icon: <AccountBalanceWallet fontSize="small" />, fullLabel: 'Deudores'          },
-  { label: 'Product.',      icon: <Engineering fontSize="small" />,          fullLabel: 'Productividad'     },
-  { label: 'IVA',           icon: <Receipt fontSize="small" />,              fullLabel: 'IVA / Impuestos'   },
-  { label: 'Caja',          icon: <PointOfSale fontSize="small" />,          fullLabel: 'Reporte de Caja'   },
+  { label: 'Resumen',       icon: <Assessment fontSize="small" />,           fullLabel: 'Resumen General'       },
+  { label: 'Ventas',        icon: <ShoppingCart fontSize="small" />,         fullLabel: 'Ventas x Producto'     },
+  { label: 'Rentab.',       icon: <TrendingUp fontSize="small" />,           fullLabel: 'Rentabilidad'          },
+  { label: 'Clientes',      icon: <People fontSize="small" />,               fullLabel: 'Ventas x Cliente'      },
+  { label: 'Deudores',      icon: <AccountBalanceWallet fontSize="small" />, fullLabel: 'Deudores'              },
+  { label: 'Product.',      icon: <Engineering fontSize="small" />,          fullLabel: 'Productividad'         },
+  { label: 'IVA',           icon: <Receipt fontSize="small" />,              fullLabel: 'IVA / Impuestos DIAN'  },
+  { label: 'Caja',          icon: <PointOfSale fontSize="small" />,          fullLabel: 'Reporte de Caja'       },
+  { label: 'P&L',           icon: <AccountBalance fontSize="small" />,       fullLabel: 'Estado de Resultados'  },
 ];
 
 const Reportes = () => {
@@ -144,14 +146,15 @@ const Reportes = () => {
             )}
 
             <Box sx={{ p: { xs: 1.5, md: 3 } }}>
-              <TabPanel value={tab} index={0}><ResumenVentas        accentColor={ACCENT} /></TabPanel>
-              <TabPanel value={tab} index={1}><ProductSales         accentColor={ACCENT} /></TabPanel>
-              <TabPanel value={tab} index={2}><RentabilidadReporte  accentColor={ACCENT} /></TabPanel>
-              <TabPanel value={tab} index={3}><CustomerBuyers       accentColor={ACCENT} /></TabPanel>
-              <TabPanel value={tab} index={4}><CustomerDebtors      accentColor={ACCENT} /></TabPanel>
-              <TabPanel value={tab} index={5}><ReporteProductividad accentColor={ACCENT} /></TabPanel>
-              <TabPanel value={tab} index={6}><ReporteIVA           accentColor={ACCENT} /></TabPanel>
-              <TabPanel value={tab} index={7}><ReporteCaja          accentColor={ACCENT} /></TabPanel>
+              <TabPanel value={tab} index={0}><ResumenVentas            accentColor={ACCENT} /></TabPanel>
+              <TabPanel value={tab} index={1}><ProductSales             accentColor={ACCENT} /></TabPanel>
+              <TabPanel value={tab} index={2}><RentabilidadReporte      accentColor={ACCENT} /></TabPanel>
+              <TabPanel value={tab} index={3}><CustomerBuyers           accentColor={ACCENT} /></TabPanel>
+              <TabPanel value={tab} index={4}><CustomerDebtors          accentColor={ACCENT} /></TabPanel>
+              <TabPanel value={tab} index={5}><ReporteProductividad     accentColor={ACCENT} /></TabPanel>
+              <TabPanel value={tab} index={6}><ReporteIVA               accentColor={ACCENT} /></TabPanel>
+              <TabPanel value={tab} index={7}><ReporteCaja              accentColor={ACCENT} /></TabPanel>
+              <TabPanel value={tab} index={8}><ReporteEstadoResultados  accentColor={ACCENT} /></TabPanel>
             </Box>
           </>
         )}

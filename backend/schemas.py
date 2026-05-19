@@ -850,6 +850,7 @@ class InventarioItem(BaseModel):
     es_servicio: bool
     unidad_medida: Optional[str]
     stock_actual: float
+    stock_minimo: float
     costo: float
     precio: float
     valor_costo: float

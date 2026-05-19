@@ -167,6 +167,7 @@ def get_inventario_actual(db: Session, empresa_id: int) -> schemas.InventarioSna
                 es_servicio=bool(p.es_servicio),
                 unidad_medida=p.unidad_medida,
                 stock_actual=stock,
+                stock_minimo=float(p.stock_minimo or 0.0),
                 costo=costo,
                 precio=precio,
                 valor_costo=valor_costo,
