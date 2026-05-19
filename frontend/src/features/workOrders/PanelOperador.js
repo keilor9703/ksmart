@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import apiClient, { getPanelOperadorPendientes, getPanelOperadorProductividad, getPanelOperadorHistorial } from '../../api';
 import {
-  Box, Typography, Grid, Card, CardContent, CircularProgress, Alert,
+  Box, Typography, Grid, CircularProgress, Alert,
   Divider, Chip, Tabs, Tab,
   TableContainer, Table, TableBody, TableCell, TableHead, TableRow, Paper,
   TableSortLabel, TablePagination,
@@ -13,7 +13,6 @@ import { Chart as ChartJS, ArcElement, Tooltip as ChartTooltip, Legend } from 'c
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import dayjs from 'dayjs';
 import {
   Assignment, TrendingUp, CheckCircle, PendingActions,
   Refresh, CalendarToday, PrecisionManufacturing, PlayArrow, Check,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
 import { toast } from 'react-toastify';
@@ -12,12 +12,14 @@ import { useLocation } from 'react-router-dom';
 import {
   Box, Paper, Typography, Grid, TextField, Button, IconButton, Autocomplete,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Chip, Tabs, Tab, Tooltip, useMediaQuery, Divider, InputAdornment, Stack
+  Chip, Tabs, Tab, Tooltip, useMediaQuery, Divider, InputAdornment, Stack,
+  TableSortLabel, TablePagination
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import {
-  Add, Delete, Visibility, Send, CheckCircle, Cancel, Assignment,
-  TrendingUp, Receipt, PendingActions, Close, Edit
+  Add, Delete, Visibility, CheckCircle, Cancel, Assignment,
+  TrendingUp, Receipt, PendingActions, Edit,
+  FileDownload, Search, Today, WorkOutline
 } from '@mui/icons-material';
 
 const ACCENT = '#EC4899';
@@ -88,7 +90,7 @@ const OrdenCard = ({ orden, onEdit, onView, onSend, onApprove, onReject, onClose
             <Visibility fontSize="small" />
           </IconButton>
         </Tooltip>
-        
+
         {/* ✅ FIX: Ahora el Admin puede editar si está en Pendiente o Borrador */}
         {(orden.estado === 'Borrador' || orden.estado === 'Pendiente' || orden.estado === 'Rechazada') && (
           <>
@@ -126,6 +128,14 @@ const OrdenCard = ({ orden, onEdit, onView, onSend, onApprove, onReject, onClose
     </Paper>
   );
 };
+
+const ESTADOS = ['todos', 'Borrador', 'Pendiente', 'Iniciada', 'En revisión', 'Aprobada', 'Rechazada', 'Cerrada'];
+
+const PRESETS = [
+  { key: 'hoy', label: 'Hoy' },
+  { key: 'semana', label: 'Esta semana' },
+  { key: 'mes', label: 'Este mes' },
+];
 
 const OrdenesTrabajo = ({ user }) => {
   const theme = useTheme();
@@ -165,10 +175,18 @@ const OrdenesTrabajo = ({ user }) => {
   const [selectedOperator, setSelectedOperator] = useState(null);
   const [accumulatedTotal, setAccumulatedTotal] = useState(0);
 
+  // New state: search, filter, sort, pagination
+  const [busqueda, setBusqueda] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState('todos');
+  const [sortCol, setSortCol] = useState('id');
+  const [sortDir, setSortDir] = useState('desc');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(15);
+
   useEffect(() => {
     fetchClientes(); fetchProductos();
     if (user?.role?.name === 'Admin') fetchOperators();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const filters = { startDate, endDate, clienteId: selectedClient?.id, operadorId: selectedOperator?.id };
@@ -213,7 +231,7 @@ const OrdenesTrabajo = ({ user }) => {
         })
         .catch(err => toast.error('Error al cargar la orden'));
     }
-  }, [location.state?.ordenId]);
+  }, [location.state?.ordenId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchOrdenes = (filters = {}) => {
     const params = {
@@ -377,11 +395,92 @@ const OrdenesTrabajo = ({ user }) => {
     } catch { toast.error('Error al validar stock'); return false; }
   };
 
+  const handleExportCSV = () => {
+    const rows = [
+      ['ID', 'Cliente', 'Operador', 'Estado', 'Total', 'Fecha'],
+      ...ordenesFiltradas.map(o => [
+        o.id,
+        o.cliente?.nombre || '',
+        o.operador?.username || '',
+        o.estado,
+        o.total,
+        new Date(o.fecha_creacion + 'Z').toLocaleDateString('es-CO'),
+      ]),
+    ];
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'ordenes-trabajo.csv';
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  const applyPreset = (key) => {
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const fmt = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    if (key === 'hoy') { setStartDate(fmt(now)); setEndDate(fmt(now)); }
+    else if (key === 'semana') { const d = new Date(now); d.setDate(now.getDate() - 6); setStartDate(fmt(d)); setEndDate(fmt(now)); }
+    else if (key === 'mes') { setStartDate(`${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`); setEndDate(fmt(now)); }
+  };
+
   const statsOrdenes = {
     total: ordenes.length,
     pendientes: ordenes.filter(o => o.estado === 'En revisión').length,
     aprobadas: ordenes.filter(o => o.estado === 'Aprobada').length,
+    cerradas: ordenes.filter(o => o.estado === 'Cerrada').length,
   };
+
+  // Client-side filtering, sorting, pagination
+  const estadoCounts = useMemo(() => {
+    const counts = {};
+    ESTADOS.forEach(e => { counts[e] = e === 'todos' ? ordenes.length : ordenes.filter(o => o.estado === e).length; });
+    return counts;
+  }, [ordenes]);
+
+  const ordenesFiltradas = useMemo(() => {
+    let list = [...ordenes];
+    if (filtroEstado !== 'todos') list = list.filter(o => o.estado === filtroEstado);
+    if (busqueda.trim()) {
+      const q = busqueda.toLowerCase();
+      list = list.filter(o =>
+        String(o.id).includes(q) ||
+        (o.cliente?.nombre || '').toLowerCase().includes(q) ||
+        (o.operador?.username || '').toLowerCase().includes(q)
+      );
+    }
+    list.sort((a, b) => {
+      let va, vb;
+      switch (sortCol) {
+        case 'cliente': va = a.cliente?.nombre || ''; vb = b.cliente?.nombre || ''; return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+        case 'total': va = a.total; vb = b.total; break;
+        case 'fecha': va = new Date(a.fecha_creacion); vb = new Date(b.fecha_creacion); break;
+        case 'estado': va = a.estado; vb = b.estado; return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+        default: va = a.id; vb = b.id;
+      }
+      return sortDir === 'asc' ? va - vb : vb - va;
+    });
+    return list;
+  }, [ordenes, filtroEstado, busqueda, sortCol, sortDir]);
+
+  const ordenesPaginadas = useMemo(() =>
+    ordenesFiltradas.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [ordenesFiltradas, page, rowsPerPage]
+  );
+
+  const handleSort = (col) => {
+    setSortDir(prev => col === sortCol ? (prev === 'asc' ? 'desc' : 'asc') : 'desc');
+    setSortCol(col);
+    setPage(0);
+  };
+
+  // Sortable header cell helper
+  const SortTh = ({ col, children, align = 'left' }) => (
+    <TableCell align={align} sx={{ fontWeight: 800 }}>
+      <TableSortLabel active={sortCol === col} direction={sortCol === col ? sortDir : 'asc'} onClick={() => handleSort(col)}>
+        {children}
+      </TableSortLabel>
+    </TableCell>
+  );
 
   return (
     <Box sx={{ width: '100%' }}>
@@ -400,9 +499,11 @@ const OrdenesTrabajo = ({ user }) => {
 
       {tabValue === 1 && (
         <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid item xs={6} sm={4}><KpiCard label="Total órdenes" value={statsOrdenes.total} icon={<Receipt />} color={ACCENT} /></Grid>
-          <Grid item xs={6} sm={4}><KpiCard label="En revisión" value={statsOrdenes.pendientes} icon={<PendingActions />} color={YELLOW} /></Grid>
-          <Grid item xs={12} sm={4}><KpiCard label="Total acumulado" value={formatCurrency(accumulatedTotal)} icon={<TrendingUp />} color={GREEN} /></Grid>
+          <Grid item xs={6} sm={4} md={2.4}><KpiCard label="Total órdenes" value={statsOrdenes.total} icon={<Receipt />} color={ACCENT} /></Grid>
+          <Grid item xs={6} sm={4} md={2.4}><KpiCard label="Pendientes" value={statsOrdenes.pendientes} icon={<PendingActions />} color={YELLOW} /></Grid>
+          <Grid item xs={6} sm={4} md={2.4}><KpiCard label="Aprobadas" value={statsOrdenes.aprobadas} icon={<CheckCircle />} color={GREEN} /></Grid>
+          <Grid item xs={6} sm={4} md={2.4}><KpiCard label="Cerradas" value={statsOrdenes.cerradas} icon={<WorkOutline />} color={BLUE} /></Grid>
+          <Grid item xs={12} sm={4} md={2.4}><KpiCard label="Total acumulado" value={formatCurrency(accumulatedTotal)} icon={<TrendingUp />} color={GREEN} /></Grid>
         </Grid>
       )}
 
@@ -420,7 +521,7 @@ const OrdenesTrabajo = ({ user }) => {
               <Autocomplete options={clientes} getOptionLabel={(o) => o?.nombre || ''} value={cliente} onChange={(_, v) => setCliente(v)} inputValue={clienteInput} onInputChange={(_, v) => setClienteInput(v)} filterOptions={(opts, state) => { const q = (state.inputValue || '').toLowerCase().trim(); if (!q) return opts; return opts.filter(o => o.nombre.toLowerCase().includes(q) || (o.cedula || '').toLowerCase().includes(q)); }} noOptionsText={<Box sx={{ py: 0.5 }}><Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>No se encontró ningún cliente</Typography><Button size="small" variant="contained" fullWidth startIcon={<Add />} onClick={() => openQuickCreate('tercero', clienteInput)} sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12, bgcolor: '#3B82F6', '&:hover': { bgcolor: '#2563EB' } }}>Crear "{clienteInput || 'nuevo cliente'}"</Button></Box>} renderInput={(params) => (<TextField {...params} label="Cliente *" required fullWidth placeholder="Busca por nombre o NIT…" InputProps={{ ...params.InputProps, endAdornment: (<>{params.InputProps.endAdornment}<Tooltip title="Crear nuevo cliente"><IconButton size="small" onClick={() => openQuickCreate('tercero', clienteInput)} sx={{ color: '#3B82F6', p: 0.5 }}><Add fontSize="small" /></IconButton></Tooltip></>), }} />)} sx={{ mb: 3 }} />
               {user?.role?.name === 'Admin' && (<Autocomplete options={operators} getOptionLabel={(o) => o.username} value={selectedOperatorForForm} onChange={(_, v) => setSelectedOperatorForForm(v)} renderInput={(params) => <TextField {...params} label="Asignar Operador" fullWidth />} sx={{ mb: 3 }} />)}
               <Divider sx={{ mb: 3 }} />
-              
+
               <Box sx={{ mb: 3 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}><Typography sx={{ fontWeight: 600, fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6 }}>Productos / Insumos</Typography><Button size="small" startIcon={<Add />} onClick={handleAddProducto} sx={{ color: ACCENT, fontWeight: 600 }}>Añadir producto</Button></Box>
                 <Stack direction="column" spacing={1.5}>
@@ -471,6 +572,50 @@ const OrdenesTrabajo = ({ user }) => {
 
         <TabPanel value={tabValue} index={1}>
           <Box sx={{ px: { xs: 2, md: 3 }, pb: 3 }}>
+
+            {/* Search bar + CSV export */}
+            <Box sx={{ display: 'flex', gap: 1.5, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+              <TextField
+                size="small"
+                placeholder="Buscar por #, cliente, operador..."
+                value={busqueda}
+                onChange={e => { setBusqueda(e.target.value); setPage(0); }}
+                InputProps={{ startAdornment: <InputAdornment position="start"><Search sx={{ fontSize: 18, color: 'text.disabled' }} /></InputAdornment> }}
+                sx={{ minWidth: 260, flex: 1 }}
+              />
+              <Button variant="outlined" startIcon={<FileDownload />} onClick={handleExportCSV} disabled={ordenesFiltradas.length === 0} sx={{ borderRadius: 2, fontWeight: 600 }}>CSV</Button>
+            </Box>
+
+            {/* Status filter chips */}
+            <Box sx={{ display: 'flex', gap: 0.8, mb: 2.5, flexWrap: 'wrap' }}>
+              {ESTADOS.map(e => (
+                <Chip
+                  key={e}
+                  label={`${e === 'todos' ? 'Todos' : e} (${estadoCounts[e]})`}
+                  size="small"
+                  onClick={() => { setFiltroEstado(e); setPage(0); }}
+                  sx={{
+                    borderRadius: 1.5, fontWeight: 600, cursor: 'pointer',
+                    bgcolor: filtroEstado === e ? ACCENT : 'transparent',
+                    color: filtroEstado === e ? '#fff' : 'text.secondary',
+                    border: '1px solid', borderColor: filtroEstado === e ? ACCENT : 'divider',
+                  }}
+                />
+              ))}
+            </Box>
+
+            {/* Date preset chips */}
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 2 }}>
+              {PRESETS.map(p => (
+                <Chip key={p.key} label={p.label} size="small" variant="outlined"
+                  icon={<Today sx={{ fontSize: '14px !important' }} />}
+                  onClick={() => applyPreset(p.key)}
+                  sx={{ borderRadius: 1.5, fontWeight: 600, cursor: 'pointer' }}
+                />
+              ))}
+            </Stack>
+
+            {/* Date and client/operator filters */}
             <Grid container spacing={2} sx={{ mb: 2.5 }}>
               <Grid item xs={6} sm={3}><TextField type="date" label="Fecha Inicio" value={startDate} onChange={e => setStartDate(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth size="small" /></Grid>
               <Grid item xs={6} sm={3}><TextField type="date" label="Fecha Fin" value={endDate} onChange={e => setEndDate(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth size="small" /></Grid>
@@ -480,59 +625,85 @@ const OrdenesTrabajo = ({ user }) => {
 
             {isMobile ? (
               <Box>
-                {ordenes.length === 0 ? (
+                {ordenesFiltradas.length === 0 ? (
                   <Box sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}><Assignment sx={{ fontSize: 48, mb: 1, opacity: 0.3 }} /><Typography>No hay órdenes registradas</Typography></Box>
                 ) : (
-                  [...ordenes].reverse().map(orden => <OrdenCard key={orden.id} orden={orden} onEdit={(o) => { setEditingOrden(o); setTabValue(0); }} onView={(o) => { setSelectedOrden(o); setShowDetailDialog(true); }} onApprove={handleApprove} onReject={handleOpenRejectDialog} onClose={handleCloseOrder} user={user} />)
+                  ordenesFiltradas.map(orden => <OrdenCard key={orden.id} orden={orden} onEdit={(o) => { setEditingOrden(o); setTabValue(0); }} onView={(o) => { setSelectedOrden(o); setShowDetailDialog(true); }} onApprove={handleApprove} onReject={handleOpenRejectDialog} onClose={handleCloseOrder} user={user} />)
                 )}
               </Box>
             ) : (
-              <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                <Table size="small">
-                  <TableHead><TableRow>{['ID', 'Cliente', 'Operador', 'Productos', 'Servicios', 'Total', 'Estado', 'Fecha', 'Acciones'].map(h => <TableCell key={h} sx={{ fontWeight: 800 }}>{h}</TableCell>)}</TableRow></TableHead>
-                  <TableBody>
-                    {ordenes.length === 0 ? <TableRow><TableCell colSpan={9} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>No hay órdenes registradas</TableCell></TableRow> : (
-                      [...ordenes].reverse().map(orden => (
-                        <TableRow key={orden.id} hover>
-                          <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>#{orden.id}</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>{orden.cliente?.nombre}</TableCell>
-                          <TableCell sx={{ fontSize: 12 }}>{orden.operador?.username}</TableCell>
-                          <TableCell sx={{ fontSize: 11 }}>{orden.productos?.length > 0 ? orden.productos.map(p => `${p.producto.nombre} (×${p.cantidad})`).join(', ') : '—'}</TableCell>
-                          <TableCell sx={{ fontSize: 11 }}>{orden.servicios?.length > 0 ? orden.servicios.map(s => `${s.servicio.nombre} (×${s.cantidad})`).join(', ') : '—'}</TableCell>
-                          <TableCell sx={{ fontWeight: 700 }}>{formatCurrency(orden.total)}</TableCell>
-                          <TableCell>
-                            {(() => {
-                              const map = {
-                                'Borrador': { label: 'Borrador', color: 'default' },
-                                'Pendiente': { label: 'Pendiente', color: 'info' },
-                                'Iniciada': { label: 'Iniciada', color: 'primary' },
-                                'En revisión': { label: 'En Revisión', color: 'warning' },
-                                'Aprobada': { label: 'Aprobada', color: 'success' },
-                                'Rechazada': { label: 'Rechazada', color: 'error' },
-                                'Cerrada': { label: 'Cerrada', color: 'default' },
-                              };
-                              const props = map[orden.estado] || { label: orden.estado, color: 'default' };
-                              return <Chip label={props.label} color={props.color} size="small" sx={{ fontWeight: 600, fontSize: 10, borderRadius: 1.5 }} />;
-                            })()}
-                          </TableCell>
-                          <TableCell sx={{ fontSize: 11, whiteSpace: 'nowrap' }}>{new Date(orden.fecha_creacion + 'Z').toLocaleDateString()}</TableCell>
-                          <TableCell>
-                            <Tooltip title="Ver detalles"><IconButton size="small" onClick={() => { setSelectedOrden(orden); setShowDetailDialog(true); }} sx={{ color: BLUE, '&:hover': { bgcolor: '#EFF6FF' } }}><Visibility fontSize="small" /></IconButton></Tooltip>
-                            {(orden.estado === 'Borrador' || orden.estado === 'Pendiente' || orden.estado === 'Rechazada') && (
-                              <>
-                                <Tooltip title="Editar"><IconButton size="small" onClick={() => { setEditingOrden(orden); setTabValue(0); }} sx={{ color: ACCENT, '&:hover': { bgcolor: `${ACCENT}12` } }}><Edit fontSize="small" /></IconButton></Tooltip>
-                              </>
-                            )}
-                            {user?.role?.name === 'Admin' && (orden.estado === 'Aprobada' || orden.estado === 'Rechazada') && (
-                              <Tooltip title="Cerrar orden"><IconButton size="small" onClick={() => handleCloseOrder(orden)} sx={{ color: GREEN, '&:hover': { bgcolor: `${GREEN}12` } }}><CheckCircle fontSize="small" /></IconButton></Tooltip>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+              <>
+                <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <SortTh col="id">ID</SortTh>
+                        <SortTh col="cliente">Cliente</SortTh>
+                        <TableCell sx={{ fontWeight: 800 }}>Operador</TableCell>
+                        <TableCell sx={{ fontWeight: 800 }}>Servicios/Productos</TableCell>
+                        <SortTh col="total" align="right">Total</SortTh>
+                        <SortTh col="estado">Estado</SortTh>
+                        <SortTh col="fecha">Fecha</SortTh>
+                        <TableCell sx={{ fontWeight: 800 }}>Acciones</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {ordenesPaginadas.length === 0 ? <TableRow><TableCell colSpan={8} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>No hay órdenes registradas</TableCell></TableRow> : (
+                        ordenesPaginadas.map(orden => (
+                          <TableRow key={orden.id} hover>
+                            <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>#{orden.id}</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>{orden.cliente?.nombre}</TableCell>
+                            <TableCell sx={{ fontSize: 12 }}>{orden.operador?.username}</TableCell>
+                            <TableCell sx={{ fontSize: 11 }}>
+                              {orden.servicios?.length > 0 && <Box sx={{ color: BLUE, fontWeight: 600 }}>{orden.servicios.map(s => s.servicio.nombre).join(', ')}</Box>}
+                              {orden.productos?.length > 0 && <Box sx={{ color: 'text.secondary' }}>{orden.productos.map(p => `${p.producto.nombre} ×${p.cantidad}`).join(', ')}</Box>}
+                            </TableCell>
+                            <TableCell sx={{ fontWeight: 700, textAlign: 'right' }}>{formatCurrency(orden.total)}</TableCell>
+                            <TableCell>
+                              {(() => {
+                                const map = {
+                                  'Borrador': { label: 'Borrador', color: 'default' },
+                                  'Pendiente': { label: 'Pendiente', color: 'info' },
+                                  'Iniciada': { label: 'Iniciada', color: 'primary' },
+                                  'En revisión': { label: 'En Revisión', color: 'warning' },
+                                  'Aprobada': { label: 'Aprobada', color: 'success' },
+                                  'Rechazada': { label: 'Rechazada', color: 'error' },
+                                  'Cerrada': { label: 'Cerrada', color: 'default' },
+                                };
+                                const props = map[orden.estado] || { label: orden.estado, color: 'default' };
+                                return <Chip label={props.label} color={props.color} size="small" sx={{ fontWeight: 600, fontSize: 10, borderRadius: 1.5 }} />;
+                              })()}
+                            </TableCell>
+                            <TableCell sx={{ fontSize: 11, whiteSpace: 'nowrap' }}>{new Date(orden.fecha_creacion + 'Z').toLocaleDateString()}</TableCell>
+                            <TableCell>
+                              <Tooltip title="Ver detalles"><IconButton size="small" onClick={() => { setSelectedOrden(orden); setShowDetailDialog(true); }} sx={{ color: BLUE, '&:hover': { bgcolor: '#EFF6FF' } }}><Visibility fontSize="small" /></IconButton></Tooltip>
+                              {(orden.estado === 'Borrador' || orden.estado === 'Pendiente' || orden.estado === 'Rechazada') && (
+                                <>
+                                  <Tooltip title="Editar"><IconButton size="small" onClick={() => { setEditingOrden(orden); setTabValue(0); }} sx={{ color: ACCENT, '&:hover': { bgcolor: `${ACCENT}12` } }}><Edit fontSize="small" /></IconButton></Tooltip>
+                                </>
+                              )}
+                              {user?.role?.name === 'Admin' && (orden.estado === 'Aprobada' || orden.estado === 'Rechazada') && (
+                                <Tooltip title="Cerrar orden"><IconButton size="small" onClick={() => handleCloseOrder(orden)} sx={{ color: GREEN, '&:hover': { bgcolor: `${GREEN}12` } }}><CheckCircle fontSize="small" /></IconButton></Tooltip>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+                <TablePagination
+                  component="div"
+                  count={ordenesFiltradas.length}
+                  page={page}
+                  onPageChange={(_, p) => setPage(p)}
+                  rowsPerPage={rowsPerPage}
+                  onRowsPerPageChange={e => { setRowsPerPage(parseInt(e.target.value)); setPage(0); }}
+                  rowsPerPageOptions={[10, 15, 25, 50]}
+                  labelRowsPerPage="Filas:"
+                  labelDisplayedRows={({ from, to, count }) => `${from}-${to} de ${count}`}
+                />
+              </>
             )}
           </Box>
         </TabPanel>
@@ -551,14 +722,22 @@ const OrdenesTrabajo = ({ user }) => {
               ) : (
                 <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
                   <Table size="small">
-                    <TableHead><TableRow>{['ID', 'Cliente', 'Operador', 'Total', 'Fecha', 'Acciones'].map(h => <TableCell key={h} sx={{ fontWeight: 800 }}>{h}</TableCell>)}</TableRow></TableHead>
+                    <TableHead>
+                      <TableRow>
+                        {['ID', 'Cliente', 'Operador', 'Servicios / Productos', 'Total', 'Fecha', 'Acciones'].map(h => <TableCell key={h} sx={{ fontWeight: 800 }}>{h}</TableCell>)}
+                      </TableRow>
+                    </TableHead>
                     <TableBody>
-                      {ordenesParaAprobar.length === 0 ? <TableRow><TableCell colSpan={6} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>No hay órdenes pendientes de aprobación</TableCell></TableRow> : (
+                      {ordenesParaAprobar.length === 0 ? <TableRow><TableCell colSpan={7} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>No hay órdenes pendientes de aprobación</TableCell></TableRow> : (
                         ordenesParaAprobar.map(orden => (
                           <TableRow key={orden.id} hover>
                             <TableCell sx={{ fontWeight: 600, color: 'text.secondary' }}>#{orden.id}</TableCell>
                             <TableCell sx={{ fontWeight: 600 }}>{orden.cliente?.nombre}</TableCell>
                             <TableCell sx={{ fontSize: 12 }}>{orden.operador?.username}</TableCell>
+                            <TableCell sx={{ fontSize: 11 }}>
+                              {orden.servicios?.length > 0 && <Box sx={{ color: BLUE, fontWeight: 600 }}>{orden.servicios.map(s => s.servicio.nombre).join(', ')}</Box>}
+                              {orden.productos?.length > 0 && <Box sx={{ color: 'text.secondary' }}>{orden.productos.map(p => `${p.producto.nombre} ×${p.cantidad}`).join(', ')}</Box>}
+                            </TableCell>
                             <TableCell sx={{ fontWeight: 700 }}>{formatCurrency(orden.total)}</TableCell>
                             <TableCell sx={{ fontSize: 11 }}>{new Date(orden.fecha_creacion + 'Z').toLocaleDateString()}</TableCell>
                             <TableCell>
