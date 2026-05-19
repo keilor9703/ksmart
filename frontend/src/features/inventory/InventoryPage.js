@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   Box, Typography, Grid, TextField, Button, MenuItem, Chip,
   Table, TableHead, TableRow, TableCell, TableBody,
   Paper, useMediaQuery, TablePagination, Collapse, Divider,
-  InputAdornment, Stack
+  InputAdornment, Stack, TableSortLabel, Tooltip, IconButton
 } from '@mui/material';
 import TableContainer from '@mui/material/TableContainer';
 import { useTheme, alpha } from '@mui/material/styles';
@@ -15,7 +15,8 @@ import BulkUpload from '../../components/common/BulkUpload';
 import CurrencyField from '../../components/common/CurrencyField';
 import {
   Warning, ExpandMore, ExpandLess, Search,
-  Upload, SwapVert, TrendingUp, TrendingDown, Tune, Layers
+  Upload, SwapVert, TrendingUp, TrendingDown, Tune, Layers,
+  Refresh, FileDownload
 } from '@mui/icons-material';
 
 const ACCENT = '#F59E0B';
@@ -23,13 +24,11 @@ const GREEN  = '#10B981';
 const RED    = '#EF4444';
 const CYAN   = '#06B6D4';
 
-// Después de esta función que ya tienes:
 const formatDate = (d) => {
   if (!d) return '—';
   return new Date(d.endsWith('Z') ? d : d + 'Z').toLocaleString();
 };
 
-// Añade esta:
 const fmtFecha = (val) => {
   if (!val) return '—';
   try {
@@ -37,14 +36,17 @@ const fmtFecha = (val) => {
     return `${d}/${m}/${y}`;
   } catch { return '—'; }
 };
+
 // ─── Banner stock bajo ────────────────────────────────────────────────────────
 const LowStockBanner = () => {
   const [items, setItems] = useState([]);
   const theme = useTheme();
 
-  useEffect(() => {
+  const load = () => {
     fetchLowStockAlerts().then(({ data }) => setItems(data || [])).catch(() => setItems([]));
-  }, []);
+  };
+
+  useEffect(() => { load(); }, []);
 
   if (!items.length) return null;
 
@@ -57,7 +59,7 @@ const LowStockBanner = () => {
       width: '100%', boxSizing: 'border-box',
     }}>
       <Warning sx={{ color: '#D97706', flexShrink: 0, mt: 0.2, fontSize: 20 }} />
-      <Box sx={{ minWidth: 0 }}>
+      <Box sx={{ minWidth: 0, flex: 1 }}>
         <Typography sx={{ fontWeight: 700, fontSize: 12, color: '#92400E', mb: 0.5 }}>
           {items.length} producto{items.length > 1 ? 's' : ''} con stock bajo el mínimo
         </Typography>
@@ -71,6 +73,11 @@ const LowStockBanner = () => {
           ))}
         </Box>
       </Box>
+      <Tooltip title="Actualizar">
+        <IconButton size="small" onClick={load} sx={{ flexShrink: 0, color: '#D97706' }}>
+          <Refresh fontSize="small" />
+        </IconButton>
+      </Tooltip>
     </Box>
   );
 };
@@ -112,27 +119,19 @@ const CollapsePanel = ({ title, icon, color, open, onToggle, children }) => (
 );
 
 // ─── Formulario de movimiento ─────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════
-// REEMPLAZA únicamente el componente MovementForm en InventoryPage.jsx
-// El resto del archivo (LowStockBanner, CollapsePanel, MovementCard,
-// MovementsTable, InventoryPage) queda exactamente igual.
-// ═══════════════════════════════════════════════════════════════════════════
-
 const MovementForm = ({ onCreated }) => {
   const [productos, setProductos]         = useState([]);
   const [productoSel, setProductoSel]     = useState(null);
   const [productoInput, setProductoInput] = useState('');
-  const [open, setOpen]                   = useState(false);
+  const [open, setOpen]                   = useState(true);
   const [saving, setSaving]               = useState(false);
 
-  // ── Estado para producto normal ──────────────────────────────────────────
   const [form, setForm] = useState({
-    tipo: 'ajuste', cantidad: '', motivo: '', referencia: '', observacion: '',
+    tipo: 'ajuste', cantidad: '', motivo: '', referencia: '', observacion: '', costo_unitario: '',
   });
 
-  // ── Estado para producto perecedero ─────────────────────────────────────
   const [lotesExistentes, setLotesExistentes]   = useState([]);
-  const [modoLote, setModoLote]                 = useState('existente'); // 'existente' | 'nuevo'
+  const [modoLote, setModoLote]                 = useState('existente');
   const [loteSel, setLoteSel]                   = useState(null);
   const [loteInput, setLoteInput]               = useState('');
   const [cantidadLote, setCantidadLote]         = useState('');
@@ -146,7 +145,6 @@ const MovementForm = ({ onCreated }) => {
     apiClient.get('/productos/').then(r => setProductos(r.data || [])).catch(() => {});
   }, []);
 
-  // Al seleccionar un producto perecedero, cargar sus lotes activos
   const handleProductoChange = async (prod) => {
     setProductoSel(prod);
     setLoteSel(null); setLoteInput('');
@@ -171,7 +169,6 @@ const MovementForm = ({ onCreated }) => {
   const handleChange = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const getTipoColor = (t) => t === 'entrada' ? GREEN : t === 'salida' ? RED : ACCENT;
 
-  // ── Submit producto NORMAL ───────────────────────────────────────────────
   const submitNormal = async () => {
     if (!productoSel || !form.tipo || !form.cantidad || Number(form.cantidad) <= 0) {
       toast.warning('Debes completar: Producto, Tipo y Cantidad (mayor a 0).');
@@ -183,10 +180,11 @@ const MovementForm = ({ onCreated }) => {
         producto_id: productoSel.id, tipo: form.tipo,
         cantidad: Number(form.cantidad),
         motivo: form.motivo || '', referencia: form.referencia || '', observacion: form.observacion || '',
+        costo_unitario: form.tipo === 'entrada' && form.costo_unitario !== '' ? Number(form.costo_unitario) : 0,
       });
       toast.success('Movimiento registrado exitosamente');
       setProductoSel(null); setProductoInput('');
-      setForm({ tipo: 'ajuste', cantidad: '', motivo: '', referencia: '', observacion: '' });
+      setForm({ tipo: 'ajuste', cantidad: '', motivo: '', referencia: '', observacion: '', costo_unitario: '' });
       setOpen(false);
       onCreated?.();
     } catch (e) {
@@ -194,7 +192,6 @@ const MovementForm = ({ onCreated }) => {
     } finally { setSaving(false); }
   };
 
-  // ── Submit lote EXISTENTE (ajuste) ───────────────────────────────────────
   const submitLoteExistente = async () => {
     if (!loteSel) { toast.warning('Selecciona un lote.'); return; }
     if (!cantidadLote || Number(cantidadLote) === 0) { toast.warning('Ingresa la cantidad (positivo = entrada, negativo = salida).'); return; }
@@ -217,7 +214,6 @@ const MovementForm = ({ onCreated }) => {
     } finally { setSaving(false); }
   };
 
-  // ── Submit NUEVO lote perecedero ─────────────────────────────────────────
   const submitNuevoLote = async () => {
     const { numero_lote, fecha_vencimiento, cantidad_inicial, costo_unitario } = nuevoLote;
     if (!numero_lote || !fecha_vencimiento || !cantidad_inicial || !costo_unitario) {
@@ -257,7 +253,6 @@ const MovementForm = ({ onCreated }) => {
     >
       <Stack direction="column" spacing={1.5} sx={{ width: '100%' }}>
 
-        {/* ── Selector de producto (siempre visible) ── */}
         <Autocomplete
           options={productos}
           value={productoSel}
@@ -268,8 +263,8 @@ const MovementForm = ({ onCreated }) => {
           filterOptions={(opts, state) => {
             const q = (state.inputValue || '').toLowerCase().trim();
             if (!q) return opts;
-            return opts.filter(o => 
-              o.nombre.toLowerCase().includes(q) || 
+            return opts.filter(o =>
+              o.nombre.toLowerCase().includes(q) ||
               String(o.id).includes(q) ||
               (o.codigo_barras && o.codigo_barras.toLowerCase().includes(q))
             );
@@ -296,12 +291,9 @@ const MovementForm = ({ onCreated }) => {
           fullWidth
         />
 
-        {/* ════════════════════════════════════════════════════════════════
-            RAMA A — Producto PERECEDERO
-        ════════════════════════════════════════════════════════════════ */}
+        {/* ── Producto PERECEDERO ── */}
         {esPerecible && productoSel && (
           <>
-            {/* Badge informativo */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1.2, borderRadius: 2,
                         bgcolor: '#ECFDF5', border: '1px solid #A7F3D0' }}>
               <Layers sx={{ color: GREEN, fontSize: 18, flexShrink: 0 }} />
@@ -310,7 +302,6 @@ const MovementForm = ({ onCreated }) => {
               </Typography>
             </Box>
 
-            {/* Selector de modo: lote existente vs nuevo */}
             {lotesExistentes.length > 0 && (
               <Box sx={{ display: 'flex', gap: 1 }}>
                 {[
@@ -335,7 +326,6 @@ const MovementForm = ({ onCreated }) => {
               </Box>
             )}
 
-            {/* ── Modo: LOTE EXISTENTE ── */}
             {modoLote === 'existente' && lotesExistentes.length > 0 && (
               <>
                 <Autocomplete
@@ -345,7 +335,7 @@ const MovementForm = ({ onCreated }) => {
                   inputValue={loteInput}
                   onInputChange={(_, v) => setLoteInput(v)}
                   getOptionLabel={opt => opt
-                    ? `${opt.numero_lote} — Vence: ${fmtFecha ? fmtFecha(opt.fecha_vencimiento) : opt.fecha_vencimiento} · Stock: ${opt.cantidad_actual}`
+                    ? `${opt.numero_lote} — Vence: ${fmtFecha(opt.fecha_vencimiento)} · Stock: ${opt.cantidad_actual}`
                     : ''}
                   renderOption={(props, option) => (
                     <li {...props} key={option.id} style={{ padding: '10px 14px' }}>
@@ -393,7 +383,6 @@ const MovementForm = ({ onCreated }) => {
               </>
             )}
 
-            {/* ── Modo: NUEVO LOTE ── */}
             {(modoLote === 'nuevo' || lotesExistentes.length === 0) && (
               <>
                 <Box sx={{ display: 'flex', gap: 1.5 }}>
@@ -455,9 +444,7 @@ const MovementForm = ({ onCreated }) => {
           </>
         )}
 
-        {/* ════════════════════════════════════════════════════════════════
-            RAMA B — Producto NORMAL (comportamiento original intacto)
-        ════════════════════════════════════════════════════════════════ */}
+        {/* ── Producto NORMAL ── */}
         {!esPerecible && productoSel && (
           <>
             <TextField
@@ -492,6 +479,16 @@ const MovementForm = ({ onCreated }) => {
               />
             </Box>
 
+            {form.tipo === 'entrada' && (
+              <CurrencyField
+                label="Costo unitario (para Kardex)"
+                value={form.costo_unitario}
+                onChange={val => handleChange('costo_unitario', val)}
+                fullWidth
+                helperText="Ingresa el costo para un Kardex preciso. Deja en 0 si es un ajuste de inventario."
+              />
+            )}
+
             <TextField
               label="Referencia / Documento" value={form.referencia}
               onChange={e => handleChange('referencia', e.target.value)}
@@ -503,7 +500,6 @@ const MovementForm = ({ onCreated }) => {
               fullWidth size="small" multiline minRows={2}
             />
 
-            {/* Resumen visual (igual que antes) */}
             {productoSel && Number(form.cantidad) > 0 && (
               <Box sx={{
                 p: 1.5, borderRadius: 2,
@@ -531,7 +527,6 @@ const MovementForm = ({ onCreated }) => {
         )}
       </Stack>
 
-      {/* Botones */}
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 2, flexWrap: 'wrap' }}>
         <Button onClick={() => setOpen(false)} variant="outlined" size="small"
           sx={{ borderRadius: 2, fontWeight: 600, borderColor: 'divider', color: 'text.secondary' }}>
@@ -559,7 +554,6 @@ const MovementForm = ({ onCreated }) => {
     </CollapsePanel>
   );
 };
-
 
 // ─── Card mobile de movimiento ────────────────────────────────────────────────
 const MovementCard = ({ row }) => {
@@ -596,28 +590,91 @@ const MovementCard = ({ row }) => {
 
 // ─── Tabla / lista de movimientos ─────────────────────────────────────────────
 const MovementsTable = ({ refreshKey }) => {
-  const [rows, setRows]             = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [page, setPage]             = useState(0);
+  const [rows, setRows]               = useState([]);
+  const [searchTerm, setSearchTerm]   = useState('');
+  const [page, setPage]               = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [filtroTipo, setFiltroTipo]   = useState('all');
+  const [filtroDesde, setFiltroDesde] = useState('');
+  const [filtroHasta, setFiltroHasta] = useState('');
+  const [sortCol, setSortCol]         = useState('fecha');
+  const [sortDir, setSortDir]         = useState('desc');
   const isMobile = useMediaQuery(useTheme().breakpoints.down('sm'));
 
   useEffect(() => {
     fetchMovements({ limit: 500 }).then(({ data }) => setRows(data || [])).catch(() => {});
   }, [refreshKey]);
 
-  const filteredRows = rows.filter(r => {
+  const filteredRows = useMemo(() => rows.filter(r => {
     const q = searchTerm.toLowerCase();
-    return String(r.id).includes(q) ||
+    const matchSearch = String(r.id).includes(q) ||
       r.producto?.nombre?.toLowerCase().includes(q) ||
       (r.producto?.codigo_barras && r.producto.codigo_barras.toLowerCase().includes(q)) ||
       (r.tipo && r.tipo.toLowerCase().includes(q)) ||
       (r.motivo && r.motivo.toLowerCase().includes(q)) ||
       (r.referencia && r.referencia.toLowerCase().includes(q));
-  });
+    const matchTipo = filtroTipo === 'all' || r.tipo === filtroTipo;
+    const dt = r.created_at ? new Date(r.created_at) : null;
+    const matchDesde = !filtroDesde || (dt && dt >= new Date(filtroDesde));
+    const matchHasta = !filtroHasta || (dt && dt <= new Date(filtroHasta + 'T23:59:59'));
+    return matchSearch && matchTipo && matchDesde && matchHasta;
+  }), [rows, searchTerm, filtroTipo, filtroDesde, filtroHasta]);
 
-  const paginated = filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  const sortedRows = useMemo(() => {
+    return [...filteredRows].sort((a, b) => {
+      if (sortCol === 'fecha') {
+        const da = new Date(a.created_at || 0), db = new Date(b.created_at || 0);
+        return sortDir === 'asc' ? da - db : db - da;
+      }
+      if (sortCol === 'nombre') {
+        const na = a.producto?.nombre ?? '', nb = b.producto?.nombre ?? '';
+        return sortDir === 'asc' ? na.localeCompare(nb) : nb.localeCompare(na);
+      }
+      if (sortCol === 'tipo') {
+        const ta = a.tipo ?? '', tb = b.tipo ?? '';
+        return sortDir === 'asc' ? ta.localeCompare(tb) : tb.localeCompare(ta);
+      }
+      if (sortCol === 'cantidad') return sortDir === 'asc' ? a.cantidad - b.cantidad : b.cantidad - a.cantidad;
+      return 0;
+    });
+  }, [filteredRows, sortCol, sortDir]);
+
+  const paginated = sortedRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   const tipoColor = (t) => t === 'entrada' ? GREEN : t === 'salida' ? RED : ACCENT;
+
+  const SortHeader = ({ col, label, align = 'left' }) => (
+    <TableCell align={align}>
+      <TableSortLabel
+        active={sortCol === col}
+        direction={sortCol === col ? sortDir : 'asc'}
+        onClick={() => {
+          setSortDir(d => sortCol === col ? (d === 'asc' ? 'desc' : 'asc') : 'desc');
+          setSortCol(col);
+        }}
+      >
+        {label}
+      </TableSortLabel>
+    </TableCell>
+  );
+
+  const exportCSV = () => {
+    const headers = ['ID', 'Producto', 'Tipo', 'Cantidad', 'Costo Unit.', 'Motivo', 'Referencia', 'Fecha'];
+    const csvRows = sortedRows.map(r => [
+      r.id,
+      r.producto?.nombre ?? r.producto_id,
+      r.tipo,
+      r.cantidad,
+      r.costo_unitario ?? 0,
+      r.motivo || '',
+      r.referencia || '',
+      formatDate(r.created_at)
+    ]);
+    const csv = [headers, ...csvRows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'movimientos.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+  };
 
   const stats = [
     { label: 'Entradas', val: rows.filter(r => r.tipo === 'entrada').length, color: GREEN },
@@ -639,16 +696,63 @@ const MovementsTable = ({ refreshKey }) => {
         ))}
       </Grid>
 
-      <TextField
-        fullWidth size="small"
-        placeholder="Buscar por producto, tipo, motivo, referencia…"
-        value={searchTerm}
-        onChange={e => { setSearchTerm(e.target.value); setPage(0); }}
-        sx={{ mb: 2 }}
-        InputProps={{
-          startAdornment: <InputAdornment position="start"><Search sx={{ color: 'text.secondary', fontSize: 18 }} /></InputAdornment>,
-        }}
-      />
+      {/* Date range filter */}
+      <Box sx={{ display: 'flex', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
+        <TextField type="date" label="Desde" size="small" value={filtroDesde}
+          onChange={e => { setFiltroDesde(e.target.value); setPage(0); }}
+          InputLabelProps={{ shrink: true }} sx={{ flex: 1, minWidth: 140 }} />
+        <TextField type="date" label="Hasta" size="small" value={filtroHasta}
+          onChange={e => { setFiltroHasta(e.target.value); setPage(0); }}
+          InputLabelProps={{ shrink: true }} sx={{ flex: 1, minWidth: 140 }} />
+        {(filtroDesde || filtroHasta) && (
+          <Button size="small" onClick={() => { setFiltroDesde(''); setFiltroHasta(''); }}
+            variant="outlined" sx={{ borderRadius: 2, borderColor: 'divider', color: 'text.secondary', fontWeight: 600, flexShrink: 0 }}>
+            Limpiar
+          </Button>
+        )}
+      </Box>
+
+      {/* Tipo filter chips */}
+      <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap', mb: 1.5 }}>
+        {[
+          { key: 'all',     label: 'Todos',    color: '#3B82F6' },
+          { key: 'entrada', label: 'Entradas', color: '#10B981' },
+          { key: 'salida',  label: 'Salidas',  color: '#EF4444' },
+          { key: 'ajuste',  label: 'Ajustes',  color: '#F59E0B' },
+        ].map(({ key, label, color }) => {
+          const count = key === 'all' ? filteredRows.length : rows.filter(r => r.tipo === key).length;
+          return (
+            <Chip key={key} label={`${label} (${count})`}
+              onClick={() => { setFiltroTipo(key); setPage(0); }}
+              size="small"
+              sx={{ fontWeight: 600, fontSize: 11, cursor: 'pointer',
+                    bgcolor: filtroTipo === key ? color : 'transparent',
+                    color: filtroTipo === key ? '#fff' : 'text.secondary',
+                    border: `1px solid ${filtroTipo === key ? color : 'divider'}` }}
+            />
+          );
+        })}
+      </Box>
+
+      {/* Search bar + CSV export */}
+      <Box sx={{ display: 'flex', gap: 1, mb: 1.5, alignItems: 'center' }}>
+        <TextField
+          fullWidth size="small"
+          placeholder="Buscar por producto, tipo, motivo, referencia…"
+          value={searchTerm}
+          onChange={e => { setSearchTerm(e.target.value); setPage(0); }}
+          InputProps={{
+            startAdornment: <InputAdornment position="start"><Search sx={{ color: 'text.secondary', fontSize: 18 }} /></InputAdornment>,
+          }}
+          sx={{ flex: 1 }}
+        />
+        <Tooltip title="Exportar CSV">
+          <IconButton onClick={exportCSV} size="small"
+            sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+            <FileDownload fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Box>
 
       {isMobile ? (
         <Box>
@@ -665,9 +769,13 @@ const MovementsTable = ({ refreshKey }) => {
           <Table size="small">
             <TableHead>
               <TableRow>
-                {['#', 'Producto', 'Tipo', 'Cantidad', 'Motivo', 'Referencia', 'Fecha'].map(h => (
-                  <TableCell key={h}>{h}</TableCell>
-                ))}
+                <TableCell>#</TableCell>
+                <SortHeader col="nombre"   label="Producto" />
+                <SortHeader col="tipo"     label="Tipo" />
+                <SortHeader col="cantidad" label="Cantidad" align="left" />
+                <TableCell>Motivo</TableCell>
+                <TableCell>Referencia</TableCell>
+                <SortHeader col="fecha"    label="Fecha" />
               </TableRow>
             </TableHead>
             <TableBody>
@@ -696,7 +804,7 @@ const MovementsTable = ({ refreshKey }) => {
       <TablePagination
         rowsPerPageOptions={[5, 10, 25, 50]}
         component="div"
-        count={filteredRows.length}
+        count={sortedRows.length}
         rowsPerPage={rowsPerPage}
         page={page}
         onPageChange={(_, p) => setPage(p)}

@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   Box, Typography, Grid, TextField, Button, Table, TableHead, TableRow,
   TableCell, TableBody, Tabs, Tab, Chip, TableContainer, Paper,
   Autocomplete, useMediaQuery, InputAdornment, Tooltip, Divider, CircularProgress,
+  TableSortLabel, TablePagination,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import {
@@ -51,6 +52,25 @@ const TipoChip = ({ tipo }) => {
   return (
     <Chip label={p.label} size="small"
       sx={{ bgcolor: `${p.color}18`, color: p.color, fontWeight: 700, fontSize: 10, borderRadius: 1.5 }} />
+  );
+};
+
+// ─── Margen helpers ────────────────────────────────────────────────────────────
+const calcMargen = (precio, costo) => {
+  const p = parseFloat(precio) || 0;
+  const c = parseFloat(costo) || 0;
+  if (!p) return null;
+  return ((p - c) / p * 100);
+};
+
+const MargenChip = ({ precio, costo }) => {
+  const pct = calcMargen(precio, costo);
+  if (pct === null) return <Typography sx={{ color: 'text.disabled', fontSize: 12 }}>—</Typography>;
+  const color = pct >= 30 ? GREEN : pct >= 10 ? '#F59E0B' : RED;
+  return (
+    <Box sx={{ display: 'inline-flex', alignItems: 'center', px: 1, py: 0.2, borderRadius: 1.5, bgcolor: `${color}12`, border: `1px solid ${color}30` }}>
+      <Typography sx={{ fontSize: 11, fontWeight: 700, color }}>{pct.toFixed(1)}%</Typography>
+    </Box>
   );
 };
 
@@ -120,9 +140,13 @@ export default function InventoryReports() {
   const isMobile      = useMediaQuery(theme.breakpoints.down('sm'));
 
   // Inventario actual
-  const [inv, setInv]           = useState({ items: [], total_valor_costo: 0, total_valor_venta: 0 });
-  const [invSearch, setInvSearch] = useState('');
-  const [invLoading, setInvLoading] = useState(false);
+  const [inv, setInv]                 = useState({ items: [], total_valor_costo: 0, total_valor_venta: 0 });
+  const [invSearch, setInvSearch]     = useState('');
+  const [invLoading, setInvLoading]   = useState(false);
+  const [invSortCol, setInvSortCol]   = useState('nombre');
+  const [invSortDir, setInvSortDir]   = useState('asc');
+  const [invPage, setInvPage]         = useState(0);
+  const [invRowsPerPage, setInvRowsPerPage] = useState(25);
 
   // Rotación
   const [rotStart, setRotStart]     = useState('');
@@ -239,8 +263,50 @@ export default function InventoryReports() {
     }
   };
 
-  const invFiltered = inv.items.filter(it =>
-    it.nombre.toLowerCase().includes(invSearch.toLowerCase())
+  // ── Sort + filter + paginate ────────────────────────────────────────────────
+  const invFiltered = useMemo(() => {
+    const q = invSearch.toLowerCase();
+    const filtered = inv.items.filter(it => it.nombre.toLowerCase().includes(q));
+    return [...filtered].sort((a, b) => {
+      if (invSortCol === 'nombre') {
+        return invSortDir === 'asc'
+          ? a.nombre.localeCompare(b.nombre)
+          : b.nombre.localeCompare(a.nombre);
+      }
+      const fields = {
+        stock:    'stock_actual',
+        costo:    'costo',
+        precio:   'precio',
+        valCosto: 'valor_costo',
+        valVenta: 'valor_venta',
+      };
+      const f = fields[invSortCol];
+      if (f) return invSortDir === 'asc'
+        ? (a[f] ?? 0) - (b[f] ?? 0)
+        : (b[f] ?? 0) - (a[f] ?? 0);
+      return 0;
+    });
+  }, [inv.items, invSearch, invSortCol, invSortDir]);
+
+  const invPaginated = useMemo(() =>
+    invFiltered.slice(invPage * invRowsPerPage, invPage * invRowsPerPage + invRowsPerPage),
+    [invFiltered, invPage, invRowsPerPage]
+  );
+
+  // ── InvSortHeader helper (defined inside component to close over state) ──────
+  const InvSortHeader = ({ col, label, align = 'left' }) => (
+    <TableCell align={align}>
+      <TableSortLabel
+        active={invSortCol === col}
+        direction={invSortCol === col ? invSortDir : 'asc'}
+        onClick={() => {
+          setInvSortDir(d => invSortCol === col ? (d === 'asc' ? 'desc' : 'asc') : 'asc');
+          setInvSortCol(col);
+        }}
+      >
+        {label}
+      </TableSortLabel>
+    </TableCell>
   );
 
   const TABS = [
@@ -315,7 +381,7 @@ export default function InventoryReports() {
               <TextField
                 placeholder="Buscar producto…"
                 value={invSearch}
-                onChange={e => setInvSearch(e.target.value)}
+                onChange={e => { setInvSearch(e.target.value); setInvPage(0); }}
                 size="small"
                 sx={{ flex: 1, minWidth: isMobile ? '100%' : 200 }}
                 InputProps={{
@@ -353,7 +419,7 @@ export default function InventoryReports() {
                         </Box>
                       </Box>
                       <Divider sx={{ my: 1 }} />
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                         <Box>
                           <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Val. costo</Typography>
                           <Typography sx={{ fontSize: 13, fontWeight: 700, color: ACCENT }}>{formatCurrency(it.valor_costo)}</Typography>
@@ -363,45 +429,77 @@ export default function InventoryReports() {
                           <Typography sx={{ fontSize: 13, fontWeight: 700, color: GREEN }}>{formatCurrency(it.valor_venta)}</Typography>
                         </Box>
                       </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                        <Box>
+                          <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Margen</Typography>
+                          <MargenChip precio={it.precio} costo={it.costo} />
+                        </Box>
+                      </Box>
                     </Paper>
                   ))
                 }
               </Box>
             ) : (
               /* Desktop: tabla */
-              <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', overflowX: 'auto' }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      {['#', 'Nombre', 'Unidad', 'Stock', 'Costo', 'Precio', 'Val. Costo', 'Val. Venta'].map(h => (
-                        <TableCell key={h} align={['Stock','Costo','Precio','Val. Costo','Val. Venta'].includes(h) ? 'right' : 'left'}>{h}</TableCell>
-                      ))}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {invFiltered.length === 0
-                      ? <TableRow><TableCell colSpan={8} sx={{ textAlign: 'center', py: 5, color: 'text.secondary' }}>No hay ítems</TableCell></TableRow>
-                      : invFiltered.map(it => (
-                        <TableRow key={it.id} hover>
-                          <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{it.id}</TableCell>
-                          <TableCell>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography sx={{ fontWeight: 600, fontSize: 13 }}>{it.nombre}</Typography>
-                              {it.es_servicio && <Chip label="Servicio" size="small" sx={{ fontSize: 9, height: 16, borderRadius: 1 }} />}
-                            </Box>
-                          </TableCell>
-                          <TableCell sx={{ fontSize: 12 }}>{it.unidad_medida || '—'}</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 700 }}>{it.stock_actual}</TableCell>
-                          <TableCell align="right">{formatCurrency(it.costo)}</TableCell>
-                          <TableCell align="right">{formatCurrency(it.precio)}</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 700, color: ACCENT }}>{formatCurrency(it.valor_costo)}</TableCell>
-                          <TableCell align="right" sx={{ color: GREEN, fontWeight: 600 }}>{formatCurrency(it.valor_venta)}</TableCell>
-                        </TableRow>
-                      ))
-                    }
-                  </TableBody>
-                </Table>
-              </TableContainer>
+              <>
+                <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', overflowX: 'auto' }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>#</TableCell>
+                        <InvSortHeader col="nombre"   label="Nombre"    align="left"  />
+                        <TableCell>Unidad</TableCell>
+                        <InvSortHeader col="stock"    label="Stock"     align="right" />
+                        <InvSortHeader col="costo"    label="Costo"     align="right" />
+                        <InvSortHeader col="precio"   label="Precio"    align="right" />
+                        <InvSortHeader col="valCosto" label="Val. Costo" align="right" />
+                        <InvSortHeader col="valVenta" label="Val. Venta" align="right" />
+                        <TableCell align="right">Margen</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {invPaginated.length === 0
+                        ? <TableRow><TableCell colSpan={9} sx={{ textAlign: 'center', py: 5, color: 'text.secondary' }}>No hay ítems</TableCell></TableRow>
+                        : invPaginated.map(it => (
+                          <TableRow key={it.id} hover>
+                            <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{it.id}</TableCell>
+                            <TableCell>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Typography sx={{ fontWeight: 600, fontSize: 13 }}>{it.nombre}</Typography>
+                                {it.es_servicio && <Chip label="Servicio" size="small" sx={{ fontSize: 9, height: 16, borderRadius: 1 }} />}
+                              </Box>
+                            </TableCell>
+                            <TableCell sx={{ fontSize: 12 }}>{it.unidad_medida || '—'}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700 }}>{it.stock_actual}</TableCell>
+                            <TableCell align="right">{formatCurrency(it.costo)}</TableCell>
+                            <TableCell align="right">{formatCurrency(it.precio)}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700, color: ACCENT }}>{formatCurrency(it.valor_costo)}</TableCell>
+                            <TableCell align="right" sx={{ color: GREEN, fontWeight: 600 }}>{formatCurrency(it.valor_venta)}</TableCell>
+                            <TableCell align="right"><MargenChip precio={it.precio} costo={it.costo} /></TableCell>
+                          </TableRow>
+                        ))
+                      }
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+                <TablePagination
+                  rowsPerPageOptions={[10, 25, 50, 100]}
+                  component="div"
+                  count={invFiltered.length}
+                  rowsPerPage={invRowsPerPage}
+                  page={invPage}
+                  onPageChange={(_, p) => setInvPage(p)}
+                  onRowsPerPageChange={e => { setInvRowsPerPage(parseInt(e.target.value, 10)); setInvPage(0); }}
+                  labelRowsPerPage="Filas:"
+                  labelDisplayedRows={({ from, to, count }) => `${from}-${to} de ${count}`}
+                  sx={{
+                    '& .MuiTablePagination-toolbar': { flexWrap: 'wrap', pl: 0 },
+                    '& .MuiTablePagination-spacer': { display: 'none' },
+                    '& .MuiTablePagination-displayedRows': { fontSize: 11 },
+                    '& .MuiTablePagination-selectLabel': { fontSize: 11 },
+                  }}
+                />
+              </>
             )}
           </TabPanel>
 

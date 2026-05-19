@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   Box, Typography, Table, TableBody, TableCell, TableContainer,
-  TableHead, TableRow, Chip, TextField, TablePagination, useTheme, useMediaQuery,
-  Paper, Grid, InputAdornment, Button, Autocomplete
+  TableHead, TableRow, TableSortLabel, Chip, TextField, TablePagination,
+  useTheme, useMediaQuery, Paper, Grid, InputAdornment, Button, Autocomplete,
+  IconButton, Tooltip
 } from "@mui/material";
 import {
   Inventory2Outlined, Search, Warning, AttachMoney, Category,
-  Receipt, Settings
+  Receipt, Settings, Refresh, FileDownload
 } from "@mui/icons-material";
 import apiClient from "../../api";
 import { formatCurrency } from "../../utils/formatters";
@@ -14,6 +15,11 @@ import InventoryPage from "./InventoryPage";
 import GruposProductoManager from "./GruposProductoManager";
 
 const ACCENT = '#F59E0B';
+const GREEN  = '#10B981';
+const RED    = '#EF4444';
+const BLUE   = '#3B82F6';
+
+const TODOS_GRUPO = { id: 0, nombre: 'Todos', codigo: 'ALL', color: '#94a3b8' };
 
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
 const KpiCard = ({ label, value, icon, color, sub }) => (
@@ -60,6 +66,7 @@ const StockCard = ({ producto, grupos }) => {
   const minimo = producto.stock_minimo ?? 0;
   const low    = stock < minimo;
   const grupo  = grupos.find(g => g.id === producto.grupo_item) || { codigo: '—', color: '#94a3b8' };
+  const pct    = minimo > 0 ? Math.min(100, Math.round((stock / minimo) * 100)) : 100;
 
   return (
     <Paper sx={{ p: 2, mb: 1.5, borderRadius: 3, boxShadow: '0 2px 10px rgba(0,0,0,0.06)', width: '100%', boxSizing: 'border-box' }}>
@@ -81,7 +88,7 @@ const StockCard = ({ producto, grupos }) => {
       </Box>
       <Grid container spacing={1}>
         {[
-          { label: 'Stock actual', val: stock,                            color: low ? '#EF4444' : 'text.primary' },
+          { label: 'Stock actual', val: stock,                            color: low ? RED : 'text.primary' },
           { label: 'Stock mínimo', val: minimo,                           color: 'text.secondary' },
           { label: 'Costo unit.',  val: formatCurrency(producto.costo),   color: 'text.primary' },
           { label: 'Valorización', val: formatCurrency(stock * producto.costo), color: ACCENT },
@@ -94,25 +101,37 @@ const StockCard = ({ producto, grupos }) => {
           </Grid>
         ))}
       </Grid>
+      {/* Stock % progress bar */}
+      <Box sx={{ mt: 1.5 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.4 }}>
+          <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>Stock vs mínimo</Typography>
+          <Typography sx={{ fontSize: 9, fontWeight: 700, color: low ? RED : GREEN }}>{pct}%</Typography>
+        </Box>
+        <Box sx={{ height: 5, borderRadius: 3, bgcolor: 'action.hover', overflow: 'hidden' }}>
+          <Box sx={{ height: '100%', width: `${pct}%`, borderRadius: 3, bgcolor: low ? RED : GREEN, transition: 'width 0.4s' }} />
+        </Box>
+      </Box>
     </Paper>
   );
 };
 
 // ─── Componente principal ──────────────────────────────────────────────────────
-// Vistas posibles: 'grupo' | 'movimientos' | 'config'
 export default function Inventario() {
-  const [vista, setVista]           = useState('grupo');
-  const [productos, setProductos]   = useState([]);
-  const [grupos, setGrupos]         = useState([]);
+  const [vista, setVista]               = useState('grupo');
+  const [productos, setProductos]       = useState([]);
+  const [grupos, setGrupos]             = useState([]);
   const [currentGrupo, setCurrentGrupo] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [page, setPage]             = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [searchTerm, setSearchTerm]     = useState('');
+  const [filterStock, setFilterStock]   = useState('all');
+  const [sortCol, setSortCol]           = useState('nombre');
+  const [sortDir, setSortDir]           = useState('asc');
+  const [page, setPage]                 = useState(0);
+  const [rowsPerPage, setRowsPerPage]   = useState(10);
 
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  useEffect(() => { fetchStock(); fetchGrupos(); }, []);
+  useEffect(() => { fetchStock(); fetchGrupos(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchStock = async () => {
     try { const res = await apiClient.get('/productos/'); setProductos(res.data || []); }
@@ -124,41 +143,111 @@ export default function Inventario() {
       const res = await apiClient.get('/grupos-producto/');
       const data = res.data || [];
       setGrupos(data);
-      if (data.length > 0 && !currentGrupo) setCurrentGrupo(data[0]);
+      if (data.length > 0 && !currentGrupo) setCurrentGrupo(TODOS_GRUPO);
     } catch (err) { console.error(err); }
   };
+
+  const handleRefresh = () => { fetchStock(); fetchGrupos(); };
 
   const soloProductos  = productos.filter(p => !p.es_servicio);
   const stockBajoCount = soloProductos.filter(p => (p.stock_actual ?? 0) < (p.stock_minimo ?? 0)).length;
   const valorTotal     = soloProductos.reduce((s, p) => s + (p.stock_actual ?? 0) * p.costo, 0);
 
-  const filteredData = useMemo(() => {
-    if (!currentGrupo) return [];
+  // Products belonging to the selected group (or all if Todos)
+  const soloProductosFiltered = useMemo(() => {
+    const byGroup = (!currentGrupo || currentGrupo.id === 0)
+      ? soloProductos
+      : soloProductos.filter(p => p.grupo_item === currentGrupo.id);
     const q = searchTerm.toLowerCase();
-    return soloProductos
-      .filter(p => p.grupo_item === currentGrupo.id &&
-        (p.nombre.toLowerCase().includes(q) ||
-         (p.codigo_barras && p.codigo_barras.toLowerCase().includes(q)) ||
-         (p.descripcion && p.descripcion.toLowerCase().includes(q)))
-      )
-      .sort((a, b) => a.nombre.localeCompare(b.nombre));
+    return byGroup.filter(p =>
+      p.nombre.toLowerCase().includes(q) ||
+      (p.codigo_barras && p.codigo_barras.toLowerCase().includes(q)) ||
+      (p.descripcion && p.descripcion.toLowerCase().includes(q))
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productos, currentGrupo, searchTerm]);
+
+  // Apply stock filter chip
+  const filteredBase = useMemo(() => {
+    if (filterStock === 'bajo')     return soloProductosFiltered.filter(p => (p.stock_actual ?? 0) > 0 && (p.stock_actual ?? 0) < (p.stock_minimo ?? 0));
+    if (filterStock === 'sinStock') return soloProductosFiltered.filter(p => (p.stock_actual ?? 0) <= 0);
+    return soloProductosFiltered;
+  }, [soloProductosFiltered, filterStock]);
+
+  // Apply sort
+  const filteredData = useMemo(() => {
+    return [...filteredBase].sort((a, b) => {
+      let va, vb;
+      if (sortCol === 'nombre') {
+        va = a.nombre; vb = b.nombre;
+        return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+      }
+      if (sortCol === 'stock')  { va = a.stock_actual ?? 0; vb = b.stock_actual ?? 0; }
+      if (sortCol === 'minimo') { va = a.stock_minimo ?? 0; vb = b.stock_minimo ?? 0; }
+      if (sortCol === 'costo')  { va = a.costo ?? 0;        vb = b.costo ?? 0; }
+      if (sortCol === 'valor')  { va = (a.stock_actual ?? 0) * a.costo; vb = (b.stock_actual ?? 0) * b.costo; }
+      return sortDir === 'asc' ? va - vb : vb - va;
+    });
+  }, [filteredBase, sortCol, sortDir]);
 
   const paginatedData = useMemo(() =>
     filteredData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
     [filteredData, page, rowsPerPage]
   );
 
-  const grupoItems = currentGrupo ? soloProductos.filter(p => p.grupo_item === currentGrupo.id) : [];
+  const grupoItems = currentGrupo && currentGrupo.id !== 0
+    ? soloProductos.filter(p => p.grupo_item === currentGrupo.id)
+    : soloProductos;
   const grupoValor = grupoItems.reduce((s, p) => s + (p.stock_actual ?? 0) * p.costo, 0);
   const grupoBajo  = grupoItems.filter(p => (p.stock_actual ?? 0) < (p.stock_minimo ?? 0)).length;
 
   const handleGrupoChange = (_, newGrupo) => {
     setCurrentGrupo(newGrupo);
     setSearchTerm('');
+    setFilterStock('all');
     setPage(0);
     if (newGrupo) setVista('grupo');
   };
+
+  const handleSort = (col) => {
+    setSortDir(prev => sortCol === col ? (prev === 'asc' ? 'desc' : 'asc') : 'asc');
+    setSortCol(col);
+  };
+
+  const SortHeader = ({ col, label, align = 'left' }) => (
+    <TableCell align={align}>
+      <TableSortLabel
+        active={sortCol === col}
+        direction={sortCol === col ? sortDir : 'asc'}
+        onClick={() => handleSort(col)}
+      >
+        {label}
+      </TableSortLabel>
+    </TableCell>
+  );
+
+  const exportCSV = () => {
+    const headers = ['ID', 'Nombre', 'Categoría', 'U.M.', 'Stock', 'Mínimo', 'Costo', 'Valorización', 'Estado'];
+    const rows = filteredData.map(p => {
+      const grupo = grupos.find(g => g.id === p.grupo_item) || { nombre: '—' };
+      const stock = p.stock_actual ?? 0;
+      return [
+        p.id, p.nombre, grupo.nombre, p.unidad_medida,
+        stock, p.stock_minimo ?? 0, p.costo,
+        stock * p.costo,
+        stock < (p.stock_minimo ?? 0) ? 'Bajo' : 'Normal',
+      ];
+    });
+    const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'stock_inventario.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+  };
+
+  // Groups list with synthetic "Todos" at the top
+  const gruposConTodos = useMemo(() => [TODOS_GRUPO, ...grupos], [grupos]);
 
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
@@ -168,10 +257,15 @@ export default function Inventario() {
         <Box sx={{ width: 38, height: 38, borderRadius: 2, flexShrink: 0, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT }}>
           <Inventory2Outlined />
         </Box>
-        <Box sx={{ minWidth: 0 }}>
+        <Box sx={{ minWidth: 0, flex: 1 }}>
           <Typography sx={{ fontWeight: 700, fontSize: 18, lineHeight: 1.2 }}>Inventarios</Typography>
           <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Stock, valorización y movimientos</Typography>
         </Box>
+        <Tooltip title="Actualizar datos">
+          <IconButton size="small" onClick={handleRefresh} sx={{ color: 'text.secondary' }}>
+            <Refresh fontSize="small" />
+          </IconButton>
+        </Tooltip>
       </Box>
 
       {/* ── KPIs globales ── */}
@@ -180,12 +274,12 @@ export default function Inventario() {
           <KpiCard label="Valorización total" value={formatCurrency(valorTotal)} icon={<AttachMoney />} color={ACCENT} />
         </Grid>
         <Grid item xs={6} sm={4}>
-          <KpiCard label="Total SKUs" value={soloProductos.length} icon={<Category />} color="#3B82F6" />
+          <KpiCard label="Total SKUs" value={soloProductos.length} icon={<Category />} color={BLUE} />
         </Grid>
         <Grid item xs={12} sm={4}>
           <KpiCard
             label="Alertas de stock" value={stockBajoCount} icon={<Warning />}
-            color={stockBajoCount > 0 ? '#EF4444' : '#10B981'}
+            color={stockBajoCount > 0 ? RED : GREEN}
             sub={stockBajoCount === 0 ? 'Todo en niveles normales' : 'Productos bajo mínimo'}
           />
         </Grid>
@@ -196,15 +290,23 @@ export default function Inventario() {
         {/* ── Selector de categoría + botones de acción ── */}
         <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
 
-          {/* Autocomplete con búsqueda — escala a miles de categorías */}
           <Autocomplete
-            options={grupos}
+            options={gruposConTodos}
             getOptionLabel={(g) => g.nombre}
             value={currentGrupo}
             onChange={handleGrupoChange}
             isOptionEqualToValue={(a, b) => a.id === b.id}
             disableClearable
             renderOption={(props, g) => {
+              if (g.id === 0) {
+                return (
+                  <Box component="li" {...props} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: '10px !important' }}>
+                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: g.color, flexShrink: 0 }} />
+                    <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{g.nombre}</Typography>
+                    <Typography sx={{ fontSize: 11, color: 'text.secondary', ml: 'auto' }}>{soloProductos.length} productos</Typography>
+                  </Box>
+                );
+              }
               const bajos = soloProductos.filter(p => p.grupo_item === g.id)
                 .filter(p => (p.stock_actual ?? 0) < (p.stock_minimo ?? 0)).length;
               return (
@@ -216,7 +318,7 @@ export default function Inventario() {
                   </Box>
                   {bajos > 0 && (
                     <Chip label={`${bajos} bajo`} size="small"
-                      sx={{ height: 18, fontSize: 9, fontWeight: 700, bgcolor: '#EF444420', color: '#EF4444', '& .MuiChip-label': { px: 0.8 } }} />
+                      sx={{ height: 18, fontSize: 9, fontWeight: 700, bgcolor: '#EF444420', color: RED, '& .MuiChip-label': { px: 0.8 } }} />
                   )}
                 </Box>
               );
@@ -242,7 +344,6 @@ export default function Inventario() {
             noOptionsText="Sin categorías"
           />
 
-          {/* Botones fijos: Movimientos y Categorías */}
           <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
             <Button
               size="small"
@@ -280,28 +381,60 @@ export default function Inventario() {
           {/* ── Vista: stock de la categoría seleccionada ── */}
           {vista === 'grupo' && (
             <>
-              {currentGrupo && (
-                <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'nowrap' }}>
-                  <MiniKpi label={`Ítems en ${currentGrupo.nombre}`} value={grupoItems.length} color={currentGrupo.color} />
-                  <MiniKpi label="Valorización" value={formatCurrency(grupoValor)} color={ACCENT} />
-                  {grupoBajo > 0 && <MiniKpi label="Stock bajo" value={grupoBajo} color="#EF4444" />}
-                </Box>
-              )}
+              <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'nowrap' }}>
+                <MiniKpi
+                  label={currentGrupo?.id === 0 ? 'Total productos' : `Ítems en ${currentGrupo?.nombre}`}
+                  value={grupoItems.length}
+                  color={currentGrupo?.color ?? '#94a3b8'}
+                />
+                <MiniKpi label="Valorización" value={formatCurrency(grupoValor)} color={ACCENT} />
+                {grupoBajo > 0 && <MiniKpi label="Stock bajo" value={grupoBajo} color={RED} />}
+              </Box>
 
-              <TextField
-                fullWidth size="small"
-                placeholder={`Buscar en ${currentGrupo?.nombre ?? 'categoría'}…`}
-                value={searchTerm}
-                onChange={e => { setSearchTerm(e.target.value); setPage(0); }}
-                sx={{ mb: 2 }}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Search sx={{ color: 'text.secondary', fontSize: 18 }} />
-                    </InputAdornment>
-                  ),
-                }}
-              />
+              {/* Search bar + export button */}
+              <Box sx={{ display: 'flex', gap: 1, mb: 1, alignItems: 'center' }}>
+                <TextField
+                  fullWidth size="small"
+                  placeholder={currentGrupo?.id === 0 ? 'Buscar en todos los productos…' : `Buscar en ${currentGrupo?.nombre ?? 'categoría'}…`}
+                  value={searchTerm}
+                  onChange={e => { setSearchTerm(e.target.value); setPage(0); }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Search sx={{ color: 'text.secondary', fontSize: 18 }} />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+                <Tooltip title="Exportar CSV">
+                  <IconButton size="small" onClick={exportCSV} sx={{ color: 'text.secondary', flexShrink: 0 }}>
+                    <FileDownload fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+
+              {/* Filter chips */}
+              <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap', mb: 2 }}>
+                {[
+                  { key: 'all',      label: 'Todos',      count: soloProductosFiltered.length },
+                  { key: 'bajo',     label: 'Stock bajo', count: soloProductosFiltered.filter(p => (p.stock_actual ?? 0) > 0 && (p.stock_actual ?? 0) < (p.stock_minimo ?? 0)).length },
+                  { key: 'sinStock', label: 'Sin stock',  count: soloProductosFiltered.filter(p => (p.stock_actual ?? 0) <= 0).length },
+                ].map(({ key, label, count }) => (
+                  <Chip
+                    key={key}
+                    label={`${label} (${count})`}
+                    onClick={() => { setFilterStock(key); setPage(0); }}
+                    size="small"
+                    variant={filterStock === key ? 'filled' : 'outlined'}
+                    sx={{
+                      fontWeight: 600, fontSize: 11, cursor: 'pointer',
+                      bgcolor: filterStock === key ? ACCENT : 'transparent',
+                      color: filterStock === key ? '#fff' : 'text.secondary',
+                      borderColor: filterStock === key ? ACCENT : 'divider',
+                    }}
+                  />
+                ))}
+              </Box>
 
               {isMobile ? (
                 <Box>
@@ -318,9 +451,15 @@ export default function Inventario() {
                   <Table size="small">
                     <TableHead>
                       <TableRow>
-                        {['#', 'Nombre', 'Categoría', 'U.M.', 'Stock', 'Mínimo', 'Costo', 'Valorización', 'Estado'].map(h => (
-                          <TableCell key={h}>{h}</TableCell>
-                        ))}
+                        <TableCell>#</TableCell>
+                        <SortHeader col="nombre" label="Nombre" />
+                        <TableCell>Categoría</TableCell>
+                        <TableCell>U.M.</TableCell>
+                        <SortHeader col="stock"  label="Stock"       align="left" />
+                        <SortHeader col="minimo" label="Mínimo"      align="left" />
+                        <SortHeader col="costo"  label="Costo"       align="left" />
+                        <SortHeader col="valor"  label="Valorización" align="left" />
+                        <TableCell>Estado</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -342,7 +481,7 @@ export default function Inventario() {
                                     sx={{ bgcolor: `${grupo.color}18`, color: grupo.color, fontWeight: 700, fontSize: 10, borderRadius: 1 }} />
                                 </TableCell>
                                 <TableCell sx={{ fontSize: 12 }}>{p.unidad_medida}</TableCell>
-                                <TableCell sx={{ fontWeight: 700, color: low ? '#EF4444' : 'text.primary' }}>{stock}</TableCell>
+                                <TableCell sx={{ fontWeight: 700, color: low ? RED : 'text.primary' }}>{stock}</TableCell>
                                 <TableCell sx={{ color: 'text.secondary' }}>{minimo}</TableCell>
                                 <TableCell>{formatCurrency(p.costo)}</TableCell>
                                 <TableCell sx={{ fontWeight: 700, color: ACCENT }}>{formatCurrency(stock * p.costo)}</TableCell>
@@ -388,12 +527,10 @@ export default function Inventario() {
               setGrupos(nuevos);
               if (nuevos.length > 0) {
                 const still = nuevos.find(g => g.id === currentGrupo?.id);
-                setCurrentGrupo(still ?? nuevos[0]);
+                setCurrentGrupo(still ?? TODOS_GRUPO);
               } else {
-                setCurrentGrupo(null);
+                setCurrentGrupo(TODOS_GRUPO);
               }
-              // ✅ FIX: No forzar el cambio de vista aquí para permitir múltiples ediciones.
-              // El usuario puede volver seleccionando una categoría en el buscador superior.
             }} />
           )}
 
