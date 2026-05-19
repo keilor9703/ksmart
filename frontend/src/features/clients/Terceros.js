@@ -1,18 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { 
+import React, { useState, useEffect, useMemo } from 'react';
+import {
   Box, Typography, Tabs, Tab, Button, Grid, Paper,
-  useTheme, useMediaQuery, CircularProgress 
+  useTheme, useMediaQuery, CircularProgress, Tooltip, IconButton
 } from '@mui/material';
-import { People, Add, AccountBalance, TrendingUp } from '@mui/icons-material';
+import { People, Add, AccountBalance, TrendingUp, Refresh, Handshake } from '@mui/icons-material';
 import ClienteForm from './ClienteForm';
 import ClienteList from './ClienteList';
 import CuentasPorCobrar from '../finance/CuentasPorCobrar';
 
-// ✅ IMPORTACIONES DE GRADO COMERCIAL
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
+import { formatCurrency } from '../../utils/formatters';
 
-const ACCENT = '#3B82F6';
+const ACCENT  = '#3B82F6';
+const GREEN   = '#10B981';
+const RED     = '#EF4444';
+const PURPLE  = '#8B5CF6';
 
 function TabPanel({ children, value, index }) {
   return (
@@ -22,17 +25,16 @@ function TabPanel({ children, value, index }) {
   );
 }
 
-// ── KPI Card (Mejorada con esqueleto/loading state) ──
-const KpiCard = ({ label, value, icon, color, loading }) => (
-  <Paper sx={{ 
-    p: 2.5, borderRadius: 3, 
-    display: 'flex', alignItems: 'center', gap: 2, 
-    boxShadow: '0 2px 12px rgba(0,0,0,0.06)' 
+const KpiCard = ({ label, value, icon, color, loading, sub }) => (
+  <Paper sx={{
+    p: 2.5, borderRadius: 3,
+    display: 'flex', alignItems: 'center', gap: 2,
+    boxShadow: '0 2px 12px rgba(0,0,0,0.06)'
   }}>
-    <Box sx={{ 
+    <Box sx={{
       width: 48, height: 48, borderRadius: 2, flexShrink: 0,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      bgcolor: `${color}18`, color 
+      bgcolor: `${color}18`, color
     }}>
       {icon}
     </Box>
@@ -40,59 +42,55 @@ const KpiCard = ({ label, value, icon, color, loading }) => (
       <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 500, mb: 0.3 }}>
         {label}
       </Typography>
-      <Typography sx={{ fontSize: 18, fontWeight: 700, color: 'text.primary' }}>
+      <Typography sx={{ fontSize: 18, fontWeight: 700, color: 'text.primary', lineHeight: 1.2 }}>
         {loading ? <CircularProgress size={18} sx={{ color }} /> : value}
       </Typography>
+      {sub && !loading && (
+        <Typography sx={{ fontSize: 10, color: 'text.secondary', mt: 0.2 }}>{sub}</Typography>
+      )}
     </Box>
   </Paper>
 );
 
 export default function Terceros() {
-  const theme = useTheme();
+  const theme   = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const [tab, setTab] = useState(0);
+  const [tab, setTab]               = useState(0);
   const [clienteToEdit, setClienteToEdit] = useState(null);
-  const [refreshList, setRefreshList] = useState(0);
-  const [formOpen, setFormOpen] = useState(false);
+  const [formOpen, setFormOpen]     = useState(false);
 
-  // ── Estados reales para los KPIs ──
+  // Single source of truth for all clientes
+  const [clientes, setClientes]     = useState([]);
+  const [loadingClientes, setLoadingClientes] = useState(true);
+  const [cuentasPorCobrar, setCuentasPorCobrar] = useState(0);
   const [loadingStats, setLoadingStats] = useState(true);
-  const [stats, setStats] = useState({
-    totalClientes: 0,
-    totalProveedores: 0,
-    cuentasPorCobrar: 0
-  });
 
-  // ── FUNCIÓN DE EXTRACCIÓN PARALELA Y OPTIMIZADA ──
-  const fetchStats = async () => {
+  const fetchAll = async () => {
+    setLoadingClientes(true);
     setLoadingStats(true);
     try {
-      // Usamos Promise.all para evitar el bloqueo en cascada (N+1 Request Anti-pattern)
       const [clientesRes, dashboardRes] = await Promise.all([
         apiClient.get('/clientes/'),
-        apiClient.get('/reportes/dashboard') // Aquí el backend ya calcula la cartera limpia
+        apiClient.get('/reportes/dashboard'),
       ]);
-
-      const clientesData = clientesRes.data || [];
-      
-      setStats({
-        totalClientes: clientesData.filter(c => c.es_cliente).length,
-        totalProveedores: clientesData.filter(c => c.es_proveedor).length,
-        cuentasPorCobrar: dashboardRes.data?.cuentas_por_cobrar || 0
-      });
-    } catch (error) {
-      console.error("Error al obtener estadísticas de terceros:", error);
-      toast.error("Hubo un problema al cargar los indicadores.");
+      setClientes(clientesRes.data || []);
+      setCuentasPorCobrar(dashboardRes.data?.cuentas_por_cobrar || 0);
+    } catch {
+      toast.error('Hubo un problema al cargar los terceros.');
     } finally {
+      setLoadingClientes(false);
       setLoadingStats(false);
     }
   };
 
-  // ── EFECTO REACTIVO: Se dispara al montar y cada vez que 'refreshList' cambie ──
-  useEffect(() => {
-    fetchStats();
-  }, [refreshList]);
+  useEffect(() => { fetchAll(); }, []);
+
+  const stats = useMemo(() => ({
+    totalClientes:   clientes.filter(c => c.es_cliente).length,
+    totalProveedores: clientes.filter(c => c.es_proveedor).length,
+    totalDuales:     clientes.filter(c => c.es_cliente && c.es_proveedor).length,
+  }), [clientes]);
 
   const handleEdit = (cliente) => {
     setClienteToEdit(cliente);
@@ -103,8 +101,7 @@ export default function Terceros() {
   const handleSuccess = () => {
     setClienteToEdit(null);
     setFormOpen(false);
-    // Disparar la actualización de listas y KPIs simultáneamente
-    setRefreshList(prev => prev + 1); 
+    fetchAll();
   };
 
   const handleNewTercero = () => {
@@ -117,20 +114,16 @@ export default function Terceros() {
     <Box sx={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
 
       {/* ── Header ── */}
-      <Box sx={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'space-between', 
-        mb: 3, 
-        flexWrap: 'wrap', 
-        gap: 2 
+      <Box sx={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        mb: 3, flexWrap: 'wrap', gap: 2
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box sx={{ 
-            width: 40, height: 40, borderRadius: 2, 
-            bgcolor: `${ACCENT}18`, 
-            display: 'flex', alignItems: 'center', justifyContent: 'center', 
-            color: ACCENT 
+          <Box sx={{
+            width: 40, height: 40, borderRadius: 2,
+            bgcolor: `${ACCENT}18`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: ACCENT
           }}>
             <People />
           </Box>
@@ -143,49 +136,65 @@ export default function Terceros() {
             </Typography>
           </Box>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={handleNewTercero}
-          sx={{
-            background: `linear-gradient(135deg, ${ACCENT}, #60a5fa)`,
-            boxShadow: `0 4px 14px rgba(59,130,246,0.35)`,
-            borderRadius: 2,
-            fontWeight: 600,
-          }}
-        >
-          Nuevo Tercero
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Tooltip title="Actualizar datos">
+            <IconButton onClick={fetchAll} size="small" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+              <Refresh fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={handleNewTercero}
+            sx={{
+              background: `linear-gradient(135deg, ${ACCENT}, #60a5fa)`,
+              boxShadow: `0 4px 14px rgba(59,130,246,0.35)`,
+              borderRadius: 2, fontWeight: 600,
+            }}
+          >
+            Nuevo Tercero
+          </Button>
+        </Box>
       </Box>
 
-      {/* ── KPIs DINÁMICOS ── */}
+      {/* ── KPIs ── */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={4}>
-          <KpiCard 
-            label="Total clientes" 
-            value={stats.totalClientes} 
-            icon={<People />} 
+        <Grid item xs={6} sm={3}>
+          <KpiCard
+            label="Clientes"
+            value={stats.totalClientes}
+            icon={<People />}
             color={ACCENT}
             loading={loadingStats}
+            sub={`${clientes.filter(c => c.es_cliente && c.cupo_credito > 0).length} con crédito`}
           />
         </Grid>
-        <Grid item xs={12} sm={4}>
-          <KpiCard 
-            label="Proveedores activos" 
-            value={stats.totalProveedores} 
-            icon={<AccountBalance />} 
-            color="#10B981"
+        <Grid item xs={6} sm={3}>
+          <KpiCard
+            label="Proveedores"
+            value={stats.totalProveedores}
+            icon={<AccountBalance />}
+            color={GREEN}
             loading={loadingStats}
           />
         </Grid>
-        <Grid item xs={12} sm={4}>
-          <KpiCard 
-            label="Cuentas por cobrar" 
-            // Formateo seguro para monedas (UX comercial)
-            value={stats.cuentasPorCobrar.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })} 
-            icon={<TrendingUp />} 
-            color="#EF4444"
+        <Grid item xs={6} sm={3}>
+          <KpiCard
+            label="Cuentas por cobrar"
+            value={cuentasPorCobrar.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })}
+            icon={<TrendingUp />}
+            color={RED}
             loading={loadingStats}
+          />
+        </Grid>
+        <Grid item xs={6} sm={3}>
+          <KpiCard
+            label="Duales (C + P)"
+            value={stats.totalDuales}
+            icon={<Handshake />}
+            color={PURPLE}
+            loading={loadingStats}
+            sub="cliente y proveedor"
           />
         </Grid>
       </Grid>
@@ -203,12 +212,8 @@ export default function Terceros() {
         </Box>
       )}
 
-      {/* ── Tabs Container ── */}
-      <Paper sx={{
-        borderRadius: 3,
-        boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
-        overflow: 'hidden',
-      }}>
+      {/* ── Tabs ── */}
+      <Paper sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
         <Tabs
           value={tab}
           onChange={(_, v) => setTab(v)}
@@ -216,8 +221,7 @@ export default function Terceros() {
           scrollButtons={false}
           sx={{
             px: isMobile ? 0 : 2,
-            borderBottom: '1px solid',
-            borderColor: 'divider',
+            borderBottom: '1px solid', borderColor: 'divider',
             '& .MuiTab-root': {
               fontWeight: 600,
               fontSize: isMobile ? 11 : 13,
@@ -226,27 +230,24 @@ export default function Terceros() {
               minWidth: 0,
               px: isMobile ? 0.5 : 2,
             },
-            '& .MuiTabs-indicator': {
-              backgroundColor: ACCENT,
-              height: 3,
-              borderRadius: 3,
-            },
+            '& .MuiTabs-indicator': { backgroundColor: ACCENT, height: 3, borderRadius: 3 },
             '& .Mui-selected': { color: `${ACCENT} !important` },
           }}
         >
-          <Tab label={isMobile ? '👥 Clientes' : '👥 Clientes'} />
-          <Tab label={isMobile ? '🏭 Proveedores' : '🏭 Proveedores'} />
-          <Tab label={isMobile ? '💰 Por Cobrar' : '💰 Cuentas por Cobrar'} />
+          <Tab label="👥 Clientes" />
+          <Tab label="🏭 Proveedores" />
+          <Tab label="💰 Por Cobrar" />
         </Tabs>
 
-        {/* ── Contenido de Tabs ── */}
         <TabPanel value={tab} index={0}>
           <Box sx={{ px: { xs: 2, md: 3 }, pb: 3 }}>
             <ClienteList
-              key={`cli-${refreshList}`}
               filterType="cliente"
               onEditCliente={handleEdit}
+              onClienteDeleted={fetchAll}
               accentColor={ACCENT}
+              clientes={clientes}
+              loading={loadingClientes}
             />
           </Box>
         </TabPanel>
@@ -254,17 +255,19 @@ export default function Terceros() {
         <TabPanel value={tab} index={1}>
           <Box sx={{ px: { xs: 2, md: 3 }, pb: 3 }}>
             <ClienteList
-              key={`prov-${refreshList}`}
               filterType="proveedor"
               onEditCliente={handleEdit}
+              onClienteDeleted={fetchAll}
               accentColor={ACCENT}
+              clientes={clientes}
+              loading={loadingClientes}
             />
           </Box>
         </TabPanel>
 
         <TabPanel value={tab} index={2}>
           <Box sx={{ px: { xs: 1.5, md: 3 }, pb: 3 }}>
-            <CuentasPorCobrar key={`cxc-${refreshList}`} />
+            <CuentasPorCobrar key={`cxc`} />
           </Box>
         </TabPanel>
       </Paper>

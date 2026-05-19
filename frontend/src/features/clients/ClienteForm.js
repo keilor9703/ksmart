@@ -52,18 +52,11 @@ const ClienteForm = ({
 
   const [formOpen, setFormOpen]     = useState(false);
   const [bulkOpen, setBulkOpen]     = useState(false);
-  const [clientes, setClientes]     = useState([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  // Sincronizar apertura con prop externa (cuando se edita o se hace clic en "Nuevo Tercero")
   useEffect(() => {
     if (forceOpen !== undefined) setFormOpen(forceOpen);
   }, [forceOpen]);
-
-  useEffect(() => { fetchClientes(); }, []);
-
-  const fetchClientes = () =>
-    apiClient.get('/clientes/').then(r => setClientes(r.data)).catch(console.error);
 
   // Cargar datos al editar
   useEffect(() => {
@@ -237,6 +230,17 @@ const ClienteForm = ({
               </Grid>
 
               <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Correo Electrónico"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  fullWidth size="small"
+                  type="email"
+                  placeholder="correo@ejemplo.com"
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
                 <CurrencyField
                   label="Cupo de Crédito"
                   value={cupoCredito}
@@ -245,8 +249,9 @@ const ClienteForm = ({
                   helperText="Solo aplica para clientes"
                 />
               </Grid>
+
               {/* Tipo de tercero */}
-              <Grid item xs={12} sm={6}>
+              <Grid item xs={12}>
                 <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                   Tipo de tercero
                 </Typography>
@@ -257,20 +262,10 @@ const ClienteForm = ({
               </Grid>
 
               <Grid item xs={12}>
-                <Divider sx={{ my: 1 }}><Chip label="FACTURACIÓN ELECTRÓNICA" size="small" sx={{ fontSize: 10, fontWeight: 700 }} /></Divider>
+                <Divider sx={{ my: 1 }}><Chip label="FACTURACIÓN ELECTRÓNICA (DIAN)" size="small" sx={{ fontSize: 10, fontWeight: 700 }} /></Divider>
               </Grid>
 
-              <Grid item xs={12} sm={8}>
-                <TextField
-                  label="Correo Electrónico (Para Factura Electrónica)"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  fullWidth size="small"
-                  type="email"
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={4}>
+              <Grid item xs={12} sm={12}>
                  <Button 
                     fullWidth 
                     variant="text" 
@@ -414,7 +409,7 @@ const ClienteForm = ({
         <Collapse in={bulkOpen}>
           <Divider />
           <Box sx={{ p: { xs: 1.5, md: 3 }, boxSizing: 'border-box' }}>
-            <BulkUpload uploadType="clientes" onUploadSuccess={fetchClientes} />
+            <BulkUpload uploadType="clientes" onUploadSuccess={() => { if (onClienteAdded) onClienteAdded(); }} />
           </Box>
         </Collapse>
       </Box>

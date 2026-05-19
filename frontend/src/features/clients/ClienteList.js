@@ -7,17 +7,28 @@ import ClienteFinancialHistoryDialog from './ClienteFinancialHistoryDialog';
 import {
   Box, Paper, Typography, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, IconButton, useMediaQuery, useTheme,
-  TextField, TablePagination, Tooltip, InputAdornment, Chip, Grid, Divider
+  TextField, TablePagination, Tooltip, InputAdornment, Chip, Grid, Divider,
+  TableSortLabel, CircularProgress
 } from '@mui/material';
-import { Edit, Delete, History, Search, Person, Business, CreditCard, LocationOn } from '@mui/icons-material'; // ✅ Añadido LocationOn
+import {
+  Edit, Delete, History, Search, Person, Business, CreditCard,
+  LocationOn, WhatsApp, Email, FileDownload
+} from '@mui/icons-material';
 
 const ACCENT = '#3B82F6';
 const GREEN  = '#10B981';
 
+// ─── WhatsApp helper ──────────────────────────────────────────────────────────
+const openWhatsApp = (telefono) => {
+  if (!telefono?.trim()) { toast.warning('Sin número de teléfono'); return; }
+  const digits = telefono.replace(/\D/g, '');
+  const full = digits.startsWith('57') ? digits : `57${digits}`;
+  window.open(`https://wa.me/${full}`, '_blank');
+};
+
 // ─── Card mobile ──────────────────────────────────────────────────────────────
 const ClienteCard = ({ cliente, onEditCliente, handleDelete, handleViewHistory, handleAbrirMapa, filterType }) => (
   <Paper sx={{ p: 2, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
-    {/* Fila 1: nombre + id */}
     <Box sx={{ mb: 1 }}>
       <Typography sx={{ fontWeight: 700, fontSize: 14, lineHeight: 1.3 }}>{cliente.nombre}</Typography>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mt: 0.4, flexWrap: 'wrap' }}>
@@ -31,11 +42,25 @@ const ClienteCard = ({ cliente, onEditCliente, handleDelete, handleViewHistory, 
 
     <Divider sx={{ my: 1 }} />
 
-    {/* Fila 2: datos clave */}
     <Grid container spacing={1} sx={{ mb: 1.5 }}>
       <Grid item xs={6}>
         <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Teléfono</Typography>
-        <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{cliente.telefono || 'N/A'}</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{cliente.telefono || 'N/A'}</Typography>
+          {cliente.telefono && (
+            <Tooltip title="Abrir WhatsApp">
+              <IconButton size="small" onClick={() => openWhatsApp(cliente.telefono)} sx={{ p: 0.2, color: '#25D366' }}>
+                <WhatsApp sx={{ fontSize: 14 }} />
+              </IconButton>
+            </Tooltip>
+          )}
+        </Box>
+      </Grid>
+      <Grid item xs={6}>
+        <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Email</Typography>
+        <Typography sx={{ fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: cliente.email ? 'text.primary' : 'text.disabled' }}>
+          {cliente.email || 'N/A'}
+        </Typography>
       </Grid>
       <Grid item xs={6}>
         <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Dirección</Typography>
@@ -44,23 +69,20 @@ const ClienteCard = ({ cliente, onEditCliente, handleDelete, handleViewHistory, 
         </Typography>
       </Grid>
       {filterType === 'cliente' && (
-        <Grid item xs={12}>
+        <Grid item xs={6}>
           <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Cupo de crédito</Typography>
           <Typography sx={{ fontSize: 13, fontWeight: 700, color: ACCENT }}>{formatCurrency(cliente.cupo_credito)}</Typography>
         </Grid>
       )}
     </Grid>
 
-    {/* Fila 3: botones */}
     <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-      {/* ✅ NUEVO BOTÓN DE MAPA (MÓVIL) */}
-      <Tooltip title="Ver en Mapa">
+      <Tooltip title="Ver en Google Maps">
         <IconButton size="small" onClick={() => handleAbrirMapa(cliente.direccion)}
-          sx={{ color: '#0ea5e9', bgcolor: 'rgba(14, 165, 233, 0.1)', borderRadius: 1.5 }}>
+          sx={{ color: '#0ea5e9', bgcolor: 'rgba(14,165,233,0.1)', borderRadius: 1.5 }}>
           <LocationOn fontSize="small" />
         </IconButton>
       </Tooltip>
-      
       <Tooltip title="Historial financiero">
         <IconButton size="small" onClick={() => handleViewHistory(cliente)}
           sx={{ color: '#8B5CF6', bgcolor: 'rgba(139,92,246,0.1)', borderRadius: 1.5 }}>
@@ -84,9 +106,17 @@ const ClienteCard = ({ cliente, onEditCliente, handleDelete, handleViewHistory, 
 );
 
 // ─── Componente principal ──────────────────────────────────────────────────────
-const ClienteList = ({ onEditCliente, onClienteDeleted, filterType, accentColor = ACCENT }) => {
-  const [clientes, setClientes]   = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
+const ClienteList = ({
+  onEditCliente, onClienteDeleted, filterType, accentColor = ACCENT,
+  clientes: clientesProp, loading: loadingProp,
+}) => {
+  const [clientesLocal, setClientesLocal] = useState([]);
+  const [loadingLocal, setLoadingLocal]   = useState(clientesProp === undefined);
+  const [searchTerm, setSearchTerm]       = useState('');
+  const [sortBy, setSortBy]               = useState('nombre');
+  const [sortDir, setSortDir]             = useState('asc');
+  const [page, setPage]                   = useState(0);
+  const [rowsPerPage, setRowsPerPage]     = useState(10);
 
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -96,15 +126,20 @@ const ClienteList = ({ onEditCliente, onClienteDeleted, filterType, accentColor 
   const [showHistoryDialog, setShowHistoryDialog] = useState(false);
   const [selectedClienteForHistory, setSelectedClienteForHistory] = useState(null);
 
-  const [page, setPage]               = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const clientes = clientesProp !== undefined ? clientesProp : clientesLocal;
+  const loading  = clientesProp !== undefined ? (loadingProp ?? false) : loadingLocal;
 
-  useEffect(() => { fetchClientes(); }, []);
+  useEffect(() => {
+    if (clientesProp === undefined) fetchClientes();
+  }, []);
 
-  const fetchClientes = () =>
+  const fetchClientes = () => {
+    setLoadingLocal(true);
     apiClient.get('/clientes/')
-      .then(r => setClientes(r.data))
-      .catch(() => toast.error('Error al cargar terceros'));
+      .then(r => setClientesLocal(r.data))
+      .catch(() => toast.error('Error al cargar terceros'))
+      .finally(() => setLoadingLocal(false));
+  };
 
   const handleDelete = (id) => { setClienteToDelete(id); setShowConfirmDialog(true); };
 
@@ -112,7 +147,7 @@ const ClienteList = ({ onEditCliente, onClienteDeleted, filterType, accentColor 
     apiClient.delete(`/clientes/${clienteToDelete}`)
       .then(() => {
         toast.success('Tercero eliminado exitosamente');
-        fetchClientes();
+        if (clientesProp === undefined) fetchClientes();
         if (onClienteDeleted) onClienteDeleted();
       })
       .catch(err => {
@@ -125,57 +160,103 @@ const ClienteList = ({ onEditCliente, onClienteDeleted, filterType, accentColor 
   const handleViewHistory  = (c) => { setSelectedClienteForHistory(c); setShowHistoryDialog(true); };
   const handleCloseHistory = ()  => { setShowHistoryDialog(false); setSelectedClienteForHistory(null); };
 
-  // ✅ FUNCIÓN PARA ABRIR GOOGLE MAPS
   const handleAbrirMapa = (direccion) => {
-    if (!direccion || direccion.trim() === '') {
-      toast.warning("Este cliente no tiene una dirección registrada.");
-      return;
-    }
-    
-    // Concatenamos la ciudad por defecto para mejorar la precisión del GPS
-    const direccionCompleta = `${direccion}, Cali, Colombia`;
-    const queryCodificada = encodeURIComponent(direccionCompleta);
-    
-    // URL Universal de Búsqueda de Google Maps (Fuerza la apertura de la app en celulares)
-    const urlMapa = `https://www.google.com/maps/search/?api=1&query=${queryCodificada}`;
-    
-    window.open(urlMapa, '_blank');
+    if (!direccion?.trim()) { toast.warning('Este cliente no tiene una dirección registrada.'); return; }
+    const query = encodeURIComponent(`${direccion}, Colombia`);
+    window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
   };
 
-  // Filtrado + ordenado
+  const handleSort = (col) => {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortBy(col); setSortDir('asc'); }
+    setPage(0);
+  };
+
+  // ─── CSV export ───────────────────────────────────────────────────────────
+  const handleExportCSV = () => {
+    const rows = [
+      ['ID', 'Nombre', 'Cédula/NIT', 'Teléfono', 'Email', 'Dirección', 'Cupo Crédito', 'Tipo'],
+      ...filteredClientes.map(c => [
+        c.id, c.nombre, c.cedula || '', c.telefono || '', c.email || '',
+        c.direccion || '', c.cupo_credito || 0,
+        [c.es_cliente && 'Cliente', c.es_proveedor && 'Proveedor'].filter(Boolean).join('+'),
+      ]),
+    ];
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${filterType === 'proveedor' ? 'proveedores' : 'clientes'}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ─── Filtrado + ordenado ───────────────────────────────────────────────────
   const filteredClientes = useMemo(() => {
     let list = clientes;
     if (filterType === 'cliente')   list = list.filter(c => c.es_cliente);
     if (filterType === 'proveedor') list = list.filter(c => c.es_proveedor);
 
-    if (!searchTerm) return list;
-    const q = searchTerm.toLowerCase();
-    return list.filter(c =>
-      c.nombre.toLowerCase().includes(q) ||
-      (c.cedula    && c.cedula.toLowerCase().includes(q))   ||
-      (c.telefono  && c.telefono.toLowerCase().includes(q)) ||
-      (c.direccion && c.direccion.toLowerCase().includes(q))
-    );
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      list = list.filter(c =>
+        c.nombre.toLowerCase().includes(q) ||
+        (c.cedula    && c.cedula.toLowerCase().includes(q))    ||
+        (c.telefono  && c.telefono.toLowerCase().includes(q))  ||
+        (c.email     && c.email.toLowerCase().includes(q))     ||
+        (c.direccion && c.direccion.toLowerCase().includes(q))
+      );
+    }
+    return list;
   }, [clientes, searchTerm, filterType]);
 
-  const paginatedClientes = useMemo(() =>
-    [...filteredClientes]
-      .sort((a, b) => a.nombre.localeCompare(b.nombre))
-      .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
-    [filteredClientes, page, rowsPerPage]
-  );
+  const paginatedClientes = useMemo(() => {
+    const copy = [...filteredClientes].sort((a, b) => {
+      if (sortBy === 'nombre') {
+        const cmp = a.nombre.localeCompare(b.nombre);
+        return sortDir === 'asc' ? cmp : -cmp;
+      }
+      if (sortBy === 'cedula') {
+        const cmp = (a.cedula || '').localeCompare(b.cedula || '');
+        return sortDir === 'asc' ? cmp : -cmp;
+      }
+      if (sortBy === 'cupo_credito') {
+        const cmp = (a.cupo_credito || 0) - (b.cupo_credito || 0);
+        return sortDir === 'asc' ? cmp : -cmp;
+      }
+      return 0;
+    });
+    return copy.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  }, [filteredClientes, sortBy, sortDir, page, rowsPerPage]);
 
   const label = filterType === 'proveedor' ? 'proveedores' : 'clientes';
+
+  const SortHeader = ({ col, children }) => (
+    <TableCell sortDirection={sortBy === col ? sortDir : false}>
+      <TableSortLabel
+        active={sortBy === col}
+        direction={sortBy === col ? sortDir : 'asc'}
+        onClick={() => handleSort(col)}
+        sx={{ fontWeight: 700, fontSize: 12 }}
+      >
+        {children}
+      </TableSortLabel>
+    </TableCell>
+  );
 
   return (
     <Box sx={{ width: '100%', maxWidth: '100%' }}>
 
-      {/* Stats rápidas */}
-      <Box sx={{ display: 'flex', gap: 1.5, mb: 2, flexWrap: 'wrap' }}>
+      {/* Stats rápidas + CSV */}
+      <Box sx={{ display: 'flex', gap: 1.5, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
         {[
           { label: `Total ${label}`, val: filteredClientes.length, icon: filterType === 'proveedor' ? <Business fontSize="small" /> : <Person fontSize="small" />, color: accentColor },
           ...(filterType === 'cliente'
             ? [{ label: 'Con crédito', val: filteredClientes.filter(c => c.cupo_credito > 0).length, icon: <CreditCard fontSize="small" />, color: GREEN }]
+            : []),
+          ...(filterType === 'cliente'
+            ? [{ label: 'Con email', val: filteredClientes.filter(c => c.email).length, icon: <Email fontSize="small" />, color: '#8B5CF6' }]
             : []),
         ].map(({ label: l, val, icon, color }) => (
           <Box key={l} sx={{
@@ -190,13 +271,20 @@ const ClienteList = ({ onEditCliente, onClienteDeleted, filterType, accentColor 
             </Box>
           </Box>
         ))}
+        <Box sx={{ ml: 'auto' }}>
+          <Tooltip title={`Exportar ${label} a CSV`}>
+            <IconButton size="small" onClick={handleExportCSV} sx={{ color: GREEN, border: `1px solid ${GREEN}30`, borderRadius: 1.5 }}>
+              <FileDownload fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
       </Box>
 
       {/* Buscador */}
       <Box sx={{ mb: 2 }}>
         <TextField
-          fullWidth
-          placeholder={`Buscar ${label} por nombre, cédula, teléfono…`}
+          fullWidth size="small"
+          placeholder={`Buscar ${label} por nombre, cédula, teléfono, email…`}
           value={searchTerm}
           onChange={(e) => { setSearchTerm(e.target.value); setPage(0); }}
           InputProps={{
@@ -210,7 +298,11 @@ const ClienteList = ({ onEditCliente, onClienteDeleted, filterType, accentColor 
       </Box>
 
       {/* Lista */}
-      {isMobile ? (
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+          <CircularProgress sx={{ color: accentColor }} />
+        </Box>
+      ) : isMobile ? (
         <Box>
           {paginatedClientes.length === 0
             ? <Box sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
@@ -224,7 +316,7 @@ const ClienteList = ({ onEditCliente, onClienteDeleted, filterType, accentColor 
                   onEditCliente={onEditCliente}
                   handleDelete={handleDelete}
                   handleViewHistory={handleViewHistory}
-                  handleAbrirMapa={handleAbrirMapa} // ✅ Pasamos la función a la tarjeta móvil
+                  handleAbrirMapa={handleAbrirMapa}
                   filterType={filterType}
                 />
               ))
@@ -233,28 +325,50 @@ const ClienteList = ({ onEditCliente, onClienteDeleted, filterType, accentColor 
       ) : (
         <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
           <Table size="small">
-            <TableHead>
+            <TableHead sx={{ bgcolor: 'action.hover' }}>
               <TableRow>
-                {['ID', 'Nombre / Razón Social', 'Cédula / NIT', 'Teléfono', 'Dirección',
-                  ...(filterType === 'cliente' ? ['Cupo Crédito'] : []),
-                  'Tipo', 'Acciones'
-                ].map(h => <TableCell key={h}>{h}</TableCell>)}
+                <SortHeader col="nombre">Nombre / Razón Social</SortHeader>
+                <SortHeader col="cedula">Cédula / NIT</SortHeader>
+                <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Teléfono</TableCell>
+                <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Email</TableCell>
+                <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Dirección</TableCell>
+                {filterType === 'cliente' && <SortHeader col="cupo_credito">Cupo Crédito</SortHeader>}
+                <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Tipo</TableCell>
+                <TableCell sx={{ fontWeight: 700, fontSize: 12 }} align="right">Acciones</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {paginatedClientes.length === 0
                 ? <TableRow>
-                    <TableCell colSpan={8} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
-                      No se encontraron {label}
+                    <TableCell colSpan={filterType === 'cliente' ? 8 : 7} sx={{ textAlign: 'center', py: 6 }}>
+                      <Person sx={{ fontSize: 40, opacity: 0.2, display: 'block', mx: 'auto', mb: 1 }} />
+                      <Typography color="text.secondary" fontSize={13}>No se encontraron {label}</Typography>
                     </TableCell>
                   </TableRow>
                 : paginatedClientes.map(c => (
                     <TableRow key={c.id} hover>
-                      <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{c.id}</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>{c.nombre}</TableCell>
-                      <TableCell sx={{ fontSize: 12, color: 'text.secondary' }}>{c.cedula || 'N/A'}</TableCell>
-                      <TableCell sx={{ fontSize: 12 }}>{c.telefono || 'N/A'}</TableCell>
-                      <TableCell sx={{ fontSize: 12, color: 'text.secondary' }}>{c.direccion || 'N/A'}</TableCell>
+                      <TableCell sx={{ fontSize: 12, color: 'text.secondary' }}>{c.cedula || '—'}</TableCell>
+                      <TableCell sx={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                        {c.telefono ? (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            {c.telefono}
+                            <Tooltip title="Abrir WhatsApp">
+                              <IconButton size="small" onClick={() => openWhatsApp(c.telefono)} sx={{ p: 0.2, color: '#25D366' }}>
+                                <WhatsApp sx={{ fontSize: 14 }} />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        ) : '—'}
+                      </TableCell>
+                      <TableCell sx={{ fontSize: 11, color: c.email ? 'text.primary' : 'text.disabled', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {c.email || '—'}
+                      </TableCell>
+                      <TableCell sx={{ fontSize: 12, color: 'text.secondary', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <Tooltip title={c.direccion || ''}>
+                          <span>{c.direccion || '—'}</span>
+                        </Tooltip>
+                      </TableCell>
                       {filterType === 'cliente' && (
                         <TableCell sx={{ fontWeight: 600, color: c.cupo_credito > 0 ? accentColor : 'text.secondary' }}>
                           {formatCurrency(c.cupo_credito)}
@@ -262,20 +376,18 @@ const ClienteList = ({ onEditCliente, onClienteDeleted, filterType, accentColor 
                       )}
                       <TableCell>
                         <Box sx={{ display: 'flex', gap: 0.5 }}>
-                          {c.es_cliente   && <Chip label="Cliente"   size="small" sx={{ bgcolor: `${ACCENT}18`, color: ACCENT, fontWeight: 600, fontSize: 10, borderRadius: 1 }} />}
-                          {c.es_proveedor && <Chip label="Proveedor" size="small" sx={{ bgcolor: `${GREEN}18`,  color: GREEN,  fontWeight: 600, fontSize: 10, borderRadius: 1 }} />}
+                          {c.es_cliente   && <Chip label="Cliente"   size="small" sx={{ bgcolor: `${ACCENT}18`, color: ACCENT, fontWeight: 600, fontSize: 9, borderRadius: 1 }} />}
+                          {c.es_proveedor && <Chip label="Proveedor" size="small" sx={{ bgcolor: `${GREEN}18`,  color: GREEN,  fontWeight: 600, fontSize: 9, borderRadius: 1 }} />}
                         </Box>
                       </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', gap: 0.5 }}>
-                          {/* ✅ NUEVO BOTÓN DE MAPA (ESCRITORIO) */}
-                          <Tooltip title="Ver en Mapa">
+                      <TableCell align="right">
+                        <Box sx={{ display: 'flex', gap: 0.3, justifyContent: 'flex-end' }}>
+                          <Tooltip title="Ver en Google Maps">
                             <IconButton size="small" onClick={() => handleAbrirMapa(c.direccion)}
-                              sx={{ color: '#0ea5e9', '&:hover': { bgcolor: 'rgba(14, 165, 233, 0.1)' } }}>
+                              sx={{ color: '#0ea5e9', '&:hover': { bgcolor: 'rgba(14,165,233,0.1)' } }}>
                               <LocationOn fontSize="small" />
                             </IconButton>
                           </Tooltip>
-
                           <Tooltip title="Historial financiero">
                             <IconButton size="small" onClick={() => handleViewHistory(c)}
                               sx={{ color: '#8B5CF6', '&:hover': { bgcolor: 'rgba(139,92,246,0.1)' } }}>
@@ -305,7 +417,7 @@ const ClienteList = ({ onEditCliente, onClienteDeleted, filterType, accentColor 
       )}
 
       <TablePagination
-        rowsPerPageOptions={[5, 10, 25]}
+        rowsPerPageOptions={[5, 10, 25, 50]}
         component="div"
         count={filteredClientes.length}
         rowsPerPage={rowsPerPage}
@@ -313,7 +425,7 @@ const ClienteList = ({ onEditCliente, onClienteDeleted, filterType, accentColor 
         onPageChange={(_, p) => setPage(p)}
         onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
         labelRowsPerPage="Filas:"
-        labelDisplayedRows={({ from, to, count }) => `${from}-${to}/${count}`}
+        labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
         sx={{
           '& .MuiTablePagination-toolbar': { flexWrap: 'wrap', pl: 0 },
           '& .MuiTablePagination-spacer': { display: 'none' },
