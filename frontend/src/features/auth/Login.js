@@ -5,7 +5,7 @@ import apiClient from '../../api';
 import {
     Box, TextField, Button, Typography, InputAdornment, IconButton,
     Grid, Card, CardActionArea, MenuItem, LinearProgress, Stack, Chip,
-    Autocomplete, FormControlLabel, Checkbox
+    Autocomplete, FormControlLabel, Checkbox, CircularProgress
 } from '@mui/material';
 import { keyframes } from '@mui/system';
 import {
@@ -28,6 +28,11 @@ const pulseRing = keyframes`
   0%   { transform: scale(1);    opacity: 0.6; }
   50%  { transform: scale(1.08); opacity: 0.2; }
   100% { transform: scale(1);    opacity: 0.6; }
+`;
+
+const slideUp = keyframes`
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
 `;
 
 // ─── Estilos de campo reutilizables ──────────────────────────────────────────
@@ -95,6 +100,41 @@ const ORIGENES = [
     'Otro',
 ];
 
+const CAROUSEL_FEATURES = [
+  {
+    Icon: Storefront,
+    tag: 'COMERCIO & ERP',
+    color: '#FF6020',
+    title: 'Vende más inteligente',
+    desc: 'POS moderno, inventario en tiempo real, compras, clientes y reportes financieros en un solo lugar.',
+    stats: [{ label: 'Productos', val: '∞' }, { label: 'Clientes', val: '∞' }, { label: 'Reportes', val: '12+' }],
+  },
+  {
+    Icon: AttachMoney,
+    tag: 'COBRANZAS',
+    color: '#22c55e',
+    title: 'Rutas de cobro en campo',
+    desc: 'Mora calculada en tiempo real, evidencias geolocalizadas y control total de tu capital en la calle.',
+    stats: [{ label: 'Cuotas', val: '∞' }, { label: 'Mora', val: 'Auto' }, { label: 'GPS', val: 'Sí' }],
+  },
+  {
+    Icon: LocalParking,
+    tag: 'PARQUEADERO',
+    color: '#3B82F6',
+    title: 'Control de accesos total',
+    desc: 'Semáforo de vehículos, suscripciones mensuales, accesos por horas e ingresos desglosados.',
+    stats: [{ label: 'Tipos', val: '4' }, { label: 'WhatsApp', val: 'Sí' }, { label: 'Reportes', val: 'Real-time' }],
+  },
+  {
+    Icon: LocalCarWash,
+    tag: 'LAVADERO',
+    color: '#8B5CF6',
+    title: 'POS especializado',
+    desc: 'Registro de servicios, turnos del personal, ingresos por operario y fidelización de clientes.',
+    stats: [{ label: 'Servicios', val: '∞' }, { label: 'Operarios', val: '∞' }, { label: 'POS', val: 'Touch' }],
+  },
+];
+
 const TAMANOS_NEGOCIO = [
     { value: 'solo',    label: 'Solo yo',  desc: '1 persona' },
     { value: 'pequeno', label: 'Pequeño',  desc: '2-5' },
@@ -102,8 +142,116 @@ const TAMANOS_NEGOCIO = [
     { value: 'grande',  label: 'Grande',   desc: '+20' },
 ];
 
+const getPwdStrength = (pwd) => {
+  if (!pwd) return null;
+  const hasUpper   = /[A-Z]/.test(pwd);
+  const hasNumber  = /[0-9]/.test(pwd);
+  const hasSpecial = /[^A-Za-z0-9]/.test(pwd);
+  if (pwd.length < 4) return { level: 1, label: 'Muy débil', color: '#EF4444' };
+  if (pwd.length < 6) return { level: 2, label: 'Débil', color: '#F59E0B' };
+  if (pwd.length >= 8 && hasNumber && (hasUpper || hasSpecial)) return { level: 4, label: 'Segura', color: '#22c55e' };
+  if (pwd.length >= 6 && (hasNumber || hasUpper)) return { level: 3, label: 'Buena', color: '#22c55e' };
+  return { level: 2, label: 'Débil', color: '#F59E0B' };
+};
+
 const isEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 const isPhone = (v) => /^[\d+\s()-]{7,20}$/.test(v);
+
+// ─── Feature Carousel ────────────────────────────────────────────────────────
+function FeatureCarousel() {
+  const [idx, setIdx] = React.useState(0);
+  const [visible, setVisible] = React.useState(true);
+
+  React.useEffect(() => {
+    const t = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => {
+        setIdx(i => (i + 1) % CAROUSEL_FEATURES.length);
+        setVisible(true);
+      }, 280);
+    }, 4500);
+    return () => clearInterval(t);
+  }, []);
+
+  const f = CAROUSEL_FEATURES[idx];
+
+  return (
+    <Box sx={{ position: 'relative', p: { md: 5, lg: 6 }, color: '#fff', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+
+      {/* Brand mark — top left */}
+      <Box sx={{ position: 'absolute', top: 36, left: 44 }}>
+        <Stack direction="row" alignItems="center" spacing={1.5}>
+          <img src="/Logo.jpeg" alt="Ksmart360" style={{ width: 34, height: 34, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.25)', objectFit: 'cover' }} />
+          <Typography sx={{ fontWeight: 900, fontSize: 18, color: '#fff', letterSpacing: -0.3 }}>Ksmart360</Typography>
+          <Chip label="SaaS" size="small" sx={{ bgcolor: 'rgba(255,255,255,0.13)', color: '#fff', fontWeight: 700, fontSize: 9, height: 18, backdropFilter: 'blur(4px)', border: '1px solid rgba(255,255,255,0.15)' }} />
+        </Stack>
+        <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', mt: 0.5, ml: '50px' }}>Sistema de Gestión Empresarial</Typography>
+      </Box>
+
+      {/* Animated feature slide */}
+      <Box sx={{
+        mb: 4,
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'translateY(0)' : 'translateY(12px)',
+        transition: 'opacity 0.28s ease, transform 0.28s ease',
+      }}>
+        <Chip
+          label={f.tag}
+          size="small"
+          sx={{ bgcolor: `${f.color}25`, color: f.color, fontWeight: 800, fontSize: 10, mb: 2, border: `1px solid ${f.color}45`, letterSpacing: 0.8 }}
+        />
+        <Typography sx={{ fontWeight: 900, fontSize: { md: 28, lg: 34 }, lineHeight: 1.15, mb: 1.5, color: '#f1f5f9' }}>
+          {f.title}
+        </Typography>
+        <Typography sx={{ fontSize: 14, color: 'rgba(241,245,249,0.68)', lineHeight: 1.75, maxWidth: 370, mb: 3 }}>
+          {f.desc}
+        </Typography>
+        <Stack direction="row" spacing={3}>
+          {f.stats.map(s => (
+            <Box key={s.label}>
+              <Typography sx={{ fontSize: 20, fontWeight: 900, color: f.color, lineHeight: 1 }}>{s.val}</Typography>
+              <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: 0.8, mt: 0.2 }}>{s.label}</Typography>
+            </Box>
+          ))}
+        </Stack>
+      </Box>
+
+      {/* Navigation dots */}
+      <Stack direction="row" spacing={0.8} sx={{ mb: 3 }}>
+        {CAROUSEL_FEATURES.map((_, i) => (
+          <Box
+            key={i}
+            onClick={() => { setIdx(i); setVisible(true); }}
+            sx={{
+              width: i === idx ? 22 : 7,
+              height: 7,
+              borderRadius: 4,
+              bgcolor: i === idx ? f.color : 'rgba(255,255,255,0.22)',
+              cursor: 'pointer',
+              transition: 'all 0.35s cubic-bezier(0.4,0,0.2,1)',
+            }}
+          />
+        ))}
+      </Stack>
+
+      {/* Stats bar */}
+      <Box sx={{ p: 2, borderRadius: 2.5, bgcolor: 'rgba(255,255,255,0.07)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.09)' }}>
+        <Stack direction="row" justifyContent="space-around">
+          {[
+            { val: '500+', label: 'Negocios activos' },
+            { val: '14 días', label: 'Prueba gratis' },
+            { val: '99.9%', label: 'Disponibilidad' },
+          ].map(s => (
+            <Box key={s.label} sx={{ textAlign: 'center' }}>
+              <Typography sx={{ fontWeight: 900, fontSize: 15, color: '#f1f5f9' }}>{s.val}</Typography>
+              <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>{s.label}</Typography>
+            </Box>
+          ))}
+        </Stack>
+      </Box>
+    </Box>
+  );
+}
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 const Login = ({ onLogin }) => {
@@ -111,6 +259,7 @@ const Login = ({ onLogin }) => {
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading]           = useState(false);
     const [regStep, setRegStep]           = useState(1);
+    const [regSuccess, setRegSuccess]     = useState(false);
     const navigate = useNavigate();
 
     const [loginData, setLoginData] = useState({ 
@@ -233,15 +382,17 @@ const Login = ({ onLogin }) => {
                 tamano_negocio:  regData.tamano_negocio,
                 origen:          regData.origen || null,
             });
-            toast.success('¡Cuenta creada con éxito! Ya puedes iniciar sesión.');
-            
             const usernameUsed = regData.username.trim().toLowerCase();
             localStorage.setItem('last_username', usernameUsed);
-            
-            setLoginData({ username: usernameUsed, password: '' });
-            setRegData(initialRegState);
-            setRegStep(1);
-            setIsLoginView(true);
+            setRegSuccess(true);
+            setTimeout(() => {
+              setRegSuccess(false);
+              setLoginData({ username: usernameUsed, password: '' });
+              setRegData(initialRegState);
+              setRegStep(1);
+              setIsLoginView(true);
+              toast.success('¡Cuenta creada! Ya puedes iniciar sesión.');
+            }, 2200);
         } catch (error) {
             toast.error(error.response?.data?.detail || 'Error al crear la cuenta.');
         } finally {
@@ -268,6 +419,33 @@ const Login = ({ onLogin }) => {
 
     // ── Render ───────────────────────────────────────────────────────────────
     return (
+        <>
+        {regSuccess && (
+          <Box sx={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            background: 'linear-gradient(160deg, #0f172a 0%, #020617 100%)',
+            animation: `${fadeIn} 0.35s ease`,
+            gap: 2,
+          }}>
+            <Box sx={{
+              width: 88, height: 88, borderRadius: '50%',
+              bgcolor: 'rgba(34,197,94,0.12)',
+              border: '2px solid rgba(34,197,94,0.4)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              animation: `${pulseRing} 1.2s ease infinite`,
+            }}>
+              <CheckCircle sx={{ fontSize: 50, color: '#22c55e' }} />
+            </Box>
+            <Typography sx={{ fontWeight: 900, fontSize: 26, color: '#f1f5f9', letterSpacing: -0.5 }}>
+              ¡Bienvenido a bordo!
+            </Typography>
+            <Typography sx={{ fontSize: 14, color: '#64748b', textAlign: 'center', maxWidth: 300 }}>
+              Tu espacio de trabajo está listo.<br />Redirigiendo al inicio de sesión…
+            </Typography>
+          </Box>
+        )}
         <Box sx={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
 
             {/* ── Panel izquierdo (imagen hero) ── */}
@@ -284,15 +462,10 @@ const Login = ({ onLogin }) => {
             }}>
                 <Box sx={{
                     position: 'absolute', inset: 0,
-                    background: 'linear-gradient(135deg, rgba(15,23,42,0.75) 0%, rgba(2,6,23,0.55) 100%)',
+                    background: 'linear-gradient(150deg, rgba(15,23,42,0.88) 0%, rgba(2,6,23,0.62) 55%, rgba(15,23,42,0.92) 100%)',
                 }} />
-                <Box sx={{ position: 'relative', p: 6, color: '#fff' }}>
-                    <Typography sx={{ fontWeight: 800, fontSize: 36, lineHeight: 1.15, mb: 1 }}>
-                        Ksmart360
-                    </Typography>
-                    <Typography sx={{ opacity: 0.7, fontSize: 15, maxWidth: 340, lineHeight: 1.6 }}>
-                        Gestiona ventas, inventarios, producción y cobranza desde un solo lugar.
-                    </Typography>
+                <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
+                    <FeatureCarousel />
                 </Box>
             </Box>
 
@@ -318,6 +491,15 @@ const Login = ({ onLogin }) => {
                     alignItems: 'center',
                     my: 'auto',
                 }}>
+
+                    {/* Mobile branding — only on xs/sm */}
+                    <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1.5, mb: 3, alignSelf: 'flex-start' }}>
+                        <img src="/Logo.jpeg" alt="Ksmart360" style={{ width: 34, height: 34, borderRadius: '50%', border: '2px solid rgba(34,197,94,0.4)', objectFit: 'cover' }} />
+                        <Box>
+                            <Typography sx={{ fontWeight: 800, fontSize: 16, color: '#f1f5f9', lineHeight: 1 }}>Ksmart360</Typography>
+                            <Typography sx={{ fontSize: 11, color: '#64748b' }}>14 días gratis · Sin tarjeta de crédito</Typography>
+                        </Box>
+                    </Box>
 
                     {/* ── Logo ── */}
                     <Box sx={{
@@ -468,6 +650,15 @@ const Login = ({ onLogin }) => {
                                     }}
                                 />
 
+                                <Box sx={{ textAlign: 'right', mt: -1 }}>
+                                    <Typography
+                                        onClick={() => toast.info('Para restablecer tu contraseña, contacta a tu administrador o escríbenos a soporte@ksmart360.com')}
+                                        sx={{ fontSize: 12, color: '#22c55e', cursor: 'pointer', fontWeight: 600, display: 'inline', '&:hover': { color: '#16a34a', textDecoration: 'underline' } }}
+                                    >
+                                        ¿Olvidaste tu contraseña?
+                                    </Typography>
+                                </Box>
+
                                 <Button
                                     type="submit" fullWidth variant="contained"
                                     disabled={loading}
@@ -488,7 +679,12 @@ const Login = ({ onLogin }) => {
                                         },
                                     }}
                                 >
-                                    {loading ? 'Ingresando…' : 'Ingresar al sistema'}
+                                    {loading ? (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <CircularProgress size={16} sx={{ color: 'rgba(255,255,255,0.85)' }} />
+                                            Ingresando…
+                                        </Box>
+                                    ) : 'Ingresar al sistema'}
                                 </Button>
 
                                 <BotonHuella
@@ -876,6 +1072,7 @@ const Login = ({ onLogin }) => {
                 </Box>
             </Box>
         </Box>
+        </>
     );
 };
 
