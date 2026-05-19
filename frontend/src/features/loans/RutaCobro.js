@@ -8,7 +8,8 @@ import {
   WhatsApp, CheckCircle, Search, DirectionsRun, LocationOn,
   PersonSearch, MoreTime, FilterList, AccountBalanceWallet,
   AssignmentInd, TrendingUp, PointOfSale, Receipt, Edit, Print,
-  PictureAsPdf, Map as MapIcon, FilterAlt, PhotoCamera, NotInterested
+  PictureAsPdf, Map as MapIcon, FilterAlt, PhotoCamera, NotInterested,
+  ErrorOutline
 } from '@mui/icons-material';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
@@ -23,6 +24,20 @@ const ACCENT = '#FF6020';
 const GREEN  = '#10B981';
 const BLUE   = '#3B82F6';
 const YELLOW = '#F59E0B';
+const RED = '#EF4444';
+
+const calcularMoraCliente = (cuota, tasaMoraMensual = 2) => {
+  if (cuota.estado_pago === 'Pagado' || (cuota.saldo_pendiente || 0) <= 0)
+    return { mora: 0, dias: 0, total: cuota.saldo_pendiente || 0 };
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const fv = new Date(((cuota.fecha_vencimiento || '').split('T')[0]) + 'T00:00:00');
+  if (fv >= hoy) return { mora: 0, dias: 0, total: cuota.saldo_pendiente };
+  const dias = Math.floor((hoy - fv) / 86400000);
+  const tasaDiaria = (tasaMoraMensual / 100) / 30;
+  const mora = Math.round(cuota.saldo_pendiente * tasaDiaria * dias);
+  return { mora, dias, total: cuota.saldo_pendiente + mora };
+};
 
 // ─── Formatea fecha legible dd/mm/yyyy ────────────────────────────────────────
 const getSafeDateString = (fechaStr) => {
@@ -169,6 +184,8 @@ const RutaCobro = () => {
   const [liquidacionModal, setLiquidacionModal] = useState(false);
   const [datosLiquidacion, setDatosLiquidacion] = useState(null);
   const [pdfLoading,       setPdfLoading]       = useState(false);
+  const [cobrasHoy, setCobrasHoy] = useState([]);
+  const [sortCuotas, setSortCuotas] = useState('mora');
 
   const esAdmin = currentUser?.role?.name === 'Admin';
 
@@ -213,7 +230,7 @@ const RutaCobro = () => {
 
   // ── Filtrado de cuotas ────────────────────────────────────────────────────
   const cuotasFiltradas = useMemo(() => {
-    return cuotas.filter(c => {
+    let list = cuotas.filter(c => {
       const asignadaAMi = !esAdmin ? c.usuario_asignado_id === currentUser?.id : true;
       const matchSearch =
         (c.cliente_nombre    || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -223,21 +240,44 @@ const RutaCobro = () => {
       const matchZona  = filtroZona ? c.zona === filtroZona : true;
       return asignadaAMi && matchSearch && matchFecha && matchZona;
     });
-  }, [cuotas, searchTerm, filtroFecha, filtroZona, esAdmin, currentUser]);
+
+    list.sort((a, b) => {
+      if (sortCuotas === 'mora') {
+        const { mora: ma } = calcularMoraCliente(a, 2);
+        const { mora: mb } = calcularMoraCliente(b, 2);
+        return mb - ma;
+      }
+      if (sortCuotas === 'monto') return (b.saldo_pendiente || 0) - (a.saldo_pendiente || 0);
+      const fa = (a.fecha_vencimiento || '').split('T')[0];
+      const fb = (b.fecha_vencimiento || '').split('T')[0];
+      return fa.localeCompare(fb);
+    });
+
+    return list;
+  }, [cuotas, searchTerm, filtroFecha, filtroZona, esAdmin, currentUser, sortCuotas]);
 
   // ── Registrar Evidencia ──────────────────────────────────────────────────
   const guardarEvidencia = async () => {
     const { cuota, tipo, comentario, foto } = evidenciaModal;
+    let geoParams = {};
+    try {
+      if (navigator.geolocation) {
+        const pos = await new Promise((resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000, enableHighAccuracy: true }));
+        geoParams = { latitud: pos.coords.latitude, longitud: pos.coords.longitude };
+      }
+    } catch { /* geolocation unavailable or denied */ }
     setEvidenciaModal(prev => ({ ...prev, uploading: true }));
     try {
       const formData = new FormData();
       if (foto) formData.append('foto', foto);
-      
+
       await apiClient.post(`/prestamos/evidencia`, formData, {
         params: {
           cuota_id: cuota.cuota_id,
           tipo,
-          comentario
+          comentario,
+          ...geoParams,
         },
         headers: { 'Content-Type': 'multipart/form-data' }
       });
@@ -250,10 +290,16 @@ const RutaCobro = () => {
     }
   };
 
-  const kpis = useMemo(() => ({
-    total:    cuotasFiltradas.reduce((s, c) => s + (c.saldo_pendiente || 0), 0),
-    cantidad: cuotasFiltradas.length,
-  }), [cuotasFiltradas]);
+  const kpis = useMemo(() => {
+    let total = 0, moraTotal = 0, vencidas = 0;
+    cuotasFiltradas.forEach(c => {
+      const { mora, dias } = calcularMoraCliente(c, 2);
+      total += (c.saldo_pendiente || 0);
+      moraTotal += mora;
+      if (dias > 0) vencidas++;
+    });
+    return { total, moraTotal, vencidas, cantidad: cuotasFiltradas.length, cobrasHoy: cobrasHoy.length };
+  }, [cuotasFiltradas, cobrasHoy]);
 
   // ── Liquidación diaria ────────────────────────────────────────────────────
   const abrirLiquidacion = async () => {
@@ -325,6 +371,7 @@ const confirmarPago = async () => {
     setPagoModal({ open: false, cuota: null, monto: '', metodoPago: 'Efectivo' });
     setReciboModal({ open: true, cuota: { ...cuota, metodoPago }, monto: montoPagado, saldoRestante });
     fetchInicial();
+    setCobrasHoy(prev => [...prev, cuota.cuota_id]);
   } catch (error) {
     toast.error(error.response?.data?.detail || 'Error en el pago');
   }
@@ -360,20 +407,21 @@ const confirmarPago = async () => {
     <Box sx={{ maxWidth: 1100, margin: '0 auto', p: { xs: 1, sm: 3 }, boxSizing: 'border-box' }}>
 
       {/* ── KPIs ── */}
-      <Grid container spacing={2} sx={{ mb: 3 }}>
+      <Grid container spacing={1.5} sx={{ mb: 3 }}>
         {[
-          { icon: <AccountBalanceWallet />, color: BLUE,   label: 'TOTAL RUTA',   value: formatCurrency(kpis.total) },
-          { icon: <AssignmentInd />,        color: ACCENT, label: 'CLIENTES HOY', value: `${kpis.cantidad} Pendientes` },
-          { icon: <TrendingUp />,           color: GREEN,  label: 'ESTADO',       value: esAdmin ? 'Supervisión' : 'Operativo' },
-        ].map(({ icon, color, label, value }) => (
-          <Grid item xs={12} sm={4} key={label}>
-            <Paper sx={{ p: 2, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 2,
-              border: '1px solid', borderColor: 'divider' }}>
-              <Avatar sx={{ bgcolor: `${color}15`, color }}>{icon}</Avatar>
-              <Box>
-                <Typography variant="caption" color="text.secondary" fontWeight={700}>{label}</Typography>
-                <Typography variant="h6" fontWeight={800}>{value}</Typography>
+          { icon: <AccountBalanceWallet />, color: BLUE,   label: 'TOTAL RUTA',    value: formatCurrency(kpis.total),   sub: `${kpis.cantidad} cobros pendientes` },
+          { icon: <ErrorOutline />,        color: kpis.moraTotal > 0 ? RED : GREEN, label: 'MORA ACUMULADA', value: kpis.moraTotal > 0 ? formatCurrency(kpis.moraTotal) : 'Sin mora', sub: kpis.vencidas > 0 ? `${kpis.vencidas} vencidas` : 'Todas al día' },
+          { icon: <AssignmentInd />,       color: ACCENT, label: 'PENDIENTES HOY', value: `${kpis.cantidad}`,          sub: 'Clientes a visitar' },
+          { icon: <CheckCircle />,         color: GREEN,  label: 'COBRADAS HOY',   value: `${kpis.cobrasHoy}`,         sub: 'En esta sesión' },
+        ].map(({ icon, color, label, value, sub }) => (
+          <Grid item xs={6} sm={3} key={label}>
+            <Paper sx={{ p: 1.5, borderRadius: 3, height: '100%', border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+                <Avatar sx={{ width: 26, height: 26, bgcolor: `${color}15`, color, '& .MuiSvgIcon-root': { fontSize: 15 } }}>{icon}</Avatar>
+                <Typography sx={{ fontSize: 9, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, lineHeight: 1.2 }}>{label}</Typography>
               </Box>
+              <Typography sx={{ fontWeight: 900, fontSize: 15, color, lineHeight: 1.1 }}>{value}</Typography>
+              {sub && <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>{sub}</Typography>}
             </Paper>
           </Grid>
         ))}
@@ -514,15 +562,14 @@ const confirmarPago = async () => {
   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
     <TextField
       fullWidth
+      size="small"
       placeholder="Buscar por cliente o dirección..."
       value={searchTerm}
       onChange={e => setSearchTerm(e.target.value)}
       InputProps={{
-        disableUnderline: true,
-        startAdornment: <InputAdornment position="start"><Search sx={{ color: 'text.secondary' }} /></InputAdornment>,
-        sx: { borderRadius: 3, bgcolor: 'background.default', px: 2, py: 0.5, border: '1px solid', borderColor: 'divider' },
+        startAdornment: <InputAdornment position="start"><Search sx={{ color: 'text.secondary', fontSize: 18 }} /></InputAdornment>,
+        sx: { borderRadius: 3, bgcolor: 'background.default' },
       }}
-      variant="standard"
     />
     <TextField
       select
@@ -543,6 +590,31 @@ const confirmarPago = async () => {
   </Stack>
 </Paper>
 
+      {/* Sort controls */}
+      <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+        <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 700, mr: 0.5 }}>Ordenar:</Typography>
+        {[
+          { key: 'mora',  label: 'Mayor mora'  },
+          { key: 'monto', label: 'Mayor monto' },
+          { key: 'fecha', label: 'Por fecha'   },
+        ].map(s => (
+          <Chip
+            key={s.key}
+            label={s.label}
+            size="small"
+            onClick={() => setSortCuotas(s.key)}
+            sx={{
+              fontWeight: 700, fontSize: 11,
+              bgcolor: sortCuotas === s.key ? ACCENT : 'transparent',
+              color:   sortCuotas === s.key ? 'white' : 'text.secondary',
+              border: '1px solid',
+              borderColor: sortCuotas === s.key ? ACCENT : 'divider',
+              cursor: 'pointer',
+            }}
+          />
+        ))}
+      </Box>
+
       {/* ── Lista de cuotas ── */}
       <Stack spacing={3}>
         {cuotasFiltradas.length === 0 ? (
@@ -557,11 +629,17 @@ const confirmarPago = async () => {
             const cobradorAsignado = usuarios.find(u => u.id === cuota.usuario_asignado_id) || null;
             const idReal           = cuota.cuota_id;
             const estaEditando     = editandoAsignacion[idReal];
+            const { mora, dias, total: totalConMora } = calcularMoraCliente(cuota, 2);
 
             return (
-              <Paper key={idReal} sx={{ p: { xs: 2, sm: 3 }, borderRadius: 4,
-                border: '1px solid', borderColor: 'divider',
-                boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
+              <Paper key={idReal} sx={{
+                p: { xs: 2, sm: 3 }, borderRadius: 4,
+                border: '1.5px solid',
+                borderColor: dias > 0 ? `${RED}50` : 'divider',
+                borderLeft: dias > 0 ? `5px solid ${RED}` : undefined,
+                bgcolor: dias > 0 ? `${RED}03` : 'background.paper',
+                boxShadow: dias > 0 ? `0 4px 15px ${RED}12` : '0 4px 15px rgba(0,0,0,0.03)',
+              }}>
                 <Stack spacing={2}>
 
                   {/* Encabezado */}
@@ -588,9 +666,23 @@ const confirmarPago = async () => {
                       <Typography sx={{ fontSize: 10, fontWeight: 800, color: 'text.secondary' }}>
                         RECAUDAR
                       </Typography>
-                      <Typography sx={{ fontWeight: 900, fontSize: 24, color: GREEN }}>
-                        {formatCurrency(cuota.saldo_pendiente ?? cuota.monto_cuota)}
+                      <Typography sx={{ fontWeight: 900, fontSize: 24, color: dias > 0 ? RED : GREEN }}>
+                        {formatCurrency(dias > 0 ? totalConMora : (cuota.saldo_pendiente ?? cuota.monto_cuota))}
                       </Typography>
+                      {dias > 0 && (
+                        <Box sx={{ mt: 0.3 }}>
+                          <Typography sx={{ fontSize: 9, color: 'text.secondary', textDecoration: 'line-through' }}>
+                            Base: {formatCurrency(cuota.saldo_pendiente)}
+                          </Typography>
+                          <Chip
+                            icon={<ErrorOutline sx={{ fontSize: '10px !important' }} />}
+                            label={`+${formatCurrency(mora)} mora · ${dias}d`}
+                            size="small"
+                            sx={{ height: 16, fontSize: 8, fontWeight: 700, bgcolor: `${RED}15`, color: RED, mt: 0.3,
+                              '& .MuiChip-icon': { color: RED } }}
+                          />
+                        </Box>
+                      )}
                     </Box>
                   </Box>
 
@@ -752,6 +844,21 @@ const confirmarPago = async () => {
                 Saldo pendiente: {formatCurrency(pagoModal.cuota?.saldo_pendiente || 0)}
               </Typography>
             </Box>
+            {(() => {
+              if (!pagoModal.cuota) return null;
+              const { mora: moraCalc, dias: diasCalc, total: totalCalc } = calcularMoraCliente(pagoModal.cuota, 2);
+              if (diasCalc <= 0 || moraCalc <= 0) return null;
+              return (
+                <Box sx={{ mt: 1, p: 1, borderRadius: 1.5, bgcolor: `${RED}08`, border: `1px solid ${RED}20` }}>
+                  <Typography sx={{ fontSize: 11, fontWeight: 700, color: RED }}>
+                    ⚠️ Vencida hace {diasCalc} días · Mora: {formatCurrency(moraCalc)}
+                  </Typography>
+                  <Typography sx={{ fontSize: 12, fontWeight: 900, color: RED, mt: 0.3 }}>
+                    Total sugerido a cobrar: {formatCurrency(totalCalc)}
+                  </Typography>
+                </Box>
+              );
+            })()}
 
             {/* Monto */}
             <CurrencyField
@@ -970,6 +1077,14 @@ const confirmarPago = async () => {
                       sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                       <Receipt fontSize="small" /> {cob.cuotas_cobradas} recibos hoy
                     </Typography>
+                    {cob.metodos && Object.entries(cob.metodos).filter(([, v]) => v > 0).length > 0 && (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
+                        {Object.entries(cob.metodos).filter(([, v]) => v > 0).map(([met, val]) => (
+                          <Chip key={met} label={`${met}: ${formatCurrency(val)}`} size="small"
+                            sx={{ height: 16, fontSize: 9, bgcolor: 'action.selected' }} />
+                        ))}
+                      </Box>
+                    )}
                   </Box>
                   <Typography fontWeight={900} fontSize={20} color={GREEN}>
                     {formatCurrency(cob.total_recaudado)}
