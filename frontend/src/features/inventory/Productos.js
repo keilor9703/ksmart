@@ -58,7 +58,16 @@ const Productos = () => {
           <Box sx={{ minWidth: 0 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Typography sx={{ fontWeight: 700, fontSize: 19, lineHeight: 1.2 }}>Productos</Typography>
-              <HelpGuideTopBar moduleName="Productos" steps={productSteps} />
+              <HelpGuideTopBar
+                moduleName="Productos"
+                steps={productSteps}
+                faqItems={[
+                  { q: '¿Qué son las "Unidades por empaque"?', a: 'Si compras una caja de 12 unidades, ingresa el costo de la caja completa y escribe 12 en este campo. El sistema calculará el costo por unidad automáticamente para las recetas.' },
+                  { q: '¿Qué es el stock mínimo?', a: 'Es el umbral de alerta. Cuando el stock actual baje de ese número, el sistema generará una advertencia para que sepas que necesitas reabastecer.' },
+                  { q: '¿Cuál es la diferencia entre producto y servicio?', a: 'Los productos físicos controlan stock (entradas y salidas). Los servicios son intangibles: no llevan inventario, solo precio y descripción.' },
+                  { q: '¿Cómo agrego el código de barras a un producto?', a: 'En el formulario, busca el campo "Código de barras" e ingresa el código manualmente o usa un lector USB para escanearlo directamente en el campo.' },
+                ]}
+              />
             </Box>
             <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Catálogo, servicios y fórmulas de producción</Typography>
           </Box>

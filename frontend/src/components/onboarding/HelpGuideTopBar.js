@@ -11,26 +11,27 @@ import {
 } from '@mui/icons-material';
 import { useOnboarding } from '../../context/OnboardingContext';
 
-const FAQ_ITEMS = [
-  {
-    q: '¿Por qué el costo de mi receta no cuadra?',
-    a: 'Revisa si tus insumos tienen configuradas las "Unidades por empaque". Si compraste una caja de 4 unidades por $12.000, debes ingresar ese costo y poner 4 en "Unidades por empaque" para que el sistema calcule $3.000 por unidad.',
-  },
-  {
-    q: '¿Qué es "Porciones" en una receta?',
-    a: 'Es la cantidad de unidades que produce la receta. Si haces una mezcla y obtienes 10 hamburguesas, escribe 10. El sistema divide el costo total entre ese número para darte el costo exacto por unidad.',
-  },
+const DEFAULT_FAQ = [
   {
     q: '¿Cómo activo los Tips de ayuda?',
-    a: 'Usa el botón "Activar Tips" que aparece abajo. Los tips son esos pequeños íconos de ayuda (?) que aparecen junto a los campos y te explican para qué sirven.',
+    a: 'Usa el botón "Activar Tips" que aparece abajo. Los tips son pequeños íconos de ayuda que aparecen junto a los campos importantes y te explican para qué sirven.',
   },
   {
-    q: '¿Puedo cambiar los datos después?',
-    a: 'Sí, todos los datos son editables. Haz clic en el ícono de lápiz ✏️ junto a cualquier registro para modificarlo.',
+    q: '¿Puedo editar los datos después?',
+    a: 'Sí, todos los registros son editables. Haz clic en el ícono de lápiz ✏️ junto a cualquier registro para modificarlo.',
+  },
+  {
+    q: '¿Cómo busco un registro específico?',
+    a: 'Usa la barra de búsqueda en la parte superior del listado para filtrar por nombre, código o cualquier otro dato.',
+  },
+  {
+    q: '¿Qué hago si cometí un error?',
+    a: 'Puedes editar o eliminar cualquier registro en cualquier momento desde el historial o listado del módulo.',
   },
 ];
 
-const HelpGuideTopBar = ({ moduleName, steps = [], moduleColor }) => {
+const HelpGuideTopBar = ({ moduleName, steps = [], moduleColor, faqItems }) => {
+  const activeFaq = faqItems && faqItems.length > 0 ? faqItems : DEFAULT_FAQ;
   const [open, setOpen] = useState(false);
   const [expandedFaq, setExpandedFaq] = useState(null);
   const theme = useTheme();
@@ -124,7 +125,7 @@ const HelpGuideTopBar = ({ moduleName, steps = [], moduleColor }) => {
             <Typography sx={{ fontWeight: 700, fontSize: 12, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8, mb: 1.5 }}>
               Preguntas frecuentes
             </Typography>
-            {FAQ_ITEMS.map((item, i) => (
+            {activeFaq.map((item, i) => (
               <Box
                 key={i}
                 sx={{ mb: 1, border: '1px solid', borderColor: expandedFaq === i ? `${accentColor}40` : 'divider', borderRadius: 2, overflow: 'hidden', transition: 'border-color 0.2s' }}

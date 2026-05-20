@@ -417,12 +417,21 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
             <Typography sx={{ fontWeight: 700, fontSize: 20, lineHeight: 1.2 }}>Recetas de Producción</Typography>
             <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Fórmulas (BOM), costos y rendimiento</Typography>
           </Box>
-          <HelpGuideTopBar moduleName="Recetas de Producción" steps={[
-            { title: 'Registra tus insumos en Productos', description: 'Cada ingrediente debe existir en el módulo de Productos. Si comprás en caja, configura las "Unidades por empaque" para que el costo por unidad sea exacto.' },
-            { title: 'Crea la receta', description: 'Define el producto que vas a fabricar, ponle un nombre a la receta y agrega los ingredientes con su cantidad en unidades individuales (no cajas).' },
-            { title: 'Ingresa las porciones', description: 'Si la receta produce 10 hamburguesas, escribe 10. El sistema divide el costo total entre las porciones para darte el costo exacto por unidad.' },
-            { title: 'Revisa el margen', description: 'Ingresa el precio de venta sugerido y el sistema calcula automáticamente el margen de ganancia. Verde = saludable (>30%), Amarillo = ajustado, Rojo = cuidado.' },
-          ]} />
+          <HelpGuideTopBar
+            moduleName="Recetas de Producción"
+            steps={[
+              { title: 'Registra tus insumos en Productos', description: 'Cada ingrediente debe existir en el módulo de Productos. Si comprás en caja, configura las "Unidades por empaque" para que el costo por unidad sea exacto.' },
+              { title: 'Crea la receta', description: 'Define el producto que vas a fabricar, ponle un nombre a la receta y agrega los ingredientes con su cantidad en unidades individuales (no cajas).' },
+              { title: 'Ingresa las porciones', description: 'Si la receta produce 10 hamburguesas, escribe 10. El sistema divide el costo total entre las porciones para darte el costo exacto por unidad.' },
+              { title: 'Revisa el margen', description: 'Ingresa el precio de venta sugerido y el sistema calcula automáticamente el margen de ganancia. Verde = saludable (>30%), Amarillo = ajustado, Rojo = cuidado.' },
+            ]}
+            faqItems={[
+              { q: '¿Por qué el costo de mi receta no cuadra?', a: 'Revisa si tus insumos tienen configuradas las "Unidades por empaque". Si compraste una caja de 4 unidades por $12.000, ingresa ese costo y pon 4 en el campo para que el sistema calcule $3.000 por unidad.' },
+              { q: '¿Qué es "Porciones" en una receta?', a: 'Es cuántas unidades produce la receta. Si la mezcla rinde 10 hamburguesas, escribe 10. El costo total se divide entre ese número para darte el costo exacto por unidad.' },
+              { q: '¿Cómo calculo el precio de venta sugerido?', a: 'Ingresa el precio en el campo correspondiente y el sistema calcula el margen automáticamente. Verde = >30% (saludable), Amarillo = ajustado, Rojo = margen muy bajo.' },
+              { q: '¿Puedo modificar una receta existente?', a: 'Sí, haz clic en el ícono de lápiz ✏️ junto a la receta. Puedes cambiar ingredientes, cantidades y porciones en cualquier momento.' },
+            ]}
+          />
         </Box>
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
           {sortedRecetas.length > 0 && (

@@ -126,7 +126,16 @@ const CatalogoConfig = () => {
           <Storefront sx={{ color: 'primary.main', fontSize: 32 }} />
           Configuración de Catálogo Virtual
         </Typography>
-        <HelpGuideTopBar moduleName="Catálogo Virtual" steps={catalogSteps} />
+        <HelpGuideTopBar
+          moduleName="Catálogo Virtual"
+          steps={catalogSteps}
+          faqItems={[
+            { q: '¿Cómo comparten mis clientes el catálogo?', a: 'Copia el enlace de tu tienda o descarga el código QR y compártelo por WhatsApp, redes sociales o imprímelo en material publicitario.' },
+            { q: '¿Qué productos aparecen en el catálogo?', a: 'Solo los productos que tengan activada la opción "Mostrar en catálogo" en su ficha. Ve a Productos → edita el producto → activa la opción.' },
+            { q: '¿Los pedidos llegan automáticamente al sistema?', a: 'Los pedidos se reciben vía WhatsApp con el detalle del carrito. Debes registrarlos manualmente en el módulo de Ventas para que el stock se descuente.' },
+            { q: '¿Puedo cambiar los colores y el logo?', a: 'Sí, usa el selector de color y sube tu logo en esta misma sección de configuración. Los cambios se reflejan en tu tienda virtual de inmediato.' },
+          ]}
+        />
       </Box>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
         Personaliza tu tienda online y comparte el enlace directo con tus clientes para recibir pedidos por WhatsApp.

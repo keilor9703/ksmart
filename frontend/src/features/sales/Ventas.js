@@ -682,6 +682,12 @@ const Ventas = ({ user }) => {
                             { title: 'Elige el método de pago', description: 'Selecciona Efectivo, Transferencia, Tarjeta o "Por Cobrar" para registrar ventas a crédito.' },
                             { title: 'Registra la venta', description: 'Haz clic en "Registrar Venta" y el sistema descuenta el stock y guarda la transacción automáticamente.' },
                         ]}
+                        faqItems={[
+                            { q: '¿Cómo registro una venta a crédito?', a: 'Selecciona "Por Cobrar" como método de pago. La venta queda registrada como deuda del cliente y aparece en "Cartera pendiente". Puedes gestionarla desde el historial.' },
+                            { q: '¿Puedo aplicar un descuento en la venta?', a: 'Sí, cada producto en el carrito tiene un campo "Desc. %" donde puedes ingresar un porcentaje de descuento individual. El total se recalcula automáticamente.' },
+                            { q: '¿Qué pasa con el stock al registrar una venta?', a: 'El stock se descuenta automáticamente al registrar. Si un producto tiene stock bajo o insuficiente para la cantidad pedida, verás una alerta en el carrito.' },
+                            { q: '¿Cómo edito o anulo una venta ya registrada?', a: 'En la pestaña "Historial", usa el ícono de lápiz ✏️ para editar o el ícono de devolución para registrar una devolución parcial o total.' },
+                        ]}
                     />
                 </Box>
                 <Button

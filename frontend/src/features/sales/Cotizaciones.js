@@ -598,6 +598,12 @@ const Cotizaciones = () => {
               { title: 'Convierte a venta', description: 'Cuando el cliente acepte, usa el ícono de flecha en el historial. El stock se descuenta en ese momento.' },
               { title: 'Usa plantillas', description: 'Guarda cotizaciones frecuentes como plantilla para reutilizarlas sin escribirlas desde cero cada vez.' },
             ]}
+            faqItems={[
+              { q: '¿La cotización descuenta el stock?', a: 'No. Las cotizaciones son documentos de presupuesto y no afectan el inventario. El stock solo se descuenta cuando conviertes la cotización a una venta real.' },
+              { q: '¿Cómo convierto una cotización en venta?', a: 'En el historial, busca la cotización vigente y haz clic en el ícono de conversión ↗. Podrás elegir el método de pago y el stock se descontará en ese momento.' },
+              { q: '¿Para qué sirven las plantillas?', a: 'Guarda una cotización como plantilla para reutilizarla en el futuro. Ideal para servicios que cotizas frecuentemente con los mismos productos y precios.' },
+              { q: '¿Cómo comparto la cotización con el cliente?', a: 'En el historial, usa el ícono de impresora 🖨️ para generar un PDF profesional listo para enviar por correo o WhatsApp.' },
+            ]}
           />
         </Box>
         <Button
