@@ -784,6 +784,29 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v52)
                 logger.info("V52 (Categoría en Gastos) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V53 - RESOLUCIONES DIAN: clave_tecnica + nota
+            # ═══════════════════════════════════════════════════════════════
+
+            migration_v53 = "inv_v53_resoluciones_dian_extra_fields"
+
+            if not _migration_already_applied(conn, migration_v53):
+                logger.info("Aplicando migración V53 (Resoluciones DIAN extra fields)...")
+
+                if not _column_exists(conn, "resoluciones_dian", "clave_tecnica"):
+                    if IS_SQLITE:
+                        conn.execute(text("ALTER TABLE resoluciones_dian ADD COLUMN clave_tecnica TEXT NULL"))
+                    else:
+                        conn.execute(text("ALTER TABLE resoluciones_dian ADD COLUMN clave_tecnica VARCHAR(200) NULL"))
+                    logger.info("V53: añadido resoluciones_dian.clave_tecnica")
+
+                if not _column_exists(conn, "resoluciones_dian", "nota"):
+                    conn.execute(text("ALTER TABLE resoluciones_dian ADD COLUMN nota TEXT NULL"))
+                    logger.info("V53: añadido resoluciones_dian.nota")
+
+                _mark_migration_applied(conn, migration_v53)
+                logger.info("V53 (Resoluciones DIAN extra fields) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

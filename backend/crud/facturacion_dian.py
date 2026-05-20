@@ -103,6 +103,10 @@ def get_resoluciones(db: Session, empresa_id: int) -> List[models.ResolucionDian
     hoy = date.today()
     resultado = []
     for r in resoluciones:
+        dias_para_vencer = None
+        if r.vigencia_hasta:
+            dias_para_vencer = (r.vigencia_hasta - hoy).days
+
         r_dict = {
             "id":                   r.id,
             "empresa_id":           r.empresa_id,
@@ -115,6 +119,8 @@ def get_resoluciones(db: Session, empresa_id: int) -> List[models.ResolucionDian
             "vigencia_hasta":       r.vigencia_hasta,
             "is_active":            r.is_active,
             "created_at":           r.created_at,
+            "clave_tecnica":        getattr(r, "clave_tecnica", None),
+            "nota":                 getattr(r, "nota", None),
             "numeros_disponibles":  r.numero_final - r.numero_actual,
             "porcentaje_usado":     round(
                 ((r.numero_actual - r.numero_inicial) /
@@ -124,6 +130,7 @@ def get_resoluciones(db: Session, empresa_id: int) -> List[models.ResolucionDian
                 (r.vigencia_hasta is None or r.vigencia_hasta >= hoy) and
                 r.numero_actual < r.numero_final
             ),
+            "dias_para_vencer": dias_para_vencer,
         }
         resultado.append(r_dict)
     return resultado
@@ -139,11 +146,13 @@ def create_resolucion(
         empresa_id        = empresa_id,
         prefijo           = payload.prefijo or "",
         numero_resolucion = payload.numero_resolucion,
-        numero_actual     = payload.numero_inicial - 1,   # El primero asignado será numero_inicial
+        numero_actual     = payload.numero_inicial - 1,
         numero_inicial    = payload.numero_inicial,
         numero_final      = payload.numero_final,
         vigencia_desde    = payload.vigencia_desde,
         vigencia_hasta    = payload.vigencia_hasta,
+        clave_tecnica     = payload.clave_tecnica,
+        nota              = payload.nota,
         is_active         = False,
     )
     db.add(resolucion)
@@ -194,6 +203,32 @@ def activar_resolucion(
         return None
 
     resolucion.is_active = True
+    db.commit()
+    db.refresh(resolucion)
+    return resolucion
+
+
+def ajustar_numero_resolucion(
+    db: Session,
+    empresa_id: int,
+    resolucion_id: int,
+    nuevo_numero: int,
+) -> Optional[models.ResolucionDian]:
+    """Ajusta manualmente el número actual de la resolución. Solo admin."""
+    resolucion = db.query(models.ResolucionDian).filter(
+        models.ResolucionDian.id         == resolucion_id,
+        models.ResolucionDian.empresa_id == empresa_id,
+    ).first()
+    if not resolucion:
+        return None
+
+    if nuevo_numero < resolucion.numero_inicial - 1 or nuevo_numero > resolucion.numero_final:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El número debe estar entre {resolucion.numero_inicial - 1} y {resolucion.numero_final}."
+        )
+
+    resolucion.numero_actual = nuevo_numero
     db.commit()
     db.refresh(resolucion)
     return resolucion

@@ -343,6 +343,8 @@ class ResolucionDian(Base, TenantMixin):
     vigencia_hasta    = Column(Date, nullable=True)
     is_active         = Column(Boolean, default=False)
     created_at        = Column(DateTime(timezone=True), default=utcnow)
+    clave_tecnica     = Column(String(200), nullable=True)   # Clave técnica DIAN para FE
+    nota              = Column(Text, nullable=True)           # Observaciones internas
 
 
 

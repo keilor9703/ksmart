@@ -58,6 +58,24 @@ def activar_resolucion(
         raise HTTPException(status_code=404, detail="Resolución no encontrada.")
     return resolucion
 
+@router.patch("/{resolucion_id}/ajustar-numero", response_model=schemas.ResolucionDianOut)
+def ajustar_numero_resolucion(
+    resolucion_id: int,
+    payload: schemas.ResolucionDianAjusteNumero,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_admin_user),
+):
+    """Ajusta manualmente el consecutivo actual. Solo admins. Requiere motivo."""
+    resolucion = crud.ajustar_numero_resolucion(
+        db, empresa_id=current_user.empresa_id,
+        resolucion_id=resolucion_id,
+        nuevo_numero=payload.nuevo_numero,
+    )
+    if not resolucion:
+        raise HTTPException(status_code=404, detail="Resolución no encontrada.")
+    return resolucion
+
+
 @router.delete("/{resolucion_id}")
 def eliminar_resolucion(
     resolucion_id: int,

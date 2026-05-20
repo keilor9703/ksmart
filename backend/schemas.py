@@ -1350,6 +1350,8 @@ class ResolucionDianCreate(BaseModel):
     numero_final: int = 99999999
     vigencia_desde: Optional[date] = None
     vigencia_hasta: Optional[date] = None
+    clave_tecnica: Optional[str] = None
+    nota: Optional[str] = None
 
 class ResolucionDianUpdate(BaseModel):
     prefijo: Optional[str] = None
@@ -1358,6 +1360,12 @@ class ResolucionDianUpdate(BaseModel):
     numero_final: Optional[int] = None
     vigencia_desde: Optional[date] = None
     vigencia_hasta: Optional[date] = None
+    clave_tecnica: Optional[str] = None
+    nota: Optional[str] = None
+
+class ResolucionDianAjusteNumero(BaseModel):
+    nuevo_numero: int
+    motivo: str
 
 class ResolucionDianOut(BaseModel):
     id: int
@@ -1371,10 +1379,13 @@ class ResolucionDianOut(BaseModel):
     vigencia_hasta: Optional[date] = None
     is_active: bool
     created_at: Optional[datetime] = None
+    clave_tecnica: Optional[str] = None
+    nota: Optional[str] = None
     # Campos calculados
     numeros_disponibles: Optional[int] = None
     porcentaje_usado: Optional[float] = None
-    esta_vigente: Optional[bool] = None          # vigencia_hasta >= hoy
+    esta_vigente: Optional[bool] = None
+    dias_para_vencer: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
 

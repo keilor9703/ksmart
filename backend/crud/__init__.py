@@ -114,7 +114,7 @@ get_resumen_alertas_vencimiento = get_resumen_alertas  # alias para compatibilid
 
 from crud.facturacion_dian import (
     get_resoluciones, create_resolucion, update_resolucion,
-    activar_resolucion, delete_resolucion,
+    activar_resolucion, delete_resolucion, ajustar_numero_resolucion,
 )
 
 from crud.cotizaciones import (
