@@ -109,9 +109,11 @@ function App() {
   const [anchorEl, setAnchorEl]   = useState(null);
   const navigate = useNavigate();
 
-  const [mode, setMode] = useState(() =>
-    localStorage.getItem('themeMode') === 'dark' ? 'dark' : 'light'
-  );
+  const [mode, setMode] = useState(() => {
+    const saved = localStorage.getItem('themeMode');
+    if (saved === 'dark' || saved === 'light') return saved;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
 
   const appTheme = useMemo(() => getAppTheme(mode), [mode]);
   const isMobile = useMediaQueryHook(appTheme.breakpoints.down('md'));
@@ -119,6 +121,17 @@ function App() {
 
   useEffect(() => { localStorage.setItem('themeMode', mode); }, [mode]);
   useEffect(() => { checkAuth(); }, []);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = (e) => {
+      if (!localStorage.getItem('themeMode')) {
+        setMode(e.matches ? 'dark' : 'light');
+      }
+    };
+    mq.addEventListener('change', handleChange);
+    return () => mq.removeEventListener('change', handleChange);
+  }, []);
 
   const checkAuth = async () => {
       const token = localStorage.getItem('token');
