@@ -134,8 +134,19 @@ def initialize_default_data(db: Session):
             empresa_id=empresa_default.id
         )
 
+def run_migrations():
+    """Aplica migraciones de columnas nuevas sin romper datos existentes."""
+    from sqlalchemy import text, inspect
+    with engine.connect() as conn:
+        inspector = inspect(engine)
+        cols = [c['name'] for c in inspector.get_columns('productos')]
+        if 'unidades_por_empaque' not in cols:
+            conn.execute(text("ALTER TABLE productos ADD COLUMN unidades_por_empaque FLOAT NOT NULL DEFAULT 1.0"))
+            conn.commit()
+
 @app.on_event("startup")
 def startup_event():
+    run_migrations()
     db = SessionLocal()
     try:
         initialize_default_data(db)

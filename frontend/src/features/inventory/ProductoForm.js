@@ -21,7 +21,8 @@ import {
   Switch,
   FormControlLabel,
   Autocomplete,
-  Paper
+  Paper,
+  Tooltip
 } from '@mui/material';
 
 import {
@@ -34,7 +35,8 @@ import {
   Science,
   Storefront,
   AddPhotoAlternate,
-  Delete
+  Delete,
+  InfoOutlined
 } from '@mui/icons-material';
 
 import { UNIDADES_MEDIDA } from '../../utils/constants';
@@ -172,6 +174,7 @@ const ProductoForm = ({
   const [stockMinimo, setStockMinimo] = useState('');
   const [stockActual, setStockActual] = useState(0);
   const [manejaLotes, setManejaLotes] = useState(false);
+  const [unidadesPorEmpaque, setUnidadesPorEmpaque] = useState(1);
   const [descripcion, setDescripcion] = useState('');
   const [grupos, setGrupos] = useState([]);
 
@@ -213,6 +216,7 @@ const ProductoForm = ({
       );
       setStockActual(productoToEdit.stock_actual ?? 0);
       setManejaLotes(productoToEdit.maneja_lotes || false);
+      setUnidadesPorEmpaque(productoToEdit.unidades_por_empaque || 1);
       setImagenes(productoToEdit.imagenes || []);
       setMostrarEnCatalogo(productoToEdit.mostrar_en_catalogo || false);
       setDescripcion(productoToEdit.descripcion || '');
@@ -232,6 +236,7 @@ const ProductoForm = ({
     setStockMinimo('');
     setStockActual(0);
     setManejaLotes(false);
+    setUnidadesPorEmpaque(1);
     setImagenes([]);
     setMostrarEnCatalogo(false);
     setDescripcion('');
@@ -315,6 +320,7 @@ const ProductoForm = ({
           ? 0
           : parseFloat(stockMinimo),
       maneja_lotes: esServicio ? false : manejaLotes,
+      unidades_por_empaque: esServicio ? 1 : (parseFloat(unidadesPorEmpaque) > 1 ? parseFloat(unidadesPorEmpaque) : 1),
       imagenes: imagenes,
       mostrar_en_catalogo: mostrarEnCatalogo,
       descripcion: descripcion || null,
@@ -723,6 +729,75 @@ const ProductoForm = ({
                       vencimientos en compras y entradas.
                     </Typography>
                   )}
+                </Box>
+              </Grid>
+            )}
+
+            {!esServicio && (
+              <Grid item xs={12}>
+                <Box
+                  sx={{
+                    p: 2, borderRadius: 2, border: '1px solid',
+                    borderColor: parseFloat(unidadesPorEmpaque) > 1 ? '#F59E0B' : 'divider',
+                    bgcolor: parseFloat(unidadesPorEmpaque) > 1 ? '#FFFBEB' : 'transparent',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: 14 }}>
+                      📦 ¿Lo compras en empaque o caja con varias unidades?
+                    </Typography>
+                    <Tooltip
+                      title={
+                        <Box sx={{ p: 1, maxWidth: 260 }}>
+                          <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 0.5 }}>¿Para qué sirve esto?</Typography>
+                          <Typography sx={{ fontSize: 12, lineHeight: 1.5 }}>
+                            Si compras una <b>caja de 4 carnes por $12.000</b>, registra el costo como $12.000 y pon aquí <b>4</b>. El sistema calculará automáticamente que cada carne vale $3.000 al usarla en recetas.
+                          </Typography>
+                          <Typography sx={{ fontSize: 12, mt: 1, lineHeight: 1.5 }}>
+                            Si lo compras por unidad individual, deja el valor en <b>1</b>.
+                          </Typography>
+                        </Box>
+                      }
+                      arrow
+                      placement="top"
+                    >
+                      <InfoOutlined sx={{ fontSize: 18, color: 'text.secondary', cursor: 'help' }} />
+                    </Tooltip>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                    <TextField
+                      type="number"
+                      label="Unidades por empaque"
+                      value={unidadesPorEmpaque}
+                      onChange={e => {
+                        const v = Math.max(1, parseFloat(e.target.value) || 1);
+                        setUnidadesPorEmpaque(v);
+                      }}
+                      inputProps={{ min: 1, step: 1 }}
+                      size="small"
+                      sx={{ width: 180 }}
+                      helperText="Deja en 1 si lo compras por unidad"
+                    />
+                    {parseFloat(unidadesPorEmpaque) > 1 && parseFloat(costo) > 0 && (
+                      <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: '#F59E0B18', border: '1px solid #F59E0B40' }}>
+                        <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 600 }}>COSTO REAL POR UNIDAD</Typography>
+                        <Typography sx={{ fontSize: 18, fontWeight: 800, color: '#D97706' }}>
+                          {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(parseFloat(costo) / parseFloat(unidadesPorEmpaque))}
+                        </Typography>
+                        <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                          ${parseFloat(costo).toLocaleString('es-CO')} ÷ {unidadesPorEmpaque} uds
+                        </Typography>
+                      </Box>
+                    )}
+                    {parseFloat(unidadesPorEmpaque) > 1 && (
+                      <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: '#ECFDF5', border: '1px solid #10B98140', flex: 1, minWidth: 200 }}>
+                        <Typography sx={{ fontSize: 12, color: '#059669', fontWeight: 600, lineHeight: 1.5 }}>
+                          ✓ Al crear recetas, ingresa la cantidad de <b>unidades individuales</b> que usa cada producto (no cajas).
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
                 </Box>
               </Grid>
             )}

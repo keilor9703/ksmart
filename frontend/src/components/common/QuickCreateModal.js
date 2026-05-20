@@ -141,6 +141,40 @@ const ProductoForm = ({ data, onChange, errors }) => {
         />
       </Box>
 
+      {/* Empaque: solo cuando no es servicio */}
+      {!data.es_servicio && (
+        <Box sx={{
+          p: 1.5, borderRadius: 2, border: '1px solid',
+          borderColor: parseFloat(data.unidades_por_empaque) > 1 ? '#F59E0B' : 'divider',
+          bgcolor: parseFloat(data.unidades_por_empaque) > 1 ? '#FFFBEB' : 'transparent',
+          transition: 'all 0.2s',
+        }}>
+          <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.secondary', mb: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            📦 ¿Lo compras en empaque con varias unidades?
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <TextField
+              type="number"
+              label="Unidades por empaque"
+              value={data.unidades_por_empaque}
+              onChange={e => onChange('unidades_por_empaque', Math.max(1, parseFloat(e.target.value) || 1))}
+              inputProps={{ min: 1, step: 1 }}
+              size="small"
+              sx={{ width: 170 }}
+              helperText="Deja 1 si lo compras por unidad"
+            />
+            {parseFloat(data.unidades_por_empaque) > 1 && parseFloat(data.costo) > 0 && (
+              <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: '#FEF3C7', border: '1px solid #F59E0B40', fontSize: 12 }}>
+                <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#92400E' }}>Costo / unidad:</Typography>
+                <Typography sx={{ fontSize: 14, fontWeight: 800, color: '#D97706' }}>
+                  {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(parseFloat(data.costo) / parseFloat(data.unidades_por_empaque))}
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        </Box>
+      )}
+
       <Autocomplete
         size="small"
         freeSolo
@@ -285,7 +319,7 @@ const QuickCreateModal = ({ open, onClose, type, initialName = '', onCreated }) 
   const cfg = TYPE_CONFIG[type] || TYPE_CONFIG.tercero;
 
   const [terceroData, setTerceroData] = useState({ nombre: '', cedula: '', telefono: '', direccion: '', es_proveedor: true, es_cliente: false, cupo_credito: 0 });
-  const [productoData, setProductoData] = useState({ nombre: '', costo: '', precio: '', unidad_medida: 'UND', grupo_item: 1, es_servicio: false, stock_minimo: 0, maneja_lotes: false, stock_inicial: 0, numero_lote: '', fecha_vencimiento: '' });
+  const [productoData, setProductoData] = useState({ nombre: '', costo: '', precio: '', unidad_medida: 'UND', grupo_item: 1, es_servicio: false, stock_minimo: 0, maneja_lotes: false, stock_inicial: 0, numero_lote: '', fecha_vencimiento: '', unidades_por_empaque: 1 });
   const [errors, setErrors]     = useState({});
   const [saving, setSaving]     = useState(false);
   const [savedItem, setSavedItem] = useState(null);
@@ -296,7 +330,7 @@ const QuickCreateModal = ({ open, onClose, type, initialName = '', onCreated }) 
     if (type === 'tercero') {
       setTerceroData({ nombre: initialName, cedula: '', telefono: '', direccion: '', es_proveedor: true, es_cliente: false, cupo_credito: 0 });
     } else {
-      setProductoData({ nombre: initialName, costo: '', precio: '', unidad_medida: 'UND', grupo_item: 1, es_servicio: false, stock_minimo: 0, maneja_lotes: false, stock_inicial: 0, numero_lote: '', fecha_vencimiento: '' });
+      setProductoData({ nombre: initialName, costo: '', precio: '', unidad_medida: 'UND', grupo_item: 1, es_servicio: false, stock_minimo: 0, maneja_lotes: false, stock_inicial: 0, numero_lote: '', fecha_vencimiento: '', unidades_por_empaque: 1 });
     }
   }, [open, type, initialName]);
 
@@ -323,6 +357,7 @@ const QuickCreateModal = ({ open, onClose, type, initialName = '', onCreated }) 
           stock_inicial: productoData.es_servicio ? 0 : (parseFloat(productoData.stock_inicial) || 0),
           numero_lote:       productoData.numero_lote       || undefined,
           fecha_vencimiento: productoData.fecha_vencimiento || undefined,
+          unidades_por_empaque: productoData.es_servicio ? 1 : (parseFloat(productoData.unidades_por_empaque) > 1 ? parseFloat(productoData.unidades_por_empaque) : 1),
         });
       }
 

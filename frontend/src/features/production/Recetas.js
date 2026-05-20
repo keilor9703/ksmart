@@ -7,7 +7,8 @@ import {
 } from '@mui/material';
 import {
   Add, Delete, Edit, Search, Close, Science,
-  ContentCopy, FileDownload, AttachMoney, TrendingDown, TrendingUp
+  ContentCopy, FileDownload, AttachMoney, TrendingDown, TrendingUp,
+  InfoOutlined, Inventory2
 } from '@mui/icons-material';
 import { fetchRecetas, createReceta, updateReceta, deleteReceta } from '../../api';
 import apiClient from '../../api';
@@ -16,6 +17,8 @@ import { formatCurrency } from '../../utils/formatters';
 import CurrencyField from '../../components/common/CurrencyField';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
 import QuickCreateModal from '../../components/common/QuickCreateModal';
+import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
+import SmartTooltip from '../../components/onboarding/SmartTooltip';
 
 const DEFAULT_ACCENT = '#8B5CF6';
 const RED   = '#EF4444';
@@ -169,7 +172,9 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
       const costoBatch =
         r.items.reduce((s, it) => {
           const prod = productosMap[it.insumo?.id];
-          const cu = prod?.costo_unitario ?? it.insumo?.costo_unitario ?? 0;
+          const costoBase = prod?.costo ?? prod?.costo_unitario ?? it.insumo?.costo ?? it.insumo?.costo_unitario ?? 0;
+          const unidadesEmp = Math.max(1, prod?.unidades_por_empaque ?? it.insumo?.unidades_por_empaque ?? 1);
+          const cu = costoBase / unidadesEmp;
           return s + cu * it.cantidad;
         }, 0) +
         r.servicios_maquila.reduce((s, sm) => {
@@ -237,8 +242,10 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
     return formData.items.map(item => {
       const prod = productosMap[parseInt(item.insumo_id)];
       const qty  = parseFloat(item.cantidad) || 0;
-      const cu   = prod?.costo_unitario || 0;
-      return { prod, qty, cu, subtotal: cu * qty };
+      const costoBase = prod?.costo ?? prod?.costo_unitario ?? 0;
+      const unidadesEmp = Math.max(1, prod?.unidades_por_empaque || 1);
+      const cu = costoBase / unidadesEmp;
+      return { prod, qty, cu, subtotal: cu * qty, unidadesEmp, costoBase };
     });
   }, [formData.items, productosMap]);
 
@@ -410,6 +417,12 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
             <Typography sx={{ fontWeight: 700, fontSize: 20, lineHeight: 1.2 }}>Recetas de Producción</Typography>
             <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Fórmulas (BOM), costos y rendimiento</Typography>
           </Box>
+          <HelpGuideTopBar moduleName="Recetas de Producción" steps={[
+            { title: 'Registra tus insumos en Productos', description: 'Cada ingrediente debe existir en el módulo de Productos. Si comprás en caja, configura las "Unidades por empaque" para que el costo por unidad sea exacto.' },
+            { title: 'Crea la receta', description: 'Define el producto que vas a fabricar, ponle un nombre a la receta y agrega los ingredientes con su cantidad en unidades individuales (no cajas).' },
+            { title: 'Ingresa las porciones', description: 'Si la receta produce 10 hamburguesas, escribe 10. El sistema divide el costo total entre las porciones para darte el costo exacto por unidad.' },
+            { title: 'Revisa el margen', description: 'Ingresa el precio de venta sugerido y el sistema calcula automáticamente el margen de ganancia. Verde = saludable (>30%), Amarillo = ajustado, Rojo = cuidado.' },
+          ]} />
         </Box>
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
           {sortedRecetas.length > 0 && (
@@ -730,9 +743,14 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
           {/* ── Ingredientes / Insumos ── */}
           <Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-              <Typography sx={{ fontWeight: 600, fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6 }}>
-                Ingredientes / Insumos (por lote)
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Typography sx={{ fontWeight: 600, fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+                  Ingredientes / Insumos (por lote)
+                </Typography>
+                <Tooltip title="Ingresa la cantidad de unidades individuales que usa la receta. Si el insumo tiene 'Empaque × N', el sistema ya calcula el costo automáticamente." arrow>
+                  <InfoOutlined sx={{ fontSize: 14, color: 'text.disabled', cursor: 'help' }} />
+                </Tooltip>
+              </Box>
               <Button size="small" startIcon={<Add />} onClick={addItem}
                 sx={{ color: accentColor, fontWeight: 600, fontSize: 12 }}>
                 Añadir insumo
@@ -763,15 +781,41 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
                         </Button>
                       </Box>
                     }
-                    renderOption={(props, option) => (
-                      <li {...props} key={option.id} style={{ padding: '10px 14px' }}>
-                        <Typography sx={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3 }}>{option.nombre}</Typography>
-                        <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-                          Stock: {option.stock_actual ?? 0} {option.unidad_medida}
-                          {option.costo_unitario > 0 && ` · Costo: ${formatCurrency(option.costo_unitario)}`}
-                        </Typography>
-                      </li>
-                    )}
+                    renderOption={(props, option) => {
+                      const uEmp = Math.max(1, option.unidades_por_empaque || 1);
+                      const costoBase = option.costo ?? option.costo_unitario ?? 0;
+                      const costoXUnidad = costoBase / uEmp;
+                      return (
+                        <li {...props} key={option.id} style={{ padding: '10px 14px' }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
+                            <Box>
+                              <Typography sx={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3 }}>{option.nombre}</Typography>
+                              <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                                Stock: {option.stock_actual ?? 0} {option.unidad_medida}
+                              </Typography>
+                            </Box>
+                            {costoBase > 0 && (
+                              <Box sx={{ textAlign: 'right', flexShrink: 0, ml: 1 }}>
+                                {uEmp > 1 ? (
+                                  <>
+                                    <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#F59E0B' }}>
+                                      {formatCurrency(costoXUnidad)}/u
+                                    </Typography>
+                                    <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
+                                      📦×{uEmp} = {formatCurrency(costoBase)}
+                                    </Typography>
+                                  </>
+                                ) : (
+                                  <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                                    {formatCurrency(costoBase)}/u
+                                  </Typography>
+                                )}
+                              </Box>
+                            )}
+                          </Box>
+                        </li>
+                      );
+                    }}
                     renderInput={params => (
                       <TextField {...params} label="Insumo (busca por nombre)" size="small" placeholder="Escribe para buscar…" fullWidth
                         InputProps={{ ...params.InputProps, endAdornment: (<>{params.InputProps.endAdornment}<Tooltip title="Crear nuevo insumo"><IconButton size="small" onClick={() => openQuickCreate('producto', insumoInputs[idx] || '', idx)} sx={{ color: GREEN, p: 0.5 }}><Add fontSize="small" /></IconButton></Tooltip></>) }} />
@@ -780,16 +824,30 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
                   />
                   <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
                     <Box sx={{ flex: 1 }}>
-                      <TextField type="number" label="Cantidad" size="small" value={item.cantidad}
+                      <TextField type="number" label="Cantidad (unidades individuales)" size="small" value={item.cantidad}
                         onChange={e => handleItemChange(idx, 'cantidad', e.target.value)}
-                        fullWidth InputProps={{ inputProps: { min: 0, step: 'any' } }} />
+                        fullWidth InputProps={{ inputProps: { min: 0, step: 'any' } }}
+                        helperText={
+                          costoLiveItems[idx]?.unidadesEmp > 1
+                            ? `Ingresa unidades individuales, no empaques`
+                            : undefined
+                        }
+                      />
                       {costoLiveItems[idx]?.cu > 0 && costoLiveItems[idx]?.qty > 0 && (
-                        <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.5 }}>
-                          {formatCurrency(costoLiveItems[idx].cu)} × {costoLiveItems[idx].qty} ={' '}
-                          <Box component="span" sx={{ fontWeight: 700, color: RED }}>
-                            {formatCurrency(costoLiveItems[idx].subtotal)}
-                          </Box>
-                        </Typography>
+                        <Box sx={{ mt: 0.5 }}>
+                          {costoLiveItems[idx].unidadesEmp > 1 && (
+                            <Typography sx={{ fontSize: 10, color: '#F59E0B', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.3 }}>
+                              <Inventory2 sx={{ fontSize: 11 }} />
+                              📦 Empaque ×{costoLiveItems[idx].unidadesEmp}: {formatCurrency(costoLiveItems[idx].costoBase)} → {formatCurrency(costoLiveItems[idx].cu)}/u
+                            </Typography>
+                          )}
+                          <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                            {formatCurrency(costoLiveItems[idx].cu)} × {costoLiveItems[idx].qty} ={' '}
+                            <Box component="span" sx={{ fontWeight: 700, color: RED }}>
+                              {formatCurrency(costoLiveItems[idx].subtotal)}
+                            </Box>
+                          </Typography>
+                        </Box>
                       )}
                     </Box>
                     <Tooltip title="Quitar">

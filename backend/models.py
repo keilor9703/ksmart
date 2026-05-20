@@ -270,6 +270,9 @@ class Producto(Base, TenantMixin):
     imagenes            = Column(JSON, nullable=True) # JSON list de WebP comprimidos
     mostrar_en_catalogo = Column(Boolean, default=False, index=True)
 
+    # Ej: caja de 4 carnes → costo=$12.000, unidades_por_empaque=4 → costo real por unidad=$3.000
+    unidades_por_empaque = Column(Float, default=1.0, nullable=False)
+
     lotes = relationship("LoteExistencia", back_populates="producto", cascade="all, delete-orphan")
 
 class MovementType(str, enum.Enum):

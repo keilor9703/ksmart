@@ -1,51 +1,59 @@
 import React, { useState } from 'react';
-import { 
-  Box, 
-  Typography, 
-  IconButton, 
-  Drawer, 
-  List, 
-  ListItem, 
-  ListItemIcon, 
-  ListItemText, 
-  Divider,
-  Button,
-  useTheme
+import {
+  Box, Typography, IconButton, Drawer, List, ListItem, ListItemText,
+  Divider, Button, useTheme, Collapse, Chip, Avatar
 } from '@mui/material';
-import { 
-  HelpOutline, 
-  Close, 
-  LightbulbCircle, 
-  PlayCircleOutline,
-  AutoFixHigh,
-  QuestionMark
+import {
+  HelpOutline, Close, LightbulbCircle, PlayCircleOutline,
+  AutoFixHigh, QuestionMark, ExpandMore, ExpandLess,
+  CheckCircleOutline, RadioButtonUnchecked, ContactSupport,
+  TipsAndUpdates, MenuBook
 } from '@mui/icons-material';
 import { useOnboarding } from '../../context/OnboardingContext';
 
-const HelpGuideTopBar = ({ moduleName, steps = [] }) => {
+const FAQ_ITEMS = [
+  {
+    q: '¿Por qué el costo de mi receta no cuadra?',
+    a: 'Revisa si tus insumos tienen configuradas las "Unidades por empaque". Si compraste una caja de 4 unidades por $12.000, debes ingresar ese costo y poner 4 en "Unidades por empaque" para que el sistema calcule $3.000 por unidad.',
+  },
+  {
+    q: '¿Qué es "Porciones" en una receta?',
+    a: 'Es la cantidad de unidades que produce la receta. Si haces una mezcla y obtienes 10 hamburguesas, escribe 10. El sistema divide el costo total entre ese número para darte el costo exacto por unidad.',
+  },
+  {
+    q: '¿Cómo activo los Tips de ayuda?',
+    a: 'Usa el botón "Activar Tips" que aparece abajo. Los tips son esos pequeños íconos de ayuda (?) que aparecen junto a los campos y te explican para qué sirven.',
+  },
+  {
+    q: '¿Puedo cambiar los datos después?',
+    a: 'Sí, todos los datos son editables. Haz clic en el ícono de lápiz ✏️ junto a cualquier registro para modificarlo.',
+  },
+];
+
+const HelpGuideTopBar = ({ moduleName, steps = [], moduleColor }) => {
   const [open, setOpen] = useState(false);
+  const [expandedFaq, setExpandedFaq] = useState(null);
   const theme = useTheme();
   const { toggleTooltips, tooltipsVisible } = useOnboarding();
+  const accentColor = moduleColor || theme.palette.primary.main;
 
   return (
     <>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <IconButton 
-          onClick={() => setOpen(true)}
-          sx={{ 
-            color: 'primary.main', 
-            bgcolor: 'primary.main',
-            color: '#fff',
-            '&:hover': { bgcolor: 'primary.dark' },
-            width: 32,
-            height: 32,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-          }}
-        >
-          <QuestionMark sx={{ fontSize: 18 }} />
-        </IconButton>
-        <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', display: { xs: 'none', sm: 'block' } }}>
-          Centro de Ayuda
+      {/* ── Trigger Button ── */}
+      <Box
+        onClick={() => setOpen(true)}
+        sx={{
+          display: 'flex', alignItems: 'center', gap: 0.8, cursor: 'pointer',
+          px: 1.5, py: 0.8, borderRadius: 2,
+          bgcolor: `${accentColor}12`,
+          border: `1px solid ${accentColor}30`,
+          transition: 'all 0.2s',
+          '&:hover': { bgcolor: `${accentColor}20`, borderColor: `${accentColor}60` },
+        }}
+      >
+        <QuestionMark sx={{ fontSize: 15, color: accentColor }} />
+        <Typography sx={{ fontSize: 12, fontWeight: 700, color: accentColor, display: { xs: 'none', sm: 'block' } }}>
+          Ayuda
         </Typography>
       </Box>
 
@@ -54,74 +62,138 @@ const HelpGuideTopBar = ({ moduleName, steps = [] }) => {
         open={open}
         onClose={() => setOpen(false)}
         PaperProps={{
-          sx: { width: { xs: '100%', sm: 350 }, borderRadius: { xs: 0, sm: '24px 0 0 24px' }, p: 3 }
+          sx: {
+            width: { xs: '100%', sm: 380 },
+            borderRadius: { xs: 0, sm: '20px 0 0 20px' },
+            display: 'flex', flexDirection: 'column',
+          }
         }}
       >
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <AutoFixHigh color="primary" />
-            <Typography variant="h6" sx={{ fontWeight: 800 }}>Guía de {moduleName}</Typography>
+        {/* ── Header ── */}
+        <Box sx={{ p: 3, pb: 2, background: `linear-gradient(135deg, ${accentColor}18, ${accentColor}06)`, borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Avatar sx={{ width: 40, height: 40, bgcolor: `${accentColor}20`, color: accentColor }}>
+                <MenuBook />
+              </Avatar>
+              <Box>
+                <Typography sx={{ fontWeight: 800, fontSize: 16 }}>Centro de Ayuda</Typography>
+                <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{moduleName}</Typography>
+              </Box>
+            </Box>
+            <IconButton size="small" onClick={() => setOpen(false)} sx={{ color: 'text.secondary' }}>
+              <Close fontSize="small" />
+            </IconButton>
           </Box>
-          <IconButton onClick={() => setOpen(false)}><Close /></IconButton>
         </Box>
 
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
-          Bienvenido al centro de ayuda rápida. Sigue estos pasos para dominar este módulo en minutos.
-        </Typography>
+        {/* ── Scrollable content ── */}
+        <Box sx={{ flex: 1, overflowY: 'auto', p: 3 }}>
 
-        <List sx={{ mb: 4 }}>
-          {steps.map((step, index) => (
-            <ListItem key={index} sx={{ px: 0, py: 2, alignItems: 'flex-start' }}>
-              <ListItemIcon sx={{ minWidth: 40, mt: 0.5 }}>
-                <Box sx={{ 
-                  width: 24, height: 24, borderRadius: '50%', 
-                  bgcolor: 'primary.main', color: '#fff', 
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 12, fontWeight: 800
-                }}>
-                  {index + 1}
+          {/* Steps */}
+          {steps.length > 0 && (
+            <Box sx={{ mb: 3 }}>
+              <Typography sx={{ fontWeight: 700, fontSize: 12, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8, mb: 1.5 }}>
+                Cómo usar este módulo
+              </Typography>
+              <List disablePadding>
+                {steps.map((step, index) => (
+                  <ListItem key={index} sx={{ px: 0, py: 1, alignItems: 'flex-start', gap: 1.5 }}>
+                    <Box sx={{
+                      width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
+                      bgcolor: `${accentColor}15`, color: accentColor,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 12, fontWeight: 800, mt: 0.2,
+                    }}>
+                      {index + 1}
+                    </Box>
+                    <ListItemText
+                      primary={<Typography sx={{ fontWeight: 700, fontSize: 13, lineHeight: 1.3 }}>{step.title}</Typography>}
+                      secondary={<Typography sx={{ fontSize: 12, color: 'text.secondary', lineHeight: 1.5, mt: 0.3 }}>{step.description}</Typography>}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            </Box>
+          )}
+
+          <Divider sx={{ mb: 3 }} />
+
+          {/* FAQ */}
+          <Box sx={{ mb: 3 }}>
+            <Typography sx={{ fontWeight: 700, fontSize: 12, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8, mb: 1.5 }}>
+              Preguntas frecuentes
+            </Typography>
+            {FAQ_ITEMS.map((item, i) => (
+              <Box
+                key={i}
+                sx={{ mb: 1, border: '1px solid', borderColor: expandedFaq === i ? `${accentColor}40` : 'divider', borderRadius: 2, overflow: 'hidden', transition: 'border-color 0.2s' }}
+              >
+                <Box
+                  onClick={() => setExpandedFaq(expandedFaq === i ? null : i)}
+                  sx={{ p: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', bgcolor: expandedFaq === i ? `${accentColor}06` : 'transparent', '&:hover': { bgcolor: 'action.hover' } }}
+                >
+                  <Typography sx={{ fontSize: 13, fontWeight: 600, lineHeight: 1.3, pr: 1 }}>{item.q}</Typography>
+                  {expandedFaq === i ? <ExpandLess sx={{ fontSize: 18, color: 'text.secondary', flexShrink: 0 }} /> : <ExpandMore sx={{ fontSize: 18, color: 'text.secondary', flexShrink: 0 }} />}
                 </Box>
-              </ListItemIcon>
-              <ListItemText 
-                primary={<Typography sx={{ fontWeight: 700, fontSize: 14 }}>{step.title}</Typography>}
-                secondary={<Typography sx={{ fontSize: 12.5 }}>{step.description}</Typography>}
-              />
-            </ListItem>
-          ))}
-        </List>
+                <Collapse in={expandedFaq === i}>
+                  <Box sx={{ px: 1.5, pb: 1.5 }}>
+                    <Typography sx={{ fontSize: 12.5, color: 'text.secondary', lineHeight: 1.6 }}>{item.a}</Typography>
+                  </Box>
+                </Collapse>
+              </Box>
+            ))}
+          </Box>
 
-        <Divider sx={{ mb: 4 }} />
+          <Divider sx={{ mb: 3 }} />
 
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Button 
-            variant="outlined" 
-            fullWidth
-            startIcon={<LightbulbCircle />}
+          {/* Tips toggle */}
+          <Box
             onClick={toggleTooltips}
-            sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 600 }}
-          >
-            {tooltipsVisible ? 'Desactivar Tips Contextuales' : 'Activar Tips Contextuales'}
-          </Button>
-          
-          <Button 
-            variant="contained" 
-            fullWidth
-            startIcon={<PlayCircleOutline />}
-            sx={{ borderRadius: 3, py: 1.2, textTransform: 'none', fontWeight: 700 }}
-            onClick={() => {
-              // Aquí se podría disparar un tour guiado (ej: react-joyride) en el futuro
-              setOpen(false);
+            sx={{
+              p: 2, borderRadius: 2, cursor: 'pointer', mb: 2,
+              border: '1.5px solid', transition: 'all 0.2s',
+              borderColor: tooltipsVisible ? '#F59E0B' : 'divider',
+              bgcolor: tooltipsVisible ? '#FFFBEB' : 'action.hover',
+              display: 'flex', alignItems: 'center', gap: 1.5,
+              '&:hover': { borderColor: '#F59E0B', bgcolor: '#FFFBEB' },
             }}
           >
-            Ver Vídeo Tutorial
+            <TipsAndUpdates sx={{ color: tooltipsVisible ? '#F59E0B' : 'text.secondary', fontSize: 22 }} />
+            <Box>
+              <Typography sx={{ fontWeight: 700, fontSize: 13, color: tooltipsVisible ? '#B45309' : 'text.primary' }}>
+                {tooltipsVisible ? '✓ Tips contextuales activos' : 'Activar Tips Contextuales'}
+              </Typography>
+              <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                Íconos de ayuda junto a cada campo del formulario
+              </Typography>
+            </Box>
+          </Box>
+
+          <Button
+            variant="contained"
+            fullWidth
+            startIcon={<PlayCircleOutline />}
+            sx={{ borderRadius: 2, py: 1.2, textTransform: 'none', fontWeight: 700, background: `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)`, mb: 2 }}
+            onClick={() => setOpen(false)}
+          >
+            Ver Tutorial en Video
           </Button>
+
         </Box>
 
-        <Box sx={{ mt: 'auto', p: 2, bgcolor: 'action.hover', borderRadius: 4, textAlign: 'center' }}>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-            ¿Necesitas más ayuda?
-          </Typography>
-          <Button size="small" sx={{ fontWeight: 700 }}>Contactar a Soporte</Button>
+        {/* ── Footer ── */}
+        <Box sx={{ p: 2.5, borderTop: '1px solid', borderColor: 'divider', bgcolor: 'action.hover' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <ContactSupport sx={{ color: 'text.secondary', fontSize: 22 }} />
+            <Box sx={{ flex: 1 }}>
+              <Typography sx={{ fontSize: 12, fontWeight: 700 }}>¿Necesitas más ayuda?</Typography>
+              <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Contacta a soporte técnico</Typography>
+            </Box>
+            <Button size="small" variant="outlined" sx={{ borderRadius: 2, fontWeight: 600, fontSize: 11, whiteSpace: 'nowrap' }}>
+              Soporte
+            </Button>
+          </Box>
         </Box>
       </Drawer>
     </>

@@ -289,6 +289,10 @@ class ProductoBase(BaseModel):
     imagenes: Optional[List[str]] = None # Lista de Base64
     mostrar_en_catalogo: bool = False
 
+    # Cuántas unidades individuales trae el empaque/caja/paquete que se compra
+    # Ej: caja de 4 → 4.0 | paquete de 28 lonchas → 28.0 | por unidad → 1.0 (default)
+    unidades_por_empaque: Optional[float] = 1.0
+
     # ✅ FIX: La BD guarda esto como string JSON, Pydantic necesita lista
     @validator('imagenes', pre=True, always=True)
     def parse_imagenes(cls, v):
