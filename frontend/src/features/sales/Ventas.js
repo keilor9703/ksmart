@@ -318,11 +318,13 @@ const Ventas = ({ user }) => {
     const [barcodeInput, setBarcodeInput]     = useState('');
     const [cameraActive, setCameraActive]     = useState(false);
     const [searchingBarcode, setSearchingBarcode] = useState(false);
-    const barcodeFieldRef = useRef(null);
-    const videoRef        = useRef(null);
-    const streamRef       = useRef(null);
-    const rAFRef          = useRef(null);
+    const [scanFlash, setScanFlash]           = useState(false);
+    const barcodeFieldRef  = useRef(null);
+    const videoRef         = useRef(null);
+    const streamRef        = useRef(null);
+    const rAFRef           = useRef(null);
     const zxingControlsRef = useRef(null);
+    const scanCooldownRef  = useRef(false);
 
     // ── UI ──
     const [clienteInput, setClienteInput] = useState('');
@@ -446,11 +448,13 @@ const Ventas = ({ user }) => {
             try {
                 if (!HAS_CAMERA) { toast.error('Tu navegador no soporta acceso a cámara.'); setCameraActive(false); return; }
 
+                // onBarcode: mantiene la cámara activa con cooldown de 1.5s entre lecturas
                 const onBarcode = (code) => {
-                    if (!active) return;
-                    active = false;
-                    cleanupCamera();
-                    setCameraActive(false);
+                    if (!active || scanCooldownRef.current) return;
+                    scanCooldownRef.current = true;
+                    setScanFlash(true);
+                    setTimeout(() => setScanFlash(false), 380);
+                    setTimeout(() => { scanCooldownRef.current = false; }, 1500);
                     handleProcessBarcode(code);
                 };
 
@@ -464,17 +468,18 @@ const Ventas = ({ user }) => {
                     await videoRef.current.play();
 
                     const detector = new window.BarcodeDetector({ formats: BARCODE_FORMATS });
-                    let lastScan = 0;
+                    let lastDetect = 0;
                     const tick = async () => {
                         if (!active || !videoRef.current) return;
                         const now = Date.now();
-                        if (now - lastScan >= 100) {
-                            lastScan = now;
+                        // Durante cooldown, salta la detección pero mantiene el loop
+                        if (!scanCooldownRef.current && now - lastDetect >= 120) {
+                            lastDetect = now;
                             const v = videoRef.current;
                             if (v.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA && v.videoWidth > 0) {
                                 try {
                                     const codes = await detector.detect(v);
-                                    if (codes.length > 0) { onBarcode(codes[0].rawValue); return; }
+                                    if (codes.length > 0) onBarcode(codes[0].rawValue);
                                 } catch {}
                             }
                         }
@@ -488,6 +493,7 @@ const Ventas = ({ user }) => {
                     const controls = await reader.decodeFromConstraints(
                         { video: { facingMode: 'environment' } },
                         videoRef.current,
+                        // ZXing llama este callback continuamente; el cooldownRef evita procesar duplicados
                         (result) => { if (result && active) onBarcode(result.getText()); }
                     );
                     if (!active) { controls.stop(); return; }
@@ -909,17 +915,38 @@ const Ventas = ({ user }) => {
                                 {cameraActive && (
                                     <Box sx={{ mt: 2, position: 'relative', borderRadius: 2, overflow: 'hidden', bgcolor: '#000', minHeight: 240 }}>
                                         <video ref={videoRef} style={{ width: '100%', display: 'block', maxHeight: 300, objectFit: 'cover' }} playsInline muted />
+
+                                        {/* Flash verde de confirmación */}
+                                        <Box sx={{
+                                            position: 'absolute', inset: 0, borderRadius: 2,
+                                            bgcolor: 'rgba(16,185,129,0.28)',
+                                            border: '3px solid #10B981',
+                                            opacity: scanFlash ? 1 : 0,
+                                            transition: scanFlash ? 'none' : 'opacity 0.35s ease-out',
+                                            pointerEvents: 'none', zIndex: 3,
+                                        }} />
+
+                                        {/* Overlay de apuntado */}
                                         <Box sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1.5, pointerEvents: 'none' }}>
                                             <Box sx={{ position: 'relative', width: { xs: 200, sm: 260 }, height: { xs: 120, sm: 140 } }}>
                                                 <Box sx={{ position: 'absolute', inset: 0, boxShadow: '0 0 0 100vw rgba(0,0,0,0.45)', borderRadius: 2 }} />
-                                                <Box sx={{ position: 'absolute', top: -1, left: -1, width: 20, height: 20, borderTop: `3px solid ${ACCENT}`, borderLeft: `3px solid ${ACCENT}`, borderRadius: '4px 0 0 0' }} />
-                                                <Box sx={{ position: 'absolute', top: -1, right: -1, width: 20, height: 20, borderTop: `3px solid ${ACCENT}`, borderRight: `3px solid ${ACCENT}`, borderRadius: '0 4px 0 0' }} />
-                                                <Box sx={{ position: 'absolute', bottom: -1, left: -1, width: 20, height: 20, borderBottom: `3px solid ${ACCENT}`, borderLeft: `3px solid ${ACCENT}`, borderRadius: '0 0 0 4px' }} />
-                                                <Box sx={{ position: 'absolute', bottom: -1, right: -1, width: 20, height: 20, borderBottom: `3px solid ${ACCENT}`, borderRight: `3px solid ${ACCENT}`, borderRadius: '0 0 4px 0' }} />
-                                                <Box sx={{ position: 'absolute', left: 4, right: 4, height: 2, background: `linear-gradient(90deg, transparent, ${ACCENT}CC, transparent)`, borderRadius: 1, animation: 'scanLine 1.8s ease-in-out infinite', '@keyframes scanLine': { '0%': { top: '5%' }, '50%': { top: '90%' }, '100%': { top: '5%' } } }} />
+                                                {/* Esquinas — cambian a verde cuando se detecta un código */}
+                                                {(() => {
+                                                    const c = scanFlash ? '#10B981' : ACCENT;
+                                                    return <>
+                                                        <Box sx={{ position: 'absolute', top: -1, left: -1, width: 20, height: 20, borderTop: `3px solid ${c}`, borderLeft: `3px solid ${c}`, borderRadius: '4px 0 0 0', transition: 'border-color 0.15s' }} />
+                                                        <Box sx={{ position: 'absolute', top: -1, right: -1, width: 20, height: 20, borderTop: `3px solid ${c}`, borderRight: `3px solid ${c}`, borderRadius: '0 4px 0 0', transition: 'border-color 0.15s' }} />
+                                                        <Box sx={{ position: 'absolute', bottom: -1, left: -1, width: 20, height: 20, borderBottom: `3px solid ${c}`, borderLeft: `3px solid ${c}`, borderRadius: '0 0 0 4px', transition: 'border-color 0.15s' }} />
+                                                        <Box sx={{ position: 'absolute', bottom: -1, right: -1, width: 20, height: 20, borderBottom: `3px solid ${c}`, borderRight: `3px solid ${c}`, borderRadius: '0 0 4px 0', transition: 'border-color 0.15s' }} />
+                                                    </>;
+                                                })()}
+                                                {/* Línea de escaneo — se pausa durante cooldown */}
+                                                {!scanFlash && (
+                                                    <Box sx={{ position: 'absolute', left: 4, right: 4, height: 2, background: `linear-gradient(90deg, transparent, ${ACCENT}CC, transparent)`, borderRadius: 1, animation: 'scanLine 1.8s ease-in-out infinite', '@keyframes scanLine': { '0%': { top: '5%' }, '50%': { top: '90%' }, '100%': { top: '5%' } } }} />
+                                                )}
                                             </Box>
-                                            <Typography sx={{ color: 'rgba(255,255,255,0.9)', fontSize: 11, bgcolor: 'rgba(0,0,0,0.45)', borderRadius: 5, px: 2, py: 0.4 }}>
-                                                Apunta el código al recuadro
+                                            <Typography sx={{ color: 'rgba(255,255,255,0.9)', fontSize: 11, bgcolor: scanFlash ? 'rgba(16,185,129,0.75)' : 'rgba(0,0,0,0.45)', borderRadius: 5, px: 2, py: 0.4, transition: 'background-color 0.15s', fontWeight: scanFlash ? 700 : 400 }}>
+                                                {scanFlash ? '✓ Detectado — apunta el siguiente' : 'Apunta el código al recuadro'}
                                             </Typography>
                                         </Box>
                                     </Box>
