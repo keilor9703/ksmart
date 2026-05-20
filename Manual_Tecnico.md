@@ -1,128 +1,72 @@
-================================================================================
-MANUAL TÉCNICO DE ARQUITECTURA Y DESARROLLO - KSMART360
-Sistema: SaaS Multi-Tenant (ERP, Parqueadero, Préstamos)
-Versión: 2.1.0 (Producción)
-================================================================================
+# Manual Técnico de Arquitectura y Desarrollo - Ksmart360
+## Versión: 2.5.0 | Arquitectura SaaS Multi-Tenant
 
--- ÍNDICE --
-1. Resumen de la Arquitectura
-2. Stack Tecnológico y Entornos
-3. Modelo Multi-Tenant (Aislamiento de Datos)
-4. Estructura del Backend (FastAPI)
-5. Estructura del Frontend (React SPA)
-6. Flujo de Autenticación y Seguridad (JWT + WebAuthn)
-7. Integraciones Externas (Barcode APIs y WhatsApp)
-8. Motor de Pagos SaaS (Wompi)
-9. Sistema de Migraciones (Custom)
-10. Lógica de Negocio Crítica y Módulos
-11. Comandos de Ejecución Local
+Este documento detalla la estructura técnica, lógica y de despliegue de Ksmart360 para desarrolladores y administradores de sistemas.
 
-================================================================================
-1. RESUMEN DE LA ARQUITECTURA
-================================================================================
-Ksmart360 es una plataforma SaaS distribuida bajo una arquitectura desacoplada:
-- **Frontend:** Single-Page Application (SPA) reactiva.
-- **Backend:** API RESTful asíncrona de alto rendimiento.
-- **Base de Datos:** Patrón "Shared Database, Shared Schema". El aislamiento es lógico mediante el `empresa_id`.
-- **Escalabilidad:** Diseñado para soportar miles de inquilinos (tenants) sobre una única infraestructura compartida.
+---
 
-================================================================================
-2. STACK TECNOLÓGICO Y ENTORNOS
-================================================================================
-- **Backend:** Python 3.10+, FastAPI, SQLAlchemy (ORM), Pydantic v2 (Validación), python-jose (JWT).
-- **Frontend:** React 18, Material-UI (MUI), Axios, Chart.js, Lucide Icons.
-- **Base de Datos:** 
-  - Producción: PostgreSQL (Gestionado).
-  - Desarrollo: SQLite (`sales.db`).
-- **Despliegue:**
-  - Frontend: Vercel.
-  - Backend: Render Cloud.
+## 1. Arquitectura del Sistema
+Ksmart360 utiliza un enfoque desacoplado basado en una API REST asíncrona y una Single Page Application (SPA).
 
-================================================================================
-3. MODELO MULTI-TENANT (AISLAMIENTO DE DATOS)
-================================================================================
-El aislamiento se implementa mediante el `TenantMixin` en `models.py`.
-- **Mixin Abstracto:** Inyecta automáticamente `empresa_id` (Integer, ForeignKey) y la relación `empresa`.
-- **Inyección de Filtro:** Toda función en `crud.py` requiere el parámetro `empresa_id`.
-  - Ejemplo: `db.query(models.Venta).filter(models.Venta.empresa_id == empresa_id)`.
-- **Seguridad en Capa de Red:** El `empresa_id` NUNCA se recibe desde el frontend por parámetro body/query modificable; se extrae directamente del token JWT verificado en el servidor.
+*   **Backend:** Python 3.10+ con **FastAPI**.
+*   **Frontend:** React 18 con **Material UI (MUI)**.
+*   **Base de Datos:** PostgreSQL (Producción) / SQLite (Desarrollo).
+*   **Aislamiento:** Multi-tenant mediante el patrón de **Shared Database, Shared Schema**, utilizando un `empresa_id` obligatorio en cada tabla.
 
-================================================================================
-4. ESTRUCTURA DEL BACKEND (FastAPI)
-================================================================================
-- `main.py`: Punto de entrada, configuración de CORS, middlewares y registro de routers.
-- `api/v1/api.py`: Orquestador de rutas.
-- `api/v1/endpoints/`: Un archivo por módulo (auth, productos, ventas, parqueadero, prestamos, taller, etc.).
-- `models.py`: Modelos SQLAlchemy con relaciones declarativas y `TenantMixin`.
-- `schemas.py`: Esquemas Pydantic para Input/Output y validación de tipos.
-- `crud/`: Directorio con lógica de base de datos modularizada.
-  - `crud/common.py`: Funciones transversales y manejo de zonas horarias (Bogotá).
+---
 
-================================================================================
-5. ESTRUCTURA DEL FRONTEND (React SPA)
-================================================================================
-- `src/App.js`: Router central y guardianes de ruta. Gestiona la lógica de "Suscripción Expirada" (Error 402).
-- `src/features/`: Organización modular por dominio (dashboard, inventory, parking, loans, sales).
-- `src/api.js`: Instancia de Axios con interceptor para inyectar el Header `Authorization`.
-- `src/theme.js`: Configuración estética de MUI (Colores, Tipografía).
+## 2. Core Multi-Tenant y Seguridad
+El aislamiento de datos se garantiza en la capa de modelos mediante un `TenantMixin`.
 
-================================================================================
-6. FLUJO DE AUTENTICACIÓN Y SEGURIDAD
-================================================================================
-- **JWT (JSON Web Tokens):** Flujo Stateless. El token contiene `sub`, `empresa_id`, `role` y `modules`.
-- **WebAuthn (Biometría):** 
-  - `biometric.py`: Endpoints para `register-options`, `verify-registration`, `authenticate-options` y `verify-authentication`.
-  - Almacena Claves Públicas en la tabla `credenciales_biometricas`.
-- **RBAC (Role-Based Access Control):** Los permisos se validan mediante la dependencia `get_current_active_user` y el check de la lista `modulos_habilitados` de la empresa.
+### 2.1 TenantMixin (SQLAlchemy)
+Casi todos los modelos heredan de `TenantMixin`, el cual inyecta:
+*   `empresa_id`: Foreign Key hacia la tabla `empresas`.
+*   Relación `empresa`: Para acceso directo al objeto tenant.
 
-================================================================================
-7. INTEGRACIONES EXTERNAS
-================================================================================
-- **Barcode AI (Búsqueda en Cascada):**
-  - Implementado en `api/v1/endpoints/productos.py`.
-  - Consulta secuencial: Local -> Global Ksmart -> OpenFoodFacts -> UPCitemdb.
-  - Utiliza `httpx.AsyncClient` con timeouts controlados para no bloquear el hilo de ejecución.
-- **WhatsApp Cloud API:**
-  - Generación de links `wa.me` dinámicos con mensajes codificados en `UTF-8`.
-  - Seguimiento de envíos en la tabla `envios_whatsapp_parqueadero`.
+### 2.2 Seguridad JWT y WebAuthn
+*   **JWT:** El token contiene el `empresa_id` y los módulos habilitados. Este ID se extrae en el backend mediante la dependencia `get_current_active_user`, impidiendo que un usuario acceda a datos de otro tenant.
+*   **WebAuthn:** Implementado para autenticación biométrica sin contraseñas. Utiliza el estándar FIDO2 para almacenar claves públicas vinculadas al `user_id`.
 
-================================================================================
-8. MOTOR DE PAGOS SAAS (WOMPI)
-================================================================================
-- **Integridad:** El backend genera una firma HMAC SHA-256 (`WOMPI_INTEGRITY_SECRET`) para que el frontend pueda instanciar el widget de pago con valores inalterables.
-- **Webhook de Notificación:**
-  - Endpoint: `/webhooks/wompi`.
-  - Valida firma de Wompi.
-  - Implementa idempotencia basada en el ID de transacción.
-  - Actualiza `trial_ends_at` sumando los meses adquiridos y activa la cuenta.
+---
 
-================================================================================
-9. SISTEMA DE MIGRACIONES (CUSTOM)
-================================================================================
-- No utiliza Alembic. Utiliza un motor ligero en `database.py`.
-- `run_migrations()`: Ejecuta sentencias SQL de forma condicional basándose en `PRAGMA table_info` (SQLite) o `information_schema` (PostgreSQL).
-- Asegura la evolución del esquema sin pérdida de datos en despliegues automatizados.
+## 3. Módulos y Lógica de Negocio Crítica
 
-================================================================================
-10. LÓGICA DE NEGOCIO CRÍTICA
-================================================================================
-- **Kardex:** Cálculo dinámico basado en `InventoryMovement`.
-- **Intereses de Mora (Préstamos):** Algoritmo diario que calcula el recargo sobre el saldo pendiente de cuotas vencidas.
-- **Cupos de Parqueadero:** Lógica de concurrencia para evitar sobrepasar el cupo configurado en la tabla `parqueadero_config`.
-- **Producción (BOM):** Gestión de estados (Planificada -> Confirmada) con validación de suficiencia de insumos antes de la ejecución.
+### 3.1 Inventario e Inteligencia de Datos
+*   **Integración Barcode:** El endpoint `/productos/search-barcode` implementa una búsqueda en cascada: Local -> Ksmart Global -> OpenFoodFacts -> UPCitemdb.
+*   **Kardex:** Los movimientos de inventario se registran en la tabla `inventory_movements` con tipos `ENTRADA`, `SALIDA` y `AJUSTE`.
 
-================================================================================
-11. COMANDOS DE EJECUCIÓN LOCAL
-================================================================================
+### 3.2 Motor de Pagos y Suscripciones (SaaS)
+*   **Pasarela Wompi:** Integración mediante Webhooks para la activación automática de planes.
+*   **Middleware 402:** El backend verifica en cada mutación (POST/PUT/DELETE) si la empresa tiene una suscripción vigente. Si no, retorna un status code 402 (Payment Required).
 
-# Backend
-cd backend
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-uvicorn main:app --reload
+### 3.3 Módulo de Préstamos
+*   **Cálculo de Mora:** Un cron-job diario o disparador de vista calcula los intereses de mora basados en el `saldo_pendiente` de las cuotas vencidas.
+*   **Evidencias GPS:** La tabla `evidencias_cobro` almacena coordenadas de geolocalización y URLs de imágenes alojadas en S3/Cloudinary.
 
-# Frontend
-cd frontend
-npm install
-npm start
+---
+
+## 4. Integraciones y APIs Externas
+*   **DIAN (Facturación Electrónica):** Integración mediante la API de **Matias API**. Manejo de prefijos, CUFE y generación de archivos XML/PDF.
+*   **WhatsApp Cloud API:** Generación dinámica de mensajes codificados para notificaciones de parqueadero y cobranza.
+*   **Market Data (Cacao):** Web scraping y consumo de APIs de Yahoo Finance (ICE Futures) y Datos.gov.co (TRM) para el cálculo de precios locales.
+
+---
+
+## 5. Comandos de Despliegue y Mantenimiento
+
+### Backend (Producción/Render)
+```bash
+uvicorn main:app --host 0.0.0.0 --port $PORT
+```
+
+### Migraciones Automáticas
+El sistema utiliza un motor de migraciones personalizado en `database.py` que se ejecuta al inicio de la aplicación, asegurando que el esquema esté actualizado sin necesidad de Alembic.
+
+### Monitoreo de Tareas (Jobs)
+El servicio `jobs_service.py` gestiona tareas programadas como:
+*   Expiración automática de periodos de prueba.
+*   Actualización de precios de mercado (Cacao).
+*   Alertas de vencimiento de parqueadero.
+
+---
+**Ksmart360 Engineering - Mayo 2026**
