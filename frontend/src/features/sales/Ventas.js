@@ -13,12 +13,16 @@ import {
     Autocomplete, Table, TableBody, TableCell, TableContainer,
     TableHead, TableRow, Chip, useMediaQuery, useTheme, Tabs, Tab,
     TablePagination, Divider, Tooltip, InputAdornment, CircularProgress,
+    ToggleButton, ToggleButtonGroup, Card, CardActionArea, CardContent, CardMedia,
+    Accordion, AccordionSummary, AccordionDetails, Badge,
+    Dialog, DialogTitle, DialogContent, DialogActions,
 } from '@mui/material';
 import {
     Edit, Delete, Visibility, Search, ShoppingCart, TrendingUp,
     Receipt, AttachMoney, AssignmentReturn, Add, QrCodeScanner,
     Videocam, VideocamOff, LockOutlined, LockOpenOutlined,
     AddCircle, RemoveCircle, PersonOutline, HelpOutline,
+    Keyboard, TouchApp, ExpandMore, Clear,
 } from '@mui/icons-material';
 import { getProductoByBarcode } from '../../api';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
@@ -295,6 +299,10 @@ const Ventas = ({ user }) => {
     const [ventas, setVentas]       = useState([]);
     const [clientes, setClientes]   = useState([]);
     const [productos, setProductos] = useState([]);
+    const [grupos, setGrupos]       = useState([]);
+
+    // ── UI Mode ──
+    const [viewMode, setViewMode] = useState(localStorage.getItem('ventas_view_mode') || 'classic');
 
     // ── Form ──
     const [cliente, setCliente]     = useState(null);
@@ -336,15 +344,49 @@ const Ventas = ({ user }) => {
     const [fechaInicio, setFechaInicio]           = useState('');
     const [fechaFin, setFechaFin]                 = useState('');
 
+    // ── Touch Mode UI State ──
+    const [expandedGroups, setExpandedGroups] = useState({});
+    const [searchProductTouch, setSearchProductTouch] = useState('');
+    const [editingTouchItem, setEditingTouchItem] = useState(null); // Para editar precio/desc en touch
+
     // ── Fetch inicial ──
     useEffect(() => {
-        fetchVentas(); fetchClientes(); fetchProductos(); fetchVentasSummary();
+        fetchVentas(); fetchClientes(); fetchProductos(); fetchVentasSummary(); fetchGrupos();
     }, []);
 
     const fetchVentas        = () => apiClient.get('/ventas/').then(r => setVentas(r.data)).catch(console.error);
     const fetchClientes      = () => apiClient.get('/clientes/').then(r => setClientes(r.data)).catch(console.error);
     const fetchProductos     = () => apiClient.get('/productos/').then(r => setProductos(r.data)).catch(console.error);
+    const fetchGrupos        = () => apiClient.get('/grupos-producto/').then(r => setGrupos(r.data)).catch(console.error);
     const fetchVentasSummary = () => apiClient.get('/reportes/ventas_summary').then(r => setTotalVentasHoy(r.data.total_ventas_hoy)).catch(console.error);
+
+    const handleViewModeChange = (event, newMode) => {
+        if (newMode !== null) {
+            setViewMode(newMode);
+            localStorage.setItem('ventas_view_mode', newMode);
+        }
+    };
+
+    const handleTouchProductClick = (producto) => {
+        const existingIdx = saleDetails.findIndex(d => d.producto?.id === producto.id);
+        if (existingIdx !== -1) {
+            const updated = [...saleDetails];
+            updated[existingIdx] = { ...updated[existingIdx], cantidad: updated[existingIdx].cantidad + 1 };
+            setSaleDetails(updated);
+        } else {
+            const newRow = { id: Date.now(), producto, cantidad: 1, precioUnitario: producto.precio || 0, descuentoPct: 0 };
+            if (saleDetails.length === 1 && !saleDetails[0].producto) {
+                setSaleDetails([newRow]);
+            } else {
+                setSaleDetails(prev => [...prev, newRow]);
+            }
+        }
+        playScanBeep(); // Feedback visual/auditivo
+    };
+
+    const toggleGroup = (groupId) => {
+        setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
+    };
 
     // ── Edición de venta existente ──
     useEffect(() => {
@@ -690,13 +732,29 @@ const Ventas = ({ user }) => {
                         ]}
                     />
                 </Box>
-                <Button
-                    variant="contained" startIcon={<ShoppingCart />}
-                    onClick={() => { resetForm(); setTabValue(0); }}
-                    sx={{ background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`, boxShadow: `0 4px 14px rgba(255,96,32,0.35)`, borderRadius: 2, fontWeight: 600 }}
-                >
-                    Nueva Venta
-                </Button>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <ToggleButtonGroup
+                        value={viewMode}
+                        exclusive
+                        onChange={handleViewModeChange}
+                        size="small"
+                        sx={{ bgcolor: 'background.paper', borderRadius: 2 }}
+                    >
+                        <ToggleButton value="classic" sx={{ textTransform: 'none', gap: 1, px: 2 }}>
+                            <Keyboard fontSize="small" /> {!isMobile && 'Teclado'}
+                        </ToggleButton>
+                        <ToggleButton value="touch" sx={{ textTransform: 'none', gap: 1, px: 2 }}>
+                            <TouchApp fontSize="small" /> {!isMobile && 'Táctil'}
+                        </ToggleButton>
+                    </ToggleButtonGroup>
+                    <Button
+                        variant="contained" startIcon={<ShoppingCart />}
+                        onClick={() => { resetForm(); setTabValue(0); }}
+                        sx={{ background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`, boxShadow: `0 4px 14px rgba(255,96,32,0.35)`, borderRadius: 2, fontWeight: 600 }}
+                    >
+                        Nueva Venta
+                    </Button>
+                </Box>
             </Box>
 
             {/* ── KPIs ── */}
@@ -728,162 +786,417 @@ const Ventas = ({ user }) => {
                 </Tabs>
 
                 {/* ════════════════════════════════════════
-                    TAB 0 — FORMULARIO DE VENTA
+                    TAB 0 — REGISTRAR VENTA
                 ════════════════════════════════════════ */}
                 <TabPanel value={tabValue} index={0}>
-                    <Box component="form" onSubmit={handleSubmit} sx={{ p: { xs: 2, md: 3 } }}>
+                    {viewMode === 'classic' ? (
+                        <Box component="form" onSubmit={handleSubmit} sx={{ p: { xs: 2, md: 3 } }}>
+                            {/* ── 1. Cliente ── */}
+                            <Box sx={{ mb: 2.5 }}>
+                                <Typography sx={{ fontWeight: 600, fontSize: 11, mb: 1, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                                    Cliente
+                                </Typography>
+                                <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                                    {/* Botón Mostrador */}
+                                    <Tooltip title="Venta a cliente anónimo (Consumidor Final)">
+                                        <Button
+                                            size="small" variant={isMostrador ? 'contained' : 'outlined'}
+                                            startIcon={<PersonOutline fontSize="small" />}
+                                            onClick={handleSetMostrador}
+                                            sx={{
+                                                borderRadius: 2, fontWeight: 600, fontSize: 12,
+                                                borderColor: '#64748B', whiteSpace: 'nowrap',
+                                                ...(isMostrador
+                                                    ? { bgcolor: '#64748B', color: 'white', '&:hover': { bgcolor: '#475569' } }
+                                                    : { color: '#64748B', '&:hover': { bgcolor: '#F1F5F9', borderColor: '#64748B' } }
+                                                )
+                                            }}
+                                        >
+                                            Mostrador
+                                        </Button>
+                                    </Tooltip>
 
-                        {/* ── 1. Cliente ── */}
-                        <Box sx={{ mb: 2.5 }}>
-                            <Typography sx={{ fontWeight: 600, fontSize: 11, mb: 1, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
-                                Cliente
-                            </Typography>
-                            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                                {/* Botón Mostrador */}
-                                <Tooltip title="Venta a cliente anónimo (Consumidor Final)">
-                                    <Button
-                                        size="small" variant={isMostrador ? 'contained' : 'outlined'}
-                                        startIcon={<PersonOutline fontSize="small" />}
-                                        onClick={handleSetMostrador}
-                                        sx={{
-                                            borderRadius: 2, fontWeight: 600, fontSize: 12,
-                                            borderColor: '#64748B', whiteSpace: 'nowrap',
-                                            ...(isMostrador
-                                                ? { bgcolor: '#64748B', color: 'white', '&:hover': { bgcolor: '#475569' } }
-                                                : { color: '#64748B', '&:hover': { bgcolor: '#F1F5F9', borderColor: '#64748B' } }
+                                    <Autocomplete
+                                        sx={{ flex: 1, minWidth: 220 }}
+                                        options={clientes}
+                                        getOptionLabel={(o) => o?.nombre || ''}
+                                        value={cliente}
+                                        onChange={(_, v) => { setCliente(v); setIsMostrador(false); }}
+                                        inputValue={clienteInput}
+                                        onInputChange={(_, v) => setClienteInput(v)}
+                                        filterOptions={(opts, state) => {
+                                            const q = (state.inputValue || '').toLowerCase().trim();
+                                            if (!q) return opts;
+                                            return opts.filter(o =>
+                                                o.nombre.toLowerCase().includes(q) ||
+                                                (o.cedula || '').toLowerCase().includes(q) ||
+                                                (o.telefono || '').includes(q)
+                                            );
+                                        }}
+                                        noOptionsText={
+                                            <Box sx={{ py: 0.5 }}>
+                                                <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>No se encontró el cliente</Typography>
+                                                <Button size="small" variant="contained" fullWidth startIcon={<Add />}
+                                                    onClick={() => openQuickCreate('tercero', clienteInput)}
+                                                    sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12, bgcolor: '#3B82F6', '&:hover': { bgcolor: '#2563EB' } }}>
+                                                    Crear "{clienteInput || 'nuevo cliente'}"
+                                                </Button>
+                                            </Box>
+                                        }
+                                        renderOption={(props, option) => (
+                                            <li {...props} key={option.id} style={{ padding: '8px 12px' }}>
+                                                <Box>
+                                                    <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{option.nombre}</Typography>
+                                                    <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                                                        {option.cedula ? `NIT/CC: ${option.cedula}` : ''}{option.telefono ? `  ·  📞 ${option.telefono}` : ''}
+                                                    </Typography>
+                                                </Box>
+                                            </li>
+                                        )}
+                                        renderInput={(params) => (
+                                            <TextField
+                                                {...params} label="Buscar cliente por nombre, NIT o teléfono" fullWidth
+                                                InputProps={{
+                                                    ...params.InputProps,
+                                                    endAdornment: (<>{params.InputProps.endAdornment}<Tooltip title="Crear nuevo cliente"><IconButton size="small" onClick={() => openQuickCreate('tercero', clienteInput)} sx={{ color: '#3B82F6', p: 0.5 }}><Add fontSize="small" /></IconButton></Tooltip></>),
+                                                }}
+                                            />
+                                        )}
+                                    />
+                                </Box>
+                            </Box>
+
+                            {/* ── 2. Escáner de código de barras (prominente) ── */}
+                            <Paper elevation={0} sx={{
+                                mb: 2.5, p: 2, borderRadius: 3,
+                                border: `1.5px solid ${ACCENT}40`,
+                                bgcolor: isDark ? `${ACCENT}08` : `${ACCENT}05`,
+                            }}>
+                                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                                    <TextField
+                                        fullWidth
+                                        placeholder="Escanea o digita el código de barras y presiona Enter…"
+                                        value={barcodeInput}
+                                        onChange={(e) => setBarcodeInput(e.target.value)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleProcessBarcode(barcodeInput); } }}
+                                        inputRef={barcodeFieldRef}
+                                        autoComplete="off"
+                                        disabled={searchingBarcode}
+                                        InputProps={{
+                                            startAdornment: <InputAdornment position="start"><QrCodeScanner sx={{ color: ACCENT, fontSize: 22 }} /></InputAdornment>,
+                                            endAdornment: searchingBarcode ? <CircularProgress size={18} sx={{ color: ACCENT }} /> : null,
+                                            sx: { fontSize: 15, fontWeight: 600, borderRadius: 2 }
+                                        }}
+                                    />
+                                    <Tooltip title={cameraActive ? 'Cerrar cámara' : 'Usar cámara del dispositivo'}>
+                                        <IconButton onClick={handleToggleCamera}
+                                            sx={{ bgcolor: cameraActive ? '#FEF2F2' : '#EFF6FF', color: cameraActive ? '#EF4444' : '#3B82F6', borderRadius: 2, p: 1.2 }}>
+                                            {cameraActive ? <VideocamOff /> : <Videocam />}
+                                        </IconButton>
+                                    </Tooltip>
+                                </Box>
+
+                                {/* Cámara con overlay */}
+                                {cameraActive && (
+                                    <Box sx={{ mt: 2, position: 'relative', borderRadius: 2, overflow: 'hidden', bgcolor: '#000', minHeight: 240 }}>
+                                        <video ref={videoRef} style={{ width: '100%', display: 'block', maxHeight: 300, objectFit: 'cover' }} playsInline muted />
+                                        <Box sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1.5, pointerEvents: 'none' }}>
+                                            <Box sx={{ position: 'relative', width: { xs: 200, sm: 260 }, height: { xs: 120, sm: 140 } }}>
+                                                <Box sx={{ position: 'absolute', inset: 0, boxShadow: '0 0 0 100vw rgba(0,0,0,0.45)', borderRadius: 2 }} />
+                                                <Box sx={{ position: 'absolute', top: -1, left: -1, width: 20, height: 20, borderTop: `3px solid ${ACCENT}`, borderLeft: `3px solid ${ACCENT}`, borderRadius: '4px 0 0 0' }} />
+                                                <Box sx={{ position: 'absolute', top: -1, right: -1, width: 20, height: 20, borderTop: `3px solid ${ACCENT}`, borderRight: `3px solid ${ACCENT}`, borderRadius: '0 4px 0 0' }} />
+                                                <Box sx={{ position: 'absolute', bottom: -1, left: -1, width: 20, height: 20, borderBottom: `3px solid ${ACCENT}`, borderLeft: `3px solid ${ACCENT}`, borderRadius: '0 0 0 4px' }} />
+                                                <Box sx={{ position: 'absolute', bottom: -1, right: -1, width: 20, height: 20, borderBottom: `3px solid ${ACCENT}`, borderRight: `3px solid ${ACCENT}`, borderRadius: '0 0 4px 0' }} />
+                                                <Box sx={{ position: 'absolute', left: 4, right: 4, height: 2, background: `linear-gradient(90deg, transparent, ${ACCENT}CC, transparent)`, borderRadius: 1, animation: 'scanLine 1.8s ease-in-out infinite', '@keyframes scanLine': { '0%': { top: '5%' }, '50%': { top: '90%' }, '100%': { top: '5%' } } }} />
+                                            </Box>
+                                            <Typography sx={{ color: 'rgba(255,255,255,0.9)', fontSize: 11, bgcolor: 'rgba(0,0,0,0.45)', borderRadius: 5, px: 2, py: 0.4 }}>
+                                                Apunta el código al recuadro
+                                            </Typography>
+                                        </Box>
+                                    </Box>
+                                )}
+                            </Paper>
+
+                            {/* ── 3. Carrito de productos ── */}
+                            <Box sx={{ mb: 2 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                                    <Typography sx={{ fontWeight: 600, fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                                        Productos / Servicios ({saleDetails.filter(d => d.producto).length})
+                                    </Typography>
+                                    <Button size="small" startIcon={<Add />} onClick={handleAddSaleDetail}
+                                        sx={{ color: ACCENT, fontWeight: 600, fontSize: 12 }}>
+                                        Agregar línea
+                                    </Button>
+                                </Box>
+
+                                {saleDetails.map(detail => (
+                                    <SaleDetailRow
+                                        key={detail.id} detail={detail} productos={productos}
+                                        onProductChange={handleProductChange} onFieldChange={handleFieldChange}
+                                        onRemove={handleRemoveSaleDetail} isMobile={isMobile}
+                                        productoInput={productoInputs[detail.id] || ''}
+                                        onProductoInputChange={(val) => handleProductoInputChange(detail.id, val)}
+                                        openQuickCreate={() => openQuickCreate('producto', productoInputs[detail.id] || '', detail.id)}
+                                    />
+                                ))}
+                            </Box>
+                        </Box>
+                    ) : (
+                        /* ─── VISTA TOUCH (MODO RESTAURANTE) ─── */
+                        <Box sx={{ 
+                            display: 'flex', 
+                            flexDirection: { xs: 'column', md: 'row' }, // Stack on mobile
+                            height: { xs: 'auto', md: 'calc(100vh - 280px)' }, 
+                            minHeight: { md: 650 }, 
+                            gap: 2, 
+                            p: { xs: 0, md: 2 } 
+                        }}>
+                            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, overflow: 'hidden' }}>
+                                {/* Buscador y Escáner en Touch */}
+                                <Box sx={{ display: 'flex', gap: 1, px: { xs: 1, md: 0 }, pt: { xs: 1, md: 0 } }}>
+                                    <TextField
+                                        fullWidth size="small" placeholder="Buscar producto o escanear..." value={searchProductTouch}
+                                        onChange={(e) => setSearchProductTouch(e.target.value)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleProcessBarcode(searchProductTouch); setSearchProductTouch(''); } }}
+                                        InputProps={{
+                                            startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
+                                            endAdornment: (
+                                                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                                    {searchProductTouch && <IconButton size="small" onClick={() => setSearchProductTouch('')}><Clear fontSize="small" /></IconButton>}
+                                                    <IconButton size="small" onClick={handleToggleCamera} sx={{ color: cameraActive ? '#EF4444' : '#3B82F6' }}>
+                                                        <Videocam fontSize="small" />
+                                                    </IconButton>
+                                                </Box>
                                             )
                                         }}
-                                    >
-                                        Mostrador
-                                    </Button>
-                                </Tooltip>
+                                        sx={{ bgcolor: 'background.paper', borderRadius: 2 }}
+                                    />
+                                </Box>
 
-                                <Autocomplete
-                                    sx={{ flex: 1, minWidth: 220 }}
-                                    options={clientes}
-                                    getOptionLabel={(o) => o?.nombre || ''}
-                                    value={cliente}
-                                    onChange={(_, v) => { setCliente(v); setIsMostrador(false); }}
-                                    inputValue={clienteInput}
-                                    onInputChange={(_, v) => setClienteInput(v)}
-                                    filterOptions={(opts, state) => {
-                                        const q = (state.inputValue || '').toLowerCase().trim();
-                                        if (!q) return opts;
-                                        return opts.filter(o =>
-                                            o.nombre.toLowerCase().includes(q) ||
-                                            (o.cedula || '').toLowerCase().includes(q) ||
-                                            (o.telefono || '').includes(q)
+                                {cameraActive && (
+                                    <Paper sx={{ p: 1, mx: { xs: 1, md: 0 }, borderRadius: 2, bgcolor: '#000', overflow: 'hidden' }}>
+                                        <video ref={videoRef} style={{ width: '100%', maxHeight: 200, display: 'block', objectFit: 'cover' }} playsInline muted />
+                                    </Paper>
+                                )}
+
+                                <Box sx={{ flex: 1, overflowY: 'auto', px: { xs: 1, md: 0 }, pb: { xs: 2, md: 0 } }}>
+                                    {grupos.sort((a, b) => (a.orden || 99) - (b.orden || 99)).map(grupo => {
+                                        const prodsGrupo = productos.filter(p => p.grupo_item === grupo.id && (!searchProductTouch || p.nombre.toLowerCase().includes(searchProductTouch.toLowerCase())));
+                                        if (searchProductTouch && prodsGrupo.length === 0) return null;
+                                        return (
+                                            <Accordion key={grupo.id} expanded={expandedGroups[grupo.id] !== false} onChange={() => toggleGroup(grupo.id)} sx={{ mb: 1, borderRadius: '12px !important', '&:before': { display: 'none' }, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                                                <AccordionSummary expandIcon={<ExpandMore />}>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                                        <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: grupo.color || ACCENT }} />
+                                                        <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{grupo.nombre}</Typography>
+                                                        <Badge badgeContent={prodsGrupo.length} color="primary" sx={{ '& .MuiBadge-badge': { position: 'relative', transform: 'none', ml: 1 } }} />
+                                                    </Box>
+                                                </AccordionSummary>
+                                                <AccordionDetails sx={{ bgcolor: 'action.hover', p: { xs: 1.5, md: 2 } }}>
+                                                    <Grid container spacing={1.5}>
+                                                           {prodsGrupo.map(prod => {
+                                                                const imagenes = Array.isArray(prod.imagenes) ? prod.imagenes : [];
+                                                                const countInCart = saleDetails.filter(d => d.producto?.id === prod.id).reduce((s, d) => s + d.cantidad, 0);
+                                                                const stock = prod.stock_actual ?? 0;
+                                                                const stockBajo = !prod.es_servicio && stock <= (prod.stock_minimo ?? 0);
+
+                                                                return (
+                                                                    <Grid item xs={6} sm={4} md={3} lg={2.4} key={prod.id}>
+                                                                        <Card sx={{
+                                                                            borderRadius: 3, border: countInCart > 0 ? `2px solid ${ACCENT}` : '1px solid divider',
+                                                                            position: 'relative', overflow: 'visible', '&:active': { transform: 'scale(0.95)' }, transition: 'transform 0.1s',
+                                                                            opacity: (!prod.es_servicio && stock <= 0) ? 0.7 : 1
+                                                                        }}>
+                                                                            {countInCart > 0 && <Badge badgeContent={countInCart} color="error" sx={{ position: 'absolute', top: -8, right: -8, zIndex: 2 }} />}
+                                                                            <CardActionArea onClick={() => handleTouchProductClick(prod)} disabled={!prod.es_servicio && stock <= 0}>
+                                                                                <CardMedia component="img" height="90" image={imagenes[0] || 'https://via.placeholder.com/150?text=Sin+Imagen'} sx={{ objectFit: 'cover', bgcolor: 'white', filter: (!prod.es_servicio && stock <= 0) ? 'grayscale(1)' : 'none' }} />
+                                                                                <CardContent sx={{ p: 1, textAlign: 'center' }}>
+                                                                                    <Typography sx={{ fontWeight: 700, fontSize: 12, lineHeight: 1.1, height: 26, overflow: 'hidden', mb: 0.5 }}>{prod.nombre}</Typography>
+                                                                                    <Typography sx={{ fontWeight: 800, fontSize: 13, color: ACCENT }}>{formatCurrency(prod.precio)}</Typography>
+                                                                                    <Typography sx={{
+                                                                                        fontSize: 10, mt: 0.5, fontWeight: 700,
+                                                                                        color: prod.es_servicio ? '#3B82F6' : (stock <= 0 ? '#EF4444' : (stockBajo ? '#F59E0B' : 'text.secondary'))
+                                                                                    }}>
+                                                                                        {prod.es_servicio ? 'Servicio' : (stock <= 0 ? 'Sin Stock' : `Stock: ${stock}`)}
+                                                                                    </Typography>
+                                                                                </CardContent>
+                                                                            </CardActionArea>
+                                                                        </Card>
+                                                                    </Grid>
+                                                                );
+                                                            })}
+                                                    </Grid>
+                                                </AccordionDetails>
+                                            </Accordion>
                                         );
-                                    }}
-                                    noOptionsText={
-                                        <Box sx={{ py: 0.5 }}>
-                                            <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>No se encontró el cliente</Typography>
-                                            <Button size="small" variant="contained" fullWidth startIcon={<Add />}
-                                                onClick={() => openQuickCreate('tercero', clienteInput)}
-                                                sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12, bgcolor: '#3B82F6', '&:hover': { bgcolor: '#2563EB' } }}>
-                                                Crear "{clienteInput || 'nuevo cliente'}"
-                                            </Button>
+                                    })}
+                                </Box>
+                            </Box>
+
+                            {/* Panel Derecho: Carrito completo con paridad funcional */}
+                            <Paper sx={{ 
+                                width: { xs: '100%', md: 380 }, 
+                                flexShrink: 0, 
+                                display: 'flex', 
+                                flexDirection: 'column', 
+                                borderRadius: { xs: 0, md: 3 }, 
+                                border: '1px solid divider', 
+                                borderTopLeftRadius: { xs: 20, md: 3 },
+                                borderTopRightRadius: { xs: 20, md: 3 },
+                                overflow: 'hidden',
+                                boxShadow: { xs: '0 -4px 16px rgba(0,0,0,0.1)', md: 'none' }
+                            }}>
+                                <Box sx={{ p: 2, bgcolor: 'action.hover', borderBottom: '1px solid divider' }}>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                        <Typography sx={{ fontWeight: 700, fontSize: 15 }}>Resumen de Venta</Typography>
+                                        <IconButton size="small" onClick={resetForm}><Clear fontSize="small" /></IconButton>
+                                    </Box>
+
+                                    <Autocomplete
+                                        size="small" options={clientes} getOptionLabel={(o) => o?.nombre || ''}
+                                        value={cliente} onChange={(_, v) => { setCliente(v); setIsMostrador(false); }}
+                                        renderInput={(params) => <TextField {...params} label="Cliente" placeholder="Buscar..." />}
+                                        sx={{ mb: 1 }}
+                                    />
+                                    <Button
+                                        fullWidth size="small" variant={isMostrador ? 'contained' : 'outlined'}
+                                        onClick={handleSetMostrador} sx={{ borderRadius: 1.5, fontSize: 11, py: 0.5 }}
+                                    >
+                                        Consumidor Final
+                                    </Button>
+                                </Box>
+
+                                {/* Lista de ítems con edición rápida */}
+                                <Box sx={{ flex: 1, overflowY: 'auto', p: 1.5, minHeight: { xs: 200, md: 'auto' } }}>
+                                    {saleDetails.filter(d => d.producto).length === 0 ? (
+                                        <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.2 }}>
+                                            <ShoppingCart sx={{ fontSize: 40, mb: 1 }} />
+                                            <Typography variant="caption">Carrito vacío</Typography>
                                         </Box>
-                                    }
-                                    renderOption={(props, option) => (
-                                        <li {...props} key={option.id} style={{ padding: '8px 12px' }}>
-                                            <Box>
-                                                <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{option.nombre}</Typography>
-                                                <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-                                                    {option.cedula ? `NIT/CC: ${option.cedula}` : ''}{option.telefono ? `  ·  📞 ${option.telefono}` : ''}
-                                                </Typography>
+                                    ) : (
+                                        saleDetails.filter(d => d.producto).map(detail => (
+                                            <Box key={detail.id} sx={{ mb: 1.5, p: 1, borderRadius: 2, bgcolor: isDark ? 'action.selected' : '#f8fafc', border: '1px solid divider' }}>
+                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                                    <Typography sx={{ fontWeight: 700, fontSize: 12.5, flex: 1, mr: 1 }}>{detail.producto.nombre}</Typography>
+                                                    <IconButton size="small" onClick={() => handleRemoveSaleDetail(detail.id)} sx={{ p: 0.2, color: '#EF4444' }}><Delete sx={{ fontSize: 16 }} /></IconButton>
+                                                </Box>
+
+                                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                                        <IconButton size="small" onClick={() => handleFieldChange(detail.id, 'cantidad', Math.max(0, detail.cantidad - 1))} sx={{ color: '#EF4444', p: 0.5 }}><RemoveCircle sx={{ fontSize: 20 }} /></IconButton>
+                                                        <Typography sx={{ fontWeight: 800, fontSize: 15, mx: 1 }}>{detail.cantidad}</Typography>
+                                                        <IconButton size="small" onClick={() => handleFieldChange(detail.id, 'cantidad', detail.cantidad + 1)} sx={{ color: '#10B981', p: 0.5 }}><AddCircle sx={{ fontSize: 20 }} /></IconButton>
+                                                    </Box>
+
+                                                    <Box sx={{ textAlign: 'right' }}>
+                                                        <Box onClick={() => setEditingTouchItem(detail)} sx={{ cursor: 'pointer', borderBottom: '1px dashed #94a3b8' }}>
+                                                            <Typography sx={{ fontWeight: 800, fontSize: 14 }}>{formatCurrency(detail.cantidad * detail.precioUnitario * (1 - (detail.descuentoPct || 0) / 100))}</Typography>
+                                                            {(detail.descuentoPct || 0) > 0 && <Typography sx={{ fontSize: 10, color: '#10B981', fontWeight: 700 }}>-{detail.descuentoPct}%</Typography>}
+                                                        </Box>
+                                                    </Box>
+                                                </Box>
                                             </Box>
-                                        </li>
+                                        ))
                                     )}
-                                    renderInput={(params) => (
-                                        <TextField
-                                            {...params} label="Buscar cliente por nombre, NIT o teléfono" fullWidth
-                                            InputProps={{
-                                                ...params.InputProps,
-                                                endAdornment: (<>{params.InputProps.endAdornment}<Tooltip title="Crear nuevo cliente"><IconButton size="small" onClick={() => openQuickCreate('tercero', clienteInput)} sx={{ color: '#3B82F6', p: 0.5 }}><Add fontSize="small" /></IconButton></Tooltip></>),
-                                            }}
-                                        />
-                                    )}
-                                />
-                            </Box>
-                        </Box>
+                                </Box>
 
-                        {/* ── 2. Escáner de código de barras (prominente) ── */}
-                        <Paper elevation={0} sx={{
-                            mb: 2.5, p: 2, borderRadius: 3,
-                            border: `1.5px solid ${ACCENT}40`,
-                            bgcolor: isDark ? `${ACCENT}08` : `${ACCENT}05`,
-                        }}>
-                            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                                <TextField
-                                    fullWidth
-                                    placeholder="Escanea o digita el código de barras y presiona Enter…"
-                                    value={barcodeInput}
-                                    onChange={(e) => setBarcodeInput(e.target.value)}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleProcessBarcode(barcodeInput); } }}
-                                    inputRef={barcodeFieldRef}
-                                    autoComplete="off"
-                                    disabled={searchingBarcode}
-                                    InputProps={{
-                                        startAdornment: <InputAdornment position="start"><QrCodeScanner sx={{ color: ACCENT, fontSize: 22 }} /></InputAdornment>,
-                                        endAdornment: searchingBarcode ? <CircularProgress size={18} sx={{ color: ACCENT }} /> : null,
-                                        sx: { fontSize: 15, fontWeight: 600, borderRadius: 2 }
-                                    }}
-                                />
-                                <Tooltip title={cameraActive ? 'Cerrar cámara' : 'Usar cámara del dispositivo'}>
-                                    <IconButton onClick={handleToggleCamera}
-                                        sx={{ bgcolor: cameraActive ? '#FEF2F2' : '#EFF6FF', color: cameraActive ? '#EF4444' : '#3B82F6', borderRadius: 2, p: 1.2 }}>
-                                        {cameraActive ? <VideocamOff /> : <Videocam />}
-                                    </IconButton>
-                                </Tooltip>
-                            </Box>
+                                {/* Configuración de Pago y Totales (Paridad con Classic) */}
+                                <Box sx={{ p: 2, bgcolor: isDark ? 'background.default' : '#FFFBF9', borderTop: '1px solid divider' }}>
+                                    {/* IVA Toggle (Touch) */}
+                                    <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, mb: 2 }}>
+                                        {[0, 19].map(pct => (
+                                            <Chip
+                                                key={pct} label={pct === 0 ? '0% IVA' : '19% IVA'} size="small"
+                                                onClick={() => setIvaPorcentajeGlobal(pct)}
+                                                sx={{
+                                                    fontSize: 10, fontWeight: 700,
+                                                    ...(ivaPorcentajeGlobal === pct ? { bgcolor: ACCENT, color: 'white' } : { variant: 'outlined' })
+                                                }}
+                                            />
+                                        ))}
+                                    </Box>
 
-                            {/* Cámara con overlay */}
-                            {cameraActive && (
-                                <Box sx={{ mt: 2, position: 'relative', borderRadius: 2, overflow: 'hidden', bgcolor: '#000', minHeight: 240 }}>
-                                    <video ref={videoRef} style={{ width: '100%', display: 'block', maxHeight: 300, objectFit: 'cover' }} playsInline muted />
-                                    <Box sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1.5, pointerEvents: 'none' }}>
-                                        <Box sx={{ position: 'relative', width: { xs: 200, sm: 260 }, height: { xs: 120, sm: 140 } }}>
-                                            <Box sx={{ position: 'absolute', inset: 0, boxShadow: '0 0 0 100vw rgba(0,0,0,0.45)', borderRadius: 2 }} />
-                                            <Box sx={{ position: 'absolute', top: -1, left: -1, width: 20, height: 20, borderTop: `3px solid ${ACCENT}`, borderLeft: `3px solid ${ACCENT}`, borderRadius: '4px 0 0 0' }} />
-                                            <Box sx={{ position: 'absolute', top: -1, right: -1, width: 20, height: 20, borderTop: `3px solid ${ACCENT}`, borderRight: `3px solid ${ACCENT}`, borderRadius: '0 4px 0 0' }} />
-                                            <Box sx={{ position: 'absolute', bottom: -1, left: -1, width: 20, height: 20, borderBottom: `3px solid ${ACCENT}`, borderLeft: `3px solid ${ACCENT}`, borderRadius: '0 0 0 4px' }} />
-                                            <Box sx={{ position: 'absolute', bottom: -1, right: -1, width: 20, height: 20, borderBottom: `3px solid ${ACCENT}`, borderRight: `3px solid ${ACCENT}`, borderRadius: '0 0 4px 0' }} />
-                                            <Box sx={{ position: 'absolute', left: 4, right: 4, height: 2, background: `linear-gradient(90deg, transparent, ${ACCENT}CC, transparent)`, borderRadius: 1, animation: 'scanLine 1.8s ease-in-out infinite', '@keyframes scanLine': { '0%': { top: '5%' }, '50%': { top: '90%' }, '100%': { top: '5%' } } }} />
+                                    {/* Métodos de Pago (Touch) */}
+                                    <Grid container spacing={0.5} sx={{ mb: 2 }}>
+                                        {METODOS_PAGO.map(opt => {
+                                            const isSelected = pagada ? (opt.pagada && metodoPago === opt.value) : !opt.pagada;
+                                            return (
+                                                <Grid item xs={6} key={opt.value}>
+                                                    <Button
+                                                        fullWidth size="small" variant={isSelected ? 'contained' : 'outlined'}
+                                                        onClick={() => { setPagada(opt.pagada); if (opt.pagada) setMetodoPago(opt.value); }}
+                                                        sx={{
+                                                            fontSize: 10, textTransform: 'none', py: 0.8, borderRadius: 1.5,
+                                                            ...(isSelected ? { bgcolor: opt.color, '&:hover': { bgcolor: opt.color } } : { borderColor: 'divider', color: 'text.secondary' })
+                                                        }}
+                                                    >
+                                                        {opt.label}
+                                                    </Button>
+                                                </Grid>
+                                            );
+                                        })}
+                                    </Grid>
+
+                                    {pagada && metodoPago === 'Efectivo' && (
+                                        <Box sx={{ mb: 2 }}>
+                                            <CurrencyField label="Efectivo Recibido" size="small" fullWidth value={valorRecibido} onChange={setValorRecibido} />
+                                            {valorRecibido > 0 && (
+                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5, px: 1 }}>
+                                                    <Typography variant="caption" color="text.secondary">Cambio:</Typography>
+                                                    <Typography sx={{ fontWeight: 800, color: cambioEfectivo >= 0 ? '#10B981' : '#EF4444', fontSize: 13 }}>{formatCurrency(Math.max(0, cambioEfectivo))}</Typography>
+                                                </Box>
+                                            )}
                                         </Box>
-                                        <Typography sx={{ color: 'rgba(255,255,255,0.9)', fontSize: 11, bgcolor: 'rgba(0,0,0,0.45)', borderRadius: 5, px: 2, py: 0.4 }}>
-                                            Apunta el código al recuadro
+                                    )}
+
+                                    <Box sx={{ mb: 2 }}>
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                            <Typography variant="caption" color="text.secondary">Total a cobrar</Typography>
+                                            {calculateDescuentoTotal() > 0 && <Typography variant="caption" color="#10B981">Desc: -{formatCurrency(calculateDescuentoTotal())}</Typography>}
+                                        </Box>
+                                        <Typography sx={{ fontSize: 26, fontWeight: 900, color: ACCENT, textAlign: 'center' }}>
+                                            {formatCurrency(calculateSubtotal())}
                                         </Typography>
                                     </Box>
+
+                                    <Button
+                                        fullWidth variant="contained" onClick={handleSubmit}
+                                        disabled={savingVenta || !cliente || saleDetails.filter(d => d.producto).length === 0 || (pagada && metodoPago === 'Efectivo' && valorRecibido < calculateSubtotal())}
+                                        sx={{ background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`, borderRadius: 2, fontWeight: 800, py: 1.5, fontSize: 15 }}
+                                    >
+                                        {savingVenta ? 'PROCESANDO...' : 'FINALIZAR VENTA'}
+                                    </Button>
                                 </Box>
-                            )}
-                        </Paper>
-
-                        {/* ── 3. Carrito de productos ── */}
-                        <Box sx={{ mb: 2 }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                                <Typography sx={{ fontWeight: 600, fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
-                                    Productos / Servicios ({saleDetails.filter(d => d.producto).length})
-                                </Typography>
-                                <Button size="small" startIcon={<Add />} onClick={handleAddSaleDetail}
-                                    sx={{ color: ACCENT, fontWeight: 600, fontSize: 12 }}>
-                                    Agregar línea
-                                </Button>
-                            </Box>
-
-                            {saleDetails.map(detail => (
-                                <SaleDetailRow
-                                    key={detail.id} detail={detail} productos={productos}
-                                    onProductChange={handleProductChange} onFieldChange={handleFieldChange}
-                                    onRemove={handleRemoveSaleDetail} isMobile={isMobile}
-                                    productoInput={productoInputs[detail.id] || ''}
-                                    onProductoInputChange={(val) => handleProductoInputChange(detail.id, val)}
-                                    openQuickCreate={() => openQuickCreate('producto', productoInputs[detail.id] || '', detail.id)}
-                                />
-                            ))}
+                            </Paper>
                         </Box>
+                    )}
+                
 
-                        {/* ── 4. Panel de totales y cobro ── */}
+                {/* ── Dialogo de Edición Touch ── */}
+                <Dialog open={!!editingTouchItem} onClose={() => setEditingTouchItem(null)} PaperProps={{ sx: { borderRadius: 3, p: 2, minWidth: 300 } }}>
+                    <DialogTitle sx={{ fontWeight: 800, fontSize: 18, pb: 1 }}>Ajustar Ítem</DialogTitle>
+                    <DialogContent>
+                        <Typography sx={{ mb: 2, fontWeight: 600, color: 'text.secondary' }}>{editingTouchItem?.producto?.nombre}</Typography>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+                            <CurrencyField
+                                label="Precio Unitario" fullWidth
+                                value={editingTouchItem?.precioUnitario || 0}
+                                onChange={(val) => handleFieldChange(editingTouchItem.id, 'precioUnitario', val)}
+                            />
+                            <TextField
+                                label="Descuento %" type="number" fullWidth
+                                value={editingTouchItem?.descuentoPct || 0}
+                                onChange={(e) => handleFieldChange(editingTouchItem.id, 'descuentoPct', Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
+                            />
+                        </Box>
+                    </DialogContent>
+                    <DialogActions sx={{ p: 2 }}>
+                        <Button fullWidth variant="contained" onClick={() => setEditingTouchItem(null)} sx={{ borderRadius: 2, bgcolor: ACCENT, '&:hover': { bgcolor: '#e5551d' } }}>Listo</Button>
+                    </DialogActions>
+                </Dialog>
+
+                    {/* ── 4. Panel de totales y cobro (SOLO CLASSIC) ── */}
+                    {viewMode === 'classic' && (
                         <Paper elevation={0} sx={{
                             p: { xs: 2, md: 3 }, borderRadius: 3,
                             border: `1.5px solid ${ACCENT}30`,
@@ -1008,6 +1321,7 @@ const Ventas = ({ user }) => {
                                             id="btn-registrar-venta"
                                             type="submit" variant="contained" fullWidth={!editingVenta}
                                             disabled={savingVenta}
+                                            onClick={handleSubmit}  
                                             startIcon={savingVenta ? <CircularProgress size={16} sx={{ color: 'white' }} /> : <ShoppingCart />}
                                             sx={{
                                                 background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`,
@@ -1025,9 +1339,8 @@ const Ventas = ({ user }) => {
                                 </Grid>
                             </Grid>
                         </Paper>
-                    </Box>
-                </TabPanel>
-
+                        )}
+                        </TabPanel>
                 {/* ════════════════════════════════════════
                     TAB 1 — HISTORIAL
                 ════════════════════════════════════════ */}
