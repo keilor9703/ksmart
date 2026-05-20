@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import {
   Close, PersonAdd, Inventory2Outlined,
-  CheckCircle, Science, Add
+  CheckCircle, Science, Add, Inventory2, MiscellaneousServices
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
@@ -193,23 +193,89 @@ const ProductoForm = ({ data, onChange, errors }) => {
         )}
       />
 
-      <Box sx={{
-        p: 1.5, borderRadius: 2, border: '1px solid',
-        borderColor: data.maneja_lotes ? '#10B981' : 'divider',
-        bgcolor: data.maneja_lotes ? '#ECFDF5' : 'transparent',
-        transition: 'all 0.2s'
-      }}>
-        <FormControlLabel
-          control={<Switch checked={data.maneja_lotes} onChange={(e) => onChange('maneja_lotes', e.target.checked)} color="success" />}
-          label={<Typography sx={{ fontWeight: 600, fontSize: 14, color: data.maneja_lotes ? '#059669' : 'text.primary' }}>Producto Perecedero (Maneja Lotes)</Typography>}
-          sx={{ m: 0 }}
-        />
-        {data.maneja_lotes && (
-          <Typography sx={{ fontSize: 11, color: '#059669', mt: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <Science fontSize="small" /> Las entradas requerirán fecha de vencimiento y las salidas usarán lógica FEFO.
-          </Typography>
-        )}
+      {/* Tipo: Físico / Servicio */}
+      <Box>
+        <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', mb: 0.8 }}>Tipo de producto</Typography>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          {[
+            { key: false, label: 'Físico',   icon: <Inventory2 sx={{ fontSize: 15 }} /> },
+            { key: true,  label: 'Servicio', icon: <MiscellaneousServices sx={{ fontSize: 15 }} /> },
+          ].map(({ key, label, icon }) => (
+            <Box
+              key={String(key)}
+              onClick={() => onChange('es_servicio', key)}
+              sx={{
+                flex: 1, py: 1, px: 1.5, borderRadius: 2, textAlign: 'center',
+                cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5,
+                border: '1.5px solid', borderColor: data.es_servicio === key ? '#10B981' : 'divider',
+                bgcolor: data.es_servicio === key ? '#ECFDF5' : 'background.paper',
+                color: data.es_servicio === key ? '#059669' : 'text.secondary',
+                transition: 'all 0.15s', userSelect: 'none',
+              }}
+            >
+              {icon}{label}
+            </Box>
+          ))}
+        </Box>
       </Box>
+
+      {/* Stock inicial — solo para productos físicos */}
+      {!data.es_servicio && (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          <TextField
+            label="Stock inicial"
+            type="number"
+            inputProps={{ min: 0, step: 1 }}
+            value={data.stock_inicial}
+            onChange={e => onChange('stock_inicial', e.target.value)}
+            fullWidth size="small"
+            helperText="Unidades disponibles al crear. Deja en 0 si lo agregas después."
+            InputProps={{
+              endAdornment: <InputAdornment position="end"><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{data.unidad_medida || 'UND'}</Typography></InputAdornment>
+            }}
+          />
+
+          {/* Lotes — solo si maneja lotes Y hay stock inicial */}
+          <Box sx={{
+            p: 1.5, borderRadius: 2, border: '1px solid',
+            borderColor: data.maneja_lotes ? '#10B981' : 'divider',
+            bgcolor: data.maneja_lotes ? '#ECFDF5' : 'transparent',
+            transition: 'all 0.2s'
+          }}>
+            <FormControlLabel
+              control={<Switch checked={data.maneja_lotes} onChange={(e) => onChange('maneja_lotes', e.target.checked)} color="success" />}
+              label={<Typography sx={{ fontWeight: 600, fontSize: 14, color: data.maneja_lotes ? '#059669' : 'text.primary' }}>Producto Perecedero (Maneja Lotes)</Typography>}
+              sx={{ m: 0 }}
+            />
+            {data.maneja_lotes && (
+              <Typography sx={{ fontSize: 11, color: '#059669', mt: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Science fontSize="small" /> Las entradas requerirán fecha de vencimiento y las salidas usarán lógica FEFO.
+              </Typography>
+            )}
+          </Box>
+
+          {data.maneja_lotes && parseFloat(data.stock_inicial) > 0 && (
+            <Box sx={{ display: 'flex', gap: 1.5 }}>
+              <TextField
+                label="N° de lote"
+                value={data.numero_lote}
+                onChange={e => onChange('numero_lote', e.target.value)}
+                size="small" sx={{ flex: 1 }}
+                placeholder="Ej: LOTE-001"
+              />
+              <TextField
+                label="Fecha de vencimiento"
+                type="date"
+                value={data.fecha_vencimiento}
+                onChange={e => onChange('fecha_vencimiento', e.target.value)}
+                size="small" sx={{ flex: 1 }}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Box>
+          )}
+        </Box>
+      )}
     </Box>
   );
 };
@@ -219,7 +285,7 @@ const QuickCreateModal = ({ open, onClose, type, initialName = '', onCreated }) 
   const cfg = TYPE_CONFIG[type] || TYPE_CONFIG.tercero;
 
   const [terceroData, setTerceroData] = useState({ nombre: '', cedula: '', telefono: '', direccion: '', es_proveedor: true, es_cliente: false, cupo_credito: 0 });
-  const [productoData, setProductoData] = useState({ nombre: '', costo: '', precio: '', unidad_medida: 'UND', grupo_item: 1, es_servicio: false, stock_minimo: 0, maneja_lotes: false });
+  const [productoData, setProductoData] = useState({ nombre: '', costo: '', precio: '', unidad_medida: 'UND', grupo_item: 1, es_servicio: false, stock_minimo: 0, maneja_lotes: false, stock_inicial: 0, numero_lote: '', fecha_vencimiento: '' });
   const [errors, setErrors]     = useState({});
   const [saving, setSaving]     = useState(false);
   const [savedItem, setSavedItem] = useState(null);
@@ -230,7 +296,7 @@ const QuickCreateModal = ({ open, onClose, type, initialName = '', onCreated }) 
     if (type === 'tercero') {
       setTerceroData({ nombre: initialName, cedula: '', telefono: '', direccion: '', es_proveedor: true, es_cliente: false, cupo_credito: 0 });
     } else {
-      setProductoData({ nombre: initialName, costo: '', precio: '', unidad_medida: 'UND', grupo_item: 1, es_servicio: false, stock_minimo: 0, maneja_lotes: false });
+      setProductoData({ nombre: initialName, costo: '', precio: '', unidad_medida: 'UND', grupo_item: 1, es_servicio: false, stock_minimo: 0, maneja_lotes: false, stock_inicial: 0, numero_lote: '', fecha_vencimiento: '' });
     }
   }, [open, type, initialName]);
 
@@ -252,9 +318,11 @@ const QuickCreateModal = ({ open, onClose, type, initialName = '', onCreated }) 
       } else {
         response = await apiClient.post('/productos/', {
           ...productoData,
-          costo: parseFloat(productoData.costo) || 0,
-          precio: parseFloat(productoData.precio) || 0,
-          maneja_lotes: productoData.maneja_lotes // ✅ SE ENVÍA AL BACKEND
+          costo:         parseFloat(productoData.costo)         || 0,
+          precio:        parseFloat(productoData.precio)        || 0,
+          stock_inicial: productoData.es_servicio ? 0 : (parseFloat(productoData.stock_inicial) || 0),
+          numero_lote:       productoData.numero_lote       || undefined,
+          fecha_vencimiento: productoData.fecha_vencimiento || undefined,
         });
       }
 
