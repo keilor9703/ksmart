@@ -406,6 +406,7 @@ class VentaBase(BaseModel):
     # Lavadero
     operador_id: Optional[int] = None
     placa_vehiculo: Optional[str] = None
+    tipo_vehiculo: Optional[str] = None
 
 
 class VentaCreate(VentaBase):

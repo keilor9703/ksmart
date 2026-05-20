@@ -383,6 +383,7 @@ class Venta(Base, TenantMixin):
     # Lavadero de vehículos
     operador_id     = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     placa_vehiculo  = Column(String(15), nullable=True)
+    tipo_vehiculo   = Column(String(20), nullable=True)
 
     cliente                = relationship("Cliente", back_populates="ventas")
     detalles               = relationship("DetalleVenta", back_populates="venta", cascade="all, delete-orphan")

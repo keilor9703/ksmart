@@ -785,6 +785,23 @@ def run_migrations():
                 logger.info("V52 (Categoría en Gastos) aplicada.")
 
             # ═══════════════════════════════════════════════════════════════
+            # V54 - LAVADERO: tipo_vehiculo en ventas
+            # ═══════════════════════════════════════════════════════════════
+
+            migration_v54 = "inv_v54_ventas_tipo_vehiculo"
+
+            if not _migration_already_applied(conn, migration_v54):
+                logger.info("Aplicando migración V54 (Lavadero tipo_vehiculo)...")
+                if not _column_exists(conn, "ventas", "tipo_vehiculo"):
+                    if IS_SQLITE:
+                        conn.execute(text("ALTER TABLE ventas ADD COLUMN tipo_vehiculo TEXT NULL"))
+                    else:
+                        conn.execute(text("ALTER TABLE ventas ADD COLUMN tipo_vehiculo VARCHAR(20) NULL"))
+                    logger.info("V54: añadido ventas.tipo_vehiculo")
+                _mark_migration_applied(conn, migration_v54)
+                logger.info("V54 (Lavadero tipo_vehiculo) aplicada.")
+
+            # ═══════════════════════════════════════════════════════════════
             # V53 - RESOLUCIONES DIAN: clave_tecnica + nota
             # ═══════════════════════════════════════════════════════════════
 
