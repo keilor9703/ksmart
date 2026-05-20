@@ -20,6 +20,7 @@ import { formatCurrency } from '../../utils/formatters';
 import SaaSUpgradeManager from '../saas/components/SaaSUpgradeManager';
 // Al tope, junto a los otros imports:
 import CacaoPriceWidget from './CacaoPriceWidget';
+import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
 
 const ACCENT  = '#FF6020';
@@ -244,6 +245,22 @@ const Dashboard = ({ user }) => {
               Act. {lastUpdated.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
             </Typography>
           )}
+          <HelpGuideTopBar
+            moduleName="Dashboard"
+            moduleColor={ACCENT}
+            steps={[
+              { title: 'Revisa los KPIs del día', description: 'Las tarjetas superiores muestran ventas, inventario, cobros pendientes y otros indicadores clave actualizados en tiempo real.' },
+              { title: 'Accesos rápidos', description: 'Los botones de acceso directo te llevan al módulo más relevante según tu tipo de negocio.' },
+              { title: 'Configura tu empresa', description: 'Ve a Usuarios y Permisos para agregar empleados. Ve a Catálogo Virtual para activar tu tienda online.' },
+              { title: 'Consulta los reportes', description: 'El módulo Reportes te da un análisis completo de ventas, rentabilidad, IVA y más para tomar decisiones.' },
+            ]}
+            faqItems={[
+              { q: '¿Qué son los KPIs?', a: 'Son indicadores clave de rendimiento (Key Performance Indicators). Muestran un resumen rápido de la actividad del negocio: ventas del día, cartera pendiente, stock bajo, etc.' },
+              { q: '¿Cómo actualizo los datos del dashboard?', a: 'Haz clic en el ícono de actualizar (↻) en la esquina superior derecha. Los datos también se actualizan cada vez que entras al dashboard.' },
+              { q: '¿Qué módulos están disponibles?', a: 'Depende de los módulos asignados a tu rol. El administrador puede configurar qué ve cada usuario en Usuarios y Permisos.' },
+              { q: '¿Cómo configuro mi empresa?', a: 'Ve a Usuarios y Permisos para gestionar empleados. Ve a Catálogo Virtual para tu tienda online. Las tarifas y configuración específica están en cada módulo.' },
+            ]}
+          />
           <Tooltip title="Actualizar datos">
             <IconButton
               onClick={() => fetchAll()}
