@@ -8,6 +8,7 @@ import VentaDetailDialog from './VentaDetailDialog';
 import DevolucionDialog from './DevolucionDialog';
 import QuickCreateModal from '../../components/common/QuickCreateModal';
 import ReciboDialog from '../../components/common/ReciboDialog';
+import TouchPOSMode from './TouchPOSMode';
 import {
     Box, Paper, Typography, Grid, TextField, Button, IconButton,
     Autocomplete, Table, TableBody, TableCell, TableContainer,
@@ -19,6 +20,7 @@ import {
     Receipt, AttachMoney, AssignmentReturn, Add, QrCodeScanner,
     Videocam, VideocamOff, LockOutlined, LockOpenOutlined,
     AddCircle, RemoveCircle, PersonOutline, HelpOutline,
+    TouchApp, Keyboard,
 } from '@mui/icons-material';
 import { getProductoByBarcode } from '../../api';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
@@ -295,6 +297,7 @@ const Ventas = ({ user }) => {
     const [ventas, setVentas]       = useState([]);
     const [clientes, setClientes]   = useState([]);
     const [productos, setProductos] = useState([]);
+    const [grupos, setGrupos]       = useState([]);
 
     // ── Form ──
     const [cliente, setCliente]     = useState(null);
@@ -330,6 +333,7 @@ const Ventas = ({ user }) => {
     const [reciboOpen, setReciboOpen]             = useState(false);
     const [reciboVenta, setReciboVenta]           = useState(null);
     const [tabValue, setTabValue]                 = useState(0);
+    const [touchMode, setTouchMode]               = useState(() => localStorage.getItem('pos_touch_mode') === '1');
     const [page, setPage]                         = useState(0);
     const [rowsPerPage, setRowsPerPage]           = useState(10);
     const [searchTerm, setSearchTerm]             = useState('');
@@ -338,13 +342,14 @@ const Ventas = ({ user }) => {
 
     // ── Fetch inicial ──
     useEffect(() => {
-        fetchVentas(); fetchClientes(); fetchProductos(); fetchVentasSummary();
+        fetchVentas(); fetchClientes(); fetchProductos(); fetchVentasSummary(); fetchGrupos();
     }, []);
 
     const fetchVentas        = () => apiClient.get('/ventas/').then(r => setVentas(r.data)).catch(console.error);
     const fetchClientes      = () => apiClient.get('/clientes/').then(r => setClientes(r.data)).catch(console.error);
     const fetchProductos     = () => apiClient.get('/productos/').then(r => setProductos(r.data)).catch(console.error);
     const fetchVentasSummary = () => apiClient.get('/reportes/ventas_summary').then(r => setTotalVentasHoy(r.data.total_ventas_hoy)).catch(console.error);
+    const fetchGrupos        = () => apiClient.get('/grupos-producto/').then(r => setGrupos(r.data)).catch(console.error);
 
     // ── Edición de venta existente ──
     useEffect(() => {
@@ -560,6 +565,41 @@ const Ventas = ({ user }) => {
         handleFieldChange(id, 'precioUnitario', newValue?.precio ?? 0);
     };
 
+    // ── Touch mode cart ops ──
+    const handleAddToCartDirect = (producto) => {
+        setSaleDetails(prev => {
+            const existingIdx = prev.findIndex(d => d.producto?.id === producto.id);
+            if (existingIdx !== -1) {
+                return prev.map((d, i) => i === existingIdx ? { ...d, cantidad: d.cantidad + 1 } : d);
+            }
+            const newRow = { id: Date.now(), producto, cantidad: 1, precioUnitario: producto.precio || 0, descuentoPct: 0 };
+            if (prev.length === 1 && !prev[0].producto) return [newRow];
+            return [...prev, newRow];
+        });
+        playScanBeep();
+    };
+    const handleRemoveOneFromCart = (productoId) => {
+        setSaleDetails(prev => {
+            const detail = prev.find(d => d.producto?.id === productoId);
+            if (!detail) return prev;
+            if (detail.cantidad <= 1) {
+                const filtered = prev.filter(d => d.producto?.id !== productoId);
+                return filtered.length === 0
+                    ? [{ id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0, descuentoPct: 0 }]
+                    : filtered;
+            }
+            return prev.map(d => d.producto?.id === productoId ? { ...d, cantidad: d.cantidad - 1 } : d);
+        });
+    };
+    const handleRemoveAllFromCart = (productoId) => {
+        setSaleDetails(prev => {
+            const filtered = prev.filter(d => d.producto?.id !== productoId);
+            return filtered.length === 0
+                ? [{ id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0, descuentoPct: 0 }]
+                : filtered;
+        });
+    };
+
     // ── Cálculos ──
     const calculateSubtotal = () => saleDetails.reduce((t, d) => {
         const bruto = d.cantidad * d.precioUnitario;
@@ -568,9 +608,8 @@ const Ventas = ({ user }) => {
     const calculateDescuentoTotal = () => saleDetails.reduce((t, d) =>
         t + d.cantidad * d.precioUnitario * ((d.descuentoPct || 0) / 100), 0);
 
-    // ── Submit directo (sin modal de confirmación) ──
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    // ── Submit ──
+    const handleVentaSubmit = async () => {
         if (!cliente) { toast.error('Selecciona un cliente o usa el botón Mostrador.'); return; }
         const validDetails = saleDetails.filter(d => d.producto && d.cantidad > 0);
         if (validDetails.length === 0) { toast.error('Agrega al menos un producto al carrito.'); return; }
@@ -621,6 +660,8 @@ const Ventas = ({ user }) => {
             setSavingVenta(false);
         }
     };
+
+    const handleSubmit = (e) => { e.preventDefault(); handleVentaSubmit(); };
 
     const resetForm = () => {
         setCliente(null); setClienteInput(''); setIsMostrador(false);
@@ -690,13 +731,35 @@ const Ventas = ({ user }) => {
                         ]}
                     />
                 </Box>
-                <Button
-                    variant="contained" startIcon={<ShoppingCart />}
-                    onClick={() => { resetForm(); setTabValue(0); }}
-                    sx={{ background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`, boxShadow: `0 4px 14px rgba(255,96,32,0.35)`, borderRadius: 2, fontWeight: 600 }}
-                >
-                    Nueva Venta
-                </Button>
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <Tooltip title={touchMode ? 'Cambiar a modo teclado / mouse' : 'Cambiar a modo touch (pantalla táctil)'}>
+                        <Button
+                            variant={touchMode ? 'contained' : 'outlined'}
+                            startIcon={touchMode ? <Keyboard sx={{ fontSize: 17 }} /> : <TouchApp sx={{ fontSize: 17 }} />}
+                            onClick={() => {
+                                const next = !touchMode;
+                                setTouchMode(next);
+                                localStorage.setItem('pos_touch_mode', next ? '1' : '0');
+                            }}
+                            sx={{
+                                borderRadius: 2, fontWeight: 600, fontSize: 12,
+                                ...(touchMode
+                                    ? { bgcolor: '#3B82F6', color: 'white', '&:hover': { bgcolor: '#2563EB' }, boxShadow: '0 3px 10px rgba(59,130,246,0.35)' }
+                                    : { borderColor: '#3B82F6', color: '#3B82F6', '&:hover': { bgcolor: '#EFF6FF', borderColor: '#3B82F6' } }
+                                ),
+                            }}
+                        >
+                            {touchMode ? 'Modo Normal' : 'Modo Touch'}
+                        </Button>
+                    </Tooltip>
+                    <Button
+                        variant="contained" startIcon={<ShoppingCart />}
+                        onClick={() => { resetForm(); setTabValue(0); }}
+                        sx={{ background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`, boxShadow: `0 4px 14px rgba(255,96,32,0.35)`, borderRadius: 2, fontWeight: 600 }}
+                    >
+                        Nueva Venta
+                    </Button>
+                </Box>
             </Box>
 
             {/* ── KPIs ── */}
@@ -731,6 +794,39 @@ const Ventas = ({ user }) => {
                     TAB 0 — FORMULARIO DE VENTA
                 ════════════════════════════════════════ */}
                 <TabPanel value={tabValue} index={0}>
+                    {touchMode ? (
+                        <Box sx={{ p: { xs: 1.5, md: 2 } }}>
+                            <TouchPOSMode
+                                grupos={grupos}
+                                productos={productos}
+                                saleDetails={saleDetails}
+                                onAddProduct={handleAddToCartDirect}
+                                onRemoveOne={handleRemoveOneFromCart}
+                                onRemoveAll={handleRemoveAllFromCart}
+                                cliente={cliente}
+                                setCliente={(v) => { setCliente(v); setIsMostrador(false); }}
+                                clientes={clientes}
+                                isMostrador={isMostrador}
+                                onSetMostrador={handleSetMostrador}
+                                clienteInput={clienteInput}
+                                setClienteInput={setClienteInput}
+                                pagada={pagada}
+                                setPagada={setPagada}
+                                metodoPago={metodoPago}
+                                setMetodoPago={setMetodoPago}
+                                valorRecibido={valorRecibido}
+                                setValorRecibido={setValorRecibido}
+                                ivaPorcentajeGlobal={ivaPorcentajeGlobal}
+                                setIvaPorcentajeGlobal={setIvaPorcentajeGlobal}
+                                onSubmit={handleVentaSubmit}
+                                savingVenta={savingVenta}
+                                calculateSubtotal={calculateSubtotal}
+                                cambioEfectivo={cambioEfectivo}
+                                openQuickCreate={openQuickCreate}
+                                isDark={isDark}
+                            />
+                        </Box>
+                    ) : (
                     <Box component="form" onSubmit={handleSubmit} sx={{ p: { xs: 2, md: 3 } }}>
 
                         {/* ── 1. Cliente ── */}
@@ -1026,6 +1122,7 @@ const Ventas = ({ user }) => {
                             </Grid>
                         </Paper>
                     </Box>
+                    )}
                 </TabPanel>
 
                 {/* ════════════════════════════════════════
