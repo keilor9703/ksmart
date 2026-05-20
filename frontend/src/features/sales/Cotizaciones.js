@@ -11,13 +11,15 @@ import {
   CheckCircle, Cancel, HourglassEmpty, AddCircleOutline,
   RemoveCircleOutline, Close, AttachMoney, Receipt, Print,
   ContentCopy, Warning, BookmarkAdd, BookmarkBorder, Payments,
-  TrendingUp, CheckCircleOutline
+  TrendingUp, CheckCircleOutline, HelpOutline
 } from '@mui/icons-material';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
 import { toast } from 'react-toastify';
 import CurrencyField from '../../components/common/CurrencyField';
 import QuickCreateModal from '../../components/common/QuickCreateModal';
+import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
+import SmartTooltip from '../../components/onboarding/SmartTooltip';
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 const TEAL   = '#0D9488';
@@ -246,14 +248,22 @@ const DetalleRow = ({ det, idx, productos, productoInput, onProductoInputChange,
           onChange={(val) => onFieldChange(idx, 'precio_unitario', val)}
           sx={{ width: isMobile ? '100%' : 130 }}
         />
-        <TextField
-          type="number" label="Dto %" size="small"
-          value={det.descuento_pct || ''}
-          placeholder="0"
-          onChange={e => onFieldChange(idx, 'descuento_pct', Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
-          InputProps={{ inputProps: { min: 0, max: 100, step: 0.5 } }}
-          sx={{ width: isMobile ? '100%' : 75 }}
-        />
+        <SmartTooltip
+          id="cot_descuento"
+          title="Descuento por ítem"
+          description="Porcentaje de descuento aplicado solo a este producto. Aparecerá reflejado en el documento de cotización."
+          variant="warning"
+          placement="top"
+        >
+          <TextField
+            type="number" label="Dto %" size="small"
+            value={det.descuento_pct || ''}
+            placeholder="0"
+            onChange={e => onFieldChange(idx, 'descuento_pct', Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
+            InputProps={{ inputProps: { min: 0, max: 100, step: 0.5 } }}
+            sx={{ width: isMobile ? '100%' : 75 }}
+          />
+        </SmartTooltip>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 90 }}>
           <Box>
             <Typography sx={{ fontWeight: 700, fontSize: 13, color: TEAL }}>{formatCurrency(subtotal)}</Typography>
@@ -578,6 +588,17 @@ const Cotizaciones = () => {
             <Typography sx={{ fontWeight: 700, fontSize: 20, lineHeight: 1.2 }}>Cotizaciones</Typography>
             <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Proformas y presupuestos convertibles a venta</Typography>
           </Box>
+          <HelpGuideTopBar
+            moduleName="Cotizaciones"
+            moduleColor={TEAL}
+            steps={[
+              { title: 'Selecciona el cliente', description: 'La cotización debe estar asociada a un cliente para poder convertirse a venta después.' },
+              { title: 'Agrega productos o servicios', description: 'Busca por nombre o código. Ajusta precios y cantidades libremente — la cotización no descuenta stock.' },
+              { title: 'Configura la vigencia', description: 'La fecha "Válida hasta" marca cuándo vence la cotización. El sistema la marca automáticamente como "Vencida".' },
+              { title: 'Convierte a venta', description: 'Cuando el cliente acepte, usa el ícono de flecha en el historial. El stock se descuenta en ese momento.' },
+              { title: 'Usa plantillas', description: 'Guarda cotizaciones frecuentes como plantilla para reutilizarlas sin escribirlas desde cero cada vez.' },
+            ]}
+          />
         </Box>
         <Button
           variant="contained" startIcon={<AddCircleOutline />}
@@ -643,17 +664,35 @@ const Cotizaciones = () => {
                   Cargar plantilla
                 </Button>
               )}
-              <Button size="small" variant="outlined" startIcon={<BookmarkAdd />} onClick={() => { setTemplateName(''); setSaveTemplateOpen(true); }}
-                sx={{ borderRadius: 2, fontWeight: 600 }}>
-                Guardar como plantilla
-              </Button>
+              <SmartTooltip
+                id="cot_plantilla"
+                title="Guardar como plantilla"
+                description="Guarda esta cotización como plantilla para reutilizarla en el futuro sin escribirla desde cero."
+                variant="success"
+                placement="bottom"
+              >
+                <Button size="small" variant="outlined" startIcon={<BookmarkAdd />} onClick={() => { setTemplateName(''); setSaveTemplateOpen(true); }}
+                  sx={{ borderRadius: 2, fontWeight: 600 }}>
+                  Guardar como plantilla
+                </Button>
+              </SmartTooltip>
             </Box>
 
             {/* Cliente */}
             <Box sx={{ mb: 3 }}>
-              <Typography sx={{ fontWeight: 600, fontSize: 12, mb: 1.5, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6 }}>
-                Cliente
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1.5 }}>
+                <Typography sx={{ fontWeight: 600, fontSize: 12, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+                  Cliente
+                </Typography>
+                <SmartTooltip
+                  id="cot_cliente"
+                  title="Cliente de la cotización"
+                  description="Selecciona el cliente que recibirá la cotización. Su nombre aparecerá en el documento PDF impreso."
+                  placement="right"
+                >
+                  <HelpOutline sx={{ fontSize: 14, color: 'text.disabled', cursor: 'pointer' }} />
+                </SmartTooltip>
+              </Box>
               <Autocomplete
                 options={clientes}
                 getOptionLabel={o => o?.nombre || ''}
@@ -715,14 +754,24 @@ const Cotizaciones = () => {
                 />
               </Grid>
               <Grid item xs={12} sm={4}>
-                <TextField
-                  fullWidth label="Válida hasta (opcional)" type="date"
-                  InputLabelProps={{ shrink: true }}
-                  value={validaHasta}
-                  onChange={e => setValidaHasta(e.target.value)}
-                  inputProps={{ min: new Date().toLocaleDateString('en-CA') }}
-                  size="small"
-                />
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <TextField
+                    fullWidth label="Válida hasta (opcional)" type="date"
+                    InputLabelProps={{ shrink: true }}
+                    value={validaHasta}
+                    onChange={e => setValidaHasta(e.target.value)}
+                    inputProps={{ min: new Date().toLocaleDateString('en-CA') }}
+                    size="small"
+                  />
+                  <SmartTooltip
+                    id="cot_validez"
+                    title="Vigencia de la cotización"
+                    description="El sistema marca la cotización como 'Vencida' automáticamente después de esta fecha. Deja en blanco si no tiene vencimiento."
+                    placement="top"
+                  >
+                    <HelpOutline sx={{ fontSize: 18, color: 'text.disabled', cursor: 'pointer', flexShrink: 0 }} />
+                  </SmartTooltip>
+                </Box>
               </Grid>
               <Grid item xs={12} sm={4}>
                 <Paper sx={{ p: 2, borderRadius: 2, bgcolor: `${TEAL}0D`, border: `1.5px dashed ${TEAL}60`, boxShadow: 'none', height: '100%', minHeight: 80, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>

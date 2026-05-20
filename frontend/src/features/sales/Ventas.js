@@ -18,9 +18,11 @@ import {
     Edit, Delete, Visibility, Search, ShoppingCart, TrendingUp,
     Receipt, AttachMoney, AssignmentReturn, Add, QrCodeScanner,
     Videocam, VideocamOff, LockOutlined, LockOpenOutlined,
-    AddCircle, RemoveCircle, PersonOutline,
+    AddCircle, RemoveCircle, PersonOutline, HelpOutline,
 } from '@mui/icons-material';
 import { getProductoByBarcode } from '../../api';
+import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
+import SmartTooltip from '../../components/onboarding/SmartTooltip';
 
 const ACCENT = '#FF6020';
 const HAS_BARCODE_DETECTOR = typeof window !== 'undefined' && 'BarcodeDetector' in window;
@@ -246,13 +248,21 @@ const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRe
             </Box>
 
             {/* Desc % (compacto) */}
-            <TextField
-                type="number" size="small" label="Desc. %"
-                value={detail.descuentoPct || 0}
-                onChange={(e) => onFieldChange(detail.id, 'descuentoPct', Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
-                inputProps={{ min: 0, max: 100, step: 1 }}
-                sx={{ width: isMobile ? '100%' : 68 }}
-            />
+            <SmartTooltip
+                id="venta_descuento"
+                title="Descuento por ítem"
+                description="Ingresa un % de descuento para este producto. El subtotal se ajusta automáticamente."
+                variant="warning"
+                placement="top"
+            >
+                <TextField
+                    type="number" size="small" label="Desc. %"
+                    value={detail.descuentoPct || 0}
+                    onChange={(e) => onFieldChange(detail.id, 'descuentoPct', Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
+                    inputProps={{ min: 0, max: 100, step: 1 }}
+                    sx={{ width: isMobile ? '100%' : 68 }}
+                />
+            </SmartTooltip>
 
             {/* Subtotal + quitar */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end' }}>
@@ -662,6 +672,17 @@ const Ventas = ({ user }) => {
                         <Typography sx={{ fontWeight: 700, fontSize: 20, lineHeight: 1.2 }}>Ventas</Typography>
                         <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Gestión de ventas y cobros</Typography>
                     </Box>
+                    <HelpGuideTopBar
+                        moduleName="Ventas POS"
+                        moduleColor={ACCENT}
+                        steps={[
+                            { title: 'Selecciona el cliente', description: 'Busca por nombre, NIT o teléfono. Para ventas rápidas usa el botón "Mostrador".' },
+                            { title: 'Agrega productos', description: 'Escanea el código de barras o escribe el nombre. Usa los botones + / − para ajustar cantidades.' },
+                            { title: 'Aplica descuentos', description: 'Cada producto tiene un campo "Desc. %" donde puedes reducir su precio de forma individual.' },
+                            { title: 'Elige el método de pago', description: 'Selecciona Efectivo, Transferencia, Tarjeta o "Por Cobrar" para registrar ventas a crédito.' },
+                            { title: 'Registra la venta', description: 'Haz clic en "Registrar Venta" y el sistema descuenta el stock y guarda la transacción automáticamente.' },
+                        ]}
+                    />
                 </Box>
                 <Button
                     variant="contained" startIcon={<ShoppingCart />}
@@ -906,9 +927,20 @@ const Ventas = ({ user }) => {
                             <Grid container spacing={2} alignItems="flex-end">
                                 {/* Métodos de pago */}
                                 <Grid item xs={12} sm={pagada && metodoPago === 'Efectivo' ? 5 : 7}>
-                                    <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8, mb: 1 }}>
-                                        Método de pago
-                                    </Typography>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
+                                        <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                                            Método de pago
+                                        </Typography>
+                                        <SmartTooltip
+                                            id="venta_metodo_pago"
+                                            title="Métodos de pago"
+                                            description="'Por Cobrar' registra la venta como deuda del cliente. Puedes ver y cobrar las deudas pendientes en el historial."
+                                            variant="info"
+                                            placement="right"
+                                        >
+                                            <HelpOutline sx={{ fontSize: 14, color: 'text.disabled', cursor: 'pointer' }} />
+                                        </SmartTooltip>
+                                    </Box>
                                     <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap' }}>
                                         {METODOS_PAGO.map(opt => {
                                             const isSelected = pagada ? (opt.pagada && metodoPago === opt.value) : !opt.pagada;
