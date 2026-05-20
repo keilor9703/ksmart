@@ -11,6 +11,7 @@ import {
 } from '@mui/icons-material';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
+import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
 const TEAL  = '#0D9488';
 const GREEN = '#10B981';
@@ -233,6 +234,22 @@ const ResolucionesDian = () => {
             <Typography sx={{ fontWeight: 700, fontSize: 20, lineHeight: 1.2 }}>Resoluciones DIAN</Typography>
             <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Numeración consecutiva para facturación</Typography>
           </Box>
+          <HelpGuideTopBar
+            moduleName="Resoluciones DIAN"
+            moduleColor={TEAL}
+            steps={[
+              { title: '¿Qué es una resolución?', description: 'Es la autorización de la DIAN para usar un rango de números de factura. Sin ella, las facturas no son válidas fiscalmente.' },
+              { title: 'Ingresa los datos', description: 'Registra el número de resolución, prefijo, rango desde/hasta y fecha de vencimiento exactamente como aparece en el documento de la DIAN.' },
+              { title: 'Activa la resolución', description: 'Marca la resolución como "Activa" para que el sistema la use automáticamente al generar nuevas facturas.' },
+              { title: 'Monitorea el consecutivo', description: 'El sistema muestra una barra de progreso con los números usados. Renueva antes de que se agoten.' },
+            ]}
+            faqItems={[
+              { q: '¿Por qué necesito una resolución DIAN?', a: 'La DIAN exige que cada factura tenga un número autorizado dentro del rango aprobado. Sin resolución vigente, las facturas no tienen validez legal.' },
+              { q: '¿Qué pasa cuando se acaban los consecutivos?', a: 'El sistema te alertará. Debes solicitar una nueva resolución a la DIAN antes de que el rango se agote para no interrumpir la facturación.' },
+              { q: '¿Puedo tener varias resoluciones?', a: 'Sí, pero solo una puede estar activa a la vez. Las anteriores quedan en historial para consulta.' },
+              { q: '¿Cómo cambio la resolución activa?', a: 'Desactiva la actual y activa la nueva. El sistema usará automáticamente la resolución activa para el siguiente número de factura.' },
+            ]}
+          />
         </Box>
         <Button
           variant="contained" startIcon={<Add />} onClick={openCreate}

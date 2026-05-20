@@ -18,6 +18,7 @@ import { formatCurrency } from '../../utils/formatters';
 import CurrencyField from '../../components/common/CurrencyField';
 
 import ParqueaderoMetodosPago from './ParqueaderoMetodosPago';
+import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
 const ACCENT = '#FF6020';
 
@@ -108,22 +109,40 @@ export default function ParqueaderoConfig() {
   return (
     <Box sx={{ p: { xs: 1, md: 2 }, maxWidth: 1100, mx: 'auto' }}>
 
-      <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
-        <Box sx={{
-          width: 48, height: 48, borderRadius: 2,
-          background: `linear-gradient(135deg, ${ACCENT} 0%, #ff9a62 100%)`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <Settings sx={{ color: 'white' }} />
-        </Box>
-        <Box>
-          <Typography sx={{ fontSize: 22, fontWeight: 800, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            Configuración del parqueadero
-          </Typography>
-          <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-            Tarifas, cupo, métodos de pago y mensajes de WhatsApp
-          </Typography>
-        </Box>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+        <Stack direction="row" alignItems="center" spacing={1.5}>
+          <Box sx={{
+            width: 48, height: 48, borderRadius: 2,
+            background: `linear-gradient(135deg, ${ACCENT} 0%, #ff9a62 100%)`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Settings sx={{ color: 'white' }} />
+          </Box>
+          <Box>
+            <Typography sx={{ fontSize: 22, fontWeight: 800, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              Configuración del parqueadero
+            </Typography>
+            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+              Tarifas, cupo, métodos de pago y mensajes de WhatsApp
+            </Typography>
+          </Box>
+        </Stack>
+        <HelpGuideTopBar
+          moduleName="Config Parqueadero"
+          moduleColor={ACCENT}
+          steps={[
+            { title: 'Configura el cupo total', description: 'Ingresa el número máximo de vehículos que puede albergar tu parqueadero. El dashboard usará este dato.' },
+            { title: 'Define las tarifas', description: 'Establece la tarifa mensual (suscripciones) y la tarifa por hora o por minuto (vehículos ocasionales).' },
+            { title: 'Cobro mínimo', description: 'Configura el tiempo mínimo de cobro para evitar que vehículos que entran y salen rápido no paguen nada.' },
+            { title: 'Mensajes de WhatsApp', description: 'Personaliza los mensajes automáticos de cobro y recordatorio que se envían a los clientes.' },
+          ]}
+          faqItems={[
+            { q: '¿Cómo calcula el sistema la tarifa por hora?', a: 'Si tienes tarifa por minuto configurada, el sistema la usa para calcular el costo exacto. Si solo tienes tarifa por hora, aplica esa directamente.' },
+            { q: '¿Qué es el cobro mínimo?', a: 'Es el tiempo mínimo que siempre se cobra aunque el vehículo esté menos tiempo. Por ejemplo, mínimo 30 minutos independientemente del tiempo real.' },
+            { q: '¿Puedo cambiar las tarifas en cualquier momento?', a: 'Sí, los cambios aplican a nuevos cobros. Los pagos ya registrados no se ven afectados.' },
+            { q: '¿Cómo personalizo el mensaje de WhatsApp?', a: 'En la sección de mensajes puedes escribir el texto con variables como {nombre} y {monto} que se reemplazan automáticamente.' },
+          ]}
+        />
       </Stack>
 
       {!configCompleta && (

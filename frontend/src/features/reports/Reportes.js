@@ -16,6 +16,7 @@ import ReportePrestamos from '../loans/ReportePrestamos';
 import ReporteCaja from './ReporteCaja';
 import ReporteEstadoResultados from './ReporteEstadoResultados';
 import apiClient from '../../api';
+import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
 const ACCENT = '#F43F5E';
 
@@ -73,18 +74,36 @@ const Reportes = () => {
     <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
 
       {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
-        <Box sx={{ width: 38, height: 38, borderRadius: 2, flexShrink: 0, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT }}>
-          {esPrestamista ? <AttachMoney /> : <Assessment />}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, mb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{ width: 38, height: 38, borderRadius: 2, flexShrink: 0, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT }}>
+            {esPrestamista ? <AttachMoney /> : <Assessment />}
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontWeight: 700, fontSize: 18, lineHeight: 1.2 }}>
+              {esPrestamista ? 'Análisis de Cartera' : 'Reportes'}
+            </Typography>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+              {esPrestamista ? 'Rendimiento de préstamos e intereses' : 'Análisis financiero, ventas y productividad'}
+            </Typography>
+          </Box>
         </Box>
-        <Box sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontWeight: 700, fontSize: 18, lineHeight: 1.2 }}>
-            {esPrestamista ? 'Análisis de Cartera' : 'Reportes'}
-          </Typography>
-          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-            {esPrestamista ? 'Rendimiento de préstamos e intereses' : 'Análisis financiero, ventas y productividad'}
-          </Typography>
-        </Box>
+        <HelpGuideTopBar
+          moduleName="Reportes"
+          moduleColor={ACCENT}
+          steps={[
+            { title: 'Selecciona el período', description: 'Cada reporte tiene sus propios filtros de fecha. Ajústalos para ver el rango que necesitas analizar.' },
+            { title: 'Explora las pestañas', description: 'Cada pestaña muestra un tipo de análisis: ventas, productos, clientes, rentabilidad, IVA y más.' },
+            { title: 'Exporta los datos', description: 'La mayoría de reportes tienen un botón de descarga CSV o PDF para llevar los datos a Excel o compartirlos.' },
+            { title: 'Analiza tendencias', description: 'Compara períodos anteriores para identificar temporadas altas, productos estrella o clientes frecuentes.' },
+          ]}
+          faqItems={[
+            { q: '¿Cómo veo las ventas del mes?', a: 'Ve a la pestaña "Ventas", selecciona el primer y último día del mes en los filtros de fecha y haz clic en "Consultar".' },
+            { q: '¿Qué muestra el reporte de rentabilidad?', a: 'Compara el costo de producción (recetas) con el precio de venta para calcular el margen de ganancia por producto.' },
+            { q: '¿Puedo exportar los reportes?', a: 'Sí, la mayoría de pestañas tienen un botón de descarga. El formato CSV es compatible con Excel y Google Sheets.' },
+            { q: '¿Qué es el reporte de IVA?', a: 'Muestra el IVA total cobrado en ventas durante un período, útil para declaraciones tributarias.' },
+          ]}
+        />
       </Box>
 
       {/* Contenedor dinámico */}

@@ -26,6 +26,7 @@ import { toast } from 'react-toastify';
 import { formatCurrency } from '../../utils/formatters';
 import CurrencyField from '../../components/common/CurrencyField';
 import BotonWhatsApp from '../../components/common/BotonWhatsApp';   // ✨ NUEVO
+import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
 const ACCENT = '#FF6020';
 const METODOS_PAGO = ['Efectivo', 'Transferencia', 'Nequi', 'Daviplata', 'Tarjeta', 'Otro'];
@@ -191,6 +192,22 @@ export default function ParqueaderoSuscripciones() {
               {items.length} registro{items.length !== 1 ? 's' : ''}
             </Typography>
           </Box>
+          <HelpGuideTopBar
+            moduleName="Suscripciones"
+            moduleColor={ACCENT}
+            steps={[
+              { title: 'Revisa suscripciones activas', description: 'Verás todas las suscripciones mensuales con su fecha de vencimiento y saldo pendiente.' },
+              { title: 'Identifica las vencidas', description: 'Las suscripciones vencidas aparecen con estado rojo. Son clientes que deben renovar.' },
+              { title: 'Renueva y cobra', description: 'Selecciona una suscripción vencida y usa el botón "Cobrar/Renovar" para registrar el pago y extender la fecha.' },
+              { title: 'Notifica por WhatsApp', description: 'Usa el botón de WhatsApp para enviar un mensaje automático al cliente con el monto adeudado.' },
+            ]}
+            faqItems={[
+              { q: '¿Qué es una suscripción mensual?', a: 'Es un acuerdo por el que un vehículo paga una tarifa fija mensual para tener acceso permanente al parqueadero.' },
+              { q: '¿Cómo renuevo una suscripción?', a: 'Haz clic en el botón de cobro/renovación, selecciona el método de pago y la fecha se extiende automáticamente un mes.' },
+              { q: '¿Qué pasa con vehículos de suscripción vencida?', a: 'Siguen apareciendo en el listado como vencidos. Debes cobrar la renovación antes de permitirles el acceso nuevamente.' },
+              { q: '¿Cómo filtro las suscripciones por estado?', a: 'Usa los botones de filtro en la parte superior: Todos, Activas o Vencidas.' },
+            ]}
+          />
         </Stack>
         <Tooltip title="Actualizar">
           <IconButton onClick={cargar} sx={{ border: '1px solid', borderColor: 'divider' }}>

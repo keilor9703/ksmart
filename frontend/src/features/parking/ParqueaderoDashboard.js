@@ -22,6 +22,7 @@ import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
 import BotonWhatsApp from '../../components/common/BotonWhatsApp';   // ✨ NUEVO
 import SaaSUpgradeManager from '../saas/components/SaaSUpgradeManager';
+import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
 const ACCENT = '#FF6020';
 
@@ -120,7 +121,23 @@ export default function ParqueaderoDashboard({ user }) {
             </Typography>
           </Box>
         </Box>
-        <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+        <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, alignItems: 'center' }}>
+          <HelpGuideTopBar
+            moduleName="Parqueadero"
+            moduleColor={ACCENT}
+            steps={[
+              { title: 'Verifica el estado del parqueadero', description: 'El panel muestra el cupo disponible, vehículos activos y alertas de suscripciones vencidas.' },
+              { title: 'Gestiona entradas y salidas', description: 'Usa "Buscar Placa" para registrar entradas por hora o verificar el estado de suscripciones mensuales.' },
+              { title: 'Cobra suscripciones vencidas', description: 'Los clientes con suscripción vencida aparecen en rojo. Haz clic en "Cobrar" para renovar.' },
+              { title: 'Envía recordatorios por WhatsApp', description: 'Los botones de WhatsApp envían mensajes automáticos de cobro a clientes con saldo pendiente.' },
+            ]}
+            faqItems={[
+              { q: '¿Cómo registro la entrada de un vehículo?', a: 'Ve a "Buscar Placa", escribe la placa y selecciona "Entrada de vehículo". Si es primera vez, el sistema pedirá los datos del propietario.' },
+              { q: '¿Qué significa cupo disponible?', a: 'Es la diferencia entre el cupo total configurado y los vehículos actualmente dentro del parqueadero.' },
+              { q: '¿Cómo cobro una suscripción vencida?', a: 'En la lista de suscripciones vencidas, haz clic en "Cobrar" y selecciona el método de pago. La suscripción se renueva automáticamente.' },
+              { q: '¿Cómo configuro el cupo total?', a: 'Ve al módulo "Config Parqueadero" y establece el número máximo de vehículos que puede albergar el parqueadero.' },
+            ]}
+          />
           <Button
             variant="contained" startIcon={<Search />}
             onClick={() => navigate('/parqueadero/buscar')}

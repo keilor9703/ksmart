@@ -3,6 +3,7 @@ import apiClient from '../../api';
 import { toast } from 'react-toastify';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
 import AlertaRolModulos from './AlertaRolModulos'; // ✨ IMPORTACIÓN AÑADIDA AQUÍ
+import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
 import {
   Box, Paper, Typography, Grid, TextField, Button, Table, TableBody,
@@ -238,13 +239,31 @@ export default function AdminUsuarios() {
   return (
     <Box sx={{ width: '100%' }}>
       {/* ── Header ── */}
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, gap: 1.5 }}>
-        <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT }}>
-          <AdminPanelSettings />
-        </Box>
-        <Box>
-          <Typography sx={{ fontWeight: 800, fontSize: 20, lineHeight: 1.2 }}>Usuarios y Permisos</Typography>
-          <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Control de acceso del personal</Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, gap: 1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT }}>
+            <AdminPanelSettings />
+          </Box>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: 20, lineHeight: 1.2 }}>Usuarios y Permisos</Typography>
+            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Control de acceso del personal</Typography>
+          </Box>
+          <HelpGuideTopBar
+            moduleName="Usuarios y Permisos"
+            moduleColor={ACCENT}
+            steps={[
+              { title: 'Crea un usuario', description: 'Define el nombre de usuario, contraseña y rol. El rol determina a qué módulos tendrá acceso.' },
+              { title: 'Asigna un rol', description: 'Los roles agrupan permisos de módulos. Asigna el rol que corresponda al cargo del empleado.' },
+              { title: 'Gestiona permisos de módulos', description: 'En la pestaña "Roles y Módulos" puedes definir exactamente qué módulos puede ver cada rol.' },
+              { title: 'Activa o desactiva usuarios', description: 'Si un empleado sale de la empresa, desactívalo en lugar de eliminarlo para conservar el historial.' },
+            ]}
+            faqItems={[
+              { q: '¿Cuál es la diferencia entre usuario y rol?', a: 'El usuario es la cuenta individual de cada empleado. El rol es un conjunto de permisos (qué módulos puede ver). Varios usuarios pueden tener el mismo rol.' },
+              { q: '¿Cómo desactivo a un usuario que ya no trabaja aquí?', a: 'En la lista de usuarios, usa el interruptor de activar/desactivar. El historial de ese usuario se conserva.' },
+              { q: '¿Qué módulos puede ver cada empleado?', a: 'Depende del rol asignado. En "Roles y Módulos" puedes ver y editar exactamente qué módulos tiene habilitados cada rol.' },
+              { q: '¿Cómo cambio la contraseña de un usuario?', a: 'Edita el usuario con el ícono de lápiz ✏️ y escribe la nueva contraseña en el campo correspondiente.' },
+            ]}
+          />
         </Box>
       </Box>
 

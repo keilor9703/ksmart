@@ -22,6 +22,7 @@ import {
 import { formatCurrency } from '../../utils/formatters';
 import { toast } from 'react-toastify';
 import OrdenTrabajoDetailDialog from './OrdenTrabajoDetailDialog';
+import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
 ChartJS.register(ArcElement, ChartTooltip, Legend);
 
@@ -437,6 +438,22 @@ const PanelOperador = () => {
             <Typography sx={{ fontWeight: 700, fontSize: 20, lineHeight: 1.2 }}>Panel del Operador</Typography>
             <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Órdenes pendientes, productividad y estadísticas</Typography>
           </Box>
+          <HelpGuideTopBar
+            moduleName="Panel del Operador"
+            moduleColor={ACCENT}
+            steps={[
+              { title: 'Revisa tus órdenes pendientes', description: 'En la pestaña "Pendientes" verás todas las órdenes aprobadas asignadas a ti, ordenadas por prioridad.' },
+              { title: 'Registra el progreso', description: 'Haz clic en una orden para ver el detalle. Usa el botón de acción para marcarla como iniciada o completada.' },
+              { title: 'Consulta tu productividad', description: 'La pestaña "Productividad" muestra tu historial de órdenes completadas, tiempo promedio y monto generado.' },
+              { title: 'Filtra por fecha', description: 'Usa el selector de fecha para analizar tu rendimiento en períodos específicos.' },
+            ]}
+            faqItems={[
+              { q: '¿Qué órdenes aparecen en mi panel?', a: 'Solo las órdenes que tienen tu usuario asignado como operador y están en estado "Aprobada" o en progreso.' },
+              { q: '¿Cómo marco una orden como completada?', a: 'Abre el detalle de la orden y usa el botón "Completar". Solo podrás hacerlo una vez que esté en estado Aprobada.' },
+              { q: '¿Puedo ver el historial de órdenes que ya terminé?', a: 'Sí, en la pestaña "Historial" con el filtro de fechas puedes revisar todo tu trabajo anterior.' },
+              { q: '¿Qué muestran las estadísticas?', a: 'Órdenes completadas, tiempo promedio de atención y valor total generado. Sirven para evaluar tu desempeño.' },
+            ]}
+          />
         </Box>
         <Button variant="outlined" startIcon={<Refresh />} onClick={fetchPanelData} sx={{ borderRadius: 2, fontWeight: 600, borderColor: 'divider', color: 'text.secondary' }}>
           Actualizar

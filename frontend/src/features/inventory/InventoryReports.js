@@ -23,6 +23,7 @@ import {
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
 import { toast } from 'react-toastify';
+import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, ChartTooltip, Legend);
 
@@ -510,14 +511,32 @@ export default function InventoryReports() {
     <Box sx={{ width: '100%' }}>
 
       {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5 }}>
-        <Box sx={{ width: 38, height: 38, borderRadius: 2, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT, flexShrink: 0 }}>
-          <BarChart />
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, mb: 2.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{ width: 38, height: 38, borderRadius: 2, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT, flexShrink: 0 }}>
+            <BarChart />
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontWeight: 700, fontSize: 18, lineHeight: 1.2 }}>Reportes de Inventario</Typography>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Inventario actual, rotación y kardex</Typography>
+          </Box>
         </Box>
-        <Box sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontWeight: 700, fontSize: 18, lineHeight: 1.2 }}>Reportes de Inventario</Typography>
-          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Inventario actual, rotación y kardex</Typography>
-        </Box>
+        <HelpGuideTopBar
+          moduleName="Reportes de Inventario"
+          moduleColor={ACCENT}
+          steps={[
+            { title: 'Inventario actual', description: 'La pestaña "Inventario" muestra el stock disponible de todos los productos con su valor en dinero.' },
+            { title: 'Rotación y ventas', description: 'Analiza qué productos se venden más y cuáles tienen baja rotación para tomar decisiones de compra.' },
+            { title: 'Kardex de movimientos', description: 'El Kardex registra cada entrada y salida de un producto. Filtra por producto y fecha para ver el historial detallado.' },
+            { title: 'Alertas de stock', description: 'Los productos con stock igual o menor al mínimo configurado aparecen resaltados en rojo.' },
+          ]}
+          faqItems={[
+            { q: '¿Qué es el Kardex?', a: 'Es el registro cronológico de todas las entradas y salidas de un producto: compras, ventas, ajustes y devoluciones.' },
+            { q: '¿Cómo sé qué productos están por agotarse?', a: 'Revisa la pestaña de inventario. Los productos con stock igual o menor al mínimo se muestran en rojo o con alerta.' },
+            { q: '¿Puedo exportar el inventario actual?', a: 'Sí, usa el botón de descarga CSV disponible en la pestaña de inventario para exportar a Excel.' },
+            { q: '¿Cómo calcula el valor del inventario?', a: 'Multiplica el stock actual de cada producto por su costo registrado. La suma total es el valor del inventario.' },
+          ]}
+        />
       </Box>
 
       {/* Tabs + contenido */}

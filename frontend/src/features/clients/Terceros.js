@@ -11,6 +11,7 @@ import CuentasPorCobrar from '../finance/CuentasPorCobrar';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
 import { formatCurrency } from '../../utils/formatters';
+import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
 const ACCENT  = '#3B82F6';
 const GREEN   = '#10B981';
@@ -135,6 +136,22 @@ export default function Terceros() {
               Clientes, proveedores y cuentas por cobrar
             </Typography>
           </Box>
+          <HelpGuideTopBar
+            moduleName="Clientes y Terceros"
+            moduleColor={ACCENT}
+            steps={[
+              { title: 'Registra tus clientes', description: 'Agrega nombre, NIT/cédula, teléfono y dirección. Estos datos se usan en ventas, cotizaciones y reportes.' },
+              { title: 'Gestiona cuentas por cobrar', description: 'En la pestaña "Cuentas por Cobrar" verás todas las ventas con saldo pendiente organizadas por cliente.' },
+              { title: 'Registra pagos', description: 'Selecciona una deuda y usa el botón de pago para registrar abonos parciales o cancelación total.' },
+              { title: 'Consulta el historial', description: 'Haz clic en el nombre de un cliente para ver todo su historial de compras y pagos.' },
+            ]}
+            faqItems={[
+              { q: '¿Cómo busco un cliente rápidamente?', a: 'Usa la barra de búsqueda en la parte superior del listado. Puedes buscar por nombre, NIT/cédula o teléfono.' },
+              { q: '¿Puedo editar los datos de un cliente?', a: 'Sí, haz clic en el ícono de lápiz ✏️ junto al cliente. Todos los campos son editables excepto el ID.' },
+              { q: '¿Qué es la cartera pendiente?', a: 'Son ventas registradas con el método "Por Cobrar" que aún tienen saldo sin pagar. Se muestran en la pestaña "Cuentas por Cobrar".' },
+              { q: '¿Puedo eliminar un cliente?', a: 'Solo si no tiene ventas asociadas. Si ya tiene historial, es preferible dejarlo inactivo para no perder registros.' },
+            ]}
+          />
         </Box>
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Tooltip title="Actualizar datos">

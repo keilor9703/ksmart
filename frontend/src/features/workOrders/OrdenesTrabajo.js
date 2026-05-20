@@ -8,6 +8,7 @@ import OrdenTrabajoDetailDialog from './OrdenTrabajoDetailDialog';
 import QuickCreateModal from '../../components/common/QuickCreateModal';
 import CloseOrderPaymentDialog from '../sales/CloseOrderPaymentDialog';
 import CurrencyField from '../../components/common/CurrencyField';
+import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 import { useLocation } from 'react-router-dom';
 import {
   Box, Paper, Typography, Grid, TextField, Button, IconButton, Autocomplete,
@@ -493,6 +494,22 @@ const OrdenesTrabajo = ({ user }) => {
             <Typography sx={{ fontWeight: 700, fontSize: 20, lineHeight: 1.2 }}>Órdenes de Trabajo</Typography>
             <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Gestión de órdenes de servicio y producción</Typography>
           </Box>
+          <HelpGuideTopBar
+            moduleName="Órdenes de Trabajo"
+            moduleColor={ACCENT}
+            steps={[
+              { title: 'Crea una nueva orden', description: 'Selecciona el cliente y el operador asignado. Agrega los servicios o productos incluidos con sus precios.' },
+              { title: 'Aprueba la orden', description: 'Cuando el cliente confirme, cambia el estado a "Aprobada". El operador podrá verla en su panel.' },
+              { title: 'Operador ejecuta el trabajo', description: 'El operador registra el progreso desde su Panel. Puedes ver el avance en tiempo real.' },
+              { title: 'Cierra y cobra', description: 'Al finalizar, cierra la orden y registra el pago. El sistema genera el resumen de ingresos.' },
+            ]}
+            faqItems={[
+              { q: '¿Cuál es la diferencia entre Pendiente, Aprobada y Cerrada?', a: 'Pendiente = recién creada, esperando confirmación. Aprobada = confirmada, el operador puede ejecutarla. Cerrada = trabajo terminado y cobrado.' },
+              { q: '¿Cómo asigno un operador a una orden?', a: 'En el formulario de la orden, selecciona el operador del menú desplegable. Solo aparecen usuarios con rol de Operador.' },
+              { q: '¿Puedo agregar productos y servicios en la misma orden?', a: 'Sí, puedes mezclar productos físicos (con stock) y servicios intangibles en una misma orden de trabajo.' },
+              { q: '¿Cómo imprimo o exporto una orden?', a: 'En el historial, abre el detalle de la orden y usa el botón de impresión para generar el documento.' },
+            ]}
+          />
         </Box>
         <Button variant="contained" startIcon={<Add />} onClick={() => { resetForm(); setTabValue(0); }} sx={{ background: `linear-gradient(135deg, ${ACCENT}, #f472b6)`, boxShadow: `0 4px 14px rgba(236,72,153,0.35)`, borderRadius: 2, fontWeight: 600 }}>Nueva Orden</Button>
       </Box>

@@ -16,6 +16,7 @@ import { formatCurrency } from '../../utils/formatters';
 import { toast } from 'react-toastify';
 import CurrencyField from '../../components/common/CurrencyField';
 import QuickCreateModal from '../../components/common/QuickCreateModal';
+import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 const ACCENT  = '#FF6020';
@@ -400,6 +401,22 @@ const Compras = () => {
             <Typography sx={{ fontWeight: 700, fontSize: 20, lineHeight: 1.2 }}>Compras</Typography>
             <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Gestión de proveedores y cuentas por pagar</Typography>
           </Box>
+          <HelpGuideTopBar
+            moduleName="Compras"
+            moduleColor={GREEN}
+            steps={[
+              { title: 'Selecciona el proveedor', description: 'Busca el proveedor o créalo directamente desde el campo de búsqueda. Quedará guardado para futuras compras.' },
+              { title: 'Agrega los productos comprados', description: 'Busca cada producto, ingresa la cantidad recibida y el precio unitario. El costo se actualiza automáticamente.' },
+              { title: 'Registra el pago', description: 'Indica si la compra fue pagada de inmediato o queda pendiente (a crédito). Puedes hacer pagos parciales después.' },
+              { title: 'Revisa el historial', description: 'En la pestaña "Historial" puedes ver, filtrar y gestionar todas las compras registradas.' },
+            ]}
+            faqItems={[
+              { q: '¿Cómo registro un pago parcial a un proveedor?', a: 'En el historial, selecciona la compra con saldo pendiente y usa el botón de pago para ingresar el monto abonado.' },
+              { q: '¿El stock se actualiza al registrar una compra?', a: 'Sí, cuando registras una compra el sistema aumenta automáticamente el stock de los productos incluidos.' },
+              { q: '¿Puedo editar una compra ya registrada?', a: 'Sí, pero ten en cuenta que los cambios afectan el inventario. Edita solo si es necesario corregir un error.' },
+              { q: '¿Cómo veo el historial de un proveedor específico?', a: 'En el historial de compras, usa el filtro de búsqueda para escribir el nombre del proveedor y ver solo sus registros.' },
+            ]}
+          />
         </Box>
         <Button
           variant="contained" startIcon={<Add />}

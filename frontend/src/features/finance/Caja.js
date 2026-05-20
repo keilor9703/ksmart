@@ -19,6 +19,7 @@ import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
 import CurrencyField from '../../components/common/CurrencyField';
 import QuickCreateModal from '../../components/common/QuickCreateModal';
+import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
 const ACCENT  = '#FF6020';
 const GREEN   = '#10B981';
@@ -680,6 +681,22 @@ export default function Caja() {
             <Typography sx={{ fontWeight: 700, fontSize: 20, lineHeight: 1.2 }}>Control de Caja</Typography>
             <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Arqueo, cortes y gastos menores</Typography>
           </Box>
+          <HelpGuideTopBar
+            moduleName="Control de Caja"
+            moduleColor={ACCENT}
+            steps={[
+              { title: 'Revisa el arqueo del día', description: 'En la pestaña "Arqueo" verás el resumen de ingresos por método de pago acumulados en el día.' },
+              { title: 'Registra gastos menores', description: 'Usa la pestaña "Gastos" para registrar egresos de caja chica como cafetería, papelería o servicios menores.' },
+              { title: 'Realiza el corte de caja', description: 'Al final del día, el corte registra el saldo final y cierra el período. Ingresa el efectivo físico contado.' },
+              { title: 'Consulta el historial', description: 'Revisa cortes anteriores en la pestaña "Historial" para comparar y detectar descuadres.' },
+            ]}
+            faqItems={[
+              { q: '¿Qué es el arqueo de caja?', a: 'Es el conteo y verificación del dinero disponible en un momento dado, comparando el dinero teórico (ventas) con el físico (billetes/monedas contados).' },
+              { q: '¿Qué incluye el total del día?', a: 'Suma todas las ventas pagadas (efectivo, tarjeta, transferencia). Las ventas "Por Cobrar" no aparecen en el arqueo hasta que se paguen.' },
+              { q: '¿Cómo registro un gasto de caja chica?', a: 'Ve a la pestaña "Gastos", haz clic en "Nuevo Gasto", ingresa el concepto y monto. El gasto se resta del efectivo disponible.' },
+              { q: '¿Puedo corregir un corte ya realizado?', a: 'Los cortes son definitivos para mantener la integridad del registro. Si hay un error, contacta al administrador para anular y rehacer el corte.' },
+            ]}
+          />
         </Box>
         <Tooltip title="Actualizar datos">
           <IconButton onClick={() => { fetchPreview(); fetchHistorial(); fetchGastos(); }} size="small"

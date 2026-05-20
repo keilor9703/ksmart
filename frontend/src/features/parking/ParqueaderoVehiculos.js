@@ -23,6 +23,7 @@ import { toast } from 'react-toastify';
 import { ParqueaderoVehiculoDialog } from './ParqueaderoVehiculoDialog';
 import DialogoDarBaja from '../inventory/DialogoDarBaja';
 import { BRAND_OPTIONS, getModelOptions } from './vehicleBrands';
+import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
 const ACCENT = '#FF6020';
 
@@ -156,6 +157,22 @@ export default function ParqueaderoVehiculos() {
               {vehiculos.length} vehículo{vehiculos.length !== 1 ? 's' : ''} {soloActivos ? 'activos' : 'en total'}
             </Typography>
           </Box>
+          <HelpGuideTopBar
+            moduleName="Vehículos"
+            moduleColor={ACCENT}
+            steps={[
+              { title: 'Registra vehículos frecuentes', description: 'Agrega los vehículos de clientes habituales con placa, tipo y datos del propietario para agilizar su ingreso.' },
+              { title: 'Busca y filtra', description: 'Usa la barra de búsqueda para encontrar vehículos por placa, propietario o tipo. Puedes filtrar solo activos.' },
+              { title: 'Edita información', description: 'Haz clic en el ícono de edición para actualizar datos del vehículo o del propietario.' },
+              { title: 'Gestiona el estado', description: 'Activa o desactiva vehículos según si tienen suscripción vigente o no.' },
+            ]}
+            faqItems={[
+              { q: '¿Cuál es la diferencia entre activo e inactivo?', a: 'Activo = vehículo con suscripción vigente o de uso frecuente. Inactivo = no usa el parqueadero actualmente pero el registro se conserva.' },
+              { q: '¿Cómo registro un vehículo nuevo?', a: 'También puedes registrarlo desde "Buscar Placa" cuando ingresa por primera vez. Es la forma más rápida.' },
+              { q: '¿Puedo eliminar un vehículo?', a: 'Solo si no tiene historial de pagos. Si ya tiene registros, desactívalo en lugar de eliminarlo.' },
+              { q: '¿Cómo veo el historial de un vehículo?', a: 'Haz clic en el ícono de detalle del vehículo para ver sus entradas, salidas y pagos anteriores.' },
+            ]}
+          />
         </Stack>
         <Button
           variant="contained" startIcon={<Add />}
