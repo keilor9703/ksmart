@@ -19,6 +19,7 @@ import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
+import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
 const ACCENT = '#FF6020';
 const GREEN  = '#10B981';
@@ -430,13 +431,31 @@ const confirmarPago = async () => {
       {/* ── Header ── */}
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between',
         alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-        <Box>
-          <Typography variant="h5" sx={{ fontWeight: 800 }}>
-            {esAdmin ? 'Gestión de Rutas' : 'Mi Ruta de Cobro'}
-          </Typography>
-          <Typography color="text.secondary" sx={{ fontSize: 13 }}>
-            {esAdmin ? 'Asigna personal y supervisa el recaudo' : 'Cobros asignados para ti'}
-          </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box>
+            <Typography variant="h5" sx={{ fontWeight: 800 }}>
+              {esAdmin ? 'Gestión de Rutas' : 'Mi Ruta de Cobro'}
+            </Typography>
+            <Typography color="text.secondary" sx={{ fontSize: 13 }}>
+              {esAdmin ? 'Asigna personal y supervisa el recaudo' : 'Cobros asignados para ti'}
+            </Typography>
+          </Box>
+          <HelpGuideTopBar
+            moduleName="Ruta de Cobro"
+            moduleColor={ACCENT}
+            steps={[
+              { title: 'Revisa los cobros pendientes', description: 'Verás todos los préstamos con cuotas vencidas asignados a tu ruta, ordenados por vencimiento.' },
+              { title: 'Filtra por fecha', description: 'Usa el calendario de cobros para ver qué cuotas vencen en cada fecha específica.' },
+              { title: 'Registra el pago', description: 'Selecciona una cuota, ingresa el monto recibido y el método de pago. El saldo se actualiza automáticamente.' },
+              { title: 'Cierre de ruta', description: 'Al final del día, el administrador realiza el cierre para consolidar el total recaudado por cada cobrador.' },
+            ]}
+            faqItems={[
+              { q: '¿Qué son los cobros pendientes?', a: 'Son cuotas de préstamos que ya vencieron y aún no han sido pagadas. Aparecen ordenadas por fecha de vencimiento.' },
+              { q: '¿Cómo registro un pago parcial?', a: 'Abre el detalle del cobro e ingresa el monto recibido aunque sea menor a la cuota. El sistema actualiza el saldo pendiente.' },
+              { q: '¿Puedo ver los cobros en un mapa?', a: 'Sí, usa el botón "Mapa" en la esquina superior derecha. Los clientes con geolocalización aparecerán como puntos en el mapa.' },
+              { q: '¿Qué es el cierre de ruta?', a: 'Es el proceso al final del día donde el administrador valida el total cobrado por cada cobrador y registra el resumen del día.' },
+            ]}
+          />
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Button variant="outlined" startIcon={<MapIcon />} onClick={() => setMapaModal(true)}

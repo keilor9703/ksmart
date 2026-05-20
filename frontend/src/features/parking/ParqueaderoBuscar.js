@@ -28,6 +28,7 @@ import CobrarVencidoDialog          from './ParqueaderoCobrarVencidoDialog';
 import RegistrarSalidaHorasDialog   from './ParqueaderoSalidaHorasDialog';
 import EntradaHorasDialog           from './ParqueaderoEntradaHorasDialog';
 import BotonWhatsApp                from '../../components/common/BotonWhatsApp';   // ✨ NUEVO
+import HelpGuideTopBar             from '../../components/onboarding/HelpGuideTopBar';
 
 // ── Paleta del módulo ─────────────────────────────────────────────────────
 const ACCENT = '#FF6020';
@@ -121,21 +122,41 @@ export default function ParqueaderoBuscar() {
     <Box sx={{ maxWidth: 900, mx: 'auto', p: { xs: 1, md: 2 } }}>
 
       {/* ─── Encabezado ──────────────────────────────────────────── */}
-      <Box sx={{ textAlign: 'center', mb: 3 }}>
-        <Box sx={{
-          width: 64, height: 64, borderRadius: '50%',
-          background: `linear-gradient(135deg, ${ACCENT} 0%, #ff9a62 100%)`,
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          mb: 1.5, boxShadow: `0 8px 24px ${ACCENT}40`,
-        }}>
-          <Search sx={{ fontSize: 32, color: 'white' }} />
+      <Box sx={{ position: 'relative', mb: 3 }}>
+        <Box sx={{ position: 'absolute', top: 0, right: 0 }}>
+          <HelpGuideTopBar
+            moduleName="Buscar Placa"
+            moduleColor={ACCENT}
+            steps={[
+              { title: 'Escribe la placa', description: 'Ingresa la placa completa del vehículo (ej: ABC123). El sistema buscará su registro automáticamente.' },
+              { title: 'Registra la entrada', description: 'Si el vehículo tiene suscripción activa, verás su estado. Para vehículos por hora, registra la entrada.' },
+              { title: 'Registra la salida', description: 'Cuando el vehículo salga, busca la placa nuevamente, calcula el tiempo y cobra el monto correspondiente.' },
+              { title: 'Vehículo nuevo', description: 'Si la placa no existe, el sistema te permitirá registrar el vehículo y su propietario en el momento.' },
+            ]}
+            faqItems={[
+              { q: '¿Qué pasa si la placa no está registrada?', a: 'El sistema te mostrará la opción de registrar el vehículo como nuevo. Ingresa los datos del propietario y el tipo de vehículo.' },
+              { q: '¿Puedo registrar una entrada sin placa registrada?', a: 'Sí, el sistema permite ingresar vehículos ocasionales. Solo necesitas la placa; los demás datos son opcionales.' },
+              { q: '¿Cómo cobro a un vehículo por horas?', a: 'Registra la entrada al llegar. Al salir, busca la placa nuevamente, el sistema calcula el tiempo y el costo automáticamente.' },
+              { q: '¿Qué significa que la suscripción está vencida?', a: 'El cliente no ha pagado la renovación mensual. Puedes cobrarla desde aquí o desde el módulo de Suscripciones.' },
+            ]}
+          />
         </Box>
-        <Typography sx={{ fontSize: 22, fontWeight: 800, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-          Buscar placa
-        </Typography>
-        <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-          Escribe la placa para verificar el estado del vehículo
-        </Typography>
+        <Box sx={{ textAlign: 'center' }}>
+          <Box sx={{
+            width: 64, height: 64, borderRadius: '50%',
+            background: `linear-gradient(135deg, ${ACCENT} 0%, #ff9a62 100%)`,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            mb: 1.5, boxShadow: `0 8px 24px ${ACCENT}40`,
+          }}>
+            <Search sx={{ fontSize: 32, color: 'white' }} />
+          </Box>
+          <Typography sx={{ fontSize: 22, fontWeight: 800, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            Buscar placa
+          </Typography>
+          <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+            Escribe la placa para verificar el estado del vehículo
+          </Typography>
+        </Box>
       </Box>
 
       {/* ─── Input ──────────────────────────────────────────────── */}

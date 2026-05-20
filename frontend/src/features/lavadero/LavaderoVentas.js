@@ -9,6 +9,7 @@ import { toast } from 'react-toastify';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
 import CurrencyField from '../../components/common/CurrencyField';
+import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
 const ACCENT = '#FF6020';
 
@@ -176,21 +177,39 @@ export default function LavaderoVentas({ user }) {
     <Box sx={{ p: { xs: 1, md: 2 }, maxWidth: 1100, mx: 'auto' }}>
 
       {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-        <Box sx={{
-          width: 42, height: 42, borderRadius: 2,
-          bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <DirectionsCar sx={{ color: ACCENT, fontSize: 24 }} />
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{
+            width: 42, height: 42, borderRadius: 2,
+            bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <DirectionsCar sx={{ color: ACCENT, fontSize: 24 }} />
+          </Box>
+          <Box>
+            <Typography sx={{ fontSize: 20, fontWeight: 800, lineHeight: 1.1 }}>
+              POS Lavadero
+            </Typography>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+              Registro de lavadas
+            </Typography>
+          </Box>
         </Box>
-        <Box>
-          <Typography sx={{ fontSize: 20, fontWeight: 800, lineHeight: 1.1 }}>
-            POS Lavadero
-          </Typography>
-          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-            Registro de lavadas
-          </Typography>
-        </Box>
+        <HelpGuideTopBar
+          moduleName="POS Lavadero"
+          moduleColor={ACCENT}
+          steps={[
+            { title: 'Selecciona el tipo de vehículo', description: 'Elige entre Moto, Carro, SUV u Otro. El tipo puede afectar el precio del servicio.' },
+            { title: 'Elige el servicio', description: 'Selecciona el tipo de lavada del carrito de servicios. Puedes agregar varios servicios a la misma orden.' },
+            { title: 'Asigna el lavador', description: 'Selecciona el empleado que realizará el trabajo. Esto alimenta el reporte de productividad.' },
+            { title: 'Cobra y cierra', description: 'Selecciona el método de pago y haz clic en "Cobrar". El ticket se genera automáticamente.' },
+          ]}
+          faqItems={[
+            { q: '¿Cómo agrego un nuevo servicio (tipo de lavada)?', a: 'Los servicios se configuran en el módulo de Productos. Crea un producto de tipo "Servicio" con el nombre y precio del tipo de lavada.' },
+            { q: '¿Puedo atender varios vehículos a la vez?', a: 'Sí, cada orden es independiente. Termina una, haz clic en "Nueva Venta" y atiende el siguiente vehículo.' },
+            { q: '¿Cómo veo cuánto produjo cada lavador en el día?', a: 'Ve al módulo "Reporte Lavadero" y selecciona el período. Verás el detalle de lavadas y monto por trabajador.' },
+            { q: '¿El POS lavadero descuenta stock?', a: 'Solo si el servicio incluye productos físicos (como cera o shampu registrados como producto). Los servicios puros no afectan el inventario.' },
+          ]}
+        />
       </Box>
 
       <Grid container spacing={2.5}>

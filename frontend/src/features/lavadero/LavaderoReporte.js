@@ -8,6 +8,7 @@ import { DirectionsCar, BarChart, AttachMoney, LocalCarWash } from '@mui/icons-m
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
+import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
 const ACCENT = '#FF6020';
 
@@ -84,21 +85,39 @@ export default function LavaderoReporte({ user }) {
     <Box sx={{ p: { xs: 1, md: 2 }, maxWidth: 900, mx: 'auto' }}>
 
       {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-        <Box sx={{
-          width: 42, height: 42, borderRadius: 2,
-          bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <DirectionsCar sx={{ color: ACCENT, fontSize: 24 }} />
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{
+            width: 42, height: 42, borderRadius: 2,
+            bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <DirectionsCar sx={{ color: ACCENT, fontSize: 24 }} />
+          </Box>
+          <Box>
+            <Typography sx={{ fontSize: 20, fontWeight: 800, lineHeight: 1.1 }}>
+              Reporte Lavadero
+            </Typography>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+              Productividad por trabajador
+            </Typography>
+          </Box>
         </Box>
-        <Box>
-          <Typography sx={{ fontSize: 20, fontWeight: 800, lineHeight: 1.1 }}>
-            Reporte Lavadero
-          </Typography>
-          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-            Productividad por trabajador
-          </Typography>
-        </Box>
+        <HelpGuideTopBar
+          moduleName="Reporte Lavadero"
+          moduleColor={ACCENT}
+          steps={[
+            { title: 'Selecciona el período', description: 'Usa los campos de fecha inicio y fin para filtrar las lavadas del período que quieres analizar.' },
+            { title: 'Consulta por trabajador', description: 'La tabla muestra cuántas lavadas hizo cada empleado y el total de ingresos generados por cada uno.' },
+            { title: 'Analiza el rendimiento', description: 'Compara el desempeño de los lavadores para identificar al más productivo o detectar días con baja actividad.' },
+            { title: 'Exporta los datos', description: 'Si el reporte tiene botón de descarga, úsalo para llevar los datos a Excel.' },
+          ]}
+          faqItems={[
+            { q: '¿Qué significa el total por trabajador?', a: 'Es la suma del valor de todas las lavadas que ese empleado realizó en el período seleccionado.' },
+            { q: '¿Por qué no aparece un lavador en el reporte?', a: 'Solo aparecen empleados que tengan lavadas registradas en ese período. Si no hizo ninguna, no aparecerá.' },
+            { q: '¿Puedo ver el reporte del día de hoy?', a: 'Sí, selecciona la fecha de hoy en ambos campos (inicio y fin). El reporte se actualiza al consultar.' },
+            { q: '¿Cómo sé cuál fue el día más productivo?', a: 'Cambia el rango de fechas a un mes completo y observa los totales. El pico más alto en el gráfico indica el día más activo.' },
+          ]}
+        />
       </Box>
 
       {/* Filtros */}
