@@ -14,13 +14,14 @@ import {
     Autocomplete, Table, TableBody, TableCell, TableContainer,
     TableHead, TableRow, Chip, useMediaQuery, useTheme, Tabs, Tab,
     TablePagination, Divider, Tooltip, InputAdornment, CircularProgress,
+    ToggleButton, ToggleButtonGroup,
 } from '@mui/material';
 import {
     Edit, Delete, Visibility, Search, ShoppingCart, TrendingUp,
     Receipt, AttachMoney, AssignmentReturn, Add, QrCodeScanner,
     Videocam, VideocamOff, LockOutlined, LockOpenOutlined,
     AddCircle, RemoveCircle, PersonOutline, HelpOutline,
-    TouchApp, Keyboard,
+    Keyboard, TouchApp,
 } from '@mui/icons-material';
 import { getProductoByBarcode } from '../../api';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
@@ -299,6 +300,9 @@ const Ventas = ({ user }) => {
     const [productos, setProductos] = useState([]);
     const [grupos, setGrupos]       = useState([]);
 
+    // ── UI Mode ──
+    const [viewMode, setViewMode] = useState(localStorage.getItem('ventas_view_mode') || 'classic');
+
     // ── Form ──
     const [cliente, setCliente]     = useState(null);
     const [isMostrador, setIsMostrador] = useState(false);
@@ -333,7 +337,6 @@ const Ventas = ({ user }) => {
     const [reciboOpen, setReciboOpen]             = useState(false);
     const [reciboVenta, setReciboVenta]           = useState(null);
     const [tabValue, setTabValue]                 = useState(0);
-    const [touchMode, setTouchMode]               = useState(() => localStorage.getItem('pos_touch_mode') === '1');
     const [page, setPage]                         = useState(0);
     const [rowsPerPage, setRowsPerPage]           = useState(10);
     const [searchTerm, setSearchTerm]             = useState('');
@@ -348,8 +351,50 @@ const Ventas = ({ user }) => {
     const fetchVentas        = () => apiClient.get('/ventas/').then(r => setVentas(r.data)).catch(console.error);
     const fetchClientes      = () => apiClient.get('/clientes/').then(r => setClientes(r.data)).catch(console.error);
     const fetchProductos     = () => apiClient.get('/productos/').then(r => setProductos(r.data)).catch(console.error);
-    const fetchVentasSummary = () => apiClient.get('/reportes/ventas_summary').then(r => setTotalVentasHoy(r.data.total_ventas_hoy)).catch(console.error);
     const fetchGrupos        = () => apiClient.get('/grupos-producto/').then(r => setGrupos(r.data)).catch(console.error);
+    const fetchVentasSummary = () => apiClient.get('/reportes/ventas_summary').then(r => setTotalVentasHoy(r.data.total_ventas_hoy)).catch(console.error);
+
+    const handleViewModeChange = (event, newMode) => {
+        if (newMode !== null) {
+            setViewMode(newMode);
+            localStorage.setItem('ventas_view_mode', newMode);
+        }
+    };
+
+    // ── Touch mode cart ops ──
+    const handleAddToCartDirect = (producto) => {
+        setSaleDetails(prev => {
+            const existingIdx = prev.findIndex(d => d.producto?.id === producto.id);
+            if (existingIdx !== -1) {
+                return prev.map((d, i) => i === existingIdx ? { ...d, cantidad: d.cantidad + 1 } : d);
+            }
+            const newRow = { id: Date.now(), producto, cantidad: 1, precioUnitario: producto.precio || 0, descuentoPct: 0 };
+            if (prev.length === 1 && !prev[0].producto) return [newRow];
+            return [...prev, newRow];
+        });
+        playScanBeep();
+    };
+    const handleRemoveOneFromCart = (productoId) => {
+        setSaleDetails(prev => {
+            const detail = prev.find(d => d.producto?.id === productoId);
+            if (!detail) return prev;
+            if (detail.cantidad <= 1) {
+                const filtered = prev.filter(d => d.producto?.id !== productoId);
+                return filtered.length === 0
+                    ? [{ id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0, descuentoPct: 0 }]
+                    : filtered;
+            }
+            return prev.map(d => d.producto?.id === productoId ? { ...d, cantidad: d.cantidad - 1 } : d);
+        });
+    };
+    const handleRemoveAllFromCart = (productoId) => {
+        setSaleDetails(prev => {
+            const filtered = prev.filter(d => d.producto?.id !== productoId);
+            return filtered.length === 0
+                ? [{ id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0, descuentoPct: 0 }]
+                : filtered;
+        });
+    };
 
     // ── Edición de venta existente ──
     useEffect(() => {
@@ -565,41 +610,6 @@ const Ventas = ({ user }) => {
         handleFieldChange(id, 'precioUnitario', newValue?.precio ?? 0);
     };
 
-    // ── Touch mode cart ops ──
-    const handleAddToCartDirect = (producto) => {
-        setSaleDetails(prev => {
-            const existingIdx = prev.findIndex(d => d.producto?.id === producto.id);
-            if (existingIdx !== -1) {
-                return prev.map((d, i) => i === existingIdx ? { ...d, cantidad: d.cantidad + 1 } : d);
-            }
-            const newRow = { id: Date.now(), producto, cantidad: 1, precioUnitario: producto.precio || 0, descuentoPct: 0 };
-            if (prev.length === 1 && !prev[0].producto) return [newRow];
-            return [...prev, newRow];
-        });
-        playScanBeep();
-    };
-    const handleRemoveOneFromCart = (productoId) => {
-        setSaleDetails(prev => {
-            const detail = prev.find(d => d.producto?.id === productoId);
-            if (!detail) return prev;
-            if (detail.cantidad <= 1) {
-                const filtered = prev.filter(d => d.producto?.id !== productoId);
-                return filtered.length === 0
-                    ? [{ id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0, descuentoPct: 0 }]
-                    : filtered;
-            }
-            return prev.map(d => d.producto?.id === productoId ? { ...d, cantidad: d.cantidad - 1 } : d);
-        });
-    };
-    const handleRemoveAllFromCart = (productoId) => {
-        setSaleDetails(prev => {
-            const filtered = prev.filter(d => d.producto?.id !== productoId);
-            return filtered.length === 0
-                ? [{ id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0, descuentoPct: 0 }]
-                : filtered;
-        });
-    };
-
     // ── Cálculos ──
     const calculateSubtotal = () => saleDetails.reduce((t, d) => {
         const bruto = d.cantidad * d.precioUnitario;
@@ -731,27 +741,21 @@ const Ventas = ({ user }) => {
                         ]}
                     />
                 </Box>
-                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <Tooltip title={touchMode ? 'Cambiar a modo teclado / mouse' : 'Cambiar a modo touch (pantalla táctil)'}>
-                        <Button
-                            variant={touchMode ? 'contained' : 'outlined'}
-                            startIcon={touchMode ? <Keyboard sx={{ fontSize: 17 }} /> : <TouchApp sx={{ fontSize: 17 }} />}
-                            onClick={() => {
-                                const next = !touchMode;
-                                setTouchMode(next);
-                                localStorage.setItem('pos_touch_mode', next ? '1' : '0');
-                            }}
-                            sx={{
-                                borderRadius: 2, fontWeight: 600, fontSize: 12,
-                                ...(touchMode
-                                    ? { bgcolor: '#3B82F6', color: 'white', '&:hover': { bgcolor: '#2563EB' }, boxShadow: '0 3px 10px rgba(59,130,246,0.35)' }
-                                    : { borderColor: '#3B82F6', color: '#3B82F6', '&:hover': { bgcolor: '#EFF6FF', borderColor: '#3B82F6' } }
-                                ),
-                            }}
-                        >
-                            {touchMode ? 'Modo Normal' : 'Modo Touch'}
-                        </Button>
-                    </Tooltip>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <ToggleButtonGroup
+                        value={viewMode}
+                        exclusive
+                        onChange={handleViewModeChange}
+                        size="small"
+                        sx={{ bgcolor: 'background.paper', borderRadius: 2 }}
+                    >
+                        <ToggleButton value="classic" sx={{ textTransform: 'none', gap: 1, px: 2 }}>
+                            <Keyboard fontSize="small" /> {!isMobile && 'Teclado'}
+                        </ToggleButton>
+                        <ToggleButton value="touch" sx={{ textTransform: 'none', gap: 1, px: 2 }}>
+                            <TouchApp fontSize="small" /> {!isMobile && 'Táctil'}
+                        </ToggleButton>
+                    </ToggleButtonGroup>
                     <Button
                         variant="contained" startIcon={<ShoppingCart />}
                         onClick={() => { resetForm(); setTabValue(0); }}
@@ -791,10 +795,162 @@ const Ventas = ({ user }) => {
                 </Tabs>
 
                 {/* ════════════════════════════════════════
-                    TAB 0 — FORMULARIO DE VENTA
+                    TAB 0 — REGISTRAR VENTA
                 ════════════════════════════════════════ */}
                 <TabPanel value={tabValue} index={0}>
-                    {touchMode ? (
+                    {viewMode === 'classic' ? (
+                        <Box component="form" onSubmit={handleSubmit} sx={{ p: { xs: 2, md: 3 } }}>
+                            {/* ── 1. Cliente ── */}
+                            <Box sx={{ mb: 2.5 }}>
+                                <Typography sx={{ fontWeight: 600, fontSize: 11, mb: 1, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                                    Cliente
+                                </Typography>
+                                <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                                    {/* Botón Mostrador */}
+                                    <Tooltip title="Venta a cliente anónimo (Consumidor Final)">
+                                        <Button
+                                            size="small" variant={isMostrador ? 'contained' : 'outlined'}
+                                            startIcon={<PersonOutline fontSize="small" />}
+                                            onClick={handleSetMostrador}
+                                            sx={{
+                                                borderRadius: 2, fontWeight: 600, fontSize: 12,
+                                                borderColor: '#64748B', whiteSpace: 'nowrap',
+                                                ...(isMostrador
+                                                    ? { bgcolor: '#64748B', color: 'white', '&:hover': { bgcolor: '#475569' } }
+                                                    : { color: '#64748B', '&:hover': { bgcolor: '#F1F5F9', borderColor: '#64748B' } }
+                                                )
+                                            }}
+                                        >
+                                            Mostrador
+                                        </Button>
+                                    </Tooltip>
+
+                                    <Autocomplete
+                                        sx={{ flex: 1, minWidth: 220 }}
+                                        options={clientes}
+                                        getOptionLabel={(o) => o?.nombre || ''}
+                                        value={cliente}
+                                        onChange={(_, v) => { setCliente(v); setIsMostrador(false); }}
+                                        inputValue={clienteInput}
+                                        onInputChange={(_, v) => setClienteInput(v)}
+                                        filterOptions={(opts, state) => {
+                                            const q = (state.inputValue || '').toLowerCase().trim();
+                                            if (!q) return opts;
+                                            return opts.filter(o =>
+                                                o.nombre.toLowerCase().includes(q) ||
+                                                (o.cedula || '').toLowerCase().includes(q) ||
+                                                (o.telefono || '').includes(q)
+                                            );
+                                        }}
+                                        noOptionsText={
+                                            <Box sx={{ py: 0.5 }}>
+                                                <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>No se encontró el cliente</Typography>
+                                                <Button size="small" variant="contained" fullWidth startIcon={<Add />}
+                                                    onClick={() => openQuickCreate('tercero', clienteInput)}
+                                                    sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12, bgcolor: '#3B82F6', '&:hover': { bgcolor: '#2563EB' } }}>
+                                                    Crear "{clienteInput || 'nuevo cliente'}"
+                                                </Button>
+                                            </Box>
+                                        }
+                                        renderOption={(props, option) => (
+                                            <li {...props} key={option.id} style={{ padding: '8px 12px' }}>
+                                                <Box>
+                                                    <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{option.nombre}</Typography>
+                                                    <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                                                        {option.cedula ? `NIT/CC: ${option.cedula}` : ''}{option.telefono ? `  ·  📞 ${option.telefono}` : ''}
+                                                    </Typography>
+                                                </Box>
+                                            </li>
+                                        )}
+                                        renderInput={(params) => (
+                                            <TextField
+                                                {...params} label="Buscar cliente por nombre, NIT o teléfono" fullWidth
+                                                InputProps={{
+                                                    ...params.InputProps,
+                                                    endAdornment: (<>{params.InputProps.endAdornment}<Tooltip title="Crear nuevo cliente"><IconButton size="small" onClick={() => openQuickCreate('tercero', clienteInput)} sx={{ color: '#3B82F6', p: 0.5 }}><Add fontSize="small" /></IconButton></Tooltip></>),
+                                                }}
+                                            />
+                                        )}
+                                    />
+                                </Box>
+                            </Box>
+
+                            {/* ── 2. Escáner de código de barras (prominente) ── */}
+                            <Paper elevation={0} sx={{
+                                mb: 2.5, p: 2, borderRadius: 3,
+                                border: `1.5px solid ${ACCENT}40`,
+                                bgcolor: isDark ? `${ACCENT}08` : `${ACCENT}05`,
+                            }}>
+                                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                                    <TextField
+                                        fullWidth
+                                        placeholder="Escanea o digita el código de barras y presiona Enter…"
+                                        value={barcodeInput}
+                                        onChange={(e) => setBarcodeInput(e.target.value)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleProcessBarcode(barcodeInput); } }}
+                                        inputRef={barcodeFieldRef}
+                                        autoComplete="off"
+                                        disabled={searchingBarcode}
+                                        InputProps={{
+                                            startAdornment: <InputAdornment position="start"><QrCodeScanner sx={{ color: ACCENT, fontSize: 22 }} /></InputAdornment>,
+                                            endAdornment: searchingBarcode ? <CircularProgress size={18} sx={{ color: ACCENT }} /> : null,
+                                            sx: { fontSize: 15, fontWeight: 600, borderRadius: 2 }
+                                        }}
+                                    />
+                                    <Tooltip title={cameraActive ? 'Cerrar cámara' : 'Usar cámara del dispositivo'}>
+                                        <IconButton onClick={handleToggleCamera}
+                                            sx={{ bgcolor: cameraActive ? '#FEF2F2' : '#EFF6FF', color: cameraActive ? '#EF4444' : '#3B82F6', borderRadius: 2, p: 1.2 }}>
+                                            {cameraActive ? <VideocamOff /> : <Videocam />}
+                                        </IconButton>
+                                    </Tooltip>
+                                </Box>
+
+                                {/* Cámara con overlay */}
+                                {cameraActive && (
+                                    <Box sx={{ mt: 2, position: 'relative', borderRadius: 2, overflow: 'hidden', bgcolor: '#000', minHeight: 240 }}>
+                                        <video ref={videoRef} style={{ width: '100%', display: 'block', maxHeight: 300, objectFit: 'cover' }} playsInline muted />
+                                        <Box sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1.5, pointerEvents: 'none' }}>
+                                            <Box sx={{ position: 'relative', width: { xs: 200, sm: 260 }, height: { xs: 120, sm: 140 } }}>
+                                                <Box sx={{ position: 'absolute', inset: 0, boxShadow: '0 0 0 100vw rgba(0,0,0,0.45)', borderRadius: 2 }} />
+                                                <Box sx={{ position: 'absolute', top: -1, left: -1, width: 20, height: 20, borderTop: `3px solid ${ACCENT}`, borderLeft: `3px solid ${ACCENT}`, borderRadius: '4px 0 0 0' }} />
+                                                <Box sx={{ position: 'absolute', top: -1, right: -1, width: 20, height: 20, borderTop: `3px solid ${ACCENT}`, borderRight: `3px solid ${ACCENT}`, borderRadius: '0 4px 0 0' }} />
+                                                <Box sx={{ position: 'absolute', bottom: -1, left: -1, width: 20, height: 20, borderBottom: `3px solid ${ACCENT}`, borderLeft: `3px solid ${ACCENT}`, borderRadius: '0 0 0 4px' }} />
+                                                <Box sx={{ position: 'absolute', bottom: -1, right: -1, width: 20, height: 20, borderBottom: `3px solid ${ACCENT}`, borderRight: `3px solid ${ACCENT}`, borderRadius: '0 0 4px 0' }} />
+                                                <Box sx={{ position: 'absolute', left: 4, right: 4, height: 2, background: `linear-gradient(90deg, transparent, ${ACCENT}CC, transparent)`, borderRadius: 1, animation: 'scanLine 1.8s ease-in-out infinite', '@keyframes scanLine': { '0%': { top: '5%' }, '50%': { top: '90%' }, '100%': { top: '5%' } } }} />
+                                            </Box>
+                                            <Typography sx={{ color: 'rgba(255,255,255,0.9)', fontSize: 11, bgcolor: 'rgba(0,0,0,0.45)', borderRadius: 5, px: 2, py: 0.4 }}>
+                                                Apunta el código al recuadro
+                                            </Typography>
+                                        </Box>
+                                    </Box>
+                                )}
+                            </Paper>
+
+                            {/* ── 3. Carrito de productos ── */}
+                            <Box sx={{ mb: 2 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                                    <Typography sx={{ fontWeight: 600, fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                                        Productos / Servicios ({saleDetails.filter(d => d.producto).length})
+                                    </Typography>
+                                    <Button size="small" startIcon={<Add />} onClick={handleAddSaleDetail}
+                                        sx={{ color: ACCENT, fontWeight: 600, fontSize: 12 }}>
+                                        Agregar línea
+                                    </Button>
+                                </Box>
+
+                                {saleDetails.map(detail => (
+                                    <SaleDetailRow
+                                        key={detail.id} detail={detail} productos={productos}
+                                        onProductChange={handleProductChange} onFieldChange={handleFieldChange}
+                                        onRemove={handleRemoveSaleDetail} isMobile={isMobile}
+                                        productoInput={productoInputs[detail.id] || ''}
+                                        onProductoInputChange={(val) => handleProductoInputChange(detail.id, val)}
+                                        openQuickCreate={() => openQuickCreate('producto', productoInputs[detail.id] || '', detail.id)}
+                                    />
+                                ))}
+                            </Box>
+                        </Box>
+                    ) : (
                         <Box sx={{ p: { xs: 1.5, md: 2 } }}>
                             <TouchPOSMode
                                 grupos={grupos}
@@ -826,160 +982,10 @@ const Ventas = ({ user }) => {
                                 isDark={isDark}
                             />
                         </Box>
-                    ) : (
-                    <Box component="form" onSubmit={handleSubmit} sx={{ p: { xs: 2, md: 3 } }}>
+                    )}
 
-                        {/* ── 1. Cliente ── */}
-                        <Box sx={{ mb: 2.5 }}>
-                            <Typography sx={{ fontWeight: 600, fontSize: 11, mb: 1, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
-                                Cliente
-                            </Typography>
-                            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                                {/* Botón Mostrador */}
-                                <Tooltip title="Venta a cliente anónimo (Consumidor Final)">
-                                    <Button
-                                        size="small" variant={isMostrador ? 'contained' : 'outlined'}
-                                        startIcon={<PersonOutline fontSize="small" />}
-                                        onClick={handleSetMostrador}
-                                        sx={{
-                                            borderRadius: 2, fontWeight: 600, fontSize: 12,
-                                            borderColor: '#64748B', whiteSpace: 'nowrap',
-                                            ...(isMostrador
-                                                ? { bgcolor: '#64748B', color: 'white', '&:hover': { bgcolor: '#475569' } }
-                                                : { color: '#64748B', '&:hover': { bgcolor: '#F1F5F9', borderColor: '#64748B' } }
-                                            )
-                                        }}
-                                    >
-                                        Mostrador
-                                    </Button>
-                                </Tooltip>
-
-                                <Autocomplete
-                                    sx={{ flex: 1, minWidth: 220 }}
-                                    options={clientes}
-                                    getOptionLabel={(o) => o?.nombre || ''}
-                                    value={cliente}
-                                    onChange={(_, v) => { setCliente(v); setIsMostrador(false); }}
-                                    inputValue={clienteInput}
-                                    onInputChange={(_, v) => setClienteInput(v)}
-                                    filterOptions={(opts, state) => {
-                                        const q = (state.inputValue || '').toLowerCase().trim();
-                                        if (!q) return opts;
-                                        return opts.filter(o =>
-                                            o.nombre.toLowerCase().includes(q) ||
-                                            (o.cedula || '').toLowerCase().includes(q) ||
-                                            (o.telefono || '').includes(q)
-                                        );
-                                    }}
-                                    noOptionsText={
-                                        <Box sx={{ py: 0.5 }}>
-                                            <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>No se encontró el cliente</Typography>
-                                            <Button size="small" variant="contained" fullWidth startIcon={<Add />}
-                                                onClick={() => openQuickCreate('tercero', clienteInput)}
-                                                sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12, bgcolor: '#3B82F6', '&:hover': { bgcolor: '#2563EB' } }}>
-                                                Crear "{clienteInput || 'nuevo cliente'}"
-                                            </Button>
-                                        </Box>
-                                    }
-                                    renderOption={(props, option) => (
-                                        <li {...props} key={option.id} style={{ padding: '8px 12px' }}>
-                                            <Box>
-                                                <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{option.nombre}</Typography>
-                                                <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-                                                    {option.cedula ? `NIT/CC: ${option.cedula}` : ''}{option.telefono ? `  ·  📞 ${option.telefono}` : ''}
-                                                </Typography>
-                                            </Box>
-                                        </li>
-                                    )}
-                                    renderInput={(params) => (
-                                        <TextField
-                                            {...params} label="Buscar cliente por nombre, NIT o teléfono" fullWidth
-                                            InputProps={{
-                                                ...params.InputProps,
-                                                endAdornment: (<>{params.InputProps.endAdornment}<Tooltip title="Crear nuevo cliente"><IconButton size="small" onClick={() => openQuickCreate('tercero', clienteInput)} sx={{ color: '#3B82F6', p: 0.5 }}><Add fontSize="small" /></IconButton></Tooltip></>),
-                                            }}
-                                        />
-                                    )}
-                                />
-                            </Box>
-                        </Box>
-
-                        {/* ── 2. Escáner de código de barras (prominente) ── */}
-                        <Paper elevation={0} sx={{
-                            mb: 2.5, p: 2, borderRadius: 3,
-                            border: `1.5px solid ${ACCENT}40`,
-                            bgcolor: isDark ? `${ACCENT}08` : `${ACCENT}05`,
-                        }}>
-                            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                                <TextField
-                                    fullWidth
-                                    placeholder="Escanea o digita el código de barras y presiona Enter…"
-                                    value={barcodeInput}
-                                    onChange={(e) => setBarcodeInput(e.target.value)}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleProcessBarcode(barcodeInput); } }}
-                                    inputRef={barcodeFieldRef}
-                                    autoComplete="off"
-                                    disabled={searchingBarcode}
-                                    InputProps={{
-                                        startAdornment: <InputAdornment position="start"><QrCodeScanner sx={{ color: ACCENT, fontSize: 22 }} /></InputAdornment>,
-                                        endAdornment: searchingBarcode ? <CircularProgress size={18} sx={{ color: ACCENT }} /> : null,
-                                        sx: { fontSize: 15, fontWeight: 600, borderRadius: 2 }
-                                    }}
-                                />
-                                <Tooltip title={cameraActive ? 'Cerrar cámara' : 'Usar cámara del dispositivo'}>
-                                    <IconButton onClick={handleToggleCamera}
-                                        sx={{ bgcolor: cameraActive ? '#FEF2F2' : '#EFF6FF', color: cameraActive ? '#EF4444' : '#3B82F6', borderRadius: 2, p: 1.2 }}>
-                                        {cameraActive ? <VideocamOff /> : <Videocam />}
-                                    </IconButton>
-                                </Tooltip>
-                            </Box>
-
-                            {/* Cámara con overlay */}
-                            {cameraActive && (
-                                <Box sx={{ mt: 2, position: 'relative', borderRadius: 2, overflow: 'hidden', bgcolor: '#000', minHeight: 240 }}>
-                                    <video ref={videoRef} style={{ width: '100%', display: 'block', maxHeight: 300, objectFit: 'cover' }} playsInline muted />
-                                    <Box sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1.5, pointerEvents: 'none' }}>
-                                        <Box sx={{ position: 'relative', width: { xs: 200, sm: 260 }, height: { xs: 120, sm: 140 } }}>
-                                            <Box sx={{ position: 'absolute', inset: 0, boxShadow: '0 0 0 100vw rgba(0,0,0,0.45)', borderRadius: 2 }} />
-                                            <Box sx={{ position: 'absolute', top: -1, left: -1, width: 20, height: 20, borderTop: `3px solid ${ACCENT}`, borderLeft: `3px solid ${ACCENT}`, borderRadius: '4px 0 0 0' }} />
-                                            <Box sx={{ position: 'absolute', top: -1, right: -1, width: 20, height: 20, borderTop: `3px solid ${ACCENT}`, borderRight: `3px solid ${ACCENT}`, borderRadius: '0 4px 0 0' }} />
-                                            <Box sx={{ position: 'absolute', bottom: -1, left: -1, width: 20, height: 20, borderBottom: `3px solid ${ACCENT}`, borderLeft: `3px solid ${ACCENT}`, borderRadius: '0 0 0 4px' }} />
-                                            <Box sx={{ position: 'absolute', bottom: -1, right: -1, width: 20, height: 20, borderBottom: `3px solid ${ACCENT}`, borderRight: `3px solid ${ACCENT}`, borderRadius: '0 0 4px 0' }} />
-                                            <Box sx={{ position: 'absolute', left: 4, right: 4, height: 2, background: `linear-gradient(90deg, transparent, ${ACCENT}CC, transparent)`, borderRadius: 1, animation: 'scanLine 1.8s ease-in-out infinite', '@keyframes scanLine': { '0%': { top: '5%' }, '50%': { top: '90%' }, '100%': { top: '5%' } } }} />
-                                        </Box>
-                                        <Typography sx={{ color: 'rgba(255,255,255,0.9)', fontSize: 11, bgcolor: 'rgba(0,0,0,0.45)', borderRadius: 5, px: 2, py: 0.4 }}>
-                                            Apunta el código al recuadro
-                                        </Typography>
-                                    </Box>
-                                </Box>
-                            )}
-                        </Paper>
-
-                        {/* ── 3. Carrito de productos ── */}
-                        <Box sx={{ mb: 2 }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                                <Typography sx={{ fontWeight: 600, fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
-                                    Productos / Servicios ({saleDetails.filter(d => d.producto).length})
-                                </Typography>
-                                <Button size="small" startIcon={<Add />} onClick={handleAddSaleDetail}
-                                    sx={{ color: ACCENT, fontWeight: 600, fontSize: 12 }}>
-                                    Agregar línea
-                                </Button>
-                            </Box>
-
-                            {saleDetails.map(detail => (
-                                <SaleDetailRow
-                                    key={detail.id} detail={detail} productos={productos}
-                                    onProductChange={handleProductChange} onFieldChange={handleFieldChange}
-                                    onRemove={handleRemoveSaleDetail} isMobile={isMobile}
-                                    productoInput={productoInputs[detail.id] || ''}
-                                    onProductoInputChange={(val) => handleProductoInputChange(detail.id, val)}
-                                    openQuickCreate={() => openQuickCreate('producto', productoInputs[detail.id] || '', detail.id)}
-                                />
-                            ))}
-                        </Box>
-
-                        {/* ── 4. Panel de totales y cobro ── */}
+                                        {/* ── 4. Panel de totales y cobro (SOLO CLASSIC) ── */}
+                    {viewMode === 'classic' && (
                         <Paper elevation={0} sx={{
                             p: { xs: 2, md: 3 }, borderRadius: 3,
                             border: `1.5px solid ${ACCENT}30`,
@@ -1104,6 +1110,7 @@ const Ventas = ({ user }) => {
                                             id="btn-registrar-venta"
                                             type="submit" variant="contained" fullWidth={!editingVenta}
                                             disabled={savingVenta}
+                                            onClick={handleSubmit}  
                                             startIcon={savingVenta ? <CircularProgress size={16} sx={{ color: 'white' }} /> : <ShoppingCart />}
                                             sx={{
                                                 background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`,
@@ -1121,10 +1128,8 @@ const Ventas = ({ user }) => {
                                 </Grid>
                             </Grid>
                         </Paper>
-                    </Box>
-                    )}
-                </TabPanel>
-
+                        )}
+                        </TabPanel>
                 {/* ════════════════════════════════════════
                     TAB 1 — HISTORIAL
                 ════════════════════════════════════════ */}

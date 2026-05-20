@@ -191,10 +191,17 @@ const HelpGuideTopBar = ({ moduleName, steps = [], moduleColor, faqItems }) => {
               <Typography sx={{ fontSize: 12, fontWeight: 700 }}>¿Necesitas más ayuda?</Typography>
               <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Contacta a soporte técnico</Typography>
             </Box>
-            <Button size="small" variant="outlined" sx={{ borderRadius: 2, fontWeight: 600, fontSize: 11, whiteSpace: 'nowrap' }}>
+            <Button 
+              size="small" 
+              variant="outlined" 
+              href="https://wa.me/573175882321?text=Hola,%20necesito%20ayuda%20con%20soporte%20t%C3%A9cnico."
+              target="_blank"
+              rel="noopener noreferrer"
+              sx={{ borderRadius: 2, fontWeight: 600, fontSize: 11, whiteSpace: 'nowrap' }}
+            >
               Soporte
             </Button>
-          </Box>
+          </Box> 
         </Box>
       </Drawer>
     </>
