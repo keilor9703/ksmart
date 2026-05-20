@@ -22,7 +22,8 @@ import {
   FormControlLabel,
   Autocomplete,
   Paper,
-  Tooltip
+  Tooltip,
+  InputAdornment
 } from '@mui/material';
 
 import {
@@ -175,6 +176,9 @@ const ProductoForm = ({
   const [stockActual, setStockActual] = useState(0);
   const [manejaLotes, setManejaLotes] = useState(false);
   const [unidadesPorEmpaque, setUnidadesPorEmpaque] = useState(1);
+  const [stockInicial, setStockInicial] = useState('');
+  const [numeroLote, setNumeroLote] = useState('');
+  const [fechaVencimiento, setFechaVencimiento] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [grupos, setGrupos] = useState([]);
 
@@ -237,6 +241,9 @@ const ProductoForm = ({
     setStockActual(0);
     setManejaLotes(false);
     setUnidadesPorEmpaque(1);
+    setStockInicial('');
+    setNumeroLote('');
+    setFechaVencimiento('');
     setImagenes([]);
     setMostrarEnCatalogo(false);
     setDescripcion('');
@@ -324,6 +331,12 @@ const ProductoForm = ({
       imagenes: imagenes,
       mostrar_en_catalogo: mostrarEnCatalogo,
       descripcion: descripcion || null,
+      // Stock inicial solo al crear — el backend crea el movimiento de entrada automáticamente
+      ...(!productoToEdit && !esServicio && {
+        stock_inicial:     parseFloat(stockInicial) || 0,
+        numero_lote:       numeroLote || undefined,
+        fecha_vencimiento: fechaVencimiento || undefined,
+      }),
     };
 
     const req = productoToEdit
@@ -727,6 +740,93 @@ const ProductoForm = ({
                       <Science fontSize="small" />
                       Activado: podrás registrar lotes y
                       vencimientos en compras y entradas.
+                    </Typography>
+                  )}
+                </Box>
+              </Grid>
+            )}
+
+            {/* ── Stock Inicial (solo productos nuevos físicos) ── */}
+            {!esServicio && !isEditing && (
+              <Grid item xs={12}>
+                <Box sx={{
+                  p: 2, borderRadius: 2, border: '1px solid',
+                  borderColor: parseFloat(stockInicial) > 0 ? '#3B82F6' : 'divider',
+                  bgcolor: parseFloat(stockInicial) > 0 ? '#EFF6FF' : 'transparent',
+                  transition: 'all 0.2s',
+                }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: 14 }}>
+                      📊 Stock inicial disponible
+                    </Typography>
+                    <Tooltip
+                      title={
+                        <Box sx={{ p: 1, maxWidth: 250 }}>
+                          <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 0.5 }}>¿Para qué sirve?</Typography>
+                          <Typography sx={{ fontSize: 12, lineHeight: 1.5 }}>
+                            Si ya tienes unidades en bodega, regístralas aquí. El sistema creará un movimiento de entrada automáticamente para que el inventario quede cuadrado desde el primer día.
+                          </Typography>
+                          <Typography sx={{ fontSize: 12, mt: 1 }}>
+                            Deja en <b>0</b> si aún no has recibido mercancía.
+                          </Typography>
+                        </Box>
+                      }
+                      arrow placement="top"
+                    >
+                      <InfoOutlined sx={{ fontSize: 18, color: 'text.secondary', cursor: 'help' }} />
+                    </Tooltip>
+                  </Box>
+
+                  <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                    <TextField
+                      type="number"
+                      label="Cantidad en existencia"
+                      value={stockInicial}
+                      onChange={e => setStockInicial(e.target.value)}
+                      inputProps={{ min: 0, step: 'any' }}
+                      size="small"
+                      sx={{ width: 200 }}
+                      helperText="Unidades ya en bodega"
+                      InputProps={{
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                              {unidadMedida || 'UND'}
+                            </Typography>
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+
+                    {/* Lote + vencimiento: solo si maneja lotes Y hay stock */}
+                    {manejaLotes && parseFloat(stockInicial) > 0 && (
+                      <>
+                        <TextField
+                          label="N° de lote"
+                          value={numeroLote}
+                          onChange={e => setNumeroLote(e.target.value)}
+                          size="small"
+                          sx={{ width: 160 }}
+                          placeholder="Ej: LOTE-001"
+                          helperText="Obligatorio si maneja lotes"
+                        />
+                        <TextField
+                          label="Fecha de vencimiento"
+                          type="date"
+                          value={fechaVencimiento}
+                          onChange={e => setFechaVencimiento(e.target.value)}
+                          size="small"
+                          sx={{ width: 185 }}
+                          InputLabelProps={{ shrink: true }}
+                          helperText="Fecha de vence el lote"
+                        />
+                      </>
+                    )}
+                  </Box>
+
+                  {parseFloat(stockInicial) > 0 && (
+                    <Typography sx={{ fontSize: 11, color: '#1d4ed8', mt: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      ✓ Se registrará una entrada de <b>{stockInicial} {unidadMedida || 'UND'}</b> al guardar el producto.
                     </Typography>
                   )}
                 </Box>
