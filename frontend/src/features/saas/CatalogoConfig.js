@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Box, Typography, Paper, TextField, Button, Grid, Divider, 
-  IconButton, Switch, FormControlLabel, Alert, 
-  CircularProgress, Card, CardContent
+  Box, Typography, Paper, TextField, Button, Grid, Divider,
+  IconButton, Switch, FormControlLabel, Alert, InputAdornment,
+  CircularProgress, Card, CardContent, Tooltip
 } from '@mui/material';
-import { 
-  Storefront, WhatsApp, Link, ContentCopy, OpenInNew, 
-  CloudUpload, Delete, CheckCircle, Info
+import {
+  Storefront, WhatsApp, Link, ContentCopy, OpenInNew,
+  CloudUpload, Delete, CheckCircle, Info, Palette, GetApp,
+  CheckCircleOutline, Cancel
 } from '@mui/icons-material';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
@@ -22,6 +23,12 @@ const CatalogoConfig = () => {
   const [logo, setLogo] = useState(null);
   const [isCompressing, setIsCompressing] = useState(false);
   const [empresa, setEmpresa] = useState(null);
+  const [colorPrimario, setColorPrimario] = useState('#FF6020');
+  const [descripcion, setDescripcion] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+
+  const COLOR_PRESETS = ['#FF6020', '#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444'];
+  const slugValid = slug.length === 0 || /^[a-z0-9-]+$/.test(slug);
 
   useEffect(() => {
     fetchConfig();
@@ -35,6 +42,8 @@ const CatalogoConfig = () => {
       setSlug(emp.slug_catalogo || '');
       setWhatsapp(emp.whatsapp_pedidos || '');
       setLogo(emp.logo_base64 || null);
+      setColorPrimario(emp.color_primario || '#FF6020');
+      setDescripcion(emp.descripcion || '');
     } catch (error) {
       toast.error("Error al cargar configuración");
     } finally {
@@ -42,19 +51,25 @@ const CatalogoConfig = () => {
     }
   };
 
-  const handleLogoChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
+  const processLogoFile = useCallback(async (file) => {
+    if (!file || !file.type.startsWith('image/')) return;
     try {
       setIsCompressing(true);
-      const webpBase64 = await compressImageToWebP(file, 400); // Logo más pequeño
+      const webpBase64 = await compressImageToWebP(file, 400);
       setLogo(webpBase64);
-    } catch (error) {
+    } catch {
       toast.error("Error al procesar el logo");
     } finally {
       setIsCompressing(false);
     }
+  }, []);
+
+  const handleLogoChange = (e) => processLogoFile(e.target.files[0]);
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    processLogoFile(e.dataTransfer.files[0]);
   };
 
   const handleSave = async () => {
@@ -74,7 +89,9 @@ const CatalogoConfig = () => {
       await apiClient.put('/catalogo/config', {
         slug_catalogo: slug,
         whatsapp_pedidos: whatsapp,
-        logo_base64: logo
+        logo_base64: logo,
+        color_primario: colorPrimario,
+        descripcion: descripcion.trim() || null,
       });
       toast.success("Configuración guardada exitosamente");
     } catch (error) {
@@ -124,9 +141,9 @@ const CatalogoConfig = () => {
                 <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Link fontSize="small" color="primary" /> URL del Catálogo (Slug)
                 </Typography>
-                <SmartTooltip 
-                  id="cat_slug_tip" 
-                  title="Tu enlace único" 
+                <SmartTooltip
+                  id="cat_slug_tip"
+                  title="Tu enlace único"
                   description="Este nombre identificará tu tienda. Usa algo corto y fácil de recordar para tus clientes."
                 >
                   <TextField
@@ -134,13 +151,25 @@ const CatalogoConfig = () => {
                     placeholder="ej: mi-tienda-pro"
                     value={slug}
                     onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
-                    helperText="Solo letras minúsculas, números y guiones. Será tu enlace público."
+                    error={slug.length > 0 && !slugValid}
+                    helperText={
+                      slug.length > 0 && !slugValid
+                        ? 'Solo letras minúsculas, números y guiones'
+                        : 'Será tu enlace público'
+                    }
                     InputProps={{
                       startAdornment: (
                         <Typography sx={{ color: 'text.secondary', fontSize: 13, mr: 0.5, whiteSpace: 'nowrap' }}>
                           {window.location.hostname}/
                         </Typography>
-                      )
+                      ),
+                      endAdornment: slug.length > 0 && (
+                        <InputAdornment position="end">
+                          {slugValid
+                            ? <CheckCircleOutline sx={{ fontSize: 18, color: '#10B981' }} />
+                            : <Cancel sx={{ fontSize: 18, color: '#EF4444' }} />}
+                        </InputAdornment>
+                      ),
                     }}
                   />
                 </SmartTooltip>
@@ -169,38 +198,116 @@ const CatalogoConfig = () => {
                 <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1 }}>
                   Logo del Catálogo (Opcional)
                 </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Box 
-                    sx={{ 
-                      width: 80, height: 80, borderRadius: 2, border: '2px dashed', 
-                      borderColor: 'divider', overflow: 'hidden', display: 'flex', 
-                      alignItems: 'center', justifyContent: 'center', bgcolor: 'action.hover' 
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                  <Box
+                    onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={handleDrop}
+                    sx={{
+                      width: 120, height: 120, borderRadius: 3,
+                      border: '2px dashed',
+                      borderColor: isDragging ? 'primary.main' : 'divider',
+                      overflow: 'hidden', display: 'flex', flexShrink: 0,
+                      alignItems: 'center', justifyContent: 'center',
+                      bgcolor: isDragging ? 'primary.50' : 'action.hover',
+                      transition: 'all 0.2s',
+                      cursor: 'pointer',
                     }}
+                    component="label"
                   >
                     {logo ? (
                       <img src={logo} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                     ) : (
-                      <Storefront sx={{ color: 'text.disabled', fontSize: 40 }} />
+                      <Box sx={{ textAlign: 'center', px: 1 }}>
+                        <CloudUpload sx={{ color: 'text.disabled', fontSize: 32, mb: 0.5 }} />
+                        <Typography sx={{ fontSize: 10, color: 'text.disabled', lineHeight: 1.3 }}>
+                          Arrastra o haz clic
+                        </Typography>
+                      </Box>
                     )}
+                    <input hidden accept="image/*" type="file" onChange={handleLogoChange} />
                   </Box>
-                  <Box>
-                    <Button 
-                      variant="outlined" 
-                      component="label" 
-                      size="small" 
-                      startIcon={<CloudUpload />}
-                      disabled={isCompressing}
-                    >
-                      {isCompressing ? 'Procesando...' : 'Subir Logo'}
-                      <input hidden accept="image/*" type="file" onChange={handleLogoChange} />
-                    </Button>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pt: 0.5 }}>
+                    <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                      PNG, JPG o WebP. Recomendado cuadrado.
+                    </Typography>
+                    {isCompressing && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <CircularProgress size={14} />
+                        <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Procesando...</Typography>
+                      </Box>
+                    )}
                     {logo && (
-                      <IconButton size="small" color="error" onClick={() => setLogo(null)} sx={{ ml: 1 }}>
-                        <Delete fontSize="small" />
-                      </IconButton>
+                      <Button
+                        size="small" color="error" variant="outlined" startIcon={<Delete />}
+                        onClick={() => setLogo(null)} sx={{ borderRadius: 2, width: 'fit-content' }}
+                      >
+                        Quitar logo
+                      </Button>
                     )}
                   </Box>
                 </Box>
+              </Box>
+
+              <Box>
+                <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Palette fontSize="small" sx={{ color: colorPrimario }} /> Color Principal de la Tienda
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                  <Tooltip title="Seleccionar color personalizado">
+                    <Box
+                      component="label"
+                      sx={{
+                        width: 40, height: 40, borderRadius: 2, cursor: 'pointer',
+                        bgcolor: colorPrimario, border: '3px solid',
+                        borderColor: 'divider', flexShrink: 0,
+                        transition: 'transform 0.15s',
+                        '&:hover': { transform: 'scale(1.1)' },
+                      }}
+                    >
+                      <input
+                        hidden type="color"
+                        value={colorPrimario}
+                        onChange={(e) => setColorPrimario(e.target.value)}
+                      />
+                    </Box>
+                  </Tooltip>
+                  {COLOR_PRESETS.map(c => (
+                    <Tooltip key={c} title={c}>
+                      <Box
+                        onClick={() => setColorPrimario(c)}
+                        sx={{
+                          width: 28, height: 28, borderRadius: '50%', cursor: 'pointer',
+                          bgcolor: c, flexShrink: 0,
+                          border: '3px solid',
+                          borderColor: colorPrimario === c ? c : 'transparent',
+                          outline: colorPrimario === c ? `2px solid ${c}40` : 'none',
+                          transition: 'transform 0.15s',
+                          '&:hover': { transform: 'scale(1.15)' },
+                        }}
+                      />
+                    </Tooltip>
+                  ))}
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary', fontFamily: 'monospace' }}>
+                    {colorPrimario.toUpperCase()}
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Box>
+                <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1 }}>
+                  Descripción de la Tienda (Opcional)
+                </Typography>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={3}
+                  placeholder="Describe tu tienda, productos destacados o tu propuesta de valor para los clientes…"
+                  value={descripcion}
+                  onChange={(e) => e.target.value.length <= 200 && setDescripcion(e.target.value)}
+                  helperText={`${descripcion.length}/200 caracteres`}
+                  inputProps={{ maxLength: 200 }}
+                />
               </Box>
 
               <Divider />
@@ -274,12 +381,27 @@ const CatalogoConfig = () => {
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
                 Escanea para ir al catálogo:
               </Typography>
-              <Box sx={{ display: 'inline-block', p: 1.5, bgcolor: '#fff', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                <img 
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(catalogUrl)}`} 
-                  alt="QR Code" 
-                  style={{ width: 120, height: 120 }}
+              <Box sx={{ display: 'inline-block', p: 1.5, bgcolor: '#fff', borderRadius: 2, border: '1px solid', borderColor: 'divider', mb: 1.5 }}>
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(catalogUrl)}`}
+                  alt="QR Code"
+                  style={{ width: 120, height: 120, display: 'block' }}
                 />
+              </Box>
+              <Box>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<GetApp />}
+                  component="a"
+                  href={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(catalogUrl)}&format=png`}
+                  download={`qr-${slug || 'catalogo'}.png`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12 }}
+                >
+                  Descargar QR
+                </Button>
               </Box>
             </Paper>
           </Box>

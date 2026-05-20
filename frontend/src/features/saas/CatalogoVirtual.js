@@ -6,13 +6,15 @@ import {
   List, ListItem, ListItemText, ListItemAvatar, Avatar,
   CircularProgress, Chip, useMediaQuery, useTheme, Fab,
   Dialog, DialogTitle, DialogContent, DialogActions, RadioGroup,
-  FormControlLabel, Radio, Zoom, Paper, Alert
+  FormControlLabel, Radio, Zoom, Paper, Alert, Skeleton, Select, Tooltip
 } from '@mui/material';
 import {
   Search, ShoppingCart, Add, Remove, WhatsApp,
   Storefront, LocationOn, Person, Phone, Close,
-  ArrowForward, ShoppingBag, RocketLaunch, BarChart, Inventory2
+  ArrowForward, ShoppingBag, RocketLaunch, BarChart, Inventory2,
+  Favorite, FavoriteBorder, KeyboardArrowUp, FilterList
 } from '@mui/icons-material';
+import MenuItem from '@mui/material/MenuItem';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
 
@@ -20,7 +22,7 @@ const CatalogoVirtual = () => {
   const { slug } = useParams();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  
+
   const [loading, setLoading] = useState(true);
   const [empresa, setEmpresa] = useState(null);
   const [productos, setProductos] = useState([]);
@@ -32,7 +34,7 @@ const CatalogoVirtual = () => {
   });
   const [cartOpen, setCartOpen] = useState(false);
   const [orderModalOpen, setOrderModalOpen] = useState(false);
-  
+
   // Detalle de Producto
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [currentImgIndex, setCurrentImgIndex] = useState(0);
@@ -44,6 +46,13 @@ const CatalogoVirtual = () => {
   const [direccion, setDireccion] = useState('');
   const [comentarios, setComentarios] = useState('');
 
+  const [sortProductos, setSortProductos] = useState('');
+  const [favoritos, setFavoritos]         = useState(() => {
+    try { return JSON.parse(localStorage.getItem(`favs_${slug}`) || '[]'); } catch { return []; }
+  });
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [orderSent, setOrderSent]         = useState(false);
+
   useEffect(() => {
     fetchData();
   }, [slug]);
@@ -52,13 +61,23 @@ const CatalogoVirtual = () => {
     localStorage.setItem(`cart_${slug}`, JSON.stringify(cart));
   }, [cart, slug]);
 
+  useEffect(() => {
+    localStorage.setItem(`favs_${slug}`, JSON.stringify(favoritos));
+  }, [favoritos, slug]);
+
+  useEffect(() => {
+    const handleScroll = () => setShowScrollTop(window.scrollY > 350);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   const fetchData = async () => {
     try {
       setLoading(true);
       const res = await apiClient.get(`/catalogo/${slug}`);
       setEmpresa(res.data.empresa);
       setProductos(res.data.productos);
-      
+
       // SEO: Título dinámico
       document.title = `${res.data.empresa.nombre} - Catálogo Virtual`;
     } catch (error) {
@@ -68,19 +87,32 @@ const CatalogoVirtual = () => {
     }
   };
 
-  const filteredProductos = useMemo(() => {
-    return productos.filter(p => {
+  const categorias = useMemo(() => {
+    const cats = new Set(productos.map(p => p.categoria));
+    return ['Todas', ...Array.from(cats)];
+  }, [productos]);
+
+  const categoryCounts = React.useMemo(() => {
+    const counts = {};
+    productos.forEach(p => { counts[p.categoria] = (counts[p.categoria] || 0) + 1; });
+    return counts;
+  }, [productos]);
+
+  const filteredProductos = React.useMemo(() => {
+    let list = productos.filter(p => {
       const matchesSearch = p.nombre.toLowerCase().includes(search.toLowerCase()) ||
                           (p.descripcion && p.descripcion.toLowerCase().includes(search.toLowerCase()));
       const matchesCat = categoria === 'Todas' || p.categoria === categoria;
       return matchesSearch && matchesCat;
     });
-  }, [productos, search, categoria]);
-
-  const categorias = useMemo(() => {
-    const cats = new Set(productos.map(p => p.categoria));
-    return ['Todas', ...Array.from(cats)];
-  }, [productos]);
+    switch (sortProductos) {
+      case 'precio_asc':  list = [...list].sort((a, b) => a.precio - b.precio); break;
+      case 'precio_desc': list = [...list].sort((a, b) => b.precio - a.precio); break;
+      case 'az':          list = [...list].sort((a, b) => a.nombre.localeCompare(b.nombre)); break;
+      default: break;
+    }
+    return list;
+  }, [productos, search, categoria, sortProductos]);
 
   const addToCart = (producto) => {
     setCart(prev => {
@@ -100,6 +132,11 @@ const CatalogoVirtual = () => {
       }
       return prev.map(item => item.id === id ? { ...item, quantity: item.quantity - 1 } : item);
     });
+  };
+
+  const toggleFavorito = (id, e) => {
+    e.stopPropagation();
+    setFavoritos(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.precio * item.quantity), 0);
@@ -122,7 +159,7 @@ const CatalogoVirtual = () => {
     message += `👤 *Cliente:* ${nombre}\n`;
     message += `📱 *Celular:* ${celular}\n`;
     message += `📦 *Entrega:* ${tipoEntrega === 'domicilio' ? 'A domicilio 🛵' : 'Recoger en tienda 🏪'}\n`;
-    
+
     if (tipoEntrega === 'domicilio') {
       message += `📍 *Dirección:* ${direccion}\n`;
     } else if (empresa.direccion) {
@@ -142,17 +179,46 @@ const CatalogoVirtual = () => {
 
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/${empresa.whatsapp_pedidos}?text=${encodedMessage}`;
-    
+
     window.open(whatsappUrl, '_blank');
-    
-    // Limpieza post-envío
-    setCart([]);
-    setOrderModalOpen(false);
-    setCartOpen(false);
-    toast.success("¡Pedido enviado por WhatsApp!");
+    setOrderSent(true);
+    setTimeout(() => {
+      setOrderSent(false);
+      setCart([]);
+      setOrderModalOpen(false);
+      setCartOpen(false);
+    }, 2500);
   };
 
-  if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><CircularProgress /></Box>;
+  if (loading) return (
+    <Box sx={{ bgcolor: '#F8FAFC', minHeight: '100vh' }}>
+      <Box sx={{ bgcolor: '#fff', px: 2, pt: 3, pb: 2, boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+          <Skeleton variant="rounded" width={50} height={50} sx={{ borderRadius: 2 }} />
+          <Box sx={{ flex: 1 }}>
+            <Skeleton width="50%" height={22} />
+            <Skeleton width="30%" height={14} sx={{ mt: 0.5 }} />
+          </Box>
+        </Box>
+        <Skeleton variant="rounded" height={40} sx={{ mb: 2, borderRadius: 3 }} />
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          {[1,2,3,4].map(i => <Skeleton key={i} variant="rounded" width={90} height={32} sx={{ borderRadius: 4 }} />)}
+        </Box>
+      </Box>
+      <Box sx={{ p: 2 }}>
+        <Grid container spacing={2}>
+          {[...Array(8)].map((_, i) => (
+            <Grid item xs={6} sm={4} md={3} key={i}>
+              <Skeleton variant="rounded" sx={{ aspectRatio: '1/1', borderRadius: 3 }} />
+              <Skeleton sx={{ mt: 1 }} width="75%" height={18} />
+              <Skeleton width="45%" height={22} sx={{ mt: 0.5 }} />
+              <Skeleton variant="rounded" height={34} sx={{ mt: 1, borderRadius: 2 }} />
+            </Grid>
+          ))}
+        </Grid>
+      </Box>
+    </Box>
+  );
   if (!empresa) return <Box sx={{ p: 5, textAlign: 'center' }}><Typography variant="h5">Catálogo no disponible</Typography></Box>;
 
   const accentColor = empresa.color_primario || '#FF6020';
@@ -188,7 +254,7 @@ const CatalogoVirtual = () => {
         <TextField
           fullWidth
           size="small"
-          placeholder="¿Qué estás buscando hoy?"
+          placeholder={`¿Qué buscas en ${empresa?.nombre || 'la tienda'}?`}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 3, bgcolor: '#F1F5F9' } }}
@@ -202,7 +268,7 @@ const CatalogoVirtual = () => {
           {categorias.map(cat => (
             <Chip
               key={cat}
-              label={cat}
+              label={cat === 'Todas' ? `Todas (${productos.length})` : `${cat} (${categoryCounts[cat] || 0})`}
               onClick={() => setCategoria(cat)}
               sx={{
                 bgcolor: categoria === cat ? accentColor : '#fff',
@@ -217,6 +283,31 @@ const CatalogoVirtual = () => {
         </Box>
       </Box>
 
+      {/* Products count + sort */}
+      <Box sx={{ px: 2, pt: 2, pb: 0.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+        <Typography sx={{ fontWeight: 600, color: '#64748B', fontSize: 13 }}>
+          {filteredProductos.length} {filteredProductos.length === 1 ? 'producto' : 'productos'}
+          {search ? ` para "${search}"` : ''}
+          {categoria !== 'Todas' ? ` en ${categoria}` : ''}
+        </Typography>
+        <Select
+          size="small"
+          value={sortProductos}
+          onChange={(e) => setSortProductos(e.target.value)}
+          displayEmpty
+          sx={{
+            fontSize: 12, minWidth: 150, bgcolor: '#fff',
+            borderRadius: 2,
+            '& .MuiOutlinedInput-notchedOutline': { borderColor: '#E2E8F0' },
+          }}
+        >
+          <MenuItem value="" sx={{ fontSize: 12 }}>Relevancia</MenuItem>
+          <MenuItem value="az" sx={{ fontSize: 12 }}>A → Z</MenuItem>
+          <MenuItem value="precio_asc" sx={{ fontSize: 12 }}>Menor precio</MenuItem>
+          <MenuItem value="precio_desc" sx={{ fontSize: 12 }}>Mayor precio</MenuItem>
+        </Select>
+      </Box>
+
       {/* PRODUCTOS */}
       <Box sx={{ p: 2 }}>
         <Grid container spacing={2}>
@@ -224,9 +315,9 @@ const CatalogoVirtual = () => {
             const inCart = cart.find(item => item.id === p.id);
             return (
               <Grid item xs={6} sm={4} md={3} key={p.id}>
-                <Card 
-                  sx={{ 
-                    borderRadius: 4, height: '100%', display: 'flex', flexDirection: 'column', 
+                <Card
+                  sx={{
+                    borderRadius: 4, height: '100%', display: 'flex', flexDirection: 'column',
                     overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.04)', border: '1px solid #F1F5F9',
                     cursor: 'pointer'
                   }}
@@ -240,11 +331,28 @@ const CatalogoVirtual = () => {
                       alt={p.nombre}
                     />
 
+                    <IconButton
+                      size="small"
+                      onClick={(e) => toggleFavorito(p.id, e)}
+                      sx={{
+                        position: 'absolute', top: 6, right: 6,
+                        bgcolor: 'rgba(255,255,255,0.92)',
+                        width: 28, height: 28,
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+                        '&:hover': { bgcolor: '#fff', transform: 'scale(1.1)' },
+                        transition: 'all 0.2s',
+                      }}
+                    >
+                      {favoritos.includes(p.id)
+                        ? <Favorite sx={{ fontSize: 14, color: '#EF4444' }} />
+                        : <FavoriteBorder sx={{ fontSize: 14, color: '#94A3B8' }} />}
+                    </IconButton>
+
                     {p.categoria && (
-                      <Chip 
-                        label={p.categoria} 
-                        size="small" 
-                        sx={{ position: 'absolute', top: 8, left: 8, bgcolor: 'rgba(255,255,255,0.9)', fontWeight: 700, fontSize: 10, height: 20 }} 
+                      <Chip
+                        label={p.categoria}
+                        size="small"
+                        sx={{ position: 'absolute', top: 8, left: 8, bgcolor: 'rgba(255,255,255,0.9)', fontWeight: 700, fontSize: 10, height: 20 }}
                       />
                     )}
                     {p.image_count > 1 && (
@@ -262,7 +370,7 @@ const CatalogoVirtual = () => {
                     <Typography sx={{ fontWeight: 800, fontSize: 16, color: accentColor, mt: 'auto' }}>
                       ${new Intl.NumberFormat('es-CO').format(p.precio)}
                     </Typography>
-                    
+
                     <Box sx={{ mt: 1.5 }} onClick={(e) => e.stopPropagation()}>
                       {inCart ? (
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: '#F1F5F9', borderRadius: 2, p: 0.5 }}>
@@ -289,6 +397,29 @@ const CatalogoVirtual = () => {
             );
           })}
         </Grid>
+
+        {filteredProductos.length === 0 && (
+          <Box sx={{ textAlign: 'center', py: 8, px: 2 }}>
+            <Typography sx={{ fontSize: 56, mb: 2, lineHeight: 1 }}>🔍</Typography>
+            <Typography sx={{ fontWeight: 800, fontSize: 18, color: '#1E293B', mb: 1 }}>
+              {search
+                ? `Sin resultados para "${search}"`
+                : `Sin productos en ${categoria !== 'Todas' ? categoria : 'el catálogo'}`}
+            </Typography>
+            <Typography sx={{ color: '#64748B', mb: 3, fontSize: 14 }}>
+              Intenta con otro término o explora otra categoría
+            </Typography>
+            {(search || categoria !== 'Todas') && (
+              <Button
+                variant="outlined"
+                onClick={() => { setSearch(''); setCategoria('Todas'); setSortProductos(''); }}
+                sx={{ borderRadius: 3, fontWeight: 700 }}
+              >
+                Ver todos los productos
+              </Button>
+            )}
+          </Box>
+        )}
       </Box>
 
       {/* DETALLE DE PRODUCTO (NUEVO) */}
@@ -303,36 +434,36 @@ const CatalogoVirtual = () => {
         {selectedProduct && (
           <>
             <Box sx={{ position: 'relative' }}>
-              <IconButton 
-                onClick={() => setSelectedProduct(null)} 
+              <IconButton
+                onClick={() => setSelectedProduct(null)}
                 sx={{ position: 'absolute', top: 12, right: 12, zIndex: 10, bgcolor: 'rgba(0,0,0,0.4)', color: '#fff', '&:hover': { bgcolor: 'rgba(0,0,0,0.6)' } }}
               >
                 <Close fontSize="small" />
               </IconButton>
-              
+
               {/* Galería Principal */}
               <Box sx={{ width: '100%', aspectRatio: '1/1', bgcolor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                <img 
+                <img
                   src={selectedProduct.image_count > 0 ? `${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${selectedProduct.id}/imagen?index=${currentImgIndex}` : 'https://placehold.co/400x400?text=No+Image'}
                   alt={selectedProduct.nombre}
                   style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                 />
-                
+
                 {selectedProduct.image_count > 1 && (
                   <>
-                    <IconButton 
+                    <IconButton
                       onClick={() => setCurrentImgIndex(prev => (prev > 0 ? prev - 1 : selectedProduct.image_count - 1))}
                       sx={{ position: 'absolute', left: 8, bgcolor: 'rgba(255,255,255,0.3)', color: '#fff' }}
                     >
                       <ArrowForward sx={{ transform: 'rotate(180deg)' }} />
                     </IconButton>
-                    <IconButton 
+                    <IconButton
                       onClick={() => setCurrentImgIndex(prev => (prev < selectedProduct.image_count - 1 ? prev + 1 : 0))}
                       sx={{ position: 'absolute', right: 8, bgcolor: 'rgba(255,255,255,0.3)', color: '#fff' }}
                     >
                       <ArrowForward />
                     </IconButton>
-                    
+
                     <Box sx={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 1 }}>
                       {[...Array(selectedProduct.image_count)].map((_, i) => (
                         <Box key={i} sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: i === currentImgIndex ? accentColor : 'rgba(255,255,255,0.5)', transition: 'all 0.2s' }} />
@@ -349,7 +480,7 @@ const CatalogoVirtual = () => {
               <Typography variant="h4" sx={{ fontWeight: 800, color: accentColor, mb: 3 }}>
                 ${new Intl.NumberFormat('es-CO').format(selectedProduct.precio)}
               </Typography>
-              
+
               {selectedProduct.descripcion && (
                 <Box sx={{ mb: 3 }}>
                   <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 0.5, color: 'text.secondary' }}>Descripción</Typography>
@@ -482,6 +613,29 @@ const CatalogoVirtual = () => {
         </Zoom>
       )}
 
+      {/* SCROLL TO TOP */}
+      {showScrollTop && (
+        <Zoom in={showScrollTop}>
+          <Fab
+            size="small"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            sx={{
+              position: 'fixed',
+              bottom: cartCount > 0 ? 90 : 24,
+              right: 16,
+              bgcolor: 'rgba(255,255,255,0.95)',
+              color: '#475569',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              '&:hover': { bgcolor: '#F1F5F9', transform: 'translateY(-2px)' },
+              transition: 'all 0.2s',
+              zIndex: 50,
+            }}
+          >
+            <KeyboardArrowUp />
+          </Fab>
+        </Zoom>
+      )}
+
       {/* DRAWER / BOTTOM SHEET DEL CARRITO */}
       <Drawer
         anchor={isMobile ? 'bottom' : 'right'}
@@ -506,8 +660,8 @@ const CatalogoVirtual = () => {
             {cart.map(item => (
               <ListItem key={item.id} sx={{ px: 0, py: 2 }}>
                 <ListItemAvatar>
-                  <Avatar 
-                    variant="rounded" 
+                  <Avatar
+                    variant="rounded"
                     src={item.image_count > 0 ? `${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${item.id}/imagen?index=0` : null}
                     sx={{ bgcolor: '#F1F5F9', color: '#94A3B8' }}
                   >
@@ -517,7 +671,16 @@ const CatalogoVirtual = () => {
 
                 <ListItemText
                   primary={<Typography sx={{ fontWeight: 700, fontSize: 14 }}>{item.nombre}</Typography>}
-                  secondary={<Typography sx={{ color: accentColor, fontWeight: 700, fontSize: 13 }}>${new Intl.NumberFormat('es-CO').format(item.precio)}</Typography>}
+                  secondary={
+                    <Box>
+                      <Typography sx={{ color: accentColor, fontWeight: 700, fontSize: 13 }}>
+                        ${new Intl.NumberFormat('es-CO').format(item.precio)} c/u
+                      </Typography>
+                      <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 600 }}>
+                        Subtotal: ${new Intl.NumberFormat('es-CO').format(item.precio * item.quantity)}
+                      </Typography>
+                    </Box>
+                  }
                 />
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, bgcolor: '#F1F5F9', borderRadius: 2, p: 0.5 }}>
                   <IconButton size="small" onClick={() => removeFromCart(item.id)} sx={{ bgcolor: '#fff', color: accentColor }}><Remove fontSize="small" /></IconButton>
@@ -555,8 +718,8 @@ const CatalogoVirtual = () => {
       </Drawer>
 
       {/* DIALOG DE DATOS DEL CLIENTE */}
-      <Dialog 
-        open={orderModalOpen} 
+      <Dialog
+        open={orderModalOpen}
         onClose={() => setOrderModalOpen(false)}
         fullScreen={isMobile}
         PaperProps={{ sx: { borderRadius: isMobile ? 0 : 4 } }}
@@ -565,18 +728,35 @@ const CatalogoVirtual = () => {
           Finalizar Pedido
           {isMobile && <IconButton onClick={() => setOrderModalOpen(false)}><Close /></IconButton>}
         </DialogTitle>
-        <DialogContent dividers>
+        <DialogContent dividers sx={{ position: 'relative' }}>
+          {orderSent && (
+            <Box sx={{
+              position: 'absolute', inset: 0, zIndex: 20,
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+              bgcolor: '#fff', gap: 2, px: 2,
+              borderRadius: 'inherit',
+            }}>
+              <Typography sx={{ fontSize: 64, lineHeight: 1 }}>🎉</Typography>
+              <Typography sx={{ fontWeight: 900, fontSize: 22, color: '#1E293B', textAlign: 'center' }}>
+                ¡Pedido enviado!
+              </Typography>
+              <Typography sx={{ color: '#64748B', textAlign: 'center', maxWidth: 280, fontSize: 14 }}>
+                Se abrió WhatsApp con tu pedido listo para enviar. El vendedor te contactará pronto.
+              </Typography>
+            </Box>
+          )}
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, py: 1 }}>
             <Box>
               <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Person fontSize="small" color="action" /> Tu Nombre *
               </Typography>
-              <TextField 
-                fullWidth 
-                placeholder="¿Cómo te llamas?" 
-                value={nombre} 
-                onChange={(e) => setNombre(e.target.value)} 
-                required 
+              <TextField
+                fullWidth
+                placeholder="¿Cómo te llamas?"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                required
               />
             </Box>
 
@@ -584,12 +764,12 @@ const CatalogoVirtual = () => {
               <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Phone fontSize="small" color="action" /> Número de Celular *
               </Typography>
-              <TextField 
-                fullWidth 
-                placeholder="Ej: 300 123 4567" 
-                value={celular} 
-                onChange={(e) => setCelular(e.target.value.replace(/\D/g, ''))} 
-                required 
+              <TextField
+                fullWidth
+                placeholder="Ej: 300 123 4567"
+                value={celular}
+                onChange={(e) => setCelular(e.target.value.replace(/\D/g, ''))}
+                required
               />
             </Box>
 
@@ -600,10 +780,10 @@ const CatalogoVirtual = () => {
               <RadioGroup value={tipoEntrega} onChange={(e) => setTipoEntrega(e.target.value)}>
                 <Grid container spacing={2}>
                   <Grid item xs={6}>
-                    <Paper 
-                      variant="outlined" 
+                    <Paper
+                      variant="outlined"
                       onClick={() => setTipoEntrega('domicilio')}
-                      sx={{ 
+                      sx={{
                         p: 2, textAlign: 'center', borderRadius: 3, cursor: 'pointer',
                         borderColor: tipoEntrega === 'domicilio' ? accentColor : 'divider',
                         bgcolor: tipoEntrega === 'domicilio' ? `${accentColor}05` : 'transparent'
@@ -615,10 +795,10 @@ const CatalogoVirtual = () => {
                     </Paper>
                   </Grid>
                   <Grid item xs={6}>
-                    <Paper 
-                      variant="outlined" 
+                    <Paper
+                      variant="outlined"
                       onClick={() => setTipoEntrega('recoger')}
-                      sx={{ 
+                      sx={{
                         p: 2, textAlign: 'center', borderRadius: 3, cursor: 'pointer',
                         borderColor: tipoEntrega === 'recoger' ? accentColor : 'divider',
                         bgcolor: tipoEntrega === 'recoger' ? `${accentColor}05` : 'transparent'
@@ -638,12 +818,12 @@ const CatalogoVirtual = () => {
                 <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
                   <LocationOn fontSize="small" color="action" /> Dirección de Entrega *
                 </Typography>
-                <TextField 
-                  fullWidth 
-                  placeholder="Calle, Barrio, Apartamento..." 
-                  value={direccion} 
-                  onChange={(e) => setDireccion(e.target.value)} 
-                  required 
+                <TextField
+                  fullWidth
+                  placeholder="Calle, Barrio, Apartamento..."
+                  value={direccion}
+                  onChange={(e) => setDireccion(e.target.value)}
+                  required
                 />
               </Box>
             ) : empresa.direccion && (
@@ -656,21 +836,21 @@ const CatalogoVirtual = () => {
               <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1 }}>
                 Comentarios adicionales
               </Typography>
-              <TextField 
-                fullWidth 
-                multiline 
-                rows={2} 
-                placeholder="¿Algo más que debamos saber?" 
-                value={comentarios} 
-                onChange={(e) => setComentarios(e.target.value)} 
+              <TextField
+                fullWidth
+                multiline
+                rows={2}
+                placeholder="¿Algo más que debamos saber?"
+                value={comentarios}
+                onChange={(e) => setComentarios(e.target.value)}
               />
             </Box>
           </Box>
         </DialogContent>
         <DialogActions sx={{ p: 3 }}>
-          <Button 
-            fullWidth 
-            variant="contained" 
+          <Button
+            fullWidth
+            variant="contained"
             size="large"
             startIcon={<WhatsApp />}
             onClick={handleSendOrder}

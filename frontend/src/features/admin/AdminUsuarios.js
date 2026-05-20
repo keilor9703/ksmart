@@ -8,11 +8,13 @@ import {
   Box, Paper, Typography, Grid, TextField, Button, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, IconButton, FormControl,
   InputLabel, Select, MenuItem, useMediaQuery, useTheme, Chip, Tooltip,
-  Divider, Collapse, Avatar, Tabs, Tab, CircularProgress, Stack
+  Divider, Collapse, Avatar, Tabs, Tab, CircularProgress, Stack,
+  TableSortLabel, InputAdornment, Switch
 } from '@mui/material';
 import {
   Edit, Delete, PersonAdd, People, ExpandMore, ExpandLess,
-  Close, AdminPanelSettings, Check, Security, Block, CheckCircle
+  Close, AdminPanelSettings, Check, Security, Block, CheckCircle,
+  Search, FileDownload, Visibility, VisibilityOff, Email
 } from '@mui/icons-material';
 
 const ACCENT = '#8B5CF6'; // Violeta — Admin
@@ -64,13 +66,18 @@ const UserCardMobile = ({ user, currentUser, onEdit, onToggle }) => (
         </Avatar>
         <Box>
           <Typography sx={{ fontWeight: 800, fontSize: 16 }}>{user.username}</Typography>
-          <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>ID: #{user.id}</Typography>
+          {user.nombre_completo && (
+            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{user.nombre_completo}</Typography>
+          )}
+          {user.email && (
+            <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>{user.email}</Typography>
+          )}
         </Box>
       </Box>
-      <Chip 
-        label={user.is_active !== false ? 'Activo' : 'Suspendido'} 
-        size="small" 
-        sx={{ bgcolor: user.is_active !== false ? '#ECFDF5' : '#FEF2F2', color: user.is_active !== false ? '#10B981' : '#EF4444', fontWeight: 800, fontSize: 10 }} 
+      <Chip
+        label={user.is_active !== false ? 'Activo' : 'Suspendido'}
+        size="small"
+        sx={{ bgcolor: user.is_active !== false ? '#ECFDF5' : '#FEF2F2', color: user.is_active !== false ? '#10B981' : '#EF4444', fontWeight: 800, fontSize: 10 }}
       />
     </Box>
     <Divider sx={{ mb: 1.5, borderStyle: 'dashed' }} />
@@ -78,10 +85,10 @@ const UserCardMobile = ({ user, currentUser, onEdit, onToggle }) => (
       <Chip label={user.role.name} size="small" sx={{ bgcolor: `${ACCENT}15`, color: ACCENT, fontWeight: 700, fontSize: 11 }} />
       <Box>
         <IconButton size="small" onClick={() => onEdit(user)} sx={{ color: ACCENT, bgcolor: `${ACCENT}10`, mr: 1 }}><Edit fontSize="small" /></IconButton>
-        <IconButton 
-          size="small" 
-          disabled={currentUser?.id === user.id} 
-          onClick={() => onToggle(user)} 
+        <IconButton
+          size="small"
+          disabled={currentUser?.id === user.id}
+          onClick={() => onToggle(user)}
           sx={{ color: user.is_active !== false ? '#EF4444' : '#10B981', bgcolor: user.is_active !== false ? '#FEF2F2' : '#ECFDF5' }}
         >
           {user.is_active !== false ? <Block fontSize="small" /> : <CheckCircle fontSize="small" />}
@@ -114,6 +121,11 @@ export default function AdminUsuarios() {
   const [selectedModules, setSelectedModules] = useState([]);
   const [formRoleOpen, setFormRoleOpen] = useState(false);
 
+  const [busqueda, setBusqueda]         = useState('');
+  const [filtroEstado, setFiltroEstado] = useState('todos'); // 'todos' | 'activos' | 'suspendidos'
+  const [sortDir, setSortDir]           = useState('asc');
+  const [showPwd, setShowPwd]           = useState(false);
+
   useEffect(() => {
     fetchUsers(); fetchRoles(); fetchModules(); fetchMe();
   }, []);
@@ -135,20 +147,20 @@ export default function AdminUsuarios() {
         toast.success('Usuario creado exitosamente');
       }
       resetUserForm(); fetchUsers();
-    } catch (err) { 
-        toast.error(err.response?.data?.detail || 'Error al guardar usuario', { autoClose: 5000 }); 
+    } catch (err) {
+        toast.error(err.response?.data?.detail || 'Error al guardar usuario', { autoClose: 5000 });
     }
   };
 
   const resetUserForm = () => { setUsername(''); setPassword(''); setRoleId(''); setEditingUser(null); setFormUserOpen(false); };
 
-  const handleEditUser = (user) => { 
-    setEditingUser(user); 
-    setUsername(user.username); 
-    setRoleId(user.role.id); 
-    setPassword(''); 
-    setFormUserOpen(true); 
-    window.scrollTo({ top: 0, behavior: 'smooth' }); 
+  const handleEditUser = (user) => {
+    setEditingUser(user);
+    setUsername(user.username);
+    setRoleId(user.role.id);
+    setPassword('');
+    setFormUserOpen(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleToggleClick = (user) => { setUserToToggle(user); setShowConfirmUser(true); };
@@ -188,6 +200,41 @@ export default function AdminUsuarios() {
   const handleEditRole = (role) => { setEditingRole(role); setRoleName(role.name); setSelectedModules(role.modules.map(m => m.id)); setFormRoleOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const handleModuleChange = (id) => setSelectedModules(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
+  const usuariosFiltrados = React.useMemo(() => {
+    let list = [...users];
+    if (busqueda.trim()) {
+      const q = busqueda.toLowerCase();
+      list = list.filter(u =>
+        u.username.toLowerCase().includes(q) ||
+        (u.nombre_completo || '').toLowerCase().includes(q) ||
+        (u.email || '').toLowerCase().includes(q)
+      );
+    }
+    if (filtroEstado === 'activos')     list = list.filter(u => u.is_active !== false);
+    if (filtroEstado === 'suspendidos') list = list.filter(u => u.is_active === false);
+    list.sort((a, b) => {
+      const dir = sortDir === 'asc' ? 1 : -1;
+      return dir * a.username.localeCompare(b.username);
+    });
+    return list;
+  }, [users, busqueda, filtroEstado, sortDir]);
+
+  const handleExportCSV = () => {
+    if (!usuariosFiltrados.length) return;
+    const rows = [
+      ['#', 'Usuario', 'Nombre completo', 'Email', 'Rol', 'Estado'],
+      ...usuariosFiltrados.map((u, i) => [
+        i + 1, u.username, u.nombre_completo || '', u.email || '',
+        u.role?.name || '', u.is_active !== false ? 'Activo' : 'Suspendido',
+      ]),
+    ];
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'usuarios.csv';
+    a.click(); URL.revokeObjectURL(url);
+  };
+
   return (
     <Box sx={{ width: '100%' }}>
       {/* ── Header ── */}
@@ -214,17 +261,63 @@ export default function AdminUsuarios() {
             '& .Mui-selected': { color: `${ACCENT} !important` },
           }}
         >
-          <Tab icon={<People sx={{ fontSize: 18, mr: 1 }} />} iconPosition="start" label="Usuarios" />
-          <Tab icon={<Security sx={{ fontSize: 18, mr: 1 }} />} iconPosition="start" label="Roles y Módulos" />
+          <Tab icon={<People sx={{ fontSize: 18, mr: 1 }} />} iconPosition="start"
+            label={`Usuarios (${users.length})`} />
+          <Tab icon={<Security sx={{ fontSize: 18, mr: 1 }} />} iconPosition="start"
+            label={`Roles (${roles.length})`} />
         </Tabs>
 
         <Box sx={{ p: { xs: 2, md: 3 } }}>
 
           {/* ════ TAB 0: USUARIOS ════ */}
           <TabPanel value={tab} index={0}>
-            <Box sx={{ mb: 3, display: 'flex', justifyContent: 'flex-end' }}>
-              <Button variant="contained" startIcon={<PersonAdd />} onClick={() => { resetUserForm(); setFormUserOpen(true); }}
-                sx={{ bgcolor: ACCENT, borderRadius: 2, fontWeight: 700, boxShadow: `0 4px 14px ${ACCENT}40` }}>
+            <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+              <TextField
+                size="small"
+                placeholder="Buscar por usuario, nombre o email…"
+                value={busqueda}
+                onChange={e => setBusqueda(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Search sx={{ fontSize: 18, color: 'text.disabled' }} />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{ flex: 1, minWidth: 220 }}
+              />
+              {[
+                { key: 'todos',       label: 'Todos' },
+                { key: 'activos',     label: 'Activos' },
+                { key: 'suspendidos', label: 'Suspendidos' },
+              ].map(f => (
+                <Chip
+                  key={f.key}
+                  label={f.label}
+                  size="small"
+                  onClick={() => setFiltroEstado(f.key)}
+                  sx={{
+                    cursor: 'pointer', fontWeight: 700,
+                    bgcolor: filtroEstado === f.key ? ACCENT : 'transparent',
+                    color:   filtroEstado === f.key ? '#fff' : 'text.secondary',
+                    border: '1px solid',
+                    borderColor: filtroEstado === f.key ? ACCENT : 'divider',
+                    '&:hover': { bgcolor: filtroEstado === f.key ? ACCENT : 'action.hover' },
+                  }}
+                />
+              ))}
+              <Button
+                size="small" variant="outlined" startIcon={<FileDownload />}
+                onClick={handleExportCSV} disabled={!usuariosFiltrados.length}
+                sx={{ borderRadius: 2, fontWeight: 600, whiteSpace: 'nowrap' }}
+              >
+                CSV
+              </Button>
+              <Button
+                variant="contained" startIcon={<PersonAdd />}
+                onClick={() => { resetUserForm(); setFormUserOpen(true); }}
+                sx={{ bgcolor: ACCENT, borderRadius: 2, fontWeight: 700, boxShadow: `0 4px 14px ${ACCENT}40`, whiteSpace: 'nowrap' }}
+              >
                 Nuevo Usuario
               </Button>
             </Box>
@@ -242,7 +335,35 @@ export default function AdminUsuarios() {
                       <TextField label="Nombre de usuario" value={username} onChange={e => setUsername(e.target.value)} fullWidth required size="small"/>
                     </Grid>
                     <Grid item xs={12} sm={4}>
-                      <TextField label="Contraseña" type="password" value={password} onChange={e => setPassword(e.target.value)} fullWidth required={!editingUser} size="small" helperText={editingUser ? 'Dejar en blanco para no cambiarla' : ''} />
+                      <TextField
+                        label="Contraseña"
+                        type={showPwd ? 'text' : 'password'}
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        fullWidth
+                        required={!editingUser}
+                        size="small"
+                        helperText={editingUser ? 'Dejar en blanco para no cambiarla' : (
+                          password ? (() => {
+                            const len = password.length;
+                            const hasNum = /[0-9]/.test(password);
+                            const hasUp  = /[A-Z]/.test(password);
+                            if (len < 4) return '⚠ Muy débil';
+                            if (len < 6) return '🟡 Débil';
+                            if (len >= 6 && (hasNum || hasUp)) return '🟢 Buena';
+                            return '⚠ Débil';
+                          })() : 'Mínimo 6 caracteres'
+                        )}
+                        InputProps={{
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton size="small" onClick={() => setShowPwd(p => !p)} edge="end" tabIndex={-1}>
+                                {showPwd ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                              </IconButton>
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
                     </Grid>
                     <Grid item xs={12} sm={4}>
                       <FormControl fullWidth required size="small">
@@ -274,7 +395,7 @@ export default function AdminUsuarios() {
             {/* Lista de Usuarios (Responsive) */}
             {isMobile ? (
                <Stack spacing={0}>
-                  {users.map(u => (
+                  {usuariosFiltrados.map(u => (
                     <UserCardMobile key={u.id} user={u} currentUser={currentUser} onEdit={handleEditUser} onToggle={handleToggleClick} />
                   ))}
                </Stack>
@@ -283,39 +404,66 @@ export default function AdminUsuarios() {
                 <Table size="small">
                   <TableHead>
                     <TableRow sx={{ bgcolor: 'action.hover' }}>
-                      {['#', 'Usuario', 'Rol', 'Estado', 'Acciones'].map(h => <TableCell key={h} sx={{ fontWeight: 800 }}>{h}</TableCell>)}
+                      <TableCell sx={{ fontWeight: 800 }}>#</TableCell>
+                      <TableCell sx={{ fontWeight: 800 }}>
+                        <TableSortLabel
+                          active
+                          direction={sortDir}
+                          onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+                        >
+                          Usuario
+                        </TableSortLabel>
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 800 }}>Rol</TableCell>
+                      <TableCell sx={{ fontWeight: 800 }}>Estado</TableCell>
+                      <TableCell sx={{ fontWeight: 800 }}>Acciones</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {users.length === 0 ? <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3 }}>No hay usuarios</TableCell></TableRow> :
-                      users.map(u => (
-                        <TableRow key={u.id} hover sx={{ opacity: u.is_active !== false ? 1 : 0.6 }}>
-                          <TableCell sx={{ color: 'text.secondary', fontSize: 12 }}>#{u.id}</TableCell>
-                          <TableCell sx={{ fontWeight: 700 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                              <Avatar sx={{ width: 28, height: 28, bgcolor: u.is_active !== false ? `${ACCENT}20` : '#cbd5e1', color: u.is_active !== false ? ACCENT : '#64748b', fontSize: 12, fontWeight: 800 }}>{u.username[0].toUpperCase()}</Avatar>
-                              {u.username}
+                    {usuariosFiltrados.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} sx={{ py: 5, textAlign: 'center' }}>
+                          <Box sx={{ color: 'text.disabled' }}>
+                            <People sx={{ fontSize: 40, mb: 1, opacity: 0.3 }} />
+                            <Typography sx={{ fontSize: 13 }}>
+                              {busqueda ? `Sin resultados para "${busqueda}"` : 'No hay usuarios registrados'}
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    ) : usuariosFiltrados.map(u => (
+                      <TableRow key={u.id} hover sx={{ opacity: u.is_active !== false ? 1 : 0.6 }}>
+                        <TableCell sx={{ color: 'text.secondary', fontSize: 12 }}>#{u.id}</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                            <Avatar sx={{ width: 28, height: 28, bgcolor: u.is_active !== false ? `${ACCENT}20` : '#cbd5e1', color: u.is_active !== false ? ACCENT : '#64748b', fontSize: 12, fontWeight: 800 }}>
+                              {u.username[0].toUpperCase()}
+                            </Avatar>
+                            <Box>
+                              <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{u.username}</Typography>
+                              {u.nombre_completo && <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1 }}>{u.nombre_completo}</Typography>}
+                              {u.email && <Typography sx={{ fontSize: 10, color: 'text.disabled', lineHeight: 1 }}>{u.email}</Typography>}
                             </Box>
-                          </TableCell>
-                          <TableCell><Chip label={u.role.name} size="small" sx={{ bgcolor: `${ACCENT}15`, color: ACCENT, fontWeight: 700, fontSize: 11, borderRadius: 1.5 }} /></TableCell>
-                          <TableCell>
-                            <Chip label={u.is_active !== false ? 'Activo' : 'Suspendido'} size="small" sx={{ bgcolor: u.is_active !== false ? '#ECFDF5' : '#FEF2F2', color: u.is_active !== false ? '#10B981' : '#EF4444', fontWeight: 800, fontSize: 10, borderRadius: 1.5 }} />
-                          </TableCell>
-                          <TableCell>
-                            <Tooltip title="Editar">
-                              <IconButton size="small" onClick={() => handleEditUser(u)} sx={{ color: ACCENT, mr: 1, bgcolor: `${ACCENT}10` }}><Edit fontSize="small" /></IconButton>
-                            </Tooltip>
-                            <Tooltip title={u.is_active !== false ? "Suspender acceso" : "Reactivar usuario"}>
-                              <span>
-                                  <IconButton size="small" disabled={currentUser?.id === u.id} onClick={() => handleToggleClick(u)} sx={{ color: u.is_active !== false ? '#EF4444' : '#10B981', bgcolor: u.is_active !== false ? '#FEF2F2' : '#ECFDF5' }}>
-                                      {u.is_active !== false ? <Block fontSize="small" /> : <CheckCircle fontSize="small" />}
-                                  </IconButton>
-                              </span>
-                            </Tooltip>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    }
+                          </Box>
+                        </TableCell>
+                        <TableCell><Chip label={u.role.name} size="small" sx={{ bgcolor: `${ACCENT}15`, color: ACCENT, fontWeight: 700, fontSize: 11, borderRadius: 1.5 }} /></TableCell>
+                        <TableCell>
+                          <Chip label={u.is_active !== false ? 'Activo' : 'Suspendido'} size="small" sx={{ bgcolor: u.is_active !== false ? '#ECFDF5' : '#FEF2F2', color: u.is_active !== false ? '#10B981' : '#EF4444', fontWeight: 800, fontSize: 10, borderRadius: 1.5 }} />
+                        </TableCell>
+                        <TableCell>
+                          <Tooltip title="Editar">
+                            <IconButton size="small" onClick={() => handleEditUser(u)} sx={{ color: ACCENT, mr: 1, bgcolor: `${ACCENT}10` }}><Edit fontSize="small" /></IconButton>
+                          </Tooltip>
+                          <Tooltip title={u.is_active !== false ? "Suspender acceso" : "Reactivar usuario"}>
+                            <span>
+                                <IconButton size="small" disabled={currentUser?.id === u.id} onClick={() => handleToggleClick(u)} sx={{ color: u.is_active !== false ? '#EF4444' : '#10B981', bgcolor: u.is_active !== false ? '#FEF2F2' : '#ECFDF5' }}>
+                                    {u.is_active !== false ? <Block fontSize="small" /> : <CheckCircle fontSize="small" />}
+                                </IconButton>
+                            </span>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </TableContainer>
@@ -366,10 +514,20 @@ export default function AdminUsuarios() {
             {/* Lista de Roles */}
             {isMobile ? (
                 <Stack spacing={2}>
-                    {roles.map(r => (
+                    {roles.length === 0 ? (
+                      <Box sx={{ py: 5, textAlign: 'center', color: 'text.disabled' }}>
+                        <Security sx={{ fontSize: 40, mb: 1, opacity: 0.3 }} />
+                        <Typography sx={{ fontSize: 13 }}>No hay roles configurados. Crea el primero.</Typography>
+                      </Box>
+                    ) : roles.map(r => (
                         <Paper key={r.id} sx={{ p: 2, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                                <Typography sx={{ fontWeight: 800, fontSize: 16 }}>{r.name}</Typography>
+                                <Box>
+                                  <Typography sx={{ fontWeight: 800, fontSize: 16 }}>{r.name}</Typography>
+                                  <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                                    {users.filter(u => u.role?.id === r.id).length} usuario(s)
+                                  </Typography>
+                                </Box>
                                 <IconButton size="small" onClick={() => handleEditRole(r)} sx={{ color: ACCENT, bgcolor: `${ACCENT}10` }}><Edit fontSize="small" /></IconButton>
                             </Box>
                             <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 1 }}>
@@ -389,9 +547,25 @@ export default function AdminUsuarios() {
                     </TableRow>
                     </TableHead>
                     <TableBody>
-                    {roles.map(r => (
+                    {roles.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={3} sx={{ py: 5, textAlign: 'center' }}>
+                          <Box sx={{ color: 'text.disabled' }}>
+                            <Security sx={{ fontSize: 40, mb: 1, opacity: 0.3 }} />
+                            <Typography sx={{ fontSize: 13 }}>No hay roles configurados. Crea el primero.</Typography>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    ) : roles.map(r => (
                         <TableRow key={r.id} hover>
-                        <TableCell sx={{ fontWeight: 800, fontSize: 14 }}>{r.name}</TableCell>
+                        <TableCell sx={{ fontWeight: 800, fontSize: 14 }}>
+                          <Box>
+                            <Typography sx={{ fontWeight: 800, fontSize: 14 }}>{r.name}</Typography>
+                            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                              {users.filter(u => u.role?.id === r.id).length} usuario{users.filter(u => u.role?.id === r.id).length !== 1 ? 's' : ''}
+                            </Typography>
+                          </Box>
+                        </TableCell>
                         <TableCell>
                             <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
                             {r.modules.length === 0 ? <Typography sx={{ fontSize: 12, color: 'text.secondary', fontStyle: 'italic' }}>Sin accesos configurados</Typography> :
@@ -414,15 +588,15 @@ export default function AdminUsuarios() {
         </Box>
       </Paper>
 
-      <ConfirmationDialog 
-        open={showConfirmUser} 
-        handleClose={() => setShowConfirmUser(false)} 
-        handleConfirm={confirmToggleUser} 
-        title={userToToggle?.is_active !== false ? "Suspender acceso" : "Reactivar acceso"} 
-        message={userToToggle?.is_active !== false 
-            ? `¿Estás seguro de suspender a ${userToToggle?.username}? Ya no podrá ingresar al sistema hasta que lo reactives.` 
+      <ConfirmationDialog
+        open={showConfirmUser}
+        handleClose={() => setShowConfirmUser(false)}
+        handleConfirm={confirmToggleUser}
+        title={userToToggle?.is_active !== false ? "Suspender acceso" : "Reactivar acceso"}
+        message={userToToggle?.is_active !== false
+            ? `¿Estás seguro de suspender a ${userToToggle?.username}? Ya no podrá ingresar al sistema hasta que lo reactives.`
             : `¿Deseas reactivar el acceso para ${userToToggle?.username}?`
-        } 
+        }
       />
     </Box>
   );
