@@ -183,11 +183,16 @@ class User(Base, TenantMixin):
     username        = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     role_id         = Column(Integer, ForeignKey("roles.id"))
-    
-    is_active       = Column(Boolean, default=True) # ✅ NUEVO: Para el Soft Delete (Trazabilidad)
+
+    is_active       = Column(Boolean, default=True)
     nombre_completo = Column(String(120), nullable=True)
     email           = Column(String(120), nullable=True, index=True)
     telefono        = Column(String(30),  nullable=True)
+
+    # PIN de acceso rápido (4-6 dígitos, almacenado como bcrypt hash)
+    pin_hash            = Column(String, nullable=True)
+    pin_attempts        = Column(Integer, default=0)
+    pin_locked_until    = Column(DateTime(timezone=True), nullable=True)
 
 
     role              = relationship("Role", back_populates="users")

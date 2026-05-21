@@ -824,6 +824,21 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v53)
                 logger.info("V53 (Resoluciones DIAN extra fields) aplicada.")
 
+            # V55 - PIN de acceso rápido en usuarios
+            migration_v55 = "inv_v55_users_pin_fields"
+            if not _migration_already_applied(conn, migration_v55):
+                for col, typedef_sqlite, typedef_pg in [
+                    ("pin_hash",         "TEXT NULL",                    "VARCHAR(128) NULL"),
+                    ("pin_attempts",     "INTEGER NOT NULL DEFAULT 0",   "INTEGER NOT NULL DEFAULT 0"),
+                    ("pin_locked_until", "TIMESTAMP NULL",               "TIMESTAMPTZ NULL"),
+                ]:
+                    if not _column_exists(conn, "users", col):
+                        typedef = typedef_sqlite if IS_SQLITE else typedef_pg
+                        conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {typedef}"))
+                        logger.info(f"V55: añadido users.{col}")
+                _mark_migration_applied(conn, migration_v55)
+                logger.info("V55 (PIN de acceso rápido) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

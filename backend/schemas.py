@@ -2094,15 +2094,17 @@ class BiometricLoginVerifyRequest(BaseModel):
 
 class BiometricLoginVerifyResponse(BaseModel):
     """
-    Respuesta exitosa: incluye el JWT igual que un login normal.
+    Respuesta exitosa: JWT completo idéntico al login por contraseña.
     """
-    access_token:    str
-    token_type:      str = "bearer"
-    user_id:         int
-    username:        str
-    empresa_id:      int
-    rol:             Optional[str] = None
-    device_name:     Optional[str] = None
+    access_token:     str
+    token_type:       str = "bearer"
+    user_id:          int
+    username:         str
+    empresa_id:       int
+    rol:              Optional[str] = None
+    nombre_completo:  Optional[str] = None
+    device_name:      Optional[str] = None
+    is_expired:       bool = False
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -2221,3 +2223,25 @@ class CatalogoPublicoOut(BaseModel):
     empresa: CatalogoEmpresaOut
     productos: List[CatalogoProductoOut]
     total_productos: int
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PIN DE ACCESO RÁPIDO
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class PinSetRequest(BaseModel):
+    pin: str  # 4-6 dígitos
+
+class PinVerifyRequest(BaseModel):
+    username: str
+    pin: str
+
+class PinVerifyResponse(BaseModel):
+    access_token:    str
+    token_type:      str = "bearer"
+    user_id:         int
+    username:        str
+    empresa_id:      int
+    rol:             Optional[str] = None
+    nombre_completo: Optional[str] = None
+    is_expired:      bool = False

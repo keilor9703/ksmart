@@ -1,17 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
 import {
     Box, TextField, Button, Typography, InputAdornment, IconButton,
     Grid, Card, CardActionArea, MenuItem, LinearProgress, Stack, Chip,
-    Autocomplete, FormControlLabel, Checkbox, CircularProgress
+    Autocomplete, FormControlLabel, Checkbox, CircularProgress, Divider,
 } from '@mui/material';
 import { keyframes } from '@mui/system';
 import {
     Visibility, VisibilityOff, AlternateEmail, Lock, Business, Person,
     Storefront, AttachMoney, Email, Phone, LocationOn, Group,
-    ArrowForward, ArrowBack, CheckCircle, LocalParking, LocalCarWash
+    ArrowForward, ArrowBack, CheckCircle, LocalParking, LocalCarWash, Pin,
 } from '@mui/icons-material';
 import { Link } from 'react-router-dom';
 
@@ -253,6 +253,109 @@ function FeatureCarousel() {
   );
 }
 
+// ─── PIN Numpad (login rápido) ────────────────────────────────────────────────
+const PIN_GREEN = '#10B981';
+
+function PinNumpad({ username, onSuccess, onCancel }) {
+    const [pin, setPin] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    const addDigit = (d) => {
+        if (pin.length < 6) setPin(p => p + d);
+    };
+    const removeDigit = () => setPin(p => p.slice(0, -1));
+
+    const handleVerify = useCallback(async (currentPin) => {
+        if (currentPin.length < 4) return;
+        setLoading(true);
+        setError('');
+        try {
+            const { data } = await apiClient.post('/auth/pin/verify', { username, pin: currentPin });
+            onSuccess(data);
+        } catch (err) {
+            const msg = err.response?.data?.detail || 'PIN incorrecto.';
+            setError(msg);
+            setPin('');
+            if (err.response?.status === 429) {
+                // bloqueado — mostrar y deshabilitar
+            }
+        } finally {
+            setLoading(false);
+        }
+    }, [username, onSuccess]);
+
+    // Verificar automáticamente cuando se completan 4-6 dígitos
+    React.useEffect(() => {
+        if (pin.length === 6) handleVerify(pin);
+    }, [pin, handleVerify]);
+
+    return (
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', animation: `${fadeIn} 0.3s ease` }}>
+            <Typography sx={{ fontSize: 14, fontWeight: 600, color: '#94a3b8', mb: 0.5 }}>
+                PIN de acceso rápido
+            </Typography>
+            <Typography sx={{ fontSize: 12, color: '#64748b', mb: 2.5 }}>
+                {username}
+            </Typography>
+
+            {/* Indicadores */}
+            <Box sx={{ display: 'flex', gap: 1.5, mb: 2.5 }}>
+                {Array.from({ length: Math.max(4, pin.length + (pin.length < 6 ? 1 : 0)) }).map((_, i) => (
+                    <Box key={i} sx={{
+                        width: 38, height: 46, borderRadius: 1.5,
+                        border: `2px solid ${i < pin.length ? PIN_GREEN : 'rgba(255,255,255,0.15)'}`,
+                        bgcolor: i < pin.length ? `${PIN_GREEN}20` : 'transparent',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'all 0.12s ease',
+                    }}>
+                        {i < pin.length && <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: PIN_GREEN }} />}
+                    </Box>
+                ))}
+            </Box>
+
+            {error && (
+                <Typography sx={{ fontSize: 12, color: '#f87171', mb: 1.5, textAlign: 'center' }}>
+                    {error}
+                </Typography>
+            )}
+
+            {/* Teclado */}
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.2, maxWidth: 220, mb: 2 }}>
+                {[1,2,3,4,5,6,7,8,9].map(d => (
+                    <Button key={d}
+                        onClick={() => addDigit(String(d))}
+                        disabled={loading || pin.length >= 6}
+                        sx={{
+                            height: 50, borderRadius: 2,
+                            bgcolor: 'rgba(255,255,255,0.06)',
+                            color: '#e2e8f0', fontSize: 20, fontWeight: 700,
+                            '&:hover': { bgcolor: 'rgba(255,255,255,0.12)' },
+                            '&:disabled': { opacity: 0.4 },
+                        }}>
+                        {d}
+                    </Button>
+                ))}
+                <Box />
+                <Button onClick={() => addDigit('0')} disabled={loading || pin.length >= 6}
+                    sx={{ height: 50, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.06)', color: '#e2e8f0', fontSize: 20, fontWeight: 700, '&:hover': { bgcolor: 'rgba(255,255,255,0.12)' }, '&:disabled': { opacity: 0.4 } }}>
+                    0
+                </Button>
+                <Button onClick={removeDigit} disabled={loading}
+                    sx={{ height: 50, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.06)', color: '#94a3b8', fontSize: 18 }}>
+                    ⌫
+                </Button>
+            </Box>
+
+            {loading && <CircularProgress size={20} sx={{ color: PIN_GREEN, mb: 1.5 }} />}
+
+            <Button onClick={onCancel} sx={{ color: '#64748b', fontSize: 12, textTransform: 'none' }}>
+                Usar contraseña en su lugar
+            </Button>
+        </Box>
+    );
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 const Login = ({ onLogin }) => {
     const [isLoginView, setIsLoginView]   = useState(true);
@@ -260,11 +363,17 @@ const Login = ({ onLogin }) => {
     const [loading, setLoading]           = useState(false);
     const [regStep, setRegStep]           = useState(1);
     const [regSuccess, setRegSuccess]     = useState(false);
+    const [rememberMe, setRememberMe]     = useState(false);
+    const [pinMode, setPinMode]           = useState(() => {
+        // Mostrar PIN si el usuario tiene PIN configurado y hay username guardado
+        return localStorage.getItem('pin_configured') === 'true'
+            && !!localStorage.getItem('last_username');
+    });
     const navigate = useNavigate();
 
-    const [loginData, setLoginData] = useState({ 
-        username: localStorage.getItem('last_username') || '', 
-        password: '' 
+    const [loginData, setLoginData] = useState({
+        username: localStorage.getItem('last_username') || '',
+        password: ''
     });
 
     const initialRegState = {
@@ -313,40 +422,37 @@ const Login = ({ onLogin }) => {
         setRegStep(1);
     };
 
+    // ─── Helper compartido para manejar la sesión post-login ─────────────────
+    const handleAuthSuccess = (data, successMsg = 'Inicio de sesión exitoso') => {
+        localStorage.setItem('token', data.access_token);
+        localStorage.setItem('last_username', data.username || loginData.username);
+        onLogin();
+        if (data.is_expired) {
+            toast.warning('Tu acceso ha expirado. Redirigiendo a renovación...');
+            setTimeout(() => navigate('/suscripcion-expirada'), 1500);
+        } else {
+            toast.success(successMsg);
+            navigate('/');
+        }
+    };
+
     // ── Handlers ─────────────────────────────────────────────────────────────
     const handleLoginSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
         try {
+            const url = `/auth/token${rememberMe ? '?remember_me=true' : ''}`;
             const response = await apiClient.post(
-                '/auth/token',
+                url,
                 new URLSearchParams({ username: loginData.username, password: loginData.password }),
                 { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
             );
-            
-            localStorage.setItem('token', response.data.access_token);
-            localStorage.setItem('last_username', loginData.username);
-            
-            onLogin();
-
-            if (response.data.is_expired) {
-                toast.warning('Tu acceso ha expirado. Redirigiendo a renovación...');
-                setTimeout(() => {
-                    navigate('/suscripcion-expirada');
-                }, 1500);
-            } else {
-                toast.success('Inicio de sesión exitoso');
-                navigate('/');
-            }
+            handleAuthSuccess({ ...response.data, username: loginData.username }, 'Inicio de sesión exitoso');
         } catch (err) {
-            const status = err.response?.status;
+            const httpStatus = err.response?.status;
             const detail = err.response?.data?.detail;
-
-            if (status === 403) {
-                toast.error(detail || 'Cuenta suspendida por el administrador.');
-            } else {
-                toast.error(detail || 'Usuario o contraseña incorrectos');
-            }
+            if (httpStatus === 403) toast.error(detail || 'Cuenta suspendida por el administrador.');
+            else toast.error(detail || 'Usuario o contraseña incorrectos');
         } finally {
             setLoading(false);
         }
@@ -401,20 +507,11 @@ const Login = ({ onLogin }) => {
     };
 
     const handleBiometricSuccess = (data) => {
-        localStorage.setItem('token', data.access_token);
-        localStorage.setItem('last_username', data.username);
+        handleAuthSuccess(data, '¡Bienvenido de vuelta!');
+    };
 
-        localStorage.setItem('user', JSON.stringify({
-            id:         data.user_id,
-            username:   data.username,
-            empresa_id: data.empresa_id,
-            rol:        data.rol,
-        }));
-
-        onLogin();
-
-        toast.success('¡Bienvenido de vuelta!');
-        navigate('/');
+    const handlePinSuccess = (data) => {
+        handleAuthSuccess(data, '¡Acceso con PIN exitoso!');
     };
 
     // ── Render ───────────────────────────────────────────────────────────────
@@ -617,11 +714,21 @@ const Login = ({ onLogin }) => {
                         )}
 
                         {isLoginView ? (
-                            <Box
-                                component="form"
-                                onSubmit={handleLoginSubmit}
-                                sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 2.5 }}
-                            >
+                            <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+
+                                {/* ─── Modo PIN ─── */}
+                                {pinMode && loginData.username ? (
+                                    <PinNumpad
+                                        username={loginData.username}
+                                        onSuccess={handlePinSuccess}
+                                        onCancel={() => setPinMode(false)}
+                                    />
+                                ) : (
+                                <Box
+                                    component="form"
+                                    onSubmit={handleLoginSubmit}
+                                    sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}
+                                >
                                 <TextField
                                     fullWidth label="Usuario" required sx={fieldSx}
                                     value={loginData.username}
@@ -650,10 +757,30 @@ const Login = ({ onLogin }) => {
                                     }}
                                 />
 
-                                <Box sx={{ textAlign: 'right', mt: -1 }}>
+                                {/* Recordar sesión + ¿Olvidaste tu contraseña? */}
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: -1 }}>
+                                    <FormControlLabel
+                                        control={
+                                            <Checkbox
+                                                checked={rememberMe}
+                                                onChange={e => setRememberMe(e.target.checked)}
+                                                size="small"
+                                                sx={{
+                                                    color: 'rgba(255,255,255,0.3)',
+                                                    '&.Mui-checked': { color: '#22c55e' },
+                                                    padding: '4px',
+                                                }}
+                                            />
+                                        }
+                                        label={
+                                            <Typography sx={{ fontSize: 12, color: '#64748b', fontWeight: 500 }}>
+                                                Recordar sesión
+                                            </Typography>
+                                        }
+                                    />
                                     <Typography
                                         onClick={() => toast.info('Para restablecer tu contraseña, contacta a tu administrador o escríbenos a soporte@ksmart360.com')}
-                                        sx={{ fontSize: 12, color: '#22c55e', cursor: 'pointer', fontWeight: 600, display: 'inline', '&:hover': { color: '#16a34a', textDecoration: 'underline' } }}
+                                        sx={{ fontSize: 12, color: '#22c55e', cursor: 'pointer', fontWeight: 600, '&:hover': { color: '#16a34a', textDecoration: 'underline' } }}
                                     >
                                         ¿Olvidaste tu contraseña?
                                     </Typography>
@@ -691,9 +818,30 @@ const Login = ({ onLogin }) => {
                                     modo="login"
                                     username={loginData.username}
                                     onSuccess={handleBiometricSuccess}
+                                    onCredentialLost={() => {/* simplemente oculta el botón sin reload */}}
                                 />
 
-                                <Typography sx={{ mt: 1.5, color: '#94a3b8', fontSize: 13, textAlign: 'center' }}>
+                                {/* Acceso rápido por PIN */}
+                                {localStorage.getItem('pin_configured') === 'true' && loginData.username && (
+                                    <>
+                                        <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)', my: -0.5 }}>
+                                            <Typography sx={{ fontSize: 11, color: '#475569', px: 1 }}>o</Typography>
+                                        </Divider>
+                                        <Button
+                                            variant="text"
+                                            startIcon={<Pin />}
+                                            onClick={() => setPinMode(true)}
+                                            sx={{
+                                                color: '#64748b', fontSize: 12, fontWeight: 600,
+                                                '&:hover': { color: '#10B981', bgcolor: 'rgba(16,185,129,0.06)' },
+                                            }}
+                                        >
+                                            Ingresar con PIN
+                                        </Button>
+                                    </>
+                                )}
+
+                                <Typography sx={{ mt: 1, color: '#94a3b8', fontSize: 13, textAlign: 'center' }}>
                                     ¿No tienes una cuenta?{' '}
                                     <span
                                         onClick={switchToRegister}
@@ -702,6 +850,8 @@ const Login = ({ onLogin }) => {
                                         Regístrate gratis
                                     </span>
                                 </Typography>
+                                </Box>
+                                )}
                             </Box>
                         ) : (
                             <Box

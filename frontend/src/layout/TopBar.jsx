@@ -1,20 +1,22 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  Box, Typography, IconButton, Tooltip, Avatar, Menu, MenuItem, Button
+  Box, Typography, IconButton, Tooltip, Avatar, Menu, MenuItem, Button, Divider,
 } from '@mui/material';
 import {
   Logout as LogoutIcon, Menu as MenuIcon, MoreVert as MoreVertIcon,
-  LightMode, DarkMode
+  LightMode, DarkMode, Security,
 } from '@mui/icons-material';
 import { useLocation } from 'react-router-dom';
 import { ADMIN_MODULES, MODULE_ICONS } from '../utils/modulesConfig';
 import Notifications from '../components/common/Notifications';
+import SecurityDialog from '../components/common/SecurityDialog';
 
 const SIDEBAR_FULL = 240;
 const SIDEBAR_MINI = 68;
 const ACCENT       = '#FF6020';
 
 const TopBar = ({ sidebarExpanded, isMobile, onMobileMenuOpen, mode, onThemeToggle, onLogout, user, anchorEl, openMenu, onMenuOpen, onMenuClose }) => {
+  const [securityOpen, setSecurityOpen] = useState(false);
   const location = useLocation();
   const path = location.pathname;
   const adminItem = ADMIN_MODULES.find(i => path === i.path);
@@ -82,25 +84,48 @@ const TopBar = ({ sidebarExpanded, isMobile, onMobileMenuOpen, mode, onThemeTogg
                 <LogoutIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 1, pl: 1.5, pr: 2, py: 0.75, borderRadius: 3, backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#F4F6F9', border: `1px solid ${mode === 'dark' ? 'rgba(255,255,255,0.08)' : '#E5E7EB'}` }}>
-              <Avatar sx={{ width: 26, height: 26, background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`, fontSize: 11, fontWeight: 700 }}>
-                {user?.username?.[0]?.toUpperCase()}
-              </Avatar>
-              <Typography sx={{ fontSize: 13, fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif", color: mode === 'dark' ? '#e2e8f0' : '#374151' }}>{user?.username}</Typography>
-            </Box>
+            <Tooltip title="Seguridad de la cuenta">
+              <Box
+                onClick={() => setSecurityOpen(true)}
+                sx={{
+                  display: 'flex', alignItems: 'center', gap: 1, ml: 1,
+                  pl: 1.5, pr: 2, py: 0.75, borderRadius: 3, cursor: 'pointer',
+                  backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#F4F6F9',
+                  border: `1px solid ${mode === 'dark' ? 'rgba(255,255,255,0.08)' : '#E5E7EB'}`,
+                  transition: 'all 0.18s ease',
+                  '&:hover': {
+                    backgroundColor: mode === 'dark' ? 'rgba(255,96,32,0.1)' : 'rgba(255,96,32,0.06)',
+                    borderColor: 'rgba(255,96,32,0.35)',
+                  },
+                }}
+              >
+                <Avatar sx={{ width: 26, height: 26, background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`, fontSize: 11, fontWeight: 700 }}>
+                  {user?.username?.[0]?.toUpperCase()}
+                </Avatar>
+                <Typography sx={{ fontSize: 13, fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif", color: mode === 'dark' ? '#e2e8f0' : '#374151' }}>
+                  {user?.username}
+                </Typography>
+              </Box>
+            </Tooltip>
           </>
         )}
-        
+
         {isMobile && (
           <>
             <IconButton onClick={onMenuOpen} size="small"><MoreVertIcon /></IconButton>
-            <Menu anchorEl={anchorEl} open={openMenu} onClose={onMenuClose} PaperProps={{ sx: { mt: 1, minWidth: 160, borderRadius: 2 } }}>
+            <Menu anchorEl={anchorEl} open={openMenu} onClose={onMenuClose} PaperProps={{ sx: { mt: 1, minWidth: 180, borderRadius: 2 } }}>
+              <MenuItem onClick={() => { setSecurityOpen(true); onMenuClose(); }}>
+                <Security fontSize="small" sx={{ mr: 1.5, color: '#FF6020' }} /> Seguridad
+              </MenuItem>
+              <Divider />
               <MenuItem onClick={() => { onLogout(); onMenuClose(); }} sx={{ color: 'error.main' }}>
                 <LogoutIcon fontSize="small" sx={{ mr: 1.5 }} /> Cerrar sesión
               </MenuItem>
             </Menu>
           </>
         )}
+
+        <SecurityDialog open={securityOpen} onClose={() => setSecurityOpen(false)} user={user} />
       </Box>
     </Box>
   );

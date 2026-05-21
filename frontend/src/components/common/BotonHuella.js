@@ -19,9 +19,10 @@ export default function BotonHuella({
   username = null,
   onSuccess,
   onError,
+  onCredentialLost,           // callback cuando la credencial ya no existe
   label,
   size = 80,
-  hideIfUnsupported = true,   // si el dispositivo no soporta, no se renderiza
+  hideIfUnsupported = true,
 }) {
   const {
     isSupported,
@@ -66,11 +67,9 @@ export default function BotonHuella({
         errMsg.includes('no se encontró') ||
         err.response?.status === 401  // backend dijo "esta credencial no existe"
         ) {
-            // Solo quitamos la bandera si fue error real, no cancelación del usuario
             if (!errMsg.toLowerCase().includes('cancel')) {
-            localStorage.removeItem('biometric_enabled');
-            // Forzar re-render del padre para ocultar el botón
-            window.location.reload();
+              localStorage.removeItem('biometric_enabled');
+              onCredentialLost?.();  // el padre decide cómo reaccionar, sin recarga forzada
             }
         }
 

@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -10,12 +10,15 @@ from sqlalchemy.exc import IntegrityError
 import crud
 import models
 import schemas
-from api.deps import get_db
+from api.deps import get_db, get_current_active_user
 from core import security
 from core.config import ACCESS_TOKEN_EXPIRE_MINUTES, PERFILES
 
 router = APIRouter()
 logger = logging.getLogger("auth")
+
+PIN_MAX_ATTEMPTS = 5
+PIN_LOCKOUT_MINUTES = 15
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def registrar_nuevo_cliente(data: schemas.RegistroSaaS, db: Session = Depends(get_db)):
@@ -96,6 +99,7 @@ def registrar_nuevo_cliente(data: schemas.RegistroSaaS, db: Session = Depends(ge
 @router.post("/token")
 def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
+    remember_me: bool = Query(default=False),
     db: Session = Depends(get_db)
 ):
     user = crud.get_user_by_username(db, username=form_data.username)
@@ -142,7 +146,8 @@ def login_for_access_token(
         if ahora_utc > fecha_limite:
             is_expired = True
 
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    # remember_me: 30 días. Sesión normal: ACCESS_TOKEN_EXPIRE_MINUTES (defecto 120 min)
+    access_token_expires = timedelta(days=30) if remember_me else timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = security.create_access_token(
         data={
             "sub": user.username,
@@ -157,4 +162,105 @@ def login_for_access_token(
         "access_token": access_token,
         "token_type": "bearer",
         "is_expired": is_expired
+    }
+
+
+# ─── PIN de acceso rápido ────────────────────────────────────────────────────
+
+@router.post("/pin/set", status_code=200)
+def set_pin(
+    data: schemas.PinSetRequest,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Establece o cambia el PIN del usuario autenticado."""
+    pin = data.pin.strip()
+    if not pin.isdigit() or not (4 <= len(pin) <= 6):
+        raise HTTPException(400, "El PIN debe tener entre 4 y 6 dígitos numéricos.")
+    current_user.pin_hash = security.get_password_hash(pin)
+    current_user.pin_attempts = 0
+    current_user.pin_locked_until = None
+    db.commit()
+    return {"message": "PIN configurado correctamente."}
+
+
+@router.delete("/pin", status_code=200)
+def remove_pin(
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Elimina el PIN del usuario autenticado."""
+    current_user.pin_hash = None
+    current_user.pin_attempts = 0
+    current_user.pin_locked_until = None
+    db.commit()
+    return {"message": "PIN eliminado."}
+
+
+@router.post("/pin/verify")
+def verify_pin(
+    data: schemas.PinVerifyRequest,
+    db: Session = Depends(get_db),
+):
+    """Verifica el PIN y retorna un JWT completo (sin necesidad de contraseña)."""
+    user = db.query(models.User).filter(
+        (models.User.username == data.username) | (models.User.email == data.username)
+    ).first()
+    if not user or not user.is_active or not user.pin_hash:
+        raise HTTPException(401, "PIN no configurado o usuario no encontrado.")
+
+    # Verificar bloqueo por intentos fallidos
+    now = datetime.now(timezone.utc)
+    if user.pin_locked_until:
+        locked = user.pin_locked_until
+        if locked.tzinfo is None:
+            locked = locked.replace(tzinfo=timezone.utc)
+        if now < locked:
+            segundos = int((locked - now).total_seconds())
+            raise HTTPException(429, f"PIN bloqueado. Intenta en {segundos // 60 + 1} minuto(s).")
+
+    if not security.verify_password(data.pin, user.pin_hash):
+        user.pin_attempts = (user.pin_attempts or 0) + 1
+        if user.pin_attempts >= PIN_MAX_ATTEMPTS:
+            user.pin_locked_until = now + timedelta(minutes=PIN_LOCKOUT_MINUTES)
+            user.pin_attempts = 0
+            db.commit()
+            raise HTTPException(429, f"Demasiados intentos. PIN bloqueado por {PIN_LOCKOUT_MINUTES} minutos.")
+        db.commit()
+        restantes = PIN_MAX_ATTEMPTS - user.pin_attempts
+        raise HTTPException(401, f"PIN incorrecto. {restantes} intento(s) restante(s).")
+
+    # PIN correcto — resetear intentos
+    user.pin_attempts = 0
+    user.pin_locked_until = None
+    db.commit()
+
+    if not user.empresa_id or not user.empresa:
+        raise HTTPException(403, "El usuario no está vinculado a ninguna empresa válida.")
+
+    is_expired = False
+    empresa = user.empresa
+    if empresa.trial_ends_at and user.empresa_id != 1:
+        fecha_limite = empresa.trial_ends_at
+        if fecha_limite.tzinfo is None:
+            fecha_limite = fecha_limite.replace(tzinfo=timezone.utc)
+        if now > fecha_limite:
+            is_expired = True
+
+    access_token = security.create_access_token(data={
+        "sub":        user.username,
+        "role":       user.role.name if user.role else "User",
+        "empresa_id": user.empresa_id,
+        "modules":    [m.frontend_path for m in user.role.modules] if user.role else [],
+    })
+
+    return {
+        "access_token":    access_token,
+        "token_type":      "bearer",
+        "user_id":         user.id,
+        "username":        user.username,
+        "empresa_id":      user.empresa_id,
+        "rol":             user.role.name if user.role else None,
+        "nombre_completo": user.nombre_completo,
+        "is_expired":      is_expired,
     }

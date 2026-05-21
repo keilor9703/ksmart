@@ -232,8 +232,8 @@ def biometric_login_verify(
     create_access_token_func,
 ) -> dict:
     """
-    Verifica la firma del navegador. Si es válida, devuelve el JWT.
-    create_access_token_func se inyecta desde el endpoint para no acoplar.
+    Verifica la firma del navegador. Si es válida, devuelve el JWT completo
+    (con role, empresa_id y modules) — idéntico al login por contraseña.
     """
     raw_cred_id = payload.credential.get('rawId') or payload.credential.get('id')
     if not raw_cred_id:
@@ -277,17 +277,37 @@ def biometric_login_verify(
         raise HTTPException(404, "Usuario no encontrado.")
     if not user.is_active:
         raise HTTPException(403, "Tu cuenta está desactivada.")
+    if not user.empresa_id or not user.empresa:
+        raise HTTPException(403, "El usuario no está vinculado a ninguna empresa válida.")
 
-    access_token = create_access_token_func(data={"sub": user.username})
+    # Verificar expiración de suscripción (igual que login por contraseña)
+    is_expired = False
+    empresa = user.empresa
+    if empresa.trial_ends_at and user.empresa_id != 1:
+        fecha_limite = empresa.trial_ends_at
+        if fecha_limite.tzinfo is None:
+            fecha_limite = fecha_limite.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) > fecha_limite:
+            is_expired = True
+
+    # JWT completo con role, empresa_id y modules — igual que login por contraseña
+    access_token = create_access_token_func(data={
+        "sub":        user.username,
+        "role":       user.role.name if user.role else "User",
+        "empresa_id": user.empresa_id,
+        "modules":    [m.frontend_path for m in user.role.modules] if user.role else [],
+    })
 
     return {
-        "access_token": access_token,
-        "token_type":   "bearer",
-        "user_id":      user.id,
-        "username":     user.username,
-        "empresa_id":   user.empresa_id,
-        "rol":          user.role.name if getattr(user, 'role', None) else None,
-        "device_name":  cred.device_name,
+        "access_token":   access_token,
+        "token_type":     "bearer",
+        "user_id":        user.id,
+        "username":       user.username,
+        "empresa_id":     user.empresa_id,
+        "rol":            user.role.name if user.role else None,
+        "nombre_completo": user.nombre_completo,
+        "device_name":    cred.device_name,
+        "is_expired":     is_expired,
     }
 
 
