@@ -737,9 +737,11 @@ const Ventas = ({ user }) => {
                             { title: 'Agrega productos', description: 'Escanea el código de barras o escribe el nombre. Usa los botones + / − para ajustar cantidades.' },
                             { title: 'Aplica descuentos', description: 'Cada producto tiene un campo "Desc. %" donde puedes reducir su precio de forma individual.' },
                             { title: 'Elige el método de pago', description: 'Selecciona Efectivo, Transferencia, Tarjeta o "Por Cobrar" para registrar ventas a crédito.' },
-                            { title: 'Registra la venta', description: 'Haz clic en "Registrar Venta" y el sistema descuenta el stock y guarda la transacción automáticamente.' },
+                            { title: 'Registra la venta', description: 'Haz clic en "Registrar Venta" o presiona Ctrl + Enter para guardar. El sistema descuenta el stock automáticamente.' },
+                            { title: 'Atajos de teclado', description: 'Ctrl + Enter: registrar venta. Enter en el campo de código de barras: agregar producto al carrito. Estos atajos agilizan el proceso en caja.' },
                         ]}
                         faqItems={[
+                            { q: '¿Qué atajos de teclado están disponibles?', a: 'Ctrl + Enter (o Cmd + Enter en Mac): registra la venta sin usar el mouse. Enter en el campo de código de barras: agrega el producto al carrito inmediatamente. Estos atajos están activos siempre que estés en la pestaña de nueva venta.' },
                             { q: '¿Cómo registro una venta a crédito?', a: 'Selecciona "Por Cobrar" como método de pago. La venta queda registrada como deuda del cliente y aparece en "Cartera pendiente". Puedes gestionarla desde el historial.' },
                             { q: '¿Puedo aplicar un descuento en la venta?', a: 'Sí, cada producto en el carrito tiene un campo "Desc. %" donde puedes ingresar un porcentaje de descuento individual. El total se recalcula automáticamente.' },
                             { q: '¿Qué pasa con el stock al registrar una venta?', a: 'El stock se descuenta automáticamente al registrar. Si un producto tiene stock bajo o insuficiente para la cantidad pedida, verás una alerta en el carrito.' },
