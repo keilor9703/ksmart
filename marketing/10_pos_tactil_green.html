@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1200">
+<title>KSmart360 - POS Táctil</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { width:1200px; height:628px; font-family:'Segoe UI',system-ui,sans-serif; overflow:hidden; }
+  .slide { width:1200px; height:628px; background:#fff; display:flex; position:relative; overflow:hidden; }
+
+  /* Left panel verde */
+  .panel {
+    width:380px; height:100%;
+    background:linear-gradient(160deg,#059669 0%,#10B981 55%,#34d399 100%);
+    padding:48px 40px; display:flex; flex-direction:column; justify-content:center;
+    flex-shrink:0; position:relative; overflow:hidden;
+  }
+  .panel::before { content:''; position:absolute; top:-50px; right:-50px; width:180px; height:180px; border-radius:50%; background:rgba(255,255,255,0.07); }
+  .panel::after  { content:''; position:absolute; bottom:-40px; left:-40px; width:160px; height:160px; border-radius:50%; background:rgba(255,255,255,0.05); }
+
+  .num { font-size:56px; font-weight:900; color:rgba(255,255,255,0.12); line-height:1; margin-bottom:-8px; }
+  h2 { font-size:36px; font-weight:900; color:#fff; line-height:1.1; margin-bottom:10px; }
+  .tagline { font-size:14px; color:rgba(255,255,255,0.82); line-height:1.65; margin-bottom:28px; }
+
+  .feat-list { display:flex; flex-direction:column; gap:13px; }
+  .feat { display:flex; align-items:flex-start; gap:12px; }
+  .feat-ico { width:36px; height:36px; border-radius:10px; background:rgba(255,255,255,0.14); display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+  .feat-title { font-size:13px; font-weight:800; color:#fff; }
+  .feat-desc  { font-size:11px; color:rgba(255,255,255,0.7); line-height:1.4; }
+
+  /* Right */
+  .right { flex:1; display:flex; flex-direction:column; justify-content:center; padding:28px 36px 28px 28px; position:relative; }
+
+  .screen-label {
+    display:inline-flex; align-items:center; gap:6px;
+    background:#f0fdf4; border:1px solid #a7f3d0; border-radius:100px;
+    padding:5px 14px; margin-bottom:14px; width:fit-content;
+    font-size:11px; font-weight:700; color:#059669;
+  }
+
+  /* Laptop mockup horizontal */
+  .laptop-wrap { position:relative; }
+  .screen-frame {
+    background:#0d1117; border-radius:12px; padding:8px;
+    border:2px solid #1e2633;
+    box-shadow:0 20px 48px rgba(0,0,0,0.18), 0 0 0 1px rgba(16,185,129,0.08);
+  }
+  .cam-dot { width:7px; height:7px; border-radius:50%; background:#2d3748; margin:0 auto 7px; }
+  .screen-img { border-radius:6px; overflow:hidden; }
+  .screen-img img { width:100%; display:block; height:340px; object-fit:cover; object-position:top; }
+
+  /* Bottom metrics */
+  .bottom-metrics { display:flex; gap:12px; margin-top:16px; }
+  .bm { flex:1; background:#f0fdf4; border:1px solid #a7f3d0; border-radius:12px; padding:12px 14px; }
+  .bm-icon { font-size:18px; margin-bottom:4px; }
+  .bm-val { font-size:16px; font-weight:900; color:#059669; }
+  .bm-label { font-size:10px; color:#6b7280; margin-top:1px; }
+
+  /* Speed badge */
+  .speed-badge {
+    position:absolute; top:-12px; right:16px;
+    background:linear-gradient(135deg,#FF6020,#FF8C42); border-radius:100px;
+    padding:7px 16px; box-shadow:0 4px 16px rgba(255,96,32,0.35);
+    font-size:12px; font-weight:800; color:#fff;
+  }
+
+  .watermark { position:absolute; bottom:14px; right:36px; font-size:11px; color:#d1d5db; font-weight:600; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="panel">
+    <div class="num">POS</div>
+    <h2>Punto de venta<br>táctil y rápido</h2>
+    <p class="tagline">Dos modos adaptables: Táctil para pantallas y Teclado para digitación rápida. Cambia sin reiniciar.</p>
+
+    <div class="feat-list">
+      <div class="feat">
+        <div class="feat-ico">🎯</div>
+        <div>
+          <div class="feat-title">Modo Táctil con categorías</div>
+          <div class="feat-desc">Productos organizados por grupo con visual grande. Perfecto para pantallas táctiles.</div>
+        </div>
+      </div>
+      <div class="feat">
+        <div class="feat-ico">⌨️</div>
+        <div>
+          <div class="feat-title">Modo Teclado + escáner</div>
+          <div class="feat-desc">Búsqueda por nombre, código de barras o cámara. Tecla Ctrl+Enter para registrar.</div>
+        </div>
+      </div>
+      <div class="feat">
+        <div class="feat-ico">🧾</div>
+        <div>
+          <div class="feat-title">Carrito inteligente</div>
+          <div class="feat-desc">Múltiples productos, descuentos por ítem, IVA configurable, cambio automático.</div>
+        </div>
+      </div>
+      <div class="feat">
+        <div class="feat-ico">💳</div>
+        <div>
+          <div class="feat-title">Pagos mixtos</div>
+          <div class="feat-desc">Efectivo + transferencia + tarjeta en una misma venta. Saldo por cobrar opcional.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="screen-label">📺 Vista real del sistema</div>
+    <div class="laptop-wrap">
+      <div class="screen-frame">
+        <div class="cam-dot"></div>
+        <div class="screen-img">
+          <img src="screens/pos_tactil.jpg" alt="KSmart360 POS Táctil" />
+        </div>
+      </div>
+      <div class="speed-badge">⚡ Venta en menos de 10 segundos</div>
+    </div>
+    <div class="bottom-metrics">
+      <div class="bm">
+        <div class="bm-icon">📦</div>
+        <div class="bm-val">Categorías dinámicas</div>
+        <div class="bm-label">Materia Prima, Producto Terminado y más</div>
+      </div>
+      <div class="bm">
+        <div class="bm-icon">🔄</div>
+        <div class="bm-val">Stock en tiempo real</div>
+        <div class="bm-label">Se descuenta automáticamente al vender</div>
+      </div>
+      <div class="bm">
+        <div class="bm-icon">🧾</div>
+        <div class="bm-val">Recibo por WhatsApp</div>
+        <div class="bm-label">Al cerrar la venta, directo al cliente</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="watermark">ksmart360.com</div>
+</div>
+</body>
+</html>

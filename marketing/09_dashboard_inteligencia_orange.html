@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1200">
+<title>KSmart360 - Dashboard</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { width:1200px; height:628px; font-family:'Segoe UI',system-ui,sans-serif; overflow:hidden; }
+  .slide { width:1200px; height:628px; background:#fff7ed; display:flex; position:relative; overflow:hidden; }
+
+  .bg-dots {
+    position:absolute; inset:0; opacity:0.35;
+    background-image:radial-gradient(#FF6020 1px,transparent 1px);
+    background-size:28px 28px;
+  }
+  .glow { position:absolute; top:-60px; right:260px; width:500px; height:500px; border-radius:50%; background:radial-gradient(circle,rgba(255,96,32,0.1) 0%,transparent 65%); }
+
+  /* Left: laptop screenshot */
+  .left { width:640px; padding:32px 0 32px 40px; display:flex; align-items:center; justify-content:center; position:relative; z-index:2; flex-shrink:0; }
+
+  .laptop { position:relative; width:580px; }
+  .laptop-screen-wrap {
+    background:#0d1117; border-radius:14px 14px 0 0; padding:10px;
+    border:2px solid rgba(255,255,255,0.1);
+    box-shadow:0 32px 64px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,96,32,0.1);
+  }
+  .laptop-cam { width:8px; height:8px; border-radius:50%; background:#2d3748; margin:0 auto 8px; }
+  .laptop-screen { border-radius:6px; overflow:hidden; aspect-ratio:16/9; }
+  .laptop-screen img { width:100%; height:100%; object-fit:cover; display:block; }
+  .laptop-hinge { height:8px; background:linear-gradient(180deg,#1a2030,#0f1420); border-radius:0 0 4px 4px; }
+  .laptop-base { height:14px; background:linear-gradient(180deg,#151c27,#0d1117); margin:0 -20px; border-radius:0 0 6px 6px; box-shadow:0 4px 20px rgba(0,0,0,0.3); }
+
+  /* Floating metric cards over laptop */
+  .float-card {
+    position:absolute; background:#fff; border-radius:14px; padding:12px 16px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.12); border:1px solid rgba(255,96,32,0.12);
+    z-index:10;
+  }
+  .fc-label { font-size:9px; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; }
+  .fc-val { font-size:18px; font-weight:900; }
+  .fc-sub { font-size:10px; font-weight:600; margin-top:2px; }
+  .fc1 { top:30px; right:-20px; }
+  .fc2 { bottom:70px; right:-30px; }
+  .fc3 { bottom:70px; left:10px; }
+
+  /* Right: content */
+  .right { flex:1; padding:44px 44px 44px 20px; display:flex; flex-direction:column; justify-content:center; position:relative; z-index:2; }
+
+  .num-badge {
+    width:52px; height:52px; border-radius:16px;
+    background:linear-gradient(135deg,#FF6020,#FF8C42);
+    display:flex; align-items:center; justify-content:center;
+    font-size:24px; font-weight:900; color:#fff; margin-bottom:20px;
+    box-shadow:0 8px 20px rgba(255,96,32,0.3);
+  }
+  h2 { font-size:36px; font-weight:900; color:#111827; line-height:1.1; margin-bottom:10px; }
+  h2 span { color:#FF6020; }
+  .sub { font-size:14px; color:#6b7280; line-height:1.65; margin-bottom:28px; }
+
+  .kpis { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:24px; }
+  .kpi { background:#fff; border-radius:14px; padding:14px 16px; border:1px solid #fee2cc; box-shadow:0 2px 8px rgba(255,96,32,0.06); }
+  .kpi-icon { font-size:20px; margin-bottom:6px; }
+  .kpi-val { font-size:18px; font-weight:900; color:#111827; }
+  .kpi-label { font-size:11px; color:#9ca3af; margin-top:2px; }
+  .kpi-trend { font-size:11px; font-weight:700; color:#10B981; margin-top:3px; }
+
+  .highlights { display:flex; flex-direction:column; gap:10px; }
+  .hl { display:flex; align-items:center; gap:10px; }
+  .hl-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .hl-text { font-size:13px; color:#374151; font-weight:500; }
+  .hl-text strong { color:#111827; }
+
+  .watermark { position:absolute; bottom:14px; right:44px; font-size:11px; color:#fcd5b0; font-weight:600; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="bg-dots"></div>
+  <div class="glow"></div>
+
+  <div class="left">
+    <div class="laptop">
+      <div class="laptop-screen-wrap">
+        <div class="laptop-cam"></div>
+        <div class="laptop-screen">
+          <img src="screens/dashboard.jpg" alt="KSmart360 Dashboard" />
+        </div>
+      </div>
+      <div class="laptop-hinge"></div>
+      <div class="laptop-base"></div>
+
+      <!-- Floating metric cards -->
+      <div class="float-card fc1">
+        <div class="fc-label">Ventas 30 días</div>
+        <div class="fc-val" style="color:#FF6020">$1.385.405</div>
+        <div class="fc-sub" style="color:#10B981">🏆 Mejor: $529.333</div>
+      </div>
+      <div class="float-card fc2">
+        <div class="fc-label">Por cobrar</div>
+        <div class="fc-val" style="color:#EF4444">$309.000</div>
+        <div class="fc-sub" style="color:#6b7280">3 clientes</div>
+      </div>
+      <div class="float-card fc3">
+        <div class="fc-label">Precio cacao</div>
+        <div class="fc-val" style="color:#D97706">$13.963</div>
+        <div class="fc-sub" style="color:#6b7280">COP/kg · FEPCACAO</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="num-badge">📊</div>
+    <h2>Tu negocio en una<br><span>sola pantalla</span></h2>
+    <p class="sub">Dashboard en tiempo real con los indicadores más importantes — ventas, caja, inventario, cartera y precios de mercado.</p>
+
+    <div class="kpis">
+      <div class="kpi">
+        <div class="kpi-icon">💰</div>
+        <div class="kpi-val">$1.385.405</div>
+        <div class="kpi-label">Ventas últimos 30 días</div>
+        <div class="kpi-trend">↑ Gráfico en tiempo real</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-icon">⚠️</div>
+        <div class="kpi-val">15 alertas</div>
+        <div class="kpi-label">Productos bajo stock mínimo</div>
+        <div class="kpi-trend" style="color:#FF6020">Notificación automática</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-icon">🏦</div>
+        <div class="kpi-val">Caja actual</div>
+        <div class="kpi-label">Efectivo + transferencia separados</div>
+        <div class="kpi-trend">Cierre diario automático</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-icon">🌐</div>
+        <div class="kpi-val">Precio cacao</div>
+        <div class="kpi-label">FEPCACAO + Bolsa ICE NY</div>
+        <div class="kpi-trend">Actualizado 2 veces al día</div>
+      </div>
+    </div>
+
+    <div class="highlights">
+      <div class="hl"><div class="hl-dot" style="background:#FF6020"></div><span class="hl-text"><strong>Acceso rápido</strong> a todos los módulos desde inicio</span></div>
+      <div class="hl"><div class="hl-dot" style="background:#10B981"></div><span class="hl-text"><strong>Widgets personalizados</strong> según el rol del usuario</span></div>
+      <div class="hl"><div class="hl-dot" style="background:#7C3AED"></div><span class="hl-text"><strong>Datos en vivo</strong> — se actualiza sin recargar la página</span></div>
+    </div>
+  </div>
+
+  <div class="watermark">ksmart360.com</div>
+</div>
+</body>
+</html>

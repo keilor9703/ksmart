@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1200">
+<title>KSmart360 - Login & Seguridad</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { width:1200px; height:628px; font-family:'Segoe UI',system-ui,sans-serif; overflow:hidden; }
+  .slide {
+    width:1200px; height:628px; background:#060b14;
+    display:flex; position:relative; overflow:hidden;
+  }
+
+  /* Fondo animado */
+  .bg-grid {
+    position:absolute; inset:0;
+    background-image: linear-gradient(rgba(16,185,129,0.04) 1px,transparent 1px),
+                      linear-gradient(90deg,rgba(16,185,129,0.04) 1px,transparent 1px);
+    background-size:48px 48px;
+  }
+  .glow-tl { position:absolute; top:-120px; left:-80px; width:420px; height:420px; border-radius:50%; background:radial-gradient(circle,rgba(255,96,32,0.14) 0%,transparent 65%); }
+  .glow-br { position:absolute; bottom:-100px; right:200px; width:380px; height:380px; border-radius:50%; background:radial-gradient(circle,rgba(16,185,129,0.1) 0%,transparent 65%); }
+
+  /* Left */
+  .left { width:460px; padding:52px 50px; display:flex; flex-direction:column; justify-content:center; position:relative; z-index:2; flex-shrink:0; }
+
+  .badge {
+    display:inline-flex; align-items:center; gap:7px;
+    background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.3);
+    border-radius:100px; padding:6px 16px; margin-bottom:24px; width:fit-content;
+    font-size:11px; font-weight:700; color:#34d399; text-transform:uppercase; letter-spacing:1px;
+  }
+  .pulse { width:7px; height:7px; border-radius:50%; background:#34d399; animation:pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
+
+  h1 { font-size:44px; font-weight:900; color:#f1f5f9; line-height:1.05; margin-bottom:16px; }
+  h1 .accent { color:#FF6020; }
+  .sub { font-size:15px; color:#64748b; line-height:1.7; margin-bottom:32px; }
+
+  .feats { display:flex; flex-direction:column; gap:14px; margin-bottom:32px; }
+  .feat { display:flex; align-items:flex-start; gap:14px; }
+  .feat-icon {
+    width:38px; height:38px; border-radius:12px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-size:17px;
+  }
+  .fi-green { background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.2); }
+  .fi-orange { background:rgba(255,96,32,0.12); border:1px solid rgba(255,96,32,0.2); }
+  .fi-purple { background:rgba(124,58,237,0.12); border:1px solid rgba(124,58,237,0.2); }
+  .fi-blue   { background:rgba(59,130,246,0.12); border:1px solid rgba(59,130,246,0.2); }
+
+  .feat-title { font-size:13px; font-weight:800; color:#e2e8f0; }
+  .feat-desc  { font-size:11px; color:#64748b; line-height:1.4; }
+
+  .divider { height:1px; background:linear-gradient(90deg,rgba(255,255,255,0.06),rgba(255,255,255,0.12),rgba(255,255,255,0.06)); margin-bottom:20px; }
+
+  .trust { display:flex; gap:20px; }
+  .trust-item { display:flex; align-items:center; gap:6px; }
+  .trust-dot { width:6px; height:6px; border-radius:50%; }
+  .trust-text { font-size:11px; color:#475569; font-weight:600; }
+
+  /* Right: laptop mockup */
+  .right { flex:1; display:flex; align-items:center; justify-content:center; position:relative; z-index:2; padding:20px 32px 20px 0; }
+
+  .laptop { position:relative; width:600px; }
+  .laptop-screen-wrap {
+    background:#1a1f2e; border-radius:12px 12px 0 0; padding:10px;
+    border:2px solid #2d3748; box-shadow:0 0 60px rgba(16,185,129,0.08),0 24px 48px rgba(0,0,0,0.5);
+  }
+  .laptop-notch {
+    width:60px; height:6px; background:#2d3748; border-radius:100px;
+    margin:0 auto 8px;
+  }
+  .laptop-screen {
+    border-radius:6px; overflow:hidden; aspect-ratio:16/9;
+    border:1px solid rgba(255,255,255,0.04);
+  }
+  .laptop-screen img { width:100%; height:100%; object-fit:cover; display:block; }
+  .laptop-base-top { height:10px; background:linear-gradient(180deg,#2d3748,#252d3d); border-radius:0 0 4px 4px; }
+  .laptop-base {
+    height:16px; background:linear-gradient(180deg,#1e2633,#151c27);
+    margin:-2px -24px 0; border-radius:0 0 8px 8px;
+    box-shadow:0 6px 24px rgba(0,0,0,0.4);
+  }
+
+  /* Corner badge */
+  .corner-badge {
+    position:absolute; top:20px; right:10px;
+    background:rgba(16,185,129,0.9); backdrop-filter:blur(10px);
+    border-radius:12px; padding:10px 14px;
+    box-shadow:0 4px 20px rgba(16,185,129,0.3);
+  }
+  .cb-label { font-size:9px; font-weight:700; color:rgba(255,255,255,0.7); text-transform:uppercase; letter-spacing:0.8px; }
+  .cb-val { font-size:16px; font-weight:900; color:#fff; }
+
+  .watermark { position:absolute; bottom:14px; left:52px; font-size:11px; color:#1e293b; font-weight:600; z-index:3; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="bg-grid"></div>
+  <div class="glow-tl"></div>
+  <div class="glow-br"></div>
+
+  <div class="left">
+    <div class="badge"><div class="pulse"></div>Acceso seguro</div>
+    <h1>Seguridad<br>de <span class="accent">nivel</span><br>empresarial</h1>
+    <p class="sub">Múltiples capas de protección para que solo las personas correctas accedan al sistema correcto.</p>
+
+    <div class="feats">
+      <div class="feat">
+        <div class="feat-icon fi-green">🫆</div>
+        <div>
+          <div class="feat-title">Huella dactilar & Face ID (WebAuthn FIDO2)</div>
+          <div class="feat-desc">Registro biométrico por dispositivo. Sin contraseña después del primer login.</div>
+        </div>
+      </div>
+      <div class="feat">
+        <div class="feat-icon fi-orange">🔑</div>
+        <div>
+          <div class="feat-title">PIN de acceso rápido</div>
+          <div class="feat-desc">4-6 dígitos con bloqueo automático tras 5 intentos fallidos. Ideal para cajeros.</div>
+        </div>
+      </div>
+      <div class="feat">
+        <div class="feat-icon fi-purple">🛡️</div>
+        <div>
+          <div class="feat-title">Roles y permisos granulares</div>
+          <div class="feat-desc">Cada usuario solo ve y opera los módulos que le corresponden.</div>
+        </div>
+      </div>
+      <div class="feat">
+        <div class="feat-icon fi-blue">⏰</div>
+        <div>
+          <div class="feat-title">Recordar sesión 30 días</div>
+          <div class="feat-desc">El cajero no necesita autenticarse cada día. Control desde administración.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="trust">
+      <div class="trust-item"><div class="trust-dot" style="background:#34d399"></div><span class="trust-text">JWT firmado</span></div>
+      <div class="trust-item"><div class="trust-dot" style="background:#FF6020"></div><span class="trust-text">HTTPS obligatorio</span></div>
+      <div class="trust-item"><div class="trust-dot" style="background:#7C3AED"></div><span class="trust-text">bcrypt passwords</span></div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="laptop">
+      <div class="laptop-screen-wrap">
+        <div class="laptop-notch"></div>
+        <div class="laptop-screen">
+          <img src="screens/login.jpg" alt="KSmart360 Login" />
+        </div>
+      </div>
+      <div class="laptop-base-top"></div>
+      <div class="laptop-base"></div>
+      <div class="corner-badge">
+        <div class="cb-label">Multi-tenant</div>
+        <div class="cb-val">SaaS</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="watermark">ksmart360.com · Powered by KSMP Systems</div>
+</div>
+</body>
+</html>
