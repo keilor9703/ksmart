@@ -5,7 +5,7 @@ import {
   Autocomplete, useMediaQuery, InputAdornment, Tooltip, Divider, CircularProgress,
   TableSortLabel, TablePagination, LinearProgress,
 } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import { useTheme, alpha } from '@mui/material/styles';
 import {
   Inventory2Outlined, Refresh, Download, TrendingUp, TrendingDown,
   Search, BarChart, ReceiptLong, AttachMoney, WarningAmber, CheckCircle,
@@ -204,6 +204,13 @@ export default function InventoryReports() {
   const [tab, setTab] = useState(0);
   const theme         = useTheme();
   const isMobile      = useMediaQuery(theme.breakpoints.down('sm'));
+  const isDark        = theme.palette.mode === 'dark';
+
+  // Row backgrounds that adapt to dark/light mode
+  const agotadoBg      = isDark ? alpha(RED,      0.18) : '#FEF2F2';
+  const bajoBg         = isDark ? alpha(ACCENT,   0.14) : '#FFFBEB';
+  const agotadoHeaderBg = isDark ? alpha('#7C3AED', 0.14) : alpha('#7C3AED', 0.05);
+  const bajoHeaderBg   = isDark ? alpha(RED,      0.10) : alpha(RED,      0.05);
 
   // Inventario actual
   const [inv, setInv]                 = useState({ items: [], total_valor_costo: 0, total_valor_venta: 0 });
@@ -667,8 +674,8 @@ export default function InventoryReports() {
                   ? <Box sx={{ textAlign: 'center', py: 5, color: 'text.secondary' }}><Typography>Sin resultados</Typography></Box>
                   : invFiltered.map(it => {
                     const bgColor = it.stock_actual === 0
-                      ? '#FEF2F2'
-                      : (it.stock_actual <= it.stock_minimo && it.stock_actual > 0 ? '#FFFBEB' : undefined);
+                      ? agotadoBg
+                      : (it.stock_actual <= it.stock_minimo && it.stock_actual > 0 ? bajoBg : undefined);
                     return (
                       <Paper key={it.id} sx={{ p: 2, mb: 1.5, borderRadius: 2.5, border: '1px solid', borderColor: 'divider', bgcolor: bgColor }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -731,8 +738,8 @@ export default function InventoryReports() {
                         ? <TableRow><TableCell colSpan={10} sx={{ textAlign: 'center', py: 5, color: 'text.secondary' }}>No hay ítems</TableCell></TableRow>
                         : invPaginated.map(it => {
                           const rowBg = it.stock_actual === 0
-                            ? '#FEF2F2'
-                            : (it.stock_actual <= it.stock_minimo && it.stock_actual > 0 ? '#FFFBEB' : undefined);
+                            ? agotadoBg
+                            : (it.stock_actual <= it.stock_minimo && it.stock_actual > 0 ? bajoBg : undefined);
                           return (
                             <TableRow key={it.id} hover sx={{ bgcolor: rowBg }}>
                               <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{it.id}</TableCell>
@@ -1094,7 +1101,7 @@ export default function InventoryReports() {
                     {isMobile ? (
                       <Box>
                         {alertasAgotado.map(it => (
-                          <Paper key={it.id} sx={{ p: 2, mb: 1.5, borderRadius: 2.5, border: `1px solid #7C3AED30`, bgcolor: '#FEF2F2' }}>
+                          <Paper key={it.id} sx={{ p: 2, mb: 1.5, borderRadius: 2.5, border: `1px solid #7C3AED30`, bgcolor: agotadoBg }}>
                             <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{it.nombre}</Typography>
                             <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.5 }}>{it.unidad_medida || '—'}</Typography>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -1118,7 +1125,7 @@ export default function InventoryReports() {
                       <TableContainer sx={{ borderRadius: 2, border: '1px solid #7C3AED30' }}>
                         <Table size="small">
                           <TableHead>
-                            <TableRow sx={{ bgcolor: '#7C3AED08' }}>
+                            <TableRow sx={{ bgcolor: agotadoHeaderBg }}>
                               <TableCell>Nombre</TableCell>
                               <TableCell>Unidad</TableCell>
                               <TableCell align="right">Stock</TableCell>
@@ -1128,7 +1135,7 @@ export default function InventoryReports() {
                           </TableHead>
                           <TableBody>
                             {alertasAgotado.map(it => (
-                              <TableRow key={it.id} sx={{ bgcolor: '#FEF2F2' }}>
+                              <TableRow key={it.id} sx={{ bgcolor: agotadoBg }}>
                                 <TableCell sx={{ fontWeight: 600, fontSize: 13 }}>{it.nombre}</TableCell>
                                 <TableCell sx={{ fontSize: 12, color: 'text.secondary' }}>{it.unidad_medida || '—'}</TableCell>
                                 <TableCell align="right" sx={{ fontWeight: 800, color: RED }}>0</TableCell>
@@ -1154,7 +1161,7 @@ export default function InventoryReports() {
                     {isMobile ? (
                       <Box>
                         {alertasBajo.map(it => (
-                          <Paper key={it.id} sx={{ p: 2, mb: 1.5, borderRadius: 2.5, border: `1px solid ${RED}30`, bgcolor: '#FFFBEB' }}>
+                          <Paper key={it.id} sx={{ p: 2, mb: 1.5, borderRadius: 2.5, border: `1px solid ${RED}30`, bgcolor: bajoBg }}>
                             <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{it.nombre}</Typography>
                             <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.5 }}>{it.unidad_medida || '—'}</Typography>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
@@ -1187,7 +1194,7 @@ export default function InventoryReports() {
                       <TableContainer sx={{ borderRadius: 2, border: `1px solid ${RED}30` }}>
                         <Table size="small">
                           <TableHead>
-                            <TableRow sx={{ bgcolor: `${RED}08` }}>
+                            <TableRow sx={{ bgcolor: bajoHeaderBg }}>
                               <TableCell>Nombre</TableCell>
                               <TableCell>Unidad</TableCell>
                               <TableCell align="right">Stock</TableCell>
@@ -1199,7 +1206,7 @@ export default function InventoryReports() {
                           </TableHead>
                           <TableBody>
                             {alertasBajo.map(it => (
-                              <TableRow key={it.id} sx={{ bgcolor: '#FFFBEB' }}>
+                              <TableRow key={it.id} sx={{ bgcolor: bajoBg }}>
                                 <TableCell sx={{ fontWeight: 600, fontSize: 13 }}>{it.nombre}</TableCell>
                                 <TableCell sx={{ fontSize: 12, color: 'text.secondary' }}>{it.unidad_medida || '—'}</TableCell>
                                 <TableCell align="right" sx={{ fontWeight: 800, color: RED }}>{it.stock_actual}</TableCell>
