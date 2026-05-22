@@ -309,94 +309,84 @@ const CatalogoVirtual = () => {
       </Box>
 
       {/* PRODUCTOS */}
-      <Box sx={{ p: 2 }}>
-        <Grid container spacing={2}>
+      <Box sx={{ px: 1, pb: 2, pt: 1 }}>
+        <Box sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(4, 1fr)', md: 'repeat(5, 1fr)', lg: 'repeat(6, 1fr)' },
+          gap: '6px',
+        }}>
           {filteredProductos.map(p => {
             const inCart = cart.find(item => item.id === p.id);
             return (
-              <Grid item xs={6} sm={4} md={3} key={p.id}>
-                <Card
-                  sx={{
-                    borderRadius: 4, height: '100%', display: 'flex', flexDirection: 'column',
-                    overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.04)', border: '1px solid #F1F5F9',
-                    cursor: 'pointer'
-                  }}
-                  onClick={() => { setSelectedProduct(p); setCurrentImgIndex(0); }}
-                >
-                  <Box sx={{ position: 'relative' }}>
-                    <CardMedia
-                      component="img"
-                      sx={{ aspectRatio: '1/1', objectFit: 'cover' }}
-                      image={p.image_count > 0 ? `${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${p.id}/imagen?index=0` : 'https://placehold.co/400x400?text=No+Image'}
-                      alt={p.nombre}
-                    />
-
-                    <IconButton
-                      size="small"
-                      onClick={(e) => toggleFavorito(p.id, e)}
-                      sx={{
-                        position: 'absolute', top: 6, right: 6,
-                        bgcolor: 'rgba(255,255,255,0.92)',
-                        width: 28, height: 28,
-                        boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
-                        '&:hover': { bgcolor: '#fff', transform: 'scale(1.1)' },
-                        transition: 'all 0.2s',
-                      }}
-                    >
-                      {favoritos.includes(p.id)
-                        ? <Favorite sx={{ fontSize: 14, color: '#EF4444' }} />
-                        : <FavoriteBorder sx={{ fontSize: 14, color: '#94A3B8' }} />}
-                    </IconButton>
-
-                    {p.categoria && (
-                      <Chip
-                        label={p.categoria}
-                        size="small"
-                        sx={{ position: 'absolute', top: 8, left: 8, bgcolor: 'rgba(255,255,255,0.9)', fontWeight: 700, fontSize: 10, height: 20 }}
-                      />
-                    )}
-                    {p.image_count > 1 && (
-                      <Box sx={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 0.5 }}>
-                        {[...Array(p.image_count)].map((_, i) => (
-                          <Box key={i} sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: i === 0 ? accentColor : 'rgba(255,255,255,0.5)' }} />
-                        ))}
+              <Card
+                key={p.id}
+                sx={{
+                  borderRadius: 2, display: 'flex', flexDirection: 'column',
+                  overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.07)', border: '1px solid #F1F5F9',
+                  cursor: 'pointer',
+                }}
+                onClick={() => { setSelectedProduct(p); setCurrentImgIndex(0); }}
+              >
+                <Box sx={{ position: 'relative' }}>
+                  <CardMedia
+                    component="img"
+                    sx={{ aspectRatio: '1/1', objectFit: 'cover' }}
+                    image={p.image_count > 0 ? `${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${p.id}/imagen?index=0` : 'https://placehold.co/400x400?text=Sin+imagen'}
+                    alt={p.nombre}
+                  />
+                  <IconButton
+                    size="small"
+                    onClick={(e) => toggleFavorito(p.id, e)}
+                    sx={{
+                      position: 'absolute', top: 3, right: 3,
+                      bgcolor: 'rgba(255,255,255,0.88)', width: 22, height: 22,
+                      '&:hover': { bgcolor: '#fff' },
+                    }}
+                  >
+                    {favoritos.includes(p.id)
+                      ? <Favorite sx={{ fontSize: 11, color: '#EF4444' }} />
+                      : <FavoriteBorder sx={{ fontSize: 11, color: '#94A3B8' }} />}
+                  </IconButton>
+                  {p.stock === 0 && (
+                    <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, bgcolor: 'rgba(0,0,0,0.55)', py: 0.3, textAlign: 'center' }}>
+                      <Typography sx={{ fontSize: 9, fontWeight: 700, color: '#fff' }}>Agotado</Typography>
+                    </Box>
+                  )}
+                </Box>
+                <CardContent sx={{ p: '6px 7px 7px !important', flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                  <Typography sx={{ fontWeight: 600, fontSize: 11, color: '#1E293B', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.3, mb: 0.5, minHeight: 28 }}>
+                    {p.nombre}
+                  </Typography>
+                  <Typography sx={{ fontWeight: 800, fontSize: 12, color: accentColor, mb: 0.75 }}>
+                    ${new Intl.NumberFormat('es-CO').format(p.precio)}
+                  </Typography>
+                  <Box onClick={(e) => e.stopPropagation()}>
+                    {inCart ? (
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: '#F1F5F9', borderRadius: 1.5, px: 0.5, py: 0.25 }}>
+                        <IconButton size="small" onClick={() => removeFromCart(p.id)} sx={{ p: '2px', color: accentColor }}><Remove sx={{ fontSize: 14 }} /></IconButton>
+                        <Typography sx={{ fontWeight: 700, fontSize: 12 }}>{inCart.quantity}</Typography>
+                        <IconButton size="small" onClick={() => addToCart(p)} sx={{ p: '2px', color: accentColor }}><Add sx={{ fontSize: 14 }} /></IconButton>
+                      </Box>
+                    ) : (
+                      <Box
+                        onClick={() => addToCart(p)}
+                        sx={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          bgcolor: accentColor, borderRadius: 1.5, py: '4px',
+                          cursor: 'pointer', gap: 0.4,
+                          '&:hover': { opacity: 0.88 },
+                        }}
+                      >
+                        <Add sx={{ fontSize: 13, color: '#fff' }} />
+                        <Typography sx={{ fontSize: 10, fontWeight: 700, color: '#fff' }}>Agregar</Typography>
                       </Box>
                     )}
                   </Box>
-                  <CardContent sx={{ p: 1.5, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                    <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 0.5, color: '#1E293B', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: 40 }}>
-                      {p.nombre}
-                    </Typography>
-                    <Typography sx={{ fontWeight: 800, fontSize: 16, color: accentColor, mt: 'auto' }}>
-                      ${new Intl.NumberFormat('es-CO').format(p.precio)}
-                    </Typography>
-
-                    <Box sx={{ mt: 1.5 }} onClick={(e) => e.stopPropagation()}>
-                      {inCart ? (
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: '#F1F5F9', borderRadius: 2, p: 0.5 }}>
-                          <IconButton size="small" onClick={() => removeFromCart(p.id)} sx={{ bgcolor: '#fff', color: accentColor }}><Remove fontSize="small" /></IconButton>
-                          <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{inCart.quantity}</Typography>
-                          <IconButton size="small" onClick={() => addToCart(p)} sx={{ bgcolor: '#fff', color: accentColor }}><Add fontSize="small" /></IconButton>
-                        </Box>
-                      ) : (
-                        <Button
-                          fullWidth
-                          variant="contained"
-                          size="small"
-                          startIcon={<Add />}
-                          onClick={() => addToCart(p)}
-                          sx={{ bgcolor: accentColor, borderRadius: 2, fontWeight: 700, textTransform: 'none', '&:hover': { bgcolor: accentColor, opacity: 0.9 } }}
-                        >
-                          Agregar
-                        </Button>
-                      )}
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
+                </CardContent>
+              </Card>
             );
           })}
-        </Grid>
+        </Box>
 
         {filteredProductos.length === 0 && (
           <Box sx={{ textAlign: 'center', py: 8, px: 2 }}>
