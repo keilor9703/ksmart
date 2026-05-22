@@ -52,6 +52,7 @@ const CatalogoVirtual = () => {
   });
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [orderSent, setOrderSent]         = useState(false);
+  const [terminosOpen, setTerminosOpen]   = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -837,7 +838,7 @@ const CatalogoVirtual = () => {
             </Box>
           </Box>
         </DialogContent>
-        <DialogActions sx={{ p: 3 }}>
+        <DialogActions sx={{ p: 3, flexDirection: 'column', gap: 1 }}>
           <Button
             fullWidth
             variant="contained"
@@ -848,8 +849,139 @@ const CatalogoVirtual = () => {
           >
             Enviar por WhatsApp
           </Button>
+          <Typography sx={{ fontSize: 11, color: '#94A3B8', textAlign: 'center', lineHeight: 1.5 }}>
+            Al enviar tu pedido aceptas los{' '}
+            <Box component="span"
+              onClick={() => { setOrderModalOpen(false); setTerminosOpen(true); }}
+              sx={{ color: accentColor, cursor: 'pointer', fontWeight: 700, textDecoration: 'underline' }}>
+              Términos y Condiciones
+            </Box>
+            {' '}de {empresa?.nombre}.
+          </Typography>
         </DialogActions>
       </Dialog>
+
+      {/* ── FOOTER ─────────────────────────────────────────────────────── */}
+      <Box sx={{ mt: 4, borderTop: '1px solid #F1F5F9', px: 2, py: 3, textAlign: 'center', bgcolor: '#FAFAFA' }}>
+        <Typography sx={{ fontSize: 12, color: '#94A3B8', mb: 0.5 }}>
+          {empresa?.nombre} · Catálogo virtual operado con KSmart360
+        </Typography>
+        <Typography sx={{ fontSize: 11, color: '#CBD5E1' }}>
+          Los productos, precios e información publicados son responsabilidad exclusiva de{' '}
+          <strong style={{ color: '#94A3B8' }}>{empresa?.nombre}</strong>.
+        </Typography>
+        <Button
+          size="small"
+          onClick={() => setTerminosOpen(true)}
+          sx={{ mt: 1.5, fontSize: 11, color: '#64748B', textDecoration: 'underline', textTransform: 'none', fontWeight: 600, '&:hover': { color: accentColor } }}
+        >
+          Términos y Condiciones · Política de Devoluciones
+        </Button>
+      </Box>
+
+      {/* ── MODAL TÉRMINOS Y CONDICIONES ───────────────────────────────── */}
+      <Dialog open={terminosOpen} onClose={() => setTerminosOpen(false)} maxWidth="md" fullWidth scroll="paper"
+        PaperProps={{ sx: { borderRadius: 3, m: { xs: 1, sm: 3 } } }}>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1, borderBottom: '1px solid #F1F5F9' }}>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: 17 }}>Términos y Condiciones</Typography>
+            <Typography sx={{ fontSize: 12, color: '#94A3B8' }}>
+              {empresa?.nombre} · Última actualización: {new Date().toLocaleDateString('es-CO', { year: 'numeric', month: 'long' })}
+            </Typography>
+          </Box>
+          <IconButton onClick={() => setTerminosOpen(false)} size="small"><Close /></IconButton>
+        </DialogTitle>
+
+        <DialogContent sx={{ px: { xs: 2, sm: 3 }, py: 2 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 13, color: '#374151', lineHeight: 1.7 }}>
+
+            {/* Aviso general */}
+            <Alert severity="info" sx={{ borderRadius: 2, fontSize: 12 }}>
+              Los productos, precios y disponibilidad publicados en este catálogo virtual son de responsabilidad
+              exclusiva de <strong>{empresa?.nombre}</strong>. KSmart360 actúa únicamente como plataforma
+              tecnológica de soporte y no tiene vinculación comercial con las transacciones realizadas.
+            </Alert>
+
+            {[
+              {
+                titulo: '1. Identificación del Vendedor',
+                texto: `Este catálogo virtual es administrado y operado por ${empresa?.nombre || 'el establecimiento comercial'}, en adelante "el Vendedor". Toda compra, pedido o transacción realizada a través de este medio establece una relación comercial directa y exclusiva entre el comprador y el Vendedor. El Vendedor es el único responsable de la veracidad de la información publicada, la calidad de los productos ofertados, el cumplimiento de los pedidos, el proceso de entrega y la atención posventa.`,
+              },
+              {
+                titulo: '2. Marco Legal Aplicable',
+                texto: `Este catálogo virtual se rige por la legislación colombiana vigente, en particular:\n\n• Ley 1480 de 2011 — Estatuto del Consumidor: establece los derechos de los consumidores, incluyendo el derecho de retracto, garantías mínimas y condiciones de calidad.\n• Ley 527 de 1999 — Comercio Electrónico: regula el acceso y uso de mensajes de datos, firmas digitales y comercio por medios electrónicos.\n• Decreto 1499 de 2014: reglamenta las ventas a distancia y el comercio electrónico en Colombia.\n• Ley 1581 de 2012 — Habeas Data: regula el tratamiento de datos personales de los consumidores.\n• Decreto 1377 de 2013: desarrolla la Ley de Protección de Datos Personales.\n• Resolución 3768 de 2008 de la SIC: condiciones para la venta a distancia y protección al consumidor en canales digitales.`,
+              },
+              {
+                titulo: '3. Precios y Disponibilidad',
+                texto: `Los precios publicados están expresados en pesos colombianos (COP) e incluyen el IVA aplicable según la naturaleza del producto. El Vendedor se reserva el derecho de modificar precios y disponibilidad sin previo aviso. El precio vigente al momento de confirmar el pedido es el que aplica para la transacción. La disponibilidad de los productos está sujeta al inventario del Vendedor y puede variar sin previo aviso. En caso de que un producto no esté disponible tras la confirmación del pedido, el Vendedor se compromete a informar al comprador dentro de las 24 horas siguientes.`,
+              },
+              {
+                titulo: '4. Proceso de Compra y Pedidos',
+                texto: `Los pedidos realizados a través de este catálogo virtual se formalizan mediante el envío del resumen del carrito por WhatsApp al Vendedor. El pedido se considera confirmado únicamente cuando el Vendedor lo acepta de forma expresa. El Vendedor puede rechazar o modificar un pedido por razones de inventario, error en precios o condiciones de entrega. El comprador debe suministrar información veraz y completa para garantizar la entrega correcta del pedido. La confirmación del pedido no implica el cobro hasta que el Vendedor lo valide.`,
+              },
+              {
+                titulo: '5. Formas de Pago',
+                texto: `Las formas de pago aceptadas son definidas por el Vendedor y pueden incluir: efectivo contra entrega, transferencia bancaria, pago electrónico u otras modalidades que el Vendedor indique al momento de confirmar el pedido. El Vendedor es responsable de garantizar la seguridad en el proceso de pago y de emitir el comprobante correspondiente de acuerdo con la normatividad tributaria colombiana.`,
+              },
+              {
+                titulo: '6. Entregas y Domicilios',
+                texto: `Las condiciones de entrega (tiempo, costo de domicilio, cobertura de zonas) son determinadas exclusivamente por el Vendedor. Los tiempos de entrega son estimados y pueden variar por condiciones externas. El Vendedor asume la responsabilidad de entregar los productos en las condiciones pactadas. En caso de demora significativa, el Vendedor debe informar al comprador con la debida antelación. El riesgo de pérdida o daño del producto se traslada al comprador en el momento de la entrega física.`,
+              },
+              {
+                titulo: '7. Derecho de Retracto (Devoluciones)',
+                texto: `De conformidad con el artículo 47 de la Ley 1480 de 2011 (Estatuto del Consumidor), el comprador tiene derecho de retracto cuando la compra se realiza a través de canales no presenciales (catálogo virtual, internet, teléfono). El plazo para ejercer este derecho es de cinco (5) días hábiles contados a partir de la entrega del producto. Para ejercer el derecho de retracto, el comprador debe:\n\n• Notificar al Vendedor por escrito dentro del plazo establecido.\n• Devolver el producto en las mismas condiciones en que fue recibido, sin uso, con empaque original y todos sus accesorios.\n• El Vendedor reembolsará el valor pagado dentro de los treinta (30) días calendario siguientes a la recepción del producto devuelto.\n\nExcepciones al derecho de retracto:\n• Productos personalizados o elaborados conforme a especificaciones del comprador.\n• Productos perecederos o de corta duración.\n• Productos de higiene personal que hayan sido abiertos o usados.\n• Servicios que ya hayan sido prestados completamente.`,
+              },
+              {
+                titulo: '8. Garantías',
+                texto: `Todos los productos ofrecidos cuentan con las garantías mínimas establecidas en el Estatuto del Consumidor colombiano. Para bienes con elementos o componentes que no son de consumo inmediato, la garantía mínima es de un (1) año a partir de la entrega, salvo que el Vendedor ofrezca una garantía mayor. El Vendedor es el primer responsable de hacer efectiva la garantía ante el comprador. En caso de defecto o falla dentro del período de garantía, el comprador puede solicitar: la reparación del bien, la sustitución por un bien de iguales características, o la devolución del precio pagado. El tiempo de resolución de garantías no puede superar los treinta (30) días hábiles.`,
+              },
+              {
+                titulo: '9. Responsabilidad del Vendedor',
+                texto: `${empresa?.nombre || 'El Vendedor'} es el único responsable de:\n\n• La exactitud y veracidad de la información de los productos publicados (descripción, imágenes, precio, características).\n• La calidad y estado de los productos al momento de la entrega.\n• El cumplimiento de los pedidos confirmados.\n• La atención de reclamaciones, garantías y devoluciones.\n• El manejo seguro de los datos personales del comprador.\n\nKSmart360, como plataforma tecnológica, no asume responsabilidad alguna por los productos comercializados, los precios publicados, las transacciones realizadas, ni por incumplimientos del Vendedor frente a los compradores.`,
+              },
+              {
+                titulo: '10. Protección de Datos Personales',
+                texto: `De conformidad con la Ley 1581 de 2012 y el Decreto 1377 de 2013, el Vendedor es el responsable del tratamiento de los datos personales recopilados a través de este catálogo (nombre, teléfono, dirección). Dichos datos serán utilizados exclusivamente para la gestión del pedido, la entrega y la atención posventa. El comprador tiene derecho a conocer, actualizar, rectificar y suprimir sus datos personales. Para ejercer estos derechos, el comprador debe contactar directamente al Vendedor. Los datos no serán compartidos con terceros sin autorización expresa del titular, salvo en los casos previstos por la ley.`,
+              },
+              {
+                titulo: '11. Propiedad Intelectual',
+                texto: `Las imágenes, textos, marcas y demás contenidos publicados en este catálogo son responsabilidad del Vendedor, quien declara contar con los derechos necesarios para su uso. El comprador no está autorizado para reproducir, modificar o distribuir el contenido del catálogo sin autorización expresa del Vendedor.`,
+              },
+              {
+                titulo: '12. Resolución de Conflictos',
+                texto: `En caso de controversias derivadas de las transacciones realizadas a través de este catálogo, el comprador podrá acudir a:\n\n• El Vendedor directamente para una solución directa.\n• La Superintendencia de Industria y Comercio (SIC) — www.sic.gov.co — para presentar reclamaciones como consumidor.\n• Los centros de conciliación autorizados en Colombia.\n• La jurisdicción ordinaria colombiana si las vías anteriores resultan insuficientes.\n\nLos presentes términos y condiciones se rigen por las leyes de la República de Colombia.`,
+              },
+            ].map(({ titulo, texto }) => (
+              <Box key={titulo}>
+                <Typography sx={{ fontWeight: 800, fontSize: 14, color: '#111827', mb: 0.75, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box component="span" sx={{ width: 3, height: 16, bgcolor: accentColor, borderRadius: 2, display: 'inline-block', flexShrink: 0 }} />
+                  {titulo}
+                </Typography>
+                <Typography sx={{ fontSize: 13, color: '#4B5563', lineHeight: 1.75, whiteSpace: 'pre-line', pl: 1.5 }}>
+                  {texto}
+                </Typography>
+              </Box>
+            ))}
+
+            <Box sx={{ mt: 1, p: 2, bgcolor: '#F8FAFC', borderRadius: 2, border: '1px solid #E2E8F0' }}>
+              <Typography sx={{ fontSize: 12, color: '#64748B', textAlign: 'center', lineHeight: 1.6 }}>
+                Al realizar un pedido en este catálogo, el comprador declara haber leído, entendido y aceptado
+                los presentes términos y condiciones.<br />
+                <strong style={{ color: '#374151' }}>{empresa?.nombre}</strong> · Catálogo operado con KSmart360 ·{' '}
+                {new Date().getFullYear()}
+              </Typography>
+            </Box>
+
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid #F1F5F9' }}>
+          <Button onClick={() => setTerminosOpen(false)} variant="contained"
+            sx={{ bgcolor: accentColor, borderRadius: 2, fontWeight: 700, textTransform: 'none', '&:hover': { bgcolor: accentColor, opacity: 0.88 } }}>
+            Entendido
+          </Button>
+        </DialogActions>
+      </Dialog>
+
     </Box>
   );
 };
