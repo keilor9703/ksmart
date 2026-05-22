@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1200">
+<title>KSmart360 - Inventario</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 1200px; height: 628px; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; }
+  .slide {
+    width: 1200px; height: 628px; background: #fff;
+    display: flex; position: relative; overflow: hidden;
+  }
+
+  /* Right: purple panel */
+  .panel {
+    width: 400px; height: 100%;
+    background: linear-gradient(155deg, #4F46E5 0%, #7C3AED 60%, #9333EA 100%);
+    padding: 50px 40px; display: flex; flex-direction: column; justify-content: center;
+    order: 2; flex-shrink: 0; position: relative; overflow: hidden;
+  }
+  .panel::before {
+    content: ''; position: absolute; top: -60px; right: -60px;
+    width: 200px; height: 200px; border-radius: 50%; background: rgba(255,255,255,0.07);
+  }
+  .panel::after {
+    content: ''; position: absolute; bottom: -40px; left: -40px;
+    width: 160px; height: 160px; border-radius: 50%; background: rgba(255,255,255,0.05);
+  }
+
+  .num-badge {
+    width: 52px; height: 52px; border-radius: 16px;
+    background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; font-weight: 900; color: #fff; margin-bottom: 22px;
+  }
+  h2 { font-size: 36px; font-weight: 900; color: #fff; line-height: 1.1; margin-bottom: 12px; }
+  .tagline { font-size: 14px; color: rgba(255,255,255,0.82); line-height: 1.6; margin-bottom: 28px; }
+
+  .feat-list { display: flex; flex-direction: column; gap: 12px; }
+  .feat {
+    display: flex; align-items: flex-start; gap: 12px;
+  }
+  .feat-icon-wrap {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: rgba(255,255,255,0.15); display: flex; align-items: center;
+    justify-content: center; font-size: 16px; flex-shrink: 0;
+  }
+  .feat-title { font-size: 13px; font-weight: 800; color: #fff; }
+  .feat-desc { font-size: 11px; color: rgba(255,255,255,0.72); line-height: 1.4; }
+
+  /* Left: content */
+  .content { flex: 1; padding: 44px 48px; display: flex; flex-direction: column; justify-content: center; }
+
+  h1 { font-size: 32px; font-weight: 900; color: #111827; line-height: 1.2; margin-bottom: 8px; }
+  h1 span { color: #7C3AED; }
+  .sub { font-size: 15px; color: #6b7280; margin-bottom: 28px; }
+
+  /* Stats grid */
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 24px; }
+  .scard {
+    background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 16px;
+    padding: 18px 20px; position: relative; overflow: hidden;
+  }
+  .scard::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    border-radius: 16px 16px 0 0;
+  }
+  .scard.purple::before { background: linear-gradient(90deg, #4F46E5, #7C3AED); }
+  .scard.green::before { background: linear-gradient(90deg, #10B981, #059669); }
+  .scard.orange::before { background: linear-gradient(90deg, #FF6020, #FF8C42); }
+  .scard.red::before { background: linear-gradient(90deg, #EF4444, #DC2626); }
+
+  .scard-icon { font-size: 22px; margin-bottom: 8px; }
+  .scard-num { font-size: 26px; font-weight: 900; color: #111827; }
+  .scard-label { font-size: 12px; color: #6b7280; margin-top: 2px; }
+  .scard-sub { font-size: 11px; font-weight: 700; margin-top: 4px; }
+  .scard.green .scard-sub { color: #10B981; }
+  .scard.red .scard-sub { color: #EF4444; }
+
+  /* Product list */
+  .prod-list { background: #f9fafb; border-radius: 14px; padding: 14px; border: 1px solid #e5e7eb; }
+  .prod-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+  .prod-header span { font-size: 12px; font-weight: 700; color: #374151; }
+  .prod-header small { font-size: 11px; color: #7C3AED; font-weight: 600; }
+  .prod-row {
+    display: flex; align-items: center; gap: 10px; padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .prod-row:last-child { border-bottom: none; }
+  .prod-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .prod-name { flex: 1; font-size: 12px; font-weight: 600; color: #374151; }
+  .prod-stock { font-size: 11px; color: #6b7280; }
+  .prod-val { font-size: 12px; font-weight: 700; color: #7C3AED; }
+  .tag {
+    font-size: 9px; font-weight: 700; padding: 3px 8px; border-radius: 100px;
+  }
+  .tag.ok { background: #dcfce7; color: #059669; }
+  .tag.low { background: #fef9c3; color: #ca8a04; }
+  .tag.out { background: #fee2e2; color: #dc2626; }
+
+  .watermark { position: absolute; bottom: 16px; left: 48px; font-size: 11px; color: #9ca3af; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="content">
+    <h1>Control total de tu <span>inventario</span><br>en tiempo real</h1>
+    <p class="sub">Valorización, alertas de stock mínimo, lotes y vencimientos — todo actualizado automáticamente.</p>
+
+    <div class="stats-grid">
+      <div class="scard purple">
+        <div class="scard-icon">💰</div>
+        <div class="scard-num">$4.985.774</div>
+        <div class="scard-label">Valorización total del inventario</div>
+      </div>
+      <div class="scard green">
+        <div class="scard-icon">📦</div>
+        <div class="scard-num">30 SKUs</div>
+        <div class="scard-label">Productos activos en catálogo</div>
+        <div class="scard-sub">✓ Categorías dinámicas</div>
+      </div>
+      <div class="scard red">
+        <div class="scard-icon">⚠️</div>
+        <div class="scard-num">12 alertas</div>
+        <div class="scard-label">Productos bajo stock mínimo</div>
+        <div class="scard-sub">↑ Notificación automática</div>
+      </div>
+      <div class="scard orange">
+        <div class="scard-icon">🔬</div>
+        <div class="scard-num">Lotes</div>
+        <div class="scard-label">Control de vencimientos por lote</div>
+        <div class="scard-sub">✓ FIFO automatizado</div>
+      </div>
+    </div>
+
+    <div class="prod-list">
+      <div class="prod-header">
+        <span>Catálogo activo</span>
+        <small>Ver todos →</small>
+      </div>
+      <div class="prod-row">
+        <div class="prod-dot" style="background:#10B981"></div>
+        <div class="prod-name">Agua pet 300 x24</div>
+        <div class="prod-stock">Stock: 1</div>
+        <div class="prod-val">$2.500</div>
+        <span class="tag ok">✓ OK</span>
+      </div>
+      <div class="prod-row">
+        <div class="prod-dot" style="background:#EF4444"></div>
+        <div class="prod-name">Arepa de Maíz Mini Tela</div>
+        <div class="prod-stock">Stock: 0</div>
+        <div class="prod-val">$1.800</div>
+        <span class="tag out">Sin stock</span>
+      </div>
+      <div class="prod-row">
+        <div class="prod-dot" style="background:#F59E0B"></div>
+        <div class="prod-name">Producto Terminado PT</div>
+        <div class="prod-stock">Stock: 2 / mín 5</div>
+        <div class="prod-val">$12.000</div>
+        <span class="tag low">Bajo mín.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="num-badge">3</div>
+    <h2>Inventario<br>inteligente</h2>
+    <p class="tagline">Nunca más te quedes sin stock ni pierdas dinero por vencimientos.</p>
+    <div class="feat-list">
+      <div class="feat">
+        <div class="feat-icon-wrap">📊</div>
+        <div>
+          <div class="feat-title">Valorización automática</div>
+          <div class="feat-desc">Conoce el valor exacto de tu inventario en tiempo real</div>
+        </div>
+      </div>
+      <div class="feat">
+        <div class="feat-icon-wrap">🔔</div>
+        <div>
+          <div class="feat-title">Alertas de stock mínimo</div>
+          <div class="feat-desc">Configura alertas por producto y recibe avisos antes de quedarte sin existencias</div>
+        </div>
+      </div>
+      <div class="feat">
+        <div class="feat-icon-wrap">🗓️</div>
+        <div>
+          <div class="feat-title">Control de lotes y vencimientos</div>
+          <div class="feat-desc">Rastrea fechas de vencimiento por lote y aplica FIFO automáticamente</div>
+        </div>
+      </div>
+      <div class="feat">
+        <div class="feat-icon-wrap">🧪</div>
+        <div>
+          <div class="feat-title">Recetas de producción</div>
+          <div class="feat-desc">Descuenta materias primas automáticamente al producir</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="watermark">ksmart360.com · Powered by KSMP Systems</div>
+</div>
+</body>
+</html>

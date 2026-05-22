@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1200">
+<title>KSmart360 - Préstamos</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 1200px; height: 628px; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; }
+  .slide {
+    width: 1200px; height: 628px; background: #fff;
+    display: flex; position: relative; overflow: hidden;
+  }
+
+  /* Top accent bar */
+  .top-bar {
+    position: absolute; top: 0; left: 0; right: 0; height: 4px;
+    background: linear-gradient(90deg, #059669, #10B981, #34d399, #FF6020, #FF8C42);
+  }
+
+  /* Left: content */
+  .left { flex: 1; padding: 52px 52px; display: flex; flex-direction: column; justify-content: center; }
+
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 100px;
+    padding: 6px 16px; margin-bottom: 20px;
+    font-size: 12px; font-weight: 700; color: #059669; width: fit-content;
+  }
+  h1 { font-size: 38px; font-weight: 900; color: #111827; line-height: 1.1; margin-bottom: 12px; }
+  h1 span { color: #059669; }
+  .sub { font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 30px; max-width: 460px; }
+
+  /* Feature pills */
+  .pills { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 28px; }
+  .pill {
+    display: flex; align-items: center; gap: 8px;
+    background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 100px;
+    padding: 8px 16px; font-size: 12px; font-weight: 700; color: #374151;
+  }
+  .pill .icon { font-size: 14px; }
+
+  /* Amortization preview */
+  .amort-card {
+    background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 16px;
+    padding: 18px 20px;
+  }
+  .amort-header {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;
+  }
+  .amort-title { font-size: 13px; font-weight: 800; color: #111827; }
+  .amort-badge { background: #dcfce7; color: #059669; font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 100px; }
+
+  .amort-row {
+    display: grid; grid-template-columns: 40px 1fr 1fr 1fr 1fr; gap: 8px;
+    align-items: center; font-size: 11px; padding: 7px 0;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .amort-row:last-child { border-bottom: none; }
+  .amort-row.header { color: #9ca3af; font-weight: 700; font-size: 10px; text-transform: uppercase; }
+  .amort-row.data { color: #374151; }
+  .amort-row.data.paid { color: #10B981; }
+  .amort-row.data.upcoming { font-weight: 700; color: #111827; }
+  .cuota-num { font-weight: 800; }
+  .status-tag {
+    font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 100px; width: fit-content;
+  }
+  .paid-tag { background: #dcfce7; color: #059669; }
+  .pending-tag { background: #fff7ed; color: #ea580c; }
+  .future-tag { background: #f1f5f9; color: #64748b; }
+
+  /* Right: phone mockup */
+  .right { width: 380px; display: flex; align-items: center; justify-content: center; padding-right: 40px; flex-shrink: 0; }
+
+  .phone-stack { position: relative; width: 240px; height: 460px; }
+  .phone {
+    position: absolute; background: #0d1117; border-radius: 40px; padding: 12px;
+    box-shadow: 0 24px 56px rgba(0,0,0,0.18); border: 2px solid rgba(255,255,255,0.08);
+  }
+  .phone-main { width: 220px; top: 0; left: 0; z-index: 2; }
+  .phone-back { width: 200px; top: 30px; left: 30px; z-index: 1; opacity: 0.6; }
+  .phone-screen { background: #fff; border-radius: 28px; overflow: hidden; }
+
+  .ph-bar { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; background: #fff; }
+  .ph-title { font-size: 11px; font-weight: 800; color: #111; }
+  .ph-sub { font-size: 8px; color: #888; }
+
+  .loan-summary { padding: 10px 10px 0; }
+  .loan-item { margin-bottom: 8px; }
+  .loan-label { font-size: 8px; color: #888; text-transform: uppercase; }
+  .loan-val { font-size: 15px; font-weight: 900; }
+  .loan-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .loan-mini { flex: 1; background: #f9fafb; border-radius: 8px; padding: 7px; }
+  .loan-mini-label { font-size: 7px; color: #888; }
+  .loan-mini-val { font-size: 11px; font-weight: 800; }
+
+  .quota-list { padding: 0 10px 10px; }
+  .quota-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 0; border-bottom: 1px solid #f5f5f5; font-size: 9px;
+  }
+  .quota-row:last-child { border-bottom: none; }
+  .quota-num { font-weight: 700; color: #111; }
+  .quota-date { color: #888; }
+  .quota-amount { font-weight: 800; color: #059669; }
+  .quota-tag {
+    font-size: 7px; font-weight: 700; padding: 2px 6px; border-radius: 100px;
+  }
+  .q-paid { background: #dcfce7; color: #059669; }
+  .q-pend { background: #fff7ed; color: #ea580c; }
+
+  .wa-btn {
+    margin: 0 10px 10px; background: linear-gradient(135deg,#25D366,#128C7E);
+    border-radius: 10px; padding: 9px; text-align: center;
+    font-size: 9px; font-weight: 800; color: #fff;
+  }
+
+  .watermark { position: absolute; bottom: 16px; right: 24px; font-size: 11px; color: #d1d5db; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="top-bar"></div>
+
+  <div class="left">
+    <div class="eyebrow">💰 Módulo de Préstamos</div>
+    <h1>Gestiona tu cartera<br>de <span>préstamos</span> como un banco</h1>
+    <p class="sub">
+      Simula, crea y controla préstamos con tabla de amortización automática.
+      Envía recordatorios de cuotas por WhatsApp — antes de que venzan.
+    </p>
+
+    <div class="pills">
+      <div class="pill"><span class="icon">🧮</span> Simulador de préstamo</div>
+      <div class="pill"><span class="icon">📅</span> Tabla de amortización</div>
+      <div class="pill"><span class="icon">💬</span> Recordatorios WhatsApp</div>
+      <div class="pill"><span class="icon">🗺️</span> Ruta de cobro</div>
+      <div class="pill"><span class="icon">⏰</span> Alertas de vencimiento</div>
+      <div class="pill"><span class="icon">📊</span> Control de mora</div>
+    </div>
+
+    <div class="amort-card">
+      <div class="amort-header">
+        <span class="amort-title">📋 Tabla de amortización automática</span>
+        <span class="amort-badge">✓ Generada al instante</span>
+      </div>
+      <div class="amort-row header">
+        <div>Cuota</div>
+        <div>Vencimiento</div>
+        <div>Capital</div>
+        <div>Interés</div>
+        <div>Estado</div>
+      </div>
+      <div class="amort-row data paid">
+        <div class="cuota-num">001</div>
+        <div>01/01/2026</div>
+        <div>$85.000</div>
+        <div>$15.000</div>
+        <div><span class="status-tag paid-tag">✓ Pagada</span></div>
+      </div>
+      <div class="amort-row data paid">
+        <div class="cuota-num">002</div>
+        <div>01/02/2026</div>
+        <div>$86.700</div>
+        <div>$13.300</div>
+        <div><span class="status-tag paid-tag">✓ Pagada</span></div>
+      </div>
+      <div class="amort-row data upcoming">
+        <div class="cuota-num">003</div>
+        <div>01/03/2026</div>
+        <div>$88.430</div>
+        <div>$11.570</div>
+        <div><span class="status-tag pending-tag">⏰ Próxima</span></div>
+      </div>
+      <div class="amort-row data">
+        <div class="cuota-num">004</div>
+        <div>01/04/2026</div>
+        <div>$90.200</div>
+        <div>$9.800</div>
+        <div><span class="status-tag future-tag">Pendiente</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="phone-stack">
+      <div class="phone phone-back">
+        <div class="phone-screen" style="min-height:120px; background:#f9fafb;"></div>
+      </div>
+      <div class="phone phone-main">
+        <div class="phone-screen">
+          <div class="ph-bar">
+            <div class="ph-title">Préstamo #P-0042</div>
+            <div class="ph-sub">Juan García · Activo</div>
+          </div>
+          <div class="loan-summary">
+            <div class="loan-label">Monto total</div>
+            <div class="loan-val" style="color:#059669;">$1.000.000</div>
+            <div class="loan-row" style="margin-top:6px;">
+              <div class="loan-mini">
+                <div class="loan-mini-label">Cuotas</div>
+                <div class="loan-mini-val" style="color:#374151;">12</div>
+              </div>
+              <div class="loan-mini">
+                <div class="loan-mini-label">Pagadas</div>
+                <div class="loan-mini-val" style="color:#059669;">2</div>
+              </div>
+              <div class="loan-mini">
+                <div class="loan-mini-label">Saldo</div>
+                <div class="loan-mini-val" style="color:#FF6020;">$828.430</div>
+              </div>
+            </div>
+          </div>
+          <div style="padding:0 10px 6px; font-size:8px; font-weight:700; color:#374151; text-transform:uppercase; letter-spacing:0.5px;">Cuotas</div>
+          <div class="quota-list">
+            <div class="quota-row">
+              <span class="quota-num">001</span>
+              <span class="quota-date">01/01/26</span>
+              <span class="quota-amount">$100.000</span>
+              <span class="quota-tag q-paid">Pagada</span>
+            </div>
+            <div class="quota-row">
+              <span class="quota-num">002</span>
+              <span class="quota-date">01/02/26</span>
+              <span class="quota-amount">$100.000</span>
+              <span class="quota-tag q-paid">Pagada</span>
+            </div>
+            <div class="quota-row" style="font-weight:700;">
+              <span class="quota-num" style="color:#ea580c;">003</span>
+              <span class="quota-date" style="color:#ea580c;">01/03/26</span>
+              <span class="quota-amount" style="color:#ea580c;">$100.000</span>
+              <span class="quota-tag q-pend">3 días</span>
+            </div>
+          </div>
+          <div class="wa-btn">💬 Enviar recordatorio WhatsApp</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="watermark">ksmart360.com</div>
+</div>
+</body>
+</html>

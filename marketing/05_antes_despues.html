@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1200">
+<title>KSmart360 - Antes vs Después</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 1200px; height: 628px; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; }
+  .slide {
+    width: 1200px; height: 628px;
+    display: flex; position: relative; overflow: hidden;
+  }
+
+  /* Center divider */
+  .divider {
+    position: absolute; left: 50%; top: 0; bottom: 0; width: 3px;
+    background: linear-gradient(180deg,transparent,#fff 20%,#fff 80%,transparent);
+    z-index: 10; transform: translateX(-50%);
+  }
+  .vs-badge {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+    width: 52px; height: 52px; border-radius: 50%;
+    background: #fff; box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 900; color: #111; z-index: 20;
+    border: 2px solid #e5e7eb;
+  }
+
+  /* Left: without */
+  .without {
+    flex: 1; background: linear-gradient(160deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+    padding: 44px 60px 44px 52px; display: flex; flex-direction: column; justify-content: center;
+    position: relative; overflow: hidden;
+  }
+  .without::before {
+    content: ''; position: absolute; inset: 0;
+    background: repeating-linear-gradient(45deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 20px);
+  }
+
+  .without-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3);
+    border-radius: 100px; padding: 6px 14px; margin-bottom: 20px;
+    font-size: 12px; font-weight: 700; color: #fca5a5; width: fit-content;
+  }
+  .without h2 { font-size: 28px; font-weight: 900; color: #fff; margin-bottom: 8px; line-height: 1.2; }
+  .without-sub { font-size: 13px; color: rgba(255,255,255,0.55); margin-bottom: 28px; }
+
+  .pain { display: flex; flex-direction: column; gap: 12px; }
+  .pain-item {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.18);
+    border-radius: 12px; padding: 12px 14px;
+  }
+  .pain-x { font-size: 16px; flex-shrink: 0; }
+  .pain-title { font-size: 13px; font-weight: 700; color: #fca5a5; }
+  .pain-desc { font-size: 11px; color: rgba(255,255,255,0.45); line-height: 1.4; }
+
+  .cost-badge {
+    margin-top: 20px; background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.25);
+    border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; gap: 12px;
+  }
+  .cost-icon { font-size: 24px; }
+  .cost-num { font-size: 22px; font-weight: 900; color: #f87171; }
+  .cost-label { font-size: 11px; color: rgba(255,255,255,0.5); }
+
+  /* Right: with */
+  .with {
+    flex: 1; background: linear-gradient(160deg, #f0fdf4 0%, #fff 50%, #ecfdf5 100%);
+    padding: 44px 52px 44px 60px; display: flex; flex-direction: column; justify-content: center;
+    position: relative;
+  }
+
+  .with-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #dcfce7; border: 1px solid #86efac;
+    border-radius: 100px; padding: 6px 14px; margin-bottom: 20px;
+    font-size: 12px; font-weight: 700; color: #16a34a; width: fit-content;
+  }
+  .with h2 { font-size: 28px; font-weight: 900; color: #111827; margin-bottom: 8px; line-height: 1.2; }
+  .with-sub { font-size: 13px; color: #6b7280; margin-bottom: 28px; }
+
+  .gain { display: flex; flex-direction: column; gap: 12px; }
+  .gain-item {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: #fff; border: 1px solid #bbf7d0; border-radius: 12px; padding: 12px 14px;
+    box-shadow: 0 2px 8px rgba(16,185,129,0.06);
+  }
+  .gain-check { font-size: 16px; flex-shrink: 0; }
+  .gain-title { font-size: 13px; font-weight: 700; color: #065f46; }
+  .gain-desc { font-size: 11px; color: #6b7280; line-height: 1.4; }
+
+  .save-badge {
+    margin-top: 20px; background: linear-gradient(135deg,#059669,#10B981);
+    border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; gap: 12px;
+  }
+  .save-icon { font-size: 24px; }
+  .save-num { font-size: 22px; font-weight: 900; color: #fff; }
+  .save-label { font-size: 11px; color: rgba(255,255,255,0.8); }
+
+  /* header */
+  .slide-header {
+    position: absolute; top: 0; left: 0; right: 0; height: 50px;
+    background: rgba(255,255,255,0.06); backdrop-filter: blur(10px);
+    display: flex; align-items: center; justify-content: center; z-index: 5;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  .slide-header-title {
+    font-size: 13px; font-weight: 800; color: #374151; letter-spacing: 0.5px;
+    text-transform: uppercase; background: #fff; padding: 4px 20px; border-radius: 100px;
+    border: 1px solid #e5e7eb;
+  }
+
+  .watermark { position: absolute; bottom: 16px; right: 24px; font-size: 11px; color: rgba(255,255,255,0.3); font-weight: 600; z-index: 10; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-header">
+    <div class="slide-header-title">¿Qué pasa si no digitalizas tu negocio?</div>
+  </div>
+
+  <div class="without">
+    <div class="without-badge">❌ Sin KSmart360</div>
+    <h2>Gestión manual,<br>pérdidas reales</h2>
+    <p class="without-sub">Lo que cuesta no tener control sobre tu negocio</p>
+
+    <div class="pain">
+      <div class="pain-item">
+        <span class="pain-x">📒</span>
+        <div>
+          <div class="pain-title">Inventario en cuadernos o Excel</div>
+          <div class="pain-desc">Errores de conteo, productos vencidos sin detectar, robos sin rastrear</div>
+        </div>
+      </div>
+      <div class="pain-item">
+        <span class="pain-x">💸</span>
+        <div>
+          <div class="pain-title">Deudas sin cobrar</div>
+          <div class="pain-desc">Sin registro claro de quién debe qué, el dinero se pierde en el tiempo</div>
+        </div>
+      </div>
+      <div class="pain-item">
+        <span class="pain-x">🙈</span>
+        <div>
+          <div class="pain-title">Sin visibilidad de ventas</div>
+          <div class="pain-desc">No sabes cuáles son tus mejores días, clientes o productos</div>
+        </div>
+      </div>
+      <div class="pain-item">
+        <span class="pain-x">⏰</span>
+        <div>
+          <div class="pain-title">Horas perdidas en operación</div>
+          <div class="pain-desc">Cierre de caja manual, facturas en papel, reportes interminables</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cost-badge">
+      <span class="cost-icon">🔥</span>
+      <div>
+        <div class="cost-num">-30% rentabilidad</div>
+        <div class="cost-label">Promedio de pérdida por falta de control en PyMEs colombianas</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+  <div class="vs-badge">VS</div>
+
+  <div class="with">
+    <div class="with-badge">✅ Con KSmart360</div>
+    <h2>Control total,<br>crecimiento real</h2>
+    <p class="with-sub">Lo que cambia cuando tienes la tecnología correcta</p>
+
+    <div class="gain">
+      <div class="gain-item">
+        <span class="gain-check">📦</span>
+        <div>
+          <div class="gain-title">Inventario en tiempo real</div>
+          <div class="gain-desc">Stock automático, alertas de mínimo, lotes y vencimientos controlados</div>
+        </div>
+      </div>
+      <div class="gain-item">
+        <span class="gain-check">💬</span>
+        <div>
+          <div class="gain-title">Cobros automatizados por WhatsApp</div>
+          <div class="gain-desc">Recordatorios de cuotas y deudas enviados automáticamente desde el sistema</div>
+        </div>
+      </div>
+      <div class="gain-item">
+        <span class="gain-check">📊</span>
+        <div>
+          <div class="gain-title">Reportes inteligentes al instante</div>
+          <div class="gain-desc">Ventas, márgenes, clientes top — toda la información lista para decidir</div>
+        </div>
+      </div>
+      <div class="gain-item">
+        <span class="gain-check">⚡</span>
+        <div>
+          <div class="gain-title">Operación 5x más rápida</div>
+          <div class="gain-desc">POS con escáner, cierre de caja automático, comprobantes por WhatsApp al instante</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="save-badge">
+      <span class="save-icon">🚀</span>
+      <div>
+        <div class="save-num">Empieza gratis — 14 días sin tarjeta</div>
+        <div class="save-label">KSmart360 · ksmart360.com</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="watermark">ksmart360.com</div>
+</div>
+</body>
+</html>

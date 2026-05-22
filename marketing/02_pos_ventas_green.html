@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1200">
+<title>KSmart360 - POS</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 1200px; height: 628px; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; }
+
+  .slide {
+    width: 1200px; height: 628px;
+    background: #f0fdf4;
+    display: flex; position: relative; overflow: hidden;
+  }
+
+  /* Sidebar verde */
+  .sidebar {
+    width: 420px; height: 100%;
+    background: linear-gradient(160deg, #059669 0%, #10B981 60%, #34d399 100%);
+    padding: 52px 44px; display: flex; flex-direction: column; justify-content: center;
+    position: relative; overflow: hidden; flex-shrink: 0;
+  }
+  .sidebar::after {
+    content:''; position: absolute; bottom: -60px; right: -60px;
+    width: 220px; height: 220px; border-radius: 50%;
+    background: rgba(255,255,255,0.08);
+  }
+  .sidebar::before {
+    content:''; position: absolute; top: -40px; left: -40px;
+    width: 160px; height: 160px; border-radius: 50%;
+    background: rgba(255,255,255,0.06);
+  }
+
+  .num-badge {
+    width: 52px; height: 52px; border-radius: 16px;
+    background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.35);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; font-weight: 900; color: #fff; margin-bottom: 24px;
+  }
+  h2 { font-size: 38px; font-weight: 900; color: #fff; line-height: 1.1; margin-bottom: 14px; }
+  .tagline { font-size: 15px; color: rgba(255,255,255,0.85); line-height: 1.6; margin-bottom: 32px; }
+
+  .features { display: flex; flex-direction: column; gap: 14px; }
+  .feat {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 14px; padding: 14px 16px;
+  }
+  .feat-icon { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
+  .feat-title { font-size: 13px; font-weight: 800; color: #fff; }
+  .feat-desc { font-size: 11px; color: rgba(255,255,255,0.75); margin-top: 2px; line-height: 1.4; }
+
+  /* Right content */
+  .content {
+    flex: 1; padding: 40px 48px; display: flex; flex-direction: column; justify-content: center;
+  }
+
+  .phones-wrap {
+    display: flex; gap: 20px; align-items: center; justify-content: center;
+  }
+
+  .phone {
+    background: #0d1117; border-radius: 36px; padding: 12px;
+    box-shadow: 0 24px 56px rgba(0,0,0,0.2); border: 2px solid rgba(255,255,255,0.08);
+    flex-shrink: 0;
+  }
+  .phone-screen { background: #fff; border-radius: 26px; overflow: hidden; }
+
+  /* Phone 1: Scanner */
+  .p1 { width: 190px; transform: rotate(-3deg); }
+  .p1 .bar { background: #fff; padding: 10px 12px; border-bottom: 1px solid #f0f0f0; }
+  .p1 .bar-title { font-size: 11px; font-weight: 800; color: #FF6020; }
+  .p1 .bar-sub { font-size: 8px; color: #888; }
+  .scanner-box {
+    margin: 10px; background: #0d1117; border-radius: 14px; height: 110px;
+    display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;
+  }
+  .scan-corner {
+    position: absolute; width: 24px; height: 24px; border-color: #FF6020; border-style: solid; border-width: 0;
+  }
+  .scan-corner.tl { top: 10px; left: 10px; border-top-width: 3px; border-left-width: 3px; border-radius: 4px 0 0 0; }
+  .scan-corner.tr { top: 10px; right: 10px; border-top-width: 3px; border-right-width: 3px; border-radius: 0 4px 0 0; }
+  .scan-corner.bl { bottom: 10px; left: 10px; border-bottom-width: 3px; border-left-width: 3px; border-radius: 0 0 0 4px; }
+  .scan-corner.br { bottom: 10px; right: 10px; border-bottom-width: 3px; border-right-width: 3px; border-radius: 0 0 4px 0; }
+  .scan-line { position: absolute; width: 80%; height: 2px; background: linear-gradient(90deg,transparent,#FF6020,transparent); top: 50%; }
+  .scan-hint { font-size: 8px; color: #666; text-align: center; padding: 6px 10px; }
+
+  /* Phone 2: Payment */
+  .p2 { width: 200px; }
+  .p2 .bar { background: #fff; padding: 10px 12px; border-bottom: 1px solid #f0f0f0; }
+  .p2 .bar-title { font-size: 11px; font-weight: 800; color: #111; }
+  .total-box { background: #fff8f5; margin: 8px; border-radius: 10px; padding: 10px; text-align: center; border: 1px solid #FFD5BC; }
+  .total-label { font-size: 8px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+  .total-val { font-size: 22px; font-weight: 900; color: #FF6020; }
+  .iva-row { display: flex; gap: 5px; margin: 6px 8px; }
+  .iva-btn {
+    flex: 1; padding: 5px; border-radius: 6px; font-size: 8px; font-weight: 700; text-align: center;
+  }
+  .iva-active { background: #FF6020; color: #fff; }
+  .iva-inactive { background: #f5f5f5; color: #888; border: 1px solid #e0e0e0; }
+  .pay-label { font-size: 8px; color: #888; padding: 0 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .pay-methods { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 5px 8px; }
+  .pay-method {
+    padding: 6px 4px; border-radius: 8px; font-size: 7px; font-weight: 700;
+    text-align: center; border: 1px solid #e0e0e0; color: #555;
+  }
+  .pay-method.active { border-color: #10B981; background: #f0fdf4; color: #059669; }
+  .register-btn {
+    margin: 6px 8px 10px; background: linear-gradient(135deg,#FF6020,#FF8C42);
+    border-radius: 10px; padding: 10px; text-align: center;
+    font-size: 10px; font-weight: 800; color: #fff;
+  }
+
+  /* Bottom stats */
+  .bottom-stats { display: flex; gap: 16px; margin-top: 28px; }
+  .bstat {
+    flex: 1; background: #fff; border-radius: 14px; padding: 16px;
+    border: 1px solid #e5e7eb; box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  }
+  .bstat-icon { font-size: 20px; margin-bottom: 6px; }
+  .bstat-num { font-size: 20px; font-weight: 900; color: #059669; }
+  .bstat-label { font-size: 11px; color: #6b7280; margin-top: 2px; }
+
+  .watermark { position: absolute; bottom: 16px; right: 24px; font-size: 11px; color: #9ca3af; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="sidebar">
+    <div class="num-badge">2</div>
+    <h2>Ventas desde<br>cualquier lugar</h2>
+    <p class="tagline">
+      Un punto de venta profesional que cabe en tu bolsillo.
+      Sin hardware adicional, sin complicaciones.
+    </p>
+    <div class="features">
+      <div class="feat">
+        <span class="feat-icon">📷</span>
+        <div>
+          <div class="feat-title">Escáner de código de barras</div>
+          <div class="feat-desc">Usa la cámara del celular — sin lector físico requerido</div>
+        </div>
+      </div>
+      <div class="feat">
+        <span class="feat-icon">💳</span>
+        <div>
+          <div class="feat-title">Pagos mixtos</div>
+          <div class="feat-desc">Efectivo, transferencia, tarjeta o por cobrar en la misma venta</div>
+        </div>
+      </div>
+      <div class="feat">
+        <span class="feat-icon">🧾</span>
+        <div>
+          <div class="feat-title">Recibo por WhatsApp</div>
+          <div class="feat-desc">Envía el comprobante directamente al cliente al cerrar la venta</div>
+        </div>
+      </div>
+      <div class="feat">
+        <span class="feat-icon">📋</span>
+        <div>
+          <div class="feat-title">Historial completo</div>
+          <div class="feat-desc">Todas las ventas con estados, pagos y clientes registrados</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="phones-wrap">
+      <div class="phone p1">
+        <div class="phone-screen">
+          <div class="bar">
+            <div class="bar-title">Ventas (POS)</div>
+            <div class="bar-sub">Escanea o busca producto</div>
+          </div>
+          <div class="scanner-box">
+            <div class="scan-corner tl"></div>
+            <div class="scan-corner tr"></div>
+            <div class="scan-corner bl"></div>
+            <div class="scan-corner br"></div>
+            <div class="scan-line"></div>
+          </div>
+          <div class="scan-hint">Apunta el código al recuadro</div>
+          <div style="margin:0 8px 8px; background:#f9f9f9; border-radius:10px; padding:8px;">
+            <div style="font-size:8px;color:#888;text-transform:uppercase;">Cliente</div>
+            <div style="font-size:10px;font-weight:700;color:#374151;margin-top:2px;">🔍 Buscar por nombre o NIT</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="phone p2">
+        <div class="phone-screen">
+          <div class="bar">
+            <div class="bar-title">Total a cobrar</div>
+          </div>
+          <div class="total-box">
+            <div class="total-label">Total a cobrar</div>
+            <div class="total-val">$87.500</div>
+          </div>
+          <div class="iva-row">
+            <div class="iva-btn iva-inactive">Exento (0%)</div>
+            <div class="iva-btn iva-active">IVA 19%</div>
+          </div>
+          <div class="pay-label">Método de pago</div>
+          <div class="pay-methods">
+            <div class="pay-method active">💵 Efectivo</div>
+            <div class="pay-method">🏦 Transferencia</div>
+            <div class="pay-method">💳 Tarjeta</div>
+            <div class="pay-method">⏰ Por Cobrar</div>
+          </div>
+          <div class="register-btn">🛒 Registrar Venta</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom-stats">
+      <div class="bstat">
+        <div class="bstat-icon">📈</div>
+        <div class="bstat-num">$1.385.405</div>
+        <div class="bstat-label">Ventas últimos 30 días</div>
+      </div>
+      <div class="bstat">
+        <div class="bstat-icon">🏆</div>
+        <div class="bstat-num">$529.333</div>
+        <div class="bstat-label">Mejor día registrado</div>
+      </div>
+      <div class="bstat">
+        <div class="bstat-icon">💬</div>
+        <div class="bstat-num">100%</div>
+        <div class="bstat-label">Comprobantes por WhatsApp</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="watermark">ksmart360.com</div>
+</div>
+</body>
+</html>

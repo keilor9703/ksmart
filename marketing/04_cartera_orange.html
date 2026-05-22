@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1200">
+<title>KSmart360 - Cartera</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 1200px; height: 628px; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; }
+  .slide {
+    width: 1200px; height: 628px;
+    background: linear-gradient(135deg, #fff7ed 0%, #fff 50%, #fff7ed 100%);
+    display: flex; align-items: center; position: relative; overflow: hidden;
+  }
+
+  /* bg shapes */
+  .bg-shape1 {
+    position: absolute; top: -80px; right: 200px;
+    width: 300px; height: 300px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,96,32,0.06) 0%, transparent 70%);
+  }
+  .bg-shape2 {
+    position: absolute; bottom: -60px; left: 100px;
+    width: 240px; height: 240px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,96,32,0.04) 0%, transparent 70%);
+  }
+
+  /* Left: main content */
+  .left { flex: 1; padding: 48px 52px; }
+
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #fff7ed; border: 1px solid #fed7aa; border-radius: 100px;
+    padding: 6px 16px; margin-bottom: 20px;
+    font-size: 12px; font-weight: 700; color: #ea580c; text-transform: uppercase; letter-spacing: 0.8px;
+  }
+  h1 { font-size: 40px; font-weight: 900; color: #111827; line-height: 1.1; margin-bottom: 12px; }
+  h1 span { color: #FF6020; }
+  .sub { font-size: 15px; color: #6b7280; margin-bottom: 32px; line-height: 1.6; }
+
+  /* Metric cards */
+  .metrics { display: flex; gap: 16px; margin-bottom: 28px; }
+  .mc {
+    background: #fff; border-radius: 16px; padding: 18px 20px; flex: 1;
+    border: 1px solid #e5e7eb; box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+    position: relative; overflow: hidden;
+  }
+  .mc::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; border-radius:16px 16px 0 0; }
+  .mc.total::before { background: linear-gradient(90deg,#FF6020,#FF8C42); }
+  .mc.clients::before { background: linear-gradient(90deg,#EF4444,#DC2626); }
+  .mc.avg::before { background: linear-gradient(90deg,#F59E0B,#D97706); }
+
+  .mc-icon { font-size: 24px; margin-bottom: 8px; }
+  .mc-num { font-size: 22px; font-weight: 900; color: #111827; }
+  .mc-label { font-size: 11px; color: #6b7280; margin-top: 3px; }
+
+  /* Debtors */
+  .debt-section { background: #fff; border-radius: 16px; padding: 18px 20px; border: 1px solid #e5e7eb; }
+  .debt-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .debt-title { font-size: 13px; font-weight: 800; color: #111827; }
+  .debt-badge { background: #fee2e2; color: #dc2626; font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 100px; }
+
+  .debtor { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .debtor:last-child { margin-bottom: 0; }
+  .debtor-avatar {
+    width: 34px; height: 34px; border-radius: 10px; background: #fee2e2;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 800; color: #dc2626; flex-shrink: 0;
+  }
+  .debtor-info { flex: 1; }
+  .debtor-name { font-size: 12px; font-weight: 700; color: #111827; }
+  .debtor-detail { font-size: 10px; color: #9ca3af; }
+  .debtor-bar-wrap { flex: 1; }
+  .debtor-bar { height: 5px; border-radius: 100px; background: #fee2e2; overflow: hidden; }
+  .debtor-fill { height: 100%; border-radius: 100px; background: linear-gradient(90deg,#EF4444,#DC2626); }
+  .debtor-amount { font-size: 13px; font-weight: 900; color: #dc2626; min-width: 70px; text-align: right; }
+
+  /* Right: phone */
+  .right { width: 360px; padding-right: 48px; flex-shrink: 0; }
+  .phone {
+    background: #0d1117; border-radius: 40px; padding: 14px;
+    box-shadow: 0 32px 64px rgba(0,0,0,0.2); border: 2px solid rgba(255,255,255,0.08);
+    transform: rotate(3deg);
+  }
+  .phone-screen { background: #f5f6fa; border-radius: 28px; overflow: hidden; }
+  .ph-bar { background: #fff; padding: 10px 14px; border-bottom: 1px solid #eee; }
+  .ph-title { font-size: 11px; font-weight: 800; color: #111; }
+  .ph-tabs { display: flex; gap: 0; margin-bottom: 0; }
+  .ph-tab {
+    flex: 1; padding: 7px 4px; text-align: center; font-size: 8px; font-weight: 600;
+    color: #888; border-bottom: 2px solid transparent;
+  }
+  .ph-tab.active { color: #3B82F6; border-color: #3B82F6; }
+  .ph-tab.orange { color: #FF6020; border-color: #FF6020; }
+
+  .ph-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px; }
+  .ph-stat {
+    background: #fff; border-radius: 8px; padding: 8px;
+  }
+  .ph-stat-num { font-size: 13px; font-weight: 900; color: #111; }
+  .ph-stat-label { font-size: 7px; color: #888; }
+
+  .ph-alert {
+    margin: 0 8px 8px; background: #fff5f5; border: 1px solid #fecaca;
+    border-radius: 8px; padding: 8px;
+    font-size: 9px; font-weight: 700; color: #dc2626;
+  }
+  .ph-debtor { margin: 0 8px 6px; background: #fff; border-radius: 8px; padding: 8px; }
+  .ph-debtor-name { font-size: 9px; font-weight: 800; color: #111; }
+  .ph-debtor-sub { font-size: 7px; color: #888; }
+  .ph-debtor-amount { font-size: 12px; font-weight: 900; color: #dc2626; text-align: right; }
+
+  .watermark { position: absolute; bottom: 16px; left: 52px; font-size: 11px; color: #d1d5db; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="bg-shape1"></div>
+  <div class="bg-shape2"></div>
+
+  <div class="left">
+    <div class="eyebrow">💰 Gestión de Cartera</div>
+    <h1>Nunca pierdas<br>una <span>deuda de vista</span></h1>
+    <p class="sub">Controla en tiempo real quién te debe, cuánto y desde cuándo. Cobra más rápido con recordatorios automáticos por WhatsApp.</p>
+
+    <div class="metrics">
+      <div class="mc total">
+        <div class="mc-icon">💼</div>
+        <div class="mc-num">$309.000</div>
+        <div class="mc-label">Total por recuperar</div>
+      </div>
+      <div class="mc clients">
+        <div class="mc-icon">👥</div>
+        <div class="mc-num">3 clientes</div>
+        <div class="mc-label">Con saldo pendiente</div>
+      </div>
+      <div class="mc avg">
+        <div class="mc-icon">📊</div>
+        <div class="mc-num">$103.000</div>
+        <div class="mc-label">Deuda promedio</div>
+      </div>
+    </div>
+
+    <div class="debt-section">
+      <div class="debt-header">
+        <span class="debt-title">Top clientes con mayor deuda</span>
+        <span class="debt-badge">⚠ 3 pendientes</span>
+      </div>
+      <div class="debtor">
+        <div class="debtor-avatar">S</div>
+        <div class="debtor-info">
+          <div class="debtor-name">STELLA - AUTOSERVICIO TODO EN UNO</div>
+          <div class="debtor-detail">1 venta pendiente</div>
+        </div>
+        <div class="debtor-bar-wrap">
+          <div class="debtor-bar"><div class="debtor-fill" style="width:89%"></div></div>
+        </div>
+        <div class="debtor-amount">$275.000</div>
+      </div>
+      <div class="debtor">
+        <div class="debtor-avatar">C</div>
+        <div class="debtor-info">
+          <div class="debtor-name">SI CIRO GUSOF OFTIC</div>
+          <div class="debtor-detail">1 venta pendiente</div>
+        </div>
+        <div class="debtor-bar-wrap">
+          <div class="debtor-bar"><div class="debtor-fill" style="width:6%"></div></div>
+        </div>
+        <div class="debtor-amount">$19.000</div>
+      </div>
+      <div class="debtor">
+        <div class="debtor-avatar">E</div>
+        <div class="debtor-info">
+          <div class="debtor-name">IT ELVIS GUSOF OFTIC</div>
+          <div class="debtor-detail">1 venta pendiente</div>
+        </div>
+        <div class="debtor-bar-wrap">
+          <div class="debtor-bar"><div class="debtor-fill" style="width:5%"></div></div>
+        </div>
+        <div class="debtor-amount">$15.000</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="phone">
+      <div class="phone-screen">
+        <div class="ph-bar">
+          <div class="ph-title">Gestión de Terceros</div>
+        </div>
+        <div class="ph-tabs">
+          <div class="ph-tab">👥 Clientes</div>
+          <div class="ph-tab">🏢 Proveed.</div>
+          <div class="ph-tab orange">💰 Por Cobrar</div>
+        </div>
+        <div class="ph-stats">
+          <div class="ph-stat">
+            <div class="ph-stat-num" style="color:#dc2626;">$309.000</div>
+            <div class="ph-stat-label">Total por cobrar</div>
+          </div>
+          <div class="ph-stat">
+            <div class="ph-stat-num">3</div>
+            <div class="ph-stat-label">Con deuda</div>
+          </div>
+        </div>
+        <div class="ph-alert">⚠ 3 clientes con saldo pendiente<br><span style="font-weight:400">Total a recuperar: $309.000</span></div>
+        <div class="ph-debtor">
+          <div style="display:flex;justify-content:space-between;">
+            <div>
+              <div class="ph-debtor-name">STELLA - AUTOSERVICIO...</div>
+              <div class="ph-debtor-sub">1 venta pendiente</div>
+            </div>
+            <div class="ph-debtor-amount">$275.000</div>
+          </div>
+        </div>
+        <div class="ph-debtor">
+          <div style="display:flex;justify-content:space-between;">
+            <div>
+              <div class="ph-debtor-name">SI CIRO GUSOF OFTIC</div>
+              <div class="ph-debtor-sub">1 venta pendiente</div>
+            </div>
+            <div class="ph-debtor-amount">$19.000</div>
+          </div>
+        </div>
+        <div style="margin:6px 8px 10px; background:#fff; border-radius:8px; padding:8px; text-align:center;">
+          <div style="font-size:8px;font-weight:700;color:#25D366;">💬 Enviar recordatorio WhatsApp</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="watermark">ksmart360.com</div>
+</div>
+</body>
+</html>
