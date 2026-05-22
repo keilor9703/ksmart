@@ -143,12 +143,11 @@ const CatalogoVirtual = () => {
   const cartTotal = cart.reduce((sum, item) => sum + (item.precio * item.quantity), 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  const handleSendOrder = () => {
+  const handleSendOrder = async () => {
     if (!nombre || !celular) {
       toast.warning("Nombre y celular son obligatorios");
       return;
     }
-
     if (tipoEntrega === 'domicilio' && !direccion) {
       toast.warning("La dirección es obligatoria para domicilios");
       return;
@@ -156,32 +155,48 @@ const CatalogoVirtual = () => {
 
     const formatCurrency = (val) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(val);
 
-    let message = `🛍️ *NUEVO PEDIDO - ${empresa.nombre}*\n\n`;
+    // 1. Register order in backend (fire-and-forget; WhatsApp opens regardless)
+    let numeroPedido = null;
+    try {
+      const payload = {
+        nombre_cliente:    nombre,
+        celular_cliente:   celular,
+        tipo_entrega:      tipoEntrega,
+        direccion_entrega: tipoEntrega === 'domicilio' ? direccion : null,
+        comentarios:       comentarios || null,
+        detalles: cart.map(item => ({
+          producto_id:    item.id,
+          cantidad:       item.quantity,
+          precio_unitario: item.precio,
+        })),
+      };
+      const res = await apiClient.post(`/catalogo/${slug}/pedido`, payload);
+      numeroPedido = res.data.id;
+    } catch {
+      // If backend fails, continue with WhatsApp anyway so the customer is not blocked
+    }
+
+    // 2. Build WhatsApp message
+    let message = `🛍️ *NUEVO PEDIDO - ${empresa.nombre}*`;
+    if (numeroPedido) message += ` #${numeroPedido}`;
+    message += `\n\n`;
     message += `👤 *Cliente:* ${nombre}\n`;
     message += `📱 *Celular:* ${celular}\n`;
     message += `📦 *Entrega:* ${tipoEntrega === 'domicilio' ? 'A domicilio 🛵' : 'Recoger en tienda 🏪'}\n`;
-
     if (tipoEntrega === 'domicilio') {
       message += `📍 *Dirección:* ${direccion}\n`;
     } else if (empresa.direccion) {
       message += `📍 *Punto de recogida:* ${empresa.direccion}\n`;
     }
-
-    if (comentarios) {
-      message += `💬 *Comentarios:* ${comentarios}\n`;
-    }
-
+    if (comentarios) message += `💬 *Comentarios:* ${comentarios}\n`;
     message += `\n*PRODUCTOS:*\n`;
     cart.forEach(item => {
       message += `• ${item.nombre} x${item.quantity} — ${formatCurrency(item.precio)} c/u = ${formatCurrency(item.precio * item.quantity)}\n`;
     });
-
     message += `\n💰 *TOTAL: ${formatCurrency(cartTotal)}*`;
+    if (numeroPedido) message += `\n\n📋 *Pedido #${numeroPedido}* — guardado en el sistema.`;
 
-    const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/${empresa.whatsapp_pedidos}?text=${encodedMessage}`;
-
-    window.open(whatsappUrl, '_blank');
+    window.open(`https://wa.me/${empresa.whatsapp_pedidos}?text=${encodeURIComponent(message)}`, '_blank');
     setOrderSent(true);
     setTimeout(() => {
       setOrderSent(false);

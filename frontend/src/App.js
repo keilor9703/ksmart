@@ -19,6 +19,7 @@ import TopBar from './layout/TopBar';
 // ✅ IMPORTACIÓN DE COMPONENTES PRIVADOS (PANTALLAS)
 import Productos from './features/inventory/Productos';
 import Ventas from './features/sales/Ventas';
+import PedidosVirtuales from './features/sales/PedidosVirtuales';
 import Reportes from './features/reports/Reportes';
 import Login from './features/auth/Login';
 import OrdenesTrabajo from './features/workOrders/OrdenesTrabajo';
@@ -284,6 +285,7 @@ const hasAccess = useCallback((path) => {
                         : <Home />
                     } />
                     <Route path="/ventas"             element={<ProtectedRoute path="/ventas"             hasAccess={hasAccess}><Ventas user={user} /></ProtectedRoute>} />
+                    <Route path="/pedidos-virtuales" element={<ProtectedRoute path="/pedidos-virtuales" hasAccess={hasAccess}><PedidosVirtuales /></ProtectedRoute>} />
                     <Route path="/cotizaciones"       element={<ProtectedRoute path="/cotizaciones"       hasAccess={hasAccess}><Cotizaciones /></ProtectedRoute>} />
                     <Route path="/admin/resoluciones" element={<ProtectedRoute path="/admin/resoluciones" hasAccess={hasAccess}><ResolucionesDian /></ProtectedRoute>} />
                     <Route path="/compras"            element={<ProtectedRoute path="/compras"            hasAccess={hasAccess}><Compras /></ProtectedRoute>} />

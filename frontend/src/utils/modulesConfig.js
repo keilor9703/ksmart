@@ -57,6 +57,7 @@ import Storefront from '@mui/icons-material/Storefront';
 export const MODULE_ICONS = {
   // Ventas y comercial (Tonos Naranjas y Ámbar)
   '/ventas':              { icon: <ShoppingCart />,           color: '#FF6020', label: 'Ventas (POS)' },
+  '/pedidos-virtuales':   { icon: <Storefront />,             color: '#F43F5E', label: 'Pedidos Virtuales' },
   '/cotizaciones':        { icon: <RequestQuote />,           color: '#E65100', label: 'Cotizaciones' },
   '/admin/resoluciones':  { icon: <Gavel />,                  color: '#FFB300', label: 'Resoluciones DIAN' },
   

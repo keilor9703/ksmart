@@ -108,6 +108,7 @@ def initialize_default_data(db: Session):
         {"name": "Reporte Lavadero",     "description": "Reporte de productividad por trabajador.",          "frontend_path": "/lavadero/reporte"},
         {"name": "Gestión Usuarios",     "description": "Administración de usuarios y roles.",               "frontend_path": "/admin/usuarios"},
         {"name": "Catálogo Virtual",     "description": "Tienda virtual con pedidos por WhatsApp.",          "frontend_path": "/admin/catalogo"},
+        {"name": "Pedidos Virtuales",    "description": "Gestión de pedidos recibidos desde la tienda virtual.", "frontend_path": "/pedidos-virtuales"},
     ]
 
     admin_role = crud.get_role_by_name(db, name="Admin", empresa_id=empresa_default.id)
@@ -139,9 +140,52 @@ def run_migrations():
     from sqlalchemy import text, inspect
     with engine.connect() as conn:
         inspector = inspect(engine)
+
         cols = [c['name'] for c in inspector.get_columns('productos')]
         if 'unidades_por_empaque' not in cols:
             conn.execute(text("ALTER TABLE productos ADD COLUMN unidades_por_empaque FLOAT NOT NULL DEFAULT 1.0"))
+            conn.commit()
+
+        # Pedidos virtuales tables
+        tables = inspector.get_table_names()
+        if 'pedidos_virtuales' not in tables:
+            conn.execute(text("""
+                CREATE TABLE pedidos_virtuales (
+                    id SERIAL PRIMARY KEY,
+                    empresa_id INTEGER REFERENCES empresas(id),
+                    nombre_cliente VARCHAR(200) NOT NULL,
+                    celular_cliente VARCHAR(30) NOT NULL,
+                    email_cliente VARCHAR(200),
+                    tipo_entrega VARCHAR(20) DEFAULT 'tienda',
+                    direccion_entrega VARCHAR(300),
+                    comentarios TEXT,
+                    estado VARCHAR(20) DEFAULT 'nuevo',
+                    total FLOAT DEFAULT 0,
+                    stock_descontado BOOLEAN DEFAULT FALSE,
+                    venta_id INTEGER REFERENCES ventas(id),
+                    notas_internas TEXT,
+                    fecha_creacion TIMESTAMPTZ DEFAULT NOW(),
+                    fecha_actualizacion TIMESTAMPTZ
+                )
+            """))
+            conn.execute(text("CREATE INDEX idx_pv_empresa_id ON pedidos_virtuales(empresa_id)"))
+            conn.execute(text("CREATE INDEX idx_pv_estado ON pedidos_virtuales(estado)"))
+            conn.commit()
+
+        if 'detalles_pedido_virtual' not in tables:
+            conn.execute(text("""
+                CREATE TABLE detalles_pedido_virtual (
+                    id SERIAL PRIMARY KEY,
+                    empresa_id INTEGER REFERENCES empresas(id),
+                    pedido_id INTEGER NOT NULL REFERENCES pedidos_virtuales(id) ON DELETE CASCADE,
+                    producto_id INTEGER REFERENCES productos(id),
+                    nombre_producto VARCHAR(300) NOT NULL,
+                    cantidad FLOAT NOT NULL,
+                    precio_unitario FLOAT NOT NULL,
+                    subtotal FLOAT NOT NULL
+                )
+            """))
+            conn.execute(text("CREATE INDEX idx_dpv_pedido_id ON detalles_pedido_virtual(pedido_id)"))
             conn.commit()
 
 @app.on_event("startup")

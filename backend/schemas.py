@@ -2225,6 +2225,74 @@ class CatalogoPublicoOut(BaseModel):
     total_productos: int
 
 
+# =========================
+# PEDIDOS TIENDA VIRTUAL
+# =========================
+
+class DetallePedidoVirtualIn(BaseModel):
+    producto_id: int
+    cantidad: float = Field(..., gt=0)
+    precio_unitario: float = Field(..., ge=0)
+
+class PedidoVirtualCreate(BaseModel):
+    nombre_cliente:    str  = Field(..., min_length=2, max_length=200)
+    celular_cliente:   str  = Field(..., min_length=7, max_length=30)
+    email_cliente:     Optional[str] = None
+    tipo_entrega:      str  = "tienda"
+    direccion_entrega: Optional[str] = None
+    comentarios:       Optional[str] = None
+    detalles:          List[DetallePedidoVirtualIn]
+
+class PedidoVirtualCreatedOut(BaseModel):
+    id:     int
+    total:  float
+    estado: str
+
+class DetallePedidoVirtualOut(BaseModel):
+    id:              int
+    producto_id:     Optional[int]
+    nombre_producto: str
+    cantidad:        float
+    precio_unitario: float
+    subtotal:        float
+    model_config = ConfigDict(from_attributes=True)
+
+class PedidoVirtualOut(BaseModel):
+    id:               int
+    empresa_id:       int
+    nombre_cliente:   str
+    celular_cliente:  str
+    email_cliente:    Optional[str]
+    tipo_entrega:     str
+    direccion_entrega:Optional[str]
+    comentarios:      Optional[str]
+    estado:           str
+    total:            float
+    stock_descontado: bool
+    venta_id:         Optional[int]
+    notas_internas:   Optional[str]
+    fecha_creacion:       Optional[datetime]
+    fecha_actualizacion:  Optional[datetime]
+    detalles:         List[DetallePedidoVirtualOut] = []
+    model_config = ConfigDict(from_attributes=True)
+
+class PedidoEstadoUpdate(BaseModel):
+    estado:          str
+    notas_internas:  Optional[str] = None
+
+class PedidoWhatsAppMessage(BaseModel):
+    mensaje: str
+
+class PedidoVirtualStats(BaseModel):
+    nuevo:          int = 0
+    confirmado:     int = 0
+    en_preparacion: int = 0
+    enviado:        int = 0
+    entregado:      int = 0
+    cancelado:      int = 0
+    total:          int = 0
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # PIN DE ACCESO RÁPIDO
 # ═══════════════════════════════════════════════════════════════════════════════

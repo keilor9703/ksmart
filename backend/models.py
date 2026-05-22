@@ -1143,3 +1143,53 @@ class BiometricChallenge(Base):
     key        = Column(String(100), primary_key=True, index=True) # ej: "reg:5" o "auth:12"
     challenge  = Column(Text, nullable=False)                      # Challenge en base64
     expires_at = Column(Float, nullable=False)                     # Timestamp de expiración
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PEDIDOS TIENDA VIRTUAL
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class EstadoPedidoVirtual(str, enum.Enum):
+    nuevo          = "nuevo"
+    confirmado     = "confirmado"
+    en_preparacion = "en_preparacion"
+    enviado        = "enviado"
+    entregado      = "entregado"
+    cancelado      = "cancelado"
+
+
+class PedidoVirtual(Base, TenantMixin):
+    __tablename__ = "pedidos_virtuales"
+
+    id               = Column(Integer, primary_key=True, index=True)
+    nombre_cliente   = Column(String(200), nullable=False)
+    celular_cliente  = Column(String(30),  nullable=False)
+    email_cliente    = Column(String(200), nullable=True)
+    tipo_entrega     = Column(String(20),  default="tienda")   # "domicilio" | "tienda"
+    direccion_entrega= Column(String(300), nullable=True)
+    comentarios      = Column(Text,        nullable=True)
+    estado           = Column(Enum(EstadoPedidoVirtual), default=EstadoPedidoVirtual.nuevo, index=True)
+    total            = Column(Float, default=0.0)
+    stock_descontado = Column(Boolean, default=False)
+    venta_id         = Column(Integer, ForeignKey("ventas.id"), nullable=True)
+    notas_internas   = Column(Text, nullable=True)
+    fecha_creacion        = Column(DateTime(timezone=True), default=utcnow)
+    fecha_actualizacion   = Column(DateTime(timezone=True), nullable=True)
+
+    detalles = relationship("DetallePedidoVirtual", back_populates="pedido", cascade="all, delete-orphan")
+    venta    = relationship("Venta", foreign_keys=[venta_id])
+
+
+class DetallePedidoVirtual(Base, TenantMixin):
+    __tablename__ = "detalles_pedido_virtual"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    pedido_id       = Column(Integer, ForeignKey("pedidos_virtuales.id"), nullable=False)
+    producto_id     = Column(Integer, ForeignKey("productos.id"), nullable=True)
+    nombre_producto = Column(String(300), nullable=False)   # snapshot del nombre
+    cantidad        = Column(Float, nullable=False)
+    precio_unitario = Column(Float, nullable=False)
+    subtotal        = Column(Float, nullable=False)
+
+    pedido   = relationship("PedidoVirtual", back_populates="detalles")
+    producto = relationship("Producto", lazy="joined")

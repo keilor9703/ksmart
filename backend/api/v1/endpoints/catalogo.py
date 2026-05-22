@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 import models, schemas
 from api import deps
+from crud import pedidos_virtuales as crud_pv
 import base64
 import json
 
@@ -153,6 +154,24 @@ def get_catalogo_productos(
         ))
     
     return results
+
+@router.post("/{slug}/pedido", response_model=schemas.PedidoVirtualCreatedOut, status_code=201)
+def create_pedido_virtual_publico(
+    slug: str,
+    payload: schemas.PedidoVirtualCreate,
+    db: Session = Depends(deps.get_db),
+):
+    """Recibe un pedido desde el catálogo público. No requiere autenticación."""
+    try:
+        pedido = crud_pv.create_pedido_publico(db, slug, payload)
+        return schemas.PedidoVirtualCreatedOut(
+            id=pedido.id,
+            total=pedido.total,
+            estado=pedido.estado.value if hasattr(pedido.estado, "value") else pedido.estado,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 
 @router.get("/{slug}/productos/{producto_id}/imagen")
 def get_producto_imagen(
