@@ -25,6 +25,7 @@ import {
   Tooltip,
   InputAdornment
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 
 import {
   Inventory,
@@ -165,6 +166,7 @@ const ProductoForm = ({
   onClose,
   accentColor = DEFAULT_ACCENT
 }) => {
+  const theme = useTheme();
   const [nombre, setNombre] = useState('');
   const [codigoBarras, setCodigoBarras] = useState('');
   const [precio, setPrecio] = useState('');
@@ -175,7 +177,7 @@ const ProductoForm = ({
   const [stockMinimo, setStockMinimo] = useState('');
   const [stockActual, setStockActual] = useState(0);
   const [manejaLotes, setManejaLotes] = useState(false);
-  const [unidadesPorEmpaque, setUnidadesPorEmpaque] = useState(1);
+  const [unidadesPorEmpaque, setUnidadesPorEmpaque] = useState('1');
   const [stockInicial, setStockInicial] = useState('');
   const [numeroLote, setNumeroLote] = useState('');
   const [fechaVencimiento, setFechaVencimiento] = useState('');
@@ -220,7 +222,7 @@ const ProductoForm = ({
       );
       setStockActual(productoToEdit.stock_actual ?? 0);
       setManejaLotes(productoToEdit.maneja_lotes || false);
-      setUnidadesPorEmpaque(productoToEdit.unidades_por_empaque || 1);
+      setUnidadesPorEmpaque(String(productoToEdit.unidades_por_empaque || 1));
       setImagenes(productoToEdit.imagenes || []);
       setMostrarEnCatalogo(productoToEdit.mostrar_en_catalogo || false);
       setDescripcion(productoToEdit.descripcion || '');
@@ -839,7 +841,9 @@ const ProductoForm = ({
                   sx={{
                     p: 2, borderRadius: 2, border: '1px solid',
                     borderColor: parseFloat(unidadesPorEmpaque) > 1 ? '#F59E0B' : 'divider',
-                    bgcolor: parseFloat(unidadesPorEmpaque) > 1 ? '#FFFBEB' : 'transparent',
+                    bgcolor: parseFloat(unidadesPorEmpaque) > 1
+                      ? (theme.palette.mode === 'dark' ? 'rgba(245,158,11,0.08)' : '#FFFBEB')
+                      : 'transparent',
                     transition: 'all 0.2s',
                   }}
                 >
@@ -870,9 +874,10 @@ const ProductoForm = ({
                       type="number"
                       label="Unidades por empaque"
                       value={unidadesPorEmpaque}
-                      onChange={e => {
-                        const v = Math.max(1, parseFloat(e.target.value) || 1);
-                        setUnidadesPorEmpaque(v);
+                      onChange={e => setUnidadesPorEmpaque(e.target.value)}
+                      onBlur={() => {
+                        const v = parseFloat(unidadesPorEmpaque);
+                        setUnidadesPorEmpaque((!v || v < 1) ? '1' : String(Math.round(v)));
                       }}
                       inputProps={{ min: 1, step: 1 }}
                       size="small"
@@ -880,7 +885,7 @@ const ProductoForm = ({
                       helperText="Deja en 1 si lo compras por unidad"
                     />
                     {parseFloat(unidadesPorEmpaque) > 1 && parseFloat(costo) > 0 && (
-                      <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: '#F59E0B18', border: '1px solid #F59E0B40' }}>
+                      <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)' }}>
                         <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 600 }}>COSTO REAL POR UNIDAD</Typography>
                         <Typography sx={{ fontSize: 18, fontWeight: 800, color: '#D97706' }}>
                           {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(parseFloat(costo) / parseFloat(unidadesPorEmpaque))}
@@ -891,8 +896,8 @@ const ProductoForm = ({
                       </Box>
                     )}
                     {parseFloat(unidadesPorEmpaque) > 1 && (
-                      <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: '#ECFDF5', border: '1px solid #10B98140', flex: 1, minWidth: 200 }}>
-                        <Typography sx={{ fontSize: 12, color: '#059669', fontWeight: 600, lineHeight: 1.5 }}>
+                      <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', flex: 1, minWidth: 200 }}>
+                        <Typography sx={{ fontSize: 12, color: theme.palette.mode === 'dark' ? '#34d399' : '#059669', fontWeight: 600, lineHeight: 1.5 }}>
                           ✓ Al crear recetas, ingresa la cantidad de <b>unidades individuales</b> que usa cada producto (no cajas).
                         </Typography>
                       </Box>
