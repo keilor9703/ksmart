@@ -681,7 +681,11 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
               <Grid item xs={12} sm={4}>
                 <TextField fullWidth type="number" label="Porciones / Unidades que produce *"
                   value={formData.porciones}
-                  onChange={e => setFormData({ ...formData, porciones: Math.max(1, parseInt(e.target.value) || 1) })}
+                  onChange={e => setFormData({ ...formData, porciones: e.target.value })}
+                  onBlur={e => {
+                    const v = parseInt(e.target.value);
+                    setFormData(f => ({ ...f, porciones: (!v || v < 1) ? 1 : v }));
+                  }}
                   inputProps={{ min: 1 }} size="small"
                   helperText="Ej: si produce 10 hamburguesas, escribe 10" />
               </Grid>
