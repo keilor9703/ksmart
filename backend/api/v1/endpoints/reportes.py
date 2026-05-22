@@ -402,3 +402,31 @@ def reporte_caja_rango(
         "total_egresos":  total_egresos,
         "neto_total":     total_ingresos - total_egresos
     }
+
+
+# ─── Ventas por Vendedor ──────────────────────────────────────────────────────
+
+@router.get("/ventas-vendedor", response_model=schemas.ReporteVentasVendedor)
+def get_ventas_por_vendedor(
+    start_date: Optional[date] = None,
+    end_date:   Optional[date] = None,
+    db:           Session       = Depends(get_db),
+    current_user: models.User   = Depends(get_current_active_user),
+):
+    return crud.get_ventas_por_vendedor(
+        db, current_user.empresa_id, start_date, end_date
+    )
+
+
+@router.get("/ventas-vendedor/{vendedor_id}", response_model=List[schemas.VentaVendedorItem])
+def get_ventas_de_vendedor(
+    vendedor_id: int,
+    start_date:  Optional[date] = None,
+    end_date:    Optional[date] = None,
+    limit:       int            = 100,
+    db:           Session       = Depends(get_db),
+    current_user: models.User   = Depends(get_current_active_user),
+):
+    return crud.get_ventas_de_vendedor(
+        db, current_user.empresa_id, vendedor_id, start_date, end_date, limit
+    )

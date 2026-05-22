@@ -45,6 +45,7 @@ from crud.reportes import (
     get_ventas_summary, get_cuentas_por_cobrar_por_cliente, get_productos_vendidos,
     get_clientes_compradores, get_clientes_deudores, get_rentabilidad_por_producto,
     get_sales_by_day, get_total_sales_today, get_dashboard_data,
+    get_ventas_por_vendedor, get_ventas_de_vendedor,
 )
 
 from crud.ordenes_trabajo import (

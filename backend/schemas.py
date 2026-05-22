@@ -952,6 +952,37 @@ class SalesByDay(BaseModel):
     day: date
     total: float
 
+# ─── Reporte ventas por vendedor ──────────────────────────────────────────────
+
+class VendedorVentaStats(BaseModel):
+    vendedor_id:       int
+    nombre:            str
+    email:             Optional[str] = None
+    total_ventas:      int
+    total_ingresos:    float
+    total_cobrado:     float
+    total_pendiente:   float
+    ticket_promedio:   float
+    ventas_pagadas:    int
+    ventas_pendientes: int
+    pct_total:         float = 0.0
+
+class VentaVendedorItem(BaseModel):
+    id:           int
+    fecha:        datetime
+    cliente:      Optional[str] = None
+    num_items:    int
+    total:        float
+    monto_pagado: float
+    estado_pago:  str
+    metodo_pago:  Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class ReporteVentasVendedor(BaseModel):
+    vendedores:              List[VendedorVentaStats]
+    total_ingresos_periodo:  float
+    total_ventas_periodo:    int
+
 class DashboardData(BaseModel):
     # --- MÉTRICAS ERP COMERCIAL ---
     ventas_hoy: float

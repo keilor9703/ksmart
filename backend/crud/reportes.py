@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func, text, cast, Date
+from sqlalchemy import func, text, cast, Date, case
 from typing import Optional, List
 from datetime import date, datetime, timedelta
 import models, schemas
@@ -334,3 +334,113 @@ def get_dashboard_data(db: Session, empresa_id: int) -> schemas.DashboardData:
         ordenes_recientes=get_ordenes_trabajo(db, empresa_id, skip=0, limit=5),
         ventas_ultimos_30_dias=ventas_30,
     )
+
+
+# ─── Ventas por Vendedor ──────────────────────────────────────────────────────
+
+def get_ventas_por_vendedor(
+    db: Session,
+    empresa_id: int,
+    start_date: Optional[date] = None,
+    end_date:   Optional[date] = None,
+) -> schemas.ReporteVentasVendedor:
+    q = (
+        db.query(
+            models.User.id.label("vendedor_id"),
+            func.coalesce(models.User.nombre_completo, models.User.username).label("nombre"),
+            models.User.email.label("email"),
+            func.count(models.Venta.id).label("total_ventas"),
+            func.coalesce(func.sum(models.Venta.total),       0.0).label("total_ingresos"),
+            func.coalesce(func.sum(models.Venta.monto_pagado), 0.0).label("total_cobrado"),
+            func.sum(case((models.Venta.estado_pago == "pagado",   1), else_=0)).label("ventas_pagadas"),
+            func.sum(case((models.Venta.estado_pago == "pendiente", 1), else_=0)).label("ventas_pendientes"),
+        )
+        .join(models.Venta, models.Venta.operador_id == models.User.id)
+        .filter(
+            models.Venta.empresa_id == empresa_id,
+            models.Venta.tipo == "venta",
+        )
+    )
+    if start_date:
+        utc_start, _ = get_utc_boundaries(start_date)
+        q = q.filter(models.Venta.fecha >= utc_start)
+    if end_date:
+        _, utc_end = get_utc_boundaries(end_date)
+        q = q.filter(models.Venta.fecha <= utc_end)
+
+    rows = q.group_by(
+        models.User.id,
+        models.User.nombre_completo,
+        models.User.username,
+        models.User.email,
+    ).all()
+
+    total_ingresos_global = sum(r.total_ingresos for r in rows)
+
+    vendedores = []
+    for r in rows:
+        pendiente      = max(r.total_ingresos - r.total_cobrado, 0.0)
+        ticket_prom    = r.total_ingresos / r.total_ventas if r.total_ventas > 0 else 0.0
+        pct            = (r.total_ingresos / total_ingresos_global * 100) if total_ingresos_global > 0 else 0.0
+        vendedores.append(schemas.VendedorVentaStats(
+            vendedor_id       = r.vendedor_id,
+            nombre            = r.nombre or f"Usuario #{r.vendedor_id}",
+            email             = r.email,
+            total_ventas      = r.total_ventas,
+            total_ingresos    = round(r.total_ingresos, 2),
+            total_cobrado     = round(r.total_cobrado, 2),
+            total_pendiente   = round(pendiente, 2),
+            ticket_promedio   = round(ticket_prom, 2),
+            ventas_pagadas    = r.ventas_pagadas,
+            ventas_pendientes = r.ventas_pendientes,
+            pct_total         = round(pct, 1),
+        ))
+
+    vendedores.sort(key=lambda v: v.total_ingresos, reverse=True)
+
+    return schemas.ReporteVentasVendedor(
+        vendedores             = vendedores,
+        total_ingresos_periodo = round(total_ingresos_global, 2),
+        total_ventas_periodo   = sum(r.total_ventas for r in rows),
+    )
+
+
+def get_ventas_de_vendedor(
+    db:          Session,
+    empresa_id:  int,
+    vendedor_id: int,
+    start_date:  Optional[date] = None,
+    end_date:    Optional[date] = None,
+    limit:       int = 100,
+) -> list:
+    q = (
+        db.query(models.Venta)
+        .options(joinedload(models.Venta.cliente), joinedload(models.Venta.detalles))
+        .filter(
+            models.Venta.empresa_id == empresa_id,
+            models.Venta.operador_id == vendedor_id,
+            models.Venta.tipo == "venta",
+        )
+    )
+    if start_date:
+        utc_start, _ = get_utc_boundaries(start_date)
+        q = q.filter(models.Venta.fecha >= utc_start)
+    if end_date:
+        _, utc_end = get_utc_boundaries(end_date)
+        q = q.filter(models.Venta.fecha <= utc_end)
+
+    ventas = q.order_by(models.Venta.fecha.desc()).limit(limit).all()
+
+    return [
+        schemas.VentaVendedorItem(
+            id          = v.id,
+            fecha       = v.fecha,
+            cliente     = v.cliente.nombre if v.cliente else None,
+            num_items   = len(v.detalles),
+            total       = v.total or 0.0,
+            monto_pagado= v.monto_pagado or 0.0,
+            estado_pago = v.estado_pago or "pendiente",
+            metodo_pago = v.metodo_pago,
+        )
+        for v in ventas
+    ]

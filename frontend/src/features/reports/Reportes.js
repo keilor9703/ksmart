@@ -4,6 +4,7 @@ import { useTheme } from '@mui/material/styles';
 import {
   Assessment, ShoppingCart, TrendingUp, People,
   AccountBalanceWallet, Engineering, Receipt, AttachMoney, PointOfSale, AccountBalance,
+  PersonSearch,
 } from '@mui/icons-material';
 import ResumenVentas from '../sales/ResumenVentas';
 import ProductSales from '../inventory/ProductSales';
@@ -15,6 +16,7 @@ import ReporteIVA from './ReporteIVA';
 import ReportePrestamos from '../loans/ReportePrestamos';
 import ReporteCaja from './ReporteCaja';
 import ReporteEstadoResultados from './ReporteEstadoResultados';
+import ReporteVendedores from './ReporteVendedores';
 import apiClient from '../../api';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
@@ -38,6 +40,7 @@ const TABS_ERP = [
   { label: 'Rentab.',       icon: <TrendingUp fontSize="small" />,           fullLabel: 'Rentabilidad'          },
   { label: 'Clientes',      icon: <People fontSize="small" />,               fullLabel: 'Ventas x Cliente'      },
   { label: 'Deudores',      icon: <AccountBalanceWallet fontSize="small" />, fullLabel: 'Deudores'              },
+  { label: 'Vendedores',    icon: <PersonSearch fontSize="small" />,         fullLabel: 'Ventas x Vendedor'     },
   { label: 'Product.',      icon: <Engineering fontSize="small" />,          fullLabel: 'Productividad'         },
   { label: 'IVA',           icon: <Receipt fontSize="small" />,              fullLabel: 'IVA / Impuestos DIAN'  },
   { label: 'Caja',          icon: <PointOfSale fontSize="small" />,          fullLabel: 'Reporte de Caja'       },
@@ -170,10 +173,11 @@ const Reportes = () => {
               <TabPanel value={tab} index={2}><RentabilidadReporte      accentColor={ACCENT} /></TabPanel>
               <TabPanel value={tab} index={3}><CustomerBuyers           accentColor={ACCENT} /></TabPanel>
               <TabPanel value={tab} index={4}><CustomerDebtors          accentColor={ACCENT} /></TabPanel>
-              <TabPanel value={tab} index={5}><ReporteProductividad     accentColor={ACCENT} /></TabPanel>
-              <TabPanel value={tab} index={6}><ReporteIVA               accentColor={ACCENT} /></TabPanel>
-              <TabPanel value={tab} index={7}><ReporteCaja              accentColor={ACCENT} /></TabPanel>
-              <TabPanel value={tab} index={8}><ReporteEstadoResultados  accentColor={ACCENT} /></TabPanel>
+              <TabPanel value={tab} index={5}><ReporteVendedores        accentColor={ACCENT} /></TabPanel>
+              <TabPanel value={tab} index={6}><ReporteProductividad     accentColor={ACCENT} /></TabPanel>
+              <TabPanel value={tab} index={7}><ReporteIVA               accentColor={ACCENT} /></TabPanel>
+              <TabPanel value={tab} index={8}><ReporteCaja              accentColor={ACCENT} /></TabPanel>
+              <TabPanel value={tab} index={9}><ReporteEstadoResultados  accentColor={ACCENT} /></TabPanel>
             </Box>
           </>
         )}
