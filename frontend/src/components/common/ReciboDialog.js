@@ -404,20 +404,8 @@ const ReciboDialog = ({ open, onClose, venta, empresa, vendedor }) => {
   const handleWhatsApp = () => {
     const num = waNumber.replace(/\D/g, '');
     if (!num) return;
-    // Step 1: open A4 print window so user can save PDF
-    const a4Html = buildPrintHTML(venta, empresa, vendedor, SIZES.a4);
-    const w = window.open('', '_blank', 'width=700,height=900');
-    if (w) {
-      w.document.write(a4Html);
-      w.document.close();
-      w.focus();
-      setTimeout(() => w.print(), 350);
-    }
-    // Step 2: open WhatsApp with receipt text after short delay
     const text = buildWhatsAppText(venta, empresa, vendedor);
-    setTimeout(() => {
-      window.open(`https://wa.me/${num}?text=${encodeURIComponent(text)}`, '_blank');
-    }, 1500);
+    window.open(`https://wa.me/${num}?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   return (
