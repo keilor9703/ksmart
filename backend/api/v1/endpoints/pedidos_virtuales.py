@@ -57,14 +57,30 @@ def update_estado(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/{pedido_id}/convertir-venta", response_model=schemas.PedidoVirtualOut)
-def convertir_a_venta(
+@router.patch("/{pedido_id}", response_model=schemas.PedidoVirtualOut)
+def update_pedido(
     pedido_id: int,
+    payload: schemas.PedidoVirtualUpdate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
     try:
-        return crud_pv.convertir_a_venta(db, pedido_id, current_user.empresa_id, current_user.id)
+        return crud_pv.update_pedido(db, pedido_id, current_user.empresa_id, payload)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{pedido_id}/convertir-venta", response_model=schemas.PedidoVirtualOut)
+def convertir_a_venta(
+    pedido_id: int,
+    payload: schemas.ConvertirVentaRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    try:
+        return crud_pv.convertir_a_venta(
+            db, pedido_id, current_user.empresa_id, current_user.id, payload.metodo_pago
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

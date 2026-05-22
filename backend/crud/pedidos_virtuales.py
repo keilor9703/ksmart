@@ -6,6 +6,8 @@ from sqlalchemy import func
 
 import models
 import schemas
+from crud import notificaciones as crud_notif
+from crud import pagos as crud_pagos
 
 
 def _utcnow():
@@ -74,7 +76,36 @@ def create_pedido_publico(db: Session, slug: str, payload: schemas.PedidoVirtual
 
     db.commit()
     db.refresh(pedido)
+
+    # Notify all empresa users about the new order
+    _notificar_nuevo_pedido(db, empresa.id, pedido)
+
     return pedido
+
+
+def _notificar_nuevo_pedido(db: Session, empresa_id: int, pedido: models.PedidoVirtual):
+    """Sends in-app notification to all active users of the empresa."""
+    fmt = lambda v: f"${v:,.0f}".replace(",", ".")
+    mensaje = (
+        f"🛍️ Nuevo pedido #{pedido.id} de {pedido.nombre_cliente} "
+        f"— {fmt(pedido.total)} | Tienda Virtual"
+    )
+    usuarios = db.query(models.User).filter(
+        models.User.empresa_id == empresa_id,
+        models.User.is_active == True,
+    ).all()
+    for u in usuarios:
+        notif = schemas.NotificacionCreate(
+            usuario_id=u.id,
+            mensaje=mensaje,
+        )
+        db_notif = models.Notificacion(
+            **notif.dict(),
+            empresa_id=empresa_id,
+            tipo="info",
+        )
+        db.add(db_notif)
+    db.commit()
 
 
 # ─── PRIVATE ─────────────────────────────────────────────────────────────────
@@ -158,11 +189,29 @@ def update_estado(
     return pedido
 
 
+def update_pedido(
+    db: Session,
+    pedido_id: int,
+    empresa_id: int,
+    payload: schemas.PedidoVirtualUpdate,
+) -> models.PedidoVirtual:
+    pedido = get_pedido(db, pedido_id, empresa_id)
+    if not pedido:
+        raise ValueError("Pedido no encontrado")
+    for field, value in payload.dict(exclude_unset=True).items():
+        setattr(pedido, field, value)
+    pedido.fecha_actualizacion = _utcnow()
+    db.commit()
+    db.refresh(pedido)
+    return pedido
+
+
 def convertir_a_venta(
     db: Session,
     pedido_id: int,
     empresa_id: int,
     user_id: int,
+    metodo_pago: str = "Efectivo",
 ) -> models.PedidoVirtual:
     pedido = get_pedido(db, pedido_id, empresa_id)
     if not pedido:
@@ -220,11 +269,21 @@ def convertir_a_venta(
         _deducir_stock(db, pedido, empresa_id)
         pedido.stock_descontado = True
 
-    pedido.venta_id           = venta.id
-    pedido.estado             = models.EstadoPedidoVirtual.entregado
+    pedido.venta_id            = venta.id
+    pedido.estado              = models.EstadoPedidoVirtual.entregado
     pedido.fecha_actualizacion = _utcnow()
 
     db.commit()
+
+    # Register payment after venta and pedido are persisted
+    pago = schemas.PagoCreate(
+        venta_id    = venta.id,
+        monto       = pedido.total,
+        metodo_pago = metodo_pago,
+        detalle_pago= f"Pedido virtual #{pedido.id}",
+    )
+    crud_pagos.create_pago(db, empresa_id, pago)
+
     db.refresh(pedido)
     return pedido
 

@@ -2279,6 +2279,19 @@ class PedidoVirtualOut(BaseModel):
 class PedidoEstadoUpdate(BaseModel):
     estado:          str
     notas_internas:  Optional[str] = None
+    motivo_cancelacion: Optional[str] = None
+
+class PedidoVirtualUpdate(BaseModel):
+    nombre_cliente:   Optional[str] = None
+    celular_cliente:  Optional[str] = None
+    email_cliente:    Optional[str] = None
+    tipo_entrega:     Optional[str] = None
+    direccion_entrega: Optional[str] = None
+    comentarios:      Optional[str] = None
+    notas_internas:   Optional[str] = None
+
+class ConvertirVentaRequest(BaseModel):
+    metodo_pago: str  # "Efectivo" | "Transferencia"
 
 class PedidoWhatsAppMessage(BaseModel):
     mensaje: str
