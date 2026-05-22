@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1200">
+<title>KSmart360 - Config Parqueadero</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { width:1200px; height:628px; font-family:'Segoe UI',system-ui,sans-serif; overflow:hidden; }
+  .slide { width:1200px; height:628px; background:#fff; display:flex; position:relative; overflow:hidden; }
+
+  /* Left green panel */
+  .panel {
+    width:380px; height:100%;
+    background:linear-gradient(160deg,#059669 0%,#10B981 55%,#34d399 100%);
+    padding:44px 38px; display:flex; flex-direction:column; justify-content:center;
+    flex-shrink:0; position:relative; overflow:hidden;
+  }
+  .panel::before { content:''; position:absolute; top:-50px; right:-50px; width:180px; height:180px; border-radius:50%; background:rgba(255,255,255,0.07); }
+  .panel::after  { content:''; position:absolute; bottom:-40px; left:-40px; width:160px; height:160px; border-radius:50%; background:rgba(255,255,255,0.05); }
+
+  .panel-tag { display:inline-flex; align-items:center; gap:7px; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); border-radius:100px; padding:6px 14px; margin-bottom:18px; font-size:11px; font-weight:700; color:#fff; width:fit-content; }
+  h2 { font-size:32px; font-weight:900; color:#fff; line-height:1.1; margin-bottom:10px; }
+  .tagline { font-size:13px; color:rgba(255,255,255,0.82); line-height:1.6; margin-bottom:22px; }
+
+  .feat-list { display:flex; flex-direction:column; gap:11px; }
+  .feat { display:flex; align-items:flex-start; gap:11px; }
+  .feat-ico { width:34px; height:34px; border-radius:10px; background:rgba(255,255,255,0.14); display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0; }
+  .feat-title { font-size:12px; font-weight:800; color:#fff; }
+  .feat-desc  { font-size:11px; color:rgba(255,255,255,0.7); line-height:1.35; }
+
+  /* Right */
+  .right { flex:1; padding:24px 32px; display:flex; flex-direction:column; gap:12px; justify-content:center; }
+
+  .right-header { font-size:18px; font-weight:900; color:#111827; margin-bottom:2px; }
+  .right-sub { font-size:12px; color:#6b7280; }
+
+  /* Config card */
+  .config-section { background:#f9fafb; border:1px solid #e5e7eb; border-radius:14px; padding:14px 16px; }
+  .section-title { font-size:11px; font-weight:800; color:#374151; text-transform:uppercase; letter-spacing:0.6px; margin-bottom:10px; display:flex; align-items:center; gap:6px; }
+  .fields-row { display:flex; gap:10px; }
+  .field { flex:1; }
+  .field-label { font-size:9px; color:#9ca3af; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:3px; }
+  .field-val { font-size:14px; font-weight:800; color:#111827; }
+
+  /* Rates grid */
+  .rates-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .rate-card { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:12px 14px; text-align:center; }
+  .rate-label { font-size:10px; color:#9ca3af; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; }
+  .rate-val { font-size:20px; font-weight:900; color:#059669; }
+  .rate-note { font-size:9px; color:#9ca3af; margin-top:2px; }
+
+  /* Minutes section */
+  .minutes-card { background:linear-gradient(135deg,#f0fdf4,#dcfce7); border:1px solid #a7f3d0; border-radius:14px; padding:14px 18px; }
+  .min-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
+  .min-title { font-size:12px; font-weight:800; color:#059669; }
+  .min-badge { background:#059669; color:#fff; border-radius:100px; padding:4px 10px; font-size:10px; font-weight:700; }
+  .min-fields { display:flex; gap:12px; margin-bottom:10px; }
+  .min-field { flex:1; }
+  .min-f-label { font-size:9px; color:#6b7280; text-transform:uppercase; letter-spacing:0.4px; }
+  .min-f-val { font-size:15px; font-weight:900; color:#111827; }
+  .min-f-note { font-size:9px; color:#9ca3af; }
+  .examples { display:flex; gap:8px; }
+  .ex { flex:1; background:rgba(5,150,105,0.1); border-radius:8px; padding:6px 8px; text-align:center; }
+  .ex-time { font-size:9px; color:#6b7280; font-weight:700; }
+  .ex-val { font-size:12px; font-weight:900; color:#059669; }
+
+  /* WhatsApp section */
+  .wa-section { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .wa-card { border-radius:12px; padding:10px 12px; border:2px solid; }
+  .wa-card.ok { border-color:#a7f3d0; background:#f0fdf4; }
+  .wa-card.no { border-color:#e5e7eb; background:#f9fafb; }
+  .wa-card-title { font-size:11px; font-weight:800; color:#111827; margin-bottom:2px; }
+  .wa-card-status { font-size:9px; font-weight:700; margin-bottom:4px; }
+  .wa-card-detail { font-size:9px; color:#9ca3af; }
+
+  .watermark { position:absolute; bottom:14px; right:32px; font-size:11px; color:#d1d5db; font-weight:600; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="panel">
+    <div class="panel-tag">⚙️ Configuración</div>
+    <h2>Adapta el<br>parqueadero<br>a tu negocio</h2>
+    <p class="tagline">Define cupo, horarios, tarifas y cobros por minuto. Conecta tu Nequi para cobrar por WhatsApp sin intermediarios.</p>
+    <div class="feat-list">
+      <div class="feat">
+        <div class="feat-ico">🏍️</div>
+        <div>
+          <div class="feat-title">Cupo y horario</div>
+          <div class="feat-desc">Capacidad máxima, apertura y cierre configurables por el administrador.</div>
+        </div>
+      </div>
+      <div class="feat">
+        <div class="feat-ico">💰</div>
+        <div>
+          <div class="feat-title">Tarifas flexibles</div>
+          <div class="feat-desc">Mensual, quincenal y diaria por suscripción. Por minuto para ocasionales.</div>
+        </div>
+      </div>
+      <div class="feat">
+        <div class="feat-ico">⏱️</div>
+        <div>
+          <div class="feat-title">Cobro exacto por minuto</div>
+          <div class="feat-desc">$66/min · mínimo 30 min. Vista previa de ejemplos en tiempo real.</div>
+        </div>
+      </div>
+      <div class="feat">
+        <div class="feat-ico">💬</div>
+        <div>
+          <div class="feat-title">WhatsApp + Nequi/QR</div>
+          <div class="feat-desc">Configura link de pago por tipo de suscripción. El sistema elige el correcto automáticamente.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right">
+    <!-- Header -->
+    <div>
+      <div class="right-header">⚙️ Configuración del parqueadero</div>
+      <div class="right-sub">Tarifas, cupo, métodos de pago y mensajes de WhatsApp</div>
+    </div>
+
+    <!-- Basic config -->
+    <div class="config-section">
+      <div class="section-title">🅿️ Datos del parqueadero</div>
+      <div class="fields-row">
+        <div class="field"><div class="field-label">Nombre</div><div class="field-val">Parqueadero JM</div></div>
+        <div class="field"><div class="field-label">Dirección</div><div class="field-val">Calle 53</div></div>
+        <div class="field"><div class="field-label">Cupo total</div><div class="field-val">35 motos</div></div>
+        <div class="field"><div class="field-label">Apertura</div><div class="field-val">06:30</div></div>
+        <div class="field"><div class="field-label">Cierre</div><div class="field-val">20:00</div></div>
+      </div>
+    </div>
+
+    <!-- Rates -->
+    <div class="rates-grid">
+      <div class="rate-card">
+        <div class="rate-label">Mensual</div>
+        <div class="rate-val">$75.000</div>
+        <div class="rate-note">Mismo día del mes siguiente</div>
+      </div>
+      <div class="rate-card">
+        <div class="rate-label">Quincenal</div>
+        <div class="rate-val">$35.000</div>
+        <div class="rate-note">15 días</div>
+      </div>
+      <div class="rate-card">
+        <div class="rate-label">Diaria</div>
+        <div class="rate-val">$18.000</div>
+        <div class="rate-note">1 día completo</div>
+      </div>
+    </div>
+
+    <!-- Minutes -->
+    <div class="minutes-card">
+      <div class="min-header">
+        <div class="min-title">⏱️ Cobro por minutos (clientes ocasionales)</div>
+        <div class="min-badge">Exacto al minuto</div>
+      </div>
+      <div class="min-fields">
+        <div class="min-field"><div class="min-f-label">Tarifa/minuto</div><div class="min-f-val">$66</div><div class="min-f-note">Lo que cobras por cada min</div></div>
+        <div class="min-field"><div class="min-f-label">Tarifa hora (info)</div><div class="min-f-val">$4.000</div><div class="min-f-note">60 × $66 = $3.960</div></div>
+        <div class="min-field"><div class="min-f-label">Cobro mínimo</div><div class="min-f-val">30 min</div><div class="min-f-note">= $1.980 mínimo</div></div>
+      </div>
+      <div class="examples">
+        <div class="ex"><div class="ex-time">15 min</div><div class="ex-val">$990</div></div>
+        <div class="ex"><div class="ex-time">30 min</div><div class="ex-val">$1.980</div></div>
+        <div class="ex"><div class="ex-time">60 min</div><div class="ex-val">$3.960</div></div>
+        <div class="ex"><div class="ex-time">120 min</div><div class="ex-val">$7.920</div></div>
+      </div>
+    </div>
+
+    <!-- WhatsApp -->
+    <div class="wa-section">
+      <div class="wa-card ok">
+        <div class="wa-card-title">Mensual</div>
+        <div class="wa-card-status" style="color:#059669">✓ Configurado</div>
+        <div class="wa-card-detail">Nequi · 3175882321</div>
+      </div>
+      <div class="wa-card no">
+        <div class="wa-card-title">Quincenal</div>
+        <div class="wa-card-status" style="color:#9ca3af">Sin configurar</div>
+        <div class="wa-card-detail">Pendiente</div>
+      </div>
+      <div class="wa-card no">
+        <div class="wa-card-title">Diaria</div>
+        <div class="wa-card-status" style="color:#9ca3af">Sin configurar</div>
+        <div class="wa-card-detail">Pendiente</div>
+      </div>
+      <div class="wa-card ok">
+        <div class="wa-card-title">Pago libre</div>
+        <div class="wa-card-status" style="color:#059669">✓ Configurado</div>
+        <div class="wa-card-detail">Nequi · 3175882321</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="watermark">ksmart360.com</div>
+</div>
+</body>
+</html>

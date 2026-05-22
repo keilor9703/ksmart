@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1200">
+<title>KSmart360 - Buscar Placa</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { width:1200px; height:628px; font-family:'Segoe UI',system-ui,sans-serif; overflow:hidden; }
+  .slide { width:1200px; height:628px; background:#eff6ff; display:flex; position:relative; overflow:hidden; }
+
+  .bg-dots {
+    position:absolute; inset:0; opacity:0.3;
+    background-image:radial-gradient(#2563EB 1px,transparent 1px);
+    background-size:30px 30px;
+  }
+  .glow { position:absolute; top:-80px; right:180px; width:500px; height:500px; border-radius:50%; background:radial-gradient(circle,rgba(37,99,235,0.09) 0%,transparent 65%); }
+
+  /* Left: content */
+  .left { width:500px; padding:48px 52px; display:flex; flex-direction:column; justify-content:center; position:relative; z-index:2; flex-shrink:0; }
+
+  .badge { display:inline-flex; align-items:center; gap:7px; background:#dbeafe; border:1px solid #93c5fd; border-radius:100px; padding:6px 16px; margin-bottom:20px; width:fit-content; font-size:11px; font-weight:700; color:#2563EB; }
+  h2 { font-size:40px; font-weight:900; color:#111827; line-height:1.08; margin-bottom:12px; }
+  h2 .accent { color:#2563EB; }
+  .sub { font-size:14px; color:#6b7280; line-height:1.65; margin-bottom:26px; }
+
+  /* Steps */
+  .steps { display:flex; flex-direction:column; gap:14px; margin-bottom:26px; }
+  .step { display:flex; align-items:flex-start; gap:14px; }
+  .step-num {
+    width:32px; height:32px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    font-size:14px; font-weight:900; color:#fff;
+    background:linear-gradient(135deg,#2563EB,#60a5fa);
+    box-shadow:0 4px 12px rgba(37,99,235,0.3);
+  }
+  .step-title { font-size:13px; font-weight:800; color:#111827; }
+  .step-desc  { font-size:11px; color:#6b7280; line-height:1.4; }
+
+  /* Stats row */
+  .stats { display:flex; gap:12px; }
+  .stat { flex:1; background:#fff; border:1px solid #dbeafe; border-radius:12px; padding:12px 14px; }
+  .stat-ico { font-size:18px; margin-bottom:4px; }
+  .stat-val { font-size:18px; font-weight:900; color:#2563EB; }
+  .stat-label { font-size:10px; color:#9ca3af; margin-top:2px; }
+
+  /* Right: phone mockup */
+  .right { flex:1; display:flex; align-items:center; justify-content:center; padding:20px 40px 20px 0; position:relative; z-index:2; }
+
+  .phone {
+    width:300px; background:#f1f5f9; border-radius:40px; padding:14px;
+    box-shadow:0 32px 64px rgba(37,99,235,0.15), 0 0 0 2px rgba(37,99,235,0.1);
+    border:2px solid rgba(37,99,235,0.15);
+  }
+  .phone-notch { width:80px; height:7px; background:rgba(0,0,0,0.1); border-radius:100px; margin:0 auto 12px; }
+  .phone-screen { background:#f1f5f9; border-radius:28px; overflow:hidden; padding:20px 16px; }
+
+  /* Search bar */
+  .search-wrap { background:#fff; border-radius:14px; padding:12px 14px; display:flex; align-items:center; gap:10px; margin-bottom:14px; border:2px solid rgba(37,99,235,0.15); box-shadow:0 2px 8px rgba(0,0,0,0.06); }
+  .search-icon { font-size:18px; color:#FF6020; }
+  .search-plate { font-size:18px; font-weight:900; color:#111827; letter-spacing:3px; flex:1; font-family:monospace; }
+  .search-clip { font-size:18px; color:#94a3b8; }
+
+  .consult-btn { background:linear-gradient(135deg,#FF6020,#FF8C42); border-radius:12px; padding:13px; text-align:center; font-size:14px; font-weight:800; color:#fff; margin-bottom:14px; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 4px 16px rgba(255,96,32,0.3); }
+
+  /* Result card */
+  .result-card { background:#2563EB; border-radius:16px; padding:18px 16px 16px; text-align:center; margin-bottom:12px; }
+  .plate-icon { font-size:28px; margin-bottom:8px; }
+  .plate-badge { background:rgba(255,255,255,0.2); border-radius:100px; padding:4px 14px; font-size:10px; font-weight:700; color:#fff; display:inline-block; margin-bottom:6px; }
+  .plate-num { font-size:28px; font-weight:900; color:#fff; letter-spacing:4px; font-family:monospace; margin-bottom:6px; }
+  .plate-desc { font-size:11px; color:rgba(255,255,255,0.8); }
+
+  /* Action buttons */
+  .action-row { display:flex; gap:8px; }
+  .action-primary { flex:2; background:linear-gradient(135deg,#FF6020,#FF8C42); border-radius:10px; padding:11px; text-align:center; font-size:11px; font-weight:800; color:#fff; }
+  .action-sec { flex:1; border:2px solid #FF6020; border-radius:10px; padding:11px; text-align:center; font-size:11px; font-weight:800; color:#FF6020; background:#fff; }
+
+  .watermark { position:absolute; bottom:14px; right:40px; font-size:11px; color:#bfdbfe; font-weight:600; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="bg-dots"></div>
+  <div class="glow"></div>
+
+  <div class="left">
+    <div class="badge">🔍 Parqueadero · Búsqueda de placa</div>
+    <h2>Busca la placa<br>y <span class="accent">actúa</span> al instante</h2>
+    <p class="sub">Escribe o pega la placa y el sistema te dice en un segundo si el cliente es mensual, está por horas, o es nuevo. Todo el flujo desde una pantalla.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div>
+          <div class="step-title">Escribe o pega la placa</div>
+          <div class="step-desc">Busca cualquier placa registrada. Compatible con código de barras de tarjeta de propiedad.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div>
+          <div class="step-title">El sistema identifica el estado</div>
+          <div class="step-desc">Mensual activa ✓, vencida ⚠️, por horas en curso ⏱️, o no registrada — todo en colores.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div>
+          <div class="step-title">Registra o cobra con un toque</div>
+          <div class="step-desc">Si no está: regístrala y cobra en el mismo paso. Si está por horas: muestra el tiempo y el monto exacto.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div>
+          <div class="step-title">Envía recibo por WhatsApp</div>
+          <div class="step-desc">Al cobrar se genera automáticamente el comprobante y se envía al número registrado.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-ico">⚡</div>
+        <div class="stat-val">&lt; 5 seg</div>
+        <div class="stat-label">De placa a cobro</div>
+      </div>
+      <div class="stat">
+        <div class="stat-ico">🏍️</div>
+        <div class="stat-val">35 motos</div>
+        <div class="stat-label">Cupo configurable</div>
+      </div>
+      <div class="stat">
+        <div class="stat-ico">💬</div>
+        <div class="stat-val">Nequi/QR</div>
+        <div class="stat-label">Cobro por WhatsApp</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <!-- Search -->
+        <div style="font-size:18px;font-weight:900;color:#111827;margin-bottom:4px;">Buscar placa</div>
+        <div style="font-size:11px;color:#9ca3af;margin-bottom:14px;">Escribe la placa para verificar el estado del vehículo</div>
+
+        <div class="search-wrap">
+          <div class="search-icon">🚗</div>
+          <div class="search-plate">DDJ758</div>
+          <div class="search-clip">📋</div>
+        </div>
+
+        <div class="consult-btn">🔍 Consultar</div>
+
+        <!-- Result -->
+        <div class="result-card">
+          <div class="plate-icon">🚗</div>
+          <div class="plate-badge">NO REGISTRADA</div>
+          <div class="plate-num">DDJ758</div>
+          <div class="plate-desc">Placa no registrada. ¿Registrar moto nueva o cobrar por horas?</div>
+        </div>
+
+        <div style="font-size:10px;color:#94a3b8;text-align:center;margin-bottom:10px;">Esta placa nunca se ha registrado en el parqueadero.</div>
+
+        <div class="action-row">
+          <div class="action-primary">🏍️ Registrar vehículo + pago</div>
+          <div class="action-sec">⏱️ Cobrar<br>por horas</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="watermark">ksmart360.com</div>
+</div>
+</body>
+</html>

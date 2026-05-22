@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1200">
+<title>KSmart360 - Reportes Financieros</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { width:1200px; height:628px; font-family:'Segoe UI',system-ui,sans-serif; overflow:hidden; }
+  .slide { width:1200px; height:628px; background:#060b14; display:flex; position:relative; overflow:hidden; }
+
+  .bg-grid {
+    position:absolute; inset:0;
+    background-image: linear-gradient(rgba(37,99,235,0.04) 1px,transparent 1px),
+                      linear-gradient(90deg,rgba(37,99,235,0.04) 1px,transparent 1px);
+    background-size:48px 48px;
+  }
+  .glow-l { position:absolute; top:-80px; left:-60px; width:440px; height:440px; border-radius:50%; background:radial-gradient(circle,rgba(37,99,235,0.14) 0%,transparent 65%); }
+  .glow-r { position:absolute; bottom:-80px; right:260px; width:400px; height:400px; border-radius:50%; background:radial-gradient(circle,rgba(16,185,129,0.08) 0%,transparent 65%); }
+
+  /* Left: content */
+  .left { width:480px; padding:44px 48px; display:flex; flex-direction:column; justify-content:center; position:relative; z-index:2; flex-shrink:0; }
+
+  .badge { display:inline-flex; align-items:center; gap:7px; background:rgba(37,99,235,0.14); border:1px solid rgba(37,99,235,0.3); border-radius:100px; padding:6px 16px; margin-bottom:20px; width:fit-content; font-size:11px; font-weight:700; color:#93c5fd; text-transform:uppercase; letter-spacing:0.8px; }
+  h2 { font-size:38px; font-weight:900; color:#f1f5f9; line-height:1.08; margin-bottom:12px; }
+  h2 .accent { color:#60a5fa; }
+  .sub { font-size:14px; color:#64748b; line-height:1.65; margin-bottom:26px; }
+
+  /* Main metric */
+  .saldo-card {
+    background:rgba(37,99,235,0.1); border:1px solid rgba(37,99,235,0.25); border-radius:16px; padding:18px 20px; margin-bottom:16px;
+  }
+  .saldo-label { font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; margin-bottom:6px; }
+  .saldo-val { font-size:40px; font-weight:900; color:#60a5fa; line-height:1; margin-bottom:8px; }
+  .saldo-desc { font-size:12px; color:#475569; margin-bottom:12px; }
+  .saldo-row { display:flex; gap:14px; }
+  .saldo-item { flex:1; background:rgba(255,255,255,0.04); border-radius:10px; padding:10px 12px; }
+  .saldo-item-label { font-size:9px; color:#64748b; text-transform:uppercase; font-weight:700; letter-spacing:0.5px; }
+  .saldo-item-val { font-size:14px; font-weight:900; margin-top:2px; }
+
+  /* KPI grid */
+  .kpi-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .kpi { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:12px 14px; }
+  .kpi-icon { font-size:18px; margin-bottom:5px; }
+  .kpi-val { font-size:17px; font-weight:900; color:#f1f5f9; }
+  .kpi-label { font-size:10px; color:#475569; margin-top:2px; }
+  .kpi-trend { font-size:11px; font-weight:700; margin-top:3px; }
+
+  /* Right: chart area */
+  .right { flex:1; padding:32px 36px 32px 20px; display:flex; flex-direction:column; justify-content:center; gap:14px; position:relative; z-index:2; }
+
+  .tabs { display:flex; gap:6px; margin-bottom:4px; }
+  .tab { padding:6px 14px; border-radius:100px; font-size:11px; font-weight:700; cursor:pointer; }
+  .tab.active { background:rgba(37,99,235,0.2); border:1px solid rgba(37,99,235,0.4); color:#93c5fd; }
+  .tab.inactive { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); color:#475569; }
+
+  /* Donut chart mockup */
+  .chart-section { display:flex; gap:20px; align-items:center; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:16px; padding:16px 20px; }
+  .donut-wrap { position:relative; width:110px; height:110px; flex-shrink:0; }
+  .donut-svg { width:110px; height:110px; transform:rotate(-90deg); }
+  .donut-center { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; }
+  .donut-val { font-size:13px; font-weight:900; color:#f1f5f9; }
+  .donut-label { font-size:8px; color:#64748b; margin-top:2px; }
+  .chart-legend { flex:1; }
+  .legend-item { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .legend-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+  .legend-label { font-size:11px; color:#94a3b8; flex:1; }
+  .legend-val { font-size:12px; font-weight:800; color:#f1f5f9; }
+  .legend-pct { font-size:10px; color:#64748b; margin-left:4px; }
+
+  /* Efficiency bar */
+  .efficiency { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:14px; padding:14px 18px; }
+  .eff-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .eff-title { font-size:12px; font-weight:800; color:#e2e8f0; }
+  .eff-pct { font-size:20px; font-weight:900; color:#10B981; }
+  .eff-desc { font-size:10px; color:#475569; margin-bottom:8px; }
+  .eff-bar-wrap { background:rgba(255,255,255,0.06); border-radius:100px; height:10px; margin-bottom:6px; }
+  .eff-bar { height:10px; border-radius:100px; background:linear-gradient(90deg,#059669,#34d399); width:81.9%; }
+  .eff-labels { display:flex; justify-content:space-between; }
+  .eff-paid { font-size:10px; font-weight:700; color:#10B981; }
+  .eff-pend { font-size:10px; font-weight:700; color:#FF6020; }
+
+  .watermark { position:absolute; bottom:14px; right:36px; font-size:11px; color:#1e293b; font-weight:600; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="bg-grid"></div>
+  <div class="glow-l"></div>
+  <div class="glow-r"></div>
+
+  <div class="left">
+    <div class="badge">📊 Reportes Financieros</div>
+    <h2>Tu negocio<br>en <span class="accent">números reales</span></h2>
+    <p class="sub">9 pestañas de análisis: Resumen, Ventas, Rentabilidad, Clientes, Deudores, Productos, IVA, Caja y P&L — todo filtrable por fecha.</p>
+
+    <div class="saldo-card">
+      <div class="saldo-label">🏦 Saldo Neto Estimado (Liquidez)</div>
+      <div class="saldo-val">$78.700</div>
+      <div class="saldo-desc">Dinero real que te queda tras cubrir compras y gastos.</div>
+      <div class="saldo-row">
+        <div class="saldo-item">
+          <div class="saldo-item-label">(+) Ingresos reales</div>
+          <div class="saldo-item-val" style="color:#10B981">$1.397.072</div>
+        </div>
+        <div class="saldo-item">
+          <div class="saldo-item-label">(–) Egresos totales</div>
+          <div class="saldo-item-val" style="color:#EF4444">$1.318.372</div>
+        </div>
+        <div class="saldo-item">
+          <div class="saldo-item-label">Capital atrapado</div>
+          <div class="saldo-item-val" style="color:#60a5fa">$309.000</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="kpi-icon">💰</div>
+        <div class="kpi-val">$1.706.072</div>
+        <div class="kpi-label">Total facturado</div>
+        <div class="kpi-trend" style="color:#60a5fa">Rendimiento comercial</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-icon">✅</div>
+        <div class="kpi-val">$1.397.072</div>
+        <div class="kpi-label">Recaudado</div>
+        <div class="kpi-trend" style="color:#10B981">Dinero en caja</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="tabs">
+      <div class="tab active">Resumen</div>
+      <div class="tab inactive">Ventas</div>
+      <div class="tab inactive">Rentab.</div>
+      <div class="tab inactive">Clientes</div>
+      <div class="tab inactive">Deudores</div>
+      <div class="tab inactive">IVA</div>
+      <div class="tab inactive">Caja</div>
+      <div class="tab inactive">P&L</div>
+    </div>
+
+    <!-- Donut chart -->
+    <div class="chart-section">
+      <div class="donut-wrap">
+        <svg class="donut-svg" viewBox="0 0 42 42">
+          <circle cx="21" cy="21" r="15.915" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="6"/>
+          <circle cx="21" cy="21" r="15.915" fill="none" stroke="#10B981" stroke-width="6"
+            stroke-dasharray="81.9 18.1" stroke-dashoffset="0"/>
+          <circle cx="21" cy="21" r="15.915" fill="none" stroke="#FF6020" stroke-width="6"
+            stroke-dasharray="18.1 81.9" stroke-dashoffset="-81.9"/>
+        </svg>
+        <div class="donut-center">
+          <div class="donut-val">$1.706.072</div>
+          <div class="donut-label">Facturado</div>
+        </div>
+      </div>
+      <div class="chart-legend">
+        <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:10px;">Distribución de Ventas</div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#10B981"></div>
+          <div class="legend-label">Pagado (Caja)</div>
+          <div class="legend-val">$1.397.072</div>
+          <div class="legend-pct">81.9%</div>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#FF6020"></div>
+          <div class="legend-label">Pendiente (Por Cobrar)</div>
+          <div class="legend-val">$309.000</div>
+          <div class="legend-pct">18.1%</div>
+        </div>
+        <div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.06);">
+          <div class="legend-item" style="margin-bottom:4px;">
+            <div class="legend-dot" style="background:#D97706"></div>
+            <div class="legend-label">Compras a proveedores</div>
+            <div class="legend-val" style="color:#D97706">$552.992</div>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background:#7C3AED"></div>
+            <div class="legend-label">Gastos operativos</div>
+            <div class="legend-val" style="color:#a78bfa">$765.380</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Efficiency bar -->
+    <div class="efficiency">
+      <div class="eff-header">
+        <div class="eff-title">📈 Eficiencia de Cobranza</div>
+        <div class="eff-pct">81.9%</div>
+      </div>
+      <div class="eff-desc">Porcentaje de las ventas totales que ya se han convertido en dinero líquido.</div>
+      <div class="eff-bar-wrap"><div class="eff-bar"></div></div>
+      <div class="eff-labels">
+        <span class="eff-paid">Pagado: $1.397.072</span>
+        <span class="eff-pend">Pendiente: $309.000</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="watermark">ksmart360.com</div>
+</div>
+</body>
+</html>

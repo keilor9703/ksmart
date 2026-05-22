@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1200">
+<title>KSmart360 - Parqueadero</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { width:1200px; height:628px; font-family:'Segoe UI',system-ui,sans-serif; overflow:hidden; }
+  .slide { width:1200px; height:628px; background:#fff; display:flex; position:relative; overflow:hidden; }
+
+  /* Top accent */
+  .top-bar { position:absolute; top:0; left:0; right:0; height:4px; background:linear-gradient(90deg,#FF6020,#FF8C42,#059669,#34d399); }
+
+  /* Left panel */
+  .left { width:390px; background:linear-gradient(160deg,#FF6020 0%,#FF8C42 55%,#FFAB6B 100%); padding:44px 36px; display:flex; flex-direction:column; justify-content:center; flex-shrink:0; position:relative; overflow:hidden; }
+  .left::before { content:''; position:absolute; top:-50px; right:-40px; width:180px; height:180px; border-radius:50%; background:rgba(255,255,255,0.07); }
+  .left::after  { content:''; position:absolute; bottom:-30px; left:-30px; width:140px; height:140px; border-radius:50%; background:rgba(255,255,255,0.05); }
+
+  .module-tag { display:inline-flex; align-items:center; gap:7px; background:rgba(255,255,255,0.18); border:1px solid rgba(255,255,255,0.3); border-radius:100px; padding:6px 15px; font-size:11px; font-weight:700; color:#fff; margin-bottom:18px; width:fit-content; }
+  h2 { font-size:34px; font-weight:900; color:#fff; line-height:1.1; margin-bottom:10px; }
+  .tagline { font-size:13px; color:rgba(255,255,255,0.82); line-height:1.65; margin-bottom:24px; }
+
+  .feat-list { display:flex; flex-direction:column; gap:12px; }
+  .feat { display:flex; align-items:flex-start; gap:11px; }
+  .feat-ico { width:34px; height:34px; border-radius:10px; background:rgba(255,255,255,0.15); display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0; }
+  .feat-title { font-size:12px; font-weight:800; color:#fff; }
+  .feat-desc  { font-size:11px; color:rgba(255,255,255,0.72); line-height:1.4; }
+
+  /* Right */
+  .right { flex:1; padding:24px 32px; display:flex; flex-direction:column; justify-content:center; gap:12px; }
+
+  /* Capacity hero card */
+  .capacity-card {
+    background:linear-gradient(135deg,#f0fdf4,#dcfce7); border:1px solid #a7f3d0; border-radius:16px;
+    padding:18px 22px; display:flex; align-items:center; gap:20px;
+  }
+  .cap-circle {
+    width:72px; height:72px; border-radius:50%; flex-shrink:0;
+    background:linear-gradient(135deg,#059669,#34d399);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    box-shadow:0 6px 20px rgba(5,150,105,0.3);
+  }
+  .cap-num { font-size:22px; font-weight:900; color:#fff; line-height:1; }
+  .cap-denom { font-size:10px; color:rgba(255,255,255,0.8); font-weight:700; }
+  .cap-info { flex:1; }
+  .cap-title { font-size:16px; font-weight:900; color:#111827; margin-bottom:4px; }
+  .cap-sub { font-size:12px; color:#6b7280; margin-bottom:8px; }
+  .cap-bar-wrap { background:#d1fae5; border-radius:100px; height:8px; }
+  .cap-bar { height:8px; border-radius:100px; background:linear-gradient(90deg,#059669,#34d399); width:5.7%; min-width:8px; }
+  .cap-tags { display:flex; gap:8px; margin-top:8px; }
+  .cap-tag { font-size:10px; font-weight:700; background:rgba(5,150,105,0.1); color:#059669; border-radius:100px; padding:3px 10px; }
+  .cap-income { text-align:right; }
+  .cap-income-val { font-size:22px; font-weight:900; color:#059669; }
+  .cap-income-label { font-size:11px; color:#6b7280; }
+
+  /* KPI grid */
+  .kpi-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; }
+  .kpi { background:#f9fafb; border:1px solid #e5e7eb; border-radius:12px; padding:11px 12px; }
+  .kpi-icon { font-size:16px; margin-bottom:4px; }
+  .kpi-val { font-size:15px; font-weight:900; color:#111827; }
+  .kpi-label { font-size:10px; color:#9ca3af; margin-top:1px; }
+  .kpi-sub { font-size:10px; font-weight:700; margin-top:3px; }
+
+  /* Breakdown */
+  .breakdown-card { background:#f9fafb; border:1px solid #e5e7eb; border-radius:14px; padding:14px 18px; }
+  .bk-title { font-size:12px; font-weight:800; color:#374151; margin-bottom:10px; }
+  .bk-rows { display:flex; gap:16px; }
+  .bk-item { flex:1; }
+  .bk-label { font-size:10px; color:#9ca3af; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:3px; }
+  .bk-bar-wrap { background:#e5e7eb; border-radius:100px; height:6px; margin-bottom:4px; }
+  .bk-bar { height:6px; border-radius:100px; }
+  .bk-pct { font-size:11px; font-weight:800; }
+  .bk-amount { font-size:11px; color:#6b7280; }
+
+  .watermark { position:absolute; bottom:14px; right:32px; font-size:11px; color:#d1d5db; font-weight:600; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="top-bar"></div>
+
+  <div class="left">
+    <div class="module-tag">🅿️ Módulo Parqueadero</div>
+    <h2>Control total<br>de tu parqueadero</h2>
+    <p class="tagline">Panel en tiempo real con ocupación, ingresos y alertas. Gestiona mensualidades y cobros por hora desde una sola pantalla.</p>
+    <div class="feat-list">
+      <div class="feat">
+        <div class="feat-ico">🏍️</div>
+        <div>
+          <div class="feat-title">Mensualidades + por horas</div>
+          <div class="feat-desc">Cobra motos por minuto exacto o con planes mensual, quincenal y diario.</div>
+        </div>
+      </div>
+      <div class="feat">
+        <div class="feat-ico">🔔</div>
+        <div>
+          <div class="feat-title">Alertas de vencimiento</div>
+          <div class="feat-desc">Notifica mensualidades vencidas y próximas a vencer. Cobro por WhatsApp.</div>
+        </div>
+      </div>
+      <div class="feat">
+        <div class="feat-ico">🔍</div>
+        <div>
+          <div class="feat-title">Búsqueda por placa</div>
+          <div class="feat-desc">Consulta estado al instante. Si no está registrada, registra en el mismo paso.</div>
+        </div>
+      </div>
+      <div class="feat">
+        <div class="feat-ico">📊</div>
+        <div>
+          <div class="feat-title">Desglose de ingresos</div>
+          <div class="feat-desc">Por tipo de suscripción y método de pago. Histórico mensual completo.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right">
+    <!-- Capacity hero -->
+    <div class="capacity-card">
+      <div class="cap-circle">
+        <div class="cap-num">33</div>
+        <div class="cap-denom">/ 35</div>
+      </div>
+      <div class="cap-info">
+        <div class="cap-title">Cupo disponible — Parqueadero JM</div>
+        <div class="cap-sub">5.7% ocupado · 2 motos dentro ahora</div>
+        <div class="cap-bar-wrap"><div class="cap-bar"></div></div>
+        <div class="cap-tags">
+          <span class="cap-tag">1 mensual activa</span>
+          <span class="cap-tag">1 por horas</span>
+          <span class="cap-tag">2 motos registradas</span>
+        </div>
+      </div>
+      <div class="cap-income">
+        <div class="cap-income-val">$1.182.807</div>
+        <div class="cap-income-label">Ingresos del mes</div>
+      </div>
+    </div>
+
+    <!-- KPI row -->
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="kpi-icon">⚠️</div>
+        <div class="kpi-val">1</div>
+        <div class="kpi-label">Vencida</div>
+        <div class="kpi-sub" style="color:#EF4444">Renovar urgente</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-icon">🔔</div>
+        <div class="kpi-val">0</div>
+        <div class="kpi-label">Por vencer (5d)</div>
+        <div class="kpi-sub" style="color:#059669">Sin urgencia</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-icon">💵</div>
+        <div class="kpi-val">$5.500</div>
+        <div class="kpi-label">Semana actual</div>
+        <div class="kpi-sub" style="color:#6b7280">↑ En curso</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-icon">🏍️</div>
+        <div class="kpi-val">60.7h</div>
+        <div class="kpi-label">YUJ788 dentro</div>
+        <div class="kpi-sub" style="color:#FF6020">Por horas</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-icon">📅</div>
+        <div class="kpi-val">1</div>
+        <div class="kpi-label">Mensualidades</div>
+        <div class="kpi-sub" style="color:#059669">Activas</div>
+      </div>
+    </div>
+
+    <!-- Breakdown -->
+    <div class="breakdown-card">
+      <div class="bk-title">📈 Desglose de ingresos del mes — $1.182.807 total</div>
+      <div class="bk-rows">
+        <div class="bk-item">
+          <div class="bk-label">Por horas</div>
+          <div class="bk-bar-wrap"><div class="bk-bar" style="width:75%;background:#FF6020;"></div></div>
+          <div class="bk-pct" style="color:#FF6020">75%</div>
+          <div class="bk-amount">$886.807</div>
+        </div>
+        <div class="bk-item">
+          <div class="bk-label">Mensual</div>
+          <div class="bk-bar-wrap"><div class="bk-bar" style="width:19%;background:#059669;"></div></div>
+          <div class="bk-pct" style="color:#059669">19%</div>
+          <div class="bk-amount">$220.000</div>
+        </div>
+        <div class="bk-item">
+          <div class="bk-label">Quincenal</div>
+          <div class="bk-bar-wrap"><div class="bk-bar" style="width:3%;background:#7C3AED;min-width:6px;"></div></div>
+          <div class="bk-pct" style="color:#7C3AED">3%</div>
+          <div class="bk-amount">$35.000</div>
+        </div>
+        <div class="bk-item">
+          <div class="bk-label">Diaria</div>
+          <div class="bk-bar-wrap"><div class="bk-bar" style="width:3%;background:#D97706;min-width:6px;"></div></div>
+          <div class="bk-pct" style="color:#D97706">3%</div>
+          <div class="bk-amount">$41.000</div>
+        </div>
+        <div class="bk-item">
+          <div class="bk-label">Efectivo</div>
+          <div class="bk-bar-wrap"><div class="bk-bar" style="width:97%;background:#0ea5e9;"></div></div>
+          <div class="bk-pct" style="color:#0ea5e9">97%</div>
+          <div class="bk-amount">$1.146.531</div>
+        </div>
+        <div class="bk-item">
+          <div class="bk-label">Transferencia</div>
+          <div class="bk-bar-wrap"><div class="bk-bar" style="width:3%;background:#10B981;min-width:6px;"></div></div>
+          <div class="bk-pct" style="color:#10B981">3%</div>
+          <div class="bk-amount">$36.276</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="watermark">ksmart360.com</div>
+</div>
+</body>
+</html>
