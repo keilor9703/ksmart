@@ -453,8 +453,8 @@ const ProductoForm = ({
                         />
                       </Grid>
 
-                      {/* Unidad + Código de Barras — misma fila, 50/50 */}
-                      <Grid item xs={12} sm={6}>
+                      {/* Unidad + Código de Barras — misma fila solo en desktop (md+) */}
+                      <Grid item xs={12} md={6}>
                         <Autocomplete
                           fullWidth freeSolo
                           options={UNIDADES_MEDIDA.map(u => u.value)}
@@ -465,7 +465,7 @@ const ProductoForm = ({
                         />
                       </Grid>
 
-                      <Grid item xs={12} sm={6}>
+                      <Grid item xs={12} md={6}>
                         <TextField
                           label="Código de Barras"
                           value={codigoBarras}
@@ -483,7 +483,7 @@ const ProductoForm = ({
               <SectionCard icon={<LocalOffer fontSize="small" />} title="Precios e Impuestos" accent={PRICE_COLOR}>
                 <Grid container spacing={2}>
                   {/* Fila 1: Precio | Costo */}
-                  <Grid item xs={12} sm={6}>
+                  <Grid item xs={12} md={6}>
                     <CurrencyField
                       label={esServicio ? 'Precio de Venta *' : 'Precio de Venta'}
                       value={precio}
@@ -493,7 +493,7 @@ const ProductoForm = ({
                   </Grid>
 
                   {!esServicio && (
-                    <Grid item xs={12} sm={6}>
+                    <Grid item xs={12} md={6}>
                       <CurrencyField
                         label="Costo Actual *"
                         value={costo}
@@ -504,7 +504,7 @@ const ProductoForm = ({
                   )}
 
                   {/* Fila 2: IVA — fila propia, ancho generoso */}
-                  <Grid item xs={12} sm={6}>
+                  <Grid item xs={12} md={6}>
                     <FormControl fullWidth>
                       <InputLabel>Impuesto (IVA)</InputLabel>
                       <Select
@@ -587,7 +587,7 @@ const ProductoForm = ({
                   <Grid container spacing={2}>
 
                     {/* Stock mínimo */}
-                    <Grid item xs={12} sm={6}>
+                    <Grid item xs={12} md={6}>
                       <TextField
                         label="Alerta de Stock Mínimo"
                         value={stockMinimo}
@@ -600,7 +600,7 @@ const ProductoForm = ({
 
                     {/* Stock actual (solo al editar) */}
                     {isEditing && (
-                      <Grid item xs={12} sm={6}>
+                      <Grid item xs={12} md={6}>
                         <Box sx={{
                           height: '100%', display: 'flex', alignItems: 'center', gap: 1.5,
                           p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider',
