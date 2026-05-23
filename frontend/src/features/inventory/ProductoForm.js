@@ -174,7 +174,7 @@ const ProductoForm = ({
       setImagenes(productoToEdit.imagenes || []);
       setMostrarEnCatalogo(productoToEdit.mostrar_en_catalogo || false);
       setDescripcion(productoToEdit.descripcion || '');
-      setImpuestoId(productoToEdit.impuesto?.id ?? '');
+      setImpuestoId(productoToEdit.impuesto?.id ? String(productoToEdit.impuesto.id) : '');
     } else {
       resetFields();
     }
@@ -434,7 +434,8 @@ const ProductoForm = ({
 
                   {!esServicio && (
                     <>
-                      <Grid item xs={12} sm={7}>
+                      {/* Categoría — fila propia para que no se trunque */}
+                      <Grid item xs={12}>
                         <Autocomplete
                           fullWidth
                           options={grupos}
@@ -452,7 +453,8 @@ const ProductoForm = ({
                         />
                       </Grid>
 
-                      <Grid item xs={12} sm={5}>
+                      {/* Unidad + Código de Barras — misma fila, 50/50 */}
+                      <Grid item xs={12} sm={6}>
                         <Autocomplete
                           fullWidth freeSolo
                           options={UNIDADES_MEDIDA.map(u => u.value)}
@@ -463,7 +465,7 @@ const ProductoForm = ({
                         />
                       </Grid>
 
-                      <Grid item xs={12} sm={5}>
+                      <Grid item xs={12} sm={6}>
                         <TextField
                           label="Código de Barras"
                           value={codigoBarras}
@@ -480,8 +482,8 @@ const ProductoForm = ({
               {/* § 2 — Precios e Impuestos */}
               <SectionCard icon={<LocalOffer fontSize="small" />} title="Precios e Impuestos" accent={PRICE_COLOR}>
                 <Grid container spacing={2}>
-                  {/* Precio */}
-                  <Grid item xs={12} sm={esServicio ? 6 : 4}>
+                  {/* Fila 1: Precio | Costo */}
+                  <Grid item xs={12} sm={6}>
                     <CurrencyField
                       label={esServicio ? 'Precio de Venta *' : 'Precio de Venta'}
                       value={precio}
@@ -490,9 +492,8 @@ const ProductoForm = ({
                     />
                   </Grid>
 
-                  {/* Costo (físico) */}
                   {!esServicio && (
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={6}>
                       <CurrencyField
                         label="Costo Actual *"
                         value={costo}
@@ -502,28 +503,37 @@ const ProductoForm = ({
                     </Grid>
                   )}
 
-                  {/* IVA */}
-                  <Grid item xs={12} sm={esServicio ? 6 : 4}>
+                  {/* Fila 2: IVA — fila propia, ancho generoso */}
+                  <Grid item xs={12} sm={6}>
                     <FormControl fullWidth>
                       <InputLabel>Impuesto (IVA)</InputLabel>
                       <Select
                         label="Impuesto (IVA)"
-                        value={impuestoId}
+                        value={String(impuestoId)}
                         onChange={e => setImpuestoId(e.target.value)}
+                        renderValue={val => {
+                          if (!val) return <em style={{ color: 'inherit', fontStyle: 'normal', opacity: 0.6 }}>Sin impuesto</em>;
+                          const imp = tiposImpuesto.find(i => String(i.id) === val);
+                          if (!imp) return val;
+                          return (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Chip label={`${imp.porcentaje}%`} size="small"
+                                sx={{ fontSize: 10, height: 18,
+                                  bgcolor: imp.porcentaje > 0 ? alpha(PRICE_COLOR, 0.1) : alpha('#10B981', 0.1),
+                                  color:   imp.porcentaje > 0 ? PRICE_COLOR : '#10B981' }} />
+                              <span>{imp.nombre}</span>
+                            </Box>
+                          );
+                        }}
                       >
                         <MenuItem value=""><em>Sin impuesto</em></MenuItem>
                         {tiposImpuesto.map(imp => (
-                          <MenuItem key={imp.id} value={imp.id}>
+                          <MenuItem key={imp.id} value={String(imp.id)}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Chip
-                                label={`${imp.porcentaje}%`}
-                                size="small"
-                                sx={{
-                                  fontSize: 10, height: 18,
+                              <Chip label={`${imp.porcentaje}%`} size="small"
+                                sx={{ fontSize: 10, height: 18,
                                   bgcolor: imp.porcentaje > 0 ? alpha(PRICE_COLOR, 0.1) : alpha('#10B981', 0.1),
-                                  color:   imp.porcentaje > 0 ? PRICE_COLOR : '#10B981',
-                                }}
-                              />
+                                  color:   imp.porcentaje > 0 ? PRICE_COLOR : '#10B981' }} />
                               <span>{imp.nombre}</span>
                             </Box>
                           </MenuItem>
