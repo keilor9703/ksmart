@@ -316,9 +316,18 @@ class ProductoCreate(ProductoBase):
             return False
         return bool(v)   # convierte 0→False, 1→True, None→False
 
+class ImpuestoInfo(BaseModel):
+    """Subconjunto de TipoImpuesto embebido en la respuesta de Producto."""
+    id: int
+    nombre: str
+    codigo: str
+    porcentaje: float
+    model_config = ConfigDict(from_attributes=True)
+
 class Producto(ProductoBase):
     id: int
     stock_actual: float = 0.0
+    impuesto: Optional[ImpuestoInfo] = None
     model_config = ConfigDict(from_attributes=True)
 
 class MovementType(str, Enum):
@@ -2357,3 +2366,41 @@ class PinVerifyResponse(BaseModel):
     rol:             Optional[str] = None
     nombre_completo: Optional[str] = None
     is_expired:      bool = False
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# IMPUESTOS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TipoImpuestoBase(BaseModel):
+    nombre:      str
+    codigo:      str
+    porcentaje:  float = 0.0
+    descripcion: Optional[str] = None
+    is_active:   bool  = True
+
+class TipoImpuestoCreate(TipoImpuestoBase):
+    pass
+
+class TipoImpuestoUpdate(BaseModel):
+    nombre:      Optional[str]   = None
+    codigo:      Optional[str]   = None
+    porcentaje:  Optional[float] = None
+    descripcion: Optional[str]   = None
+    is_active:   Optional[bool]  = None
+
+class TipoImpuestoOut(TipoImpuestoBase):
+    id:         int
+    empresa_id: int
+    model_config = ConfigDict(from_attributes=True)
+
+class ProductoImpuestoCreate(BaseModel):
+    impuesto_id: int
+
+class ProductoImpuestoOut(BaseModel):
+    id:          int
+    producto_id: int
+    impuesto_id: int
+    empresa_id:  int
+    impuesto:    Optional[TipoImpuestoOut] = None
+    model_config = ConfigDict(from_attributes=True)

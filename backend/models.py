@@ -1193,3 +1193,38 @@ class DetallePedidoVirtual(Base, TenantMixin):
 
     pedido   = relationship("PedidoVirtual", back_populates="detalles")
     producto = relationship("Producto", lazy="joined")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# IMPUESTOS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TipoImpuesto(Base):
+    """Catálogo de tipos de impuesto por empresa (IVA 19%, IVA 5%, INC 8%, Excluido…)"""
+    __tablename__ = "tipos_impuesto"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    empresa_id  = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    nombre      = Column(String(100), nullable=False)
+    codigo      = Column(String(20),  nullable=False)
+    porcentaje  = Column(Float, nullable=False, default=0.0)
+    descripcion = Column(Text, nullable=True)
+    is_active   = Column(Boolean, default=True)
+    created_at  = Column(DateTime(timezone=True), default=utcnow)
+
+    empresa = relationship("Empresa")
+
+
+class ProductoImpuesto(Base):
+    """Relación Producto ↔ TipoImpuesto (one-to-one por tenant)"""
+    __tablename__ = "producto_impuestos"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    producto_id = Column(Integer, ForeignKey("productos.id"), nullable=False)
+    impuesto_id = Column(Integer, ForeignKey("tipos_impuesto.id"), nullable=False)
+    empresa_id  = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+
+    __table_args__ = (UniqueConstraint("producto_id", "empresa_id", name="uq_producto_empresa_impuesto"),)
+
+    producto      = relationship("Producto")
+    tipo_impuesto = relationship("TipoImpuesto")

@@ -3,6 +3,7 @@ from typing import Optional, List
 from datetime import timedelta
 import models, schemas
 from crud.perecederos import crear_lote_existencia
+from crud.impuestos import attach_impuestos_to_productos
 
 import json
 
@@ -11,15 +12,19 @@ import json
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def get_producto(db: Session, empresa_id: int, producto_id: int):
-    return db.query(models.Producto).filter(
+    p = db.query(models.Producto).filter(
         models.Producto.id == producto_id,
         models.Producto.empresa_id == empresa_id
     ).first()
+    if p:
+        attach_impuestos_to_productos(db, empresa_id, [p])
+    return p
 
 def get_productos(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
-    return db.query(models.Producto).filter(
+    items = db.query(models.Producto).filter(
         models.Producto.empresa_id == empresa_id
     ).offset(skip).limit(limit).all()
+    return attach_impuestos_to_productos(db, empresa_id, items)
 
 def create_producto(db: Session, empresa_id: int, producto: schemas.ProductoCreate):
     # Extraer campos de inicialización de stock para que no rompan el constructor del Modelo

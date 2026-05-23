@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Box, Typography, Tabs, Tab, Button } from '@mui/material';
-import { Inventory, ReceiptLong, Add, QrCodeScanner } from '@mui/icons-material';
+import { Inventory, ReceiptLong, Add, QrCodeScanner, Percent } from '@mui/icons-material';
 import ProductoList from './ProductoList';
 import ProductoForm from './ProductoForm';
 import Recetas from '../production/Recetas';
+import TiposImpuesto from './TiposImpuesto';
 import AgileBarcodeRegistration from './AgileBarcodeRegistration';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 import SmartTooltip from '../../components/onboarding/SmartTooltip';
@@ -126,6 +127,7 @@ const Productos = () => {
         >
           <Tab icon={<Inventory fontSize="small" />} iconPosition="start" label="Productos y Servicios" />
           <Tab icon={<ReceiptLong fontSize="small" />} iconPosition="start" label="Recetas (BOM)" />
+          <Tab icon={<Percent fontSize="small" />} iconPosition="start" label="Impuestos" />
         </Tabs>
 
         <Box sx={{ p: { xs: 1.5, md: 3 } }}>
@@ -142,6 +144,9 @@ const Productos = () => {
           </TabPanel>
           <TabPanel value={tab} index={1}>
             <Recetas accentColor={ACCENT} />
+          </TabPanel>
+          <TabPanel value={tab} index={2}>
+            <TiposImpuesto />
           </TabPanel>
         </Box>
       </Box>

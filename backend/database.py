@@ -824,6 +824,70 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v53)
                 logger.info("V53 (Resoluciones DIAN extra fields) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V56 - TABLAS DE IMPUESTOS POR PRODUCTO
+            # ═══════════════════════════════════════════════════════════════
+            migration_v56 = "inv_v56_tipos_impuesto_producto"
+            if not _migration_already_applied(conn, migration_v56):
+                logger.info("Aplicando migración V56 (Impuestos por Producto)...")
+
+                if not _table_exists(conn, "tipos_impuesto"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE tipos_impuesto (
+                                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                                empresa_id  INTEGER NOT NULL REFERENCES empresas(id),
+                                nombre      TEXT NOT NULL,
+                                codigo      TEXT NOT NULL,
+                                porcentaje  REAL NOT NULL DEFAULT 0.0,
+                                descripcion TEXT NULL,
+                                is_active   INTEGER NOT NULL DEFAULT 1,
+                                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE tipos_impuesto (
+                                id          SERIAL PRIMARY KEY,
+                                empresa_id  INTEGER NOT NULL REFERENCES empresas(id),
+                                nombre      VARCHAR(100) NOT NULL,
+                                codigo      VARCHAR(20)  NOT NULL,
+                                porcentaje  DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                                descripcion TEXT NULL,
+                                is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+                                created_at  TIMESTAMPTZ DEFAULT NOW()
+                            )
+                        """))
+                    conn.execute(text("CREATE INDEX ix_tipos_impuesto_empresa ON tipos_impuesto(empresa_id)"))
+                    logger.info("V56: creada tabla tipos_impuesto")
+
+                if not _table_exists(conn, "producto_impuestos"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE producto_impuestos (
+                                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                                producto_id INTEGER NOT NULL REFERENCES productos(id),
+                                impuesto_id INTEGER NOT NULL REFERENCES tipos_impuesto(id),
+                                empresa_id  INTEGER NOT NULL REFERENCES empresas(id),
+                                UNIQUE(producto_id, empresa_id)
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE producto_impuestos (
+                                id          SERIAL PRIMARY KEY,
+                                producto_id INTEGER NOT NULL REFERENCES productos(id),
+                                impuesto_id INTEGER NOT NULL REFERENCES tipos_impuesto(id),
+                                empresa_id  INTEGER NOT NULL REFERENCES empresas(id),
+                                UNIQUE(producto_id, empresa_id)
+                            )
+                        """))
+                    conn.execute(text("CREATE INDEX ix_producto_impuestos_empresa ON producto_impuestos(empresa_id)"))
+                    logger.info("V56: creada tabla producto_impuestos")
+
+                _mark_migration_applied(conn, migration_v56)
+                logger.info("V56 (Impuestos por Producto) aplicada.")
+
             # V55 - PIN de acceso rápido en usuarios
             migration_v55 = "inv_v55_users_pin_fields"
             if not _migration_already_applied(conn, migration_v55):

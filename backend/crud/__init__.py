@@ -173,3 +173,11 @@ from crud.biometria import (
     biometric_login_options, biometric_login_verify,
     listar_credenciales_usuario, eliminar_credencial,
 )
+
+# Impuestos por Producto
+from crud.impuestos import (
+    list_tipos_impuesto, get_tipo_impuesto,
+    create_tipo_impuesto, update_tipo_impuesto, delete_tipo_impuesto,
+    get_impuesto_de_producto, set_impuesto_para_producto, remove_impuesto_de_producto,
+    attach_impuestos_to_productos,
+)

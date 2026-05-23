@@ -172,9 +172,16 @@ const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRe
                                 </Box>
                                 <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
                                     <Typography sx={{ fontSize: 12, fontWeight: 700, color: ACCENT }}>{formatCurrency(option.precio)}</Typography>
-                                    <Typography sx={{ fontSize: 10, color: option.es_servicio ? '#3B82F6' : (option.stock_actual <= 0 ? '#EF4444' : 'text.secondary') }}>
-                                        {option.es_servicio ? 'Servicio' : `Stock: ${option.stock_actual ?? 0}`}
-                                    </Typography>
+                                    <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                                        <Typography sx={{ fontSize: 10, color: option.es_servicio ? '#3B82F6' : (option.stock_actual <= 0 ? '#EF4444' : 'text.secondary') }}>
+                                            {option.es_servicio ? 'Servicio' : `Stock: ${option.stock_actual ?? 0}`}
+                                        </Typography>
+                                        {option.impuesto && (
+                                            <Typography sx={{ fontSize: 10, fontWeight: 700, color: option.impuesto.porcentaje > 0 ? '#F43F5E' : '#10B981' }}>
+                                                {option.impuesto.codigo}
+                                            </Typography>
+                                        )}
+                                    </Box>
                                 </Box>
                             </Box>
                         </li>
@@ -188,11 +195,20 @@ const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRe
                         />
                     )}
                 />
-                {/* Stock badge inline (mobile or when product selected) */}
-                {detail.producto && !isService && stock !== null && (
-                    <Typography sx={{ fontSize: 10, mt: 0.3, color: stockBajo ? '#F59E0B' : 'text.disabled', fontWeight: 600 }}>
-                        {stockBajo ? `⚠ Stock bajo: ${stock}` : `Stock disponible: ${stock}`}
-                    </Typography>
+                {/* Stock badge + impuesto badge */}
+                {detail.producto && (
+                    <Box sx={{ display: 'flex', gap: 0.8, mt: 0.4, flexWrap: 'wrap' }}>
+                        {!isService && stock !== null && (
+                            <Typography sx={{ fontSize: 10, color: stockBajo ? '#F59E0B' : 'text.disabled', fontWeight: 600 }}>
+                                {stockBajo ? `⚠ Stock bajo: ${stock}` : `Stock: ${stock}`}
+                            </Typography>
+                        )}
+                        {detail.producto.impuesto && (
+                            <Box component="span" sx={{ fontSize: 10, fontWeight: 700, color: detail.producto.impuesto.porcentaje > 0 ? '#F43F5E' : '#10B981', bgcolor: detail.producto.impuesto.porcentaje > 0 ? '#F43F5E18' : '#10B98118', px: 0.8, py: 0.2, borderRadius: 1 }}>
+                                {detail.producto.impuesto.codigo} {detail.producto.impuesto.porcentaje}%
+                            </Box>
+                        )}
+                    </Box>
                 )}
             </Box>
 
@@ -554,6 +570,10 @@ const Ventas = ({ user }) => {
                     } else {
                         setSaleDetails(prev => [...prev, newRow]);
                     }
+                    // Auto-sugerir IVA del producto escaneado
+                    if (producto.impuesto?.porcentaje != null) {
+                        setIvaPorcentajeGlobal(producto.impuesto.porcentaje);
+                    }
                     toast.success(`${producto.nombre} añadido al carrito`);
                 }
                 playScanBeep();
@@ -614,6 +634,10 @@ const Ventas = ({ user }) => {
     const handleProductChange = (id, newValue) => {
         handleFieldChange(id, 'producto', newValue);
         handleFieldChange(id, 'precioUnitario', newValue?.precio ?? 0);
+        // Auto-sugerir IVA del producto si tiene impuesto asignado
+        if (newValue?.impuesto?.porcentaje != null) {
+            setIvaPorcentajeGlobal(newValue.impuesto.porcentaje);
+        }
     };
 
     // ── Cálculos ──

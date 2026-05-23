@@ -23,7 +23,11 @@ import {
   Autocomplete,
   Paper,
   Tooltip,
-  InputAdornment
+  InputAdornment,
+  MenuItem,
+  Select,
+  FormControl,
+  InputLabel,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 
@@ -183,6 +187,8 @@ const ProductoForm = ({
   const [fechaVencimiento, setFechaVencimiento] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [grupos, setGrupos] = useState([]);
+  const [tiposImpuesto, setTiposImpuesto] = useState([]);
+  const [impuestoId, setImpuestoId] = useState('');
 
   const [imagenes, setImagenes] = useState([]);
   const [mostrarEnCatalogo, setMostrarEnCatalogo] = useState(false);
@@ -199,6 +205,10 @@ const ProductoForm = ({
     apiClient
       .get('/grupos-producto/')
       .then((r) => setGrupos(r.data || []))
+      .catch(() => {});
+    apiClient
+      .get('/impuestos/?solo_activos=true')
+      .then((r) => setTiposImpuesto(r.data || []))
       .catch(() => {});
   }, []);
 
@@ -226,6 +236,8 @@ const ProductoForm = ({
       setImagenes(productoToEdit.imagenes || []);
       setMostrarEnCatalogo(productoToEdit.mostrar_en_catalogo || false);
       setDescripcion(productoToEdit.descripcion || '');
+      // Cargar impuesto asignado (puede venir embebido en el objeto o como null)
+      setImpuestoId(productoToEdit.impuesto?.id ?? '');
     } else {
       resetFields();
     }
@@ -249,6 +261,7 @@ const ProductoForm = ({
     setImagenes([]);
     setMostrarEnCatalogo(false);
     setDescripcion('');
+    setImpuestoId('');
   };
 
   const handleImageChange = (e) => {
@@ -346,7 +359,17 @@ const ProductoForm = ({
       : apiClient.post('/productos/', data);
 
     req
-      .then((res) => {
+      .then(async (res) => {
+        const productoId = res.data.id;
+        // Guardar/limpiar impuesto asignado
+        try {
+          if (impuestoId) {
+            await apiClient.post(`/impuestos/producto/${productoId}`, { impuesto_id: parseInt(impuestoId) });
+          } else {
+            await apiClient.delete(`/impuestos/producto/${productoId}`).catch(() => {});
+          }
+        } catch {}
+
         toast.success(
           `Ítem ${
             productoToEdit ? 'actualizado' : 'agregado'
@@ -648,39 +671,48 @@ const ProductoForm = ({
                     />
                   </Box>
 
-                  <Box
-                    sx={{
-                      flex: '1 1 auto',
-                      minWidth: 220,
-                      width: 'fit-content'
-                    }}
-                  >
+                  <Box sx={{ flex: '1 1 auto', minWidth: 220, width: 'fit-content' }}>
                     <Autocomplete
                       fullWidth
                       freeSolo
-                      options={UNIDADES_MEDIDA.map(
-                        (u) => u.value
-                      )}
+                      options={UNIDADES_MEDIDA.map((u) => u.value)}
                       value={unidadMedida}
-                      onChange={(_, newValue) =>
-                        setUnidadMedida(newValue || 'UND')
-                      }
+                      onChange={(_, newValue) => setUnidadMedida(newValue || 'UND')}
                       onInputChange={(_, newInputValue) =>
-                        setUnidadMedida(
-                          newInputValue
-                            ? newInputValue.toUpperCase()
-                            : ''
-                        )
+                        setUnidadMedida(newInputValue ? newInputValue.toUpperCase() : '')
                       }
                       renderInput={(params) => (
-                        <TextField
-                          {...params}
-                          label="Unidad de Medida *"
-                          required
-                          placeholder="Ej: CAJAx12"
-                        />
+                        <TextField {...params} label="Unidad de Medida *" required placeholder="Ej: CAJAx12" />
                       )}
                     />
+                  </Box>
+
+                  {/* ── Impuesto / IVA ── */}
+                  <Box sx={{ flex: '1 1 200px', minWidth: 200 }}>
+                    <FormControl fullWidth>
+                      <InputLabel>Impuesto (IVA)</InputLabel>
+                      <Select
+                        label="Impuesto (IVA)"
+                        value={impuestoId}
+                        onChange={(e) => setImpuestoId(e.target.value)}
+                      >
+                        <MenuItem value="">
+                          <em>Sin impuesto</em>
+                        </MenuItem>
+                        {tiposImpuesto.map((imp) => (
+                          <MenuItem key={imp.id} value={imp.id}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Chip
+                                label={`${imp.porcentaje}%`}
+                                size="small"
+                                sx={{ fontSize: 10, height: 18, bgcolor: imp.porcentaje > 0 ? '#F43F5E18' : '#10B98118', color: imp.porcentaje > 0 ? '#F43F5E' : '#10B981' }}
+                              />
+                              <span>{imp.nombre}</span>
+                            </Box>
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
                   </Box>
                 </>
               )}
