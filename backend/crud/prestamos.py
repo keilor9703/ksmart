@@ -268,3 +268,35 @@ def aplicar_abono_capital(db: Session, empresa_id: int, prestamo_id: int, monto_
         "cuotas_restantes":  num_cuotas,
         "nuevo_valor_cuota": nuevo_monto_cuota,
     }
+
+
+def get_proyeccion_prestamo(db: Session, empresa_id: int, prestamo: schemas.PrestamoCreate) -> schemas.ProyeccionPrestamo:
+    interes_total   = prestamo.monto_prestado * (prestamo.tasa_interes / 100)
+    monto_total     = prestamo.monto_prestado + interes_total
+    monto_por_cuota = monto_total / prestamo.cantidad_cuotas
+
+    if prestamo.fecha_inicio:
+        fecha_base = prestamo.fecha_inicio.replace(tzinfo=None) if prestamo.fecha_inicio.tzinfo else prestamo.fecha_inicio
+    else:
+        fecha_base = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    dias_sumar = {"Diario": 1, "Semanal": 7, "Quincenal": 15, "Mensual": 30}
+    incremento = dias_sumar.get(prestamo.modalidad, 30)
+
+    cuotas = [
+        schemas.ProyeccionCuota(
+            numero_cuota=i,
+            monto_cuota=round(monto_por_cuota, 2),
+            fecha_vencimiento=fecha_base + timedelta(days=incremento * i),
+        )
+        for i in range(1, prestamo.cantidad_cuotas + 1)
+    ]
+
+    return schemas.ProyeccionPrestamo(
+        cliente_nombre="",
+        monto_prestado=prestamo.monto_prestado,
+        tasa_interes=prestamo.tasa_interes,
+        total_intereses=round(interes_total, 2),
+        total_a_pagar=round(monto_total, 2),
+        cuotas=cuotas,
+    )

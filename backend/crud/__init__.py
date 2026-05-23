@@ -103,6 +103,7 @@ from crud.planes import (
 from crud.prestamos import (
     crear_prestamo, get_calendario_cobros, get_reporte_financiero_prestamos,
     get_resumen_calendario_cobros, calcular_mora_cuota, aplicar_abono_capital,
+    get_proyeccion_prestamo,
 )
 
 from crud.perecederos import (
