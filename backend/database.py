@@ -888,6 +888,25 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v56)
                 logger.info("V56 (Impuestos por Producto) aplicada.")
 
+            # V57 - SKU en productos
+            migration_v57 = "inv_v57_productos_sku"
+            if not _migration_already_applied(conn, migration_v57):
+                if not _column_exists(conn, "productos", "sku"):
+                    conn.execute(text("ALTER TABLE productos ADD COLUMN sku VARCHAR(100) NULL"))
+                    logger.info("V57: añadido productos.sku")
+                # Autogenerar SKU para productos existentes que no tienen uno
+                if IS_SQLITE:
+                    conn.execute(text(
+                        "UPDATE productos SET sku = 'P' || printf('%06d', id) WHERE sku IS NULL OR sku = ''"
+                    ))
+                else:
+                    conn.execute(text(
+                        "UPDATE productos SET sku = 'P' || LPAD(id::text, 6, '0') WHERE sku IS NULL OR sku = ''"
+                    ))
+                logger.info("V57: SKUs autogenerados para productos existentes")
+                _mark_migration_applied(conn, migration_v57)
+                logger.info("V57 (SKU en productos) aplicada.")
+
             # V55 - PIN de acceso rápido en usuarios
             migration_v55 = "inv_v55_users_pin_fields"
             if not _migration_already_applied(conn, migration_v55):

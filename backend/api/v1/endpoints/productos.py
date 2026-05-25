@@ -84,6 +84,19 @@ async def fetch_openbeauty_and_pets(client: httpx.AsyncClient, barcode: str):
 
 # ─── ENDPOINT PRINCIPAL ─────────────────────────────────────────────────────────
 
+@router.get("/sku/{sku}", response_model=Optional[schemas.Producto])
+def get_producto_por_sku(
+    sku: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Busca un producto por su SKU interno (exacto, solo en la empresa del usuario)."""
+    return db.query(models.Producto).filter(
+        models.Producto.sku == sku.upper(),
+        models.Producto.empresa_id == current_user.empresa_id,
+    ).first()
+
+
 @router.get("/barcode/{barcode}", response_model=Optional[schemas.Producto])
 async def get_producto_por_barcode(
     barcode: str,

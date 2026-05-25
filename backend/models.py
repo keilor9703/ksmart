@@ -257,6 +257,7 @@ class GrupoProducto(Base):
 class Producto(Base, TenantMixin):
     __tablename__ = "productos"
     id            = Column(Integer, primary_key=True, index=True)
+    sku           = Column(String, index=True, nullable=True)
     nombre        = Column(String, index=True)
     codigo_barras = Column(String, index=True, nullable=True) # ✨ NUEVO: Para búsqueda ágil
     descripcion   = Column(Text, nullable=True)               # ✨ NUEVO: Característica opcional

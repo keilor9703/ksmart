@@ -11,6 +11,30 @@ import json
 # PRODUCTOS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _generate_sku(db: Session, empresa_id: int, producto_id: int) -> str:
+    """Genera un SKU único con formato P000001 para la empresa."""
+    candidate = f"P{producto_id:06d}"
+    exists = db.query(models.Producto).filter(
+        models.Producto.empresa_id == empresa_id,
+        models.Producto.sku == candidate,
+        models.Producto.id != producto_id,
+    ).first()
+    if not exists:
+        return candidate
+    # Si hay colisión (muy raro), añadir sufijo
+    return f"P{producto_id:06d}-{empresa_id}"
+
+
+def sku_exists(db: Session, empresa_id: int, sku: str, exclude_id: int = None) -> bool:
+    q = db.query(models.Producto).filter(
+        models.Producto.empresa_id == empresa_id,
+        models.Producto.sku == sku,
+    )
+    if exclude_id:
+        q = q.filter(models.Producto.id != exclude_id)
+    return q.first() is not None
+
+
 def get_producto(db: Session, empresa_id: int, producto_id: int):
     p = db.query(models.Producto).filter(
         models.Producto.id == producto_id,
@@ -31,12 +55,22 @@ def create_producto(db: Session, empresa_id: int, producto: schemas.ProductoCrea
     stock_inicial     = producto.stock_inicial
     numero_lote       = producto.numero_lote
     fecha_vencimiento = producto.fecha_vencimiento
-    
+    sku_provided      = (producto.sku or '').strip() or None
+
     # Datos limpios para el modelo Producto
     prod_data = producto.dict(exclude={'stock_inicial', 'numero_lote', 'fecha_vencimiento'})
-    
+    prod_data['sku'] = None  # se asigna después de obtener el id
+
     db_producto = models.Producto(**prod_data, empresa_id=empresa_id)
     db.add(db_producto)
+    db.commit()
+    db.refresh(db_producto)
+
+    # Asignar SKU: usar el provisto (si es único) o autogenerar
+    if sku_provided and not sku_exists(db, empresa_id, sku_provided, exclude_id=db_producto.id):
+        db_producto.sku = sku_provided.upper()
+    else:
+        db_producto.sku = _generate_sku(db, empresa_id, db_producto.id)
     db.commit()
     db.refresh(db_producto)
     
@@ -76,7 +110,17 @@ def update_producto(db: Session, empresa_id: int, producto_id: int, producto: sc
     db_producto = get_producto(db, empresa_id, producto_id)
     if db_producto:
         update_data = producto.dict(exclude_unset=True)
-        
+
+        # Validar SKU: si se provee uno nuevo, debe ser único en la empresa
+        new_sku = (update_data.get('sku') or '').strip().upper() or None
+        if new_sku:
+            if sku_exists(db, empresa_id, new_sku, exclude_id=producto_id):
+                from fastapi import HTTPException
+                raise HTTPException(status_code=409, detail=f"El SKU '{new_sku}' ya está en uso por otro producto.")
+            update_data['sku'] = new_sku
+        else:
+            update_data.pop('sku', None)  # no borrar el SKU existente si viene vacío
+
         for key, value in update_data.items():
             setattr(db_producto, key, value)
         db.commit()

@@ -56,9 +56,18 @@ const ProductoCard = ({ producto, grupos, onEditProducto, handleDelete, accentCo
               {producto.descripcion}
             </Typography>
           )}
-          <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 600, mt: 0.5, letterSpacing: 0.5 }}>
-            {producto.codigo_barras || 'N/A'}
-          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 0.5, flexWrap: 'wrap' }}>
+            {producto.sku && (
+              <Typography sx={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: 'text.primary', bgcolor: 'action.hover', px: 0.8, py: 0.2, borderRadius: 1 }}>
+                {producto.sku}
+              </Typography>
+            )}
+            {producto.codigo_barras && (
+              <Typography sx={{ fontSize: 10, color: 'text.disabled', fontFamily: 'monospace' }}>
+                {producto.codigo_barras}
+              </Typography>
+            )}
+          </Box>
         </Box>
         <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', justifyContent: 'flex-end', flexShrink: 0 }}>
           <Chip label={group.codigo} size="small"
@@ -208,6 +217,7 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
       const q = searchTerm.toLowerCase();
       list = list.filter(p =>
         p.nombre.toLowerCase().includes(q) ||
+        (p.sku && p.sku.toLowerCase().includes(q)) ||
         (p.codigo_barras && p.codigo_barras.toLowerCase().includes(q)) ||
         (p.descripcion && p.descripcion.toLowerCase().includes(q))
       );
@@ -408,7 +418,7 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
           <Table size="small">
             <TableHead>
               <TableRow sx={{ bgcolor: 'action.hover' }}>
-                <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>CÓDIGO</TableCell>
+                <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>SKU</TableCell>
                 <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>
                   <TableSortLabel
                     active={sortBy === 'nombre'}
@@ -470,8 +480,17 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
 
                     return (
                       <TableRow key={producto.id} hover>
-                        <TableCell sx={{ color: 'text.secondary', fontSize: 12, fontWeight: 700, fontFamily: 'monospace' }}>
-                          {producto.codigo_barras || '—'}
+                        <TableCell sx={{ fontSize: 12, fontWeight: 700, fontFamily: 'monospace' }}>
+                          <Box>
+                            <Typography sx={{ fontSize: 12, fontWeight: 700, fontFamily: 'monospace', color: 'text.primary' }}>
+                              {producto.sku || '—'}
+                            </Typography>
+                            {producto.codigo_barras && (
+                              <Typography sx={{ fontSize: 10, color: 'text.disabled', fontFamily: 'monospace' }}>
+                                {producto.codigo_barras}
+                              </Typography>
+                            )}
+                          </Box>
                         </TableCell>
                         <TableCell>
                           <Box sx={{ py: 0.5 }}>

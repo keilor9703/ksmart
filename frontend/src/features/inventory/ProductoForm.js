@@ -122,6 +122,7 @@ const ProductoForm = ({
 
   // ── State (logic unchanged) ──
   const [nombre,              setNombre]              = useState('');
+  const [sku,                 setSku]                 = useState('');
   const [codigoBarras,        setCodigoBarras]        = useState('');
   const [precio,              setPrecio]              = useState('');
   const [costo,               setCosto]               = useState('');
@@ -161,6 +162,7 @@ const ProductoForm = ({
   useEffect(() => {
     if (productoToEdit) {
       setNombre(productoToEdit.nombre);
+      setSku(productoToEdit.sku || '');
       setCodigoBarras(productoToEdit.codigo_barras || '');
       setPrecio(productoToEdit.precio || '');
       setCosto(productoToEdit.costo || '');
@@ -182,7 +184,7 @@ const ProductoForm = ({
 
   // ── Handlers (unchanged) ──
   const resetFields = () => {
-    setNombre(''); setCodigoBarras(''); setPrecio(''); setCosto('');
+    setNombre(''); setSku(''); setCodigoBarras(''); setPrecio(''); setCosto('');
     setEsServicio(false); setUnidadMedida('UND'); setGrupoItem(2);
     setStockMinimo(''); setStockActual(0); setManejaLotes(false);
     setUnidadesPorEmpaque(1); setStockInicial(''); setNumeroLote('');
@@ -234,6 +236,7 @@ const ProductoForm = ({
     e.preventDefault();
     const data = {
       nombre,
+      sku: sku.trim().toUpperCase() || undefined,
       codigo_barras: codigoBarras || null,
       precio: parseFloat(precio) || 0.0,
       costo: esServicio ? 0.0 : parseFloat(costo) || 0.0,
@@ -453,8 +456,8 @@ const ProductoForm = ({
                         />
                       </Grid>
 
-                      {/* Unidad + Código de Barras — misma fila solo en desktop (md+) */}
-                      <Grid item xs={12} md={6}>
+                      {/* Unidad de medida — fila propia */}
+                      <Grid item xs={12}>
                         <Autocomplete
                           fullWidth freeSolo
                           options={UNIDADES_MEDIDA.map(u => u.value)}
@@ -465,6 +468,19 @@ const ProductoForm = ({
                         />
                       </Grid>
 
+                      {/* SKU + Código de Barras — fila compartida */}
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          label="SKU / Código Interno"
+                          value={sku}
+                          onChange={e => setSku(e.target.value.toUpperCase())}
+                          fullWidth
+                          placeholder={productoToEdit ? '' : 'Se genera automáticamente'}
+                          inputProps={{ style: { fontFamily: 'monospace', letterSpacing: 1 } }}
+                          helperText="Identificador único del ítem en tu inventario"
+                        />
+                      </Grid>
+
                       <Grid item xs={12} md={6}>
                         <TextField
                           label="Código de Barras"
@@ -472,6 +488,7 @@ const ProductoForm = ({
                           onChange={e => setCodigoBarras(e.target.value)}
                           fullWidth
                           placeholder="Escanea o escribe…"
+                          inputProps={{ style: { fontFamily: 'monospace' } }}
                         />
                       </Grid>
                     </>

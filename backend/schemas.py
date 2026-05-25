@@ -272,6 +272,7 @@ class GrupoProductoOut(GrupoProductoBase):
 # =========================
 # En schemas.py, busca la clase ProductoBase y añádelo al final:
 class ProductoBase(BaseModel):
+    sku: Optional[str] = None
     nombre: str
     codigo_barras: Optional[str] = None # ✨ NUEVO
     descripcion: Optional[str] = None   # ✨ NUEVO
