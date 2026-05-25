@@ -181,7 +181,7 @@ function FeatureCarousel() {
       {/* Brand mark — top left */}
       <Box sx={{ position: 'absolute', top: 36, left: 44 }}>
         <Stack direction="row" alignItems="center" spacing={1.5}>
-          <img src="/Logo.jpeg" alt="Ksmart360" style={{ width: 34, height: 34, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.25)', objectFit: 'cover' }} />
+          <img src="/logos/svg/ksmart-icon-rounded.svg" alt="Ksmart360" style={{ width: 34, height: 34, borderRadius: 8 }} />
           <Typography sx={{ fontWeight: 900, fontSize: 18, color: '#fff', letterSpacing: -0.3 }}>Ksmart360</Typography>
           <Chip label="SaaS" size="small" sx={{ bgcolor: 'rgba(255,255,255,0.13)', color: '#fff', fontWeight: 700, fontSize: 9, height: 18, backdropFilter: 'blur(4px)', border: '1px solid rgba(255,255,255,0.15)' }} />
         </Stack>
@@ -591,7 +591,7 @@ const Login = ({ onLogin }) => {
 
                     {/* Mobile branding — only on xs/sm */}
                     <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1.5, mb: 3, alignSelf: 'flex-start' }}>
-                        <img src="/Logo.jpeg" alt="Ksmart360" style={{ width: 34, height: 34, borderRadius: '50%', border: '2px solid rgba(34,197,94,0.4)', objectFit: 'cover' }} />
+                        <img src="/logos/svg/ksmart-icon-rounded.svg" alt="Ksmart360" style={{ width: 34, height: 34, borderRadius: 8 }} />
                         <Box>
                             <Typography sx={{ fontWeight: 800, fontSize: 16, color: '#f1f5f9', lineHeight: 1 }}>Ksmart360</Typography>
                             <Typography sx={{ fontSize: 11, color: '#64748b' }}>14 días gratis · Sin tarjeta de crédito</Typography>
@@ -612,7 +612,7 @@ const Login = ({ onLogin }) => {
                             width: isLoginView ? { xs: 140, lg: 156 } : { xs: 110, lg: 120 },
                             height: isLoginView ? { xs: 140, lg: 156 } : { xs: 110, lg: 120 },
                             borderRadius: '50%',
-                            border: '1.5px solid rgba(34,197,94,0.35)',
+                            border: '1.5px solid rgba(30,200,224,0.35)',
                             animation: `${pulseRing} 3s ease-in-out infinite`,
                             transition: 'all 0.4s ease',
                         }} />
@@ -621,19 +621,17 @@ const Login = ({ onLogin }) => {
                             width: isLoginView ? { xs: 118, lg: 132 } : { xs: 92, lg: 102 },
                             height: isLoginView ? { xs: 118, lg: 132 } : { xs: 92, lg: 102 },
                             borderRadius: '50%',
-                            border: '1px solid rgba(34,197,94,0.2)',
+                            border: '1px solid rgba(30,200,224,0.2)',
                             transition: 'all 0.4s ease',
                         }} />
                         <img
-                            src="/Logo.jpeg"
+                            src="/logos/svg/ksmart-icon-rounded.svg"
                             alt="Ksmart360"
                             style={{
                                 width:        isLoginView ? 110 : 84,
                                 height:       isLoginView ? 110 : 84,
-                                borderRadius: '50%',
-                                objectFit:    'cover',
-                                border:       '3px solid rgba(34,197,94,0.55)',
-                                boxShadow:    '0 0 40px rgba(34,197,94,0.25), 0 0 80px rgba(34,197,94,0.1)',
+                                borderRadius: 20,
+                                boxShadow:    '0 0 40px rgba(30,200,224,0.3), 0 0 80px rgba(30,200,224,0.12)',
                                 position:     'relative',
                                 zIndex:       1,
                                 transition:   'all 0.4s ease',
