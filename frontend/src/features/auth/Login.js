@@ -574,10 +574,9 @@ const Login = ({ onLogin }) => {
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                justifyContent: 'center',
                 background: 'linear-gradient(160deg, #0f172a 0%, #020617 100%)',
                 px: { xs: 3, sm: 6, lg: 8 },
-                py: { xs: 3, lg: 4 },
+                py: { xs: 4, lg: 4 },
                 overflowY: 'auto',
             }}>
                 <Box sx={{
@@ -587,11 +586,12 @@ const Login = ({ onLogin }) => {
                     flexDirection: 'column',
                     alignItems: 'center',
                     my: 'auto',
+                    py: { xs: 1, lg: 0 },
                 }}>
 
                     {/* Mobile branding — only on xs/sm */}
                     <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1.5, mb: 3, alignSelf: 'flex-start' }}>
-                        <img src="/logos/svg/ksmart-icon-rounded.svg" alt="Ksmart360" style={{ width: 34, height: 34, borderRadius: 8 }} />
+                        <img src="/logos/svg/ksmart-icon-rounded.svg" alt="Ksmart360" style={{ width: 34, height: 34, borderRadius: '50%' }} />
                         <Box>
                             <Typography sx={{ fontWeight: 800, fontSize: 16, color: '#f1f5f9', lineHeight: 1 }}>Ksmart360</Typography>
                             <Typography sx={{ fontSize: 11, color: '#64748b' }}>14 días gratis · Sin tarjeta de crédito</Typography>
@@ -633,7 +633,7 @@ const Login = ({ onLogin }) => {
                             style={{
                                 width:        isLoginView ? 110 : 84,
                                 height:       isLoginView ? 110 : 84,
-                                borderRadius: 20,
+                                borderRadius: '50%',
                                 boxShadow:    '0 0 40px rgba(30,200,224,0.3), 0 0 80px rgba(30,200,224,0.12)',
                                 position:     'relative',
                                 zIndex:       1,
