@@ -606,6 +606,9 @@ const Login = ({ onLogin }) => {
                         alignItems: 'center',
                         justifyContent: 'center',
                         transition: 'all 0.4s ease',
+                        width:     isLoginView ? { xs: 148, lg: 164 } : { xs: 118, lg: 128 },
+                        height:    isLoginView ? { xs: 148, lg: 164 } : { xs: 118, lg: 128 },
+                        flexShrink: 0,
                     }}>
                         <Box sx={{
                             position: 'absolute',
