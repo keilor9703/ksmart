@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from datetime import timedelta
+import re
 import models, schemas
 from crud.perecederos import crear_lote_existencia
 from crud.impuestos import attach_impuestos_to_productos
@@ -11,18 +12,37 @@ import json
 # PRODUCTOS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def _generate_sku(db: Session, empresa_id: int, producto_id: int) -> str:
-    """Genera un SKU único con formato P000001 para la empresa."""
-    candidate = f"P{producto_id:06d}"
-    exists = db.query(models.Producto).filter(
-        models.Producto.empresa_id == empresa_id,
-        models.Producto.sku == candidate,
-        models.Producto.id != producto_id,
-    ).first()
-    if not exists:
-        return candidate
-    # Si hay colisión (muy raro), añadir sufijo
-    return f"P{producto_id:06d}-{empresa_id}"
+def _generate_smart_sku(db, empresa_id, grupo_id, nombre, variante_attrs=None, exclude_id=None):
+    # 1. Category prefix: GrupoProducto.codigo, max 4 chars, uppercase, alphanumeric only
+    grupo = db.query(models.GrupoProducto).filter(models.GrupoProducto.id == grupo_id).first()
+    cat = re.sub(r'[^A-Z0-9]', '', (grupo.codigo[:4].upper() if grupo else 'GEN'))
+    if not cat:
+        cat = 'GEN'
+
+    # 2. Description: longest word from nombre, max 5 chars, or first 5 chars
+    words = [re.sub(r'[^A-Z0-9]', '', w.upper()) for w in nombre.split() if len(w) >= 3]
+    words = [w for w in words if w]
+    desc = max(words, key=len)[:5] if words else re.sub(r'[^A-Z0-9]', '', nombre.upper())[:5]
+    if not desc:
+        desc = 'ITEM'
+
+    # 3. Variant attribute parts: each value max 4 chars, alphanumeric
+    var_parts = []
+    if variante_attrs:
+        for v in variante_attrs.values():
+            part = re.sub(r'[^A-Z0-9]', '', str(v).upper())[:4]
+            if part:
+                var_parts.append(part)
+
+    base = '-'.join([cat, desc] + var_parts)
+
+    # 4. Ensure uniqueness within empresa
+    candidate = base
+    counter = 2
+    while sku_exists(db, empresa_id, candidate, exclude_id=exclude_id):
+        candidate = f"{base}-{counter:02d}"
+        counter += 1
+    return candidate
 
 
 def sku_exists(db: Session, empresa_id: int, sku: str, exclude_id: int = None) -> bool:
@@ -70,7 +90,7 @@ def create_producto(db: Session, empresa_id: int, producto: schemas.ProductoCrea
     if sku_provided and not sku_exists(db, empresa_id, sku_provided, exclude_id=db_producto.id):
         db_producto.sku = sku_provided.upper()
     else:
-        db_producto.sku = _generate_sku(db, empresa_id, db_producto.id)
+        db_producto.sku = _generate_smart_sku(db, empresa_id, db_producto.grupo_item, db_producto.nombre)
     db.commit()
     db.refresh(db_producto)
     
@@ -133,3 +153,80 @@ def delete_producto(db: Session, empresa_id: int, producto_id: int):
         db.delete(db_producto)
         db.commit()
     return db_producto
+
+
+def create_variante(db: Session, empresa_id: int, producto_id: int, payload: schemas.ProductoVarianteCreate):
+    prod = get_producto(db, empresa_id, producto_id)
+    if not prod:
+        raise ValueError("Producto no encontrado")
+
+    # Generate SKU for variant
+    attrs = payload.atributos or {}
+    if payload.sku and not sku_exists(db, empresa_id, payload.sku.upper(), exclude_id=None):
+        var_sku = payload.sku.upper()
+    else:
+        var_sku = _generate_smart_sku(db, empresa_id, prod.grupo_item, prod.nombre, variante_attrs=attrs)
+
+    variante = models.ProductoVariante(
+        empresa_id   = empresa_id,
+        producto_id  = producto_id,
+        sku          = var_sku,
+        nombre       = payload.nombre,
+        atributos    = attrs,
+        precio       = payload.precio,
+        costo        = payload.costo,
+        stock_minimo = payload.stock_minimo,
+        stock_actual = payload.stock_inicial if hasattr(payload, 'stock_inicial') else 0.0,
+        activo       = True,
+    )
+    db.add(variante)
+
+    # Mark parent as having variants
+    prod.tiene_variantes = True
+    db.add(prod)
+    db.commit()
+    db.refresh(variante)
+    return variante
+
+
+def list_variantes(db: Session, empresa_id: int, producto_id: int):
+    return db.query(models.ProductoVariante).filter(
+        models.ProductoVariante.empresa_id == empresa_id,
+        models.ProductoVariante.producto_id == producto_id,
+    ).order_by(models.ProductoVariante.id).all()
+
+
+def update_variante(db: Session, empresa_id: int, variante_id: int, payload: schemas.ProductoVarianteUpdate):
+    v = db.query(models.ProductoVariante).filter(
+        models.ProductoVariante.id == variante_id,
+        models.ProductoVariante.empresa_id == empresa_id,
+    ).first()
+    if not v:
+        raise ValueError("Variante no encontrada")
+    for field, value in payload.dict(exclude_unset=True).items():
+        setattr(v, field, value)
+    db.commit()
+    db.refresh(v)
+    return v
+
+
+def delete_variante(db: Session, empresa_id: int, variante_id: int):
+    v = db.query(models.ProductoVariante).filter(
+        models.ProductoVariante.id == variante_id,
+        models.ProductoVariante.empresa_id == empresa_id,
+    ).first()
+    if v:
+        prod_id = v.producto_id
+        db.delete(v)
+        db.commit()
+        # If no more variants, unset tiene_variantes
+        remaining = db.query(models.ProductoVariante).filter(
+            models.ProductoVariante.producto_id == prod_id,
+            models.ProductoVariante.empresa_id == empresa_id,
+        ).count()
+        if remaining == 0:
+            prod = db.query(models.Producto).filter(models.Producto.id == prod_id).first()
+            if prod:
+                prod.tiene_variantes = False
+                db.commit()
+    return v

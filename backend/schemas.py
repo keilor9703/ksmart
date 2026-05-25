@@ -325,9 +325,37 @@ class ImpuestoInfo(BaseModel):
     porcentaje: float
     model_config = ConfigDict(from_attributes=True)
 
+class ProductoVarianteBase(BaseModel):
+    nombre: str
+    atributos: dict = {}
+    precio: Optional[float] = None
+    costo: Optional[float] = None
+    stock_minimo: float = 0.0
+
+class ProductoVarianteCreate(ProductoVarianteBase):
+    sku: Optional[str] = None
+    stock_inicial: float = 0.0
+
+class ProductoVarianteUpdate(BaseModel):
+    nombre: Optional[str] = None
+    atributos: Optional[dict] = None
+    precio: Optional[float] = None
+    costo: Optional[float] = None
+    stock_minimo: Optional[float] = None
+    activo: Optional[bool] = None
+
+class ProductoVarianteOut(ProductoVarianteBase):
+    id: int
+    sku: str
+    stock_actual: float = 0.0
+    activo: bool = True
+    model_config = ConfigDict(from_attributes=True)
+
 class Producto(ProductoBase):
     id: int
     stock_actual: float = 0.0
+    tiene_variantes: bool = False
+    variantes: List['ProductoVarianteOut'] = []
     impuesto: Optional[ImpuestoInfo] = None
     model_config = ConfigDict(from_attributes=True)
 

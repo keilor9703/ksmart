@@ -888,6 +888,50 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v56)
                 logger.info("V56 (Impuestos por Producto) aplicada.")
 
+            # V58 - Variantes de productos
+            migration_v58 = "inv_v58_producto_variantes"
+            if not _migration_already_applied(conn, migration_v58):
+                # Add tiene_variantes to productos
+                if not _column_exists(conn, "productos", "tiene_variantes"):
+                    conn.execute(text("ALTER TABLE productos ADD COLUMN tiene_variantes BOOLEAN NOT NULL DEFAULT 0" if IS_SQLITE else "ALTER TABLE productos ADD COLUMN tiene_variantes BOOLEAN NOT NULL DEFAULT FALSE"))
+                    logger.info("V58: añadido productos.tiene_variantes")
+                # Create producto_variantes table
+                if IS_SQLITE:
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS producto_variantes (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            empresa_id INTEGER NOT NULL,
+                            producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+                            sku VARCHAR(100) NOT NULL,
+                            nombre VARCHAR(200) NOT NULL,
+                            atributos TEXT DEFAULT '{}',
+                            precio REAL NULL,
+                            costo REAL NULL,
+                            stock_actual REAL NOT NULL DEFAULT 0.0,
+                            stock_minimo REAL NOT NULL DEFAULT 0.0,
+                            activo INTEGER NOT NULL DEFAULT 1
+                        )
+                    """))
+                else:
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS producto_variantes (
+                            id SERIAL PRIMARY KEY,
+                            empresa_id INTEGER NOT NULL,
+                            producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+                            sku VARCHAR(100) NOT NULL,
+                            nombre VARCHAR(200) NOT NULL,
+                            atributos JSONB DEFAULT '{}',
+                            precio FLOAT NULL,
+                            costo FLOAT NULL,
+                            stock_actual FLOAT NOT NULL DEFAULT 0.0,
+                            stock_minimo FLOAT NOT NULL DEFAULT 0.0,
+                            activo BOOLEAN NOT NULL DEFAULT TRUE
+                        )
+                    """))
+                logger.info("V58: creada tabla producto_variantes")
+                _mark_migration_applied(conn, migration_v58)
+                logger.info("V58 (Variantes de productos) aplicada.")
+
             # V57 - SKU en productos
             migration_v57 = "inv_v57_productos_sku"
             if not _migration_already_applied(conn, migration_v57):

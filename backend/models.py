@@ -279,7 +279,24 @@ class Producto(Base, TenantMixin):
     # Ej: caja de 4 carnes → costo=$12.000, unidades_por_empaque=4 → costo real por unidad=$3.000
     unidades_por_empaque = Column(Float, default=1.0, nullable=False)
 
+    tiene_variantes = Column(Boolean, default=False)
+    variantes = relationship("ProductoVariante", back_populates="producto", cascade="all, delete-orphan")
     lotes = relationship("LoteExistencia", back_populates="producto", cascade="all, delete-orphan")
+
+class ProductoVariante(Base, TenantMixin):
+    __tablename__ = "producto_variantes"
+    id           = Column(Integer, primary_key=True, index=True)
+    producto_id  = Column(Integer, ForeignKey("productos.id", ondelete="CASCADE"), nullable=False, index=True)
+    sku          = Column(String(100), nullable=False, index=True)
+    nombre       = Column(String(200), nullable=False)
+    atributos    = Column(JSON, default={})   # {"color": "Azul", "talla": "M", "presentacion": "500g"}
+    precio       = Column(Float, nullable=True)   # None = inherit from parent
+    costo        = Column(Float, nullable=True)   # None = inherit from parent
+    stock_actual = Column(Float, default=0.0)
+    stock_minimo = Column(Float, default=0.0)
+    activo       = Column(Boolean, default=True)
+    producto     = relationship("Producto", back_populates="variantes")
+
 
 class MovementType(str, enum.Enum):
     ENTRADA = "entrada"
