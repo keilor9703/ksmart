@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Logo E — Duotone Split: la K en dos colores que crean profundidad -->
+<!-- Barra + brazo inferior en cian oscuro / Brazo superior + flecha en cian brillante + blanco -->
+<!-- Crea la sensación de que la flecha "emerge" o "despega" de la K -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512">
+  <defs>
+    <filter id="glow2" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2.2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="100" height="100" rx="22" fill="#020817"/>
+
+  <!-- Barra vertical — cian base (más oscuro/neutro) -->
+  <line x1="29" y1="19" x2="29" y2="81"
+        stroke="#0891B2" stroke-width="11" stroke-linecap="round"/>
+
+  <!-- Brazo inferior — cian base -->
+  <line x1="29" y1="50" x2="73" y2="86"
+        stroke="#0891B2" stroke-width="11" stroke-linecap="round"/>
+
+  <!-- Brazo superior + flecha — BRILLANTE, con glow: aquí está la energía -->
+  <g filter="url(#glow2)">
+    <line x1="29" y1="50" x2="55" y2="28"
+          stroke="#22D3EE" stroke-width="11" stroke-linecap="round"/>
+    <!-- Flecha grande en blanco puro para máximo contraste -->
+    <polygon points="73,14  65,33  53,17" fill="#FFFFFF"/>
+  </g>
+</svg>

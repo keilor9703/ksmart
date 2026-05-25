@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Logo B — Espacio negativo: fondo cian, la K aparece "recortada" mostrando el fondo oscuro -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512">
+  <defs>
+    <!-- Máscara: blanco = muestra cian | negro = corta (muestra oscuro) -->
+    <mask id="k-cutout">
+      <rect width="100" height="100" fill="white"/>
+      <!-- La K en negro crea los recortes -->
+      <line x1="28" y1="19" x2="28" y2="81"
+            stroke="black" stroke-width="12" stroke-linecap="round"/>
+      <line x1="28" y1="50" x2="73" y2="86"
+            stroke="black" stroke-width="12" stroke-linecap="round"/>
+      <line x1="28" y1="50" x2="55" y2="28"
+            stroke="black" stroke-width="12" stroke-linecap="round"/>
+      <polygon points="73,14 65,33 53,17" fill="black"/>
+    </mask>
+    <!-- Gradiente para el fondo cian -->
+    <linearGradient id="ciangrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#06B6D4"/>
+      <stop offset="100%" stop-color="#0891B2"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Fondo oscuro que se verá a través de los recortes -->
+  <rect width="100" height="100" rx="22" fill="#020817"/>
+
+  <!-- Rectángulo cian con la K recortada -->
+  <rect width="100" height="100" rx="22" fill="url(#ciangrad)" mask="url(#k-cutout)"/>
+</svg>

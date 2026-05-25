@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Logo A — Roundel (círculo clásico): K compacta con flecha en contenedor circular -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512">
+  <defs>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <!-- Borde sutil del círculo -->
+    <radialGradient id="rimlight" cx="40%" cy="35%" r="65%">
+      <stop offset="0%"   stop-color="#1e4a5a" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#020817" stop-opacity="1"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Círculo de fondo con degradado sutil -->
+  <circle cx="50" cy="50" r="50" fill="url(#rimlight)"/>
+  <!-- Aro interior delgado -->
+  <circle cx="50" cy="50" r="47" fill="none" stroke="#06B6D4" stroke-width="0.6" opacity="0.35"/>
+
+  <!-- K con glow — proporciones compactas dentro del círculo -->
+  <g filter="url(#glow)">
+    <!-- Barra vertical -->
+    <line x1="30" y1="22" x2="30" y2="78"
+          stroke="#06B6D4" stroke-width="10" stroke-linecap="round"/>
+
+    <!-- Brazo inferior -->
+    <line x1="30" y1="50" x2="69" y2="78"
+          stroke="#06B6D4" stroke-width="10" stroke-linecap="round"/>
+
+    <!-- Brazo superior (cuerpo) -->
+    <line x1="30" y1="50" x2="56" y2="30"
+          stroke="#06B6D4" stroke-width="10" stroke-linecap="round"/>
+
+    <!-- Punta de flecha — blanca para destaque máximo -->
+    <polygon points="70,18  63,33  51,21" fill="#FFFFFF"/>
+  </g>
+</svg>

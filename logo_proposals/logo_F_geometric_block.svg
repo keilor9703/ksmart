@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Logo F — Bloque Geométrico Relleno: K como formas sólidas rellenas (no trazos) -->
+<!-- Estilo tipografía bold display: barra + brazos como rectángulos rotados -->
+<!-- La flecha es una pieza independiente prominente -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512">
+  <defs>
+    <filter id="glow3" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <linearGradient id="blockgrad" x1="15%" y1="85%" x2="85%" y2="15%">
+      <stop offset="0%"   stop-color="#06B6D4"/>
+      <stop offset="100%" stop-color="#A5F3FC"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="100" height="100" rx="22" fill="#020817"/>
+
+  <g fill="url(#blockgrad)" filter="url(#glow3)">
+    <!-- Barra vertical rellena con esquinas redondeadas -->
+    <rect x="17" y="16" width="14" height="68" rx="4"/>
+
+    <!-- Brazo inferior: rectángulo horizontal rotado alrededor del punto de unión -->
+    <!-- El punto de rotación es (31, 50) — borde derecho de barra, mitad -->
+    <rect x="31" y="43" width="40" height="14" rx="3"
+          transform="rotate(34.5, 31, 50)"/>
+
+    <!-- Brazo superior: mismo rect, rotado en dirección contraria (hasta antes del arrowhead) -->
+    <rect x="31" y="43" width="29" height="14" rx="3"
+          transform="rotate(-34.5, 31, 50)"/>
+
+    <!-- Flecha — triángulo grande independiente, extendiendo el brazo superior -->
+    <!-- Calculo: con rotate(-34.5), extremo del rect de 29px queda en: -->
+    <!-- (31+29*cos34.5°, 50-29*sin34.5°) = (31+23.9, 50-16.5) = (54.9, 33.5) -->
+    <!-- La punta de flecha sale desde esa zona hasta (80, 12) aprox -->
+    <polygon points="81,11  67,36  51,22"/>
+  </g>
+</svg>
