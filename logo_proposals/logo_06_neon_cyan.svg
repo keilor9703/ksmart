@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Logo 06 — Neon Cyan: fondo casi negro, K cian eléctrico con resplandor suave -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512">
+  <defs>
+    <!-- Efecto de resplandor / glow -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2.8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <!-- Gradiente de fondo: azul noche muy oscuro -->
+    <linearGradient id="darkbg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#030B15"/>
+      <stop offset="100%" stop-color="#020817"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="100" height="100" rx="22" fill="url(#darkbg)"/>
+
+  <!-- K con glow -->
+  <g filter="url(#glow)">
+    <line x1="28" y1="19" x2="28" y2="81"
+          stroke="#06B6D4" stroke-width="11" stroke-linecap="round"/>
+    <line x1="28" y1="50" x2="73" y2="86"
+          stroke="#06B6D4" stroke-width="11" stroke-linecap="round"/>
+    <line x1="28" y1="50" x2="55" y2="28"
+          stroke="#06B6D4" stroke-width="11" stroke-linecap="round"/>
+
+    <!-- Punta de flecha blanca brillante para máximo destello -->
+    <polygon points="73,14 65,33 53,17" fill="#FFFFFF"/>
+  </g>
+</svg>

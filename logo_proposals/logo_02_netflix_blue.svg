@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Logo 02 — Netflix Blue: K azul sólido, fondo negro, flecha blanca -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512">
+
+  <!-- Fondo negro profundo -->
+  <rect width="100" height="100" rx="22" fill="#141414"/>
+
+  <!-- Barra vertical — Azul vibrante -->
+  <line x1="28" y1="19" x2="28" y2="81"
+        stroke="#1E88E5" stroke-width="12" stroke-linecap="round"/>
+
+  <!-- Brazo inferior — Azul vibrante -->
+  <line x1="28" y1="50" x2="73" y2="86"
+        stroke="#1E88E5" stroke-width="12" stroke-linecap="round"/>
+
+  <!-- Brazo superior — Azul vibrante -->
+  <line x1="28" y1="50" x2="55" y2="28"
+        stroke="#1E88E5" stroke-width="12" stroke-linecap="round"/>
+
+  <!-- Punta de flecha — Blanco puro para máximo contraste -->
+  <polygon points="73,14 65,33 53,17" fill="#FFFFFF"/>
+</svg>
