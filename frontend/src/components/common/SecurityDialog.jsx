@@ -242,6 +242,7 @@ function TabPin({ user }) {
     try {
       await apiClient.post('/auth/pin/set', { pin });
       localStorage.setItem('pin_configured', 'true');
+      localStorage.setItem('pin_length', String(pin.length));
       localStorage.setItem('pin_username', user?.username || '');
       setHasPinSet(true);
       setStep('menu');
@@ -261,6 +262,7 @@ function TabPin({ user }) {
     try {
       await apiClient.delete('/auth/pin');
       localStorage.removeItem('pin_configured');
+      localStorage.removeItem('pin_length');
       setHasPinSet(false);
       toast.success('PIN eliminado.');
     } catch {

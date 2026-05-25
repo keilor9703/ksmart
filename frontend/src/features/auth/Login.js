@@ -257,17 +257,17 @@ function FeatureCarousel() {
 const PIN_GREEN = '#10B981';
 
 function PinNumpad({ username, onSuccess, onCancel }) {
+    const pinLength = parseInt(localStorage.getItem('pin_length') || '4', 10);
     const [pin, setPin] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
     const addDigit = (d) => {
-        if (pin.length < 6) setPin(p => p + d);
+        if (pin.length < pinLength) setPin(p => p + d);
     };
     const removeDigit = () => setPin(p => p.slice(0, -1));
 
     const handleVerify = useCallback(async (currentPin) => {
-        if (currentPin.length < 4) return;
         setLoading(true);
         setError('');
         try {
@@ -277,18 +277,15 @@ function PinNumpad({ username, onSuccess, onCancel }) {
             const msg = err.response?.data?.detail || 'PIN incorrecto.';
             setError(msg);
             setPin('');
-            if (err.response?.status === 429) {
-                // bloqueado — mostrar y deshabilitar
-            }
         } finally {
             setLoading(false);
         }
     }, [username, onSuccess]);
 
-    // Verificar automáticamente cuando se completan 4-6 dígitos
+    // Auto-submit al completar exactamente los dígitos configurados
     React.useEffect(() => {
-        if (pin.length === 6) handleVerify(pin);
-    }, [pin, handleVerify]);
+        if (pin.length === pinLength) handleVerify(pin);
+    }, [pin, pinLength, handleVerify]);
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', animation: `${fadeIn} 0.3s ease` }}>
@@ -299,9 +296,9 @@ function PinNumpad({ username, onSuccess, onCancel }) {
                 {username}
             </Typography>
 
-            {/* Indicadores */}
+            {/* Indicadores — exactamente pinLength slots */}
             <Box sx={{ display: 'flex', gap: 1.5, mb: 2.5 }}>
-                {Array.from({ length: Math.max(4, pin.length + (pin.length < 6 ? 1 : 0)) }).map((_, i) => (
+                {Array.from({ length: pinLength }).map((_, i) => (
                     <Box key={i} sx={{
                         width: 38, height: 46, borderRadius: 1.5,
                         border: `2px solid ${i < pin.length ? PIN_GREEN : 'rgba(255,255,255,0.15)'}`,
@@ -325,7 +322,7 @@ function PinNumpad({ username, onSuccess, onCancel }) {
                 {[1,2,3,4,5,6,7,8,9].map(d => (
                     <Button key={d}
                         onClick={() => addDigit(String(d))}
-                        disabled={loading || pin.length >= 6}
+                        disabled={loading || pin.length >= pinLength}
                         sx={{
                             height: 50, borderRadius: 2,
                             bgcolor: 'rgba(255,255,255,0.06)',
@@ -337,7 +334,7 @@ function PinNumpad({ username, onSuccess, onCancel }) {
                     </Button>
                 ))}
                 <Box />
-                <Button onClick={() => addDigit('0')} disabled={loading || pin.length >= 6}
+                <Button onClick={() => addDigit('0')} disabled={loading || pin.length >= pinLength}
                     sx={{ height: 50, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.06)', color: '#e2e8f0', fontSize: 20, fontWeight: 700, '&:hover': { bgcolor: 'rgba(255,255,255,0.12)' }, '&:disabled': { opacity: 0.4 } }}>
                     0
                 </Button>
