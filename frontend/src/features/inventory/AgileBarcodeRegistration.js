@@ -10,7 +10,7 @@ import { useTheme } from '@mui/material/styles';
 import {
   QrCodeScanner, Inventory, Close,
   ShoppingCart, Videocam, VideocamOff,
-  Description, Science, Event, LocalOffer, Add, Category, Straighten,
+  Description, Science, Event, LocalOffer, Add, Category, Straighten, Tag,
   CheckCircle, AutoAwesome, FiberNew, History, TrendingUp,
   Search, WarningAmber, KeyboardReturn
 } from '@mui/icons-material';
@@ -73,7 +73,7 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
   const [productStatus, setProductStatus] = useState(null); // null | 'existing' | 'suggested' | 'new'
 
   const [formData, setFormData] = useState({
-    nombre: '', codigo_barras: '', descripcion: '', precio: '', costo: '',
+    nombre: '', sku: '', codigo_barras: '', descripcion: '', precio: '', costo: '',
     stock_actual: '', stock_minimo: '', unidad_medida: 'UND', grupo_item: 2,
     es_servicio: false, maneja_lotes: false, numero_lote: '', fecha_vencimiento: ''
   });
@@ -313,7 +313,7 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
   };
 
   const resetForm = () => {
-    setFormData({ nombre: '', codigo_barras: '', descripcion: '', precio: '', costo: '', stock_actual: '', stock_minimo: '', unidad_medida: 'UND', grupo_item: 2, es_servicio: false, maneja_lotes: false, numero_lote: '', fecha_vencimiento: '' });
+    setFormData({ nombre: '', sku: '', codigo_barras: '', descripcion: '', precio: '', costo: '', stock_actual: '', stock_minimo: '', unidad_medida: 'UND', grupo_item: 2, es_servicio: false, maneja_lotes: false, numero_lote: '', fecha_vencimiento: '' });
     setProductStatus(null);
     setTimeout(() => barcodeRef.current?.focus(), 100);
   };
@@ -503,7 +503,7 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
                       InputProps={{ startAdornment: <InputAdornment position="start"><Description sx={{ color: 'text.secondary', opacity: 0.5 }} /></InputAdornment> }}
                     />
                   </Grid>
-                  <Grid item xs={12} md={6}>
+                  <Grid item xs={12} md={4}>
                     <Autocomplete
                       fullWidth
                       options={grupos}
@@ -536,7 +536,7 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
                       )}
                     />
                   </Grid>
-                  <Grid item xs={12} md={6}>
+                  <Grid item xs={12} md={4}>
                     <Autocomplete
                       fullWidth freeSolo
                       options={UNIDADES_MEDIDA.map(u => u.value)}
@@ -548,6 +548,19 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
                           InputProps={{ ...params.InputProps, startAdornment: <><InputAdornment position="start"><Straighten sx={{ color: 'text.secondary', opacity: 0.5 }} /></InputAdornment>{params.InputProps.startAdornment}</> }}
                         />
                       )}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="SKU / Código Interno"
+                      value={formData.sku}
+                      onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value.toUpperCase() }))}
+                      placeholder="Se genera automáticamente"
+                      inputProps={{ style: { fontFamily: 'monospace', letterSpacing: 1 } }}
+                      helperText="Opcional — se auto-asigna al guardar"
+                      InputProps={{ startAdornment: <InputAdornment position="start"><Tag sx={{ color: 'text.secondary', opacity: 0.5 }} /></InputAdornment> }}
                     />
                   </Grid>
 
