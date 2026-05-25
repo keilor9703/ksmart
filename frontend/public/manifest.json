@@ -3,28 +3,22 @@
   "name": "Ksmart360",
   "description": "Sistema integral de gestión empresarial — Ventas, inventario, parqueadero, préstamos y más.",
   "icons": [
-    {
-      "src": "favicon.ico",
-      "sizes": "16x16 32x32 48x48",
-      "type": "image/x-icon"
-    },
-    {
-      "src": "logo192.png",
-      "type": "image/png",
-      "sizes": "192x192",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "logo512.png",
-      "type": "image/png",
-      "sizes": "512x512",
-      "purpose": "any maskable"
-    }
+    { "src": "favicon-16x16.png",              "type": "image/png", "sizes": "16x16" },
+    { "src": "favicon-32x32.png",              "type": "image/png", "sizes": "32x32" },
+    { "src": "logos/png/ksmart-icon-48.png",   "type": "image/png", "sizes": "48x48" },
+    { "src": "logos/png/ksmart-icon-64.png",   "type": "image/png", "sizes": "64x64" },
+    { "src": "logos/png/ksmart-icon-96.png",   "type": "image/png", "sizes": "96x96" },
+    { "src": "logos/png/ksmart-icon-128.png",  "type": "image/png", "sizes": "128x128" },
+    { "src": "logos/png/ksmart-icon-152.png",  "type": "image/png", "sizes": "152x152" },
+    { "src": "logos/png/ksmart-icon-256.png",  "type": "image/png", "sizes": "256x256" },
+    { "src": "logo192.png",                    "type": "image/png", "sizes": "192x192", "purpose": "any maskable" },
+    { "src": "logo512.png",                    "type": "image/png", "sizes": "512x512", "purpose": "any maskable" },
+    { "src": "logos/png/ksmart-icon-square-1024.png", "type": "image/png", "sizes": "1024x1024" }
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#0d1117",
-  "background_color": "#0d1117",
+  "theme_color": "#0a0f1c",
+  "background_color": "#0a0f1c",
   "orientation": "portrait",
   "scope": "/",
   "lang": "es-CO"

@@ -334,7 +334,7 @@ const hasAccess = useCallback((path) => {
                     <Typography variant="caption" component="a" href="/privacidad" sx={{ color: 'text.secondary', textDecoration: 'none' }}>Privacidad</Typography>
                     <Typography variant="caption" component="a" href="/habeas-data" sx={{ color: 'text.secondary', textDecoration: 'none' }}>Habeas Data</Typography>
                   </Box>
-                  <Box component="img" src="/Logo2.png" alt="Logo" sx={{ height: 20 }} />
+                  <Box component="img" src="/logos/svg/ksmart-mark-white.svg" alt="Ksmart360" sx={{ height: 20, opacity: 0.7 }} />
                 </Box>
               </Box>
             </>

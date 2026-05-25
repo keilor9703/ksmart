@@ -12,7 +12,7 @@
     <feMerge><feMergeNode in="b"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge>
   </filter>
 </defs>
-<rect width="200" height="200" rx="36" fill="url(#bg)"></rect>
+<rect width="200" height="200" rx="0" fill="url(#bg)"></rect>
 
   <g filter="url(#glow)">
     <g transform="translate(100,100) scale(0.76) translate(-100,-100)" fill="#1ec8e0">

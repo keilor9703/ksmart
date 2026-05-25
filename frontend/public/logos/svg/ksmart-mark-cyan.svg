@@ -1,18 +1,12 @@
 <?xml version="1.0"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="1024" height="1024">
 <defs>
-  <radialGradient id="bg" cx="30%" cy="20%" r="120%">
-    <stop offset="0%" stop-color="#0e1626"></stop>
-    <stop offset="70%" stop-color="#060912"></stop>
-    <stop offset="100%" stop-color="#03060e"></stop>
-  </radialGradient>
-
   <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
     <feGaussianBlur stdDeviation="4" result="b"></feGaussianBlur>
     <feMerge><feMergeNode in="b"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge>
   </filter>
 </defs>
-<rect width="200" height="200" rx="36" fill="url(#bg)"></rect>
+
 
   <g filter="url(#glow)">
     <g transform="translate(100,100) scale(0.76) translate(-100,-100)" fill="#1ec8e0">
