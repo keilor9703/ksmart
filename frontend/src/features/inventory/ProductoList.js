@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, Fragment } from 'react';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
 import { toast } from 'react-toastify';
@@ -7,7 +7,8 @@ import {
   Table, TableBody, TableCell, TableContainer, TablePagination,
   TableHead, TableRow, TableSortLabel, IconButton, Typography,
   useMediaQuery, useTheme,
-  Box, TextField, Chip, Button, Grid, Paper, Divider, Tooltip, InputAdornment
+  Box, TextField, Chip, Button, Grid, Paper, Divider, Tooltip, InputAdornment,
+  Collapse,
 } from '@mui/material';
 import {
   Edit, Delete, Search, Download, Inventory,
@@ -136,6 +137,7 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
   const [productoToDelete, setProductoToDelete]   = useState(null);
   const [page, setPage]               = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [expandedProducts, setExpandedProducts] = useState(new Set());
 
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -477,9 +479,12 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
                     const isCritical  = !isService && stockActual <= 0;
                     const group       = getGroup(producto.grupo_item);
                     const margen      = getMargen(producto.precio, producto.costo);
+                    const isExpanded  = expandedProducts.has(producto.id);
+                    const varCount    = producto.variantes?.length || 0;
 
                     return (
-                      <TableRow key={producto.id} hover>
+                      <Fragment key={producto.id}>
+                      <TableRow hover>
                         <TableCell sx={{ fontSize: 12, fontWeight: 700, fontFamily: 'monospace' }}>
                           <Box>
                             <Typography sx={{ fontSize: 12, fontWeight: 700, fontFamily: 'monospace', color: 'text.primary' }}>
@@ -489,6 +494,19 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
                               <Typography sx={{ fontSize: 10, color: 'text.disabled', fontFamily: 'monospace' }}>
                                 {producto.codigo_barras}
                               </Typography>
+                            )}
+                            {producto.tiene_variantes && (
+                              <Chip
+                                label={`${varCount} vars`}
+                                size="small"
+                                onClick={() => setExpandedProducts(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(producto.id)) next.delete(producto.id);
+                                  else next.add(producto.id);
+                                  return next;
+                                })}
+                                sx={{ mt: 0.3, height: 16, fontSize: 9, fontWeight: 700, cursor: 'pointer', bgcolor: '#8B5CF618', color: '#8B5CF6', borderRadius: 0.5 }}
+                              />
                             )}
                           </Box>
                         </TableCell>
@@ -568,6 +586,48 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
                           </Box>
                         </TableCell>
                       </TableRow>
+                      {producto.tiene_variantes && varCount > 0 && (
+                        <TableRow>
+                          <TableCell colSpan={10} sx={{ p: 0, border: 0 }}>
+                            <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                              <Box sx={{ px: 4, py: 1.5, bgcolor: 'action.hover' }}>
+                                <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', mb: 1, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                  Variantes de {producto.nombre}
+                                </Typography>
+                                <Table size="small">
+                                  <TableHead>
+                                    <TableRow>
+                                      <TableCell sx={{ fontSize: 10, fontWeight: 700 }}>SKU</TableCell>
+                                      <TableCell sx={{ fontSize: 10, fontWeight: 700 }}>Nombre</TableCell>
+                                      <TableCell sx={{ fontSize: 10, fontWeight: 700 }}>Atributos</TableCell>
+                                      <TableCell sx={{ fontSize: 10, fontWeight: 700 }}>Precio</TableCell>
+                                      <TableCell sx={{ fontSize: 10, fontWeight: 700 }}>Stock</TableCell>
+                                    </TableRow>
+                                  </TableHead>
+                                  <TableBody>
+                                    {(producto.variantes || []).map(v => (
+                                      <TableRow key={v.id} hover>
+                                        <TableCell sx={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700 }}>{v.sku}</TableCell>
+                                        <TableCell sx={{ fontSize: 11 }}>{v.nombre}</TableCell>
+                                        <TableCell>
+                                          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                                            {v.atributos && Object.entries(v.atributos).map(([k, val]) => (
+                                              <Chip key={k} label={`${k}: ${val}`} size="small" sx={{ height: 16, fontSize: 9 }} />
+                                            ))}
+                                          </Box>
+                                        </TableCell>
+                                        <TableCell sx={{ fontSize: 11 }}>{v.precio != null ? `$${v.precio.toLocaleString('es-CO')}` : '—'}</TableCell>
+                                        <TableCell sx={{ fontSize: 11 }}>{v.stock_actual}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </Box>
+                            </Collapse>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      </Fragment>
                     );
                   })
               }

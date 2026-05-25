@@ -3,7 +3,7 @@ import httpx
 import openpyxl
 import pandas as pd
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from openpyxl.styles import Font, PatternFill, Alignment
@@ -84,6 +84,26 @@ async def fetch_openbeauty_and_pets(client: httpx.AsyncClient, barcode: str):
 
 # ─── ENDPOINT PRINCIPAL ─────────────────────────────────────────────────────────
 
+@router.get("/sku-preview")
+def preview_sku(
+    grupo_id: int = Query(...),
+    nombre: str = Query(...),
+    atributos: Optional[str] = Query(None),  # JSON string
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Returns what the auto-generated SKU would look like without saving."""
+    import json
+    attrs = {}
+    if atributos:
+        try:
+            attrs = json.loads(atributos)
+        except Exception:
+            pass
+    from crud.productos import _generate_smart_sku, sku_exists
+    return {"sku": _generate_smart_sku(db, current_user.empresa_id, grupo_id, nombre, variante_attrs=attrs or None)}
+
+
 @router.get("/sku/{sku}", response_model=Optional[schemas.Producto])
 def get_producto_por_sku(
     sku: str,
@@ -95,6 +115,53 @@ def get_producto_por_sku(
         models.Producto.sku == sku.upper(),
         models.Producto.empresa_id == current_user.empresa_id,
     ).first()
+
+
+@router.post("/{producto_id}/variantes", response_model=schemas.ProductoVarianteOut)
+def crear_variante(
+    producto_id: int,
+    payload: schemas.ProductoVarianteCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    try:
+        return crud.create_variante(db, empresa_id=current_user.empresa_id, producto_id=producto_id, payload=payload)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/{producto_id}/variantes", response_model=List[schemas.ProductoVarianteOut])
+def listar_variantes(
+    producto_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    return crud.list_variantes(db, empresa_id=current_user.empresa_id, producto_id=producto_id)
+
+
+@router.put("/{producto_id}/variantes/{variante_id}", response_model=schemas.ProductoVarianteOut)
+def actualizar_variante(
+    producto_id: int,
+    variante_id: int,
+    payload: schemas.ProductoVarianteUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    try:
+        return crud.update_variante(db, empresa_id=current_user.empresa_id, variante_id=variante_id, payload=payload)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.delete("/{producto_id}/variantes/{variante_id}")
+def eliminar_variante(
+    producto_id: int,
+    variante_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    crud.delete_variante(db, empresa_id=current_user.empresa_id, variante_id=variante_id)
+    return {"ok": True}
 
 
 @router.get("/barcode/{barcode}", response_model=Optional[schemas.Producto])

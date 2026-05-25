@@ -11,12 +11,15 @@ import {
   Box, Typography, Grid, TextField, Button, Collapse, Divider, Chip,
   IconButton, ButtonGroup, Switch, FormControlLabel, Autocomplete,
   Tooltip, InputAdornment, MenuItem, Select, FormControl, InputLabel,
+  Table, TableBody, TableCell, TableHead, TableRow,
+  Dialog, DialogTitle, DialogContent, DialogActions,
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 
 import {
   Inventory, ExpandMore, ExpandLess, Upload, Close, Category, Science,
   Storefront, AddPhotoAlternate, Delete, InfoOutlined, LocalOffer,
+  Tag, Add, Tune,
 } from '@mui/icons-material';
 
 import { UNIDADES_MEDIDA } from '../../utils/constants';
@@ -149,6 +152,14 @@ const ProductoForm = ({
   const [formOpen,            setFormOpen]            = useState(false);
   const [bulkOpen,            setBulkOpen]            = useState(false);
 
+  // ── Variant state ──
+  const [tieneVariantes,    setTieneVariantes]    = useState(false);
+  const [variantes,         setVariantes]         = useState([]);
+  const [varianteDialog,    setVarianteDialog]    = useState(false);
+  const [varianteEditing,   setVarianteEditing]   = useState(null);
+  const [varianteForm,      setVarianteForm]      = useState({ nombre: '', sku: '', atributos: {}, precio: '', costo: '', stock_inicial: '' });
+  const [skuPreview,        setSkuPreview]        = useState('');
+
   // ── Lifecycle (unchanged) ──
   useEffect(() => {
     apiClient.get('/grupos-producto/').then(r => setGrupos(r.data || [])).catch(() => {});
@@ -177,10 +188,29 @@ const ProductoForm = ({
       setMostrarEnCatalogo(productoToEdit.mostrar_en_catalogo || false);
       setDescripcion(productoToEdit.descripcion || '');
       setImpuestoId(productoToEdit.impuesto?.id ? String(productoToEdit.impuesto.id) : '');
+      setTieneVariantes(productoToEdit.tiene_variantes || false);
+      if (productoToEdit.id && (productoToEdit.tiene_variantes || productoToEdit.variantes?.length > 0)) {
+        apiClient.get(`/productos/${productoToEdit.id}/variantes`)
+          .then(r => setVariantes(r.data || []))
+          .catch(() => {});
+      } else {
+        setVariantes([]);
+      }
     } else {
       resetFields();
     }
   }, [productoToEdit]);
+
+  // ── SKU preview effect ──
+  useEffect(() => {
+    if (!nombre || !grupoItem) { setSkuPreview(''); return; }
+    const t = setTimeout(() => {
+      apiClient.get('/productos/sku-preview', { params: { grupo_id: grupoItem, nombre } })
+        .then(r => setSkuPreview(r.data.sku))
+        .catch(() => setSkuPreview(''));
+    }, 400);
+    return () => clearTimeout(t);
+  }, [nombre, grupoItem]);
 
   // ── Handlers (unchanged) ──
   const resetFields = () => {
@@ -190,6 +220,47 @@ const ProductoForm = ({
     setUnidadesPorEmpaque(1); setStockInicial(''); setNumeroLote('');
     setFechaVencimiento(''); setImagenes([]); setMostrarEnCatalogo(false);
     setDescripcion(''); setImpuestoId('');
+    setTieneVariantes(false); setVariantes([]); setVarianteDialog(false); setVarianteEditing(null); setSkuPreview('');
+  };
+
+  const handleSaveVariante = async () => {
+    if (!varianteForm.nombre) { toast.warning('El nombre de la variante es obligatorio'); return; }
+    const attrs = varianteForm.atributos || {};
+    const payload = {
+      nombre: varianteForm.nombre,
+      sku: varianteForm.sku || undefined,
+      atributos: attrs,
+      precio: varianteForm.precio ? parseFloat(varianteForm.precio) : null,
+      costo: varianteForm.costo ? parseFloat(varianteForm.costo) : null,
+      stock_inicial: parseFloat(varianteForm.stock_inicial) || 0,
+    };
+    try {
+      if (varianteEditing) {
+        const res = await apiClient.put(`/productos/${productoToEdit.id}/variantes/${varianteEditing.id}`, payload);
+        setVariantes(prev => prev.map(v => v.id === varianteEditing.id ? res.data : v));
+        toast.success('Variante actualizada');
+      } else {
+        const res = await apiClient.post(`/productos/${productoToEdit.id}/variantes`, payload);
+        setVariantes(prev => [...prev, res.data]);
+        toast.success('Variante agregada');
+      }
+      setVarianteDialog(false);
+      setVarianteEditing(null);
+      setVarianteForm({ nombre: '', sku: '', atributos: {}, precio: '', costo: '', stock_inicial: '' });
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al guardar la variante');
+    }
+  };
+
+  const handleDeleteVariante = async (varId) => {
+    if (!window.confirm('¿Eliminar esta variante?')) return;
+    try {
+      await apiClient.delete(`/productos/${productoToEdit.id}/variantes/${varId}`);
+      setVariantes(prev => prev.filter(v => v.id !== varId));
+      toast.success('Variante eliminada');
+    } catch {
+      toast.error('Error al eliminar la variante');
+    }
   };
 
   const handleImageChange = (e) => {
@@ -249,6 +320,7 @@ const ProductoForm = ({
       imagenes,
       mostrar_en_catalogo: mostrarEnCatalogo,
       descripcion: descripcion || null,
+      tiene_variantes: tieneVariantes,
       ...(!productoToEdit && !esServicio && {
         stock_inicial:     parseFloat(stockInicial) || 0,
         numero_lote:       numeroLote || undefined,
@@ -477,7 +549,7 @@ const ProductoForm = ({
                           fullWidth
                           placeholder={productoToEdit ? '' : 'Se genera automáticamente'}
                           inputProps={{ style: { fontFamily: 'monospace', letterSpacing: 1 } }}
-                          helperText="Identificador único del ítem en tu inventario"
+                          helperText={!sku && skuPreview ? `Se generará: ${skuPreview}` : 'Identificador único del ítem en tu inventario'}
                         />
                       </Grid>
 
@@ -596,6 +668,75 @@ const ProductoForm = ({
                     </Grid>
                   )}
                 </Grid>
+              </SectionCard>
+
+              {/* § Variantes */}
+              <SectionCard icon={<Tune fontSize="small" />} title="Variantes" accent="#8B5CF6">
+                <FormControlLabel
+                  control={<Switch checked={tieneVariantes} onChange={e => setTieneVariantes(e.target.checked)} />}
+                  label={<Box><Typography variant="body2" fontWeight={600}>Este ítem tiene variantes</Typography><Typography variant="caption" color="text.secondary">Tallas, colores, presentaciones, niveles de servicio…</Typography></Box>}
+                />
+                {tieneVariantes && !productoToEdit && (
+                  <Box sx={{ mt: 2, p: 2, bgcolor: 'action.hover', borderRadius: 2 }}>
+                    <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                      💡 Guarda el producto primero. Luego podrás agregar sus variantes desde la lista de inventario.
+                    </Typography>
+                  </Box>
+                )}
+                {tieneVariantes && productoToEdit && (
+                  <Box sx={{ mt: 2 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                      <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.secondary' }}>
+                        {variantes.length} variante{variantes.length !== 1 ? 's' : ''} registrada{variantes.length !== 1 ? 's' : ''}
+                      </Typography>
+                      <Button size="small" startIcon={<Add />} variant="outlined"
+                        onClick={() => { setVarianteEditing(null); setVarianteForm({ nombre: '', sku: '', atributos: {}, precio: '', costo: '', stock_inicial: '' }); setVarianteDialog(true); }}
+                        sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700 }}>
+                        Agregar variante
+                      </Button>
+                    </Box>
+                    {variantes.length > 0 && (
+                      <Table size="small" sx={{ '& td,& th': { fontSize: 12 } }}>
+                        <TableHead>
+                          <TableRow sx={{ bgcolor: 'action.hover' }}>
+                            <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>Nombre / Atributos</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>Precio</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>Stock</TableCell>
+                            <TableCell />
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {variantes.map(v => (
+                            <TableRow key={v.id} hover>
+                              <TableCell><Typography sx={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700 }}>{v.sku}</Typography></TableCell>
+                              <TableCell>
+                                <Typography sx={{ fontWeight: 600 }}>{v.nombre}</Typography>
+                                {v.atributos && Object.keys(v.atributos).length > 0 && (
+                                  <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.3 }}>
+                                    {Object.entries(v.atributos).map(([k, val]) => (
+                                      <Chip key={k} label={`${k}: ${val}`} size="small" sx={{ height: 18, fontSize: 10 }} />
+                                    ))}
+                                  </Box>
+                                )}
+                              </TableCell>
+                              <TableCell>{v.precio != null ? `$${v.precio.toLocaleString('es-CO')}` : '—'}</TableCell>
+                              <TableCell>{v.stock_actual}</TableCell>
+                              <TableCell align="right">
+                                <IconButton size="small" onClick={() => { setVarianteEditing(v); setVarianteForm({ nombre: v.nombre, sku: v.sku, atributos: v.atributos || {}, precio: v.precio ?? '', costo: v.costo ?? '', stock_inicial: '' }); setVarianteDialog(true); }}>
+                                  <ExpandMore fontSize="small" />
+                                </IconButton>
+                                <IconButton size="small" color="error" onClick={() => handleDeleteVariante(v.id)}>
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </Box>
+                )}
               </SectionCard>
 
               {/* § 3 — Inventario y Logística (solo productos físicos) */}
@@ -826,6 +967,69 @@ const ProductoForm = ({
 
         </Box>
       </Panel>
+
+      {/* ── Variant dialog ── */}
+      <Dialog open={varianteDialog} onClose={() => setVarianteDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800 }}>{varianteEditing ? 'Editar variante' : 'Nueva variante'}</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 0.5 }}>
+            <Grid item xs={12}>
+              <TextField fullWidth label="Nombre de la variante *" value={varianteForm.nombre}
+                onChange={e => setVarianteForm(p => ({ ...p, nombre: e.target.value }))}
+                placeholder="Ej: 500g Rojo, Talla M Azul, Plan Premium…" />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField fullWidth label="SKU" value={varianteForm.sku}
+                onChange={e => setVarianteForm(p => ({ ...p, sku: e.target.value.toUpperCase() }))}
+                placeholder="Se genera automáticamente"
+                inputProps={{ style: { fontFamily: 'monospace' } }}
+                helperText="Dejar vacío para auto-generar" />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField fullWidth label="Stock inicial" type="number"
+                value={varianteForm.stock_inicial}
+                onChange={e => setVarianteForm(p => ({ ...p, stock_inicial: e.target.value }))}
+                placeholder="0" disabled={!!varianteEditing} />
+            </Grid>
+            <Grid item xs={12}>
+              <Divider sx={{ my: 1 }}><Typography variant="caption" color="text.secondary">Atributos (define las características que diferencian esta variante)</Typography></Divider>
+            </Grid>
+            {['presentacion','color','talla','medida','tipo','nivel','material'].map(attr => (
+              <Grid item xs={6} sm={4} key={attr}>
+                <TextField fullWidth size="small"
+                  label={attr.charAt(0).toUpperCase() + attr.slice(1)}
+                  value={varianteForm.atributos[attr] || ''}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setVarianteForm(p => ({
+                      ...p,
+                      atributos: val ? { ...p.atributos, [attr]: val } : Object.fromEntries(Object.entries(p.atributos).filter(([k]) => k !== attr))
+                    }));
+                  }}
+                  placeholder={attr === 'presentacion' ? '500g, 1kg…' : attr === 'color' ? 'Azul, Rojo…' : attr === 'talla' ? 'XS, M, XL…' : ''}
+                />
+              </Grid>
+            ))}
+            <Grid item xs={12}><Divider /></Grid>
+            <Grid item xs={6}>
+              <CurrencyField label="Precio (opcional)" value={varianteForm.precio}
+                onChange={val => setVarianteForm(p => ({ ...p, precio: val }))}
+                helperText="Vacío = hereda del producto" />
+            </Grid>
+            <Grid item xs={6}>
+              <CurrencyField label="Costo (opcional)" value={varianteForm.costo}
+                onChange={val => setVarianteForm(p => ({ ...p, costo: val }))}
+                helperText="Vacío = hereda del producto" />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setVarianteDialog(false)} sx={{ textTransform: 'none' }}>Cancelar</Button>
+          <Button variant="contained" onClick={handleSaveVariante} sx={{ textTransform: 'none', fontWeight: 700 }}>
+            {varianteEditing ? 'Guardar cambios' : 'Agregar variante'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* ── Carga masiva (solo al crear) ── */}
       {!isEditing && (
