@@ -571,22 +571,20 @@ const Login = ({ onLogin }) => {
                 flex: 1,
                 minWidth: 0,
                 height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
+                overflowY: 'auto',
                 background: 'linear-gradient(160deg, #0f172a 0%, #020617 100%)',
                 px: { xs: 3, sm: 6, lg: 8 },
-                py: { xs: 4, lg: 4 },
-                overflowY: 'auto',
             }}>
                 <Box sx={{
                     width: '100%',
                     maxWidth: { xs: 460, lg: 520 },
+                    mx: 'auto',
+                    minHeight: '100%',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    my: 'auto',
-                    py: { xs: 1, lg: 0 },
+                    justifyContent: 'center',
+                    py: { xs: 4, lg: 4 },
                 }}>
 
                     {/* Mobile branding — only on xs/sm */}
