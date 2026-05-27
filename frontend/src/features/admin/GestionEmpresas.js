@@ -3,7 +3,7 @@ import {
   Box, Typography, Paper, Button, Grid, useTheme, useMediaQuery,
   Tabs, Tab, IconButton, TextField, InputAdornment, Dialog, DialogTitle,
   DialogContent, DialogActions, Stack, MenuItem, FormControlLabel, Switch, Chip, Divider, Collapse,
-  Table, TableHead, TableRow, TableCell, TableBody, TableContainer
+  Table, TableHead, TableRow, TableCell, TableBody, TableContainer, CircularProgress
 } from '@mui/material';
 import {
   Add, AdminPanelSettings, Autorenew, TrendingUp, Business, LocalOffer,
@@ -109,6 +109,8 @@ export default function GestionSaaS() {
   const [empresaSeleccionada, setEmpresaSeleccionada] = useState(null);
   const [formAsignarPlan, setFormAsignarPlan] = useState({ plan_type: 'trial', plan_selector: 'trial', trial_ends_at: '' });
   const [openCatalogDialog, setOpenCatalogDialog] = useState(false);
+  const [wompiRecoveryId, setWompiRecoveryId] = useState('');
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
   const [editingPlanId, setEditingPlanId] = useState(null);
   const [formPlan, setFormPlan] = useState({ nombre: '', codigo_interno: '', precio: '', dias_duracion: '', caracteristicas: '', is_active: true });
   const [openModulosDialog, setOpenModulosDialog] = useState(false);
@@ -340,6 +342,50 @@ export default function GestionSaaS() {
           <TabPanel value={tabValue} index={5}><JobsControl /></TabPanel>
 
           <TabPanel value={tabValue} index={6}>
+            {/* ── Panel de recuperación de pagos perdidos ── */}
+            <Paper sx={{ p: 2.5, mb: 3, borderRadius: 3, border: '1px solid', borderColor: 'warning.main', bgcolor: 'warning.light', opacity: 0.95 }}>
+              <Typography sx={{ fontWeight: 800, fontSize: 13, color: 'warning.dark', mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Warning fontSize="small" /> Recuperar pago no registrado
+              </Typography>
+              <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1.5 }}>
+                Si un cliente pagó con Wompi pero el pago no aparece en la tabla, pega aquí el ID de transacción de Wompi (lo encuentras en tu panel Wompi → Transacciones).
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                <TextField
+                  size="small"
+                  placeholder="ID de transacción Wompi (ej: wom_prod_abc123...)"
+                  value={wompiRecoveryId}
+                  onChange={e => setWompiRecoveryId(e.target.value)}
+                  sx={{ flex: 1, minWidth: 260, bgcolor: 'background.paper', borderRadius: 2 }}
+                />
+                <Button
+                  variant="contained"
+                  disabled={!wompiRecoveryId.trim() || recoveryLoading}
+                  startIcon={recoveryLoading ? <CircularProgress size={16} color="inherit" /> : <Search />}
+                  sx={{ bgcolor: 'warning.dark', color: '#fff', fontWeight: 700, borderRadius: 2, '&:hover': { bgcolor: 'warning.dark' } }}
+                  onClick={async () => {
+                    setRecoveryLoading(true);
+                    try {
+                      const { data } = await apiClient.post('/superadmin/recuperar-pago-wompi', { wompi_id: wompiRecoveryId.trim() });
+                      toast.success(`✅ ${data.mensaje || 'Pago recuperado'} — Empresa: ${data.empresa} | Plan: ${data.plan} | Activo hasta: ${data.activo_hasta ? new Date(data.activo_hasta).toLocaleDateString('es-CO') : '—'}`);
+                      setWompiRecoveryId('');
+                      // Refrescar lista de pagos
+                      const res = await apiClient.get('/superadmin/historial-pagos');
+                      // El hook useSaaSData no expone setPagos; recargar la página es el fallback
+                      window.location.reload();
+                    } catch (err) {
+                      const msg = err?.response?.data?.detail || 'Error al recuperar el pago';
+                      toast.error(msg);
+                    } finally {
+                      setRecoveryLoading(false);
+                    }
+                  }}
+                >
+                  Recuperar pago
+                </Button>
+              </Box>
+            </Paper>
+
             <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
               <Paper sx={{ p: 2.5, borderRadius: 3, bgcolor: `${GREEN}08`, border: `1px solid ${GREEN}20`, flex: 1, minWidth: 200 }}>
                 <Typography variant="caption" sx={{ fontWeight: 800, color: GREEN, textTransform: 'uppercase' }}>Ingresos Totales</Typography>

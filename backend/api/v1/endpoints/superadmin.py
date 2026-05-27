@@ -1,7 +1,10 @@
-from typing import List
+from typing import List, Optional
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
+from pydantic import BaseModel
+import os, requests as http_requests, logging
 
 from crud import empresas as crud_empresas
 from crud import planes as crud_planes
@@ -10,6 +13,8 @@ import models
 import schemas
 from api.deps import get_db, get_current_superadmin_user
 from core.security import create_access_token
+
+logger = logging.getLogger("superadmin")
 
 router = APIRouter(
     tags=["SaaS SuperAdmin"],
@@ -211,6 +216,179 @@ def listar_historial_pagos(db: Session = Depends(get_db)):
         {**p.__dict__, "empresa_nombre": p.empresa.nombre, "plan_nombre": p.plan.nombre}
         for p in pagos
     ]
+
+class RecuperarPagoRequest(BaseModel):
+    wompi_id: str
+    empresa_id: Optional[int] = None   # requerido solo si WOMPI_PRIVATE_KEY no está configurada
+    plan_id:   Optional[int] = None    # requerido solo si no se puede obtener de Wompi
+
+
+@router.post("/recuperar-pago-wompi")
+def recuperar_pago_wompi(
+    payload: RecuperarPagoRequest,
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(get_current_superadmin_user),
+):
+    """
+    Herramienta de recuperación para pagos de Wompi que no se registraron
+    (webhook no llegó, servidor caído, error de red, etc.).
+
+    Flujo:
+    1. Si WOMPI_PRIVATE_KEY está configurada: verifica el pago con la API de
+       Wompi, extrae empresa_id / plan_id de la referencia y activa la suscripción.
+    2. Si no está configurada: usa empresa_id y plan_id del body (modo manual
+       de emergencia), registra el pago y activa sin verificar con Wompi.
+
+    En ambos casos es idempotente: si el wompi_id ya existe en registros_pagos
+    solo activa la suscripción sin crear duplicado.
+    """
+    wompi_id = payload.wompi_id.strip()
+
+    # ── Idempotencia ────────────────────────────────────────────────────────
+    existing = db.query(models.RegistroPago).filter(
+        models.RegistroPago.bold_tx_id == wompi_id
+    ).first()
+
+    if existing:
+        # El pago ya está registrado. Solo verificar que la empresa esté activa.
+        empresa = db.query(models.Empresa).filter(
+            models.Empresa.id == existing.empresa_id
+        ).first()
+        if empresa:
+            ahora = datetime.now(timezone.utc)
+            if empresa.trial_ends_at and empresa.trial_ends_at <= ahora:
+                # El pago existe pero el plan expiró igual (raro) — extender
+                plan = db.query(models.PlanSuscripcion).filter(
+                    models.PlanSuscripcion.id == existing.plan_id
+                ).first()
+                if plan:
+                    empresa.trial_ends_at = ahora + timedelta(days=plan.dias_duracion)
+                    empresa.is_active = True
+                    empresa.plan_type = "premium"
+                    db.commit()
+            return {
+                "status": "ok",
+                "mensaje": f"Pago ya registrado. Empresa '{empresa.nombre}' activada.",
+                "empresa_id": empresa.id,
+                "modo": "idempotente",
+            }
+
+    # ── Intentar verificar con Wompi API ────────────────────────────────────
+    WOMPI_PRIVATE_KEY = os.getenv("WOMPI_PRIVATE_KEY", "")
+    WOMPI_PUBLIC_KEY  = os.getenv("WOMPI_PUBLIC_KEY", "pub_test_...")
+    base_url = (
+        "https://sandbox.wompi.co/v1"
+        if WOMPI_PUBLIC_KEY.startswith("pub_test")
+        else "https://production.wompi.co/v1"
+    )
+
+    tx = None
+    if WOMPI_PRIVATE_KEY:
+        try:
+            resp = http_requests.get(
+                f"{base_url}/transactions/{wompi_id}",
+                headers={"Authorization": f"Bearer {WOMPI_PRIVATE_KEY}"},
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                tx = resp.json().get("data", {})
+                logger.info(f"recuperar-pago: Wompi confirmó {wompi_id} status={tx.get('status')}")
+            elif resp.status_code == 404:
+                raise HTTPException(400, "La transacción no existe en Wompi. Verifica el ID.")
+            else:
+                logger.warning(f"recuperar-pago: Wompi respondió {resp.status_code} para {wompi_id}")
+        except http_requests.exceptions.RequestException as e:
+            logger.error(f"recuperar-pago: error de red con Wompi: {e}")
+            if not payload.empresa_id:
+                raise HTTPException(503, "No se pudo contactar a Wompi y no se proporcionó empresa_id manual.")
+
+    # ── Extraer empresa_id y plan_id ────────────────────────────────────────
+    if tx:
+        if tx.get("status") != "APPROVED":
+            raise HTTPException(400, f"La transacción no está aprobada (estado: {tx.get('status')}).")
+        reference = tx.get("reference", "")
+        amount_cents  = tx.get("amount_in_cents", 0)
+        currency      = tx.get("currency", "COP")
+        payment_method = tx.get("payment_method_type")
+        customer_email = tx.get("customer_email")
+    else:
+        # Modo manual de emergencia (sin verificación con API)
+        if not payload.empresa_id or not payload.plan_id:
+            raise HTTPException(
+                400,
+                "WOMPI_PRIVATE_KEY no está configurada. "
+                "Proporciona empresa_id y plan_id para activar manualmente."
+            )
+        reference      = f"KSMART-{payload.empresa_id}-{payload.plan_id}-0"
+        amount_cents   = 0
+        currency       = "COP"
+        payment_method = "MANUAL_RECOVERY"
+        customer_email = None
+
+    # Parsear empresa_id / plan_id desde la referencia
+    if reference.startswith("KSMART-"):
+        partes = reference.split("-")
+        try:
+            empresa_id_ref = int(partes[1])
+            plan_id_ref    = int(partes[2])
+        except (ValueError, IndexError):
+            empresa_id_ref = payload.empresa_id
+            plan_id_ref    = payload.plan_id
+    else:
+        empresa_id_ref = payload.empresa_id
+        plan_id_ref    = payload.plan_id
+
+    if not empresa_id_ref or not plan_id_ref:
+        raise HTTPException(400, "No se pudo determinar empresa_id o plan_id.")
+
+    empresa = db.query(models.Empresa).filter(models.Empresa.id == empresa_id_ref).first()
+    plan    = db.query(models.PlanSuscripcion).filter(models.PlanSuscripcion.id == plan_id_ref).first()
+
+    if not empresa:
+        raise HTTPException(404, f"Empresa {empresa_id_ref} no encontrada.")
+    if not plan:
+        raise HTTPException(404, f"Plan {plan_id_ref} no encontrado.")
+
+    # ── Activar suscripción ──────────────────────────────────────────────────
+    empresa.is_active  = True
+    empresa.plan_type  = "premium"
+    ahora = datetime.now(timezone.utc)
+    base  = empresa.trial_ends_at if empresa.trial_ends_at and empresa.trial_ends_at > ahora else ahora
+    empresa.trial_ends_at = base + timedelta(days=plan.dias_duracion)
+
+    nuevo_pago = models.RegistroPago(
+        empresa_id    = empresa_id_ref,
+        plan_id       = plan_id_ref,
+        monto         = amount_cents / 100 if amount_cents else plan.precio,
+        moneda        = currency,
+        metodo_pago   = payment_method,
+        bold_tx_id    = wompi_id,
+        email_pagador = customer_email,
+        payload_auditoria = {
+            "wompi_id":       wompi_id,
+            "recuperado_por": current_admin.username,
+            "verificado_api": tx is not None,
+            "fecha_recuperacion": ahora.isoformat(),
+        },
+    )
+    db.add(nuevo_pago)
+    db.commit()
+
+    logger.info(
+        f"✅ Pago recuperado por superadmin {current_admin.username}: "
+        f"wompi_id={wompi_id} empresa={empresa.nombre} plan={plan.nombre}"
+    )
+    return {
+        "status":      "ok",
+        "empresa_id":  empresa_id_ref,
+        "empresa":     empresa.nombre,
+        "plan":        plan.nombre,
+        "dias":        plan.dias_duracion,
+        "activo_hasta": empresa.trial_ends_at.isoformat(),
+        "verificado_con_wompi_api": tx is not None,
+        "modo": "api_wompi" if tx else "manual_emergencia",
+    }
+
 
 @router.post("/impersonate/{empresa_id}")
 def impersonate_company(
