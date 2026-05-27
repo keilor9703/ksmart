@@ -49,15 +49,10 @@ const WompiButton = ({ planName, onSuccess }) => {
         if (transaction.status === 'APPROVED') {
           toast.info("¡Pago aprobado! Activando tu cuenta...");
           try {
-            // 4. Activar suscripción de forma síncrona, sin esperar el webhook.
-            //    El endpoint es idempotente: si el webhook llega después, no duplica.
+            // 4. Enviar SOLO el ID al backend. El backend verifica todo lo demás
+            //    directamente con la API de Wompi (no confiamos en datos del cliente).
             await apiClient.post('/wompi/confirmar-pago-widget', {
-              wompi_id:            transaction.id,
-              reference:           transaction.reference,
-              amount_in_cents:     transaction.amountInCents,
-              currency:            transaction.currency,
-              payment_method_type: transaction.paymentMethodType,
-              customer_email:      transaction.customerEmail,
+              wompi_id: transaction.id,
             });
             toast.success("¡Suscripción activada! Bienvenido.");
           } catch (activationErr) {
