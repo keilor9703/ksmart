@@ -35,14 +35,23 @@ def _verify_wompi_signature(payload: dict, checksum_header: str | None) -> bool:
 
     parts = []
     for prop in properties:
-        # "transaction.id" → tx["id"], "transaction.status" → tx["status"], etc.
         key = prop.split(".", 1)[-1]
         parts.append(str(tx.get(key, "")))
     parts.append(WOMPI_EVENTS_SECRET)
     parts.append(str(timestamp))
 
-    expected = hashlib.sha256("".join(parts).encode("utf-8")).hexdigest()
-    return expected == checksum_header
+    to_hash = "".join(parts)
+    computed = hashlib.sha256(to_hash.encode("utf-8")).hexdigest()
+
+    # DEBUG TEMPORAL — eliminar tras confirmar
+    secret_repr = repr(WOMPI_EVENTS_SECRET)
+    logger.info(f"[DEBUG] secret len={len(WOMPI_EVENTS_SECRET)} repr={secret_repr[:60]}")
+    logger.info(f"[DEBUG] string_a_hashear={repr(to_hash)}")
+    logger.info(f"[DEBUG] computed ={computed}")
+    logger.info(f"[DEBUG] esperado ={checksum_header}")
+    logger.info(f"[DEBUG] coincide ={computed == checksum_header}")
+
+    return computed == checksum_header
 
 
 @router.post("/wompi")
