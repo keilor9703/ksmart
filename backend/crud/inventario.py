@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func, text, cast, Date
+from sqlalchemy import func, text, cast, Date, or_
 from typing import Optional, List
 from datetime import date, datetime, timezone
 from fastapi import HTTPException
@@ -63,7 +63,10 @@ def get_low_stock(db: Session, empresa_id: int):
         models.Producto.empresa_id == empresa_id,
         models.Producto.stock_minimo.isnot(None),
         models.Producto.stock_minimo > 0,
-        (models.Producto.stock_actual or 0) < models.Producto.stock_minimo
+        or_(
+            models.Producto.stock_actual.is_(None),
+            models.Producto.stock_actual < models.Producto.stock_minimo,
+        ),
     ).all()
 
 def update_producto_stock_minimo(db: Session, empresa_id: int, producto_id: int, minimo: float):

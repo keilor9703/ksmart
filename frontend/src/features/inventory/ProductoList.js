@@ -40,12 +40,14 @@ const KpiCard = ({ label, value, icon, color, sub }) => (
 
 // ─── Card mobile ──────────────────────────────────────────────────────────────
 const ProductoCard = ({ producto, grupos, onEditProducto, handleDelete, accentColor }) => {
+  const [showVariantes, setShowVariantes] = useState(false);
   const stockActual = producto.stock_actual ?? 0;
   const stockMinimo = producto.stock_minimo ?? 0;
   const isService   = !!producto.es_servicio;
   const isLow       = !isService && stockActual <= stockMinimo;
   const isCritical  = !isService && stockActual <= 0;
   const group       = grupos.find(g => g.id === producto.grupo_item) || { codigo: '—', color: '#94a3b8' };
+  const varCount    = producto.variantes?.length || 0;
 
   return (
     <Paper sx={{ p: 2.5, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
@@ -106,20 +108,55 @@ const ProductoCard = ({ producto, grupos, onEditProducto, handleDelete, accentCo
         ))}
       </Grid>
 
-      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-        <Tooltip title="Editar">
-          <IconButton size="small" onClick={() => onEditProducto(producto)}
-            sx={{ color: accentColor, bgcolor: `${accentColor}12`, borderRadius: 1.5 }}>
-            <Edit fontSize="small" />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="Eliminar">
-          <IconButton size="small" onClick={() => handleDelete(producto.id)}
-            sx={{ color: '#EF4444', bgcolor: '#FEF2F2', borderRadius: 1.5 }}>
-            <Delete fontSize="small" />
-          </IconButton>
-        </Tooltip>
+      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between', alignItems: 'center' }}>
+        {/* Variants chip */}
+        {producto.tiene_variantes && varCount > 0 ? (
+          <Chip
+            label={`${varCount} variante${varCount > 1 ? 's' : ''}`}
+            size="small"
+            onClick={() => setShowVariantes(v => !v)}
+            sx={{ fontSize: 10, fontWeight: 600, cursor: 'pointer',
+              bgcolor: `${accentColor}15`, color: accentColor,
+              border: `1px solid ${accentColor}30`,
+            }}
+          />
+        ) : <Box />}
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Tooltip title="Editar">
+            <IconButton size="small" onClick={() => onEditProducto(producto)}
+              sx={{ color: accentColor, bgcolor: `${accentColor}12`, borderRadius: 1.5 }}>
+              <Edit fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Eliminar">
+            <IconButton size="small" onClick={() => handleDelete(producto.id)}
+              sx={{ color: '#EF4444', bgcolor: '#FEF2F2', borderRadius: 1.5 }}>
+              <Delete fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
       </Box>
+
+      {/* Variants expand */}
+      <Collapse in={showVariantes}>
+        <Divider sx={{ my: 1.5 }} />
+        <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', mb: 1, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+          Variantes
+        </Typography>
+        {(producto.variantes || []).map(v => (
+          <Box key={v.id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            py: 0.6, px: 1, mb: 0.5, borderRadius: 1.5, bgcolor: 'action.hover' }}>
+            <Box>
+              <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{v.nombre}</Typography>
+              <Typography sx={{ fontSize: 10, fontFamily: 'monospace', color: 'text.secondary' }}>{v.sku}</Typography>
+            </Box>
+            <Box sx={{ textAlign: 'right' }}>
+              <Typography sx={{ fontSize: 12, fontWeight: 700 }}>{formatCurrency(v.precio ?? producto.precio)}</Typography>
+              <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Stock: {v.stock_actual ?? 0}</Typography>
+            </Box>
+          </Box>
+        ))}
+      </Collapse>
     </Paper>
   );
 };

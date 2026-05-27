@@ -741,7 +741,8 @@ const Ventas = ({ user }) => {
         .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
     const paginatedVentas = filteredVentas.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
     const totalPendiente = ventas.filter(v => v.estado_pago === 'pendiente').reduce((s, v) => s + (v.total - v.monto_pagado), 0);
-    const cambioEfectivo = valorRecibido - calculateSubtotal();
+    const totalConIva = calculateSubtotal() * (1 + (parseFloat(ivaPorcentajeGlobal) || 0) / 100);
+    const cambioEfectivo = valorRecibido - totalConIva;
 
     return (
         <Box sx={{ width: '100%', minWidth: 0 }}>
@@ -1055,23 +1056,13 @@ const Ventas = ({ user }) => {
                                 </Box>
                             )}
 
-                            {/* TOTAL — el número más importante */}
-                            <Box sx={{ textAlign: 'center', py: { xs: 1.5, md: 2 } }}>
-                                <Typography sx={{ fontSize: 10, color: 'text.secondary', letterSpacing: 1.5, textTransform: 'uppercase', mb: 0.5 }}>
-                                    Total a cobrar
-                                </Typography>
-                                <Typography sx={{ fontSize: { xs: 40, md: 52 }, fontWeight: 900, color: ACCENT, lineHeight: 1 }}>
-                                    {formatCurrency(calculateSubtotal())}
-                                </Typography>
-                            </Box>
-
-                            {/* IVA toggle */}
-                            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', alignItems: 'center', mb: 2.5 }}>
+                            {/* IVA toggle — ANTES del total para que el número grande refleje la selección */}
+                            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', alignItems: 'center', mb: 1.5 }}>
                                 <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>IVA:</Typography>
                                 {[0, 19].map(pct => (
                                     <Chip
                                         key={pct}
-                                        label={pct === 0 ? 'Exento (0%)' : `Incluido (${pct}%)`}
+                                        label={pct === 0 ? 'Exento (0%)' : `+${pct}%`}
                                         onClick={() => setIvaPorcentajeGlobal(pct)}
                                         size="small"
                                         sx={{
@@ -1083,6 +1074,30 @@ const Ventas = ({ user }) => {
                                         }}
                                     />
                                 ))}
+                            </Box>
+
+                            {/* Desglose subtotal + IVA */}
+                            {parseFloat(ivaPorcentajeGlobal) > 0 && (
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5, px: 0.5 }}>
+                                    <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>Subtotal (sin IVA)</Typography>
+                                    <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>{formatCurrency(calculateSubtotal())}</Typography>
+                                </Box>
+                            )}
+                            {parseFloat(ivaPorcentajeGlobal) > 0 && (
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, px: 0.5 }}>
+                                    <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>IVA ({ivaPorcentajeGlobal}%)</Typography>
+                                    <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>{formatCurrency(calculateSubtotal() * parseFloat(ivaPorcentajeGlobal) / 100)}</Typography>
+                                </Box>
+                            )}
+
+                            {/* TOTAL — el número más importante */}
+                            <Box sx={{ textAlign: 'center', py: { xs: 1, md: 1.5 } }}>
+                                <Typography sx={{ fontSize: 10, color: 'text.secondary', letterSpacing: 1.5, textTransform: 'uppercase', mb: 0.5 }}>
+                                    Total a cobrar
+                                </Typography>
+                                <Typography sx={{ fontSize: { xs: 40, md: 52 }, fontWeight: 900, color: ACCENT, lineHeight: 1 }}>
+                                    {formatCurrency(calculateSubtotal() * (1 + (parseFloat(ivaPorcentajeGlobal) || 0) / 100))}
+                                </Typography>
                             </Box>
 
                             <Divider sx={{ mb: 2.5 }} />

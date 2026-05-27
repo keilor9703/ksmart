@@ -200,7 +200,10 @@ const CartPanel = ({
     openQuickCreate, isDark, onClose,
 }) => {
     const validItems = saleDetails.filter(d => d.producto && d.cantidad > 0);
-    const total = calculateSubtotal();
+    const subtotal = calculateSubtotal();
+    const ivaPorc = parseFloat(ivaPorcentajeGlobal) || 0;
+    const ivaAmount = subtotal * ivaPorc / 100;
+    const total = subtotal + ivaAmount;
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -352,6 +355,18 @@ const CartPanel = ({
                 </Box>
 
                 {/* Total */}
+                {ivaPorc > 0 && (
+                    <Box sx={{ px: 1, mb: 0.5 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Subtotal</Typography>
+                            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{formatCurrency(subtotal)}</Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>IVA ({ivaPorc}%)</Typography>
+                            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{formatCurrency(ivaAmount)}</Typography>
+                        </Box>
+                    </Box>
+                )}
                 <Box sx={{ textAlign: 'center', mb: 1 }}>
                     <Typography sx={{
                         fontSize: 9, color: 'text.secondary',

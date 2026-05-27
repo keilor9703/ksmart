@@ -16,11 +16,17 @@ ChartJS.register(ArcElement, Tooltip, Legend);
 const ACCENT = '#F43F5E';
 const PURPLE = '#8B5CF6';
 
+const todayStr = () => new Date().toISOString().split('T')[0];
+const firstDayOfMonthStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+};
+
 const ResumenVentas = ({ accentColor = ACCENT }) => {
   const [summary, setSummary]     = useState(null);
   const [loading, setLoading]     = useState(true);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate]     = useState('');
+  const [startDate, setStartDate] = useState(firstDayOfMonthStr());
+  const [endDate, setEndDate]     = useState(todayStr());
 
   useEffect(() => { fetchSummary(); }, []); // eslint-disable-line
 
@@ -37,7 +43,7 @@ const ResumenVentas = ({ accentColor = ACCENT }) => {
     finally { setLoading(false); }
   };
 
-  const handleClear = () => { setStartDate(''); setEndDate(''); setTimeout(fetchSummary, 0); };
+  const handleClear = () => { setStartDate(firstDayOfMonthStr()); setEndDate(todayStr()); setTimeout(fetchSummary, 0); };
 
   // Variables financieras seguras (fallback a 0 si el backend aún no las envía)
   const ingresosReales = summary?.total_pagado || 0;
