@@ -15,7 +15,7 @@ import json
 def _generate_smart_sku(db, empresa_id, grupo_id, nombre, variante_attrs=None, exclude_id=None):
     # 1. Category prefix: GrupoProducto.codigo, max 4 chars, uppercase, alphanumeric only
     grupo = db.query(models.GrupoProducto).filter(models.GrupoProducto.id == grupo_id).first()
-    cat = re.sub(r'[^A-Z0-9]', '', (grupo.codigo[:4].upper() if grupo else 'GEN'))
+    cat = re.sub(r'[^A-Z0-9]', '', (grupo.codigo[:4].upper() if grupo and grupo.codigo else 'GEN'))
     if not cat:
         cat = 'GEN'
 

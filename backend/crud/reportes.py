@@ -237,6 +237,7 @@ def get_sales_by_day(db: Session, empresa_id: int, start_date: date, end_date: d
 
     ventas = db.query(models.Venta).filter(
         models.Venta.empresa_id == empresa_id,
+        models.Venta.tipo == "venta",
         models.Venta.fecha >= utc_start,
         models.Venta.fecha <= utc_end
     ).all()
@@ -274,6 +275,7 @@ def get_total_sales_today(db: Session, empresa_id: int) -> float:
 
     total = db.query(func.sum(models.Venta.total)).filter(
         models.Venta.empresa_id == empresa_id,
+        models.Venta.tipo == "venta",
         models.Venta.fecha >= inicio_utc,
         models.Venta.fecha <= fin_utc
     ).scalar()
@@ -298,6 +300,7 @@ def get_dashboard_data(db: Session, empresa_id: int) -> schemas.DashboardData:
     # ← NUEVO: sumar también los abonos a cartera recibidos hoy
     abonos_hoy = db.query(func.sum(models.Pago.monto)).join(models.Venta).filter(
         models.Venta.empresa_id == empresa_id,
+        models.Venta.tipo == "venta",
         models.Pago.fecha >= inicio_utc_hoy,
         models.Pago.fecha <= fin_utc_hoy,
     ).scalar() or 0.0
