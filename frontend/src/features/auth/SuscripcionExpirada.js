@@ -31,23 +31,22 @@ export default function SuscripcionExpirada({ onActive }) {
     };
     fetchPlanes();
 
-    // 2. 🚀 SILENT POLLING: Revisa en segundo plano sin refrescar la página
+    // Polling de respaldo: por si el webhook llega antes que el botón confirme.
+    // Intervalo corto para que la activación sea casi inmediata en cualquier escenario.
     const checkInterval = setInterval(async () => {
       try {
         const res = await apiClient.get('/users/me');
-        // 💡 CAMBIO CRÍTICO: Usamos is_plan_expired (snake_case) que viene del backend
         const empresa = res.data.empresa;
         if (res.status === 200 && empresa?.is_active && !empresa?.is_plan_expired) {
           clearInterval(checkInterval);
-          toast.success('¡Suscripción detectada! Activando sistema...');
-          // Llamamos a la función de App.js para reactivar el estado global
-          if (onActive) await onActive(); 
-          navigate('/'); // Navegación SPA suave
+          toast.success('¡Suscripción activa! Ingresando...');
+          if (onActive) await onActive();
+          navigate('/');
         }
       } catch (error) {
-        // Ignoramos 402/401 mientras esperamos el pago
+        // Ignorar 402/401 mientras el pago no se confirma
       }
-    }, 15000); 
+    }, 5000);
 
     return () => clearInterval(checkInterval);
   }, [navigate, onActive]);
@@ -124,10 +123,14 @@ export default function SuscripcionExpirada({ onActive }) {
                         ))}
                     </Box>
 
-                    {/* ✅ EL NUEVO BOTÓN DE WOMPI */}
-                    <WompiButton 
-                      planName={plan.codigo_interno} 
-                      onSuccess={() => { if(onActive) onActive(); navigate('/'); }} 
+                    <WompiButton
+                      planName={plan.codigo_interno}
+                      onSuccess={async () => {
+                        // Esperar que checkAuth() complete antes de navegar,
+                        // así isAuthenticated ya es true cuando llegamos a '/'
+                        if (onActive) await onActive();
+                        navigate('/');
+                      }}
                     />
                   </Box>
                 </Grid>
