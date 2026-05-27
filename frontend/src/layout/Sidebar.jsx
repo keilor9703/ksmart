@@ -5,7 +5,7 @@ import {
   Tooltip, Avatar
 } from '@mui/material';
 import {
-  AdminPanelSettings, Business, KeyboardArrowRight
+  AdminPanelSettings, Business, KeyboardArrowRight, WorkspacePremium,
 } from '@mui/icons-material';
 import { Link, useLocation } from 'react-router-dom';
 import { MODULE_ICONS, ADMIN_MODULES, getModuleConfig } from '../utils/modulesConfig';
@@ -121,6 +121,18 @@ const Sidebar = ({ expanded, user, hasAccess, onClose, mobile }) => {
           </Box>
         )}
       </Box>
+
+      {/* Mi Suscripción — visible para admins de empresas cliente (no superadmin) */}
+      {user?.role?.name === 'Admin' && user?.empresa_id !== 1 && (
+        <Box sx={{ px: 1, pb: 1, borderTop: '1px solid rgba(255,255,255,0.06)', pt: 1 }}>
+          <SidebarItem
+            expanded={expanded}
+            item={{ path: '/mi-suscripcion', label: 'Mi Suscripción', icon: <WorkspacePremium />, color: '#FF6020' }}
+            active={isActive('/mi-suscripcion')}
+            onClose={mobile ? onClose : undefined}
+          />
+        </Box>
+      )}
 
       <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)', px: expanded ? 2 : 1, py: 1.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
         <Avatar sx={{ width: 34, height: 34, flexShrink: 0, background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`, fontSize: 13, fontWeight: 700 }}>

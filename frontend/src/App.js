@@ -39,6 +39,7 @@ import GestionEmpresas from './features/admin/GestionEmpresas';
 import InventarioLotes from './features/inventory/InventarioLotes';
 import Cotizaciones from './features/sales/Cotizaciones';
 import ResolucionesDian from './features/dian/ResolucionesDian';
+import MiSuscripcion from './features/account/MiSuscripcion';
 
 // ✅ CATÁLOGO VIRTUAL
 import CatalogoConfig from './features/saas/CatalogoConfig';
@@ -318,6 +319,7 @@ const hasAccess = useCallback((path) => {
                         <Route path="/admin/catalogo" element={<CatalogoConfig />} />
                       </>
                     )}
+                    <Route path="/mi-suscripcion" element={<MiSuscripcion user={user} />} />
                     <Route path="/terminos" element={<Terminos />} />
                     <Route path="/privacidad" element={<Privacidad />} />
                     <Route path="/habeas-data" element={<HabeasData />} />
