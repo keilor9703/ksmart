@@ -11,7 +11,10 @@ from crud.inventario import get_low_stock
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def get_ventas_summary(db: Session, empresa_id: int, start_date: Optional[date] = None, end_date: Optional[date] = None):
-    query_ventas = db.query(models.Venta).filter(models.Venta.empresa_id == empresa_id)
+    query_ventas = db.query(models.Venta).filter(
+        models.Venta.empresa_id == empresa_id,
+        models.Venta.tipo == "venta",
+    )
     query_compras = db.query(models.Compra).filter(models.Compra.empresa_id == empresa_id)
     query_gastos = db.query(models.Gasto).filter(models.Gasto.empresa_id == empresa_id)
 
@@ -44,9 +47,9 @@ def get_ventas_summary(db: Session, empresa_id: int, start_date: Optional[date] 
 
     ventas_hoy = db.query(models.Venta).filter(
         models.Venta.empresa_id == empresa_id,
+        models.Venta.tipo == "venta",
         models.Venta.fecha >= inicio_utc_hoy,
-        models.Venta.fecha <= fin_utc_hoy
-        # models.Venta.estado_pago == "pagado"
+        models.Venta.fecha <= fin_utc_hoy,
     ).all()
 
     total_ventas_hoy = sum(v.total or 0 for v in ventas_hoy)
@@ -64,6 +67,7 @@ def get_cuentas_por_cobrar_por_cliente(db: Session, empresa_id: int):
     clientes_con_pendientes = db.query(models.Cliente).join(models.Venta).filter(
         models.Cliente.empresa_id == empresa_id,
         models.Venta.empresa_id == empresa_id,
+        models.Venta.tipo == "venta",
         (models.Venta.estado_pago == "pendiente") | (models.Venta.estado_pago == "parcial")
     ).distinct().all()
 
@@ -75,6 +79,7 @@ def get_cuentas_por_cobrar_por_cliente(db: Session, empresa_id: int):
         ).filter(
             models.Venta.cliente_id == cliente.id,
             models.Venta.empresa_id == empresa_id,
+            models.Venta.tipo == "venta",
             (models.Venta.estado_pago == "pendiente") | (models.Venta.estado_pago == "parcial")
         ).all()
 
@@ -101,7 +106,8 @@ def get_productos_vendidos(db: Session, empresa_id: int, start_date: Optional[da
         .join(models.Venta, models.DetalleVenta.venta_id == models.Venta.id)
         .filter(
             models.Producto.empresa_id == empresa_id,
-            models.Venta.empresa_id == empresa_id
+            models.Venta.empresa_id == empresa_id,
+            models.Venta.tipo == "venta",
         )
     )
 
@@ -137,7 +143,8 @@ def get_clientes_compradores(db: Session, empresa_id: int, start_date: Optional[
         .join(models.Venta, models.Cliente.id == models.Venta.cliente_id)
         .filter(
             models.Cliente.empresa_id == empresa_id,
-            models.Venta.empresa_id == empresa_id
+            models.Venta.empresa_id == empresa_id,
+            models.Venta.tipo == "venta",
         )
     )
 
@@ -166,7 +173,8 @@ def get_clientes_deudores(db: Session, empresa_id: int):
         .filter(
             models.Cliente.empresa_id == empresa_id,
             models.Venta.empresa_id == empresa_id,
-            models.Venta.estado_pago != "pagado"
+            models.Venta.tipo == "venta",
+            models.Venta.estado_pago != "pagado",
         )
     )
 
@@ -191,7 +199,8 @@ def get_rentabilidad_por_producto(db: Session, empresa_id: int, start_date: Opti
         .join(models.Venta, models.DetalleVenta.venta_id == models.Venta.id)
         .filter(
             models.Producto.empresa_id == empresa_id,
-            models.Venta.empresa_id == empresa_id
+            models.Venta.empresa_id == empresa_id,
+            models.Venta.tipo == "venta",
         )
     )
 

@@ -122,6 +122,10 @@ const ClienteForm = ({
       toast.warning('El tercero debe ser al menos Cliente o Proveedor.');
       return;
     }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      toast.warning('El email no tiene un formato válido.');
+      return;
+    }
     const data = {
       nombre, cedula, telefono, direccion,
       email,
