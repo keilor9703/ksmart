@@ -8,6 +8,17 @@ from crud.common import BOGOTA_TZ
 
 
 def crear_prestamo(db: Session, prestamo: schemas.PrestamoCreate, empresa_id: int):
+    existing = db.query(models.Prestamo).filter(
+        models.Prestamo.empresa_id == empresa_id,
+        models.Prestamo.cliente_id == prestamo.cliente_id,
+        models.Prestamo.estado == "Activo",
+    ).first()
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Este cliente ya tiene un préstamo activo (#{existing.id}). Debe finalizarlo o refinanciarlo antes de crear uno nuevo."
+        )
+
     # 1. Cálculos matemáticos (Interés Simple)
     # Ejemplo: Presta 100,000 al 20%. Interés = 20,000. Total = 120,000.
     interes_total = prestamo.monto_prestado * (prestamo.tasa_interes / 100)

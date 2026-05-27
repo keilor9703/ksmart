@@ -314,13 +314,14 @@ class InventoryMovement(Base, TenantMixin):
     referencia     = Column(String(100), default="")
     observacion    = Column(Text, default="")
     created_at     = Column(DateTime(timezone=True), default=utcnow)
+    usuario_id     = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     lote_id     = Column(Integer, ForeignKey("lotes_existencias.id"), nullable=True)
     numero_lote = Column(String(100), nullable=True)
     lote        = relationship("LoteExistencia", back_populates="movimientos")
 
-
     producto = relationship("Producto", lazy="joined")
+    usuario  = relationship("User", foreign_keys=[usuario_id])
 
 class DetalleVenta(Base, TenantMixin):
     __tablename__ = "detalles_venta"

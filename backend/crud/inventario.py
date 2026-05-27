@@ -40,7 +40,8 @@ def create_movement(db: Session, empresa_id: int, payload: schemas.InventoryMove
         referencia=payload.referencia or "",
         observacion=payload.observacion or "",
         empresa_id=empresa_id,
-        created_at=ahora_utc
+        created_at=ahora_utc,
+        usuario_id=payload.usuario_id,
     )
     db.add(mov)
     db.add(prod)

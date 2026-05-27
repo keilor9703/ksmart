@@ -82,6 +82,7 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
                         costo_unitario=prod.costo or 0.0,
                         motivo="venta",
                         referencia=f"venta #{db_venta.id}",
+                        usuario_id=current_user.id,
                     ))
             else:
                 crud.create_movement(db, empresa_id=empresa_id, payload=schemas.InventoryMovementCreate(
@@ -90,7 +91,8 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
                     cantidad=det.cantidad,
                     costo_unitario=prod.costo or 0.0,
                     motivo="venta",
-                    referencia=f"venta #{db_venta.id}"
+                    referencia=f"venta #{db_venta.id}",
+                    usuario_id=current_user.id,
                 ))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

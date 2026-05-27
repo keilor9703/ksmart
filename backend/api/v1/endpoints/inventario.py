@@ -120,6 +120,7 @@ def crear_movimiento(
     current_user: models.User = Depends(get_current_active_user)
 ):
     try:
+        payload.usuario_id = current_user.id
         return crud.create_movement(db, empresa_id=current_user.empresa_id, payload=payload)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

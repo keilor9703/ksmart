@@ -372,6 +372,7 @@ class InventoryMovementCreate(BaseModel):
     motivo: Optional[str] = ""
     referencia: Optional[str] = ""
     observacion: Optional[str] = ""
+    usuario_id: Optional[int] = None
 
 class InventoryMovementOut(BaseModel):
     id: int

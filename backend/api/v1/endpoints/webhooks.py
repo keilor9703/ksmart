@@ -1,6 +1,8 @@
+import hashlib
 import logging
+import os
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, HTTPException
 from sqlalchemy.orm import Session
 
 import models
@@ -9,6 +11,32 @@ from api.deps import get_db
 router = APIRouter()
 logger = logging.getLogger("webhooks")
 
+WOMPI_EVENTS_SECRET = os.getenv("WOMPI_EVENTS_SECRET", "")
+
+
+def _verify_wompi_signature(payload: dict, checksum_header: str | None) -> bool:
+    """Verify Wompi webhook signature.
+
+    Wompi computes: SHA256(tx.id + tx.status + tx.amount_in_cents + tx.currency + events_secret)
+    and sends it in the x-event-checksum header.
+    """
+    if not WOMPI_EVENTS_SECRET:
+        logger.warning("WOMPI_EVENTS_SECRET no configurada — omitiendo verificación de firma")
+        return True
+    if not checksum_header:
+        return False
+    tx = payload.get("data", {}).get("transaction", {})
+    props = (
+        str(tx.get("id", ""))
+        + str(tx.get("status", ""))
+        + str(tx.get("amount_in_cents", ""))
+        + str(tx.get("currency", ""))
+        + WOMPI_EVENTS_SECRET
+    )
+    expected = hashlib.sha256(props.encode("utf-8")).hexdigest()
+    return expected == checksum_header
+
+
 @router.post("/wompi")
 async def webhook_wompi(request: Request, db: Session = Depends(get_db)):
     try:
@@ -16,6 +44,11 @@ async def webhook_wompi(request: Request, db: Session = Depends(get_db)):
     except Exception:
         logger.error("⚠️ Webhook Wompi: Se recibió un body vacío o JSON inválido.")
         return {"status": "error", "message": "Invalid JSON or empty body"}
+
+    checksum = request.headers.get("x-event-checksum")
+    if not _verify_wompi_signature(payload, checksum):
+        logger.warning("⛔ Webhook Wompi rechazado: firma inválida")
+        raise HTTPException(status_code=401, detail="Firma inválida")
 
     event = payload.get("event")
     data = payload.get("data", {}).get("transaction", {})
