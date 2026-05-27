@@ -17,23 +17,31 @@ WOMPI_EVENTS_SECRET = os.getenv("WOMPI_EVENTS_SECRET", "")
 def _verify_wompi_signature(payload: dict, checksum_header: str | None) -> bool:
     """Verify Wompi webhook signature.
 
-    Wompi computes: SHA256(tx.id + tx.status + tx.amount_in_cents + tx.currency + events_secret)
-    and sends it in the x-event-checksum header.
+    Wompi formula: SHA256(prop_values... + events_secret + timestamp)
+    Properties come from payload["signature"]["properties"] (e.g. ["transaction.id",
+    "transaction.status", "transaction.amount_in_cents"]), NOT hardcoded.
+    Timestamp comes from payload["timestamp"].
     """
     if not WOMPI_EVENTS_SECRET:
         logger.warning("WOMPI_EVENTS_SECRET no configurada — omitiendo verificación de firma")
         return True
     if not checksum_header:
         return False
+
+    signature_info = payload.get("signature", {})
+    properties = signature_info.get("properties", [])
+    timestamp = payload.get("timestamp", "")
     tx = payload.get("data", {}).get("transaction", {})
-    props = (
-        str(tx.get("id", ""))
-        + str(tx.get("status", ""))
-        + str(tx.get("amount_in_cents", ""))
-        + str(tx.get("currency", ""))
-        + WOMPI_EVENTS_SECRET
-    )
-    expected = hashlib.sha256(props.encode("utf-8")).hexdigest()
+
+    parts = []
+    for prop in properties:
+        # "transaction.id" → tx["id"], "transaction.status" → tx["status"], etc.
+        key = prop.split(".", 1)[-1]
+        parts.append(str(tx.get(key, "")))
+    parts.append(WOMPI_EVENTS_SECRET)
+    parts.append(str(timestamp))
+
+    expected = hashlib.sha256("".join(parts).encode("utf-8")).hexdigest()
     return expected == checksum_header
 
 
