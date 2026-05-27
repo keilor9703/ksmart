@@ -224,6 +224,13 @@ class ClienteBase(BaseModel):
     email: Optional[EmailStr] = None
     tipo_documento_id: int = 13       # 13: Cédula, 31: NIT
     dv: Optional[str] = None
+
+    @field_validator('email', mode='before')
+    @classmethod
+    def _empty_email_to_none(cls, v):
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
     tipo_organizacion_id: int = 2     # 1: Jurídica, 2: Natural
     tipo_regimen_id: int = 49          # 48: Responsable IVA, 49: No responsable
     responsabilidad_fiscal_codes: str = "R-99-PN"
