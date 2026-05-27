@@ -9,11 +9,10 @@ import { toast } from 'react-toastify';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
 import CurrencyField from '../../components/common/CurrencyField';
+import { METODOS_PAGO_SIMPLE as METODOS } from '../../utils/constants';
 
 const ACCENT = '#FF6020';
 const GREEN  = '#10B981';
-
-const METODOS = ['Efectivo', 'Transferencia', 'Tarjeta', 'Cheque', 'Nota Crédito'];
 
 /**
  * PaymentDialog — modal para registrar abono o pago total de una venta.

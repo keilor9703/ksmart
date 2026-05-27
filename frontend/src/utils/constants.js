@@ -32,6 +32,23 @@ export const UNIDADES_MEDIDA = [
   { value: 'PAQ', label: 'Paquete'      },
 ];
 
+// ─── Métodos de pago ──────────────────────────────────────────────────────────
+// Fuente única de verdad para todos los módulos del sistema.
+// Al agregar o quitar un método, modificar SOLO aquí.
+export const METODOS_PAGO = [
+  { value: 'Efectivo',      label: '💵 Efectivo',      color: '#10B981' },
+  { value: 'Transferencia', label: '🏦 Transferencia',  color: '#3B82F6' },
+  { value: 'Nequi',         label: '💜 Nequi',          color: '#7C3AED' },
+  { value: 'Daviplata',     label: '🔵 Daviplata',      color: '#2563EB' },
+  { value: 'Tarjeta',       label: '💳 Tarjeta',        color: '#8B5CF6' },
+  { value: 'Cheque',        label: '📄 Cheque',         color: '#6B7280' },
+  { value: 'Nota Crédito',  label: '📋 Nota Crédito',  color: '#EF4444' },
+  { value: 'Otro',          label: '💰 Otro',           color: '#9CA3AF' },
+];
+
+/** Array de solo strings, para selects simples */
+export const METODOS_PAGO_SIMPLE = METODOS_PAGO.map(m => m.value);
+
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Retorna el objeto de grupo por su id */

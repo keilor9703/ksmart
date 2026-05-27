@@ -15,6 +15,7 @@ import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
 import CurrencyField from '../../components/common/CurrencyField';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
+import { METODOS_PAGO_SIMPLE as METODOS_PAGO } from '../../utils/constants';
 
 const ACCENT = '#FF6020';
 const GREEN  = '#10B981';
@@ -25,7 +26,6 @@ const TIPOS_VEHICULO = [
   { label: 'SUV/Camioneta',icon: LocalShipping  },
   { label: 'Otro',         icon: DriveEta       },
 ];
-const METODOS_PAGO     = ['Efectivo', 'Transferencia', 'Tarjeta'];
 const CONSUMIDOR_FINAL = { id: null, nombre: 'Consumidor final / Otros' };
 
 const buildEmptyCart = () => [];

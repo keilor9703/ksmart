@@ -39,10 +39,11 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
 
     # Validación de crédito solo si hay cliente y la venta es a crédito
     if not venta.pagada and db_cliente is not None:
+        iva_pct = float(getattr(venta, 'iva_porcentaje', 0) or 0)
         total_nueva = sum(
             (d.precio_unitario if d.precio_unitario is not None else crud.get_producto(db, empresa_id, d.producto_id).precio) * d.cantidad
             for d in venta.detalles
-        )
+        ) * (1 + iva_pct / 100)
         deuda_actual = crud.get_cliente_deuda(db, empresa_id=empresa_id, cliente_id=venta.cliente_id)
         if (deuda_actual + total_nueva) > db_cliente.cupo_credito:
             cupo_disp = db_cliente.cupo_credito - deuda_actual
@@ -68,8 +69,12 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
                         )
                     except ValueError as e:
                         raise HTTPException(status_code=400, detail=str(e))
+                    # consumir_stock_fefo does NOT update stock_actual, so we do it here
+                    prod.stock_actual = (prod.stock_actual or 0) - det.cantidad
+                    db.add(prod)
+                    db.commit()
                 else:
-                    # Sin lotes registrados: descuento estándar sobre stock_actual
+                    # Sin lotes registrados: create_movement handles stock_actual update
                     crud.create_movement(db, empresa_id=empresa_id, payload=schemas.InventoryMovementCreate(
                         producto_id=det.producto_id,
                         tipo=schemas.MovementType.salida,
@@ -78,9 +83,6 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
                         motivo="venta",
                         referencia=f"venta #{db_venta.id}",
                     ))
-                prod.stock_actual = (prod.stock_actual or 0) - det.cantidad
-                db.add(prod)
-                db.commit()
             else:
                 crud.create_movement(db, empresa_id=empresa_id, payload=schemas.InventoryMovementCreate(
                     producto_id=det.producto_id,

@@ -73,17 +73,18 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate):
         detalles_objs.append(detalle)
 
     iva_porc = float(getattr(venta, 'iva_porcentaje', 0) or 0)
-    iva_total = total_bruto * iva_porc / (100 + iva_porc) if iva_porc > 0 else 0.0
+    iva_total = total_bruto * iva_porc / 100 if iva_porc > 0 else 0.0
+    total_final = total_bruto + iva_total
 
     # Usamos timezone explícito para Postgres
     ahora_utc = datetime.now(timezone.utc)
 
     db_venta = models.Venta(
         cliente_id=venta.cliente_id,
-        total=total_bruto,
+        total=total_final,
         iva_total=iva_total,
         iva_porcentaje=iva_porc,
-        monto_pagado=total_bruto if venta.pagada else 0,
+        monto_pagado=total_final if venta.pagada else 0,
         estado_pago="pagado" if venta.pagada else "pendiente",
         metodo_pago=venta.metodo_pago if venta.pagada else None,
         empresa_id=empresa_id,
@@ -97,15 +98,15 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate):
         db.add(det)
 
     # Fase 2A: Numeración DIAN (solo para ventas reales, no cotizaciones)
-        if getattr(venta, 'tipo', 'venta') == 'venta':
-            _asignar_numero_factura(db, empresa_id, db_venta)
+    if getattr(venta, 'tipo', 'venta') == 'venta':
+        _asignar_numero_factura(db, empresa_id, db_venta)
 
-    #     # Fase 2B: campos extra
-        db_venta.tipo          = getattr(venta, 'tipo', 'venta')
-        db_venta.valida_hasta  = getattr(venta, 'valida_hasta', None)
-        db_venta.observaciones = getattr(venta, 'observaciones', None)
-        db_venta.operador_id   = getattr(venta, 'operador_id', None)
-        db_venta.placa_vehiculo = getattr(venta, 'placa_vehiculo', None)
+    # Fase 2B: campos extra
+    db_venta.tipo           = getattr(venta, 'tipo', 'venta')
+    db_venta.valida_hasta   = getattr(venta, 'valida_hasta', None)
+    db_venta.observaciones  = getattr(venta, 'observaciones', None)
+    db_venta.operador_id    = getattr(venta, 'operador_id', None)
+    db_venta.placa_vehiculo = getattr(venta, 'placa_vehiculo', None)
 
 
 
@@ -152,8 +153,14 @@ def update_venta(db: Session, empresa_id: int, venta_id: int, venta: schemas.Ven
 
     db.add_all(new_detalles)
 
-    db_venta.total = total_venta
-    db_venta.monto_pagado = total_venta if venta.pagada else 0.0
+    iva_porc = float(getattr(venta, 'iva_porcentaje', 0) or db_venta.iva_porcentaje or 0)
+    iva_total = total_venta * iva_porc / 100 if iva_porc > 0 else 0.0
+    total_final = total_venta + iva_total
+
+    db_venta.total = total_final
+    db_venta.iva_total = iva_total
+    db_venta.iva_porcentaje = iva_porc
+    db_venta.monto_pagado = total_final if venta.pagada else 0.0
     db_venta.estado_pago = "pagado" if venta.pagada else "pendiente"
 
     db.commit()

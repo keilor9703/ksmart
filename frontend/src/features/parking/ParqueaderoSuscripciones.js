@@ -25,11 +25,11 @@ import apiClient from '../../api';
 import { toast } from 'react-toastify';
 import { formatCurrency } from '../../utils/formatters';
 import CurrencyField from '../../components/common/CurrencyField';
-import BotonWhatsApp from '../../components/common/BotonWhatsApp';   // ✨ NUEVO
+import BotonWhatsApp from '../../components/common/BotonWhatsApp';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
+import { METODOS_PAGO_SIMPLE as METODOS_PAGO } from '../../utils/constants';
 
 const ACCENT = '#FF6020';
-const METODOS_PAGO = ['Efectivo', 'Transferencia', 'Nequi', 'Daviplata', 'Tarjeta', 'Otro'];
 
 export default function ParqueaderoSuscripciones() {
   const [items, setItems]       = useState([]);

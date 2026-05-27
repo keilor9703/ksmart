@@ -94,11 +94,12 @@ def create_cotizacion(
         ))
 
     iva_porc  = float(payload.iva_porcentaje or 0)
-    iva_total = total_bruto * iva_porc / (100 + iva_porc) if iva_porc > 0 else 0.0
+    iva_total = total_bruto * iva_porc / 100 if iva_porc > 0 else 0.0
+    total_final = total_bruto + iva_total
 
     db_cot = models.Venta(
         cliente_id    = payload.cliente_id,
-        total         = total_bruto,
+        total         = total_final,
         iva_total     = iva_total,
         iva_porcentaje = iva_porc,
         monto_pagado  = 0.0,

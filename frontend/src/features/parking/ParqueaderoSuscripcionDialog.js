@@ -10,9 +10,9 @@ import apiClient from '../../api';
 import { toast } from 'react-toastify';
 import { formatCurrency } from '../../utils/formatters';
 import CurrencyField from '../../components/common/CurrencyField';
+import { METODOS_PAGO_SIMPLE as METODOS_PAGO } from '../../utils/constants';
 
 const ACCENT = '#FF6020';
-const METODOS_PAGO = ['Efectivo', 'Transferencia', 'Nequi', 'Daviplata', 'Tarjeta', 'Otro'];
 
 
 // ═══════════════════════════════════════════════════════════════════════════

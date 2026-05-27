@@ -46,6 +46,9 @@ const QUICK_ACTIONS = {
 const METODOS_PAGO = [
   { value: 'Efectivo',      label: 'Efectivo',      icon: <AttachMoney /> },
   { value: 'Transferencia', label: 'Transferencia', icon: <AccountBalanceWallet /> },
+  { value: 'Nequi',         label: 'Nequi',         icon: <AccountBalanceWallet /> },
+  { value: 'Daviplata',     label: 'Daviplata',     icon: <AccountBalanceWallet /> },
+  { value: 'Tarjeta',       label: 'Tarjeta',       icon: <AttachMoney /> },
 ];
 
 const SORT_OPTIONS = [

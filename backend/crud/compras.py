@@ -45,17 +45,17 @@ def create_compra(db: Session, empresa_id: int, compra: schemas.CompraCreate):
     for item in compra.detalles:
         total_bruto += item.cantidad * item.precio_unitario
 
-    iva_porc = compra.iva_porcentaje
-    subtotal_base = total_bruto / (1 + (iva_porc / 100))
-    iva_total_calc = total_bruto - subtotal_base
+    iva_porc = compra.iva_porcentaje or 0.0
+    iva_total_calc = total_bruto * iva_porc / 100 if iva_porc > 0 else 0.0
+    total_final = total_bruto + iva_total_calc
 
     db_compra = models.Compra(
         proveedor_id=compra.proveedor_id,
-        total=total_bruto,
+        total=total_final,
         iva_total=iva_total_calc,
         iva_porcentaje=iva_porc,
         referencia_factura=compra.referencia_factura,
-        monto_pagado=total_bruto if compra.pagada else 0.0,
+        monto_pagado=total_final if compra.pagada else 0.0,
         estado_pago="pagado" if compra.pagada else "pendiente",
         empresa_id=empresa_id
     )
@@ -223,9 +223,9 @@ def update_compra(db: Session, empresa_id: int, compra_id: int, data: schemas.Co
                 create_movement(db, empresa_id, payload_mov)
                 prod.costo = item.precio_unitario
 
-        db_compra.total = total_bruto
-        subtotal_base = total_bruto / (1 + (db_compra.iva_porcentaje / 100))
-        db_compra.iva_total = total_bruto - subtotal_base
+        iva_pct = db_compra.iva_porcentaje or 0.0
+        db_compra.iva_total = total_bruto * iva_pct / 100 if iva_pct > 0 else 0.0
+        db_compra.total = total_bruto + db_compra.iva_total
 
     # 4. Manejo Inteligente de Pago
     if data.pagada is True:
