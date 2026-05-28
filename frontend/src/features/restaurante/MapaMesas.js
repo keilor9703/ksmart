@@ -52,11 +52,15 @@ const timeAgo = (iso) => {
 // ─── AbrirComandaDialog ───────────────────────────────────────────────────────
 
 const AbrirComandaDialog = ({ open, onClose, mesa, onSuccess }) => {
-  const [personas, setPersonas] = useState(2);
+  const [personasStr, setPersonasStr] = useState('2');
   const [notas, setNotas] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Permite borrar y escribir libremente; solo valida al enviar
+  const personas = parseInt(personasStr, 10) || 1;
+
   const handleAbrir = async () => {
+    if (personas < 1) return;
     setLoading(true);
     try {
       await apiClient.post('/restaurante/comandas', {
@@ -72,40 +76,54 @@ const AbrirComandaDialog = ({ open, onClose, mesa, onSuccess }) => {
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 4 } }}>
-      <DialogTitle sx={{ pb: 1 }}>
+      <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Avatar sx={{ bgcolor: alpha('#059669', 0.12), width: 40, height: 40 }}>
+          <Avatar sx={{ bgcolor: alpha('#059669', 0.12), width: 40, height: 40, flexShrink: 0 }}>
             <TableRestaurant sx={{ color: '#059669', fontSize: 20 }} />
           </Avatar>
-          <Box>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography fontWeight={800} fontSize={15}>Abrir mesa {mesa?.numero}</Typography>
-            <Typography fontSize={12} color="text.secondary">{mesa?.zona} · {mesa?.capacidad} sillas</Typography>
+            <Typography fontSize={12} color="text.secondary" noWrap>{mesa?.zona} · {mesa?.capacidad} sillas</Typography>
           </Box>
-          <IconButton size="small" sx={{ ml: 'auto' }} onClick={onClose}><Close fontSize="small" /></IconButton>
+          <IconButton size="small" onClick={onClose}><Close fontSize="small" /></IconButton>
         </Box>
       </DialogTitle>
-      <DialogContent sx={{ pt: 1.5 }}>
-        <Stack spacing={2}>
+      <DialogContent dividers sx={{ pt: 2 }}>
+        <Stack spacing={2.5}>
           <TextField
-            label="Número de personas" type="number" size="small" fullWidth
-            value={personas} onChange={e => setPersonas(Math.max(1, +e.target.value))}
+            label="Número de personas"
+            type="number"
+            size="medium"
+            fullWidth
+            value={personasStr}
+            onChange={e => setPersonasStr(e.target.value)}
+            onBlur={() => {
+              // Al salir del campo, asegurar valor mínimo de 1
+              const v = parseInt(personasStr, 10);
+              setPersonasStr(String(isNaN(v) || v < 1 ? 1 : v));
+            }}
             inputProps={{ min: 1, max: mesa?.capacidad || 20 }}
-            InputProps={{ startAdornment: <Person sx={{ mr: 1, color: 'text.secondary', fontSize: 18 }} /> }}
+            InputProps={{ startAdornment: <Person sx={{ mr: 1, color: 'text.secondary', fontSize: 20 }} /> }}
             sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
           />
           <TextField
-            label="Nota inicial (opcional)" size="small" fullWidth multiline rows={2}
-            value={notas} onChange={e => setNotas(e.target.value)}
+            label="Nota inicial (opcional)"
+            size="medium"
+            fullWidth
+            multiline
+            rows={2}
+            value={notas}
+            onChange={e => setNotas(e.target.value)}
             placeholder="Ej: cliente con silla de bebé, cumpleaños..."
             sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
           />
         </Stack>
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+      <DialogActions sx={{ px: 3, py: 2, gap: 1 }}>
         <Button onClick={onClose} sx={{ borderRadius: 2 }}>Cancelar</Button>
-        <Button variant="contained" onClick={handleAbrir} disabled={loading}
+        <Button variant="contained" onClick={handleAbrir} disabled={loading || personas < 1}
           startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <TableRestaurant />}
-          sx={{ bgcolor: '#059669', '&:hover': { bgcolor: '#047857' }, borderRadius: 2, fontWeight: 700, flex: 1 }}>
+          sx={{ bgcolor: '#059669', '&:hover': { bgcolor: '#047857' }, borderRadius: 2, fontWeight: 700, flex: 1, py: 1.1 }}>
           Abrir mesa
         </Button>
       </DialogActions>
