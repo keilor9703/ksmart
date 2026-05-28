@@ -62,6 +62,11 @@ import ParqueaderoConfig         from './features/parking/ParqueaderoConfig';
 import LavaderoVentas            from './features/lavadero/LavaderoVentas';
 import LavaderoReporte           from './features/lavadero/LavaderoReporte';
 
+// ✅ MÓDULO RESTAURANTE
+import MapaMesas       from './features/restaurante/MapaMesas';
+import PantallaCocina  from './features/restaurante/PantallaCocina';
+import RestauranteConfig from './features/restaurante/RestauranteConfig';
+
 // ✅ MÓDULO SAAS (ANUNCIOS)
 import AnnouncementBanner from './features/saas/components/AnnouncementBanner';
 import { OnboardingProvider } from './context/OnboardingContext';
@@ -310,6 +315,9 @@ const hasAccess = useCallback((path) => {
                     <Route path="/parqueadero/config"         element={<ProtectedRoute path="/parqueadero/config"         hasAccess={hasAccess}><ParqueaderoConfig         /></ProtectedRoute>} />
                     <Route path="/lavadero/ventas"   element={<ProtectedRoute path="/lavadero/ventas"  hasAccess={hasAccess}><LavaderoVentas  user={user} /></ProtectedRoute>} />
                     <Route path="/lavadero/reporte"  element={<ProtectedRoute path="/lavadero/reporte" hasAccess={hasAccess}><LavaderoReporte user={user} /></ProtectedRoute>} />
+                    <Route path="/restaurante"        element={<ProtectedRoute path="/restaurante"        hasAccess={hasAccess}><MapaMesas       user={user} /></ProtectedRoute>} />
+                    <Route path="/restaurante/cocina" element={<ProtectedRoute path="/restaurante/cocina" hasAccess={hasAccess}><PantallaCocina  /></ProtectedRoute>} />
+                    <Route path="/restaurante/config" element={<ProtectedRoute path="/restaurante/config" hasAccess={hasAccess}><RestauranteConfig /></ProtectedRoute>} />
                     {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (
                       <Route path="/superadmin/empresas" element={<GestionEmpresas />} />
                     )}

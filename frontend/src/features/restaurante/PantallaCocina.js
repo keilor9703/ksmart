@@ -1,0 +1,397 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Box, Typography, Chip, Button, IconButton, Tooltip,
+  CircularProgress, useTheme, alpha, Stack, Divider,
+  Badge, ToggleButton, ToggleButtonGroup, Paper,
+} from '@mui/material';
+import {
+  Restaurant, CheckCircle, HourglassBottom, Refresh,
+  Fullscreen, FullscreenExit, AccessTime, NotificationsActive,
+} from '@mui/icons-material';
+import { toast } from 'react-toastify';
+import apiClient from '../../api';
+
+const ESTADO = {
+  pendiente:      { color: '#F59E0B', bg: 'rgba(245,158,11,0.14)', label: 'Pendiente',      next: 'en_preparacion', nextLabel: 'Iniciar' },
+  en_preparacion: { color: '#2563EB', bg: 'rgba(37,99,235,0.14)',  label: 'En preparación', next: 'listo',          nextLabel: 'Listo' },
+  listo:          { color: '#059669', bg: 'rgba(5,150,105,0.14)',  label: 'Listo',          next: null,             nextLabel: null },
+};
+
+const timeAgo = (iso) => {
+  if (!iso) return '';
+  const diff = Math.floor((Date.now() - new Date(iso + (iso.endsWith('Z') ? '' : 'Z'))) / 60000);
+  if (diff < 1) return '<1min';
+  if (diff < 60) return `${diff}min`;
+  return `${Math.floor(diff / 60)}h ${diff % 60}min`;
+};
+
+const urgencyColor = (iso) => {
+  if (!iso) return 'inherit';
+  const diff = Math.floor((Date.now() - new Date(iso + (iso.endsWith('Z') ? '' : 'Z'))) / 60000);
+  if (diff >= 20) return '#EF4444';
+  if (diff >= 10) return '#F59E0B';
+  return 'inherit';
+};
+
+// ─── Tarjeta de ítem de cocina ────────────────────────────────────────────────
+
+const ItemCard = ({ item, onAdvance, advancing }) => {
+  const theme = useTheme();
+  const est = ESTADO[item.estado] || ESTADO.pendiente;
+  const age = timeAgo(item.timestamp_pedido);
+  const ageColor = urgencyColor(item.timestamp_pedido);
+
+  return (
+    <Box sx={{
+      border: `2px solid ${est.color}`,
+      borderRadius: 2,
+      p: 1.5,
+      background: est.bg,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 0.5,
+      position: 'relative',
+    }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+        <Typography sx={{ fontWeight: 700, fontSize: 15, lineHeight: 1.3, color: theme.palette.text.primary }}>
+          {item.cantidad}× {item.nombre_producto}
+        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+          <AccessTime sx={{ fontSize: 13, color: ageColor }} />
+          <Typography sx={{ fontSize: 12, color: ageColor, fontWeight: 600 }}>{age}</Typography>
+        </Box>
+      </Box>
+
+      {item.notas && (
+        <Typography sx={{ fontSize: 12, color: '#6B7280', fontStyle: 'italic', pl: 0.5 }}>
+          📝 {item.notas}
+        </Typography>
+      )}
+
+      {est.next && (
+        <Button
+          size="small"
+          variant="contained"
+          disabled={advancing === item.id}
+          onClick={() => onAdvance(item.id, est.next)}
+          sx={{
+            mt: 0.5, textTransform: 'none', fontWeight: 700,
+            bgcolor: est.color, '&:hover': { bgcolor: est.color, filter: 'brightness(0.9)' },
+            fontSize: 12, py: 0.4,
+          }}
+        >
+          {advancing === item.id
+            ? <CircularProgress size={14} sx={{ color: '#fff' }} />
+            : est.nextLabel}
+        </Button>
+      )}
+
+      {item.estado === 'listo' && (
+        <Chip
+          icon={<CheckCircle sx={{ fontSize: 14, '&&': { color: '#059669' } }} />}
+          label="Listo para entregar"
+          size="small"
+          sx={{ bgcolor: 'rgba(5,150,105,0.12)', color: '#059669', fontWeight: 600, fontSize: 11 }}
+        />
+      )}
+    </Box>
+  );
+};
+
+// ─── Tarjeta de comanda ───────────────────────────────────────────────────────
+
+const ComandaCard = ({ comanda, onAdvance, advancing }) => {
+  const theme = useTheme();
+  const totalItems = comanda.items.length;
+  const listos = comanda.items.filter(i => i.estado === 'listo' || i.estado === 'entregado').length;
+  const pendientes = comanda.items.filter(i => i.estado === 'pendiente').length;
+  const enPrep = comanda.items.filter(i => i.estado === 'en_preparacion').length;
+
+  const urgente = comanda.items.some(i => {
+    if (!i.timestamp_pedido) return false;
+    return Math.floor((Date.now() - new Date(i.timestamp_pedido + (i.timestamp_pedido.endsWith('Z') ? '' : 'Z'))) / 60000) >= 15;
+  });
+
+  return (
+    <Paper elevation={2} sx={{
+      borderRadius: 3, overflow: 'hidden',
+      border: urgente ? '2px solid #EF4444' : '1px solid rgba(0,0,0,0.08)',
+      transition: 'box-shadow 0.2s',
+    }}>
+      {/* Header */}
+      <Box sx={{
+        px: 2, py: 1.2,
+        background: urgente
+          ? 'linear-gradient(90deg, #EF4444 0%, #DC2626 100%)'
+          : `linear-gradient(90deg, ${theme.palette.mode === 'dark' ? '#1e293b' : '#1e40af'} 0%, ${theme.palette.mode === 'dark' ? '#334155' : '#3b82f6'} 100%)`,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {urgente && <NotificationsActive sx={{ color: '#fff', fontSize: 18 }} />}
+          <Typography sx={{ color: '#fff', fontWeight: 800, fontSize: 18 }}>
+            Mesa {comanda.mesa_numero}
+          </Typography>
+          {comanda.mesa_nombre && (
+            <Typography sx={{ color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>
+              ({comanda.mesa_nombre})
+            </Typography>
+          )}
+        </Box>
+        <Box sx={{ display: 'flex', gap: 0.5 }}>
+          {pendientes > 0 && <Chip label={`${pendientes} pend.`} size="small" sx={{ bgcolor: '#F59E0B', color: '#fff', fontWeight: 700, fontSize: 11 }} />}
+          {enPrep > 0 && <Chip label={`${enPrep} prep.`} size="small" sx={{ bgcolor: '#2563EB', color: '#fff', fontWeight: 700, fontSize: 11 }} />}
+          {listos > 0 && <Chip label={`${listos} listo`} size="small" sx={{ bgcolor: '#059669', color: '#fff', fontWeight: 700, fontSize: 11 }} />}
+        </Box>
+      </Box>
+
+      {/* Progreso */}
+      <Box sx={{ px: 2, pt: 0.5, pb: 0 }}>
+        <Box sx={{ height: 4, borderRadius: 2, bgcolor: 'rgba(0,0,0,0.08)', overflow: 'hidden' }}>
+          <Box sx={{ height: '100%', borderRadius: 2, bgcolor: '#059669', width: `${(listos / totalItems) * 100}%`, transition: 'width 0.4s' }} />
+        </Box>
+      </Box>
+
+      {/* Items */}
+      <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
+        {comanda.items
+          .filter(i => i.estado !== 'entregado' && i.estado !== 'cancelado')
+          .map(item => (
+            <ItemCard key={item.id} item={item} onAdvance={onAdvance} advancing={advancing} />
+          ))}
+        {comanda.items.filter(i => i.estado !== 'entregado' && i.estado !== 'cancelado').length === 0 && (
+          <Typography sx={{ textAlign: 'center', color: '#059669', fontWeight: 600, py: 1, fontSize: 13 }}>
+            ✅ Todos los platos listos
+          </Typography>
+        )}
+      </Box>
+    </Paper>
+  );
+};
+
+// ─── Pantalla principal ───────────────────────────────────────────────────────
+
+const PantallaCocina = () => {
+  const theme = useTheme();
+  const [comandas, setComandas] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [advancing, setAdvancing] = useState(null);
+  const [filtroArea, setFiltroArea] = useState('todas');
+  const [areas, setAreas] = useState([]);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [countdown, setCountdown] = useState(10);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/restaurante/cocina');
+      const data = res.data;
+      setComandas(data);
+      // Extraer áreas únicas de los items
+      const allAreas = new Set();
+      data.forEach(c => c.items.forEach(i => i.area_cocina && allAreas.add(i.area_cocina)));
+      setAreas([...allAreas]);
+      setLastRefresh(new Date());
+      setCountdown(10);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Auto-refresh cada 10 segundos
+  useEffect(() => {
+    const interval = setInterval(fetchData, 10000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
+  // Countdown visual
+  useEffect(() => {
+    const tick = setInterval(() => {
+      setCountdown(c => {
+        if (c <= 1) return 10;
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(tick);
+  }, []);
+
+  const handleAdvance = async (itemId, nuevoEstado) => {
+    setAdvancing(itemId);
+    try {
+      await apiClient.patch(`/restaurante/cocina/items/${itemId}`, { estado: nuevoEstado });
+      await fetchData();
+    } catch (err) {
+      toast.error('Error al actualizar el estado');
+    } finally {
+      setAdvancing(null);
+    }
+  };
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+      setFullscreen(true);
+    } else {
+      document.exitFullscreen();
+      setFullscreen(false);
+    }
+  };
+
+  // Filtrar comandas por área
+  const comandasFiltradas = comandas
+    .map(c => ({
+      ...c,
+      items: filtroArea === 'todas'
+        ? c.items
+        : c.items.filter(i => i.area_cocina === filtroArea),
+    }))
+    .filter(c => c.items.length > 0);
+
+  const totalPendientes = comandas.reduce((acc, c) =>
+    acc + c.items.filter(i => i.estado === 'pendiente').length, 0);
+
+  const totalEnPrep = comandas.reduce((acc, c) =>
+    acc + c.items.filter(i => i.estado === 'en_preparacion').length, 0);
+
+  return (
+    <Box sx={{
+      minHeight: '100vh',
+      bgcolor: theme.palette.mode === 'dark' ? '#0d1117' : '#f0f4f8',
+      display: 'flex', flexDirection: 'column',
+    }}>
+      {/* TopBar cocina */}
+      <Box sx={{
+        px: 2.5, py: 1.5,
+        bgcolor: theme.palette.mode === 'dark' ? '#161b22' : '#1e293b',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        gap: 2, borderBottom: '1px solid rgba(255,255,255,0.08)',
+        position: 'sticky', top: 0, zIndex: 100,
+      }}>
+        {/* Left */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Restaurant sx={{ color: '#FF6020', fontSize: 28 }} />
+          <Typography sx={{ color: '#fff', fontWeight: 800, fontSize: 20, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            Pantalla de Cocina
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            {totalPendientes > 0 && (
+              <Badge badgeContent={totalPendientes} color="warning">
+                <Chip
+                  icon={<HourglassBottom sx={{ fontSize: 14, '&&': { color: '#F59E0B' } }} />}
+                  label="Pendientes"
+                  size="small"
+                  sx={{ bgcolor: 'rgba(245,158,11,0.15)', color: '#F59E0B', fontWeight: 700 }}
+                />
+              </Badge>
+            )}
+            {totalEnPrep > 0 && (
+              <Chip
+                icon={<Restaurant sx={{ fontSize: 14, '&&': { color: '#2563EB' } }} />}
+                label={`${totalEnPrep} preparando`}
+                size="small"
+                sx={{ bgcolor: 'rgba(37,99,235,0.15)', color: '#60a5fa', fontWeight: 700 }}
+              />
+            )}
+          </Box>
+        </Box>
+
+        {/* Center — filtro de área */}
+        {areas.length > 0 && (
+          <ToggleButtonGroup
+            value={filtroArea}
+            exclusive
+            onChange={(_, v) => v && setFiltroArea(v)}
+            size="small"
+            sx={{ '& .MuiToggleButton-root': { color: '#94a3b8', borderColor: 'rgba(255,255,255,0.12)', fontSize: 12, py: 0.5, px: 1.5, textTransform: 'none' }, '& .Mui-selected': { bgcolor: 'rgba(255,96,32,0.2) !important', color: '#FF6020 !important', fontWeight: 700 } }}
+          >
+            <ToggleButton value="todas">Todas</ToggleButton>
+            {areas.map(a => <ToggleButton key={a} value={a}>{a}</ToggleButton>)}
+          </ToggleButtonGroup>
+        )}
+
+        {/* Right */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#059669', animation: 'pulse 2s infinite' }} />
+            <Typography sx={{ color: '#94a3b8', fontSize: 12 }}>
+              Actualiza en {countdown}s
+            </Typography>
+          </Box>
+          <Tooltip title="Actualizar ahora">
+            <IconButton size="small" onClick={fetchData} sx={{ color: '#94a3b8' }}>
+              <Refresh sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}>
+            <IconButton size="small" onClick={toggleFullscreen} sx={{ color: '#94a3b8' }}>
+              {fullscreen ? <FullscreenExit sx={{ fontSize: 18 }} /> : <Fullscreen sx={{ fontSize: 18 }} />}
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </Box>
+
+      {/* Content */}
+      <Box sx={{ flex: 1, p: 2 }}>
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', pt: 8 }}>
+            <CircularProgress sx={{ color: '#FF6020' }} />
+          </Box>
+        ) : comandasFiltradas.length === 0 ? (
+          <Box sx={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            justifyContent: 'center', minHeight: '50vh', gap: 2,
+          }}>
+            <CheckCircle sx={{ fontSize: 72, color: '#059669', opacity: 0.4 }} />
+            <Typography sx={{ fontSize: 22, fontWeight: 700, color: '#94a3b8' }}>
+              Sin pedidos pendientes
+            </Typography>
+            <Typography sx={{ fontSize: 14, color: '#6b7280' }}>
+              La cocina está al día. Los nuevos pedidos aparecerán aquí.
+            </Typography>
+          </Box>
+        ) : (
+          <Box sx={{
+            display: 'grid',
+            gridTemplateColumns: {
+              xs: '1fr',
+              sm: 'repeat(2, 1fr)',
+              md: 'repeat(3, 1fr)',
+              lg: 'repeat(4, 1fr)',
+            },
+            gap: 2,
+            alignItems: 'start',
+          }}>
+            {comandasFiltradas.map(comanda => (
+              <ComandaCard
+                key={comanda.comanda_id}
+                comanda={comanda}
+                onAdvance={handleAdvance}
+                advancing={advancing}
+              />
+            ))}
+          </Box>
+        )}
+      </Box>
+
+      {/* Footer */}
+      <Box sx={{
+        px: 2.5, py: 1,
+        bgcolor: theme.palette.mode === 'dark' ? '#161b22' : '#1e293b',
+        borderTop: '1px solid rgba(255,255,255,0.08)',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        <Typography sx={{ color: '#64748b', fontSize: 12 }}>
+          {comandasFiltradas.length} comanda(s) activa(s)
+        </Typography>
+        <Typography sx={{ color: '#64748b', fontSize: 12 }}>
+          Última actualización: {lastRefresh.toLocaleTimeString('es-CO')}
+        </Typography>
+      </Box>
+    </Box>
+  );
+};
+
+export default PantallaCocina;

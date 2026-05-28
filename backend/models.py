@@ -1247,3 +1247,88 @@ class ProductoImpuesto(Base):
 
     producto      = relationship("Producto")
     tipo_impuesto = relationship("TipoImpuesto")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MÓDULO RESTAURANTE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class Mesa(Base):
+    """Mesa física del restaurante — estado en tiempo real."""
+    __tablename__ = "restaurante_mesas"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    numero     = Column(String(20), nullable=False)           # "1", "A3", "Barra-2"
+    nombre     = Column(String(60), nullable=True)            # nombre descriptivo opcional
+    capacidad  = Column(Integer, default=4)
+    zona       = Column(String(60), nullable=True)            # "Salón", "Terraza", "Barra"
+    estado     = Column(String(20), default="libre")          # libre | ocupada | en_cuenta | reservada
+    pos_x      = Column(Float, default=10.0)                  # % horizontal en el mapa (0-100)
+    pos_y      = Column(Float, default=10.0)                  # % vertical en el mapa (0-100)
+    is_active  = Column(Boolean, default=True)
+
+    empresa    = relationship("Empresa")
+    comandas   = relationship("Comanda", back_populates="mesa")
+
+    __table_args__ = (UniqueConstraint("empresa_id", "numero", name="uq_mesa_numero_empresa"),)
+
+
+class Comanda(Base):
+    """Orden abierta para una mesa — puede tener múltiples rondas de pedidos."""
+    __tablename__ = "restaurante_comandas"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    empresa_id      = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    mesa_id         = Column(Integer, ForeignKey("restaurante_mesas.id"), nullable=False)
+    mesero_id       = Column(Integer, ForeignKey("users.id"), nullable=True)
+    numero_comanda  = Column(Integer, nullable=False)          # consecutivo diario por empresa
+    personas        = Column(Integer, default=1)
+    notas           = Column(Text, nullable=True)
+    estado          = Column(String(20), default="abierta")    # abierta | enviada | lista | cerrada | cancelada
+    total           = Column(Float, default=0.0)
+    venta_id        = Column(Integer, ForeignKey("ventas.id"), nullable=True)
+    fecha_apertura  = Column(DateTime(timezone=True), default=utcnow)
+    fecha_cierre    = Column(DateTime(timezone=True), nullable=True)
+
+    empresa = relationship("Empresa")
+    mesa    = relationship("Mesa", back_populates="comandas")
+    mesero  = relationship("User")
+    items   = relationship("ComandaItem", back_populates="comanda", cascade="all, delete-orphan")
+
+
+class ComandaItem(Base):
+    """Ítem individual de una comanda — snapshot de precio + estado de cocina."""
+    __tablename__ = "restaurante_comanda_items"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    comanda_id      = Column(Integer, ForeignKey("restaurante_comandas.id"), nullable=False)
+    producto_id     = Column(Integer, ForeignKey("productos.id"), nullable=True)
+    nombre_producto = Column(String(200), nullable=False)      # snapshot
+    cantidad        = Column(Float, default=1.0)
+    precio_unitario = Column(Float, default=0.0)              # snapshot
+    subtotal        = Column(Float, default=0.0)
+    notas           = Column(String(300), nullable=True)       # "sin cebolla", "extra picante"
+    area_cocina     = Column(String(60), nullable=True)        # "Parrilla", "Bebidas", "Postres"
+    estado          = Column(String(20), default="pendiente")  # pendiente | en_preparacion | listo | entregado | cancelado
+    timestamp_pedido = Column(DateTime(timezone=True), default=utcnow)
+    timestamp_listo  = Column(DateTime(timezone=True), nullable=True)
+
+    comanda  = relationship("Comanda", back_populates="items")
+    producto = relationship("Producto")
+
+
+class ConfigRestaurante(Base):
+    """Configuración del módulo restaurante por empresa."""
+    __tablename__ = "restaurante_config"
+
+    id                      = Column(Integer, primary_key=True, index=True)
+    empresa_id              = Column(Integer, ForeignKey("empresas.id"), nullable=False, unique=True)
+    areas_cocina            = Column(JSON, default=lambda: ["Cocina general"])
+    zonas_sala              = Column(JSON, default=lambda: ["Salón principal"])
+    tiempo_cocina_estimado  = Column(Integer, default=15)     # minutos estimados
+    propina_sugerida_pct    = Column(Float, default=10.0)
+    permitir_nota_por_item  = Column(Boolean, default=True)
+
+    empresa = relationship("Empresa")
+

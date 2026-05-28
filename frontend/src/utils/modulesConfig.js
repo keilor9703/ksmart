@@ -43,6 +43,9 @@ import ManageSearch from '@mui/icons-material/ManageSearch';
 import Commute from '@mui/icons-material/Commute';
 import DirectionsCar from '@mui/icons-material/DirectionsCar';
 import LocalCarWash from '@mui/icons-material/LocalCarWash';
+import TableRestaurant from '@mui/icons-material/TableRestaurant';
+import OutdoorGrill from '@mui/icons-material/OutdoorGrill';
+import RoomService from '@mui/icons-material/RoomService';
 
 import Autorenew from '@mui/icons-material/Autorenew';
 import SettingsSuggest from '@mui/icons-material/SettingsSuggest';
@@ -95,6 +98,11 @@ export const MODULE_ICONS = {
   // Lavadero
   '/lavadero/ventas':   { icon: <LocalCarWash />,  color: '#0EA5E9', label: 'POS Lavadero' },
   '/lavadero/reporte':  { icon: <DirectionsCar />, color: '#0284C7', label: 'Reporte por trabajador' },
+
+  // Restaurante
+  '/restaurante':        { icon: <TableRestaurant />, color: '#F97316', label: 'Mapa de Mesas' },
+  '/restaurante/cocina': { icon: <OutdoorGrill />,    color: '#EF4444', label: 'Pantalla Cocina' },
+  '/restaurante/config': { icon: <RoomService />,     color: '#8B5CF6', label: 'Config Restaurante' },
 };
 
 
