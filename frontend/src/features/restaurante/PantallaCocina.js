@@ -19,7 +19,9 @@ const ESTADO = {
 
 const timeAgo = (iso) => {
   if (!iso) return '';
-  const diff = Math.floor((Date.now() - new Date(iso + (iso.endsWith('Z') ? '' : 'Z'))) / 60000);
+  const d = new Date(iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z');
+  const diff = Math.floor((Date.now() - d) / 60000);
+  if (isNaN(diff) || diff < 0) return '—';
   if (diff < 1) return '<1min';
   if (diff < 60) return `${diff}min`;
   return `${Math.floor(diff / 60)}h ${diff % 60}min`;
@@ -27,7 +29,8 @@ const timeAgo = (iso) => {
 
 const urgencyColor = (iso) => {
   if (!iso) return 'inherit';
-  const diff = Math.floor((Date.now() - new Date(iso + (iso.endsWith('Z') ? '' : 'Z'))) / 60000);
+  const d = new Date(iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z');
+  const diff = Math.floor((Date.now() - d) / 60000);
   if (diff >= 20) return '#EF4444';
   if (diff >= 10) return '#F59E0B';
   return 'inherit';

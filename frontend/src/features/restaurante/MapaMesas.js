@@ -39,7 +39,10 @@ const fmt = (v) =>
 
 const timeAgo = (iso) => {
   if (!iso) return '';
-  const diff = Math.floor((Date.now() - new Date(iso + (iso.endsWith('Z') ? '' : 'Z'))) / 60000);
+  // Handle both naive datetimes (no tz info) and aware ones (+00:00 / Z)
+  const d = new Date(iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z');
+  const diff = Math.floor((Date.now() - d) / 60000);
+  if (isNaN(diff) || diff < 0) return '—';
   if (diff < 1) return 'ahora';
   if (diff < 60) return `${diff}min`;
   return `${Math.floor(diff / 60)}h${diff % 60 > 0 ? ` ${diff % 60}min` : ''}`;
@@ -138,7 +141,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
       return [...prev, {
         producto_id: prod.id,
         nombre_producto: prod.nombre,
-        precio_unitario: prod.precio_venta,
+        precio_unitario: prod.precio,
         cantidad: 1,
         notas: '',
         area_cocina: config?.areas_cocina?.[0] || 'Cocina general',
@@ -353,7 +356,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Typography fontSize={12.5} fontWeight={600} noWrap sx={{ flex: 1 }}>{prod.nombre}</Typography>
                       <Typography fontSize={12} fontWeight={700} color="#FF6020" sx={{ ml: 0.5, flexShrink: 0 }}>
-                        {fmt(prod.precio_venta)}
+                        {fmt(prod.precio)}
                       </Typography>
                     </Box>
                     {prod.categoria && (
@@ -499,7 +502,7 @@ export default function MapaMesas({ user }) {
         apiClient.get('/restaurante/config'),
       ]);
       setMesas(mRes.data);
-      setProductos(pRes.data.filter ? pRes.data.filter(p => p.precio_venta > 0) : pRes.data);
+      setProductos(pRes.data.filter ? pRes.data.filter(p => p.precio > 0) : pRes.data);
       setConfig(cRes.data);
     } catch {
       toast.error('Error al cargar el mapa de mesas');
