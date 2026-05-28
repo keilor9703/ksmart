@@ -131,9 +131,9 @@ const ComandaCard = ({ comanda, onAdvance, advancing }) => {
           <Typography sx={{ color: '#fff', fontWeight: 800, fontSize: 18 }}>
             Mesa {comanda.mesa_numero}
           </Typography>
-          {comanda.mesa_nombre && (
+          {comanda.mesa_zona && (
             <Typography sx={{ color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>
-              ({comanda.mesa_nombre})
+              {comanda.mesa_zona}
             </Typography>
           )}
         </Box>
