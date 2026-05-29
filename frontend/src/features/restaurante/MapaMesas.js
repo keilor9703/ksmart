@@ -168,7 +168,19 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
     });
   };
 
+  const [notaAbierta, setNotaAbierta] = useState(null); // producto_id con nota expandida
+
   const removeSelected = (pid) => setSelectedItems(prev => prev.filter(i => i.producto_id !== pid));
+
+  const updateCantidad = (pid, delta) => {
+    setSelectedItems(prev =>
+      prev.map(i => i.producto_id === pid ? { ...i, cantidad: Math.max(1, i.cantidad + delta) } : i)
+    );
+  };
+
+  const updateNota = (pid, nota) => {
+    setSelectedItems(prev => prev.map(i => i.producto_id === pid ? { ...i, notas: nota } : i));
+  };
 
   const handleEnviarCocina = async () => {
     if (!selectedItems.length) return;
@@ -318,7 +330,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
           sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: 14 } }} />
       </Box>
 
-      <Box sx={{ flex: 1, overflowY: 'auto', p: 1.5, pb: selectedItems.length > 0 ? 10 : 1.5 }}>
+      <Box sx={{ flex: 1, overflowY: 'auto', p: 1.5, pb: selectedItems.length > 0 ? (isMobile ? '60vh' : '48vh') : 1.5 }}>
         {productosFiltrados.length === 0 ? (
           <Typography fontSize={13} color="text.disabled" textAlign="center" sx={{ mt: 4 }}>Sin productos</Typography>
         ) : (
@@ -345,7 +357,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
         )}
       </Box>
 
-      {/* Carrito flotante */}
+      {/* Carrito — ítems seleccionados para enviar */}
       {selectedItems.length > 0 && (
         <Box sx={{
           position: isMobile ? 'fixed' : 'sticky',
@@ -353,19 +365,101 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
           bgcolor: theme.palette.background.paper,
           borderTop: `2px solid ${alpha('#059669', 0.3)}`,
           p: 1.5, zIndex: 10,
-          boxShadow: '0 -4px 16px rgba(0,0,0,0.12)',
+          boxShadow: '0 -4px 20px rgba(0,0,0,0.14)',
+          maxHeight: isMobile ? '55vh' : '45vh',
+          overflowY: 'auto',
         }}>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6, mb: 1 }}>
+          <Typography fontSize={11} fontWeight={700} color="text.secondary" textTransform="uppercase"
+            letterSpacing={0.8} mb={1}>
+            Para enviar ({selectedItems.reduce((a, i) => a + i.cantidad, 0)} ítems)
+          </Typography>
+
+          <Stack spacing={0.8} mb={1.2}>
             {selectedItems.map(it => (
-              <Chip
-                key={it.producto_id}
-                label={`${it.cantidad}× ${it.nombre_producto}`}
-                size="small"
-                onDelete={() => removeSelected(it.producto_id)}
-                sx={{ fontSize: 12, bgcolor: alpha('#059669', 0.1), color: '#059669', maxWidth: '100%' }}
-              />
+              <Box key={it.producto_id} sx={{
+                borderRadius: 2,
+                border: `1px solid ${alpha('#059669', notaAbierta === it.producto_id ? 0.5 : 0.15)}`,
+                bgcolor: alpha('#059669', 0.04),
+                overflow: 'hidden',
+              }}>
+                {/* Fila principal */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.8 }}>
+                  {/* Nombre */}
+                  <Typography fontSize={13} fontWeight={600} sx={{ flex: 1, minWidth: 0 }} noWrap>
+                    {it.nombre_producto}
+                  </Typography>
+
+                  {/* Controles de cantidad */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, flexShrink: 0 }}>
+                    <IconButton size="small" onClick={() => updateCantidad(it.producto_id, -1)}
+                      sx={{ width: 24, height: 24, bgcolor: alpha('#000', 0.06), borderRadius: 1, p: 0 }}>
+                      <Typography fontSize={16} lineHeight={1} sx={{ userSelect: 'none' }}>−</Typography>
+                    </IconButton>
+                    <Typography fontSize={13} fontWeight={700} sx={{ minWidth: 20, textAlign: 'center' }}>
+                      {it.cantidad}
+                    </Typography>
+                    <IconButton size="small" onClick={() => updateCantidad(it.producto_id, 1)}
+                      sx={{ width: 24, height: 24, bgcolor: alpha('#059669', 0.12), borderRadius: 1, p: 0 }}>
+                      <Typography fontSize={16} lineHeight={1} sx={{ color: '#059669', userSelect: 'none' }}>+</Typography>
+                    </IconButton>
+                  </Box>
+
+                  {/* Botón nota */}
+                  <Tooltip title={it.notas ? `Nota: ${it.notas}` : 'Agregar nota'}>
+                    <IconButton size="small"
+                      onClick={() => setNotaAbierta(n => n === it.producto_id ? null : it.producto_id)}
+                      sx={{ p: 0.3, color: it.notas ? '#F59E0B' : 'text.disabled' }}>
+                      <Note sx={{ fontSize: 17 }} />
+                    </IconButton>
+                  </Tooltip>
+
+                  {/* Eliminar */}
+                  <IconButton size="small" onClick={() => removeSelected(it.producto_id)}
+                    sx={{ p: 0.3, color: '#EF4444' }}>
+                    <Close sx={{ fontSize: 15 }} />
+                  </IconButton>
+                </Box>
+
+                {/* Campo de nota inline (se expande al tocar el ícono) */}
+                {notaAbierta === it.producto_id && (
+                  <Box sx={{ px: 1, pb: 1 }}>
+                    <TextField
+                      autoFocus
+                      size="small"
+                      fullWidth
+                      placeholder="Ej: sin sal, sin cebolla, punto de cocción..."
+                      value={it.notas || ''}
+                      onChange={e => updateNota(it.producto_id, e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') setNotaAbierta(null); }}
+                      InputProps={{
+                        startAdornment: (
+                          <Typography fontSize={13} sx={{ mr: 0.5, color: '#F59E0B' }}>📝</Typography>
+                        ),
+                      }}
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 1.5, fontSize: 13,
+                          '& fieldset': { borderColor: alpha('#F59E0B', 0.5) },
+                          '&:hover fieldset': { borderColor: '#F59E0B' },
+                          '&.Mui-focused fieldset': { borderColor: '#F59E0B' },
+                        },
+                      }}
+                    />
+                  </Box>
+                )}
+
+                {/* Badge de nota activa */}
+                {it.notas && notaAbierta !== it.producto_id && (
+                  <Box sx={{ px: 1, pb: 0.6 }}>
+                    <Typography fontSize={11} sx={{ color: '#F59E0B', fontStyle: 'italic' }}>
+                      📝 {it.notas}
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
             ))}
-          </Box>
+          </Stack>
+
           <Button fullWidth variant="contained" onClick={handleEnviarCocina} disabled={loading}
             startIcon={loading ? <CircularProgress size={15} color="inherit" /> : <Send />}
             sx={{ borderRadius: 2, fontWeight: 800, fontSize: 14, py: 1.1, bgcolor: '#059669', '&:hover': { bgcolor: '#047857' } }}>
