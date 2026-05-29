@@ -650,25 +650,33 @@ export default function MapaMesas({ user }) {
       )}
 
       {/* Dialog: Gestionar comanda activa */}
-      {mesaSeleccionada && panelMode === 'comanda' && mesaSeleccionada.comanda_activa && (
-        <Dialog
-          open fullWidth maxWidth="md"
-          fullScreen={isMobile}
-          PaperProps={{ sx: { borderRadius: isMobile ? 0 : 4, overflow: 'hidden', height: isMobile ? '100%' : '88vh' } }}
-          onClose={() => { setMesaSeleccionada(null); setPanelMode(null); fetchAll(true); }}
-        >
-          <ComandaPanel
-            mesa={mesaSeleccionada}
-            comanda={mesaSeleccionada.comanda_activa}
-            productos={productos}
-            config={config}
-            empresa={empresa}
-            vendedor={vendedor}
+      {(() => {
+        // Derivar la mesa desde el estado vivo para que los re-renders
+        // tras fetchAll reflejen los ítems nuevos sin cerrar el dialog
+        const mesaActual = mesaSeleccionada
+          ? (mesas.find(m => m.id === mesaSeleccionada.id) || mesaSeleccionada)
+          : null;
+        if (!mesaActual || panelMode !== 'comanda' || !mesaActual.comanda_activa) return null;
+        return (
+          <Dialog
+            open fullWidth maxWidth="md"
+            fullScreen={isMobile}
+            PaperProps={{ sx: { borderRadius: isMobile ? 0 : 4, overflow: 'hidden', height: isMobile ? '100%' : '88vh' } }}
             onClose={() => { setMesaSeleccionada(null); setPanelMode(null); fetchAll(true); }}
-            onSuccess={() => fetchAll(true)}
-          />
-        </Dialog>
-      )}
+          >
+            <ComandaPanel
+              mesa={mesaActual}
+              comanda={mesaActual.comanda_activa}
+              productos={productos}
+              config={config}
+              empresa={empresa}
+              vendedor={vendedor}
+              onClose={() => { setMesaSeleccionada(null); setPanelMode(null); fetchAll(true); }}
+              onSuccess={() => fetchAll(true)}
+            />
+          </Dialog>
+        );
+      })()}
     </Box>
   );
 }
