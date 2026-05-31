@@ -30,13 +30,7 @@ def registrar_nuevo_cliente(data: schemas.RegistroSaaS, db: Session = Depends(ge
         if existing_email:
             raise HTTPException(status_code=400, detail="Este correo ya está registrado. ¿Quieres iniciar sesión?")
 
-    tipos = data.tipos_negocio if data.tipos_negocio else ["erp"]
-    modulos_set: set = set()
-    for t in tipos:
-        modulos_set.update(PERFILES.get(t, []))
-    if not modulos_set:
-        modulos_set.update(PERFILES["erp"])
-    modulos = list(modulos_set)
+    modulos = PERFILES.get(data.tipo_negocio, PERFILES["erp"])
 
     try:
         nueva_emp = models.Empresa(
