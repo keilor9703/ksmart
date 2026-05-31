@@ -1015,7 +1015,7 @@ def run_migrations():
 
             # V61 - Módulos de restaurante en tabla modulos
             migration_v61 = "v61_modulos_restaurante"
-            if not _is_migration_applied(conn, migration_v61):
+            if not _migration_already_applied(conn, migration_v61):
                 conn.execute(text("""
                     INSERT INTO modulos (name, description, frontend_path)
                     VALUES
