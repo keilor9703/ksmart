@@ -109,6 +109,9 @@ def initialize_default_data(db: Session):
         {"name": "Gestión Usuarios",     "description": "Administración de usuarios y roles.",               "frontend_path": "/admin/usuarios"},
         {"name": "Catálogo Virtual",     "description": "Tienda virtual con pedidos por WhatsApp.",          "frontend_path": "/admin/catalogo"},
         {"name": "Pedidos Virtuales",    "description": "Gestión de pedidos recibidos desde la tienda virtual.", "frontend_path": "/pedidos-virtuales"},
+        {"name": "Mapa de Mesas",        "description": "Gestión de mesas y comandas del restaurante.",      "frontend_path": "/restaurante"},
+        {"name": "Pantalla Cocina",      "description": "Pantalla de órdenes para el área de cocina.",       "frontend_path": "/restaurante/cocina"},
+        {"name": "Config Restaurante",   "description": "Configuración de áreas y mesas.",                   "frontend_path": "/restaurante/config"},
     ]
 
     admin_role = crud.get_role_by_name(db, name="Admin", empresa_id=empresa_default.id)

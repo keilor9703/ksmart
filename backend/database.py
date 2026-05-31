@@ -1013,6 +1013,20 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v60)
                 logger.info("V60 (va_a_cocina en ítems de comanda) aplicada.")
 
+            # V61 - Módulos de restaurante en tabla modulos
+            migration_v61 = "v61_modulos_restaurante"
+            if not _is_migration_applied(conn, migration_v61):
+                conn.execute(text("""
+                    INSERT INTO modulos (name, description, frontend_path)
+                    VALUES
+                      ('Mapa de Mesas',     'Gestión de mesas y comandas del restaurante.', '/restaurante'),
+                      ('Pantalla Cocina',   'Pantalla de órdenes para el área de cocina.',  '/restaurante/cocina'),
+                      ('Config Restaurante','Configuración de áreas y mesas.',               '/restaurante/config')
+                    ON CONFLICT (frontend_path) DO NOTHING
+                """))
+                _mark_migration_applied(conn, migration_v61)
+                logger.info("V61 (módulos restaurante insertados) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
