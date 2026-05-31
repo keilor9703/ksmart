@@ -15,7 +15,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from pydantic import BaseModel
 
+import crud
 import models
+import schemas
 from api.deps import get_db, get_current_active_user, get_current_admin_user
 
 router = APIRouter()
@@ -69,6 +71,7 @@ def _ser_item(i: models.ComandaItem) -> dict:
         "cantidad": i.cantidad, "precio_unitario": i.precio_unitario,
         "subtotal": i.subtotal, "notas": i.notas,
         "area_cocina": i.area_cocina, "estado": i.estado,
+        "va_a_cocina": i.va_a_cocina,
         "timestamp_pedido": i.timestamp_pedido.isoformat() if i.timestamp_pedido else None,
         "timestamp_listo": i.timestamp_listo.isoformat() if i.timestamp_listo else None,
     }
@@ -350,10 +353,14 @@ def agregar_items(
 
     for it in items:
         area = it.area_cocina
-        # Auto-asignar área si el producto tiene categoría configurada
-        if not area and it.producto_id:
+        va_a_cocina = True  # default: va a cocina
+
+        if it.producto_id:
             prod = db.query(models.Producto).filter(models.Producto.id == it.producto_id).first()
-            area = areas[0] if areas else "Cocina general"
+            if prod:
+                va_a_cocina = prod.requiere_cocina
+                if not area and va_a_cocina:
+                    area = areas[0] if areas else "Cocina general"
 
         nuevo = models.ComandaItem(
             comanda_id=comanda.id,
@@ -363,7 +370,8 @@ def agregar_items(
             precio_unitario=it.precio_unitario,
             subtotal=round(it.cantidad * it.precio_unitario, 2),
             notas=it.notas,
-            area_cocina=area or (areas[0] if areas else "Cocina general"),
+            area_cocina=area or (areas[0] if areas else None),
+            va_a_cocina=va_a_cocina,
         )
         db.add(nuevo)
 
@@ -486,6 +494,29 @@ def cerrar_comanda(
     comanda.mesa.estado = "libre"
 
     db.commit()
+
+    # Movimientos de inventario solo para ítems que NO son de cocina (bebidas, snacks, etc.)
+    for item in comanda.items:
+        if item.estado == "cancelado" or not item.producto_id:
+            continue
+        if item.va_a_cocina:
+            continue  # Platos y preparados: sin movimiento de inventario
+        prod = crud.get_producto(db, empresa_id=user.empresa_id, producto_id=item.producto_id)
+        if not prod or prod.es_servicio:
+            continue
+        try:
+            crud.create_movement(db, empresa_id=user.empresa_id, payload=schemas.InventoryMovementCreate(
+                producto_id=item.producto_id,
+                tipo=schemas.MovementType.salida,
+                cantidad=item.cantidad,
+                costo_unitario=prod.costo or 0.0,
+                motivo="venta restaurante",
+                referencia=f"venta #{venta.id}",
+                usuario_id=user.id,
+            ))
+        except ValueError:
+            pass  # Stock insuficiente: registrar venta igual, ajustar inventario aparte
+
     return {
         "status": "ok",
         "venta_id": venta.id,
@@ -529,6 +560,7 @@ def pantalla_cocina(
         models.Comanda.empresa_id == user.empresa_id,
         models.Comanda.estado.in_(["enviada", "lista", "abierta"]),
         models.ComandaItem.estado.in_(["pendiente", "en_preparacion"]),
+        models.ComandaItem.va_a_cocina == True,
     )
     if area:
         q = q.filter(models.ComandaItem.area_cocina == area)

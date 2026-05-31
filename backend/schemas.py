@@ -257,6 +257,7 @@ class GrupoProductoBase(BaseModel):
     codigo: str
     color: str = '#94a3b8'
     orden: int = 99
+    requiere_cocina: bool = False
 
 class GrupoProductoCreate(GrupoProductoBase):
     pass
@@ -266,6 +267,7 @@ class GrupoProductoUpdate(BaseModel):
     codigo: Optional[str] = None
     color: Optional[str] = None
     orden: Optional[int] = None
+    requiere_cocina: Optional[bool] = None
 
 class GrupoProductoOut(GrupoProductoBase):
     id: int
@@ -364,6 +366,7 @@ class Producto(ProductoBase):
     tiene_variantes: bool = False
     variantes: List['ProductoVarianteOut'] = []
     impuesto: Optional[ImpuestoInfo] = None
+    requiere_cocina: bool = False
     model_config = ConfigDict(from_attributes=True)
 
 class MovementType(str, Enum):

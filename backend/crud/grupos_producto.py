@@ -4,10 +4,11 @@ import models, schemas
 
 
 GRUPOS_PREDEFINIDOS = [
-    {"id": 1, "nombre": "Materia Prima",       "codigo": "MP",  "color": "#3B82F6", "orden": 1},
-    {"id": 2, "nombre": "Producto Terminado",  "codigo": "PT",  "color": "#10B981", "orden": 2},
-    {"id": 3, "nombre": "Activo Fijo",         "codigo": "AF",  "color": "#F59E0B", "orden": 3},
-    {"id": 4, "nombre": "Insumos",             "codigo": "INS", "color": "#8B5CF6", "orden": 4},
+    {"id": 1, "nombre": "Materia Prima",       "codigo": "MP",    "color": "#3B82F6", "orden": 1, "requiere_cocina": False},
+    {"id": 2, "nombre": "Producto Terminado",  "codigo": "PT",    "color": "#10B981", "orden": 2, "requiere_cocina": False},
+    {"id": 3, "nombre": "Activo Fijo",         "codigo": "AF",    "color": "#F59E0B", "orden": 3, "requiere_cocina": False},
+    {"id": 4, "nombre": "Insumos",             "codigo": "INS",   "color": "#8B5CF6", "orden": 4, "requiere_cocina": False},
+    {"id": 5, "nombre": "Platos y Preparados", "codigo": "PLATO", "color": "#EC4899", "orden": 5, "requiere_cocina": True},
 ]
 
 
@@ -47,6 +48,7 @@ def create_grupo(db: Session, empresa_id: int, data: schemas.GrupoProductoCreate
         color=data.color,
         orden=data.orden,
         es_predefinido=False,
+        requiere_cocina=data.requiere_cocina,
     )
     db.add(grupo)
     db.commit()
@@ -74,6 +76,8 @@ def update_grupo(db: Session, empresa_id: int, grupo_id: int, data: schemas.Grup
         grupo.color = data.color
     if data.orden is not None:
         grupo.orden = data.orden
+    if data.requiere_cocina is not None:
+        grupo.requiere_cocina = data.requiere_cocina
     db.commit()
     db.refresh(grupo)
     return grupo
@@ -125,9 +129,10 @@ def resolve_grupo_by_name(db: Session, empresa_id: int, name_or_code: str) -> in
         if g.codigo.upper() == val or g.nombre.upper() == val:
             return g.id
     # fallback mapping for legacy values
-    legacy = {"1": 1, "2": 2, "3": 3, "4": 4,
+    legacy = {"1": 1, "2": 2, "3": 3, "4": 4, "5": 5,
                "MP": 1, "MATERIA": 1, "MATERIA PRIMA": 1,
                "PT": 2, "TERMINADO": 2, "PRODUCTO TERMINADO": 2,
                "AF": 3, "ACTIVO": 3, "ACTIVO FIJO": 3,
-               "INS": 4, "INSUMO": 4, "INSUMOS": 4}
+               "INS": 4, "INSUMO": 4, "INSUMOS": 4,
+               "PLATO": 5, "PLATOS": 5, "PREPARADO": 5, "COCINA": 5}
     return legacy.get(val, 2)

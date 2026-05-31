@@ -56,6 +56,8 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
             prod = crud.get_producto(db, empresa_id=empresa_id, producto_id=det.producto_id)
             if getattr(prod, "es_servicio", False):
                 continue
+            if getattr(prod, "requiere_cocina", False):
+                continue  # Platos y preparados: sin movimiento de inventario
             if getattr(prod, "maneja_lotes", False):
                 lotes_disponibles = crud.get_lotes_fefo(db, empresa_id=empresa_id, producto_id=det.producto_id)
                 if lotes_disponibles:
