@@ -1027,6 +1027,18 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v61)
                 logger.info("V61 (módulos restaurante insertados) aplicada.")
 
+            # V62 - Columnas faltantes en inventory_movements
+            migration_v62 = "v62_inventory_movements_columns"
+            if not _migration_already_applied(conn, migration_v62):
+                conn.execute(text("""
+                    ALTER TABLE inventory_movements
+                      ADD COLUMN IF NOT EXISTS usuario_id  INTEGER REFERENCES users(id),
+                      ADD COLUMN IF NOT EXISTS lote_id     INTEGER REFERENCES lotes_existencias(id),
+                      ADD COLUMN IF NOT EXISTS numero_lote VARCHAR(100)
+                """))
+                _mark_migration_applied(conn, migration_v62)
+                logger.info("V62 (inventory_movements: usuario_id, lote_id, numero_lote) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
