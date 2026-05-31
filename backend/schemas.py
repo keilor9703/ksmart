@@ -257,6 +257,7 @@ class GrupoProductoBase(BaseModel):
     codigo: str
     color: str = '#94a3b8'
     orden: int = 99
+    requiere_cocina: bool = False
 
 class GrupoProductoCreate(GrupoProductoBase):
     pass
@@ -266,6 +267,7 @@ class GrupoProductoUpdate(BaseModel):
     codigo: Optional[str] = None
     color: Optional[str] = None
     orden: Optional[int] = None
+    requiere_cocina: Optional[bool] = None
 
 class GrupoProductoOut(GrupoProductoBase):
     id: int
@@ -364,6 +366,7 @@ class Producto(ProductoBase):
     tiene_variantes: bool = False
     variantes: List['ProductoVarianteOut'] = []
     impuesto: Optional[ImpuestoInfo] = None
+    requiere_cocina: bool = False
     model_config = ConfigDict(from_attributes=True)
 
 class MovementType(str, Enum):
@@ -1129,7 +1132,7 @@ class RegistroSaaS(BaseModel):
     # ── Negocio (paso 1) ─────────────────────────────────────────────────────
     nombre_empresa:  str = Field(..., min_length=2, max_length=120)
     nit:             Optional[str] = Field(None, max_length=20) # ✨ NUEVO
-    tipos_negocio:   List[str] = Field(["erp"], description="erp | prestamos | parqueadero | lavadero | restaurante")
+    tipo_negocio:    str = Field("erp", description="erp | prestamos | parqueadero | lavadero | restaurante")
     pais:            Optional[str] = Field(None, max_length=4,  description="Código país: CO, MX, PE…")
     ciudad:          Optional[str] = Field(None, max_length=80)
     tamano_negocio:  Optional[str] = Field(None, description="solo | pequeno | mediano | grande")
@@ -1144,7 +1147,7 @@ class RegistroSaaS(BaseModel):
     # ── Marketing (opcional) ─────────────────────────────────────────────────
     origen:          Optional[str] = Field(None, max_length=60)
 
-    @validator('tipos_negocio', each_item=True)
+    @validator('tipo_negocio')
     def _tipo_valido(cls, v):
         validos = {'erp', 'prestamos', 'parqueadero', 'lavadero', 'restaurante'}
         if v not in validos:

@@ -410,7 +410,7 @@ const Login = ({ onLogin }) => {
         regData.ciudad.trim().length >= 2 &&
         regData.pais &&
         regData.tamano_negocio &&
-        (regData.tipos_negocio || []).length > 0;
+        !!regData.tipo_negocio;
 
     const canSubmitStep2 = () =>
         regData.nombre_completo.trim().length >= 3 &&
@@ -869,62 +869,40 @@ const Login = ({ onLogin }) => {
                                 {/* ──────── PASO 1 — Negocio ──────── */}
                                 {regStep === 1 && (
                                     <>
-                                        <Box>
-                                            <Typography sx={{
-                                                fontSize: 11, fontWeight: 700, color: '#64748b',
-                                                letterSpacing: 1.4, textTransform: 'uppercase', mb: 1,
-                                            }}>
-                                                ¿Qué tipo de negocio tienes? <Box component="span" sx={{ color: '#94a3b8', fontSize: 10, textTransform: 'none', letterSpacing: 0 }}>(puedes elegir varios)</Box>
-                                            </Typography>
-                                            <Grid container spacing={1.5}>
+                                        <TextField
+                                            select fullWidth required
+                                            label="Tipo de negocio"
+                                            className="orange-field" sx={fieldSx}
+                                            value={regData.tipo_negocio}
+                                            onChange={updateReg('tipo_negocio')}
+                                            SelectProps={{
+                                                MenuProps: {
+                                                    PaperProps: {
+                                                        sx: { bgcolor: '#1e293b', color: '#f1f5f9' },
+                                                    },
+                                                },
+                                            }}
+                                        >
                                             {[
-                                                { key: 'erp',          label: 'Comercio / ERP',  Icon: Storefront,       desc: 'Ventas e Inventario'  },
-                                                { key: 'prestamos',    label: 'Cobranzas',        Icon: AttachMoney,      desc: 'Rutas de Cobro'       },
-                                                { key: 'parqueadero',  label: 'Parqueadero',      Icon: LocalParking,     desc: 'Control vehículos'    },
-                                                { key: 'lavadero',     label: 'Lavadero',         Icon: LocalCarWash,     desc: 'POS + productividad'  },
-                                                { key: 'restaurante',  label: 'Restaurante',      Icon: TableRestaurant,  desc: 'Mesas y comandas'     },
-                                            ].map(({ key, label, Icon, desc }) => {
-                                                const selected = (regData.tipos_negocio || []).includes(key);
-                                                return (
-                                                <Grid item xs={6} key={key}>
-                                                    <Card sx={{
-                                                        border: selected
-                                                            ? '2px solid #ea580c'
-                                                            : '2px solid rgba(148,163,184,0.1)',
-                                                        bgcolor: selected
-                                                            ? 'rgba(234,88,12,0.1)'
-                                                            : 'rgba(241,245,249,0.04)',
-                                                        transition: 'all 0.2s',
-                                                        borderRadius: 2.5,
-                                                        position: 'relative',
-                                                    }}>
-                                                        {selected && (
-                                                            <CheckCircle sx={{
-                                                                position: 'absolute', top: 6, right: 6,
-                                                                fontSize: 15, color: '#ea580c', zIndex: 1,
-                                                            }} />
-                                                        )}
-                                                        <CardActionArea
-                                                            onClick={() => toggleTipoNegocio(key)}
-                                                            sx={{ p: 1.8, textAlign: 'center', color: '#f1f5f9' }}
-                                                        >
-                                                            <Icon sx={{
-                                                                color: selected ? '#ea580c' : '#64748b',
-                                                                fontSize: 26, mb: 0.5,
-                                                            }} />
-                                                            <Typography variant="subtitle2" fontWeight={700} fontSize={12}>
-                                                                {label}
-                                                            </Typography>
-                                                            <Typography sx={{ fontSize: 10, color: '#64748b', mt: 0.2 }}>
-                                                                {desc}
-                                                            </Typography>
-                                                        </CardActionArea>
-                                                    </Card>
-                                                </Grid>
-                                                );
-                                            })}
-                                            </Grid>
-                                        </Box>
+                                                { key: 'erp',         label: 'Comercio / ERP',  Icon: Storefront,      desc: 'Ventas, inventario y clientes',  color: '#f97316' },
+                                                { key: 'prestamos',   label: 'Cobranzas',        Icon: AttachMoney,     desc: 'Préstamos y rutas de cobro',     color: '#22c55e' },
+                                                { key: 'parqueadero', label: 'Parqueadero',      Icon: LocalParking,    desc: 'Suscripciones y accesos',        color: '#3b82f6' },
+                                                { key: 'lavadero',    label: 'Lavadero',         Icon: LocalCarWash,    desc: 'POS y productividad',            color: '#8b5cf6' },
+                                                { key: 'restaurante', label: 'Restaurante',      Icon: TableRestaurant, desc: 'Mesas, comandas y cocina',       color: '#ec4899' },
+                                            ].map(({ key, label, Icon, desc, color }) => (
+                                                <MenuItem key={key} value={key} sx={{ color: '#f1f5f9', py: 1.2 }}>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                                        <Box sx={{ width: 30, height: 30, borderRadius: 1.5, bgcolor: `${color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                            <Icon sx={{ fontSize: 17, color }} />
+                                                        </Box>
+                                                        <Box>
+                                                            <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9', lineHeight: 1.2 }}>{label}</Typography>
+                                                            <Typography sx={{ fontSize: 11, color: '#64748b', lineHeight: 1.2 }}>{desc}</Typography>
+                                                        </Box>
+                                                    </Box>
+                                                </MenuItem>
+                                            ))}
+                                        </TextField>
 
                                         <TextField
                                             fullWidth label="Nombre del Negocio" required

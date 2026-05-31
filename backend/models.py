@@ -250,6 +250,7 @@ class GrupoProducto(Base):
     color          = Column(String(20), default='#94a3b8')
     es_predefinido = Column(Boolean, default=False)
     orden          = Column(Integer, default=99)
+    requiere_cocina = Column(Boolean, default=False)  # True → platos preparados; no genera mov. inventario
 
     empresa = relationship("Empresa")
 
@@ -282,6 +283,11 @@ class Producto(Base, TenantMixin):
     tiene_variantes = Column(Boolean, default=False)
     variantes = relationship("ProductoVariante", back_populates="producto", cascade="all, delete-orphan")
     lotes = relationship("LoteExistencia", back_populates="producto", cascade="all, delete-orphan")
+    grupo = relationship("GrupoProducto", foreign_keys=[grupo_item], primaryjoin="Producto.grupo_item == GrupoProducto.id", lazy="joined")
+
+    @property
+    def requiere_cocina(self) -> bool:
+        return bool(self.grupo and self.grupo.requiere_cocina)
 
 class ProductoVariante(Base, TenantMixin):
     __tablename__ = "producto_variantes"
@@ -1311,6 +1317,7 @@ class ComandaItem(Base):
     notas           = Column(String(300), nullable=True)       # "sin cebolla", "extra picante"
     area_cocina     = Column(String(60), nullable=True)        # "Parrilla", "Bebidas", "Postres"
     estado          = Column(String(20), default="pendiente")  # pendiente | en_preparacion | listo | entregado | cancelado
+    va_a_cocina     = Column(Boolean, default=True)  # False → bebidas/snacks, no aparece en pantalla cocina
     timestamp_pedido = Column(DateTime(timezone=True), default=utcnow)
     timestamp_listo  = Column(DateTime(timezone=True), nullable=True)
 

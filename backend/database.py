@@ -966,6 +966,53 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v55)
                 logger.info("V55 (PIN de acceso rápido) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V59 - GRUPOS CON BANDERA requiere_cocina + grupo Platos
+            # ═══════════════════════════════════════════════════════════════
+            migration_v59 = "inv_v59_grupos_requiere_cocina"
+            if not _migration_already_applied(conn, migration_v59):
+                # Añadir columna a grupos_producto
+                if not _column_exists(conn, "grupos_producto", "requiere_cocina"):
+                    if IS_SQLITE:
+                        conn.execute(text("ALTER TABLE grupos_producto ADD COLUMN requiere_cocina BOOLEAN NOT NULL DEFAULT 0"))
+                    else:
+                        conn.execute(text("ALTER TABLE grupos_producto ADD COLUMN requiere_cocina BOOLEAN NOT NULL DEFAULT FALSE"))
+                    logger.info("V59: añadida grupos_producto.requiere_cocina")
+
+                # Insertar grupo predefinido id=5 "Platos y Preparados" si no existe
+                existe_plato = conn.execute(text("SELECT COUNT(*) FROM grupos_producto WHERE id = 5")).scalar()
+                if not existe_plato:
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            INSERT INTO grupos_producto(id, empresa_id, nombre, codigo, color, es_predefinido, orden, requiere_cocina)
+                            VALUES(5, NULL, 'Platos y Preparados', 'PLATO', '#EC4899', 1, 5, 1)
+                        """))
+                    else:
+                        conn.execute(text("""
+                            INSERT INTO grupos_producto(id, empresa_id, nombre, codigo, color, es_predefinido, orden, requiere_cocina)
+                            VALUES(5, NULL, 'Platos y Preparados', 'PLATO', '#EC4899', TRUE, 5, TRUE)
+                            ON CONFLICT (id) DO NOTHING
+                        """))
+                        conn.execute(text("SELECT setval('grupos_producto_id_seq', 5, true)"))
+                    logger.info("V59: grupo predefinido 'Platos y Preparados' (id=5) insertado")
+
+                _mark_migration_applied(conn, migration_v59)
+                logger.info("V59 (requiere_cocina en grupos de producto) aplicada.")
+
+            # ═══════════════════════════════════════════════════════════════
+            # V60 - ComandaItem.va_a_cocina
+            # ═══════════════════════════════════════════════════════════════
+            migration_v60 = "inv_v60_comanda_item_va_a_cocina"
+            if not _migration_already_applied(conn, migration_v60):
+                if not _column_exists(conn, "restaurante_comanda_items", "va_a_cocina"):
+                    if IS_SQLITE:
+                        conn.execute(text("ALTER TABLE restaurante_comanda_items ADD COLUMN va_a_cocina BOOLEAN NOT NULL DEFAULT 1"))
+                    else:
+                        conn.execute(text("ALTER TABLE restaurante_comanda_items ADD COLUMN va_a_cocina BOOLEAN NOT NULL DEFAULT TRUE"))
+                    logger.info("V60: añadida restaurante_comanda_items.va_a_cocina")
+                _mark_migration_applied(conn, migration_v60)
+                logger.info("V60 (va_a_cocina en ítems de comanda) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

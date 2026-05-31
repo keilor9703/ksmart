@@ -37,6 +37,7 @@ const CatalogoVirtual = () => {
     }
   }, []);
 
+
   // ── Local theme mode — independent of system/app preference ──────────
   const [catMode, setCatMode] = useState(() =>
     localStorage.getItem(`cat_theme_${slug}`) || 'light'
