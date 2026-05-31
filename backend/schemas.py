@@ -1129,7 +1129,7 @@ class RegistroSaaS(BaseModel):
     # ── Negocio (paso 1) ─────────────────────────────────────────────────────
     nombre_empresa:  str = Field(..., min_length=2, max_length=120)
     nit:             Optional[str] = Field(None, max_length=20) # ✨ NUEVO
-    tipo_negocio:    str = Field("erp", description="erp | prestamos")
+    tipo_negocio:    str = Field("erp", description="erp | prestamos | parqueadero | lavadero | restaurante")
     pais:            Optional[str] = Field(None, max_length=4,  description="Código país: CO, MX, PE…")
     ciudad:          Optional[str] = Field(None, max_length=80)
     tamano_negocio:  Optional[str] = Field(None, description="solo | pequeno | mediano | grande")
@@ -1146,8 +1146,9 @@ class RegistroSaaS(BaseModel):
 
     @validator('tipo_negocio')
     def _tipo_valido(cls, v):
-        if v not in ('erp', 'prestamos', 'parqueadero', 'lavadero'):
-            raise ValueError('tipo_negocio debe ser "erp", "prestamos", "parqueadero" o "lavadero"')
+        validos = {'erp', 'prestamos', 'parqueadero', 'lavadero', 'restaurante'}
+        if v not in validos:
+            raise ValueError(f'Tipo de negocio inválido: {v}. Válidos: {", ".join(sorted(validos))}')
         return v
 
     @validator('username')
