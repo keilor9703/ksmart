@@ -35,12 +35,31 @@ apiClient.interceptors.request.use(
   }
 );
 
-// ✅ INTERCEPTOR DE RESPUESTA CORREGIDO
-// Se eliminó el window.location.href para evitar el bucle infinito de recargas.
-// Ahora App.js es el único encargado de atajar el 402 y hacer el cambio de pantalla.
+// Interceptor de respuesta: silencia 401s de endpoints no-auth para evitar
+// que componentes montados momentáneamente muestren sus propios mensajes de error
+// cuando la sesión expira. El /users/me sigue propagando su error para que
+// checkAuth en App.js pueda mostrar "Sesión expirada" y redirigir.
+let _sessionExpired = false;
+
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    _sessionExpired = false;
+    return response;
+  },
   (error) => {
+    const url = error.config?.url || '';
+    const status = error.response?.status;
+
+    if (status === 401) {
+      if (url.includes('/users/me')) {
+        // Dejar que checkAuth lo maneje (muestra el toast y redirige)
+        return Promise.reject(error);
+      }
+      // Cualquier otro 401: silenciar completamente
+      _sessionExpired = true;
+      return new Promise(() => {});
+    }
+
     return Promise.reject(error);
   }
 );

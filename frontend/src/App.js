@@ -172,10 +172,20 @@ function App() {
           const status = error.response?.status;
           if (status === 402 || status === 403) {
             setIsAuthenticated(false);
+            setLoading(false);
             navigate('/suscripcion-expirada');
+            return;
           } else {
-            handleLogout(false);
+            localStorage.removeItem('token');
+            localStorage.removeItem('userModules');
+            setIsAuthenticated(false);
+            setUser(null);
             toast.error('Sesión expirada. Por favor inicia sesión nuevamente.');
+            navigate('/login');
+            // Mantener loading=true hasta después de que el router navegue a /login,
+            // para evitar que /:slug renderice momentáneamente con la URL anterior.
+            setTimeout(() => setLoading(false), 50);
+            return;
           }
         }
     } else {

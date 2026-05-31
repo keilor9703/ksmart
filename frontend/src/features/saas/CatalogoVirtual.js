@@ -126,7 +126,10 @@ const CatalogoVirtual = () => {
       // SEO: Título dinámico
       document.title = `${res.data.empresa.nombre} - Catálogo Virtual`;
     } catch (error) {
-      toast.error("Catálogo no encontrado o inactivo.");
+      if (error.response?.status === 404) {
+        toast.error("Catálogo no encontrado o inactivo.");
+      }
+      // Otros errores (auth expirada, red) se manejan globalmente — no mostrar toast aquí
     } finally {
       setLoading(false);
     }
