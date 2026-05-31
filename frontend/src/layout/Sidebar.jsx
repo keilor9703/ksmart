@@ -56,9 +56,10 @@ const Sidebar = ({ expanded, user, hasAccess, onClose, mobile }) => {
         return { path, ...cfg };
       });
     }
+    const adminPaths = new Set(ADMIN_MODULES.map(a => a.path));
     const modulosDelRol = user.role?.modules || [];
     return modulosDelRol
-      .filter(m => hasAccess(m.frontend_path))
+      .filter(m => hasAccess(m.frontend_path) && !adminPaths.has(m.frontend_path))
       .map(m => {
         const cfg = getModuleConfig(m.frontend_path, m.name);
         return {
