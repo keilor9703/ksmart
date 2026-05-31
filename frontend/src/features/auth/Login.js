@@ -12,6 +12,7 @@ import {
     Visibility, VisibilityOff, AlternateEmail, Lock, Business, Person,
     Storefront, AttachMoney, Email, Phone, LocationOn, Group,
     ArrowForward, ArrowBack, CheckCircle, LocalParking, LocalCarWash, Pin,
+    TableRestaurant,
 } from '@mui/icons-material';
 import { Link } from 'react-router-dom';
 
@@ -374,7 +375,7 @@ const Login = ({ onLogin }) => {
     });
 
     const initialRegState = {
-        tipo_negocio:    'erp',
+        tipos_negocio:   ['erp'],
         nombre_empresa:  '',
         nit:             '', 
         pais:            'CO',
@@ -393,13 +394,23 @@ const Login = ({ onLogin }) => {
     const updateReg = (key) => (e) =>
         setRegData((prev) => ({ ...prev, [key]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
 
+    const toggleTipoNegocio = (key) => {
+        setRegData(prev => {
+            const current = prev.tipos_negocio || [];
+            const next = current.includes(key)
+                ? current.filter(k => k !== key)
+                : [...current, key];
+            return { ...prev, tipos_negocio: next.length > 0 ? next : [key] };
+        });
+    };
+
     const canContinueStep1 = () =>
         regData.nombre_empresa.trim().length >= 2 &&
-        regData.nit.trim().length >= 5 && 
+        regData.nit.trim().length >= 5 &&
         regData.ciudad.trim().length >= 2 &&
         regData.pais &&
         regData.tamano_negocio &&
-        regData.tipo_negocio;
+        (regData.tipos_negocio || []).length > 0;
 
     const canSubmitStep2 = () =>
         regData.nombre_completo.trim().length >= 3 &&
@@ -473,10 +484,10 @@ const Login = ({ onLogin }) => {
         try {
             await apiClient.post('/auth/register', {
                 nombre_empresa:  regData.nombre_empresa.trim(),
-                nit:             regData.nit.trim(), 
+                nit:             regData.nit.trim(),
                 username:        regData.username.trim().toLowerCase(),
                 password:        regData.password,
-                tipo_negocio:    regData.tipo_negocio,
+                tipos_negocio:   regData.tipos_negocio,
                 nombre_completo: regData.nombre_completo.trim(),
                 email:           regData.email.trim().toLowerCase(),
                 telefono:        regData.telefono.trim(),
@@ -858,30 +869,47 @@ const Login = ({ onLogin }) => {
                                 {/* ──────── PASO 1 — Negocio ──────── */}
                                 {regStep === 1 && (
                                     <>
-                                        <Grid container spacing={1.5}>
+                                        <Box>
+                                            <Typography sx={{
+                                                fontSize: 11, fontWeight: 700, color: '#64748b',
+                                                letterSpacing: 1.4, textTransform: 'uppercase', mb: 1,
+                                            }}>
+                                                ¿Qué tipo de negocio tienes? <Box component="span" sx={{ color: '#94a3b8', fontSize: 10, textTransform: 'none', letterSpacing: 0 }}>(puedes elegir varios)</Box>
+                                            </Typography>
+                                            <Grid container spacing={1.5}>
                                             {[
-                                                { key: 'erp',         label: 'Comercio / ERP', Icon: Storefront,   desc: 'Ventas e Inventario'  },
-                                                { key: 'prestamos',   label: 'Cobranzas',      Icon: AttachMoney,  desc: 'Rutas de Cobro'       },
-                                                { key: 'parqueadero', label: 'Parqueadero',    Icon: LocalParking, desc: 'Control vehículos'    },
-                                                { key: 'lavadero',    label: 'Lavadero',       Icon: LocalCarWash, desc: 'POS + productividad'  },
-                                            ].map(({ key, label, Icon, desc }) => (
+                                                { key: 'erp',          label: 'Comercio / ERP',  Icon: Storefront,       desc: 'Ventas e Inventario'  },
+                                                { key: 'prestamos',    label: 'Cobranzas',        Icon: AttachMoney,      desc: 'Rutas de Cobro'       },
+                                                { key: 'parqueadero',  label: 'Parqueadero',      Icon: LocalParking,     desc: 'Control vehículos'    },
+                                                { key: 'lavadero',     label: 'Lavadero',         Icon: LocalCarWash,     desc: 'POS + productividad'  },
+                                                { key: 'restaurante',  label: 'Restaurante',      Icon: TableRestaurant,  desc: 'Mesas y comandas'     },
+                                            ].map(({ key, label, Icon, desc }) => {
+                                                const selected = (regData.tipos_negocio || []).includes(key);
+                                                return (
                                                 <Grid item xs={6} key={key}>
                                                     <Card sx={{
-                                                        border: regData.tipo_negocio === key
+                                                        border: selected
                                                             ? '2px solid #ea580c'
                                                             : '2px solid rgba(148,163,184,0.1)',
-                                                        bgcolor: regData.tipo_negocio === key
+                                                        bgcolor: selected
                                                             ? 'rgba(234,88,12,0.1)'
                                                             : 'rgba(241,245,249,0.04)',
                                                         transition: 'all 0.2s',
                                                         borderRadius: 2.5,
+                                                        position: 'relative',
                                                     }}>
+                                                        {selected && (
+                                                            <CheckCircle sx={{
+                                                                position: 'absolute', top: 6, right: 6,
+                                                                fontSize: 15, color: '#ea580c', zIndex: 1,
+                                                            }} />
+                                                        )}
                                                         <CardActionArea
-                                                            onClick={() => setRegData({ ...regData, tipo_negocio: key })}
+                                                            onClick={() => toggleTipoNegocio(key)}
                                                             sx={{ p: 1.8, textAlign: 'center', color: '#f1f5f9' }}
                                                         >
                                                             <Icon sx={{
-                                                                color: regData.tipo_negocio === key ? '#ea580c' : '#64748b',
+                                                                color: selected ? '#ea580c' : '#64748b',
                                                                 fontSize: 26, mb: 0.5,
                                                             }} />
                                                             <Typography variant="subtitle2" fontWeight={700} fontSize={12}>
@@ -893,8 +921,10 @@ const Login = ({ onLogin }) => {
                                                         </CardActionArea>
                                                     </Card>
                                                 </Grid>
-                                            ))}
-                                        </Grid>
+                                                );
+                                            })}
+                                            </Grid>
+                                        </Box>
 
                                         <TextField
                                             fullWidth label="Nombre del Negocio" required

@@ -44,4 +44,9 @@ PERFILES = {
         "/reportes",
         "/admin/usuarios",
     ],
+    "restaurante": [
+        "/restaurante", "/restaurante/cocina", "/restaurante/config",
+        "/ventas", "/productos",
+        "/caja", "/reportes", "/admin/usuarios",
+    ],
 }
