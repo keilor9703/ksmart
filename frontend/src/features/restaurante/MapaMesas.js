@@ -141,7 +141,8 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
   const [search, setSearch] = useState('');
   const [selectedItems, setSelectedItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [reciboData, setReciboData] = useState(null);
+  const [reciboVenta, setReciboVenta] = useState(null);
+  const [reciboOpen, setReciboOpen]   = useState(false);
   const [propina, setPropina] = useState(0);
   const [metodo, setMetodo] = useState('Efectivo');
   const [tab, setTab] = useState(0); // 0=Pedido, 1=Menú (solo móvil)
@@ -215,7 +216,8 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
         total: res.data.total, iva_total: 0, iva_porcentaje: 0,
         monto_pagado: res.data.total, estado_pago: 'pagado', metodo_pago: metodo,
       };
-      setReciboData(ventaSnap);
+      setReciboVenta(ventaSnap);
+      setReciboOpen(true);
       onSuccess();
       toast.success(`Mesa ${mesa.numero} cerrada — Venta #${res.data.venta_id}`);
     } catch (e) {
@@ -229,10 +231,6 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
       onSuccess();
     } catch (e) { toast.error('Error al cancelar ítem'); }
   };
-
-  if (reciboData) {
-    return <ReciboDialog open onClose={() => { setReciboData(null); onClose(); }} venta={reciboData} empresa={empresa} vendedor={vendedor} />;
-  }
 
   // ── Sección de ítems (reutilizada en móvil y desktop) ──────────────────────
   const PedidoContent = (
@@ -690,6 +688,15 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
           </Box>
         </Box>
       )}
+
+      {/* ── Recibo de venta — mismo componente que el módulo de Ventas ── */}
+      <ReciboDialog
+        open={reciboOpen}
+        onClose={() => { setReciboOpen(false); setReciboVenta(null); onClose(); }}
+        venta={reciboVenta}
+        empresa={empresa}
+        vendedor={vendedor}
+      />
     </Box>
   );
 };
