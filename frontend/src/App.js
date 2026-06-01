@@ -49,6 +49,7 @@ const InventarioLotes  = lazy(() => import('./features/inventory/InventarioLotes
 const Cotizaciones     = lazy(() => import('./features/sales/Cotizaciones'));
 const ResolucionesDian = lazy(() => import('./features/dian/ResolucionesDian'));
 const MiSuscripcion    = lazy(() => import('./features/account/MiSuscripcion'));
+const ConfigLinkPago   = lazy(() => import('./features/account/ConfigLinkPago'));
 
 // Catálogo virtual
 const CatalogoConfig   = lazy(() => import('./features/saas/CatalogoConfig'));
@@ -381,7 +382,10 @@ const hasAccess = useCallback((path) => {
                     <Route path="/restaurante/cocina" element={<ProtectedRoute path="/restaurante/cocina" hasAccess={hasAccess}><PantallaCocina  /></ProtectedRoute>} />
                     <Route path="/restaurante/config" element={<ProtectedRoute path="/restaurante/config" hasAccess={hasAccess}><RestauranteConfig /></ProtectedRoute>} />
                     {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (
-                      <Route path="/superadmin/empresas" element={<GestionEmpresas />} />
+                      <>
+                        <Route path="/superadmin/empresas" element={<GestionEmpresas />} />
+                        <Route path="/superadmin/link-pago" element={<ConfigLinkPago />} />
+                      </>
                     )}
                     {user?.role?.name === 'Admin' && (
                       <>

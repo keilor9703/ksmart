@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import {
   AdminPanelSettings, Business, KeyboardArrowRight, WorkspacePremium,
-  PushPin, PushPinOutlined,
+  PushPin, PushPinOutlined, QrCode2,
 } from '@mui/icons-material';
 import { Link, useLocation } from 'react-router-dom';
 import { MODULE_ICONS, ADMIN_MODULES, getModuleConfig } from '../utils/modulesConfig';
@@ -100,6 +100,7 @@ const Sidebar = ({ expanded, user, hasAccess, onClose, mobile, pinned, onPinTogg
         {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (
           <>
             <SidebarItem expanded={expanded} item={{ path: '/superadmin/empresas', label: 'Clientes SaaS', icon: <Business />, color: '#F43F5E' }} active={isActive('/superadmin/empresas')} onClose={mobile ? onClose : undefined} />
+            <SidebarItem expanded={expanded} item={{ path: '/superadmin/link-pago', label: 'Link de Pago POS', icon: <QrCode2 />, color: '#FF6020' }} active={isActive('/superadmin/link-pago')} onClose={mobile ? onClose : undefined} />
             {expanded && <Divider sx={{ mx: 2, my: 1, borderColor: 'rgba(255,255,255,0.06)' }} />}
           </>
         )}

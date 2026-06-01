@@ -51,6 +51,7 @@ import Autorenew from '@mui/icons-material/Autorenew';
 import SettingsSuggest from '@mui/icons-material/SettingsSuggest';
 import HelpOutline from '@mui/icons-material/HelpOutline';
 import Storefront from '@mui/icons-material/Storefront';
+import QrCode2 from '@mui/icons-material/QrCode2';
 
 
 // ─── DICCIONARIO de iconos y colores por frontend_path ────────────────────
@@ -103,6 +104,9 @@ export const MODULE_ICONS = {
   '/restaurante':        { icon: <TableRestaurant />, color: '#F97316', label: 'Mapa de Mesas' },
   '/restaurante/cocina': { icon: <OutdoorGrill />,    color: '#EF4444', label: 'Pantalla Cocina' },
   '/restaurante/config': { icon: <RoomService />,     color: '#8B5CF6', label: 'Config Restaurante' },
+
+  // Superadmin
+  '/superadmin/link-pago': { icon: <QrCode2 />, color: '#FF6020', label: 'Link de Pago POS' },
 };
 
 
