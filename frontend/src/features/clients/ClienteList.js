@@ -12,7 +12,7 @@ import {
 } from '@mui/material';
 import {
   Edit, Delete, History, Search, Person, Business, CreditCard,
-  LocationOn, WhatsApp, Email, FileDownload
+  LocationOn, WhatsApp, Email, FileDownload, Stars,
 } from '@mui/icons-material';
 
 const ACCENT = '#3B82F6';
@@ -37,6 +37,9 @@ const ClienteCard = ({ cliente, onEditCliente, handleDelete, handleViewHistory, 
         </Typography>
         {cliente.es_cliente   && <Chip label="Cliente"   size="small" sx={{ height: 16, fontSize: 9, fontWeight: 700, bgcolor: `${ACCENT}18`, color: ACCENT,  borderRadius: 1 }} />}
         {cliente.es_proveedor && <Chip label="Proveedor" size="small" sx={{ height: 16, fontSize: 9, fontWeight: 700, bgcolor: `${GREEN}18`,  color: GREEN,   borderRadius: 1 }} />}
+        {(cliente.puntos_fidelidad || 0) > 0 && (
+          <Chip icon={<Stars sx={{ fontSize: '11px !important' }} />} label={`${cliente.puntos_fidelidad} pts`} size="small" sx={{ height: 16, fontSize: 9, fontWeight: 700, bgcolor: '#F59E0B18', color: '#F59E0B', borderRadius: 1 }} />
+        )}
       </Box>
     </Box>
 
@@ -375,9 +378,12 @@ const ClienteList = ({
                         </TableCell>
                       )}
                       <TableCell>
-                        <Box sx={{ display: 'flex', gap: 0.5 }}>
+                        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
                           {c.es_cliente   && <Chip label="Cliente"   size="small" sx={{ bgcolor: `${ACCENT}18`, color: ACCENT, fontWeight: 600, fontSize: 9, borderRadius: 1 }} />}
                           {c.es_proveedor && <Chip label="Proveedor" size="small" sx={{ bgcolor: `${GREEN}18`,  color: GREEN,  fontWeight: 600, fontSize: 9, borderRadius: 1 }} />}
+                          {(c.puntos_fidelidad || 0) > 0 && (
+                            <Chip icon={<Stars sx={{ fontSize: '11px !important' }} />} label={`${c.puntos_fidelidad} pts`} size="small" sx={{ bgcolor: '#F59E0B18', color: '#F59E0B', fontWeight: 600, fontSize: 9, borderRadius: 1 }} />
+                          )}
                         </Box>
                       </TableCell>
                       <TableCell align="right">

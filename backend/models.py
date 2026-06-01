@@ -230,9 +230,24 @@ class Cliente(Base, TenantMixin):
     zona = Column(String(60), nullable=True, index=True) # ej: "Norte", "Barrio El Centro", "Ruta 1"
     latitud = Column(Float, nullable=True)
     longitud = Column(Float, nullable=True)
+    puntos_fidelidad = Column(Integer, default=0)
 
     ventas          = relationship("Venta", back_populates="cliente")
     ordenes_trabajo = relationship("OrdenTrabajo", back_populates="cliente")
+    movimientos_puntos = relationship("MovimientoPuntos", back_populates="cliente", cascade="all, delete-orphan")
+
+
+class MovimientoPuntos(Base, TenantMixin):
+    __tablename__ = "movimientos_puntos"
+    id          = Column(Integer, primary_key=True, index=True)
+    cliente_id  = Column(Integer, ForeignKey("clientes.id"), nullable=False, index=True)
+    puntos      = Column(Integer, nullable=False)           # positivo=ganado, negativo=canjeado
+    tipo        = Column(String(20), nullable=False)        # 'ganado' | 'canjeado'
+    venta_id    = Column(Integer, ForeignKey("ventas.id"), nullable=True)
+    descripcion = Column(String(255), nullable=True)
+    created_at  = Column(DateTime(timezone=True), default=utcnow)
+
+    cliente = relationship("Cliente", back_populates="movimientos_puntos")
 
 
 class GrupoProducto(Base):
@@ -656,8 +671,9 @@ class PlanSuscripcion(Base):
     codigo_interno = Column(String, unique=True, index=True, nullable=False) 
     precio = Column(Float, nullable=False)               
     dias_duracion = Column(Integer, nullable=False)      
-    caracteristicas = Column(String, nullable=True)     
+    caracteristicas = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
+    is_featured = Column(Boolean, default=False)
 
 
 class RegistroPago(Base):

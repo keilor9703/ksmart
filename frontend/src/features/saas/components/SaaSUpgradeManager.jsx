@@ -75,24 +75,33 @@ const SaaSUpgradeManager = ({ user }) => {
         <DialogContent sx={{ p: { xs: 2, md: 4 } }}>
           {loadingPlanes ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 5 }}><CircularProgress sx={{ color: '#F43F5E' }} /></Box> :
             <Grid container spacing={3}>
-              {planes.map(plan => (
+              {planes.map(plan => {
+                const isFeatured = plan.is_featured || plan.codigo_interno === 'premium';
+                const isVitalicio = plan.codigo_interno?.toLowerCase().includes('vitalicio');
+                return (
                 <Grid item xs={12} sm={6} md={4} key={plan.id}>
-                  <Paper sx={{ 
-                    p: 3, 
+                  <Paper sx={{
+                    p: 3,
                     height: '100%',
                     display: 'flex',
                     flexDirection: 'column',
-                    textAlign: 'center', 
-                    borderRadius: 4, 
-                    border: '1px solid', 
-                    borderColor: plan.codigo_interno === 'premium' ? '#F43F5E' : 'divider', 
-                    boxShadow: plan.codigo_interno === 'premium' ? '0 10px 25px rgba(244, 63, 94, 0.15)' : '0 4px 12px rgba(0,0,0,0.05)', 
+                    textAlign: 'center',
+                    borderRadius: 4,
+                    border: '1px solid',
+                    borderColor: isFeatured ? '#F43F5E' : 'divider',
+                    boxShadow: isFeatured ? '0 10px 25px rgba(244, 63, 94, 0.15)' : '0 4px 12px rgba(0,0,0,0.05)',
+                    opacity: isVitalicio ? 0.7 : 1,
                     bgcolor: 'background.paper',
                     position: 'relative',
                     overflow: 'hidden'
                   }}>
-                    {plan.codigo_interno === 'premium' && (
+                    {isFeatured && (
                       <Box sx={{ position: 'absolute', top: 12, right: -30, bgcolor: '#F43F5E', color: 'white', px: 4, py: 0.5, transform: 'rotate(45deg)', fontSize: 10, fontWeight: 900 }}>RECOMENDADO</Box>
+                    )}
+                    {isVitalicio && (
+                      <Box sx={{ position: 'absolute', top: 8, left: 8 }}>
+                        <Typography sx={{ fontSize: 9, color: 'text.disabled', fontStyle: 'italic' }}>Próximamente por módulos</Typography>
+                      </Box>
                     )}
                     
                     <Typography sx={{ fontWeight: 900, fontSize: 18, mb: 1, color: plan.color || 'inherit' }}>{plan.nombre}</Typography>
@@ -122,7 +131,8 @@ const SaaSUpgradeManager = ({ user }) => {
                     />
                   </Paper>
                 </Grid>
-              ))}
+              );
+              })}
             </Grid>
           }
         </DialogContent>

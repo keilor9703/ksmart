@@ -1096,6 +1096,35 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v63)
                 logger.info("V63 (unique bold_tx_id + check constraints precio/total) aplicada.")
 
+            # V64 - Puntos de fidelización + plan is_featured
+            migration_v64 = "v64_loyalty_points_plan_featured"
+            if not _migration_already_applied(conn, migration_v64):
+                conn.execute(text("""
+                    ALTER TABLE clientes ADD COLUMN IF NOT EXISTS puntos_fidelidad INTEGER DEFAULT 0;
+                """))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS movimientos_puntos (
+                        id          SERIAL PRIMARY KEY,
+                        empresa_id  INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+                        cliente_id  INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+                        puntos      INTEGER NOT NULL,
+                        tipo        VARCHAR(20) NOT NULL,
+                        venta_id    INTEGER REFERENCES ventas(id) ON DELETE SET NULL,
+                        descripcion VARCHAR(255),
+                        created_at  TIMESTAMPTZ DEFAULT NOW()
+                    );
+                """))
+                conn.execute(text("""
+                    CREATE INDEX IF NOT EXISTS ix_movimientos_puntos_empresa_cliente
+                        ON movimientos_puntos(empresa_id, cliente_id);
+                """))
+                conn.execute(text("""
+                    ALTER TABLE planes_suscripcion
+                        ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT FALSE;
+                """))
+                _mark_migration_applied(conn, migration_v64)
+                logger.info("V64 (puntos fidelización + plan is_featured) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

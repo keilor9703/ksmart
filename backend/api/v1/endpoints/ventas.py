@@ -121,6 +121,20 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
     db.refresh(db_venta)
 
     crud.check_and_notify_low_stock(db, empresa_id=empresa_id, producto_ids=[det.producto_id for det in db_venta.detalles])
+
+    if db_venta.cliente_id and venta.pagada:
+        try:
+            from crud.puntos import ganar_puntos_venta, canjear_puntos
+            # Deduct redeemed points first (already discounted from total)
+            if venta.puntos_canjeados and venta.puntos_canjeados > 0:
+                canjear_puntos(db, empresa_id=empresa_id, cliente_id=db_venta.cliente_id,
+                               puntos_a_canjear=venta.puntos_canjeados)
+            # Earn points on net total paid
+            ganar_puntos_venta(db, empresa_id=empresa_id, cliente_id=db_venta.cliente_id,
+                               total_venta=float(db_venta.total or 0), venta_id=db_venta.id)
+        except Exception:
+            pass  # Points are non-critical; never block the sale
+
     return db_venta
 
 @router.get("/", response_model=List[schemas.Venta])

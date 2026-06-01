@@ -74,7 +74,8 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate, commi
 
     iva_porc = float(getattr(venta, 'iva_porcentaje', 0) or 0)
     iva_total = total_bruto * iva_porc / 100 if iva_porc > 0 else 0.0
-    total_final = total_bruto + iva_total
+    descuento_puntos = float(getattr(venta, 'descuento_puntos', 0) or 0)
+    total_final = max(0.0, total_bruto + iva_total - descuento_puntos)
 
     # Usamos timezone explícito para Postgres
     ahora_utc = datetime.now(timezone.utc)

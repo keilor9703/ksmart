@@ -21,7 +21,7 @@ import {
     Receipt, AttachMoney, AssignmentReturn, Add, QrCodeScanner,
     Videocam, VideocamOff, LockOutlined, LockOpenOutlined,
     AddCircle, RemoveCircle, PersonOutline, HelpOutline,
-    Keyboard, TouchApp, FileDownload,
+    Keyboard, TouchApp, FileDownload, Stars, CreditCard,
 } from '@mui/icons-material';
 import { getProductoByBarcode } from '../../api';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
@@ -40,7 +40,10 @@ const METODOS_PAGO = [
     { value: 'Tarjeta',       label: '💳 Tarjeta',        pagada: true,  color: '#8B5CF6' },
     { value: 'Cheque',        label: '📄 Cheque',         pagada: true,  color: '#6B7280' },
     { value: 'Por Cobrar',    label: '🕒 Por Cobrar',     pagada: false, color: '#EF4444' },
+    { value: 'Wompi',         label: '📲 Link/QR',        pagada: true,  color: '#FF6020', digital: true },
 ];
+
+const PUNTOS_REDEEM_RATE = 100; // $100 COP por punto
 
 // ─── Tab Panel ────────────────────────────────────────────────────────────────
 function TabPanel({ children, value, index }) {
@@ -333,12 +336,19 @@ const Ventas = ({ user }) => {
     const [editingVenta, setEditingVenta] = useState(null);
     const [savingVenta, setSavingVenta]   = useState(false);
 
+    // ── Fidelización ──
+    const [clientePuntos, setClientePuntos]   = useState(0);
+    const [puntosACanjear, setPuntosACanjear] = useState(0);
+    // ── Wompi POS ──
+    const [wompiPosLoading, setWompiPosLoading] = useState(false);
+
     // ── Barcode / Camera ──
     const [barcodeInput, setBarcodeInput]     = useState('');
     const [cameraActive, setCameraActive]     = useState(false);
     const [searchingBarcode, setSearchingBarcode] = useState(false);
     const [scanFlash, setScanFlash]           = useState(false);
     const barcodeFieldRef  = useRef(null);
+    const wompiApprovedRef = useRef(false);
     const videoRef         = useRef(null);
     const streamRef        = useRef(null);
     const rAFRef           = useRef(null);
@@ -371,9 +381,20 @@ const Ventas = ({ user }) => {
 
     const fetchVentas        = () => apiClient.get('/ventas/').then(r => setVentas(r.data)).catch(console.error);
     const fetchClientes      = () => apiClient.get('/clientes/').then(r => setClientes(r.data)).catch(console.error);
+    const fetchClientePuntos = useCallback((clienteId) => {
+        if (!clienteId) { setClientePuntos(0); setPuntosACanjear(0); return; }
+        apiClient.get(`/clientes/${clienteId}/puntos`)
+            .then(r => setClientePuntos(r.data.puntos_disponibles || 0))
+            .catch(() => setClientePuntos(0));
+    }, []);
     const fetchProductos     = () => apiClient.get('/productos/').then(r => setProductos(r.data)).catch(console.error);
     const fetchGrupos        = () => apiClient.get('/grupos-producto/').then(r => setGrupos(r.data)).catch(console.error);
     const fetchVentasSummary = () => apiClient.get('/reportes/ventas_summary').then(r => setTotalVentasHoy(r.data.total_ventas_hoy)).catch(console.error);
+
+    useEffect(() => {
+        fetchClientePuntos(cliente?.id || null);
+        setPuntosACanjear(0);
+    }, [cliente, fetchClientePuntos]);
 
     const handleViewModeChange = (event, newMode) => {
         if (newMode !== null) {
@@ -657,6 +678,44 @@ const Ventas = ({ user }) => {
         const validDetails = saleDetails.filter(d => d.producto && d.cantidad > 0);
         if (validDetails.length === 0) { toast.error('Agrega al menos un producto al carrito.'); return; }
 
+        const descuentoPuntosImporte = puntosACanjear * PUNTOS_REDEEM_RATE;
+
+        // ── Wompi digital payment flow ──
+        if (pagada && metodoPago === 'Wompi' && !wompiApprovedRef.current) {
+            if (!window.WidgetCheckout) {
+                toast.error('El widget de pago no está disponible. Recarga la página.');
+                return;
+            }
+            const subtotal = calculateSubtotal();
+            const totalBruto = subtotal * (1 + (parseFloat(ivaPorcentajeGlobal) || 0) / 100);
+            const totalFinal = Math.max(0, totalBruto - descuentoPuntosImporte);
+            setWompiPosLoading(true);
+            try {
+                const { data: hashData } = await apiClient.post('/wompi/generar-hash-pos', { monto: totalFinal });
+                const checkout = new window.WidgetCheckout({
+                    currency: hashData.currency,
+                    amountInCents: parseInt(hashData.amount_in_cents),
+                    reference: hashData.reference,
+                    publicKey: hashData.public_key.replace(/['"]/g, ''),
+                    signature: { integrity: hashData.signature },
+                });
+                checkout.open((result) => {
+                    setWompiPosLoading(false);
+                    if (result.transaction?.status === 'APPROVED') {
+                        wompiApprovedRef.current = true;
+                        handleVentaSubmit();
+                    } else {
+                        toast.error('Pago no completado. Intenta de nuevo o elige otro método.');
+                    }
+                });
+            } catch (err) {
+                setWompiPosLoading(false);
+                toast.error('Error al iniciar el pago digital.');
+            }
+            return;
+        }
+        wompiApprovedRef.current = false;
+
         const ventaData = {
             cliente_id: cliente.id,
             detalles: validDetails.map(({ producto, cantidad, precioUnitario, descuentoPct }) => ({
@@ -668,6 +727,8 @@ const Ventas = ({ user }) => {
             pagada, metodo_pago: pagada ? metodoPago : null,
             iva_porcentaje: parseFloat(ivaPorcentajeGlobal),
             operador_id: user?.id,
+            descuento_puntos: descuentoPuntosImporte,
+            puntos_canjeados: puntosACanjear,
         };
 
         const snapDetails = validDetails.map(d => ({
@@ -712,6 +773,7 @@ const Ventas = ({ user }) => {
         setSaleDetails([{ id: initialId, producto: null, cantidad: 1, precioUnitario: 0, descuentoPct: 0 }]);
         setProductoInputs({}); setIvaPorcentajeGlobal(19); setValorRecibido(0);
         setPagada(true); setMetodoPago('Efectivo'); setEditingVenta(null);
+        setPuntosACanjear(0); setClientePuntos(0); wompiApprovedRef.current = false;
         cleanupCamera(); setCameraActive(false);
         setTimeout(() => barcodeFieldRef.current?.focus(), 300);
     };
@@ -761,7 +823,9 @@ const Ventas = ({ user }) => {
         a.click(); URL.revokeObjectURL(url);
     };
     const totalConIva = calculateSubtotal() * (1 + (parseFloat(ivaPorcentajeGlobal) || 0) / 100);
-    const cambioEfectivo = valorRecibido - totalConIva;
+    const descuentoPuntosImporte = puntosACanjear * PUNTOS_REDEEM_RATE;
+    const totalFinal = Math.max(0, totalConIva - descuentoPuntosImporte);
+    const cambioEfectivo = valorRecibido - totalFinal;
 
     return (
         <Box sx={{ width: '100%', minWidth: 0 }}>
@@ -1119,10 +1183,53 @@ const Ventas = ({ user }) => {
                                 <Typography sx={{ fontSize: 10, color: 'text.secondary', letterSpacing: 1.5, textTransform: 'uppercase', mb: 0.5 }}>
                                     Total a cobrar
                                 </Typography>
-                                <Typography sx={{ fontSize: { xs: 40, md: 52 }, fontWeight: 900, color: ACCENT, lineHeight: 1 }}>
-                                    {formatCurrency(calculateSubtotal() * (1 + (parseFloat(ivaPorcentajeGlobal) || 0) / 100))}
-                                </Typography>
+                                {descuentoPuntosImporte > 0
+                                    ? <>
+                                        <Typography sx={{ fontSize: { xs: 28, md: 36 }, fontWeight: 900, color: 'text.disabled', lineHeight: 1, textDecoration: 'line-through' }}>
+                                            {formatCurrency(totalConIva)}
+                                        </Typography>
+                                        <Typography sx={{ fontSize: { xs: 40, md: 52 }, fontWeight: 900, color: '#10B981', lineHeight: 1 }}>
+                                            {formatCurrency(totalFinal)}
+                                        </Typography>
+                                        <Chip icon={<Stars sx={{ fontSize: '14px !important' }} />} label={`-${formatCurrency(descuentoPuntosImporte)} puntos`} size="small" sx={{ mt: 0.5, bgcolor: '#10B98115', color: '#10B981', fontWeight: 700, fontSize: 10 }} />
+                                      </>
+                                    : <Typography sx={{ fontSize: { xs: 40, md: 52 }, fontWeight: 900, color: ACCENT, lineHeight: 1 }}>
+                                        {formatCurrency(totalFinal)}
+                                      </Typography>
+                                }
                             </Box>
+
+                            {/* ── Puntos de fidelización ── */}
+                            {cliente && !isMostrador && clientePuntos > 0 && (
+                                <Box sx={{ mb: 2, p: 1.5, borderRadius: 2, bgcolor: '#10B98108', border: '1px solid #10B98128' }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                            <Stars sx={{ fontSize: 16, color: '#10B981' }} />
+                                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: '#10B981' }}>
+                                                {clientePuntos} puntos disponibles
+                                            </Typography>
+                                            <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
+                                                (= {formatCurrency(clientePuntos * PUNTOS_REDEEM_RATE)} de descuento)
+                                            </Typography>
+                                        </Box>
+                                        {puntosACanjear > 0 && (
+                                            <Chip label={`Canjeando ${puntosACanjear} pts`} size="small" onDelete={() => setPuntosACanjear(0)} sx={{ bgcolor: '#10B98118', color: '#10B981', fontWeight: 700, fontSize: 10 }} />
+                                        )}
+                                    </Box>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        <Typography sx={{ fontSize: 11, color: 'text.secondary', flexShrink: 0 }}>Canjear:</Typography>
+                                        {[0, Math.floor(clientePuntos * 0.25), Math.floor(clientePuntos * 0.5), clientePuntos].filter((v, i, a) => a.indexOf(v) === i && v >= 0).map(pts => (
+                                            <Chip
+                                                key={pts}
+                                                label={pts === 0 ? 'Ninguno' : `${pts} pts`}
+                                                size="small"
+                                                onClick={() => setPuntosACanjear(pts)}
+                                                sx={{ fontSize: 10, fontWeight: 700, cursor: 'pointer', bgcolor: puntosACanjear === pts ? '#10B98120' : 'background.paper', color: puntosACanjear === pts ? '#10B981' : 'text.secondary', border: '1px solid', borderColor: puntosACanjear === pts ? '#10B981' : 'divider' }}
+                                            />
+                                        ))}
+                                    </Box>
+                                </Box>
+                            )}
 
                             <Divider sx={{ mb: 2.5 }} />
 
@@ -1204,17 +1311,17 @@ const Ventas = ({ user }) => {
                                         <Button
                                             id="btn-registrar-venta"
                                             type="submit" variant="contained" fullWidth={!editingVenta}
-                                            disabled={savingVenta}
-                                            onClick={handleSubmit}  
-                                            startIcon={savingVenta ? <CircularProgress size={16} sx={{ color: 'white' }} /> : <ShoppingCart />}
+                                            disabled={savingVenta || wompiPosLoading}
+                                            onClick={handleSubmit}
+                                            startIcon={(savingVenta || wompiPosLoading) ? <CircularProgress size={16} sx={{ color: 'white' }} /> : (metodoPago === 'Wompi' ? <CreditCard /> : <ShoppingCart />)}
                                             sx={{
-                                                background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`,
-                                                boxShadow: `0 4px 14px rgba(255,96,32,0.35)`,
+                                                background: metodoPago === 'Wompi' ? 'linear-gradient(135deg, #7C3AED, #a78bfa)' : `linear-gradient(135deg, ${ACCENT}, #ff9a62)`,
+                                                boxShadow: metodoPago === 'Wompi' ? '0 4px 14px rgba(124,58,237,0.35)' : `0 4px 14px rgba(255,96,32,0.35)`,
                                                 borderRadius: 2, fontWeight: 700, py: 1.4,
                                                 fontSize: 14,
                                             }}
                                         >
-                                            {savingVenta ? 'Guardando…' : (editingVenta ? 'Actualizar' : 'Registrar Venta')}
+                                            {wompiPosLoading ? 'Abriendo pago…' : savingVenta ? 'Guardando…' : (editingVenta ? 'Actualizar' : (metodoPago === 'Wompi' ? 'Pagar con Wompi' : 'Registrar Venta'))}
                                         </Button>
                                     </Box>
                                     <Typography sx={{ fontSize: 10, color: 'text.disabled', textAlign: 'right', mt: 0.5 }}>

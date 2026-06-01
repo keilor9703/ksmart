@@ -219,6 +219,7 @@ class ClienteBase(BaseModel):
     cupo_credito: Optional[float] = 0.0
     es_cliente: bool = True
     es_proveedor: bool = False
+    puntos_fidelidad: int = 0
 
     # 🧾 CAMPOS FACTURACIÓN ELECTRÓNICA (DIAN)
     email: Optional[EmailStr] = None
@@ -456,6 +457,9 @@ class VentaBase(BaseModel):
     operador_id: Optional[int] = None
     placa_vehiculo: Optional[str] = None
     tipo_vehiculo: Optional[str] = None
+    # Fidelización
+    descuento_puntos: float = 0.0               # Descuento en COP por puntos canjeados
+    puntos_canjeados: int = 0                    # Puntos descontados (para log)
 
 
 class VentaCreate(VentaBase):
@@ -1192,6 +1196,7 @@ class PlanSuscripcionBase(BaseModel):
     dias_duracion: int
     caracteristicas: Optional[str] = None
     is_active: bool = True
+    is_featured: bool = False
 
 class PlanSuscripcionCreate(PlanSuscripcionBase):
     pass
@@ -1202,9 +1207,24 @@ class PlanSuscripcionUpdate(BaseModel):
     dias_duracion: Optional[int] = None
     caracteristicas: Optional[str] = None
     is_active: Optional[bool] = None
+    is_featured: Optional[bool] = None
 
 class PlanSuscripcionOut(PlanSuscripcionBase):
     id: int
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PagoDigitalPosRequest(BaseModel):
+    monto: float
+
+
+class MovimientoPuntosOut(BaseModel):
+    id: int
+    puntos: int
+    tipo: str
+    venta_id: Optional[int] = None
+    descripcion: Optional[str] = None
+    created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
 
