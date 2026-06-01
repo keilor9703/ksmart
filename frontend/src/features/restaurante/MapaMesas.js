@@ -523,87 +523,168 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
             {PedidoContent}
           </Box>
 
-          <Box sx={{ flex: 1, overflowY: 'auto', p: 1.5 }}>
-            {productosFiltrados.length === 0 ? (
-              <Typography fontSize={12} color="text.disabled" textAlign="center" sx={{ mt: 3 }}>
-                Sin productos
-              </Typography>
-            ) : (
-              <Stack spacing={0}>
+          {/* Panel derecho: buscador + lista dividida + carrito */}
+          <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
 
-                {/* ── Platos y preparados ── */}
-                {platosMenu.length > 0 && (
-                  <>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mb: 0.8, mt: 0.2 }}>
-                      <Restaurant sx={{ fontSize: 12, color: '#EC4899' }} />
-                      <Typography fontSize={10} fontWeight={800} color="#EC4899" textTransform="uppercase" letterSpacing={0.8}>
-                        Platos y preparados
-                      </Typography>
-                    </Box>
-                    <Stack spacing={0.7} sx={{ mb: 1.5 }}>
-                      {platosMenu.map(prod => (
-                        <Box key={prod.id}
-                          onClick={() => addToSelected(prod)}
-                          sx={{
-                            p: 1.2, borderRadius: 2, cursor: 'pointer',
-                            border: `1px solid ${alpha('#EC4899', 0.2)}`,
-                            bgcolor: isDark ? alpha('#EC4899', 0.04) : alpha('#EC4899', 0.03),
-                            transition: 'all 0.15s',
-                            '&:hover': { borderColor: '#EC4899', bgcolor: alpha('#EC4899', 0.08) },
-                          }}
-                        >
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Typography fontSize={12.5} fontWeight={600} noWrap sx={{ flex: 1 }}>{prod.nombre}</Typography>
-                            <Typography fontSize={12} fontWeight={700} color="#EC4899" sx={{ ml: 0.5, flexShrink: 0 }}>
-                              {fmt(prod.precio_venta)}
-                            </Typography>
+            {/* Buscador */}
+            <Box sx={{ p: 1.5, borderBottom: `1px solid ${theme.palette.divider}`, flexShrink: 0 }}>
+              <TextField size="small" fullWidth placeholder="Buscar en el menú..."
+                value={search} onChange={e => setSearch(e.target.value)}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: 13 } }} />
+            </Box>
+
+            {/* Lista de productos */}
+            <Box sx={{ flex: 1, overflowY: 'auto', p: 1.5 }}>
+              {productosFiltrados.length === 0 ? (
+                <Typography fontSize={12} color="text.disabled" textAlign="center" sx={{ mt: 3 }}>
+                  Sin productos
+                </Typography>
+              ) : (
+                <Stack spacing={0}>
+
+                  {/* ── Platos y preparados ── */}
+                  {platosMenu.length > 0 && (
+                    <>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mb: 0.8, mt: 0.2 }}>
+                        <Restaurant sx={{ fontSize: 12, color: '#EC4899' }} />
+                        <Typography fontSize={10} fontWeight={800} color="#EC4899" textTransform="uppercase" letterSpacing={0.8}>
+                          Platos y preparados
+                        </Typography>
+                      </Box>
+                      <Stack spacing={0.7} sx={{ mb: 1.5 }}>
+                        {platosMenu.map(prod => (
+                          <Box key={prod.id}
+                            onClick={() => addToSelected(prod)}
+                            sx={{
+                              p: 1.2, borderRadius: 2, cursor: 'pointer',
+                              border: `1px solid ${alpha('#EC4899', 0.2)}`,
+                              bgcolor: isDark ? alpha('#EC4899', 0.04) : alpha('#EC4899', 0.03),
+                              transition: 'all 0.15s',
+                              '&:hover': { borderColor: '#EC4899', bgcolor: alpha('#EC4899', 0.08) },
+                              '&:active': { transform: 'scale(0.98)' },
+                            }}
+                          >
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <Typography fontSize={12.5} fontWeight={600} noWrap sx={{ flex: 1 }}>{prod.nombre}</Typography>
+                              <Typography fontSize={12} fontWeight={700} color="#EC4899" sx={{ ml: 0.5, flexShrink: 0 }}>
+                                {fmt(prod.precio)}
+                              </Typography>
+                            </Box>
+                            {prod.categoria && (
+                              <Typography fontSize={10} color="text.disabled">{prod.categoria}</Typography>
+                            )}
                           </Box>
-                          {prod.categoria && (
-                            <Typography fontSize={10} color="text.disabled">{prod.categoria}</Typography>
-                          )}
-                        </Box>
-                      ))}
-                    </Stack>
-                  </>
-                )}
+                        ))}
+                      </Stack>
+                    </>
+                  )}
 
-                {/* ── Otros productos ── */}
-                {otrosMenu.length > 0 && (
-                  <>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mb: 0.8, mt: platosMenu.length > 0 ? 0.5 : 0.2 }}>
-                      <Box sx={{ fontSize: 10, lineHeight: 1 }}>🥤</Box>
-                      <Typography fontSize={10} fontWeight={800} color="text.secondary" textTransform="uppercase" letterSpacing={0.8}>
-                        Otros
-                      </Typography>
-                    </Box>
-                    <Stack spacing={0.7}>
-                      {otrosMenu.map(prod => (
-                        <Box key={prod.id}
-                          onClick={() => addToSelected(prod)}
-                          sx={{
-                            p: 1.2, borderRadius: 2, cursor: 'pointer',
-                            border: `1px solid ${alpha(theme.palette.divider, 1)}`,
-                            bgcolor: isDark ? alpha('#fff', 0.025) : alpha('#000', 0.02),
-                            transition: 'all 0.15s',
-                            '&:hover': { borderColor: '#FF6020', bgcolor: alpha('#FF6020', 0.04) },
-                          }}
-                        >
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Typography fontSize={12.5} fontWeight={600} noWrap sx={{ flex: 1 }}>{prod.nombre}</Typography>
-                            <Typography fontSize={12} fontWeight={700} color="#FF6020" sx={{ ml: 0.5, flexShrink: 0 }}>
-                              {fmt(prod.precio_venta)}
-                            </Typography>
+                  {/* ── Otros productos ── */}
+                  {otrosMenu.length > 0 && (
+                    <>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mb: 0.8, mt: platosMenu.length > 0 ? 0.5 : 0.2 }}>
+                        <Box sx={{ fontSize: 10, lineHeight: 1 }}>🥤</Box>
+                        <Typography fontSize={10} fontWeight={800} color="text.secondary" textTransform="uppercase" letterSpacing={0.8}>
+                          Otros
+                        </Typography>
+                      </Box>
+                      <Stack spacing={0.7}>
+                        {otrosMenu.map(prod => (
+                          <Box key={prod.id}
+                            onClick={() => addToSelected(prod)}
+                            sx={{
+                              p: 1.2, borderRadius: 2, cursor: 'pointer',
+                              border: `1px solid ${alpha(theme.palette.divider, 1)}`,
+                              bgcolor: isDark ? alpha('#fff', 0.025) : alpha('#000', 0.02),
+                              transition: 'all 0.15s',
+                              '&:hover': { borderColor: '#FF6020', bgcolor: alpha('#FF6020', 0.04) },
+                              '&:active': { transform: 'scale(0.98)' },
+                            }}
+                          >
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <Typography fontSize={12.5} fontWeight={600} noWrap sx={{ flex: 1 }}>{prod.nombre}</Typography>
+                              <Typography fontSize={12} fontWeight={700} color="#FF6020" sx={{ ml: 0.5, flexShrink: 0 }}>
+                                {fmt(prod.precio)}
+                              </Typography>
+                            </Box>
+                            {prod.categoria && (
+                              <Typography fontSize={10} color="text.disabled">{prod.categoria}</Typography>
+                            )}
                           </Box>
-                          {prod.categoria && (
-                            <Typography fontSize={10} color="text.disabled">{prod.categoria}</Typography>
-                          )}
-                        </Box>
-                      ))}
-                    </Stack>
-                  </>
-                )}
+                        ))}
+                      </Stack>
+                    </>
+                  )}
 
-              </Stack>
+                </Stack>
+              )}
+            </Box>
+
+            {/* Carrito — ítems seleccionados para enviar */}
+            {selectedItems.length > 0 && (
+              <Box sx={{
+                borderTop: `2px solid ${alpha('#059669', 0.3)}`,
+                p: 1.5, flexShrink: 0,
+                bgcolor: theme.palette.background.paper,
+                boxShadow: '0 -4px 20px rgba(0,0,0,0.10)',
+                maxHeight: '45vh', overflowY: 'auto',
+              }}>
+                <Typography fontSize={11} fontWeight={700} color="text.secondary"
+                  textTransform="uppercase" letterSpacing={0.8} mb={1}>
+                  Para enviar ({selectedItems.reduce((a, i) => a + i.cantidad, 0)} ítems)
+                </Typography>
+                <Stack spacing={0.8} mb={1.2}>
+                  {selectedItems.map(it => (
+                    <Box key={it.producto_id} sx={{
+                      borderRadius: 2,
+                      border: `1px solid ${alpha('#059669', notaAbierta === it.producto_id ? 0.5 : 0.15)}`,
+                      bgcolor: alpha('#059669', 0.04), overflow: 'hidden',
+                    }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.8 }}>
+                        <Typography fontSize={13} fontWeight={600} sx={{ flex: 1, minWidth: 0 }} noWrap>
+                          {it.nombre_producto}
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, flexShrink: 0 }}>
+                          <IconButton size="small" onClick={() => updateCantidad(it.producto_id, -1)}
+                            sx={{ width: 24, height: 24, bgcolor: alpha('#000', 0.06), borderRadius: 1, p: 0 }}>
+                            <Typography fontSize={16} lineHeight={1} sx={{ userSelect: 'none' }}>−</Typography>
+                          </IconButton>
+                          <Typography fontSize={13} fontWeight={700} sx={{ minWidth: 20, textAlign: 'center' }}>
+                            {it.cantidad}
+                          </Typography>
+                          <IconButton size="small" onClick={() => updateCantidad(it.producto_id, 1)}
+                            sx={{ width: 24, height: 24, bgcolor: alpha('#059669', 0.12), borderRadius: 1, p: 0 }}>
+                            <Typography fontSize={16} lineHeight={1} sx={{ color: '#059669', userSelect: 'none' }}>+</Typography>
+                          </IconButton>
+                        </Box>
+                        <Tooltip title={it.notas ? `Nota: ${it.notas}` : 'Agregar nota'}>
+                          <IconButton size="small"
+                            onClick={() => setNotaAbierta(n => n === it.producto_id ? null : it.producto_id)}
+                            sx={{ p: 0.3, color: it.notas ? '#F59E0B' : 'text.disabled' }}>
+                            <Note sx={{ fontSize: 17 }} />
+                          </IconButton>
+                        </Tooltip>
+                        <IconButton size="small" onClick={() => removeSelected(it.producto_id)}
+                          sx={{ p: 0.3, color: 'text.disabled' }}>
+                          <Close sx={{ fontSize: 15 }} />
+                        </IconButton>
+                      </Box>
+                      {notaAbierta === it.producto_id && (
+                        <Box sx={{ px: 1, pb: 1 }}>
+                          <TextField size="small" fullWidth placeholder="Nota para cocina..."
+                            value={it.notas} onChange={e => updateNota(it.producto_id, e.target.value)}
+                            sx={{ '& .MuiOutlinedInput-root': { fontSize: 12, borderRadius: 1.5 } }} />
+                        </Box>
+                      )}
+                    </Box>
+                  ))}
+                </Stack>
+                <Button fullWidth variant="contained" onClick={handleEnviarCocina} disabled={loading}
+                  startIcon={loading ? <CircularProgress size={15} color="inherit" /> : <Send />}
+                  sx={{ borderRadius: 2, fontWeight: 800, fontSize: 13, py: 1, bgcolor: '#059669', '&:hover': { bgcolor: '#047857' } }}>
+                  Enviar {selectedItems.reduce((a, i) => a + i.cantidad, 0)} ítem(s) a cocina
+                </Button>
+              </Box>
             )}
           </Box>
         </Box>
