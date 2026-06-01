@@ -22,6 +22,8 @@ import { SpeedInsights } from '@vercel/speed-insights/react';
 import AnnouncementBanner from './features/saas/components/AnnouncementBanner';
 import { OnboardingProvider } from './context/OnboardingContext';
 import ModalHuella from './components/common/ModalHuella';
+import GlobalSearch from './components/common/GlobalSearch';
+import { MODULE_ICONS, getModuleConfig, ADMIN_MODULES } from './utils/modulesConfig';
 
 // ─── LAZY: cada pantalla en su propio chunk (code-splitting por ruta) ─────────
 // Reduce drásticamente el bundle inicial: el navegador solo descarga el código
@@ -120,6 +122,9 @@ function App() {
   const [user, setUser]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [sidebarPinned, setSidebarPinned] = useState(
+    () => localStorage.getItem('sidebarPinned') === 'true'
+  );
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl]   = useState(null);
   const navigate = useNavigate();
@@ -212,7 +217,37 @@ const hasAccess = useCallback((path) => {
     navigate('/login');
   };
 
-  const sidebarWidth = isMobile ? 0 : (sidebarExpanded ? SIDEBAR_FULL : SIDEBAR_MINI);
+  const handlePinToggle = () => {
+    setSidebarPinned(p => {
+      const next = !p;
+      localStorage.setItem('sidebarPinned', next);
+      if (next) setSidebarExpanded(true);
+      return next;
+    });
+  };
+
+  // Cuando está fijado el sidebar, permanece expandido sin necesidad de hover.
+  const effectiveExpanded = sidebarPinned ? true : sidebarExpanded;
+  const sidebarWidth = isMobile ? 0 : (effectiveExpanded ? SIDEBAR_FULL : SIDEBAR_MINI);
+
+  // Items del sidebar para GlobalSearch — misma lógica que Sidebar.jsx
+  const modulosParaBusqueda = React.useMemo(() => {
+    if (!user) return [];
+    if (user.role?.name === 'Admin' && user.empresa_id === 1) {
+      return [
+        ...Object.keys(MODULE_ICONS).map(path => ({ path, ...getModuleConfig(path) })),
+        ...ADMIN_MODULES,
+      ];
+    }
+    const adminPaths = new Set(ADMIN_MODULES.map(a => a.path));
+    const modulosDelRol = user.role?.modules || [];
+    return modulosDelRol
+      .filter(m => hasAccess(m.frontend_path))
+      .map(m => {
+        const cfg = getModuleConfig(m.frontend_path, m.name);
+        return { path: m.frontend_path, label: cfg.label, icon: cfg.icon, color: cfg.color };
+      });
+  }, [user, hasAccess]);
 
   return (
     <OnboardingProvider>
@@ -247,16 +282,22 @@ const hasAccess = useCallback((path) => {
               <ModalHuella />
               {!isMobile && (
                 <Box
-                  onMouseEnter={() => setSidebarExpanded(true)}
-                  onMouseLeave={() => setSidebarExpanded(false)}
+                  onMouseEnter={() => !sidebarPinned && setSidebarExpanded(true)}
+                  onMouseLeave={() => !sidebarPinned && setSidebarExpanded(false)}
                   sx={{
                     position: 'fixed', top: 0, left: 0, zIndex: 1200,
-                    height: '100vh', width: sidebarExpanded ? SIDEBAR_FULL : SIDEBAR_MINI,
+                    height: '100vh', width: effectiveExpanded ? SIDEBAR_FULL : SIDEBAR_MINI,
                     transition: 'width 0.22s cubic-bezier(0.4,0,0.2,1)', overflow: 'hidden',
-                    boxShadow: sidebarExpanded ? '4px 0 24px rgba(0,0,0,0.18)' : 'none',
+                    boxShadow: effectiveExpanded ? '4px 0 24px rgba(0,0,0,0.18)' : 'none',
                   }}
                 >
-                  <Sidebar expanded={sidebarExpanded} user={user} hasAccess={hasAccess} />
+                  <Sidebar
+                    expanded={effectiveExpanded}
+                    user={user}
+                    hasAccess={hasAccess}
+                    pinned={sidebarPinned}
+                    onPinToggle={handlePinToggle}
+                  />
                 </Box>
               )}
 
@@ -271,13 +312,14 @@ const hasAccess = useCallback((path) => {
               )}
 
               <TopBar
-                sidebarExpanded={sidebarExpanded} isMobile={isMobile}
+                sidebarExpanded={effectiveExpanded} isMobile={isMobile}
                 onMobileMenuOpen={() => setMobileOpen(true)} mode={mode}
                 onThemeToggle={() => setMode(m => m === 'light' ? 'dark' : 'light')}
                 onLogout={handleLogout} user={user} anchorEl={anchorEl}
                 openMenu={openMenu} onMenuOpen={(e) => setAnchorEl(e.currentTarget)}
                 onMenuClose={() => setAnchorEl(null)}
               />
+              <GlobalSearch modulosVisibles={modulosParaBusqueda} />
 
               <Box
                 component="main"

@@ -21,7 +21,7 @@ import {
     Receipt, AttachMoney, AssignmentReturn, Add, QrCodeScanner,
     Videocam, VideocamOff, LockOutlined, LockOpenOutlined,
     AddCircle, RemoveCircle, PersonOutline, HelpOutline,
-    Keyboard, TouchApp,
+    Keyboard, TouchApp, FileDownload,
 } from '@mui/icons-material';
 import { getProductoByBarcode } from '../../api';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
@@ -741,6 +741,25 @@ const Ventas = ({ user }) => {
         .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
     const paginatedVentas = filteredVentas.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
     const totalPendiente = ventas.filter(v => v.estado_pago === 'pendiente').reduce((s, v) => s + (v.total - v.monto_pagado), 0);
+
+    const exportCSV = () => {
+        const headers = ['ID', 'Fecha', 'Cliente', 'Total', 'Pagado', 'Estado', 'Método'];
+        const rows = filteredVentas.map(v => [
+            v.id,
+            new Date(v.fecha).toLocaleString('es-CO'),
+            v.cliente?.nombre || 'Mostrador',
+            v.total?.toFixed(2) || '0',
+            v.monto_pagado?.toFixed(2) || '0',
+            v.estado_pago || '',
+            v.metodo_pago || '',
+        ]);
+        const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+        const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url;
+        a.download = `ventas_${new Date().toISOString().slice(0,10)}.csv`;
+        a.click(); URL.revokeObjectURL(url);
+    };
     const totalConIva = calculateSubtotal() * (1 + (parseFloat(ivaPorcentajeGlobal) || 0) / 100);
     const cambioEfectivo = valorRecibido - totalConIva;
 
@@ -792,6 +811,11 @@ const Ventas = ({ user }) => {
                             <TouchApp fontSize="small" /> {!isMobile && 'Táctil'}
                         </ToggleButton>
                     </ToggleButtonGroup>
+                    <Tooltip title="Exportar historial filtrado a CSV">
+                        <IconButton onClick={exportCSV} size="small" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+                            <FileDownload fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
                     <Button
                         variant="contained" startIcon={<ShoppingCart />}
                         onClick={() => { resetForm(); setTabValue(0); }}

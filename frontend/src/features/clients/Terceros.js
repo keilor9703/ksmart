@@ -3,7 +3,7 @@ import {
   Box, Typography, Tabs, Tab, Button, Grid, Paper,
   useTheme, useMediaQuery, CircularProgress, Tooltip, IconButton
 } from '@mui/material';
-import { People, Add, AccountBalance, TrendingUp, Refresh, Handshake } from '@mui/icons-material';
+import { People, Add, AccountBalance, TrendingUp, Refresh, Handshake, FileDownload } from '@mui/icons-material';
 import ClienteForm from './ClienteForm';
 import ClienteList from './ClienteList';
 import CuentasPorCobrar from '../finance/CuentasPorCobrar';
@@ -111,6 +111,27 @@ export default function Terceros() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const exportCSV = () => {
+    const headers = ['ID', 'Nombre', 'NIT/Cédula', 'Teléfono', 'Dirección', 'Zona', 'Cliente', 'Proveedor', 'Cupo Crédito'];
+    const rows = clientes.map(c => [
+      c.id,
+      c.nombre || '',
+      c.cedula || '',
+      c.telefono || '',
+      c.direccion || '',
+      c.zona || '',
+      c.es_cliente ? 'Sí' : 'No',
+      c.es_proveedor ? 'Sí' : 'No',
+      c.cupo_credito?.toFixed(2) || '0',
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url;
+    a.download = `terceros_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
   return (
     <Box sx={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
 
@@ -157,6 +178,11 @@ export default function Terceros() {
           <Tooltip title="Actualizar datos">
             <IconButton onClick={fetchAll} size="small" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
               <Refresh fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Exportar listado a CSV">
+            <IconButton onClick={exportCSV} size="small" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+              <FileDownload fontSize="small" />
             </IconButton>
           </Tooltip>
           <Button
