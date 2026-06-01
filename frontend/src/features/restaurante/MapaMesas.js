@@ -147,8 +147,8 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
   const [tab, setTab] = useState(0); // 0=Pedido, 1=Menú (solo móvil)
 
   const itemsActivos = comanda?.items?.filter(i => i.estado !== 'cancelado') || [];
-  const hayPendientes = itemsActivos.some(i => i.estado === 'pendiente');
-  const hayEnPrep = itemsActivos.some(i => i.estado === 'en_preparacion');
+  const hayPendientes = itemsActivos.some(i => i.estado === 'pendiente' && i.va_a_cocina);
+  const hayEnPrep = itemsActivos.some(i => i.estado === 'en_preparacion' && i.va_a_cocina);
 
   const productosFiltrados = productos.filter(p =>
     p.nombre.toLowerCase().includes(search.toLowerCase())

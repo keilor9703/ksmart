@@ -372,6 +372,8 @@ def agregar_items(
             notas=it.notas,
             area_cocina=area or (areas[0] if areas else None),
             va_a_cocina=va_a_cocina,
+            estado="pendiente" if va_a_cocina else "listo",
+            timestamp_listo=None if va_a_cocina else datetime.now(timezone.utc),
         )
         db.add(nuevo)
 
@@ -382,6 +384,11 @@ def agregar_items(
 
     db.flush()
     _recalc_total(comanda)
+
+    # Si todos los ítems activos ya están listos (ninguno va a cocina) → comanda = "lista"
+    activos = [i for i in comanda.items if i.estado != "cancelado"]
+    if activos and all(i.estado in ("listo", "entregado") for i in activos):
+        comanda.estado = "lista"
     db.commit(); db.refresh(comanda)
     return _ser_comanda(comanda)
 
