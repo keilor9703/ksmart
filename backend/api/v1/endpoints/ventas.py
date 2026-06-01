@@ -39,7 +39,7 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
                 models.Producto.id == d.producto_id,
                 models.Producto.empresa_id == empresa_id,
             )
-            .with_for_update()
+            .with_for_update(of=models.Producto)
             .first()
         )
         if not prod:
