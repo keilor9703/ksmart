@@ -19,14 +19,21 @@ def get_mi_suscripcion(
 
     ahora = datetime.now(timezone.utc)
 
-    # Calcular días restantes
+    # Calcular días restantes y total del período
     dias_restantes = None
+    total_dias = None
     if empresa.trial_ends_at:
         ends = empresa.trial_ends_at
         if ends.tzinfo is None:
             ends = ends.replace(tzinfo=timezone.utc)
         delta = (ends - ahora).total_seconds()
         dias_restantes = max(0, int(delta / 86400))
+        # Total del período: desde creación hasta vencimiento
+        if empresa.created_at:
+            start = empresa.created_at
+            if start.tzinfo is None:
+                start = start.replace(tzinfo=timezone.utc)
+            total_dias = max(1, (ends - start).days)
 
     # is_plan_expired (mismo cálculo del schema)
     is_expired = False
@@ -42,6 +49,7 @@ def get_mi_suscripcion(
         "is_plan_expired": is_expired,
         "trial_ends_at":  empresa.trial_ends_at.isoformat() if empresa.trial_ends_at else None,
         "dias_restantes": dias_restantes,
+        "total_dias":     total_dias,
         "is_protected":   empresa.is_protected,
     }
 

@@ -26,11 +26,28 @@ const CatalogoVirtual = () => {
   const outerTheme = useTheme();
   const isMobile = useMediaQuery(outerTheme.breakpoints.down('sm'));
 
+  // ── Inyectar fuente moderna (solo una vez por sesión) ─────────────────
+  useEffect(() => {
+    if (!document.getElementById('cat-font-nunito')) {
+      const link = document.createElement('link');
+      link.id = 'cat-font-nunito';
+      link.rel = 'stylesheet';
+      link.href = 'https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap';
+      document.head.appendChild(link);
+    }
+  }, []);
+
+
   // ── Local theme mode — independent of system/app preference ──────────
   const [catMode, setCatMode] = useState(() =>
     localStorage.getItem(`cat_theme_${slug}`) || 'light'
   );
-  const catTheme = useMemo(() => createTheme({ palette: { mode: catMode } }), [catMode]);
+  const catTheme = useMemo(() => createTheme({
+    palette: { mode: catMode },
+    typography: {
+      fontFamily: '"Nunito", "Inter", system-ui, -apple-system, sans-serif',
+    },
+  }), [catMode]);
   const isDark = catMode === 'dark';
 
   // Semantic color tokens for custom Box/Typography that bypass MUI theming
@@ -109,7 +126,10 @@ const CatalogoVirtual = () => {
       // SEO: Título dinámico
       document.title = `${res.data.empresa.nombre} - Catálogo Virtual`;
     } catch (error) {
-      toast.error("Catálogo no encontrado o inactivo.");
+      if (error.response?.status === 404) {
+        toast.error("Catálogo no encontrado o inactivo.");
+      }
+      // Otros errores (auth expirada, red) se manejan globalmente — no mostrar toast aquí
     } finally {
       setLoading(false);
     }
@@ -279,40 +299,48 @@ const CatalogoVirtual = () => {
             ) : (
               <Avatar sx={{ bgcolor: accentColor, width: 50, height: 50 }} variant="rounded"><Storefront /></Avatar>
             )}
-            <Box sx={{ flexGrow: 1 }}>
-              <Typography sx={{ fontWeight: 800, fontSize: 18, color: textPri }}>{empresa.nombre}</Typography>
-              <Typography variant="caption" color="text.secondary">Catálogo Virtual</Typography>
+            <Box sx={{ flexGrow: 1, minWidth: 0, overflow: 'hidden' }}>
+              <Typography sx={{
+                fontWeight: 800, fontSize: { xs: 15, sm: 18 }, color: textPri,
+                lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}>
+                {empresa.nombre}
+              </Typography>
+              <Typography sx={{ fontSize: 11, color: textSec, mt: 0.2 }}>
+                Catálogo Virtual
+              </Typography>
             </Box>
 
-            {/* Dark / light toggle */}
-            <Tooltip title={isDark ? 'Modo claro' : 'Modo oscuro'}>
-              <IconButton
-                onClick={toggleCatMode}
-                size="small"
+            {/* Dark / light toggle + Powered by — alineados juntos */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+              <Tooltip title={isDark ? 'Modo claro' : 'Modo oscuro'}>
+                <IconButton
+                  onClick={toggleCatMode}
+                  size="small"
+                  sx={{
+                    color: textSec,
+                    bgcolor: subtleBg,
+                    '&:hover': { bgcolor: subtleHov },
+                    width: 30, height: 30,
+                  }}
+                >
+                  {isDark ? <LightMode sx={{ fontSize: 15 }} /> : <DarkMode sx={{ fontSize: 15 }} />}
+                </IconButton>
+              </Tooltip>
+
+              <Typography
+                component="a"
+                href="/login"
                 sx={{
-                  color: textSec,
-                  bgcolor: subtleBg,
-                  '&:hover': { bgcolor: subtleHov },
-                  width: 32, height: 32,
-                  flexShrink: 0,
+                  fontSize: 9, color: '#94A3B8', textDecoration: 'none', whiteSpace: 'nowrap',
+                  fontWeight: 700, letterSpacing: 0.2,
+                  '&:hover': { color: '#FF6020' }, transition: 'color 0.2s',
+                  display: { xs: 'none', sm: 'block' },
                 }}
               >
-                {isDark ? <LightMode sx={{ fontSize: 16 }} /> : <DarkMode sx={{ fontSize: 16 }} />}
-              </IconButton>
-            </Tooltip>
-
-            {/* Powered by — sutil, solo texto */}
-            <Typography
-              component="a"
-              href="/login"
-              sx={{
-                fontSize: 10, color: '#94A3B8', textDecoration: 'none', whiteSpace: 'nowrap',
-                fontWeight: 600, letterSpacing: 0.3, flexShrink: 0,
-                '&:hover': { color: '#FF6020' }, transition: 'color 0.2s'
-              }}
-            >
-              Powered by Ksmart360
-            </Typography>
+                Powered by Ksmart360
+              </Typography>
+            </Box>
           </Box>
 
           <TextField
@@ -560,85 +588,43 @@ const CatalogoVirtual = () => {
           )}
         </Dialog>
 
-        {/* ── BANNER PROMOCIONAL ──────────────────────────────────────────────── */}
-        <Box sx={{ px: 2, pt: 2, pb: 1 }}>
-          <Box
-            sx={{
-              borderRadius: 4,
-              background: 'linear-gradient(135deg, #1E293B 0%, #0F172A 100%)',
-              p: { xs: 3, sm: 4 },
-              textAlign: 'center',
-              position: 'relative',
-              overflow: 'hidden',
-              '&::before': {
-                content: '""',
-                position: 'absolute', top: -40, right: -40,
-                width: 160, height: 160, borderRadius: '50%',
-                background: 'rgba(255,96,32,0.12)'
-              },
-              '&::after': {
-                content: '""',
-                position: 'absolute', bottom: -30, left: -30,
-                width: 120, height: 120, borderRadius: '50%',
-                background: 'rgba(255,96,32,0.08)'
-              }
-            }}
-          >
-            {/* Ícono */}
-            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-              <Box sx={{
-                width: 52, height: 52, borderRadius: 2.5,
-                bgcolor: '#FF6020', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 8px 24px rgba(255,96,32,0.35)'
-              }}>
-                <RocketLaunch sx={{ color: '#fff', fontSize: 26 }} />
+        {/* ── BANNER PROMOCIONAL — compacto ──────────────────────────────── */}
+        <Box sx={{ px: 2, py: 1.5 }}>
+          <Box sx={{
+            display: 'flex', alignItems: 'center', gap: 1.5,
+            p: '10px 14px', borderRadius: 2.5,
+            background: isDark
+              ? 'rgba(255,255,255,0.04)'
+              : 'linear-gradient(120deg, #1E293B 0%, #0F172A 100%)',
+            border: isDark ? '1px solid rgba(255,255,255,0.06)' : 'none',
+          }}>
+            <Box sx={{
+              width: 30, height: 30, borderRadius: 1.5, flexShrink: 0,
+              bgcolor: '#FF6020', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <RocketLaunch sx={{ color: '#fff', fontSize: 15 }} />
+            </Box>
+            <Typography sx={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 700, color: '#fff', lineHeight: 1.4 }}>
+              ¿Tienes un negocio?{' '}
+              <Box component="span" sx={{ fontWeight: 400, color: '#94A3B8' }}>
+                Crea tu catálogo y gestiona ventas con Ksmart360.
               </Box>
-            </Box>
-
-            {/* Headline */}
-            <Typography sx={{ fontWeight: 900, fontSize: { xs: 20, sm: 22 }, color: '#fff', mb: 0.8, lineHeight: 1.2 }}>
-              ¿Tienes un negocio?
             </Typography>
-            <Typography sx={{ fontSize: 14, color: '#94A3B8', mb: 2.5, lineHeight: 1.6, maxWidth: 340, mx: 'auto' }}>
-              Crea tu catálogo virtual, gestiona ventas, inventario y clientes — todo desde un solo lugar con{' '}
-              <Box component="span" sx={{ color: '#FF6020', fontWeight: 700 }}>Ksmart360</Box>.
-            </Typography>
-
-            {/* Feature pills */}
-            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, flexWrap: 'wrap', mb: 3 }}>
-              {[
-                { icon: <Storefront sx={{ fontSize: 13 }} />, label: 'Catálogo virtual' },
-                { icon: <BarChart sx={{ fontSize: 13 }} />, label: 'Ventas y reportes' },
-                { icon: <Inventory2 sx={{ fontSize: 13 }} />, label: 'Control de inventario' },
-              ].map(f => (
-                <Box key={f.label} sx={{
-                  display: 'flex', alignItems: 'center', gap: 0.6,
-                  bgcolor: 'rgba(255,255,255,0.07)', borderRadius: 10,
-                  px: 1.5, py: 0.5, color: '#CBD5E1', fontSize: 11, fontWeight: 600
-                }}>
-                  {f.icon} {f.label}
-                </Box>
-              ))}
-            </Box>
-
-            {/* CTA button */}
             <Button
-              variant="contained"
-              endIcon={<ArrowForward />}
+              component="a"
               href="/login"
+              variant="contained"
+              size="small"
+              endIcon={<ArrowForward sx={{ fontSize: 11 }} />}
               sx={{
-                bgcolor: '#FF6020', borderRadius: 3, fontWeight: 800,
-                textTransform: 'none', px: 3.5, py: 1.3, fontSize: 15,
-                boxShadow: '0 6px 20px rgba(255,96,32,0.4)',
-                '&:hover': { bgcolor: '#e65520', boxShadow: '0 8px 28px rgba(255,96,32,0.5)' }
+                bgcolor: '#FF6020', borderRadius: 2, fontWeight: 700,
+                fontSize: 11, textTransform: 'none', px: 1.5, py: 0.5,
+                minWidth: 'auto', flexShrink: 0, boxShadow: 'none',
+                '&:hover': { bgcolor: '#e65520', boxShadow: '0 4px 12px rgba(255,96,32,0.3)' },
               }}
             >
-              Comenzar gratis
+              Gratis
             </Button>
-
-            <Typography sx={{ mt: 1.5, fontSize: 11, color: '#475569' }}>
-              Sin tarjeta de crédito · Configuración en minutos
-            </Typography>
           </Box>
         </Box>
 

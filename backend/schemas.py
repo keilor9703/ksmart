@@ -2305,6 +2305,7 @@ class CatalogoConfigUpdate(BaseModel):
     slug_catalogo: str = Field(..., pattern=r"^[a-z0-9-]+$")
     whatsapp_pedidos: Optional[str] = None
     logo_base64: Optional[str] = None
+    color_primario: Optional[str] = None
 
 class CatalogoEmpresaOut(BaseModel):
     nombre: str

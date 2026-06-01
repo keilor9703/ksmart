@@ -84,8 +84,8 @@ const HeroCard = ({ suscripcion, planActual, onRefresh, refreshing }) => {
   const status = getStatusConfig(suscripcion);
   const diasRestantes = suscripcion?.dias_restantes ?? 0;
 
-  // Progress bar: fill % based on plan duration vs days remaining
-  const planDias = planActual?.dias_duracion || 30;
+  // Progress bar: use backend total_dias (trial period) or plan duration
+  const planDias = suscripcion?.total_dias || planActual?.dias_duracion || 14;
   const progressPct = suscripcion?.is_plan_expired
     ? 0
     : Math.min(100, Math.round((diasRestantes / planDias) * 100));

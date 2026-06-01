@@ -35,6 +35,8 @@ def update_catalogo_config(
     db_empresa.whatsapp_pedidos = payload.whatsapp_pedidos
     if payload.logo_base64 is not None:
         db_empresa.logo_base64 = payload.logo_base64
+    if payload.color_primario is not None:
+        db_empresa.color_primario = payload.color_primario
         
     db.commit()
     db.refresh(db_empresa)

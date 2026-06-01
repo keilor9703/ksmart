@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, Chip, Button, IconButton, Tooltip,
   CircularProgress, useTheme, alpha, Stack, Divider,
-  Badge, ToggleButton, ToggleButtonGroup, Paper,
+  Badge, ToggleButton, ToggleButtonGroup, Paper, useMediaQuery,
 } from '@mui/material';
 import {
   Restaurant, CheckCircle, HourglassBottom, Refresh,
@@ -20,7 +20,9 @@ const ESTADO = {
 
 const timeAgo = (iso) => {
   if (!iso) return '';
-  const diff = Math.floor((Date.now() - new Date(iso + (iso.endsWith('Z') ? '' : 'Z'))) / 60000);
+  const d = new Date(iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z');
+  const diff = Math.floor((Date.now() - d) / 60000);
+  if (isNaN(diff) || diff < 0) return '—';
   if (diff < 1) return '<1min';
   if (diff < 60) return `${diff}min`;
   return `${Math.floor(diff / 60)}h ${diff % 60}min`;
@@ -28,7 +30,8 @@ const timeAgo = (iso) => {
 
 const urgencyColor = (iso) => {
   if (!iso) return 'inherit';
-  const diff = Math.floor((Date.now() - new Date(iso + (iso.endsWith('Z') ? '' : 'Z'))) / 60000);
+  const d = new Date(iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z');
+  const diff = Math.floor((Date.now() - d) / 60000);
   if (diff >= 20) return '#EF4444';
   if (diff >= 10) return '#F59E0B';
   return 'inherit';
@@ -173,6 +176,7 @@ const ComandaCard = ({ comanda, onAdvance, advancing }) => {
 
 const PantallaCocina = () => {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [comandas, setComandas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [advancing, setAdvancing] = useState(null);
@@ -260,75 +264,102 @@ const PantallaCocina = () => {
       bgcolor: theme.palette.mode === 'dark' ? '#0d1117' : '#f0f4f8',
       display: 'flex', flexDirection: 'column',
     }}>
-      {/* TopBar cocina */}
+      {/* TopBar cocina — responsive */}
       <Box sx={{
-        px: 2.5, py: 1.5,
         bgcolor: theme.palette.mode === 'dark' ? '#161b22' : '#1e293b',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        gap: 2, borderBottom: '1px solid rgba(255,255,255,0.08)',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
         position: 'sticky', top: 0, zIndex: 100,
       }}>
-        {/* Left */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Restaurant sx={{ color: '#FF6020', fontSize: 28 }} />
-          <Typography sx={{ color: '#fff', fontWeight: 800, fontSize: 20, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            Pantalla de Cocina
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 1 }}>
+        {/* Fila 1: título + acciones */}
+        <Box sx={{
+          px: 2, py: 1.2,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1,
+        }}>
+          {/* Izquierda: icono + título */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+            <Restaurant sx={{ color: '#FF6020', fontSize: isMobile ? 22 : 26, flexShrink: 0 }} />
+            <Typography sx={{
+              color: '#fff', fontWeight: 800,
+              fontSize: isMobile ? 16 : 19,
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              whiteSpace: 'nowrap',
+            }}>
+              {isMobile ? 'Cocina' : 'Pantalla de Cocina'}
+            </Typography>
+          </Box>
+
+          {/* Derecha: chips de estado + botones */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flexShrink: 0 }}>
             {totalPendientes > 0 && (
-              <Badge badgeContent={totalPendientes} color="warning">
-                <Chip
-                  icon={<HourglassBottom sx={{ fontSize: 14, '&&': { color: '#F59E0B' } }} />}
-                  label="Pendientes"
-                  size="small"
-                  sx={{ bgcolor: 'rgba(245,158,11,0.15)', color: '#F59E0B', fontWeight: 700 }}
-                />
-              </Badge>
+              <Chip
+                icon={<HourglassBottom sx={{ fontSize: 13, '&&': { color: '#F59E0B' } }} />}
+                label={isMobile ? totalPendientes : 'Pendientes'}
+                size="small"
+                sx={{ bgcolor: 'rgba(245,158,11,0.18)', color: '#F59E0B', fontWeight: 700, fontSize: 11, height: 24 }}
+              />
             )}
             {totalEnPrep > 0 && (
               <Chip
-                icon={<Restaurant sx={{ fontSize: 14, '&&': { color: '#2563EB' } }} />}
-                label={`${totalEnPrep} preparando`}
+                icon={<Restaurant sx={{ fontSize: 13, '&&': { color: '#60a5fa' } }} />}
+                label={isMobile ? totalEnPrep : `${totalEnPrep} prep.`}
                 size="small"
-                sx={{ bgcolor: 'rgba(37,99,235,0.15)', color: '#60a5fa', fontWeight: 700 }}
+                sx={{ bgcolor: 'rgba(37,99,235,0.18)', color: '#60a5fa', fontWeight: 700, fontSize: 11, height: 24 }}
               />
             )}
+            {/* Countdown compacto */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+              <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: '#059669', flexShrink: 0 }} />
+              {!isMobile && (
+                <Typography sx={{ color: '#64748b', fontSize: 11 }}>{countdown}s</Typography>
+              )}
+            </Box>
+            <IconButton size="small" onClick={fetchData} sx={{ color: '#94a3b8', p: 0.5 }}>
+              <Refresh sx={{ fontSize: 17 }} />
+            </IconButton>
+            <IconButton size="small" onClick={toggleFullscreen} sx={{ color: '#94a3b8', p: 0.5 }}>
+              {fullscreen ? <FullscreenExit sx={{ fontSize: 17 }} /> : <Fullscreen sx={{ fontSize: 17 }} />}
+            </IconButton>
           </Box>
         </Box>
 
-        {/* Center — filtro de área */}
+        {/* Fila 2: filtro de áreas (solo si hay más de una) */}
         {areas.length > 0 && (
-          <ToggleButtonGroup
-            value={filtroArea}
-            exclusive
-            onChange={(_, v) => v && setFiltroArea(v)}
-            size="small"
-            sx={{ '& .MuiToggleButton-root': { color: '#94a3b8', borderColor: 'rgba(255,255,255,0.12)', fontSize: 12, py: 0.5, px: 1.5, textTransform: 'none' }, '& .Mui-selected': { bgcolor: 'rgba(255,96,32,0.2) !important', color: '#FF6020 !important', fontWeight: 700 } }}
-          >
-            <ToggleButton value="todas">Todas</ToggleButton>
-            {areas.map(a => <ToggleButton key={a} value={a}>{a}</ToggleButton>)}
-          </ToggleButtonGroup>
-        )}
-
-        {/* Right */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#059669', animation: 'pulse 2s infinite' }} />
-            <Typography sx={{ color: '#94a3b8', fontSize: 12 }}>
-              Actualiza en {countdown}s
-            </Typography>
+          <Box sx={{
+            px: 2, pb: 1,
+            display: 'flex', alignItems: 'center', gap: 1,
+            overflowX: 'auto',
+            '&::-webkit-scrollbar': { display: 'none' },
+          }}>
+            <ToggleButtonGroup
+              value={filtroArea}
+              exclusive
+              onChange={(_, v) => v && setFiltroArea(v)}
+              size="small"
+              sx={{
+                flexShrink: 0,
+                '& .MuiToggleButton-root': {
+                  color: '#94a3b8',
+                  borderColor: 'rgba(255,255,255,0.12)',
+                  fontSize: 12, py: 0.4, px: 1.4,
+                  textTransform: 'none', whiteSpace: 'nowrap',
+                },
+                '& .Mui-selected': {
+                  bgcolor: 'rgba(255,96,32,0.2) !important',
+                  color: '#FF6020 !important',
+                  fontWeight: 700,
+                },
+              }}
+            >
+              <ToggleButton value="todas">Todas</ToggleButton>
+              {areas.map(a => <ToggleButton key={a} value={a}>{a}</ToggleButton>)}
+            </ToggleButtonGroup>
+            {isMobile && (
+              <Typography sx={{ color: '#64748b', fontSize: 11, flexShrink: 0, ml: 'auto' }}>
+                {countdown}s
+              </Typography>
+            )}
           </Box>
-          <Tooltip title="Actualizar ahora">
-            <IconButton size="small" onClick={fetchData} sx={{ color: '#94a3b8' }}>
-              <Refresh sx={{ fontSize: 18 }} />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}>
-            <IconButton size="small" onClick={toggleFullscreen} sx={{ color: '#94a3b8' }}>
-              {fullscreen ? <FullscreenExit sx={{ fontSize: 18 }} /> : <Fullscreen sx={{ fontSize: 18 }} />}
-            </IconButton>
-          </Tooltip>
-        </Box>
+        )}
       </Box>
 
       {/* Content */}

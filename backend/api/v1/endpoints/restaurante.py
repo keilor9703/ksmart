@@ -455,14 +455,14 @@ def cerrar_comanda(
     # Crear Venta reutilizando el modelo existente
     venta = models.Venta(
         empresa_id=user.empresa_id,
-        vendedor_id=user.id,
+        operador_id=user.id,
         total=total_con_propina,
         iva_total=0,
         iva_porcentaje=0,
         monto_pagado=total_con_propina,
         estado_pago="pagado",
         metodo_pago=payload.metodo_pago,
-        notas=f"Mesa {comanda.mesa.numero} — Comanda #{comanda.numero_comanda}" + (
+        observaciones=f"Mesa {comanda.mesa.numero} — Comanda #{comanda.numero_comanda}" + (
             f" | Propina: ${payload.propina:.0f}" if payload.propina else ""
         ),
     )
@@ -476,10 +476,8 @@ def cerrar_comanda(
         detalle = models.DetalleVenta(
             venta_id=venta.id,
             producto_id=item.producto_id,
-            nombre_producto=item.nombre_producto,
             cantidad=item.cantidad,
             precio_unitario=item.precio_unitario,
-            subtotal=item.subtotal,
         )
         db.add(detalle)
 

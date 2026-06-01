@@ -5,13 +5,14 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, Select, MenuItem, FormControl, InputLabel,
   List, ListItem, ListItemText, ListItemSecondaryAction,
-  Paper, ToggleButton, ToggleButtonGroup,
+  Paper, ToggleButton, ToggleButtonGroup, Tab, Tabs,
+  useMediaQuery,
 } from '@mui/material';
 import {
   TableRestaurant, Add, Refresh, Close, Person,
   Restaurant, AttachMoney, Cancel, Send,
   CheckCircle, HourglassBottom, FiberManualRecord,
-  Edit, Delete, Settings, Receipt, Note,
+  Edit, Delete, Settings, Receipt, Note, MenuBook,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
@@ -40,7 +41,10 @@ const fmt = (v) =>
 
 const timeAgo = (iso) => {
   if (!iso) return '';
-  const diff = Math.floor((Date.now() - new Date(iso + (iso.endsWith('Z') ? '' : 'Z'))) / 60000);
+  // Handle both naive datetimes (no tz info) and aware ones (+00:00 / Z)
+  const d = new Date(iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z');
+  const diff = Math.floor((Date.now() - d) / 60000);
+  if (isNaN(diff) || diff < 0) return '—';
   if (diff < 1) return 'ahora';
   if (diff < 60) return `${diff}min`;
   return `${Math.floor(diff / 60)}h${diff % 60 > 0 ? ` ${diff % 60}min` : ''}`;
@@ -49,11 +53,15 @@ const timeAgo = (iso) => {
 // ─── AbrirComandaDialog ───────────────────────────────────────────────────────
 
 const AbrirComandaDialog = ({ open, onClose, mesa, onSuccess }) => {
-  const [personas, setPersonas] = useState(2);
+  const [personasStr, setPersonasStr] = useState('2');
   const [notas, setNotas] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Permite borrar y escribir libremente; solo valida al enviar
+  const personas = parseInt(personasStr, 10) || 1;
+
   const handleAbrir = async () => {
+    if (personas < 1) return;
     setLoading(true);
     try {
       await apiClient.post('/restaurante/comandas', {
@@ -69,40 +77,54 @@ const AbrirComandaDialog = ({ open, onClose, mesa, onSuccess }) => {
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 4 } }}>
-      <DialogTitle sx={{ pb: 1 }}>
+      <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Avatar sx={{ bgcolor: alpha('#059669', 0.12), width: 40, height: 40 }}>
+          <Avatar sx={{ bgcolor: alpha('#059669', 0.12), width: 40, height: 40, flexShrink: 0 }}>
             <TableRestaurant sx={{ color: '#059669', fontSize: 20 }} />
           </Avatar>
-          <Box>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography fontWeight={800} fontSize={15}>Abrir mesa {mesa?.numero}</Typography>
-            <Typography fontSize={12} color="text.secondary">{mesa?.zona} · {mesa?.capacidad} sillas</Typography>
+            <Typography fontSize={12} color="text.secondary" noWrap>{mesa?.zona} · {mesa?.capacidad} sillas</Typography>
           </Box>
-          <IconButton size="small" sx={{ ml: 'auto' }} onClick={onClose}><Close fontSize="small" /></IconButton>
+          <IconButton size="small" onClick={onClose}><Close fontSize="small" /></IconButton>
         </Box>
       </DialogTitle>
-      <DialogContent sx={{ pt: 1.5 }}>
-        <Stack spacing={2}>
+      <DialogContent dividers sx={{ pt: 2 }}>
+        <Stack spacing={2.5}>
           <TextField
-            label="Número de personas" type="number" size="small" fullWidth
-            value={personas} onChange={e => setPersonas(Math.max(1, +e.target.value))}
+            label="Número de personas"
+            type="number"
+            size="medium"
+            fullWidth
+            value={personasStr}
+            onChange={e => setPersonasStr(e.target.value)}
+            onBlur={() => {
+              // Al salir del campo, asegurar valor mínimo de 1
+              const v = parseInt(personasStr, 10);
+              setPersonasStr(String(isNaN(v) || v < 1 ? 1 : v));
+            }}
             inputProps={{ min: 1, max: mesa?.capacidad || 20 }}
-            InputProps={{ startAdornment: <Person sx={{ mr: 1, color: 'text.secondary', fontSize: 18 }} /> }}
+            InputProps={{ startAdornment: <Person sx={{ mr: 1, color: 'text.secondary', fontSize: 20 }} /> }}
             sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
           />
           <TextField
-            label="Nota inicial (opcional)" size="small" fullWidth multiline rows={2}
-            value={notas} onChange={e => setNotas(e.target.value)}
+            label="Nota inicial (opcional)"
+            size="medium"
+            fullWidth
+            multiline
+            rows={2}
+            value={notas}
+            onChange={e => setNotas(e.target.value)}
             placeholder="Ej: cliente con silla de bebé, cumpleaños..."
             sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
           />
         </Stack>
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+      <DialogActions sx={{ px: 3, py: 2, gap: 1 }}>
         <Button onClick={onClose} sx={{ borderRadius: 2 }}>Cancelar</Button>
-        <Button variant="contained" onClick={handleAbrir} disabled={loading}
+        <Button variant="contained" onClick={handleAbrir} disabled={loading || personas < 1}
           startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <TableRestaurant />}
-          sx={{ bgcolor: '#059669', '&:hover': { bgcolor: '#047857' }, borderRadius: 2, fontWeight: 700, flex: 1 }}>
+          sx={{ bgcolor: '#059669', '&:hover': { bgcolor: '#047857' }, borderRadius: 2, fontWeight: 700, flex: 1, py: 1.1 }}>
           Abrir mesa
         </Button>
       </DialogActions>
@@ -114,6 +136,7 @@ const AbrirComandaDialog = ({ open, onClose, mesa, onSuccess }) => {
 
 const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, empresa, vendedor }) => {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isDark = theme.palette.mode === 'dark';
   const [search, setSearch] = useState('');
   const [selectedItems, setSelectedItems] = useState([]);
@@ -121,12 +144,11 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
   const [reciboData, setReciboData] = useState(null);
   const [propina, setPropina] = useState(0);
   const [metodo, setMetodo] = useState('Efectivo');
-  const [showCierre, setShowCierre] = useState(false);
+  const [tab, setTab] = useState(0); // 0=Pedido, 1=Menú (solo móvil)
 
   const itemsActivos = comanda?.items?.filter(i => i.estado !== 'cancelado') || [];
   const hayPendientes = itemsActivos.some(i => i.estado === 'pendiente');
   const hayEnPrep = itemsActivos.some(i => i.estado === 'en_preparacion');
-  const todosListos = itemsActivos.length > 0 && itemsActivos.every(i => ['listo', 'entregado'].includes(i.estado));
 
   const productosFiltrados = productos.filter(p =>
     p.nombre.toLowerCase().includes(search.toLowerCase())
@@ -141,7 +163,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
       return [...prev, {
         producto_id: prod.id,
         nombre_producto: prod.nombre,
-        precio_unitario: prod.precio_venta,
+        precio_unitario: prod.precio,
         cantidad: 1,
         notas: '',
         area_cocina: config?.areas_cocina?.[0] || 'Cocina general',
@@ -149,7 +171,19 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
     });
   };
 
+  const [notaAbierta, setNotaAbierta] = useState(null); // producto_id con nota expandida
+
   const removeSelected = (pid) => setSelectedItems(prev => prev.filter(i => i.producto_id !== pid));
+
+  const updateCantidad = (pid, delta) => {
+    setSelectedItems(prev =>
+      prev.map(i => i.producto_id === pid ? { ...i, cantidad: Math.max(1, i.cantidad + delta) } : i)
+    );
+  };
+
+  const updateNota = (pid, nota) => {
+    setSelectedItems(prev => prev.map(i => i.producto_id === pid ? { ...i, notas: nota } : i));
+  };
 
   const handleEnviarCocina = async () => {
     if (!selectedItems.length) return;
@@ -158,6 +192,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
       await apiClient.post(`/restaurante/comandas/${comanda.id}/items`, selectedItems);
       setSelectedItems([]);
       toast.success('Pedido enviado a cocina');
+      if (isMobile) setTab(0); // volver al pedido tras enviar
       onSuccess();
     } catch (e) {
       toast.error(e?.response?.data?.detail || 'Error al enviar');
@@ -185,7 +220,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
       toast.success(`Mesa ${mesa.numero} cerrada — Venta #${res.data.venta_id}`);
     } catch (e) {
       toast.error(e?.response?.data?.detail || 'Error al cerrar');
-    } finally { setLoading(false); setShowCierre(false); }
+    } finally { setLoading(false); }
   };
 
   const handleCancelarItem = async (itemId) => {
@@ -199,250 +234,462 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
     return <ReciboDialog open onClose={() => { setReciboData(null); onClose(); }} venta={reciboData} empresa={empresa} vendedor={vendedor} />;
   }
 
+  // ── Sección de ítems (reutilizada en móvil y desktop) ──────────────────────
+  const PedidoContent = (
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+        {itemsActivos.length === 0 ? (
+          <Box sx={{ textAlign: 'center', py: 5, color: 'text.disabled' }}>
+            <Restaurant sx={{ fontSize: 40, opacity: 0.2, mb: 1 }} />
+            <Typography fontSize={13}>Aún no hay ítems.</Typography>
+            <Typography fontSize={12} sx={{ mt: 0.5 }}>
+              {isMobile ? 'Toca "Menú" para agregar.' : 'Selecciona productos del menú →'}
+            </Typography>
+          </Box>
+        ) : (
+          <Stack spacing={1}>
+            {itemsActivos.map(item => {
+              const est = ESTADO_ITEM[item.estado] || ESTADO_ITEM.pendiente;
+              return (
+                <Box key={item.id} sx={{
+                  display: 'flex', alignItems: 'center', gap: 1,
+                  p: 1.5, borderRadius: 2,
+                  bgcolor: isDark ? alpha('#fff', 0.03) : alpha('#000', 0.025),
+                  border: `1px solid ${alpha(est.color, 0.2)}`,
+                }}>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography fontSize={13} fontWeight={700} noWrap>{item.nombre_producto}</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mt: 0.3 }}>
+                      <Typography fontSize={12} color="text.disabled">{item.cantidad}× {fmt(item.precio_unitario)}</Typography>
+                      {item.notas && <Tooltip title={item.notas}><Note sx={{ fontSize: 13, color: 'text.disabled' }} /></Tooltip>}
+                    </Box>
+                  </Box>
+                  <Chip icon={est.icon} label={est.label} size="small"
+                    sx={{ fontSize: 10, height: 22, fontWeight: 700, bgcolor: alpha(est.color, 0.1), color: est.color, '& .MuiChip-icon': { color: est.color } }} />
+                  <Typography fontSize={13} fontWeight={700} color="#FF6020" sx={{ flexShrink: 0, minWidth: 58, textAlign: 'right' }}>
+                    {fmt(item.subtotal)}
+                  </Typography>
+                  {item.estado === 'pendiente' && (
+                    <Tooltip title="Cancelar">
+                      <IconButton size="small" onClick={() => handleCancelarItem(item.id)} sx={{ color: '#EF4444', p: 0.4 }}>
+                        <Cancel sx={{ fontSize: 16 }} />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                </Box>
+              );
+            })}
+          </Stack>
+        )}
+
+        {/* Sección de cierre */}
+        {itemsActivos.length > 0 && (
+          <Box sx={{ mt: 2, pt: 2, borderTop: `2px solid ${theme.palette.divider}` }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+              <Typography fontSize={13} color="text.secondary">Subtotal</Typography>
+              <Typography fontSize={13} fontWeight={700}>{fmt(comanda.total)}</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+              <Typography fontSize={13} color="text.secondary">Propina</Typography>
+              <TextField size="small" type="number" value={propina}
+                onChange={e => setPropina(Math.max(0, +e.target.value))}
+                sx={{ width: 110, '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: 13 } }} />
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+              <Typography fontWeight={800} fontSize={16}>Total</Typography>
+              <Typography fontWeight={900} fontSize={18} color="#FF6020">{fmt(comanda.total + propina)}</Typography>
+            </Box>
+            <FormControl size="small" fullWidth sx={{ mb: 1.5 }}>
+              <InputLabel>Método de pago</InputLabel>
+              <Select value={metodo} onChange={e => setMetodo(e.target.value)} label="Método de pago" sx={{ borderRadius: 2 }}>
+                {['Efectivo', 'Tarjeta', 'Nequi', 'Transferencia', 'Daviplata'].map(m => (
+                  <MenuItem key={m} value={m}>{m}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <Button fullWidth variant="contained" disabled={loading || hayPendientes || hayEnPrep}
+              startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <Receipt />}
+              onClick={handleCerrarCuenta}
+              sx={{ borderRadius: 2, fontWeight: 800, fontSize: 14, py: 1.2, bgcolor: '#7C3AED', '&:hover': { bgcolor: '#6D28D9' }, mb: 0.5 }}>
+              Cerrar cuenta y cobrar
+            </Button>
+            {(hayPendientes || hayEnPrep) && (
+              <Typography fontSize={11} color="text.secondary" textAlign="center">
+                Espera a que cocina confirme todos los ítems
+              </Typography>
+            )}
+          </Box>
+        )}
+      </Box>
+    </Box>
+  );
+
+  // ── Sección de menú (reutilizada en móvil y desktop) ───────────────────────
+  const MenuContent = (
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <Box sx={{ p: 1.5, borderBottom: `1px solid ${theme.palette.divider}` }}>
+        <TextField size="small" fullWidth placeholder="Buscar en el menú..."
+          value={search} onChange={e => setSearch(e.target.value)}
+          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: 14 } }} />
+      </Box>
+
+      <Box sx={{ flex: 1, overflowY: 'auto', p: 1.5, pb: selectedItems.length > 0 ? (isMobile ? '60vh' : '48vh') : 1.5 }}>
+        {productosFiltrados.length === 0 ? (
+          <Typography fontSize={13} color="text.disabled" textAlign="center" sx={{ mt: 4 }}>Sin productos</Typography>
+        ) : (
+          <Stack spacing={0.8}>
+            {productosFiltrados.map(prod => (
+              <Box key={prod.id} onClick={() => addToSelected(prod)} sx={{
+                p: 1.4, borderRadius: 2, cursor: 'pointer',
+                border: `1px solid ${alpha(theme.palette.divider, 1)}`,
+                bgcolor: isDark ? alpha('#fff', 0.025) : alpha('#000', 0.02),
+                transition: 'all 0.15s',
+                '&:hover': { borderColor: '#FF6020', bgcolor: alpha('#FF6020', 0.04) },
+                '&:active': { transform: 'scale(0.98)' },
+              }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography fontSize={13} fontWeight={600} sx={{ flex: 1, mr: 1 }}>{prod.nombre}</Typography>
+                  <Typography fontSize={13} fontWeight={700} color="#FF6020" sx={{ flexShrink: 0 }}>
+                    {fmt(prod.precio)}
+                  </Typography>
+                </Box>
+                {prod.categoria && <Typography fontSize={11} color="text.disabled" sx={{ mt: 0.2 }}>{prod.categoria}</Typography>}
+              </Box>
+            ))}
+          </Stack>
+        )}
+      </Box>
+
+      {/* Carrito — ítems seleccionados para enviar */}
+      {selectedItems.length > 0 && (
+        <Box sx={{
+          position: isMobile ? 'fixed' : 'sticky',
+          bottom: 0, left: 0, right: 0,
+          bgcolor: theme.palette.background.paper,
+          borderTop: `2px solid ${alpha('#059669', 0.3)}`,
+          p: 1.5, zIndex: 10,
+          boxShadow: '0 -4px 20px rgba(0,0,0,0.14)',
+          maxHeight: isMobile ? '55vh' : '45vh',
+          overflowY: 'auto',
+        }}>
+          <Typography fontSize={11} fontWeight={700} color="text.secondary" textTransform="uppercase"
+            letterSpacing={0.8} mb={1}>
+            Para enviar ({selectedItems.reduce((a, i) => a + i.cantidad, 0)} ítems)
+          </Typography>
+
+          <Stack spacing={0.8} mb={1.2}>
+            {selectedItems.map(it => (
+              <Box key={it.producto_id} sx={{
+                borderRadius: 2,
+                border: `1px solid ${alpha('#059669', notaAbierta === it.producto_id ? 0.5 : 0.15)}`,
+                bgcolor: alpha('#059669', 0.04),
+                overflow: 'hidden',
+              }}>
+                {/* Fila principal */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.8 }}>
+                  {/* Nombre */}
+                  <Typography fontSize={13} fontWeight={600} sx={{ flex: 1, minWidth: 0 }} noWrap>
+                    {it.nombre_producto}
+                  </Typography>
+
+                  {/* Controles de cantidad */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, flexShrink: 0 }}>
+                    <IconButton size="small" onClick={() => updateCantidad(it.producto_id, -1)}
+                      sx={{ width: 24, height: 24, bgcolor: alpha('#000', 0.06), borderRadius: 1, p: 0 }}>
+                      <Typography fontSize={16} lineHeight={1} sx={{ userSelect: 'none' }}>−</Typography>
+                    </IconButton>
+                    <Typography fontSize={13} fontWeight={700} sx={{ minWidth: 20, textAlign: 'center' }}>
+                      {it.cantidad}
+                    </Typography>
+                    <IconButton size="small" onClick={() => updateCantidad(it.producto_id, 1)}
+                      sx={{ width: 24, height: 24, bgcolor: alpha('#059669', 0.12), borderRadius: 1, p: 0 }}>
+                      <Typography fontSize={16} lineHeight={1} sx={{ color: '#059669', userSelect: 'none' }}>+</Typography>
+                    </IconButton>
+                  </Box>
+
+                  {/* Botón nota */}
+                  <Tooltip title={it.notas ? `Nota: ${it.notas}` : 'Agregar nota'}>
+                    <IconButton size="small"
+                      onClick={() => setNotaAbierta(n => n === it.producto_id ? null : it.producto_id)}
+                      sx={{ p: 0.3, color: it.notas ? '#F59E0B' : 'text.disabled' }}>
+                      <Note sx={{ fontSize: 17 }} />
+                    </IconButton>
+                  </Tooltip>
+
+                  {/* Eliminar */}
+                  <IconButton size="small" onClick={() => removeSelected(it.producto_id)}
+                    sx={{ p: 0.3, color: '#EF4444' }}>
+                    <Close sx={{ fontSize: 15 }} />
+                  </IconButton>
+                </Box>
+
+                {/* Campo de nota inline (se expande al tocar el ícono) */}
+                {notaAbierta === it.producto_id && (
+                  <Box sx={{ px: 1, pb: 1 }}>
+                    <TextField
+                      autoFocus
+                      size="small"
+                      fullWidth
+                      placeholder="Ej: sin sal, sin cebolla, punto de cocción..."
+                      value={it.notas || ''}
+                      onChange={e => updateNota(it.producto_id, e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') setNotaAbierta(null); }}
+                      InputProps={{
+                        startAdornment: (
+                          <Typography fontSize={13} sx={{ mr: 0.5, color: '#F59E0B' }}>📝</Typography>
+                        ),
+                      }}
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 1.5, fontSize: 13,
+                          '& fieldset': { borderColor: alpha('#F59E0B', 0.5) },
+                          '&:hover fieldset': { borderColor: '#F59E0B' },
+                          '&.Mui-focused fieldset': { borderColor: '#F59E0B' },
+                        },
+                      }}
+                    />
+                  </Box>
+                )}
+
+                {/* Badge de nota activa */}
+                {it.notas && notaAbierta !== it.producto_id && (
+                  <Box sx={{ px: 1, pb: 0.6 }}>
+                    <Typography fontSize={11} sx={{ color: '#F59E0B', fontStyle: 'italic' }}>
+                      📝 {it.notas}
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+            ))}
+          </Stack>
+
+          <Button fullWidth variant="contained" onClick={handleEnviarCocina} disabled={loading}
+            startIcon={loading ? <CircularProgress size={15} color="inherit" /> : <Send />}
+            sx={{ borderRadius: 2, fontWeight: 800, fontSize: 14, py: 1.1, bgcolor: '#059669', '&:hover': { bgcolor: '#047857' } }}>
+            Enviar {selectedItems.reduce((a, i) => a + i.cantidad, 0)} ítem(s) a cocina
+          </Button>
+        </Box>
+      )}
+    </Box>
+  );
+
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '90vh' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header */}
-      <Box sx={{ px: 2.5, py: 2, display: 'flex', alignItems: 'center', gap: 1.5, borderBottom: `1px solid ${theme.palette.divider}` }}>
-        <Avatar sx={{ bgcolor: alpha('#F59E0B', 0.12), width: 40, height: 40 }}>
-          <TableRestaurant sx={{ color: '#F59E0B', fontSize: 20 }} />
+      <Box sx={{ px: 2, py: 1.5, display: 'flex', alignItems: 'center', gap: 1.5, borderBottom: `1px solid ${theme.palette.divider}`, flexShrink: 0 }}>
+        <Avatar sx={{ bgcolor: alpha('#F59E0B', 0.12), width: 38, height: 38, flexShrink: 0 }}>
+          <TableRestaurant sx={{ color: '#F59E0B', fontSize: 19 }} />
         </Avatar>
-        <Box sx={{ flex: 1 }}>
-          <Typography fontWeight={800} fontSize={15}>Mesa {mesa.numero}</Typography>
-          <Typography fontSize={12} color="text.secondary">
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography fontWeight={800} fontSize={15} noWrap>Mesa {mesa.numero}{mesa.nombre ? ` — ${mesa.nombre}` : ''}</Typography>
+          <Typography fontSize={12} color="text.secondary" noWrap>
             Comanda #{comanda.numero_comanda} · {comanda.personas} persona{comanda.personas !== 1 ? 's' : ''} · {timeAgo(comanda.fecha_apertura)}
           </Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
           <Chip label={fmt(comanda.total)} size="small"
             sx={{ fontWeight: 900, bgcolor: alpha('#FF6020', 0.1), color: '#FF6020', fontSize: 12 }} />
           <IconButton size="small" onClick={onClose}><Close fontSize="small" /></IconButton>
         </Box>
       </Box>
 
+      {/* Tabs — solo en móvil */}
+      {isMobile && (
+        <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="fullWidth"
+          sx={{
+            flexShrink: 0,
+            borderBottom: `1px solid ${theme.palette.divider}`,
+            '& .MuiTab-root': { textTransform: 'none', fontWeight: 600, fontSize: 13, minHeight: 44 },
+            '& .Mui-selected': { color: '#FF6020 !important' },
+            '& .MuiTabs-indicator': { bgcolor: '#FF6020' },
+          }}>
+          <Tab label={`Pedido${itemsActivos.length > 0 ? ` (${itemsActivos.length})` : ''}`}
+            icon={<Receipt sx={{ fontSize: 16 }} />} iconPosition="start" />
+          <Tab label={`Menú${selectedItems.length > 0 ? ` +${selectedItems.reduce((a, i) => a + i.cantidad, 0)}` : ''}`}
+            icon={<MenuBook sx={{ fontSize: 16 }} />} iconPosition="start" />
+        </Tabs>
+      )}
+
       {/* Body */}
-      <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      {isMobile ? (
+        // ── MÓVIL: una pestaña a la vez ──────────────────────────────────────
+        <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {tab === 0 && PedidoContent}
+          {tab === 1 && MenuContent}
+        </Box>
+      ) : (
+        // ── DESKTOP: split view ───────────────────────────────────────────────
+        <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+          <Box sx={{ flex: 1, overflow: 'hidden', borderRight: `1px solid ${theme.palette.divider}` }}>
+            {PedidoContent}
+          </Box>
 
-        {/* Izq: Ítems de la comanda */}
-        <Box sx={{ flex: 1, overflow: 'auto', p: 2, borderRight: `1px solid ${theme.palette.divider}` }}>
-          <Typography fontSize={11} fontWeight={700} color="text.secondary" textTransform="uppercase" letterSpacing={0.8} mb={1}>
-            Pedido actual
-          </Typography>
+          {/* Panel derecho: buscador + lista dividida + carrito */}
+          <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
 
-          {itemsActivos.length === 0 ? (
-            <Box sx={{ textAlign: 'center', py: 4, color: 'text.disabled' }}>
-              <Restaurant sx={{ fontSize: 36, opacity: 0.2, mb: 1 }} />
-              <Typography fontSize={13}>Selecciona productos del menú →</Typography>
+            {/* Buscador */}
+            <Box sx={{ p: 1.5, borderBottom: `1px solid ${theme.palette.divider}`, flexShrink: 0 }}>
+              <TextField size="small" fullWidth placeholder="Buscar en el menú..."
+                value={search} onChange={e => setSearch(e.target.value)}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: 13 } }} />
             </Box>
-          ) : (
-            <Stack spacing={0.8}>
-              {itemsActivos.map(item => {
-                const est = ESTADO_ITEM[item.estado] || ESTADO_ITEM.pendiente;
-                return (
-                  <Box key={item.id} sx={{
-                    display: 'flex', alignItems: 'center', gap: 1,
-                    p: 1.2, borderRadius: 2,
-                    bgcolor: isDark ? alpha('#fff', 0.03) : alpha('#000', 0.025),
-                    border: `1px solid ${alpha(est.color, 0.2)}`,
-                  }}>
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography fontSize={12.5} fontWeight={600} noWrap>{item.nombre_producto}</Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
-                        <Typography fontSize={11} color="text.disabled">{item.cantidad}× {fmt(item.precio_unitario)}</Typography>
-                        {item.notas && (
-                          <Tooltip title={item.notas}>
-                            <Note sx={{ fontSize: 13, color: 'text.disabled' }} />
-                          </Tooltip>
-                        )}
-                      </Box>
-                      {item.area_cocina && (
-                        <Typography fontSize={10} color="text.disabled">{item.area_cocina}</Typography>
-                      )}
-                    </Box>
-                    <Chip
-                      icon={est.icon}
-                      label={est.label}
-                      size="small"
-                      sx={{ fontSize: 9, height: 20, fontWeight: 700, bgcolor: alpha(est.color, 0.1), color: est.color, '& .MuiChip-icon': { color: est.color } }}
-                    />
-                    <Typography fontSize={12} fontWeight={700} color="#FF6020" sx={{ flexShrink: 0, minWidth: 60, textAlign: 'right' }}>
-                      {fmt(item.subtotal)}
-                    </Typography>
-                    {item.estado === 'pendiente' && (
-                      <Tooltip title="Cancelar ítem">
-                        <IconButton size="small" onClick={() => handleCancelarItem(item.id)} sx={{ color: '#EF4444', p: 0.3 }}>
-                          <Cancel sx={{ fontSize: 15 }} />
-                        </IconButton>
-                      </Tooltip>
-                    )}
-                  </Box>
-                );
-              })}
-            </Stack>
-          )}
 
-          {/* Total y cierre */}
-          {itemsActivos.length > 0 && (
-            <Box sx={{ mt: 2, pt: 2, borderTop: `2px solid ${theme.palette.divider}` }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                <Typography fontSize={13} color="text.secondary">Subtotal</Typography>
-                <Typography fontSize={13} fontWeight={700}>{fmt(comanda.total)}</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                <Typography fontSize={13} color="text.secondary">Propina</Typography>
-                <TextField
-                  size="small" type="number" value={propina}
-                  onChange={e => setPropina(Math.max(0, +e.target.value))}
-                  sx={{ width: 100, '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: 13 } }}
-                />
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                <Typography fontWeight={800} fontSize={15}>Total</Typography>
-                <Typography fontWeight={900} fontSize={17} color="#FF6020">{fmt(comanda.total + propina)}</Typography>
-              </Box>
-
-              <FormControl size="small" fullWidth sx={{ mb: 1.5 }}>
-                <InputLabel>Método de pago</InputLabel>
-                <Select value={metodo} onChange={e => setMetodo(e.target.value)} label="Método de pago"
-                  sx={{ borderRadius: 2 }}>
-                  {['Efectivo', 'Tarjeta', 'Nequi', 'Transferencia', 'Daviplata'].map(m => (
-                    <MenuItem key={m} value={m}>{m}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
-              <Button fullWidth variant="contained" disabled={loading || hayPendientes || hayEnPrep}
-                startIcon={<Receipt />}
-                onClick={handleCerrarCuenta}
-                sx={{ borderRadius: 2, fontWeight: 800, bgcolor: '#7C3AED', '&:hover': { bgcolor: '#6D28D9' }, mb: 0.5 }}>
-                Cerrar cuenta y cobrar
-              </Button>
-              {(hayPendientes || hayEnPrep) && (
-                <Typography fontSize={11} color="text.secondary" textAlign="center">
-                  Espera que cocina confirme todos los ítems
+            {/* Lista de productos */}
+            <Box sx={{ flex: 1, overflowY: 'auto', p: 1.5 }}>
+              {productosFiltrados.length === 0 ? (
+                <Typography fontSize={12} color="text.disabled" textAlign="center" sx={{ mt: 3 }}>
+                  Sin productos
                 </Typography>
+              ) : (
+                <Stack spacing={0}>
+
+                  {/* ── Platos y preparados ── */}
+                  {platosMenu.length > 0 && (
+                    <>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mb: 0.8, mt: 0.2 }}>
+                        <Restaurant sx={{ fontSize: 12, color: '#EC4899' }} />
+                        <Typography fontSize={10} fontWeight={800} color="#EC4899" textTransform="uppercase" letterSpacing={0.8}>
+                          Platos y preparados
+                        </Typography>
+                      </Box>
+                      <Stack spacing={0.7} sx={{ mb: 1.5 }}>
+                        {platosMenu.map(prod => (
+                          <Box key={prod.id}
+                            onClick={() => addToSelected(prod)}
+                            sx={{
+                              p: 1.2, borderRadius: 2, cursor: 'pointer',
+                              border: `1px solid ${alpha('#EC4899', 0.2)}`,
+                              bgcolor: isDark ? alpha('#EC4899', 0.04) : alpha('#EC4899', 0.03),
+                              transition: 'all 0.15s',
+                              '&:hover': { borderColor: '#EC4899', bgcolor: alpha('#EC4899', 0.08) },
+                              '&:active': { transform: 'scale(0.98)' },
+                            }}
+                          >
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <Typography fontSize={12.5} fontWeight={600} noWrap sx={{ flex: 1 }}>{prod.nombre}</Typography>
+                              <Typography fontSize={12} fontWeight={700} color="#EC4899" sx={{ ml: 0.5, flexShrink: 0 }}>
+                                {fmt(prod.precio)}
+                              </Typography>
+                            </Box>
+                            {prod.categoria && (
+                              <Typography fontSize={10} color="text.disabled">{prod.categoria}</Typography>
+                            )}
+                          </Box>
+                        ))}
+                      </Stack>
+                    </>
+                  )}
+
+                  {/* ── Otros productos ── */}
+                  {otrosMenu.length > 0 && (
+                    <>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mb: 0.8, mt: platosMenu.length > 0 ? 0.5 : 0.2 }}>
+                        <Box sx={{ fontSize: 10, lineHeight: 1 }}>🥤</Box>
+                        <Typography fontSize={10} fontWeight={800} color="text.secondary" textTransform="uppercase" letterSpacing={0.8}>
+                          Otros
+                        </Typography>
+                      </Box>
+                      <Stack spacing={0.7}>
+                        {otrosMenu.map(prod => (
+                          <Box key={prod.id}
+                            onClick={() => addToSelected(prod)}
+                            sx={{
+                              p: 1.2, borderRadius: 2, cursor: 'pointer',
+                              border: `1px solid ${alpha(theme.palette.divider, 1)}`,
+                              bgcolor: isDark ? alpha('#fff', 0.025) : alpha('#000', 0.02),
+                              transition: 'all 0.15s',
+                              '&:hover': { borderColor: '#FF6020', bgcolor: alpha('#FF6020', 0.04) },
+                              '&:active': { transform: 'scale(0.98)' },
+                            }}
+                          >
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <Typography fontSize={12.5} fontWeight={600} noWrap sx={{ flex: 1 }}>{prod.nombre}</Typography>
+                              <Typography fontSize={12} fontWeight={700} color="#FF6020" sx={{ ml: 0.5, flexShrink: 0 }}>
+                                {fmt(prod.precio)}
+                              </Typography>
+                            </Box>
+                            {prod.categoria && (
+                              <Typography fontSize={10} color="text.disabled">{prod.categoria}</Typography>
+                            )}
+                          </Box>
+                        ))}
+                      </Stack>
+                    </>
+                  )}
+
+                </Stack>
               )}
             </Box>
-          )}
-        </Box>
 
-        {/* Der: Menú / Agregar productos */}
-        <Box sx={{ width: 280, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <Box sx={{ p: 1.5, borderBottom: `1px solid ${theme.palette.divider}` }}>
-            <TextField
-              size="small" fullWidth placeholder="Buscar en el menú..."
-              value={search} onChange={e => setSearch(e.target.value)}
-              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: 13 } }}
-            />
-          </Box>
-
-          <Box sx={{ flex: 1, overflowY: 'auto', p: 1.5 }}>
-            {productosFiltrados.length === 0 ? (
-              <Typography fontSize={12} color="text.disabled" textAlign="center" sx={{ mt: 3 }}>
-                Sin productos
-              </Typography>
-            ) : (
-              <Stack spacing={0}>
-
-                {/* ── Platos y preparados ── */}
-                {platosMenu.length > 0 && (
-                  <>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mb: 0.8, mt: 0.2 }}>
-                      <Restaurant sx={{ fontSize: 12, color: '#EC4899' }} />
-                      <Typography fontSize={10} fontWeight={800} color="#EC4899" textTransform="uppercase" letterSpacing={0.8}>
-                        Platos y preparados
-                      </Typography>
-                    </Box>
-                    <Stack spacing={0.7} sx={{ mb: 1.5 }}>
-                      {platosMenu.map(prod => (
-                        <Box key={prod.id}
-                          onClick={() => addToSelected(prod)}
-                          sx={{
-                            p: 1.2, borderRadius: 2, cursor: 'pointer',
-                            border: `1px solid ${alpha('#EC4899', 0.2)}`,
-                            bgcolor: isDark ? alpha('#EC4899', 0.04) : alpha('#EC4899', 0.03),
-                            transition: 'all 0.15s',
-                            '&:hover': { borderColor: '#EC4899', bgcolor: alpha('#EC4899', 0.08) },
-                          }}
-                        >
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Typography fontSize={12.5} fontWeight={600} noWrap sx={{ flex: 1 }}>{prod.nombre}</Typography>
-                            <Typography fontSize={12} fontWeight={700} color="#EC4899" sx={{ ml: 0.5, flexShrink: 0 }}>
-                              {fmt(prod.precio_venta)}
-                            </Typography>
-                          </Box>
-                          {prod.categoria && (
-                            <Typography fontSize={10} color="text.disabled">{prod.categoria}</Typography>
-                          )}
+            {/* Carrito — ítems seleccionados para enviar */}
+            {selectedItems.length > 0 && (
+              <Box sx={{
+                borderTop: `2px solid ${alpha('#059669', 0.3)}`,
+                p: 1.5, flexShrink: 0,
+                bgcolor: theme.palette.background.paper,
+                boxShadow: '0 -4px 20px rgba(0,0,0,0.10)',
+                maxHeight: '45vh', overflowY: 'auto',
+              }}>
+                <Typography fontSize={11} fontWeight={700} color="text.secondary"
+                  textTransform="uppercase" letterSpacing={0.8} mb={1}>
+                  Para enviar ({selectedItems.reduce((a, i) => a + i.cantidad, 0)} ítems)
+                </Typography>
+                <Stack spacing={0.8} mb={1.2}>
+                  {selectedItems.map(it => (
+                    <Box key={it.producto_id} sx={{
+                      borderRadius: 2,
+                      border: `1px solid ${alpha('#059669', notaAbierta === it.producto_id ? 0.5 : 0.15)}`,
+                      bgcolor: alpha('#059669', 0.04), overflow: 'hidden',
+                    }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.8 }}>
+                        <Typography fontSize={13} fontWeight={600} sx={{ flex: 1, minWidth: 0 }} noWrap>
+                          {it.nombre_producto}
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, flexShrink: 0 }}>
+                          <IconButton size="small" onClick={() => updateCantidad(it.producto_id, -1)}
+                            sx={{ width: 24, height: 24, bgcolor: alpha('#000', 0.06), borderRadius: 1, p: 0 }}>
+                            <Typography fontSize={16} lineHeight={1} sx={{ userSelect: 'none' }}>−</Typography>
+                          </IconButton>
+                          <Typography fontSize={13} fontWeight={700} sx={{ minWidth: 20, textAlign: 'center' }}>
+                            {it.cantidad}
+                          </Typography>
+                          <IconButton size="small" onClick={() => updateCantidad(it.producto_id, 1)}
+                            sx={{ width: 24, height: 24, bgcolor: alpha('#059669', 0.12), borderRadius: 1, p: 0 }}>
+                            <Typography fontSize={16} lineHeight={1} sx={{ color: '#059669', userSelect: 'none' }}>+</Typography>
+                          </IconButton>
                         </Box>
-                      ))}
-                    </Stack>
-                  </>
-                )}
-
-                {/* ── Otros productos ── */}
-                {otrosMenu.length > 0 && (
-                  <>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mb: 0.8, mt: platosMenu.length > 0 ? 0.5 : 0.2 }}>
-                      <Box sx={{ fontSize: 10, lineHeight: 1 }}>🥤</Box>
-                      <Typography fontSize={10} fontWeight={800} color="text.secondary" textTransform="uppercase" letterSpacing={0.8}>
-                        Otros
-                      </Typography>
-                    </Box>
-                    <Stack spacing={0.7}>
-                      {otrosMenu.map(prod => (
-                        <Box key={prod.id}
-                          onClick={() => addToSelected(prod)}
-                          sx={{
-                            p: 1.2, borderRadius: 2, cursor: 'pointer',
-                            border: `1px solid ${alpha(theme.palette.divider, 1)}`,
-                            bgcolor: isDark ? alpha('#fff', 0.025) : alpha('#000', 0.02),
-                            transition: 'all 0.15s',
-                            '&:hover': { borderColor: '#FF6020', bgcolor: alpha('#FF6020', 0.04) },
-                          }}
-                        >
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Typography fontSize={12.5} fontWeight={600} noWrap sx={{ flex: 1 }}>{prod.nombre}</Typography>
-                            <Typography fontSize={12} fontWeight={700} color="#FF6020" sx={{ ml: 0.5, flexShrink: 0 }}>
-                              {fmt(prod.precio_venta)}
-                            </Typography>
-                          </Box>
-                          {prod.categoria && (
-                            <Typography fontSize={10} color="text.disabled">{prod.categoria}</Typography>
-                          )}
+                        <Tooltip title={it.notas ? `Nota: ${it.notas}` : 'Agregar nota'}>
+                          <IconButton size="small"
+                            onClick={() => setNotaAbierta(n => n === it.producto_id ? null : it.producto_id)}
+                            sx={{ p: 0.3, color: it.notas ? '#F59E0B' : 'text.disabled' }}>
+                            <Note sx={{ fontSize: 17 }} />
+                          </IconButton>
+                        </Tooltip>
+                        <IconButton size="small" onClick={() => removeSelected(it.producto_id)}
+                          sx={{ p: 0.3, color: 'text.disabled' }}>
+                          <Close sx={{ fontSize: 15 }} />
+                        </IconButton>
+                      </Box>
+                      {notaAbierta === it.producto_id && (
+                        <Box sx={{ px: 1, pb: 1 }}>
+                          <TextField size="small" fullWidth placeholder="Nota para cocina..."
+                            value={it.notas} onChange={e => updateNota(it.producto_id, e.target.value)}
+                            sx={{ '& .MuiOutlinedInput-root': { fontSize: 12, borderRadius: 1.5 } }} />
                         </Box>
-                      ))}
-                    </Stack>
-                  </>
-                )}
-
-              </Stack>
+                      )}
+                    </Box>
+                  ))}
+                </Stack>
+                <Button fullWidth variant="contained" onClick={handleEnviarCocina} disabled={loading}
+                  startIcon={loading ? <CircularProgress size={15} color="inherit" /> : <Send />}
+                  sx={{ borderRadius: 2, fontWeight: 800, fontSize: 13, py: 1, bgcolor: '#059669', '&:hover': { bgcolor: '#047857' } }}>
+                  Enviar {selectedItems.reduce((a, i) => a + i.cantidad, 0)} ítem(s) a cocina
+                </Button>
+              </Box>
             )}
           </Box>
-
-          {/* Seleccionados para enviar */}
-          {selectedItems.length > 0 && (
-            <Box sx={{ borderTop: `1px solid ${theme.palette.divider}`, p: 1.5 }}>
-              <Typography fontSize={11} fontWeight={700} color="text.secondary" mb={0.8}>
-                Para enviar ({selectedItems.reduce((a, i) => a + i.cantidad, 0)} ítems)
-              </Typography>
-              {selectedItems.map(it => (
-                <Box key={it.producto_id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.4 }}>
-                  <Typography fontSize={12} sx={{ flex: 1 }} noWrap>{it.cantidad}× {it.nombre_producto}</Typography>
-                  <IconButton size="small" onClick={() => removeSelected(it.producto_id)}>
-                    <Close sx={{ fontSize: 14 }} />
-                  </IconButton>
-                </Box>
-              ))}
-              <Button fullWidth variant="contained" size="small" onClick={handleEnviarCocina}
-                disabled={loading}
-                startIcon={loading ? <CircularProgress size={14} color="inherit" /> : <Send />}
-                sx={{ mt: 0.8, borderRadius: 2, fontWeight: 700, bgcolor: '#059669', '&:hover': { bgcolor: '#047857' } }}>
-                Enviar a cocina
-              </Button>
-            </Box>
-          )}
         </Box>
-      </Box>
+      )}
     </Box>
   );
 };
@@ -529,6 +776,7 @@ const MesaCard = ({ mesa, onClick }) => {
 
 export default function MapaMesas({ user }) {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isDark = theme.palette.mode === 'dark';
 
   const [mesas, setMesas] = useState([]);
@@ -553,7 +801,7 @@ export default function MapaMesas({ user }) {
         apiClient.get('/restaurante/config'),
       ]);
       setMesas(mRes.data);
-      setProductos(pRes.data.filter ? pRes.data.filter(p => p.precio_venta > 0) : pRes.data);
+      setProductos(pRes.data.filter ? pRes.data.filter(p => p.precio > 0) : pRes.data);
       setConfig(cRes.data);
     } catch {
       toast.error('Error al cargar el mapa de mesas');
@@ -659,24 +907,33 @@ export default function MapaMesas({ user }) {
       )}
 
       {/* Dialog: Gestionar comanda activa */}
-      {mesaSeleccionada && panelMode === 'comanda' && mesaSeleccionada.comanda_activa && (
-        <Dialog
-          open fullWidth maxWidth="md"
-          PaperProps={{ sx: { borderRadius: 4, overflow: 'hidden', height: '85vh' } }}
-          onClose={() => { setMesaSeleccionada(null); setPanelMode(null); fetchAll(true); }}
-        >
-          <ComandaPanel
-            mesa={mesaSeleccionada}
-            comanda={mesaSeleccionada.comanda_activa}
-            productos={productos}
-            config={config}
-            empresa={empresa}
-            vendedor={vendedor}
+      {(() => {
+        // Derivar la mesa desde el estado vivo para que los re-renders
+        // tras fetchAll reflejen los ítems nuevos sin cerrar el dialog
+        const mesaActual = mesaSeleccionada
+          ? (mesas.find(m => m.id === mesaSeleccionada.id) || mesaSeleccionada)
+          : null;
+        if (!mesaActual || panelMode !== 'comanda' || !mesaActual.comanda_activa) return null;
+        return (
+          <Dialog
+            open fullWidth maxWidth="md"
+            fullScreen={isMobile}
+            PaperProps={{ sx: { borderRadius: isMobile ? 0 : 4, overflow: 'hidden', height: isMobile ? '100%' : '88vh' } }}
             onClose={() => { setMesaSeleccionada(null); setPanelMode(null); fetchAll(true); }}
-            onSuccess={() => fetchAll(true)}
-          />
-        </Dialog>
-      )}
+          >
+            <ComandaPanel
+              mesa={mesaActual}
+              comanda={mesaActual.comanda_activa}
+              productos={productos}
+              config={config}
+              empresa={empresa}
+              vendedor={vendedor}
+              onClose={() => { setMesaSeleccionada(null); setPanelMode(null); fetchAll(true); }}
+              onSuccess={() => fetchAll(true)}
+            />
+          </Dialog>
+        );
+      })()}
     </Box>
   );
 }

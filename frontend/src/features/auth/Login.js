@@ -375,7 +375,7 @@ const Login = ({ onLogin }) => {
     });
 
     const initialRegState = {
-        tipo_negocio:    'erp',
+        tipos_negocio:   ['erp'],
         nombre_empresa:  '',
         nit:             '', 
         pais:            'CO',
@@ -394,9 +394,19 @@ const Login = ({ onLogin }) => {
     const updateReg = (key) => (e) =>
         setRegData((prev) => ({ ...prev, [key]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
 
+    const toggleTipoNegocio = (key) => {
+        setRegData(prev => {
+            const current = prev.tipos_negocio || [];
+            const next = current.includes(key)
+                ? current.filter(k => k !== key)
+                : [...current, key];
+            return { ...prev, tipos_negocio: next.length > 0 ? next : [key] };
+        });
+    };
+
     const canContinueStep1 = () =>
         regData.nombre_empresa.trim().length >= 2 &&
-        regData.nit.trim().length >= 5 && 
+        regData.nit.trim().length >= 5 &&
         regData.ciudad.trim().length >= 2 &&
         regData.pais &&
         regData.tamano_negocio &&
@@ -474,10 +484,10 @@ const Login = ({ onLogin }) => {
         try {
             await apiClient.post('/auth/register', {
                 nombre_empresa:  regData.nombre_empresa.trim(),
-                nit:             regData.nit.trim(), 
+                nit:             regData.nit.trim(),
                 username:        regData.username.trim().toLowerCase(),
                 password:        regData.password,
-                tipo_negocio:    regData.tipo_negocio,
+                tipos_negocio:   regData.tipos_negocio,
                 nombre_completo: regData.nombre_completo.trim(),
                 email:           regData.email.trim().toLowerCase(),
                 telefono:        regData.telefono.trim(),
