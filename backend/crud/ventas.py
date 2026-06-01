@@ -52,6 +52,22 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate, commi
     detalles_objs = []
 
     for d in venta.detalles:
+        if d.producto_id is None:
+            # Ítem libre — no product, no stock, no inventory
+            precio = d.precio_unitario or 0.0
+            subtotal = precio * (d.cantidad or 1)
+            total_bruto += subtotal
+            detalle = models.DetalleVenta(
+                producto_id=None,
+                nombre_libre=getattr(d, 'nombre_libre', None) or 'Ítem libre',
+                cantidad=d.cantidad or 1,
+                precio_unitario=precio,
+                descuento_pct=getattr(d, 'descuento_pct', 0.0),
+                iva_porcentaje=getattr(d, 'iva_porcentaje', 0.0),
+            )
+            detalles_objs.append(detalle)
+            continue
+
         prod = get_producto(db, empresa_id, d.producto_id)
         if not prod:
             raise HTTPException(

@@ -1176,6 +1176,23 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v66)
                 logger.info("V66 (fix ix_clientes_cedula: unique→non-unique, cedula vacía→NULL) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V67 - Config ventas: omitir_inventario + ítem libre en detalles
+            # ═══════════════════════════════════════════════════════════════
+            migration_v67 = "v67_empresa_omitir_inventario"
+            if not _migration_already_applied(conn, migration_v67):
+                conn.execute(text("""
+                    ALTER TABLE empresas ADD COLUMN IF NOT EXISTS omitir_inventario BOOLEAN DEFAULT FALSE;
+                """))
+                conn.execute(text("""
+                    ALTER TABLE detalles_venta ADD COLUMN IF NOT EXISTS nombre_libre VARCHAR(200);
+                """))
+                conn.execute(text("""
+                    ALTER TABLE detalles_venta ALTER COLUMN producto_id DROP NOT NULL;
+                """))
+                _mark_migration_applied(conn, migration_v67)
+                logger.info("V67 (empresas.omitir_inventario + detalles_venta.nombre_libre + producto_id nullable) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

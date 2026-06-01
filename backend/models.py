@@ -81,6 +81,9 @@ class Empresa(Base):
     matias_api_key        = Column(String, nullable=True)
     matias_test_mode      = Column(Boolean, default=True)
 
+    # Configuración de ventas
+    omitir_inventario     = Column(Boolean, default=False)
+
 
 class SaaSAnnouncement(Base):
     """Anuncios globales para todos los inquilinos"""
@@ -348,7 +351,8 @@ class DetalleVenta(Base, TenantMixin):
     __tablename__ = "detalles_venta"
     id               = Column(Integer, primary_key=True, index=True)
     venta_id         = Column(Integer, ForeignKey("ventas.id"))
-    producto_id      = Column(Integer, ForeignKey("productos.id"))
+    producto_id      = Column(Integer, ForeignKey("productos.id"), nullable=True)   # nullable: libre items have no product
+    nombre_libre     = Column(String(200), nullable=True)   # description for libre items
     cantidad         = Column(Float)
     precio_unitario  = Column(Float)
     descuento_pct    = Column(Float, default=0.0)

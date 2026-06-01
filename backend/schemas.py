@@ -427,18 +427,22 @@ class Pago(PagoCreate):
     model_config = ConfigDict(from_attributes=True)
 
 class DetalleVentaCreate(BaseModel):
-    producto_id: int
-    cantidad: Optional[float]
+    producto_id: Optional[int] = None     # None for libre items
+    nombre_libre: Optional[str] = None    # description for libre items
+    cantidad: Optional[float] = 1.0
     precio_unitario: Optional[float] = None
     descuento_pct: float = 0.0
+    iva_porcentaje: float = 0.0
 
 class DetalleVentaBase(BaseModel):
-    producto_id: int
+    producto_id: Optional[int] = None
     cantidad: Optional[float]
 
 class DetalleVenta(DetalleVentaBase):
     id: int
     venta_id: int
+    producto_id: Optional[int] = None
+    nombre_libre: Optional[str] = None
     precio_unitario: float
     producto: Optional[Producto] = None
     model_config = ConfigDict(from_attributes=True)

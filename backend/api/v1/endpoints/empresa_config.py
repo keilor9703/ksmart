@@ -112,3 +112,29 @@ def delete_link_pago(
         raise HTTPException(status_code=404, detail="Link de pago no encontrado.")
     db.delete(link)
     db.commit()
+
+
+@router.get("/empresa/config-ventas")
+def get_config_ventas(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    empresa = db.query(models.Empresa).filter_by(id=current_user.empresa_id).first()
+    return {
+        "omitir_inventario": getattr(empresa, "omitir_inventario", False) or False,
+    }
+
+
+@router.put("/empresa/config-ventas")
+def update_config_ventas(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    empresa = db.query(models.Empresa).filter_by(id=current_user.empresa_id).first()
+    if empresa is None:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada.")
+    if "omitir_inventario" in payload:
+        empresa.omitir_inventario = bool(payload["omitir_inventario"])
+    db.commit()
+    return {"omitir_inventario": empresa.omitir_inventario}
