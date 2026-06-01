@@ -330,7 +330,7 @@ const hasAccess = useCallback((path) => {
                   display: 'flex', flexDirection: 'column', overflow: 'hidden',
                 }}
               >
-                <Box sx={{ flex: 1, p: { xs: 1.5, md: 3 }, minWidth: 0, overflow: 'hidden' }}>
+                <Box sx={{ flex: 1, p: { xs: 1, sm: 2, md: 3 }, minWidth: 0, overflow: 'hidden', maxWidth: '100%' }}>
                   <AnnouncementBanner />
                   <Suspense fallback={<RouteFallback />}>
                   <Routes>
