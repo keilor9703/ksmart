@@ -2,8 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 import models, schemas
-from database import get_db
-from api.v1.endpoints.auth import get_current_active_user
+from api.deps import get_db, get_current_active_user
 from crud.puntos import (
     get_puntos_disponibles, canjear_puntos, get_historial_puntos,
     REDEEM_RATE, EARN_RATE,
