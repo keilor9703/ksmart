@@ -3,6 +3,7 @@ import {
     Box, Paper, Typography, IconButton, Button, TextField, InputAdornment,
     Chip, Divider, Autocomplete, useMediaQuery, useTheme,
     Dialog, DialogContent, Fab, Grid, Collapse, CircularProgress, Tooltip,
+    Switch, FormControlLabel,
 } from '@mui/material';
 import {
     Search, ShoppingCart, PersonOutline, AddCircle, RemoveCircle, Delete,
@@ -198,6 +199,7 @@ const CartPanel = ({
     ivaPorcentajeGlobal, setIvaPorcentajeGlobal,
     onSubmit, savingVenta, calculateSubtotal, cambioEfectivo,
     openQuickCreate, isDark, onClose,
+    omitirInventario, setOmitirInventario,
 }) => {
     const validItems = saleDetails.filter(d => d.producto && d.cantidad > 0);
     const subtotal = calculateSubtotal();
@@ -440,6 +442,29 @@ const CartPanel = ({
                     </Box>
                 )}
 
+                {/* Omitir validación de stock */}
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+                    <FormControlLabel
+                        control={
+                            <Switch
+                                checked={omitirInventario || false}
+                                onChange={e => setOmitirInventario?.(e.target.checked)}
+                                size="small"
+                                sx={{
+                                    '& .MuiSwitch-switchBase.Mui-checked': { color: '#F59E0B' },
+                                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#F59E0B' },
+                                }}
+                            />
+                        }
+                        label={
+                            <Typography fontSize={11} fontWeight={omitirInventario ? 700 : 400} color={omitirInventario ? '#92400E' : 'text.secondary'}>
+                                Vender sin validar stock
+                            </Typography>
+                        }
+                        sx={{ m: 0, gap: 0.5 }}
+                    />
+                </Box>
+
                 {/* Submit button */}
                 <Button
                     fullWidth variant="contained"
@@ -551,6 +576,7 @@ const TouchPOSMode = ({
     ivaPorcentajeGlobal, setIvaPorcentajeGlobal,
     onSubmit, savingVenta, calculateSubtotal, cambioEfectivo,
     openQuickCreate, isDark,
+    omitirInventario, setOmitirInventario,
 }) => {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -619,6 +645,7 @@ const TouchPOSMode = ({
         ivaPorcentajeGlobal, setIvaPorcentajeGlobal,
         onSubmit, savingVenta, calculateSubtotal, cambioEfectivo,
         openQuickCreate, isDark,
+        omitirInventario, setOmitirInventario,
     };
 
     return (

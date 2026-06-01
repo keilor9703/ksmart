@@ -342,6 +342,10 @@ const Ventas = ({ user }) => {
     const [puntosACanjear, setPuntosACanjear] = useState(0);
     // ── Omitir inventario (local, por venta, se resetea con cada nueva venta) ──
     const [omitirInventario, setOmitirInventario] = useState(false);
+    // Ref para que handleVentaSubmit siempre lea el valor más reciente
+    // incluso cuando es llamado desde el callback de LinkPagoModal
+    const omitirInventarioRef = useRef(false);
+    omitirInventarioRef.current = omitirInventario;
     // ── Link de Pago POS ──
     const [linkPagoConfig, setLinkPagoConfig] = useState(null);
     const [linkPagoModalOpen, setLinkPagoModalOpen] = useState(false);
@@ -716,7 +720,7 @@ useEffect(() => {
             operador_id: user?.id,
             descuento_puntos: descuentoPuntosImporte,
             puntos_canjeados: puntosACanjear,
-            omitir_inventario: omitirInventario,
+            omitir_inventario: omitirInventarioRef.current,
         };
 
         const snapDetails = validDetails.map(d => ({
@@ -1180,6 +1184,8 @@ useEffect(() => {
                                 cambioEfectivo={cambioEfectivo}
                                 openQuickCreate={openQuickCreate}
                                 isDark={isDark}
+                                omitirInventario={omitirInventario}
+                                setOmitirInventario={setOmitirInventario}
                             />
                         </Box>
                     )}
