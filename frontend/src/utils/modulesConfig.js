@@ -52,6 +52,7 @@ import SettingsSuggest from '@mui/icons-material/SettingsSuggest';
 import HelpOutline from '@mui/icons-material/HelpOutline';
 import Storefront from '@mui/icons-material/Storefront';
 import QrCode2 from '@mui/icons-material/QrCode2';
+import Settings from '@mui/icons-material/Settings';
 
 
 // ─── DICCIONARIO de iconos y colores por frontend_path ────────────────────
@@ -107,6 +108,9 @@ export const MODULE_ICONS = {
 
   // Superadmin
   '/superadmin/link-pago': { icon: <QrCode2 />, color: '#FF6020', label: 'Link de Pago POS' },
+
+  // Admin config
+  '/admin/config-ventas': { icon: <Settings />, color: '#FF6020', label: 'Configuración de Ventas' },
 };
 
 
@@ -131,7 +135,8 @@ export const getModuleConfig = (frontendPath, backendName = null) => {
 // ───────────────────────────────────────────────────────────────────────────
 export const ADMIN_MODULES = [
   { path: '/admin/usuarios', label: 'Usuarios y Permisos', icon: null, color: '#a78bfa' },
-  { path: '/admin/catalogo', label: 'Catálogo Virtual', icon: <Storefront />, color: '#F43F5E' }
+  { path: '/admin/catalogo', label: 'Catálogo Virtual', icon: <Storefront />, color: '#F43F5E' },
+  { path: '/admin/config-ventas', label: 'Config. de Ventas', icon: <Settings />, color: '#FF6020' },
 ];
 
 

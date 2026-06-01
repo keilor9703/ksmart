@@ -340,6 +340,8 @@ const Ventas = ({ user }) => {
     // ── Fidelización ──
     const [clientePuntos, setClientePuntos]   = useState(0);
     const [puntosACanjear, setPuntosACanjear] = useState(0);
+    // ── Configuración de empresa ──
+    const [omitirInventario, setOmitirInventario] = useState(false);
     // ── Link de Pago POS ──
     const [linkPagoConfig, setLinkPagoConfig] = useState(null);
     const [linkPagoModalOpen, setLinkPagoModalOpen] = useState(false);
@@ -380,6 +382,7 @@ const Ventas = ({ user }) => {
     useEffect(() => {
         fetchVentas(); fetchClientes(); fetchProductos(); fetchVentasSummary(); fetchGrupos();
         apiClient.get('/empresa/link-pago').then(r => setLinkPagoConfig(r.data)).catch(() => {});
+        apiClient.get('/empresa/config-ventas').then(r => setOmitirInventario(r.data.omitir_inventario || false)).catch(() => {});
     }, []);
 
     const fetchVentas        = () => apiClient.get('/ventas/').then(r => setVentas(r.data)).catch(console.error);
@@ -653,6 +656,7 @@ const Ventas = ({ user }) => {
     // ── Cart ops ──
     const handleProductoInputChange = (id, val) => setProductoInputs(prev => ({ ...prev, [id]: val }));
     const handleAddSaleDetail = () => setSaleDetails(p => [...p, { id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0, descuentoPct: 0 }]);
+    const handleAddLibreDetail = () => setSaleDetails(p => [...p, { id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0, descuentoPct: 0, isLibre: true, nombreLibre: '' }]);
     const handleRemoveSaleDetail = (id) => {
         setSaleDetails(p => p.filter(d => d.id !== id));
         setProductoInputs(p => { const n = { ...p }; delete n[id]; return n; });
@@ -678,7 +682,7 @@ const Ventas = ({ user }) => {
     // ── Submit ──
     const handleVentaSubmit = async () => {
         if (!cliente) { toast.error('Selecciona un cliente o usa el botón Mostrador.'); return; }
-        const validDetails = saleDetails.filter(d => d.producto && d.cantidad > 0);
+        const validDetails = saleDetails.filter(d => d.isLibre ? d.precioUnitario > 0 : (d.producto !== null && d.cantidad > 0));
         if (validDetails.length === 0) { toast.error('Agrega al menos un producto al carrito.'); return; }
 
         const descuentoPuntosImporte = puntosACanjear * PUNTOS_REDEEM_RATE;
@@ -700,8 +704,10 @@ const Ventas = ({ user }) => {
 
         const ventaData = {
             cliente_id: cliente.id,
-            detalles: validDetails.map(({ producto, cantidad, precioUnitario, descuentoPct }) => ({
-                producto_id: producto.id, cantidad,
+            detalles: validDetails.map(({ producto, cantidad, precioUnitario, descuentoPct, isLibre, nombreLibre }) => ({
+                producto_id: isLibre ? null : producto.id,
+                nombre_libre: isLibre ? (nombreLibre || 'Ítem libre') : undefined,
+                cantidad,
                 precio_unitario: precioUnitario * (1 - (descuentoPct || 0) / 100),
                 descuento_pct: descuentoPct || 0,
                 iva_porcentaje: 0.0,
@@ -843,6 +849,13 @@ const Ventas = ({ user }) => {
                     />
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    {omitirInventario && (
+                        <Chip
+                            label="Sin control de inventario"
+                            size="small"
+                            sx={{ bgcolor: '#FEF3C7', color: '#92400E', fontWeight: 700, fontSize: 11, border: '1px solid #F59E0B40' }}
+                        />
+                    )}
                     <ToggleButtonGroup
                         value={viewMode}
                         exclusive
@@ -1057,23 +1070,90 @@ const Ventas = ({ user }) => {
                             <Box sx={{ mb: 2 }}>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
                                     <Typography sx={{ fontWeight: 600, fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
-                                        Productos / Servicios ({saleDetails.filter(d => d.producto).length})
+                                        Productos / Servicios ({saleDetails.filter(d => d.producto || d.isLibre).length})
                                     </Typography>
-                                    <Button size="small" startIcon={<Add />} onClick={handleAddSaleDetail}
-                                        sx={{ color: ACCENT, fontWeight: 600, fontSize: 12 }}>
-                                        Agregar línea
-                                    </Button>
+                                    <Box sx={{ display: 'flex', gap: 1 }}>
+                                        <Button size="small" variant="outlined" onClick={handleAddLibreDetail}
+                                            sx={{ color: '#F59E0B', borderColor: '#F59E0B40', fontWeight: 600, fontSize: 12, borderRadius: 2,
+                                                '&:hover': { borderColor: '#F59E0B', bgcolor: '#FEF3C708' } }}>
+                                            ＋ Ítem libre
+                                        </Button>
+                                        <Button size="small" startIcon={<Add />} onClick={handleAddSaleDetail}
+                                            sx={{ color: ACCENT, fontWeight: 600, fontSize: 12 }}>
+                                            Agregar línea
+                                        </Button>
+                                    </Box>
                                 </Box>
 
                                 {saleDetails.map(detail => (
-                                    <SaleDetailRow
-                                        key={detail.id} detail={detail} productos={productos}
-                                        onProductChange={handleProductChange} onFieldChange={handleFieldChange}
-                                        onRemove={handleRemoveSaleDetail} isMobile={isMobile}
-                                        productoInput={productoInputs[detail.id] || ''}
-                                        onProductoInputChange={(val) => handleProductoInputChange(detail.id, val)}
-                                        openQuickCreate={() => openQuickCreate('producto', productoInputs[detail.id] || '', detail.id)}
-                                    />
+                                    detail.isLibre ? (
+                                        <Box key={detail.id} sx={{
+                                            display: 'flex', flexDirection: isMobile ? 'column' : 'row',
+                                            alignItems: isMobile ? 'stretch' : 'center',
+                                            gap: 1, mb: 1.5, p: isMobile ? 2 : 1.5,
+                                            borderRadius: 2, bgcolor: '#FEF3C720',
+                                            border: '1px dashed', borderColor: '#F59E0B60',
+                                        }}>
+                                            {/* Descripción libre */}
+                                            <Box sx={{ flex: 1, minWidth: isMobile ? '100%' : 200 }}>
+                                                <TextField
+                                                    fullWidth size="small"
+                                                    label="Descripción del ítem"
+                                                    placeholder="Ej: Servicio personalizado, ajuste especial…"
+                                                    value={detail.nombreLibre || ''}
+                                                    onChange={(e) => handleFieldChange(detail.id, 'nombreLibre', e.target.value)}
+                                                    InputProps={{ sx: { fontSize: 13 } }}
+                                                />
+                                                <Typography sx={{ fontSize: 10, color: '#F59E0B', mt: 0.4, fontWeight: 600 }}>
+                                                    Ítem libre — sin producto del catálogo
+                                                </Typography>
+                                            </Box>
+                                            {/* Cantidad */}
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: isMobile ? '100%' : 'auto' }}>
+                                                <IconButton size="small" onClick={() => handleFieldChange(detail.id, 'cantidad', Math.max(0, (detail.cantidad || 1) - 1))} sx={{ color: '#EF4444', p: 0.5 }}>
+                                                    <RemoveCircle fontSize="small" />
+                                                </IconButton>
+                                                <TextField
+                                                    type="number" size="small"
+                                                    value={detail.cantidad}
+                                                    onChange={(e) => handleFieldChange(detail.id, 'cantidad', parseFloat(e.target.value) || 0)}
+                                                    inputProps={{ min: 0, step: 'any' }}
+                                                    sx={{ width: 64, '& input': { textAlign: 'center', fontWeight: 700, fontSize: 14, p: '6px 4px' } }}
+                                                />
+                                                <IconButton size="small" onClick={() => handleFieldChange(detail.id, 'cantidad', (detail.cantidad || 1) + 1)} sx={{ color: '#10B981', p: 0.5 }}>
+                                                    <AddCircle fontSize="small" />
+                                                </IconButton>
+                                            </Box>
+                                            {/* Precio */}
+                                            <Box sx={{ minWidth: isMobile ? '100%' : 120 }}>
+                                                <CurrencyField
+                                                    label="Precio" size="small"
+                                                    value={detail.precioUnitario}
+                                                    onChange={(val) => handleFieldChange(detail.id, 'precioUnitario', val)}
+                                                />
+                                            </Box>
+                                            {/* Subtotal + quitar */}
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end' }}>
+                                                <Typography sx={{ fontWeight: 800, fontSize: 14, color: ACCENT }}>
+                                                    {((detail.precioUnitario || 0) * (detail.cantidad || 1)).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 })}
+                                                </Typography>
+                                                <Tooltip title="Quitar">
+                                                    <IconButton onClick={() => handleRemoveSaleDetail(detail.id)} size="small" sx={{ color: '#EF4444', bgcolor: '#FEF2F2', borderRadius: 1.5 }}>
+                                                        <RemoveCircle fontSize="small" />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </Box>
+                                        </Box>
+                                    ) : (
+                                        <SaleDetailRow
+                                            key={detail.id} detail={detail} productos={productos}
+                                            onProductChange={handleProductChange} onFieldChange={handleFieldChange}
+                                            onRemove={handleRemoveSaleDetail} isMobile={isMobile}
+                                            productoInput={productoInputs[detail.id] || ''}
+                                            onProductoInputChange={(val) => handleProductoInputChange(detail.id, val)}
+                                            openQuickCreate={() => openQuickCreate('producto', productoInputs[detail.id] || '', detail.id)}
+                                        />
+                                    )
                                 ))}
                             </Box>
                         </Box>
