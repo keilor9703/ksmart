@@ -1,0 +1,196 @@
+/* ─── Ksmart360 — Modern Toast Notifications ─────────────────────────
+   Replaces react-toastify's default boxy look with a modern glass-card
+   design. Dark backdrop, colored left accent bar per type, brand palette.
+   Works in both light and dark app modes (toasts are always dark).
+   ------------------------------------------------------------------- */
+
+/* ── 1. CSS variable overrides ─────────────────────────────────────── */
+:root {
+  --toastify-font-family:     'Plus Jakarta Sans', 'Helvetica Neue', Arial, sans-serif;
+  --toastify-toast-bd-radius: 16px;
+  --toastify-toast-min-height: 52px;
+  --toastify-toast-width:      344px;
+  --toastify-toast-padding:    0px;
+  --toastify-toast-offset:     20px;
+  --toastify-toast-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.32),
+    0 4px 16px rgba(0, 0, 0, 0.16);
+
+  /* Brand-consistent palette */
+  --toastify-color-info:    #3B82F6;
+  --toastify-color-success: #10B981;
+  --toastify-color-warning: #F59E0B;
+  --toastify-color-error:   #EF4444;
+
+  --toastify-icon-color-info:    #3B82F6;
+  --toastify-icon-color-success: #10B981;
+  --toastify-icon-color-warning: #F59E0B;
+  --toastify-icon-color-error:   #EF4444;
+
+  --toastify-color-progress-info:    #3B82F6;
+  --toastify-color-progress-success: #10B981;
+  --toastify-color-progress-warning: #F59E0B;
+  --toastify-color-progress-error:   #EF4444;
+  --toastify-color-progress-bgo:     0.12;
+}
+
+/* ── 2. Container positioning ──────────────────────────────────────── */
+.Toastify__toast-container {
+  padding: 0 !important;
+}
+.Toastify__toast-container--bottom-right {
+  bottom: 24px !important;
+  right: 20px !important;
+}
+
+/* ── 3. Glass-card base ────────────────────────────────────────────── */
+.Toastify__toast {
+  background: rgba(10, 14, 20, 0.93) !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  border-radius: var(--toastify-toast-bd-radius) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  overflow: hidden !important;
+  margin-bottom: 10px !important;
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.3),
+    0 4px 16px rgba(0, 0, 0, 0.14) !important;
+}
+
+/* ── 4. Colored left accent bar per type ───────────────────────────── */
+.Toastify__toast--success {
+  background: rgba(3, 18, 10, 0.95) !important;
+  border-color: rgba(16, 185, 129, 0.2) !important;
+  border-left: 4px solid #10B981 !important;
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.3),
+    0 4px 16px rgba(16, 185, 129, 0.1) !important;
+}
+.Toastify__toast--error {
+  background: rgba(18, 3, 3, 0.95) !important;
+  border-color: rgba(239, 68, 68, 0.2) !important;
+  border-left: 4px solid #EF4444 !important;
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.3),
+    0 4px 16px rgba(239, 68, 68, 0.1) !important;
+}
+.Toastify__toast--warning {
+  background: rgba(18, 11, 0, 0.95) !important;
+  border-color: rgba(245, 158, 11, 0.2) !important;
+  border-left: 4px solid #F59E0B !important;
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.3),
+    0 4px 16px rgba(245, 158, 11, 0.1) !important;
+}
+.Toastify__toast--info {
+  background: rgba(3, 8, 22, 0.95) !important;
+  border-color: rgba(59, 130, 246, 0.2) !important;
+  border-left: 4px solid #3B82F6 !important;
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.3),
+    0 4px 16px rgba(59, 130, 246, 0.1) !important;
+}
+
+/* ── 5. Body: icon + text ──────────────────────────────────────────── */
+.Toastify__toast-body {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 13px 14px !important;
+  margin: 0 !important;
+  font-family: 'Plus Jakarta Sans', 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+.Toastify__toast-body > div:last-child {
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  line-height: 1.45 !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  letter-spacing: -0.01em !important;
+}
+
+/* ── 6. Icon ───────────────────────────────────────────────────────── */
+.Toastify__toast-icon {
+  width: 20px !important;
+  height: 20px !important;
+  margin-right: 0 !important;
+  flex-shrink: 0 !important;
+}
+.Toastify__toast-icon svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+/* ── 7. Close button ───────────────────────────────────────────────── */
+.Toastify__close-button {
+  color: rgba(255, 255, 255, 0.28) !important;
+  opacity: 1 !important;
+  padding: 10px 13px 10px 4px !important;
+  align-self: center !important;
+  flex-shrink: 0 !important;
+  transition: color 0.18s ease !important;
+}
+.Toastify__close-button:hover,
+.Toastify__close-button:focus {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+.Toastify__close-button > svg {
+  width: 13px !important;
+  height: 13px !important;
+}
+
+/* ── 8. Progress bar ───────────────────────────────────────────────── */
+.Toastify__progress-bar--wrp {
+  height: 2px !important;
+}
+.Toastify__progress-bar--bg {
+  opacity: 0.12 !important;
+}
+.Toastify__progress-bar {
+  opacity: 0.55 !important;
+  height: 2px !important;
+}
+.Toastify__progress-bar--success { background: #10B981 !important; }
+.Toastify__progress-bar--error   { background: #EF4444 !important; }
+.Toastify__progress-bar--warning { background: #F59E0B !important; }
+.Toastify__progress-bar--info    { background: #3B82F6 !important; }
+.Toastify__progress-bar-theme--dark,
+.Toastify__progress-bar-theme--light {
+  background: rgba(255, 255, 255, 0.35) !important;
+}
+
+/* ── 9. Mobile responsive ──────────────────────────────────────────── */
+@media (max-width: 600px) {
+  :root {
+    --toastify-toast-offset: 12px;
+    --toastify-toast-width: calc(100vw - 24px);
+  }
+  .Toastify__toast-container--bottom-right {
+    right: 12px !important;
+    left: 12px !important;
+    bottom: 16px !important;
+    align-items: stretch !important;
+    width: auto !important;
+  }
+  .Toastify__toast {
+    border-radius: 14px !important;
+  }
+}
+
+/* ── 10. Entry animation: slide up + scale ─────────────────────────── */
+@keyframes ksmart-toast-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+@keyframes ksmart-toast-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(8px) scale(0.96); }
+}
+
+.Toastify__toast--animate-enter {
+  animation: ksmart-toast-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+.Toastify__toast--animate-exit {
+  animation: ksmart-toast-out 0.2s ease-in forwards !important;
+}

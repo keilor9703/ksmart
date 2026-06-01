@@ -5,8 +5,9 @@ import {
   CssBaseline, GlobalStyles,
 } from '@mui/material';
 import useMediaQueryHook from '@mui/material/useMediaQuery';
-import { ToastContainer, toast } from 'react-toastify';
+import { ToastContainer, toast, Slide } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import './styles/toast.css';
 import { Route, Routes, useNavigate } from 'react-router-dom';
 
 import apiClient from './api';
@@ -416,7 +417,17 @@ const hasAccess = useCallback((path) => {
             </Box>
           )}
         </Box>
-        <ToastContainer position="bottom-right" autoClose={3500} />
+        <ToastContainer
+          position="bottom-right"
+          autoClose={4000}
+          hideProgressBar={false}
+          newestOnTop
+          closeOnClick
+          pauseOnHover
+          draggable={false}
+          theme="dark"
+          transition={Slide}
+        />
         <SpeedInsights />
       </ThemeProvider>
     </OnboardingProvider>
