@@ -348,7 +348,9 @@ const ProductoForm = ({
   };
 
   // ── Computed values ──
-  const isEditing   = Boolean(productoToEdit);
+  const isEditing      = Boolean(productoToEdit);
+  const selectedGroup  = grupos.find(g => g.id === grupoItem);
+  const isMateriaPrima = !esServicio && selectedGroup?.codigo === 'MP';
   const precioN     = parseFloat(precio) || 0;
   const costoN      = parseFloat(costo)  || 0;
   const margenPct   = precioN > 0 ? ((precioN - costoN) / precioN * 100) : 0;
@@ -573,18 +575,32 @@ const ProductoForm = ({
                 <Grid container spacing={2}>
                   {/* Fila 1: Precio | Costo */}
                   <Grid item xs={12} md={6}>
-                    <CurrencyField
-                      label={esServicio ? 'Precio de Venta *' : 'Precio de Venta'}
-                      value={precio}
-                      onChange={val => setPrecio(val)}
-                      required={esServicio}
-                    />
+                    {isMateriaPrima ? (
+                      <Box sx={{
+                        p: 1.5, borderRadius: 2, height: '100%', minHeight: 40,
+                        display: 'flex', alignItems: 'center', gap: 1,
+                        bgcolor: alpha('#3B82F6', 0.06),
+                        border: '1px solid', borderColor: alpha('#3B82F6', 0.2),
+                      }}>
+                        <InfoOutlined sx={{ fontSize: 16, color: '#3B82F6', flexShrink: 0 }} />
+                        <Typography fontSize={12} color="#1E40AF" lineHeight={1.4}>
+                          Las materias primas no tienen precio de venta — se usan como insumos en producción.
+                        </Typography>
+                      </Box>
+                    ) : (
+                      <CurrencyField
+                        label={esServicio ? 'Precio de Venta *' : 'Precio de Venta'}
+                        value={precio}
+                        onChange={val => setPrecio(val)}
+                        required={esServicio}
+                      />
+                    )}
                   </Grid>
 
                   {!esServicio && (
                     <Grid item xs={12} md={6}>
                       <CurrencyField
-                        label="Costo Actual *"
+                        label={isMateriaPrima ? 'Costo de Adquisición *' : 'Costo Actual *'}
                         value={costo}
                         onChange={val => setCosto(val)}
                         required
@@ -631,8 +647,8 @@ const ProductoForm = ({
                     </FormControl>
                   </Grid>
 
-                  {/* Margen — banda completa debajo */}
-                  {!esServicio && precio && costo && (
+                  {/* Margen — banda completa debajo (no aplica a materias primas) */}
+                  {!esServicio && !isMateriaPrima && precio && costo && (
                     <Grid item xs={12}>
                       <Box sx={{
                         display: 'flex', alignItems: 'center', gap: 3,

@@ -286,7 +286,7 @@ class ProductoBase(BaseModel):
     nombre: str
     codigo_barras: Optional[str] = None # ✨ NUEVO
     descripcion: Optional[str] = None   # ✨ NUEVO
-    precio: float
+    precio: float = 0.0
     costo: float = 0.0
     es_servicio: bool = False
     unidad_medida: Optional[str] = "UND"
