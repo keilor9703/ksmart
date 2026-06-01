@@ -11,8 +11,7 @@ import {
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
-
-const MAX_QR_BYTES = 500 * 1024; // 500 KB
+import { compressImageToWebP } from '../../utils/imageOptimizer';
 
 export default function LinkPagoConfig() {
   const theme = useTheme();
@@ -53,20 +52,21 @@ export default function LinkPagoConfig() {
 
   useEffect(() => { fetchConfig(); }, []);
 
-  const handleFileChange = (e) => {
+  const [compressing, setCompressing] = useState(false);
+
+  const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > MAX_QR_BYTES) {
-      toast.error('La imagen es muy grande. Máximo 500 KB.');
-      return;
+    setCompressing(true);
+    try {
+      const dataUrl = await compressImageToWebP(file, 800, 0.9);
+      setQrBase64(dataUrl.split(',')[1]);
+      setQrMimeType('image/webp');
+    } catch {
+      toast.error('No se pudo procesar la imagen. Intenta con otro archivo.');
+    } finally {
+      setCompressing(false);
     }
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const base64 = ev.target.result.split(',')[1];
-      setQrBase64(base64);
-      setQrMimeType(file.type);
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleSave = async () => {
@@ -192,7 +192,7 @@ export default function LinkPagoConfig() {
             <Box>
               <input
                 type="file"
-                accept="image/png,image/jpeg,image/webp"
+                accept="image/*"
                 ref={fileRef}
                 onChange={handleFileChange}
                 style={{ display: 'none' }}
@@ -200,21 +200,22 @@ export default function LinkPagoConfig() {
               <Button
                 variant="outlined"
                 fullWidth
-                startIcon={<Upload />}
+                disabled={compressing}
+                startIcon={compressing ? <CircularProgress size={15} /> : <Upload />}
                 onClick={() => fileRef.current?.click()}
                 sx={{ borderRadius: 2, borderColor: qrBase64 ? '#10B981' : 'divider', fontWeight: 600 }}
               >
-                {qrBase64 ? 'Cambiar imagen QR' : 'Subir imagen QR'}
+                {compressing ? 'Optimizando…' : qrBase64 ? 'Cambiar imagen QR' : 'Subir imagen QR'}
               </Button>
-              {qrBase64 && (
+              {qrBase64 && !compressing && (
                 <Chip
-                  label="Imagen cargada ✓"
+                  label="Imagen optimizada ✓"
                   size="small"
                   sx={{ mt: 0.8, bgcolor: alpha('#10B981', 0.1), color: '#10B981', fontWeight: 700 }}
                 />
               )}
               <Typography fontSize={11} color="text.secondary" mt={0.5}>
-                PNG, JPG o WebP — máx. 500 KB
+                Cualquier tamaño — se optimiza automáticamente a WebP
               </Typography>
             </Box>
           )}
