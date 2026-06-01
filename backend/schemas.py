@@ -1043,8 +1043,12 @@ class DashboardData(BaseModel):
     recaudo_prestamos_hoy: float = 0.0
     capital_en_calle: float = 0.0
     cuotas_mora: int = 0
+    intereses_cobrados_hoy: float = 0.0
     recaudo_ultimos_30_dias: List[SalesByDay] = [] # Gráfica independiente
-    
+
+    # --- COMPARACIÓN PERÍODO ANTERIOR ---
+    ventas_ayer: float = 0.0
+
     # Comunes
     ordenes_recientes: List[OrdenTrabajo]
 

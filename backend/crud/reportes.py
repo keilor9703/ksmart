@@ -331,10 +331,31 @@ def get_dashboard_data(db: Session, empresa_id: int) -> schemas.DashboardData:
         models.CuotaPrestamo.estado_pago != "Pagado"
     ).count()
 
-    # Gráfica de ventas (ERP)
+    # Gráfica de ventas (ERP) — 30 days ending today
     end_date = hoy_colombia
     start_date = end_date - timedelta(days=29)
     ventas_30 = get_sales_by_day(db, empresa_id, start_date, end_date)
+
+    # ventas_ayer — directly from the 30-day array (index 28 = yesterday)
+    ventas_ayer = ventas_30[28].total if len(ventas_30) >= 29 else 0.0
+
+    # Intereses cobrados hoy — interest portion of cuotas paid today
+    cuotas_hoy = (
+        db.query(models.CuotaPrestamo, models.Prestamo.tasa_interes)
+        .join(models.Prestamo, models.CuotaPrestamo.prestamo_id == models.Prestamo.id)
+        .filter(
+            models.CuotaPrestamo.empresa_id == empresa_id,
+            models.CuotaPrestamo.estado_pago == "Pagado",
+            models.CuotaPrestamo.fecha_pago >= inicio_utc_hoy,
+            models.CuotaPrestamo.fecha_pago <= fin_utc_hoy,
+        )
+        .all()
+    )
+    intereses_hoy = sum(
+        float(c.monto_cuota or 0) * t / (100.0 + t)
+        for c, t in cuotas_hoy
+        if t and t > 0
+    )
 
     return schemas.DashboardData(
         ventas_hoy=ventas_hoy,
@@ -343,6 +364,8 @@ def get_dashboard_data(db: Session, empresa_id: int) -> schemas.DashboardData:
         recaudo_prestamos_hoy=float(recaudo_hoy),
         capital_en_calle=float(capital_calle),
         cuotas_mora=cuotas_mora,
+        intereses_cobrados_hoy=round(intereses_hoy, 2),
+        ventas_ayer=round(ventas_ayer, 2),
         ordenes_recientes=get_ordenes_trabajo(db, empresa_id, skip=0, limit=5),
         ventas_ultimos_30_dias=ventas_30,
     )

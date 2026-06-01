@@ -18,9 +18,9 @@ import { keyframes } from '@mui/system';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
 import SaaSUpgradeManager from '../saas/components/SaaSUpgradeManager';
-// Al tope, junto a los otros imports:
 import CacaoPriceWidget from './CacaoPriceWidget';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
+import ActivationChecklist from '../../components/onboarding/ActivationChecklist';
 
 
 const ACCENT  = '#FF6020';
@@ -42,8 +42,10 @@ const getGreeting = () => {
   return       { msg: 'Buenas noches',         emoji: '🌙' };
 };
 
-const KpiCard = ({ title, value, icon, color, sub, onClick, loading }) => {
+const KpiCard = ({ title, value, icon, color, sub, onClick, loading, delta }) => {
   const theme = useTheme();
+  const deltaUp = delta > 0;
+  const deltaColor = delta === null || delta === undefined ? null : deltaUp ? GREEN : RED;
   return (
     <Paper onClick={onClick} sx={{
       p: 1.5, borderRadius: 3,
@@ -60,7 +62,16 @@ const KpiCard = ({ title, value, icon, color, sub, onClick, loading }) => {
       </Box>
       <Box sx={{ minWidth: 0, flex: 1 }}>
         <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 500 }}>{title}</Typography>
-        {loading ? <Skeleton width={80} height={24} /> : <Typography sx={{ fontSize: 17, fontWeight: 800, lineHeight: 1.2, color: 'text.primary' }}>{value}</Typography>}
+        {loading ? <Skeleton width={80} height={24} /> : (
+          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75, flexWrap: 'wrap' }}>
+            <Typography sx={{ fontSize: 17, fontWeight: 800, lineHeight: 1.2, color: 'text.primary' }}>{value}</Typography>
+            {!loading && delta !== null && delta !== undefined && (
+              <Typography sx={{ fontSize: 10, fontWeight: 700, color: deltaColor, lineHeight: 1 }}>
+                {deltaUp ? '▲' : '▼'} {Math.abs(delta).toFixed(0)}% vs ayer
+              </Typography>
+            )}
+          </Box>
+        )}
         {sub && !loading && <Typography sx={{ fontSize: 10, color: 'text.secondary', mt: 0.2 }}>{sub}</Typography>}
       </Box>
     </Paper>
@@ -199,6 +210,14 @@ const Dashboard = ({ user }) => {
   const totalUltimos30 = ventas30.reduce((s, d) => s + d.total, 0);
   const mejorDia = ventas30.reduce((mx, d) => d.total > mx.total ? d : mx, { total: 0, day: '' });
 
+  // Period comparison delta (% vs yesterday)
+  const ventasHoyVal  = data?.ventas_hoy || 0;
+  const ventasAyerVal = data?.ventas_ayer || 0;
+  const ventasDelta   = ventasAyerVal > 0 ? ((ventasHoyVal - ventasAyerVal) / ventasAyerVal) * 100 : null;
+
+  const recaudoHoyVal  = data?.recaudo_prestamos_hoy || 0;
+  const isTrial = user?.empresa?.plan_type === 'trial' && user?.empresa_id !== 1;
+
   const isZeroState = esPrestamista
     ? (data?.capital_en_calle || 0) === 0 && (caja?.total_dia || 0) === 0
     : esParqueadero
@@ -210,6 +229,11 @@ const Dashboard = ({ user }) => {
 
       {/* ── SaaS Activation Manager (Trial Banner & Upgrade Modal) ── */}
       <SaaSUpgradeManager user={user} />
+
+      {/* ── Activation checklist (trial only) ── */}
+      {isTrial && (
+        <ActivationChecklist user={user} data={data} totalUltimos30={totalUltimos30} />
+      )}
 
       {/* ── HEADER ── */}
       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
@@ -281,10 +305,10 @@ const Dashboard = ({ user }) => {
               <KpiCard title="Capital en Calle" value={formatCurrency(data?.capital_en_calle || 0)} icon={<AccountBalance />} color={BLUE} sub="Total pendiente" onClick={() => navigate('/prestamos')} loading={loadingMain}/>
             </Grid>
             <Grid item xs={6} sm={3}>
-              <KpiCard title="Recaudo Hoy" value={formatCurrency(data?.recaudo_prestamos_hoy || 0)} icon={<Savings />} color={GREEN} sub="Dinero ingresado" onClick={() => navigate('/ruta-cobro')} loading={loadingMain}/>
+              <KpiCard title="Recaudo Hoy" value={formatCurrency(recaudoHoyVal)} icon={<Savings />} color={GREEN} sub="Dinero ingresado" onClick={() => navigate('/ruta-cobro')} loading={loadingMain}/>
             </Grid>
             <Grid item xs={6} sm={3}>
-              <KpiCard title="Ganancia Hoy" value={formatCurrency((data?.recaudo_prestamos_hoy || 0) * 0.2)} icon={<TrendingUp />} color={PURPLE} sub="Intereses estimados" loading={loadingMain}/>
+              <KpiCard title="Intereses Hoy" value={formatCurrency(data?.intereses_cobrados_hoy || 0)} icon={<TrendingUp />} color={PURPLE} sub="Intereses cobrados" loading={loadingMain}/>
             </Grid>
             <Grid item xs={6} sm={3}>
               <KpiCard title="Mora Crítica" value={data?.cuotas_mora || 0} icon={<Gavel />} color={RED} sub="Cuotas vencidas" onClick={() => navigate('/ruta-cobro')} loading={loadingMain}/>
@@ -308,7 +332,7 @@ const Dashboard = ({ user }) => {
         ) : (
           <>
             <Grid item xs={6} sm={3}>
-              <KpiCard title="Ventas hoy" value={formatCurrency(data?.ventas_hoy || 0)} icon={<MonetizationOn />} color={ACCENT} onClick={() => navigate('/ventas')} loading={loadingMain}/>
+              <KpiCard title="Ventas hoy" value={formatCurrency(ventasHoyVal)} icon={<MonetizationOn />} color={ACCENT} onClick={() => navigate('/ventas')} loading={loadingMain} delta={ventasDelta}/>
             </Grid>
             <Grid item xs={6} sm={3}>
               <KpiCard title="Por cobrar" value={formatCurrency(data?.cuentas_por_cobrar || 0)} icon={<AccountBalanceWallet />} color={BLUE} onClick={() => navigate('/clientes')} loading={loadingMain}/>
