@@ -15,14 +15,14 @@ import {
     Autocomplete, Table, TableBody, TableCell, TableContainer,
     TableHead, TableRow, Chip, useMediaQuery, useTheme, Tabs, Tab,
     TablePagination, Divider, Tooltip, InputAdornment, CircularProgress,
-    ToggleButton, ToggleButtonGroup,
+    ToggleButton, ToggleButtonGroup, Switch, Popover, FormControlLabel,
 } from '@mui/material';
 import {
     Edit, Delete, Visibility, Search, ShoppingCart, TrendingUp,
     Receipt, AttachMoney, AssignmentReturn, Add, QrCodeScanner,
     Videocam, VideocamOff, LockOutlined, LockOpenOutlined,
     AddCircle, RemoveCircle, PersonOutline, HelpOutline,
-    Keyboard, TouchApp, FileDownload, Stars, CreditCard,
+    Keyboard, TouchApp, FileDownload, Stars, CreditCard, Settings,
 } from '@mui/icons-material';
 import { getProductoByBarcode } from '../../api';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
@@ -342,6 +342,8 @@ const Ventas = ({ user }) => {
     const [puntosACanjear, setPuntosACanjear] = useState(0);
     // ── Configuración de empresa ──
     const [omitirInventario, setOmitirInventario] = useState(false);
+    const [configAnchorEl, setConfigAnchorEl] = useState(null);
+    const [savingConfig, setSavingConfig] = useState(false);
     // ── Link de Pago POS ──
     const [linkPagoConfig, setLinkPagoConfig] = useState(null);
     const [linkPagoModalOpen, setLinkPagoModalOpen] = useState(false);
@@ -396,6 +398,19 @@ const Ventas = ({ user }) => {
     const fetchProductos     = () => apiClient.get('/productos/').then(r => setProductos(r.data)).catch(console.error);
     const fetchGrupos        = () => apiClient.get('/grupos-producto/').then(r => setGrupos(r.data)).catch(console.error);
     const fetchVentasSummary = () => apiClient.get('/reportes/ventas_summary').then(r => setTotalVentasHoy(r.data.total_ventas_hoy)).catch(console.error);
+
+    const handleToggleInventario = async (val) => {
+        setSavingConfig(true);
+        try {
+            await apiClient.put('/empresa/config-ventas', { omitir_inventario: val });
+            setOmitirInventario(val);
+            toast.success(val ? 'Validación de inventario desactivada.' : 'Validación de inventario activada.');
+        } catch {
+            toast.error('No se pudo guardar la configuración.');
+        } finally {
+            setSavingConfig(false);
+        }
+    };
 
     useEffect(() => {
         fetchClientePuntos(cliente?.id || null);
@@ -855,6 +870,52 @@ const Ventas = ({ user }) => {
                             size="small"
                             sx={{ bgcolor: '#FEF3C7', color: '#92400E', fontWeight: 700, fontSize: 11, border: '1px solid #F59E0B40' }}
                         />
+                    )}
+                    {user?.role?.name === 'Admin' && (
+                        <>
+                            <Tooltip title="Configuración de ventas">
+                                <IconButton
+                                    size="small"
+                                    onClick={e => setConfigAnchorEl(e.currentTarget)}
+                                    sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, color: omitirInventario ? '#F59E0B' : 'text.secondary' }}
+                                >
+                                    <Settings fontSize="small" />
+                                </IconButton>
+                            </Tooltip>
+                            <Popover
+                                open={Boolean(configAnchorEl)}
+                                anchorEl={configAnchorEl}
+                                onClose={() => setConfigAnchorEl(null)}
+                                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                                PaperProps={{ sx: { borderRadius: 3, p: 2.5, width: 300, boxShadow: '0 8px 32px rgba(0,0,0,0.14)' } }}
+                            >
+                                <Typography fontWeight={700} fontSize={13.5} mb={0.5}>Configuración de ventas</Typography>
+                                <Typography fontSize={12} color="text.secondary" mb={2}>
+                                    Solo visible para administradores.
+                                </Typography>
+                                <FormControlLabel
+                                    control={
+                                        <Switch
+                                            checked={omitirInventario}
+                                            disabled={savingConfig}
+                                            onChange={e => handleToggleInventario(e.target.checked)}
+                                            size="small"
+                                            sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#F59E0B' }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#F59E0B' } }}
+                                        />
+                                    }
+                                    label={
+                                        <Box>
+                                            <Typography fontSize={13} fontWeight={600}>Omitir validación de inventario</Typography>
+                                            <Typography fontSize={11} color="text.secondary">
+                                                No verifica stock ni registra movimientos de inventario al vender.
+                                            </Typography>
+                                        </Box>
+                                    }
+                                    sx={{ alignItems: 'flex-start', mx: 0, gap: 1 }}
+                                />
+                            </Popover>
+                        </>
                     )}
                     <ToggleButtonGroup
                         value={viewMode}

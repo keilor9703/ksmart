@@ -51,9 +51,6 @@ const ResolucionesDian = lazy(() => import('./features/dian/ResolucionesDian'));
 const MiSuscripcion    = lazy(() => import('./features/account/MiSuscripcion'));
 const ConfigLinkPago   = lazy(() => import('./features/account/ConfigLinkPago'));
 
-// Admin
-const ConfigVentas     = lazy(() => import('./features/admin/ConfigVentas'));
-
 // Catálogo virtual
 const CatalogoConfig   = lazy(() => import('./features/saas/CatalogoConfig'));
 const CatalogoVirtual  = lazy(() => import('./features/saas/CatalogoVirtual'));
@@ -394,7 +391,6 @@ const hasAccess = useCallback((path) => {
                       <>
                         <Route path="/admin/usuarios" element={<AdminUsuarios />} />
                         <Route path="/admin/catalogo" element={<CatalogoConfig />} />
-                        <Route path="/admin/config-ventas" element={<ConfigVentas />} />
                       </>
                     )}
                     <Route path="/mi-suscripcion" element={<MiSuscripcion user={user} />} />
