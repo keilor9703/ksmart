@@ -350,7 +350,7 @@ const ProductoForm = ({
   // ── Computed values ──
   const isEditing      = Boolean(productoToEdit);
   const selectedGroup  = grupos.find(g => g.id === grupoItem);
-  const isMateriaPrima = !esServicio && selectedGroup?.codigo === 'MP';
+  const isMateriaPrima = !esServicio && ['MP', 'INS'].includes(selectedGroup?.codigo);
   const precioN     = parseFloat(precio) || 0;
   const costoN      = parseFloat(costo)  || 0;
   const margenPct   = precioN > 0 ? ((precioN - costoN) / precioN * 100) : 0;
@@ -584,7 +584,7 @@ const ProductoForm = ({
                       }}>
                         <InfoOutlined sx={{ fontSize: 16, color: '#3B82F6', flexShrink: 0 }} />
                         <Typography fontSize={12} color="#1E40AF" lineHeight={1.4}>
-                          Las materias primas no tienen precio de venta — se usan como insumos en producción.
+                          Esta categoría no tiene precio de venta — se usa como insumo en producción.
                         </Typography>
                       </Box>
                     ) : (
