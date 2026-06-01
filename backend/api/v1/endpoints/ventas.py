@@ -16,9 +16,7 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
     if not venta.operador_id:
         venta = venta.model_copy(update={'operador_id': current_user.id})
 
-    # Get empresa settings
-    empresa = db.query(models.Empresa).filter_by(id=empresa_id).first()
-    omitir_inventario = getattr(empresa, "omitir_inventario", False) or False
+    omitir_inventario = venta.omitir_inventario
 
     db_cliente = None
     if venta.cliente_id is not None:

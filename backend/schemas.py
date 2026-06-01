@@ -464,6 +464,8 @@ class VentaBase(BaseModel):
     # Fidelización
     descuento_puntos: float = 0.0               # Descuento en COP por puntos canjeados
     puntos_canjeados: int = 0                    # Puntos descontados (para log)
+    # Por-venta: no persiste en BD, solo controla lógica en el endpoint
+    omitir_inventario: bool = False
 
 
 class VentaCreate(VentaBase):
