@@ -11,7 +11,7 @@ from crud.productos import get_producto
 # INVENTARIO - MOVIMIENTOS, KARDEX, ALERTAS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def create_movement(db: Session, empresa_id: int, payload: schemas.InventoryMovementCreate):
+def create_movement(db: Session, empresa_id: int, payload: schemas.InventoryMovementCreate, commit: bool = True):
     prod = get_producto(db, empresa_id, payload.producto_id)
     if not prod:
         raise ValueError("Producto no encontrado o no pertenece a esta empresa")
@@ -45,8 +45,9 @@ def create_movement(db: Session, empresa_id: int, payload: schemas.InventoryMove
     )
     db.add(mov)
     db.add(prod)
-    db.commit()
-    db.refresh(mov)
+    if commit:
+        db.commit()
+        db.refresh(mov)
     return mov
 
 def list_movements(db: Session, empresa_id: int, producto_id: int = None, limit: int = 100):

@@ -4,6 +4,7 @@ import os
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, Request, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 import models
 from api.deps import get_db
@@ -107,7 +108,11 @@ async def webhook_wompi(request: Request, db: Session = Depends(get_db)):
                     payload_auditoria=payload
                 )
                 db.add(nuevo_pago)
-                db.commit()
-                logger.info(f"✅ Suscripción Wompi activada para empresa {empresa_id}")
+                try:
+                    db.commit()
+                    logger.info(f"✅ Suscripción Wompi activada para empresa {empresa_id}")
+                except IntegrityError:
+                    db.rollback()
+                    logger.info(f"⚠️ Webhook duplicado ignorado: {wompi_id} ya procesado (unique constraint)")
 
     return {"status": "ok"}

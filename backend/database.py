@@ -1013,6 +1013,89 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v60)
                 logger.info("V60 (va_a_cocina en ítems de comanda) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V61 - Módulos de restaurante en tabla modulos
+            # ═══════════════════════════════════════════════════════════════
+            migration_v61 = "v61_modulos_restaurante"
+            if not _migration_already_applied(conn, migration_v61):
+                if not IS_SQLITE:
+                    conn.execute(text("""
+                        INSERT INTO modulos (name, description, frontend_path)
+                        VALUES
+                          ('Mapa de Mesas', 'Gestión de mesas y comandas del restaurante.', '/restaurante'),
+                          ('Pantalla Cocina', 'Pantalla de órdenes para el área de cocina.', '/restaurante/cocina'),
+                          ('Config Restaurante', 'Configuración de áreas y mesas.', '/restaurante/config')
+                        ON CONFLICT (frontend_path) DO NOTHING
+                    """))
+                _mark_migration_applied(conn, migration_v61)
+                logger.info("V61 (módulos de restaurante) aplicada.")
+
+            # ═══════════════════════════════════════════════════════════════
+            # V62 - Columnas faltantes en inventory_movements
+            # ═══════════════════════════════════════════════════════════════
+            migration_v62 = "v62_inventory_movements_columns"
+            if not _migration_already_applied(conn, migration_v62):
+                if not IS_SQLITE:
+                    conn.execute(text("""
+                        ALTER TABLE inventory_movements
+                          ADD COLUMN IF NOT EXISTS usuario_id INTEGER REFERENCES users(id),
+                          ADD COLUMN IF NOT EXISTS lote_id INTEGER REFERENCES lotes_existencias(id),
+                          ADD COLUMN IF NOT EXISTS numero_lote VARCHAR(100)
+                    """))
+                _mark_migration_applied(conn, migration_v62)
+                logger.info("V62 (columnas usuario_id/lote_id/numero_lote en inventory_movements) aplicada.")
+
+            # ═══════════════════════════════════════════════════════════════
+            # V63 - Integridad de datos: unique bold_tx_id + check constraints
+            # ═══════════════════════════════════════════════════════════════
+            migration_v63 = "v63_data_integrity_constraints"
+            if not _migration_already_applied(conn, migration_v63):
+                if not IS_SQLITE:
+                    # Unique en bold_tx_id para evitar doble activación de suscripción
+                    conn.execute(text("""
+                        DO $$
+                        BEGIN
+                          IF NOT EXISTS (
+                            SELECT 1 FROM pg_constraint
+                            WHERE conname = 'uq_registros_pagos_bold_tx_id'
+                          ) THEN
+                            ALTER TABLE registros_pagos
+                              ADD CONSTRAINT uq_registros_pagos_bold_tx_id
+                              UNIQUE (bold_tx_id);
+                          END IF;
+                        END $$
+                    """))
+                    # Check: precio de producto no puede ser negativo
+                    conn.execute(text("""
+                        DO $$
+                        BEGIN
+                          IF NOT EXISTS (
+                            SELECT 1 FROM pg_constraint
+                            WHERE conname = 'ck_productos_precio_nonneg'
+                          ) THEN
+                            ALTER TABLE productos
+                              ADD CONSTRAINT ck_productos_precio_nonneg
+                              CHECK (precio IS NULL OR precio >= 0);
+                          END IF;
+                        END $$
+                    """))
+                    # Check: total de venta no puede ser negativo
+                    conn.execute(text("""
+                        DO $$
+                        BEGIN
+                          IF NOT EXISTS (
+                            SELECT 1 FROM pg_constraint
+                            WHERE conname = 'ck_ventas_total_nonneg'
+                          ) THEN
+                            ALTER TABLE ventas
+                              ADD CONSTRAINT ck_ventas_total_nonneg
+                              CHECK (total >= 0);
+                          END IF;
+                        END $$
+                    """))
+                _mark_migration_applied(conn, migration_v63)
+                logger.info("V63 (unique bold_tx_id + check constraints precio/total) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

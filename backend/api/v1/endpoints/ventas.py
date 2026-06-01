@@ -13,11 +13,9 @@ router = APIRouter()
 def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
     empresa_id = current_user.empresa_id
 
-    # Auto-assign current user as operador if not explicitly set
     if not venta.operador_id:
         venta = venta.model_copy(update={'operador_id': current_user.id})
 
-    # Cliente es opcional (lavadero y otros módulos sin cliente obligatorio)
     db_cliente = None
     if venta.cliente_id is not None:
         db_cliente = crud.get_cliente(db, empresa_id=empresa_id, cliente_id=venta.cliente_id)
@@ -27,21 +25,40 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
     if not venta.detalles:
         raise HTTPException(status_code=400, detail="Debe proporcionar al menos un producto.")
 
+    # Lock all physical product rows for the duration of this transaction.
+    # This prevents two concurrent requests from both seeing enough stock,
+    # both creating their Venta, and both decrementing — which would produce
+    # negative stock. The lock is held until the single db.commit() at the end.
+    productos_locked: dict[int, models.Producto] = {}
     for d in venta.detalles:
-        prod = crud.get_producto(db, empresa_id=empresa_id, producto_id=d.producto_id)
+        if d.producto_id in productos_locked:
+            continue
+        prod = (
+            db.query(models.Producto)
+            .filter(
+                models.Producto.id == d.producto_id,
+                models.Producto.empresa_id == empresa_id,
+            )
+            .with_for_update()
+            .first()
+        )
         if not prod:
             raise HTTPException(status_code=404, detail=f"Producto {d.producto_id} no existe")
+        productos_locked[d.producto_id] = prod
 
-        # Validación de stock solo para productos físicos
-        if not prod.es_servicio:
+    for d in venta.detalles:
+        prod = productos_locked[d.producto_id]
+        if not prod.es_servicio and not prod.requiere_cocina:
             if (prod.stock_actual or 0) < d.cantidad:
-                raise HTTPException(status_code=400, detail=f"Stock insuficiente para '{prod.nombre}'. Disponible: {prod.stock_actual}, requerido: {d.cantidad}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Stock insuficiente para '{prod.nombre}'. Disponible: {prod.stock_actual}, requerido: {d.cantidad}",
+                )
 
-    # Validación de crédito solo si hay cliente y la venta es a crédito
     if not venta.pagada and db_cliente is not None:
         iva_pct = float(getattr(venta, 'iva_porcentaje', 0) or 0)
         total_nueva = sum(
-            (d.precio_unitario if d.precio_unitario is not None else crud.get_producto(db, empresa_id, d.producto_id).precio) * d.cantidad
+            (d.precio_unitario if d.precio_unitario is not None else productos_locked[d.producto_id].precio) * d.cantidad
             for d in venta.detalles
         ) * (1 + iva_pct / 100)
         deuda_actual = crud.get_cliente_deuda(db, empresa_id=empresa_id, cliente_id=venta.cliente_id)
@@ -49,15 +66,17 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
             cupo_disp = db_cliente.cupo_credito - deuda_actual
             raise HTTPException(status_code=400, detail=f"La venta excede el cupo de crédito. Disponible: {cupo_disp:.2f}")
 
-    db_venta = crud.create_venta(db=db, empresa_id=empresa_id, venta=venta)
+    # Create venta without committing — all writes commit together at the end.
+    db_venta = crud.create_venta(db=db, empresa_id=empresa_id, venta=venta, commit=False)
 
     try:
         for det in db_venta.detalles:
-            prod = crud.get_producto(db, empresa_id=empresa_id, producto_id=det.producto_id)
-            if getattr(prod, "es_servicio", False):
+            prod = productos_locked.get(det.producto_id)
+            if not prod:
+                prod = crud.get_producto(db, empresa_id=empresa_id, producto_id=det.producto_id)
+            if not prod or getattr(prod, "es_servicio", False) or getattr(prod, "requiere_cocina", False):
                 continue
-            if getattr(prod, "requiere_cocina", False):
-                continue  # Platos y preparados: sin movimiento de inventario
+
             if getattr(prod, "maneja_lotes", False):
                 lotes_disponibles = crud.get_lotes_fefo(db, empresa_id=empresa_id, producto_id=det.producto_id)
                 if lotes_disponibles:
@@ -67,16 +86,14 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
                             empresa_id=empresa_id,
                             producto_id=det.producto_id,
                             cantidad_requerida=det.cantidad,
-                            referencia=f"Venta #{db_venta.id}"
+                            referencia=f"Venta #{db_venta.id}",
+                            commit=False,
                         )
                     except ValueError as e:
                         raise HTTPException(status_code=400, detail=str(e))
-                    # consumir_stock_fefo does NOT update stock_actual, so we do it here
                     prod.stock_actual = (prod.stock_actual or 0) - det.cantidad
                     db.add(prod)
-                    db.commit()
                 else:
-                    # Sin lotes registrados: create_movement handles stock_actual update
                     crud.create_movement(db, empresa_id=empresa_id, payload=schemas.InventoryMovementCreate(
                         producto_id=det.producto_id,
                         tipo=schemas.MovementType.salida,
@@ -85,7 +102,7 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
                         motivo="venta",
                         referencia=f"venta #{db_venta.id}",
                         usuario_id=current_user.id,
-                    ))
+                    ), commit=False)
             else:
                 crud.create_movement(db, empresa_id=empresa_id, payload=schemas.InventoryMovementCreate(
                     producto_id=det.producto_id,
@@ -95,9 +112,13 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
                     motivo="venta",
                     referencia=f"venta #{db_venta.id}",
                     usuario_id=current_user.id,
-                ))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+                ), commit=False)
+    except (ValueError, HTTPException):
+        db.rollback()
+        raise
+
+    db.commit()
+    db.refresh(db_venta)
 
     crud.check_and_notify_low_stock(db, empresa_id=empresa_id, producto_ids=[det.producto_id for det in db_venta.detalles])
     return db_venta

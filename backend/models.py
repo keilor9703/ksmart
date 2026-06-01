@@ -668,14 +668,18 @@ class RegistroPago(Base):
     plan_id = Column(Integer, ForeignKey("planes_suscripcion.id"))
     monto = Column(Float)
     moneda = Column(String)
-    metodo_pago = Column(String) 
-    bold_tx_id = Column(String)  # Reutilizaremos esta misma columna para el ID de Wompi para no dañar tu BD
+    metodo_pago = Column(String)
+    bold_tx_id = Column(String, unique=True, index=True)
     email_pagador = Column(String)
     fecha_pago = Column(DateTime(timezone=True), server_default=func.now())
-    payload_auditoria = Column(JSON) 
+    payload_auditoria = Column(JSON)
 
     empresa = relationship("Empresa")
     plan = relationship("PlanSuscripcion")
+
+    __table_args__ = (
+        UniqueConstraint('bold_tx_id', name='uq_registros_pagos_bold_tx_id'),
+    )
 
 
 

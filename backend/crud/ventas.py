@@ -42,7 +42,7 @@ def get_venta(db: Session, empresa_id: int, venta_id: int):
         .first()
     )
 
-def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate):
+def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate, commit: bool = True):
     if venta.cliente_id is not None:
         cliente = get_cliente(db, empresa_id, venta.cliente_id)
         if not cliente:
@@ -111,8 +111,9 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate):
 
 
 
-    db.commit()
-    db.refresh(db_venta)
+    if commit:
+        db.commit()
+        db.refresh(db_venta)
     return db_venta
 
 def update_venta(db: Session, empresa_id: int, venta_id: int, venta: schemas.VentaCreate):

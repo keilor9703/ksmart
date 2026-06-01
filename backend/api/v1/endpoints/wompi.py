@@ -6,6 +6,7 @@ import requests as http_requests
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel
 from typing import Optional
 
@@ -220,7 +221,12 @@ def confirmar_pago_widget(
         payload_auditoria = {"wompi_id": wompi_id, "verificado_api": tx is not None},
     )
     db.add(nuevo_pago)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        logger.info(f"confirmar-pago-widget: {wompi_id} duplicado ignorado (unique constraint)")
+        return {"status": "ok", "mensaje": "Suscripción ya activa."}
 
     logger.info(f"✅ Suscripción activada vía widget (verificada con API Wompi): empresa {empresa_id_ref}")
     return {"status": "ok", "mensaje": f"Suscripción activada por {plan.dias_duracion} días."}
