@@ -103,29 +103,6 @@ def generar_hash_wompi(
     }
 
 
-@router.post("/generar-hash-pos")
-def generar_hash_pos(
-    data: schemas.PagoDigitalPosRequest,
-    current_user: models.User = Depends(get_current_user),
-):
-    """Genera referencia + hash de integridad Wompi para cobros en el POS."""
-    if not WOMPI_INTEGRITY_SECRET:
-        raise HTTPException(status_code=503, detail="Pasarela de pago no configurada.")
-    monto_centavos = str(int(data.monto * 100))
-    divisa = "COP"
-    timestamp = int(time.time())
-    referencia = f"POS-{current_user.empresa_id}-{current_user.id}-{timestamp}"
-    cadena = f"{referencia}{monto_centavos}{divisa}{WOMPI_INTEGRITY_SECRET}"
-    hash_integridad = hashlib.sha256(cadena.encode("utf-8")).hexdigest()
-    return {
-        "reference":       referencia,
-        "amount_in_cents": monto_centavos,
-        "currency":        divisa,
-        "signature":       hash_integridad,
-        "public_key":      WOMPI_PUBLIC_KEY,
-    }
-
-
 class ConfirmarPagoWidgetRequest(BaseModel):
     wompi_id: str   # Único campo que aceptamos del frontend
 

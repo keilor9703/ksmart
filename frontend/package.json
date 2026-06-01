@@ -21,6 +21,7 @@
     "dayjs": "^1.11.18",
     "framer-motion": "^12.39.0",
     "html5-qrcode": "^2.3.8",
+    "qrcode.react": "^4.2.0",
     "react": "^19.1.0",
     "react-chartjs-2": "^5.3.0",
     "react-dom": "^19.1.0",

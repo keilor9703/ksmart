@@ -1359,3 +1359,33 @@ class ConfigRestaurante(Base):
 
     empresa = relationship("Empresa")
 
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LINK DE PAGO POS — Configuración por empresa
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TipoLinkPago(str, enum.Enum):
+    QR_IMAGEN = "qr_imagen"   # imagen subida manualmente
+    URL       = "url"         # URL → QR generado automáticamente en frontend
+
+
+class LinkPagoEmpresa(Base, TenantMixin):
+    """
+    Un único link/QR de pago activo por empresa para usar en el POS.
+    Permite a cada negocio configurar su propia pasarela (Nequi, Bold, Bancolombia, etc.)
+    """
+    __tablename__ = "links_pago_empresa"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    nombre        = Column(String(100), nullable=False)          # "Nequi empresa", "Bold QR"
+    tipo          = Column(Enum(TipoLinkPago), nullable=False, default=TipoLinkPago.URL)
+    link_url      = Column(String(500), nullable=True)           # URL si tipo=URL
+    qr_base64     = Column(Text, nullable=True)                  # base64 si tipo=QR_IMAGEN
+    qr_mime_type  = Column(String(40), nullable=True)            # "image/png"
+    instrucciones = Column(Text, nullable=True)                  # "Escanea y paga"
+    is_active     = Column(Boolean, default=True)
+    created_at    = Column(DateTime(timezone=True), default=utcnow)
+    updated_at    = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    empresa = relationship("Empresa")

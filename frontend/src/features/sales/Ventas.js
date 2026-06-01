@@ -8,6 +8,7 @@ import VentaDetailDialog from './VentaDetailDialog';
 import DevolucionDialog from './DevolucionDialog';
 import QuickCreateModal from '../../components/common/QuickCreateModal';
 import ReciboDialog from '../../components/common/ReciboDialog';
+import LinkPagoModal from '../../components/common/LinkPagoModal';
 import TouchPOSMode from './TouchPOSMode';
 import {
     Box, Paper, Typography, Grid, TextField, Button, IconButton,
@@ -40,7 +41,7 @@ const METODOS_PAGO = [
     { value: 'Tarjeta',       label: '💳 Tarjeta',        pagada: true,  color: '#8B5CF6' },
     { value: 'Cheque',        label: '📄 Cheque',         pagada: true,  color: '#6B7280' },
     { value: 'Por Cobrar',    label: '🕒 Por Cobrar',     pagada: false, color: '#EF4444' },
-    { value: 'Wompi',         label: '📲 Link/QR',        pagada: true,  color: '#FF6020', digital: true },
+    { value: 'Link de Pago',  label: '📲 Link/QR',        pagada: true,  color: '#FF6020', digital: true },
 ];
 
 const PUNTOS_REDEEM_RATE = 100; // $100 COP por punto
@@ -339,8 +340,10 @@ const Ventas = ({ user }) => {
     // ── Fidelización ──
     const [clientePuntos, setClientePuntos]   = useState(0);
     const [puntosACanjear, setPuntosACanjear] = useState(0);
-    // ── Wompi POS ──
-    const [wompiPosLoading, setWompiPosLoading] = useState(false);
+    // ── Link de Pago POS ──
+    const [linkPagoConfig, setLinkPagoConfig] = useState(null);
+    const [linkPagoModalOpen, setLinkPagoModalOpen] = useState(false);
+    const pendingVentaRef = useRef(null);
 
     // ── Barcode / Camera ──
     const [barcodeInput, setBarcodeInput]     = useState('');
@@ -348,7 +351,6 @@ const Ventas = ({ user }) => {
     const [searchingBarcode, setSearchingBarcode] = useState(false);
     const [scanFlash, setScanFlash]           = useState(false);
     const barcodeFieldRef  = useRef(null);
-    const wompiApprovedRef = useRef(false);
     const videoRef         = useRef(null);
     const streamRef        = useRef(null);
     const rAFRef           = useRef(null);
@@ -377,6 +379,7 @@ const Ventas = ({ user }) => {
     // ── Fetch inicial ──
     useEffect(() => {
         fetchVentas(); fetchClientes(); fetchProductos(); fetchVentasSummary(); fetchGrupos();
+        apiClient.get('/empresa/link-pago').then(r => setLinkPagoConfig(r.data)).catch(() => {});
     }, []);
 
     const fetchVentas        = () => apiClient.get('/ventas/').then(r => setVentas(r.data)).catch(console.error);
@@ -680,41 +683,20 @@ const Ventas = ({ user }) => {
 
         const descuentoPuntosImporte = puntosACanjear * PUNTOS_REDEEM_RATE;
 
-        // ── Wompi digital payment flow ──
-        if (pagada && metodoPago === 'Wompi' && !wompiApprovedRef.current) {
-            if (!window.WidgetCheckout) {
-                toast.error('El widget de pago no está disponible. Recarga la página.');
+        // ── Link de Pago — mostrar QR/URL al cliente antes de registrar ──
+        if (pagada && metodoPago === 'Link de Pago' && !pendingVentaRef.current) {
+            if (!linkPagoConfig) {
+                toast.error('No hay un link de pago configurado. Configúralo en Mi Suscripción.');
                 return;
             }
             const subtotal = calculateSubtotal();
             const totalBruto = subtotal * (1 + (parseFloat(ivaPorcentajeGlobal) || 0) / 100);
             const totalFinal = Math.max(0, totalBruto - descuentoPuntosImporte);
-            setWompiPosLoading(true);
-            try {
-                const { data: hashData } = await apiClient.post('/wompi/generar-hash-pos', { monto: totalFinal });
-                const checkout = new window.WidgetCheckout({
-                    currency: hashData.currency,
-                    amountInCents: parseInt(hashData.amount_in_cents),
-                    reference: hashData.reference,
-                    publicKey: hashData.public_key.replace(/['"]/g, ''),
-                    signature: { integrity: hashData.signature },
-                });
-                checkout.open((result) => {
-                    setWompiPosLoading(false);
-                    if (result.transaction?.status === 'APPROVED') {
-                        wompiApprovedRef.current = true;
-                        handleVentaSubmit();
-                    } else {
-                        toast.error('Pago no completado. Intenta de nuevo o elige otro método.');
-                    }
-                });
-            } catch (err) {
-                setWompiPosLoading(false);
-                toast.error('Error al iniciar el pago digital.');
-            }
+            pendingVentaRef.current = { totalFinal };
+            setLinkPagoModalOpen(true);
             return;
         }
-        wompiApprovedRef.current = false;
+        pendingVentaRef.current = null;
 
         const ventaData = {
             cliente_id: cliente.id,
@@ -773,7 +755,7 @@ const Ventas = ({ user }) => {
         setSaleDetails([{ id: initialId, producto: null, cantidad: 1, precioUnitario: 0, descuentoPct: 0 }]);
         setProductoInputs({}); setIvaPorcentajeGlobal(19); setValorRecibido(0);
         setPagada(true); setMetodoPago('Efectivo'); setEditingVenta(null);
-        setPuntosACanjear(0); setClientePuntos(0); wompiApprovedRef.current = false;
+        setPuntosACanjear(0); setClientePuntos(0); pendingVentaRef.current = null;
         cleanupCamera(); setCameraActive(false);
         setTimeout(() => barcodeFieldRef.current?.focus(), 300);
     };
@@ -1252,7 +1234,7 @@ const Ventas = ({ user }) => {
                                         </SmartTooltip>
                                     </Box>
                                     <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap' }}>
-                                        {METODOS_PAGO.map(opt => {
+                                        {METODOS_PAGO.filter(opt => opt.value !== 'Link de Pago' || !!linkPagoConfig).map(opt => {
                                             const isSelected = pagada ? (opt.pagada && metodoPago === opt.value) : !opt.pagada;
                                             return (
                                                 <Box key={opt.value} onClick={() => { setPagada(opt.pagada); if (opt.pagada) setMetodoPago(opt.value); }}
@@ -1311,17 +1293,17 @@ const Ventas = ({ user }) => {
                                         <Button
                                             id="btn-registrar-venta"
                                             type="submit" variant="contained" fullWidth={!editingVenta}
-                                            disabled={savingVenta || wompiPosLoading}
+                                            disabled={savingVenta}
                                             onClick={handleSubmit}
-                                            startIcon={(savingVenta || wompiPosLoading) ? <CircularProgress size={16} sx={{ color: 'white' }} /> : (metodoPago === 'Wompi' ? <CreditCard /> : <ShoppingCart />)}
+                                            startIcon={savingVenta ? <CircularProgress size={16} sx={{ color: 'white' }} /> : (metodoPago === 'Link de Pago' ? <CreditCard /> : <ShoppingCart />)}
                                             sx={{
-                                                background: metodoPago === 'Wompi' ? 'linear-gradient(135deg, #7C3AED, #a78bfa)' : `linear-gradient(135deg, ${ACCENT}, #ff9a62)`,
-                                                boxShadow: metodoPago === 'Wompi' ? '0 4px 14px rgba(124,58,237,0.35)' : `0 4px 14px rgba(255,96,32,0.35)`,
+                                                background: metodoPago === 'Link de Pago' ? 'linear-gradient(135deg, #FF6020, #ff9a62)' : `linear-gradient(135deg, ${ACCENT}, #ff9a62)`,
+                                                boxShadow: `0 4px 14px rgba(255,96,32,0.35)`,
                                                 borderRadius: 2, fontWeight: 700, py: 1.4,
                                                 fontSize: 14,
                                             }}
                                         >
-                                            {wompiPosLoading ? 'Abriendo pago…' : savingVenta ? 'Guardando…' : (editingVenta ? 'Actualizar' : (metodoPago === 'Wompi' ? 'Pagar con Wompi' : 'Registrar Venta'))}
+                                            {savingVenta ? 'Guardando…' : (editingVenta ? 'Actualizar' : (metodoPago === 'Link de Pago' ? 'Cobrar con Link' : 'Registrar Venta'))}
                                         </Button>
                                     </Box>
                                     <Typography sx={{ fontSize: 10, color: 'text.disabled', textAlign: 'right', mt: 0.5 }}>
@@ -1485,6 +1467,13 @@ const Ventas = ({ user }) => {
                 open={reciboOpen} onClose={() => setReciboOpen(false)}
                 venta={reciboVenta} empresa={user?.empresa}
                 vendedor={user?.nombre_completo || user?.username}
+            />
+            <LinkPagoModal
+                open={linkPagoModalOpen}
+                onClose={() => { setLinkPagoModalOpen(false); pendingVentaRef.current = null; }}
+                onConfirm={() => { setLinkPagoModalOpen(false); handleVentaSubmit(); }}
+                linkConfig={linkPagoConfig}
+                clienteTelefono={cliente?.telefono || ''}
             />
         </Box>
     );

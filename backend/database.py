@@ -1119,6 +1119,43 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v64)
                 logger.info("V64 (puntos fidelización + plan is_featured) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V65 - Link de pago POS por empresa
+            # ═══════════════════════════════════════════════════════════════
+            migration_v65 = "v65_links_pago_empresa"
+            if not _migration_already_applied(conn, migration_v65):
+                conn.execute(text("""
+                    DO $$
+                    BEGIN
+                      IF NOT EXISTS (
+                        SELECT 1 FROM pg_type WHERE typname = 'tipolinkpago'
+                      ) THEN
+                        CREATE TYPE tipolinkpago AS ENUM ('qr_imagen', 'url');
+                      END IF;
+                    END $$
+                """))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS links_pago_empresa (
+                        id            SERIAL PRIMARY KEY,
+                        empresa_id    INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+                        nombre        VARCHAR(100) NOT NULL,
+                        tipo          tipolinkpago NOT NULL DEFAULT 'url',
+                        link_url      VARCHAR(500),
+                        qr_base64     TEXT,
+                        qr_mime_type  VARCHAR(40),
+                        instrucciones TEXT,
+                        is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+                        created_at    TIMESTAMPTZ DEFAULT NOW(),
+                        updated_at    TIMESTAMPTZ DEFAULT NOW()
+                    );
+                """))
+                conn.execute(text("""
+                    CREATE INDEX IF NOT EXISTS ix_links_pago_empresa_empresa_id
+                        ON links_pago_empresa(empresa_id);
+                """))
+                _mark_migration_applied(conn, migration_v65)
+                logger.info("V65 (links_pago_empresa) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

@@ -2470,3 +2470,29 @@ class ProductoImpuestoOut(BaseModel):
     empresa_id:  int
     impuesto:    Optional[TipoImpuestoOut] = None
     model_config = ConfigDict(from_attributes=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LINK DE PAGO POS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class LinkPagoCreate(BaseModel):
+    nombre:        str
+    tipo:          str  # "qr_imagen" | "url"
+    link_url:      Optional[str] = None
+    qr_base64:     Optional[str] = None
+    qr_mime_type:  Optional[str] = None
+    instrucciones: Optional[str] = None
+    is_active:     bool = True
+
+class LinkPagoOut(BaseModel):
+    id:            int
+    empresa_id:    int
+    nombre:        str
+    tipo:          str
+    link_url:      Optional[str] = None
+    qr_base64:     Optional[str] = None
+    qr_mime_type:  Optional[str] = None
+    instrucciones: Optional[str] = None
+    is_active:     bool
+    model_config = ConfigDict(from_attributes=True)

@@ -11,11 +11,12 @@ import {
   Receipt, CreditCard, AccountBalanceWallet, AttachMoney,
   ExpandMore, ExpandLess, ContentCopy, CalendarMonth,
   Payments, HourglassBottom, Bolt, Shield, KeyboardArrowRight,
-  Close,
+  Close, QrCode2,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
 import WompiButton from '../../components/common/WompiButton';
+import LinkPagoConfig from '../../components/common/LinkPagoConfig';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -577,6 +578,34 @@ export default function MiSuscripcion({ user }) {
           </Collapse>
         </Card>
       )}
+
+      {/* ── Link de Pago POS ── */}
+      <Card elevation={0} sx={{
+        borderRadius: 3,
+        border: `1px solid ${alpha(theme.palette.divider, 1)}`,
+        bgcolor: 'background.paper',
+        mb: 3, overflow: 'hidden',
+      }}>
+        <Box sx={{ px: 2.5, py: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{
+            width: 36, height: 36, borderRadius: 2, flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            bgcolor: alpha('#FF6020', isDark ? 0.15 : 0.08),
+          }}>
+            <QrCode2 sx={{ color: '#FF6020', fontSize: 18 }} />
+          </Box>
+          <Box>
+            <Typography fontWeight={700} fontSize={14}>Link de Pago en POS</Typography>
+            <Typography fontSize={12} color="text.secondary">
+              Configura el QR o link de cobro que aparecerá en el punto de venta
+            </Typography>
+          </Box>
+        </Box>
+        <Divider />
+        <Box sx={{ px: 2.5, py: 2.5 }}>
+          <LinkPagoConfig />
+        </Box>
+      </Card>
 
       {/* ── Historial de pagos ── */}
       <Card elevation={0} sx={{
