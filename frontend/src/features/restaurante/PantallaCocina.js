@@ -10,6 +10,7 @@ import {
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
+import usePolling from '../../hooks/usePolling';
 
 const ESTADO = {
   pendiente:      { color: '#F59E0B', bg: 'rgba(245,158,11,0.14)', label: 'Pendiente',      next: 'en_preparacion', nextLabel: 'Iniciar' },
@@ -201,11 +202,8 @@ const PantallaCocina = () => {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Auto-refresh cada 10 segundos
-  useEffect(() => {
-    const interval = setInterval(fetchData, 10000);
-    return () => clearInterval(interval);
-  }, [fetchData]);
+  // Auto-refresh cada 10s; se pausa si la pestaña está oculta.
+  usePolling(fetchData, 10000);
 
   // Countdown visual
   useEffect(() => {

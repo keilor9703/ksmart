@@ -8,6 +8,7 @@ import {
   CheckCircleOutline, Warning, ErrorOutline, InfoOutlined, DoneAll
 } from '@mui/icons-material';
 import apiClient from '../../api';
+import usePolling from '../../hooks/usePolling';
 
 const ACCENT = '#FF6020';
 
@@ -69,11 +70,9 @@ const Notifications = ({ mode }) => {
     } catch { /* silencioso */ }
   }, []);
 
-  useEffect(() => {
-    fetchUnread();
-    const interval = setInterval(fetchUnread, 60000);
-    return () => clearInterval(interval);
-  }, [fetchUnread]);
+  useEffect(() => { fetchUnread(); }, [fetchUnread]);
+  // Refresca el contador cada 60s; se pausa si la pestaña está oculta.
+  usePolling(fetchUnread, 60000);
 
   const handleOpen = async (e) => {
     setAnchorEl(e.currentTarget);

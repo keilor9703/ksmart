@@ -7,6 +7,7 @@ import {
 import { PlayArrow, History, ErrorOutline, CheckCircleOutline, AccessTime, Info, Terminal } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../../api';
+import usePolling from '../../../hooks/usePolling';
 
 const JobCard = ({ job, getStatusChip }) => (
     <Paper sx={{ p: 2, mb: 2, borderRadius: 3, boxShadow: '0 2px 10px rgba(0,0,0,0.04)', borderLeft: '4px solid #1E293B' }}>
@@ -63,11 +64,9 @@ const JobsControl = () => {
     }
   };
 
-  useEffect(() => {
-    fetchJobs();
-    const interval = setInterval(fetchJobs, 15000); // Polling cada 15s
-    return () => clearInterval(interval);
-  }, []);
+  useEffect(() => { fetchJobs(); }, []);
+  // Refresco cada 15s; se pausa si la pestaña está oculta.
+  usePolling(fetchJobs, 15000);
 
   const handleRunExpiration = async () => {
     if (!window.confirm("¿Ejecutar el proceso de expiración de suscripciones ahora?")) return;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { ThemeProvider } from '@mui/material/styles';
 import {
   Box, Typography, CircularProgress, Drawer,
@@ -16,63 +16,64 @@ import getAppTheme from './theme';
 import Sidebar from './layout/Sidebar';
 import TopBar from './layout/TopBar';
 
-// ✅ IMPORTACIÓN DE COMPONENTES PRIVADOS (PANTALLAS)
-import Productos from './features/inventory/Productos';
-import Ventas from './features/sales/Ventas';
-import PedidosVirtuales from './features/sales/PedidosVirtuales';
-import Reportes from './features/reports/Reportes';
+// ─── EAGER: layout + primer render (se montan siempre o en el primer paint) ───
 import Login from './features/auth/Login';
-import OrdenesTrabajo from './features/workOrders/OrdenesTrabajo';
-import Recetas from './features/production/Recetas';
-import Lotes from './features/inventory/Lotes';
-import Terceros from './features/clients/Terceros';
-import Compras from './features/purchases/Compras';
-import PanelOperador from './features/workOrders/PanelOperador';
 import { SpeedInsights } from '@vercel/speed-insights/react';
-import Inventario from './features/inventory/Inventario';
-import InventoryReports from './features/inventory/InventoryReports';
-import AgileBarcodeRegistration from './features/inventory/AgileBarcodeRegistration'; 
-import Dashboard from './features/dashboard/Dashboard';
-import Caja from './features/finance/Caja';
-import AdminUsuarios from './features/admin/AdminUsuarios';
-import GestionEmpresas from './features/admin/GestionEmpresas';
-import InventarioLotes from './features/inventory/InventarioLotes';
-import Cotizaciones from './features/sales/Cotizaciones';
-import ResolucionesDian from './features/dian/ResolucionesDian';
-import MiSuscripcion from './features/account/MiSuscripcion';
-
-// ✅ CATÁLOGO VIRTUAL
-import CatalogoConfig from './features/saas/CatalogoConfig';
-import CatalogoVirtual from './features/saas/CatalogoVirtual';
-
-// ✅ IMPORTAMOS LAS PANTALLAS PÚBLICAS (Login, Registro, etc.)
-import SuscripcionExpirada from './features/auth/SuscripcionExpirada';
-import { Terminos, Privacidad, HabeasData } from './features/legal/LegalPages';
-
-// ✅ IMPORTAMOS LOS NUEVOS MÓDULOS DE PRÉSTAMOS
-import PrestamoForm from './features/loans/PrestamoForm';
-import RutaCobro from './features/loans/RutaCobro';
-
-// ✅ MÓDULO PARQUEADERO
-import ParqueaderoDashboard      from './features/parking/ParqueaderoDashboard';
-import ParqueaderoBuscar         from './features/parking/ParqueaderoBuscar';
-import ParqueaderoVehiculos      from './features/parking/ParqueaderoVehiculos';
-import ParqueaderoSuscripciones  from './features/parking/ParqueaderoSuscripciones';
-import ParqueaderoConfig         from './features/parking/ParqueaderoConfig';
-import LavaderoVentas            from './features/lavadero/LavaderoVentas';
-import LavaderoReporte           from './features/lavadero/LavaderoReporte';
-
-// ✅ MÓDULO RESTAURANTE
-import MapaMesas       from './features/restaurante/MapaMesas';
-import PantallaCocina  from './features/restaurante/PantallaCocina';
-import RestauranteConfig from './features/restaurante/RestauranteConfig';
-
-// ✅ MÓDULO SAAS (ANUNCIOS)
 import AnnouncementBanner from './features/saas/components/AnnouncementBanner';
 import { OnboardingProvider } from './context/OnboardingContext';
-
-// ✨ IMPORTAMOS EL MODAL DE BIOMETRÍA
 import ModalHuella from './components/common/ModalHuella';
+
+// ─── LAZY: cada pantalla en su propio chunk (code-splitting por ruta) ─────────
+// Reduce drásticamente el bundle inicial: el navegador solo descarga el código
+// de la pantalla cuando el usuario la visita por primera vez.
+const Productos        = lazy(() => import('./features/inventory/Productos'));
+const Ventas           = lazy(() => import('./features/sales/Ventas'));
+const PedidosVirtuales = lazy(() => import('./features/sales/PedidosVirtuales'));
+const Reportes         = lazy(() => import('./features/reports/Reportes'));
+const OrdenesTrabajo   = lazy(() => import('./features/workOrders/OrdenesTrabajo'));
+const Recetas          = lazy(() => import('./features/production/Recetas'));
+const Lotes            = lazy(() => import('./features/inventory/Lotes'));
+const Terceros         = lazy(() => import('./features/clients/Terceros'));
+const Compras          = lazy(() => import('./features/purchases/Compras'));
+const PanelOperador    = lazy(() => import('./features/workOrders/PanelOperador'));
+const Inventario       = lazy(() => import('./features/inventory/Inventario'));
+const InventoryReports = lazy(() => import('./features/inventory/InventoryReports'));
+const Dashboard        = lazy(() => import('./features/dashboard/Dashboard'));
+const Caja             = lazy(() => import('./features/finance/Caja'));
+const AdminUsuarios    = lazy(() => import('./features/admin/AdminUsuarios'));
+const GestionEmpresas  = lazy(() => import('./features/admin/GestionEmpresas'));
+const InventarioLotes  = lazy(() => import('./features/inventory/InventarioLotes'));
+const Cotizaciones     = lazy(() => import('./features/sales/Cotizaciones'));
+const ResolucionesDian = lazy(() => import('./features/dian/ResolucionesDian'));
+const MiSuscripcion    = lazy(() => import('./features/account/MiSuscripcion'));
+
+// Catálogo virtual
+const CatalogoConfig   = lazy(() => import('./features/saas/CatalogoConfig'));
+const CatalogoVirtual  = lazy(() => import('./features/saas/CatalogoVirtual'));
+
+// Pantallas públicas
+const SuscripcionExpirada = lazy(() => import('./features/auth/SuscripcionExpirada'));
+const Terminos    = lazy(() => import('./features/legal/LegalPages').then(m => ({ default: m.Terminos })));
+const Privacidad  = lazy(() => import('./features/legal/LegalPages').then(m => ({ default: m.Privacidad })));
+const HabeasData  = lazy(() => import('./features/legal/LegalPages').then(m => ({ default: m.HabeasData })));
+
+// Préstamos
+const PrestamoForm = lazy(() => import('./features/loans/PrestamoForm'));
+const RutaCobro    = lazy(() => import('./features/loans/RutaCobro'));
+
+// Parqueadero
+const ParqueaderoDashboard     = lazy(() => import('./features/parking/ParqueaderoDashboard'));
+const ParqueaderoBuscar        = lazy(() => import('./features/parking/ParqueaderoBuscar'));
+const ParqueaderoVehiculos     = lazy(() => import('./features/parking/ParqueaderoVehiculos'));
+const ParqueaderoSuscripciones = lazy(() => import('./features/parking/ParqueaderoSuscripciones'));
+const ParqueaderoConfig        = lazy(() => import('./features/parking/ParqueaderoConfig'));
+const LavaderoVentas           = lazy(() => import('./features/lavadero/LavaderoVentas'));
+const LavaderoReporte          = lazy(() => import('./features/lavadero/LavaderoReporte'));
+
+// Restaurante
+const MapaMesas         = lazy(() => import('./features/restaurante/MapaMesas'));
+const PantallaCocina    = lazy(() => import('./features/restaurante/PantallaCocina'));
+const RestauranteConfig = lazy(() => import('./features/restaurante/RestauranteConfig'));
 
 // ─── Constantes de Layout ──────────────────────────────────────────────────────
 const SIDEBAR_FULL  = 240;
@@ -80,6 +81,13 @@ const SIDEBAR_MINI  = 68;
 const ACCENT        = '#FF6020';
 const PAGE_BG_LIGHT = '#F4F6F9';
 const PAGE_BG_DARK  = '#0d1117';
+
+// ─── Fallback mientras se descarga el chunk de una pantalla lazy ────────────────
+const RouteFallback = () => (
+  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh', width: '100%' }}>
+    <CircularProgress sx={{ color: ACCENT }} />
+  </Box>
+);
 
 // ─── Home ──────────────────────────────────────────────────────────────────────
 const Home = () => (
@@ -282,6 +290,7 @@ const hasAccess = useCallback((path) => {
               >
                 <Box sx={{ flex: 1, p: { xs: 1.5, md: 3 }, minWidth: 0, overflow: 'hidden' }}>
                   <AnnouncementBanner />
+                  <Suspense fallback={<RouteFallback />}>
                   <Routes>
                     <Route path="/" element={
                       ["Admin", "Socio", "Consulta"].includes(user?.role?.name)
@@ -332,8 +341,9 @@ const hasAccess = useCallback((path) => {
                     <Route path="/privacidad" element={<Privacidad />} />
                     <Route path="/habeas-data" element={<HabeasData />} />
                   </Routes>
+                  </Suspense>
                 </Box>
-                <Box component="footer" sx={{ 
+                <Box component="footer" sx={{
                   py: 2, px: 3, display: 'flex', flexDirection: { xs: 'column', sm: 'row' },
                   alignItems: 'center', justifyContent: 'center', gap: { xs: 1, sm: 3 }, 
                   borderTop: `1px solid ${mode === 'dark' ? 'rgba(255,255,255,0.06)' : '#E5E7EB'}`, 
@@ -350,6 +360,7 @@ const hasAccess = useCallback((path) => {
             </>
           ) : (
             <Box sx={{ width: '100%', minHeight: '100vh' }}>
+              <Suspense fallback={<RouteFallback />}>
               <Routes>
                 <Route path="/suscripcion-expirada" element={<SuscripcionExpirada onActive={checkAuth} />} />
                 <Route path="/login" element={<Login onLogin={checkAuth} />} />
@@ -359,6 +370,7 @@ const hasAccess = useCallback((path) => {
                 <Route path="/:slug" element={<CatalogoVirtual />} />
                 <Route path="*" element={<Login onLogin={checkAuth} />} />
               </Routes>
+              </Suspense>
             </Box>
           )}
         </Box>

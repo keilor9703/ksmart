@@ -20,6 +20,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
+import usePolling from '../../hooks/usePolling';
 import BotonWhatsApp from '../../components/common/BotonWhatsApp';   // ✨ NUEVO
 import SaaSUpgradeManager from '../saas/components/SaaSUpgradeManager';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
@@ -69,9 +70,9 @@ export default function ParqueaderoDashboard({ user }) {
   useEffect(() => {
     cargar();
     cargarReporte();
-    const id = setInterval(() => cargar(true), 60000);
-    return () => clearInterval(id);
   }, [cargar, cargarReporte]);
+  // Refresco cada 60s; se pausa si la pestaña está oculta.
+  usePolling(() => cargar(true), 60000);
 
   if (loading && !data) {
     return (

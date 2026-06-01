@@ -14,6 +14,7 @@ import {
 } from '@mui/icons-material';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
+import usePolling from '../../hooks/usePolling';
 
 // ── Paleta base ──────────────────────────────────────────────────────────────
 const CACAO_BROWN  = '#5C3317';   // Marrón cacao — uso principal en LIGHT mode
@@ -130,11 +131,8 @@ const CacaoPriceWidget = () => {
   // Carga inicial
   useEffect(() => { fetchPrecio(); }, [fetchPrecio]);
 
-  // Auto-refresh cada 30 minutos
-  useEffect(() => {
-    const id = setInterval(() => fetchPrecio(), 30 * 60 * 1000);
-    return () => clearInterval(id);
-  }, [fetchPrecio]);
+  // Auto-refresh cada 30 minutos; se pausa si la pestaña está oculta.
+  usePolling(fetchPrecio, 30 * 60 * 1000);
 
   // ── Render: error ────────────────────────────────────────────────────────
   if (error && !precio) {

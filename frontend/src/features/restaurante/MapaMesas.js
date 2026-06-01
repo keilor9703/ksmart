@@ -15,6 +15,7 @@ import {
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
+import usePolling from '../../hooks/usePolling';
 import ReciboDialog from '../../components/common/ReciboDialog';
 
 // ─── Config colores de estado ─────────────────────────────────────────────────
@@ -560,10 +561,8 @@ export default function MapaMesas({ user }) {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
-  useEffect(() => {
-    const id = setInterval(() => fetchAll(true), 15_000);
-    return () => clearInterval(id);
-  }, [fetchAll]);
+  // Refresco automático cada 15s; se pausa si la pestaña está oculta.
+  usePolling(() => fetchAll(true), 15_000);
 
   const handleMesaClick = (mesa) => {
     setMesaSeleccionada(mesa);

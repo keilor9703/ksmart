@@ -21,6 +21,7 @@ import {
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
 import ReciboDialog from '../../components/common/ReciboDialog';
+import usePolling from '../../hooks/usePolling';
 
 // ─── Estado metadata ──────────────────────────────────────────────────────────
 
@@ -1037,10 +1038,8 @@ export default function PedidosVirtuales({ user }) {
     return () => clearTimeout(t);
   }, [fetchAll, search]);
 
-  useEffect(() => {
-    const id = setInterval(() => fetchAll(true), 60_000);
-    return () => clearInterval(id);
-  }, [fetchAll]);
+  // Refresco cada 60s; se pausa si la pestaña está oculta.
+  usePolling(() => fetchAll(true), 60_000);
 
   // Sort pedidos client-side
   const sortedPedidos = [...pedidos].sort((a, b) => {
