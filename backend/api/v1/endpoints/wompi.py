@@ -16,8 +16,8 @@ from api.deps import get_db, get_current_user
 router = APIRouter()
 logger = logging.getLogger("wompi")
 
-WOMPI_PUBLIC_KEY       = os.getenv("WOMPI_PUBLIC_KEY", "pub_test_...")
-WOMPI_INTEGRITY_SECRET = os.getenv("WOMPI_INTEGRITY_SECRET", "prod_integrity_...")
+WOMPI_PUBLIC_KEY       = os.getenv("WOMPI_PUBLIC_KEY", "")
+WOMPI_INTEGRITY_SECRET = os.getenv("WOMPI_INTEGRITY_SECRET", "")
 # Llave privada para consultar la API de Wompi (diferente a la pública del widget)
 WOMPI_PRIVATE_KEY      = os.getenv("WOMPI_PRIVATE_KEY", "")
 
@@ -75,6 +75,10 @@ def generar_hash_wompi(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    if not WOMPI_INTEGRITY_SECRET:
+        logger.error("WOMPI_INTEGRITY_SECRET no configurada — no se puede generar hash de pago")
+        raise HTTPException(status_code=503, detail="Pasarela de pago no configurada. Contacte a soporte.")
+
     plan = db.query(models.PlanSuscripcion).filter(
         models.PlanSuscripcion.codigo_interno == request_data.plan_name,
         models.PlanSuscripcion.is_active == True,

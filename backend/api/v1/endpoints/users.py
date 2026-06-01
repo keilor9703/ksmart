@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 import crud
 import models
 import schemas
-from api.deps import get_db, get_current_user, get_current_active_user, get_current_admin_user
+from api.deps import get_db, get_current_user, get_current_active_user, get_current_admin_user, get_current_superadmin_user
 
 router = APIRouter()
 
@@ -36,7 +36,7 @@ def set_role_modules(role_id: int, module_ids: List[int], db: Session = Depends(
 # ─── MÓDULOS ──────────────────────────────────────────────────────────────────
 
 @router.post("/modulos/", response_model=schemas.Modulo, tags=["modulos"])
-def create_modulo(modulo: schemas.ModuloCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_admin_user)):
+def create_modulo(modulo: schemas.ModuloCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_superadmin_user)):
     if crud.get_modulo_by_name(db, name=modulo.name):
         raise HTTPException(status_code=400, detail="Módulo ya registrado")
     return crud.create_modulo(db=db, modulo=modulo)
@@ -46,14 +46,14 @@ def read_modulos(skip: int = 0, limit: int = 100, db: Session = Depends(get_db),
     return crud.get_modulos(db, skip=skip, limit=limit)
 
 @router.put("/modulos/{modulo_id}", response_model=schemas.Modulo, tags=["modulos"])
-def update_modulo(modulo_id: int, modulo: schemas.ModuloCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_admin_user)):
+def update_modulo(modulo_id: int, modulo: schemas.ModuloCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_superadmin_user)):
     db_modulo = crud.update_modulo(db, modulo_id=modulo_id, modulo=modulo)
     if db_modulo is None:
         raise HTTPException(status_code=404, detail="Módulo no encontrado")
     return db_modulo
 
 @router.delete("/modulos/{modulo_id}", tags=["modulos"])
-def delete_modulo(modulo_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_admin_user)):
+def delete_modulo(modulo_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_superadmin_user)):
     if crud.delete_modulo(db, modulo_id=modulo_id) is None:
         raise HTTPException(status_code=404, detail="Módulo no encontrado")
     return {"message": "Módulo eliminado"}

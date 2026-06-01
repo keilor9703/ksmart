@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 import models
 from api.deps import get_db
+from core.limiter import limiter
 
 router = APIRouter()
 logger = logging.getLogger("webhooks")
@@ -24,8 +25,8 @@ def _verify_wompi_signature(payload: dict, checksum_header: str | None) -> bool:
     Timestamp comes from payload["timestamp"].
     """
     if not WOMPI_EVENTS_SECRET:
-        logger.warning("WOMPI_EVENTS_SECRET no configurada — omitiendo verificación de firma")
-        return True
+        logger.error("WOMPI_EVENTS_SECRET no configurada — rechazando webhook por seguridad")
+        return False
     if not checksum_header:
         return False
 
@@ -48,6 +49,7 @@ def _verify_wompi_signature(payload: dict, checksum_header: str | None) -> bool:
 
 
 @router.post("/wompi")
+@limiter.limit("30/minute")
 async def webhook_wompi(request: Request, db: Session = Depends(get_db)):
     try:
         payload = await request.json()

@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -13,6 +13,7 @@ import schemas
 from api.deps import get_db, get_current_active_user
 from core import security
 from core.config import ACCESS_TOKEN_EXPIRE_MINUTES, PERFILES
+from core.limiter import limiter
 
 router = APIRouter()
 logger = logging.getLogger("auth")
@@ -21,7 +22,8 @@ PIN_MAX_ATTEMPTS = 5
 PIN_LOCKOUT_MINUTES = 15
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-def registrar_nuevo_cliente(data: schemas.RegistroSaaS, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def registrar_nuevo_cliente(request: Request, data: schemas.RegistroSaaS, db: Session = Depends(get_db)):
     if db.query(models.User).filter(models.User.username == data.username).first():
         raise HTTPException(status_code=400, detail="Este usuario ya está en uso. Prueba con otro.")
 
@@ -97,7 +99,9 @@ def registrar_nuevo_cliente(data: schemas.RegistroSaaS, db: Session = Depends(ge
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.post("/token")
+@limiter.limit("10/minute")
 def login_for_access_token(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     remember_me: bool = Query(default=False),
     db: Session = Depends(get_db)
@@ -198,7 +202,9 @@ def remove_pin(
 
 
 @router.post("/pin/verify")
+@limiter.limit("5/minute")
 def verify_pin(
+    request: Request,
     data: schemas.PinVerifyRequest,
     db: Session = Depends(get_db),
 ):

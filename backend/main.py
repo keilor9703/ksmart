@@ -7,6 +7,8 @@ from typing import Optional
 from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from sqlalchemy.orm import Session
 
 import models, crud, schemas
@@ -14,6 +16,7 @@ from database import SessionLocal, engine, run_migrations
 from models import Base, utcnow
 from api.v1.api import api_router
 from core.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+from core.limiter import limiter
 
 # --- Logging ---
 logging.basicConfig(level=logging.INFO)
@@ -24,6 +27,8 @@ models.Base.metadata.create_all(bind=engine)
 run_migrations()
 
 app = FastAPI(title="Ksmart360 API Multi-Tenant", version="2.2.0")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # --- CORS ---
 origins = [

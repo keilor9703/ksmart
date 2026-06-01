@@ -412,8 +412,8 @@ def impersonate_company(
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-@router.post("/notificar-vencimientos-lotes", dependencies=[])
-def notificar_vencimientos_lotes(db: Session = Depends(get_db)):
+@router.post("/notificar-vencimientos-lotes")
+def notificar_vencimientos_lotes(db: Session = Depends(get_db), _: models.User = Depends(get_current_superadmin_user)):
     """
     Genera notificaciones de vencimiento para todas las empresas activas.
     """
