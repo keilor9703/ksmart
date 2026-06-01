@@ -1156,6 +1156,26 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v65)
                 logger.info("V65 (links_pago_empresa) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V66 - Corregir índice cedula: unique → no-unique, vacíos → NULL
+            # ═══════════════════════════════════════════════════════════════
+            migration_v66 = "v66_fix_clientes_cedula_index"
+            if not _migration_already_applied(conn, migration_v66):
+                # 1. Normalizar cédulas vacías a NULL para evitar colisiones
+                conn.execute(text("""
+                    UPDATE clientes SET cedula = NULL WHERE cedula = '';
+                """))
+                # 2. Eliminar el índice único legacy (si existe)
+                conn.execute(text("""
+                    DROP INDEX IF EXISTS ix_clientes_cedula;
+                """))
+                # 3. Recrear como índice simple no-único (cedula puede repetirse entre empresas)
+                conn.execute(text("""
+                    CREATE INDEX IF NOT EXISTS ix_clientes_cedula ON clientes(cedula);
+                """))
+                _mark_migration_applied(conn, migration_v66)
+                logger.info("V66 (fix ix_clientes_cedula: unique→non-unique, cedula vacía→NULL) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

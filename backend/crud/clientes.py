@@ -26,8 +26,15 @@ def get_clientes(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
         models.Cliente.empresa_id == empresa_id
     ).offset(skip).limit(limit).all()
 
+def _normalize_cedula(data: dict) -> dict:
+    """Convierte cedula='' a None para evitar violación de índice único en BD legacy."""
+    if 'cedula' in data and (data['cedula'] == '' or data['cedula'] is not None and str(data['cedula']).strip() == ''):
+        data['cedula'] = None
+    return data
+
 def create_cliente(db: Session, empresa_id: int, cliente: schemas.ClienteCreate):
-    db_cliente = models.Cliente(**cliente.dict(), empresa_id=empresa_id)
+    data = _normalize_cedula(cliente.dict())
+    db_cliente = models.Cliente(**data, empresa_id=empresa_id)
     db.add(db_cliente)
     db.commit()
     db.refresh(db_cliente)
@@ -39,7 +46,8 @@ def update_cliente(db: Session, empresa_id: int, cliente_id: int, cliente: schem
         models.Cliente.empresa_id == empresa_id
     ).first()
     if db_cliente:
-        for key, value in cliente.dict(exclude_unset=True).items():
+        data = _normalize_cedula(cliente.dict(exclude_unset=True))
+        for key, value in data.items():
             setattr(db_cliente, key, value)
         db.commit()
         db.refresh(db_cliente)
