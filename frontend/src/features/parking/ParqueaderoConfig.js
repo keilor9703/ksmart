@@ -181,11 +181,11 @@ export default function ParqueaderoConfig() {
             <TextField
               fullWidth size="small" label="Cupo total *"
               type="number" inputProps={{ min: 0 }}
-              value={config?.cupo_total || ''}
-              onChange={handleNumber('cupo_total')}
-              helperText="Cuántas motos caben"
+              value={config?.cupo_total ?? ''}
+              onChange={e => setConfig(prev => ({ ...prev, cupo_total: e.target.value === '' ? '' : Number(e.target.value) }))}
+              helperText="Cuántos vehículos caben"
               InputProps={{
-                endAdornment: <InputAdornment position="end">motos</InputAdornment>,
+                endAdornment: <InputAdornment position="end">vehículos</InputAdornment>,
               }}
             />
           </Grid>
@@ -253,7 +253,7 @@ export default function ParqueaderoConfig() {
               Cobro por minutos (clientes ocasionales)
             </Typography>
             <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-              Para motos que entran por horas y se les cobra el tiempo exacto
+              Para vehículos que entran por horas y se les cobra el tiempo exacto
             </Typography>
           </Box>
         </Stack>
@@ -343,7 +343,7 @@ export default function ParqueaderoConfig() {
             sx={{ bgcolor: '#10B98115', color: '#065F46', fontWeight: 700 }} />
           <Chip label={`Hora (info) ${formatCurrency(config?.tarifa_hora || 0)}`}
             sx={{ bgcolor: '#94A3B815', color: '#475569', fontWeight: 700 }} />
-          <Chip label={`Cupo ${config?.cupo_total || 0} motos`}
+          <Chip label={`Cupo ${config?.cupo_total || 0} vehículos`}
             sx={{ bgcolor: ACCENT + '15', color: ACCENT, fontWeight: 700 }} />
         </Stack>
       </Paper>
