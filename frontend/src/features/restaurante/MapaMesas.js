@@ -874,8 +874,9 @@ export default function MapaMesas({ user }) {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
-  // Refresco automático cada 15s; se pausa si la pestaña está oculta.
-  usePolling(() => fetchAll(true), 15_000);
+  // Refresco automático cada 15s; se pausa si la pestaña está oculta o hay
+  // un panel abierto (para no desmontar el recibo mientras el usuario lo revisa).
+  usePolling(() => fetchAll(true), 15_000, { enabled: !mesaSeleccionada });
 
   const handleMesaClick = (mesa) => {
     setMesaSeleccionada(mesa);
