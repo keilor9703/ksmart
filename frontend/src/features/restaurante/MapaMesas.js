@@ -230,7 +230,6 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
       setReciboVenta(ventaSnap);
       setReciboOpen(true);
       setOmitirInventario(false);
-      onSuccess();
       toast.success(`Mesa ${mesa.numero} cerrada — Venta #${res.data.venta_id}`);
     } catch (e) {
       toast.error(e?.response?.data?.detail || 'Error al cerrar');
