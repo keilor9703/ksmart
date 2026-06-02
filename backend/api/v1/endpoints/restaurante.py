@@ -116,6 +116,7 @@ class ConfigRestauranteIn(BaseModel):
     tiempo_cocina_estimado: Optional[int] = None
     propina_sugerida_pct: Optional[float] = None
     permitir_nota_por_item: Optional[bool] = None
+    imprimir_comanda_auto: Optional[bool] = None
 
 
 @router.get("/config")
@@ -134,6 +135,7 @@ def get_config(
         "tiempo_cocina_estimado": cfg.tiempo_cocina_estimado,
         "propina_sugerida_pct": cfg.propina_sugerida_pct,
         "permitir_nota_por_item": cfg.permitir_nota_por_item,
+        "imprimir_comanda_auto": cfg.imprimir_comanda_auto,
     }
 
 

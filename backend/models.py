@@ -1360,6 +1360,7 @@ class ConfigRestaurante(Base):
     tiempo_cocina_estimado  = Column(Integer, default=15)     # minutos estimados
     propina_sugerida_pct    = Column(Float, default=10.0)
     permitir_nota_por_item  = Column(Boolean, default=True)
+    imprimir_comanda_auto   = Column(Boolean, default=False)
 
     empresa = relationship("Empresa")
 

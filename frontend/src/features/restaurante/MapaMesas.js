@@ -12,10 +12,11 @@ import {
   TableRestaurant, Add, Refresh, Close, Person,
   Restaurant, AttachMoney, Cancel, Send,
   CheckCircle, HourglassBottom, FiberManualRecord,
-  Edit, Delete, Settings, Receipt, Note, MenuBook,
+  Edit, Delete, Settings, Receipt, Note, MenuBook, Print,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
+import { imprimirComanda } from '../../utils/printComanda';
 import usePolling from '../../hooks/usePolling';
 import ReciboDialog from '../../components/common/ReciboDialog';
 import LinkPagoModal from '../../components/common/LinkPagoModal.jsx';
@@ -202,6 +203,15 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
     setLoading(true);
     try {
       await apiClient.post(`/restaurante/comandas/${comanda.id}/items`, selectedItems);
+      if (config?.imprimir_comanda_auto) {
+        imprimirComanda({
+          mesa,
+          comanda,
+          items: selectedItems,
+          empresaNombre: empresa?.nombre || '',
+          nombreMesero: vendedor || '',
+        });
+      }
       setSelectedItems([]);
       toast.success('Pedido enviado a cocina');
       if (isMobile) setTab(0); // volver al pedido tras enviar
@@ -209,6 +219,19 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
     } catch (e) {
       toast.error(e?.response?.data?.detail || 'Error al enviar');
     } finally { setLoading(false); }
+  };
+
+  const handleImprimirManual = () => {
+    const itemsParaImprimir = itemsActivos.length > 0 ? itemsActivos : selectedItems;
+    if (!itemsParaImprimir.length) return toast.info('No hay ítems para imprimir');
+    imprimirComanda({
+      mesa,
+      comanda,
+      items: itemsParaImprimir,
+      empresaNombre: empresa?.nombre || '',
+      nombreMesero: vendedor || '',
+      titulo: 'REIMPRESIÓN',
+    });
   };
 
   const doCerrarCuenta = async () => {
@@ -531,6 +554,9 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
           <Chip label={fmt(comanda.total)} size="small"
             sx={{ fontWeight: 900, bgcolor: alpha('#FF6020', 0.1), color: '#FF6020', fontSize: 12 }} />
+          <Tooltip title="Imprimir comanda">
+            <IconButton size="small" onClick={handleImprimirManual}><Print fontSize="small" /></IconButton>
+          </Tooltip>
           <IconButton size="small" onClick={onClose}><Close fontSize="small" /></IconButton>
         </Box>
       </Box>

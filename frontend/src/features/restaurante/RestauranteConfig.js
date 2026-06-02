@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import {
   Add, Edit, Delete, Save, TableRestaurant, Restaurant,
-  Settings, DragIndicator, Check, Close,
+  Settings, DragIndicator, Check, Close, Print,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
@@ -422,6 +422,31 @@ const TabGeneral = () => {
             />
           </Grid>
         </Grid>
+      </Paper>
+
+      {/* Impresión de comandas */}
+      <Paper elevation={0} sx={{ p: 2.5, borderRadius: 2, border: '1px solid rgba(0,0,0,0.08)' }}>
+        <Typography sx={{ fontWeight: 700, mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Print sx={{ color: ACCENT, fontSize: 20 }} /> Impresión de comandas
+        </Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
+          Para restaurantes sin pantallas en cocina. Al activar esta opción, cada vez que un mesero envíe un pedido a cocina se abrirá automáticamente el diálogo de impresión del navegador para imprimir el ticket en la impresora térmica conectada al dispositivo.
+        </Typography>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={config.imprimir_comanda_auto ?? false}
+              onChange={e => set('imprimir_comanda_auto', e.target.checked)}
+              sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: ACCENT }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: ACCENT } }}
+            />
+          }
+          label={
+            <Box>
+              <Typography sx={{ fontSize: 14, fontWeight: 500 }}>Imprimir comanda automáticamente al enviar a cocina</Typography>
+              <Typography variant="caption" color="text.secondary">El mesero deberá tener una impresora térmica configurada en su dispositivo</Typography>
+            </Box>
+          }
+        />
       </Paper>
 
       {/* Guardar */}
