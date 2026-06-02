@@ -595,8 +595,9 @@ const Login = ({ onLogin }) => {
           </Box>
         )}
         <Box sx={{
-            display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden',
-            // Fuente tipo Apple en cascada para todo el componente
+            display: 'flex',
+            position: 'fixed', inset: 0,      /* anclado al viewport — nunca crea scrollbars en el doc */
+            overflow: 'hidden',
             fontFamily: APPLE_FONT,
             '& .MuiTypography-root, & .MuiInputBase-root, & .MuiButton-root, & .MuiInputLabel-root, & .MuiFormHelperText-root, & input, & .MuiChip-label': {
                 fontFamily: APPLE_FONT,
@@ -634,26 +635,34 @@ const Login = ({ onLogin }) => {
                 flex: 1,
                 minWidth: 0,
                 height: '100%',
-                overflowY: 'auto',
+                overflow: 'hidden',          /* recorta los blobs — sin scroll en este nivel */
                 position: 'relative',
                 background: 'radial-gradient(circle at 50% 0%, #131d33 0%, #0b1120 45%, #050810 100%)',
-                px: { xs: 3, sm: 6, lg: 8 },
             }}>
-                {/* Aurora ambiental — blobs difuminados que respiran detrás del formulario */}
+                {/* Aurora ambiental — contenida dentro del panel */}
                 <Box sx={{
-                    position: 'absolute', top: '-10%', right: '-12%',
-                    width: 340, height: 340, borderRadius: '50%', pointerEvents: 'none',
+                    position: 'absolute', top: '-5%', right: '-8%',
+                    width: 320, height: 320, borderRadius: '50%', pointerEvents: 'none',
                     background: 'radial-gradient(circle, rgba(30,200,224,0.16) 0%, transparent 70%)',
                     filter: 'blur(18px)',
                     animation: `${auroraFloat} 16s ease-in-out infinite`,
                 }} />
                 <Box sx={{
-                    position: 'absolute', bottom: '-8%', left: '-10%',
-                    width: 300, height: 300, borderRadius: '50%', pointerEvents: 'none',
+                    position: 'absolute', bottom: '-5%', left: '-8%',
+                    width: 280, height: 280, borderRadius: '50%', pointerEvents: 'none',
                     background: 'radial-gradient(circle, rgba(34,197,94,0.12) 0%, transparent 70%)',
                     filter: 'blur(20px)',
                     animation: `${auroraFloat} 20s ease-in-out infinite reverse`,
                 }} />
+
+                {/* Área de scroll real — solo el contenido del formulario desplaza */}
+                <Box sx={{
+                    position: 'absolute', inset: 0,
+                    overflowY: 'auto', overflowX: 'hidden',
+                    px: { xs: 3, sm: 6, lg: 8 },
+                    '&::-webkit-scrollbar': { width: 0 },   /* scrollbar invisible en webkit */
+                    scrollbarWidth: 'none',                  /* Firefox */
+                }}>
                 <Box sx={{
                     width: '100%',
                     maxWidth: { xs: 460, lg: 520 },
@@ -1334,9 +1343,10 @@ const Login = ({ onLogin }) => {
                     <Typography sx={{ mt: 4, color: '#475569', fontSize: 11.5, textAlign: 'center', fontWeight: 500, letterSpacing: 0.3 }}>
                         Powered by KSMP Systems · 2026
                     </Typography>
-                </Box>
-            </Box>
-        </Box>
+                </Box>   {/* content box */}
+                </Box>   {/* scroll area */}
+            </Box>       {/* panel derecho */}
+        </Box>           {/* outer flex */}
 
         {/* ── Modal recuperación de contraseña ── */}
         <Dialog
