@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
     Box, Paper, Typography, IconButton, Button, TextField, InputAdornment,
     Chip, Divider, Autocomplete, useMediaQuery, useTheme,
@@ -7,12 +7,18 @@ import {
 } from '@mui/material';
 import {
     Search, ShoppingCart, PersonOutline, AddCircle, RemoveCircle, Delete,
-    ExpandMore, Add, CloseRounded, Inventory2,
+    ExpandMore, Add, CloseRounded, Inventory2, QrCodeScanner, Videocam, VideocamOff,
 } from '@mui/icons-material';
 import { formatCurrency } from '../../utils/formatters';
 import CurrencyField from '../../components/common/CurrencyField';
+import { getProductoByBarcode } from '../../api';
+import { toast } from 'react-toastify';
 
 const ACCENT = '#FF6020';
+const HAS_BARCODE_DETECTOR = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+const HAS_CAMERA = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
+const BARCODE_FORMATS = ['ean_13', 'ean_8', 'code_128', 'qr_code', 'upc_e', 'code_39', 'itf'];
+
 const METODOS_PAGO = [
     { value: 'Efectivo',      label: '💵 Efectivo',      pagada: true,  color: '#10B981' },
     { value: 'Transferencia', label: '🏦 Transferencia',  pagada: true,  color: '#3B82F6' },
@@ -587,6 +593,136 @@ const TouchPOSMode = ({
     const [cartOpen, setCartOpen] = useState(false);
     const [expandedGroups, setExpandedGroups] = useState({});
 
+    // ── Barcode / Camera ──
+    const [barcodeInput, setBarcodeInput]         = useState('');
+    const [cameraActive, setCameraActive]         = useState(false);
+    const [searchingBarcode, setSearchingBarcode] = useState(false);
+    const [scanFlash, setScanFlash]               = useState(false);
+    const barcodeFieldRef  = useRef(null);
+    const videoRef         = useRef(null);
+    const streamRef        = useRef(null);
+    const rAFRef           = useRef(null);
+    const zxingControlsRef = useRef(null);
+    const scanCooldownRef  = useRef(false);
+
+    const playScanBeep = () => {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator(); const gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.frequency.setValueAtTime(1000, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+            osc.start(); osc.stop(ctx.currentTime + 0.1);
+        } catch {}
+    };
+
+    const cleanupCamera = useCallback(() => {
+        if (rAFRef.current) { cancelAnimationFrame(rAFRef.current); rAFRef.current = null; }
+        if (zxingControlsRef.current) { try { zxingControlsRef.current.stop(); } catch {} zxingControlsRef.current = null; }
+        if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+        if (videoRef.current) videoRef.current.srcObject = null;
+    }, []);
+
+    useEffect(() => {
+        if (!cameraActive) return;
+        let active = true;
+
+        (async () => {
+            try {
+                if (!HAS_CAMERA) { toast.error('Tu navegador no soporta acceso a cámara.'); setCameraActive(false); return; }
+
+                const onBarcode = (code) => {
+                    if (!active || scanCooldownRef.current) return;
+                    scanCooldownRef.current = true;
+                    setScanFlash(true);
+                    setTimeout(() => setScanFlash(false), 380);
+                    setTimeout(() => { scanCooldownRef.current = false; }, 1500);
+                    handleProcessBarcode(code);
+                };
+
+                if (HAS_BARCODE_DETECTOR) {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+                    });
+                    if (!active) { stream.getTracks().forEach(t => t.stop()); return; }
+                    streamRef.current = stream;
+                    videoRef.current.srcObject = stream;
+                    await videoRef.current.play();
+                    const detector = new window.BarcodeDetector({ formats: BARCODE_FORMATS });
+                    let lastDetect = 0;
+                    const tick = async () => {
+                        if (!active || !videoRef.current) return;
+                        const now = Date.now();
+                        if (!scanCooldownRef.current && now - lastDetect >= 120) {
+                            lastDetect = now;
+                            const v = videoRef.current;
+                            if (v.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA && v.videoWidth > 0) {
+                                try { const codes = await detector.detect(v); if (codes.length > 0) onBarcode(codes[0].rawValue); } catch {}
+                            }
+                        }
+                        rAFRef.current = requestAnimationFrame(tick);
+                    };
+                    rAFRef.current = requestAnimationFrame(tick);
+                } else {
+                    const { BrowserMultiFormatReader } = await import('@zxing/browser');
+                    if (!active) return;
+                    const reader = new BrowserMultiFormatReader();
+                    const controls = await reader.decodeFromConstraints(
+                        { video: { facingMode: 'environment' } },
+                        videoRef.current,
+                        (result) => { if (result && active) onBarcode(result.getText()); }
+                    );
+                    if (!active) { controls.stop(); return; }
+                    zxingControlsRef.current = controls;
+                }
+            } catch (err) {
+                if (!active) return;
+                cleanupCamera(); setCameraActive(false);
+                if (err.name === 'NotAllowedError') toast.error('Acceso a cámara denegado. Revisa los permisos en tu navegador.');
+                else if (err.name === 'NotFoundError') toast.error('No se detectó ninguna cámara en este dispositivo.');
+                else toast.error('Error al iniciar la cámara. Intenta de nuevo.');
+            }
+        })();
+
+        return () => { active = false; cleanupCamera(); };
+    }, [cameraActive, cleanupCamera]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const handleToggleCamera = () => {
+        if (cameraActive) { cleanupCamera(); setCameraActive(false); setTimeout(() => barcodeFieldRef.current?.focus(), 100); }
+        else setCameraActive(true);
+    };
+
+    const handleProcessBarcode = async (code) => {
+        const barcode = code.trim();
+        if (!barcode) return;
+        setSearchingBarcode(true);
+        try {
+            const res = await getProductoByBarcode(barcode);
+            if (res.data) {
+                const producto = res.data;
+                if (producto.id === 0) {
+                    toast.warning(`"${producto.nombre}" no está en tu inventario. Regístralo primero.`);
+                    openQuickCreate('producto', producto.nombre);
+                    return;
+                }
+                onAddProduct(producto);
+                if (producto.impuesto?.porcentaje != null) {
+                    setIvaPorcentajeGlobal(producto.impuesto.porcentaje);
+                }
+                playScanBeep();
+                toast.success(`${producto.nombre} añadido al carrito`);
+            } else {
+                toast.warning(`Código "${barcode}" no encontrado`);
+            }
+        } catch {
+            toast.error('Error al buscar por código de barras');
+        } finally {
+            setSearchingBarcode(false);
+            setBarcodeInput('');
+            setTimeout(() => barcodeFieldRef.current?.focus(), 100);
+        }
+    };
+
     const toggleGroup = (gid) =>
         setExpandedGroups(prev => ({ ...prev, [gid]: prev[gid] === false ? true : false }));
     const isExpanded = (gid) => expandedGroups[gid] !== false; // default open
@@ -663,7 +799,7 @@ const TouchPOSMode = ({
                 pr: isMobile ? 0 : 2,
                 pb: isMobile ? 10 : 1,
             }}>
-                {/* Sticky search bar */}
+                {/* Sticky search + barcode bar */}
                 <Box sx={{
                     position: 'sticky', top: 0, zIndex: 2,
                     pb: 1.5, bgcolor: 'background.default',
@@ -680,10 +816,65 @@ const TouchPOSMode = ({
                                 </InputAdornment>
                             ),
                         }}
-                        sx={{
-                            '& .MuiOutlinedInput-root': { borderRadius: 2.5 },
-                        }}
+                        sx={{ mb: 0.8, '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }}
                     />
+                    {/* Barcode scanner */}
+                    <Box sx={{ display: 'flex', gap: 0.8 }}>
+                        <TextField
+                            fullWidth size="small"
+                            placeholder="Escanea o digita el código de barras y presiona Enter…"
+                            value={barcodeInput}
+                            onChange={(e) => setBarcodeInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleProcessBarcode(barcodeInput); } }}
+                            inputRef={barcodeFieldRef}
+                            autoComplete="off"
+                            disabled={searchingBarcode}
+                            InputProps={{
+                                startAdornment: <InputAdornment position="start"><QrCodeScanner sx={{ color: ACCENT, fontSize: 18 }} /></InputAdornment>,
+                                endAdornment: searchingBarcode ? <CircularProgress size={16} sx={{ color: ACCENT }} /> : null,
+                                sx: { fontSize: 13, fontWeight: 600, borderRadius: 2 },
+                            }}
+                        />
+                        <Tooltip title={cameraActive ? 'Cerrar cámara' : 'Usar cámara del dispositivo'}>
+                            <IconButton onClick={handleToggleCamera}
+                                sx={{ bgcolor: cameraActive ? '#FEF2F2' : '#EFF6FF', color: cameraActive ? '#EF4444' : '#3B82F6', borderRadius: 2, p: 1, flexShrink: 0 }}>
+                                {cameraActive ? <VideocamOff sx={{ fontSize: 20 }} /> : <Videocam sx={{ fontSize: 20 }} />}
+                            </IconButton>
+                        </Tooltip>
+                    </Box>
+                    {/* Camera overlay */}
+                    {cameraActive && (
+                        <Box sx={{ mt: 1, position: 'relative', borderRadius: 2, overflow: 'hidden', bgcolor: '#000', minHeight: 220 }}>
+                            <video ref={videoRef} style={{ width: '100%', display: 'block', maxHeight: 260, objectFit: 'cover' }} playsInline muted />
+                            <Box sx={{
+                                position: 'absolute', inset: 0, borderRadius: 2,
+                                bgcolor: 'rgba(16,185,129,0.28)', border: '3px solid #10B981',
+                                opacity: scanFlash ? 1 : 0,
+                                transition: scanFlash ? 'none' : 'opacity 0.35s ease-out',
+                                pointerEvents: 'none', zIndex: 3,
+                            }} />
+                            <Box sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1.5, pointerEvents: 'none' }}>
+                                <Box sx={{ position: 'relative', width: { xs: 200, sm: 260 }, height: { xs: 110, sm: 130 } }}>
+                                    <Box sx={{ position: 'absolute', inset: 0, boxShadow: '0 0 0 100vw rgba(0,0,0,0.45)', borderRadius: 2 }} />
+                                    {(() => {
+                                        const c = scanFlash ? '#10B981' : ACCENT;
+                                        return <>
+                                            <Box sx={{ position: 'absolute', top: -1, left: -1, width: 20, height: 20, borderTop: `3px solid ${c}`, borderLeft: `3px solid ${c}`, borderRadius: '4px 0 0 0', transition: 'border-color 0.15s' }} />
+                                            <Box sx={{ position: 'absolute', top: -1, right: -1, width: 20, height: 20, borderTop: `3px solid ${c}`, borderRight: `3px solid ${c}`, borderRadius: '0 4px 0 0', transition: 'border-color 0.15s' }} />
+                                            <Box sx={{ position: 'absolute', bottom: -1, left: -1, width: 20, height: 20, borderBottom: `3px solid ${c}`, borderLeft: `3px solid ${c}`, borderRadius: '0 0 0 4px', transition: 'border-color 0.15s' }} />
+                                            <Box sx={{ position: 'absolute', bottom: -1, right: -1, width: 20, height: 20, borderBottom: `3px solid ${c}`, borderRight: `3px solid ${c}`, borderRadius: '0 0 4px 0', transition: 'border-color 0.15s' }} />
+                                        </>;
+                                    })()}
+                                    {!scanFlash && (
+                                        <Box sx={{ position: 'absolute', left: 4, right: 4, height: 2, background: `linear-gradient(90deg, transparent, ${ACCENT}CC, transparent)`, borderRadius: 1, animation: 'scanLine 1.8s ease-in-out infinite', '@keyframes scanLine': { '0%': { top: '5%' }, '50%': { top: '90%' }, '100%': { top: '5%' } } }} />
+                                    )}
+                                </Box>
+                                <Typography sx={{ color: 'rgba(255,255,255,0.9)', fontSize: 11, bgcolor: scanFlash ? 'rgba(16,185,129,0.75)' : 'rgba(0,0,0,0.45)', borderRadius: 5, px: 2, py: 0.4, transition: 'background-color 0.15s', fontWeight: scanFlash ? 700 : 400 }}>
+                                    {scanFlash ? '✓ Detectado — apunta el siguiente' : 'Apunta el código al recuadro'}
+                                </Typography>
+                            </Box>
+                        </Box>
+                    )}
                 </Box>
 
                 {/* Content: search results or grouped sections */}
