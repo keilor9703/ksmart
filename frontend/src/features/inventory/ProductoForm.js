@@ -512,9 +512,11 @@ const ProductoForm = ({
                   {!esServicio && (
                     <>
                       {/* Categoría — fila propia para que no se trunque */}
-                      <Grid item xs={12}>
+                      <Grid item xs={12} sx={{ width: '100%' }}>
                         <Autocomplete
                           fullWidth
+                          disablePortal={false}
+                          sx={{ width: '100%' }}
                           options={grupos}
                           getOptionLabel={o => o.nombre || ''}
                           value={grupos.find(g => g.id === grupoItem) || null}
@@ -531,9 +533,11 @@ const ProductoForm = ({
                       </Grid>
 
                       {/* Unidad de medida — fila propia */}
-                      <Grid item xs={12}>
+                      <Grid item xs={12} sx={{ width: '100%' }}>
                         <Autocomplete
                           fullWidth freeSolo
+                          disablePortal={false}
+                          sx={{ width: '100%' }}
                           options={UNIDADES_MEDIDA.map(u => u.value)}
                           value={unidadMedida}
                           onChange={(_, v) => setUnidadMedida(v || 'UND')}
@@ -609,10 +613,11 @@ const ProductoForm = ({
                   )}
 
                   {/* Fila 2: IVA — fila propia, ancho generoso */}
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth>
+                  <Grid item xs={12} sx={{ width: '100%' }}>
+                    <FormControl fullWidth sx={{ width: '100%', display: 'block' }}>
                       <InputLabel>Impuesto (IVA)</InputLabel>
                       <Select
+                        fullWidth
                         label="Impuesto (IVA)"
                         value={String(impuestoId)}
                         onChange={e => setImpuestoId(e.target.value)}
