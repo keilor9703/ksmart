@@ -5,7 +5,8 @@ import apiClient from '../../api';
 import {
     Box, TextField, Button, Typography, InputAdornment, IconButton,
     Grid, Card, CardActionArea, MenuItem, LinearProgress, Stack, Chip,
-    Autocomplete, FormControlLabel, Checkbox, CircularProgress, Divider,
+    Autocomplete, FormControlLabel, Checkbox, CircularProgress, Divider, Dialog,
+    DialogTitle, DialogContent, DialogActions,
 } from '@mui/material';
 import { keyframes } from '@mui/system';
 import {
@@ -146,13 +147,16 @@ const TAMANOS_NEGOCIO = [
 const getPwdStrength = (pwd) => {
   if (!pwd) return null;
   const hasUpper   = /[A-Z]/.test(pwd);
+  const hasLower   = /[a-z]/.test(pwd);
   const hasNumber  = /[0-9]/.test(pwd);
   const hasSpecial = /[^A-Za-z0-9]/.test(pwd);
-  if (pwd.length < 4) return { level: 1, label: 'Muy débil', color: '#EF4444' };
-  if (pwd.length < 6) return { level: 2, label: 'Débil', color: '#F59E0B' };
-  if (pwd.length >= 8 && hasNumber && (hasUpper || hasSpecial)) return { level: 4, label: 'Segura', color: '#22c55e' };
-  if (pwd.length >= 6 && (hasNumber || hasUpper)) return { level: 3, label: 'Buena', color: '#22c55e' };
-  return { level: 2, label: 'Débil', color: '#F59E0B' };
+  const score = [pwd.length >= 8, hasUpper, hasLower, hasNumber, hasSpecial].filter(Boolean).length;
+  if (pwd.length < 4)  return { level: 1, label: 'Muy débil',  color: '#EF4444' };
+  if (pwd.length < 8)  return { level: 2, label: 'Débil — usa mín. 8 caracteres', color: '#F59E0B' };
+  if (score >= 5)      return { level: 4, label: 'Muy segura',  color: '#22c55e' };
+  if (score >= 4)      return { level: 4, label: 'Segura',      color: '#22c55e' };
+  if (score >= 3)      return { level: 3, label: 'Aceptable',   color: '#84cc16' };
+  return                      { level: 2, label: 'Débil',        color: '#F59E0B' };
 };
 
 const isEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
@@ -362,6 +366,9 @@ const Login = ({ onLogin }) => {
     const [regStep, setRegStep]           = useState(1);
     const [regSuccess, setRegSuccess]     = useState(false);
     const [rememberMe, setRememberMe]     = useState(false);
+    const [forgotOpen, setForgotOpen]     = useState(false);
+    const [forgotEmail, setForgotEmail]   = useState('');
+    const [forgotSent, setForgotSent]     = useState(false);
     const [pinMode, setPinMode]           = useState(() => {
         // Mostrar PIN si el usuario tiene PIN configurado y hay username guardado
         return localStorage.getItem('pin_configured') === 'true'
@@ -375,9 +382,9 @@ const Login = ({ onLogin }) => {
     });
 
     const initialRegState = {
-        tipos_negocio:   ['erp'],
+        tipo_negocio:    '',
         nombre_empresa:  '',
-        nit:             '', 
+        nit:             '',
         pais:            'CO',
         ciudad:          '',
         tamano_negocio:  'pequeno',
@@ -386,6 +393,7 @@ const Login = ({ onLogin }) => {
         telefono:        '',
         username:        '',
         password:        '',
+        confirmPassword: '',
         origen:          '',
         acepta_terminos: false,
     };
@@ -404,20 +412,32 @@ const Login = ({ onLogin }) => {
         });
     };
 
+    const [step1Attempted, setStep1Attempted] = useState(false);
+
+    const step1Errors = {
+        tipo_negocio:   !regData.tipo_negocio,
+        nombre_empresa: regData.nombre_empresa.trim().length < 2,
+        nit:            regData.nit.trim().length < 5,
+        ciudad:         regData.ciudad.trim().length < 2,
+    };
+
     const canContinueStep1 = () =>
-        regData.nombre_empresa.trim().length >= 2 &&
-        regData.nit.trim().length >= 5 &&
-        regData.ciudad.trim().length >= 2 &&
-        regData.pais &&
-        regData.tamano_negocio &&
-        !!regData.tipo_negocio;
+        !step1Errors.tipo_negocio &&
+        !step1Errors.nombre_empresa &&
+        !step1Errors.nit &&
+        !step1Errors.ciudad &&
+        !!regData.pais &&
+        !!regData.tamano_negocio;
+
+    const pwdMatch = regData.confirmPassword.length > 0 && regData.password !== regData.confirmPassword;
 
     const canSubmitStep2 = () =>
         regData.nombre_completo.trim().length >= 3 &&
         isEmail(regData.email) &&
         isPhone(regData.telefono) &&
         regData.username.trim().length >= 3 &&
-        regData.password.length >= 6 &&
+        regData.password.length >= 8 &&
+        regData.password === regData.confirmPassword &&
         regData.acepta_terminos;
 
     const switchToRegister = () => {
@@ -467,10 +487,9 @@ const Login = ({ onLogin }) => {
     };
 
     const handleNextStep = () => {
-        if (!canContinueStep1()) {
-            toast.warning('Completa los campos del negocio para continuar.');
-            return;
-        }
+        setStep1Attempted(true);
+        if (!canContinueStep1()) return;
+        setStep1Attempted(false);
         setRegStep(2);
     };
 
@@ -485,9 +504,9 @@ const Login = ({ onLogin }) => {
             await apiClient.post('/auth/register', {
                 nombre_empresa:  regData.nombre_empresa.trim(),
                 nit:             regData.nit.trim(),
+                tipo_negocio:    regData.tipo_negocio || 'erp',
                 username:        regData.username.trim().toLowerCase(),
                 password:        regData.password,
-                tipos_negocio:   regData.tipos_negocio,
                 nombre_completo: regData.nombre_completo.trim(),
                 email:           regData.email.trim().toLowerCase(),
                 telefono:        regData.telefono.trim(),
@@ -498,11 +517,13 @@ const Login = ({ onLogin }) => {
             });
             const usernameUsed = regData.username.trim().toLowerCase();
             localStorage.setItem('last_username', usernameUsed);
+            setPinMode(false);
             setRegSuccess(true);
             setTimeout(() => {
               setRegSuccess(false);
               setLoginData({ username: usernameUsed, password: '' });
               setRegData(initialRegState);
+              setStep1Attempted(false);
               setRegStep(1);
               setIsLoginView(true);
               toast.success('¡Cuenta creada! Ya puedes iniciar sesión.');
@@ -786,7 +807,7 @@ const Login = ({ onLogin }) => {
                                         }
                                     />
                                     <Typography
-                                        onClick={() => toast.info('Para restablecer tu contraseña, contacta a tu administrador o escríbenos a soporte@ksmart360.com')}
+                                        onClick={() => { setForgotEmail(''); setForgotSent(false); setForgotOpen(true); }}
                                         sx={{ fontSize: 12, color: '#22c55e', cursor: 'pointer', fontWeight: 600, '&:hover': { color: '#16a34a', textDecoration: 'underline' } }}
                                     >
                                         ¿Olvidaste tu contraseña?
@@ -875,6 +896,8 @@ const Login = ({ onLogin }) => {
                                             className="orange-field" sx={fieldSx}
                                             value={regData.tipo_negocio}
                                             onChange={updateReg('tipo_negocio')}
+                                            error={step1Attempted && step1Errors.tipo_negocio}
+                                            helperText={step1Attempted && step1Errors.tipo_negocio ? 'Selecciona el tipo de negocio' : ''}
                                             SelectProps={{
                                                 MenuProps: {
                                                     PaperProps: {
@@ -910,6 +933,8 @@ const Login = ({ onLogin }) => {
                                             placeholder="Ej: Vialmar Cacao, Almacén Don José…"
                                             value={regData.nombre_empresa}
                                             onChange={updateReg('nombre_empresa')}
+                                            error={step1Attempted && step1Errors.nombre_empresa}
+                                            helperText={step1Attempted && step1Errors.nombre_empresa ? 'Mínimo 2 caracteres' : ''}
                                             InputProps={{ startAdornment: <InputAdornment position="start"><Business /></InputAdornment> }}
                                         />
 
@@ -919,7 +944,8 @@ const Login = ({ onLogin }) => {
                                             placeholder="Ej: 901.123.456-7"
                                             value={regData.nit}
                                             onChange={updateReg('nit')}
-                                            helperText="Requerido para la identificación legal de tu espacio"
+                                            error={step1Attempted && step1Errors.nit}
+                                            helperText={step1Attempted && step1Errors.nit ? 'Mínimo 5 caracteres' : 'Requerido para la identificación legal de tu espacio'}
                                             InputProps={{ startAdornment: <InputAdornment position="start"><CheckCircle /></InputAdornment> }}
                                         />
 
@@ -958,12 +984,14 @@ const Login = ({ onLogin }) => {
                                                         <TextField
                                                             {...params}
                                                             fullWidth required label="Ciudad"
-                                                            className="orange-field" 
+                                                            className="orange-field"
+                                                            error={step1Attempted && step1Errors.ciudad}
+                                                            helperText={step1Attempted && step1Errors.ciudad ? 'Ingresa tu ciudad' : ''}
                                                             sx={{
                                                                 ...fieldSx,
                                                                 '& .MuiOutlinedInput-root': {
                                                                     ...fieldSx['& .MuiOutlinedInput-root'],
-                                                                    pr: '35px !important' 
+                                                                    pr: '35px !important'
                                                                 }
                                                             }}
                                                             placeholder="Ej: Buenaventura"
@@ -1091,7 +1119,7 @@ const Login = ({ onLogin }) => {
                                             className="orange-field" sx={fieldSx}
                                             placeholder="Sin espacios. Ej: maria.perez"
                                             value={regData.username}
-                                            onChange={(e) => setRegData({ ...regData, username: e.target.value.trim() })}
+                                            onChange={(e) => setRegData({ ...regData, username: e.target.value.replace(/\s/g, '') })}
                                             helperText="Este será tu nombre para iniciar sesión"
                                             InputProps={{ startAdornment: <InputAdornment position="start"><Person /></InputAdornment> }}
                                         />
@@ -1102,7 +1130,7 @@ const Login = ({ onLogin }) => {
                                             className="orange-field" sx={fieldSx}
                                             value={regData.password}
                                             onChange={updateReg('password')}
-                                            helperText="Mínimo 6 caracteres"
+                                            helperText="Mínimo 8 caracteres"
                                             InputProps={{
                                                 startAdornment: <InputAdornment position="start"><Lock /></InputAdornment>,
                                                 endAdornment: (
@@ -1117,6 +1145,35 @@ const Login = ({ onLogin }) => {
                                                     </InputAdornment>
                                                 ),
                                             }}
+                                        />
+                                        {/* Indicador de fuerza */}
+                                        {regData.password && (() => {
+                                            const s = getPwdStrength(regData.password);
+                                            if (!s) return null;
+                                            return (
+                                                <Box sx={{ mt: -1.5, px: 0.5 }}>
+                                                    <LinearProgress
+                                                        variant="determinate"
+                                                        value={s.level * 25}
+                                                        sx={{
+                                                            height: 3, borderRadius: 2,
+                                                            bgcolor: 'rgba(255,255,255,0.08)',
+                                                            '& .MuiLinearProgress-bar': { bgcolor: s.color, transition: 'all 0.35s ease' },
+                                                        }}
+                                                    />
+                                                    <Typography sx={{ fontSize: 10, color: s.color, fontWeight: 700, mt: 0.4 }}>{s.label}</Typography>
+                                                </Box>
+                                            );
+                                        })()}
+                                        <TextField
+                                            fullWidth required label="Confirmar contraseña"
+                                            type={showPassword ? 'text' : 'password'}
+                                            className="orange-field" sx={fieldSx}
+                                            value={regData.confirmPassword}
+                                            onChange={updateReg('confirmPassword')}
+                                            error={pwdMatch}
+                                            helperText={pwdMatch ? 'Las contraseñas no coinciden' : ''}
+                                            InputProps={{ startAdornment: <InputAdornment position="start"><Lock /></InputAdornment> }}
                                         />
 
                                         <TextField
@@ -1226,6 +1283,69 @@ const Login = ({ onLogin }) => {
                 </Box>
             </Box>
         </Box>
+
+        {/* ── Modal recuperación de contraseña ── */}
+        <Dialog
+            open={forgotOpen}
+            onClose={() => setForgotOpen(false)}
+            PaperProps={{ sx: { bgcolor: '#1e293b', color: '#f1f5f9', borderRadius: 3, minWidth: 340, border: '1px solid rgba(255,255,255,0.08)' } }}
+        >
+            <DialogTitle sx={{ fontWeight: 800, fontSize: 18, color: '#f1f5f9', pb: 0.5 }}>
+                Recuperar contraseña
+            </DialogTitle>
+            <DialogContent>
+                {forgotSent ? (
+                    <Box sx={{ textAlign: 'center', py: 2 }}>
+                        <CheckCircle sx={{ fontSize: 48, color: '#22c55e', mb: 1.5 }} />
+                        <Typography sx={{ fontSize: 14, color: '#94a3b8', lineHeight: 1.7 }}>
+                            Si el correo <strong style={{ color: '#f1f5f9' }}>{forgotEmail}</strong> está registrado, recibirás las instrucciones en breve.
+                        </Typography>
+                        <Typography sx={{ fontSize: 12, color: '#64748b', mt: 1.5 }}>
+                            ¿No lo ves? Revisa la carpeta de spam o escríbenos a{' '}
+                            <span style={{ color: '#22c55e' }}>soporte@ksmart360.com</span>
+                        </Typography>
+                    </Box>
+                ) : (
+                    <Box sx={{ pt: 1 }}>
+                        <Typography sx={{ fontSize: 13, color: '#94a3b8', mb: 2, lineHeight: 1.6 }}>
+                            Ingresa el correo con el que te registraste y te enviaremos un enlace para restablecer tu contraseña.
+                        </Typography>
+                        <TextField
+                            fullWidth autoFocus type="email"
+                            label="Correo electrónico" placeholder="tucorreo@ejemplo.com"
+                            value={forgotEmail}
+                            onChange={e => setForgotEmail(e.target.value)}
+                            sx={fieldSx}
+                            InputProps={{ startAdornment: <InputAdornment position="start"><Email /></InputAdornment> }}
+                        />
+                    </Box>
+                )}
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+                <Button onClick={() => setForgotOpen(false)} sx={{ color: '#64748b', fontWeight: 600, textTransform: 'none' }}>
+                    Cerrar
+                </Button>
+                {!forgotSent && (
+                    <Button
+                        variant="contained"
+                        disabled={!isEmail(forgotEmail)}
+                        onClick={() => {
+                            // El backend puede implementar el flujo de reset
+                            // Por ahora registra la solicitud y muestra confirmación
+                            apiClient.post('/auth/password-reset-request', { email: forgotEmail }).catch(() => {});
+                            setForgotSent(true);
+                        }}
+                        sx={{
+                            background: 'linear-gradient(90deg, #22c55e, #16a34a)',
+                            borderRadius: 2, fontWeight: 700, textTransform: 'none',
+                            '&:disabled': { opacity: 0.4 },
+                        }}
+                    >
+                        Enviar instrucciones
+                    </Button>
+                )}
+            </DialogActions>
+        </Dialog>
         </>
     );
 };

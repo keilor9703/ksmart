@@ -87,11 +87,10 @@ def registrar_nuevo_cliente(request: Request, data: schemas.RegistroSaaS, db: Se
 
     except IntegrityError as e:
         db.rollback()
-        error_exacto = str(e.orig)
-        logger.error(f"Error de integridad en BD: {error_exacto}")
+        logger.error(f"Error de integridad en BD durante registro: {e.orig}")
         raise HTTPException(
-            status_code=400, 
-            detail=f"Error en la base de datos: {error_exacto}"
+            status_code=400,
+            detail="El nombre de usuario o correo ya está registrado. Intenta con otros datos."
         )
     except Exception as e:
         db.rollback()
@@ -122,7 +121,7 @@ def login_for_access_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
     if not security.verify_password(form_data.password, user.hashed_password):
-        logger.warning(f"Login fallido: contraseña incorrecta para '{form_data.username}' (hash prefix: {user.hashed_password[:10]})")
+        logger.warning(f"Login fallido: contraseña incorrecta para '{form_data.username}'")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuario o contraseña incorrectos",
@@ -270,3 +269,14 @@ def verify_pin(
         "nombre_completo": user.nombre_completo,
         "is_expired":      is_expired,
     }
+
+
+@router.post("/password-reset-request", status_code=200)
+@limiter.limit("3/minute")
+def request_password_reset(request: Request, data: schemas.PasswordResetRequest, db: Session = Depends(get_db)):
+    """Solicita restablecer contraseña. Siempre devuelve 200 para no filtrar si el email existe."""
+    user = db.query(models.User).filter(models.User.email == data.email).first()
+    if user:
+        logger.info(f"Solicitud de reset de contraseña para: {data.email}")
+        # TODO: enviar email con token de reset cuando se configure el servicio de correo
+    return {"message": "Si el correo está registrado, recibirás las instrucciones."}
