@@ -20,16 +20,31 @@ import { Link } from 'react-router-dom';
 import BotonHuella from '../../components/common/BotonHuella';
 import { CIUDADES_COLOMBIA } from '../../utils/colombiaData';
 
+// ─── Sistema de diseño ───────────────────────────────────────────────────────
+// Stack tipográfico tipo Apple (SF Pro → Inter → system) para sensación premium.
+const APPLE_FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", Roboto, system-ui, sans-serif';
+// Curva spring de Apple (overshoot sutil) para transiciones con vida.
+const SPRING = 'cubic-bezier(0.34, 1.56, 0.64, 1)';
+const BRAND_CYAN = '#1ec8e0';
+
 // ─── Animaciones ─────────────────────────────────────────────────────────────
 const fadeIn = keyframes`
-  from { opacity: 0; transform: translateY(20px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 `;
 
 const pulseRing = keyframes`
-  0%   { transform: scale(1);    opacity: 0.6; }
-  50%  { transform: scale(1.08); opacity: 0.2; }
-  100% { transform: scale(1);    opacity: 0.6; }
+  0%   { transform: scale(1);    opacity: 0.55; }
+  50%  { transform: scale(1.07); opacity: 0.18; }
+  100% { transform: scale(1);    opacity: 0.55; }
+`;
+
+// Aurora ambiental: blobs que respiran lentamente en el fondo.
+const auroraFloat = keyframes`
+  0%   { transform: translate(0, 0) scale(1);       opacity: 0.55; }
+  33%  { transform: translate(30px, -24px) scale(1.12); opacity: 0.7; }
+  66%  { transform: translate(-20px, 18px) scale(0.95); opacity: 0.45; }
+  100% { transform: translate(0, 0) scale(1);       opacity: 0.55; }
 `;
 
 const slideUp = keyframes`
@@ -40,39 +55,44 @@ const slideUp = keyframes`
 // ─── Estilos de campo reutilizables ──────────────────────────────────────────
 const fieldSx = {
     '& .MuiInputLabel-root': {
-        color: '#64748b', fontSize: 11, fontWeight: 700,
-        letterSpacing: 1.4, textTransform: 'uppercase',
+        color: '#8b97a8', fontSize: 14, fontWeight: 500,
+        letterSpacing: 0, textTransform: 'none',
     },
-    '& .MuiInputLabel-root.Mui-focused': { color: '#22c55e' },
-    '& .MuiFormHelperText-root': { color: '#475569', fontSize: 11, mt: 0.5 },
+    '& .MuiInputLabel-root.Mui-focused': { color: '#22c55e', fontWeight: 600 },
+    '& .MuiFormHelperText-root': { color: '#64748b', fontSize: 12, mt: 0.6, ml: 0.5 },
     '& .MuiFormHelperText-root.Mui-error': { color: '#f87171' },
     '& .MuiOutlinedInput-root': {
-        borderRadius: 2.5,
-        backgroundColor: 'rgba(241, 245, 249, 0.05)',
-        backdropFilter: 'blur(10px)',
+        borderRadius: 3,
+        backgroundColor: 'rgba(255, 255, 255, 0.035)',
+        backdropFilter: 'blur(12px)',
         color: '#f1f5f9',
         fontSize: 15,
+        transition: 'border-color 0.2s ease, box-shadow 0.25s ease, background-color 0.2s ease',
         '& input': {
-            padding: '14px 14px',
+            padding: '15px 14px',
             color: '#f1f5f9',
             WebkitTextFillColor: '#f1f5f9',
             caretColor: '#22c55e',
             '&:-webkit-autofill': {
-                WebkitBoxShadow: '0 0 0 100px #1e293b inset',
+                WebkitBoxShadow: '0 0 0 100px #141c2e inset',
                 WebkitTextFillColor: '#f1f5f9',
                 caretColor: '#22c55e',
                 borderRadius: 'inherit',
             },
         },
-        '& fieldset': { borderColor: 'rgba(148, 163, 184, 0.2)', borderWidth: 1.5 },
-        '&:hover fieldset': { borderColor: 'rgba(148, 163, 184, 0.45)' },
-        '&.Mui-focused fieldset': { borderColor: '#22c55e', borderWidth: 2 },
+        '& fieldset': { borderColor: 'rgba(148, 163, 184, 0.16)', borderWidth: 1.5 },
+        '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.05)' },
+        '&:hover fieldset': { borderColor: 'rgba(148, 163, 184, 0.38)' },
+        '&.Mui-focused': { boxShadow: '0 0 0 4px rgba(34, 197, 94, 0.12)' },
+        '&.Mui-focused fieldset': { borderColor: '#22c55e', borderWidth: 1.5 },
         '&.Mui-error fieldset': { borderColor: '#f87171' },
+        '&.Mui-error.Mui-focused': { boxShadow: '0 0 0 4px rgba(248, 113, 113, 0.12)' },
     },
-    '& .MuiInputAdornment-root .MuiSvgIcon-root': { color: '#475569', fontSize: 19 },
+    '& .MuiInputAdornment-root .MuiSvgIcon-root': { color: '#5b6b80', fontSize: 19, transition: 'color 0.2s ease' },
     '& .MuiOutlinedInput-root.Mui-focused .MuiInputAdornment-root .MuiSvgIcon-root': { color: '#22c55e' },
     '&.orange-field': {
         '& .MuiInputLabel-root.Mui-focused': { color: '#f97316' },
+        '& .MuiOutlinedInput-root.Mui-focused': { boxShadow: '0 0 0 4px rgba(249, 115, 22, 0.12)' },
         '& .MuiOutlinedInput-root.Mui-focused fieldset': { borderColor: '#f97316' },
         '& .MuiOutlinedInput-root.Mui-focused .MuiInputAdornment-root .MuiSvgIcon-root': { color: '#f97316' },
     },
@@ -197,8 +217,9 @@ function FeatureCarousel() {
       <Box sx={{
         mb: 4,
         opacity: visible ? 1 : 0,
-        transform: visible ? 'translateY(0)' : 'translateY(12px)',
-        transition: 'opacity 0.28s ease, transform 0.28s ease',
+        transform: visible ? 'translateY(0) scale(1)' : 'translateY(16px) scale(0.98)',
+        filter: visible ? 'blur(0px)' : 'blur(2px)',
+        transition: 'opacity 0.32s ease, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.32s ease',
       }}>
         <Chip
           label={f.tag}
@@ -551,8 +572,9 @@ const Login = ({ onLogin }) => {
             position: 'fixed', inset: 0, zIndex: 9999,
             display: 'flex', flexDirection: 'column',
             alignItems: 'center', justifyContent: 'center',
-            background: 'linear-gradient(160deg, #0f172a 0%, #020617 100%)',
-            animation: `${fadeIn} 0.35s ease`,
+            fontFamily: APPLE_FONT,
+            background: 'radial-gradient(circle at 50% 38%, #131d33 0%, #0b1120 50%, #050810 100%)',
+            animation: `${fadeIn} 0.45s ${SPRING}`,
             gap: 2,
           }}>
             <Box sx={{
@@ -572,7 +594,14 @@ const Login = ({ onLogin }) => {
             </Typography>
           </Box>
         )}
-        <Box sx={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
+        <Box sx={{
+            display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden',
+            // Fuente tipo Apple en cascada para todo el componente
+            fontFamily: APPLE_FONT,
+            '& .MuiTypography-root, & .MuiInputBase-root, & .MuiButton-root, & .MuiInputLabel-root, & .MuiFormHelperText-root, & input, & .MuiChip-label': {
+                fontFamily: APPLE_FONT,
+            },
+        }}>
 
             {/* ── Panel izquierdo (imagen hero) ── */}
             <Box sx={{
@@ -586,9 +615,14 @@ const Login = ({ onLogin }) => {
                 position: 'relative',
                 alignItems: 'flex-end',
             }}>
+                {/* Overlay base + tinte de marca cyan en las esquinas para cohesión cromática */}
                 <Box sx={{
                     position: 'absolute', inset: 0,
-                    background: 'linear-gradient(150deg, rgba(15,23,42,0.88) 0%, rgba(2,6,23,0.62) 55%, rgba(15,23,42,0.92) 100%)',
+                    background: 'linear-gradient(150deg, rgba(10,15,28,0.90) 0%, rgba(5,8,16,0.58) 52%, rgba(10,15,28,0.94) 100%)',
+                }} />
+                <Box sx={{
+                    position: 'absolute', inset: 0, pointerEvents: 'none',
+                    background: 'radial-gradient(circle at 18% 88%, rgba(30,200,224,0.18) 0%, transparent 42%)',
                 }} />
                 <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
                     <FeatureCarousel />
@@ -601,14 +635,32 @@ const Login = ({ onLogin }) => {
                 minWidth: 0,
                 height: '100%',
                 overflowY: 'auto',
-                background: 'linear-gradient(160deg, #0f172a 0%, #020617 100%)',
+                position: 'relative',
+                background: 'radial-gradient(circle at 50% 0%, #131d33 0%, #0b1120 45%, #050810 100%)',
                 px: { xs: 3, sm: 6, lg: 8 },
             }}>
+                {/* Aurora ambiental — blobs difuminados que respiran detrás del formulario */}
+                <Box sx={{
+                    position: 'absolute', top: '-10%', right: '-12%',
+                    width: 340, height: 340, borderRadius: '50%', pointerEvents: 'none',
+                    background: 'radial-gradient(circle, rgba(30,200,224,0.16) 0%, transparent 70%)',
+                    filter: 'blur(18px)',
+                    animation: `${auroraFloat} 16s ease-in-out infinite`,
+                }} />
+                <Box sx={{
+                    position: 'absolute', bottom: '-8%', left: '-10%',
+                    width: 300, height: 300, borderRadius: '50%', pointerEvents: 'none',
+                    background: 'radial-gradient(circle, rgba(34,197,94,0.12) 0%, transparent 70%)',
+                    filter: 'blur(20px)',
+                    animation: `${auroraFloat} 20s ease-in-out infinite reverse`,
+                }} />
                 <Box sx={{
                     width: '100%',
                     maxWidth: { xs: 460, lg: 520 },
                     mx: 'auto',
                     minHeight: '100%',
+                    position: 'relative',
+                    zIndex: 1,
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
@@ -632,39 +684,36 @@ const Login = ({ onLogin }) => {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        transition: 'all 0.4s ease',
-                        width:     isLoginView ? { xs: 148, lg: 164 } : { xs: 118, lg: 128 },
-                        height:    isLoginView ? { xs: 148, lg: 164 } : { xs: 118, lg: 128 },
+                        transition: `all 0.5s ${SPRING}`,
+                        width:     isLoginView ? { xs: 132, lg: 144 } : { xs: 108, lg: 116 },
+                        height:    isLoginView ? { xs: 132, lg: 144 } : { xs: 108, lg: 116 },
                         flexShrink: 0,
                     }}>
+                        {/* Halo ambiental difuminado detrás del logo */}
                         <Box sx={{
-                            position: 'absolute',
-                            width: isLoginView ? { xs: 140, lg: 156 } : { xs: 110, lg: 120 },
-                            height: isLoginView ? { xs: 140, lg: 156 } : { xs: 110, lg: 120 },
-                            borderRadius: '50%',
-                            border: '1.5px solid rgba(30,200,224,0.35)',
-                            animation: `${pulseRing} 3s ease-in-out infinite`,
-                            transition: 'all 0.4s ease',
+                            position: 'absolute', inset: -8, borderRadius: '50%',
+                            background: `radial-gradient(circle, ${BRAND_CYAN}33 0%, transparent 68%)`,
+                            filter: 'blur(14px)',
                         }} />
+                        {/* Único anillo elegante que respira */}
                         <Box sx={{
-                            position: 'absolute',
-                            width: isLoginView ? { xs: 118, lg: 132 } : { xs: 92, lg: 102 },
-                            height: isLoginView ? { xs: 118, lg: 132 } : { xs: 92, lg: 102 },
+                            position: 'absolute', inset: 0,
                             borderRadius: '50%',
-                            border: '1px solid rgba(30,200,224,0.2)',
-                            transition: 'all 0.4s ease',
+                            border: `1.5px solid ${BRAND_CYAN}40`,
+                            animation: `${pulseRing} 3.4s ease-in-out infinite`,
+                            transition: `all 0.5s ${SPRING}`,
                         }} />
                         <img
                             src="/logos/svg/ksmart-icon-rounded.svg"
                             alt="Ksmart360"
                             style={{
-                                width:        isLoginView ? 110 : 84,
-                                height:       isLoginView ? 110 : 84,
-                                borderRadius: '50%',
-                                boxShadow:    '0 0 40px rgba(30,200,224,0.3), 0 0 80px rgba(30,200,224,0.12)',
+                                width:        isLoginView ? '74%' : '72%',
+                                height:       isLoginView ? '74%' : '72%',
+                                borderRadius: '28%',
+                                boxShadow:    '0 8px 32px rgba(30,200,224,0.28), 0 0 64px rgba(30,200,224,0.10)',
                                 position:     'relative',
                                 zIndex:       1,
-                                transition:   'all 0.4s ease',
+                                transition:   `all 0.5s ${SPRING}`,
                             }}
                         />
                     </Box>
@@ -672,22 +721,24 @@ const Login = ({ onLogin }) => {
                     {/* ── Bloque animado: Login / Registro ── */}
                     <Box
                         key={isLoginView ? 'login' : `register-${regStep}`}
-                        sx={{ animation: `${fadeIn} 0.4s cubic-bezier(0.4, 0, 0.2, 1)`, width: '100%' }}
+                        sx={{ animation: `${fadeIn} 0.5s ${SPRING}`, width: '100%' }}
                     >
                         <Typography sx={{
-                            fontWeight: 800,
-                            fontSize: { xs: 28, lg: 32 },
-                            color: '#f1f5f9',
-                            letterSpacing: -0.8,
-                            mb: 0.5,
+                            fontWeight: 700,
+                            fontSize: { xs: 30, lg: 36 },
+                            color: '#f8fafc',
+                            letterSpacing: -1.1,
+                            lineHeight: 1.1,
+                            mb: 0.75,
                             textAlign: 'center',
                         }}>
-                            {isLoginView ? 'Ingresar' : (regStep === 1 ? 'Crea tu espacio' : 'Casi listo')}
+                            {isLoginView ? 'Bienvenido de nuevo' : (regStep === 1 ? 'Crea tu espacio' : 'Casi listo')}
                         </Typography>
 
                         <Typography sx={{
-                            color: '#64748b',
-                            fontSize: { xs: 13, lg: 14 },
+                            color: '#94a3b8',
+                            fontSize: { xs: 14, lg: 15 },
+                            fontWeight: 400,
                             mb: isLoginView ? 4 : 3,
                             textAlign: 'center',
                         }}>
@@ -818,20 +869,20 @@ const Login = ({ onLogin }) => {
                                     type="submit" fullWidth variant="contained"
                                     disabled={loading}
                                     sx={{
-                                        mt: 0.5, py: 1.8, borderRadius: 2.5,
-                                        fontWeight: 700,
+                                        mt: 0.5, py: 1.7, borderRadius: 3,
+                                        fontWeight: 600, textTransform: 'none',
                                         fontSize: { xs: 15, lg: 16 },
-                                        letterSpacing: 0.3,
+                                        letterSpacing: 0.2,
                                         background: loading
                                             ? 'rgba(34,197,94,0.4)'
                                             : 'linear-gradient(90deg, #22c55e 0%, #16a34a 100%)',
-                                        boxShadow: loading ? 'none' : '0 8px 28px rgba(34,197,94,0.3)',
-                                        transition: 'all 0.25s',
+                                        boxShadow: loading ? 'none' : '0 6px 20px rgba(34,197,94,0.22)',
+                                        transition: `all 0.22s ${SPRING}`,
                                         '&:hover:not(:disabled)': {
                                             background: 'linear-gradient(90deg, #16a34a 0%, #15803d 100%)',
-                                            boxShadow: '0 12px 36px rgba(34,197,94,0.4)',
-                                            transform: 'translateY(-2px)',
+                                            boxShadow: '0 8px 26px rgba(34,197,94,0.3)',
                                         },
+                                        '&:active:not(:disabled)': { transform: 'scale(0.985)' },
                                     }}
                                 >
                                     {loading ? (
@@ -1056,20 +1107,20 @@ const Login = ({ onLogin }) => {
                                             disabled={!canContinueStep1()}
                                             endIcon={<ArrowForward />}
                                             sx={{
-                                                mt: 0.5, py: 1.8, borderRadius: 2.5,
-                                                fontWeight: 700,
+                                                mt: 0.5, py: 1.7, borderRadius: 3,
+                                                fontWeight: 600, textTransform: 'none',
                                                 fontSize: { xs: 15, lg: 16 },
-                                                letterSpacing: 0.3,
+                                                letterSpacing: 0.2,
                                                 background: !canContinueStep1()
                                                     ? 'rgba(249,115,22,0.3)'
                                                     : 'linear-gradient(90deg, #f97316 0%, #ea580c 100%)',
-                                                boxShadow: !canContinueStep1() ? 'none' : '0 8px 28px rgba(249,115,22,0.3)',
-                                                transition: 'all 0.25s',
+                                                boxShadow: !canContinueStep1() ? 'none' : '0 6px 20px rgba(249,115,22,0.22)',
+                                                transition: `all 0.22s ${SPRING}`,
                                                 '&:hover:not(:disabled)': {
                                                     background: 'linear-gradient(90deg, #ea580c 0%, #c2410c 100%)',
-                                                    boxShadow: '0 12px 36px rgba(249,115,22,0.4)',
-                                                    transform: 'translateY(-2px)',
+                                                    boxShadow: '0 8px 26px rgba(249,115,22,0.3)',
                                                 },
+                                                '&:active:not(:disabled)': { transform: 'scale(0.985)' },
                                             }}
                                         >
                                             Continuar
@@ -1220,13 +1271,16 @@ const Login = ({ onLogin }) => {
                                                 onClick={() => setRegStep(1)}
                                                 disabled={loading}
                                                 sx={{
-                                                    py: 1.8, borderRadius: 2.5, fontWeight: 700, flex: 0.6,
+                                                    py: 1.7, borderRadius: 3, fontWeight: 600, flex: 0.6,
+                                                    textTransform: 'none',
                                                     color: '#94a3b8',
                                                     borderColor: 'rgba(148,163,184,0.3)',
+                                                    transition: `all 0.22s ${SPRING}`,
                                                     '&:hover': {
                                                         borderColor: '#94a3b8',
                                                         bgcolor: 'rgba(148,163,184,0.08)',
                                                     },
+                                                    '&:active': { transform: 'scale(0.985)' },
                                                 }}
                                             >
                                                 Atrás
@@ -1235,21 +1289,21 @@ const Login = ({ onLogin }) => {
                                                 type="submit" variant="contained"
                                                 disabled={loading || !canSubmitStep2()}
                                                 sx={{
-                                                    py: 1.8, borderRadius: 2.5,
-                                                    fontWeight: 700,
+                                                    py: 1.7, borderRadius: 3,
+                                                    fontWeight: 600, textTransform: 'none',
                                                     fontSize: { xs: 14, lg: 15 },
-                                                    letterSpacing: 0.3,
+                                                    letterSpacing: 0.2,
                                                     flex: 1.4,
                                                     background: (loading || !canSubmitStep2())
                                                         ? 'rgba(249,115,22,0.3)'
                                                         : 'linear-gradient(90deg, #f97316 0%, #ea580c 100%)',
-                                                    boxShadow: (loading || !canSubmitStep2()) ? 'none' : '0 8px 28px rgba(249,115,22,0.3)',
-                                                    transition: 'all 0.25s',
+                                                    boxShadow: (loading || !canSubmitStep2()) ? 'none' : '0 6px 20px rgba(249,115,22,0.22)',
+                                                    transition: `all 0.22s ${SPRING}`,
                                                     '&:hover:not(:disabled)': {
                                                         background: 'linear-gradient(90deg, #ea580c 0%, #c2410c 100%)',
-                                                        boxShadow: '0 12px 36px rgba(249,115,22,0.4)',
-                                                        transform: 'translateY(-2px)',
+                                                        boxShadow: '0 8px 26px rgba(249,115,22,0.3)',
                                                     },
+                                                    '&:active:not(:disabled)': { transform: 'scale(0.985)' },
                                                 }}
                                             >
                                                 {loading ? 'Configurando…' : 'Crear mi cuenta'}
@@ -1277,7 +1331,7 @@ const Login = ({ onLogin }) => {
                         )}
                     </Box>
 
-                    <Typography sx={{ mt: 4, color: '#64748b', fontSize: 12, textAlign: 'center', fontWeight: 500, letterSpacing: 0.5 }}>
+                    <Typography sx={{ mt: 4, color: '#475569', fontSize: 11.5, textAlign: 'center', fontWeight: 500, letterSpacing: 0.3 }}>
                         Powered by KSMP Systems · 2026
                     </Typography>
                 </Box>
