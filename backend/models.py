@@ -307,6 +307,10 @@ class Producto(Base, TenantMixin):
     def requiere_cocina(self) -> bool:
         return bool(self.grupo and self.grupo.requiere_cocina)
 
+    @property
+    def categoria(self) -> str:
+        return self.grupo.nombre if self.grupo else 'Sin categoría'
+
 class ProductoVariante(Base, TenantMixin):
     __tablename__ = "producto_variantes"
     id           = Column(Integer, primary_key=True, index=True)

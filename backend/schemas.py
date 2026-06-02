@@ -368,6 +368,7 @@ class Producto(ProductoBase):
     variantes: List['ProductoVarianteOut'] = []
     impuesto: Optional[ImpuestoInfo] = None
     requiere_cocina: bool = False
+    categoria: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class MovementType(str, Enum):
