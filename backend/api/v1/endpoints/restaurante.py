@@ -278,6 +278,7 @@ class ComandaEstadoUpdate(BaseModel):
 class CerrarComandaIn(BaseModel):
     metodo_pago: str = "Efectivo"
     propina: float = 0.0
+    omitir_inventario: bool = False
 
 
 @router.get("/comandas")
@@ -501,6 +502,10 @@ def cerrar_comanda(
     db.commit()
 
     # Movimientos de inventario solo para ítems que NO son de cocina (bebidas, snacks, etc.)
+    if payload.omitir_inventario:
+        return {"status": "ok", "venta_id": venta.id, "total": total_con_propina,
+                "mesa": comanda.mesa.numero, "comanda": comanda.numero_comanda}
+
     for item in comanda.items:
         if item.estado == "cancelado" or not item.producto_id:
             continue

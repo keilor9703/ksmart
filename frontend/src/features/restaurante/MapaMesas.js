@@ -6,7 +6,7 @@ import {
   TextField, Select, MenuItem, FormControl, InputLabel,
   List, ListItem, ListItemText, ListItemSecondaryAction,
   Paper, ToggleButton, ToggleButtonGroup, Tab, Tabs,
-  useMediaQuery,
+  useMediaQuery, Switch, FormControlLabel,
 } from '@mui/material';
 import {
   TableRestaurant, Add, Refresh, Close, Person,
@@ -18,6 +18,7 @@ import { toast } from 'react-toastify';
 import apiClient from '../../api';
 import usePolling from '../../hooks/usePolling';
 import ReciboDialog from '../../components/common/ReciboDialog';
+import LinkPagoModal from '../../components/common/LinkPagoModal.jsx';
 
 // ─── Config colores de estado ─────────────────────────────────────────────────
 
@@ -146,6 +147,16 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
   const [propina, setPropina] = useState(0);
   const [metodo, setMetodo] = useState('Efectivo');
   const [tab, setTab] = useState(0); // 0=Pedido, 1=Menú (solo móvil)
+  const [linkPagoConfig, setLinkPagoConfig] = useState(null);
+  const [linkPagoModalOpen, setLinkPagoModalOpen] = useState(false);
+  const pendingCerrarRef = useRef(false);
+  const [omitirInventario, setOmitirInventario] = useState(false);
+  const omitirInventarioRef = useRef(false);
+  omitirInventarioRef.current = omitirInventario;
+
+  useEffect(() => {
+    apiClient.get('/empresa/link-pago').then(r => setLinkPagoConfig(r.data)).catch(() => {});
+  }, []);
 
   const itemsActivos = comanda?.items?.filter(i => i.estado !== 'cancelado') || [];
   const hayPendientes = itemsActivos.some(i => i.estado === 'pendiente' && i.va_a_cocina);
@@ -200,11 +211,11 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
     } finally { setLoading(false); }
   };
 
-  const handleCerrarCuenta = async () => {
+  const doCerrarCuenta = async () => {
     setLoading(true);
     try {
       const res = await apiClient.post(`/restaurante/comandas/${comanda.id}/cerrar`, {
-        metodo_pago: metodo, propina,
+        metodo_pago: metodo, propina, omitir_inventario: omitirInventarioRef.current,
       });
       const ventaSnap = {
         id: res.data.venta_id,
@@ -218,11 +229,21 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
       };
       setReciboVenta(ventaSnap);
       setReciboOpen(true);
+      setOmitirInventario(false);
       onSuccess();
       toast.success(`Mesa ${mesa.numero} cerrada — Venta #${res.data.venta_id}`);
     } catch (e) {
       toast.error(e?.response?.data?.detail || 'Error al cerrar');
     } finally { setLoading(false); }
+  };
+
+  const handleCerrarCuenta = () => {
+    if (metodo === 'Link de Pago') {
+      pendingCerrarRef.current = true;
+      setLinkPagoModalOpen(true);
+    } else {
+      doCerrarCuenta();
+    }
   };
 
   const handleCancelarItem = async (itemId) => {
@@ -303,8 +324,32 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
                 {['Efectivo', 'Tarjeta', 'Nequi', 'Transferencia', 'Daviplata'].map(m => (
                   <MenuItem key={m} value={m}>{m}</MenuItem>
                 ))}
+                {linkPagoConfig && (
+                  <MenuItem value="Link de Pago">Link de Pago / QR</MenuItem>
+                )}
               </Select>
             </FormControl>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={omitirInventario}
+                    onChange={e => setOmitirInventario(e.target.checked)}
+                    size="small"
+                    sx={{
+                      '& .MuiSwitch-switchBase.Mui-checked': { color: '#F59E0B' },
+                      '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#F59E0B' },
+                    }}
+                  />
+                }
+                label={
+                  <Typography fontSize={11} fontWeight={omitirInventario ? 700 : 400} color={omitirInventario ? '#92400E' : 'text.secondary'}>
+                    Vender sin validar stock
+                  </Typography>
+                }
+                sx={{ m: 0, gap: 0.5 }}
+              />
+            </Box>
             <Button fullWidth variant="contained" disabled={loading || hayPendientes || hayEnPrep}
               startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <Receipt />}
               onClick={handleCerrarCuenta}
@@ -697,6 +742,20 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
         empresa={empresa}
         vendedor={vendedor}
       />
+
+      {/* ── Link de Pago / QR modal ── */}
+      {linkPagoConfig && (
+        <LinkPagoModal
+          open={linkPagoModalOpen}
+          onClose={() => { setLinkPagoModalOpen(false); pendingCerrarRef.current = false; }}
+          linkConfig={linkPagoConfig}
+          onConfirm={() => {
+            setLinkPagoModalOpen(false);
+            pendingCerrarRef.current = false;
+            doCerrarCuenta();
+          }}
+        />
+      )}
     </Box>
   );
 };
