@@ -1186,6 +1186,7 @@ useEffect(() => {
                                 isDark={isDark}
                                 omitirInventario={omitirInventario}
                                 setOmitirInventario={setOmitirInventario}
+                                linkPagoConfig={linkPagoConfig}
                             />
                         </Box>
                     )}
