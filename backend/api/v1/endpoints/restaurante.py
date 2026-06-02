@@ -460,9 +460,40 @@ def cerrar_comanda(
     if comanda.estado == "cancelada":
         raise HTTPException(status_code=400, detail="La comanda está cancelada.")
 
+    items_activos = [i for i in comanda.items if i.estado != "cancelado" and i.producto_id]
+
+    # ── 1. Pre-validar stock con bloqueo antes de crear la Venta ──────────────
+    productos_locked: dict[int, models.Producto] = {}
+    if not payload.omitir_inventario:
+        for item in items_activos:
+            pid = item.producto_id
+            if pid in productos_locked:
+                continue
+            prod = (
+                db.query(models.Producto)
+                .filter(
+                    models.Producto.id == pid,
+                    models.Producto.empresa_id == user.empresa_id,
+                )
+                .with_for_update(of=models.Producto)
+                .first()
+            )
+            if prod:
+                productos_locked[pid] = prod
+
+        for item in items_activos:
+            prod = productos_locked.get(item.producto_id)
+            if not prod or prod.es_servicio or getattr(prod, "requiere_cocina", False):
+                continue
+            if (prod.stock_actual or 0) < item.cantidad:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Stock insuficiente para '{prod.nombre}'. Disponible: {prod.stock_actual or 0}, requerido: {item.cantidad}",
+                )
+
     total_con_propina = round(comanda.total + payload.propina, 2)
 
-    # Crear Venta reutilizando el modelo existente
+    # ── 2. Crear Venta y detalles (flush, sin commit aún) ─────────────────────
     venta = models.Venta(
         empresa_id=user.empresa_id,
         operador_id=user.id,
@@ -479,19 +510,37 @@ def cerrar_comanda(
     db.add(venta)
     db.flush()
 
-    # Detalles de venta
     for item in comanda.items:
         if item.estado == "cancelado":
             continue
-        detalle = models.DetalleVenta(
+        db.add(models.DetalleVenta(
             venta_id=venta.id,
             producto_id=item.producto_id,
             cantidad=item.cantidad,
             precio_unitario=item.precio_unitario,
-        )
-        db.add(detalle)
+        ))
 
-    # Marcar todos los ítems como entregados
+    # ── 3. Deducir inventario en la misma transacción (sin commit aún) ────────
+    if not payload.omitir_inventario:
+        for item in items_activos:
+            prod = productos_locked.get(item.producto_id)
+            if not prod or prod.es_servicio or getattr(prod, "requiere_cocina", False):
+                continue
+            try:
+                crud.create_movement(db, empresa_id=user.empresa_id, payload=schemas.InventoryMovementCreate(
+                    producto_id=item.producto_id,
+                    tipo=schemas.MovementType.salida,
+                    cantidad=item.cantidad,
+                    costo_unitario=prod.costo or 0.0,
+                    motivo="venta restaurante",
+                    referencia=f"venta #{venta.id}",
+                    usuario_id=user.id,
+                ), commit=False)
+            except (ValueError, HTTPException) as e:
+                db.rollback()
+                raise HTTPException(status_code=400, detail=str(e))
+
+    # ── 4. Actualizar estados y hacer commit atómico ───────────────────────────
     for item in comanda.items:
         if item.estado != "cancelado":
             item.estado = "entregado"
@@ -502,32 +551,6 @@ def cerrar_comanda(
     comanda.mesa.estado = "libre"
 
     db.commit()
-
-    # Movimientos de inventario solo para ítems que NO son de cocina (bebidas, snacks, etc.)
-    if payload.omitir_inventario:
-        return {"status": "ok", "venta_id": venta.id, "total": total_con_propina,
-                "mesa": comanda.mesa.numero, "comanda": comanda.numero_comanda}
-
-    for item in comanda.items:
-        if item.estado == "cancelado" or not item.producto_id:
-            continue
-        if item.va_a_cocina:
-            continue  # Platos y preparados: sin movimiento de inventario
-        prod = crud.get_producto(db, empresa_id=user.empresa_id, producto_id=item.producto_id)
-        if not prod or prod.es_servicio:
-            continue
-        try:
-            crud.create_movement(db, empresa_id=user.empresa_id, payload=schemas.InventoryMovementCreate(
-                producto_id=item.producto_id,
-                tipo=schemas.MovementType.salida,
-                cantidad=item.cantidad,
-                costo_unitario=prod.costo or 0.0,
-                motivo="venta restaurante",
-                referencia=f"venta #{venta.id}",
-                usuario_id=user.id,
-            ))
-        except ValueError:
-            pass  # Stock insuficiente: registrar venta igual, ajustar inventario aparte
 
     return {
         "status": "ok",
