@@ -3,9 +3,10 @@ import {
   Box, Typography, Button, TextField, IconButton, Chip,
   Dialog, DialogTitle, DialogContent, DialogActions,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Paper, Tooltip, Alert, useTheme, useMediaQuery, Divider
+  Paper, Tooltip, Alert, useTheme, useMediaQuery, Divider,
+  FormControlLabel, Switch,
 } from '@mui/material';
-import { Add, Edit, Delete, Lock } from '@mui/icons-material';
+import { Add, Edit, Delete, Lock, OutdoorGrill } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
 
@@ -15,7 +16,7 @@ const COLOR_PRESETS = [
   '#84CC16', '#6366F1', '#14B8A6', '#94a3b8',
 ];
 
-const DEFAULT_FORM = { nombre: '', codigo: '', color: '#6366F1', orden: 99 };
+const DEFAULT_FORM = { nombre: '', codigo: '', color: '#6366F1', orden: 99, requiere_cocina: false };
 
 // ── Card móvil por categoría ──────────────────────────────────────────────────
 const GrupoCard = ({ grupo, onEdit, onDelete }) => (
@@ -53,7 +54,7 @@ const GrupoCard = ({ grupo, onEdit, onDelete }) => (
         }
       </Box>
     </Box>
-    <Box sx={{ display: 'flex', gap: 1 }}>
+    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
       <Box sx={{ px: 1.5, py: 0.5, borderRadius: 1.5, bgcolor: 'action.hover', textAlign: 'center' }}>
         <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>Orden</Typography>
         <Typography sx={{ fontSize: 12, fontWeight: 700 }}>{grupo.orden}</Typography>
@@ -62,22 +63,34 @@ const GrupoCard = ({ grupo, onEdit, onDelete }) => (
         <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>Tipo</Typography>
         <Typography sx={{ fontSize: 12, fontWeight: 700 }}>{grupo.es_predefinido ? 'Sistema' : 'Custom'}</Typography>
       </Box>
+      {grupo.requiere_cocina && (
+        <Chip
+          icon={<OutdoorGrill sx={{ fontSize: '12px !important' }} />}
+          label="Cocina"
+          size="small"
+          sx={{ fontSize: 10, bgcolor: 'rgba(236,72,153,0.1)', color: '#EC4899', height: 24, fontWeight: 700 }}
+        />
+      )}
     </Box>
   </Paper>
 );
 
 export default function GruposProductoManager({ onGruposChange }) {
-  const [grupos, setGrupos]     = useState([]);
-  const [open, setOpen]         = useState(false);
-  const [editing, setEditing]   = useState(null);
-  const [form, setForm]         = useState(DEFAULT_FORM);
-  const [saving, setSaving]     = useState(false);
-  const [deleteId, setDeleteId] = useState(null);
+  const [grupos, setGrupos]           = useState([]);
+  const [open, setOpen]               = useState(false);
+  const [editing, setEditing]         = useState(null);
+  const [form, setForm]               = useState(DEFAULT_FORM);
+  const [saving, setSaving]           = useState(false);
+  const [deleteId, setDeleteId]       = useState(null);
+  const [esRestaurante, setEsRestaurante] = useState(false);
 
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  useEffect(() => { fetchGrupos(); }, []);
+  useEffect(() => {
+    fetchGrupos();
+    apiClient.get('/restaurante/config').then(() => setEsRestaurante(true)).catch(() => {});
+  }, []);
 
   const fetchGrupos = async () => {
     try {
@@ -91,7 +104,7 @@ export default function GruposProductoManager({ onGruposChange }) {
 
   const openEdit = (g) => {
     setEditing(g);
-    setForm({ nombre: g.nombre, codigo: g.codigo, color: g.color, orden: g.orden });
+    setForm({ nombre: g.nombre, codigo: g.codigo, color: g.color, orden: g.orden, requiere_cocina: g.requiere_cocina || false });
     setOpen(true);
   };
 
@@ -164,7 +177,7 @@ export default function GruposProductoManager({ onGruposChange }) {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  {['Color', 'Nombre', 'Código', 'Orden', 'Tipo', 'Acciones'].map(h => (
+                  {['Color', 'Nombre', 'Código', 'Orden', 'Tipo', ...(esRestaurante ? ['Cocina'] : []), 'Acciones'].map(h => (
                     <TableCell key={h} sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase' }}>{h}</TableCell>
                   ))}
                 </TableRow>
@@ -189,6 +202,15 @@ export default function GruposProductoManager({ onGruposChange }) {
                             sx={{ fontSize: 10, bgcolor: '#EFF6FF', color: '#3B82F6' }} />
                       }
                     </TableCell>
+                    {esRestaurante && (
+                      <TableCell>
+                        {g.requiere_cocina
+                          ? <Chip icon={<OutdoorGrill sx={{ fontSize: '12px !important' }} />} label="Sí"
+                              size="small" sx={{ fontSize: 10, bgcolor: 'rgba(236,72,153,0.1)', color: '#EC4899', fontWeight: 700 }} />
+                          : <Typography fontSize={11} color="text.disabled">—</Typography>
+                        }
+                      </TableCell>
+                    )}
                     <TableCell>
                       {!g.es_predefinido && (
                         <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -268,6 +290,33 @@ export default function GruposProductoManager({ onGruposChange }) {
                 />
               </Box>
             </Box>
+
+            {esRestaurante && (
+              <Box sx={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                p: 1.5, borderRadius: 2,
+                border: `1px solid ${form.requiere_cocina ? 'rgba(236,72,153,0.4)' : 'rgba(0,0,0,0.12)'}`,
+                bgcolor: form.requiere_cocina ? 'rgba(236,72,153,0.06)' : 'transparent',
+                transition: 'all 0.2s',
+              }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <OutdoorGrill sx={{ fontSize: 18, color: form.requiere_cocina ? '#EC4899' : 'text.disabled' }} />
+                  <Box>
+                    <Typography fontSize={13} fontWeight={600}>¿Va a cocina?</Typography>
+                    <Typography fontSize={11} color="text.secondary">
+                      Los productos de esta categoría se enviarán a la pantalla de cocina
+                    </Typography>
+                  </Box>
+                </Box>
+                <Switch
+                  checked={form.requiere_cocina}
+                  onChange={e => setForm(f => ({ ...f, requiere_cocina: e.target.checked }))}
+                  size="small"
+                  sx={{ '& .MuiSwitch-thumb': { bgcolor: form.requiere_cocina ? '#EC4899' : undefined },
+                        '& .Mui-checked + .MuiSwitch-track': { bgcolor: '#EC4899 !important' } }}
+                />
+              </Box>
+            )}
           </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
