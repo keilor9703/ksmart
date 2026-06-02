@@ -1203,6 +1203,14 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v67)
                 logger.info("V67 (empresas.omitir_inventario + detalles_venta.nombre_libre + producto_id nullable) aplicada.")
 
+            migration_v68 = "v68_restaurante_config_imprimir_comanda_auto"
+            if not _migration_already_applied(conn, migration_v68):
+                conn.execute(text("""
+                    ALTER TABLE restaurante_config ADD COLUMN IF NOT EXISTS imprimir_comanda_auto BOOLEAN DEFAULT FALSE;
+                """))
+                _mark_migration_applied(conn, migration_v68)
+                logger.info("V68 (restaurante_config.imprimir_comanda_auto) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
