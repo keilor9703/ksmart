@@ -1003,7 +1003,9 @@ def run_migrations():
                             VALUES(5, NULL, 'Platos y Preparados', 'PLATO', '#EC4899', TRUE, 5, TRUE)
                             ON CONFLICT (id) DO NOTHING
                         """))
-                        conn.execute(text("SELECT setval('grupos_producto_id_seq', 5, true)"))
+                        conn.execute(text(
+                            "SELECT setval('grupos_producto_id_seq', GREATEST((SELECT MAX(id) FROM grupos_producto), 5), true)"
+                        ))
                     logger.info("V59: grupo predefinido 'Platos y Preparados' (id=5) insertado")
 
                 _mark_migration_applied(conn, migration_v59)
@@ -1210,6 +1212,26 @@ def run_migrations():
                 """))
                 _mark_migration_applied(conn, migration_v68)
                 logger.info("V68 (restaurante_config.imprimir_comanda_auto) aplicada.")
+
+            # ═══════════════════════════════════════════════════════════════
+            # V69 - Resincronizar secuencia grupos_producto con MAX(id)
+            # V59 hacía setval(..., 5) incluso si ya había filas con id > 5,
+            # dejando la secuencia por debajo del máximo real y causando
+            # UniqueViolation al crear nuevas categorías personalizadas.
+            # ═══════════════════════════════════════════════════════════════
+            migration_v69 = "v69_fix_grupos_producto_seq"
+            if not _migration_already_applied(conn, migration_v69):
+                if not IS_SQLITE:
+                    conn.execute(text("""
+                        SELECT setval(
+                            'grupos_producto_id_seq',
+                            GREATEST((SELECT MAX(id) FROM grupos_producto), 5),
+                            true
+                        )
+                    """))
+                    logger.info("V69: secuencia grupos_producto_id_seq resincronizada con MAX(id)")
+                _mark_migration_applied(conn, migration_v69)
+                logger.info("V69 (fix secuencia grupos_producto) aplicada.")
 
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
