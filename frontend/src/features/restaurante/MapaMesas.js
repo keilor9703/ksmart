@@ -372,13 +372,13 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
                 sx={{ m: 0, gap: 0.5 }}
               />
             </Box>
-            <Button fullWidth variant="contained" disabled={loading || hayPendientes || hayEnPrep}
+            <Button fullWidth variant="contained" disabled={loading || (!config?.imprimir_comanda_auto && (hayPendientes || hayEnPrep))}
               startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <Receipt />}
               onClick={handleCerrarCuenta}
               sx={{ borderRadius: 2, fontWeight: 800, fontSize: 14, py: 1.2, bgcolor: '#7C3AED', '&:hover': { bgcolor: '#6D28D9' }, mb: 0.5 }}>
               Cerrar cuenta y cobrar
             </Button>
-            {(hayPendientes || hayEnPrep) && (
+            {!config?.imprimir_comanda_auto && (hayPendientes || hayEnPrep) && (
               <Typography fontSize={11} color="text.secondary" textAlign="center">
                 Espera a que cocina confirme todos los ítems
               </Typography>
