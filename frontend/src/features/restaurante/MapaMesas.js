@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Box, Typography, Avatar, Chip, Button, IconButton, Tooltip,
   CircularProgress, useTheme, alpha, Badge, Stack, Divider,
@@ -13,6 +13,7 @@ import {
   Restaurant, AttachMoney, Cancel, Send,
   CheckCircle, HourglassBottom, FiberManualRecord,
   Edit, Delete, Settings, Receipt, Note, MenuBook, Print,
+  ExpandMore, ExpandLess,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
@@ -164,8 +165,24 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
   const hayEnPrep = itemsActivos.some(i => i.estado === 'en_preparacion' && i.va_a_cocina);
 
   const productosFiltrados = productos.filter(p =>
-    p.nombre.toLowerCase().includes(search.toLowerCase())
+    p.nombre.toLowerCase().includes(search.toLowerCase()) ||
+    (p.descripcion && p.descripcion.toLowerCase().includes(search.toLowerCase()))
   );
+
+  const groupedByCategory = useMemo(() => {
+    const map = new Map();
+    for (const p of productosFiltrados) {
+      const cat = p.categoria || 'Sin categoría';
+      if (!map.has(cat)) map.set(cat, []);
+      map.get(cat).push(p);
+    }
+    return Array.from(map.entries()).map(([categoria, prods]) => ({ categoria, prods }));
+  }, [productosFiltrados]);
+
+  const [expandedCategories, setExpandedCategories] = useState({});
+  const toggleCategory = (cat) => setExpandedCategories(prev => ({ ...prev, [cat]: !prev[cat] }));
+  const isCategoryExpanded = (cat) => search.trim() !== '' || expandedCategories[cat] !== false;
+
   const platosMenu = productosFiltrados.filter(p => p.requiere_cocina);
   const otrosMenu  = productosFiltrados.filter(p => !p.requiere_cocina);
 
@@ -402,25 +419,58 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
         {productosFiltrados.length === 0 ? (
           <Typography fontSize={13} color="text.disabled" textAlign="center" sx={{ mt: 4 }}>Sin productos</Typography>
         ) : (
-          <Stack spacing={0.8}>
-            {productosFiltrados.map(prod => (
-              <Box key={prod.id} onClick={() => addToSelected(prod)} sx={{
-                p: 1.4, borderRadius: 2, cursor: 'pointer',
-                border: `1px solid ${alpha(theme.palette.divider, 1)}`,
-                bgcolor: isDark ? alpha('#fff', 0.025) : alpha('#000', 0.02),
-                transition: 'all 0.15s',
-                '&:hover': { borderColor: '#FF6020', bgcolor: alpha('#FF6020', 0.04) },
-                '&:active': { transform: 'scale(0.98)' },
-              }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography fontSize={13} fontWeight={600} sx={{ flex: 1, mr: 1 }}>{prod.nombre}</Typography>
-                  <Typography fontSize={13} fontWeight={700} color="#FF6020" sx={{ flexShrink: 0 }}>
-                    {fmt(prod.precio)}
-                  </Typography>
+          <Stack spacing={0.5}>
+            {groupedByCategory.map(({ categoria, prods }) => {
+              const open = isCategoryExpanded(categoria);
+              return (
+                <Box key={categoria}>
+                  {/* Category header */}
+                  <Box
+                    onClick={() => toggleCategory(categoria)}
+                    sx={{
+                      display: 'flex', alignItems: 'center', gap: 0.8,
+                      px: 1, py: 0.7, borderRadius: 2, cursor: 'pointer', mb: 0.5,
+                      bgcolor: isDark ? alpha('#FF6020', 0.08) : alpha('#FF6020', 0.06),
+                      '&:hover': { bgcolor: alpha('#FF6020', 0.12) },
+                    }}
+                  >
+                    <Typography fontSize={11} fontWeight={800} color="#FF6020" textTransform="uppercase"
+                      letterSpacing={0.8} sx={{ flex: 1 }}>
+                      {categoria}
+                    </Typography>
+                    <Typography fontSize={10} color="text.disabled" sx={{ mr: 0.5 }}>{prods.length}</Typography>
+                    {open ? <ExpandLess sx={{ fontSize: 16, color: '#FF6020' }} /> : <ExpandMore sx={{ fontSize: 16, color: '#FF6020' }} />}
+                  </Box>
+                  {/* Products in category */}
+                  {open && (
+                    <Stack spacing={0.8} sx={{ mb: 0.5 }}>
+                      {prods.map(prod => (
+                        <Box key={prod.id} onClick={() => addToSelected(prod)} sx={{
+                          p: 1.4, borderRadius: 2, cursor: 'pointer',
+                          border: `1px solid ${alpha(theme.palette.divider, 1)}`,
+                          bgcolor: isDark ? alpha('#fff', 0.025) : alpha('#000', 0.02),
+                          transition: 'all 0.15s',
+                          '&:hover': { borderColor: '#FF6020', bgcolor: alpha('#FF6020', 0.04) },
+                          '&:active': { transform: 'scale(0.98)' },
+                        }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <Typography fontSize={13} fontWeight={600} sx={{ flex: 1, mr: 1 }}>{prod.nombre}</Typography>
+                            <Typography fontSize={13} fontWeight={700} color="#FF6020" sx={{ flexShrink: 0 }}>
+                              {fmt(prod.precio)}
+                            </Typography>
+                          </Box>
+                          {prod.descripcion && (
+                            <Typography fontSize={11} color="text.secondary" sx={{ mt: 0.3, lineHeight: 1.4 }}>
+                              {prod.descripcion}
+                            </Typography>
+                          )}
+                        </Box>
+                      ))}
+                    </Stack>
+                  )}
                 </Box>
-                {prod.categoria && <Typography fontSize={11} color="text.disabled" sx={{ mt: 0.2 }}>{prod.categoria}</Typography>}
-              </Box>
-            ))}
+              );
+            })}
           </Stack>
         )}
       </Box>
@@ -609,82 +659,61 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
                   Sin productos
                 </Typography>
               ) : (
-                <Stack spacing={0}>
-
-                  {/* ── Platos y preparados ── */}
-                  {platosMenu.length > 0 && (
-                    <>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mb: 0.8, mt: 0.2 }}>
-                        <Restaurant sx={{ fontSize: 12, color: '#EC4899' }} />
-                        <Typography fontSize={10} fontWeight={800} color="#EC4899" textTransform="uppercase" letterSpacing={0.8}>
-                          Platos y preparados
-                        </Typography>
+                <Stack spacing={0.5}>
+                  {groupedByCategory.map(({ categoria, prods }) => {
+                    const open = isCategoryExpanded(categoria);
+                    return (
+                      <Box key={categoria}>
+                        {/* Category header */}
+                        <Box
+                          onClick={() => toggleCategory(categoria)}
+                          sx={{
+                            display: 'flex', alignItems: 'center', gap: 0.8,
+                            px: 1, py: 0.6, borderRadius: 2, cursor: 'pointer', mb: 0.5,
+                            bgcolor: isDark ? alpha('#FF6020', 0.08) : alpha('#FF6020', 0.06),
+                            '&:hover': { bgcolor: alpha('#FF6020', 0.12) },
+                          }}
+                        >
+                          <Typography fontSize={10} fontWeight={800} color="#FF6020" textTransform="uppercase"
+                            letterSpacing={0.8} sx={{ flex: 1 }}>
+                            {categoria}
+                          </Typography>
+                          <Typography fontSize={9} color="text.disabled" sx={{ mr: 0.5 }}>{prods.length}</Typography>
+                          {open ? <ExpandLess sx={{ fontSize: 14, color: '#FF6020' }} /> : <ExpandMore sx={{ fontSize: 14, color: '#FF6020' }} />}
+                        </Box>
+                        {/* Products */}
+                        {open && (
+                          <Stack spacing={0.7} sx={{ mb: 0.5 }}>
+                            {prods.map(prod => (
+                              <Box key={prod.id}
+                                onClick={() => addToSelected(prod)}
+                                sx={{
+                                  p: 1.2, borderRadius: 2, cursor: 'pointer',
+                                  border: `1px solid ${alpha(theme.palette.divider, 1)}`,
+                                  bgcolor: isDark ? alpha('#fff', 0.025) : alpha('#000', 0.02),
+                                  transition: 'all 0.15s',
+                                  '&:hover': { borderColor: '#FF6020', bgcolor: alpha('#FF6020', 0.04) },
+                                  '&:active': { transform: 'scale(0.98)' },
+                                }}
+                              >
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                  <Typography fontSize={12.5} fontWeight={600} sx={{ flex: 1, mr: 0.5 }}>{prod.nombre}</Typography>
+                                  <Typography fontSize={12} fontWeight={700} color="#FF6020" sx={{ flexShrink: 0 }}>
+                                    {fmt(prod.precio)}
+                                  </Typography>
+                                </Box>
+                                {prod.descripcion && (
+                                  <Typography fontSize={10} color="text.secondary" sx={{ mt: 0.3, lineHeight: 1.4 }}>
+                                    {prod.descripcion}
+                                  </Typography>
+                                )}
+                              </Box>
+                            ))}
+                          </Stack>
+                        )}
                       </Box>
-                      <Stack spacing={0.7} sx={{ mb: 1.5 }}>
-                        {platosMenu.map(prod => (
-                          <Box key={prod.id}
-                            onClick={() => addToSelected(prod)}
-                            sx={{
-                              p: 1.2, borderRadius: 2, cursor: 'pointer',
-                              border: `1px solid ${alpha('#EC4899', 0.2)}`,
-                              bgcolor: isDark ? alpha('#EC4899', 0.04) : alpha('#EC4899', 0.03),
-                              transition: 'all 0.15s',
-                              '&:hover': { borderColor: '#EC4899', bgcolor: alpha('#EC4899', 0.08) },
-                              '&:active': { transform: 'scale(0.98)' },
-                            }}
-                          >
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <Typography fontSize={12.5} fontWeight={600} noWrap sx={{ flex: 1 }}>{prod.nombre}</Typography>
-                              <Typography fontSize={12} fontWeight={700} color="#EC4899" sx={{ ml: 0.5, flexShrink: 0 }}>
-                                {fmt(prod.precio)}
-                              </Typography>
-                            </Box>
-                            {prod.categoria && (
-                              <Typography fontSize={10} color="text.disabled">{prod.categoria}</Typography>
-                            )}
-                          </Box>
-                        ))}
-                      </Stack>
-                    </>
-                  )}
-
-                  {/* ── Otros productos ── */}
-                  {otrosMenu.length > 0 && (
-                    <>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mb: 0.8, mt: platosMenu.length > 0 ? 0.5 : 0.2 }}>
-                        <Box sx={{ fontSize: 10, lineHeight: 1 }}>🥤</Box>
-                        <Typography fontSize={10} fontWeight={800} color="text.secondary" textTransform="uppercase" letterSpacing={0.8}>
-                          Otros
-                        </Typography>
-                      </Box>
-                      <Stack spacing={0.7}>
-                        {otrosMenu.map(prod => (
-                          <Box key={prod.id}
-                            onClick={() => addToSelected(prod)}
-                            sx={{
-                              p: 1.2, borderRadius: 2, cursor: 'pointer',
-                              border: `1px solid ${alpha(theme.palette.divider, 1)}`,
-                              bgcolor: isDark ? alpha('#fff', 0.025) : alpha('#000', 0.02),
-                              transition: 'all 0.15s',
-                              '&:hover': { borderColor: '#FF6020', bgcolor: alpha('#FF6020', 0.04) },
-                              '&:active': { transform: 'scale(0.98)' },
-                            }}
-                          >
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <Typography fontSize={12.5} fontWeight={600} noWrap sx={{ flex: 1 }}>{prod.nombre}</Typography>
-                              <Typography fontSize={12} fontWeight={700} color="#FF6020" sx={{ ml: 0.5, flexShrink: 0 }}>
-                                {fmt(prod.precio)}
-                              </Typography>
-                            </Box>
-                            {prod.categoria && (
-                              <Typography fontSize={10} color="text.disabled">{prod.categoria}</Typography>
-                            )}
-                          </Box>
-                        ))}
-                      </Stack>
-                    </>
-                  )}
-
+                    );
+                  })}
                 </Stack>
               )}
             </Box>
