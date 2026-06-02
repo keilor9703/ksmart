@@ -1125,6 +1125,7 @@ const Ventas = ({ user }) => {
                                 cambioEfectivo={cambioEfectivo}
                                 openQuickCreate={openQuickCreate}
                                 isDark={isDark}
+                                linkPagoConfig={linkPagoConfig}
                             />
                         </Box>
                     )}

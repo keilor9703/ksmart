@@ -198,6 +198,7 @@ const CartPanel = ({
     ivaPorcentajeGlobal, setIvaPorcentajeGlobal,
     onSubmit, savingVenta, calculateSubtotal, cambioEfectivo,
     openQuickCreate, isDark, onClose,
+    linkPagoConfig,
 }) => {
     const validItems = saleDetails.filter(d => d.producto && d.cantidad > 0);
     const subtotal = calculateSubtotal();
@@ -381,7 +382,7 @@ const CartPanel = ({
 
                 {/* Payment methods */}
                 <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 1, justifyContent: 'center' }}>
-                    {METODOS_PAGO.map(opt => {
+                    {[...METODOS_PAGO, ...(linkPagoConfig ? [{ value: 'Link de Pago', label: '📲 Link/QR', pagada: true, color: '#FF6020' }] : [])].map(opt => {
                         const isSelected = pagada
                             ? (opt.pagada && metodoPago === opt.value)
                             : !opt.pagada;
@@ -551,6 +552,7 @@ const TouchPOSMode = ({
     ivaPorcentajeGlobal, setIvaPorcentajeGlobal,
     onSubmit, savingVenta, calculateSubtotal, cambioEfectivo,
     openQuickCreate, isDark,
+    linkPagoConfig,
 }) => {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -619,6 +621,7 @@ const TouchPOSMode = ({
         ivaPorcentajeGlobal, setIvaPorcentajeGlobal,
         onSubmit, savingVenta, calculateSubtotal, cambioEfectivo,
         openQuickCreate, isDark,
+        linkPagoConfig,
     };
 
     return (
