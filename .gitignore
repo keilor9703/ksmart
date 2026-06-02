@@ -49,3 +49,12 @@ build/
 dist/
 .aider*
 .claude/
+
+# Producción — estos archivos se crean directamente en el servidor OCI
+.env.production
+certbot/
+
+# Backups de base de datos (nunca al repo)
+*.dump
+*.sql
+*.backup

@@ -1,0 +1,109 @@
+version: '3.9'
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Ksmart360 — Stack de producción para OCI Ampere ARM64
+#
+# Servicios:
+#   db        → PostgreSQL 15 (solo red interna, sin puerto expuesto)
+#   pgbouncer → Connection pooler en modo transaction
+#   backend   → FastAPI / Uvicorn (solo red interna)
+#   nginx     → Reverse proxy, expone puertos 80 y 443
+#
+# Antes de levantar: copia .env.example → .env y rellena los valores.
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB}
+      POSTGRES_USER:     ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ── PgBouncer ────────────────────────────────────────────────────────────────
+  pgbouncer:
+    image: bitnami/pgbouncer:latest
+    restart: unless-stopped
+    environment:
+      POSTGRESQL_HOST:              db
+      POSTGRESQL_PORT:              5432
+      POSTGRESQL_DATABASE:          ${POSTGRES_DB}
+      POSTGRESQL_USERNAME:          ${POSTGRES_USER}
+      POSTGRESQL_PASSWORD:          ${POSTGRES_PASSWORD}
+      PGBOUNCER_DATABASE:           ${POSTGRES_DB}
+      PGBOUNCER_POOL_MODE:          transaction
+      PGBOUNCER_MAX_CLIENT_CONN:    100
+      PGBOUNCER_DEFAULT_POOL_SIZE:  20
+      PGBOUNCER_MIN_POOL_SIZE:      5
+      PGBOUNCER_RESERVE_POOL_SIZE:  5
+      PGBOUNCER_AUTH_TYPE:          scram-sha-256
+      PGBOUNCER_PORT:               5432
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - internal
+
+  # ── Backend FastAPI ───────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL:        postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB}
+      SECRET_KEY:          ${SECRET_KEY}
+      EXTRA_CORS_ORIGINS:  ${EXTRA_CORS_ORIGINS}
+    volumes:
+      - evidencias:/app/evidencias
+    depends_on:
+      - pgbouncer
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/ping || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ── Nginx (reverse proxy) ────────────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - certbot_www:/var/www/certbot:ro
+      - certbot_conf:/etc/letsencrypt:ro
+    depends_on:
+      - backend
+    networks:
+      - internal
+
+# ── Volúmenes persistentes ────────────────────────────────────────────────────
+volumes:
+  pgdata:       # Datos de PostgreSQL — nunca borrar
+  evidencias:   # Archivos subidos por el backend (comprobantes, imágenes)
+  certbot_www:  # Para la verificación HTTP de Let's Encrypt
+  certbot_conf: # Certificados SSL de Let's Encrypt
+
+# ── Red interna Docker ────────────────────────────────────────────────────────
+networks:
+  internal:
+    driver: bridge

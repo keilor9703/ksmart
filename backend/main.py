@@ -31,7 +31,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # --- CORS ---
-origins = [
+_base_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "https://appksmp.vercel.app",
@@ -40,6 +40,8 @@ origins = [
     "https://appjeylor.com",
     "https://api.appjeylor.com",
 ]
+_extra = [o.strip() for o in os.getenv("EXTRA_CORS_ORIGINS", "").split(",") if o.strip()]
+origins = _base_origins + _extra
 
 app.add_middleware(
     CORSMiddleware,
