@@ -89,9 +89,10 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate, commi
         detalles_objs.append(detalle)
 
     iva_porc = float(getattr(venta, 'iva_porcentaje', 0) or 0)
-    iva_total = total_bruto * iva_porc / 100 if iva_porc > 0 else 0.0
+    # IVA incluido: el precio ya contiene el IVA; se extrae por retrocálculo
+    iva_total = total_bruto * iva_porc / (100 + iva_porc) if iva_porc > 0 else 0.0
     descuento_puntos = float(getattr(venta, 'descuento_puntos', 0) or 0)
-    total_final = max(0.0, total_bruto + iva_total - descuento_puntos)
+    total_final = max(0.0, total_bruto - descuento_puntos)
 
     # Usamos timezone explícito para Postgres
     ahora_utc = datetime.now(timezone.utc)
@@ -172,8 +173,9 @@ def update_venta(db: Session, empresa_id: int, venta_id: int, venta: schemas.Ven
     db.add_all(new_detalles)
 
     iva_porc = float(getattr(venta, 'iva_porcentaje', 0) or db_venta.iva_porcentaje or 0)
-    iva_total = total_venta * iva_porc / 100 if iva_porc > 0 else 0.0
-    total_final = total_venta + iva_total
+    # IVA incluido
+    iva_total = total_venta * iva_porc / (100 + iva_porc) if iva_porc > 0 else 0.0
+    total_final = total_venta
 
     db_venta.total = total_final
     db_venta.iva_total = iva_total

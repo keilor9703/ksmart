@@ -697,7 +697,7 @@ useEffect(() => {
                 return;
             }
             const subtotal = calculateSubtotal();
-            const totalBruto = subtotal * (1 + (parseFloat(ivaPorcentajeGlobal) || 0) / 100);
+            const totalBruto = subtotal; // IVA incluido: el precio ya tiene el IVA
             const totalFinal = Math.max(0, totalBruto - descuentoPuntosImporte);
             pendingVentaRef.current = { totalFinal };
             setLinkPagoModalOpen(true);
@@ -814,7 +814,7 @@ useEffect(() => {
         a.download = `ventas_${new Date().toISOString().slice(0,10)}.csv`;
         a.click(); URL.revokeObjectURL(url);
     };
-    const totalConIva = calculateSubtotal() * (1 + (parseFloat(ivaPorcentajeGlobal) || 0) / 100);
+    const totalConIva = calculateSubtotal(); // IVA incluido: total no cambia
     const descuentoPuntosImporte = puntosACanjear * PUNTOS_REDEEM_RATE;
     const totalFinal = Math.max(0, totalConIva - descuentoPuntosImporte);
     const cambioEfectivo = valorRecibido - totalFinal;
@@ -1225,19 +1225,23 @@ useEffect(() => {
                                 ))}
                             </Box>
 
-                            {/* Desglose subtotal + IVA */}
-                            {parseFloat(ivaPorcentajeGlobal) > 0 && (
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5, px: 0.5 }}>
-                                    <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>Subtotal (sin IVA)</Typography>
-                                    <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>{formatCurrency(calculateSubtotal())}</Typography>
-                                </Box>
-                            )}
-                            {parseFloat(ivaPorcentajeGlobal) > 0 && (
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, px: 0.5 }}>
-                                    <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>IVA ({ivaPorcentajeGlobal}%)</Typography>
-                                    <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>{formatCurrency(calculateSubtotal() * parseFloat(ivaPorcentajeGlobal) / 100)}</Typography>
-                                </Box>
-                            )}
+                            {/* Desglose IVA incluido */}
+                            {parseFloat(ivaPorcentajeGlobal) > 0 && (() => {
+                                const rate = parseFloat(ivaPorcentajeGlobal);
+                                const sub = calculateSubtotal();
+                                const ivaIncluido = sub * rate / (100 + rate);
+                                const baseNeta = sub - ivaIncluido;
+                                return (<>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5, px: 0.5 }}>
+                                        <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>Base (sin IVA)</Typography>
+                                        <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>{formatCurrency(baseNeta)}</Typography>
+                                    </Box>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, px: 0.5 }}>
+                                        <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>IVA incluido ({ivaPorcentajeGlobal}%)</Typography>
+                                        <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>{formatCurrency(ivaIncluido)}</Typography>
+                                    </Box>
+                                </>);
+                            })()}
 
                             {/* TOTAL — el número más importante */}
                             <Box sx={{ textAlign: 'center', py: { xs: 1, md: 1.5 } }}>
