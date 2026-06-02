@@ -211,9 +211,10 @@ def crear_mesa(
     existe = db.query(models.Mesa).filter(
         models.Mesa.empresa_id == user.empresa_id,
         models.Mesa.numero == payload.numero,
+        models.Mesa.zona == payload.zona,
     ).first()
     if existe:
-        raise HTTPException(status_code=400, detail=f"Ya existe la mesa '{payload.numero}'.")
+        raise HTTPException(status_code=400, detail=f"Ya existe la mesa '{payload.numero}' en la zona '{payload.zona}'.")
     mesa = models.Mesa(empresa_id=user.empresa_id, **payload.dict())
     db.add(mesa); db.commit(); db.refresh(mesa)
     return _ser_mesa(mesa)

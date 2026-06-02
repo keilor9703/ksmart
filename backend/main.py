@@ -198,6 +198,16 @@ def run_migrations():
             conn.execute(text("CREATE INDEX idx_dpv_pedido_id ON detalles_pedido_virtual(pedido_id)"))
             conn.commit()
 
+        # V69 — unicidad de mesa por zona en lugar de global por empresa
+        constraints = {c['name'] for c in inspector.get_unique_constraints('restaurante_mesas')}
+        if 'uq_mesa_numero_empresa' in constraints and 'uq_mesa_numero_zona_empresa' not in constraints:
+            conn.execute(text("ALTER TABLE restaurante_mesas DROP CONSTRAINT uq_mesa_numero_empresa"))
+            conn.execute(text(
+                "ALTER TABLE restaurante_mesas ADD CONSTRAINT uq_mesa_numero_zona_empresa "
+                "UNIQUE (empresa_id, numero, zona)"
+            ))
+            conn.commit()
+
 @app.on_event("startup")
 def startup_event():
     run_migrations()

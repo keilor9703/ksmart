@@ -1301,7 +1301,7 @@ class Mesa(Base):
     empresa    = relationship("Empresa")
     comandas   = relationship("Comanda", back_populates="mesa")
 
-    __table_args__ = (UniqueConstraint("empresa_id", "numero", name="uq_mesa_numero_empresa"),)
+    __table_args__ = (UniqueConstraint("empresa_id", "numero", "zona", name="uq_mesa_numero_zona_empresa"),)
 
 
 class Comanda(Base):
