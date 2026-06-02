@@ -79,7 +79,8 @@ def convertir_a_venta(
 ):
     try:
         return crud_pv.convertir_a_venta(
-            db, pedido_id, current_user.empresa_id, current_user.id, payload.metodo_pago
+            db, pedido_id, current_user.empresa_id, current_user.id,
+            payload.metodo_pago, payload.omitir_inventario,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

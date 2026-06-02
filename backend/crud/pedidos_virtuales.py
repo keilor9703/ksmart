@@ -212,6 +212,7 @@ def convertir_a_venta(
     empresa_id: int,
     user_id: int,
     metodo_pago: str = "Efectivo",
+    omitir_inventario: bool = False,
 ) -> models.PedidoVirtual:
     pedido = get_pedido(db, pedido_id, empresa_id)
     if not pedido:
@@ -265,7 +266,7 @@ def convertir_a_venta(
         ))
 
     # Ensure stock is decremented (may not have been if skipped confirmation)
-    if not pedido.stock_descontado:
+    if not omitir_inventario and not pedido.stock_descontado:
         _deducir_stock(db, pedido, empresa_id)
         pedido.stock_descontado = True
 

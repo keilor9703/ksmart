@@ -8,6 +8,7 @@ import {
   Stepper, Step, StepLabel, StepConnector,
   Select, MenuItem, FormControl, Table, TableBody, TableRow,
   TableCell, TableHead, TableContainer,
+  Switch, FormControlLabel,
 } from '@mui/material';
 import {
   ShoppingBag, Search, WhatsApp, CheckCircle, LocalShipping,
@@ -21,6 +22,7 @@ import {
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
 import ReciboDialog from '../../components/common/ReciboDialog';
+import LinkPagoModal from '../../components/common/LinkPagoModal.jsx';
 import usePolling from '../../hooks/usePolling';
 
 // ─── Estado metadata ──────────────────────────────────────────────────────────
@@ -256,17 +258,24 @@ const CardSkeleton = () => (
 
 // ─── PaymentDialog ────────────────────────────────────────────────────────────
 
-const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess }) => {
+const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, linkPagoConfig }) => {
   const theme = useTheme();
   const [metodo, setMetodo] = useState('Efectivo');
   const [loading, setLoading] = useState(false);
   const [recibo, setRecibo] = useState(null);
+  const [omitirInventario, setOmitirInventario] = useState(false);
+  const omitirInventarioRef = useRef(false);
+  omitirInventarioRef.current = omitirInventario;
+  const [linkPagoModalOpen, setLinkPagoModalOpen] = useState(false);
 
-  const handleConfirm = async () => {
+  const doConvertir = async () => {
     if (!pedido) return;
     setLoading(true);
     try {
-      const res = await apiClient.post(`/pedidos-virtuales/${pedido.id}/convertir-venta`, { metodo_pago: metodo });
+      const res = await apiClient.post(`/pedidos-virtuales/${pedido.id}/convertir-venta`, {
+        metodo_pago: metodo,
+        omitir_inventario: omitirInventarioRef.current,
+      });
       const ventaSnap = {
         id: res.data.venta_id,
         fecha: new Date().toISOString(),
@@ -276,6 +285,7 @@ const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess }) 
         monto_pagado: pedido.total, estado_pago: 'pagado', metodo_pago: metodo,
       };
       setRecibo(ventaSnap);
+      setOmitirInventario(false);
       onSuccess(res.data);
       toast.success('¡Pedido convertido a venta!');
     } catch (err) {
@@ -283,61 +293,105 @@ const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess }) 
     } finally { setLoading(false); }
   };
 
-  const handleClose = () => { setRecibo(null); onClose(); };
+  const handleConfirm = () => {
+    if (metodo === 'Link de Pago') {
+      setLinkPagoModalOpen(true);
+    } else {
+      doConvertir();
+    }
+  };
+
+  const handleClose = () => { setRecibo(null); setOmitirInventario(false); onClose(); };
+
+  const metodosDisponibles = linkPagoConfig
+    ? [...METODOS_PAGO, { value: 'Link de Pago', label: 'Link de Pago / QR', icon: <Receipt /> }]
+    : METODOS_PAGO;
 
   if (recibo) return <ReciboDialog open={open} onClose={handleClose} venta={recibo} empresa={empresa} vendedor={vendedor} />;
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 4 } }}>
-      <DialogTitle sx={{ pb: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Avatar sx={{ bgcolor: alpha('#059669', 0.12), width: 42, height: 42 }}>
-            <AttachMoney sx={{ color: '#059669', fontSize: 22 }} />
-          </Avatar>
-          <Box>
-            <Typography fontWeight={800} fontSize={15}>Forma de pago</Typography>
-            <Typography fontSize={12} color="text.secondary">Pedido #{pedido?.id} · {fmt(pedido?.total || 0)}</Typography>
+    <>
+      <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 4 } }}>
+        <DialogTitle sx={{ pb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Avatar sx={{ bgcolor: alpha('#059669', 0.12), width: 42, height: 42 }}>
+              <AttachMoney sx={{ color: '#059669', fontSize: 22 }} />
+            </Avatar>
+            <Box>
+              <Typography fontWeight={800} fontSize={15}>Forma de pago</Typography>
+              <Typography fontSize={12} color="text.secondary">Pedido #{pedido?.id} · {fmt(pedido?.total || 0)}</Typography>
+            </Box>
           </Box>
-        </Box>
-      </DialogTitle>
-      <DialogContent sx={{ pt: 1 }}>
-        <Typography fontSize={13} color="text.secondary" sx={{ mb: 2.5 }}>
-          Selecciona cómo pagó el cliente para registrar la venta y generar el comprobante.
-        </Typography>
-        <Stack spacing={1.5}>
-          {METODOS_PAGO.map(m => {
-            const sel = metodo === m.value;
-            return (
-              <Box
-                key={m.value}
-                onClick={() => setMetodo(m.value)}
-                sx={{
-                  display: 'flex', alignItems: 'center', gap: 1.5,
-                  p: 1.5, borderRadius: 2.5, cursor: 'pointer', transition: 'all 0.15s',
-                  border: `2px solid ${sel ? '#059669' : alpha(theme.palette.divider, 1)}`,
-                  bgcolor: sel ? alpha('#059669', 0.06) : 'transparent',
-                  '&:hover': { border: `2px solid ${sel ? '#059669' : alpha('#059669', 0.4)}` },
-                }}
-              >
-                <Box sx={{ width: 36, height: 36, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: alpha('#059669', sel ? 0.15 : 0.07), color: '#059669' }}>
-                  {m.icon}
+        </DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <Typography fontSize={13} color="text.secondary" sx={{ mb: 2.5 }}>
+            Selecciona cómo pagó el cliente para registrar la venta y generar el comprobante.
+          </Typography>
+          <Stack spacing={1.5}>
+            {metodosDisponibles.map(m => {
+              const sel = metodo === m.value;
+              return (
+                <Box
+                  key={m.value}
+                  onClick={() => setMetodo(m.value)}
+                  sx={{
+                    display: 'flex', alignItems: 'center', gap: 1.5,
+                    p: 1.5, borderRadius: 2.5, cursor: 'pointer', transition: 'all 0.15s',
+                    border: `2px solid ${sel ? '#059669' : alpha(theme.palette.divider, 1)}`,
+                    bgcolor: sel ? alpha('#059669', 0.06) : 'transparent',
+                    '&:hover': { border: `2px solid ${sel ? '#059669' : alpha('#059669', 0.4)}` },
+                  }}
+                >
+                  <Box sx={{ width: 36, height: 36, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: alpha('#059669', sel ? 0.15 : 0.07), color: '#059669' }}>
+                    {m.icon}
+                  </Box>
+                  <Typography fontWeight={700} fontSize={14} color={sel ? '#059669' : 'text.primary'}>{m.label}</Typography>
+                  {sel && <Box sx={{ ml: 'auto' }}><CheckCircle sx={{ color: '#059669', fontSize: 20 }} /></Box>}
                 </Box>
-                <Typography fontWeight={700} fontSize={14} color={sel ? '#059669' : 'text.primary'}>{m.label}</Typography>
-                {sel && <Box sx={{ ml: 'auto' }}><CheckCircle sx={{ color: '#059669', fontSize: 20 }} /></Box>}
-              </Box>
-            );
-          })}
-        </Stack>
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-        <Button onClick={handleClose} sx={{ borderRadius: 2 }}>Cancelar</Button>
-        <Button variant="contained" onClick={handleConfirm} disabled={loading}
-          startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <Receipt />}
-          sx={{ bgcolor: '#059669', '&:hover': { bgcolor: '#047857' }, borderRadius: 2, fontWeight: 700, flex: 1 }}>
-          Registrar y ver comprobante
-        </Button>
-      </DialogActions>
-    </Dialog>
+              );
+            })}
+          </Stack>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={omitirInventario}
+                  onChange={e => setOmitirInventario(e.target.checked)}
+                  size="small"
+                  sx={{
+                    '& .MuiSwitch-switchBase.Mui-checked': { color: '#F59E0B' },
+                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#F59E0B' },
+                  }}
+                />
+              }
+              label={
+                <Typography fontSize={11} fontWeight={omitirInventario ? 700 : 400} color={omitirInventario ? '#92400E' : 'text.secondary'}>
+                  Vender sin validar stock
+                </Typography>
+              }
+              sx={{ m: 0, gap: 0.5 }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+          <Button onClick={handleClose} sx={{ borderRadius: 2 }}>Cancelar</Button>
+          <Button variant="contained" onClick={handleConfirm} disabled={loading}
+            startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <Receipt />}
+            sx={{ bgcolor: '#059669', '&:hover': { bgcolor: '#047857' }, borderRadius: 2, fontWeight: 700, flex: 1 }}>
+            Registrar y ver comprobante
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {linkPagoConfig && (
+        <LinkPagoModal
+          open={linkPagoModalOpen}
+          onClose={() => setLinkPagoModalOpen(false)}
+          linkConfig={linkPagoConfig}
+          onConfirm={() => { setLinkPagoModalOpen(false); doConvertir(); }}
+        />
+      )}
+    </>
   );
 };
 
@@ -564,7 +618,7 @@ const WADialog = ({ open, onClose, pedido }) => {
 
 // ─── DetailDialog ─────────────────────────────────────────────────────────────
 
-const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange, onEdit, onCancel, onConvertir }) => {
+const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange, onEdit, onCancel, onConvertir, linkPagoConfig }) => {
   const theme = useTheme();
   const [paymentOpen, setPaymentOpen] = useState(false);
   if (!pedido) return null;
@@ -713,7 +767,7 @@ const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange,
       </Dialog>
 
       <PaymentDialog open={paymentOpen} onClose={() => setPaymentOpen(false)}
-        pedido={pedido} empresa={empresa} vendedor={vendedor}
+        pedido={pedido} empresa={empresa} vendedor={vendedor} linkPagoConfig={linkPagoConfig}
         onSuccess={(updated) => { setPaymentOpen(false); onConvertir(updated); onClose(); }} />
     </>
   );
@@ -721,7 +775,7 @@ const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange,
 
 // ─── PedidoCard ───────────────────────────────────────────────────────────────
 
-const PedidoCard = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConvertir, onWhatsApp, onEdit, onDetail }) => {
+const PedidoCard = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConvertir, onWhatsApp, onEdit, onDetail, linkPagoConfig }) => {
   const theme = useTheme();
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [justUpdated, setJustUpdated] = useState(false);
@@ -915,7 +969,7 @@ const PedidoCard = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConv
       </Card>
 
       <PaymentDialog open={paymentOpen} onClose={() => setPaymentOpen(false)}
-        pedido={pedido} empresa={empresa} vendedor={vendedor}
+        pedido={pedido} empresa={empresa} vendedor={vendedor} linkPagoConfig={linkPagoConfig}
         onSuccess={(updated) => { setPaymentOpen(false); onConvertir(updated); setJustUpdated(true); setTimeout(() => setJustUpdated(false), 1000); }} />
     </>
   );
@@ -923,7 +977,7 @@ const PedidoCard = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConv
 
 // ─── ListView row ─────────────────────────────────────────────────────────────
 
-const ListRow = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConvertir, onWhatsApp, onEdit, onDetail }) => {
+const ListRow = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConvertir, onWhatsApp, onEdit, onDetail, linkPagoConfig }) => {
   const theme = useTheme();
   const [paymentOpen, setPaymentOpen] = useState(false);
   const meta = getEstadoMeta(pedido.estado);
@@ -989,7 +1043,7 @@ const ListRow = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConvert
       </TableRow>
 
       <PaymentDialog open={paymentOpen} onClose={() => setPaymentOpen(false)}
-        pedido={pedido} empresa={empresa} vendedor={vendedor}
+        pedido={pedido} empresa={empresa} vendedor={vendedor} linkPagoConfig={linkPagoConfig}
         onSuccess={(updated) => { setPaymentOpen(false); onConvertir(updated); }} />
     </>
   );
@@ -1011,10 +1065,11 @@ export default function PedidosVirtuales({ user }) {
   const [lastFetch,     setLastFetch]     = useState(null);
   const [refreshing,    setRefreshing]    = useState(false);
 
-  const [detailPedido, setDetailPedido] = useState(null);
-  const [cancelPedido, setCancelPedido] = useState(null);
-  const [editPedido,   setEditPedido]   = useState(null);
-  const [waPedido,     setWaPedido]     = useState(null);
+  const [detailPedido,   setDetailPedido]   = useState(null);
+  const [cancelPedido,   setCancelPedido]   = useState(null);
+  const [editPedido,     setEditPedido]     = useState(null);
+  const [waPedido,       setWaPedido]       = useState(null);
+  const [linkPagoConfig, setLinkPagoConfig] = useState(null);
 
   const empresa = user?.empresa || null;
   const vendedor = user ? (`${user.nombre_completo || ''}`.trim() || user.username || user.email) : '';
@@ -1040,6 +1095,10 @@ export default function PedidosVirtuales({ user }) {
 
   // Refresco cada 60s; se pausa si la pestaña está oculta.
   usePolling(() => fetchAll(true), 60_000);
+
+  useEffect(() => {
+    apiClient.get('/empresa/link-pago').then(r => setLinkPagoConfig(r.data)).catch(() => {});
+  }, []);
 
   // Sort pedidos client-side
   const sortedPedidos = [...pedidos].sort((a, b) => {
@@ -1185,7 +1244,7 @@ export default function PedidosVirtuales({ user }) {
             <PedidoCard key={p.id} pedido={p} empresa={empresa} vendedor={vendedor}
               onStateChange={handleStateChange} onCancel={setCancelPedido}
               onConvertir={handleConvertir} onWhatsApp={setWaPedido}
-              onEdit={setEditPedido} onDetail={setDetailPedido} />
+              onEdit={setEditPedido} onDetail={setDetailPedido} linkPagoConfig={linkPagoConfig} />
           ))}
         </Box>
       ) : (
@@ -1208,7 +1267,7 @@ export default function PedidosVirtuales({ user }) {
                   <ListRow key={p.id} pedido={p} empresa={empresa} vendedor={vendedor}
                     onStateChange={handleStateChange} onCancel={setCancelPedido}
                     onConvertir={handleConvertir} onWhatsApp={setWaPedido}
-                    onEdit={setEditPedido} onDetail={setDetailPedido} />
+                    onEdit={setEditPedido} onDetail={setDetailPedido} linkPagoConfig={linkPagoConfig} />
                 ))}
               </TableBody>
             </Table>
@@ -1221,7 +1280,7 @@ export default function PedidosVirtuales({ user }) {
         empresa={empresa} vendedor={vendedor} onStateChange={handleStateChange}
         onEdit={p => { setDetailPedido(null); setEditPedido(p); }}
         onCancel={p => { setDetailPedido(null); setCancelPedido(p); }}
-        onConvertir={handleConvertir} />
+        onConvertir={handleConvertir} linkPagoConfig={linkPagoConfig} />
 
       <CancelDialog open={!!cancelPedido} onClose={() => setCancelPedido(null)}
         pedido={cancelPedido} onSuccess={() => { fetchAll(true); setCancelPedido(null); }} />

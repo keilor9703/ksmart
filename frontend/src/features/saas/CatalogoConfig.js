@@ -132,7 +132,7 @@ const CatalogoConfig = () => {
           faqItems={[
             { q: '¿Cómo comparten mis clientes el catálogo?', a: 'Copia el enlace de tu tienda o descarga el código QR y compártelo por WhatsApp, redes sociales o imprímelo en material publicitario.' },
             { q: '¿Qué productos aparecen en el catálogo?', a: 'Solo los productos que tengan activada la opción "Mostrar en catálogo" en su ficha. Ve a Productos → edita el producto → activa la opción.' },
-            { q: '¿Los pedidos llegan automáticamente al sistema?', a: 'Los pedidos se reciben vía WhatsApp con el detalle del carrito. Debes registrarlos manualmente en el módulo de Ventas para que el stock se descuente.' },
+            { q: '¿Los pedidos llegan automáticamente al sistema?', a: 'Sí. Cada vez que un cliente completa su carrito, el pedido se crea automáticamente en el módulo Pedidos Virtuales con estado "Nuevo" y se genera una notificación en tiempo real para todos los usuarios. Desde ese módulo puedes confirmarlo, prepararlo, marcarlo como enviado y finalmente convertirlo en venta con un solo clic, lo que descuenta el inventario y genera el comprobante.' },
             { q: '¿Puedo cambiar los colores y el logo?', a: 'Sí, usa el selector de color y sube tu logo en esta misma sección de configuración. Los cambios se reflejan en tu tienda virtual de inmediato.' },
           ]}
         />

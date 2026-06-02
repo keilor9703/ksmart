@@ -2403,7 +2403,8 @@ class PedidoVirtualUpdate(BaseModel):
     notas_internas:   Optional[str] = None
 
 class ConvertirVentaRequest(BaseModel):
-    metodo_pago: str  # "Efectivo" | "Transferencia"
+    metodo_pago: str = "Efectivo"
+    omitir_inventario: bool = False
 
 class PedidoWhatsAppMessage(BaseModel):
     mensaje: str
