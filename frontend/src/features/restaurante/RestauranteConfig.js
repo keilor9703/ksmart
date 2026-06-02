@@ -311,38 +311,7 @@ const TabMesas = ({ zonas }) => {
 
 // ─── Tab Configuración General ────────────────────────────────────────────────
 
-const TabGeneral = () => {
-  const [config, setConfig] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  const fetchConfig = useCallback(async () => {
-    try {
-      const res = await apiClient.get('/restaurante/config');
-      setConfig(res.data);
-    } catch (err) {
-      toast.error('Error al cargar la configuración');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchConfig(); }, [fetchConfig]);
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      await apiClient.put('/restaurante/config', config);
-      toast.success('Configuración guardada');
-    } catch (err) {
-      toast.error('Error al guardar la configuración');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const set = (k, v) => setConfig(p => ({ ...p, [k]: v }));
-
+const TabGeneral = ({ config, set, saving, onSave, loading }) => {
   if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress sx={{ color: ACCENT }} /></Box>;
   if (!config) return null;
 
@@ -453,7 +422,7 @@ const TabGeneral = () => {
       <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
         <Button
           variant="contained" startIcon={saving ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <Save />}
-          onClick={handleSave} disabled={saving}
+          onClick={onSave} disabled={saving}
           sx={{ bgcolor: ACCENT, px: 4, '&:hover': { bgcolor: '#e55516' } }}
         >
           {saving ? 'Guardando...' : 'Guardar configuración'}
@@ -468,6 +437,8 @@ const TabGeneral = () => {
 const RestauranteConfig = () => {
   const [tab, setTab] = useState(0);
   const [config, setConfig] = useState(null);
+  const [loadingConfig, setLoadingConfig] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const fetchConfig = useCallback(async () => {
     try {
@@ -475,10 +446,26 @@ const RestauranteConfig = () => {
       setConfig(res.data);
     } catch (err) {
       console.error(err);
+    } finally {
+      setLoadingConfig(false);
     }
   }, []);
 
   useEffect(() => { fetchConfig(); }, [fetchConfig]);
+
+  const set = (k, v) => setConfig(p => ({ ...p, [k]: v }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await apiClient.put('/restaurante/config', config);
+      toast.success('Configuración guardada');
+    } catch (err) {
+      toast.error('Error al guardar la configuración');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const zonas = config?.zonas_sala || ['Salón principal'];
 
@@ -510,7 +497,15 @@ const RestauranteConfig = () => {
       </Tabs>
 
       {tab === 0 && <TabMesas zonas={zonas} />}
-      {tab === 1 && <TabGeneral />}
+      {tab === 1 && (
+        <TabGeneral
+          config={config}
+          set={set}
+          saving={saving}
+          onSave={handleSave}
+          loading={loadingConfig}
+        />
+      )}
     </Box>
   );
 };
