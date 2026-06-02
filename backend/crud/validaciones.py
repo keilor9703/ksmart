@@ -92,6 +92,15 @@ def check_can_delete_producto(db: Session, empresa_id: int, producto_id: int) ->
     if os_:
         bloqueos.append(f"como servicio en {os_} orden{'es' if os_ > 1 else ''}")
 
+    ci = db.query(models.ComandaItem).join(
+        models.Comanda, models.ComandaItem.comanda_id == models.Comanda.id
+    ).filter(
+        models.ComandaItem.producto_id == producto_id,
+        models.Comanda.empresa_id == empresa_id
+    ).count()
+    if ci:
+        bloqueos.append(f"en {ci} ítem{'s' if ci > 1 else ''} de comanda de restaurante")
+
     return bloqueos
 
 def check_can_delete_venta(db: Session, empresa_id: int, venta_id: int) -> list:
