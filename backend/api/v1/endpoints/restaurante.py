@@ -196,7 +196,7 @@ def listar_mesas(
     for m in mesas:
         comanda = db.query(models.Comanda).filter(
             models.Comanda.mesa_id == m.id,
-            models.Comanda.estado.in_(["abierta", "enviada", "lista"]),
+            models.Comanda.estado.in_(["abierta", "enviada", "lista", "en_cuenta"]),
         ).first()
         result.append(_ser_mesa(m, comanda))
     return result
@@ -243,7 +243,7 @@ def eliminar_mesa(
     mesa = _mesa_or_404(db, user.empresa_id, mesa_id)
     tiene_abierta = db.query(models.Comanda).filter(
         models.Comanda.mesa_id == mesa_id,
-        models.Comanda.estado.in_(["abierta", "enviada", "lista"]),
+        models.Comanda.estado.in_(["abierta", "enviada", "lista", "en_cuenta"]),
     ).first()
     if tiene_abierta:
         raise HTTPException(status_code=400, detail="La mesa tiene una comanda activa. Ciérrala primero.")
@@ -282,6 +282,7 @@ class CerrarComandaIn(BaseModel):
     metodo_pago: str = "Efectivo"
     propina: float = 0.0
     omitir_inventario: bool = False
+    cobrado_por_cajero: bool = False
 
 
 @router.get("/comandas")
@@ -319,10 +320,10 @@ def abrir_comanda(
 ):
     mesa = _mesa_or_404(db, user.empresa_id, payload.mesa_id)
 
-    # No abrir segunda comanda en mesa ocupada
+    # No abrir segunda comanda en mesa ocupada o en cuenta
     activa = db.query(models.Comanda).filter(
         models.Comanda.mesa_id == mesa.id,
-        models.Comanda.estado.in_(["abierta", "enviada", "lista"]),
+        models.Comanda.estado.in_(["abierta", "enviada", "lista", "en_cuenta"]),
     ).first()
     if activa:
         raise HTTPException(status_code=400, detail="La mesa ya tiene una comanda activa.")
@@ -349,8 +350,8 @@ def agregar_items(
     user: models.User = Depends(get_current_active_user),
 ):
     comanda = _comanda_or_404(db, user.empresa_id, comanda_id)
-    if comanda.estado in ("cerrada", "cancelada"):
-        raise HTTPException(status_code=400, detail="No se pueden agregar ítems a una comanda cerrada.")
+    if comanda.estado in ("cerrada", "cancelada", "en_cuenta"):
+        raise HTTPException(status_code=400, detail="No se pueden agregar ítems a esta comanda.")
 
     cfg = db.query(models.ConfigRestaurante).filter_by(empresa_id=user.empresa_id).first()
     areas = cfg.areas_cocina if cfg else ["Cocina general"]
@@ -516,8 +517,10 @@ def cerrar_comanda(
         monto_pagado=total_con_propina,
         estado_pago="pagado",
         metodo_pago=payload.metodo_pago,
-        observaciones=f"Mesa {comanda.mesa.numero} — Comanda #{comanda.numero_comanda}" + (
-            f" | Propina: ${payload.propina:.0f}" if payload.propina else ""
+        observaciones=(
+            f"Mesa {comanda.mesa.numero} — Comanda #{comanda.numero_comanda}"
+            + (f" | Propina: ${payload.propina:.0f}" if payload.propina else "")
+            + (" | Cobrado en caja" if payload.cobrado_por_cajero else "")
         ),
     )
     db.add(venta)
@@ -572,6 +575,66 @@ def cerrar_comanda(
         "mesa": comanda.mesa.numero,
         "comanda": comanda.numero_comanda,
     }
+
+
+@router.patch("/comandas/{comanda_id}/solicitar-cuenta")
+def solicitar_cuenta(
+    comanda_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_active_user),
+):
+    """Mesero solicita la cuenta: el cliente irá a pagar a la caja."""
+    comanda = _comanda_or_404(db, user.empresa_id, comanda_id)
+    if comanda.estado == "en_cuenta":
+        return _ser_comanda(comanda)
+    if comanda.estado in ("cerrada", "cancelada"):
+        raise HTTPException(status_code=400, detail=f"La comanda ya está {comanda.estado}.")
+    comanda.estado = "en_cuenta"
+    comanda.mesa.estado = "en_cuenta"
+    db.commit()
+    db.refresh(comanda)
+    return _ser_comanda(comanda)
+
+
+@router.patch("/comandas/{comanda_id}/reabrir-cuenta")
+def reabrir_cuenta(
+    comanda_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_active_user),
+):
+    """Revertir una comanda de 'en_cuenta' a 'lista' si el cliente vuelve a la mesa."""
+    comanda = _comanda_or_404(db, user.empresa_id, comanda_id)
+    if comanda.estado != "en_cuenta":
+        raise HTTPException(status_code=400, detail="Solo se puede reabrir una comanda en estado 'en_cuenta'.")
+    comanda.estado = "lista"
+    comanda.mesa.estado = "ocupada"
+    db.commit()
+    db.refresh(comanda)
+    return _ser_comanda(comanda)
+
+
+@router.get("/caja/pendientes")
+def caja_pendientes(
+    buscar: Optional[str] = None,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_active_user),
+):
+    """Cajero: lista comandas en estado 'en_cuenta' pendientes de cobro."""
+    from sqlalchemy import cast, String, or_
+
+    q = db.query(models.Comanda).filter(
+        models.Comanda.empresa_id == user.empresa_id,
+        models.Comanda.estado == "en_cuenta",
+    )
+    if buscar and buscar.strip():
+        term = buscar.strip()
+        q = q.join(models.Mesa, models.Comanda.mesa_id == models.Mesa.id).filter(
+            or_(
+                models.Mesa.numero.ilike(f"%{term}%"),
+                cast(models.Comanda.numero_comanda, String).ilike(f"%{term}%"),
+            )
+        )
+    return [_ser_comanda(c) for c in q.order_by(models.Comanda.fecha_apertura).all()]
 
 
 @router.patch("/comandas/{comanda_id}/cancelar", status_code=200)
