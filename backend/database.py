@@ -1233,6 +1233,21 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v69)
                 logger.info("V69 (fix secuencia grupos_producto) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V70 - Soft-delete en productos: columna vigente
+            # ═══════════════════════════════════════════════════════════════
+            migration_v70 = "v70_productos_vigente"
+            if not _migration_already_applied(conn, migration_v70):
+                if not _column_exists(conn, "productos", "vigente"):
+                    if IS_SQLITE:
+                        conn.execute(text("ALTER TABLE productos ADD COLUMN vigente BOOLEAN NOT NULL DEFAULT 1"))
+                    else:
+                        conn.execute(text("ALTER TABLE productos ADD COLUMN vigente BOOLEAN NOT NULL DEFAULT TRUE"))
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_productos_vigente ON productos(vigente)"))
+                    logger.info("V70: añadida productos.vigente (soft-delete)")
+                _mark_migration_applied(conn, migration_v70)
+                logger.info("V70 (soft-delete productos) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

@@ -360,7 +360,10 @@ def agregar_items(
         va_a_cocina = True  # default: va a cocina
 
         if it.producto_id:
-            prod = db.query(models.Producto).filter(models.Producto.id == it.producto_id).first()
+            prod = db.query(models.Producto).filter(
+                models.Producto.id == it.producto_id,
+                models.Producto.vigente == True,
+            ).first()
             if prod:
                 va_a_cocina = prod.requiere_cocina
                 if not area and va_a_cocina:
@@ -475,6 +478,7 @@ def cerrar_comanda(
                 .filter(
                     models.Producto.id == pid,
                     models.Producto.empresa_id == user.empresa_id,
+                    models.Producto.vigente == True,
                 )
                 .with_for_update(of=models.Producto)
                 .first()

@@ -101,11 +101,12 @@ def delete_grupo(db: Session, empresa_id: int, grupo_id: int):
         .filter(
             models.Producto.empresa_id == empresa_id,
             models.Producto.grupo_item == grupo_id,
+            models.Producto.vigente == True,
         )
         .first()
     )
     if tiene_productos:
-        return False, "No se puede eliminar: hay productos asignados a este grupo"
+        return False, "No se puede eliminar: hay productos vigentes asignados a este grupo"
 
     db.delete(grupo)
     db.commit()

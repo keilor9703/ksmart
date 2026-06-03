@@ -42,6 +42,7 @@ def create_pedido_publico(db: Session, slug: str, payload: schemas.PedidoVirtual
             models.Producto.id == item.producto_id,
             models.Producto.empresa_id == empresa.id,
             models.Producto.mostrar_en_catalogo == True,
+            models.Producto.vigente == True,
         ).first()
         if not producto:
             raise ValueError(f"Producto {item.producto_id} no disponible en el catálogo")

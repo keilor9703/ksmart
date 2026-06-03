@@ -59,7 +59,8 @@ def get_public_catalogo(
     # Obtener productos visibles (Paginación inicial de 50)
     productos_query = db.query(models.Producto).filter(
         models.Producto.empresa_id == db_empresa.id,
-        models.Producto.mostrar_en_catalogo == True
+        models.Producto.mostrar_en_catalogo == True,
+        models.Producto.vigente == True,
     )
     
     total = productos_query.count()
@@ -121,7 +122,8 @@ def get_catalogo_productos(
 
     query = db.query(models.Producto).filter(
         models.Producto.empresa_id == db_empresa.id,
-        models.Producto.mostrar_en_catalogo == True
+        models.Producto.mostrar_en_catalogo == True,
+        models.Producto.vigente == True,
     )
 
     if search:
@@ -191,7 +193,8 @@ def get_producto_imagen(
     db_producto = db.query(models.Producto).filter(
         models.Producto.id == producto_id,
         models.Producto.empresa_id == db_empresa.id,
-        models.Producto.mostrar_en_catalogo == True
+        models.Producto.mostrar_en_catalogo == True,
+        models.Producto.vigente == True,
     ).first()
 
     if not db_producto or not db_producto.imagenes:

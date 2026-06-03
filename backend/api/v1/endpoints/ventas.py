@@ -41,6 +41,7 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
                 .filter(
                     models.Producto.id == d.producto_id,
                     models.Producto.empresa_id == empresa_id,
+                    models.Producto.vigente == True,
                 )
                 .with_for_update(of=models.Producto)
                 .first()

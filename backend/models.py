@@ -287,6 +287,7 @@ class Producto(Base, TenantMixin):
     stock_actual  = Column(Float, default=0.0)
     stock_minimo  = Column(Float, default=0.0)
     grupo_item    = Column(Integer, default=2)
+    vigente       = Column(Boolean, default=True, nullable=False, index=True)
     
     # 👇 NUEVA COLUMNA: Control maestro para perecederos
     maneja_lotes  = Column(Boolean, default=False)

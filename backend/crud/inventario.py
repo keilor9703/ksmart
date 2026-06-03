@@ -63,6 +63,7 @@ def list_movements(db: Session, empresa_id: int, producto_id: int = None, limit:
 def get_low_stock(db: Session, empresa_id: int):
     return db.query(models.Producto).filter(
         models.Producto.empresa_id == empresa_id,
+        models.Producto.vigente == True,
         models.Producto.stock_minimo.isnot(None),
         models.Producto.stock_minimo > 0,
         or_(
@@ -150,7 +151,8 @@ def get_kardex_promedio_ponderado(
 
 def get_inventario_actual(db: Session, empresa_id: int) -> schemas.InventarioSnapshot:
     prods = db.query(models.Producto).filter(
-        models.Producto.empresa_id == empresa_id
+        models.Producto.empresa_id == empresa_id,
+        models.Producto.vigente == True,
     ).all()
 
     items: List[schemas.InventarioItem] = []

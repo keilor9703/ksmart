@@ -66,6 +66,7 @@ def crear_lote_existencia(
     producto = db.query(models.Producto).filter(
         models.Producto.id         == payload.producto_id,
         models.Producto.empresa_id == empresa_id,
+        models.Producto.vigente    == True,
     ).first()
     if not producto:
         raise HTTPException(404, "Producto no encontrado o no pertenece a esta empresa.")
@@ -189,6 +190,7 @@ def ajustar_lote(
     producto = db.query(models.Producto).filter(
         models.Producto.id         == lote.producto_id,
         models.Producto.empresa_id == empresa_id,
+        models.Producto.vigente    == True,
     ).first()
     if producto:
         producto.stock_actual = (producto.stock_actual or 0) + ajuste.cantidad

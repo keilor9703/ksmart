@@ -49,6 +49,7 @@ def sku_exists(db: Session, empresa_id: int, sku: str, exclude_id: int = None) -
     q = db.query(models.Producto).filter(
         models.Producto.empresa_id == empresa_id,
         models.Producto.sku == sku,
+        models.Producto.vigente == True,
     )
     if exclude_id:
         q = q.filter(models.Producto.id != exclude_id)
@@ -58,7 +59,8 @@ def sku_exists(db: Session, empresa_id: int, sku: str, exclude_id: int = None) -
 def get_producto(db: Session, empresa_id: int, producto_id: int):
     p = db.query(models.Producto).filter(
         models.Producto.id == producto_id,
-        models.Producto.empresa_id == empresa_id
+        models.Producto.empresa_id == empresa_id,
+        models.Producto.vigente == True,
     ).first()
     if p:
         attach_impuestos_to_productos(db, empresa_id, [p])
@@ -66,7 +68,8 @@ def get_producto(db: Session, empresa_id: int, producto_id: int):
 
 def get_productos(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
     items = db.query(models.Producto).filter(
-        models.Producto.empresa_id == empresa_id
+        models.Producto.empresa_id == empresa_id,
+        models.Producto.vigente == True,
     ).offset(skip).limit(limit).all()
     return attach_impuestos_to_productos(db, empresa_id, items)
 
@@ -150,7 +153,7 @@ def update_producto(db: Session, empresa_id: int, producto_id: int, producto: sc
 def delete_producto(db: Session, empresa_id: int, producto_id: int):
     db_producto = get_producto(db, empresa_id, producto_id)
     if db_producto:
-        db.delete(db_producto)
+        db_producto.vigente = False
         db.commit()
     return db_producto
 

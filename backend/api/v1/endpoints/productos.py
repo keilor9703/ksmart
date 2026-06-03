@@ -114,6 +114,7 @@ def get_producto_por_sku(
     return db.query(models.Producto).filter(
         models.Producto.sku == sku.upper(),
         models.Producto.empresa_id == current_user.empresa_id,
+        models.Producto.vigente == True,
     ).first()
 
 
@@ -173,15 +174,17 @@ async def get_producto_por_barcode(
     # 1. Buscar en mi empresa (Resultado exacto)
     local_prod = db.query(models.Producto).filter(
         models.Producto.codigo_barras == barcode,
-        models.Producto.empresa_id == current_user.empresa_id
+        models.Producto.empresa_id == current_user.empresa_id,
+        models.Producto.vigente == True,
     ).first()
-    
+
     if local_prod:
         return local_prod
 
     # 2. Si no existe en mi empresa, buscar en el SISTEMA GLOBAL (Sugerencia)
     global_prod = db.query(models.Producto).filter(
-        models.Producto.codigo_barras == barcode
+        models.Producto.codigo_barras == barcode,
+        models.Producto.vigente == True,
     ).first()
 
     if global_prod:
@@ -314,15 +317,6 @@ def delete_producto(producto_id: int, db: Session = Depends(get_db), current_use
     db_producto = crud.get_producto(db, empresa_id=current_user.empresa_id, producto_id=producto_id)
     if db_producto is None:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
-    bloqueos = crud.check_can_delete_producto(db, empresa_id=current_user.empresa_id, producto_id=producto_id)
-    if bloqueos:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"No se puede eliminar '{db_producto.nombre}' porque "
-                + ", ".join(bloqueos) + "."
-            )
-        )
     crud.delete_producto(db, empresa_id=current_user.empresa_id, producto_id=producto_id)
     return {"message": f"Producto '{db_producto.nombre}' eliminado correctamente"}
 

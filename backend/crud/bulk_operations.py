@@ -63,7 +63,8 @@ def bulk_create_productos(db: Session, empresa_id: int, file: IO, filename: str)
     existing_names = {
         normalize_name(p.nombre)
         for p in db.query(models.Producto).filter(
-            models.Producto.empresa_id == empresa_id
+            models.Producto.empresa_id == empresa_id,
+            models.Producto.vigente == True,
         ).all()
     }
     seen_names = set()
@@ -192,7 +193,10 @@ def bulk_create_movimientos(db: Session, empresa_id: int, file: IO, filename: st
     errors = []
 
     # Crear diccionario de productos para búsqueda rápida por nombre
-    productos = db.query(models.Producto).filter(models.Producto.empresa_id == empresa_id).all()
+    productos = db.query(models.Producto).filter(
+        models.Producto.empresa_id == empresa_id,
+        models.Producto.vigente == True,
+    ).all()
     productos_by_name = {"".join(str(p.nombre).lower().split()): p for p in productos}
 
     for index, row in df.iterrows():
