@@ -77,6 +77,7 @@ const LavaderoReporte          = lazy(() => import('./features/lavadero/Lavadero
 const MapaMesas         = lazy(() => import('./features/restaurante/MapaMesas'));
 const PantallaCocina    = lazy(() => import('./features/restaurante/PantallaCocina'));
 const RestauranteConfig = lazy(() => import('./features/restaurante/RestauranteConfig'));
+const CajaRestaurante   = lazy(() => import('./features/restaurante/CajaRestaurante'));
 
 // ─── Constantes de Layout ──────────────────────────────────────────────────────
 const SIDEBAR_FULL  = 240;
@@ -380,6 +381,7 @@ const hasAccess = useCallback((path) => {
                     <Route path="/restaurante"        element={<ProtectedRoute path="/restaurante"        hasAccess={hasAccess}><MapaMesas       user={user} /></ProtectedRoute>} />
                     <Route path="/restaurante/cocina" element={<ProtectedRoute path="/restaurante/cocina" hasAccess={hasAccess}><PantallaCocina  /></ProtectedRoute>} />
                     <Route path="/restaurante/config" element={<ProtectedRoute path="/restaurante/config" hasAccess={hasAccess}><RestauranteConfig /></ProtectedRoute>} />
+                    <Route path="/restaurante/caja"   element={<ProtectedRoute path="/restaurante/caja"   hasAccess={hasAccess}><CajaRestaurante  user={user} /></ProtectedRoute>} />
                     {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (
                       <Route path="/superadmin/empresas" element={<GestionEmpresas />} />
                     )}

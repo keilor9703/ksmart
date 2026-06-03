@@ -103,6 +103,7 @@ export const MODULE_ICONS = {
   '/restaurante':        { icon: <TableRestaurant />, color: '#F97316', label: 'Mapa de Mesas' },
   '/restaurante/cocina': { icon: <OutdoorGrill />,    color: '#EF4444', label: 'Pantalla Cocina' },
   '/restaurante/config': { icon: <RoomService />,     color: '#8B5CF6', label: 'Config Restaurante' },
+  '/restaurante/caja':   { icon: <PointOfSale />,     color: '#7C3AED', label: 'Caja Restaurante' },
 };
 
 

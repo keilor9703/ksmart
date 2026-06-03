@@ -13,10 +13,11 @@ import {
   Restaurant, AttachMoney, Cancel, Send,
   CheckCircle, HourglassBottom, FiberManualRecord,
   Edit, Delete, Settings, Receipt, Note, MenuBook, Print,
+  PointOfSale, Replay,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
-import { imprimirComanda } from '../../utils/printComanda';
+import { imprimirComanda, imprimirCuenta } from '../../utils/printComanda';
 import usePolling from '../../hooks/usePolling';
 import ReciboDialog from '../../components/common/ReciboDialog';
 
@@ -257,6 +258,48 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
     return <ReciboDialog open onClose={() => { setReciboData(null); onClose(); }} venta={reciboData} empresa={empresa} vendedor={vendedor} />;
   }
 
+  const handleSolicitarCuenta = async () => {
+    setLoading(true);
+    try {
+      const res = await apiClient.patch(`/restaurante/comandas/${comanda.id}/solicitar-cuenta`);
+      imprimirCuenta({
+        mesa,
+        comanda: res.data,
+        items: itemsActivos,
+        empresaNombre: empresa?.nombre || '',
+        nombreMesero: vendedor || '',
+        propina,
+      });
+      toast.success(`Cuenta solicitada — Ticket #${res.data.numero_comanda}`);
+      onSuccess();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || 'Error al solicitar la cuenta');
+    } finally { setLoading(false); }
+  };
+
+  const handleReabrirCuenta = async () => {
+    setLoading(true);
+    try {
+      await apiClient.patch(`/restaurante/comandas/${comanda.id}/reabrir-cuenta`);
+      toast.success('Comanda reabierta');
+      onSuccess();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || 'Error al reabrir la comanda');
+    } finally { setLoading(false); }
+  };
+
+  const handleReimprimirCuenta = () => {
+    if (!itemsActivos.length) return toast.info('No hay ítems para imprimir');
+    imprimirCuenta({
+      mesa,
+      comanda,
+      items: itemsActivos,
+      empresaNombre: empresa?.nombre || '',
+      nombreMesero: vendedor || '',
+      propina,
+    });
+  };
+
   // ── Sección de ítems (reutilizada en móvil y desktop) ──────────────────────
   const PedidoContent = (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -322,6 +365,53 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
               <Typography fontWeight={800} fontSize={16}>Total</Typography>
               <Typography fontWeight={900} fontSize={18} color="#FF6020">{fmt(comanda.total + propina)}</Typography>
             </Box>
+
+            {/* Estado: en_cuenta (esperando pago en caja) */}
+            {comanda.estado === 'en_cuenta' ? (
+              <Box>
+                <Box sx={{
+                  p: 1.5, borderRadius: 2, mb: 1.5,
+                  bgcolor: alpha('#7C3AED', 0.08),
+                  border: `1.5px solid ${alpha('#7C3AED', 0.3)}`,
+                  textAlign: 'center',
+                }}>
+                  <PointOfSale sx={{ color: '#7C3AED', fontSize: 22, mb: 0.5 }} />
+                  <Typography fontSize={13} fontWeight={800} color="#7C3AED">
+                    Cliente en caja — Ticket #{comanda.numero_comanda}
+                  </Typography>
+                  <Typography fontSize={11} color="text.secondary" mt={0.3}>
+                    El cajero procesará el pago
+                  </Typography>
+                </Box>
+                <Stack spacing={1}>
+                  <Button fullWidth variant="outlined" size="small"
+                    startIcon={<Print />}
+                    onClick={handleReimprimirCuenta}
+                    sx={{ borderRadius: 2, fontWeight: 700, fontSize: 12, borderColor: '#7C3AED', color: '#7C3AED' }}>
+                    Reimprimir ticket de cuenta
+                  </Button>
+                  <Button fullWidth variant="outlined" size="small"
+                    startIcon={<Replay />}
+                    onClick={handleReabrirCuenta}
+                    disabled={loading}
+                    sx={{ borderRadius: 2, fontWeight: 700, fontSize: 12, borderColor: '#F59E0B', color: '#F59E0B' }}>
+                    Reabrir (cliente volvió a la mesa)
+                  </Button>
+                </Stack>
+                <Divider sx={{ my: 1.5 }}><Typography fontSize={10} color="text.disabled">O cobrar directamente</Typography></Divider>
+              </Box>
+            ) : (
+              /* Botón: solicitar cuenta para que vaya a la caja */
+              <Button fullWidth variant="outlined"
+                disabled={loading || (!config?.imprimir_comanda_auto && (hayPendientes || hayEnPrep))}
+                startIcon={loading ? <CircularProgress size={15} color="inherit" /> : <PointOfSale />}
+                onClick={handleSolicitarCuenta}
+                sx={{ borderRadius: 2, fontWeight: 700, fontSize: 13, py: 1, mb: 1.5, borderColor: '#7C3AED', color: '#7C3AED', '&:hover': { bgcolor: alpha('#7C3AED', 0.06), borderColor: '#6D28D9' } }}>
+                Pedir cuenta → Cliente va a la caja
+              </Button>
+            )}
+
+            {/* Cobrar directamente (mesero cobra sin pasar por caja) */}
             <FormControl size="small" fullWidth sx={{ mb: 1.5 }}>
               <InputLabel>Método de pago</InputLabel>
               <Select value={metodo} onChange={e => setMetodo(e.target.value)} label="Método de pago" sx={{ borderRadius: 2 }}>
@@ -333,8 +423,8 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
             <Button fullWidth variant="contained" disabled={loading || hayPendientes || hayEnPrep}
               startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <Receipt />}
               onClick={handleCerrarCuenta}
-              sx={{ borderRadius: 2, fontWeight: 800, fontSize: 14, py: 1.2, bgcolor: '#7C3AED', '&:hover': { bgcolor: '#6D28D9' }, mb: 0.5 }}>
-              Cerrar cuenta y cobrar
+              sx={{ borderRadius: 2, fontWeight: 800, fontSize: 14, py: 1.2, bgcolor: '#059669', '&:hover': { bgcolor: '#047857' }, mb: 0.5 }}>
+              Cobrar directamente (mesero)
             </Button>
             {(hayPendientes || hayEnPrep) && (
               <Typography fontSize={11} color="text.secondary" textAlign="center">
