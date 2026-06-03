@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 
-import schemas
+import models, schemas
 from api.deps import get_db, get_current_active_user
 from crud import grupos_producto as crud_grupos
 
@@ -37,6 +37,21 @@ def update_grupo(
     if not grupo:
         raise HTTPException(status_code=404, detail="Grupo no encontrado o no se puede modificar")
     return grupo
+
+
+@router.patch("/{grupo_id}/config", response_model=schemas.GrupoProductoOut)
+def update_grupo_config(
+    grupo_id: int,
+    data: schemas.GrupoConfigUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_active_user),
+):
+    """Actualiza solo requiere_cocina y visible_pos para esta empresa.
+    Funciona tanto en grupos predefinidos como personalizados."""
+    existe = db.query(models.GrupoProducto).filter(models.GrupoProducto.id == grupo_id).first()
+    if not existe:
+        raise HTTPException(status_code=404, detail="Categoría no encontrada")
+    return crud_grupos.upsert_grupo_config(db, current_user.empresa_id, grupo_id, data)
 
 
 @router.delete("/{grupo_id}", status_code=204)

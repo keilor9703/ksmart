@@ -72,17 +72,17 @@ def get_productos(db: Session, empresa_id: int, skip: int = 0, limit: int = 100,
         models.Producto.vigente == True,
     )
     if solo_pos:
-        # Solo productos cuya categoría está marcada como visible en POS
         from sqlalchemy import or_
-        visible_ids = [
-            gid for (gid,) in db.query(models.GrupoProducto.id).filter(
-                or_(
-                    models.GrupoProducto.empresa_id.is_(None),
-                    models.GrupoProducto.empresa_id == empresa_id,
-                ),
-                models.GrupoProducto.visible_pos == True,
-            ).all()
-        ]
+        from crud.grupos_producto import _get_overrides, _apply_empresa_overrides
+        # Traer todos los grupos visibles para esta empresa con overlay aplicado
+        grupos = db.query(models.GrupoProducto).filter(
+            or_(
+                models.GrupoProducto.empresa_id.is_(None),
+                models.GrupoProducto.empresa_id == empresa_id,
+            )
+        ).all()
+        _apply_empresa_overrides(grupos, _get_overrides(db, empresa_id))
+        visible_ids = [g.id for g in grupos if g.visible_pos]
         q = q.filter(models.Producto.grupo_item.in_(visible_ids))
     items = q.offset(skip).limit(limit).all()
     return attach_impuestos_to_productos(db, empresa_id, items)

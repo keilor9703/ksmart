@@ -259,6 +259,8 @@ class GrupoProducto(Base):
     - empresa_id = NULL → grupo predefinido del sistema (compartido por todos los tenants)
     - empresa_id = X   → grupo personalizado creado por el tenant X
     Los productos referencian el id de esta tabla en grupo_item.
+    Los flags requiere_cocina y visible_pos pueden ser sobreescritos por empresa
+    usando la tabla empresa_grupo_config.
     """
     __tablename__ = "grupos_producto"
     id             = Column(Integer, primary_key=True, index=True)
@@ -268,10 +270,23 @@ class GrupoProducto(Base):
     color          = Column(String(20), default='#94a3b8')
     es_predefinido = Column(Boolean, default=False)
     orden          = Column(Integer, default=99)
-    requiere_cocina = Column(Boolean, default=False)  # True → platos preparados; no genera mov. inventario
-    visible_pos    = Column(Boolean, default=True, nullable=False)  # True → sus productos aparecen en POS y menú de meseros
+    requiere_cocina = Column(Boolean, default=False)
+    visible_pos    = Column(Boolean, default=True, nullable=False)
 
     empresa = relationship("Empresa")
+
+
+class EmpresaGrupoConfig(Base):
+    """
+    Override por-empresa de los flags de una categoría (predefinida o custom).
+    Si existe una fila aquí para (empresa_id, grupo_id), sus valores prevalecen
+    sobre los del GrupoProducto compartido.
+    """
+    __tablename__ = "empresa_grupo_config"
+    empresa_id      = Column(Integer, ForeignKey('empresas.id'), primary_key=True)
+    grupo_id        = Column(Integer, ForeignKey('grupos_producto.id'), primary_key=True)
+    requiere_cocina = Column(Boolean, nullable=True)  # None → usar valor del grupo
+    visible_pos     = Column(Boolean, nullable=True)  # None → usar valor del grupo
 
 
 class Producto(Base, TenantMixin):

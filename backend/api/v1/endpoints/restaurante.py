@@ -355,6 +355,10 @@ def agregar_items(
     cfg = db.query(models.ConfigRestaurante).filter_by(empresa_id=user.empresa_id).first()
     areas = cfg.areas_cocina if cfg else ["Cocina general"]
 
+    # Cargar overrides por-empresa una sola vez
+    from crud.grupos_producto import _get_overrides
+    overrides = _get_overrides(db, user.empresa_id)
+
     for it in items:
         area = it.area_cocina
         va_a_cocina = True  # default: va a cocina
@@ -364,8 +368,12 @@ def agregar_items(
                 models.Producto.id == it.producto_id,
                 models.Producto.vigente == True,
             ).first()
-            if prod:
-                va_a_cocina = prod.requiere_cocina
+            if prod and prod.grupo:
+                ov = overrides.get(prod.grupo_item)
+                if ov and ov.requiere_cocina is not None:
+                    va_a_cocina = ov.requiere_cocina
+                else:
+                    va_a_cocina = prod.requiere_cocina
                 if not area and va_a_cocina:
                     area = areas[0] if areas else "Cocina general"
 

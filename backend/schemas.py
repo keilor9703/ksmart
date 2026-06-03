@@ -278,6 +278,11 @@ class GrupoProductoOut(GrupoProductoBase):
     es_predefinido: bool
     model_config = ConfigDict(from_attributes=True)
 
+class GrupoConfigUpdate(BaseModel):
+    """Payload para actualizar solo los dos flags por empresa."""
+    requiere_cocina: Optional[bool] = None
+    visible_pos: Optional[bool] = None
+
 
 # =========================
 # PRODUCTOS / INVENTARIO

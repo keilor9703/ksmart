@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
+from typing import Optional
 import models, schemas
 
 
@@ -12,8 +13,27 @@ GRUPOS_PREDEFINIDOS = [
 ]
 
 
+def _apply_empresa_overrides(grupos: list, overrides: dict) -> list:
+    """Aplica el overlay por-empresa sobre la lista de grupos."""
+    for g in grupos:
+        if g.id in overrides:
+            ov = overrides[g.id]
+            if ov.requiere_cocina is not None:
+                g.requiere_cocina = ov.requiere_cocina
+            if ov.visible_pos is not None:
+                g.visible_pos = ov.visible_pos
+    return grupos
+
+
+def _get_overrides(db: Session, empresa_id: int) -> dict:
+    rows = db.query(models.EmpresaGrupoConfig).filter(
+        models.EmpresaGrupoConfig.empresa_id == empresa_id
+    ).all()
+    return {r.grupo_id: r for r in rows}
+
+
 def get_grupos(db: Session, empresa_id: int):
-    return (
+    grupos = (
         db.query(models.GrupoProducto)
         .filter(
             or_(
@@ -24,6 +44,31 @@ def get_grupos(db: Session, empresa_id: int):
         .order_by(models.GrupoProducto.orden, models.GrupoProducto.id)
         .all()
     )
+    return _apply_empresa_overrides(grupos, _get_overrides(db, empresa_id))
+
+
+def upsert_grupo_config(db: Session, empresa_id: int, grupo_id: int, data: schemas.GrupoConfigUpdate):
+    """Crea o actualiza el override por-empresa para una categoría."""
+    cfg = db.query(models.EmpresaGrupoConfig).filter(
+        models.EmpresaGrupoConfig.empresa_id == empresa_id,
+        models.EmpresaGrupoConfig.grupo_id == grupo_id,
+    ).first()
+    if not cfg:
+        cfg = models.EmpresaGrupoConfig(empresa_id=empresa_id, grupo_id=grupo_id)
+        db.add(cfg)
+    if data.requiere_cocina is not None:
+        cfg.requiere_cocina = data.requiere_cocina
+    if data.visible_pos is not None:
+        cfg.visible_pos = data.visible_pos
+    db.commit()
+    db.refresh(cfg)
+    # Devolver el grupo con el override aplicado
+    grupo = db.query(models.GrupoProducto).filter(models.GrupoProducto.id == grupo_id).first()
+    if cfg.requiere_cocina is not None:
+        grupo.requiere_cocina = cfg.requiere_cocina
+    if cfg.visible_pos is not None:
+        grupo.visible_pos = cfg.visible_pos
+    return grupo
 
 
 def get_grupo(db: Session, empresa_id: int, grupo_id: int):

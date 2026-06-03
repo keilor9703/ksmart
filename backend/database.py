@@ -1270,6 +1270,25 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v71)
                 logger.info("V71 (visible_pos + rename Platos) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V72 - empresa_grupo_config: overrides por-empresa de flags
+            # ═══════════════════════════════════════════════════════════════
+            migration_v72 = "v72_empresa_grupo_config"
+            if not _migration_already_applied(conn, migration_v72):
+                if not _table_exists(conn, "empresa_grupo_config"):
+                    conn.execute(text("""
+                        CREATE TABLE empresa_grupo_config (
+                            empresa_id INTEGER NOT NULL REFERENCES empresas(id),
+                            grupo_id   INTEGER NOT NULL REFERENCES grupos_producto(id),
+                            requiere_cocina BOOLEAN,
+                            visible_pos     BOOLEAN,
+                            PRIMARY KEY (empresa_id, grupo_id)
+                        )
+                    """))
+                    logger.info("V72: tabla empresa_grupo_config creada")
+                _mark_migration_applied(conn, migration_v72)
+                logger.info("V72 (empresa_grupo_config) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

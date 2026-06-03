@@ -6,7 +6,7 @@ import {
   Paper, Tooltip, Alert, useTheme, useMediaQuery, Divider,
   FormControlLabel, Switch,
 } from '@mui/material';
-import { Add, Edit, Delete, Lock, OutdoorGrill, PointOfSale } from '@mui/icons-material';
+import { Add, Edit, Delete, Lock, OutdoorGrill, PointOfSale, Settings } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
 
@@ -19,7 +19,7 @@ const COLOR_PRESETS = [
 const DEFAULT_FORM = { nombre: '', codigo: '', color: '#6366F1', orden: 99, requiere_cocina: false, visible_pos: true };
 
 // ── Card móvil por categoría ──────────────────────────────────────────────────
-const GrupoCard = ({ grupo, onEdit, onDelete }) => (
+const GrupoCard = ({ grupo, onEdit, onDelete, onConfig }) => (
   <Paper sx={{
     p: 2, mb: 1.5, borderRadius: 2.5,
     border: '1px solid', borderColor: 'divider',
@@ -35,8 +35,16 @@ const GrupoCard = ({ grupo, onEdit, onDelete }) => (
       </Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
         {grupo.es_predefinido
-          ? <Chip label="Sistema" size="small" icon={<Lock sx={{ fontSize: '11px !important' }} />}
-              sx={{ fontSize: 9, bgcolor: 'action.hover', color: 'text.secondary', height: 20 }} />
+          ? <>
+              <Chip label="Sistema" size="small" icon={<Lock sx={{ fontSize: '11px !important' }} />}
+                sx={{ fontSize: 9, bgcolor: 'action.hover', color: 'text.secondary', height: 20 }} />
+              <Tooltip title="Configurar POS / Cocina">
+                <IconButton size="small" onClick={() => onConfig(grupo)}
+                  sx={{ color: '#F59E0B', bgcolor: '#FFFBEB', borderRadius: 1.5, width: 28, height: 28 }}>
+                  <Settings sx={{ fontSize: 14 }} />
+                </IconButton>
+              </Tooltip>
+            </>
           : <>
               <Tooltip title="Editar">
                 <IconButton size="small" onClick={() => onEdit(grupo)}
@@ -84,13 +92,17 @@ const GrupoCard = ({ grupo, onEdit, onDelete }) => (
 );
 
 export default function GruposProductoManager({ onGruposChange }) {
-  const [grupos, setGrupos]           = useState([]);
-  const [open, setOpen]               = useState(false);
-  const [editing, setEditing]         = useState(null);
-  const [form, setForm]               = useState(DEFAULT_FORM);
-  const [saving, setSaving]           = useState(false);
-  const [deleteId, setDeleteId]       = useState(null);
+  const [grupos, setGrupos]               = useState([]);
+  const [open, setOpen]                   = useState(false);
+  const [editing, setEditing]             = useState(null);
+  const [form, setForm]                   = useState(DEFAULT_FORM);
+  const [saving, setSaving]               = useState(false);
+  const [deleteId, setDeleteId]           = useState(null);
   const [esRestaurante, setEsRestaurante] = useState(false);
+  // Config dialog — solo flags — para grupos predefinidos
+  const [configGrupo, setConfigGrupo]     = useState(null); // grupo siendo configurado
+  const [configForm, setConfigForm]       = useState({ requiere_cocina: false, visible_pos: true });
+  const [savingConfig, setSavingConfig]   = useState(false);
 
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -151,6 +163,25 @@ export default function GruposProductoManager({ onGruposChange }) {
     }
   };
 
+  const openConfig = (g) => {
+    setConfigGrupo(g);
+    setConfigForm({ requiere_cocina: g.requiere_cocina || false, visible_pos: g.visible_pos !== false });
+  };
+
+  const handleSaveConfig = async () => {
+    setSavingConfig(true);
+    try {
+      await apiClient.patch(`/grupos-producto/${configGrupo.id}/config`, configForm);
+      toast.success('Configuración guardada');
+      setConfigGrupo(null);
+      fetchGrupos();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al guardar');
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
 
@@ -175,7 +206,7 @@ export default function GruposProductoManager({ onGruposChange }) {
       {isMobile ? (
         <Box>
           {grupos.map(g => (
-            <GrupoCard key={g.id} grupo={g} onEdit={openEdit} onDelete={setDeleteId} />
+            <GrupoCard key={g.id} grupo={g} onEdit={openEdit} onDelete={setDeleteId} onConfig={openConfig} />
           ))}
         </Box>
       ) : (
@@ -229,22 +260,31 @@ export default function GruposProductoManager({ onGruposChange }) {
                       </TableCell>
                     )}
                     <TableCell>
-                      {!g.es_predefinido && (
-                        <Box sx={{ display: 'flex', gap: 0.5 }}>
-                          <Tooltip title="Editar">
-                            <IconButton size="small" onClick={() => openEdit(g)}
-                              sx={{ color: '#6366F1', '&:hover': { bgcolor: '#EEF2FF' } }}>
-                              <Edit fontSize="small" />
+                      <Box sx={{ display: 'flex', gap: 0.5 }}>
+                        {g.es_predefinido ? (
+                          <Tooltip title="Configurar POS / Cocina">
+                            <IconButton size="small" onClick={() => openConfig(g)}
+                              sx={{ color: '#F59E0B', '&:hover': { bgcolor: '#FFFBEB' } }}>
+                              <Settings fontSize="small" />
                             </IconButton>
                           </Tooltip>
-                          <Tooltip title="Eliminar">
-                            <IconButton size="small" onClick={() => setDeleteId(g.id)}
-                              sx={{ color: '#EF4444', '&:hover': { bgcolor: '#FEF2F2' } }}>
-                              <Delete fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </Box>
-                      )}
+                        ) : (
+                          <>
+                            <Tooltip title="Editar">
+                              <IconButton size="small" onClick={() => openEdit(g)}
+                                sx={{ color: '#6366F1', '&:hover': { bgcolor: '#EEF2FF' } }}>
+                                <Edit fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Eliminar">
+                              <IconButton size="small" onClick={() => setDeleteId(g.id)}
+                                sx={{ color: '#EF4444', '&:hover': { bgcolor: '#FEF2F2' } }}>
+                                <Delete fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </>
+                        )}
+                      </Box>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -385,6 +425,73 @@ export default function GruposProductoManager({ onGruposChange }) {
           <Button onClick={handleDelete} color="error" variant="contained"
             sx={{ borderRadius: 2, fontWeight: 600, textTransform: 'none' }}>
             Eliminar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Modal configurar flags para categorías del sistema ── */}
+      <Dialog open={Boolean(configGrupo)} onClose={() => setConfigGrupo(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700, fontSize: 16 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ width: 14, height: 14, borderRadius: 1, bgcolor: configGrupo?.color, flexShrink: 0 }} />
+            {configGrupo?.nombre}
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Typography fontSize={12} color="text.secondary" sx={{ mb: 2 }}>
+            Estos ajustes solo afectan a tu empresa.
+          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Box sx={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              p: 1.5, borderRadius: 2,
+              border: `1px solid ${configForm.visible_pos ? 'rgba(16,185,129,0.4)' : 'rgba(0,0,0,0.12)'}`,
+              bgcolor: configForm.visible_pos ? 'rgba(16,185,129,0.06)' : 'transparent',
+              transition: 'all 0.2s',
+            }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <PointOfSale sx={{ fontSize: 18, color: configForm.visible_pos ? '#10B981' : 'text.disabled' }} />
+                <Box>
+                  <Typography fontSize={13} fontWeight={600}>¿Visible en POS?</Typography>
+                  <Typography fontSize={11} color="text.secondary">Aparece en ventas POS y en el menú de meseros</Typography>
+                </Box>
+              </Box>
+              <Switch
+                checked={configForm.visible_pos}
+                onChange={e => setConfigForm(f => ({ ...f, visible_pos: e.target.checked }))}
+                size="small"
+                sx={{ '& .Mui-checked + .MuiSwitch-track': { bgcolor: '#10B981 !important' } }}
+              />
+            </Box>
+
+            <Box sx={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              p: 1.5, borderRadius: 2,
+              border: `1px solid ${configForm.requiere_cocina ? 'rgba(236,72,153,0.4)' : 'rgba(0,0,0,0.12)'}`,
+              bgcolor: configForm.requiere_cocina ? 'rgba(236,72,153,0.06)' : 'transparent',
+              transition: 'all 0.2s',
+            }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <OutdoorGrill sx={{ fontSize: 18, color: configForm.requiere_cocina ? '#EC4899' : 'text.disabled' }} />
+                <Box>
+                  <Typography fontSize={13} fontWeight={600}>¿Va a cocina?</Typography>
+                  <Typography fontSize={11} color="text.secondary">Los pedidos de esta categoría se envían a cocina</Typography>
+                </Box>
+              </Box>
+              <Switch
+                checked={configForm.requiere_cocina}
+                onChange={e => setConfigForm(f => ({ ...f, requiere_cocina: e.target.checked }))}
+                size="small"
+                sx={{ '& .Mui-checked + .MuiSwitch-track': { bgcolor: '#EC4899 !important' } }}
+              />
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setConfigGrupo(null)} sx={{ color: 'text.secondary', fontWeight: 600 }}>Cancelar</Button>
+          <Button onClick={handleSaveConfig} variant="contained" disabled={savingConfig}
+            sx={{ borderRadius: 2, fontWeight: 600, textTransform: 'none' }}>
+            {savingConfig ? 'Guardando...' : 'Guardar'}
           </Button>
         </DialogActions>
       </Dialog>
