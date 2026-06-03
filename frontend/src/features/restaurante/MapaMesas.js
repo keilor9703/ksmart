@@ -6,7 +6,7 @@ import {
   TextField, Select, MenuItem, FormControl, InputLabel,
   List, ListItem, ListItemText, ListItemSecondaryAction,
   Paper, ToggleButton, ToggleButtonGroup, Tab, Tabs,
-  useMediaQuery, Switch, FormControlLabel,
+  useMediaQuery, Switch, FormControlLabel, Collapse,
 } from '@mui/material';
 import {
   TableRestaurant, Add, Refresh, Close, Person,
@@ -153,6 +153,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
   const [linkPagoModalOpen, setLinkPagoModalOpen] = useState(false);
   const pendingCerrarRef = useRef(false);
   const [omitirInventario, setOmitirInventario] = useState(false);
+  const [cartExpanded, setCartExpanded] = useState(true);
   const omitirInventarioRef = useRef(false);
   omitirInventarioRef.current = omitirInventario;
 
@@ -510,7 +511,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
           sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: 14 } }} />
       </Box>
 
-      <Box sx={{ flex: 1, overflowY: 'auto', p: 1.5, pb: selectedItems.length > 0 ? (isMobile ? '60vh' : '48vh') : 1.5 }}>
+      <Box sx={{ flex: 1, overflowY: 'auto', p: 1.5 }}>
         {productosFiltrados.length === 0 ? (
           <Typography fontSize={13} color="text.disabled" textAlign="center" sx={{ mt: 4 }}>Sin productos</Typography>
         ) : (
@@ -573,111 +574,106 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
       {/* Carrito — ítems seleccionados para enviar */}
       {selectedItems.length > 0 && (
         <Box sx={{
-          position: isMobile ? 'fixed' : 'sticky',
-          bottom: 0, left: 0, right: 0,
+          flexShrink: 0,
           bgcolor: theme.palette.background.paper,
           borderTop: `2px solid ${alpha('#059669', 0.3)}`,
-          p: 1.5, zIndex: 10,
-          boxShadow: '0 -4px 20px rgba(0,0,0,0.14)',
-          maxHeight: isMobile ? '55vh' : '45vh',
-          overflowY: 'auto',
+          boxShadow: '0 -4px 20px rgba(0,0,0,0.12)',
         }}>
-          <Typography fontSize={11} fontWeight={700} color="text.secondary" textTransform="uppercase"
-            letterSpacing={0.8} mb={1}>
-            Para enviar ({selectedItems.reduce((a, i) => a + i.cantidad, 0)} ítems)
-          </Typography>
+          {/* Cabecera: resumen + toggle expandir */}
+          <Box
+            onClick={() => setCartExpanded(e => !e)}
+            sx={{
+              display: 'flex', alignItems: 'center', gap: 1,
+              px: 1.5, py: 0.9, cursor: 'pointer',
+              '&:hover': { bgcolor: alpha('#059669', 0.04) },
+            }}
+          >
+            <Box sx={{
+              width: 22, height: 22, borderRadius: '50%',
+              bgcolor: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <Typography fontSize={11} fontWeight={800} sx={{ color: '#fff' }}>
+                {selectedItems.reduce((a, i) => a + i.cantidad, 0)}
+              </Typography>
+            </Box>
+            <Typography fontSize={12} fontWeight={700} color="#059669" sx={{ flex: 1 }}>
+              ítem{selectedItems.reduce((a, i) => a + i.cantidad, 0) !== 1 ? 's' : ''} en el pedido
+            </Typography>
+            {cartExpanded
+              ? <ExpandLess sx={{ fontSize: 18, color: '#059669' }} />
+              : <ExpandMore sx={{ fontSize: 18, color: '#059669' }} />
+            }
+          </Box>
 
-          <Stack spacing={0.8} mb={1.2}>
-            {selectedItems.map(it => (
-              <Box key={it.producto_id} sx={{
-                borderRadius: 2,
-                border: `1px solid ${alpha('#059669', notaAbierta === it.producto_id ? 0.5 : 0.15)}`,
-                bgcolor: alpha('#059669', 0.04),
-                overflow: 'hidden',
-              }}>
-                {/* Fila principal */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.8 }}>
-                  {/* Nombre */}
-                  <Typography fontSize={13} fontWeight={600} sx={{ flex: 1, minWidth: 0 }} noWrap>
-                    {it.nombre_producto}
-                  </Typography>
-
-                  {/* Controles de cantidad */}
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, flexShrink: 0 }}>
-                    <IconButton size="small" onClick={() => updateCantidad(it.producto_id, -1)}
-                      sx={{ width: 24, height: 24, bgcolor: alpha('#000', 0.06), borderRadius: 1, p: 0 }}>
-                      <Typography fontSize={16} lineHeight={1} sx={{ userSelect: 'none' }}>−</Typography>
-                    </IconButton>
-                    <Typography fontSize={13} fontWeight={700} sx={{ minWidth: 20, textAlign: 'center' }}>
-                      {it.cantidad}
-                    </Typography>
-                    <IconButton size="small" onClick={() => updateCantidad(it.producto_id, 1)}
-                      sx={{ width: 24, height: 24, bgcolor: alpha('#059669', 0.12), borderRadius: 1, p: 0 }}>
-                      <Typography fontSize={16} lineHeight={1} sx={{ color: '#059669', userSelect: 'none' }}>+</Typography>
-                    </IconButton>
+          {/* Lista desplegable de ítems */}
+          <Collapse in={cartExpanded}>
+            <Box sx={{ maxHeight: 200, overflowY: 'auto', px: 1.5, pb: 1 }}>
+              <Stack spacing={0.7}>
+                {selectedItems.map(it => (
+                  <Box key={it.producto_id} sx={{
+                    borderRadius: 2,
+                    border: `1px solid ${alpha('#059669', notaAbierta === it.producto_id ? 0.5 : 0.15)}`,
+                    bgcolor: alpha('#059669', 0.04), overflow: 'hidden',
+                  }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.7 }}>
+                      <Typography fontSize={13} fontWeight={600} sx={{ flex: 1, minWidth: 0 }} noWrap>
+                        {it.nombre_producto}
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, flexShrink: 0 }}>
+                        <IconButton size="small" onClick={e => { e.stopPropagation(); updateCantidad(it.producto_id, -1); }}
+                          sx={{ width: 22, height: 22, bgcolor: alpha('#000', 0.06), borderRadius: 1, p: 0 }}>
+                          <Typography fontSize={15} lineHeight={1} sx={{ userSelect: 'none' }}>−</Typography>
+                        </IconButton>
+                        <Typography fontSize={13} fontWeight={700} sx={{ minWidth: 18, textAlign: 'center' }}>
+                          {it.cantidad}
+                        </Typography>
+                        <IconButton size="small" onClick={e => { e.stopPropagation(); updateCantidad(it.producto_id, 1); }}
+                          sx={{ width: 22, height: 22, bgcolor: alpha('#059669', 0.12), borderRadius: 1, p: 0 }}>
+                          <Typography fontSize={15} lineHeight={1} sx={{ color: '#059669', userSelect: 'none' }}>+</Typography>
+                        </IconButton>
+                      </Box>
+                      <Tooltip title={it.notas ? `Nota: ${it.notas}` : 'Agregar nota'}>
+                        <IconButton size="small"
+                          onClick={e => { e.stopPropagation(); setNotaAbierta(n => n === it.producto_id ? null : it.producto_id); }}
+                          sx={{ p: 0.3, color: it.notas ? '#F59E0B' : 'text.disabled' }}>
+                          <Note sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      </Tooltip>
+                      <IconButton size="small" onClick={e => { e.stopPropagation(); removeSelected(it.producto_id); }}
+                        sx={{ p: 0.3, color: '#EF4444' }}>
+                        <Close sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    </Box>
+                    {notaAbierta === it.producto_id && (
+                      <Box sx={{ px: 1, pb: 0.8 }}>
+                        <TextField autoFocus size="small" fullWidth
+                          placeholder="Ej: sin sal, sin cebolla..."
+                          value={it.notas || ''}
+                          onChange={e => updateNota(it.producto_id, e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') setNotaAbierta(null); }}
+                          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, fontSize: 12 } }}
+                        />
+                      </Box>
+                    )}
+                    {it.notas && notaAbierta !== it.producto_id && (
+                      <Box sx={{ px: 1, pb: 0.5 }}>
+                        <Typography fontSize={11} sx={{ color: '#F59E0B', fontStyle: 'italic' }}>📝 {it.notas}</Typography>
+                      </Box>
+                    )}
                   </Box>
+                ))}
+              </Stack>
+            </Box>
+          </Collapse>
 
-                  {/* Botón nota */}
-                  <Tooltip title={it.notas ? `Nota: ${it.notas}` : 'Agregar nota'}>
-                    <IconButton size="small"
-                      onClick={() => setNotaAbierta(n => n === it.producto_id ? null : it.producto_id)}
-                      sx={{ p: 0.3, color: it.notas ? '#F59E0B' : 'text.disabled' }}>
-                      <Note sx={{ fontSize: 17 }} />
-                    </IconButton>
-                  </Tooltip>
-
-                  {/* Eliminar */}
-                  <IconButton size="small" onClick={() => removeSelected(it.producto_id)}
-                    sx={{ p: 0.3, color: '#EF4444' }}>
-                    <Close sx={{ fontSize: 15 }} />
-                  </IconButton>
-                </Box>
-
-                {/* Campo de nota inline (se expande al tocar el ícono) */}
-                {notaAbierta === it.producto_id && (
-                  <Box sx={{ px: 1, pb: 1 }}>
-                    <TextField
-                      autoFocus
-                      size="small"
-                      fullWidth
-                      placeholder="Ej: sin sal, sin cebolla, punto de cocción..."
-                      value={it.notas || ''}
-                      onChange={e => updateNota(it.producto_id, e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') setNotaAbierta(null); }}
-                      InputProps={{
-                        startAdornment: (
-                          <Typography fontSize={13} sx={{ mr: 0.5, color: '#F59E0B' }}>📝</Typography>
-                        ),
-                      }}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 1.5, fontSize: 13,
-                          '& fieldset': { borderColor: alpha('#F59E0B', 0.5) },
-                          '&:hover fieldset': { borderColor: '#F59E0B' },
-                          '&.Mui-focused fieldset': { borderColor: '#F59E0B' },
-                        },
-                      }}
-                    />
-                  </Box>
-                )}
-
-                {/* Badge de nota activa */}
-                {it.notas && notaAbierta !== it.producto_id && (
-                  <Box sx={{ px: 1, pb: 0.6 }}>
-                    <Typography fontSize={11} sx={{ color: '#F59E0B', fontStyle: 'italic' }}>
-                      📝 {it.notas}
-                    </Typography>
-                  </Box>
-                )}
-              </Box>
-            ))}
-          </Stack>
-
-          <Button fullWidth variant="contained" onClick={handleEnviarCocina} disabled={loading}
-            startIcon={loading ? <CircularProgress size={15} color="inherit" /> : <Send />}
-            sx={{ borderRadius: 2, fontWeight: 800, fontSize: 14, py: 1.1, bgcolor: '#059669', '&:hover': { bgcolor: '#047857' } }}>
-            Enviar {selectedItems.reduce((a, i) => a + i.cantidad, 0)} ítem(s) a cocina
-          </Button>
+          {/* Botón enviar — siempre visible */}
+          <Box sx={{ px: 1.5, pb: 1.5, pt: 0.5 }}>
+            <Button fullWidth variant="contained" onClick={handleEnviarCocina} disabled={loading}
+              startIcon={loading ? <CircularProgress size={15} color="inherit" /> : <Send />}
+              sx={{ borderRadius: 2, fontWeight: 800, fontSize: 14, py: 1.1, bgcolor: '#059669', '&:hover': { bgcolor: '#047857' } }}>
+              Enviar {selectedItems.reduce((a, i) => a + i.cantidad, 0)} ítem(s) a cocina
+            </Button>
+          </Box>
         </Box>
       )}
     </Box>
@@ -816,67 +812,103 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
             {/* Carrito — ítems seleccionados para enviar */}
             {selectedItems.length > 0 && (
               <Box sx={{
-                borderTop: `2px solid ${alpha('#059669', 0.3)}`,
-                p: 1.5, flexShrink: 0,
+                flexShrink: 0,
                 bgcolor: theme.palette.background.paper,
+                borderTop: `2px solid ${alpha('#059669', 0.3)}`,
                 boxShadow: '0 -4px 20px rgba(0,0,0,0.10)',
-                maxHeight: '45vh', overflowY: 'auto',
               }}>
-                <Typography fontSize={11} fontWeight={700} color="text.secondary"
-                  textTransform="uppercase" letterSpacing={0.8} mb={1}>
-                  Para enviar ({selectedItems.reduce((a, i) => a + i.cantidad, 0)} ítems)
-                </Typography>
-                <Stack spacing={0.8} mb={1.2}>
-                  {selectedItems.map(it => (
-                    <Box key={it.producto_id} sx={{
-                      borderRadius: 2,
-                      border: `1px solid ${alpha('#059669', notaAbierta === it.producto_id ? 0.5 : 0.15)}`,
-                      bgcolor: alpha('#059669', 0.04), overflow: 'hidden',
-                    }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.8 }}>
-                        <Typography fontSize={13} fontWeight={600} sx={{ flex: 1, minWidth: 0 }} noWrap>
-                          {it.nombre_producto}
-                        </Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, flexShrink: 0 }}>
-                          <IconButton size="small" onClick={() => updateCantidad(it.producto_id, -1)}
-                            sx={{ width: 24, height: 24, bgcolor: alpha('#000', 0.06), borderRadius: 1, p: 0 }}>
-                            <Typography fontSize={16} lineHeight={1} sx={{ userSelect: 'none' }}>−</Typography>
-                          </IconButton>
-                          <Typography fontSize={13} fontWeight={700} sx={{ minWidth: 20, textAlign: 'center' }}>
-                            {it.cantidad}
-                          </Typography>
-                          <IconButton size="small" onClick={() => updateCantidad(it.producto_id, 1)}
-                            sx={{ width: 24, height: 24, bgcolor: alpha('#059669', 0.12), borderRadius: 1, p: 0 }}>
-                            <Typography fontSize={16} lineHeight={1} sx={{ color: '#059669', userSelect: 'none' }}>+</Typography>
-                          </IconButton>
+                {/* Cabecera: resumen + toggle */}
+                <Box
+                  onClick={() => setCartExpanded(e => !e)}
+                  sx={{
+                    display: 'flex', alignItems: 'center', gap: 1,
+                    px: 1.5, py: 0.8, cursor: 'pointer',
+                    '&:hover': { bgcolor: alpha('#059669', 0.04) },
+                  }}
+                >
+                  <Box sx={{
+                    width: 20, height: 20, borderRadius: '50%',
+                    bgcolor: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    <Typography fontSize={10} fontWeight={800} sx={{ color: '#fff' }}>
+                      {selectedItems.reduce((a, i) => a + i.cantidad, 0)}
+                    </Typography>
+                  </Box>
+                  <Typography fontSize={11} fontWeight={700} color="#059669" sx={{ flex: 1 }}>
+                    ítem{selectedItems.reduce((a, i) => a + i.cantidad, 0) !== 1 ? 's' : ''} en el pedido
+                  </Typography>
+                  {cartExpanded
+                    ? <ExpandLess sx={{ fontSize: 16, color: '#059669' }} />
+                    : <ExpandMore sx={{ fontSize: 16, color: '#059669' }} />
+                  }
+                </Box>
+
+                {/* Lista desplegable de ítems */}
+                <Collapse in={cartExpanded}>
+                  <Box sx={{ maxHeight: 180, overflowY: 'auto', px: 1.5, pb: 0.5 }}>
+                    <Stack spacing={0.6}>
+                      {selectedItems.map(it => (
+                        <Box key={it.producto_id} sx={{
+                          borderRadius: 2,
+                          border: `1px solid ${alpha('#059669', notaAbierta === it.producto_id ? 0.5 : 0.15)}`,
+                          bgcolor: alpha('#059669', 0.04), overflow: 'hidden',
+                        }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.6 }}>
+                            <Typography fontSize={12} fontWeight={600} sx={{ flex: 1, minWidth: 0 }} noWrap>
+                              {it.nombre_producto}
+                            </Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, flexShrink: 0 }}>
+                              <IconButton size="small" onClick={e => { e.stopPropagation(); updateCantidad(it.producto_id, -1); }}
+                                sx={{ width: 22, height: 22, bgcolor: alpha('#000', 0.06), borderRadius: 1, p: 0 }}>
+                                <Typography fontSize={15} lineHeight={1} sx={{ userSelect: 'none' }}>−</Typography>
+                              </IconButton>
+                              <Typography fontSize={12} fontWeight={700} sx={{ minWidth: 18, textAlign: 'center' }}>
+                                {it.cantidad}
+                              </Typography>
+                              <IconButton size="small" onClick={e => { e.stopPropagation(); updateCantidad(it.producto_id, 1); }}
+                                sx={{ width: 22, height: 22, bgcolor: alpha('#059669', 0.12), borderRadius: 1, p: 0 }}>
+                                <Typography fontSize={15} lineHeight={1} sx={{ color: '#059669', userSelect: 'none' }}>+</Typography>
+                              </IconButton>
+                            </Box>
+                            <Tooltip title={it.notas ? `Nota: ${it.notas}` : 'Agregar nota'}>
+                              <IconButton size="small"
+                                onClick={e => { e.stopPropagation(); setNotaAbierta(n => n === it.producto_id ? null : it.producto_id); }}
+                                sx={{ p: 0.3, color: it.notas ? '#F59E0B' : 'text.disabled' }}>
+                                <Note sx={{ fontSize: 15 }} />
+                              </IconButton>
+                            </Tooltip>
+                            <IconButton size="small" onClick={e => { e.stopPropagation(); removeSelected(it.producto_id); }}
+                              sx={{ p: 0.3, color: '#EF4444' }}>
+                              <Close sx={{ fontSize: 13 }} />
+                            </IconButton>
+                          </Box>
+                          {notaAbierta === it.producto_id && (
+                            <Box sx={{ px: 1, pb: 0.8 }}>
+                              <TextField autoFocus size="small" fullWidth placeholder="Nota para cocina..."
+                                value={it.notas || ''} onChange={e => updateNota(it.producto_id, e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') setNotaAbierta(null); }}
+                                sx={{ '& .MuiOutlinedInput-root': { fontSize: 12, borderRadius: 1.5 } }} />
+                            </Box>
+                          )}
+                          {it.notas && notaAbierta !== it.producto_id && (
+                            <Box sx={{ px: 1, pb: 0.5 }}>
+                              <Typography fontSize={10} sx={{ color: '#F59E0B', fontStyle: 'italic' }}>📝 {it.notas}</Typography>
+                            </Box>
+                          )}
                         </Box>
-                        <Tooltip title={it.notas ? `Nota: ${it.notas}` : 'Agregar nota'}>
-                          <IconButton size="small"
-                            onClick={() => setNotaAbierta(n => n === it.producto_id ? null : it.producto_id)}
-                            sx={{ p: 0.3, color: it.notas ? '#F59E0B' : 'text.disabled' }}>
-                            <Note sx={{ fontSize: 17 }} />
-                          </IconButton>
-                        </Tooltip>
-                        <IconButton size="small" onClick={() => removeSelected(it.producto_id)}
-                          sx={{ p: 0.3, color: 'text.disabled' }}>
-                          <Close sx={{ fontSize: 15 }} />
-                        </IconButton>
-                      </Box>
-                      {notaAbierta === it.producto_id && (
-                        <Box sx={{ px: 1, pb: 1 }}>
-                          <TextField size="small" fullWidth placeholder="Nota para cocina..."
-                            value={it.notas} onChange={e => updateNota(it.producto_id, e.target.value)}
-                            sx={{ '& .MuiOutlinedInput-root': { fontSize: 12, borderRadius: 1.5 } }} />
-                        </Box>
-                      )}
-                    </Box>
-                  ))}
-                </Stack>
-                <Button fullWidth variant="contained" onClick={handleEnviarCocina} disabled={loading}
-                  startIcon={loading ? <CircularProgress size={15} color="inherit" /> : <Send />}
-                  sx={{ borderRadius: 2, fontWeight: 800, fontSize: 13, py: 1, bgcolor: '#059669', '&:hover': { bgcolor: '#047857' } }}>
-                  Enviar {selectedItems.reduce((a, i) => a + i.cantidad, 0)} ítem(s) a cocina
-                </Button>
+                      ))}
+                    </Stack>
+                  </Box>
+                </Collapse>
+
+                {/* Botón enviar — siempre visible */}
+                <Box sx={{ px: 1.5, pb: 1.2, pt: 0.5 }}>
+                  <Button fullWidth variant="contained" onClick={handleEnviarCocina} disabled={loading}
+                    startIcon={loading ? <CircularProgress size={14} color="inherit" /> : <Send />}
+                    sx={{ borderRadius: 2, fontWeight: 800, fontSize: 13, py: 0.9, bgcolor: '#059669', '&:hover': { bgcolor: '#047857' } }}>
+                    Enviar {selectedItems.reduce((a, i) => a + i.cantidad, 0)} ítem(s) a cocina
+                  </Button>
+                </Box>
               </Box>
             )}
           </Box>
