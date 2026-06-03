@@ -154,8 +154,26 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
   const pendingCerrarRef = useRef(false);
   const [omitirInventario, setOmitirInventario] = useState(false);
   const [cartExpanded, setCartExpanded] = useState(true);
+  const [recibido, setRecibido] = useState('');
   const omitirInventarioRef = useRef(false);
   omitirInventarioRef.current = omitirInventario;
+
+  // ── Calculadora de cambio (cobro directo mesero) ─────────────────────────
+  const totalBase = comanda?.total ?? 0;
+  const totalConPropina = totalBase + (propina || 0);
+  const montoRec = parseInt(recibido.replace(/\./g, ''), 10) || 0;
+  const cambio   = metodo === 'Efectivo' ? Math.max(0, montoRec - totalConPropina) : 0;
+  const faltante = metodo === 'Efectivo' && montoRec > 0 ? Math.max(0, totalConPropina - montoRec) : 0;
+  const puedeConfirmarCobro =
+    metodo === 'Link de Pago' ||
+    metodo !== 'Efectivo' ||
+    montoRec >= totalConPropina;
+
+  const handleRecibidoChange = (e) => {
+    const raw = e.target.value.replace(/\D/g, '');
+    if (raw === '') { setRecibido(''); return; }
+    setRecibido(new Intl.NumberFormat('es-CO').format(parseInt(raw, 10)));
+  };
 
   useEffect(() => {
     apiClient.get('/empresa/link-pago').then(r => setLinkPagoConfig(r.data)).catch(() => {});
@@ -453,7 +471,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
               <>
                 <FormControl size="small" fullWidth sx={{ mb: 1.5 }}>
                   <InputLabel>Método de pago</InputLabel>
-                  <Select value={metodo} onChange={e => setMetodo(e.target.value)} label="Método de pago" sx={{ borderRadius: 2 }}>
+                  <Select value={metodo} onChange={e => { setMetodo(e.target.value); setRecibido(''); }} label="Método de pago" sx={{ borderRadius: 2 }}>
                     {['Efectivo', 'Tarjeta', 'Nequi', 'Transferencia', 'Daviplata'].map(m => (
                       <MenuItem key={m} value={m}>{m}</MenuItem>
                     ))}
@@ -462,6 +480,48 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
                     )}
                   </Select>
                 </FormControl>
+
+                {/* Calculadora de cambio — solo cuando es Efectivo */}
+                {metodo === 'Efectivo' && (
+                  <Box sx={{ mb: 1.5 }}>
+                    <TextField
+                      label="Monto recibido del cliente"
+                      size="small"
+                      fullWidth
+                      inputMode="numeric"
+                      value={recibido}
+                      onChange={handleRecibidoChange}
+                      InputProps={{
+                        startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                      }}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 }, mb: 1 }}
+                    />
+                    {montoRec > 0 && (
+                      <Box sx={{
+                        p: 1.5, borderRadius: 2, textAlign: 'center',
+                        bgcolor: cambio > 0
+                          ? alpha('#059669', 0.08)
+                          : faltante > 0 ? alpha('#EF4444', 0.08) : alpha('#F59E0B', 0.08),
+                        border: `1.5px solid ${cambio > 0 ? alpha('#059669', 0.3) : faltante > 0 ? alpha('#EF4444', 0.3) : alpha('#F59E0B', 0.3)}`,
+                      }}>
+                        {cambio > 0 ? (
+                          <>
+                            <Typography fontSize={11} color="#059669" fontWeight={700}>CAMBIO A DEVOLVER</Typography>
+                            <Typography fontSize={22} fontWeight={900} color="#059669">{fmt(cambio)}</Typography>
+                          </>
+                        ) : faltante > 0 ? (
+                          <>
+                            <Typography fontSize={11} color="#EF4444" fontWeight={700}>FALTA</Typography>
+                            <Typography fontSize={22} fontWeight={900} color="#EF4444">{fmt(faltante)}</Typography>
+                          </>
+                        ) : (
+                          <Typography fontSize={13} fontWeight={700} color="#F59E0B">Pago exacto ✓</Typography>
+                        )}
+                      </Box>
+                    )}
+                  </Box>
+                )}
+
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
                   <FormControlLabel
                     control={
@@ -483,7 +543,8 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
                     sx={{ m: 0, gap: 0.5 }}
                   />
                 </Box>
-                <Button fullWidth variant="contained" disabled={loading || (!config?.imprimir_comanda_auto && (hayPendientes || hayEnPrep))}
+                <Button fullWidth variant="contained"
+                  disabled={loading || !puedeConfirmarCobro || (!config?.imprimir_comanda_auto && (hayPendientes || hayEnPrep))}
                   startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <Receipt />}
                   onClick={handleCerrarCuenta}
                   sx={{ borderRadius: 2, fontWeight: 800, fontSize: 14, py: 1.2, bgcolor: '#059669', '&:hover': { bgcolor: '#047857' }, mb: 0.5 }}>

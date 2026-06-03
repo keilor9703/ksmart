@@ -58,7 +58,7 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
 
   const totalBase = comanda.total ?? 0;
   const totalConPropina = totalBase + (propina || 0);
-  const montoRec = parseFloat(recibido) || 0;
+  const montoRec = parseInt(recibido.replace(/\./g, ''), 10) || 0;
   const cambio = metodo === 'Efectivo' ? Math.max(0, montoRec - totalConPropina) : 0;
   const faltante = metodo === 'Efectivo' && montoRec > 0 ? Math.max(0, totalConPropina - montoRec) : 0;
 
@@ -66,6 +66,12 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
     metodo === 'Link de Pago' ||
     metodo !== 'Efectivo' ||
     montoRec >= totalConPropina;
+
+  const handleRecibidoChange = (e) => {
+    const raw = e.target.value.replace(/\D/g, '');
+    if (raw === '') { setRecibido(''); return; }
+    setRecibido(new Intl.NumberFormat('es-CO').format(parseInt(raw, 10)));
+  };
 
   const handlePagar = async () => {
     setLoading(true);
@@ -198,11 +204,11 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
               <Box>
                 <TextField
                   label="Monto recibido"
-                  type="number"
                   size="small"
                   fullWidth
+                  inputMode="numeric"
                   value={recibido}
-                  onChange={e => setRecibido(e.target.value)}
+                  onChange={handleRecibidoChange}
                   InputProps={{
                     startAdornment: <InputAdornment position="start">$</InputAdornment>,
                   }}
