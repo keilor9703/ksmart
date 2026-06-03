@@ -432,7 +432,9 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
                     Reabrir (cliente volvió a la mesa)
                   </Button>
                 </Stack>
-                <Divider sx={{ my: 1.5 }}><Typography fontSize={10} color="text.disabled">O cobrar directamente</Typography></Divider>
+                {config?.mesero_puede_cobrar_directo && (
+                  <Divider sx={{ my: 1.5 }}><Typography fontSize={10} color="text.disabled">O cobrar directamente</Typography></Divider>
+                )}
               </Box>
             ) : (
               /* Botón: solicitar cuenta para que vaya a la caja */
@@ -445,49 +447,53 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
               </Button>
             )}
 
-            {/* Cobrar directamente (mesero cobra sin pasar por caja) */}
-            <FormControl size="small" fullWidth sx={{ mb: 1.5 }}>
-              <InputLabel>Método de pago</InputLabel>
-              <Select value={metodo} onChange={e => setMetodo(e.target.value)} label="Método de pago" sx={{ borderRadius: 2 }}>
-                {['Efectivo', 'Tarjeta', 'Nequi', 'Transferencia', 'Daviplata'].map(m => (
-                  <MenuItem key={m} value={m}>{m}</MenuItem>
-                ))}
-                {linkPagoConfig && (
-                  <MenuItem value="Link de Pago">Link de Pago / QR</MenuItem>
-                )}
-              </Select>
-            </FormControl>
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={omitirInventario}
-                    onChange={e => setOmitirInventario(e.target.checked)}
-                    size="small"
-                    sx={{
-                      '& .MuiSwitch-switchBase.Mui-checked': { color: '#F59E0B' },
-                      '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#F59E0B' },
-                    }}
+            {/* Cobrar directamente (solo si el admin lo habilitó en configuración) */}
+            {config?.mesero_puede_cobrar_directo && (
+              <>
+                <FormControl size="small" fullWidth sx={{ mb: 1.5 }}>
+                  <InputLabel>Método de pago</InputLabel>
+                  <Select value={metodo} onChange={e => setMetodo(e.target.value)} label="Método de pago" sx={{ borderRadius: 2 }}>
+                    {['Efectivo', 'Tarjeta', 'Nequi', 'Transferencia', 'Daviplata'].map(m => (
+                      <MenuItem key={m} value={m}>{m}</MenuItem>
+                    ))}
+                    {linkPagoConfig && (
+                      <MenuItem value="Link de Pago">Link de Pago / QR</MenuItem>
+                    )}
+                  </Select>
+                </FormControl>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={omitirInventario}
+                        onChange={e => setOmitirInventario(e.target.checked)}
+                        size="small"
+                        sx={{
+                          '& .MuiSwitch-switchBase.Mui-checked': { color: '#F59E0B' },
+                          '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#F59E0B' },
+                        }}
+                      />
+                    }
+                    label={
+                      <Typography fontSize={11} fontWeight={omitirInventario ? 700 : 400} color={omitirInventario ? '#92400E' : 'text.secondary'}>
+                        Vender sin validar stock
+                      </Typography>
+                    }
+                    sx={{ m: 0, gap: 0.5 }}
                   />
-                }
-                label={
-                  <Typography fontSize={11} fontWeight={omitirInventario ? 700 : 400} color={omitirInventario ? '#92400E' : 'text.secondary'}>
-                    Vender sin validar stock
+                </Box>
+                <Button fullWidth variant="contained" disabled={loading || (!config?.imprimir_comanda_auto && (hayPendientes || hayEnPrep))}
+                  startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <Receipt />}
+                  onClick={handleCerrarCuenta}
+                  sx={{ borderRadius: 2, fontWeight: 800, fontSize: 14, py: 1.2, bgcolor: '#059669', '&:hover': { bgcolor: '#047857' }, mb: 0.5 }}>
+                  Cobrar directamente (mesero)
+                </Button>
+                {!config?.imprimir_comanda_auto && (hayPendientes || hayEnPrep) && (
+                  <Typography fontSize={11} color="text.secondary" textAlign="center">
+                    Espera a que cocina confirme todos los ítems
                   </Typography>
-                }
-                sx={{ m: 0, gap: 0.5 }}
-              />
-            </Box>
-            <Button fullWidth variant="contained" disabled={loading || (!config?.imprimir_comanda_auto && (hayPendientes || hayEnPrep))}
-              startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <Receipt />}
-              onClick={handleCerrarCuenta}
-              sx={{ borderRadius: 2, fontWeight: 800, fontSize: 14, py: 1.2, bgcolor: '#059669', '&:hover': { bgcolor: '#047857' }, mb: 0.5 }}>
-              Cobrar directamente (mesero)
-            </Button>
-            {!config?.imprimir_comanda_auto && (hayPendientes || hayEnPrep) && (
-              <Typography fontSize={11} color="text.secondary" textAlign="center">
-                Espera a que cocina confirme todos los ítems
-              </Typography>
+                )}
+              </>
             )}
           </Box>
         )}

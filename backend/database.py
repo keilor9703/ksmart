@@ -1333,6 +1333,16 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v73)
                 logger.info("V73 (Caja Restaurante: módulo + categorías restaurante) aplicada.")
 
+            # V74 - restaurante_config.mesero_puede_cobrar_directo
+            migration_v74 = "v74_restaurante_config_mesero_cobro_directo"
+            if not _migration_already_applied(conn, migration_v74):
+                conn.execute(text("""
+                    ALTER TABLE restaurante_config
+                    ADD COLUMN IF NOT EXISTS mesero_puede_cobrar_directo BOOLEAN DEFAULT FALSE;
+                """))
+                _mark_migration_applied(conn, migration_v74)
+                logger.info("V74 (restaurante_config.mesero_puede_cobrar_directo) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

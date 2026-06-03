@@ -1380,8 +1380,9 @@ class ConfigRestaurante(Base):
     zonas_sala              = Column(JSON, default=lambda: ["Salón principal"])
     tiempo_cocina_estimado  = Column(Integer, default=15)     # minutos estimados
     propina_sugerida_pct    = Column(Float, default=10.0)
-    permitir_nota_por_item  = Column(Boolean, default=True)
-    imprimir_comanda_auto   = Column(Boolean, default=False)
+    permitir_nota_por_item          = Column(Boolean, default=True)
+    imprimir_comanda_auto           = Column(Boolean, default=False)
+    mesero_puede_cobrar_directo     = Column(Boolean, default=False)
 
     empresa = relationship("Empresa")
 

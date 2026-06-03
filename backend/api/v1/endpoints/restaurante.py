@@ -117,6 +117,7 @@ class ConfigRestauranteIn(BaseModel):
     propina_sugerida_pct: Optional[float] = None
     permitir_nota_por_item: Optional[bool] = None
     imprimir_comanda_auto: Optional[bool] = None
+    mesero_puede_cobrar_directo: Optional[bool] = None
 
 
 @router.get("/config")
@@ -136,6 +137,7 @@ def get_config(
         "propina_sugerida_pct": cfg.propina_sugerida_pct,
         "permitir_nota_por_item": cfg.permitir_nota_por_item,
         "imprimir_comanda_auto": cfg.imprimir_comanda_auto,
+        "mesero_puede_cobrar_directo": cfg.mesero_puede_cobrar_directo,
     }
 
 

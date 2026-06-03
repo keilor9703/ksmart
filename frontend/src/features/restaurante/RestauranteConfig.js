@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import {
   Add, Edit, Delete, Save, TableRestaurant, Restaurant,
-  Settings, DragIndicator, Check, Close, Print,
+  Settings, DragIndicator, Check, Close, Print, PointOfSale as PointOfSaleIcon,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
@@ -413,6 +413,31 @@ const TabGeneral = ({ config, set, saving, onSave, loading }) => {
             <Box>
               <Typography sx={{ fontSize: 14, fontWeight: 500 }}>Imprimir comanda automáticamente al enviar a cocina</Typography>
               <Typography variant="caption" color="text.secondary">El mesero deberá tener una impresora térmica configurada en su dispositivo</Typography>
+            </Box>
+          }
+        />
+      </Paper>
+
+      {/* Cobro directo por mesero */}
+      <Paper elevation={0} sx={{ p: 2.5, borderRadius: 2, border: '1px solid rgba(0,0,0,0.08)' }}>
+        <Typography sx={{ fontWeight: 700, mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <PointOfSaleIcon sx={{ color: ACCENT, fontSize: 20 }} /> Cobro por mesero
+        </Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
+          Por defecto el cobro lo realiza el cajero en el módulo Caja Restaurante. Activa esta opción si también quieres que el mesero pueda cobrar directamente desde la mesa, sin pasar por caja.
+        </Typography>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={config.mesero_puede_cobrar_directo ?? false}
+              onChange={e => set('mesero_puede_cobrar_directo', e.target.checked)}
+              sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: ACCENT }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: ACCENT } }}
+            />
+          }
+          label={
+            <Box>
+              <Typography sx={{ fontSize: 14, fontWeight: 500 }}>Permitir que el mesero cobre directamente</Typography>
+              <Typography variant="caption" color="text.secondary">Activa el botón "Cobrar directamente" en el panel del mesero</Typography>
             </Box>
           }
         />
