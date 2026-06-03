@@ -6,7 +6,7 @@ import {
   TextField, Select, MenuItem, FormControl, InputLabel,
   List, ListItem, ListItemText, ListItemSecondaryAction,
   Paper, ToggleButton, ToggleButtonGroup, Tab, Tabs,
-  useMediaQuery, Switch, FormControlLabel, Collapse,
+  useMediaQuery, Switch, FormControlLabel, Collapse, InputAdornment,
 } from '@mui/material';
 import {
   TableRestaurant, Add, Refresh, Close, Person,
