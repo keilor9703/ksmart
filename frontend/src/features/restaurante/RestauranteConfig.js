@@ -4,6 +4,7 @@ import {
   useTheme, alpha, TextField, Dialog, DialogTitle, DialogContent,
   DialogActions, Chip, Paper, Grid, Switch, FormControlLabel,
   InputAdornment, Divider, Stack, Tab, Tabs,
+  ToggleButtonGroup, ToggleButton,
 } from '@mui/material';
 import {
   Add, Edit, Delete, Save, TableRestaurant, Restaurant,
@@ -416,6 +417,93 @@ const TabGeneral = ({ config, set, saving, onSave, loading }) => {
             </Box>
           }
         />
+
+        <Divider sx={{ my: 2 }} />
+
+        {/* Tipo de impresora */}
+        <Typography sx={{ fontSize: 13, fontWeight: 600, mb: 0.5 }}>Tipo de impresora térmica</Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+          Define el ancho del papel. Esto ajusta el tamaño de fuente y el formato del ticket impreso.
+        </Typography>
+
+        <ToggleButtonGroup
+          value={config.tipo_impresora || 'p80'}
+          exclusive
+          onChange={(_, v) => v && set('tipo_impresora', v)}
+          size="small"
+          sx={{
+            mb: 2.5,
+            '& .MuiToggleButton-root': {
+              px: 2.5, py: 0.7, fontSize: 13, fontWeight: 600,
+              borderRadius: '8px !important', textTransform: 'none',
+            },
+            '& .Mui-selected': { color: `${ACCENT} !important`, borderColor: `${ACCENT} !important`, bgcolor: `${alpha(ACCENT, 0.07)} !important` },
+          }}
+        >
+          <ToggleButton value="p80">🖨️ Térmica 80 mm</ToggleButton>
+          <ToggleButton value="p58">🖨️ Térmica 58 mm</ToggleButton>
+        </ToggleButtonGroup>
+
+        {/* Preview visual del ticket */}
+        <Box sx={{ display: 'flex', gap: 3, justifyContent: 'center', flexWrap: 'wrap' }}>
+          {[
+            { key: 'p80', label: 'Térmica 80 mm', w: 200, fMesa: 14, fItem: 11, fMeta: 8, fBase: 9, fFooter: 8 },
+            { key: 'p58', label: 'Térmica 58 mm', w: 145, fMesa: 12, fItem: 9,  fMeta: 7, fBase: 8, fFooter: 7 },
+          ].map(({ key, label, w, fMesa, fItem, fMeta, fBase, fFooter }) => {
+            const selected = (config.tipo_impresora || 'p80') === key;
+            return (
+              <Box key={key} onClick={() => set('tipo_impresora', key)}
+                sx={{ cursor: 'pointer', transition: 'all 0.2s', opacity: selected ? 1 : 0.45, '&:hover': { opacity: 0.8 } }}>
+                {/* Ticket body */}
+                <Box sx={{
+                  width: w,
+                  bgcolor: 'white',
+                  border: `2px solid ${selected ? ACCENT : 'rgba(0,0,0,0.15)'}`,
+                  borderBottom: 'none',
+                  borderRadius: '4px 4px 0 0',
+                  px: 1.2, pt: 1.2, pb: 0.8,
+                  fontFamily: 'Courier New, monospace',
+                  boxShadow: selected ? `0 4px 20px ${alpha(ACCENT, 0.2)}` : '0 2px 8px rgba(0,0,0,0.08)',
+                }}>
+                  <Typography align="center" sx={{ fontSize: fMesa, fontWeight: 800, fontFamily: 'inherit', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Mi Restaurante
+                  </Typography>
+                  <Box sx={{ borderTop: '1.5px solid #000', my: 0.4 }} />
+                  <Typography align="center" sx={{ fontSize: fBase + 1, fontWeight: 700, fontFamily: 'inherit', letterSpacing: 2 }}>✦ COMANDA ✦</Typography>
+                  <Box sx={{ borderTop: '1.5px solid #000', my: 0.4 }} />
+                  <Typography sx={{ fontSize: fMesa, fontWeight: 800, fontFamily: 'inherit' }}>Mesa 5</Typography>
+                  <Typography sx={{ fontSize: fMeta, fontFamily: 'inherit' }}>Comanda #42</Typography>
+                  <Typography sx={{ fontSize: fMeta, fontFamily: 'inherit' }}>2 personas · 14/06 12:30</Typography>
+                  <Box sx={{ borderTop: '1px dashed #555', my: 0.4 }} />
+                  <Typography sx={{ fontSize: fItem, fontWeight: 700, fontFamily: 'inherit' }}>2× Bandeja paisa</Typography>
+                  <Typography sx={{ fontSize: fItem, fontWeight: 700, fontFamily: 'inherit' }}>1× Limonada de coco</Typography>
+                  <Typography sx={{ fontSize: fItem, fontWeight: 700, fontFamily: 'inherit' }}>3× Arepa con hogao</Typography>
+                  <Box sx={{ borderTop: '1.5px solid #000', my: 0.4 }} />
+                  <Typography align="center" sx={{ fontSize: fFooter, fontFamily: 'inherit', color: '#555' }}>Mesero: Carlos A.</Typography>
+                  <Typography align="center" sx={{ fontSize: fFooter, fontFamily: 'inherit', color: '#555' }}>— Ksmart360 —</Typography>
+                </Box>
+                {/* Borde serrado (efecto papel térmico) */}
+                <Box sx={{
+                  width: w, height: 8,
+                  background: `linear-gradient(135deg, white 33%, transparent 33%) 0 0,
+                               linear-gradient(225deg, white 33%, transparent 33%) 0 0`,
+                  backgroundSize: '10px 8px',
+                  bgcolor: 'white',
+                  borderLeft: `2px solid ${selected ? ACCENT : 'rgba(0,0,0,0.15)'}`,
+                  borderRight: `2px solid ${selected ? ACCENT : 'rgba(0,0,0,0.15)'}`,
+                  boxShadow: selected ? `4px 4px 20px ${alpha(ACCENT, 0.15)}` : '2px 2px 8px rgba(0,0,0,0.06)',
+                }} />
+                <Typography align="center" sx={{
+                  fontSize: 11, fontWeight: selected ? 700 : 400, mt: 0.8,
+                  color: selected ? ACCENT : 'text.secondary',
+                }}>
+                  {label}
+                  {selected && <Typography component="span" sx={{ ml: 0.5, fontSize: 10 }}>✓</Typography>}
+                </Typography>
+              </Box>
+            );
+          })}
+        </Box>
       </Paper>
 
       {/* Cobro directo por mesero */}

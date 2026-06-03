@@ -117,6 +117,7 @@ class ConfigRestauranteIn(BaseModel):
     propina_sugerida_pct: Optional[float] = None
     permitir_nota_por_item: Optional[bool] = None
     imprimir_comanda_auto: Optional[bool] = None
+    tipo_impresora: Optional[str] = None
     mesero_puede_cobrar_directo: Optional[bool] = None
 
 
@@ -137,6 +138,7 @@ def get_config(
         "propina_sugerida_pct": cfg.propina_sugerida_pct,
         "permitir_nota_por_item": cfg.permitir_nota_por_item,
         "imprimir_comanda_auto": cfg.imprimir_comanda_auto,
+        "tipo_impresora": cfg.tipo_impresora or 'p80',
         "mesero_puede_cobrar_directo": cfg.mesero_puede_cobrar_directo,
     }
 

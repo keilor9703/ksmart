@@ -1343,6 +1343,16 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v74)
                 logger.info("V74 (restaurante_config.mesero_puede_cobrar_directo) aplicada.")
 
+            # V75 - restaurante_config.tipo_impresora
+            migration_v75 = "v75_restaurante_config_tipo_impresora"
+            if not _migration_already_applied(conn, migration_v75):
+                conn.execute(text("""
+                    ALTER TABLE restaurante_config
+                    ADD COLUMN IF NOT EXISTS tipo_impresora VARCHAR(10) DEFAULT 'p80';
+                """))
+                _mark_migration_applied(conn, migration_v75)
+                logger.info("V75 (restaurante_config.tipo_impresora) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

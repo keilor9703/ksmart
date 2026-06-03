@@ -246,6 +246,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
           items: selectedItems,
           empresaNombre: empresa?.nombre || '',
           nombreMesero: vendedor || '',
+          printerSize: config?.tipo_impresora || 'p80',
         });
       }
       setSelectedItems([]);
@@ -267,6 +268,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
       empresaNombre: empresa?.nombre || '',
       nombreMesero: vendedor || '',
       titulo: 'REIMPRESIÓN',
+      printerSize: config?.tipo_impresora || 'p80',
     });
   };
 
@@ -322,6 +324,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
         empresaNombre: empresa?.nombre || '',
         nombreMesero: vendedor || '',
         propina,
+        printerSize: config?.tipo_impresora || 'p80',
       });
       toast.success(`Cuenta solicitada — Ticket #${res.data.numero_comanda}`);
       onSuccess();
@@ -350,6 +353,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
       empresaNombre: empresa?.nombre || '',
       nombreMesero: vendedor || '',
       propina,
+      printerSize: config?.tipo_impresora || 'p80',
     });
   };
 
