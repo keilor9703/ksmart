@@ -445,7 +445,10 @@ const TabGeneral = ({ config, set, saving, onSave, loading }) => {
         </ToggleButtonGroup>
 
         {/* Preview visual del ticket */}
-        <Box sx={{ display: 'flex', gap: 3, justifyContent: 'center', flexWrap: 'wrap' }}>
+        <Box sx={{
+          display: 'flex', gap: 3, justifyContent: 'center', flexWrap: 'wrap',
+          bgcolor: '#f3f4f6', borderRadius: 2, p: 2.5,
+        }}>
           {[
             { key: 'p80', label: 'Térmica 80 mm', w: 200, fMesa: 14, fItem: 11, fMeta: 8, fBase: 9, fFooter: 8 },
             { key: 'p58', label: 'Térmica 58 mm', w: 145, fMesa: 12, fItem: 9,  fMeta: 7, fBase: 8, fFooter: 7 },
@@ -453,31 +456,32 @@ const TabGeneral = ({ config, set, saving, onSave, loading }) => {
             const selected = (config.tipo_impresora || 'p80') === key;
             return (
               <Box key={key} onClick={() => set('tipo_impresora', key)}
-                sx={{ cursor: 'pointer', transition: 'all 0.2s', opacity: selected ? 1 : 0.45, '&:hover': { opacity: 0.8 } }}>
+                sx={{ cursor: 'pointer', transition: 'all 0.2s', opacity: selected ? 1 : 0.5, '&:hover': { opacity: 0.85 } }}>
                 {/* Ticket body */}
                 <Box sx={{
                   width: w,
-                  bgcolor: 'white',
-                  border: `2px solid ${selected ? ACCENT : 'rgba(0,0,0,0.15)'}`,
+                  bgcolor: '#ffffff',
+                  color: '#000000',
+                  border: `2px solid ${selected ? ACCENT : 'rgba(0,0,0,0.2)'}`,
                   borderBottom: 'none',
                   borderRadius: '4px 4px 0 0',
                   px: 1.2, pt: 1.2, pb: 0.8,
                   fontFamily: 'Courier New, monospace',
-                  boxShadow: selected ? `0 4px 20px ${alpha(ACCENT, 0.2)}` : '0 2px 8px rgba(0,0,0,0.08)',
+                  boxShadow: selected ? `0 4px 20px ${alpha(ACCENT, 0.25)}` : '0 2px 8px rgba(0,0,0,0.12)',
                 }}>
-                  <Typography align="center" sx={{ fontSize: fMesa, fontWeight: 800, fontFamily: 'inherit', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  <Typography align="center" sx={{ fontSize: fMesa, fontWeight: 800, fontFamily: 'inherit', textTransform: 'uppercase', letterSpacing: 0.5, color: '#000' }}>
                     Mi Restaurante
                   </Typography>
                   <Box sx={{ borderTop: '1.5px solid #000', my: 0.4 }} />
-                  <Typography align="center" sx={{ fontSize: fBase + 1, fontWeight: 700, fontFamily: 'inherit', letterSpacing: 2 }}>✦ COMANDA ✦</Typography>
+                  <Typography align="center" sx={{ fontSize: fBase + 1, fontWeight: 700, fontFamily: 'inherit', letterSpacing: 2, color: '#000' }}>✦ COMANDA ✦</Typography>
                   <Box sx={{ borderTop: '1.5px solid #000', my: 0.4 }} />
-                  <Typography sx={{ fontSize: fMesa, fontWeight: 800, fontFamily: 'inherit' }}>Mesa 5</Typography>
-                  <Typography sx={{ fontSize: fMeta, fontFamily: 'inherit' }}>Comanda #42</Typography>
-                  <Typography sx={{ fontSize: fMeta, fontFamily: 'inherit' }}>2 personas · 14/06 12:30</Typography>
+                  <Typography sx={{ fontSize: fMesa, fontWeight: 800, fontFamily: 'inherit', color: '#000' }}>Mesa 5</Typography>
+                  <Typography sx={{ fontSize: fMeta, fontFamily: 'inherit', color: '#222' }}>Comanda #42</Typography>
+                  <Typography sx={{ fontSize: fMeta, fontFamily: 'inherit', color: '#222' }}>2 personas · 14/06 12:30</Typography>
                   <Box sx={{ borderTop: '1px dashed #555', my: 0.4 }} />
-                  <Typography sx={{ fontSize: fItem, fontWeight: 700, fontFamily: 'inherit' }}>2× Bandeja paisa</Typography>
-                  <Typography sx={{ fontSize: fItem, fontWeight: 700, fontFamily: 'inherit' }}>1× Limonada de coco</Typography>
-                  <Typography sx={{ fontSize: fItem, fontWeight: 700, fontFamily: 'inherit' }}>3× Arepa con hogao</Typography>
+                  <Typography sx={{ fontSize: fItem, fontWeight: 700, fontFamily: 'inherit', color: '#000' }}>2× Bandeja paisa</Typography>
+                  <Typography sx={{ fontSize: fItem, fontWeight: 700, fontFamily: 'inherit', color: '#000' }}>1× Limonada de coco</Typography>
+                  <Typography sx={{ fontSize: fItem, fontWeight: 700, fontFamily: 'inherit', color: '#000' }}>3× Arepa con hogao</Typography>
                   <Box sx={{ borderTop: '1.5px solid #000', my: 0.4 }} />
                   <Typography align="center" sx={{ fontSize: fFooter, fontFamily: 'inherit', color: '#555' }}>Mesero: Carlos A.</Typography>
                   <Typography align="center" sx={{ fontSize: fFooter, fontFamily: 'inherit', color: '#555' }}>— Ksmart360 —</Typography>
@@ -485,17 +489,17 @@ const TabGeneral = ({ config, set, saving, onSave, loading }) => {
                 {/* Borde serrado (efecto papel térmico) */}
                 <Box sx={{
                   width: w, height: 8,
-                  background: `linear-gradient(135deg, white 33%, transparent 33%) 0 0,
-                               linear-gradient(225deg, white 33%, transparent 33%) 0 0`,
+                  background: `linear-gradient(135deg, #f3f4f6 33%, transparent 33%) 0 0,
+                               linear-gradient(225deg, #f3f4f6 33%, transparent 33%) 0 0`,
                   backgroundSize: '10px 8px',
-                  bgcolor: 'white',
-                  borderLeft: `2px solid ${selected ? ACCENT : 'rgba(0,0,0,0.15)'}`,
-                  borderRight: `2px solid ${selected ? ACCENT : 'rgba(0,0,0,0.15)'}`,
+                  bgcolor: '#ffffff',
+                  borderLeft: `2px solid ${selected ? ACCENT : 'rgba(0,0,0,0.2)'}`,
+                  borderRight: `2px solid ${selected ? ACCENT : 'rgba(0,0,0,0.2)'}`,
                   boxShadow: selected ? `4px 4px 20px ${alpha(ACCENT, 0.15)}` : '2px 2px 8px rgba(0,0,0,0.06)',
                 }} />
                 <Typography align="center" sx={{
                   fontSize: 11, fontWeight: selected ? 700 : 400, mt: 0.8,
-                  color: selected ? ACCENT : 'text.secondary',
+                  color: selected ? ACCENT : '#555',
                 }}>
                   {label}
                   {selected && <Typography component="span" sx={{ ml: 0.5, fontSize: 10 }}>✓</Typography>}
