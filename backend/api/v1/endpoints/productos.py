@@ -302,8 +302,8 @@ def create_producto(producto: schemas.ProductoCreate, db: Session = Depends(get_
     return crud.create_producto(db=db, empresa_id=current_user.empresa_id, producto=producto)
 
 @router.get("/", response_model=List[schemas.Producto])
-def read_productos(skip: int = 0, limit: int = 500, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
-    return crud.get_productos(db, empresa_id=current_user.empresa_id, skip=skip, limit=limit)
+def read_productos(skip: int = 0, limit: int = 500, solo_pos: bool = False, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+    return crud.get_productos(db, empresa_id=current_user.empresa_id, skip=skip, limit=limit, solo_pos=solo_pos)
 
 @router.put("/{producto_id}", response_model=schemas.Producto)
 def update_producto(producto_id: int, producto: schemas.ProductoCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):

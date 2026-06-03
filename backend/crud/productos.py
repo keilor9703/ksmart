@@ -66,11 +66,25 @@ def get_producto(db: Session, empresa_id: int, producto_id: int):
         attach_impuestos_to_productos(db, empresa_id, [p])
     return p
 
-def get_productos(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
-    items = db.query(models.Producto).filter(
+def get_productos(db: Session, empresa_id: int, skip: int = 0, limit: int = 100, solo_pos: bool = False):
+    q = db.query(models.Producto).filter(
         models.Producto.empresa_id == empresa_id,
         models.Producto.vigente == True,
-    ).offset(skip).limit(limit).all()
+    )
+    if solo_pos:
+        # Solo productos cuya categoría está marcada como visible en POS
+        from sqlalchemy import or_
+        visible_ids = [
+            gid for (gid,) in db.query(models.GrupoProducto.id).filter(
+                or_(
+                    models.GrupoProducto.empresa_id.is_(None),
+                    models.GrupoProducto.empresa_id == empresa_id,
+                ),
+                models.GrupoProducto.visible_pos == True,
+            ).all()
+        ]
+        q = q.filter(models.Producto.grupo_item.in_(visible_ids))
+    items = q.offset(skip).limit(limit).all()
     return attach_impuestos_to_productos(db, empresa_id, items)
 
 def create_producto(db: Session, empresa_id: int, producto: schemas.ProductoCreate):

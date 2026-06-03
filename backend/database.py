@@ -995,12 +995,12 @@ def run_migrations():
                     if IS_SQLITE:
                         conn.execute(text("""
                             INSERT INTO grupos_producto(id, empresa_id, nombre, codigo, color, es_predefinido, orden, requiere_cocina)
-                            VALUES(5, NULL, 'Platos y Preparados', 'PLATO', '#EC4899', 1, 5, 1)
+                            VALUES(5, NULL, 'Platos y Preparaciones', 'PLATO', '#EC4899', 1, 5, 1)
                         """))
                     else:
                         conn.execute(text("""
                             INSERT INTO grupos_producto(id, empresa_id, nombre, codigo, color, es_predefinido, orden, requiere_cocina)
-                            VALUES(5, NULL, 'Platos y Preparados', 'PLATO', '#EC4899', TRUE, 5, TRUE)
+                            VALUES(5, NULL, 'Platos y Preparaciones', 'PLATO', '#EC4899', TRUE, 5, TRUE)
                             ON CONFLICT (id) DO NOTHING
                         """))
                         conn.execute(text(
@@ -1247,6 +1247,28 @@ def run_migrations():
                     logger.info("V70: añadida productos.vigente (soft-delete)")
                 _mark_migration_applied(conn, migration_v70)
                 logger.info("V70 (soft-delete productos) aplicada.")
+
+            # ═══════════════════════════════════════════════════════════════
+            # V71 - visible_pos en grupos + rename "Platos y Preparados"
+            # ═══════════════════════════════════════════════════════════════
+            migration_v71 = "v71_grupos_visible_pos_y_rename"
+            if not _migration_already_applied(conn, migration_v71):
+                if not _column_exists(conn, "grupos_producto", "visible_pos"):
+                    if IS_SQLITE:
+                        conn.execute(text("ALTER TABLE grupos_producto ADD COLUMN visible_pos BOOLEAN NOT NULL DEFAULT 1"))
+                    else:
+                        conn.execute(text("ALTER TABLE grupos_producto ADD COLUMN visible_pos BOOLEAN NOT NULL DEFAULT TRUE"))
+                    logger.info("V71: añadida grupos_producto.visible_pos")
+
+                # Renombrar grupo predefinido id=5
+                conn.execute(text(
+                    "UPDATE grupos_producto SET nombre = 'Platos y Preparaciones' "
+                    "WHERE id = 5 AND nombre = 'Platos y Preparados'"
+                ))
+                logger.info("V71: grupo id=5 renombrado a 'Platos y Preparaciones'")
+
+                _mark_migration_applied(conn, migration_v71)
+                logger.info("V71 (visible_pos + rename Platos) aplicada.")
 
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)

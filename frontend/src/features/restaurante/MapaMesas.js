@@ -917,7 +917,7 @@ export default function MapaMesas({ user }) {
     try {
       const [mRes, pRes, cRes] = await Promise.all([
         apiClient.get('/restaurante/mesas'),
-        apiClient.get('/productos/', { params: { limit: 500 } }),
+        apiClient.get('/productos/', { params: { limit: 500, solo_pos: true } }),
         apiClient.get('/restaurante/config'),
       ]);
       setMesas(mRes.data);

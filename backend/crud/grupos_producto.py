@@ -8,7 +8,7 @@ GRUPOS_PREDEFINIDOS = [
     {"id": 2, "nombre": "Producto Terminado",  "codigo": "PT",    "color": "#10B981", "orden": 2, "requiere_cocina": False},
     {"id": 3, "nombre": "Activo Fijo",         "codigo": "AF",    "color": "#F59E0B", "orden": 3, "requiere_cocina": False},
     {"id": 4, "nombre": "Insumos",             "codigo": "INS",   "color": "#8B5CF6", "orden": 4, "requiere_cocina": False},
-    {"id": 5, "nombre": "Platos y Preparados", "codigo": "PLATO", "color": "#EC4899", "orden": 5, "requiere_cocina": True},
+    {"id": 5, "nombre": "Platos y Preparaciones", "codigo": "PLATO", "color": "#EC4899", "orden": 5, "requiere_cocina": True},
 ]
 
 
@@ -49,6 +49,7 @@ def create_grupo(db: Session, empresa_id: int, data: schemas.GrupoProductoCreate
         orden=data.orden,
         es_predefinido=False,
         requiere_cocina=data.requiere_cocina,
+        visible_pos=data.visible_pos,
     )
     db.add(grupo)
     db.commit()
@@ -78,6 +79,8 @@ def update_grupo(db: Session, empresa_id: int, grupo_id: int, data: schemas.Grup
         grupo.orden = data.orden
     if data.requiere_cocina is not None:
         grupo.requiere_cocina = data.requiere_cocina
+    if data.visible_pos is not None:
+        grupo.visible_pos = data.visible_pos
     db.commit()
     db.refresh(grupo)
     return grupo

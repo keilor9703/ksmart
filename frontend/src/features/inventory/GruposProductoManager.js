@@ -6,7 +6,7 @@ import {
   Paper, Tooltip, Alert, useTheme, useMediaQuery, Divider,
   FormControlLabel, Switch,
 } from '@mui/material';
-import { Add, Edit, Delete, Lock, OutdoorGrill } from '@mui/icons-material';
+import { Add, Edit, Delete, Lock, OutdoorGrill, PointOfSale } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
 
@@ -16,7 +16,7 @@ const COLOR_PRESETS = [
   '#84CC16', '#6366F1', '#14B8A6', '#94a3b8',
 ];
 
-const DEFAULT_FORM = { nombre: '', codigo: '', color: '#6366F1', orden: 99, requiere_cocina: false };
+const DEFAULT_FORM = { nombre: '', codigo: '', color: '#6366F1', orden: 99, requiere_cocina: false, visible_pos: true };
 
 // ── Card móvil por categoría ──────────────────────────────────────────────────
 const GrupoCard = ({ grupo, onEdit, onDelete }) => (
@@ -71,6 +71,14 @@ const GrupoCard = ({ grupo, onEdit, onDelete }) => (
           sx={{ fontSize: 10, bgcolor: 'rgba(236,72,153,0.1)', color: '#EC4899', height: 24, fontWeight: 700 }}
         />
       )}
+      {grupo.visible_pos === false && (
+        <Chip
+          icon={<PointOfSale sx={{ fontSize: '12px !important' }} />}
+          label="Oculto en POS"
+          size="small"
+          sx={{ fontSize: 10, bgcolor: 'action.hover', color: 'text.secondary', height: 24, fontWeight: 700 }}
+        />
+      )}
     </Box>
   </Paper>
 );
@@ -104,7 +112,7 @@ export default function GruposProductoManager({ onGruposChange }) {
 
   const openEdit = (g) => {
     setEditing(g);
-    setForm({ nombre: g.nombre, codigo: g.codigo, color: g.color, orden: g.orden, requiere_cocina: g.requiere_cocina || false });
+    setForm({ nombre: g.nombre, codigo: g.codigo, color: g.color, orden: g.orden, requiere_cocina: g.requiere_cocina || false, visible_pos: g.visible_pos !== false });
     setOpen(true);
   };
 
@@ -177,7 +185,7 @@ export default function GruposProductoManager({ onGruposChange }) {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  {['Color', 'Nombre', 'Código', 'Orden', 'Tipo', ...(esRestaurante ? ['Cocina'] : []), 'Acciones'].map(h => (
+                  {['Color', 'Nombre', 'Código', 'Orden', 'Tipo', ...(esRestaurante ? ['Cocina', 'POS'] : []), 'Acciones'].map(h => (
                     <TableCell key={h} sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase' }}>{h}</TableCell>
                   ))}
                 </TableRow>
@@ -208,6 +216,15 @@ export default function GruposProductoManager({ onGruposChange }) {
                           ? <Chip icon={<OutdoorGrill sx={{ fontSize: '12px !important' }} />} label="Sí"
                               size="small" sx={{ fontSize: 10, bgcolor: 'rgba(236,72,153,0.1)', color: '#EC4899', fontWeight: 700 }} />
                           : <Typography fontSize={11} color="text.disabled">—</Typography>
+                        }
+                      </TableCell>
+                    )}
+                    {esRestaurante && (
+                      <TableCell>
+                        {g.visible_pos !== false
+                          ? <Chip icon={<PointOfSale sx={{ fontSize: '12px !important' }} />} label="Sí"
+                              size="small" sx={{ fontSize: 10, bgcolor: 'rgba(16,185,129,0.1)', color: '#10B981', fontWeight: 700 }} />
+                          : <Typography fontSize={11} color="text.disabled">Oculto</Typography>
                         }
                       </TableCell>
                     )}
@@ -314,6 +331,33 @@ export default function GruposProductoManager({ onGruposChange }) {
                   size="small"
                   sx={{ '& .MuiSwitch-thumb': { bgcolor: form.requiere_cocina ? '#EC4899' : undefined },
                         '& .Mui-checked + .MuiSwitch-track': { bgcolor: '#EC4899 !important' } }}
+                />
+              </Box>
+            )}
+
+            {esRestaurante && (
+              <Box sx={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                p: 1.5, borderRadius: 2,
+                border: `1px solid ${form.visible_pos ? 'rgba(16,185,129,0.4)' : 'rgba(0,0,0,0.12)'}`,
+                bgcolor: form.visible_pos ? 'rgba(16,185,129,0.06)' : 'transparent',
+                transition: 'all 0.2s',
+              }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <PointOfSale sx={{ fontSize: 18, color: form.visible_pos ? '#10B981' : 'text.disabled' }} />
+                  <Box>
+                    <Typography fontSize={13} fontWeight={600}>¿Visible en POS?</Typography>
+                    <Typography fontSize={11} color="text.secondary">
+                      Los productos de esta categoría aparecerán en ventas POS y en el menú de los meseros
+                    </Typography>
+                  </Box>
+                </Box>
+                <Switch
+                  checked={form.visible_pos}
+                  onChange={e => setForm(f => ({ ...f, visible_pos: e.target.checked }))}
+                  size="small"
+                  sx={{ '& .MuiSwitch-thumb': { bgcolor: form.visible_pos ? '#10B981' : undefined },
+                        '& .Mui-checked + .MuiSwitch-track': { bgcolor: '#10B981 !important' } }}
                 />
               </Box>
             )}

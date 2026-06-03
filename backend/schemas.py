@@ -259,6 +259,7 @@ class GrupoProductoBase(BaseModel):
     color: str = '#94a3b8'
     orden: int = 99
     requiere_cocina: bool = False
+    visible_pos: bool = True
 
 class GrupoProductoCreate(GrupoProductoBase):
     pass
@@ -269,6 +270,7 @@ class GrupoProductoUpdate(BaseModel):
     color: Optional[str] = None
     orden: Optional[int] = None
     requiere_cocina: Optional[bool] = None
+    visible_pos: Optional[bool] = None
 
 class GrupoProductoOut(GrupoProductoBase):
     id: int

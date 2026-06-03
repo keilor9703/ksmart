@@ -269,6 +269,7 @@ class GrupoProducto(Base):
     es_predefinido = Column(Boolean, default=False)
     orden          = Column(Integer, default=99)
     requiere_cocina = Column(Boolean, default=False)  # True → platos preparados; no genera mov. inventario
+    visible_pos    = Column(Boolean, default=True, nullable=False)  # True → sus productos aparecen en POS y menú de meseros
 
     empresa = relationship("Empresa")
 

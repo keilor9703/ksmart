@@ -396,7 +396,7 @@ const Ventas = ({ user }) => {
             .then(r => setClientePuntos(r.data.puntos_disponibles || 0))
             .catch(() => setClientePuntos(0));
     }, []);
-    const fetchProductos     = () => apiClient.get('/productos/').then(r => setProductos(r.data)).catch(console.error);
+    const fetchProductos     = () => apiClient.get('/productos/', { params: { solo_pos: true } }).then(r => setProductos(r.data)).catch(console.error);
     const fetchGrupos        = () => apiClient.get('/grupos-producto/').then(r => setGrupos(r.data)).catch(console.error);
     const fetchVentasSummary = () => apiClient.get('/reportes/ventas_summary').then(r => setTotalVentasHoy(r.data.total_ventas_hoy)).catch(console.error);
 
