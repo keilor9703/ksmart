@@ -51,7 +51,7 @@ PERFILES = {
         "/admin/usuarios",
     ],
     "restaurante": [
-        "/restaurante", "/restaurante/cocina", "/restaurante/config",
+        "/restaurante", "/restaurante/cocina", "/restaurante/config", "/restaurante/caja",
         "/ventas", "/cotizaciones", "/clientes", "/productos",
         "/inventario", "/inventario/lotes", "/reportes-inventario",
         "/compras", "/caja", "/reportes", "/admin/usuarios",

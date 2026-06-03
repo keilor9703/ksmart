@@ -12,6 +12,37 @@ GRUPOS_PREDEFINIDOS = [
     {"id": 5, "nombre": "Platos y Preparaciones", "codigo": "PLATO", "color": "#EC4899", "orden": 5, "requiere_cocina": True},
 ]
 
+CATEGORIAS_RESTAURANTE = [
+    {"nombre": "Entradas",            "codigo": "ENT", "color": "#F97316", "orden": 10, "requiere_cocina": True,  "visible_pos": True},
+    {"nombre": "Platos Principales",  "codigo": "PRI", "color": "#EF4444", "orden": 11, "requiere_cocina": True,  "visible_pos": True},
+    {"nombre": "Menú del Día",        "codigo": "MEN", "color": "#10B981", "orden": 12, "requiere_cocina": True,  "visible_pos": True},
+    {"nombre": "Adiciones",           "codigo": "ADI", "color": "#F59E0B", "orden": 13, "requiere_cocina": False, "visible_pos": True},
+    {"nombre": "Postres",             "codigo": "POS", "color": "#EC4899", "orden": 14, "requiere_cocina": True,  "visible_pos": True},
+    {"nombre": "Bebidas sin Alcohol", "codigo": "BSA", "color": "#06B6D4", "orden": 15, "requiere_cocina": False, "visible_pos": True},
+    {"nombre": "Bebidas Alcohólicas", "codigo": "BAL", "color": "#8B5CF6", "orden": 16, "requiere_cocina": False, "visible_pos": True},
+]
+
+
+def seed_categorias_restaurante(db: Session, empresa_id: int):
+    """Añade las categorías por defecto de restaurante a la sesión (sin commit)."""
+    codigos_existentes = {
+        r.codigo for r in db.query(models.GrupoProducto.codigo).filter(
+            models.GrupoProducto.empresa_id == empresa_id
+        ).all()
+    }
+    for cat in CATEGORIAS_RESTAURANTE:
+        if cat["codigo"] not in codigos_existentes:
+            db.add(models.GrupoProducto(
+                empresa_id=empresa_id,
+                nombre=cat["nombre"],
+                codigo=cat["codigo"],
+                color=cat["color"],
+                orden=cat["orden"],
+                requiere_cocina=cat["requiere_cocina"],
+                visible_pos=cat["visible_pos"],
+                es_predefinido=False,
+            ))
+
 
 def _apply_empresa_overrides(grupos: list, overrides: dict) -> list:
     """Aplica el overlay por-empresa sobre la lista de grupos."""

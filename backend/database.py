@@ -1289,6 +1289,50 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v72)
                 logger.info("V72 (empresa_grupo_config) aplicada.")
 
+            # V73 - Caja Restaurante: módulo en BD + categorías para restaurantes existentes
+            migration_v73 = "v73_caja_restaurante_modulo_y_categorias"
+            if not _migration_already_applied(conn, migration_v73):
+                # Insertar módulo Caja Restaurante
+                conn.execute(text("""
+                    INSERT INTO modulos (name, description, frontend_path)
+                    VALUES ('Caja Restaurante', 'Panel de cobro de mesas para el cajero.', '/restaurante/caja')
+                    ON CONFLICT (frontend_path) DO NOTHING
+                """))
+
+                # Seed categorías de restaurante para empresas ya existentes
+                _cats = [
+                    ("Entradas",            "ENT", "#F97316", 10, True,  True),
+                    ("Platos Principales",  "PRI", "#EF4444", 11, True,  True),
+                    ("Menú del Día",        "MEN", "#10B981", 12, True,  True),
+                    ("Adiciones",           "ADI", "#F59E0B", 13, False, True),
+                    ("Postres",             "POS", "#EC4899", 14, True,  True),
+                    ("Bebidas sin Alcohol", "BSA", "#06B6D4", 15, False, True),
+                    ("Bebidas Alcohólicas", "BAL", "#8B5CF6", 16, False, True),
+                ]
+                empresas_rest = conn.execute(text(
+                    "SELECT id FROM empresas WHERE modulos_habilitados::text LIKE '%/restaurante%'"
+                )).fetchall()
+                for (emp_id,) in empresas_rest:
+                    for nombre, codigo, color, orden, req_cocina, vis_pos in _cats:
+                        existe = conn.execute(text(
+                            "SELECT 1 FROM grupos_producto WHERE empresa_id = :eid AND codigo = :cod"
+                        ), {"eid": emp_id, "cod": codigo}).fetchone()
+                        if not existe:
+                            conn.execute(text("""
+                                INSERT INTO grupos_producto
+                                    (empresa_id, nombre, codigo, color, orden,
+                                     requiere_cocina, visible_pos, es_predefinido)
+                                VALUES
+                                    (:eid, :nombre, :codigo, :color, :orden,
+                                     :req, :vis, FALSE)
+                            """), {
+                                "eid": emp_id, "nombre": nombre, "codigo": codigo,
+                                "color": color, "orden": orden,
+                                "req": req_cocina, "vis": vis_pos,
+                            })
+                _mark_migration_applied(conn, migration_v73)
+                logger.info("V73 (Caja Restaurante: módulo + categorías restaurante) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

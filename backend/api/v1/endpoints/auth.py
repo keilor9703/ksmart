@@ -72,6 +72,11 @@ def registrar_nuevo_cliente(request: Request, data: schemas.RegistroSaaS, db: Se
             is_active       = True
         )
         db.add(nuevo_user)
+
+        if data.tipo_negocio == "restaurante":
+            from crud.grupos_producto import seed_categorias_restaurante
+            seed_categorias_restaurante(db, nueva_emp.id)
+
         db.commit()
 
         logger.info(

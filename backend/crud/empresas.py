@@ -140,6 +140,10 @@ def create_empresa_with_admin(db: Session, data: schemas.EmpresaWithAdminCreate,
     )
     db.add(db_user)
 
+    if tipo == "restaurante":
+        from crud.grupos_producto import seed_categorias_restaurante
+        seed_categorias_restaurante(db, db_empresa.id)
+
     if admin_id:
         log_saas_event(db, admin_id, "CREATE_EMPRESA", db_empresa.id, {"nombre": db_empresa.nombre})
 
