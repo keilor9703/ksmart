@@ -4,15 +4,16 @@ import {
   CircularProgress, useTheme, alpha, Stack, Divider,
   Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, Select, MenuItem, FormControl, InputLabel,
-  InputAdornment, Paper, Badge,
+  InputAdornment, Paper,
 } from '@mui/material';
 import {
   PointOfSale, Search, Refresh, Close, TableRestaurant,
   Receipt, AccessTime, Person, AttachMoney, CheckCircle,
-  Print,
+  QrCode2,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
+import LinkPagoModal from '../../components/common/LinkPagoModal.jsx';
 import usePolling from '../../hooks/usePolling';
 import ReciboDialog from '../../components/common/ReciboDialog';
 
@@ -42,6 +43,12 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
   const [loading, setLoading] = useState(false);
   const [reciboVenta, setReciboVenta] = useState(null);
   const [reciboOpen, setReciboOpen] = useState(false);
+  const [linkPagoConfig, setLinkPagoConfig] = useState(null);
+  const [linkPagoOpen, setLinkPagoOpen] = useState(false);
+
+  useEffect(() => {
+    apiClient.get('/empresa/link-pago').then(r => setLinkPagoConfig(r.data)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (open) { setMetodo('Efectivo'); setRecibido(''); setPropina(0); }
@@ -56,6 +63,7 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
   const faltante = metodo === 'Efectivo' && montoRec > 0 ? Math.max(0, totalConPropina - montoRec) : 0;
 
   const puedeConfirmar =
+    metodo === 'Link de Pago' ||
     metodo !== 'Efectivo' ||
     montoRec >= totalConPropina;
 
@@ -174,6 +182,14 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
               <Select value={metodo} onChange={e => setMetodo(e.target.value)} label="Método de pago"
                 sx={{ borderRadius: 2 }}>
                 {METODOS.map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                {linkPagoConfig && (
+                  <MenuItem value="Link de Pago">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <QrCode2 sx={{ fontSize: 16, color: '#FF6020' }} />
+                      Link de Pago / QR
+                    </Box>
+                  </MenuItem>
+                )}
               </Select>
             </FormControl>
 
@@ -192,7 +208,6 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
                   }}
                   sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 }, mb: 1.5 }}
                 />
-
                 {montoRec > 0 && (
                   <Box sx={{
                     p: 1.5, borderRadius: 2, textAlign: 'center',
@@ -218,6 +233,23 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
                 )}
               </Box>
             )}
+
+            {/* Link/QR: indicador visual */}
+            {metodo === 'Link de Pago' && linkPagoConfig && (
+              <Box sx={{
+                p: 1.5, borderRadius: 2, textAlign: 'center',
+                bgcolor: alpha('#FF6020', 0.06),
+                border: `1.5px solid ${alpha('#FF6020', 0.25)}`,
+              }}>
+                <QrCode2 sx={{ color: '#FF6020', fontSize: 28, mb: 0.5 }} />
+                <Typography fontSize={12} fontWeight={700} color="#FF6020">
+                  {linkPagoConfig.nombre}
+                </Typography>
+                <Typography fontSize={11} color="text.secondary" mt={0.3}>
+                  Al confirmar se mostrará el QR / link al cliente
+                </Typography>
+              </Box>
+            )}
           </Stack>
         </DialogContent>
 
@@ -227,15 +259,29 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
             variant="contained"
             disabled={loading || !puedeConfirmar}
             startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <CheckCircle />}
-            onClick={handlePagar}
+            onClick={() => metodo === 'Link de Pago' ? setLinkPagoOpen(true) : handlePagar()}
             sx={{
               borderRadius: 2, fontWeight: 800, fontSize: 14, py: 1.1, flex: 1,
-              bgcolor: '#059669', '&:hover': { bgcolor: '#047857' },
+              bgcolor: metodo === 'Link de Pago' ? '#FF6020' : '#059669',
+              '&:hover': { bgcolor: metodo === 'Link de Pago' ? '#E8531A' : '#047857' },
             }}>
-            Confirmar pago {fmt(totalConPropina)}
+            {metodo === 'Link de Pago' ? 'Mostrar QR / Link' : `Confirmar pago ${fmt(totalConPropina)}`}
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Link de Pago modal */}
+      {linkPagoConfig && (
+        <LinkPagoModal
+          open={linkPagoOpen}
+          onClose={() => setLinkPagoOpen(false)}
+          linkConfig={linkPagoConfig}
+          onConfirm={async () => {
+            setLinkPagoOpen(false);
+            await handlePagar();
+          }}
+        />
+      )}
 
       <ReciboDialog
         open={reciboOpen}
