@@ -38,12 +38,9 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
   useEffect(() => {
     if (!open) return;
     apiClient.get('/parqueadero/config').then(({ data }) => setConfig(data));
-    // Cargar métodos de pago para detectar si hay Link/QR configurado
-    apiClient.get('/parqueadero/metodos-pago').then(({ data }) => {
-      const libre = data.find(m =>
-        m.modalidad === 'libre' && m.is_active && (m.tiene_link || m.tiene_qr)
-      );
-      setMetodoLinkQR(libre || null);
+    // Cargar config de link/QR desde la misma fuente que ventas y restaurante
+    apiClient.get('/empresa/link-pago').then(({ data }) => {
+      setMetodoLinkQR(data || null);
     }).catch(() => {});
     setMontoManual('');
     setMetodoPago('Efectivo');
@@ -266,12 +263,7 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
                   {m === 'Link/QR' ? (
                     <Stack direction="row" spacing={0.5} alignItems="center">
                       <QrCode2 sx={{ fontSize: 16, color: '#7C3AED' }} />
-                      <span>Link / QR</span>
-                      {metodoLinkQR?.nombre_metodo && (
-                        <Typography component="span" sx={{ fontSize: 11, color: 'text.secondary', ml: 0.5 }}>
-                          ({metodoLinkQR.nombre_metodo})
-                        </Typography>
-                      )}
+                      <span>{metodoLinkQR?.nombre || 'Link / QR'}</span>
                     </Stack>
                   ) : m}
                 </MenuItem>
@@ -374,14 +366,7 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
           setLinkPagoModalOpen(false);
           await handleSalida();
         }}
-        linkConfig={{
-          nombre:       metodoLinkQR.nombre_metodo || 'Link / QR',
-          tipo:         metodoLinkQR.tiene_qr ? 'qr_imagen' : 'url',
-          qr_base64:    metodoLinkQR.qr_base64,
-          qr_mime_type: metodoLinkQR.qr_mime_type,
-          link_url:     metodoLinkQR.link_pago,
-          instrucciones: metodoLinkQR.instrucciones,
-        }}
+        linkConfig={metodoLinkQR}
         clienteTelefono={acceso?.telefono || ''}
       />
     )}
