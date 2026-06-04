@@ -98,8 +98,9 @@ export const MODULE_ICONS = {
   '/parqueadero/config':         { icon: <SettingsSuggest />, color: '#6B7280', label: 'Tarifas y cupo' },
 
   // Lavadero
-  '/lavadero/ventas':   { icon: <LocalCarWash />,  color: '#0EA5E9', label: 'POS Lavadero' },
-  '/lavadero/reporte':  { icon: <DirectionsCar />, color: '#0284C7', label: 'Reporte por trabajador' },
+  '/lavadero/ventas':   { icon: <LocalCarWash />,    color: '#0EA5E9', label: 'POS Lavadero' },
+  '/lavadero/reporte':  { icon: <DirectionsCar />,   color: '#0284C7', label: 'Reporte por trabajador' },
+  '/lavadero/config':   { icon: <SettingsSuggest />, color: '#6B7280', label: 'Config. Lavadero' },
 
   // Restaurante
   '/restaurante':        { icon: <TableRestaurant />, color: '#F97316', label: 'Mapa de Mesas' },

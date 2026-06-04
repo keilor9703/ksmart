@@ -113,6 +113,7 @@ def initialize_default_data(db: Session):
         {"name": "Config Parqueadero",  "description": "Tarifas y cupo total.",                            "frontend_path": "/parqueadero/config"},
         {"name": "POS Lavadero",         "description": "Punto de venta especializado para lavadero.",       "frontend_path": "/lavadero/ventas"},
         {"name": "Reporte Lavadero",     "description": "Reporte de productividad por trabajador.",          "frontend_path": "/lavadero/reporte"},
+        {"name": "Config Lavadero",      "description": "Comisiones e impresión del lavadero.",              "frontend_path": "/lavadero/config"},
         {"name": "Gestión Usuarios",     "description": "Administración de usuarios y roles.",               "frontend_path": "/admin/usuarios"},
         {"name": "Catálogo Virtual",     "description": "Tienda virtual con pedidos por WhatsApp.",          "frontend_path": "/admin/catalogo"},
         {"name": "Pedidos Virtuales",    "description": "Gestión de pedidos recibidos desde la tienda virtual.", "frontend_path": "/pedidos-virtuales"},

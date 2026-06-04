@@ -1,80 +1,208 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box, Paper, Typography, Grid, TextField, Button, Chip, Stack,
-  IconButton, Divider, List, ListItem, ListItemText, Autocomplete,
-  CircularProgress, Avatar, Tooltip, InputAdornment,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  IconButton, Divider, Autocomplete, CircularProgress, Avatar,
+  Tooltip, InputAdornment, Dialog, DialogTitle, DialogContent,
+  DialogActions, ToggleButtonGroup, ToggleButton, Badge,
 } from '@mui/material';
 import {
-  DirectionsCar, Add, Remove, DeleteOutline, CheckCircle,
-  TwoWheeler, LocalShipping, DriveEta, Search, ClearAll,
-  Replay, Notes,
+  DirectionsCar, Add, Remove, DeleteOutline, LocalCarWash,
+  TwoWheeler, LocalShipping, DriveEta, ClearAll, Notes,
+  Refresh, AccessTime, AttachMoney, CheckCircle, PlayArrow,
+  Done, Close, Person,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
-import CurrencyField from '../../components/common/CurrencyField';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 import { METODOS_PAGO_SIMPLE as METODOS_PAGO } from '../../utils/constants';
+import { imprimirReciboLavadero } from '../../utils/printLavadero';
 
-const ACCENT = '#FF6020';
-const GREEN  = '#10B981';
+const ACCENT  = '#FF6020';
+const BLUE    = '#3B82F6';
+const AMBER   = '#F59E0B';
+const GREEN   = '#10B981';
 
 const TIPOS_VEHICULO = [
-  { label: 'Carro',        icon: DirectionsCar  },
-  { label: 'Moto',         icon: TwoWheeler     },
-  { label: 'SUV/Camioneta',icon: LocalShipping  },
-  { label: 'Otro',         icon: DriveEta       },
+  { label: 'Carro',         icon: DirectionsCar  },
+  { label: 'Moto',          icon: TwoWheeler     },
+  { label: 'SUV/Camioneta', icon: LocalShipping  },
+  { label: 'Otro',          icon: DriveEta       },
 ];
-const CONSUMIDOR_FINAL = { id: null, nombre: 'Consumidor final / Otros' };
 
-const buildEmptyCart = () => [];
+const ESTADOS_TABLERO = [
+  { key: 'recibido',  label: 'Recibido',  color: BLUE,  bg: '#EFF6FF', nextKey: 'lavando',   nextLabel: 'Iniciar lavado',    NextIcon: PlayArrow },
+  { key: 'lavando',   label: 'Lavando',   color: AMBER, bg: '#FFFBEB', nextKey: 'terminado', nextLabel: 'Marcar terminado',  NextIcon: Done      },
+  { key: 'terminado', label: 'Terminado', color: GREEN, bg: '#ECFDF5', nextKey: null,         nextLabel: null,               NextIcon: null      },
+];
 
-const SectionLabel = ({ children }) => (
-  <Typography sx={{ fontWeight: 700, fontSize: 11, mb: 1.5, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
-    {children}
-  </Typography>
-);
-
-/* ── format & validate placa ─────────────────────────────────────────────── */
 const formatPlaca = (raw) => {
   const clean = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (clean.length > 3) return `${clean.slice(0, 3)}-${clean.slice(3, 7)}`;
   return clean;
 };
 
+const getElapsed = (fechaEntrada) => {
+  const ms = Date.now() - new Date(fechaEntrada).getTime();
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return '< 1 min';
+  if (mins < 60) return `${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  const rem = mins % 60;
+  return rem > 0 ? `${hrs}h ${rem}m` : `${hrs}h`;
+};
+
+const SectionLabel = ({ children }) => (
+  <Typography sx={{ fontWeight: 700, fontSize: 11, mb: 1.2, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+    {children}
+  </Typography>
+);
+
+/* ── Tarjeta de orden en el tablero ─────────────────────────────────────── */
+function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar }) {
+  const TipoIcon = TIPOS_VEHICULO.find(t => t.label === orden.tipo_vehiculo)?.icon ?? DirectionsCar;
+
+  return (
+    <Paper
+      elevation={0}
+      sx={{
+        borderRadius: 2.5, border: `1.5px solid ${estadoConfig.color}30`,
+        bgcolor: estadoConfig.bg, mb: 1.5, overflow: 'hidden',
+        transition: 'box-shadow 0.15s',
+        '&:hover': { boxShadow: `0 2px 12px ${estadoConfig.color}20` },
+      }}
+    >
+      <Box sx={{ height: 3, bgcolor: estadoConfig.color }} />
+      <Box sx={{ p: 1.8 }}>
+        {/* Placa + tipo */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.8 }}>
+          <Typography sx={{ fontSize: 20, fontWeight: 900, letterSpacing: 2, color: estadoConfig.color }}>
+            {orden.placa}
+          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
+            <TipoIcon sx={{ fontSize: 16 }} />
+            <Typography sx={{ fontSize: 11 }}>{orden.tipo_vehiculo || '—'}</Typography>
+          </Box>
+        </Box>
+
+        {/* Servicios */}
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
+          {(orden.detalles || []).map((d, i) => (
+            <Chip
+              key={i}
+              label={d.cantidad > 1 ? `${d.nombre_servicio} x${d.cantidad}` : d.nombre_servicio}
+              size="small"
+              sx={{ fontSize: 10, height: 20, bgcolor: `${estadoConfig.color}15`, color: estadoConfig.color, fontWeight: 600 }}
+            />
+          ))}
+        </Box>
+
+        {/* Meta: worker + elapsed + total */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 0.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+            {orden.operador_nombre && (
+              <>
+                <Person sx={{ fontSize: 13, color: 'text.disabled' }} />
+                <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{orden.operador_nombre}</Typography>
+              </>
+            )}
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+              <AccessTime sx={{ fontSize: 12, color: 'text.disabled' }} />
+              <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{getElapsed(orden.fecha_entrada)}</Typography>
+            </Box>
+            <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{formatCurrency(orden.total || 0)}</Typography>
+          </Box>
+        </Box>
+
+        {orden.observaciones && (
+          <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.8, fontStyle: 'italic' }}>
+            "{orden.observaciones}"
+          </Typography>
+        )}
+
+        {/* Action buttons */}
+        <Box sx={{ mt: 1.5, display: 'flex', gap: 1 }}>
+          {estadoConfig.nextKey && (
+            <Button
+              size="small" fullWidth variant="contained"
+              startIcon={<estadoConfig.NextIcon sx={{ fontSize: 14 }} />}
+              onClick={() => onEstadoChange(orden.id, estadoConfig.nextKey)}
+              sx={{
+                bgcolor: estadoConfig.color, '&:hover': { filter: 'brightness(0.9)' },
+                fontWeight: 700, fontSize: 11, textTransform: 'none', borderRadius: 1.5, py: 0.8,
+              }}
+            >
+              {estadoConfig.nextLabel}
+            </Button>
+          )}
+          {orden.estado === 'terminado' && (
+            <Button
+              size="small" fullWidth variant="contained"
+              startIcon={<AttachMoney sx={{ fontSize: 14 }} />}
+              onClick={() => onCobrar(orden)}
+              sx={{
+                bgcolor: GREEN, '&:hover': { filter: 'brightness(0.9)' },
+                fontWeight: 700, fontSize: 11, textTransform: 'none', borderRadius: 1.5, py: 0.8,
+              }}
+            >
+              Cobrar
+            </Button>
+          )}
+        </Box>
+      </Box>
+    </Paper>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════════ */
 export default function LavaderoVentas({ user }) {
   const isAdmin = user?.role?.name === 'Admin';
 
-  const [servicios,      setServicios]      = useState([]);
-  const [trabajadores,   setTrabajadores]   = useState([]);
-  const [clientes,       setClientes]       = useState([]);
-  const [ventas,         setVentas]         = useState([]);
-  const [loadingServicios, setLoadingServicios] = useState(true);
+  /* ── Form state ───────────────────────────────────────────────────────── */
+  const [placa,        setPlaca]        = useState('');
+  const [tipoVehiculo, setTipoVehiculo] = useState('Carro');
+  const [servicios,    setServicios]    = useState([]);
+  const [carrito,      setCarrito]      = useState([]);
+  const [operadorId,   setOperadorId]   = useState(user?.id || null);
+  const [operadorObj,  setOperadorObj]  = useState(null);
+  const [trabajadores, setTrabajadores] = useState([]);
+  const [clientes,     setClientes]     = useState([]);
+  const [clienteObj,   setClienteObj]   = useState(null);
+  const [observaciones,setObservaciones]= useState('');
+  const [saving,       setSaving]       = useState(false);
+  const [busqueda,     setBusqueda]     = useState('');
+  const [loadingServ,  setLoadingServ]  = useState(true);
 
-  const [placa,          setPlaca]          = useState('');
-  const [tipoVehiculo,   setTipoVehiculo]   = useState('Carro');
-  const [carrito,        setCarrito]        = useState(buildEmptyCart());
-  const [operadorId,     setOperadorId]     = useState(user?.id || null);
-  const [operadorObj,    setOperadorObj]    = useState(null);
-  const [metodoPago,     setMetodoPago]     = useState('Efectivo');
-  const [valorRecibido,  setValorRecibido]  = useState(0);
-  const [clienteObj,     setClienteObj]     = useState(CONSUMIDOR_FINAL);
-  const [observaciones,  setObservaciones]  = useState('');
-  const [saving,         setSaving]         = useState(false);
-  const [busquedaServicio, setBusquedaServicio] = useState('');
+  /* ── Board state ──────────────────────────────────────────────────────── */
+  const [ordenes,      setOrdenes]      = useState([]);
+  const [loadingBoard, setLoadingBoard] = useState(true);
+  const [tick,         setTick]         = useState(0);        // drives elapsed time refresh
+  const [mobileView,   setMobileView]   = useState('crear');
+  const [boardFilter,  setBoardFilter]  = useState('recibido');
 
-  /* ── fetch ──────────────────────────────────────────────────────────────── */
+  /* ── Config & cobrar ──────────────────────────────────────────────────── */
+  const [config,       setConfig]       = useState(null);
+  const [cobrarOrden,  setCobrarOrden]  = useState(null);
+  const [metodoPago,   setMetodoPago]   = useState('Efectivo');
+  const [cobrando,     setCobrando]     = useState(false);
+
+  /* ── Fetchers ─────────────────────────────────────────────────────────── */
+  const fetchOrdenes = useCallback(async () => {
+    try {
+      const { data } = await apiClient.get('/lavadero/ordenes', { params: { activas: true } });
+      setOrdenes(data);
+    } catch { /* silent */ } finally { setLoadingBoard(false); }
+  }, []);
+
   const fetchServicios = useCallback(async () => {
-    setLoadingServicios(true);
+    setLoadingServ(true);
     try {
       const { data } = await apiClient.get('/productos/', { params: { es_servicio: true, limit: 200 } });
       setServicios(data.results ?? data);
-    } catch {
-      toast.error('No se pudieron cargar los servicios.');
-    } finally {
-      setLoadingServicios(false);
-    }
+    } catch { toast.error('No se pudieron cargar los servicios.'); }
+    finally { setLoadingServ(false); }
   }, []);
 
   const fetchTrabajadores = useCallback(async () => {
@@ -92,109 +220,145 @@ export default function LavaderoVentas({ user }) {
     } catch { /* silent */ }
   }, []);
 
-  const fetchVentas = useCallback(async () => {
+  const fetchConfig = useCallback(async () => {
     try {
-      const { data } = await apiClient.get('/ventas/', { params: { limit: 12, ordering: '-fecha' } });
-      const list = (data.results ?? data).filter(v => v.placa_vehiculo);
-      setVentas(list.slice(0, 12));
+      const { data } = await apiClient.get('/lavadero/config');
+      setConfig(data);
     } catch { /* silent */ }
   }, []);
 
   useEffect(() => {
+    fetchOrdenes();
     fetchServicios();
     fetchTrabajadores();
     fetchClientes();
-    fetchVentas();
-  }, [fetchServicios, fetchTrabajadores, fetchClientes, fetchVentas]);
+    fetchConfig();
+  }, [fetchOrdenes, fetchServicios, fetchTrabajadores, fetchClientes, fetchConfig]);
 
-  /* ── cart ──────────────────────────────────────────────────────────────── */
-  const agregarServicio = (servicio) => {
+  /* Poll every 30 s: refresh board + tick elapsed counters */
+  useEffect(() => {
+    const id = setInterval(() => { fetchOrdenes(); setTick(t => t + 1); }, 30000);
+    return () => clearInterval(id);
+  }, [fetchOrdenes]);
+
+  /* ── Cart helpers ─────────────────────────────────────────────────────── */
+  const agregarServicio = (s) => {
     setCarrito(prev => {
-      const existente = prev.find(i => i.productoId === servicio.id);
-      if (existente) return prev.map(i => i.productoId === servicio.id ? { ...i, cantidad: i.cantidad + 1 } : i);
+      const ex = prev.find(i => i.productoId === s.id);
+      if (ex) return prev.map(i => i.productoId === s.id ? { ...i, cantidad: i.cantidad + 1 } : i);
       return [...prev, {
-        productoId: servicio.id,
-        nombre: servicio.nombre,
-        precio: parseFloat(servicio.precio_venta ?? servicio.precio ?? 0),
-        cantidad: 1,
+        productoId:  s.id,
+        nombre:      s.nombre,
+        precio:      parseFloat(s.precio_venta ?? s.precio ?? 0),
+        cantidad:    1,
+        comision_pct: s.comision_pct ?? null,
       }];
     });
   };
 
-  const cambiarCantidad = (productoId, delta) => {
-    setCarrito(prev => prev.map(i => i.productoId === productoId ? { ...i, cantidad: i.cantidad + delta } : i).filter(i => i.cantidad > 0));
-  };
+  const cambiarCantidad = (id, delta) =>
+    setCarrito(prev =>
+      prev.map(i => i.productoId === id ? { ...i, cantidad: i.cantidad + delta } : i)
+          .filter(i => i.cantidad > 0)
+    );
 
-  const quitarItem = (productoId) => setCarrito(prev => prev.filter(i => i.productoId !== productoId));
-
-  const total  = carrito.reduce((s, i) => s + i.precio * i.cantidad, 0);
-  const cambio = metodoPago === 'Efectivo' && valorRecibido > 0 ? Math.max(0, valorRecibido - total) : 0;
+  const total = carrito.reduce((s, i) => s + i.precio * i.cantidad, 0);
 
   const serviciosFiltrados = useMemo(() => {
-    if (!busquedaServicio.trim()) return servicios;
-    const q = busquedaServicio.toLowerCase();
+    if (!busqueda.trim()) return servicios;
+    const q = busqueda.toLowerCase();
     return servicios.filter(s => s.nombre.toLowerCase().includes(q));
-  }, [servicios, busquedaServicio]);
+  }, [servicios, busqueda]);
 
-  /* ── quick repeat from recent sales ──────────────────────────────────────*/
-  const repetirVenta = (v) => {
-    setPlaca(v.placa_vehiculo || '');
-    if (v.tipo_vehiculo) setTipoVehiculo(v.tipo_vehiculo);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    toast.info(`Placa ${v.placa_vehiculo} cargada. Selecciona los servicios.`);
-  };
-
-  /* ── reset ─────────────────────────────────────────────────────────────── */
   const resetForm = () => {
-    setPlaca(''); setTipoVehiculo('Carro');
-    setCarrito(buildEmptyCart()); setMetodoPago('Efectivo');
-    setValorRecibido(0); setClienteObj(CONSUMIDOR_FINAL);
-    setObservaciones(''); setBusquedaServicio('');
+    setPlaca(''); setTipoVehiculo('Carro'); setCarrito([]);
+    setObservaciones(''); setBusqueda(''); setClienteObj(null);
+    if (isAdmin) { setOperadorId(null); setOperadorObj(null); }
   };
 
-  /* ── submit ─────────────────────────────────────────────────────────────── */
-  const handleSubmit = async () => {
+  /* ── Registrar entrada ────────────────────────────────────────────────── */
+  const handleRegistrar = async () => {
     if (!placa.trim()) { toast.warning('Ingresa la placa del vehículo.'); return; }
     if (carrito.length === 0) { toast.warning('Agrega al menos un servicio.'); return; }
 
     setSaving(true);
     try {
-      await apiClient.post('/ventas/', {
-        cliente_id:     clienteObj?.id ?? null,
-        placa_vehiculo: placa.trim().toUpperCase().replace(/-/g, ''),
-        tipo_vehiculo:  tipoVehiculo,
-        operador_id:    operadorId,
-        pagada:         true,
-        metodo_pago:    metodoPago,
-        iva_porcentaje: 0,
-        observaciones:  observaciones.trim() || null,
+      await apiClient.post('/lavadero/ordenes', {
+        placa:         placa.trim().toUpperCase().replace(/-/g, ''),
+        tipo_vehiculo: tipoVehiculo,
+        operador_id:   operadorId,
+        cliente_id:    clienteObj?.id ?? null,
+        observaciones: observaciones.trim() || null,
         detalles: carrito.map(item => ({
           producto_id:     item.productoId,
+          nombre_servicio: item.nombre,
           cantidad:        item.cantidad,
           precio_unitario: item.precio,
+          comision_pct:    item.comision_pct,
         })),
       });
-      toast.success('¡Lavada registrada exitosamente!');
+      toast.success('¡Vehículo registrado! Aparece en el tablero.');
       resetForm();
-      fetchVentas();
+      fetchOrdenes();
+      if (window.innerWidth < 900) setMobileView('tablero');
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Error al registrar la venta.');
+      toast.error(err.response?.data?.detail || 'Error al registrar la entrada.');
     } finally {
       setSaving(false);
     }
   };
 
-  const TipoIcon = TIPOS_VEHICULO.find(t => t.label === tipoVehiculo)?.icon ?? DirectionsCar;
+  /* ── Avanzar estado ───────────────────────────────────────────────────── */
+  const handleEstadoChange = async (ordenId, nuevoEstado) => {
+    setOrdenes(prev => prev.map(o => o.id === ordenId ? { ...o, estado: nuevoEstado } : o));
+    try {
+      await apiClient.patch(`/lavadero/ordenes/${ordenId}`, { estado: nuevoEstado });
+    } catch {
+      toast.error('Error al actualizar el estado.');
+      fetchOrdenes();
+    }
+  };
 
-  /* ── render ─────────────────────────────────────────────────────────────── */
+  /* ── Cobrar ───────────────────────────────────────────────────────────── */
+  const handleCobrar = async () => {
+    if (!cobrarOrden) return;
+    setCobrando(true);
+    try {
+      const { data } = await apiClient.post(`/lavadero/ordenes/${cobrarOrden.id}/cobrar`, {
+        metodo_pago:  metodoPago,
+        monto_pagado: cobrarOrden.total,
+      });
+      toast.success(`¡Pago registrado! ${cobrarOrden.placa} entregado.`);
+      if (config?.imprimir_recibo) {
+        imprimirReciboLavadero(data, config, config?.tipo_impresora || 'p80');
+      }
+      setCobrarOrden(null);
+      fetchOrdenes();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al registrar el cobro.');
+    } finally {
+      setCobrando(false);
+    }
+  };
+
+  /* ── Board grouping ───────────────────────────────────────────────────── */
+  const ordensPorEstado = useMemo(() => {
+    const map = { recibido: [], lavando: [], terminado: [] };
+    ordenes.forEach(o => { if (map[o.estado]) map[o.estado].push(o); });
+    return map;
+  }, [ordenes]);
+
+  const activeCount = ordenes.length;
+
+  /* ─────────────────────────────────────────────────────────────────────── */
   return (
-    <Box sx={{ p: { xs: 1, md: 2 }, maxWidth: 1140, mx: 'auto' }}>
+    <Box sx={{ p: { xs: 1, md: 2 }, maxWidth: 1300, mx: 'auto' }}>
 
       {/* ── Header ── */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5, flexWrap: 'wrap', gap: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Box sx={{ width: 42, height: 42, borderRadius: 2, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <DirectionsCar sx={{ color: ACCENT, fontSize: 24 }} />
+            <LocalCarWash sx={{ color: ACCENT, fontSize: 24 }} />
           </Box>
           <Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -203,142 +367,141 @@ export default function LavaderoVentas({ user }) {
                 moduleName="POS Lavadero"
                 moduleColor={ACCENT}
                 steps={[
-                  { title: 'Selecciona el tipo de vehículo', description: 'Elige entre Moto, Carro, SUV u Otro. El tipo se guarda en el historial.' },
-                  { title: 'Elige el servicio', description: 'Haz clic en las tarjetas de servicio para agregar al carrito. Puedes combinar varios.' },
-                  { title: 'Asigna el lavador', description: 'Selecciona el empleado que realizará el trabajo para el reporte de productividad.' },
-                  { title: 'Cobra y registra', description: 'Selecciona el método de pago y haz clic en "Registrar Lavada".' },
+                  { title: 'Registra la entrada', description: 'Ingresa la placa, tipo de vehículo y los servicios solicitados. Presiona "Registrar Entrada".' },
+                  { title: 'Tablero de órdenes', description: 'Cada vehículo aparece en el tablero. Avanza el estado: Recibido → Lavando → Terminado.' },
+                  { title: 'Cobra al finalizar', description: 'Cuando el vehículo esté listo, presiona "Cobrar" para registrar el pago y entregar.' },
+                  { title: 'Recibo automático', description: 'Si lo activaste en Config. Lavadero, el recibo se imprime al cobrar.' },
                 ]}
                 faqItems={[
-                  { q: '¿Cómo agrego un nuevo tipo de lavada?', a: 'En el módulo Productos, crea un producto de tipo "Servicio" con el nombre y precio de la lavada.' },
-                  { q: '¿Puedo atender varios vehículos a la vez?', a: 'Sí. Cada orden es independiente — termina una y la pantalla se limpia para la siguiente.' },
-                  { q: '¿Cómo veo cuánto produjo cada lavador?', a: 'Ve al módulo "Reporte Lavadero" y selecciona el período para ver detalle por trabajador.' },
-                  { q: '¿Qué es el botón "Repetir" en el historial?', a: 'Carga la misma placa del registro anterior para agilizar el registro de vehículos frecuentes.' },
+                  { q: '¿Cómo agrego más servicios?', a: 'En el módulo Productos, crea un producto marcando "Es servicio" con su nombre y precio.' },
+                  { q: '¿Puedo atender varios vehículos a la vez?', a: 'Sí. El tablero muestra todos los vehículos activos simultáneamente.' },
+                  { q: '¿Qué pasa cuando cobro?', a: 'La orden pasa a "Entregado" y queda registrada en el reporte del lavadero.' },
+                  { q: '¿Cómo configuro comisiones?', a: 'Ve a Config. Lavadero para definir el % de comisión global o por servicio.' },
                 ]}
               />
             </Box>
-            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Registro rápido de lavadas</Typography>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Entrada rápida y tablero de órdenes</Typography>
           </Box>
         </Box>
+        <Button
+          size="small" variant="outlined" startIcon={<Refresh />}
+          onClick={fetchOrdenes}
+          sx={{ borderRadius: 2, textTransform: 'none', borderColor: 'divider' }}
+        >
+          Actualizar tablero
+        </Button>
+      </Box>
+
+      {/* ── Mobile tab switcher ── */}
+      <Box sx={{ display: { xs: 'flex', md: 'none' }, mb: 2 }}>
+        <ToggleButtonGroup
+          value={mobileView} exclusive
+          onChange={(_, v) => v && setMobileView(v)}
+          size="small" fullWidth
+        >
+          <ToggleButton value="crear" sx={{ fontWeight: 700, textTransform: 'none' }}>
+            Nueva Entrada
+          </ToggleButton>
+          <ToggleButton value="tablero" sx={{ fontWeight: 700, textTransform: 'none' }}>
+            <Badge badgeContent={activeCount} color="error" max={99}>
+              Tablero&nbsp;&nbsp;
+            </Badge>
+          </ToggleButton>
+        </ToggleButtonGroup>
       </Box>
 
       <Grid container spacing={2.5}>
-        {/* ══ LEFT COLUMN ══════════════════════════════════════════════════ */}
-        <Grid item xs={12} md={7}>
 
-          {/* ─ Vehículo ─ */}
+        {/* ══ LEFT: Formulario de entrada ══ */}
+        <Grid item xs={12} md={5}
+          sx={{ display: { xs: mobileView === 'crear' ? 'block' : 'none', md: 'block' } }}
+        >
+          {/* Placa + tipo vehículo */}
           <Paper sx={{ p: 2.5, borderRadius: 3, mb: 2, border: '1px solid', borderColor: 'divider' }}>
             <SectionLabel>Vehículo</SectionLabel>
-            <Grid container spacing={2} alignItems="flex-start">
-              <Grid item xs={12} sm={5}>
-                <TextField
-                  label="Placa"
-                  value={placa}
-                  onChange={e => setPlaca(formatPlaca(e.target.value))}
-                  size="small"
-                  fullWidth
-                  placeholder="ABC-123"
-                  inputProps={{
-                    style: { fontFamily: 'monospace', fontWeight: 800, fontSize: 20, letterSpacing: 4 },
-                    maxLength: 8,
-                  }}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <TipoIcon sx={{ color: ACCENT, fontSize: 20 }} />
-                      </InputAdornment>
-                    ),
+            <TextField
+              label="Placa" fullWidth size="small"
+              value={placa}
+              onChange={e => setPlaca(formatPlaca(e.target.value))}
+              inputProps={{ maxLength: 8, style: { textTransform: 'uppercase', fontWeight: 800, letterSpacing: 4, fontSize: 18 } }}
+              placeholder="ABC-123"
+              sx={{ mb: 2 }}
+            />
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              {TIPOS_VEHICULO.map(({ label, icon: Icon }) => (
+                <Chip
+                  key={label}
+                  icon={<Icon sx={{ fontSize: 16 }} />}
+                  label={label}
+                  onClick={() => setTipoVehiculo(label)}
+                  sx={{
+                    cursor: 'pointer', fontWeight: 600, fontSize: 12,
+                    bgcolor: tipoVehiculo === label ? ACCENT : 'action.hover',
+                    color:   tipoVehiculo === label ? 'white' : 'text.primary',
+                    '&:hover': { filter: 'brightness(0.95)' },
+                    '& .MuiChip-icon': { color: tipoVehiculo === label ? 'rgba(255,255,255,0.9)' : 'text.secondary' },
                   }}
                 />
-              </Grid>
-              <Grid item xs={12} sm={7}>
-                <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.8 }}>Tipo de vehículo</Typography>
-                <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap' }}>
-                  {TIPOS_VEHICULO.map(({ label, icon: Icon }) => (
-                    <Chip
-                      key={label}
-                      label={label}
-                      size="small"
-                      icon={<Icon sx={{ fontSize: 14 }} />}
-                      onClick={() => setTipoVehiculo(label)}
-                      sx={{
-                        fontWeight: 600, cursor: 'pointer',
-                        bgcolor: tipoVehiculo === label ? ACCENT : 'action.hover',
-                        color: tipoVehiculo === label ? 'white' : 'text.primary',
-                        '& .MuiChip-icon': { color: tipoVehiculo === label ? 'rgba(255,255,255,0.85)' : 'text.secondary' },
-                        '&:hover': { bgcolor: tipoVehiculo === label ? '#e6561c' : 'action.selected' },
-                        transition: 'all 0.15s',
-                      }}
-                    />
-                  ))}
-                </Box>
-              </Grid>
-            </Grid>
+              ))}
+            </Box>
           </Paper>
 
-          {/* ─ Servicios ─ */}
+          {/* Servicios */}
           <Paper sx={{ p: 2.5, borderRadius: 3, mb: 2, border: '1px solid', borderColor: 'divider' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-              <SectionLabel>Servicios</SectionLabel>
-              {servicios.length > 6 && (
-                <TextField
-                  size="small"
-                  placeholder="Buscar…"
-                  value={busquedaServicio}
-                  onChange={e => setBusquedaServicio(e.target.value)}
-                  sx={{ width: 160, '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: 13 } }}
-                  InputProps={{
-                    startAdornment: <InputAdornment position="start"><Search sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment>,
-                  }}
-                />
-              )}
-            </Box>
-            {loadingServicios ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                <CircularProgress size={32} sx={{ color: ACCENT }} />
+            <SectionLabel>Servicios</SectionLabel>
+            <TextField
+              size="small" fullWidth placeholder="Buscar servicio…"
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              sx={{ mb: 1.5 }}
+              InputProps={{
+                endAdornment: busqueda ? (
+                  <IconButton size="small" onClick={() => setBusqueda('')}><Close sx={{ fontSize: 14 }} /></IconButton>
+                ) : null,
+              }}
+            />
+            {loadingServ ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+                <CircularProgress size={24} sx={{ color: ACCENT }} />
               </Box>
             ) : serviciosFiltrados.length === 0 ? (
-              <Typography sx={{ color: 'text.secondary', fontSize: 13, textAlign: 'center', py: 2 }}>
-                {servicios.length === 0
-                  ? 'No hay servicios configurados. Crea productos de tipo servicio en el catálogo.'
-                  : 'Sin resultados para la búsqueda.'
-                }
+              <Typography sx={{ color: 'text.disabled', fontSize: 12, textAlign: 'center', py: 2 }}>
+                No hay servicios. Créalos en Productos.
               </Typography>
             ) : (
-              <Grid container spacing={1.5}>
+              <Grid container spacing={1}>
                 {serviciosFiltrados.map(s => {
-                  const inCart = carrito.find(i => i.productoId === s.id);
+                  const enCarrito = carrito.find(i => i.productoId === s.id);
                   return (
-                    <Grid item xs={6} sm={4} key={s.id}>
+                    <Grid item xs={6} key={s.id}>
                       <Paper
                         onClick={() => agregarServicio(s)}
                         elevation={0}
                         sx={{
-                          p: 1.5, borderRadius: 2.5, cursor: 'pointer', textAlign: 'center',
-                          border: '2px solid',
-                          borderColor: inCart ? ACCENT : 'divider',
-                          bgcolor: inCart ? `${ACCENT}08` : 'background.paper',
-                          transition: 'all 0.15s',
-                          '&:hover': { borderColor: ACCENT, bgcolor: `${ACCENT}08`, transform: 'translateY(-2px)', boxShadow: `0 4px 12px ${ACCENT}20` },
+                          p: 1.2, borderRadius: 2, cursor: 'pointer',
+                          border: '1.5px solid',
+                          borderColor: enCarrito ? ACCENT : 'divider',
+                          bgcolor: enCarrito ? `${ACCENT}08` : 'transparent',
+                          transition: 'all 0.12s',
+                          '&:hover': { borderColor: ACCENT, bgcolor: `${ACCENT}05` },
                           position: 'relative',
                         }}
                       >
-                        <Typography sx={{ fontSize: 13, fontWeight: 700, lineHeight: 1.3, mb: 0.4 }}>
-                          {s.nombre}
-                        </Typography>
-                        <Typography sx={{ fontSize: 14, fontWeight: 800, color: ACCENT }}>
-                          {formatCurrency(parseFloat(s.precio_venta ?? s.precio ?? 0))}
-                        </Typography>
-                        {inCart && (
+                        {enCarrito && (
                           <Box sx={{
                             position: 'absolute', top: -8, right: -8,
-                            width: 22, height: 22, borderRadius: '50%',
-                            bgcolor: ACCENT, color: '#fff',
+                            width: 20, height: 20, borderRadius: '50%',
+                            bgcolor: ACCENT, color: 'white',
+                            fontSize: 11, fontWeight: 900,
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 11, fontWeight: 800,
                           }}>
-                            {inCart.cantidad}
+                            {enCarrito.cantidad}
                           </Box>
                         )}
+                        <Typography sx={{ fontWeight: 700, fontSize: 12, lineHeight: 1.3 }}>{s.nombre}</Typography>
+                        <Typography sx={{ fontSize: 11, color: GREEN, fontWeight: 600, mt: 0.3 }}>
+                          {formatCurrency(s.precio_venta ?? s.precio ?? 0)}
+                        </Typography>
                       </Paper>
                     </Grid>
                   );
@@ -347,272 +510,287 @@ export default function LavaderoVentas({ user }) {
             )}
           </Paper>
 
-          {/* ─ Carrito ─ */}
-          <Paper sx={{ p: 2.5, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-              <SectionLabel>Carrito {carrito.length > 0 && `(${carrito.length})`}</SectionLabel>
-              {carrito.length > 0 && (
-                <Tooltip title="Limpiar carrito">
-                  <IconButton size="small" onClick={() => setCarrito([])} sx={{ color: '#EF4444', p: 0.5 }}>
-                    <ClearAll fontSize="small" />
+          {/* Carrito resumen */}
+          {carrito.length > 0 && (
+            <Paper sx={{ p: 2.5, borderRadius: 3, mb: 2, border: `1.5px solid ${ACCENT}30`, bgcolor: `${ACCENT}04` }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                <SectionLabel>Seleccionados</SectionLabel>
+                <Tooltip title="Limpiar">
+                  <IconButton size="small" onClick={() => setCarrito([])} sx={{ color: 'text.disabled' }}>
+                    <ClearAll sx={{ fontSize: 16 }} />
                   </IconButton>
                 </Tooltip>
-              )}
-            </Box>
-            {carrito.length === 0 ? (
-              <Typography sx={{ color: 'text.secondary', fontSize: 13, textAlign: 'center', py: 2 }}>
-                Selecciona un servicio para agregar al carrito.
-              </Typography>
-            ) : (
-              <>
-                <List disablePadding>
-                  {carrito.map((item, idx) => (
-                    <React.Fragment key={item.productoId}>
-                      {idx > 0 && <Divider />}
-                      <ListItem disablePadding sx={{ py: 1 }} secondaryAction={
-                        <Tooltip title="Quitar">
-                          <IconButton size="small" onClick={() => quitarItem(item.productoId)} sx={{ color: '#EF4444' }}>
-                            <DeleteOutline fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      }>
-                        <ListItemText
-                          primary={<Typography sx={{ fontWeight: 600, fontSize: 13 }}>{item.nombre}</Typography>}
-                          secondary={
-                            <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mt: 0.5 }}>
-                              <IconButton size="small" onClick={() => cambiarCantidad(item.productoId, -1)} sx={{ p: 0.3, color: ACCENT }}>
-                                <Remove fontSize="small" />
-                              </IconButton>
-                              <Typography sx={{ fontWeight: 800, minWidth: 20, textAlign: 'center', fontSize: 14 }}>
-                                {item.cantidad}
-                              </Typography>
-                              <IconButton size="small" onClick={() => cambiarCantidad(item.productoId, 1)} sx={{ p: 0.3, color: ACCENT }}>
-                                <Add fontSize="small" />
-                              </IconButton>
-                              <Typography sx={{ fontSize: 12, color: 'text.secondary', ml: 1 }}>
-                                × {formatCurrency(item.precio)}
-                              </Typography>
-                              <Typography sx={{ fontWeight: 700, fontSize: 13, color: ACCENT, ml: 'auto !important' }}>
-                                {formatCurrency(item.precio * item.cantidad)}
-                              </Typography>
-                            </Stack>
-                          }
-                        />
-                      </ListItem>
-                    </React.Fragment>
-                  ))}
-                </List>
-                <Divider sx={{ my: 1.5 }} />
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography sx={{ fontWeight: 700, fontSize: 15 }}>Total</Typography>
-                  <Typography sx={{ fontWeight: 900, fontSize: 24, color: ACCENT }}>{formatCurrency(total)}</Typography>
-                </Box>
-              </>
-            )}
-          </Paper>
-        </Grid>
+              </Box>
+              <Stack spacing={0.8}>
+                {carrito.map(item => (
+                  <Box key={item.productoId} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography sx={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{item.nombre}</Typography>
+                    <Typography sx={{ fontSize: 13, color: 'text.secondary', minWidth: 70, textAlign: 'right' }}>
+                      {formatCurrency(item.precio * item.cantidad)}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
+                      <IconButton size="small" onClick={() => cambiarCantidad(item.productoId, -1)} sx={{ p: 0.3 }}>
+                        <Remove sx={{ fontSize: 14 }} />
+                      </IconButton>
+                      <Typography sx={{ fontWeight: 700, fontSize: 13, minWidth: 18, textAlign: 'center' }}>{item.cantidad}</Typography>
+                      <IconButton size="small" onClick={() => cambiarCantidad(item.productoId, 1)} sx={{ p: 0.3 }}>
+                        <Add sx={{ fontSize: 14 }} />
+                      </IconButton>
+                      <IconButton size="small" onClick={() => cambiarCantidad(item.productoId, -item.cantidad)} sx={{ p: 0.3, color: 'error.main' }}>
+                        <DeleteOutline sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    </Box>
+                  </Box>
+                ))}
+              </Stack>
+              <Divider sx={{ my: 1.5 }} />
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography sx={{ fontWeight: 700, fontSize: 14 }}>Total estimado</Typography>
+                <Typography sx={{ fontWeight: 800, fontSize: 16, color: GREEN }}>{formatCurrency(total)}</Typography>
+              </Box>
+            </Paper>
+          )}
 
-        {/* ══ RIGHT COLUMN ═════════════════════════════════════════════════ */}
-        <Grid item xs={12} md={5}>
-
-          {/* ─ Cliente ─ */}
-          <Paper sx={{ p: 2.5, borderRadius: 3, border: '1px solid', borderColor: 'divider', mb: 2 }}>
-            <SectionLabel>Cliente (opcional)</SectionLabel>
-            <Autocomplete
-              options={[CONSUMIDOR_FINAL, ...clientes]}
-              getOptionLabel={c => c.nombre || ''}
-              value={clienteObj ?? CONSUMIDOR_FINAL}
-              onChange={(_, v) => setClienteObj(v ?? CONSUMIDOR_FINAL)}
-              isOptionEqualToValue={(opt, val) => (opt.id ?? null) === (val.id ?? null)}
-              size="small"
-              renderInput={params => <TextField {...params} placeholder="Consumidor final / Otros" />}
-            />
-          </Paper>
-
-          {/* ─ Trabajador ─ */}
-          <Paper sx={{ p: 2.5, borderRadius: 3, border: '1px solid', borderColor: 'divider', mb: 2 }}>
-            <SectionLabel>Trabajador</SectionLabel>
-            {isAdmin ? (
+          {/* Trabajador (solo admin) */}
+          {isAdmin && trabajadores.length > 0 && (
+            <Paper sx={{ p: 2.5, borderRadius: 3, mb: 2, border: '1px solid', borderColor: 'divider' }}>
+              <SectionLabel>Asignar lavador</SectionLabel>
               <Autocomplete
+                size="small"
                 options={trabajadores}
-                getOptionLabel={t => t.nombre_completo || t.username || ''}
+                getOptionLabel={t => t.nombre_completo || t.username}
                 value={operadorObj}
                 onChange={(_, v) => { setOperadorObj(v); setOperadorId(v?.id ?? null); }}
-                size="small"
-                renderInput={params => <TextField {...params} placeholder="Selecciona un trabajador…" />}
+                renderInput={params => <TextField {...params} label="Lavador" placeholder="Seleccionar…" />}
               />
-            ) : (
-              <Chip
-                avatar={
-                  <Avatar sx={{ bgcolor: `${ACCENT}25`, color: ACCENT, fontSize: 13, fontWeight: 800 }}>
-                    {(user?.nombre_completo || '?')[0]}
-                  </Avatar>
-                }
-                label={user?.nombre_completo || 'Operador'}
-                sx={{ fontWeight: 600, bgcolor: `${ACCENT}12` }}
-              />
-            )}
-          </Paper>
+            </Paper>
+          )}
 
-          {/* ─ Método de pago ─ */}
-          <Paper sx={{ p: 2.5, borderRadius: 3, border: '1px solid', borderColor: 'divider', mb: 2 }}>
-            <SectionLabel>Método de pago</SectionLabel>
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: metodoPago === 'Efectivo' ? 2 : 0 }}>
-              {METODOS_PAGO.map(m => (
-                <Chip
-                  key={m} label={m}
-                  onClick={() => setMetodoPago(m)}
-                  sx={{
-                    fontWeight: 600, cursor: 'pointer',
-                    bgcolor: metodoPago === m ? ACCENT : 'action.hover',
-                    color: metodoPago === m ? 'white' : 'text.primary',
-                    '&:hover': { bgcolor: metodoPago === m ? '#e6561c' : 'action.selected' },
-                    transition: 'all 0.15s',
-                  }}
-                />
-              ))}
-            </Box>
-            {metodoPago === 'Efectivo' && (
-              <Stack spacing={1.5}>
-                <CurrencyField label="Valor recibido" value={valorRecibido} onChange={setValorRecibido} size="small" />
-                {valorRecibido > 0 && (
-                  <Box sx={{
-                    p: 1.5, borderRadius: 2,
-                    bgcolor: cambio >= 0 ? '#F0FDF4' : '#FEF2F2',
-                    border: '1px solid', borderColor: cambio >= 0 ? '#BBF7D0' : '#FECACA',
-                  }}>
-                    <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 0.2 }}>Cambio a devolver</Typography>
-                    <Typography sx={{ fontSize: 22, fontWeight: 900, color: cambio >= 0 ? '#16A34A' : '#DC2626' }}>
-                      {formatCurrency(cambio)}
-                    </Typography>
-                  </Box>
-                )}
-              </Stack>
-            )}
-          </Paper>
-
-          {/* ─ Observaciones ─ */}
-          <Paper sx={{ p: 2.5, borderRadius: 3, border: '1px solid', borderColor: 'divider', mb: 2 }}>
-            <SectionLabel>Observaciones (opcional)</SectionLabel>
-            <TextField
-              fullWidth multiline rows={2} size="small"
-              placeholder="Ej: rayón leve costado derecho, llantas con barro…"
-              value={observaciones}
-              onChange={e => setObservaciones(e.target.value)}
-              InputProps={{
-                startAdornment: <InputAdornment position="start"><Notes sx={{ fontSize: 16, color: 'text.disabled', alignSelf: 'flex-start', mt: 0.8 }} /></InputAdornment>,
-              }}
+          {/* Cliente (opcional) */}
+          <Paper sx={{ p: 2.5, borderRadius: 3, mb: 2, border: '1px solid', borderColor: 'divider' }}>
+            <SectionLabel>Cliente (opcional)</SectionLabel>
+            <Autocomplete
+              size="small"
+              options={clientes}
+              getOptionLabel={c => c.nombre || ''}
+              value={clienteObj}
+              onChange={(_, v) => setClienteObj(v)}
+              renderInput={params => <TextField {...params} label="Buscar cliente" placeholder="Consumidor final" />}
             />
           </Paper>
 
-          {/* ─ Submit ─ */}
+          {/* Observaciones */}
+          <Paper sx={{ p: 2.5, borderRadius: 3, mb: 2, border: '1px solid', borderColor: 'divider' }}>
+            <SectionLabel>Observaciones</SectionLabel>
+            <TextField
+              size="small" fullWidth multiline rows={2}
+              placeholder="Daños previos, pedido especial…"
+              value={observaciones}
+              onChange={e => setObservaciones(e.target.value)}
+              InputProps={{ startAdornment: <InputAdornment position="start"><Notes sx={{ fontSize: 16, color: 'text.disabled', mt: 0.5 }} /></InputAdornment> }}
+            />
+          </Paper>
+
+          {/* Botón registrar */}
           <Button
-            variant="contained"
-            fullWidth size="large"
-            onClick={handleSubmit}
+            fullWidth variant="contained" size="large"
             disabled={saving || carrito.length === 0 || !placa.trim()}
+            onClick={handleRegistrar}
             startIcon={saving ? <CircularProgress size={18} color="inherit" /> : <CheckCircle />}
             sx={{
               bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' },
-              '&:disabled': { bgcolor: 'action.disabledBackground' },
-              fontWeight: 800, fontSize: 15, borderRadius: 2.5,
-              py: 1.5, textTransform: 'none',
-              boxShadow: carrito.length > 0 && placa.trim() ? `0 6px 20px ${ACCENT}40` : 'none',
-              transition: 'all 0.2s',
+              '&.Mui-disabled': { bgcolor: 'action.disabledBackground' },
+              fontWeight: 800, fontSize: 15, borderRadius: 3,
+              textTransform: 'none', py: 1.5,
             }}
           >
-            {saving ? 'Registrando…' : 'Registrar Lavada'}
+            {saving ? 'Registrando…' : 'Registrar Entrada'}
           </Button>
+        </Grid>
 
-          {/* ─ Resumen rápido ─ */}
-          {carrito.length > 0 && placa.trim() && (
-            <Box sx={{ mt: 1.5, p: 2, borderRadius: 2, bgcolor: `${ACCENT}08`, border: '1px solid', borderColor: `${ACCENT}30` }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                <TipoIcon sx={{ color: ACCENT, fontSize: 18 }} />
-                <Typography sx={{ fontWeight: 700, fontSize: 13 }}>
-                  {placa.trim().toUpperCase()} · {tipoVehiculo}
-                </Typography>
-              </Box>
-              <Typography sx={{ fontWeight: 900, fontSize: 20, color: ACCENT }}>{formatCurrency(total)}</Typography>
-              <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-                {carrito.length} servicio{carrito.length !== 1 ? 's' : ''} · {metodoPago}
-              </Typography>
+        {/* ══ RIGHT: Tablero kanban ══ */}
+        <Grid item xs={12} md={7}
+          sx={{ display: { xs: mobileView === 'tablero' ? 'block' : 'none', md: 'block' } }}
+        >
+          <Paper sx={{ p: 2.5, borderRadius: 3, border: '1px solid', borderColor: 'divider', height: '100%' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Typography sx={{ fontWeight: 800, fontSize: 15 }}>Tablero de órdenes</Typography>
+              {loadingBoard && <CircularProgress size={16} sx={{ color: ACCENT }} />}
             </Box>
-          )}
+
+            {/* Mobile: tabs por estado */}
+            <Box sx={{ display: { xs: 'block', md: 'none' }, mb: 2 }}>
+              <ToggleButtonGroup
+                value={boardFilter} exclusive
+                onChange={(_, v) => v && setBoardFilter(v)}
+                size="small" fullWidth
+              >
+                {ESTADOS_TABLERO.map(est => (
+                  <ToggleButton key={est.key} value={est.key} sx={{ fontWeight: 700, textTransform: 'none', fontSize: 11 }}>
+                    <Badge
+                      badgeContent={ordensPorEstado[est.key]?.length || 0}
+                      max={99}
+                      sx={{ '& .MuiBadge-badge': { bgcolor: est.color, color: 'white', fontSize: 9, minWidth: 16, height: 16 } }}
+                    >
+                      <span>{est.label}&nbsp;&nbsp;</span>
+                    </Badge>
+                  </ToggleButton>
+                ))}
+              </ToggleButtonGroup>
+            </Box>
+
+            {/* Desktop: 3 columnas */}
+            <Grid container spacing={1.5} sx={{ display: { xs: 'none', md: 'flex' } }}>
+              {ESTADOS_TABLERO.map(est => (
+                <Grid item md={4} key={est.key}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, pb: 1, borderBottom: `2px solid ${est.color}` }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: 12, color: est.color, textTransform: 'uppercase', letterSpacing: 0.6 }}>
+                      {est.label}
+                    </Typography>
+                    <Chip
+                      label={ordensPorEstado[est.key]?.length || 0}
+                      size="small"
+                      sx={{ height: 20, fontSize: 11, fontWeight: 700, bgcolor: `${est.color}18`, color: est.color }}
+                    />
+                  </Box>
+                  <Box sx={{ minHeight: 80 }}>
+                    {(ordensPorEstado[est.key] || []).length === 0 ? (
+                      <Box sx={{ py: 4, textAlign: 'center' }}>
+                        <Typography sx={{ color: 'text.disabled', fontSize: 12 }}>Sin órdenes</Typography>
+                      </Box>
+                    ) : (
+                      (ordensPorEstado[est.key] || []).map(o => (
+                        <OrdenCard
+                          key={o.id}
+                          orden={o}
+                          estadoConfig={est}
+                          onEstadoChange={handleEstadoChange}
+                          onCobrar={ord => { setCobrarOrden(ord); setMetodoPago('Efectivo'); }}
+                          tick={tick}
+                        />
+                      ))
+                    )}
+                  </Box>
+                </Grid>
+              ))}
+            </Grid>
+
+            {/* Mobile: columna filtrada */}
+            <Box sx={{ display: { xs: 'block', md: 'none' } }}>
+              {(() => {
+                const est  = ESTADOS_TABLERO.find(e => e.key === boardFilter);
+                const lista = ordensPorEstado[boardFilter] || [];
+                return lista.length === 0 ? (
+                  <Box sx={{ py: 6, textAlign: 'center' }}>
+                    <Typography sx={{ color: 'text.disabled', fontSize: 13 }}>Sin órdenes en "{est?.label}"</Typography>
+                  </Box>
+                ) : lista.map(o => (
+                  <OrdenCard
+                    key={o.id} orden={o}
+                    estadoConfig={est}
+                    onEstadoChange={handleEstadoChange}
+                    onCobrar={ord => { setCobrarOrden(ord); setMetodoPago('Efectivo'); }}
+                    tick={tick}
+                  />
+                ));
+              })()}
+            </Box>
+
+            {/* Resumen footer */}
+            {activeCount > 0 && (
+              <Box sx={{ mt: 2, pt: 1.5, borderTop: '1px dashed', borderColor: 'divider', display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                {ESTADOS_TABLERO.map(est => (
+                  <Box key={est.key} sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: est.color }} />
+                    <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                      {est.label}: <strong>{ordensPorEstado[est.key]?.length || 0}</strong>
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+            )}
+          </Paper>
         </Grid>
       </Grid>
 
-      {/* ── Últimas lavadas ── */}
-      <Paper sx={{ p: 2.5, borderRadius: 3, mt: 3, border: '1px solid', borderColor: 'divider' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-          <CheckCircle sx={{ color: GREEN, fontSize: 18 }} />
-          <Typography sx={{ fontWeight: 700, fontSize: 15 }}>Últimas lavadas registradas</Typography>
-        </Box>
+      {/* ══ Cobrar dialog ══ */}
+      <Dialog
+        open={!!cobrarOrden}
+        onClose={() => !cobrando && setCobrarOrden(null)}
+        maxWidth="xs" fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 800, pb: 1 }}>
+          Cobrar — <span style={{ color: ACCENT }}>{cobrarOrden?.placa}</span>
+        </DialogTitle>
+        <DialogContent>
+          {cobrarOrden && (
+            <>
+              {/* Detalle de servicios */}
+              <Box sx={{ mb: 2 }}>
+                {(cobrarOrden.detalles || []).map((d, i) => (
+                  <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.4 }}>
+                    <Typography sx={{ fontSize: 13 }}>
+                      {d.nombre_servicio}{d.cantidad > 1 ? ` x${d.cantidad}` : ''}
+                    </Typography>
+                    <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+                      {formatCurrency(d.precio_unitario * d.cantidad)}
+                    </Typography>
+                  </Box>
+                ))}
+                <Divider sx={{ my: 1 }} />
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontWeight: 800 }}>Total</Typography>
+                  <Typography sx={{ fontWeight: 900, fontSize: 18, color: GREEN }}>
+                    {formatCurrency(cobrarOrden.total || 0)}
+                  </Typography>
+                </Box>
+              </Box>
 
-        {ventas.length === 0 ? (
-          <Typography sx={{ color: 'text.secondary', fontSize: 13, textAlign: 'center', py: 2 }}>
-            No hay lavadas registradas aún.
-          </Typography>
-        ) : (
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ bgcolor: 'action.hover' }}>
-                  {['Placa', 'Tipo', 'Servicios', 'Total', 'Pago', 'Fecha', ''].map(h => (
-                    <TableCell key={h} sx={{ fontWeight: 700, fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, py: 1 }}>
-                      {h}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {ventas.map((v) => {
-                  const TipoIconRow = TIPOS_VEHICULO.find(t => t.label === v.tipo_vehiculo)?.icon ?? DirectionsCar;
-                  return (
-                    <TableRow key={v.id} hover sx={{ '&:last-child td': { border: 0 } }}>
-                      <TableCell>
-                        <Typography sx={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 13, letterSpacing: 1.5, color: ACCENT }}>
-                          {v.placa_vehiculo}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        {v.tipo_vehiculo && (
-                          <Tooltip title={v.tipo_vehiculo}>
-                            <TipoIconRow sx={{ fontSize: 18, color: 'text.secondary' }} />
-                          </Tooltip>
-                        )}
-                      </TableCell>
-                      <TableCell sx={{ color: 'text.secondary', fontSize: 12, maxWidth: 160 }}>
-                        <Typography noWrap sx={{ fontSize: 12 }}>
-                          {(v.detalles || []).map(d => d.producto?.nombre).filter(Boolean).join(', ') || '—'}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{formatCurrency(v.total)}</Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Chip label={v.metodo_pago || '—'} size="small" sx={{ fontSize: 10, fontWeight: 700, height: 20 }} />
-                      </TableCell>
-                      <TableCell sx={{ color: 'text.secondary', fontSize: 12, whiteSpace: 'nowrap' }}>
-                        {new Date(v.fecha + (v.fecha?.includes('Z') ? '' : 'Z')).toLocaleString('es-CO', {
-                          day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
-                        })}
-                      </TableCell>
-                      <TableCell>
-                        <Tooltip title="Usar esta placa">
-                          <IconButton size="small" onClick={() => repetirVenta(v)} sx={{ color: ACCENT, p: 0.5 }}>
-                            <Replay sx={{ fontSize: 16 }} />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
-      </Paper>
+              {/* Método de pago */}
+              <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                Método de pago
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.8 }}>
+                {METODOS_PAGO.map(m => (
+                  <Chip
+                    key={m}
+                    label={m}
+                    onClick={() => setMetodoPago(m)}
+                    sx={{
+                      cursor: 'pointer', fontWeight: 600, fontSize: 12,
+                      bgcolor: metodoPago === m ? GREEN : 'action.hover',
+                      color:   metodoPago === m ? 'white' : 'text.primary',
+                    }}
+                  />
+                ))}
+              </Box>
+            </>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+          <Button
+            onClick={() => setCobrarOrden(null)}
+            disabled={cobrando}
+            variant="outlined"
+            sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleCobrar}
+            disabled={cobrando}
+            variant="contained"
+            startIcon={cobrando ? <CircularProgress size={16} color="inherit" /> : <CheckCircle />}
+            sx={{
+              bgcolor: GREEN, '&:hover': { filter: 'brightness(0.9)' },
+              fontWeight: 800, borderRadius: 2, textTransform: 'none', flex: 1,
+            }}
+          >
+            {cobrando ? 'Procesando…' : `Confirmar pago (${metodoPago})`}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

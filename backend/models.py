@@ -312,6 +312,8 @@ class Producto(Base, TenantMixin):
     imagenes            = Column(JSON, nullable=True) # JSON list de WebP comprimidos
     mostrar_en_catalogo = Column(Boolean, default=False, index=True)
 
+    comision_pct = Column(Float, nullable=True)  # Per-service commission override; None = use global
+
     # Ej: caja de 4 carnes → costo=$12.000, unidades_por_empaque=4 → costo real por unidad=$3.000
     unidades_por_empaque = Column(Float, default=1.0, nullable=False)
 
@@ -1419,3 +1421,53 @@ class LinkPagoEmpresa(Base, TenantMixin):
     updated_at    = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     empresa = relationship("Empresa")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MÓDULO LAVADERO — Tablero de órdenes con estados
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class LavaderoOrden(Base, TenantMixin):
+    __tablename__ = "lavadero_ordenes"
+    id              = Column(Integer, primary_key=True, index=True)
+    placa           = Column(String(15), nullable=False, index=True)
+    tipo_vehiculo   = Column(String(20), nullable=True)
+    estado          = Column(String(20), default='recibido', nullable=False, index=True)
+    operador_id     = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    cliente_id      = Column(Integer, ForeignKey("clientes.id"), nullable=True)
+    observaciones   = Column(Text, nullable=True)
+    fecha_entrada   = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    fecha_salida    = Column(DateTime(timezone=True), nullable=True)
+    total           = Column(Float, nullable=True)
+    metodo_pago     = Column(String(50), nullable=True)
+    pagado          = Column(Boolean, default=False)
+    venta_id        = Column(Integer, ForeignKey("ventas.id"), nullable=True)
+
+    operador  = relationship("User", foreign_keys=[operador_id])
+    cliente   = relationship("Cliente")
+    detalles  = relationship("LavaderoOrdenDetalle", back_populates="orden", cascade="all, delete-orphan")
+
+
+class LavaderoOrdenDetalle(Base, TenantMixin):
+    __tablename__ = "lavadero_orden_detalles"
+    id              = Column(Integer, primary_key=True, index=True)
+    orden_id        = Column(Integer, ForeignKey("lavadero_ordenes.id"), nullable=False, index=True)
+    producto_id     = Column(Integer, ForeignKey("productos.id"), nullable=True)
+    nombre_servicio = Column(String(200), nullable=False)
+    cantidad        = Column(Float, default=1.0)
+    precio_unitario = Column(Float, nullable=False)
+    comision_pct    = Column(Float, default=0.0)
+
+    orden    = relationship("LavaderoOrden", back_populates="detalles")
+    producto = relationship("Producto")
+
+
+class LavaderoConfig(Base, TenantMixin):
+    __tablename__ = "lavadero_config"
+    id                  = Column(Integer, primary_key=True, index=True)
+    comision_pct_global = Column(Float, default=30.0)
+    tipo_impresora      = Column(String(10), default='p80')
+    imprimir_recibo     = Column(Boolean, default=True)
+    nombre_lavadero     = Column(String(120), nullable=True)
+    created_at          = Column(DateTime(timezone=True), default=utcnow)
+    updated_at          = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import {
   DirectionsCar, BarChart, AttachMoney, LocalCarWash,
-  EmojiEvents, FileDownload, CalendarToday, Refresh,
+  EmojiEvents, FileDownload, CalendarToday, Refresh, Percent,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
@@ -57,13 +57,14 @@ const KpiCard = ({ label, value, icon, color, sub }) => (
 /* ── CSV export ───────────────────────────────────────────────────────────── */
 const exportCSV = (rows, fechaInicio, fechaFin) => {
   if (!rows.length) return;
-  const headers = ['Trabajador', 'Lavadas', 'Total ventas', 'Promedio/lavada', '% participación', 'Primera lavada', 'Última lavada'];
+  const headers = ['Trabajador', 'Lavadas', 'Total ventas', 'Comisión ganada', 'Promedio/lavada', '% participación', 'Primera lavada', 'Última lavada'];
   const csvRows = rows.map(r => {
     const prom = r.num_lavadas > 0 ? r.total_ventas / r.num_lavadas : 0;
     return [
       `"${r.nombre}"`,
       r.num_lavadas,
       r.total_ventas.toFixed(0),
+      (r.comision_ganada ?? 0).toFixed(0),
       prom.toFixed(0),
       `${r.porcentaje ?? 0}%`,
       r.primera_lavada ? fmtDateLabel(r.primera_lavada.slice(0, 10)) : '—',
@@ -228,19 +229,28 @@ export default function LavaderoReporte({ user }) {
         <>
           {/* KPIs */}
           <Grid container spacing={2} sx={{ mb: 2.5 }}>
-            <Grid item xs={12} sm={4}>
+            <Grid item xs={6} sm={3}>
               <KpiCard label="Trabajadores" value={resumen.num_trabajadores ?? rows.length} icon={<LocalCarWash />} color={ACCENT} />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid item xs={6} sm={3}>
               <KpiCard label="Total lavadas" value={resumen.total_lavadas ?? 0} icon={<DirectionsCar />} color={BLUE} />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid item xs={6} sm={3}>
               <KpiCard
                 label="Total en ventas"
                 value={formatCurrency(resumen.total_ventas ?? 0)}
                 icon={<AttachMoney />}
                 color={GREEN}
-                sub={rows.length > 0 ? `Prom. ${formatCurrency((resumen.total_ventas ?? 0) / rows.length)} por trabajador` : null}
+                sub={rows.length > 0 ? `Prom. ${formatCurrency((resumen.total_ventas ?? 0) / rows.length)} / trab.` : null}
+              />
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <KpiCard
+                label="Comisiones totales"
+                value={formatCurrency(resumen.comision_global ?? 0)}
+                icon={<Percent />}
+                color={GOLD}
+                sub={resumen.comision_pct_global != null ? `Global: ${resumen.comision_pct_global}%` : null}
               />
             </Grid>
           </Grid>
@@ -295,7 +305,7 @@ export default function LavaderoReporte({ user }) {
               <Table>
                 <TableHead>
                   <TableRow sx={{ bgcolor: 'action.hover' }}>
-                    {['#', 'Trabajador', 'Lavadas', 'Total ventas', 'Promedio/lavada', '% Participación'].map(h => (
+                    {['#', 'Trabajador', 'Lavadas', 'Total ventas', 'Comisión', 'Prom./lavada', '% Part.'].map(h => (
                       <TableCell key={h} sx={{ fontWeight: 700, fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, py: 1.5 }}>
                         {h}
                       </TableCell>
@@ -368,6 +378,13 @@ export default function LavaderoReporte({ user }) {
                           </Typography>
                         </TableCell>
 
+                        {/* Comisión */}
+                        <TableCell>
+                          <Typography sx={{ fontWeight: 700, fontSize: 13, color: GOLD }}>
+                            {formatCurrency(row.comision_ganada ?? 0)}
+                          </Typography>
+                        </TableCell>
+
                         {/* Promedio */}
                         <TableCell sx={{ fontWeight: 600, fontSize: 13, color: 'text.secondary' }}>
                           {formatCurrency(promedio)}
@@ -405,6 +422,9 @@ export default function LavaderoReporte({ user }) {
                     <TableCell sx={{ fontWeight: 800, fontSize: 14, color: ACCENT }}>{resumen.total_lavadas ?? 0}</TableCell>
                     <TableCell sx={{ fontWeight: 800, fontSize: 14, color: GREEN }}>
                       {formatCurrency(resumen.total_ventas ?? 0)}
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 800, fontSize: 13, color: GOLD }}>
+                      {formatCurrency(resumen.comision_global ?? 0)}
                     </TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: 13, color: 'text.secondary' }}>
                       {rows.length > 0 ? formatCurrency((resumen.total_ventas ?? 0) / (resumen.total_lavadas || 1)) : '—'}

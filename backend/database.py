@@ -1367,6 +1367,118 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v76)
                 logger.info("V76 (parqueadero_config print settings) aplicada.")
 
+            # V77 - lavadero ordenes + config + comision_pct en productos
+            migration_v77 = "v77_lavadero_ordenes_y_config"
+            if not _migration_already_applied(conn, migration_v77):
+                if not _table_exists(conn, "lavadero_ordenes"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE lavadero_ordenes (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                empresa_id INTEGER REFERENCES empresas(id),
+                                placa VARCHAR(15) NOT NULL,
+                                tipo_vehiculo VARCHAR(20),
+                                estado VARCHAR(20) NOT NULL DEFAULT 'recibido',
+                                operador_id INTEGER REFERENCES users(id),
+                                cliente_id INTEGER REFERENCES clientes(id),
+                                observaciones TEXT,
+                                fecha_entrada TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                fecha_salida TIMESTAMP,
+                                total REAL,
+                                metodo_pago VARCHAR(50),
+                                pagado INTEGER DEFAULT 0,
+                                venta_id INTEGER REFERENCES ventas(id)
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE lavadero_ordenes (
+                                id SERIAL PRIMARY KEY,
+                                empresa_id INTEGER REFERENCES empresas(id),
+                                placa VARCHAR(15) NOT NULL,
+                                tipo_vehiculo VARCHAR(20),
+                                estado VARCHAR(20) NOT NULL DEFAULT 'recibido',
+                                operador_id INTEGER REFERENCES users(id),
+                                cliente_id INTEGER REFERENCES clientes(id),
+                                observaciones TEXT,
+                                fecha_entrada TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                                fecha_salida TIMESTAMPTZ,
+                                total REAL,
+                                metodo_pago VARCHAR(50),
+                                pagado BOOLEAN DEFAULT FALSE,
+                                venta_id INTEGER REFERENCES ventas(id)
+                            )
+                        """))
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_lav_orden_empresa ON lavadero_ordenes(empresa_id)"))
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_lav_orden_estado ON lavadero_ordenes(estado)"))
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_lav_orden_placa ON lavadero_ordenes(placa)"))
+
+                if not _table_exists(conn, "lavadero_orden_detalles"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE lavadero_orden_detalles (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                empresa_id INTEGER REFERENCES empresas(id),
+                                orden_id INTEGER NOT NULL REFERENCES lavadero_ordenes(id),
+                                producto_id INTEGER REFERENCES productos(id),
+                                nombre_servicio VARCHAR(200) NOT NULL,
+                                cantidad REAL DEFAULT 1.0,
+                                precio_unitario REAL NOT NULL,
+                                comision_pct REAL DEFAULT 0.0
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE lavadero_orden_detalles (
+                                id SERIAL PRIMARY KEY,
+                                empresa_id INTEGER REFERENCES empresas(id),
+                                orden_id INTEGER NOT NULL REFERENCES lavadero_ordenes(id),
+                                producto_id INTEGER REFERENCES productos(id),
+                                nombre_servicio VARCHAR(200) NOT NULL,
+                                cantidad REAL DEFAULT 1.0,
+                                precio_unitario REAL NOT NULL,
+                                comision_pct REAL DEFAULT 0.0
+                            )
+                        """))
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_lav_det_orden ON lavadero_orden_detalles(orden_id)"))
+
+                if not _table_exists(conn, "lavadero_config"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE lavadero_config (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                empresa_id INTEGER REFERENCES empresas(id),
+                                comision_pct_global REAL DEFAULT 30.0,
+                                tipo_impresora VARCHAR(10) DEFAULT 'p80',
+                                imprimir_recibo INTEGER DEFAULT 1,
+                                nombre_lavadero VARCHAR(120),
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE lavadero_config (
+                                id SERIAL PRIMARY KEY,
+                                empresa_id INTEGER REFERENCES empresas(id),
+                                comision_pct_global REAL DEFAULT 30.0,
+                                tipo_impresora VARCHAR(10) DEFAULT 'p80',
+                                imprimir_recibo BOOLEAN DEFAULT TRUE,
+                                nombre_lavadero VARCHAR(120),
+                                created_at TIMESTAMPTZ DEFAULT NOW(),
+                                updated_at TIMESTAMPTZ DEFAULT NOW()
+                            )
+                        """))
+
+                if not _column_exists(conn, "productos", "comision_pct"):
+                    if IS_SQLITE:
+                        conn.execute(text("ALTER TABLE productos ADD COLUMN comision_pct REAL NULL"))
+                    else:
+                        conn.execute(text("ALTER TABLE productos ADD COLUMN comision_pct REAL NULL"))
+
+                _mark_migration_applied(conn, migration_v77)
+                logger.info("V77 (Lavadero ordenes + config) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
