@@ -84,7 +84,7 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
       }
 
       setSalidaData({ minCobrar, cobroFinal, metodoPago });
-      onSuccess?.();
+      // onSuccess se llama al cerrar para no cerrar el diálogo antes de mostrar las opciones
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al registrar salida.');
     } finally {
@@ -98,6 +98,11 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
     imprimirSalidaParqueadero(acceso, salidaData.minCobrar, salidaData.cobroFinal, salidaData.metodoPago, config, printerSize);
   };
 
+  const handleCerrarPostSalida = () => {
+    onClose();
+    onSuccess?.();
+  };
+
   const horas = Math.floor(minReales / 60);
   const mins = minReales % 60;
   const tiempoLegible = horas > 0 ? `${horas}h ${mins}min` : `${minReales} min`;
@@ -106,14 +111,14 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
   if (salidaData) {
     const preferirImpresion = config?.preferir_impresion;
     return (
-      <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+      <Dialog open={open} onClose={handleCerrarPostSalida} maxWidth="xs" fullWidth>
         <DialogTitle>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Stack direction="row" spacing={1} alignItems="center">
               <CheckCircle sx={{ color: '#10B981' }} />
               <Typography sx={{ fontWeight: 800 }}>Salida registrada</Typography>
             </Stack>
-            <IconButton onClick={onClose} size="small"><Close /></IconButton>
+            <IconButton onClick={handleCerrarPostSalida} size="small"><Close /></IconButton>
           </Stack>
         </DialogTitle>
         <DialogContent dividers>
@@ -169,7 +174,7 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
           </Stack>
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
-          <Button onClick={onClose}>Cerrar</Button>
+          <Button onClick={handleCerrarPostSalida}>Cerrar</Button>
         </DialogActions>
       </Dialog>
     );

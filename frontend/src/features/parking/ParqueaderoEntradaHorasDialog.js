@@ -32,6 +32,7 @@ export function ParqueaderoEntradaHorasDialog({
 
   // Post-entrada state
   const [accesoCreado, setAccesoCreado] = useState(null);
+  const [registroExitoso, setRegistroExitoso] = useState(false);
 
   // Edit phone state (after entry)
   const [editingPhone, setEditingPhone] = useState(false);
@@ -49,6 +50,7 @@ export function ParqueaderoEntradaHorasDialog({
     setEnviarWA(true);
     setSinTelefono(false);
     setAccesoCreado(null);
+    setRegistroExitoso(false);
     setEditingPhone(false);
     setNuevoTelefono('');
     apiClient.get('/parqueadero/config').then(({ data }) => setConfig(data));
@@ -83,7 +85,8 @@ export function ParqueaderoEntradaHorasDialog({
       }
 
       setAccesoCreado(data.acceso);
-      onSuccess?.();
+      setRegistroExitoso(true);
+      // onSuccess se llama al cerrar, no aquí, para no cerrar el diálogo antes de mostrar opciones de impresión/WA
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al registrar entrada.');
     } finally {
@@ -139,19 +142,24 @@ export function ParqueaderoEntradaHorasDialog({
   const ejemplos = config?.tarifa_minuto > 0;
   const preferirImpresion = config?.preferir_impresion;
 
+  const handleCerrarPostEntrada = () => {
+    onClose();
+    if (registroExitoso) onSuccess?.();
+  };
+
   // ── Vista post-entrada ──────────────────────────────────────────────────────
   if (accesoCreado) {
     const horaEntrada = new Date(accesoCreado.fecha_entrada).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 
     return (
-      <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <Dialog open={open} onClose={handleCerrarPostEntrada} maxWidth="sm" fullWidth>
         <DialogTitle>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Stack direction="row" spacing={1} alignItems="center">
               <CheckCircle sx={{ color: '#10B981' }} />
               <Typography sx={{ fontWeight: 800 }}>Entrada registrada</Typography>
             </Stack>
-            <IconButton onClick={onClose} size="small"><Close /></IconButton>
+            <IconButton onClick={handleCerrarPostEntrada} size="small"><Close /></IconButton>
           </Stack>
         </DialogTitle>
 
@@ -268,7 +276,7 @@ export function ParqueaderoEntradaHorasDialog({
         </DialogContent>
 
         <DialogActions sx={{ p: 2 }}>
-          <Button onClick={onClose} variant="text">Cerrar</Button>
+          <Button onClick={handleCerrarPostEntrada} variant="text">Cerrar</Button>
         </DialogActions>
       </Dialog>
     );

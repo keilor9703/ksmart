@@ -194,11 +194,11 @@ export default function ParqueaderoBuscar() {
   }, [scannerOpen, startCamera]);
 
   const onAccionCompletada = () => {
+    // Los diálogos de Entrada y Salida manejan su propio cierre en la vista post-registro.
+    // Aquí solo cerramos los que no tienen vista post.
     setDlgSuscripcion(false);
     setDlgVehiculo(false);
     setDlgVencido(false);
-    setDlgSalidaHoras(false);
-    setDlgEntradaHoras(false);
     setDlgEditTelefono(false);
     if (resultado?.placa) {
       apiClient.get(`/parqueadero/buscar/${resultado.placa}`)
