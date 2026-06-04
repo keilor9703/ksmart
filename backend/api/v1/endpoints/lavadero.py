@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 import models
 from api.deps import get_db, get_current_active_user
-from database import utcnow
+from models import utcnow
 
 router = APIRouter()
 
