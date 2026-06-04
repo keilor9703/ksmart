@@ -8,7 +8,7 @@ import {
 import {
   Add, AdminPanelSettings, Autorenew, TrendingUp, Business, LocalOffer,
   History, Campaign, Engineering, ReceiptLong, Search, Edit, Payments,
-  ExpandLess, ExpandMore, Warning, SupportAgent
+  ExpandLess, ExpandMore, Warning, SupportAgent, DeleteForever,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 
@@ -116,8 +116,25 @@ export default function GestionSaaS() {
   const [openModulosDialog, setOpenModulosDialog] = useState(false);
   const [empresaParaModulos, setEmpresaParaModulos] = useState(null);
   const [showAdvancedEmpresa, setShowAdvancedEmpresa] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, empresa: null, confirmText: '', loading: false });
 
   const handleOpenDrawer = (tenant) => { setTenantForDrawer(tenant); setOpenDrawer(true); };
+
+  const handleDeleteEmpresa = async () => {
+    const { empresa } = deleteDialog;
+    if (deleteDialog.confirmText !== empresa.nombre) return;
+    setDeleteDialog(s => ({ ...s, loading: true }));
+    try {
+      await apiClient.delete(`/superadmin/empresas/${empresa.id}`);
+      toast.success(`Empresa "${empresa.nombre}" eliminada permanentemente.`);
+      setDeleteDialog({ open: false, empresa: null, confirmText: '', loading: false });
+      setOpenDrawer(false);
+      refreshAll();
+    } catch (err) {
+      toast.error('Error al eliminar: ' + (err.response?.data?.detail || 'Error desconocido'));
+      setDeleteDialog(s => ({ ...s, loading: false }));
+    }
+  };
 
   const handleOpenModulos = (empresa) => {
     setEmpresaParaModulos(empresa);
@@ -452,6 +469,7 @@ export default function GestionSaaS() {
         onImpersonate={onImpersonate} onOpenPlan={handleOpenAsignarPlan}
         onOpenModulos={handleOpenModulos}
         onToggleStatus={onToggleStatus}
+        onDelete={(t) => setDeleteDialog({ open: true, empresa: t, confirmText: '', loading: false })}
       />
 
       <ModulosEmpresaDialog
@@ -460,6 +478,69 @@ export default function GestionSaaS() {
         empresa={empresaParaModulos}
         onModulosUpdated={refreshAll}
       />
+
+      {/* ── ELIMINAR EMPRESA ── */}
+      <Dialog
+        open={deleteDialog.open}
+        onClose={() => !deleteDialog.loading && setDeleteDialog(s => ({ ...s, open: false }))}
+        maxWidth="xs" fullWidth
+        PaperProps={{ sx: { borderRadius: 3, border: '2px solid #b91c1c' } }}
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, pb: 1 }}>
+          <DeleteForever sx={{ color: '#b91c1c', fontSize: 28 }} />
+          <Typography sx={{ fontWeight: 800, fontSize: 17, color: '#b91c1c' }}>
+            Eliminar empresa permanentemente
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={2}>
+            <Box sx={{ bgcolor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 2, p: 2 }}>
+              <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#991b1b', mb: 0.5 }}>
+                ⚠️ Esta acción es IRREVERSIBLE
+              </Typography>
+              <Typography sx={{ fontSize: 13, color: '#7f1d1d' }}>
+                Se eliminarán todos los datos de <strong>{deleteDialog.empresa?.nombre}</strong>:
+                usuarios, ventas, productos, clientes, configuración y todos los registros asociados.
+              </Typography>
+            </Box>
+            <Box>
+              <Typography sx={{ fontSize: 13, mb: 1, fontWeight: 600 }}>
+                Escribe el nombre exacto de la empresa para confirmar:
+              </Typography>
+              <Typography sx={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 14, mb: 1, color: '#b91c1c', p: 1, bgcolor: 'action.hover', borderRadius: 1 }}>
+                {deleteDialog.empresa?.nombre}
+              </Typography>
+              <TextField
+                fullWidth size="small" autoFocus
+                placeholder={deleteDialog.empresa?.nombre}
+                value={deleteDialog.confirmText}
+                onChange={e => setDeleteDialog(s => ({ ...s, confirmText: e.target.value }))}
+                disabled={deleteDialog.loading}
+                error={deleteDialog.confirmText.length > 0 && deleteDialog.confirmText !== deleteDialog.empresa?.nombre}
+                helperText={deleteDialog.confirmText.length > 0 && deleteDialog.confirmText !== deleteDialog.empresa?.nombre ? 'El nombre no coincide' : ''}
+              />
+            </Box>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button
+            onClick={() => setDeleteDialog(s => ({ ...s, open: false }))}
+            disabled={deleteDialog.loading}
+            sx={{ fontWeight: 700, textTransform: 'none' }}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleDeleteEmpresa}
+            disabled={deleteDialog.loading || deleteDialog.confirmText !== deleteDialog.empresa?.nombre}
+            startIcon={deleteDialog.loading ? <CircularProgress size={16} color="inherit" /> : <DeleteForever />}
+            sx={{ bgcolor: '#b91c1c', '&:hover': { bgcolor: '#991b1b' }, fontWeight: 700, textTransform: 'none', borderRadius: 2 }}
+          >
+            {deleteDialog.loading ? 'Eliminando…' : 'Eliminar permanentemente'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={openPlanDialog} onClose={() => setOpenPlanDialog(false)} fullScreen={isMobile} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontWeight: 800 }}>Gestionar Suscripción</DialogTitle>

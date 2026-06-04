@@ -7,7 +7,7 @@ import {
 import {
   Close, People, ShoppingBag, Info, AccessTime,
   SupportAgent, CardMembership, Block, CheckCircle, ViewModule,
-  Email, Phone, CalendarMonth
+  Email, Phone, CalendarMonth, DeleteForever,
 } from '@mui/icons-material';
 
 const ACCENT = '#F43F5E';
@@ -33,7 +33,7 @@ const getActivityColor = (lastActivity) => {
 const formatDateShort = (d) => d ? new Date(d).toLocaleDateString('es-CO') : 'N/A';
 const formatDateFull = (d) => d ? new Date(d).toLocaleString('es-CO') : 'N/A';
 
-const TenantDrawer360 = ({ open, onClose, tenant, onImpersonate, onOpenPlan, onOpenModulos, onToggleStatus }) => {
+const TenantDrawer360 = ({ open, onClose, tenant, onImpersonate, onOpenPlan, onOpenModulos, onToggleStatus, onDelete }) => {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -198,6 +198,18 @@ const TenantDrawer360 = ({ open, onClose, tenant, onImpersonate, onOpenPlan, onO
                     <Button fullWidth variant="outlined" color={tenant.is_active ? "error" : "success"} startIcon={tenant.is_active ? <Block /> : <CheckCircle />} onClick={() => onToggleStatus(tenant.id, tenant.is_active)} sx={{ borderRadius: 2, fontWeight: 700 }}>
                         {tenant.is_active ? "Suspender Inquilino" : "Activar Inquilino"}
                     </Button>
+                    {tenant.id !== 1 && (
+                        <Button
+                            fullWidth
+                            variant="contained"
+                            color="error"
+                            startIcon={<DeleteForever />}
+                            onClick={() => onDelete(tenant)}
+                            sx={{ borderRadius: 2, fontWeight: 700, bgcolor: '#b91c1c', '&:hover': { bgcolor: '#991b1b' } }}
+                        >
+                            Eliminar empresa permanentemente
+                        </Button>
+                    )}
                 </Stack>
             </Box>
         </Drawer>

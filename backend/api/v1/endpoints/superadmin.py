@@ -38,6 +38,21 @@ def registrar_nueva_empresa(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.delete("/empresas/{empresa_id}")
+def eliminar_empresa(
+    empresa_id: int,
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(get_current_superadmin_user),
+):
+    if empresa_id == 1:
+        raise HTTPException(status_code=400, detail="No puedes eliminar la empresa maestra del SaaS.")
+    try:
+        result = crud_empresas.delete_empresa(db, empresa_id, admin_id=current_admin.id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return result
+
+
 @router.patch("/empresas/{empresa_id}/toggle", response_model=schemas.EmpresaOut)
 def suspender_activar_empresa(
     empresa_id: int, 
