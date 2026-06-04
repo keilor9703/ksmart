@@ -276,11 +276,11 @@ export default function ParqueaderoDashboard({ user }) {
         {(data?.accesos_dentro || []).length > 0 && (
           <Grid item xs={12}>
             <ListaPanel
-              titulo="Motos dentro pagando por horas"
+              titulo="Vehículos dentro pagando por horas"
               icono={<Timer sx={{ color: '#3B82F6' }} />}
               color="#3B82F6"
               items={data.accesos_dentro}
-              empty="No hay motos por horas dentro."
+              empty="No hay vehículos por horas dentro."
               renderItem={(a) => <AccesoItem acceso={a} navigate={navigate} />}
             />
           </Grid>

@@ -53,13 +53,13 @@ const TIPOS_PLANTILLA = [
   {
     key:   'comprobante_entrada',
     label: 'Comprobante de Entrada',
-    desc:  'Se envía cuando un cliente ocasional (por horas/minutos) ingresa su moto',
+    desc:  'Se envía cuando un cliente ocasional (por horas/minutos) ingresa su vehículo',
     color: '#3B82F6', // Azul
   },
   {
     key:   'recibo_salida',
     label: 'Recibo de Salida',
-    desc:  'Se envía cuando el cliente ocasional paga y retira su moto',
+    desc:  'Se envía cuando el cliente ocasional paga y retira su vehículo',
     color: '#EC4899', // Rosa
   },
 ];
@@ -67,7 +67,7 @@ const TIPOS_PLANTILLA = [
 // ─── Variables disponibles en plantillas ────────────────────────────────────
 const VARIABLES = [
   { v: '{nombre}',            d: 'Primer nombre del cliente' },
-  { v: '{placa}',             d: 'Placa de la moto' },
+  { v: '{placa}',             d: 'Placa del vehículo' },
   { v: '{parqueadero}',       d: 'Nombre del parqueadero' },
   { v: '{tipo_plan}',         d: 'mensual / quincenal / diaria / ocasional' },
   { v: '{fecha_vence}',       d: 'Fecha de vencimiento legible' },
@@ -80,7 +80,7 @@ const VARIABLES = [
   { v: '{instrucciones}',     d: 'Instrucciones del método' },
   { v: '{direccion}',         d: 'Dirección del parqueadero' },
   // ✨ NUEVAS VARIABLES AGREGADAS AQUÍ ✨
-  { v: '{hora_entrada}',      d: 'Hora a la que ingresó la moto' },
+  { v: '{hora_entrada}',      d: 'Hora a la que ingresó el vehículo' },
   { v: '{tarifa_minuto}',     d: 'Valor de la tarifa por minuto' },
   { v: '{tarifa_hora}',       d: 'Valor de la tarifa por hora' },
   { v: '{cobro_minimo_linea}',d: 'Aviso del cobro mínimo (si aplica)' },

@@ -882,11 +882,13 @@ class ParqueaderoConfig(Base, TenantMixin):
     direccion             = Column(String(200), nullable=True)
     horario_apertura      = Column(String(5), default="06:30")  # "HH:MM"
     horario_cierre        = Column(String(5), default="20:00")  # "HH:MM"
+    tipo_impresora_parq   = Column(String(10), default='p80')
+    preferir_impresion    = Column(Boolean, default=False)
     created_at            = Column(DateTime(timezone=True), default=utcnow)
     updated_at            = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
-# ─── 2. Vehículos (motocicletas) ─────────────────────────────────────────────
+# ─── 2. Vehículos ────────────────────────────────────────────────────────────
 class Vehiculo(Base, TenantMixin):
     """
     Una motocicleta registrada en el parqueadero. La placa es única por empresa.

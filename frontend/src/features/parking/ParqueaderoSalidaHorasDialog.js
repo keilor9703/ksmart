@@ -5,22 +5,22 @@ import {
   CircularProgress, IconButton, Chip, Switch, FormControlLabel
 } from '@mui/material';
 import {
-  Close, Save, WhatsApp, Timer, Phone, Person, OpenInNew, AttachMoney
+  Close, Save, WhatsApp, Timer, Phone, Person, OpenInNew, AttachMoney, Print, CheckCircle
 } from '@mui/icons-material';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
 import { formatCurrency } from '../../utils/formatters';
 import CurrencyField from '../../components/common/CurrencyField';
 import { METODOS_PAGO_SIMPLE as METODOS_PAGO } from '../../utils/constants';
+import { imprimirSalidaParqueadero } from '../../utils/printParqueadero';
 
 const ACCENT = '#FF6020';
 const WA_GREEN = '#25D366';
 
 
-
 // ═══════════════════════════════════════════════════════════════════════════
-// 4. RegistrarSalidaHorasDialog
-//    Caso: moto está dentro pagando por horas → cobrar al salir
+// RegistrarSalidaHorasDialog
+//    Caso: vehículo está dentro pagando por horas → cobrar al salir
 // ═══════════════════════════════════════════════════════════════════════════
 export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess }) {
   const [montoManual, setMontoManual] = useState('');
@@ -30,15 +30,17 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
   const [enviarWA, setEnviarWA]       = useState(false);
   const [loading, setLoading]         = useState(false);
 
+  // Post-salida state
+  const [salidaData, setSalidaData] = useState(null);
+
   useEffect(() => {
     if (!open) return;
     apiClient.get('/parqueadero/config').then(({ data }) => setConfig(data));
     setMontoManual(''); setMetodoPago('Efectivo'); setObs('');
-    // Auto-marcar WhatsApp si hay teléfono
     setEnviarWA(!!acceso?.telefono);
+    setSalidaData(null);
   }, [open, acceso]);
 
-  // Calcular minutos en vivo
   const calcular = () => {
     if (!acceso?.fecha_entrada) return { minReales: 0, minCobrar: 0, monto: 0 };
     const entrada = new Date(acceso.fecha_entrada);
@@ -58,7 +60,6 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
     if (!acceso?.id) return;
     setLoading(true);
     try {
-      // 1. Registrar la salida
       await apiClient.post('/parqueadero/accesos/salida', {
         acceso_id:    acceso.id,
         metodo_pago:  metodoPago,
@@ -66,7 +67,6 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
         observaciones: obs || null,
       });
 
-      // 2. Si se quiere enviar recibo por WhatsApp
       if (enviarWA && acceso.telefono) {
         try {
           const { data: wa } = await apiClient.post('/parqueadero/whatsapp/generar', {
@@ -83,7 +83,7 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
         }
       }
 
-      toast.success(`Salida registrada. Cobro: ${formatCurrency(cobroFinal)}`);
+      setSalidaData({ minCobrar, cobroFinal, metodoPago });
       onSuccess?.();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al registrar salida.');
@@ -92,11 +92,90 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
     }
   };
 
-  // Calcular tiempo en formato legible
+  const handleImprimir = () => {
+    if (!acceso || !salidaData) return;
+    const printerSize = config?.tipo_impresora_parq || 'p80';
+    imprimirSalidaParqueadero(acceso, salidaData.minCobrar, salidaData.cobroFinal, salidaData.metodoPago, config, printerSize);
+  };
+
   const horas = Math.floor(minReales / 60);
   const mins = minReales % 60;
   const tiempoLegible = horas > 0 ? `${horas}h ${mins}min` : `${minReales} min`;
 
+  // ── Vista post-salida ──────────────────────────────────────────────────
+  if (salidaData) {
+    const preferirImpresion = config?.preferir_impresion;
+    return (
+      <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+        <DialogTitle>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Stack direction="row" spacing={1} alignItems="center">
+              <CheckCircle sx={{ color: '#10B981' }} />
+              <Typography sx={{ fontWeight: 800 }}>Salida registrada</Typography>
+            </Stack>
+            <IconButton onClick={onClose} size="small"><Close /></IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Box sx={{ textAlign: 'center', mb: 3 }}>
+            <Typography sx={{
+              fontSize: 28, fontWeight: 900, fontFamily: 'monospace',
+              letterSpacing: 3, color: ACCENT,
+            }}>
+              {acceso.placa}
+            </Typography>
+            <Typography sx={{ fontSize: 22, fontWeight: 900, color: '#10B981', mt: 1 }}>
+              {formatCurrency(salidaData.cobroFinal)}
+            </Typography>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+              {salidaData.minCobrar} min · {salidaData.metodoPago}
+            </Typography>
+          </Box>
+          <Stack spacing={1.5}>
+            {preferirImpresion && (
+              <Button
+                fullWidth variant="contained" size="large"
+                startIcon={<Print />}
+                onClick={handleImprimir}
+                sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700 }}
+              >
+                Imprimir comprobante
+              </Button>
+            )}
+            {acceso.telefono && (
+              <Button
+                fullWidth variant="contained" size="large"
+                startIcon={<WhatsApp />}
+                onClick={() => {
+                  const msg = construirMensajeRecibo(acceso, salidaData.minCobrar, salidaData.cobroFinal, salidaData.metodoPago, config);
+                  const tel = acceso.telefono.replace(/\D/g, '');
+                  window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
+                }}
+                sx={{ bgcolor: WA_GREEN, '&:hover': { bgcolor: '#1ebe5d' }, fontWeight: 700 }}
+              >
+                Enviar recibo por WhatsApp
+              </Button>
+            )}
+            {!preferirImpresion && (
+              <Button
+                fullWidth variant="outlined" size="large"
+                startIcon={<Print />}
+                onClick={handleImprimir}
+                sx={{ fontWeight: 700 }}
+              >
+                Imprimir comprobante
+              </Button>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={onClose}>Cerrar</Button>
+        </DialogActions>
+      </Dialog>
+    );
+  }
+
+  // ── Vista de cobro ────────────────────────────────────────────────────────
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
       <DialogTitle>
@@ -107,8 +186,6 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
       </DialogTitle>
 
       <DialogContent dividers>
-
-        {/* Placa + cliente */}
         <Box sx={{ textAlign: 'center', mb: 2 }}>
           <Typography sx={{
             fontSize: 28, fontWeight: 900, fontFamily: 'monospace',
@@ -126,7 +203,6 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
           </Typography>
         </Box>
 
-        {/* Cobro automático */}
         <Box sx={{ p: 2, bgcolor: 'rgba(16, 185, 129, 0.08)', borderRadius: 2, mb: 2, textAlign: 'center' }}>
           <Typography sx={{ fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', fontWeight: 700, mb: 0.5 }}>
             Cobro
@@ -165,7 +241,6 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
           value={obs} onChange={(e) => setObs(e.target.value)}
         />
 
-        {/* Enviar recibo por WhatsApp */}
         {acceso?.telefono && (
           <FormControlLabel
             sx={{ mt: 1 }}
@@ -214,7 +289,7 @@ function construirMensajeRecibo(acceso, minutos, monto, metodoPago, config) {
   const parq = config?.nombre_parqueadero || 'el parqueadero';
   return (
     `Hola ${nombre} 👋\n\n` +
-    `Confirmamos la salida de tu moto *${acceso.placa}* de *${parq}*.\n\n` +
+    `Confirmamos la salida de tu vehículo *${acceso.placa}* de *${parq}*.\n\n` +
     `📋 *Resumen:*\n` +
     `• Tiempo total: ${minutos} min\n` +
     `• Valor pagado: *${formatCurrency(monto)}*\n` +

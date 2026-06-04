@@ -121,7 +121,7 @@ export function ParqueaderoCobrarVencidoDialog({ open, onClose, resultado, onSuc
 
       <DialogContent dividers>
         <Alert severity="warning" sx={{ mb: 2, fontSize: 13 }}>
-          ¿La moto entró al parqueadero durante los días que estuvo vencida la mensualidad?
+          ¿El vehículo entró al parqueadero durante los días que estuvo vencida la mensualidad?
         </Alert>
 
         <RadioGroup value={entroEnVencidos} onChange={(e) => setEntroEnVencidos(e.target.value)} sx={{ mb: 2 }}>

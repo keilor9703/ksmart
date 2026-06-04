@@ -352,7 +352,7 @@ export default function ParqueaderoSuscripciones() {
         <DialogTitle sx={{ fontWeight: 800 }}>¿Cancelar esta suscripción?</DialogTitle>
         <DialogContent>
           <Typography sx={{ fontSize: 14 }}>
-            Suscripción <strong>{confirmCancel?.tipo?.toUpperCase()}</strong> de la moto <strong>{confirmCancel?.placa}</strong>.
+            Suscripción <strong>{confirmCancel?.tipo?.toUpperCase()}</strong> del vehículo <strong>{confirmCancel?.placa}</strong>.
           </Typography>
           <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 1 }}>
             La suscripción quedará marcada como cancelada (no se borra). Útil cuando se registró por error.

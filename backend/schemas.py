@@ -1593,6 +1593,8 @@ class ParqueaderoConfigBase(BaseModel):
     direccion:          Optional[str] = None
     horario_apertura:   Optional[str] = "06:30"
     horario_cierre:     Optional[str] = "20:00"
+    tipo_impresora_parq: Optional[str] = 'p80'
+    preferir_impresion:  Optional[bool] = False
 
 
 class ParqueaderoConfigUpdate(ParqueaderoConfigBase):
@@ -1752,6 +1754,12 @@ class SuscripcionOut(BaseModel):
 # ═══════════════════════════════════════════════════════════════════════════════
 # 4. ACCESOS POR HORAS (ocasionales)
 # ═══════════════════════════════════════════════════════════════════════════════
+
+class AccesoUpdate(BaseModel):
+    telefono:         Optional[str] = Field(None, max_length=20)
+    nombre_ocasional: Optional[str] = Field(None, max_length=120)
+    observaciones:    Optional[str] = None
+
 
 class AccesoEntradaCreate(BaseModel):
     """Registra el ingreso de un cliente que paga por minutos."""

@@ -1353,6 +1353,20 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v75)
                 logger.info("V75 (restaurante_config.tipo_impresora) aplicada.")
 
+            # V76 - parqueadero_config: tipo_impresora_parq + preferir_impresion
+            migration_v76 = "v76_parqueadero_config_print_settings"
+            if not _migration_already_applied(conn, migration_v76):
+                conn.execute(text("""
+                    ALTER TABLE parqueadero_config
+                    ADD COLUMN IF NOT EXISTS tipo_impresora_parq VARCHAR(10) DEFAULT 'p80';
+                """))
+                conn.execute(text("""
+                    ALTER TABLE parqueadero_config
+                    ADD COLUMN IF NOT EXISTS preferir_impresion BOOLEAN DEFAULT FALSE;
+                """))
+                _mark_migration_applied(conn, migration_v76)
+                logger.info("V76 (parqueadero_config print settings) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

@@ -7,10 +7,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box, Paper, Typography, Grid, TextField, Button, InputAdornment,
-  Alert, CircularProgress, Stack, Chip, Tooltip
+  Alert, CircularProgress, Stack, Chip, Tooltip, Switch, FormControlLabel,
+  ToggleButtonGroup, ToggleButton
 } from '@mui/material';
 import {
-  Settings, Save, AttachMoney, LocalParking, Schedule, CheckCircle, Timer, InfoOutlined
+  Settings, Save, AttachMoney, LocalParking, Schedule, CheckCircle, Timer,
+  InfoOutlined, Print, Receipt
 } from '@mui/icons-material';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
@@ -76,6 +78,8 @@ export default function ParqueaderoConfig() {
         direccion:             config.direccion || null,
         horario_apertura:      config.horario_apertura || '06:30',
         horario_cierre:        config.horario_cierre || '20:00',
+        tipo_impresora_parq:   config.tipo_impresora_parq || 'p80',
+        preferir_impresion:    config.preferir_impresion || false,
       });
       setConfig(data);
       toast.success('Configuración guardada.');
@@ -346,6 +350,75 @@ export default function ParqueaderoConfig() {
           <Chip label={`Cupo ${config?.cupo_total || 0} vehículos`}
             sx={{ bgcolor: ACCENT + '15', color: ACCENT, fontWeight: 700 }} />
         </Stack>
+      </Paper>
+
+      {/* ─── Impresión de comprobantes ─────────────────────────── */}
+      <Paper sx={{ p: 3, mb: 2, borderRadius: 3 }}>
+        <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
+          <Box sx={{
+            width: 40, height: 40, borderRadius: 2,
+            bgcolor: `${ACCENT}15`, display: 'flex',
+            alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Print sx={{ color: ACCENT }} />
+          </Box>
+          <Box>
+            <Typography sx={{ fontSize: 16, fontWeight: 800 }}>
+              Impresión de comprobantes
+            </Typography>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+              Configura el tipo de impresora térmica para los comprobantes de entrada y salida
+            </Typography>
+          </Box>
+        </Stack>
+
+        <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 1 }}>
+          Tipo de impresora térmica
+        </Typography>
+        <ToggleButtonGroup
+          exclusive
+          value={config?.tipo_impresora_parq || 'p80'}
+          onChange={(_, val) => val && setConfig(prev => ({ ...prev, tipo_impresora_parq: val }))}
+          sx={{ mb: 2 }}
+        >
+          <ToggleButton value="p80" sx={{ px: 3 }}>
+            <Stack alignItems="center" spacing={0.5}>
+              <Receipt />
+              <Typography sx={{ fontSize: 12, fontWeight: 700 }}>80 mm</Typography>
+              <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Estándar</Typography>
+            </Stack>
+          </ToggleButton>
+          <ToggleButton value="p58" sx={{ px: 3 }}>
+            <Stack alignItems="center" spacing={0.5}>
+              <Receipt sx={{ fontSize: 18 }} />
+              <Typography sx={{ fontSize: 12, fontWeight: 700 }}>58 mm</Typography>
+              <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Pequeña</Typography>
+            </Stack>
+          </ToggleButton>
+        </ToggleButtonGroup>
+
+        <FormControlLabel
+          control={
+            <Switch
+              checked={config?.preferir_impresion || false}
+              onChange={(e) => setConfig(prev => ({ ...prev, preferir_impresion: e.target.checked }))}
+              sx={{
+                '& .Mui-checked': { color: ACCENT },
+                '& .Mui-checked + .MuiSwitch-track': { bgcolor: ACCENT },
+              }}
+            />
+          }
+          label={
+            <Box>
+              <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
+                Mostrar impresión como opción principal
+              </Typography>
+              <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                El botón de imprimir aparecerá destacado en lugar del botón de WhatsApp
+              </Typography>
+            </Box>
+          }
+        />
       </Paper>
 
       <Stack direction="row" justifyContent="flex-end" sx={{ mb: 4 }}>

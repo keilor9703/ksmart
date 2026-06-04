@@ -186,6 +186,26 @@ def registrar_salida_horas(
         db, empresa_id=current_user.empresa_id, payload=payload,
     )
 
+@router.patch("/accesos/{acceso_id}", response_model=schemas.AccesoOut)
+def actualizar_acceso(
+    acceso_id: int,
+    payload: schemas.AccesoUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    acceso = db.query(models.AccesoParqueadero).filter(
+        models.AccesoParqueadero.id == acceso_id,
+        models.AccesoParqueadero.empresa_id == current_user.empresa_id,
+    ).first()
+    if not acceso:
+        raise HTTPException(status_code=404, detail="Acceso no encontrado.")
+    for field, val in payload.dict(exclude_none=True).items():
+        setattr(acceso, field, val)
+    db.commit()
+    db.refresh(acceso)
+    return acceso
+
+
 @router.get("/accesos/dentro", response_model=List[schemas.AccesoOut])
 def listar_accesos_dentro(
     db: Session = Depends(get_db),

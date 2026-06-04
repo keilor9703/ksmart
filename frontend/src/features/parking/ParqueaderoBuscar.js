@@ -1,21 +1,13 @@
-// ═══════════════════════════════════════════════════════════════════════════
-// ParqueaderoBuscar.jsx — VERSIÓN 2 (con botón WhatsApp)
-// REEMPLAZA tu archivo /components/ParqueaderoBuscar.jsx por este.
-//
-// Cambios respecto a v1:
-//   ✨ Importa BotonWhatsApp
-//   ✨ Botón verde de WhatsApp en el card de resultado (cuando hay vehículo + saldo)
-//   ✨ Auto-precarga placa desde query param (?placa=ABC123)
-// ═══════════════════════════════════════════════════════════════════════════
-
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Box, Paper, TextField, InputAdornment, Typography, Button, Stack,
-  CircularProgress, Chip, Avatar, Divider, IconButton, Alert
+  CircularProgress, Chip, Avatar, Divider, IconButton, Alert,
+  Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import {
   Search, TwoWheeler, DirectionsCar, CheckCircle, ErrorOutline, HelpOutline,
-  AccessTime, Person, LocalParking, Logout, Refresh, ContentPaste
+  AccessTime, Person, LocalParking, Logout, Refresh, ContentPaste,
+  QrCodeScanner, CameraAlt, Edit, Close, Phone, Send
 } from '@mui/icons-material';
 import { useSearchParams } from 'react-router-dom';
 import apiClient from '../../api';
@@ -27,10 +19,15 @@ import RegistrarVehiculoDialog      from './ParqueaderoVehiculoDialog';
 import CobrarVencidoDialog          from './ParqueaderoCobrarVencidoDialog';
 import RegistrarSalidaHorasDialog   from './ParqueaderoSalidaHorasDialog';
 import EntradaHorasDialog           from './ParqueaderoEntradaHorasDialog';
-import BotonWhatsApp                from '../../components/common/BotonWhatsApp';   // ✨ NUEVO
+import BotonWhatsApp                from '../../components/common/BotonWhatsApp';
 import HelpGuideTopBar             from '../../components/onboarding/HelpGuideTopBar';
 
-// ── Paleta del módulo ─────────────────────────────────────────────────────
+// ── Scanner globals ───────────────────────────────────────────────────────────
+const HAS_BARCODE_DETECTOR = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+const HAS_CAMERA = typeof navigator !== 'undefined' && !!navigator?.mediaDevices?.getUserMedia;
+const BARCODE_FORMATS = ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e'];
+
+// ── Paleta ────────────────────────────────────────────────────────────────────
 const ACCENT = '#FF6020';
 const SEMAFORO = {
   verde:    { bg: '#10B981', light: '#10B98115', text: '#065F46', label: 'AL DÍA'      },
@@ -53,6 +50,28 @@ export default function ParqueaderoBuscar() {
   const [dlgVencido,       setDlgVencido]       = useState(false);
   const [dlgSalidaHoras,   setDlgSalidaHoras]   = useState(false);
   const [dlgEntradaHoras,  setDlgEntradaHoras]  = useState(false);
+  const [dlgEditTelefono,  setDlgEditTelefono]  = useState(false);
+
+  // Camera scanner state
+  const [scannerOpen, setScannerOpen]   = useState(false);
+  const videoRef    = useRef(null);
+  const rAFRef      = useRef(null);
+  const zxingRef    = useRef(null);
+  const streamRef   = useRef(null);
+  const cooldownRef = useRef(false);
+
+  const cleanupCamera = useCallback(() => {
+    cancelAnimationFrame(rAFRef.current);
+    zxingRef.current?.stop?.();
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    if (!scannerOpen) {
+      cleanupCamera();
+    }
+  }, [scannerOpen, cleanupCamera]);
 
   // ── Auto-focus al cargar y precargar desde query param ──────────────────
   useEffect(() => {
@@ -60,7 +79,6 @@ export default function ParqueaderoBuscar() {
     const placaParam = searchParams.get('placa');
     if (placaParam) {
       setPlaca(placaParam);
-      // Disparar búsqueda automática con la placa del query
       buscarConPlaca(placaParam);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -106,12 +124,82 @@ export default function ParqueaderoBuscar() {
     }
   };
 
+  const onQrDetected = useCallback((rawValue) => {
+    if (cooldownRef.current) return;
+    cooldownRef.current = true;
+    const placaLimpia = rawValue.trim().toUpperCase().replace(/[\s-]/g, '').slice(0, 10);
+    if (placaLimpia.length >= 3) {
+      setScannerOpen(false);
+      setPlaca(placaLimpia);
+      buscarConPlaca(placaLimpia);
+      toast.success(`Placa detectada: ${placaLimpia}`);
+    }
+    setTimeout(() => { cooldownRef.current = false; }, 2000);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const startCamera = useCallback(async () => {
+    if (!HAS_CAMERA) {
+      toast.error('Cámara no disponible en este dispositivo.');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      if (HAS_BARCODE_DETECTOR) {
+        const detector = new window.BarcodeDetector({ formats: BARCODE_FORMATS });
+        const loop = async () => {
+          if (!videoRef.current || videoRef.current.readyState < 2) {
+            rAFRef.current = requestAnimationFrame(loop);
+            return;
+          }
+          try {
+            const barcodes = await detector.detect(videoRef.current);
+            if (barcodes.length > 0) {
+              onQrDetected(barcodes[0].rawValue);
+            }
+          } catch {}
+          rAFRef.current = requestAnimationFrame(loop);
+        };
+        rAFRef.current = requestAnimationFrame(loop);
+      } else {
+        // Fallback: @zxing/browser
+        try {
+          const { BrowserMultiFormatReader } = await import('@zxing/browser');
+          const reader = new BrowserMultiFormatReader();
+          zxingRef.current = reader;
+          reader.decodeFromVideoElement(videoRef.current, (result, err) => {
+            if (result) onQrDetected(result.getText());
+          });
+        } catch {
+          toast.error('No se pudo iniciar el lector de QR.');
+        }
+      }
+    } catch (err) {
+      toast.error('No se pudo acceder a la cámara. Verifica los permisos.');
+    }
+  }, [onQrDetected]);
+
+  useEffect(() => {
+    if (scannerOpen) {
+      setTimeout(() => startCamera(), 100);
+    }
+  }, [scannerOpen, startCamera]);
+
   const onAccionCompletada = () => {
     setDlgSuscripcion(false);
     setDlgVehiculo(false);
     setDlgVencido(false);
     setDlgSalidaHoras(false);
     setDlgEntradaHoras(false);
+    setDlgEditTelefono(false);
     if (resultado?.placa) {
       apiClient.get(`/parqueadero/buscar/${resultado.placa}`)
         .then(({ data }) => setResultado(data));
@@ -129,13 +217,13 @@ export default function ParqueaderoBuscar() {
             moduleColor={ACCENT}
             steps={[
               { title: 'Escribe la placa', description: 'Ingresa la placa completa del vehículo (ej: ABC123). El sistema buscará su registro automáticamente.' },
-              { title: 'Registra la entrada', description: 'Si el vehículo tiene suscripción activa, verás su estado. Para vehículos por hora, registra la entrada.' },
-              { title: 'Registra la salida', description: 'Cuando el vehículo salga, busca la placa nuevamente, calcula el tiempo y cobra el monto correspondiente.' },
+              { title: 'Escanea el QR', description: 'Si tienes el comprobante impreso, usa el botón de escáner para leer el QR y buscar al instante.' },
+              { title: 'Registra la salida', description: 'Cuando el vehículo salga, busca la placa, calcula el tiempo y cobra el monto correspondiente.' },
               { title: 'Vehículo nuevo', description: 'Si la placa no existe, el sistema te permitirá registrar el vehículo y su propietario en el momento.' },
             ]}
             faqItems={[
+              { q: '¿Cómo funciona el escáner QR?', a: 'Presiona el botón de QR para activar la cámara. Apunta al código QR del comprobante impreso o usa un lector USB/Bluetooth que escriba la placa automáticamente.' },
               { q: '¿Qué pasa si la placa no está registrada?', a: 'El sistema te mostrará la opción de registrar el vehículo como nuevo. Ingresa los datos del propietario y el tipo de vehículo.' },
-              { q: '¿Puedo registrar una entrada sin placa registrada?', a: 'Sí, el sistema permite ingresar vehículos ocasionales. Solo necesitas la placa; los demás datos son opcionales.' },
               { q: '¿Cómo cobro a un vehículo por horas?', a: 'Registra la entrada al llegar. Al salir, busca la placa nuevamente, el sistema calcula el tiempo y el costo automáticamente.' },
               { q: '¿Qué significa que la suscripción está vencida?', a: 'El cliente no ha pagado la renovación mensual. Puedes cobrarla desde aquí o desde el módulo de Suscripciones.' },
             ]}
@@ -154,7 +242,7 @@ export default function ParqueaderoBuscar() {
             Buscar placa
           </Typography>
           <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-            Escribe la placa para verificar el estado del vehículo
+            Escribe la placa o escanea el QR del comprobante
           </Typography>
         </Box>
       </Box>
@@ -180,6 +268,16 @@ export default function ParqueaderoBuscar() {
               ),
               endAdornment: (
                 <InputAdornment position="end">
+                  {HAS_CAMERA && (
+                    <IconButton
+                      onClick={() => setScannerOpen(true)}
+                      title="Escanear QR"
+                      size="small"
+                      sx={{ color: ACCENT }}
+                    >
+                      <QrCodeScanner />
+                    </IconButton>
+                  )}
                   <IconButton onClick={pegarPlaca} title="Pegar" size="small">
                     <ContentPaste fontSize="small" />
                   </IconButton>
@@ -226,6 +324,7 @@ export default function ParqueaderoBuscar() {
           onRegistrarVehiculo={() => setDlgVehiculo(true)}
           onRegistrarSalida={() => setDlgSalidaHoras(true)}
           onCobrarPorHoras={() => setDlgEntradaHoras(true)}
+          onEditarTelefono={() => setDlgEditTelefono(true)}
         />
       )}
 
@@ -254,9 +353,181 @@ export default function ParqueaderoBuscar() {
             vehiculoId={resultado.vehiculo?.id}
             onSuccess={onAccionCompletada}
           />
+          {resultado.acceso_abierto && (
+            <EditarTelefonoDialog
+              open={dlgEditTelefono}
+              onClose={() => setDlgEditTelefono(false)}
+              acceso={resultado.acceso_abierto}
+              onSuccess={onAccionCompletada}
+            />
+          )}
         </>
       )}
+
+      {/* ─── Modal escáner cámara ────────────────────────────────── */}
+      <Dialog
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        maxWidth="sm" fullWidth
+      >
+        <DialogTitle>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Stack direction="row" spacing={1} alignItems="center">
+              <QrCodeScanner sx={{ color: ACCENT }} />
+              <Typography sx={{ fontWeight: 800 }}>Escanear QR</Typography>
+            </Stack>
+            <IconButton onClick={() => setScannerOpen(false)} size="small"><Close /></IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="info" sx={{ mb: 2, fontSize: 12 }}>
+            Apunta la cámara al QR del comprobante de entrada. La placa se leerá automáticamente.
+          </Alert>
+          <Box sx={{
+            position: 'relative', borderRadius: 2, overflow: 'hidden',
+            bgcolor: '#000', width: '100%',
+            aspectRatio: '4/3',
+          }}>
+            <video
+              ref={videoRef}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              playsInline muted
+            />
+            {/* Visor */}
+            <Box sx={{
+              position: 'absolute', top: '50%', left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: 180, height: 180,
+              border: '3px solid', borderColor: ACCENT,
+              borderRadius: 2, pointerEvents: 'none',
+              boxShadow: `0 0 0 2000px rgba(0,0,0,0.45)`,
+            }} />
+          </Box>
+          <Typography sx={{ fontSize: 12, color: 'text.secondary', textAlign: 'center', mt: 1 }}>
+            También puedes conectar un lector USB/Bluetooth — escribe la placa directamente en el campo de búsqueda
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setScannerOpen(false)}>Cancelar</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIALOG EDITAR TELÉFONO
+// ═══════════════════════════════════════════════════════════════════════════
+
+function EditarTelefonoDialog({ open, onClose, acceso, onSuccess }) {
+  const [telefono, setTelefono] = useState('');
+  const [saving, setSaving] = useState(false);
+  const WA_GREEN = '#25D366';
+
+  useEffect(() => {
+    if (open) setTelefono(acceso?.telefono || '');
+  }, [open, acceso]);
+
+  const telefonoValido = telefono.replace(/\D/g, '').length >= 10;
+
+  const handleGuardar = async () => {
+    if (!telefonoValido) return;
+    setSaving(true);
+    try {
+      await apiClient.patch(`/parqueadero/accesos/${acceso.id}`, { telefono: telefono.trim() });
+      toast.success('Teléfono actualizado.');
+      onSuccess?.();
+    } catch {
+      toast.error('Error al actualizar el teléfono.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReenviarWA = async () => {
+    if (!telefonoValido) return;
+    setSaving(true);
+    try {
+      await apiClient.patch(`/parqueadero/accesos/${acceso.id}`, { telefono: telefono.trim() });
+
+      const { data: waData } = await apiClient.post('/parqueadero/accesos/entrada', {
+        placa: acceso.placa,
+        nombre_ocasional: acceso.nombre_ocasional,
+        telefono: telefono.trim(),
+        enviar_whatsapp: true,
+      }).catch(() => ({ data: null }));
+
+      // Generar mensaje manual si no hay wa_url del backend
+      const tel = telefono.trim().replace(/\D/g, '');
+      const nombre = (acceso.nombre_ocasional || 'cliente').split(' ')[0];
+      const horaEntrada = new Date(acceso.fecha_entrada).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+      const msg =
+        `Hola ${nombre} 👋\n\n` +
+        `Tu vehículo *${acceso.placa}* ingresó al parqueadero a las *${horaEntrada}*.\n\n` +
+        `Se cobrará el tiempo exacto al momento de la salida.\n\n` +
+        `¡Bienvenido!`;
+      window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
+
+      toast.success('Teléfono actualizado y WhatsApp enviado.');
+      onSuccess?.();
+    } catch {
+      toast.error('Error al actualizar o reenviar.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle>
+        <Stack direction="row" justifyContent="space-between" alignItems="center">
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Edit sx={{ color: ACCENT }} />
+            <Typography sx={{ fontWeight: 800 }}>Editar teléfono</Typography>
+          </Stack>
+          <IconButton onClick={onClose} size="small"><Close /></IconButton>
+        </Stack>
+      </DialogTitle>
+      <DialogContent dividers>
+        <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 2 }}>
+          Vehículo <strong>{acceso?.placa}</strong> — ingresado a las{' '}
+          {acceso?.fecha_entrada
+            ? new Date(acceso.fecha_entrada).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
+            : '—'}
+        </Typography>
+        <TextField
+          fullWidth size="small" label="Teléfono / WhatsApp"
+          placeholder="3001234567"
+          value={telefono}
+          onChange={(e) => setTelefono(e.target.value.replace(/[^\d+\s]/g, ''))}
+          error={telefono.length > 0 && !telefonoValido}
+          helperText={telefono.length > 0 && !telefonoValido ? 'Mínimo 10 dígitos' : ''}
+          InputProps={{
+            startAdornment: <InputAdornment position="start"><Phone fontSize="small" /></InputAdornment>,
+          }}
+          autoFocus
+        />
+      </DialogContent>
+      <DialogActions sx={{ p: 2, gap: 1 }}>
+        <Button onClick={onClose} disabled={saving}>Cancelar</Button>
+        <Button
+          variant="outlined" disabled={!telefonoValido || saving}
+          startIcon={saving ? <CircularProgress size={14} color="inherit" /> : null}
+          onClick={handleGuardar}
+        >
+          Solo guardar
+        </Button>
+        <Button
+          variant="contained" disabled={!telefonoValido || saving}
+          startIcon={<Send fontSize="small" />}
+          onClick={handleReenviarWA}
+          sx={{ bgcolor: WA_GREEN, '&:hover': { bgcolor: '#1ebe5d' }, fontWeight: 700 }}
+        >
+          Guardar y reenviar
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }
 
@@ -267,18 +538,15 @@ export default function ParqueaderoBuscar() {
 
 function ResultadoCard({
   resultado, onCobrarVencido, onRegistrarSuscripcion,
-  onRegistrarVehiculo, onRegistrarSalida, onCobrarPorHoras,
+  onRegistrarVehiculo, onRegistrarSalida, onCobrarPorHoras, onEditarTelefono,
 }) {
   const semaforo = SEMAFORO[resultado.color_semaforo] || SEMAFORO.gris;
 
-  // ¿Mostrar botón WhatsApp?
-  // Sí cuando hay vehículo + cliente con teléfono (la API valida igual)
   const mostrarWhatsApp =
     resultado.vehiculo &&
     resultado.vehiculo.cliente_telefono &&
     resultado.tipo_resultado !== 'vehiculo_no_registrado';
 
-  // Tipo de mensaje según contexto
   const tipoMensaje =
     resultado.tipo_resultado === 'vehiculo_vencido'    ? 'pago' :
     resultado.tipo_resultado === 'vehiculo_al_dia' &&
@@ -327,7 +595,6 @@ function ResultadoCard({
             <Divider sx={{ my: 2 }} />
             <DatosSuscripcion susc={resultado.suscripcion_actual} resultado={resultado} />
 
-            {/* ✨ NUEVO: bloque de acciones con botón WhatsApp */}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 3 }}>
               {resultado.tipo_resultado === 'vehiculo_vencido' && (
                 <Button
@@ -426,6 +693,26 @@ function ResultadoCard({
               <Typography sx={{ fontSize: 28, fontWeight: 900 }}>
                 {resultado.horas_transcurridas?.toFixed(1)} horas
               </Typography>
+              {resultado.acceso_abierto && (
+                <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 0.5 }}>
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                    {resultado.acceso_abierto.nombre_ocasional
+                      ? `👤 ${resultado.acceso_abierto.nombre_ocasional}`
+                      : ''}
+                    {resultado.acceso_abierto.telefono
+                      ? `  📱 ${resultado.acceso_abierto.telefono}`
+                      : '  Sin teléfono'}
+                  </Typography>
+                  <IconButton
+                    size="small"
+                    onClick={onEditarTelefono}
+                    title={resultado.acceso_abierto.telefono ? 'Corregir teléfono' : 'Agregar teléfono'}
+                    sx={{ color: 'text.secondary', p: 0.3 }}
+                  >
+                    <Edit sx={{ fontSize: 14 }} />
+                  </IconButton>
+                </Stack>
+              )}
               <Divider sx={{ my: 1.5 }} />
               <Stack direction="row" justifyContent="space-between">
                 <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Cobro estimado</Typography>
@@ -462,7 +749,7 @@ function ResultadoCard({
 
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SUB-COMPONENTES (idénticos a v1)
+// SUB-COMPONENTES
 // ═══════════════════════════════════════════════════════════════════════════
 
 function IconoEstado({ tipo }) {
@@ -496,7 +783,7 @@ function DatosVehiculo({ veh }) {
           )}
           {(veh.marca || veh.modelo) && (
             <Chip size="small"
-              label={`🏍 ${[veh.marca, veh.modelo].filter(Boolean).join(' ')}`}
+              label={`🚗 ${[veh.marca, veh.modelo].filter(Boolean).join(' ')}`}
               sx={{ fontSize: 11 }} />
           )}
           {veh.color && (
@@ -588,18 +875,13 @@ function DatosSuscripcion({ susc, resultado }) {
   );
 }
 
-// ════ REEMPLAZA ESTO AL FINAL DE ParqueaderoBuscar.jsx ════
-
 function fechaCorta(fechaIso) {
   if (!fechaIso) return '—';
-  
-  // 🛠️ FIX: Extraemos estrictamente el Año, Mes y Día ignorando la zona horaria UTC
   const partes = fechaIso.split('T')[0].split('-');
   if (partes.length === 3) {
     const d = new Date(partes[0], partes[1] - 1, partes[2]);
     return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
   }
-  
   const d = new Date(fechaIso);
   if (isNaN(d)) return fechaIso;
   return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
