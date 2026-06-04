@@ -411,10 +411,10 @@ export default function ParqueaderoConfig() {
           label={
             <Box>
               <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
-                Mostrar impresión como opción principal
+                Habilitar botón de impresión de comprobantes
               </Typography>
               <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-                El botón de imprimir aparecerá destacado en lugar del botón de WhatsApp
+                Activa si tienes impresora térmica. Al desactivar, el botón de imprimir no aparece.
               </Typography>
             </Box>
           }

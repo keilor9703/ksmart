@@ -256,31 +256,25 @@ export function ParqueaderoEntradaHorasDialog({
               )}
             </Box>
 
-            {/* Botones de acción — imprimir SIEMPRE visible */}
+            {/* Botones de acción */}
             <Stack spacing={1.5}>
-              <Button
-                fullWidth
-                variant={preferirImpresion ? 'contained' : 'outlined'}
-                size="large"
-                startIcon={<Print />}
-                onClick={handleImprimir}
-                sx={preferirImpresion ? {
-                  bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' },
-                  fontWeight: 700, py: 1.5,
-                } : { fontWeight: 700 }}
-              >
-                Imprimir comprobante de entrada
-              </Button>
+              {preferirImpresion && (
+                <Button
+                  fullWidth variant="contained" size="large"
+                  startIcon={<Print />}
+                  onClick={handleImprimir}
+                  sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700, py: 1.5 }}
+                >
+                  Imprimir comprobante de entrada
+                </Button>
+              )}
 
               {accesoCreado.telefono && (
                 <Button
                   fullWidth variant="contained" size="large"
                   startIcon={<WhatsApp />}
                   onClick={handleReenviarWA}
-                  sx={{
-                    bgcolor: WA_GREEN, '&:hover': { bgcolor: '#1ebe5d' },
-                    fontWeight: 700, py: 1.5,
-                  }}
+                  sx={{ bgcolor: WA_GREEN, '&:hover': { bgcolor: '#1ebe5d' }, fontWeight: 700, py: 1.5 }}
                 >
                   Enviar comprobante por WhatsApp
                 </Button>

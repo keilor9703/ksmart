@@ -150,20 +150,18 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
                 {salidaData.minCobrar} min · {salidaData.metodoPago}
               </Typography>
             </Box>
-            {/* Botones de acción — imprimir SIEMPRE visible */}
+            {/* Botones de acción */}
             <Stack spacing={1.5}>
-              <Button
-                fullWidth
-                variant={preferirImpresion ? 'contained' : 'outlined'}
-                size="large"
-                startIcon={<Print />}
-                onClick={handleImprimir}
-                sx={preferirImpresion ? {
-                  bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700,
-                } : { fontWeight: 700 }}
-              >
-                Imprimir comprobante de salida
-              </Button>
+              {preferirImpresion && (
+                <Button
+                  fullWidth variant="contained" size="large"
+                  startIcon={<Print />}
+                  onClick={handleImprimir}
+                  sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700 }}
+                >
+                  Imprimir comprobante de salida
+                </Button>
+              )}
               {acceso?.telefono && (
                 <Button
                   fullWidth variant="contained" size="large"
