@@ -86,6 +86,18 @@ def generar_link_whatsapp(
     placa = None
     telefono_raw = payload.telefono
 
+    # Si se pasa acceso_id, resolver placa/nombre/teléfono del acceso ocasional
+    if payload.acceso_id:
+        acceso_obj = db.query(models.AccesoParqueadero).filter(
+            models.AccesoParqueadero.id == payload.acceso_id,
+            models.AccesoParqueadero.empresa_id == empresa_id,
+        ).first()
+        if acceso_obj:
+            placa = placa or acceso_obj.placa
+            cliente_nombre = cliente_nombre or acceso_obj.nombre_ocasional
+            if not telefono_raw:
+                telefono_raw = acceso_obj.telefono
+
     if payload.vehiculo_id:
         vehiculo = db.query(models.Vehiculo).options(
             joinedload(models.Vehiculo.cliente)
@@ -212,6 +224,9 @@ def generar_link_whatsapp(
                 link_pago       = link_pago_display,
                 instrucciones   = instrucciones_completas or "",
                 direccion       = direccion,
+                # Variables para recibo_salida
+                minutos         = payload.minutos or 0,
+                metodo_pago     = payload.metodo_pago_text or "—",
             )
         except KeyError as e:
             raise HTTPException(

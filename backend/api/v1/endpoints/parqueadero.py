@@ -206,6 +206,34 @@ def actualizar_acceso(
     return acceso
 
 
+@router.post("/accesos/{acceso_id}/whatsapp-comprobante")
+def reenviar_comprobante_entrada_wa(
+    acceso_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Reenvía el comprobante de entrada usando la plantilla configurada."""
+    from crud.parqueadero.metodos_pago import _normalizar_telefono_whatsapp
+    from crud.parqueadero.horas import _generar_comprobante_entrada_wa
+
+    acceso = db.query(models.AccesoParqueadero).filter(
+        models.AccesoParqueadero.id == acceso_id,
+        models.AccesoParqueadero.empresa_id == current_user.empresa_id,
+    ).first()
+    if not acceso:
+        raise HTTPException(status_code=404, detail="Acceso no encontrado.")
+    if not acceso.telefono:
+        raise HTTPException(status_code=400, detail="Este acceso no tiene teléfono registrado.")
+
+    telefono_valido = _normalizar_telefono_whatsapp(acceso.telefono)
+    if not telefono_valido:
+        raise HTTPException(status_code=400, detail="El teléfono no tiene formato válido para WhatsApp.")
+
+    return _generar_comprobante_entrada_wa(
+        db, current_user.empresa_id, current_user.id, acceso, telefono_valido,
+    )
+
+
 @router.get("/accesos/dentro", response_model=List[schemas.AccesoOut])
 def listar_accesos_dentro(
     db: Session = Depends(get_db),

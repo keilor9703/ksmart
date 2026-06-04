@@ -106,20 +106,16 @@ export function ParqueaderoEntradaHorasDialog({
     imprimirEntradaParqueadero(accesoCreado, config, printerSize, qrDataUrl);
   }, [accesoCreado, config]);
 
-  const handleReenviarWA = () => {
-    if (!accesoCreado?.telefono) return;
-    const tel = accesoCreado.telefono.replace(/\D/g, '');
-    const parq = config?.nombre_parqueadero || 'el parqueadero';
-    const nombreCliente = (accesoCreado.nombre_ocasional || 'cliente').split(' ')[0];
-    const horaEntrada = new Date(accesoCreado.fecha_entrada).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
-    const mensaje =
-      `Hola ${nombreCliente} 👋\n\n` +
-      `Confirmamos la entrada de tu vehículo *${accesoCreado.placa}* a *${parq}*.\n\n` +
-      `🕐 Hora de entrada: *${horaEntrada}*\n` +
-      `Se cobrará el tiempo exacto al momento de la salida.\n\n` +
-      `¡Bienvenido!`;
-    const url = `https://wa.me/${tel}?text=${encodeURIComponent(mensaje)}`;
-    window.open(url, '_blank', 'noopener');
+  const handleReenviarWA = async () => {
+    if (!accesoCreado?.id || !accesoCreado?.telefono) return;
+    try {
+      const { data: wa } = await apiClient.post(
+        `/parqueadero/accesos/${accesoCreado.id}/whatsapp-comprobante`
+      );
+      if (wa.wa_url) window.open(wa.wa_url, '_blank', 'noopener');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'No se pudo generar el mensaje de WhatsApp.');
+    }
   };
 
   const handleGuardarTelefono = async () => {

@@ -71,10 +71,12 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
       if (enviarWA && acceso.telefono) {
         try {
           const { data: wa } = await apiClient.post('/parqueadero/whatsapp/generar', {
-            telefono: acceso.telefono,
-            tipo:     'recibo_salida',
-            monto_override: cobroFinal,
-            mensaje_personalizado: construirMensajeRecibo(acceso, minCobrar, cobroFinal, metodoPago, config),
+            acceso_id:        acceso.id,
+            telefono:         acceso.telefono,
+            tipo:             'recibo_salida',
+            monto_override:   cobroFinal,
+            minutos:          minCobrar,
+            metodo_pago_text: metodoPago,
           });
           if (wa.wa_url) {
             window.open(wa.wa_url, '_blank', 'noopener');
@@ -166,10 +168,20 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
                 <Button
                   fullWidth variant="contained" size="large"
                   startIcon={<WhatsApp />}
-                  onClick={() => {
-                    const msg = construirMensajeRecibo(acceso, salidaData.minCobrar, salidaData.cobroFinal, salidaData.metodoPago, config);
-                    const tel = acceso.telefono.replace(/\D/g, '');
-                    window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
+                  onClick={async () => {
+                    try {
+                      const { data: wa } = await apiClient.post('/parqueadero/whatsapp/generar', {
+                        acceso_id:        acceso.id,
+                        telefono:         acceso.telefono,
+                        tipo:             'recibo_salida',
+                        monto_override:   salidaData.cobroFinal,
+                        minutos:          salidaData.minCobrar,
+                        metodo_pago_text: salidaData.metodoPago,
+                      });
+                      if (wa.wa_url) window.open(wa.wa_url, '_blank', 'noopener');
+                    } catch {
+                      toast.error('No se pudo generar el mensaje de WhatsApp.');
+                    }
                   }}
                   sx={{ bgcolor: WA_GREEN, '&:hover': { bgcolor: '#1ebe5d' }, fontWeight: 700 }}
                 >
@@ -293,19 +305,6 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
   );
 }
 
-function construirMensajeRecibo(acceso, minutos, monto, metodoPago, config) {
-  const nombre = (acceso.nombre_ocasional || 'cliente').split(' ')[0];
-  const parq = config?.nombre_parqueadero || 'el parqueadero';
-  return (
-    `Hola ${nombre} 👋\n\n` +
-    `Confirmamos la salida de tu vehículo *${acceso.placa}* de *${parq}*.\n\n` +
-    `📋 *Resumen:*\n` +
-    `• Tiempo total: ${minutos} min\n` +
-    `• Valor pagado: *${formatCurrency(monto)}*\n` +
-    `• Método: ${metodoPago}\n\n` +
-    `Gracias por preferirnos. ¡Vuelve pronto!`
-  );
-}
 
 export const RegistrarSalidaHorasDialog = ParqueaderoSalidaHorasDialog;
 export default ParqueaderoSalidaHorasDialog;

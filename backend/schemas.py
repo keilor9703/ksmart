@@ -2055,6 +2055,11 @@ class GenerarWhatsAppRequest(BaseModel):
     tipo:           TipoPlantillaEnum = TipoPlantillaEnum.PAGO
     monto_override: Optional[float] = None  # Para pagos libres
 
+    # Contexto adicional para plantillas de horas (recibo_salida / comprobante_entrada)
+    acceso_id:        Optional[int] = None   # Para resolver placa/nombre de vehículos ocasionales
+    minutos:          Optional[int] = None   # Para variable {minutos} en recibo_salida
+    metodo_pago_text: Optional[str] = None   # Para variable {metodo_pago} en recibo_salida
+
     # Permitir editar el mensaje antes de enviarlo (la UI muestra preview editable)
     mensaje_personalizado: Optional[str] = None
 
