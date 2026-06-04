@@ -13,6 +13,7 @@ import { formatCurrency } from '../../utils/formatters';
 import CurrencyField from '../../components/common/CurrencyField';
 import { METODOS_PAGO_SIMPLE } from '../../utils/constants';
 import { imprimirSalidaParqueadero } from '../../utils/printParqueadero';
+import LinkPagoModal from '../../components/common/LinkPagoModal';
 
 const ACCENT   = '#FF6020';
 const WA_GREEN = '#25D366';
@@ -26,8 +27,9 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
   const [config,         setConfig]        = useState(null);
   const [enviarWA,       setEnviarWA]      = useState(false);
   const [loading,        setLoading]       = useState(false);
-  const [metodoLinkQR,   setMetodoLinkQR]  = useState(null); // método "libre" con link/QR
-  const [montoRecibido,  setMontoRecibido] = useState('');   // para calculadora de vueltas
+  const [metodoLinkQR,     setMetodoLinkQR]    = useState(null);  // método "libre" con link/QR
+  const [montoRecibido,    setMontoRecibido]   = useState('');    // para calculadora de vueltas
+  const [linkPagoModalOpen, setLinkPagoModalOpen] = useState(false); // modal QR/link
 
   // Post-salida state
   const [salidaData, setSalidaData] = useState(null);
@@ -128,6 +130,7 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
   const preferirImpresion = config?.preferir_impresion;
 
   return (
+    <>
     <Dialog
       open={open}
       onClose={salidaData ? handleCerrarPostSalida : onClose}
@@ -305,39 +308,6 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
               </Box>
             )}
 
-            {/* ── Link / QR de pago ── */}
-            {metodoPago === 'Link/QR' && metodoLinkQR && (
-              <Box sx={{ mb: 2, p: 1.5, bgcolor: '#7C3AED0A', borderRadius: 2, border: '1px solid #7C3AED30' }}>
-                <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#7C3AED', mb: 1, textTransform: 'uppercase' }}>
-                  {metodoLinkQR.nombre_metodo || 'Pago digital'}
-                </Typography>
-                {metodoLinkQR.tiene_qr && (
-                  <Box sx={{ textAlign: 'center', mb: 1 }}>
-                    <img
-                      src={metodoLinkQR.qr_data_uri}
-                      alt="QR de pago"
-                      style={{ width: 140, height: 140, borderRadius: 8 }}
-                    />
-                  </Box>
-                )}
-                {metodoLinkQR.tiene_link && (
-                  <Button
-                    fullWidth variant="outlined" size="small"
-                    startIcon={<OpenInNew />}
-                    onClick={() => window.open(metodoLinkQR.link_pago, '_blank', 'noopener')}
-                    sx={{ color: '#7C3AED', borderColor: '#7C3AED', fontWeight: 700, mb: metodoLinkQR.instrucciones ? 1 : 0 }}
-                  >
-                    Abrir link de pago
-                  </Button>
-                )}
-                {metodoLinkQR.instrucciones && (
-                  <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.5 }}>
-                    {metodoLinkQR.instrucciones}
-                  </Typography>
-                )}
-              </Box>
-            )}
-
             {/* Observaciones */}
             <TextField
               fullWidth size="small" multiline rows={2}
@@ -374,17 +344,48 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
           <DialogActions sx={{ p: 2 }}>
             <Button onClick={onClose} disabled={loading}>Cancelar</Button>
             <Button
-              variant="contained" onClick={handleSalida} disabled={loading}
+              variant="contained"
+              disabled={loading}
+              onClick={() => {
+                if (metodoPago === 'Link/QR' && metodoLinkQR) {
+                  setLinkPagoModalOpen(true);
+                } else {
+                  handleSalida();
+                }
+              }}
               startIcon={loading ? <CircularProgress size={16} color="inherit" /> :
+                         metodoPago === 'Link/QR' ? <QrCode2 /> :
                          enviarWA && acceso?.telefono ? <WhatsApp /> : <Save />}
               sx={{ bgcolor: GREEN, '&:hover': { bgcolor: '#059669' }, fontWeight: 700 }}
             >
-              Cobrar {formatCurrency(cobroFinal)}
+              {metodoPago === 'Link/QR' ? 'Mostrar QR / Link' : `Cobrar ${formatCurrency(cobroFinal)}`}
             </Button>
           </DialogActions>
         </>
       )}
     </Dialog>
+
+    {/* Modal QR / Link de pago — se abre cuando método = Link/QR */}
+    {metodoLinkQR && (
+      <LinkPagoModal
+        open={linkPagoModalOpen}
+        onClose={() => setLinkPagoModalOpen(false)}
+        onConfirm={async () => {
+          setLinkPagoModalOpen(false);
+          await handleSalida();
+        }}
+        linkConfig={{
+          nombre:       metodoLinkQR.nombre_metodo || 'Link / QR',
+          tipo:         metodoLinkQR.tiene_qr ? 'qr_imagen' : 'url',
+          qr_base64:    metodoLinkQR.qr_base64,
+          qr_mime_type: metodoLinkQR.qr_mime_type,
+          link_url:     metodoLinkQR.link_pago,
+          instrucciones: metodoLinkQR.instrucciones,
+        }}
+        clienteTelefono={acceso?.telefono || ''}
+      />
+    )}
+    </>
   );
 }
 
