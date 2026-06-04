@@ -1,34 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField,
-  Box, Typography, Stack, Alert, Divider, MenuItem, InputAdornment,
+  Box, Typography, Stack, Divider, MenuItem, InputAdornment,
   CircularProgress, IconButton, Chip, Switch, FormControlLabel
 } from '@mui/material';
 import {
-  Close, Save, WhatsApp, Timer, Phone, Person, OpenInNew, AttachMoney, Print, CheckCircle
+  Close, Save, WhatsApp, OpenInNew, Print, CheckCircle, QrCode2
 } from '@mui/icons-material';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
 import { formatCurrency } from '../../utils/formatters';
 import CurrencyField from '../../components/common/CurrencyField';
-import { METODOS_PAGO_SIMPLE as METODOS_PAGO } from '../../utils/constants';
+import { METODOS_PAGO_SIMPLE } from '../../utils/constants';
 import { imprimirSalidaParqueadero } from '../../utils/printParqueadero';
 
-const ACCENT = '#FF6020';
+const ACCENT   = '#FF6020';
 const WA_GREEN = '#25D366';
+const GREEN    = '#10B981';
+const RED      = '#EF4444';
 
-
-// ═══════════════════════════════════════════════════════════════════════════
-// RegistrarSalidaHorasDialog
-//    Caso: vehículo está dentro pagando por horas → cobrar al salir
-// ═══════════════════════════════════════════════════════════════════════════
 export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess }) {
-  const [montoManual, setMontoManual] = useState('');
-  const [metodoPago, setMetodoPago]   = useState('Efectivo');
-  const [obs, setObs]                 = useState('');
-  const [config, setConfig]           = useState(null);
-  const [enviarWA, setEnviarWA]       = useState(false);
-  const [loading, setLoading]         = useState(false);
+  const [montoManual,    setMontoManual]   = useState('');
+  const [metodoPago,     setMetodoPago]    = useState('Efectivo');
+  const [obs,            setObs]           = useState('');
+  const [config,         setConfig]        = useState(null);
+  const [enviarWA,       setEnviarWA]      = useState(false);
+  const [loading,        setLoading]       = useState(false);
+  const [metodoLinkQR,   setMetodoLinkQR]  = useState(null); // método "libre" con link/QR
+  const [montoRecibido,  setMontoRecibido] = useState('');   // para calculadora de vueltas
 
   // Post-salida state
   const [salidaData, setSalidaData] = useState(null);
@@ -37,10 +36,20 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
   useEffect(() => {
     if (!open) return;
     apiClient.get('/parqueadero/config').then(({ data }) => setConfig(data));
-    setMontoManual(''); setMetodoPago('Efectivo'); setObs('');
+    // Cargar métodos de pago para detectar si hay Link/QR configurado
+    apiClient.get('/parqueadero/metodos-pago').then(({ data }) => {
+      const libre = data.find(m =>
+        m.modalidad === 'libre' && m.is_active && (m.tiene_link || m.tiene_qr)
+      );
+      setMetodoLinkQR(libre || null);
+    }).catch(() => {});
+    setMontoManual('');
+    setMetodoPago('Efectivo');
+    setObs('');
+    setMontoRecibido('');
     setEnviarWA(!!acceso?.telefono);
     setSalidaData(null);
-  }, [open]); // solo [open] — evita resetear salidaData si el padre re-renderiza acceso
+  }, [open]);
 
   const calcular = () => {
     if (!acceso?.fecha_entrada) return { minReales: 0, minCobrar: 0, monto: 0 };
@@ -56,6 +65,15 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
   const { minReales, minCobrar, monto } = calcular();
   const cobroFinal = montoManual === '' ? monto : Number(montoManual);
   const aplicaCobroMinimo = minReales < minCobrar;
+
+  // Lista de métodos: incluye Link/QR solo si existe configurado
+  const metodosList = metodoLinkQR
+    ? ['Efectivo', 'Link/QR', ...METODOS_PAGO_SIMPLE.filter(m => m !== 'Efectivo')]
+    : METODOS_PAGO_SIMPLE;
+
+  // Calculadora de vueltas
+  const montoRecibidoNum = Number(montoRecibido) || 0;
+  const devuelta = montoRecibidoNum > 0 ? montoRecibidoNum - cobroFinal : null;
 
   const handleSalida = async () => {
     if (!acceso?.id) return;
@@ -78,16 +96,13 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
             minutos:          minCobrar,
             metodo_pago_text: metodoPago,
           });
-          if (wa.wa_url) {
-            window.open(wa.wa_url, '_blank', 'noopener');
-          }
+          if (wa.wa_url) window.open(wa.wa_url, '_blank', 'noopener');
         } catch (waErr) {
           console.warn('Salida registrada pero WhatsApp falló:', waErr);
         }
       }
 
       setSalidaData({ minCobrar, cobroFinal, metodoPago });
-      // onSuccess se llama al cerrar para no cerrar el diálogo antes de mostrar las opciones
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al registrar salida.');
     } finally {
@@ -122,16 +137,17 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
       TransitionProps={{
         onExited: () => {
           setSalidaData(null);
+          setMontoRecibido('');
         },
       }}
     >
       {salidaData ? (
-        // ── Vista post-salida ────────────────────────────────────────────
+        // ── Vista post-salida ──────────────────────────────────────────
         <>
           <DialogTitle>
             <Stack direction="row" justifyContent="space-between" alignItems="center">
               <Stack direction="row" spacing={1} alignItems="center">
-                <CheckCircle sx={{ color: '#10B981' }} />
+                <CheckCircle sx={{ color: GREEN }} />
                 <Typography sx={{ fontWeight: 800 }}>Salida registrada</Typography>
               </Stack>
               <IconButton onClick={handleCerrarPostSalida} size="small"><Close /></IconButton>
@@ -139,25 +155,19 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
           </DialogTitle>
           <DialogContent dividers>
             <Box sx={{ textAlign: 'center', mb: 3 }}>
-              <Typography sx={{
-                fontSize: 28, fontWeight: 900, fontFamily: 'monospace',
-                letterSpacing: 3, color: ACCENT,
-              }}>
+              <Typography sx={{ fontSize: 28, fontWeight: 900, fontFamily: 'monospace', letterSpacing: 3, color: ACCENT }}>
                 {acceso?.placa}
               </Typography>
-              <Typography sx={{ fontSize: 22, fontWeight: 900, color: '#10B981', mt: 1 }}>
+              <Typography sx={{ fontSize: 22, fontWeight: 900, color: GREEN, mt: 1 }}>
                 {formatCurrency(salidaData.cobroFinal)}
               </Typography>
               <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
                 {salidaData.minCobrar} min · {salidaData.metodoPago}
               </Typography>
             </Box>
-            {/* Botones de acción */}
             <Stack spacing={1.5}>
               {preferirImpresion && (
-                <Button
-                  fullWidth variant="contained" size="large"
-                  startIcon={<Print />}
+                <Button fullWidth variant="contained" size="large" startIcon={<Print />}
                   onClick={handleImprimir}
                   sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700 }}
                 >
@@ -165,9 +175,7 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
                 </Button>
               )}
               {acceso?.telefono && (
-                <Button
-                  fullWidth variant="contained" size="large"
-                  startIcon={<WhatsApp />}
+                <Button fullWidth variant="contained" size="large" startIcon={<WhatsApp />}
                   onClick={async () => {
                     try {
                       const { data: wa } = await apiClient.post('/parqueadero/whatsapp/generar', {
@@ -195,7 +203,7 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
           </DialogActions>
         </>
       ) : (
-        // ── Vista de cobro ───────────────────────────────────────────────
+        // ── Vista de cobro ─────────────────────────────────────────────
         <>
           <DialogTitle>
             <Stack direction="row" justifyContent="space-between" alignItems="center">
@@ -205,28 +213,25 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
           </DialogTitle>
 
           <DialogContent dividers>
+            {/* Placa y tiempo */}
             <Box sx={{ textAlign: 'center', mb: 2 }}>
-              <Typography sx={{
-                fontSize: 28, fontWeight: 900, fontFamily: 'monospace',
-                letterSpacing: 3, color: ACCENT,
-              }}>
+              <Typography sx={{ fontSize: 28, fontWeight: 900, fontFamily: 'monospace', letterSpacing: 3, color: ACCENT }}>
                 {acceso?.placa}
               </Typography>
               {acceso?.nombre_ocasional && (
-                <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-                  {acceso.nombre_ocasional}
-                </Typography>
+                <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{acceso.nombre_ocasional}</Typography>
               )}
               <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5 }}>
                 Tiempo dentro: <strong>{tiempoLegible}</strong>
               </Typography>
             </Box>
 
+            {/* Cobro calculado */}
             <Box sx={{ p: 2, bgcolor: 'rgba(16, 185, 129, 0.08)', borderRadius: 2, mb: 2, textAlign: 'center' }}>
               <Typography sx={{ fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', fontWeight: 700, mb: 0.5 }}>
                 Cobro
               </Typography>
-              <Typography sx={{ fontSize: 28, fontWeight: 900, color: '#10B981' }}>
+              <Typography sx={{ fontSize: 28, fontWeight: 900, color: GREEN }}>
                 {formatCurrency(monto)}
               </Typography>
               <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
@@ -238,6 +243,7 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
               )}
             </Box>
 
+            {/* Monto manual */}
             <CurrencyField
               fullWidth size="small" label="Cobrar otro monto (descuento)"
               value={montoManual}
@@ -246,20 +252,100 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
               sx={{ mb: 2 }}
             />
 
+            {/* Método de pago */}
             <TextField
               fullWidth select size="small" label="Método de pago"
-              value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)}
+              value={metodoPago} onChange={(e) => { setMetodoPago(e.target.value); setMontoRecibido(''); }}
               sx={{ mb: 2 }}
             >
-              {METODOS_PAGO.map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+              {metodosList.map(m => (
+                <MenuItem key={m} value={m}>
+                  {m === 'Link/QR' ? (
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <QrCode2 sx={{ fontSize: 16, color: '#7C3AED' }} />
+                      <span>Link / QR</span>
+                      {metodoLinkQR?.nombre_metodo && (
+                        <Typography component="span" sx={{ fontSize: 11, color: 'text.secondary', ml: 0.5 }}>
+                          ({metodoLinkQR.nombre_metodo})
+                        </Typography>
+                      )}
+                    </Stack>
+                  ) : m}
+                </MenuItem>
+              ))}
             </TextField>
 
+            {/* ── Calculadora de vueltas (solo Efectivo) ── */}
+            {metodoPago === 'Efectivo' && (
+              <Box sx={{ mb: 2, p: 1.5, bgcolor: 'rgba(16,185,129,0.05)', borderRadius: 2, border: '1px solid rgba(16,185,129,0.2)' }}>
+                <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', mb: 1, textTransform: 'uppercase' }}>
+                  Calculadora de vueltas
+                </Typography>
+                <CurrencyField
+                  fullWidth size="small" label="Monto recibido del cliente"
+                  value={montoRecibido}
+                  onChange={(val) => setMontoRecibido(val)}
+                  placeholder="0"
+                />
+                {devuelta !== null && (
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 1.5 }}>
+                    <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.secondary' }}>
+                      {devuelta >= 0 ? 'Devuelta:' : 'Falta:'}
+                    </Typography>
+                    <Typography sx={{
+                      fontSize: 20, fontWeight: 900,
+                      color: devuelta >= 0 ? GREEN : RED,
+                    }}>
+                      {devuelta >= 0
+                        ? formatCurrency(devuelta)
+                        : `- ${formatCurrency(Math.abs(devuelta))}`}
+                    </Typography>
+                  </Stack>
+                )}
+              </Box>
+            )}
+
+            {/* ── Link / QR de pago ── */}
+            {metodoPago === 'Link/QR' && metodoLinkQR && (
+              <Box sx={{ mb: 2, p: 1.5, bgcolor: '#7C3AED0A', borderRadius: 2, border: '1px solid #7C3AED30' }}>
+                <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#7C3AED', mb: 1, textTransform: 'uppercase' }}>
+                  {metodoLinkQR.nombre_metodo || 'Pago digital'}
+                </Typography>
+                {metodoLinkQR.tiene_qr && (
+                  <Box sx={{ textAlign: 'center', mb: 1 }}>
+                    <img
+                      src={metodoLinkQR.qr_data_uri}
+                      alt="QR de pago"
+                      style={{ width: 140, height: 140, borderRadius: 8 }}
+                    />
+                  </Box>
+                )}
+                {metodoLinkQR.tiene_link && (
+                  <Button
+                    fullWidth variant="outlined" size="small"
+                    startIcon={<OpenInNew />}
+                    onClick={() => window.open(metodoLinkQR.link_pago, '_blank', 'noopener')}
+                    sx={{ color: '#7C3AED', borderColor: '#7C3AED', fontWeight: 700, mb: metodoLinkQR.instrucciones ? 1 : 0 }}
+                  >
+                    Abrir link de pago
+                  </Button>
+                )}
+                {metodoLinkQR.instrucciones && (
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.5 }}>
+                    {metodoLinkQR.instrucciones}
+                  </Typography>
+                )}
+              </Box>
+            )}
+
+            {/* Observaciones */}
             <TextField
               fullWidth size="small" multiline rows={2}
               label="Observaciones (opcional)"
               value={obs} onChange={(e) => setObs(e.target.value)}
             />
 
+            {/* Toggle WhatsApp */}
             {acceso?.telefono && (
               <FormControlLabel
                 sx={{ mt: 1 }}
@@ -290,11 +376,8 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
             <Button
               variant="contained" onClick={handleSalida} disabled={loading}
               startIcon={loading ? <CircularProgress size={16} color="inherit" /> :
-                         enviarWA && acceso?.telefono ? <OpenInNew /> : <Save />}
-              sx={{
-                bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' },
-                fontWeight: 700,
-              }}
+                         enviarWA && acceso?.telefono ? <WhatsApp /> : <Save />}
+              sx={{ bgcolor: GREEN, '&:hover': { bgcolor: '#059669' }, fontWeight: 700 }}
             >
               Cobrar {formatCurrency(cobroFinal)}
             </Button>
@@ -304,7 +387,6 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
     </Dialog>
   );
 }
-
 
 export const RegistrarSalidaHorasDialog = ParqueaderoSalidaHorasDialog;
 export default ParqueaderoSalidaHorasDialog;
