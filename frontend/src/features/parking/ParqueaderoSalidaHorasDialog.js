@@ -145,17 +145,20 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
                 {salidaData.minCobrar} min · {salidaData.metodoPago}
               </Typography>
             </Box>
+            {/* Botones de acción — imprimir SIEMPRE visible */}
             <Stack spacing={1.5}>
-              {preferirImpresion && (
-                <Button
-                  fullWidth variant="contained" size="large"
-                  startIcon={<Print />}
-                  onClick={handleImprimir}
-                  sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700 }}
-                >
-                  Imprimir comprobante
-                </Button>
-              )}
+              <Button
+                fullWidth
+                variant={preferirImpresion ? 'contained' : 'outlined'}
+                size="large"
+                startIcon={<Print />}
+                onClick={handleImprimir}
+                sx={preferirImpresion ? {
+                  bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700,
+                } : { fontWeight: 700 }}
+              >
+                Imprimir comprobante de salida
+              </Button>
               {acceso?.telefono && (
                 <Button
                   fullWidth variant="contained" size="large"
@@ -168,16 +171,6 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
                   sx={{ bgcolor: WA_GREEN, '&:hover': { bgcolor: '#1ebe5d' }, fontWeight: 700 }}
                 >
                   Enviar recibo por WhatsApp
-                </Button>
-              )}
-              {!preferirImpresion && (
-                <Button
-                  fullWidth variant="outlined" size="large"
-                  startIcon={<Print />}
-                  onClick={handleImprimir}
-                  sx={{ fontWeight: 700 }}
-                >
-                  Imprimir comprobante
                 </Button>
               )}
             </Stack>
