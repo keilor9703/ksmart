@@ -415,7 +415,7 @@ export function ParqueaderoEntradaHorasDialog({
               </Box>
             )}
 
-            {!ejemplos && (
+            {config !== null && !ejemplos && (
               <Alert severity="warning" sx={{ mt: 2, fontSize: 12 }}>
                 No has configurado la tarifa por minuto. Hazlo en "Configuración → Cobro por minutos".
               </Alert>
