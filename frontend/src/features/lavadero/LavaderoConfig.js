@@ -39,7 +39,7 @@ export default function LavaderoConfig() {
       ]);
       setConfig(cfgRes.data);
       const list = srvRes.data.results ?? srvRes.data;
-      setServicios(list.map(s => ({ ...s, _comision: s.comision_pct ?? '' })));
+      setServicios(list.filter(s => s.es_servicio).map(s => ({ ...s, _comision: s.comision_pct ?? '' })));
     } catch {
       toast.error('Error al cargar la configuración.');
     } finally {

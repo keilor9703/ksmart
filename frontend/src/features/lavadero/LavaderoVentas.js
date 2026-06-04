@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box, Paper, Typography, Grid, TextField, Button, Chip, Stack,
-  IconButton, Divider, Autocomplete, CircularProgress, Avatar,
+  IconButton, Divider, Autocomplete, CircularProgress,
   Tooltip, InputAdornment, Dialog, DialogTitle, DialogContent,
-  DialogActions, ToggleButtonGroup, ToggleButton, Badge,
+  DialogActions, ToggleButtonGroup, ToggleButton, Badge, alpha,
 } from '@mui/material';
 import {
   DirectionsCar, Add, Remove, DeleteOutline, LocalCarWash,
   TwoWheeler, LocalShipping, DriveEta, ClearAll, Notes,
   Refresh, AccessTime, AttachMoney, CheckCircle, PlayArrow,
-  Done, Close, Person,
+  Done, Close, Person, WhatsApp, Print, Storefront, QrCode2,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
@@ -17,11 +17,14 @@ import { formatCurrency } from '../../utils/formatters';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 import { METODOS_PAGO_SIMPLE as METODOS_PAGO } from '../../utils/constants';
 import { imprimirReciboLavadero } from '../../utils/printLavadero';
+import LinkPagoModal from '../../components/common/LinkPagoModal';
+import CurrencyField from '../../components/common/CurrencyField';
 
 const ACCENT  = '#FF6020';
 const BLUE    = '#3B82F6';
 const AMBER   = '#F59E0B';
 const GREEN   = '#10B981';
+const RED     = '#EF4444';
 
 const TIPOS_VEHICULO = [
   { label: 'Carro',         icon: DirectionsCar  },
@@ -74,7 +77,6 @@ function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar }) {
     >
       <Box sx={{ height: 3, bgcolor: estadoConfig.color }} />
       <Box sx={{ p: 1.8 }}>
-        {/* Placa + tipo */}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.8 }}>
           <Typography sx={{ fontSize: 20, fontWeight: 900, letterSpacing: 2, color: estadoConfig.color }}>
             {orden.placa}
@@ -85,7 +87,6 @@ function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar }) {
           </Box>
         </Box>
 
-        {/* Servicios */}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
           {(orden.detalles || []).map((d, i) => (
             <Chip
@@ -97,7 +98,6 @@ function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar }) {
           ))}
         </Box>
 
-        {/* Meta: worker + elapsed + total */}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 0.5 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
             {orden.operador_nombre && (
@@ -122,7 +122,6 @@ function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar }) {
           </Typography>
         )}
 
-        {/* Action buttons */}
         <Box sx={{ mt: 1.5, display: 'flex', gap: 1 }}>
           {estadoConfig.nextKey && (
             <Button
@@ -156,37 +155,93 @@ function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar }) {
   );
 }
 
+/* ── Item grid card (services & products) ───────────────────────────────── */
+function ItemCard({ item, enCarrito, onAgregar }) {
+  return (
+    <Paper
+      onClick={() => onAgregar(item)}
+      elevation={0}
+      sx={{
+        p: 1.2, borderRadius: 2, cursor: 'pointer',
+        border: '1.5px solid',
+        borderColor: enCarrito ? ACCENT : 'divider',
+        bgcolor: enCarrito ? `${ACCENT}08` : 'transparent',
+        transition: 'all 0.12s',
+        '&:hover': { borderColor: ACCENT, bgcolor: `${ACCENT}05` },
+        position: 'relative',
+      }}
+    >
+      {enCarrito && (
+        <Box sx={{
+          position: 'absolute', top: -8, right: -8,
+          width: 20, height: 20, borderRadius: '50%',
+          bgcolor: ACCENT, color: 'white',
+          fontSize: 11, fontWeight: 900,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          {enCarrito.cantidad}
+        </Box>
+      )}
+      <Typography sx={{ fontWeight: 700, fontSize: 12, lineHeight: 1.3 }}>{item.nombre}</Typography>
+      <Typography sx={{ fontSize: 11, color: GREEN, fontWeight: 600, mt: 0.3 }}>
+        {formatCurrency(item.precio_venta ?? item.precio ?? 0)}
+      </Typography>
+    </Paper>
+  );
+}
+
 /* ══════════════════════════════════════════════════════════════════════════ */
 export default function LavaderoVentas({ user }) {
   const isAdmin = user?.role?.name === 'Admin';
 
   /* ── Form state ───────────────────────────────────────────────────────── */
-  const [placa,        setPlaca]        = useState('');
-  const [tipoVehiculo, setTipoVehiculo] = useState('Carro');
-  const [servicios,    setServicios]    = useState([]);
-  const [carrito,      setCarrito]      = useState([]);
-  const [operadorId,   setOperadorId]   = useState(user?.id || null);
-  const [operadorObj,  setOperadorObj]  = useState(null);
-  const [trabajadores, setTrabajadores] = useState([]);
-  const [clientes,     setClientes]     = useState([]);
-  const [clienteObj,   setClienteObj]   = useState(null);
-  const [observaciones,setObservaciones]= useState('');
-  const [saving,       setSaving]       = useState(false);
-  const [busqueda,     setBusqueda]     = useState('');
-  const [loadingServ,  setLoadingServ]  = useState(true);
+  const [placa,         setPlaca]         = useState('');
+  const [tipoVehiculo,  setTipoVehiculo]  = useState('Carro');
+  const [servicios,     setServicios]     = useState([]);
+  const [productos,     setProductos]     = useState([]);
+  const [carrito,       setCarrito]       = useState([]);
+  const [operadorId,    setOperadorId]    = useState(user?.id || null);
+  const [operadorObj,   setOperadorObj]   = useState(null);
+  const [trabajadores,  setTrabajadores]  = useState([]);
+  const [clientes,      setClientes]      = useState([]);
+  const [clienteObj,    setClienteObj]    = useState(null);
+  const [observaciones, setObservaciones] = useState('');
+  const [saving,        setSaving]        = useState(false);
+  const [busquedaServ,  setBusquedaServ]  = useState('');
+  const [busquedaProd,  setBusquedaProd]  = useState('');
+  const [loadingItems,  setLoadingItems]  = useState(true);
 
   /* ── Board state ──────────────────────────────────────────────────────── */
   const [ordenes,      setOrdenes]      = useState([]);
   const [loadingBoard, setLoadingBoard] = useState(true);
-  const [tick,         setTick]         = useState(0);        // drives elapsed time refresh
+  const [tick,         setTick]         = useState(0);
   const [mobileView,   setMobileView]   = useState('crear');
   const [boardFilter,  setBoardFilter]  = useState('recibido');
 
   /* ── Config & cobrar ──────────────────────────────────────────────────── */
-  const [config,       setConfig]       = useState(null);
-  const [cobrarOrden,  setCobrarOrden]  = useState(null);
-  const [metodoPago,   setMetodoPago]   = useState('Efectivo');
-  const [cobrando,     setCobrando]     = useState(false);
+  const [config,        setConfig]        = useState(null);
+  const [cobrarOrden,   setCobrarOrden]   = useState(null);
+  const [metodoPago,    setMetodoPago]    = useState('Efectivo');
+  const [cobrando,      setCobrando]      = useState(false);
+  const [cobraData,     setCobraData]     = useState(null);   // post-cobro result
+  const [montoRecibido, setMontoRecibido] = useState(0);
+  const [metodoLinkQR,  setMetodoLinkQR]  = useState(null);
+  const [linkPagoOpen,  setLinkPagoOpen]  = useState(false);
+
+  /* ── Computed ─────────────────────────────────────────────────────────── */
+  const metodosDisponibles = useMemo(
+    () => metodoLinkQR
+      ? ['Efectivo', 'Link/QR', ...METODOS_PAGO.filter(m => m !== 'Efectivo')]
+      : [...METODOS_PAGO],
+    [metodoLinkQR],
+  );
+
+  const devuelta = useMemo(
+    () => metodoPago === 'Efectivo' && montoRecibido > 0
+      ? montoRecibido - (cobrarOrden?.total || 0)
+      : null,
+    [metodoPago, montoRecibido, cobrarOrden],
+  );
 
   /* ── Fetchers ─────────────────────────────────────────────────────────── */
   const fetchOrdenes = useCallback(async () => {
@@ -196,13 +251,15 @@ export default function LavaderoVentas({ user }) {
     } catch { /* silent */ } finally { setLoadingBoard(false); }
   }, []);
 
-  const fetchServicios = useCallback(async () => {
-    setLoadingServ(true);
+  const fetchItems = useCallback(async () => {
+    setLoadingItems(true);
     try {
-      const { data } = await apiClient.get('/productos/', { params: { es_servicio: true, limit: 200 } });
-      setServicios(data.results ?? data);
+      const { data } = await apiClient.get('/productos/', { params: { limit: 500 } });
+      const all = data.results ?? data;
+      setServicios(all.filter(p => p.es_servicio));
+      setProductos(all.filter(p => !p.es_servicio && p.precio > 0));
     } catch { toast.error('No se pudieron cargar los servicios.'); }
-    finally { setLoadingServ(false); }
+    finally { setLoadingItems(false); }
   }, []);
 
   const fetchTrabajadores = useCallback(async () => {
@@ -229,29 +286,29 @@ export default function LavaderoVentas({ user }) {
 
   useEffect(() => {
     fetchOrdenes();
-    fetchServicios();
+    fetchItems();
     fetchTrabajadores();
     fetchClientes();
     fetchConfig();
-  }, [fetchOrdenes, fetchServicios, fetchTrabajadores, fetchClientes, fetchConfig]);
+    apiClient.get('/empresa/link-pago').then(({ data }) => setMetodoLinkQR(data || null)).catch(() => {});
+  }, [fetchOrdenes, fetchItems, fetchTrabajadores, fetchClientes, fetchConfig]);
 
-  /* Poll every 30 s: refresh board + tick elapsed counters */
   useEffect(() => {
     const id = setInterval(() => { fetchOrdenes(); setTick(t => t + 1); }, 30000);
     return () => clearInterval(id);
   }, [fetchOrdenes]);
 
   /* ── Cart helpers ─────────────────────────────────────────────────────── */
-  const agregarServicio = (s) => {
+  const agregarItem = (item, esServicio) => {
     setCarrito(prev => {
-      const ex = prev.find(i => i.productoId === s.id);
-      if (ex) return prev.map(i => i.productoId === s.id ? { ...i, cantidad: i.cantidad + 1 } : i);
+      const ex = prev.find(i => i.productoId === item.id);
+      if (ex) return prev.map(i => i.productoId === item.id ? { ...i, cantidad: i.cantidad + 1 } : i);
       return [...prev, {
-        productoId:  s.id,
-        nombre:      s.nombre,
-        precio:      parseFloat(s.precio_venta ?? s.precio ?? 0),
-        cantidad:    1,
-        comision_pct: s.comision_pct ?? null,
+        productoId:   item.id,
+        nombre:       item.nombre,
+        precio:       parseFloat(item.precio_venta ?? item.precio ?? 0),
+        cantidad:     1,
+        comision_pct: esServicio ? (item.comision_pct ?? null) : 0,
       }];
     });
   };
@@ -265,14 +322,20 @@ export default function LavaderoVentas({ user }) {
   const total = carrito.reduce((s, i) => s + i.precio * i.cantidad, 0);
 
   const serviciosFiltrados = useMemo(() => {
-    if (!busqueda.trim()) return servicios;
-    const q = busqueda.toLowerCase();
+    if (!busquedaServ.trim()) return servicios;
+    const q = busquedaServ.toLowerCase();
     return servicios.filter(s => s.nombre.toLowerCase().includes(q));
-  }, [servicios, busqueda]);
+  }, [servicios, busquedaServ]);
+
+  const productosFiltrados = useMemo(() => {
+    if (!busquedaProd.trim()) return productos;
+    const q = busquedaProd.toLowerCase();
+    return productos.filter(p => p.nombre.toLowerCase().includes(q));
+  }, [productos, busquedaProd]);
 
   const resetForm = () => {
     setPlaca(''); setTipoVehiculo('Carro'); setCarrito([]);
-    setObservaciones(''); setBusqueda(''); setClienteObj(null);
+    setObservaciones(''); setBusquedaServ(''); setBusquedaProd(''); setClienteObj(null);
     if (isAdmin) { setOperadorId(null); setOperadorObj(null); }
   };
 
@@ -324,21 +387,39 @@ export default function LavaderoVentas({ user }) {
     if (!cobrarOrden) return;
     setCobrando(true);
     try {
-      const { data } = await apiClient.post(`/lavadero/ordenes/${cobrarOrden.id}/cobrar`, {
-        metodo_pago:  metodoPago,
+      const metodoReal = metodoPago === 'Link/QR' ? (metodoLinkQR?.nombre || 'Link/QR') : metodoPago;
+      const { data: resData } = await apiClient.post(`/lavadero/ordenes/${cobrarOrden.id}/cobrar`, {
+        metodo_pago:  metodoReal,
         monto_pagado: cobrarOrden.total,
       });
-      toast.success(`¡Pago registrado! ${cobrarOrden.placa} entregado.`);
-      if (config?.imprimir_recibo) {
-        imprimirReciboLavadero(data, config, config?.tipo_impresora || 'p80');
-      }
-      setCobrarOrden(null);
+      setCobraData(resData);
       fetchOrdenes();
+      if (config?.imprimir_recibo) {
+        imprimirReciboLavadero(resData, config, config?.tipo_impresora || 'p80');
+      }
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al registrar el cobro.');
     } finally {
       setCobrando(false);
     }
+  };
+
+  /* ── WhatsApp receipt ─────────────────────────────────────────────────── */
+  const handleEnviarWARecibo = () => {
+    if (!cobraData) return;
+    const tel = cobraData.cliente_telefono;
+    if (!tel) { toast.warning('El cliente no tiene teléfono registrado.'); return; }
+    const num = tel.replace(/\D/g, '');
+    const countryNum = num.startsWith('57') ? num : `57${num}`;
+    const fechaSalida = new Date(cobraData.fecha_salida || Date.now());
+    const fechaStr = fechaSalida.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const horaStr  = fechaSalida.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+    const detallesStr = (cobraData.detalles || [])
+      .map(d => `• ${d.nombre_servicio}${d.cantidad > 1 ? ` x${d.cantidad}` : ''}: $${Number(d.precio_unitario * d.cantidad).toLocaleString('es-CO')}`)
+      .join('\n');
+    const nombreLav = config?.nombre_lavadero || 'Lavadero';
+    const msg = `🚗 *Recibo de Lavado - ${nombreLav}*\n\nPlaca: *${cobraData.placa}*${cobraData.tipo_vehiculo ? ` (${cobraData.tipo_vehiculo})` : ''}\n📅 ${fechaStr} ${horaStr}\n\n${detallesStr}\n\n💰 *Total: $${Number(cobraData.total).toLocaleString('es-CO')}*\nPago: ${cobraData.metodo_pago}\n\n¡Gracias por su preferencia! 🙏`;
+    window.open(`https://wa.me/${countryNum}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
   };
 
   /* ── Board grouping ───────────────────────────────────────────────────── */
@@ -374,7 +455,7 @@ export default function LavaderoVentas({ user }) {
                 ]}
                 faqItems={[
                   { q: '¿Cómo agrego más servicios?', a: 'En el módulo Productos, crea un producto marcando "Es servicio" con su nombre y precio.' },
-                  { q: '¿Puedo atender varios vehículos a la vez?', a: 'Sí. El tablero muestra todos los vehículos activos simultáneamente.' },
+                  { q: '¿Puedo también vender productos?', a: 'Sí. Los productos físicos (sin marcar "Es servicio") aparecen en la sección "Productos" y se pueden agregar al cobro.' },
                   { q: '¿Qué pasa cuando cobro?', a: 'La orden pasa a "Entregado" y queda registrada en el reporte del lavadero.' },
                   { q: '¿Cómo configuro comisiones?', a: 'Ve a Config. Lavadero para definir el % de comisión global o por servicio.' },
                 ]}
@@ -448,67 +529,81 @@ export default function LavaderoVentas({ user }) {
 
           {/* Servicios */}
           <Paper sx={{ p: 2.5, borderRadius: 3, mb: 2, border: '1px solid', borderColor: 'divider' }}>
-            <SectionLabel>Servicios</SectionLabel>
+            <SectionLabel>Servicios de lavado</SectionLabel>
             <TextField
               size="small" fullWidth placeholder="Buscar servicio…"
-              value={busqueda}
-              onChange={e => setBusqueda(e.target.value)}
+              value={busquedaServ}
+              onChange={e => setBusquedaServ(e.target.value)}
               sx={{ mb: 1.5 }}
               InputProps={{
-                endAdornment: busqueda ? (
-                  <IconButton size="small" onClick={() => setBusqueda('')}><Close sx={{ fontSize: 14 }} /></IconButton>
+                endAdornment: busquedaServ ? (
+                  <IconButton size="small" onClick={() => setBusquedaServ('')}><Close sx={{ fontSize: 14 }} /></IconButton>
                 ) : null,
               }}
             />
-            {loadingServ ? (
+            {loadingItems ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
                 <CircularProgress size={24} sx={{ color: ACCENT }} />
               </Box>
             ) : serviciosFiltrados.length === 0 ? (
               <Typography sx={{ color: 'text.disabled', fontSize: 12, textAlign: 'center', py: 2 }}>
-                No hay servicios. Créalos en Productos.
+                {servicios.length === 0
+                  ? 'No hay servicios. Créalos en Productos marcando "Es servicio".'
+                  : 'Sin resultados para esta búsqueda.'}
               </Typography>
             ) : (
               <Grid container spacing={1}>
-                {serviciosFiltrados.map(s => {
-                  const enCarrito = carrito.find(i => i.productoId === s.id);
-                  return (
-                    <Grid item xs={6} key={s.id}>
-                      <Paper
-                        onClick={() => agregarServicio(s)}
-                        elevation={0}
-                        sx={{
-                          p: 1.2, borderRadius: 2, cursor: 'pointer',
-                          border: '1.5px solid',
-                          borderColor: enCarrito ? ACCENT : 'divider',
-                          bgcolor: enCarrito ? `${ACCENT}08` : 'transparent',
-                          transition: 'all 0.12s',
-                          '&:hover': { borderColor: ACCENT, bgcolor: `${ACCENT}05` },
-                          position: 'relative',
-                        }}
-                      >
-                        {enCarrito && (
-                          <Box sx={{
-                            position: 'absolute', top: -8, right: -8,
-                            width: 20, height: 20, borderRadius: '50%',
-                            bgcolor: ACCENT, color: 'white',
-                            fontSize: 11, fontWeight: 900,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          }}>
-                            {enCarrito.cantidad}
-                          </Box>
-                        )}
-                        <Typography sx={{ fontWeight: 700, fontSize: 12, lineHeight: 1.3 }}>{s.nombre}</Typography>
-                        <Typography sx={{ fontSize: 11, color: GREEN, fontWeight: 600, mt: 0.3 }}>
-                          {formatCurrency(s.precio_venta ?? s.precio ?? 0)}
-                        </Typography>
-                      </Paper>
-                    </Grid>
-                  );
-                })}
+                {serviciosFiltrados.map(s => (
+                  <Grid item xs={6} key={s.id}>
+                    <ItemCard
+                      item={s}
+                      enCarrito={carrito.find(i => i.productoId === s.id)}
+                      onAgregar={item => agregarItem(item, true)}
+                    />
+                  </Grid>
+                ))}
               </Grid>
             )}
           </Paper>
+
+          {/* Productos adicionales (productos físicos / consumibles) */}
+          {(!loadingItems && productos.length > 0) && (
+            <Paper sx={{ p: 2.5, borderRadius: 3, mb: 2, border: '1px solid', borderColor: 'divider' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.2 }}>
+                <Storefront sx={{ fontSize: 15, color: 'text.secondary' }} />
+                <SectionLabel>Productos adicionales</SectionLabel>
+              </Box>
+              <TextField
+                size="small" fullWidth placeholder="Buscar producto…"
+                value={busquedaProd}
+                onChange={e => setBusquedaProd(e.target.value)}
+                sx={{ mb: 1.5 }}
+                InputProps={{
+                  endAdornment: busquedaProd ? (
+                    <IconButton size="small" onClick={() => setBusquedaProd('')}><Close sx={{ fontSize: 14 }} /></IconButton>
+                  ) : null,
+                }}
+              />
+              <Grid container spacing={1}>
+                {productosFiltrados.map(p => (
+                  <Grid item xs={6} key={p.id}>
+                    <ItemCard
+                      item={p}
+                      enCarrito={carrito.find(i => i.productoId === p.id)}
+                      onAgregar={item => agregarItem(item, false)}
+                    />
+                  </Grid>
+                ))}
+                {productosFiltrados.length === 0 && (
+                  <Grid item xs={12}>
+                    <Typography sx={{ color: 'text.disabled', fontSize: 12, textAlign: 'center', py: 1 }}>
+                      Sin resultados para esta búsqueda.
+                    </Typography>
+                  </Grid>
+                )}
+              </Grid>
+            </Paper>
+          )}
 
           {/* Carrito resumen */}
           {carrito.length > 0 && (
@@ -665,7 +760,7 @@ export default function LavaderoVentas({ user }) {
                           orden={o}
                           estadoConfig={est}
                           onEstadoChange={handleEstadoChange}
-                          onCobrar={ord => { setCobrarOrden(ord); setMetodoPago('Efectivo'); }}
+                          onCobrar={ord => { setCobrarOrden(ord); setMetodoPago('Efectivo'); setMontoRecibido(0); }}
                           tick={tick}
                         />
                       ))
@@ -678,7 +773,7 @@ export default function LavaderoVentas({ user }) {
             {/* Mobile: columna filtrada */}
             <Box sx={{ display: { xs: 'block', md: 'none' } }}>
               {(() => {
-                const est  = ESTADOS_TABLERO.find(e => e.key === boardFilter);
+                const est   = ESTADOS_TABLERO.find(e => e.key === boardFilter);
                 const lista = ordensPorEstado[boardFilter] || [];
                 return lista.length === 0 ? (
                   <Box sx={{ py: 6, textAlign: 'center' }}>
@@ -689,7 +784,7 @@ export default function LavaderoVentas({ user }) {
                     key={o.id} orden={o}
                     estadoConfig={est}
                     onEstadoChange={handleEstadoChange}
-                    onCobrar={ord => { setCobrarOrden(ord); setMetodoPago('Efectivo'); }}
+                    onCobrar={ord => { setCobrarOrden(ord); setMetodoPago('Efectivo'); setMontoRecibido(0); }}
                     tick={tick}
                   />
                 ));
@@ -713,22 +808,39 @@ export default function LavaderoVentas({ user }) {
         </Grid>
       </Grid>
 
-      {/* ══ Cobrar dialog ══ */}
+      {/* ══ Cobrar / Post-cobro dialog ══ */}
       <Dialog
         open={!!cobrarOrden}
-        onClose={() => !cobrando && setCobrarOrden(null)}
+        onClose={() => { if (!cobrando) setCobrarOrden(null); }}
+        TransitionProps={{ onExited: () => { setCobraData(null); setMontoRecibido(0); } }}
         maxWidth="xs" fullWidth
         PaperProps={{ sx: { borderRadius: 3 } }}
       >
-        <DialogTitle sx={{ fontWeight: 800, pb: 1 }}>
-          Cobrar — <span style={{ color: ACCENT }}>{cobrarOrden?.placa}</span>
-        </DialogTitle>
-        <DialogContent>
-          {cobrarOrden && (
-            <>
-              {/* Detalle de servicios */}
+        {cobraData ? (
+          /* ── Post-cobro view ── */
+          <>
+            <DialogTitle sx={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              pb: 1,
+              background: `linear-gradient(135deg, ${alpha(GREEN, 0.08)}, ${alpha(GREEN, 0.02)})`,
+              borderBottom: `1px solid ${alpha(GREEN, 0.2)}`,
+            }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CheckCircle sx={{ color: GREEN, fontSize: 22 }} />
+                <Box>
+                  <Typography sx={{ fontWeight: 800, fontSize: 15 }}>¡Pago registrado!</Typography>
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{cobraData.placa} — {cobraData.tipo_vehiculo}</Typography>
+                </Box>
+              </Box>
+              <IconButton size="small" onClick={() => setCobrarOrden(null)}>
+                <Close fontSize="small" />
+              </IconButton>
+            </DialogTitle>
+
+            <DialogContent sx={{ pt: 2.5 }}>
+              {/* Detalles del pago */}
               <Box sx={{ mb: 2 }}>
-                {(cobrarOrden.detalles || []).map((d, i) => (
+                {(cobraData.detalles || []).map((d, i) => (
                   <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.4 }}>
                     <Typography sx={{ fontSize: 13 }}>
                       {d.nombre_servicio}{d.cantidad > 1 ? ` x${d.cantidad}` : ''}
@@ -739,58 +851,183 @@ export default function LavaderoVentas({ user }) {
                   </Box>
                 ))}
                 <Divider sx={{ my: 1 }} />
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                   <Typography sx={{ fontWeight: 800 }}>Total</Typography>
                   <Typography sx={{ fontWeight: 900, fontSize: 18, color: GREEN }}>
-                    {formatCurrency(cobrarOrden.total || 0)}
+                    {formatCurrency(cobraData.total || 0)}
                   </Typography>
                 </Box>
+                <Typography sx={{ fontSize: 12, color: 'text.secondary', textAlign: 'right' }}>
+                  Pago: {cobraData.metodo_pago}
+                </Typography>
               </Box>
 
-              {/* Método de pago */}
-              <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                Método de pago
+              <Divider sx={{ mb: 2 }} />
+
+              {/* Opciones de recibo */}
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary', mb: 1.5, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                Comprobante de pago
               </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.8 }}>
-                {METODOS_PAGO.map(m => (
-                  <Chip
-                    key={m}
-                    label={m}
-                    onClick={() => setMetodoPago(m)}
+              <Stack spacing={1}>
+                <Button
+                  fullWidth variant="outlined"
+                  startIcon={<Print />}
+                  onClick={() => imprimirReciboLavadero(cobraData, config, config?.tipo_impresora || 'p80')}
+                  sx={{ borderRadius: 2, fontWeight: 700, textTransform: 'none', justifyContent: 'flex-start' }}
+                >
+                  Imprimir recibo
+                </Button>
+                {cobraData.cliente_telefono && (
+                  <Button
+                    fullWidth variant="outlined"
+                    startIcon={<WhatsApp />}
+                    onClick={handleEnviarWARecibo}
                     sx={{
-                      cursor: 'pointer', fontWeight: 600, fontSize: 12,
-                      bgcolor: metodoPago === m ? GREEN : 'action.hover',
-                      color:   metodoPago === m ? 'white' : 'text.primary',
+                      borderRadius: 2, fontWeight: 700, textTransform: 'none', justifyContent: 'flex-start',
+                      borderColor: '#25D366', color: '#25D366',
+                      '&:hover': { bgcolor: alpha('#25D366', 0.05), borderColor: '#25D366' },
                     }}
-                  />
-                ))}
-              </Box>
-            </>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-          <Button
-            onClick={() => setCobrarOrden(null)}
-            disabled={cobrando}
-            variant="outlined"
-            sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
-          >
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleCobrar}
-            disabled={cobrando}
-            variant="contained"
-            startIcon={cobrando ? <CircularProgress size={16} color="inherit" /> : <CheckCircle />}
-            sx={{
-              bgcolor: GREEN, '&:hover': { filter: 'brightness(0.9)' },
-              fontWeight: 800, borderRadius: 2, textTransform: 'none', flex: 1,
-            }}
-          >
-            {cobrando ? 'Procesando…' : `Confirmar pago (${metodoPago})`}
-          </Button>
-        </DialogActions>
+                  >
+                    Enviar recibo por WhatsApp
+                  </Button>
+                )}
+              </Stack>
+            </DialogContent>
+
+            <DialogActions sx={{ px: 2.5, pb: 2.5 }}>
+              <Button
+                fullWidth variant="contained"
+                onClick={() => setCobrarOrden(null)}
+                sx={{ borderRadius: 2, bgcolor: GREEN, '&:hover': { filter: 'brightness(0.9)' }, fontWeight: 700, textTransform: 'none' }}
+              >
+                Cerrar
+              </Button>
+            </DialogActions>
+          </>
+        ) : (
+          /* ── Cobrar form view ── */
+          <>
+            <DialogTitle sx={{ fontWeight: 800, pb: 1 }}>
+              Cobrar — <span style={{ color: ACCENT }}>{cobrarOrden?.placa}</span>
+            </DialogTitle>
+            <DialogContent>
+              {cobrarOrden && (
+                <>
+                  {/* Detalle de servicios */}
+                  <Box sx={{ mb: 2 }}>
+                    {(cobrarOrden.detalles || []).map((d, i) => (
+                      <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.4 }}>
+                        <Typography sx={{ fontSize: 13 }}>
+                          {d.nombre_servicio}{d.cantidad > 1 ? ` x${d.cantidad}` : ''}
+                        </Typography>
+                        <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+                          {formatCurrency(d.precio_unitario * d.cantidad)}
+                        </Typography>
+                      </Box>
+                    ))}
+                    <Divider sx={{ my: 1 }} />
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography sx={{ fontWeight: 800 }}>Total</Typography>
+                      <Typography sx={{ fontWeight: 900, fontSize: 18, color: GREEN }}>
+                        {formatCurrency(cobrarOrden.total || 0)}
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  {/* Método de pago */}
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Método de pago
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.8, mb: 2 }}>
+                    {metodosDisponibles.map(m => (
+                      <Chip
+                        key={m}
+                        label={m === 'Link/QR' && metodoLinkQR?.nombre ? `${metodoLinkQR.nombre}` : m}
+                        icon={m === 'Link/QR' ? <QrCode2 sx={{ fontSize: 14 }} /> : undefined}
+                        onClick={() => { setMetodoPago(m); setMontoRecibido(0); }}
+                        sx={{
+                          cursor: 'pointer', fontWeight: 600, fontSize: 12,
+                          bgcolor: metodoPago === m ? GREEN : 'action.hover',
+                          color:   metodoPago === m ? 'white' : 'text.primary',
+                          '& .MuiChip-icon': { color: metodoPago === m ? 'white' : 'text.secondary' },
+                        }}
+                      />
+                    ))}
+                  </Box>
+
+                  {/* Calculadora de vueltas (solo Efectivo) */}
+                  {metodoPago === 'Efectivo' && (
+                    <Box sx={{ mt: 1 }}>
+                      <CurrencyField
+                        fullWidth size="small" label="Monto recibido del cliente"
+                        value={montoRecibido}
+                        onChange={val => setMontoRecibido(val)}
+                      />
+                      {devuelta !== null && (
+                        <Box sx={{
+                          mt: 1.2, px: 2, py: 1, borderRadius: 2, textAlign: 'center',
+                          bgcolor: devuelta >= 0 ? alpha(GREEN, 0.08) : alpha(RED, 0.08),
+                          border: `1.5px solid ${devuelta >= 0 ? alpha(GREEN, 0.35) : alpha(RED, 0.35)}`,
+                        }}>
+                          <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
+                            {devuelta >= 0 ? 'Cambio a devolver' : 'Falta por recibir'}
+                          </Typography>
+                          <Typography sx={{ fontSize: 22, fontWeight: 900, color: devuelta >= 0 ? GREEN : RED }}>
+                            {formatCurrency(Math.abs(devuelta))}
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
+                  )}
+
+                  {/* Botón QR/Link cuando ese método está seleccionado */}
+                  {metodoPago === 'Link/QR' && metodoLinkQR && (
+                    <Button
+                      fullWidth variant="outlined"
+                      startIcon={<QrCode2 />}
+                      onClick={() => setLinkPagoOpen(true)}
+                      sx={{ mt: 1.5, borderRadius: 2, fontWeight: 700, textTransform: 'none', borderColor: ACCENT, color: ACCENT }}
+                    >
+                      Mostrar QR / Link de pago
+                    </Button>
+                  )}
+                </>
+              )}
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+              <Button
+                onClick={() => setCobrarOrden(null)}
+                disabled={cobrando}
+                variant="outlined"
+                sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleCobrar}
+                disabled={cobrando}
+                variant="contained"
+                startIcon={cobrando ? <CircularProgress size={16} color="inherit" /> : <CheckCircle />}
+                sx={{
+                  bgcolor: GREEN, '&:hover': { filter: 'brightness(0.9)' },
+                  fontWeight: 800, borderRadius: 2, textTransform: 'none', flex: 1,
+                }}
+              >
+                {cobrando ? 'Procesando…' : `Confirmar pago`}
+              </Button>
+            </DialogActions>
+          </>
+        )}
       </Dialog>
+
+      {/* ── LinkPagoModal ── */}
+      <LinkPagoModal
+        open={linkPagoOpen}
+        onClose={() => setLinkPagoOpen(false)}
+        onConfirm={() => { setLinkPagoOpen(false); handleCobrar(); }}
+        linkConfig={metodoLinkQR}
+        clienteTelefono={cobrarOrden?.cliente_telefono || ''}
+      />
     </Box>
   );
 }

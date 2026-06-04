@@ -129,6 +129,7 @@ def _orden_to_dict(o: models.LavaderoOrden) -> dict:
         "operador_nombre": o.operador.nombre_completo if o.operador else None,
         "cliente_id": o.cliente_id,
         "cliente_nombre": o.cliente.nombre if o.cliente else None,
+        "cliente_telefono": o.cliente.telefono if o.cliente else None,
         "observaciones": o.observaciones,
         "fecha_entrada": o.fecha_entrada.isoformat() if o.fecha_entrada else None,
         "fecha_salida": o.fecha_salida.isoformat() if o.fecha_salida else None,
