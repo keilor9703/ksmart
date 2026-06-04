@@ -29,6 +29,12 @@ const BARCODE_FORMATS = ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8', 'u
 
 // ── Paleta ────────────────────────────────────────────────────────────────────
 const ACCENT = '#FF6020';
+
+const formatPlaca = (raw) => {
+  const clean = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (clean.length > 3) return `${clean.slice(0, 3)}-${clean.slice(3, 7)}`;
+  return clean;
+};
 const SEMAFORO = {
   verde:    { bg: '#10B981', light: '#10B98115', text: '#065F46', label: 'AL DÍA'      },
   amarillo: { bg: '#F59E0B', light: '#F59E0B15', text: '#78350F', label: 'POR VENCER'  },
@@ -78,7 +84,7 @@ export default function ParqueaderoBuscar() {
     inputRef.current?.focus();
     const placaParam = searchParams.get('placa');
     if (placaParam) {
-      setPlaca(placaParam);
+      setPlaca(formatPlaca(placaParam));
       buscarConPlaca(placaParam);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -118,7 +124,7 @@ export default function ParqueaderoBuscar() {
   const pegarPlaca = async () => {
     try {
       const text = await navigator.clipboard.readText();
-      setPlaca(text.trim().toUpperCase().replace(/[\s-]/g, '').slice(0, 10));
+      setPlaca(formatPlaca(text.trim()));
     } catch {
       toast.info('No se pudo acceder al portapapeles.');
     }
@@ -127,10 +133,10 @@ export default function ParqueaderoBuscar() {
   const onQrDetected = useCallback((rawValue) => {
     if (cooldownRef.current) return;
     cooldownRef.current = true;
-    const placaLimpia = rawValue.trim().toUpperCase().replace(/[\s-]/g, '').slice(0, 10);
+    const placaLimpia = rawValue.trim().toUpperCase().replace(/[\s-]/g, '').slice(0, 7);
     if (placaLimpia.length >= 3) {
       setScannerOpen(false);
-      setPlaca(placaLimpia);
+      setPlaca(formatPlaca(placaLimpia));
       buscarConPlaca(placaLimpia);
       toast.success(`Placa detectada: ${placaLimpia}`);
     }
@@ -256,10 +262,18 @@ export default function ParqueaderoBuscar() {
           <TextField
             inputRef={inputRef}
             fullWidth autoFocus
-            placeholder="ABC123"
+            placeholder="ABC-123"
             value={placa}
-            onChange={(e) => setPlaca(e.target.value.toUpperCase().replace(/[\s-]/g, '').slice(0, 10))}
+            onChange={(e) => setPlaca(formatPlaca(e.target.value))}
             disabled={loading}
+            inputProps={{
+              maxLength: 8,
+              style: {
+                textAlign: 'center', textTransform: 'uppercase',
+                fontWeight: 900, letterSpacing: 6, fontSize: 32,
+                fontFamily: 'monospace',
+              },
+            }}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -283,11 +297,6 @@ export default function ParqueaderoBuscar() {
                   </IconButton>
                 </InputAdornment>
               ),
-              sx: {
-                fontSize: 32, fontWeight: 900, letterSpacing: 4,
-                fontFamily: 'monospace', textAlign: 'center',
-                '& input': { textAlign: 'center' },
-              },
             }}
           />
           <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
