@@ -33,13 +33,14 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
   // Post-salida state
   const [salidaData, setSalidaData] = useState(null);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!open) return;
     apiClient.get('/parqueadero/config').then(({ data }) => setConfig(data));
     setMontoManual(''); setMetodoPago('Efectivo'); setObs('');
     setEnviarWA(!!acceso?.telefono);
     setSalidaData(null);
-  }, [open, acceso]);
+  }, [open]); // solo [open] — evita resetear salidaData si el padre re-renderiza acceso
 
   const calcular = () => {
     if (!acceso?.fecha_entrada) return { minReales: 0, minCobrar: 0, monto: 0 };
@@ -107,184 +108,191 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
   const mins = minReales % 60;
   const tiempoLegible = horas > 0 ? `${horas}h ${mins}min` : `${minReales} min`;
 
-  // ── Vista post-salida ──────────────────────────────────────────────────
-  if (salidaData) {
-    const preferirImpresion = config?.preferir_impresion;
-    return (
-      <Dialog open={open} onClose={handleCerrarPostSalida} maxWidth="xs" fullWidth>
-        <DialogTitle>
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Stack direction="row" spacing={1} alignItems="center">
-              <CheckCircle sx={{ color: '#10B981' }} />
-              <Typography sx={{ fontWeight: 800 }}>Salida registrada</Typography>
-            </Stack>
-            <IconButton onClick={handleCerrarPostSalida} size="small"><Close /></IconButton>
-          </Stack>
-        </DialogTitle>
-        <DialogContent dividers>
-          <Box sx={{ textAlign: 'center', mb: 3 }}>
-            <Typography sx={{
-              fontSize: 28, fontWeight: 900, fontFamily: 'monospace',
-              letterSpacing: 3, color: ACCENT,
-            }}>
-              {acceso.placa}
-            </Typography>
-            <Typography sx={{ fontSize: 22, fontWeight: 900, color: '#10B981', mt: 1 }}>
-              {formatCurrency(salidaData.cobroFinal)}
-            </Typography>
-            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-              {salidaData.minCobrar} min · {salidaData.metodoPago}
-            </Typography>
-          </Box>
-          <Stack spacing={1.5}>
-            {preferirImpresion && (
-              <Button
-                fullWidth variant="contained" size="large"
-                startIcon={<Print />}
-                onClick={handleImprimir}
-                sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700 }}
-              >
-                Imprimir comprobante
-              </Button>
-            )}
-            {acceso.telefono && (
-              <Button
-                fullWidth variant="contained" size="large"
-                startIcon={<WhatsApp />}
-                onClick={() => {
-                  const msg = construirMensajeRecibo(acceso, salidaData.minCobrar, salidaData.cobroFinal, salidaData.metodoPago, config);
-                  const tel = acceso.telefono.replace(/\D/g, '');
-                  window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
-                }}
-                sx={{ bgcolor: WA_GREEN, '&:hover': { bgcolor: '#1ebe5d' }, fontWeight: 700 }}
-              >
-                Enviar recibo por WhatsApp
-              </Button>
-            )}
-            {!preferirImpresion && (
-              <Button
-                fullWidth variant="outlined" size="large"
-                startIcon={<Print />}
-                onClick={handleImprimir}
-                sx={{ fontWeight: 700 }}
-              >
-                Imprimir comprobante
-              </Button>
-            )}
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={handleCerrarPostSalida}>Cerrar</Button>
-        </DialogActions>
-      </Dialog>
-    );
-  }
+  const preferirImpresion = config?.preferir_impresion;
 
-  // ── Vista de cobro ────────────────────────────────────────────────────────
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Typography sx={{ fontWeight: 800 }}>Registrar salida</Typography>
-          <IconButton onClick={onClose} size="small"><Close /></IconButton>
-        </Stack>
-      </DialogTitle>
-
-      <DialogContent dividers>
-        <Box sx={{ textAlign: 'center', mb: 2 }}>
-          <Typography sx={{
-            fontSize: 28, fontWeight: 900, fontFamily: 'monospace',
-            letterSpacing: 3, color: ACCENT,
-          }}>
-            {acceso?.placa}
-          </Typography>
-          {acceso?.nombre_ocasional && (
-            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-              {acceso.nombre_ocasional}
-            </Typography>
-          )}
-          <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5 }}>
-            Tiempo dentro: <strong>{tiempoLegible}</strong>
-          </Typography>
-        </Box>
-
-        <Box sx={{ p: 2, bgcolor: 'rgba(16, 185, 129, 0.08)', borderRadius: 2, mb: 2, textAlign: 'center' }}>
-          <Typography sx={{ fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', fontWeight: 700, mb: 0.5 }}>
-            Cobro
-          </Typography>
-          <Typography sx={{ fontSize: 28, fontWeight: 900, color: '#10B981' }}>
-            {formatCurrency(monto)}
-          </Typography>
-          <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-            {minCobrar} min × {formatCurrency(config?.tarifa_minuto || 0)}
-          </Typography>
-          {aplicaCobroMinimo && (
-            <Chip size="small" label={`Cobro mínimo: ${minCobrar} min`}
-              sx={{ mt: 0.5, fontSize: 10, bgcolor: '#F59E0B20', color: '#78350F', fontWeight: 700 }} />
-          )}
-        </Box>
-
-        <CurrencyField
-          fullWidth size="small" label="Cobrar otro monto (descuento)"
-          value={montoManual}
-          onChange={(val) => setMontoManual(val)}
-          placeholder={`${formatCurrency(monto)} (cálculo automático)`}
-          sx={{ mb: 2 }}
-        />
-
-        <TextField
-          fullWidth select size="small" label="Método de pago"
-          value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)}
-          sx={{ mb: 2 }}
-        >
-          {METODOS_PAGO.map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
-        </TextField>
-
-        <TextField
-          fullWidth size="small" multiline rows={2}
-          label="Observaciones (opcional)"
-          value={obs} onChange={(e) => setObs(e.target.value)}
-        />
-
-        {acceso?.telefono && (
-          <FormControlLabel
-            sx={{ mt: 1 }}
-            control={
-              <Switch
-                checked={enviarWA}
-                onChange={(e) => setEnviarWA(e.target.checked)}
-                sx={{
-                  '& .Mui-checked': { color: WA_GREEN },
-                  '& .Mui-checked + .MuiSwitch-track': { bgcolor: WA_GREEN },
-                }}
-              />
-            }
-            label={
-              <Stack direction="row" spacing={0.5} alignItems="center">
-                <WhatsApp sx={{ fontSize: 16, color: WA_GREEN }} />
-                <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
-                  Enviar recibo por WhatsApp ({acceso.telefono})
-                </Typography>
+    <Dialog
+      open={open}
+      onClose={salidaData ? handleCerrarPostSalida : onClose}
+      maxWidth="xs"
+      fullWidth
+      disableEscapeKeyDown={!!salidaData}
+    >
+      {salidaData ? (
+        // ── Vista post-salida ────────────────────────────────────────────
+        <>
+          <DialogTitle>
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Stack direction="row" spacing={1} alignItems="center">
+                <CheckCircle sx={{ color: '#10B981' }} />
+                <Typography sx={{ fontWeight: 800 }}>Salida registrada</Typography>
               </Stack>
-            }
-          />
-        )}
-      </DialogContent>
+              <IconButton onClick={handleCerrarPostSalida} size="small"><Close /></IconButton>
+            </Stack>
+          </DialogTitle>
+          <DialogContent dividers>
+            <Box sx={{ textAlign: 'center', mb: 3 }}>
+              <Typography sx={{
+                fontSize: 28, fontWeight: 900, fontFamily: 'monospace',
+                letterSpacing: 3, color: ACCENT,
+              }}>
+                {acceso?.placa}
+              </Typography>
+              <Typography sx={{ fontSize: 22, fontWeight: 900, color: '#10B981', mt: 1 }}>
+                {formatCurrency(salidaData.cobroFinal)}
+              </Typography>
+              <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                {salidaData.minCobrar} min · {salidaData.metodoPago}
+              </Typography>
+            </Box>
+            <Stack spacing={1.5}>
+              {preferirImpresion && (
+                <Button
+                  fullWidth variant="contained" size="large"
+                  startIcon={<Print />}
+                  onClick={handleImprimir}
+                  sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700 }}
+                >
+                  Imprimir comprobante
+                </Button>
+              )}
+              {acceso?.telefono && (
+                <Button
+                  fullWidth variant="contained" size="large"
+                  startIcon={<WhatsApp />}
+                  onClick={() => {
+                    const msg = construirMensajeRecibo(acceso, salidaData.minCobrar, salidaData.cobroFinal, salidaData.metodoPago, config);
+                    const tel = acceso.telefono.replace(/\D/g, '');
+                    window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
+                  }}
+                  sx={{ bgcolor: WA_GREEN, '&:hover': { bgcolor: '#1ebe5d' }, fontWeight: 700 }}
+                >
+                  Enviar recibo por WhatsApp
+                </Button>
+              )}
+              {!preferirImpresion && (
+                <Button
+                  fullWidth variant="outlined" size="large"
+                  startIcon={<Print />}
+                  onClick={handleImprimir}
+                  sx={{ fontWeight: 700 }}
+                >
+                  Imprimir comprobante
+                </Button>
+              )}
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ p: 2 }}>
+            <Button onClick={handleCerrarPostSalida}>Cerrar</Button>
+          </DialogActions>
+        </>
+      ) : (
+        // ── Vista de cobro ───────────────────────────────────────────────
+        <>
+          <DialogTitle>
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Typography sx={{ fontWeight: 800 }}>Registrar salida</Typography>
+              <IconButton onClick={onClose} size="small"><Close /></IconButton>
+            </Stack>
+          </DialogTitle>
 
-      <DialogActions sx={{ p: 2 }}>
-        <Button onClick={onClose} disabled={loading}>Cancelar</Button>
-        <Button
-          variant="contained" onClick={handleSalida} disabled={loading}
-          startIcon={loading ? <CircularProgress size={16} color="inherit" /> :
-                     enviarWA && acceso?.telefono ? <OpenInNew /> : <Save />}
-          sx={{
-            bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' },
-            fontWeight: 700,
-          }}
-        >
-          Cobrar {formatCurrency(cobroFinal)}
-        </Button>
-      </DialogActions>
+          <DialogContent dividers>
+            <Box sx={{ textAlign: 'center', mb: 2 }}>
+              <Typography sx={{
+                fontSize: 28, fontWeight: 900, fontFamily: 'monospace',
+                letterSpacing: 3, color: ACCENT,
+              }}>
+                {acceso?.placa}
+              </Typography>
+              {acceso?.nombre_ocasional && (
+                <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                  {acceso.nombre_ocasional}
+                </Typography>
+              )}
+              <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5 }}>
+                Tiempo dentro: <strong>{tiempoLegible}</strong>
+              </Typography>
+            </Box>
+
+            <Box sx={{ p: 2, bgcolor: 'rgba(16, 185, 129, 0.08)', borderRadius: 2, mb: 2, textAlign: 'center' }}>
+              <Typography sx={{ fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', fontWeight: 700, mb: 0.5 }}>
+                Cobro
+              </Typography>
+              <Typography sx={{ fontSize: 28, fontWeight: 900, color: '#10B981' }}>
+                {formatCurrency(monto)}
+              </Typography>
+              <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                {minCobrar} min × {formatCurrency(config?.tarifa_minuto || 0)}
+              </Typography>
+              {aplicaCobroMinimo && (
+                <Chip size="small" label={`Cobro mínimo: ${minCobrar} min`}
+                  sx={{ mt: 0.5, fontSize: 10, bgcolor: '#F59E0B20', color: '#78350F', fontWeight: 700 }} />
+              )}
+            </Box>
+
+            <CurrencyField
+              fullWidth size="small" label="Cobrar otro monto (descuento)"
+              value={montoManual}
+              onChange={(val) => setMontoManual(val)}
+              placeholder={`${formatCurrency(monto)} (cálculo automático)`}
+              sx={{ mb: 2 }}
+            />
+
+            <TextField
+              fullWidth select size="small" label="Método de pago"
+              value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)}
+              sx={{ mb: 2 }}
+            >
+              {METODOS_PAGO.map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+            </TextField>
+
+            <TextField
+              fullWidth size="small" multiline rows={2}
+              label="Observaciones (opcional)"
+              value={obs} onChange={(e) => setObs(e.target.value)}
+            />
+
+            {acceso?.telefono && (
+              <FormControlLabel
+                sx={{ mt: 1 }}
+                control={
+                  <Switch
+                    checked={enviarWA}
+                    onChange={(e) => setEnviarWA(e.target.checked)}
+                    sx={{
+                      '& .Mui-checked': { color: WA_GREEN },
+                      '& .Mui-checked + .MuiSwitch-track': { bgcolor: WA_GREEN },
+                    }}
+                  />
+                }
+                label={
+                  <Stack direction="row" spacing={0.5} alignItems="center">
+                    <WhatsApp sx={{ fontSize: 16, color: WA_GREEN }} />
+                    <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+                      Enviar recibo por WhatsApp ({acceso.telefono})
+                    </Typography>
+                  </Stack>
+                }
+              />
+            )}
+          </DialogContent>
+
+          <DialogActions sx={{ p: 2 }}>
+            <Button onClick={onClose} disabled={loading}>Cancelar</Button>
+            <Button
+              variant="contained" onClick={handleSalida} disabled={loading}
+              startIcon={loading ? <CircularProgress size={16} color="inherit" /> :
+                         enviarWA && acceso?.telefono ? <OpenInNew /> : <Save />}
+              sx={{
+                bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' },
+                fontWeight: 700,
+              }}
+            >
+              Cobrar {formatCurrency(cobroFinal)}
+            </Button>
+          </DialogActions>
+        </>
+      )}
     </Dialog>
   );
 }
