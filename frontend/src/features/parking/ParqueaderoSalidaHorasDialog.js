@@ -117,6 +117,11 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
       maxWidth="xs"
       fullWidth
       disableEscapeKeyDown={!!salidaData}
+      TransitionProps={{
+        onExited: () => {
+          setSalidaData(null);
+        },
+      }}
     >
       {salidaData ? (
         // ── Vista post-salida ────────────────────────────────────────────

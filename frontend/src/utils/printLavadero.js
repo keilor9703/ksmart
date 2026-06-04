@@ -4,17 +4,30 @@ const PRINTER_SIZES = {
 };
 
 function _printInIframe(html) {
+  const win = window.open('about:blank', '_blank');
+  if (win) {
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    const doPrint = () => { try { win.focus(); win.print(); } catch (e) {} };
+    if (win.document.readyState === 'complete') {
+      setTimeout(doPrint, 250);
+    } else {
+      win.onload = () => setTimeout(doPrint, 100);
+      setTimeout(doPrint, 600);
+    }
+    return;
+  }
   const iframe = document.createElement('iframe');
   iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;';
   document.body.appendChild(iframe);
-  iframe.contentDocument.open();
-  iframe.contentDocument.write(html);
-  iframe.contentDocument.close();
+  const doc = iframe.contentDocument || iframe.contentWindow.document;
+  doc.open(); doc.write(html); doc.close();
   setTimeout(() => {
     iframe.contentWindow.focus();
     iframe.contentWindow.print();
-    setTimeout(() => document.body.removeChild(iframe), 1500);
-  }, 350);
+    setTimeout(() => document.body.removeChild(iframe), 2000);
+  }, 400);
 }
 
 function _fmt(n) {

@@ -160,6 +160,14 @@ export function ParqueaderoEntradaHorasDialog({
       maxWidth="sm"
       fullWidth
       disableEscapeKeyDown={!!accesoCreado}
+      TransitionProps={{
+        onExited: () => {
+          // Limpiar estado post-entrada DESPUÉS de la animación de cierre,
+          // para que al volver a abrir nunca se vea el flash naranja.
+          setAccesoCreado(null);
+          setRegistroExitoso(false);
+        },
+      }}
     >
       {accesoCreado ? (
         /* ── Vista post-entrada ─────────────────────────────────────────── */
