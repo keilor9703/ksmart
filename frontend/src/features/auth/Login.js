@@ -388,8 +388,20 @@ const Login = ({ onLogin }) => {
     const [regSuccess, setRegSuccess]     = useState(false);
     const [rememberMe, setRememberMe]     = useState(false);
     const [forgotOpen, setForgotOpen]     = useState(false);
-    const [forgotEmail, setForgotEmail]   = useState('');
-    const [forgotSent, setForgotSent]     = useState(false);
+    const [recov, setRecov] = useState({
+        step: 0, username: '', hints: {}, nombreCompleto: '',
+        empresaNombre: '', empresaNit: '', recoveryToken: '',
+        nuevaPassword: '', confirmarPassword: '', loading: false, error: '',
+    });
+    const resetRecov = () => setRecov({
+        step: 0, username: '', hints: {}, nombreCompleto: '',
+        empresaNombre: '', empresaNit: '', recoveryToken: '',
+        nuevaPassword: '', confirmarPassword: '', loading: false, error: '',
+    });
+    const [showRecovPwd, setShowRecovPwd]           = useState(false);
+    const [showRecovConfirm, setShowRecovConfirm]   = useState(false);
+    const [showLoginNitField, setShowLoginNitField] = useState(false);
+    const [loginNit, setLoginNit]                   = useState('');
     const [pinMode, setPinMode]           = useState(() => {
         // Mostrar PIN si el usuario tiene PIN configurado y hay username guardado
         return localStorage.getItem('pin_configured') === 'true'
@@ -490,18 +502,31 @@ const Login = ({ onLogin }) => {
         e.preventDefault();
         setLoading(true);
         try {
-            const url = `/auth/token${rememberMe ? '?remember_me=true' : ''}`;
+            const qp = [];
+            if (rememberMe) qp.push('remember_me=true');
+            if (showLoginNitField && loginNit.trim()) qp.push(`empresa_nit=${encodeURIComponent(loginNit.trim())}`);
+            const url = `/auth/token${qp.length ? '?' + qp.join('&') : ''}`;
             const response = await apiClient.post(
                 url,
                 new URLSearchParams({ username: loginData.username, password: loginData.password }),
                 { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
             );
+            setShowLoginNitField(false);
+            setLoginNit('');
             handleAuthSuccess({ ...response.data, username: loginData.username }, 'Inicio de sesión exitoso');
         } catch (err) {
             const httpStatus = err.response?.status;
             const detail = err.response?.data?.detail;
-            if (httpStatus === 403) toast.error(detail || 'Cuenta suspendida por el administrador.');
-            else toast.error(detail || 'Usuario o contraseña incorrectos');
+            if (httpStatus === 403) {
+                toast.error(detail || 'Cuenta suspendida por el administrador.');
+            } else if (httpStatus === 409 && detail === 'EMPRESA_REQUERIDA') {
+                setShowLoginNitField(true);
+                setLoginData(d => ({ ...d, password: '' }));
+                toast.info('Hay varias cuentas con ese usuario. Ingresa el NIT de tu empresa para continuar.');
+            } else {
+                toast.error(detail || 'Usuario o contraseña incorrectos');
+                setLoginFailed(true);
+            }
         } finally {
             setLoading(false);
         }
@@ -558,6 +583,66 @@ const Login = ({ onLogin }) => {
 
     const handleBiometricSuccess = (data) => {
         handleAuthSuccess(data, '¡Bienvenido de vuelta!');
+    };
+
+    // ── Recuperación de contraseña nativa (sin email) ─────────────────────────
+    const recovBuscar = async () => {
+        if (!recov.username.trim() || !recov.empresaNit.trim()) return;
+        setRecov(s => ({ ...s, loading: true, error: '' }));
+        try {
+            const { data } = await apiClient.post('/auth/recover/buscar', {
+                username: recov.username.trim(),
+                empresa_nit: recov.empresaNit.trim(),
+            });
+            setRecov(s => ({ ...s, step: 1, hints: data.hints, empresaNombre: data.empresa_nombre || '', loading: false }));
+        } catch (err) {
+            setRecov(s => ({ ...s, loading: false, error: err.response?.data?.detail || 'Error al buscar usuario.' }));
+        }
+    };
+
+    const recovVerificar = async () => {
+        setRecov(s => ({ ...s, loading: true, error: '' }));
+        try {
+            const { data } = await apiClient.post('/auth/recover/verificar', {
+                username: recov.username.trim(),
+                empresa_nit: recov.empresaNit.trim(),
+                nombre_completo: recov.nombreCompleto.trim(),
+            });
+            setRecov(s => ({ ...s, step: 2, recoveryToken: data.recovery_token, loading: false }));
+        } catch (err) {
+            setRecov(s => ({ ...s, loading: false, error: err.response?.data?.detail || 'No se pudo verificar la identidad.' }));
+        }
+    };
+
+    const recovCambiar = async () => {
+        if (recov.nuevaPassword !== recov.confirmarPassword) {
+            setRecov(s => ({ ...s, error: 'Las contraseñas no coinciden.' }));
+            return;
+        }
+        if (!recov.nuevaPassword) {
+            setRecov(s => ({ ...s, error: 'Ingresa una nueva contraseña.' }));
+            return;
+        }
+        setRecov(s => ({ ...s, loading: true, error: '' }));
+        try {
+            const { data: cambioData } = await apiClient.post('/auth/recover/cambiar', {
+                recovery_token: recov.recoveryToken,
+                nueva_password: recov.nuevaPassword,
+            });
+            // Auto-login con la nueva contraseña — pasar NIT para desambiguar si hay otro usuario con mismo nombre
+            const params = new URLSearchParams();
+            params.append('username', cambioData.username || recov.username.trim());
+            params.append('password', recov.nuevaPassword);
+            const nitQ = recov.empresaNit.trim() ? `?empresa_nit=${encodeURIComponent(recov.empresaNit.trim())}` : '';
+            const { data: tokenData } = await apiClient.post(`/auth/token${nitQ}`, params, {
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            });
+            setForgotOpen(false);
+            resetRecov();
+            handleAuthSuccess(tokenData, '¡Contraseña cambiada! Bienvenido de vuelta.');
+        } catch (err) {
+            setRecov(s => ({ ...s, loading: false, error: err.response?.data?.detail || 'Error al cambiar la contraseña.' }));
+        }
     };
 
     const handlePinSuccess = (data) => {
@@ -820,9 +905,31 @@ const Login = ({ onLogin }) => {
                                 <TextField
                                     fullWidth label="Usuario" required sx={fieldSx}
                                     value={loginData.username}
-                                    onChange={e => setLoginData({ ...loginData, username: e.target.value })}
+                                    onChange={e => {
+                                        setLoginData({ ...loginData, username: e.target.value });
+                                        if (showLoginNitField) { setShowLoginNitField(false); setLoginNit(''); }
+                                    }}
                                     InputProps={{ startAdornment: <InputAdornment position="start"><AlternateEmail /></InputAdornment> }}
                                 />
+                                {showLoginNitField && (
+                                    <Box sx={{ animation: `${slideUp} 0.25s ease` }}>
+                                        <Typography sx={{ fontSize: 12, color: '#f59e0b', mb: 1, fontWeight: 600 }}>
+                                            Hay varias empresas con ese usuario. Ingresa el NIT de tu empresa para continuar.
+                                        </Typography>
+                                        <TextField
+                                            fullWidth autoFocus label="NIT de tu empresa" required sx={fieldSx}
+                                            value={loginNit}
+                                            onChange={e => {
+                                                const raw = e.target.value.replace(/[^0-9-]/g, '');
+                                                const parts = raw.split('-');
+                                                const clean = parts.length > 2 ? parts[0] + '-' + parts.slice(1).join('') : raw;
+                                                setLoginNit(clean);
+                                            }}
+                                            placeholder="Ej: 901123456-7"
+                                            InputProps={{ startAdornment: <InputAdornment position="start"><Business /></InputAdornment> }}
+                                        />
+                                    </Box>
+                                )}
                                 <TextField
                                     fullWidth label="Contraseña"
                                     type={showPassword ? 'text' : 'password'}
@@ -1357,57 +1464,160 @@ const Login = ({ onLogin }) => {
             <DialogTitle sx={{ fontWeight: 800, fontSize: 18, color: '#f1f5f9', pb: 0.5 }}>
                 Recuperar contraseña
             </DialogTitle>
-            <DialogContent>
-                {forgotSent ? (
-                    <Box sx={{ textAlign: 'center', py: 2 }}>
-                        <CheckCircle sx={{ fontSize: 48, color: '#22c55e', mb: 1.5 }} />
-                        <Typography sx={{ fontSize: 14, color: '#94a3b8', lineHeight: 1.7 }}>
-                            Si el correo <strong style={{ color: '#f1f5f9' }}>{forgotEmail}</strong> está registrado, recibirás las instrucciones en breve.
-                        </Typography>
-                        <Typography sx={{ fontSize: 12, color: '#64748b', mt: 1.5 }}>
-                            ¿No lo ves? Revisa la carpeta de spam o escríbenos a{' '}
-                            <span style={{ color: '#22c55e' }}>soporte@ksmart360.com</span>
-                        </Typography>
-                    </Box>
-                ) : (
+
+
+            <DialogContent sx={{ pb: 1 }}>
+                {/* ── PASO 0: Identificar usuario por username + NIT ── */}
+                {recov.step === 0 && (
                     <Box sx={{ pt: 1 }}>
-                        <Typography sx={{ fontSize: 13, color: '#94a3b8', mb: 2, lineHeight: 1.6 }}>
-                            Ingresa el correo con el que te registraste y te enviaremos un enlace para restablecer tu contraseña.
+                        <Typography sx={{ fontSize: 13, color: '#94a3b8', mb: 2.5, lineHeight: 1.6 }}>
+                            Ingresa tu nombre de usuario y el NIT de tu empresa. Con esos datos localizaremos tu cuenta.
                         </Typography>
-                        <TextField
-                            fullWidth autoFocus type="email"
-                            label="Correo electrónico" placeholder="tucorreo@ejemplo.com"
-                            value={forgotEmail}
-                            onChange={e => setForgotEmail(e.target.value)}
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <TextField
+                                fullWidth autoFocus label="Nombre de usuario"
+                                placeholder="ej: juanperez"
+                                value={recov.username}
+                                onChange={e => setRecov(s => ({ ...s, username: e.target.value, error: '' }))}
+                                sx={fieldSx}
+                                InputProps={{ startAdornment: <InputAdornment position="start"><Person sx={{ color: '#f97316' }} /></InputAdornment> }}
+                            />
+                            <TextField fullWidth label="NIT de tu empresa"
+                                placeholder="Ej: 901123456-7"
+                                value={recov.empresaNit}
+                                onChange={e => {
+                                    const raw = e.target.value.replace(/[^0-9-]/g, '');
+                                    const parts = raw.split('-');
+                                    const clean = parts.length > 2 ? parts[0] + '-' + parts.slice(1).join('') : raw;
+                                    setRecov(s => ({ ...s, empresaNit: clean, error: '' }));
+                                }}
+                                onKeyDown={e => e.key === 'Enter' && recovBuscar()}
+                                sx={fieldSx}
+                                InputProps={{ startAdornment: <InputAdornment position="start"><ManageAccounts sx={{ color: '#f97316' }} /></InputAdornment> }}
+                            />
+                        </Box>
+                        {recov.error && (
+                            <Typography sx={{ fontSize: 12, color: '#f87171', mt: 1.5, bgcolor: 'rgba(239,68,68,0.08)', p: 1.5, borderRadius: 2 }}>
+                                {recov.error}
+                            </Typography>
+                        )}
+                    </Box>
+                )}
+
+                {/* ── PASO 1: Verificar identidad con nombre completo ── */}
+                {recov.step === 1 && (
+                    <Box sx={{ pt: 1 }}>
+                        {/* Info: empresa identificada */}
+                        {recov.empresaNombre && (
+                            <Box sx={{ mb: 2, p: 1.5, borderRadius: 2, bgcolor: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)' }}>
+                                <Typography sx={{ fontSize: 12, color: '#22c55e', fontWeight: 600 }}>
+                                    Empresa: {recov.empresaNombre}
+                                </Typography>
+                            </Box>
+                        )}
+
+                        <Typography sx={{ fontSize: 13, color: '#94a3b8', mb: 2, lineHeight: 1.6 }}>
+                            Para confirmar que eres el dueño de la cuenta, escribe tu nombre completo tal como quedó registrado.
+                        </Typography>
+
+                        {/* Pista enmascarada del nombre */}
+                        {recov.hints.nombre_completo && (
+                            <Box sx={{ mb: 2, p: 1.5, borderRadius: 2, bgcolor: 'rgba(249,115,22,0.06)', border: '1px solid rgba(249,115,22,0.2)' }}>
+                                <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#f97316', mb: 0.5, textTransform: 'uppercase' }}>Pista</Typography>
+                                <Chip size="small" label={`Nombre registrado: ${recov.hints.nombre_completo}`} sx={{ bgcolor: 'rgba(255,255,255,0.07)', color: '#cbd5e1', fontSize: 11 }} />
+                            </Box>
+                        )}
+
+                        <TextField fullWidth autoFocus label="Tu nombre completo"
+                            placeholder="Escríbelo exactamente como lo registraste"
+                            value={recov.nombreCompleto}
+                            onChange={e => setRecov(s => ({ ...s, nombreCompleto: e.target.value, error: '' }))}
+                            onKeyDown={e => e.key === 'Enter' && recovVerificar()}
                             sx={fieldSx}
-                            InputProps={{ startAdornment: <InputAdornment position="start"><Email /></InputAdornment> }}
+                            InputProps={{ startAdornment: <InputAdornment position="start"><Person sx={{ color: '#f97316' }} /></InputAdornment> }}
                         />
+                        {recov.error && (
+                            <Typography sx={{ fontSize: 12, color: '#f87171', mt: 1.5, bgcolor: 'rgba(239,68,68,0.08)', p: 1.5, borderRadius: 2 }}>
+                                {recov.error}
+                            </Typography>
+                        )}
+                    </Box>
+                )}
+
+                {/* ── PASO 2: Nueva contraseña ── */}
+                {recov.step === 2 && (
+                    <Box sx={{ pt: 1 }}>
+                        <Typography sx={{ fontSize: 13, color: '#94a3b8', mb: 2.5, lineHeight: 1.6 }}>
+                            Identidad verificada. Ahora elige una nueva contraseña para tu cuenta <strong style={{ color: '#f1f5f9' }}>{recov.username}</strong>.
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <TextField fullWidth label="Nueva contraseña"
+                                type={showRecovPwd ? 'text' : 'password'}
+                                value={recov.nuevaPassword}
+                                onChange={e => setRecov(s => ({ ...s, nuevaPassword: e.target.value, error: '' }))}
+                                sx={fieldSx}
+                                InputProps={{
+                                    startAdornment: <InputAdornment position="start"><Lock sx={{ color: '#f97316' }} /></InputAdornment>,
+                                    endAdornment: (
+                                        <InputAdornment position="end">
+                                            <IconButton size="small" tabIndex={-1} onClick={() => setShowRecovPwd(v => !v)} sx={{ color: '#64748b' }}>
+                                                {showRecovPwd ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                                            </IconButton>
+                                        </InputAdornment>
+                                    ),
+                                }}
+                            />
+                            <TextField fullWidth label="Confirmar contraseña"
+                                type={showRecovConfirm ? 'text' : 'password'}
+                                value={recov.confirmarPassword}
+                                onChange={e => setRecov(s => ({ ...s, confirmarPassword: e.target.value, error: '' }))}
+                                onKeyDown={e => e.key === 'Enter' && recovCambiar()}
+                                sx={fieldSx}
+                                error={!!recov.confirmarPassword && recov.nuevaPassword !== recov.confirmarPassword}
+                                helperText={recov.confirmarPassword && recov.nuevaPassword !== recov.confirmarPassword ? 'Las contraseñas no coinciden' : ''}
+                                InputProps={{
+                                    startAdornment: <InputAdornment position="start"><Lock sx={{ color: '#f97316' }} /></InputAdornment>,
+                                    endAdornment: (
+                                        <InputAdornment position="end">
+                                            <IconButton size="small" tabIndex={-1} onClick={() => setShowRecovConfirm(v => !v)} sx={{ color: '#64748b' }}>
+                                                {showRecovConfirm ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                                            </IconButton>
+                                        </InputAdornment>
+                                    ),
+                                }}
+                            />
+                        </Box>
+                        {recov.error && (
+                            <Typography sx={{ fontSize: 12, color: '#f87171', mt: 1.5, bgcolor: 'rgba(239,68,68,0.08)', p: 1.5, borderRadius: 2 }}>
+                                {recov.error}
+                            </Typography>
+                        )}
                     </Box>
                 )}
             </DialogContent>
             <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-                <Button onClick={() => setForgotOpen(false)} sx={{ color: '#64748b', fontWeight: 600, textTransform: 'none' }}>
-                    Cerrar
+                <Button
+                    onClick={() => { if (recov.step === 0) { setForgotOpen(false); resetRecov(); } else setRecov(s => ({ ...s, step: s.step - 1, error: '' })); }}
+                    disabled={recov.loading}
+                    sx={{ color: '#64748b', fontWeight: 600, textTransform: 'none' }}
+                >
+                    {recov.step === 0 ? 'Cancelar' : 'Atrás'}
                 </Button>
-                {!forgotSent && (
-                    <Button
-                        variant="contained"
-                        disabled={!isEmail(forgotEmail)}
-                        onClick={() => {
-                            // El backend puede implementar el flujo de reset
-                            // Por ahora registra la solicitud y muestra confirmación
-                            apiClient.post('/auth/password-reset-request', { email: forgotEmail }).catch(() => {});
-                            setForgotSent(true);
-                        }}
-                        sx={{
-                            background: 'linear-gradient(90deg, #22c55e, #16a34a)',
-                            borderRadius: 2, fontWeight: 700, textTransform: 'none',
-                            '&:disabled': { opacity: 0.4 },
-                        }}
-                    >
-                        Enviar instrucciones
-                    </Button>
-                )}
+                <Button
+                    variant="contained"
+                    disabled={recov.loading ||
+                        (recov.step === 0 && (!recov.username.trim() || !recov.empresaNit.trim())) ||
+                        (recov.step === 1 && !recov.nombreCompleto.trim()) ||
+                        (recov.step === 2 && (!recov.nuevaPassword || recov.nuevaPassword !== recov.confirmarPassword))
+                    }
+                    onClick={recov.step === 0 ? recovBuscar : recov.step === 1 ? recovVerificar : recovCambiar}
+                    startIcon={recov.loading ? <CircularProgress size={16} color="inherit" /> : null}
+                    sx={{ background: 'linear-gradient(90deg, #f97316, #ea580c)', borderRadius: 2, fontWeight: 700, textTransform: 'none', '&:disabled': { opacity: 0.4 } }}
+                >
+                    {recov.step === 0 && 'Buscar mi cuenta'}
+                    {recov.step === 1 && 'Verificar identidad'}
+                    {recov.step === 2 && 'Cambiar contraseña'}
+                </Button>
             </DialogActions>
         </Dialog>
         </>

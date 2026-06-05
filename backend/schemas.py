@@ -2465,6 +2465,19 @@ class PinVerifyRequest(BaseModel):
 class PasswordResetRequest(BaseModel):
     email: EmailStr
 
+class RecoverBuscarRequest(BaseModel):
+    username: str
+    empresa_nit: str
+
+class RecoverVerificarRequest(BaseModel):
+    username: str
+    empresa_nit: str
+    nombre_completo: str
+
+class RecoverCambiarRequest(BaseModel):
+    recovery_token: str
+    nueva_password: str = Field(..., min_length=1, max_length=80)
+
 class PinVerifyResponse(BaseModel):
     access_token:    str
     token_type:      str = "bearer"

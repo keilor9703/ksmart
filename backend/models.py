@@ -190,8 +190,11 @@ Modulo.roles = relationship("Role", secondary="role_modules", back_populates="mo
 
 class User(Base, TenantMixin):
     __tablename__ = "users"
+    __table_args__ = (
+        UniqueConstraint('username', 'empresa_id', name='uq_user_username_empresa'),
+    )
     id              = Column(Integer, primary_key=True, index=True)
-    username        = Column(String, unique=True, index=True)
+    username        = Column(String, index=True)
     hashed_password = Column(String)
     role_id         = Column(Integer, ForeignKey("roles.id"))
 

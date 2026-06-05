@@ -14,11 +14,21 @@ def get_user(db: Session, user_id: int):
         joinedload(models.User.role).joinedload(models.Role.modules)
     ).filter(models.User.id == user_id).first()
 
-def get_user_by_username(db: Session, username: str):
+def get_user_by_username(db: Session, username: str, empresa_id: Optional[int] = None):
+    q = db.query(models.User).options(
+        joinedload(models.User.role).joinedload(models.Role.modules),
+        joinedload(models.User.empresa)
+    ).filter(models.User.username == username)
+    if empresa_id is not None:
+        q = q.filter(models.User.empresa_id == empresa_id)
+    return q.first()
+
+def get_users_by_username(db: Session, username: str):
+    """Returns ALL users with this username across all companies."""
     return db.query(models.User).options(
         joinedload(models.User.role).joinedload(models.Role.modules),
         joinedload(models.User.empresa)
-    ).filter(models.User.username == username).first()
+    ).filter(models.User.username == username).all()
 
 def get_users(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
     return db.query(models.User).options(
@@ -35,6 +45,13 @@ def create_user(db: Session, user: schemas.UserCreate, empresa_id: int):
             status_code=400,
             detail="El rol seleccionado no es válido o no pertenece a tu empresa."
         )
+
+    # 1b. Verificar unicidad del username dentro de esta empresa
+    if db.query(models.User).filter(
+        models.User.username == user.username,
+        models.User.empresa_id == empresa_id
+    ).first():
+        raise HTTPException(status_code=400, detail="Este nombre de usuario ya existe en tu empresa.")
 
     # 2. VERIFICACIÓN DE LÍMITE DE USUARIOS (MONETIZACIÓN)
     total_users = db.query(models.User).filter(models.User.empresa_id == empresa_id).count()

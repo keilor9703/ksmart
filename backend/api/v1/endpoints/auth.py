@@ -24,8 +24,8 @@ PIN_LOCKOUT_MINUTES = 15
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
 def registrar_nuevo_cliente(request: Request, data: schemas.RegistroSaaS, db: Session = Depends(get_db)):
-    if db.query(models.User).filter(models.User.username == data.username).first():
-        raise HTTPException(status_code=400, detail="Este usuario ya está en uso. Prueba con otro.")
+    # Username only needs to be unique within this empresa (multitenancy)
+    # No global username uniqueness check needed here
 
     if data.email:
         existing_email = db.query(models.User).filter(models.User.email == data.email).first()
@@ -109,25 +109,62 @@ def login_for_access_token(
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     remember_me: bool = Query(default=False),
+    empresa_nit: Optional[str] = Query(default=None),
     db: Session = Depends(get_db)
 ):
-    user = crud.get_user_by_username(db, username=form_data.username)
-    if not user:
+    from sqlalchemy.orm import joinedload
+
+    # Build base query for all users with this username
+    users_q = db.query(models.User).options(
+        joinedload(models.User.role).joinedload(models.Role.modules),
+        joinedload(models.User.empresa)
+    ).filter(models.User.username == form_data.username)
+
+    # If empresa NIT provided, filter immediately (no ambiguity)
+    if empresa_nit and empresa_nit.strip():
+        empresa_filtro = db.query(models.Empresa).filter(
+            models.Empresa.nit == empresa_nit.strip()
+        ).first()
+        if empresa_filtro:
+            users_q = users_q.filter(models.User.empresa_id == empresa_filtro.id)
+
+    all_users = users_q.all()
+
+    if not all_users:
         logger.warning(f"Login fallido: usuario '{form_data.username}' no existe en BD")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuario o contraseña incorrectos",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # Disambiguate by password when multiple companies share the same username
+    if len(all_users) == 1:
+        user = all_users[0]
+        if not user.hashed_password or not security.verify_password(form_data.password, user.hashed_password):
+            logger.warning(f"Login fallido: contraseña incorrecta para '{form_data.username}'")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Usuario o contraseña incorrectos",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    else:
+        matching = [u for u in all_users if u.hashed_password and security.verify_password(form_data.password, u.hashed_password)]
+        if len(matching) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Usuario o contraseña incorrectos",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        elif len(matching) > 1:
+            # Same username + same password in multiple companies — ask for NIT
+            raise HTTPException(
+                status_code=409,
+                detail="EMPRESA_REQUERIDA",
+            )
+        user = matching[0]
+
     if not user.hashed_password:
-        logger.error(f"Login fallido: usuario '{form_data.username}' existe pero hashed_password es NULL")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Usuario o contraseña incorrectos",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    if not security.verify_password(form_data.password, user.hashed_password):
-        logger.warning(f"Login fallido: contraseña incorrecta para '{form_data.username}'")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuario o contraseña incorrectos",
@@ -214,9 +251,16 @@ def verify_pin(
     db: Session = Depends(get_db),
 ):
     """Verifica el PIN y retorna un JWT completo (sin necesidad de contraseña)."""
-    user = db.query(models.User).filter(
+    # For PIN, find the specific user by username (unique within each empresa)
+    # If multiple companies share the username, pick the one with PIN set and active
+    candidates = db.query(models.User).filter(
         (models.User.username == data.username) | (models.User.email == data.username)
-    ).first()
+    ).all()
+    user = None
+    for c in candidates:
+        if c.is_active and c.pin_hash:
+            user = c
+            break
     if not user or not user.is_active or not user.pin_hash:
         raise HTTPException(401, "PIN no configurado o usuario no encontrado.")
 
@@ -286,3 +330,95 @@ def request_password_reset(request: Request, data: schemas.PasswordResetRequest,
         logger.info(f"Solicitud de reset de contraseña para: {data.email}")
         # TODO: enviar email con token de reset cuando se configure el servicio de correo
     return {"message": "Si el correo está registrado, recibirás las instrucciones."}
+
+
+# ─── RECUPERACIÓN NATIVA SIN EMAIL ──────────────────────────────────────────
+
+def _mask(value: str) -> str:
+    """Enmascara un string dejando los primeros 2 y último carácter visibles."""
+    v = value.strip()
+    if len(v) <= 3:
+        return "*" * len(v)
+    return v[:2] + "*" * (len(v) - 3) + v[-1]
+
+
+@router.post("/recover/buscar")
+@limiter.limit("10/minute")
+def recover_buscar_usuario(request: Request, data: schemas.RecoverBuscarRequest, db: Session = Depends(get_db)):
+    """Paso 1: identifica el usuario por username + NIT de empresa y devuelve pistas enmascaradas."""
+    empresa = db.query(models.Empresa).filter(models.Empresa.nit == data.empresa_nit.strip()).first()
+    if not empresa:
+        raise HTTPException(status_code=404, detail="No encontramos ninguna empresa con ese NIT. Verifica e intenta de nuevo.")
+
+    user = db.query(models.User).filter(
+        models.User.username == data.username.strip(),
+        models.User.empresa_id == empresa.id
+    ).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="No encontramos ese usuario en la empresa indicada. Verifica los datos.")
+
+    hints: dict = {}
+    if user.nombre_completo:
+        hints["nombre_completo"] = _mask(user.nombre_completo)
+
+    return {"username": user.username, "empresa_nombre": empresa.nombre, "hints": hints}
+
+
+@router.post("/recover/verificar")
+@limiter.limit("5/minute")
+def recover_verificar_identidad(request: Request, data: schemas.RecoverVerificarRequest, db: Session = Depends(get_db)):
+    """Paso 2: verifica nombre_completo del usuario identificado por username + NIT."""
+    empresa = db.query(models.Empresa).filter(models.Empresa.nit == data.empresa_nit.strip()).first()
+    if not empresa:
+        raise HTTPException(status_code=400, detail="Los datos ingresados no coinciden. Intenta de nuevo.")
+
+    user = db.query(models.User).filter(
+        models.User.username == data.username.strip(),
+        models.User.empresa_id == empresa.id
+    ).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="Los datos ingresados no coinciden. Intenta de nuevo.")
+
+    if not user.nombre_completo:
+        raise HTTPException(status_code=400, detail="Este usuario no tiene nombre registrado. Contacta al administrador.")
+
+    if not data.nombre_completo.strip():
+        raise HTTPException(status_code=400, detail="Debes ingresar tu nombre completo.")
+
+    if data.nombre_completo.strip().lower() != user.nombre_completo.strip().lower():
+        logger.warning(f"Verificación fallida para '{data.username}' en empresa '{empresa.nombre}'")
+        raise HTTPException(status_code=400, detail="El nombre ingresado no coincide con el registrado. Verifica e intenta de nuevo.")
+
+    # Store user.id (not username) to handle multitenancy unambiguously
+    recovery_token = security.create_access_token(
+        data={"sub": str(user.id), "type": "password_recovery"},
+        expires_delta=timedelta(minutes=10),
+    )
+    logger.info(f"Identidad verificada para recuperación: user_id={user.id} empresa='{empresa.nombre}'")
+    return {"recovery_token": recovery_token}
+
+
+@router.post("/recover/cambiar")
+@limiter.limit("5/minute")
+def recover_cambiar_password(request: Request, data: schemas.RecoverCambiarRequest, db: Session = Depends(get_db)):
+    """Paso 3: cambia la contraseña usando el token de recuperación (válido 10 min)."""
+    from jose import jwt, JWTError
+    from core.config import SECRET_KEY, ALGORITHM
+
+    try:
+        payload = jwt.decode(data.recovery_token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "password_recovery":
+            raise HTTPException(status_code=400, detail="Token inválido.")
+        user_id = payload.get("sub")
+    except JWTError:
+        raise HTTPException(status_code=400, detail="El tiempo de verificación expiró (10 min). Inicia el proceso nuevamente.")
+
+    user = db.query(models.User).filter(models.User.id == int(user_id)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+
+    user.hashed_password = security.get_password_hash(data.nueva_password)
+    db.commit()
+    logger.info(f"Contraseña cambiada exitosamente para: user_id={user_id} username={user.username}")
+    return {"message": "Contraseña actualizada. Inicia sesión con tu nueva contraseña.", "username": user.username}
+

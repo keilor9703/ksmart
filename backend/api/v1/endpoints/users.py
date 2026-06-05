@@ -62,8 +62,8 @@ def delete_modulo(modulo_id: int, db: Session = Depends(get_db), current_user: m
 
 @router.post("/users/", response_model=schemas.User, tags=["users"])
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_admin_user)):
-    if crud.get_user_by_username(db, username=user.username):
-        raise HTTPException(status_code=400, detail="Nombre de usuario ya registrado")
+    if crud.get_user_by_username(db, username=user.username, empresa_id=current_user.empresa_id):
+        raise HTTPException(status_code=400, detail="Este nombre de usuario ya existe en tu empresa.")
     return crud.create_user(db=db, user=user, empresa_id=current_user.empresa_id)
 
 @router.get("/users/me", response_model=schemas.User, tags=["users"])
