@@ -286,6 +286,7 @@ def cobrar_orden(
         observaciones=orden.observaciones,
         descuento_puntos=descuento_pts,
         puntos_canjeados=body.puntos_canjeados or 0,
+        origen='lavadero',
     )
     db.add(venta)
     db.flush()

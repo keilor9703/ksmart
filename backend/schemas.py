@@ -25,7 +25,8 @@ class EmpresaBase(BaseModel):
     trial_ends_at: Optional[datetime] = None
     modulos_habilitados: Optional[List[str]] = None
     is_protected: bool = False
-    
+    tipo_negocio: Optional[str] = "erp"
+
     # 👇 NUEVOS CAMPOS CATÁLOGO VIRTUAL
     slug_catalogo: Optional[str] = None
     whatsapp_pedidos: Optional[str] = None
@@ -502,6 +503,7 @@ class Venta(VentaBase):
     pdf_url: Optional[str] = None
     estado_electronico: str = "no_enviado"
     mensaje_proveedor: Optional[str] = None
+    origen: Optional[str] = "erp"
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -1069,6 +1071,15 @@ class DashboardData(BaseModel):
 
     # Comunes
     ordenes_recientes: List[OrdenTrabajo]
+
+    tipo_negocio: str = "erp"
+    # Parqueadero
+    ingresos_parq_hoy: float = 0.0
+    ocupacion_actual: int = 0
+    suscripciones_vigentes: int = 0
+    # Lavadero
+    ingresos_lavadero_hoy: float = 0.0
+    ordenes_lavadero_hoy: int = 0
 
 # Al final del archivo schemas.py, mantén la reconstrucción:
 DashboardData.model_rebuild()

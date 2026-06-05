@@ -1551,6 +1551,26 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v79)
                 logger.info("V79 (username único por empresa) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V80 - tipo_negocio en empresas + origen en ventas
+            # ═══════════════════════════════════════════════════════════════
+            migration_v80 = "v80_tipo_negocio_origen_venta"
+            if not _migration_already_applied(conn, migration_v80):
+                emp_cols = [c['name'] for c in inspector.get_columns('empresas')]
+                if 'tipo_negocio' not in emp_cols:
+                    conn.execute(text("ALTER TABLE empresas ADD COLUMN tipo_negocio VARCHAR(30) NOT NULL DEFAULT 'erp'"))
+                    conn.commit()
+                    logger.info("V80: añadido empresas.tipo_negocio")
+
+                venta_cols = [c['name'] for c in inspector.get_columns('ventas')]
+                if 'origen' not in venta_cols:
+                    conn.execute(text("ALTER TABLE ventas ADD COLUMN origen VARCHAR(40) DEFAULT 'erp'"))
+                    conn.commit()
+                    logger.info("V80: añadido ventas.origen")
+
+                _mark_migration_applied(conn, migration_v80)
+                logger.info("V80 (tipo_negocio en empresas + origen en ventas) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

@@ -65,6 +65,7 @@ class Empresa(Base):
 
     # 👇 NUEVOS CAMPOS FASE 2 - AUTOMATIZACIÓN
     is_protected = Column(Boolean, default=False) # QA, Partners, Demos
+    tipo_negocio     = Column(String(30), default="erp", nullable=False, server_default="erp")
 
     # 🧾 CAMPOS FACTURACIÓN ELECTRÓNICA (DIAN / MATIAS API)
     dv                    = Column(String(1), nullable=True)  # Dígito de Verificación
@@ -472,6 +473,10 @@ class Venta(Base, TenantMixin):
     operador_id     = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     placa_vehiculo  = Column(String(15), nullable=True)
     tipo_vehiculo   = Column(String(20), nullable=True)
+
+    # Origen del ingreso — identifica qué módulo generó esta venta
+    origen          = Column(String(40), nullable=True, default="erp")
+    # Valores: 'erp' | 'lavadero' | 'parqueadero_suscripcion' | 'parqueadero_horas' | 'restaurante' | 'pedido_virtual'
 
     cliente                = relationship("Cliente", back_populates="ventas")
     detalles               = relationship("DetalleVenta", back_populates="venta", cascade="all, delete-orphan")

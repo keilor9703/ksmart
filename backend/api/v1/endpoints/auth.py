@@ -47,6 +47,7 @@ def registrar_nuevo_cliente(request: Request, data: schemas.RegistroSaaS, db: Se
             ciudad              = data.ciudad,
             tamano_negocio      = data.tamano_negocio,
             origen_marketing    = data.origen,
+            tipo_negocio        = data.tipo_negocio,
         )
         db.add(nueva_emp)
         db.flush()
