@@ -521,13 +521,15 @@ const Login = ({ onLogin }) => {
             return;
         }
         setLoading(true);
+        const usernameUsed = regData.username.trim().toLowerCase();
+        const passwordUsed = regData.password;
         try {
             await apiClient.post('/auth/register', {
                 nombre_empresa:  regData.nombre_empresa.trim(),
                 nit:             regData.nit.trim(),
                 tipo_negocio:    regData.tipo_negocio || 'erp',
-                username:        regData.username.trim().toLowerCase(),
-                password:        regData.password,
+                username:        usernameUsed,
+                password:        passwordUsed,
                 nombre_completo: regData.nombre_completo.trim(),
                 email:           regData.email.trim().toLowerCase(),
                 telefono:        regData.telefono.trim(),
@@ -536,18 +538,28 @@ const Login = ({ onLogin }) => {
                 tamano_negocio:  regData.tamano_negocio,
                 origen:          regData.origen || null,
             });
-            const usernameUsed = regData.username.trim().toLowerCase();
             localStorage.setItem('last_username', usernameUsed);
-            setPinMode(false);
             setRegSuccess(true);
-            setTimeout(() => {
-              setRegSuccess(false);
-              setLoginData({ username: usernameUsed, password: '' });
-              setRegData(initialRegState);
-              setStep1Attempted(false);
-              setRegStep(1);
-              setIsLoginView(true);
-              toast.success('¡Cuenta creada! Ya puedes iniciar sesión.');
+            // Después de mostrar el estado de éxito, hacer login automático
+            setTimeout(async () => {
+              try {
+                const form = new URLSearchParams();
+                form.append('username', usernameUsed);
+                form.append('password', passwordUsed);
+                const { data } = await apiClient.post('/auth/token', form, {
+                  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                });
+                handleAuthSuccess({ ...data, username: usernameUsed }, '¡Bienvenido! Tu empresa ha sido creada.');
+              } catch {
+                // Falló el auto-login: dejar al usuario ingresar manualmente
+                setRegSuccess(false);
+                setLoginData({ username: usernameUsed, password: '' });
+                setRegData(initialRegState);
+                setStep1Attempted(false);
+                setRegStep(1);
+                setIsLoginView(true);
+                toast.success('¡Cuenta creada! Ya puedes iniciar sesión.');
+              }
             }, 2200);
         } catch (error) {
             toast.error(error.response?.data?.detail || 'Error al crear la cuenta.');
