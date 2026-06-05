@@ -1039,11 +1039,19 @@ const Login = ({ onLogin }) => {
                                         <TextField
                                             fullWidth label="NIT o Cédula de Ciudadanía" required
                                             className="orange-field" sx={fieldSx}
-                                            placeholder="Ej: 901.123.456-7"
+                                            placeholder="Ej: 901123456-7"
                                             value={regData.nit}
-                                            onChange={updateReg('nit')}
+                                            onChange={(e) => {
+                                                // Solo dígitos y un guión opcional (formato NIT: 123456789-1)
+                                                const raw = e.target.value.replace(/[^0-9-]/g, '');
+                                                const parts = raw.split('-');
+                                                const clean = parts.length > 2
+                                                    ? parts[0] + '-' + parts.slice(1).join('')
+                                                    : raw;
+                                                setRegData(prev => ({ ...prev, nit: clean }));
+                                            }}
                                             error={step1Attempted && step1Errors.nit}
-                                            helperText={step1Attempted && step1Errors.nit ? 'Mínimo 5 caracteres' : 'Requerido para la identificación legal de tu espacio'}
+                                            helperText={step1Attempted && step1Errors.nit ? 'Mínimo 5 caracteres' : 'Solo números, ej: 12345678 o 12345678-9'}
                                             InputProps={{ startAdornment: <InputAdornment position="start"><CheckCircle /></InputAdornment> }}
                                         />
 
