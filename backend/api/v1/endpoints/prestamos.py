@@ -8,6 +8,7 @@ import crud
 import models
 import schemas
 from api.deps import get_db, get_current_active_user, get_current_admin_user
+from services.contabilidad import registrar_asiento_cuota_prestamo
 
 router = APIRouter()
 
@@ -149,6 +150,17 @@ def pagar_cuota_cascada(
             cuota.metodo_pago = req.metodo_pago
             monto_disponible = 0
 
+    db.commit()
+    # Asiento contable: una línea por cuota cobrada
+    for cuota in cuotas_pendientes_list:
+        if cuota.estado_pago in ("Pagado", "Parcial") and cuota.fecha_pago:
+            monto_cuota = float(cuota.monto_cuota or 0) - float(cuota.saldo_pendiente or 0)
+            if monto_cuota > 0:
+                registrar_asiento_cuota_prestamo(
+                    db, current_user.empresa_id, cuota,
+                    monto_recibido=monto_cuota,
+                    metodo_pago=req.metodo_pago,
+                )
     db.commit()
     return {
         "msg": "Pago procesado",

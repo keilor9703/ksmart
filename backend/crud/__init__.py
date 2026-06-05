@@ -189,3 +189,6 @@ from crud.contabilidad import (
     listar_cuentas, listar_asientos, get_asiento,
     get_balance_comprobacion, get_estado_resultados,
 )
+from crud.contabilidad import (
+    get_balance_general, get_resumen_iva, crear_asiento_manual,
+)

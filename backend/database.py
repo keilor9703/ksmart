@@ -1676,6 +1676,19 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v81)
                 logger.info("V81 (contabilidad automática) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V82 - Registrar módulo Contabilidad en tabla modulos
+            # ═══════════════════════════════════════════════════════════════
+            migration_v82 = "v82_modulo_contabilidad"
+            if not _migration_already_applied(conn, migration_v82):
+                conn.execute(text("""
+                    INSERT INTO modulos (name, description, frontend_path)
+                    VALUES ('Contabilidad', 'Asientos automáticos, estado de resultados, balance general y reportes fiscales.', '/contabilidad')
+                    ON CONFLICT (frontend_path) DO NOTHING
+                """))
+                _mark_migration_applied(conn, migration_v82)
+                logger.info("V82 (módulo contabilidad registrado) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

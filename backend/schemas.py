@@ -2651,3 +2651,37 @@ class AsientosListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+class BalanceGeneralItem(BaseModel):
+    codigo: str
+    nombre: str
+    saldo: float
+
+class BalanceGeneral(BaseModel):
+    activos: List[BalanceGeneralItem] = []
+    pasivos: List[BalanceGeneralItem] = []
+    patrimonio: List[BalanceGeneralItem] = []
+    total_activos: float = 0.0
+    total_pasivos: float = 0.0
+    total_patrimonio: float = 0.0
+    total_pasivos_patrimonio: float = 0.0
+    fecha_corte: Optional[datetime] = None
+
+class ResumenIVA(BaseModel):
+    iva_generado: float = 0.0
+    iva_descontable: float = 0.0
+    iva_a_pagar: float = 0.0
+    iva_a_favor: float = 0.0
+    periodo_inicio: Optional[datetime] = None
+    periodo_fin: Optional[datetime] = None
+
+class LineaAsientoManual(BaseModel):
+    cuenta_codigo: str
+    descripcion: Optional[str] = None
+    debito: float = 0.0
+    credito: float = 0.0
+
+class AsientoManualCreate(BaseModel):
+    fecha: datetime
+    descripcion: str
+    lineas: List[LineaAsientoManual]

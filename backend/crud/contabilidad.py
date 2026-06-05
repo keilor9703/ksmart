@@ -198,3 +198,188 @@ def get_estado_resultados(
         periodo_inicio=fecha_inicio,
         periodo_fin=fecha_fin,
     )
+
+
+# ─── Balance General ──────────────────────────────────────────────────────────
+
+def get_balance_general(
+    db: Session,
+    empresa_id: int,
+    fecha_corte: Optional[datetime] = None,
+) -> dict:
+    inicializar_puc(db, empresa_id)
+    db.commit()
+
+    if fecha_corte is None:
+        from datetime import timezone
+        fecha_corte = datetime.now(timezone.utc)
+
+    cuentas = (
+        db.query(models.CuentaContable)
+        .filter(
+            models.CuentaContable.empresa_id == empresa_id,
+            models.CuentaContable.is_active == True,
+            models.CuentaContable.permite_movimiento == True,
+        )
+        .all()
+    )
+
+    secciones: dict = {
+        "activos": [],
+        "pasivos": [],
+        "patrimonio": [],
+        "total_activos": 0.0,
+        "total_pasivos": 0.0,
+        "total_patrimonio": 0.0,
+        "fecha_corte": fecha_corte,
+    }
+
+    for cuenta in cuentas:
+        row = db.query(
+            func.coalesce(func.sum(models.LineaAsiento.debito), 0).label("d"),
+            func.coalesce(func.sum(models.LineaAsiento.credito), 0).label("c"),
+        ).join(
+            models.AsientoContable,
+            models.LineaAsiento.asiento_id == models.AsientoContable.id,
+        ).filter(
+            models.LineaAsiento.cuenta_contable_id == cuenta.id,
+            models.LineaAsiento.empresa_id == empresa_id,
+            models.AsientoContable.fecha <= fecha_corte,
+        ).one()
+
+        d, c = float(row.d), float(row.c)
+        if d == 0 and c == 0:
+            continue
+
+        saldo = (d - c) if cuenta.naturaleza == "debito" else (c - d)
+        if saldo == 0:
+            continue
+
+        item = {"codigo": cuenta.codigo, "nombre": cuenta.nombre, "saldo": saldo}
+
+        if cuenta.tipo == "activo":
+            secciones["activos"].append(item)
+            secciones["total_activos"] += saldo
+        elif cuenta.tipo == "pasivo":
+            secciones["pasivos"].append(item)
+            secciones["total_pasivos"] += saldo
+        elif cuenta.tipo == "patrimonio":
+            secciones["patrimonio"].append(item)
+            secciones["total_patrimonio"] += saldo
+
+    # Incorporar utilidad del período (ingresos - costos - gastos)
+    # como parte del patrimonio (Resultados del Ejercicio)
+    er = get_estado_resultados(db, empresa_id)
+    if er.utilidad_neta != 0:
+        secciones["patrimonio"].append({
+            "codigo": "3605",
+            "nombre": "Utilidad / (Pérdida) del período",
+            "saldo": er.utilidad_neta,
+        })
+        secciones["total_patrimonio"] += er.utilidad_neta
+
+    secciones["total_pasivos_patrimonio"] = secciones["total_pasivos"] + secciones["total_patrimonio"]
+    return secciones
+
+
+# ─── Resumen IVA (para declaración bimestral DIAN) ───────────────────────────
+
+def get_resumen_iva(
+    db: Session,
+    empresa_id: int,
+    fecha_inicio: Optional[datetime] = None,
+    fecha_fin: Optional[datetime] = None,
+) -> dict:
+    def _saldo_cuenta(codigo: str) -> float:
+        cuenta = db.query(models.CuentaContable).filter(
+            models.CuentaContable.empresa_id == empresa_id,
+            models.CuentaContable.codigo == codigo,
+        ).first()
+        if not cuenta:
+            return 0.0
+        q = db.query(
+            func.coalesce(func.sum(models.LineaAsiento.debito), 0).label("d"),
+            func.coalesce(func.sum(models.LineaAsiento.credito), 0).label("c"),
+        ).join(
+            models.AsientoContable,
+            models.LineaAsiento.asiento_id == models.AsientoContable.id,
+        ).filter(
+            models.LineaAsiento.cuenta_contable_id == cuenta.id,
+            models.LineaAsiento.empresa_id == empresa_id,
+        )
+        if fecha_inicio:
+            q = q.filter(models.AsientoContable.fecha >= fecha_inicio)
+        if fecha_fin:
+            q = q.filter(models.AsientoContable.fecha <= fecha_fin)
+        row = q.one()
+        d, c = float(row.d), float(row.c)
+        return (c - d) if cuenta.naturaleza == "credito" else (d - c)
+
+    iva_generado     = _saldo_cuenta("2408")   # IVA cobrado en ventas
+    iva_descontable  = _saldo_cuenta("1355")   # IVA pagado en compras
+    iva_a_pagar      = max(0.0, iva_generado - iva_descontable)
+    iva_a_favor      = max(0.0, iva_descontable - iva_generado)
+
+    return {
+        "iva_generado":    round(iva_generado, 2),
+        "iva_descontable": round(iva_descontable, 2),
+        "iva_a_pagar":     round(iva_a_pagar, 2),
+        "iva_a_favor":     round(iva_a_favor, 2),
+        "periodo_inicio":  fecha_inicio,
+        "periodo_fin":     fecha_fin,
+    }
+
+
+# ─── Crear asiento manual ─────────────────────────────────────────────────────
+
+def crear_asiento_manual(
+    db: Session,
+    empresa_id: int,
+    fecha: datetime,
+    descripcion: str,
+    lineas: List[dict],  # [{"cuenta_codigo": "1105", "debito": 0, "credito": 100, "descripcion": "..."}]
+) -> models.AsientoContable:
+    from services.contabilidad import _siguiente_numero
+
+    total_d = sum(float(l.get("debito", 0)) for l in lineas)
+    total_c = sum(float(l.get("credito", 0)) for l in lineas)
+
+    if abs(total_d - total_c) > 0.01:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=f"El asiento no cuadra: débitos={total_d:.2f} ≠ créditos={total_c:.2f}")
+
+    numero = _siguiente_numero(db, empresa_id)
+    asiento = models.AsientoContable(
+        empresa_id=empresa_id,
+        numero=numero,
+        fecha=fecha,
+        descripcion=descripcion,
+        tipo_origen="manual",
+        total_debitos=total_d,
+        total_creditos=total_c,
+    )
+    db.add(asiento)
+    db.flush()
+
+    for i, l in enumerate(lineas):
+        codigo = l.get("cuenta_codigo") or l.get("codigo")
+        cuenta = db.query(models.CuentaContable).filter(
+            models.CuentaContable.empresa_id == empresa_id,
+            models.CuentaContable.codigo == codigo,
+        ).first()
+        if not cuenta:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail=f"Cuenta {codigo} no encontrada")
+        db.add(models.LineaAsiento(
+            empresa_id=empresa_id,
+            asiento_id=asiento.id,
+            cuenta_contable_id=cuenta.id,
+            descripcion=l.get("descripcion"),
+            debito=float(l.get("debito", 0)),
+            credito=float(l.get("credito", 0)),
+            orden=i + 1,
+        ))
+
+    db.commit()
+    db.refresh(asiento)
+    return asiento

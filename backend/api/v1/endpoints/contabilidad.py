@@ -92,3 +92,41 @@ def estado_resultados(
     return crud.get_estado_resultados(
         db, current_user.empresa_id, fecha_inicio, fecha_fin
     )
+
+
+# ─── Balance General ──────────────────────────────────────────────────────────
+
+@router.get("/balance-general")
+def balance_general(
+    fecha_corte: Optional[datetime] = Query(None),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_active_user),
+):
+    return crud.get_balance_general(db, current_user.empresa_id, fecha_corte)
+
+
+# ─── Resumen IVA ──────────────────────────────────────────────────────────────
+
+@router.get("/resumen-iva", response_model=schemas.ResumenIVA)
+def resumen_iva(
+    fecha_inicio: Optional[datetime] = Query(None),
+    fecha_fin: Optional[datetime] = Query(None),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_active_user),
+):
+    return crud.get_resumen_iva(db, current_user.empresa_id, fecha_inicio, fecha_fin)
+
+
+# ─── Asiento manual ───────────────────────────────────────────────────────────
+
+@router.post("/asientos", response_model=schemas.AsientoContableOut)
+def crear_asiento_manual(
+    data: schemas.AsientoManualCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_active_user),
+):
+    lineas = [l.dict() for l in data.lineas]
+    return crud.crear_asiento_manual(
+        db, current_user.empresa_id,
+        fecha=data.fecha, descripcion=data.descripcion, lineas=lineas,
+    )
