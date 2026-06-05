@@ -427,6 +427,32 @@ def impersonate_company(
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
+@router.get("/tipos-negocio", response_model=List[schemas.TipoNegocioConfigOut])
+def listar_tipos_negocio(db: Session = Depends(get_db)):
+    """Lista los perfiles de módulos por defecto para cada tipo de negocio."""
+    return db.query(models.TipoNegocioConfig).all()
+
+
+@router.put("/tipos-negocio/{tipo}", response_model=schemas.TipoNegocioConfigOut)
+def actualizar_tipo_negocio(
+    tipo: str,
+    data: schemas.TipoNegocioConfigUpdate,
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(get_current_superadmin_user),
+):
+    """Actualiza los módulos por defecto de un tipo de negocio."""
+    config = db.query(models.TipoNegocioConfig).filter(models.TipoNegocioConfig.tipo == tipo).first()
+    if not config:
+        raise HTTPException(status_code=404, detail=f"Tipo de negocio '{tipo}' no encontrado.")
+    config.modulos = data.modulos
+    if data.label is not None:
+        config.label = data.label
+    db.commit()
+    db.refresh(config)
+    crud_empresas.log_saas_event(db, current_admin.id, "UPDATE_TIPO_NEGOCIO", None, {"tipo": tipo, "modulos_count": len(data.modulos)})
+    return config
+
+
 @router.post("/notificar-vencimientos-lotes")
 def notificar_vencimientos_lotes(db: Session = Depends(get_db), _: models.User = Depends(get_current_superadmin_user)):
     """

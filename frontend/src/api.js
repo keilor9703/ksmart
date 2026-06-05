@@ -194,4 +194,8 @@ export const fetchPlanesPublicos = () => apiClient.get('/planes-activos');
 export const fetchDashboardStats = () => apiClient.get('/superadmin/dashboard-stats');
 export const fetchAuditLogs = (params = {}) => apiClient.get('/superadmin/audit-logs', { params });
 
+// Configuración de módulos por tipo de negocio
+export const fetchTiposNegocio = () => apiClient.get('/superadmin/tipos-negocio');
+export const updateTipoNegocio = (tipo, data) => apiClient.put(`/superadmin/tipos-negocio/${tipo}`, data);
+
 export default apiClient;

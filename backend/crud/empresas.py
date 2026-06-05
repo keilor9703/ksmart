@@ -99,9 +99,10 @@ def create_empresa_with_admin(db: Session, data: schemas.EmpresaWithAdminCreate,
     ahora_utc = datetime.now(timezone.utc)
     fin_prueba = ahora_utc + timedelta(days=14) 
 
-    # Determinar módulos según tipo de negocio
+    # Determinar módulos según tipo de negocio (DB primero, fallback a PERFILES)
     tipo = data.empresa.tipo_negocio or "erp"
-    modulos = PERFILES.get(tipo, PERFILES["erp"])
+    config_db = db.query(models.TipoNegocioConfig).filter(models.TipoNegocioConfig.tipo == tipo).first()
+    modulos = config_db.modulos if config_db else PERFILES.get(tipo, PERFILES["erp"])
 
     db_empresa = models.Empresa(
         nombre=data.empresa.nombre,

@@ -32,7 +32,8 @@ def registrar_nuevo_cliente(request: Request, data: schemas.RegistroSaaS, db: Se
         if existing_email:
             raise HTTPException(status_code=400, detail="Este correo ya está registrado. ¿Quieres iniciar sesión?")
 
-    modulos = PERFILES.get(data.tipo_negocio, PERFILES["erp"])
+    config_db = db.query(models.TipoNegocioConfig).filter(models.TipoNegocioConfig.tipo == data.tipo_negocio).first()
+    modulos = config_db.modulos if config_db else PERFILES.get(data.tipo_negocio, PERFILES["erp"])
 
     try:
         nueva_emp = models.Empresa(

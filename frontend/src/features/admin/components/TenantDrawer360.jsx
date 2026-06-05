@@ -198,15 +198,9 @@ const TenantDrawer360 = ({ open, onClose, tenant, onImpersonate, onOpenPlan, onO
                     <Button fullWidth variant="outlined" color={tenant.is_active ? "error" : "success"} startIcon={tenant.is_active ? <Block /> : <CheckCircle />} onClick={() => onToggleStatus(tenant.id, tenant.is_active)} sx={{ borderRadius: 2, fontWeight: 700 }}>
                         {tenant.is_active ? "Suspender Inquilino" : "Activar Inquilino"}
                     </Button>
-                    {tenant.id !== 1 && (
-                        <Button
-                            fullWidth
-                            variant="contained"
-                            color="error"
-                            startIcon={<DeleteForever />}
-                            onClick={() => onDelete(tenant)}
-                            sx={{ borderRadius: 2, fontWeight: 700, bgcolor: '#b91c1c', '&:hover': { bgcolor: '#991b1b' } }}
-                        >
+                    {tenant.id !== 1 && onDelete && (
+                        <Button fullWidth variant="contained" startIcon={<DeleteForever />} onClick={() => onDelete(tenant)}
+                            sx={{ bgcolor: '#b91c1c', '&:hover': { bgcolor: '#991b1b' }, borderRadius: 2, fontWeight: 700 }}>
                             Eliminar empresa permanentemente
                         </Button>
                     )}

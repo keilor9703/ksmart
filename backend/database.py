@@ -1479,6 +1479,51 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v77)
                 logger.info("V77 (Lavadero ordenes + config) aplicada.")
 
+            # V78 - Configuración dinámica de módulos por tipo de negocio
+            migration_v78 = "v78_tipo_negocio_config"
+            if not _migration_already_applied(conn, migration_v78):
+                if not _table_exists(conn, "tipo_negocio_config"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE tipo_negocio_config (
+                                tipo VARCHAR(50) PRIMARY KEY,
+                                label VARCHAR(100),
+                                modulos JSON NOT NULL
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE tipo_negocio_config (
+                                tipo VARCHAR(50) PRIMARY KEY,
+                                label VARCHAR(100),
+                                modulos JSONB NOT NULL
+                            )
+                        """))
+
+                # Seed con los perfiles actuales de PERFILES en config.py
+                perfiles_seed = [
+                    ("erp",         "ERP General",     '["/ventas","/cotizaciones","/admin/resoluciones","/compras","/clientes","/productos","/inventario","/inventario/lotes","/reportes-inventario","/caja","/produccion/recetas","/produccion/lotes","/ordenes-trabajo","/panel-operador","/reportes","/admin/usuarios"]'),
+                    ("prestamos",   "Préstamos",        '["/clientes","/prestamos","/ruta-cobro","/caja","/reportes","/admin/usuarios"]'),
+                    ("parqueadero", "Parqueadero",      '["/parqueadero","/parqueadero/buscar","/parqueadero/vehiculos","/parqueadero/suscripciones","/parqueadero/config","/clientes","/caja","/reportes","/admin/usuarios"]'),
+                    ("lavadero",    "Lavadero",         '["/lavadero/ventas","/lavadero/reporte","/clientes","/productos","/caja","/reportes","/admin/usuarios"]'),
+                    ("restaurante", "Restaurante",      '["/restaurante","/restaurante/cocina","/restaurante/config","/restaurante/caja","/ventas","/cotizaciones","/clientes","/productos","/inventario","/inventario/lotes","/reportes-inventario","/compras","/caja","/reportes","/admin/usuarios"]'),
+                ]
+                for tipo, label, modulos_json in perfiles_seed:
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            INSERT OR IGNORE INTO tipo_negocio_config(tipo, label, modulos)
+                            VALUES(:tipo, :label, :modulos)
+                        """), {"tipo": tipo, "label": label, "modulos": modulos_json})
+                    else:
+                        conn.execute(text("""
+                            INSERT INTO tipo_negocio_config(tipo, label, modulos)
+                            VALUES(:tipo, :label, :modulos::jsonb)
+                            ON CONFLICT(tipo) DO NOTHING
+                        """), {"tipo": tipo, "label": label, "modulos": modulos_json})
+
+                _mark_migration_applied(conn, migration_v78)
+                logger.info("V78 (tipo_negocio_config) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

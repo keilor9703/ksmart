@@ -1142,6 +1142,17 @@ class EmpresaModulosUpdate(BaseModel):
     modulos: List[str]
 
 
+class TipoNegocioConfigOut(BaseModel):
+    tipo: str
+    label: Optional[str] = None
+    modulos: List[str] = []
+    model_config = ConfigDict(from_attributes=True)
+
+class TipoNegocioConfigUpdate(BaseModel):
+    modulos: List[str]
+    label: Optional[str] = None
+
+
 
 # =========================
 # REGISTRO AUTOSERVICIO (SAAS)
