@@ -1556,14 +1556,12 @@ def run_migrations():
             # ═══════════════════════════════════════════════════════════════
             migration_v80 = "v80_tipo_negocio_origen_venta"
             if not _migration_already_applied(conn, migration_v80):
-                emp_cols = [c['name'] for c in inspector.get_columns('empresas')]
-                if 'tipo_negocio' not in emp_cols:
+                if not _column_exists(conn, 'empresas', 'tipo_negocio'):
                     conn.execute(text("ALTER TABLE empresas ADD COLUMN tipo_negocio VARCHAR(30) NOT NULL DEFAULT 'erp'"))
                     conn.commit()
                     logger.info("V80: añadido empresas.tipo_negocio")
 
-                venta_cols = [c['name'] for c in inspector.get_columns('ventas')]
-                if 'origen' not in venta_cols:
+                if not _column_exists(conn, 'ventas', 'origen'):
                     conn.execute(text("ALTER TABLE ventas ADD COLUMN origen VARCHAR(40) DEFAULT 'erp'"))
                     conn.commit()
                     logger.info("V80: añadido ventas.origen")
