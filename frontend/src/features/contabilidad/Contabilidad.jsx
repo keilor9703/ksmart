@@ -9,7 +9,6 @@ import {
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { es } from 'date-fns/locale/es';
 import {
   AutoAwesome, ExpandMore, ExpandLess, AccountBalance,
   TrendingUp, Balance, MenuBook, Add, Delete, Receipt,
@@ -834,7 +833,7 @@ export default function Contabilidad() {
   const [fechaFin, setFechaFin] = useState(endOfMonth(new Date()));
 
   return (
-    <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
+    <LocalizationProvider dateAdapter={AdapterDateFns}>
       <Box sx={{ p: { xs: 1, md: 3 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3, flexWrap: 'wrap' }}>
           <AutoAwesome sx={{ color: '#6366F1', fontSize: 30 }} />
