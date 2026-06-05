@@ -384,6 +384,7 @@ const Login = ({ onLogin }) => {
     const [isLoginView, setIsLoginView]   = useState(true);
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading]           = useState(false);
+    const [loginFailed, setLoginFailed]   = useState(false);
     const [regStep, setRegStep]           = useState(1);
     const [regSuccess, setRegSuccess]     = useState(false);
     const [rememberMe, setRememberMe]     = useState(false);
@@ -457,7 +458,7 @@ const Login = ({ onLogin }) => {
         isEmail(regData.email) &&
         isPhone(regData.telefono) &&
         regData.username.trim().length >= 3 &&
-        regData.password.length >= 8 &&
+        regData.password.length >= 1 &&
         regData.password === regData.confirmPassword &&
         regData.acepta_terminos;
 
@@ -489,6 +490,7 @@ const Login = ({ onLogin }) => {
     const handleLoginSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
+        setLoginFailed(false);
         try {
             const url = `/auth/token${rememberMe ? '?remember_me=true' : ''}`;
             const response = await apiClient.post(
@@ -500,8 +502,12 @@ const Login = ({ onLogin }) => {
         } catch (err) {
             const httpStatus = err.response?.status;
             const detail = err.response?.data?.detail;
-            if (httpStatus === 403) toast.error(detail || 'Cuenta suspendida por el administrador.');
-            else toast.error(detail || 'Usuario o contraseña incorrectos');
+            if (httpStatus === 403) {
+                toast.error(detail || 'Cuenta suspendida por el administrador.');
+            } else {
+                toast.error(detail || 'Usuario o contraseña incorrectos');
+                setLoginFailed(true);
+            }
         } finally {
             setLoading(false);
         }
@@ -913,6 +919,26 @@ const Login = ({ onLogin }) => {
                                         </Box>
                                     ) : 'Ingresar al sistema'}
                                 </Button>
+
+                                {loginFailed && (
+                                    <Box sx={{
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        gap: 1, p: 1.5, borderRadius: 2.5,
+                                        bgcolor: 'rgba(249,115,22,0.08)',
+                                        border: '1px solid rgba(249,115,22,0.2)',
+                                        animation: `${slideUp} 0.3s ease`,
+                                    }}>
+                                        <Typography sx={{ fontSize: 13, color: '#94a3b8' }}>
+                                            ¿No tienes cuenta?
+                                        </Typography>
+                                        <Typography
+                                            onClick={switchToRegister}
+                                            sx={{ fontSize: 13, fontWeight: 700, color: '#f97316', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                                        >
+                                            Crea tu empresa gratis →
+                                        </Typography>
+                                    </Box>
+                                )}
 
                                 <BotonHuella
                                     modo="login"
