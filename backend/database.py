@@ -1524,6 +1524,33 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v78)
                 logger.info("V78 (tipo_negocio_config) aplicada.")
 
+            # V79 - Username único por empresa (multitenancy)
+            migration_v79 = "v79_username_unique_per_empresa"
+            if not _migration_already_applied(conn, migration_v79):
+                if IS_SQLITE:
+                    # Drop old global unique index if it exists
+                    if _index_exists(conn, "ix_users_username"):
+                        conn.execute(text("DROP INDEX ix_users_username"))
+                        logger.info("V79: eliminado índice global ix_users_username en SQLite")
+                    if not _index_exists(conn, "uq_user_username_empresa"):
+                        conn.execute(text(
+                            "CREATE UNIQUE INDEX uq_user_username_empresa ON users(username, empresa_id)"
+                        ))
+                        logger.info("V79: creado índice compuesto uq_user_username_empresa en SQLite")
+                else:
+                    # PostgreSQL: drop old unique constraint/index, create compound one
+                    conn.execute(text("DROP INDEX IF EXISTS ix_users_username"))
+                    conn.execute(text(
+                        "ALTER TABLE users DROP CONSTRAINT IF EXISTS users_username_key"
+                    ))
+                    if not _index_exists(conn, "uq_user_username_empresa"):
+                        conn.execute(text(
+                            "CREATE UNIQUE INDEX uq_user_username_empresa ON users(username, empresa_id)"
+                        ))
+                        logger.info("V79: creado índice compuesto uq_user_username_empresa en PostgreSQL")
+                _mark_migration_applied(conn, migration_v79)
+                logger.info("V79 (username único por empresa) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
