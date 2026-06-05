@@ -8,6 +8,7 @@ import {
 import {
     Search, ShoppingCart, PersonOutline, AddCircle, RemoveCircle, Delete,
     ExpandMore, Add, CloseRounded, Inventory2, QrCodeScanner, Videocam, VideocamOff,
+    Stars,
 } from '@mui/icons-material';
 import { formatCurrency } from '../../utils/formatters';
 import CurrencyField from '../../components/common/CurrencyField';
@@ -207,12 +208,14 @@ const CartPanel = ({
     openQuickCreate, isDark, onClose,
     omitirInventario, setOmitirInventario,
     linkPagoConfig,
+    fidelizacionActiva, clientePuntos, puntosACanjear, setPuntosACanjear, redeemRate,
 }) => {
     const validItems = saleDetails.filter(d => d.producto && d.cantidad > 0);
     const subtotal = calculateSubtotal();
     const ivaPorc = parseFloat(ivaPorcentajeGlobal) || 0;
     const ivaAmount = ivaPorc > 0 ? subtotal * ivaPorc / (100 + ivaPorc) : 0; // IVA incluido
-    const total = subtotal; // precio ya incluye IVA
+    const descuentoPuntos = (puntosACanjear || 0) * (redeemRate || 100);
+    const total = Math.max(0, subtotal - descuentoPuntos);
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -383,10 +386,55 @@ const CartPanel = ({
                     }}>
                         Total a cobrar
                     </Typography>
-                    <Typography sx={{ fontSize: 34, fontWeight: 900, color: ACCENT, lineHeight: 1.1 }}>
-                        {formatCurrency(total)}
-                    </Typography>
+                    {descuentoPuntos > 0 ? (
+                        <>
+                            <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'text.secondary', textDecoration: 'line-through', lineHeight: 1.1 }}>
+                                {formatCurrency(subtotal)}
+                            </Typography>
+                            <Typography sx={{ fontSize: 34, fontWeight: 900, color: ACCENT, lineHeight: 1.1 }}>
+                                {formatCurrency(total)}
+                            </Typography>
+                            <Chip label={`-${formatCurrency(descuentoPuntos)} puntos`} size="small"
+                                sx={{ mt: 0.3, bgcolor: '#10B98118', color: '#10B981', fontWeight: 700, fontSize: 9 }} />
+                        </>
+                    ) : (
+                        <Typography sx={{ fontSize: 34, fontWeight: 900, color: ACCENT, lineHeight: 1.1 }}>
+                            {formatCurrency(total)}
+                        </Typography>
+                    )}
                 </Box>
+
+                {/* Puntos de fidelización */}
+                {fidelizacionActiva && cliente && !isMostrador && clientePuntos > 0 && (
+                    <Box sx={{ mb: 1, p: 1, borderRadius: 1.5, bgcolor: '#10B98108', border: '1px solid #10B98128' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                            <Stars sx={{ fontSize: 13, color: '#10B981' }} />
+                            <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#10B981', flex: 1 }}>
+                                {clientePuntos} pts disponibles
+                            </Typography>
+                            <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>
+                                = {formatCurrency(clientePuntos * (redeemRate || 100))}
+                            </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                            {[0, Math.floor(clientePuntos * 0.5), clientePuntos].filter((v, i, a) => a.indexOf(v) === i).map(pts => (
+                                <Chip
+                                    key={pts}
+                                    label={pts === 0 ? 'Sin canje' : pts === clientePuntos ? 'Todo' : `${pts} pts`}
+                                    size="small"
+                                    onClick={() => setPuntosACanjear(pts)}
+                                    sx={{
+                                        fontSize: 9, fontWeight: 700, cursor: 'pointer', height: 20,
+                                        bgcolor: puntosACanjear === pts ? '#10B98120' : 'background.paper',
+                                        color: puntosACanjear === pts ? '#10B981' : 'text.secondary',
+                                        border: '1px solid',
+                                        borderColor: puntosACanjear === pts ? '#10B981' : 'divider',
+                                    }}
+                                />
+                            ))}
+                        </Box>
+                    </Box>
+                )}
 
                 {/* Payment methods */}
                 <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 1, justifyContent: 'center' }}>
@@ -585,6 +633,7 @@ const TouchPOSMode = ({
     openQuickCreate, isDark,
     omitirInventario, setOmitirInventario,
     linkPagoConfig,
+    fidelizacionActiva, clientePuntos, puntosACanjear, setPuntosACanjear, redeemRate,
 }) => {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -785,6 +834,7 @@ const TouchPOSMode = ({
         openQuickCreate, isDark,
         omitirInventario, setOmitirInventario,
         linkPagoConfig,
+        fidelizacionActiva, clientePuntos, puntosACanjear, setPuntosACanjear, redeemRate,
     };
 
     return (

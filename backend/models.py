@@ -84,6 +84,11 @@ class Empresa(Base):
     # Configuración de ventas
     omitir_inventario     = Column(Boolean, default=False)
 
+    # Programa de fidelización (puntos canjeables)
+    fidelizacion_activa      = Column(Boolean, default=True)
+    fidelizacion_earn_rate   = Column(Integer, default=1000)  # COP por punto ganado
+    fidelizacion_redeem_rate = Column(Integer, default=100)   # COP de descuento por punto
+
 
 class SaaSAnnouncement(Base):
     """Anuncios globales para todos los inquilinos"""

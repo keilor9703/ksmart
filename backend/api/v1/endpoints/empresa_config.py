@@ -122,7 +122,10 @@ def get_config_ventas(
 ):
     empresa = db.query(models.Empresa).filter_by(id=current_user.empresa_id).first()
     return {
-        "omitir_inventario": getattr(empresa, "omitir_inventario", False) or False,
+        "omitir_inventario":       getattr(empresa, "omitir_inventario",       False) or False,
+        "fidelizacion_activa":     getattr(empresa, "fidelizacion_activa",     True)  if getattr(empresa, "fidelizacion_activa", None) is not None else True,
+        "fidelizacion_earn_rate":  getattr(empresa, "fidelizacion_earn_rate",  1000)  or 1000,
+        "fidelizacion_redeem_rate":getattr(empresa, "fidelizacion_redeem_rate",100)   or 100,
     }
 
 
@@ -218,5 +221,22 @@ def update_config_ventas(
         raise HTTPException(status_code=404, detail="Empresa no encontrada.")
     if "omitir_inventario" in payload:
         empresa.omitir_inventario = bool(payload["omitir_inventario"])
+    if "fidelizacion_activa" in payload:
+        empresa.fidelizacion_activa = bool(payload["fidelizacion_activa"])
+    if "fidelizacion_earn_rate" in payload:
+        rate = int(payload["fidelizacion_earn_rate"])
+        if rate < 1:
+            raise HTTPException(status_code=400, detail="earn_rate debe ser >= 1.")
+        empresa.fidelizacion_earn_rate = rate
+    if "fidelizacion_redeem_rate" in payload:
+        rate = int(payload["fidelizacion_redeem_rate"])
+        if rate < 1:
+            raise HTTPException(status_code=400, detail="redeem_rate debe ser >= 1.")
+        empresa.fidelizacion_redeem_rate = rate
     db.commit()
-    return {"omitir_inventario": empresa.omitir_inventario}
+    return {
+        "omitir_inventario":        empresa.omitir_inventario,
+        "fidelizacion_activa":      empresa.fidelizacion_activa,
+        "fidelizacion_earn_rate":   empresa.fidelizacion_earn_rate,
+        "fidelizacion_redeem_rate": empresa.fidelizacion_redeem_rate,
+    }

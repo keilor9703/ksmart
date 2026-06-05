@@ -9,7 +9,7 @@ import {
   DirectionsCar, Add, Remove, DeleteOutline, LocalCarWash,
   TwoWheeler, LocalShipping, DriveEta, ClearAll, Notes,
   Refresh, AccessTime, AttachMoney, CheckCircle, PlayArrow,
-  Done, Close, Person, WhatsApp, Print, Storefront, QrCode2,
+  Done, Close, Person, WhatsApp, Print, Storefront, QrCode2, Stars,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
@@ -228,6 +228,11 @@ export default function LavaderoVentas({ user }) {
   const [metodoLinkQR,  setMetodoLinkQR]  = useState(null);
   const [linkPagoOpen,  setLinkPagoOpen]  = useState(false);
 
+  /* ── Fidelización ──────────────────────────────────────────────────────── */
+  const [configFidel,     setConfigFidel]     = useState({ activa: true, redeem_rate: 100 });
+  const [cobrarPuntos,    setCobrarPuntos]    = useState(0);   // puntos disponibles del cliente
+  const [puntosACanjear,  setPuntosACanjear]  = useState(0);
+
   /* ── Computed ─────────────────────────────────────────────────────────── */
   const metodosDisponibles = useMemo(
     () => metodoLinkQR
@@ -236,12 +241,12 @@ export default function LavaderoVentas({ user }) {
     [metodoLinkQR],
   );
 
-  const devuelta = useMemo(
-    () => metodoPago === 'Efectivo' && montoRecibido > 0
-      ? montoRecibido - (cobrarOrden?.total || 0)
-      : null,
-    [metodoPago, montoRecibido, cobrarOrden],
-  );
+  const devuelta = useMemo(() => {
+    if (metodoPago !== 'Efectivo' || montoRecibido <= 0) return null;
+    const descPts = puntosACanjear * (configFidel.redeem_rate || 100);
+    const totalFinal = Math.max(0, (cobrarOrden?.total || 0) - descPts);
+    return montoRecibido - totalFinal;
+  }, [metodoPago, montoRecibido, cobrarOrden, puntosACanjear, configFidel.redeem_rate]);
 
   /* ── Fetchers ─────────────────────────────────────────────────────────── */
   const fetchOrdenes = useCallback(async () => {
@@ -291,7 +296,24 @@ export default function LavaderoVentas({ user }) {
     fetchClientes();
     fetchConfig();
     apiClient.get('/empresa/link-pago').then(({ data }) => setMetodoLinkQR(data || null)).catch(() => {});
+    apiClient.get('/empresa/config-ventas').then(({ data }) => setConfigFidel({
+      activa:      data.fidelizacion_activa     ?? true,
+      redeem_rate: data.fidelizacion_redeem_rate ?? 100,
+    })).catch(() => {});
   }, [fetchOrdenes, fetchItems, fetchTrabajadores, fetchClientes, fetchConfig]);
+
+  // Fetch puntos cuando se selecciona una orden para cobrar
+  useEffect(() => {
+    if (!cobrarOrden?.cliente_id || !configFidel.activa) {
+      setCobrarPuntos(0);
+      setPuntosACanjear(0);
+      return;
+    }
+    apiClient.get(`/clientes/${cobrarOrden.cliente_id}/puntos`)
+      .then(({ data }) => setCobrarPuntos(data.puntos_disponibles || 0))
+      .catch(() => setCobrarPuntos(0));
+    setPuntosACanjear(0);
+  }, [cobrarOrden, configFidel.activa]);
 
   useEffect(() => {
     const id = setInterval(() => { fetchOrdenes(); setTick(t => t + 1); }, 30000);
@@ -388,9 +410,13 @@ export default function LavaderoVentas({ user }) {
     setCobrando(true);
     try {
       const metodoReal = metodoPago === 'Link/QR' ? (metodoLinkQR?.nombre || 'Link/QR') : metodoPago;
+      const descuentoPts = puntosACanjear * (configFidel.redeem_rate || 100);
+      const totalFinal = Math.max(0, (cobrarOrden.total || 0) - descuentoPts);
       const { data: resData } = await apiClient.post(`/lavadero/ordenes/${cobrarOrden.id}/cobrar`, {
-        metodo_pago:  metodoReal,
-        monto_pagado: cobrarOrden.total,
+        metodo_pago:      metodoReal,
+        monto_pagado:     totalFinal,
+        puntos_canjeados: puntosACanjear || 0,
+        descuento_puntos: descuentoPts || 0,
       });
       setCobraData(resData);
       fetchOrdenes();
@@ -812,7 +838,7 @@ export default function LavaderoVentas({ user }) {
       <Dialog
         open={!!cobrarOrden}
         onClose={() => { if (!cobrando) setCobrarOrden(null); }}
-        TransitionProps={{ onExited: () => { setCobraData(null); setMontoRecibido(0); } }}
+        TransitionProps={{ onExited: () => { setCobraData(null); setMontoRecibido(0); setCobrarPuntos(0); setPuntosACanjear(0); } }}
         maxWidth="xs" fullWidth
         PaperProps={{ sx: { borderRadius: 3 } }}
       >
@@ -933,6 +959,54 @@ export default function LavaderoVentas({ user }) {
                       </Typography>
                     </Box>
                   </Box>
+
+                  {/* Puntos de fidelización */}
+                  {configFidel.activa && cobrarOrden?.cliente_id && cobrarPuntos > 0 && (() => {
+                    const descPts = puntosACanjear * (configFidel.redeem_rate || 100);
+                    const totalFinal = Math.max(0, (cobrarOrden.total || 0) - descPts);
+                    return (
+                      <Box sx={{ mb: 2, p: 1.5, borderRadius: 2, bgcolor: '#10B98108', border: '1px solid #10B98128' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
+                          <Stars sx={{ fontSize: 15, color: GREEN }} />
+                          <Typography sx={{ fontSize: 12, fontWeight: 700, color: GREEN, flex: 1 }}>
+                            {cobrarPuntos} puntos disponibles
+                          </Typography>
+                          <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
+                            = {formatCurrency(cobrarPuntos * (configFidel.redeem_rate || 100))}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap', mb: descPts > 0 ? 1 : 0 }}>
+                          {[0, Math.floor(cobrarPuntos * 0.5), cobrarPuntos]
+                            .filter((v, i, a) => a.indexOf(v) === i)
+                            .map(pts => (
+                              <Chip
+                                key={pts}
+                                label={pts === 0 ? 'Sin canje' : pts === cobrarPuntos ? 'Todo' : `${pts} pts`}
+                                size="small"
+                                onClick={() => setPuntosACanjear(pts)}
+                                sx={{
+                                  cursor: 'pointer', fontWeight: 600, fontSize: 11,
+                                  bgcolor: puntosACanjear === pts ? GREEN : 'action.hover',
+                                  color:   puntosACanjear === pts ? 'white' : 'text.primary',
+                                }}
+                              />
+                            ))}
+                        </Box>
+                        {descPts > 0 && (
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Descuento puntos:</Typography>
+                            <Typography sx={{ fontSize: 13, fontWeight: 800, color: GREEN }}>-{formatCurrency(descPts)}</Typography>
+                          </Box>
+                        )}
+                        {descPts > 0 && (
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 0.5 }}>
+                            <Typography sx={{ fontSize: 12, fontWeight: 700 }}>Total a cobrar:</Typography>
+                            <Typography sx={{ fontSize: 16, fontWeight: 900, color: ACCENT }}>{formatCurrency(totalFinal)}</Typography>
+                          </Box>
+                        )}
+                      </Box>
+                    );
+                  })()}
 
                   {/* Método de pago */}
                   <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>

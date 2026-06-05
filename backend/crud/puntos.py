@@ -2,8 +2,12 @@ import math
 from sqlalchemy.orm import Session
 import models
 
-EARN_RATE   = 1000  # COP por punto ganado (1 punto cada $1.000)
-REDEEM_RATE = 100   # COP de descuento por punto canjeado (1 punto = $100)
+DEFAULT_EARN_RATE   = 1000  # COP por punto ganado (1 punto cada $1.000)
+DEFAULT_REDEEM_RATE = 100   # COP de descuento por punto canjeado (1 punto = $100)
+
+# Keep old names for backwards compat with puntos.py endpoint
+EARN_RATE   = DEFAULT_EARN_RATE
+REDEEM_RATE = DEFAULT_REDEEM_RATE
 
 
 def get_puntos_disponibles(db: Session, empresa_id: int, cliente_id: int) -> int:
@@ -21,8 +25,9 @@ def ganar_puntos_venta(
     total_venta: float,
     venta_id: int,
     commit: bool = True,
+    earn_rate: int = DEFAULT_EARN_RATE,
 ) -> int:
-    puntos = math.floor(total_venta / EARN_RATE)
+    puntos = math.floor(total_venta / max(earn_rate, 1))
     if puntos <= 0:
         return 0
 
@@ -54,6 +59,7 @@ def canjear_puntos(
     cliente_id: int,
     puntos_a_canjear: int,
     commit: bool = True,
+    redeem_rate: int = DEFAULT_REDEEM_RATE,
 ) -> float:
     cliente = db.query(models.Cliente).filter(
         models.Cliente.empresa_id == empresa_id,
@@ -65,7 +71,7 @@ def canjear_puntos(
     if disponibles < puntos_a_canjear:
         raise ValueError(f"Puntos insuficientes. Disponibles: {disponibles}")
 
-    descuento = puntos_a_canjear * REDEEM_RATE
+    descuento = puntos_a_canjear * redeem_rate
     cliente.puntos_fidelidad = disponibles - puntos_a_canjear
     db.add(cliente)
     db.add(models.MovimientoPuntos(

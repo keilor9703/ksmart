@@ -44,7 +44,7 @@ const METODOS_PAGO = [
     { value: 'Link de Pago',  label: '📲 Link/QR',        pagada: true,  color: '#FF6020', digital: true },
 ];
 
-const PUNTOS_REDEEM_RATE = 100; // $100 COP por punto
+const PUNTOS_REDEEM_RATE_DEFAULT = 100;
 
 // ─── Tab Panel ────────────────────────────────────────────────────────────────
 function TabPanel({ children, value, index }) {
@@ -340,6 +340,9 @@ const Ventas = ({ user }) => {
     // ── Fidelización ──
     const [clientePuntos, setClientePuntos]   = useState(0);
     const [puntosACanjear, setPuntosACanjear] = useState(0);
+    const [configFidelizacion, setConfigFidelizacion] = useState({
+        activa: true, redeem_rate: PUNTOS_REDEEM_RATE_DEFAULT,
+    });
     // ── Omitir inventario (local, por venta, se resetea con cada nueva venta) ──
     const [omitirInventario, setOmitirInventario] = useState(false);
     // Ref para que handleVentaSubmit siempre lea el valor más reciente
@@ -386,6 +389,10 @@ const Ventas = ({ user }) => {
     useEffect(() => {
         fetchVentas(); fetchClientes(); fetchProductos(); fetchVentasSummary(); fetchGrupos();
         apiClient.get('/empresa/link-pago').then(r => setLinkPagoConfig(r.data)).catch(() => {});
+        apiClient.get('/empresa/config-ventas').then(r => setConfigFidelizacion({
+            activa:      r.data.fidelizacion_activa     ?? true,
+            redeem_rate: r.data.fidelizacion_redeem_rate ?? PUNTOS_REDEEM_RATE_DEFAULT,
+        })).catch(() => {});
     }, []);
 
     const fetchVentas        = () => apiClient.get('/ventas/').then(r => setVentas(r.data)).catch(console.error);
@@ -688,7 +695,7 @@ useEffect(() => {
         const validDetails = saleDetails.filter(d => d.isLibre ? d.precioUnitario > 0 : (d.producto !== null && d.cantidad > 0));
         if (validDetails.length === 0) { toast.error('Agrega al menos un producto al carrito.'); return; }
 
-        const descuentoPuntosImporte = puntosACanjear * PUNTOS_REDEEM_RATE;
+        const descuentoPuntosImporte = puntosACanjear * (configFidelizacion.redeem_rate || PUNTOS_REDEEM_RATE_DEFAULT);
 
         // ── Link de Pago — mostrar QR/URL al cliente antes de registrar ──
         if (pagada && metodoPago === 'Link de Pago' && !pendingVentaRef.current) {
@@ -815,7 +822,7 @@ useEffect(() => {
         a.click(); URL.revokeObjectURL(url);
     };
     const totalConIva = calculateSubtotal(); // IVA incluido: total no cambia
-    const descuentoPuntosImporte = puntosACanjear * PUNTOS_REDEEM_RATE;
+    const descuentoPuntosImporte = puntosACanjear * (configFidelizacion.redeem_rate || PUNTOS_REDEEM_RATE_DEFAULT);
     const totalFinal = Math.max(0, totalConIva - descuentoPuntosImporte);
     const cambioEfectivo = valorRecibido - totalFinal;
 
@@ -1187,6 +1194,11 @@ useEffect(() => {
                                 omitirInventario={omitirInventario}
                                 setOmitirInventario={setOmitirInventario}
                                 linkPagoConfig={linkPagoConfig}
+                                fidelizacionActiva={configFidelizacion.activa}
+                                clientePuntos={clientePuntos}
+                                puntosACanjear={puntosACanjear}
+                                setPuntosACanjear={setPuntosACanjear}
+                                redeemRate={configFidelizacion.redeem_rate || PUNTOS_REDEEM_RATE_DEFAULT}
                             />
                         </Box>
                     )}
@@ -1266,7 +1278,7 @@ useEffect(() => {
                             </Box>
 
                             {/* ── Puntos de fidelización ── */}
-                            {cliente && !isMostrador && clientePuntos > 0 && (
+                            {configFidelizacion.activa && cliente && !isMostrador && clientePuntos > 0 && (
                                 <Box sx={{ mb: 2, p: 1.5, borderRadius: 2, bgcolor: '#10B98108', border: '1px solid #10B98128' }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
@@ -1275,7 +1287,7 @@ useEffect(() => {
                                                 {clientePuntos} puntos disponibles
                                             </Typography>
                                             <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
-                                                (= {formatCurrency(clientePuntos * PUNTOS_REDEEM_RATE)} de descuento)
+                                                (= {formatCurrency(clientePuntos * (configFidelizacion.redeem_rate || PUNTOS_REDEEM_RATE_DEFAULT))} de descuento)
                                             </Typography>
                                         </Box>
                                         {puntosACanjear > 0 && (

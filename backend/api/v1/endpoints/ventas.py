@@ -145,14 +145,20 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
 
     if db_venta.cliente_id and venta.pagada:
         try:
-            from crud.puntos import ganar_puntos_venta, canjear_puntos
-            # Deduct redeemed points first (already discounted from total)
-            if venta.puntos_canjeados and venta.puntos_canjeados > 0:
-                canjear_puntos(db, empresa_id=empresa_id, cliente_id=db_venta.cliente_id,
-                               puntos_a_canjear=venta.puntos_canjeados)
-            # Earn points on net total paid
-            ganar_puntos_venta(db, empresa_id=empresa_id, cliente_id=db_venta.cliente_id,
-                               total_venta=float(db_venta.total or 0), venta_id=db_venta.id)
+            empresa_obj = db.query(models.Empresa).filter_by(id=empresa_id).first()
+            fidel_activa = getattr(empresa_obj, "fidelizacion_activa", True)
+            if fidel_activa is None:
+                fidel_activa = True
+            if fidel_activa:
+                from crud.puntos import ganar_puntos_venta, canjear_puntos
+                earn_rate   = getattr(empresa_obj, "fidelizacion_earn_rate",   1000) or 1000
+                redeem_rate = getattr(empresa_obj, "fidelizacion_redeem_rate", 100)  or 100
+                if venta.puntos_canjeados and venta.puntos_canjeados > 0:
+                    canjear_puntos(db, empresa_id=empresa_id, cliente_id=db_venta.cliente_id,
+                                   puntos_a_canjear=venta.puntos_canjeados, redeem_rate=redeem_rate)
+                ganar_puntos_venta(db, empresa_id=empresa_id, cliente_id=db_venta.cliente_id,
+                                   total_venta=float(db_venta.total or 0), venta_id=db_venta.id,
+                                   earn_rate=earn_rate)
         except Exception:
             pass  # Points are non-critical; never block the sale
 

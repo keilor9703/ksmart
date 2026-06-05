@@ -5,7 +5,7 @@ import {
   Table, TableBody, TableRow, TableCell, TableHead, TableContainer,
   Collapse, IconButton, Tooltip, Dialog, DialogTitle,
   DialogContent, DialogActions, Tabs, Tab, TextField, MenuItem,
-  InputAdornment,
+  InputAdornment, Switch, FormControlLabel,
 } from '@mui/material';
 import {
   WorkspacePremium, CheckCircle, Warning, Cancel, Refresh,
@@ -14,7 +14,7 @@ import {
   Payments, HourglassBottom, Bolt, Shield,
   Close, QrCode2, Business, Person, Lock, Save,
   Language, LocationOn, Groups, Visibility, VisibilityOff,
-  OpenInNew, Email, Phone,
+  OpenInNew, Email, Phone, Stars,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
@@ -481,6 +481,9 @@ const MiEmpresaTab = () => {
   });
   const [pwd, setPwd] = useState({ password_actual: '', nueva_password: '' });
 
+  const [fidel, setFidel] = useState({ activa: true, earn_rate: 1000, redeem_rate: 100 });
+  const [savingFidel, setSavingFidel] = useState(false);
+
   const fetchCuenta = useCallback(async () => {
     setLoading(true);
     try {
@@ -502,7 +505,34 @@ const MiEmpresaTab = () => {
     }
   }, []);
 
-  useEffect(() => { fetchCuenta(); }, [fetchCuenta]);
+  const fetchConfig = useCallback(async () => {
+    try {
+      const { data } = await apiClient.get('/empresa/config-ventas');
+      setFidel({
+        activa:      data.fidelizacion_activa     ?? true,
+        earn_rate:   data.fidelizacion_earn_rate  ?? 1000,
+        redeem_rate: data.fidelizacion_redeem_rate ?? 100,
+      });
+    } catch { /* silent */ }
+  }, []);
+
+  const handleSaveFidel = async () => {
+    setSavingFidel(true);
+    try {
+      await apiClient.put('/empresa/config-ventas', {
+        fidelizacion_activa:      fidel.activa,
+        fidelizacion_earn_rate:   Number(fidel.earn_rate)   || 1000,
+        fidelizacion_redeem_rate: Number(fidel.redeem_rate) || 100,
+      });
+      toast.success('Configuración de fidelización guardada');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al guardar');
+    } finally {
+      setSavingFidel(false);
+    }
+  };
+
+  useEffect(() => { fetchCuenta(); fetchConfig(); }, [fetchCuenta, fetchConfig]);
 
   const handleSaveInfo = async () => {
     setSavingInfo(true);
@@ -679,6 +709,88 @@ const MiEmpresaTab = () => {
           {savingInfo ? 'Guardando…' : 'Guardar cambios'}
         </Button>
       </Box>
+
+      {/* ── Programa de fidelización ── */}
+      <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${alpha(theme.palette.divider, 1)}`, mb: 2.5 }}>
+        <Box sx={{ px: 2.5, py: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={sectionIcon('#F59E0B')}><Stars sx={{ color: '#F59E0B', fontSize: 18 }} /></Box>
+          <Box sx={{ flex: 1 }}>
+            <Typography fontWeight={700} fontSize={14}>Programa de fidelización</Typography>
+            <Typography fontSize={12} color="text.secondary">Puntos que acumulan los clientes al comprar</Typography>
+          </Box>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={fidel.activa}
+                onChange={e => setFidel(f => ({ ...f, activa: e.target.checked }))}
+                sx={{
+                  '& .MuiSwitch-switchBase.Mui-checked':                  { color: '#F59E0B' },
+                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#F59E0B' },
+                }}
+              />
+            }
+            label={<Typography fontSize={12} fontWeight={600} color={fidel.activa ? '#92400E' : 'text.secondary'}>{fidel.activa ? 'Activo' : 'Inactivo'}</Typography>}
+            sx={{ m: 0 }}
+          />
+        </Box>
+        <Collapse in={fidel.activa} timeout="auto">
+          <Divider />
+          <Box sx={{ px: 2.5, py: 2.5 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2, mb: 2 }}>
+              <TextField
+                label="COP por punto ganado" size="small" fullWidth type="number"
+                helperText={`1 punto cada $${Number(fidel.earn_rate).toLocaleString('es-CO')} COP`}
+                value={fidel.earn_rate}
+                onChange={e => setFidel(f => ({ ...f, earn_rate: e.target.value }))}
+                InputProps={{ inputProps: { min: 1 } }}
+              />
+              <TextField
+                label="COP de descuento por punto" size="small" fullWidth type="number"
+                helperText={`1 punto = $${Number(fidel.redeem_rate).toLocaleString('es-CO')} de descuento`}
+                value={fidel.redeem_rate}
+                onChange={e => setFidel(f => ({ ...f, redeem_rate: e.target.value }))}
+                InputProps={{ inputProps: { min: 1 } }}
+              />
+            </Box>
+            <Box sx={{
+              p: 1.5, borderRadius: 2, mb: 2,
+              bgcolor: alpha('#F59E0B', isDark ? 0.1 : 0.06),
+              border: `1px solid ${alpha('#F59E0B', 0.25)}`,
+            }}>
+              <Typography fontSize={12} color="text.secondary">
+                Ejemplo: compra de <strong>$50.000</strong> →
+                gana <strong>{Math.floor(50000 / Math.max(Number(fidel.earn_rate) || 1000, 1))} puntos</strong>
+                &nbsp;({Math.floor(50000 / Math.max(Number(fidel.earn_rate) || 1000, 1)) * (Number(fidel.redeem_rate) || 100) > 0
+                  ? `= $${(Math.floor(50000 / Math.max(Number(fidel.earn_rate) || 1000, 1)) * (Number(fidel.redeem_rate) || 100)).toLocaleString('es-CO')} de descuento`
+                  : '0 descuento'})
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Button
+                variant="contained" onClick={handleSaveFidel} disabled={savingFidel}
+                startIcon={savingFidel ? <CircularProgress size={16} color="inherit" /> : <Save />}
+                sx={{ borderRadius: 2.5, bgcolor: '#F59E0B', '&:hover': { bgcolor: '#D97706' }, fontWeight: 700, px: 3 }}
+              >
+                {savingFidel ? 'Guardando…' : 'Guardar configuración'}
+              </Button>
+            </Box>
+          </Box>
+        </Collapse>
+        {!fidel.activa && (
+          <>
+            <Divider />
+            <Box sx={{ px: 2.5, py: 1.5 }}>
+              <Button
+                variant="contained" onClick={handleSaveFidel} disabled={savingFidel} size="small"
+                startIcon={savingFidel ? <CircularProgress size={14} color="inherit" /> : <Save />}
+                sx={{ borderRadius: 2, bgcolor: '#6B7280', '&:hover': { bgcolor: '#4B5563' }, fontWeight: 700 }}
+              >
+                {savingFidel ? 'Guardando…' : 'Guardar (desactivado)'}
+              </Button>
+            </Box>
+          </>
+        )}
+      </Card>
 
       {/* ── Password change ── */}
       <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${alpha(theme.palette.divider, 1)}` }}>
