@@ -118,39 +118,229 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════════
-//  SLIDE 0 — PORTADA
+//  SLIDE 0 — PORTADA con mockups de dispositivos
 // ═══════════════════════════════════════════════════════════════
 document.getElementById('s0').innerHTML = `
-<div style="text-align:center;display:flex;flex-direction:column;align-items:center;
-  background:radial-gradient(ellipse at 20% 50%,rgba(255,96,32,.14) 0%,transparent 65%),
-             radial-gradient(ellipse at 80% 20%,rgba(255,96,32,.07) 0%,transparent 55%),
-             #09090b; position:absolute; inset:0; justify-content:center;">
+<div style="position:absolute;inset:0;display:grid;grid-template-columns:1fr 1.25fr;
+  align-items:center;padding:3rem 4rem;gap:2rem;
+  background:radial-gradient(ellipse at 12% 60%,rgba(255,96,32,.16) 0%,transparent 58%),
+             radial-gradient(ellipse at 88% 20%,rgba(255,96,32,.07) 0%,transparent 50%),
+             #09090b;">
 
-  <div class="glow-box" style="width:90px;height:90px;border-radius:22px;margin-bottom:1.5rem;
-    background:linear-gradient(135deg,#FF6020,#ff9d00);
-    display:flex;align-items:center;justify-content:center;font-size:2.4rem;">🧠</div>
+  <!-- ── LEFT: marca + stats ── -->
+  <div>
+    <div style="display:flex;align-items:center;gap:.7rem;margin-bottom:1.1rem;">
+      <div class="glow-box" style="width:44px;height:44px;border-radius:11px;flex-shrink:0;
+        background:linear-gradient(135deg,#FF6020,#ff9d00);
+        display:flex;align-items:center;justify-content:center;font-size:1.2rem;">🧠</div>
+      <div style="font-size:.58rem;font-weight:800;letter-spacing:2px;
+        text-transform:uppercase;color:rgba(255,255,255,.42);">Plataforma SaaS · Colombia · 2026</div>
+    </div>
 
-  <div class="tag t-o">Plataforma SaaS &nbsp;·&nbsp; Colombia &nbsp;·&nbsp; 2026</div>
+    <h1 style="margin-bottom:.9rem;font-size:clamp(2.6rem,5.5vw,4.8rem);">
+      <span class="grad">KSmart</span><span style="color:#fff">360</span>
+    </h1>
 
-  <h1><span class="grad">KSmart</span><span style="color:#fff">360</span></h1>
+    <p style="font-size:clamp(.85rem,1.6vw,1.1rem);color:rgba(255,255,255,.6);
+      line-height:1.7;margin-bottom:1.75rem;max-width:430px;">
+      La plataforma de gestión empresarial que transforma cómo las PYMEs colombianas
+      venden, registran inventario, cobran y crecen.
+    </p>
 
-  <p style="font-size:clamp(.95rem,2.2vw,1.35rem);color:rgba(255,255,255,.6);
-    max-width:640px;margin-top:1rem;line-height:1.65;">
-    La plataforma de gestión empresarial que transforma cómo las PYMEs colombianas
-    venden, registran inventario, cobran y crecen — todo en un solo sistema, desde la nube.
-  </p>
+    <div style="display:flex;gap:2.2rem;margin-bottom:1.75rem;">
+      ${[['4+','Tipos de negocio'],['27+','Módulos'],['8','Integraciones'],['∞','Empresas']].map(([n,l])=>`
+        <div>
+          <div style="font-size:1.75rem;font-weight:900;color:#FF6020;line-height:1;">${n}</div>
+          <div style="font-size:.55rem;color:rgba(255,255,255,.36);text-transform:uppercase;
+            letter-spacing:1px;margin-top:.18rem;">${l}</div>
+        </div>`).join('')}
+    </div>
 
-  <div style="display:flex;gap:4rem;margin-top:3rem;">
-    ${[['5+','Tipos de negocio'],['27+','Módulos activos'],['8','Integraciones'],['∞','Empresas simultáneas']].map(([n,l])=>`
-      <div style="text-align:center;">
-        <div style="font-size:2.2rem;font-weight:900;color:#FF6020;line-height:1;">${n}</div>
-        <div style="font-size:.6rem;color:rgba(255,255,255,.38);text-transform:uppercase;letter-spacing:1.5px;margin-top:.25rem;">${l}</div>
-      </div>`).join('')}
+    <div style="display:inline-flex;align-items:center;gap:.55rem;margin-bottom:.75rem;
+      background:rgba(255,96,32,.1);border:1px solid rgba(255,96,32,.28);
+      border-radius:20px;padding:.38rem .95rem;">
+      <span style="font-size:.8rem;">💻</span>
+      <span style="font-size:.65rem;font-weight:800;color:rgba(255,96,32,.7);">+</span>
+      <span style="font-size:.8rem;">📱</span>
+      <span style="font-size:.7rem;font-weight:800;color:#FF6020;">100% Responsive · Web &amp; Móvil</span>
+    </div>
+
+    <div class="live" style="display:flex;">
+      <span class="live-dot"></span>
+      Sistema en producción · Demo en vivo disponible ahora mismo
+    </div>
   </div>
 
-  <div style="margin-top:2.5rem;" class="live">
-    <span class="live-dot"></span>
-    Sistema en producción &nbsp;·&nbsp; Demo en vivo disponible ahora mismo
+  <!-- ── RIGHT: device mockups ── -->
+  <div style="position:relative;display:flex;align-items:center;justify-content:center;height:100%;">
+
+    <!-- LAPTOP -->
+    <div style="position:relative;width:min(520px,46vw);
+      filter:drop-shadow(0 30px 60px rgba(0,0,0,.75)) drop-shadow(0 0 40px rgba(255,96,32,.08));">
+      <div style="background:#11111f;border-radius:12px 12px 0 0;border:7px solid #1c1c30;
+        overflow:hidden;aspect-ratio:16/10;display:flex;box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);">
+
+        <!-- Left panel: carousel -->
+        <div style="flex:0 0 42%;background:linear-gradient(150deg,#08111e 0%,#0c1d38 100%);
+          padding:.7rem;display:flex;flex-direction:column;justify-content:flex-end;
+          position:relative;overflow:hidden;">
+          <div style="position:absolute;inset:0;
+            background:radial-gradient(ellipse at 55% 35%,rgba(34,197,94,.09) 0%,transparent 70%),
+                       radial-gradient(ellipse at 10% 80%,rgba(139,92,246,.06) 0%,transparent 60%);"></div>
+          <div style="position:absolute;bottom:.55rem;left:.7rem;display:flex;gap:.22rem;z-index:2;">
+            ${[0,1,2,3].map(i=>`<div style="width:${i===3?'14px':'5px'};height:5px;border-radius:3px;
+              background:${i===3?'#8b5cf6':'rgba(255,255,255,.22)'};"></div>`).join('')}
+          </div>
+          <div style="position:relative;z-index:1;padding-bottom:.85rem;">
+            <div style="display:inline-block;padding:.12rem .38rem;border-radius:4px;
+              background:rgba(139,92,246,.22);border:1px solid rgba(139,92,246,.38);
+              color:#a78bfa;font-size:.42rem;font-weight:800;letter-spacing:1px;
+              text-transform:uppercase;margin-bottom:.28rem;">Lavadero</div>
+            <div style="font-weight:900;font-size:.78rem;color:#fff;line-height:1.25;margin-bottom:.22rem;">
+              POS especializado
+            </div>
+            <div style="font-size:.42rem;color:rgba(255,255,255,.5);line-height:1.45;margin-bottom:.4rem;">
+              Registro de servicios, turnos del personal,<br>ingresos por operario y fidelización.
+            </div>
+            <div style="display:flex;gap:.6rem;">
+              ${[['∞','Servicios'],['∞','Operarios'],['Touch','POS']].map(([v,l])=>`
+                <div>
+                  <div style="font-size:.62rem;font-weight:900;color:${l==='POS'?'#8b5cf6':'#fff'};">${v}</div>
+                  <div style="font-size:.35rem;color:rgba(255,255,255,.38);text-transform:uppercase;">${l}</div>
+                </div>`).join('')}
+            </div>
+          </div>
+          <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.45);
+            padding:.28rem .5rem;display:grid;grid-template-columns:repeat(3,1fr);">
+            ${[['500+','Negocios activos'],['14 días','Prueba gratis'],['99.9%','Disponibilidad']].map(([v,l])=>`
+              <div style="text-align:center;">
+                <div style="font-size:.48rem;font-weight:900;color:#fff;">${v}</div>
+                <div style="font-size:.3rem;color:rgba(255,255,255,.38);">${l}</div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- Right panel: login form -->
+        <div style="flex:1;background:linear-gradient(165deg,#0c1828 0%,#112040 100%);
+          display:flex;flex-direction:column;align-items:center;justify-content:center;
+          padding:.7rem .85rem;">
+          <div style="width:36px;height:36px;border-radius:50%;margin-bottom:.42rem;
+            background:radial-gradient(circle at 40% 35%,#0d2244,#08111e);
+            border:1.5px solid rgba(0,210,255,.32);
+            box-shadow:0 0 14px rgba(0,210,255,.22);
+            display:flex;align-items:center;justify-content:center;">
+            <div style="width:20px;height:20px;border-radius:50%;
+              background:linear-gradient(135deg,#00bfff,#0070ff);
+              display:flex;align-items:center;justify-content:center;
+              font-size:.55rem;font-weight:900;color:#fff;">K⚡</div>
+          </div>
+          <div style="font-weight:900;font-size:.72rem;color:#fff;margin-bottom:.08rem;">Bienvenido de nuevo</div>
+          <div style="font-size:.38rem;color:rgba(255,255,255,.42);margin-bottom:.55rem;">Ingresa tus credenciales para continuar</div>
+          <div style="width:100%;margin-bottom:.28rem;">
+            <div style="font-size:.36rem;color:rgba(255,255,255,.55);margin-bottom:.12rem;">Usuario *</div>
+            <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+              border-radius:5px;padding:.22rem .38rem;display:flex;align-items:center;height:14px;">
+              <span style="font-size:.48rem;color:rgba(255,255,255,.35);">@</span>
+            </div>
+          </div>
+          <div style="width:100%;margin-bottom:.32rem;">
+            <div style="font-size:.36rem;color:rgba(255,255,255,.55);margin-bottom:.12rem;">Contraseña *</div>
+            <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+              border-radius:5px;padding:.22rem .38rem;display:flex;align-items:center;height:14px;">
+              <span style="font-size:.45rem;color:rgba(255,255,255,.35);">🔒</span>
+              <div style="flex:1;"></div>
+              <span style="font-size:.45rem;color:rgba(255,255,255,.35);">👁</span>
+            </div>
+          </div>
+          <div style="width:100%;display:flex;justify-content:space-between;align-items:center;margin-bottom:.38rem;">
+            <div style="display:flex;align-items:center;gap:.2rem;">
+              <div style="width:6px;height:6px;border:1px solid rgba(255,255,255,.28);border-radius:1.5px;"></div>
+              <span style="font-size:.33rem;color:rgba(255,255,255,.45);">Recordar sesión</span>
+            </div>
+            <span style="font-size:.33rem;color:#22c55e;">¿Olvidaste tu contraseña?</span>
+          </div>
+          <div style="width:100%;background:linear-gradient(90deg,#16a34a,#22c55e);
+            border-radius:5px;padding:.3rem;text-align:center;margin-bottom:.3rem;
+            font-size:.47rem;font-weight:800;color:#fff;box-shadow:0 3px 12px rgba(34,197,94,.3);">
+            Ingresar al sistema
+          </div>
+          <div style="font-size:.32rem;color:rgba(255,255,255,.38);">
+            ¿No tienes una cuenta?&nbsp;<span style="color:#22c55e;">Regístrate gratis</span>
+          </div>
+          <div style="font-size:.28rem;color:rgba(255,255,255,.18);margin-top:.38rem;">Powered by KSMP Systems · 2026</div>
+        </div>
+      </div>
+      <div style="background:linear-gradient(to bottom,#1a1a2e,#111120);
+        height:16px;border-radius:0 0 2px 2px;border:6px solid #1c1c30;border-top:0;
+        display:flex;align-items:center;justify-content:center;">
+        <div style="width:48px;height:3px;background:rgba(255,255,255,.08);border-radius:2px;"></div>
+      </div>
+      <div style="background:linear-gradient(to bottom,#0e0e1a,#08080f);
+        height:5px;width:78%;margin:0 auto;border-radius:0 0 10px 10px;"></div>
+    </div>
+
+    <!-- PHONE -->
+    <div style="position:absolute;right:-18px;bottom:2px;width:min(125px,11vw);
+      background:#08080f;border-radius:22px;border:5px solid #1c1c30;z-index:10;
+      box-shadow:0 20px 60px rgba(0,0,0,.85),0 0 0 1px rgba(255,255,255,.04);overflow:hidden;">
+      <div style="background:#08080f;height:7px;display:flex;align-items:center;justify-content:center;">
+        <div style="width:28px;height:3.5px;background:#111120;border-radius:0 0 5px 5px;"></div>
+      </div>
+      <div style="background:linear-gradient(165deg,#0c1828 0%,#112040 100%);
+        padding:.55rem .5rem .5rem;display:flex;flex-direction:column;align-items:center;min-height:220px;">
+        <div style="display:flex;align-items:center;gap:.28rem;margin-bottom:.45rem;width:100%;">
+          <div style="width:15px;height:15px;background:rgba(0,210,255,.12);border-radius:4px;
+            display:flex;align-items:center;justify-content:center;
+            border:1px solid rgba(0,210,255,.22);color:#00bfff;font-weight:900;font-size:.45rem;">K</div>
+          <div>
+            <div style="font-size:.4rem;font-weight:800;color:#fff;">Ksmart360</div>
+            <div style="font-size:.28rem;color:rgba(255,255,255,.38);">14 días gratis · Sin tarjeta</div>
+          </div>
+        </div>
+        <div style="width:32px;height:32px;border-radius:50%;margin-bottom:.38rem;
+          background:radial-gradient(circle at 40% 35%,#0d2244,#08111e);
+          border:1.5px solid rgba(0,210,255,.32);box-shadow:0 0 12px rgba(0,210,255,.22);
+          display:flex;align-items:center;justify-content:center;">
+          <div style="width:18px;height:18px;border-radius:50%;
+            background:linear-gradient(135deg,#00bfff,#0070ff);
+            display:flex;align-items:center;justify-content:center;
+            font-size:.5rem;font-weight:900;color:#fff;">K⚡</div>
+        </div>
+        <div style="font-weight:900;font-size:.58rem;color:#fff;margin-bottom:.06rem;">Bienvenido de nuevo</div>
+        <div style="font-size:.3rem;color:rgba(255,255,255,.4);margin-bottom:.45rem;">Ingresa tus credenciales</div>
+        ${['Usuario *','Contraseña *'].map(f=>`
+          <div style="width:100%;margin-bottom:.22rem;">
+            <div style="font-size:.29rem;color:rgba(255,255,255,.52);margin-bottom:.08rem;">${f}</div>
+            <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+              border-radius:4px;height:11px;"></div>
+          </div>`).join('')}
+        <div style="width:100%;display:flex;justify-content:space-between;margin-bottom:.28rem;">
+          <span style="font-size:.27rem;color:rgba(255,255,255,.4);">□ Recordar sesión</span>
+          <span style="font-size:.27rem;color:#22c55e;">¿Olvidaste...?</span>
+        </div>
+        <div style="width:100%;background:linear-gradient(90deg,#16a34a,#22c55e);
+          border-radius:4px;padding:.26rem;text-align:center;margin-bottom:.28rem;
+          font-size:.4rem;font-weight:800;color:#fff;box-shadow:0 2px 10px rgba(34,197,94,.28);">
+          Ingresar al sistema
+        </div>
+        <div style="font-size:.27rem;color:rgba(255,255,255,.35);">
+          ¿No tienes cuenta?&nbsp;<span style="color:#22c55e;">Regístrate</span>
+        </div>
+        <div style="font-size:.24rem;color:rgba(255,255,255,.18);margin-top:.4rem;">Powered by KSMP Systems · 2026</div>
+      </div>
+      <div style="background:#0c1828;padding:.28rem;display:flex;justify-content:center;">
+        <div style="width:28px;height:2.5px;background:rgba(255,255,255,.28);border-radius:2px;"></div>
+      </div>
+    </div>
+
+    <!-- Responsive badge -->
+    <div style="position:absolute;top:8%;right:12%;
+      background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.28);
+      border-radius:20px;padding:.28rem .75rem;
+      font-size:.62rem;font-weight:800;color:#4ade80;
+      display:flex;align-items:center;gap:.38rem;">
+      ✅&nbsp; Responsive — Web &amp; Móvil
+    </div>
   </div>
 </div>
 `;
