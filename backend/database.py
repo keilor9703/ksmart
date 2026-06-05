@@ -1517,7 +1517,7 @@ def run_migrations():
                     else:
                         conn.execute(text("""
                             INSERT INTO tipo_negocio_config(tipo, label, modulos)
-                            VALUES(:tipo, :label, :modulos::jsonb)
+                            VALUES(:tipo, :label, CAST(:modulos AS jsonb))
                             ON CONFLICT(tipo) DO NOTHING
                         """), {"tipo": tipo, "label": label, "modulos": modulos_json})
 
