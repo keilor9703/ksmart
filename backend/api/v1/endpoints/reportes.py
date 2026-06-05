@@ -40,7 +40,8 @@ def get_cuentas_por_cobrar(db: Session = Depends(get_db), current_user: models.U
 
 @router.get("/dashboard", response_model=schemas.DashboardData)
 def get_dashboard_report(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
-    return crud.get_dashboard_data(db, empresa_id=current_user.empresa_id)
+    tipo_negocio = getattr(current_user.empresa, "tipo_negocio", "erp") or "erp"
+    return crud.get_dashboard_data(db, empresa_id=current_user.empresa_id, tipo_negocio=tipo_negocio)
 
 @router.get("/iva-neto")
 def get_iva_neto(

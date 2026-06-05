@@ -244,4 +244,24 @@ def registrar_salida_horas(
     db.commit()
     db.refresh(acceso)
 
+    # Solo crear venta si hubo cobro
+    if monto_final and monto_final > 0:
+        import models as _models
+        placa_str = acceso.placa or ''
+        venta_parq = _models.Venta(
+            empresa_id  = empresa_id,
+            total       = monto_final,
+            monto_pagado= monto_final,
+            estado_pago = "pagado",
+            metodo_pago = payload.metodo_pago or "Efectivo",
+            origen      = "parqueadero_horas",
+            tipo        = "venta",
+            placa_vehiculo = placa_str,
+            fecha_pago  = datetime.now(timezone.utc),
+            observaciones = f"Acceso por minutos | Placa: {placa_str} | {minutos_cobrar} min",
+        )
+        db.add(venta_parq)
+        db.commit()
+        db.refresh(acceso)
+
     return acceso
