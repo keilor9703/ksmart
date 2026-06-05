@@ -2580,3 +2580,74 @@ class LinkPagoOut(BaseModel):
     instrucciones: Optional[str] = None
     is_active:     bool
     model_config = ConfigDict(from_attributes=True)
+
+
+# =========================
+# CONTABILIDAD AUTOMÁTICA
+# =========================
+
+class CuentaContableOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    codigo: str
+    nombre: str
+    tipo: str
+    naturaleza: str
+    nivel: int
+    padre_codigo: Optional[str] = None
+    permite_movimiento: bool
+    is_active: bool
+
+class LineaAsientoOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    cuenta_contable_id: int
+    descripcion: Optional[str] = None
+    debito: float
+    credito: float
+    orden: int
+    cuenta: Optional[CuentaContableOut] = None
+
+class AsientoContableOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    numero: int
+    fecha: datetime
+    descripcion: str
+    tipo_origen: str
+    referencia_id: Optional[int] = None
+    referencia_tipo: Optional[str] = None
+    total_debitos: float
+    total_creditos: float
+    created_at: datetime
+    lineas: List[LineaAsientoOut] = []
+
+class BalanceComprobacionItem(BaseModel):
+    codigo: str
+    nombre: str
+    tipo: str
+    naturaleza: str
+    total_debitos: float
+    total_creditos: float
+    saldo_debito: float
+    saldo_credito: float
+
+class EstadoResultados(BaseModel):
+    ingresos_operacionales: float = 0.0
+    ingresos_servicios: float = 0.0
+    ingresos_financieros: float = 0.0
+    total_ingresos: float = 0.0
+    costo_ventas: float = 0.0
+    utilidad_bruta: float = 0.0
+    gastos_operacionales: float = 0.0
+    gastos_no_operacionales: float = 0.0
+    total_gastos: float = 0.0
+    utilidad_neta: float = 0.0
+    periodo_inicio: Optional[datetime] = None
+    periodo_fin: Optional[datetime] = None
+
+class AsientosListResponse(BaseModel):
+    items: List[AsientoContableOut]
+    total: int
+    page: int
+    page_size: int

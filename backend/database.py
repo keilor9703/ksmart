@@ -1567,6 +1567,115 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v80)
                 logger.info("V80 (tipo_negocio en empresas + origen en ventas) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V81 - CONTABILIDAD AUTOMÁTICA (PUC colombiano)
+            # ═══════════════════════════════════════════════════════════════
+            migration_v81 = "v81_contabilidad_automatica"
+            if not _migration_already_applied(conn, migration_v81):
+                if not _table_exists(conn, "cuentas_contables"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE cuentas_contables (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                empresa_id INTEGER NOT NULL REFERENCES empresas(id),
+                                codigo VARCHAR(10) NOT NULL,
+                                nombre VARCHAR(200) NOT NULL,
+                                tipo VARCHAR(20) NOT NULL,
+                                naturaleza VARCHAR(10) NOT NULL,
+                                nivel INTEGER DEFAULT 3,
+                                padre_codigo VARCHAR(10),
+                                is_active BOOLEAN DEFAULT 1,
+                                permite_movimiento BOOLEAN DEFAULT 1,
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                UNIQUE(empresa_id, codigo)
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE cuentas_contables (
+                                id SERIAL PRIMARY KEY,
+                                empresa_id INTEGER NOT NULL REFERENCES empresas(id),
+                                codigo VARCHAR(10) NOT NULL,
+                                nombre VARCHAR(200) NOT NULL,
+                                tipo VARCHAR(20) NOT NULL,
+                                naturaleza VARCHAR(10) NOT NULL,
+                                nivel INTEGER DEFAULT 3,
+                                padre_codigo VARCHAR(10),
+                                is_active BOOLEAN DEFAULT TRUE,
+                                permite_movimiento BOOLEAN DEFAULT TRUE,
+                                created_at TIMESTAMPTZ DEFAULT NOW(),
+                                UNIQUE(empresa_id, codigo)
+                            )
+                        """))
+                    logger.info("V81: tabla cuentas_contables creada")
+
+                if not _table_exists(conn, "asientos_contables"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE asientos_contables (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                empresa_id INTEGER NOT NULL REFERENCES empresas(id),
+                                numero INTEGER NOT NULL,
+                                fecha TIMESTAMP NOT NULL,
+                                descripcion VARCHAR(500) NOT NULL,
+                                tipo_origen VARCHAR(30) NOT NULL,
+                                referencia_id INTEGER,
+                                referencia_tipo VARCHAR(30),
+                                total_debitos REAL DEFAULT 0,
+                                total_creditos REAL DEFAULT 0,
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE asientos_contables (
+                                id SERIAL PRIMARY KEY,
+                                empresa_id INTEGER NOT NULL REFERENCES empresas(id),
+                                numero INTEGER NOT NULL,
+                                fecha TIMESTAMPTZ NOT NULL,
+                                descripcion VARCHAR(500) NOT NULL,
+                                tipo_origen VARCHAR(30) NOT NULL,
+                                referencia_id INTEGER,
+                                referencia_tipo VARCHAR(30),
+                                total_debitos DOUBLE PRECISION DEFAULT 0,
+                                total_creditos DOUBLE PRECISION DEFAULT 0,
+                                created_at TIMESTAMPTZ DEFAULT NOW()
+                            )
+                        """))
+                    logger.info("V81: tabla asientos_contables creada")
+
+                if not _table_exists(conn, "lineas_asiento"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE lineas_asiento (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                empresa_id INTEGER NOT NULL REFERENCES empresas(id),
+                                asiento_id INTEGER NOT NULL REFERENCES asientos_contables(id),
+                                cuenta_contable_id INTEGER NOT NULL REFERENCES cuentas_contables(id),
+                                descripcion VARCHAR(300),
+                                debito REAL DEFAULT 0,
+                                credito REAL DEFAULT 0,
+                                orden INTEGER DEFAULT 0
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE lineas_asiento (
+                                id SERIAL PRIMARY KEY,
+                                empresa_id INTEGER NOT NULL REFERENCES empresas(id),
+                                asiento_id INTEGER NOT NULL REFERENCES asientos_contables(id),
+                                cuenta_contable_id INTEGER NOT NULL REFERENCES cuentas_contables(id),
+                                descripcion VARCHAR(300),
+                                debito DOUBLE PRECISION DEFAULT 0,
+                                credito DOUBLE PRECISION DEFAULT 0,
+                                orden INTEGER DEFAULT 0
+                            )
+                        """))
+                    logger.info("V81: tabla lineas_asiento creada")
+
+                _mark_migration_applied(conn, migration_v81)
+                logger.info("V81 (contabilidad automática) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

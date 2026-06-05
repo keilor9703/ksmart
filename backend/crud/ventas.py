@@ -7,6 +7,7 @@ import models, schemas
 from crud.common import BOGOTA_TZ, get_utc_boundaries
 from crud.clientes import get_cliente
 from crud.productos import get_producto
+from services.contabilidad import registrar_asiento_venta
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # VENTAS
@@ -132,6 +133,9 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate, commi
     if commit:
         db.commit()
         db.refresh(db_venta)
+        if db_venta.estado_pago == "pagado":
+            registrar_asiento_venta(db, db_venta)
+            db.commit()
     return db_venta
 
 def update_venta(db: Session, empresa_id: int, venta_id: int, venta: schemas.VentaCreate):

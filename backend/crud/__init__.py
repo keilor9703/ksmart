@@ -183,3 +183,9 @@ from crud.impuestos import (
     get_impuesto_de_producto, set_impuesto_para_producto, remove_impuesto_de_producto,
     attach_impuestos_to_productos,
 )
+
+# Contabilidad automática
+from crud.contabilidad import (
+    listar_cuentas, listar_asientos, get_asiento,
+    get_balance_comprobacion, get_estado_resultados,
+)

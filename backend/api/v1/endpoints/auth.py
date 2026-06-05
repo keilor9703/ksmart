@@ -79,6 +79,9 @@ def registrar_nuevo_cliente(request: Request, data: schemas.RegistroSaaS, db: Se
             from crud.grupos_producto import seed_categorias_restaurante
             seed_categorias_restaurante(db, nueva_emp.id)
 
+        from services.contabilidad import inicializar_puc
+        inicializar_puc(db, nueva_emp.id)
+
         db.commit()
 
         logger.info(

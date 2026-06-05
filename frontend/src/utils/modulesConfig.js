@@ -53,6 +53,7 @@ import HelpOutline from '@mui/icons-material/HelpOutline';
 import Storefront from '@mui/icons-material/Storefront';
 import QrCode2 from '@mui/icons-material/QrCode2';
 import Settings from '@mui/icons-material/Settings';
+import AutoAwesome from '@mui/icons-material/AutoAwesome';
 
 
 // ─── DICCIONARIO de iconos y colores por frontend_path ────────────────────
@@ -107,6 +108,9 @@ export const MODULE_ICONS = {
   '/restaurante/cocina': { icon: <OutdoorGrill />,    color: '#EF4444', label: 'Pantalla Cocina' },
   '/restaurante/config': { icon: <RoomService />,     color: '#8B5CF6', label: 'Config Restaurante' },
   '/restaurante/caja':   { icon: <PointOfSale />,     color: '#7C3AED', label: 'Caja Restaurante' },
+
+  // Contabilidad
+  '/contabilidad': { icon: <AutoAwesome />, color: '#6366F1', label: 'Contabilidad' },
 
   // Superadmin
   '/superadmin/link-pago': { icon: <QrCode2 />, color: '#FF6020', label: 'Link de Pago POS' },

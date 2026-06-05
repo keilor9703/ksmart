@@ -75,6 +75,7 @@ const ParqueaderoConfig        = lazy(() => import('./features/parking/Parqueade
 const LavaderoVentas           = lazy(() => import('./features/lavadero/LavaderoVentas'));
 const LavaderoReporte          = lazy(() => import('./features/lavadero/LavaderoReporte'));
 const LavaderoConfig           = lazy(() => import('./features/lavadero/LavaderoConfig'));
+const Contabilidad             = lazy(() => import('./features/contabilidad/Contabilidad'));
 
 // Restaurante
 const MapaMesas         = lazy(() => import('./features/restaurante/MapaMesas'));
@@ -390,6 +391,7 @@ const hasAccess = useCallback((path) => {
                     <Route path="/lavadero/ventas"   element={<ProtectedRoute path="/lavadero/ventas"  hasAccess={hasAccess}><LavaderoVentas  user={user} /></ProtectedRoute>} />
                     <Route path="/lavadero/reporte"  element={<ProtectedRoute path="/lavadero/reporte" hasAccess={hasAccess}><LavaderoReporte user={user} /></ProtectedRoute>} />
                     <Route path="/lavadero/config"   element={<ProtectedRoute path="/lavadero/config"  hasAccess={hasAccess}><LavaderoConfig  /></ProtectedRoute>} />
+                    <Route path="/contabilidad"      element={<ProtectedRoute path="/contabilidad"     hasAccess={hasAccess}><Contabilidad /></ProtectedRoute>} />
                     <Route path="/restaurante"        element={<ProtectedRoute path="/restaurante"        hasAccess={hasAccess}><MapaMesas       user={user} /></ProtectedRoute>} />
                     <Route path="/restaurante/cocina" element={<ProtectedRoute path="/restaurante/cocina" hasAccess={hasAccess}><PantallaCocina  /></ProtectedRoute>} />
                     <Route path="/restaurante/config" element={<ProtectedRoute path="/restaurante/config" hasAccess={hasAccess}><RestauranteConfig /></ProtectedRoute>} />

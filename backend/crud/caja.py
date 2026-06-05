@@ -6,6 +6,7 @@ from fastapi import HTTPException
 import models, schemas
 from crud.common import BOGOTA_TZ, get_utc_boundaries, _is_postgres
 from crud.clientes import get_cliente
+from services.contabilidad import registrar_asiento_gasto
 
 
 def calcular_totales_dia(db: Session, empresa_id: int) -> dict:
@@ -157,6 +158,8 @@ def crear_gasto(db: Session, empresa_id: int, usuario_id: int, data: schemas.Gas
     db.add(db_gasto)
     db.commit()
     db.refresh(db_gasto)
+    registrar_asiento_gasto(db, db_gasto)
+    db.commit()
     return db_gasto
 
 def get_gastos(db: Session, empresa_id: int, skip: int = 0, limit: int = 100) -> List[models.Gasto]:

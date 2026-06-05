@@ -1492,3 +1492,57 @@ class LavaderoConfig(Base, TenantMixin):
     nombre_lavadero     = Column(String(120), nullable=True)
     created_at          = Column(DateTime(timezone=True), default=utcnow)
     updated_at          = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MÓDULO CONTABILIDAD AUTOMÁTICA — PUC colombiano + asientos automáticos
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class CuentaContable(Base, TenantMixin):
+    __tablename__ = "cuentas_contables"
+    id                  = Column(Integer, primary_key=True, index=True)
+    codigo              = Column(String(10), nullable=False, index=True)
+    nombre              = Column(String(200), nullable=False)
+    tipo                = Column(String(20), nullable=False)   # activo|pasivo|patrimonio|ingreso|costo|gasto
+    naturaleza          = Column(String(10), nullable=False)   # debito|credito
+    nivel               = Column(Integer, default=3)           # 1=clase 2=grupo 3=cuenta
+    padre_codigo        = Column(String(10), nullable=True)
+    is_active           = Column(Boolean, default=True)
+    permite_movimiento  = Column(Boolean, default=True)        # False en cuentas de grupo
+    created_at          = Column(DateTime(timezone=True), default=utcnow)
+
+    lineas = relationship("LineaAsiento", back_populates="cuenta")
+
+    __table_args__ = (
+        UniqueConstraint("empresa_id", "codigo", name="uq_cuenta_empresa_codigo"),
+    )
+
+
+class AsientoContable(Base, TenantMixin):
+    __tablename__ = "asientos_contables"
+    id              = Column(Integer, primary_key=True, index=True)
+    numero          = Column(Integer, nullable=False)          # secuencial por empresa
+    fecha           = Column(DateTime(timezone=True), nullable=False, index=True)
+    descripcion     = Column(String(500), nullable=False)
+    tipo_origen     = Column(String(30), nullable=False, index=True)  # venta|gasto|compra|cuota_prestamo|manual
+    referencia_id   = Column(Integer, nullable=True)
+    referencia_tipo = Column(String(30), nullable=True)
+    total_debitos   = Column(Float, default=0.0)
+    total_creditos  = Column(Float, default=0.0)
+    created_at      = Column(DateTime(timezone=True), default=utcnow)
+
+    lineas = relationship("LineaAsiento", back_populates="asiento", cascade="all, delete-orphan")
+
+
+class LineaAsiento(Base, TenantMixin):
+    __tablename__ = "lineas_asiento"
+    id                  = Column(Integer, primary_key=True, index=True)
+    asiento_id          = Column(Integer, ForeignKey("asientos_contables.id"), nullable=False, index=True)
+    cuenta_contable_id  = Column(Integer, ForeignKey("cuentas_contables.id"), nullable=False)
+    descripcion         = Column(String(300), nullable=True)
+    debito              = Column(Float, default=0.0)
+    credito             = Column(Float, default=0.0)
+    orden               = Column(Integer, default=0)
+
+    asiento = relationship("AsientoContable", back_populates="lineas")
+    cuenta  = relationship("CuentaContable", back_populates="lineas")
