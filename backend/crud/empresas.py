@@ -217,13 +217,12 @@ _DELETE_STEPS = [
     "DELETE FROM evidencias WHERE empresa_id=:eid",
     # hijos de suscripciones_parqueadero
     "DELETE FROM pagos_parqueadero WHERE empresa_id=:eid",
-    # notificaciones tiene FK → users.id: eliminar ANTES que users
+    # notificaciones: solo tiene empresa_id (no tiene user_id)
     "DELETE FROM notificaciones WHERE empresa_id=:eid",
-    "DELETE FROM notificaciones WHERE user_id IN (SELECT id FROM users WHERE empresa_id=:eid)",
     # credenciales y role_modules: antes de users y roles
     "DELETE FROM credenciales_biometricas WHERE user_id IN (SELECT id FROM users WHERE empresa_id=:eid)",
     "DELETE FROM role_modules WHERE role_id IN (SELECT id FROM roles WHERE empresa_id=:eid)",
-    # tablas principales
+    # tablas de negocio principales
     "DELETE FROM prestamos WHERE empresa_id=:eid",
     "DELETE FROM devoluciones WHERE empresa_id=:eid",
     "DELETE FROM compras WHERE empresa_id=:eid",
@@ -235,21 +234,28 @@ _DELETE_STEPS = [
     "DELETE FROM accesos_parqueadero WHERE empresa_id=:eid",
     "DELETE FROM envios_whatsapp_parqueadero WHERE empresa_id=:eid",
     "DELETE FROM vehiculos WHERE empresa_id=:eid",
-    "DELETE FROM users WHERE empresa_id=:eid",
-    "DELETE FROM roles WHERE empresa_id=:eid",
+    # lavadero
     "DELETE FROM lavadero_orden_detalles WHERE empresa_id=:eid",
     "DELETE FROM lavadero_ordenes WHERE empresa_id=:eid",
-    # detalles_venta: por empresa_id + subquery para capturar filas huérfanas
+    # detalles_venta: refs venta_id y producto_id → antes de ventas y productos
     "DELETE FROM detalles_venta WHERE empresa_id=:eid",
     "DELETE FROM detalles_venta WHERE venta_id IN (SELECT id FROM ventas WHERE empresa_id=:eid)",
-    # pagos: por empresa_id + subquery
+    # pagos: refs venta_id → antes de ventas
     "DELETE FROM pagos WHERE empresa_id=:eid",
     "DELETE FROM pagos WHERE venta_id IN (SELECT id FROM ventas WHERE empresa_id=:eid)",
-    "DELETE FROM ventas WHERE empresa_id=:eid",
-    # movimientos_puntos: por empresa_id + subquery por cliente_id
+    # movimientos_puntos: refs venta_id y cliente_id → antes de ventas y clientes
     "DELETE FROM movimientos_puntos WHERE empresa_id=:eid",
+    "DELETE FROM movimientos_puntos WHERE venta_id IN (SELECT id FROM ventas WHERE empresa_id=:eid)",
     "DELETE FROM movimientos_puntos WHERE cliente_id IN (SELECT id FROM clientes WHERE empresa_id=:eid)",
+    # ventas: refs users.id (operador_id) y clientes.id → ANTES de users y clientes
+    "DELETE FROM ventas WHERE empresa_id=:eid",
+    # clientes: después de ventas, prestamos, movimientos_puntos
     "DELETE FROM clientes WHERE empresa_id=:eid",
+    # users: después de ventas (ventas.operador_id → users.id)
+    "DELETE FROM users WHERE empresa_id=:eid",
+    # roles: después de users (users.role_id → roles.id)
+    "DELETE FROM roles WHERE empresa_id=:eid",
+    # productos y sus hijos
     "DELETE FROM producto_impuestos WHERE empresa_id=:eid",
     "DELETE FROM inventory_movements WHERE empresa_id=:eid",
     "DELETE FROM lotes_existencias WHERE empresa_id=:eid",
@@ -258,6 +264,7 @@ _DELETE_STEPS = [
     "DELETE FROM tipos_impuesto WHERE empresa_id=:eid",
     "DELETE FROM empresa_grupo_config WHERE empresa_id=:eid",
     "DELETE FROM grupos_producto WHERE empresa_id=:eid",
+    # configuraciones
     "DELETE FROM lavadero_config WHERE empresa_id=:eid",
     "DELETE FROM parqueadero_config WHERE empresa_id=:eid",
     "DELETE FROM metodos_pago_parqueadero WHERE empresa_id=:eid",

@@ -84,12 +84,9 @@ PASOS = [
     ("pagos_parqueadero",
      "DELETE FROM pagos_parqueadero WHERE empresa_id={eid}"),
 
-    # ── notificaciones tiene FK → users.id: eliminar ANTES que users ────────
-    ("notificaciones (empresa)",
+    # ── notificaciones: solo empresa_id (no tiene user_id) ──────────────────
+    ("notificaciones",
      "DELETE FROM notificaciones WHERE empresa_id={eid}"),
-    ("notificaciones (user_id)",
-     "DELETE FROM notificaciones WHERE user_id IN "
-     "(SELECT id FROM users WHERE empresa_id={eid})"),
 
     # ── credenciales biométricas (user_id → users) ──────────────────────────
     ("credenciales_biometricas",
@@ -101,7 +98,7 @@ PASOS = [
      "DELETE FROM role_modules WHERE role_id IN "
      "(SELECT id FROM roles WHERE empresa_id={eid})"),
 
-    # ── tablas con empresa_id directo ────────────────────────────────────────
+    # ── tablas de negocio principales ────────────────────────────────────────
     ("prestamos",                  "DELETE FROM prestamos WHERE empresa_id={eid}"),
     ("devoluciones",               "DELETE FROM devoluciones WHERE empresa_id={eid}"),
     ("compras",                    "DELETE FROM compras WHERE empresa_id={eid}"),
@@ -113,27 +110,34 @@ PASOS = [
     ("accesos_parqueadero",        "DELETE FROM accesos_parqueadero WHERE empresa_id={eid}"),
     ("envios_whatsapp_parqueadero","DELETE FROM envios_whatsapp_parqueadero WHERE empresa_id={eid}"),
     ("vehiculos",                  "DELETE FROM vehiculos WHERE empresa_id={eid}"),
-    ("users",                      "DELETE FROM users WHERE empresa_id={eid}"),
-    ("roles",                      "DELETE FROM roles WHERE empresa_id={eid}"),
     ("lavadero_orden_detalles",    "DELETE FROM lavadero_orden_detalles WHERE empresa_id={eid}"),
     ("lavadero_ordenes",           "DELETE FROM lavadero_ordenes WHERE empresa_id={eid}"),
-    # detalles_venta: por empresa_id + subquery para capturar filas huérfanas
+    # detalles_venta: refs venta_id y producto_id → antes de ventas y productos
     ("detalles_venta (empresa)",   "DELETE FROM detalles_venta WHERE empresa_id={eid}"),
     ("detalles_venta (venta_id)",
      "DELETE FROM detalles_venta WHERE venta_id IN "
      "(SELECT id FROM ventas WHERE empresa_id={eid})"),
-    # pagos: por empresa_id + subquery
+    # pagos: refs venta_id → antes de ventas
     ("pagos (empresa)",            "DELETE FROM pagos WHERE empresa_id={eid}"),
     ("pagos (venta_id)",
      "DELETE FROM pagos WHERE venta_id IN "
      "(SELECT id FROM ventas WHERE empresa_id={eid})"),
-    ("ventas",                     "DELETE FROM ventas WHERE empresa_id={eid}"),
-    # movimientos_puntos: por empresa_id + subquery por cliente_id
+    # movimientos_puntos refs venta_id y cliente_id → antes de ventas y clientes
     ("movimientos_puntos (empresa)","DELETE FROM movimientos_puntos WHERE empresa_id={eid}"),
+    ("movimientos_puntos (venta)",
+     "DELETE FROM movimientos_puntos WHERE venta_id IN "
+     "(SELECT id FROM ventas WHERE empresa_id={eid})"),
     ("movimientos_puntos (cliente)",
      "DELETE FROM movimientos_puntos WHERE cliente_id IN "
      "(SELECT id FROM clientes WHERE empresa_id={eid})"),
+    # ventas: refs users.id (operador_id) y clientes.id → ANTES de users y clientes
+    ("ventas",                     "DELETE FROM ventas WHERE empresa_id={eid}"),
+    # clientes: después de ventas, prestamos, movimientos_puntos
     ("clientes",                   "DELETE FROM clientes WHERE empresa_id={eid}"),
+    # users: después de ventas (ventas.operador_id → users.id)
+    ("users",                      "DELETE FROM users WHERE empresa_id={eid}"),
+    # roles: después de users (users.role_id → roles.id)
+    ("roles",                      "DELETE FROM roles WHERE empresa_id={eid}"),
     ("producto_impuestos",         "DELETE FROM producto_impuestos WHERE empresa_id={eid}"),
     ("inventory_movements",        "DELETE FROM inventory_movements WHERE empresa_id={eid}"),
     ("lotes_existencias",          "DELETE FROM lotes_existencias WHERE empresa_id={eid}"),
