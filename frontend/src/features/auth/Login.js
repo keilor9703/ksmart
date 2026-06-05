@@ -576,7 +576,11 @@ const Login = ({ onLogin }) => {
               toast.success('¡Cuenta creada! Ya puedes iniciar sesión.');
             }, 2200);
         } catch (error) {
-            toast.error(error.response?.data?.detail || 'Error al crear la cuenta.');
+            const detail = error.response?.data?.detail;
+            const msg = Array.isArray(detail)
+                ? detail.map(e => e.msg).join(' | ')
+                : (detail || 'Error al crear la cuenta.');
+            toast.error(msg);
         } finally {
             setLoading(false);
         }

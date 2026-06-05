@@ -1175,7 +1175,7 @@ class RegistroSaaS(BaseModel):
     email:           Optional[EmailStr] = None
     telefono:        Optional[str] = Field(None, max_length=30)
     username:        str = Field(..., min_length=3, max_length=40)
-    password:        str = Field(..., min_length=8, max_length=80)
+    password:        str = Field(..., min_length=1, max_length=80)
 
     # ── Marketing (opcional) ─────────────────────────────────────────────────
     origen:          Optional[str] = Field(None, max_length=60)
