@@ -1689,6 +1689,44 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v82)
                 logger.info("V82 (módulo contabilidad registrado) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V83 - Tabla de cierres contables
+            # ═══════════════════════════════════════════════════════════════
+            migration_v83 = "v83_cierres_contables"
+            if not _migration_already_applied(conn, migration_v83):
+                if not _table_exists(conn, "cierres_contables"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE cierres_contables (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                empresa_id INTEGER NOT NULL REFERENCES empresas(id),
+                                periodo_inicio TIMESTAMP NOT NULL,
+                                periodo_fin TIMESTAMP NOT NULL,
+                                descripcion VARCHAR(300),
+                                asiento_id INTEGER REFERENCES asientos_contables(id),
+                                utilidad_neta REAL DEFAULT 0,
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                created_by_id INTEGER REFERENCES users(id)
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE cierres_contables (
+                                id SERIAL PRIMARY KEY,
+                                empresa_id INTEGER NOT NULL REFERENCES empresas(id),
+                                periodo_inicio TIMESTAMPTZ NOT NULL,
+                                periodo_fin TIMESTAMPTZ NOT NULL,
+                                descripcion VARCHAR(300),
+                                asiento_id INTEGER REFERENCES asientos_contables(id),
+                                utilidad_neta DOUBLE PRECISION DEFAULT 0,
+                                created_at TIMESTAMPTZ DEFAULT NOW(),
+                                created_by_id INTEGER REFERENCES users(id)
+                            )
+                        """))
+                    logger.info("V83: tabla cierres_contables creada")
+                _mark_migration_applied(conn, migration_v83)
+                logger.info("V83 (cierres contables) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

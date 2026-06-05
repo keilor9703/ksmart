@@ -2685,3 +2685,17 @@ class AsientoManualCreate(BaseModel):
     fecha: datetime
     descripcion: str
     lineas: List[LineaAsientoManual]
+
+class CierreContableOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    periodo_inicio: datetime
+    periodo_fin: datetime
+    descripcion: Optional[str] = None
+    utilidad_neta: float
+    created_at: datetime
+
+class CierreContableCreate(BaseModel):
+    periodo_inicio: datetime
+    periodo_fin: datetime
+    descripcion: Optional[str] = None

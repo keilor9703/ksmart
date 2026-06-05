@@ -1546,3 +1546,19 @@ class LineaAsiento(Base, TenantMixin):
 
     asiento = relationship("AsientoContable", back_populates="lineas")
     cuenta  = relationship("CuentaContable", back_populates="lineas")
+
+
+class CierreContable(Base, TenantMixin):
+    """Registro de cierres contables por período. Impide modificar asientos en períodos cerrados."""
+    __tablename__ = "cierres_contables"
+    id              = Column(Integer, primary_key=True, index=True)
+    periodo_inicio  = Column(DateTime(timezone=True), nullable=False)
+    periodo_fin     = Column(DateTime(timezone=True), nullable=False)
+    descripcion     = Column(String(300), nullable=True)
+    asiento_id      = Column(Integer, ForeignKey("asientos_contables.id"), nullable=True)
+    utilidad_neta   = Column(Float, default=0.0)
+    created_at      = Column(DateTime(timezone=True), default=utcnow)
+    created_by_id   = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    asiento    = relationship("AsientoContable")
+    created_by = relationship("User")

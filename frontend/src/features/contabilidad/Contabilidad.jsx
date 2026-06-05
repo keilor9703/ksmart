@@ -13,10 +13,68 @@ import { es } from 'date-fns/locale';
 import {
   AutoAwesome, ExpandMore, ExpandLess, AccountBalance,
   TrendingUp, Balance, MenuBook, Add, Delete, Receipt,
-  CheckCircleOutline, ErrorOutline,
+  CheckCircleOutline, ErrorOutline, Download, LockClock,
+  PictureAsPdf, TableChart, Lock,
 } from '@mui/icons-material';
-import { startOfMonth, endOfMonth } from 'date-fns';
+import { startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 import apiClient from '../../api';
+
+// ─── Utilidad de descarga ─────────────────────────────────────────────────────
+function descargar(url, filename) {
+  const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+  fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    .then(r => r.blob())
+    .then(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+    });
+}
+
+function BotonesExportar({ tipo, fechaInicio, fechaFin, fechaCorte }) {
+  const base = `/contabilidad/exportar`;
+  const fi = fechaInicio ? `fecha_inicio=${encodeURIComponent(fechaInicio.toISOString())}` : '';
+  const ff = fechaFin ? `fecha_fin=${encodeURIComponent(fechaFin.toISOString())}` : '';
+  const fc = fechaCorte ? `fecha_corte=${encodeURIComponent(fechaCorte.toISOString())}` : '';
+  const qs = (parts) => parts.filter(Boolean).join('&');
+
+  const opciones = {
+    'diario': [
+      { label: 'Excel', icon: <TableChart fontSize="small" />, color: '#10B981',
+        url: `${base}/libro-diario.xlsx?${qs([fi, ff])}`, file: 'libro_diario.xlsx' },
+      { label: 'PDF',   icon: <PictureAsPdf fontSize="small" />, color: '#EF4444',
+        url: `${base}/libro-diario.pdf?${qs([fi, ff])}`, file: 'libro_diario.pdf' },
+    ],
+    'balance-comprobacion': [
+      { label: 'Excel', icon: <TableChart fontSize="small" />, color: '#10B981',
+        url: `${base}/balance-comprobacion.xlsx?${qs([fi, ff])}`, file: 'balance_comprobacion.xlsx' },
+    ],
+    'estado-resultados': [
+      { label: 'PDF', icon: <PictureAsPdf fontSize="small" />, color: '#EF4444',
+        url: `${base}/estado-resultados.pdf?${qs([fi, ff])}`, file: 'estado_resultados.pdf' },
+    ],
+    'balance-general': [
+      { label: 'PDF', icon: <PictureAsPdf fontSize="small" />, color: '#EF4444',
+        url: `${base}/balance-general.pdf?${qs([fc])}`, file: 'balance_general.pdf' },
+    ],
+  };
+
+  const btns = opciones[tipo] || [];
+  return (
+    <Box sx={{ display: 'flex', gap: 1 }}>
+      {btns.map(b => (
+        <Tooltip key={b.label} title={`Descargar ${b.label}`}>
+          <Button size="small" variant="outlined" startIcon={b.icon}
+            sx={{ borderColor: b.color, color: b.color, '&:hover': { bgcolor: b.color + '11' } }}
+            onClick={() => descargar(apiClient.defaults.baseURL + b.url, b.file)}>
+            {b.label}
+          </Button>
+        </Tooltip>
+      ))}
+    </Box>
+  );
+}
 
 const fmt = (n) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(n ?? 0);
@@ -577,6 +635,139 @@ function ResumenIVA({ fechaInicio, fechaFin }) {
   );
 }
 
+// ─── Cierre Contable ─────────────────────────────────────────────────────────
+
+function CierreContableTab() {
+  const [cierres, setCierres] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showDialog, setShowDialog] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    apiClient.get('/contabilidad/cierres').then(r => setCierres(r.data)).finally(() => setLoading(false));
+  };
+  useEffect(load, []);
+
+  if (loading) return <Box sx={{ py: 4, textAlign: 'center' }}><CircularProgress /></Box>;
+
+  return (
+    <Box>
+      <Alert severity="warning" sx={{ mb: 3 }}>
+        <strong>El cierre contable es irreversible.</strong> Traslada los saldos de ingresos, costos y gastos
+        a la cuenta de Resultado del Ejercicio (3605/3610) y congela el período. Solo hazlo al finalizar un ejercicio fiscal.
+      </Alert>
+
+      <Box sx={{ mb: 2 }}>
+        <Button variant="contained" color="warning" startIcon={<Lock />} onClick={() => setShowDialog(true)}>
+          Ejecutar Cierre de Período
+        </Button>
+      </Box>
+
+      {cierres.length === 0 ? (
+        <Alert severity="info">No hay cierres contables registrados.</Alert>
+      ) : (
+        <TableContainer component={Paper}>
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: 'grey.900' }}>
+                {['#', 'Descripción', 'Período inicio', 'Período fin', 'Utilidad neta', 'Fecha cierre'].map(h => (
+                  <TableCell key={h} sx={{ color: 'white', fontWeight: 700 }}>{h}</TableCell>
+                ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {cierres.map(c => (
+                <TableRow key={c.id} hover>
+                  <TableCell>{c.id}</TableCell>
+                  <TableCell>{c.descripcion}</TableCell>
+                  <TableCell>{new Date(c.periodo_inicio).toLocaleDateString('es-CO')}</TableCell>
+                  <TableCell>{new Date(c.periodo_fin).toLocaleDateString('es-CO')}</TableCell>
+                  <TableCell sx={{ color: c.utilidad_neta >= 0 ? 'success.main' : 'error.main', fontWeight: 700 }}>
+                    {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(c.utilidad_neta)}
+                  </TableCell>
+                  <TableCell>{new Date(c.created_at).toLocaleDateString('es-CO')}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+
+      <DialogCierre open={showDialog} onClose={() => setShowDialog(false)} onDone={() => { setShowDialog(false); load(); }} />
+    </Box>
+  );
+}
+
+function DialogCierre({ open, onClose, onDone }) {
+  const [inicio, setInicio] = useState(startOfYear(new Date()));
+  const [fin, setFin] = useState(endOfYear(new Date()));
+  const [descripcion, setDescripcion] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [confirm, setConfirm] = useState(false);
+
+  const handleEjecutar = async () => {
+    setSaving(true); setError(null);
+    try {
+      await apiClient.post('/contabilidad/cierres', {
+        periodo_inicio: inicio.toISOString(),
+        periodo_fin: fin.toISOString(),
+        descripcion: descripcion || `Cierre ejercicio ${inicio.getFullYear()}`,
+      });
+      onDone();
+    } catch (e) {
+      setError(e.response?.data?.detail || 'Error al ejecutar el cierre');
+    } finally { setSaving(false); setConfirm(false); }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Lock color="warning" /> Cierre Contable de Período
+      </DialogTitle>
+      <DialogContent>
+        {!confirm ? (
+          <Grid container spacing={2} sx={{ mt: 0.5 }}>
+            <Grid item xs={12}>
+              <TextField label="Descripción" fullWidth size="small" value={descripcion}
+                onChange={e => setDescripcion(e.target.value)}
+                placeholder={`Cierre ejercicio ${new Date().getFullYear()}`} />
+            </Grid>
+            <Grid item xs={6}>
+              <DatePicker label="Inicio período" value={inicio} onChange={setInicio}
+                slotProps={{ textField: { size: 'small', fullWidth: true } }} />
+            </Grid>
+            <Grid item xs={6}>
+              <DatePicker label="Fin período" value={fin} onChange={setFin}
+                slotProps={{ textField: { size: 'small', fullWidth: true } }} />
+            </Grid>
+          </Grid>
+        ) : (
+          <Alert severity="error" sx={{ mt: 1 }}>
+            <strong>¿Confirmas el cierre?</strong><br />
+            Se generará un asiento de cierre que lleva a cero todas las cuentas de ingresos,
+            costos y gastos del período <strong>{inicio?.toLocaleDateString('es-CO')} al {fin?.toLocaleDateString('es-CO')}</strong>.
+            Esta acción <strong>no se puede deshacer</strong>.
+          </Alert>
+        )}
+        {error && <Alert severity="error" sx={{ mt: 1 }}>{error}</Alert>}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancelar</Button>
+        {!confirm ? (
+          <Button variant="contained" color="warning" onClick={() => setConfirm(true)}>
+            Revisar y confirmar
+          </Button>
+        ) : (
+          <Button variant="contained" color="error" disabled={saving} onClick={handleEjecutar}>
+            {saving ? 'Ejecutando...' : 'Sí, ejecutar cierre'}
+          </Button>
+        )}
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 // ─── Plan de Cuentas ─────────────────────────────────────────────────────────
 
 function PlanCuentas() {
@@ -628,8 +819,14 @@ const TABS = [
   { label: 'Balance General',        icon: <AccountBalance fontSize="small" /> },
   { label: 'Bal. Comprobación',      icon: <Balance fontSize="small" /> },
   { label: 'IVA / Impuestos',        icon: <Receipt fontSize="small" /> },
+  { label: 'Cierre Contable',        icon: <LockClock fontSize="small" /> },
   { label: 'Plan de Cuentas (PUC)',  icon: <AutoAwesome fontSize="small" /> },
 ];
+
+// Botones de exportación por tab
+const EXPORT_BTNS = {
+  0: 'diario', 1: 'estado-resultados', 2: 'balance-general', 3: 'balance-comprobacion',
+};
 
 export default function Contabilidad() {
   const [tab, setTab] = useState(0);
@@ -639,18 +836,18 @@ export default function Contabilidad() {
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
       <Box sx={{ p: { xs: 1, md: 3 } }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3, flexWrap: 'wrap' }}>
           <AutoAwesome sx={{ color: '#6366F1', fontSize: 30 }} />
-          <Box>
+          <Box sx={{ flex: 1 }}>
             <Typography variant="h5" fontWeight={700}>Contabilidad Automática</Typography>
             <Typography variant="body2" color="text.secondary">
-              Asientos en partida doble · PUC colombiano · Reportes DIAN · Balance General
+              Asientos en partida doble · PUC colombiano · Reportes DIAN · Balance General · Exportación PDF/Excel
             </Typography>
           </Box>
         </Box>
 
         {tab < 5 && (
-          <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid container spacing={2} sx={{ mb: 2 }} alignItems="center">
             <Grid item xs={12} sm={6} md={3}>
               <DatePicker label="Desde" value={fechaInicio} onChange={setFechaInicio}
                 slotProps={{ textField: { size: 'small', fullWidth: true } }} />
@@ -659,6 +856,15 @@ export default function Contabilidad() {
               <DatePicker label="Hasta" value={fechaFin} onChange={setFechaFin}
                 slotProps={{ textField: { size: 'small', fullWidth: true } }} />
             </Grid>
+            {EXPORT_BTNS[tab] && (
+              <Grid item xs={12} md="auto">
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Download sx={{ color: 'text.secondary', fontSize: 18 }} />
+                  <BotonesExportar tipo={EXPORT_BTNS[tab]}
+                    fechaInicio={fechaInicio} fechaFin={fechaFin} fechaCorte={fechaFin} />
+                </Box>
+              </Grid>
+            )}
           </Grid>
         )}
 
@@ -675,7 +881,8 @@ export default function Contabilidad() {
         {tab === 2 && <BalanceGeneral fechaFin={fechaFin} />}
         {tab === 3 && <BalanceComprobacion fechaInicio={fechaInicio} fechaFin={fechaFin} />}
         {tab === 4 && <ResumenIVA fechaInicio={fechaInicio} fechaFin={fechaFin} />}
-        {tab === 5 && <PlanCuentas />}
+        {tab === 5 && <CierreContableTab />}
+        {tab === 6 && <PlanCuentas />}
       </Box>
     </LocalizationProvider>
   );

@@ -383,3 +383,151 @@ def crear_asiento_manual(
     db.commit()
     db.refresh(asiento)
     return asiento
+
+
+# ─── Cierre Contable ──────────────────────────────────────────────────────────
+
+def listar_cierres(db: Session, empresa_id: int) -> List[models.CierreContable]:
+    return (
+        db.query(models.CierreContable)
+        .filter(models.CierreContable.empresa_id == empresa_id)
+        .order_by(models.CierreContable.periodo_fin.desc())
+        .all()
+    )
+
+
+def periodo_esta_cerrado(db: Session, empresa_id: int, fecha: datetime) -> bool:
+    return db.query(models.CierreContable).filter(
+        models.CierreContable.empresa_id == empresa_id,
+        models.CierreContable.periodo_inicio <= fecha,
+        models.CierreContable.periodo_fin >= fecha,
+    ).first() is not None
+
+
+def ejecutar_cierre_contable(
+    db: Session,
+    empresa_id: int,
+    periodo_inicio: datetime,
+    periodo_fin: datetime,
+    descripcion: str,
+    usuario_id: int,
+) -> models.CierreContable:
+    from fastapi import HTTPException
+    from services.contabilidad import _siguiente_numero, _get_cuenta, inicializar_puc
+
+    # Verificar que no existe cierre previo que se superponga
+    solapado = db.query(models.CierreContable).filter(
+        models.CierreContable.empresa_id == empresa_id,
+        models.CierreContable.periodo_fin >= periodo_inicio,
+        models.CierreContable.periodo_inicio <= periodo_fin,
+    ).first()
+    if solapado:
+        raise HTTPException(400, detail=f"Ya existe un cierre que cubre este período: {solapado.descripcion}")
+
+    inicializar_puc(db, empresa_id)
+
+    # Calcular saldos de cuentas de resultado en el período
+    cuentas_resultado = db.query(models.CuentaContable).filter(
+        models.CuentaContable.empresa_id == empresa_id,
+        models.CuentaContable.tipo.in_(["ingreso", "costo", "gasto"]),
+        models.CuentaContable.permite_movimiento == True,
+        models.CuentaContable.is_active == True,
+    ).all()
+
+    lineas_cierre = []
+    utilidad_neta = 0.0
+
+    for cuenta in cuentas_resultado:
+        row = db.query(
+            func.coalesce(func.sum(models.LineaAsiento.debito), 0).label("d"),
+            func.coalesce(func.sum(models.LineaAsiento.credito), 0).label("c"),
+        ).join(
+            models.AsientoContable,
+            models.LineaAsiento.asiento_id == models.AsientoContable.id,
+        ).filter(
+            models.LineaAsiento.cuenta_contable_id == cuenta.id,
+            models.LineaAsiento.empresa_id == empresa_id,
+            models.AsientoContable.fecha >= periodo_inicio,
+            models.AsientoContable.fecha <= periodo_fin,
+            models.AsientoContable.tipo_origen != "cierre",
+        ).one()
+
+        d, c = float(row.d), float(row.c)
+        saldo = (c - d) if cuenta.naturaleza == "credito" else (d - c)
+        if abs(saldo) < 0.01:
+            continue
+
+        # Para cerrar: invertir el saldo normal de cada cuenta
+        if cuenta.naturaleza == "credito":  # ingresos
+            # Débitar la cuenta de ingreso para llevarla a cero
+            lineas_cierre.append((cuenta, saldo, 0.0))   # (cuenta, debito, credito)
+            utilidad_neta += saldo
+        else:  # costos y gastos
+            # Acreditar la cuenta de gasto/costo para llevarla a cero
+            lineas_cierre.append((cuenta, 0.0, saldo))
+            utilidad_neta -= saldo
+
+    if not lineas_cierre:
+        raise HTTPException(400, detail="No hay saldos de resultado en el período indicado.")
+
+    # Cuenta contrapartida: 3605 Utilidad o 3610 Pérdida
+    codigo_resultado = "3605" if utilidad_neta >= 0 else "3610"
+    cuenta_resultado = _get_cuenta(db, empresa_id, codigo_resultado)
+    if not cuenta_resultado:
+        raise HTTPException(500, detail=f"Cuenta {codigo_resultado} no encontrada en el PUC.")
+
+    numero = _siguiente_numero(db, empresa_id)
+    total_d = sum(l[1] for l in lineas_cierre)
+    total_c = sum(l[2] for l in lineas_cierre)
+
+    # La contrapartida cuadra el asiento
+    if utilidad_neta >= 0:
+        total_c += utilidad_neta   # Cr. 3605
+    else:
+        total_d += abs(utilidad_neta)  # Dr. 3610
+
+    asiento = models.AsientoContable(
+        empresa_id=empresa_id,
+        numero=numero,
+        fecha=periodo_fin,
+        descripcion=descripcion or f"Cierre contable {periodo_inicio.strftime('%Y-%m-%d')} al {periodo_fin.strftime('%Y-%m-%d')}",
+        tipo_origen="cierre",
+        total_debitos=total_d,
+        total_creditos=total_c,
+    )
+    db.add(asiento)
+    db.flush()
+
+    orden = 1
+    for cuenta, deb, cred in lineas_cierre:
+        db.add(models.LineaAsiento(
+            empresa_id=empresa_id, asiento_id=asiento.id,
+            cuenta_contable_id=cuenta.id,
+            descripcion=f"Cierre {cuenta.codigo} — {cuenta.nombre}",
+            debito=deb, credito=cred, orden=orden,
+        ))
+        orden += 1
+
+    # Línea de contrapartida (resultado neto)
+    db.add(models.LineaAsiento(
+        empresa_id=empresa_id, asiento_id=asiento.id,
+        cuenta_contable_id=cuenta_resultado.id,
+        descripcion="Utilidad / Pérdida del período",
+        debito=abs(utilidad_neta) if utilidad_neta < 0 else 0.0,
+        credito=utilidad_neta if utilidad_neta >= 0 else 0.0,
+        orden=orden,
+    ))
+
+    cierre = models.CierreContable(
+        empresa_id=empresa_id,
+        periodo_inicio=periodo_inicio,
+        periodo_fin=periodo_fin,
+        descripcion=asiento.descripcion,
+        asiento_id=asiento.id,
+        utilidad_neta=utilidad_neta,
+        created_by_id=usuario_id,
+    )
+    db.add(cierre)
+    db.commit()
+    db.refresh(cierre)
+    return cierre

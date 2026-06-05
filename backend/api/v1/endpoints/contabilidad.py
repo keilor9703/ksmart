@@ -130,3 +130,102 @@ def crear_asiento_manual(
         db, current_user.empresa_id,
         fecha=data.fecha, descripcion=data.descripcion, lineas=lineas,
     )
+
+
+# ─── Cierres contables ────────────────────────────────────────────────────────
+
+@router.get("/cierres", response_model=list[schemas.CierreContableOut])
+def listar_cierres(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_active_user),
+):
+    return crud.listar_cierres(db, current_user.empresa_id)
+
+
+@router.post("/cierres", response_model=schemas.CierreContableOut)
+def ejecutar_cierre(
+    data: schemas.CierreContableCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_active_user),
+):
+    return crud.ejecutar_cierre_contable(
+        db, current_user.empresa_id,
+        periodo_inicio=data.periodo_inicio,
+        periodo_fin=data.periodo_fin,
+        descripcion=data.descripcion or "",
+        usuario_id=current_user.id,
+    )
+
+
+# ─── Exportaciones ────────────────────────────────────────────────────────────
+
+from fastapi.responses import Response
+
+def _empresa_nombre(current_user) -> str:
+    return getattr(getattr(current_user, "empresa", None), "nombre", "Empresa") or "Empresa"
+
+
+@router.get("/exportar/libro-diario.xlsx")
+def exportar_libro_diario_excel(
+    fecha_inicio: Optional[datetime] = Query(None),
+    fecha_fin: Optional[datetime] = Query(None),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_active_user),
+):
+    from services.exportacion_contable import exportar_libro_diario_excel as _exp
+    data = _exp(db, current_user.empresa_id, fecha_inicio, fecha_fin)
+    return Response(content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=libro_diario.xlsx"})
+
+
+@router.get("/exportar/libro-diario.pdf")
+def exportar_libro_diario_pdf(
+    fecha_inicio: Optional[datetime] = Query(None),
+    fecha_fin: Optional[datetime] = Query(None),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_active_user),
+):
+    from services.exportacion_contable import exportar_libro_diario_pdf as _exp
+    data = _exp(db, current_user.empresa_id, fecha_inicio, fecha_fin, _empresa_nombre(current_user))
+    return Response(content=data, media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=libro_diario.pdf"})
+
+
+@router.get("/exportar/balance-comprobacion.xlsx")
+def exportar_balance_comprobacion_excel(
+    fecha_inicio: Optional[datetime] = Query(None),
+    fecha_fin: Optional[datetime] = Query(None),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_active_user),
+):
+    from services.exportacion_contable import exportar_balance_comprobacion_excel as _exp
+    data = _exp(db, current_user.empresa_id, fecha_inicio, fecha_fin)
+    return Response(content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=balance_comprobacion.xlsx"})
+
+
+@router.get("/exportar/estado-resultados.pdf")
+def exportar_estado_resultados_pdf(
+    fecha_inicio: Optional[datetime] = Query(None),
+    fecha_fin: Optional[datetime] = Query(None),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_active_user),
+):
+    from services.exportacion_contable import exportar_estado_resultados_pdf as _exp
+    data = _exp(db, current_user.empresa_id, fecha_inicio, fecha_fin, _empresa_nombre(current_user))
+    return Response(content=data, media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=estado_resultados.pdf"})
+
+
+@router.get("/exportar/balance-general.pdf")
+def exportar_balance_general_pdf(
+    fecha_corte: Optional[datetime] = Query(None),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_active_user),
+):
+    from services.exportacion_contable import exportar_balance_general_pdf as _exp
+    data = _exp(db, current_user.empresa_id, fecha_corte, _empresa_nombre(current_user))
+    return Response(content=data, media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=balance_general.pdf"})
