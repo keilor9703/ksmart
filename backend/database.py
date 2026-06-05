@@ -449,13 +449,13 @@ def run_migrations():
                     for gid, nombre, codigo, color, orden in predefinidos:
                         if IS_SQLITE:
                             conn.execute(text("""
-                                INSERT INTO grupos_producto(id, empresa_id, nombre, codigo, color, es_predefinido, orden)
-                                VALUES(:id, NULL, :nombre, :codigo, :color, 1, :orden)
+                                INSERT INTO grupos_producto(id, empresa_id, nombre, codigo, color, es_predefinido, orden, visible_pos)
+                                VALUES(:id, NULL, :nombre, :codigo, :color, 1, :orden, 1)
                             """), {"id": gid, "nombre": nombre, "codigo": codigo, "color": color, "orden": orden})
                         else:
                             conn.execute(text("""
-                                INSERT INTO grupos_producto(id, empresa_id, nombre, codigo, color, es_predefinido, orden)
-                                VALUES(:id, NULL, :nombre, :codigo, :color, TRUE, :orden)
+                                INSERT INTO grupos_producto(id, empresa_id, nombre, codigo, color, es_predefinido, orden, visible_pos)
+                                VALUES(:id, NULL, :nombre, :codigo, :color, TRUE, :orden, TRUE)
                                 ON CONFLICT (id) DO NOTHING
                             """), {"id": gid, "nombre": nombre, "codigo": codigo, "color": color, "orden": orden})
 
@@ -994,13 +994,13 @@ def run_migrations():
                 if not existe_plato:
                     if IS_SQLITE:
                         conn.execute(text("""
-                            INSERT INTO grupos_producto(id, empresa_id, nombre, codigo, color, es_predefinido, orden, requiere_cocina)
-                            VALUES(5, NULL, 'Platos y Preparaciones', 'PLATO', '#EC4899', 1, 5, 1)
+                            INSERT INTO grupos_producto(id, empresa_id, nombre, codigo, color, es_predefinido, orden, requiere_cocina, visible_pos)
+                            VALUES(5, NULL, 'Platos y Preparaciones', 'PLATO', '#EC4899', 1, 5, 1, 1)
                         """))
                     else:
                         conn.execute(text("""
-                            INSERT INTO grupos_producto(id, empresa_id, nombre, codigo, color, es_predefinido, orden, requiere_cocina)
-                            VALUES(5, NULL, 'Platos y Preparaciones', 'PLATO', '#EC4899', TRUE, 5, TRUE)
+                            INSERT INTO grupos_producto(id, empresa_id, nombre, codigo, color, es_predefinido, orden, requiere_cocina, visible_pos)
+                            VALUES(5, NULL, 'Platos y Preparaciones', 'PLATO', '#EC4899', TRUE, 5, TRUE, TRUE)
                             ON CONFLICT (id) DO NOTHING
                         """))
                         conn.execute(text(
