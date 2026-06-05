@@ -209,6 +209,18 @@ def run_migrations():
             ))
             conn.commit()
 
+        # Programa de fidelización configurable por empresa
+        emp_cols = [c['name'] for c in inspector.get_columns('empresas')]
+        if 'fidelizacion_activa' not in emp_cols:
+            conn.execute(text("ALTER TABLE empresas ADD COLUMN fidelizacion_activa BOOLEAN NOT NULL DEFAULT TRUE"))
+            conn.commit()
+        if 'fidelizacion_earn_rate' not in emp_cols:
+            conn.execute(text("ALTER TABLE empresas ADD COLUMN fidelizacion_earn_rate INTEGER NOT NULL DEFAULT 1000"))
+            conn.commit()
+        if 'fidelizacion_redeem_rate' not in emp_cols:
+            conn.execute(text("ALTER TABLE empresas ADD COLUMN fidelizacion_redeem_rate INTEGER NOT NULL DEFAULT 100"))
+            conn.commit()
+
 @app.on_event("startup")
 def startup_event():
     run_migrations()
