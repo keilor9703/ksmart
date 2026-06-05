@@ -4,7 +4,7 @@ import {
   TableContainer, TableHead, TableRow, Chip, CircularProgress, Alert,
   TextField, Grid, Card, CardContent, IconButton, Collapse,
   Divider, Button, Dialog, DialogTitle, DialogContent, DialogActions,
-  InputAdornment, Tooltip,
+  Tooltip,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -17,6 +17,7 @@ import {
   PictureAsPdf, TableChart, Lock,
 } from '@mui/icons-material';
 import apiClient from '../../api';
+import CurrencyField from '../../components/common/CurrencyField';
 
 // ─── Utilidad de descarga ─────────────────────────────────────────────────────
 function descargar(url, filename) {
@@ -214,8 +215,8 @@ function AsientoManualDialog({ open, onClose, onSaved }) {
   const [fecha, setFecha] = useState(dayjs());
   const [cuentas, setCuentas] = useState([]);
   const [lineas, setLineas] = useState([
-    { cuenta_codigo: '', descripcion: '', debito: '', credito: '' },
-    { cuenta_codigo: '', descripcion: '', debito: '', credito: '' },
+    { cuenta_codigo: '', descripcion: '', debito: 0, credito: 0 },
+    { cuenta_codigo: '', descripcion: '', debito: 0, credito: 0 },
   ]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -225,8 +226,8 @@ function AsientoManualDialog({ open, onClose, onSaved }) {
       apiClient.get('/contabilidad/cuentas').then(r => setCuentas(r.data));
   }, [open]);
 
-  const totalD = lineas.reduce((s, l) => s + (parseFloat(l.debito) || 0), 0);
-  const totalC = lineas.reduce((s, l) => s + (parseFloat(l.credito) || 0), 0);
+  const totalD = lineas.reduce((s, l) => s + (Number(l.debito) || 0), 0);
+  const totalC = lineas.reduce((s, l) => s + (Number(l.credito) || 0), 0);
   const cuadra = Math.abs(totalD - totalC) < 0.01 && totalD > 0;
 
   const updateLinea = (i, field, val) =>
@@ -243,8 +244,8 @@ function AsientoManualDialog({ open, onClose, onSaved }) {
           .map(l => ({
             cuenta_codigo: l.cuenta_codigo,
             descripcion: l.descripcion || null,
-            debito: parseFloat(l.debito) || 0,
-            credito: parseFloat(l.credito) || 0,
+            debito: Number(l.debito) || 0,
+            credito: Number(l.credito) || 0,
           })),
       });
       onSaved(); onClose();
@@ -291,14 +292,12 @@ function AsientoManualDialog({ open, onClose, onSaved }) {
                   value={l.descripcion} onChange={e => updateLinea(i, 'descripcion', e.target.value)} />
               </Grid>
               <Grid item xs={5} sm={2}>
-                <TextField label="Débito" size="small" fullWidth type="number"
-                  value={l.debito} onChange={e => updateLinea(i, 'debito', e.target.value)}
-                  InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }} />
+                <CurrencyField label="Débito" size="small" fullWidth
+                  value={l.debito} onChange={val => updateLinea(i, 'debito', val)} />
               </Grid>
               <Grid item xs={5} sm={2}>
-                <TextField label="Crédito" size="small" fullWidth type="number"
-                  value={l.credito} onChange={e => updateLinea(i, 'credito', e.target.value)}
-                  InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }} />
+                <CurrencyField label="Crédito" size="small" fullWidth
+                  value={l.credito} onChange={val => updateLinea(i, 'credito', val)} />
               </Grid>
               <Grid item xs={2} sm={1}>
                 <IconButton size="small" color="error"
