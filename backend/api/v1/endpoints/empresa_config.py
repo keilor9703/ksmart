@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 import models, schemas
 from api.deps import get_db, get_current_active_user
+from core import security
 
 router = APIRouter()
 
@@ -123,6 +124,87 @@ def get_config_ventas(
     return {
         "omitir_inventario": getattr(empresa, "omitir_inventario", False) or False,
     }
+
+
+@router.get("/empresa/mi-cuenta")
+def get_mi_cuenta(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Devuelve los datos visibles de la empresa y del usuario administrador."""
+    empresa = db.query(models.Empresa).filter_by(id=current_user.empresa_id).first()
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada.")
+    return {
+        "empresa": {
+            "nombre":         empresa.nombre,
+            "nit":            empresa.nit,
+            "ciudad":         empresa.ciudad,
+            "pais":           empresa.pais,
+            "tamano_negocio": empresa.tamano_negocio,
+            "logo_base64":    empresa.logo_base64,
+        },
+        "usuario": {
+            "username":        current_user.username,
+            "nombre_completo": current_user.nombre_completo,
+            "email":           current_user.email,
+            "telefono":        current_user.telefono,
+        },
+    }
+
+
+@router.put("/empresa/mi-cuenta")
+def update_mi_cuenta(
+    payload: schemas.MiCuentaUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Actualiza los campos editables de la empresa y del usuario administrador."""
+    empresa = db.query(models.Empresa).filter_by(id=current_user.empresa_id).first()
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada.")
+
+    if payload.empresa_nombre is not None and payload.empresa_nombre.strip():
+        empresa.nombre = payload.empresa_nombre.strip()
+    if payload.ciudad is not None:
+        empresa.ciudad = payload.ciudad.strip()
+    if payload.pais is not None:
+        empresa.pais = payload.pais
+    if payload.tamano_negocio is not None:
+        empresa.tamano_negocio = payload.tamano_negocio
+
+    if payload.nombre_completo is not None:
+        current_user.nombre_completo = payload.nombre_completo.strip()
+    if payload.email is not None and payload.email.strip():
+        email_lower = payload.email.strip().lower()
+        taken = db.query(models.User).filter(
+            models.User.email == email_lower,
+            models.User.id != current_user.id
+        ).first()
+        if taken:
+            raise HTTPException(status_code=400, detail="Este correo ya está en uso por otra cuenta.")
+        current_user.email = email_lower
+    if payload.telefono is not None:
+        current_user.telefono = payload.telefono.strip()
+
+    db.commit()
+    return {"message": "Datos actualizados correctamente."}
+
+
+@router.put("/empresa/mi-cuenta/password")
+def change_password_mi_cuenta(
+    payload: schemas.CambiarPasswordMiCuentaRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Cambia la contraseña del usuario autenticado verificando la contraseña actual."""
+    if not current_user.hashed_password or not security.verify_password(
+        payload.password_actual, current_user.hashed_password
+    ):
+        raise HTTPException(status_code=400, detail="La contraseña actual es incorrecta.")
+    current_user.hashed_password = security.get_password_hash(payload.nueva_password)
+    db.commit()
+    return {"message": "Contraseña actualizada correctamente."}
 
 
 @router.put("/empresa/config-ventas")

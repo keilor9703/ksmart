@@ -3,15 +3,18 @@ import {
   Box, Typography, Card, Chip, Button, Avatar, Divider,
   CircularProgress, Stack, useTheme, alpha, LinearProgress,
   Table, TableBody, TableRow, TableCell, TableHead, TableContainer,
-  Paper, Collapse, IconButton, Tooltip, Dialog, DialogTitle,
-  DialogContent, DialogActions,
+  Collapse, IconButton, Tooltip, Dialog, DialogTitle,
+  DialogContent, DialogActions, Tabs, Tab, TextField, MenuItem,
+  InputAdornment,
 } from '@mui/material';
 import {
   WorkspacePremium, CheckCircle, Warning, Cancel, Refresh,
   Receipt, CreditCard, AccountBalanceWallet, AttachMoney,
   ExpandMore, ExpandLess, ContentCopy, CalendarMonth,
-  Payments, HourglassBottom, Bolt, Shield, KeyboardArrowRight,
-  Close, QrCode2,
+  Payments, HourglassBottom, Bolt, Shield,
+  Close, QrCode2, Business, Person, Lock, Save,
+  Language, LocationOn, Groups, Visibility, VisibilityOff,
+  OpenInNew, Email, Phone,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
@@ -35,6 +38,26 @@ const fmtDateFull = (iso) => {
 
 const copyToClipboard = (text) =>
   navigator.clipboard?.writeText(text).then(() => toast.success('Copiado'));
+
+const PAISES_OPT = [
+  { code: 'CO',   label: 'Colombia',       flag: '🇨🇴' },
+  { code: 'MX',   label: 'México',         flag: '🇲🇽' },
+  { code: 'EC',   label: 'Ecuador',        flag: '🇪🇨' },
+  { code: 'PE',   label: 'Perú',           flag: '🇵🇪' },
+  { code: 'VE',   label: 'Venezuela',      flag: '🇻🇪' },
+  { code: 'AR',   label: 'Argentina',      flag: '🇦🇷' },
+  { code: 'CL',   label: 'Chile',          flag: '🇨🇱' },
+  { code: 'ES',   label: 'España',         flag: '🇪🇸' },
+  { code: 'US',   label: 'Estados Unidos', flag: '🇺🇸' },
+  { code: 'OTRO', label: 'Otro país',      flag: '🌎' },
+];
+
+const TAMANOS_OPT = [
+  { value: 'solo',    label: 'Solo yo (1 persona)' },
+  { value: 'pequeno', label: 'Pequeño (2–5)' },
+  { value: 'mediano', label: 'Mediano (6–20)' },
+  { value: 'grande',  label: 'Grande (+20)' },
+];
 
 const METODO_ICONS = {
   CARD:           <CreditCard sx={{ fontSize: 15 }} />,
@@ -438,12 +461,306 @@ const HistorialTable = ({ historial }) => {
   );
 };
 
+// ─── MiEmpresaTab ─────────────────────────────────────────────────────────────
+
+const MiEmpresaTab = () => {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+
+  const [cuenta, setCuenta]       = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [savingInfo, setSavingInfo] = useState(false);
+  const [savingPwd, setSavingPwd]   = useState(false);
+  const [pwdOpen, setPwdOpen]       = useState(false);
+  const [showCurPwd, setShowCurPwd] = useState(false);
+  const [showNewPwd, setShowNewPwd] = useState(false);
+
+  const [form, setForm] = useState({
+    empresa_nombre: '', ciudad: '', pais: '', tamano_negocio: '',
+    nombre_completo: '', email: '', telefono: '',
+  });
+  const [pwd, setPwd] = useState({ password_actual: '', nueva_password: '' });
+
+  const fetchCuenta = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await apiClient.get('/empresa/mi-cuenta');
+      setCuenta(res.data);
+      setForm({
+        empresa_nombre:  res.data.empresa.nombre        || '',
+        ciudad:          res.data.empresa.ciudad         || '',
+        pais:            res.data.empresa.pais           || '',
+        tamano_negocio:  res.data.empresa.tamano_negocio || '',
+        nombre_completo: res.data.usuario.nombre_completo || '',
+        email:           res.data.usuario.email          || '',
+        telefono:        res.data.usuario.telefono       || '',
+      });
+    } catch {
+      toast.error('Error al cargar los datos de la cuenta');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchCuenta(); }, [fetchCuenta]);
+
+  const handleSaveInfo = async () => {
+    setSavingInfo(true);
+    try {
+      await apiClient.put('/empresa/mi-cuenta', form);
+      toast.success('Datos actualizados correctamente');
+      await fetchCuenta();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al guardar los datos');
+    } finally {
+      setSavingInfo(false);
+    }
+  };
+
+  const handleSavePwd = async () => {
+    setSavingPwd(true);
+    try {
+      await apiClient.put('/empresa/mi-cuenta/password', pwd);
+      toast.success('Contraseña actualizada correctamente');
+      setPwd({ password_actual: '', nueva_password: '' });
+      setPwdOpen(false);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al cambiar la contraseña');
+    } finally {
+      setSavingPwd(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+        <CircularProgress sx={{ color: '#FF6020' }} />
+      </Box>
+    );
+  }
+
+  const logoRaw = cuenta?.empresa?.logo_base64;
+  const logoSrc = logoRaw
+    ? (logoRaw.startsWith('data:') ? logoRaw : `data:image/webp;base64,${logoRaw}`)
+    : null;
+
+  const sectionIcon = (color) => ({
+    width: 36, height: 36, borderRadius: 2, flexShrink: 0,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    bgcolor: alpha(color, isDark ? 0.15 : 0.08),
+  });
+
+  return (
+    <Box sx={{ pt: 2 }}>
+
+      {/* ── Logo ── */}
+      <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${alpha(theme.palette.divider, 1)}`, mb: 2.5 }}>
+        <Box sx={{ px: 2.5, py: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={sectionIcon('#FF6020')}><Business sx={{ color: '#FF6020', fontSize: 18 }} /></Box>
+          <Typography fontWeight={700} fontSize={14}>Logo de la empresa</Typography>
+        </Box>
+        <Divider />
+        <Box sx={{ px: 2.5, py: 2.5, display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
+          <Box sx={{
+            width: 80, height: 80, borderRadius: 3, flexShrink: 0, overflow: 'hidden',
+            border: `2px dashed ${alpha(theme.palette.divider, 1)}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            bgcolor: alpha(theme.palette.text.primary, 0.025),
+          }}>
+            {logoSrc
+              ? <img src={logoSrc} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              : <Business sx={{ fontSize: 32, opacity: 0.2 }} />
+            }
+          </Box>
+          <Box>
+            <Typography fontSize={13} color="text.secondary" mb={1}>
+              El logo se gestiona desde el módulo <strong>Catálogo Virtual</strong>.
+            </Typography>
+            <Button
+              component="a" href="/admin/catalogo" size="small" variant="outlined"
+              endIcon={<OpenInNew sx={{ fontSize: 14 }} />}
+              sx={{
+                borderRadius: 2, fontSize: 12, textTransform: 'none',
+                borderColor: alpha('#FF6020', 0.5), color: '#FF6020',
+                '&:hover': { borderColor: '#FF6020', bgcolor: alpha('#FF6020', 0.06) },
+              }}
+            >
+              Ir a Catálogo Virtual
+            </Button>
+          </Box>
+        </Box>
+      </Card>
+
+      {/* ── Empresa ── */}
+      <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${alpha(theme.palette.divider, 1)}`, mb: 2.5 }}>
+        <Box sx={{ px: 2.5, py: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={sectionIcon('#2563EB')}><Business sx={{ color: '#2563EB', fontSize: 18 }} /></Box>
+          <Box>
+            <Typography fontWeight={700} fontSize={14}>Información de la empresa</Typography>
+            <Typography fontSize={12} color="text.secondary">NIT: {cuenta?.empresa?.nit || '—'}</Typography>
+          </Box>
+        </Box>
+        <Divider />
+        <Box sx={{ px: 2.5, py: 2.5, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+          <TextField
+            label="Nombre de la empresa" size="small" fullWidth
+            value={form.empresa_nombre}
+            onChange={e => setForm(f => ({ ...f, empresa_nombre: e.target.value }))}
+            InputProps={{ startAdornment: <InputAdornment position="start"><Business sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment> }}
+          />
+          <TextField
+            label="Ciudad" size="small" fullWidth
+            value={form.ciudad}
+            onChange={e => setForm(f => ({ ...f, ciudad: e.target.value }))}
+            InputProps={{ startAdornment: <InputAdornment position="start"><LocationOn sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment> }}
+          />
+          <TextField
+            select label="País" size="small" fullWidth
+            value={form.pais}
+            onChange={e => setForm(f => ({ ...f, pais: e.target.value }))}
+            InputProps={{ startAdornment: <InputAdornment position="start"><Language sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment> }}
+          >
+            {PAISES_OPT.map(p => (
+              <MenuItem key={p.code} value={p.code}>{p.flag} {p.label}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select label="Tamaño del negocio" size="small" fullWidth
+            value={form.tamano_negocio}
+            onChange={e => setForm(f => ({ ...f, tamano_negocio: e.target.value }))}
+            InputProps={{ startAdornment: <InputAdornment position="start"><Groups sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment> }}
+          >
+            {TAMANOS_OPT.map(t => (
+              <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>
+            ))}
+          </TextField>
+        </Box>
+      </Card>
+
+      {/* ── Administrador ── */}
+      <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${alpha(theme.palette.divider, 1)}`, mb: 2.5 }}>
+        <Box sx={{ px: 2.5, py: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={sectionIcon('#059669')}><Person sx={{ color: '#059669', fontSize: 18 }} /></Box>
+          <Box>
+            <Typography fontWeight={700} fontSize={14}>Datos del administrador</Typography>
+            <Typography fontSize={12} color="text.secondary">Usuario: {cuenta?.usuario?.username || '—'}</Typography>
+          </Box>
+        </Box>
+        <Divider />
+        <Box sx={{ px: 2.5, py: 2.5, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+          <TextField
+            label="Nombre completo" size="small" fullWidth
+            value={form.nombre_completo}
+            onChange={e => setForm(f => ({ ...f, nombre_completo: e.target.value }))}
+            InputProps={{ startAdornment: <InputAdornment position="start"><Person sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment> }}
+          />
+          <TextField
+            label="Correo electrónico" size="small" fullWidth type="email"
+            value={form.email}
+            onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+            InputProps={{ startAdornment: <InputAdornment position="start"><Email sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment> }}
+          />
+          <TextField
+            label="Teléfono" size="small" fullWidth
+            value={form.telefono}
+            onChange={e => setForm(f => ({ ...f, telefono: e.target.value }))}
+            InputProps={{ startAdornment: <InputAdornment position="start"><Phone sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment> }}
+          />
+        </Box>
+      </Card>
+
+      {/* ── Save info button ── */}
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2.5 }}>
+        <Button
+          variant="contained" onClick={handleSaveInfo} disabled={savingInfo}
+          startIcon={savingInfo ? <CircularProgress size={16} color="inherit" /> : <Save />}
+          sx={{ borderRadius: 2.5, bgcolor: '#FF6020', '&:hover': { bgcolor: '#e05519' }, fontWeight: 700, px: 3 }}
+        >
+          {savingInfo ? 'Guardando…' : 'Guardar cambios'}
+        </Button>
+      </Box>
+
+      {/* ── Password change ── */}
+      <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${alpha(theme.palette.divider, 1)}` }}>
+        <Box
+          onClick={() => setPwdOpen(v => !v)}
+          sx={{
+            px: 2.5, py: 2, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            '&:hover': { bgcolor: alpha(theme.palette.text.primary, 0.025) },
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={sectionIcon('#7C3AED')}><Lock sx={{ color: '#7C3AED', fontSize: 18 }} /></Box>
+            <Box>
+              <Typography fontWeight={700} fontSize={14}>Cambiar contraseña</Typography>
+              <Typography fontSize={12} color="text.secondary">Actualiza tu contraseña de acceso</Typography>
+            </Box>
+          </Box>
+          {pwdOpen ? <ExpandLess sx={{ color: 'text.secondary' }} /> : <ExpandMore sx={{ color: 'text.secondary' }} />}
+        </Box>
+
+        <Collapse in={pwdOpen} timeout="auto">
+          <Divider />
+          <Box sx={{ px: 2.5, py: 2.5 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2, mb: 2 }}>
+              <TextField
+                label="Contraseña actual" size="small" fullWidth
+                type={showCurPwd ? 'text' : 'password'}
+                value={pwd.password_actual}
+                onChange={e => setPwd(p => ({ ...p, password_actual: e.target.value }))}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start"><Lock sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment>,
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton size="small" onClick={() => setShowCurPwd(v => !v)} edge="end">
+                        {showCurPwd ? <VisibilityOff sx={{ fontSize: 16 }} /> : <Visibility sx={{ fontSize: 16 }} />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              <TextField
+                label="Nueva contraseña" size="small" fullWidth
+                type={showNewPwd ? 'text' : 'password'}
+                value={pwd.nueva_password}
+                onChange={e => setPwd(p => ({ ...p, nueva_password: e.target.value }))}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start"><Lock sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment>,
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton size="small" onClick={() => setShowNewPwd(v => !v)} edge="end">
+                        {showNewPwd ? <VisibilityOff sx={{ fontSize: 16 }} /> : <Visibility sx={{ fontSize: 16 }} />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Button
+                variant="contained" onClick={handleSavePwd}
+                disabled={savingPwd || !pwd.password_actual || !pwd.nueva_password}
+                startIcon={savingPwd ? <CircularProgress size={16} color="inherit" /> : <Save />}
+                sx={{ borderRadius: 2.5, bgcolor: '#7C3AED', '&:hover': { bgcolor: '#6d28d9' }, fontWeight: 700, px: 3 }}
+              >
+                {savingPwd ? 'Guardando…' : 'Cambiar contraseña'}
+              </Button>
+            </Box>
+          </Box>
+        </Collapse>
+      </Card>
+    </Box>
+  );
+};
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function MiSuscripcion({ user }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
+  const [tab, setTab]           = useState(0);
   const [data, setData]         = useState(null);
   const [loading, setLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -475,14 +792,6 @@ export default function MiSuscripcion({ user }) {
     setShowPlanes(false);
   };
 
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-        <CircularProgress sx={{ color: '#FF6020' }} />
-      </Box>
-    );
-  }
-
   const { suscripcion, historial_pagos = [], planes_disponibles = [] } = data || {};
   const showRenewSection = status.showRenew || showPlanes;
 
@@ -490,17 +799,44 @@ export default function MiSuscripcion({ user }) {
     <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 900, mx: 'auto' }}>
 
       {/* ── Header ── */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5 }}>
         <Avatar sx={{ bgcolor: alpha('#FF6020', 0.12), width: 44, height: 44 }}>
           <WorkspacePremium sx={{ color: '#FF6020', fontSize: 22 }} />
         </Avatar>
         <Box>
-          <Typography variant="h6" fontWeight={900} lineHeight={1.1}>Mi Suscripción</Typography>
+          <Typography variant="h6" fontWeight={900} lineHeight={1.1}>Mi Cuenta</Typography>
           <Typography fontSize={12} color="text.secondary">
-            {user?.empresa?.nombre || 'Estado de tu plan y historial de pagos'}
+            {user?.empresa?.nombre || 'Empresa y suscripción'}
           </Typography>
         </Box>
       </Box>
+
+      {/* ── Tabs ── */}
+      <Tabs
+        value={tab} onChange={(_, v) => setTab(v)}
+        sx={{
+          mb: 3,
+          borderBottom: `1px solid ${alpha(theme.palette.divider, 1)}`,
+          '& .MuiTab-root': { textTransform: 'none', fontWeight: 700, fontSize: 13, minHeight: 44 },
+          '& .MuiTabs-indicator': { bgcolor: '#FF6020' },
+          '& .Mui-selected': { color: '#FF6020 !important' },
+        }}
+      >
+        <Tab label="Mi Empresa" />
+        <Tab label="Suscripción" />
+      </Tabs>
+
+      {/* ── Tab 0: Mi Empresa ── */}
+      {tab === 0 && <MiEmpresaTab />}
+
+      {/* ── Tab 1: Suscripción ── */}
+      {tab === 1 && <>
+
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '40vh' }}>
+          <CircularProgress sx={{ color: '#FF6020' }} />
+        </Box>
+      ) : <>
 
       {/* ── Hero Status Card ── */}
       <HeroCard
@@ -640,6 +976,8 @@ export default function MiSuscripcion({ user }) {
         <HistorialTable historial={historial_pagos} />
       </Card>
 
+      </>}
+      </>}
     </Box>
   );
 }

@@ -470,7 +470,7 @@ const Login = ({ onLogin }) => {
         isEmail(regData.email) &&
         isPhone(regData.telefono) &&
         regData.username.trim().length >= 3 &&
-        regData.password.length >= 8 &&
+        regData.password.length >= 1 &&
         regData.password === regData.confirmPassword &&
         regData.acepta_terminos;
 

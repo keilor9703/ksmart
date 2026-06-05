@@ -2490,6 +2490,24 @@ class PinVerifyResponse(BaseModel):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# MI CUENTA (empresa + admin)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class MiCuentaUpdate(BaseModel):
+    empresa_nombre:  Optional[str] = None
+    ciudad:          Optional[str] = None
+    pais:            Optional[str] = None
+    tamano_negocio:  Optional[str] = None
+    nombre_completo: Optional[str] = None
+    email:           Optional[str] = None
+    telefono:        Optional[str] = None
+
+class CambiarPasswordMiCuentaRequest(BaseModel):
+    password_actual: str
+    nueva_password:  str = Field(..., min_length=1, max_length=80)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # IMPUESTOS
 # ═══════════════════════════════════════════════════════════════════════════════
 
