@@ -194,22 +194,36 @@ def update_empresa_modulos(db: Session, empresa_id: int, modulos: List[str], adm
 # Uses :eid named parameter (SQLAlchemy-safe, works with PostgreSQL & SQLite).
 # ---------------------------------------------------------------------------
 _DELETE_STEPS = [
+    # hijos de cuotas_prestamo
     "DELETE FROM evidencias_cobro WHERE cuota_id IN (SELECT id FROM cuotas_prestamo WHERE prestamo_id IN (SELECT id FROM prestamos WHERE empresa_id=:eid))",
+    # hijos de prestamos
     "DELETE FROM cuotas_prestamo WHERE prestamo_id IN (SELECT id FROM prestamos WHERE empresa_id=:eid)",
+    # hijos de devoluciones
     "DELETE FROM devolucion_items WHERE devolucion_id IN (SELECT id FROM devoluciones WHERE empresa_id=:eid)",
+    # hijos de compras
     "DELETE FROM detalles_compra WHERE compra_id IN (SELECT id FROM compras WHERE empresa_id=:eid)",
     "DELETE FROM pagos_compra WHERE compra_id IN (SELECT id FROM compras WHERE empresa_id=:eid)",
+    # hijos de recetas
     "DELETE FROM receta_items WHERE receta_id IN (SELECT id FROM recetas WHERE empresa_id=:eid)",
     "DELETE FROM receta_servicios WHERE receta_id IN (SELECT id FROM recetas WHERE empresa_id=:eid)",
     "DELETE FROM lotes_produccion WHERE receta_id IN (SELECT id FROM recetas WHERE empresa_id=:eid)",
+    # hijos de pedidos_virtuales
     "DELETE FROM detalles_pedido_virtual WHERE pedido_id IN (SELECT id FROM pedidos_virtuales WHERE empresa_id=:eid)",
+    # hijos de restaurante_comandas
     "DELETE FROM restaurante_comanda_items WHERE comanda_id IN (SELECT id FROM restaurante_comandas WHERE empresa_id=:eid)",
+    # hijos de ordenes_trabajo
     "DELETE FROM orden_productos WHERE empresa_id=:eid",
     "DELETE FROM orden_servicios WHERE empresa_id=:eid",
     "DELETE FROM evidencias WHERE empresa_id=:eid",
+    # hijos de suscripciones_parqueadero
     "DELETE FROM pagos_parqueadero WHERE empresa_id=:eid",
+    # notificaciones tiene FK → users.id: eliminar ANTES que users
+    "DELETE FROM notificaciones WHERE empresa_id=:eid",
+    "DELETE FROM notificaciones WHERE user_id IN (SELECT id FROM users WHERE empresa_id=:eid)",
+    # credenciales y role_modules: antes de users y roles
     "DELETE FROM credenciales_biometricas WHERE user_id IN (SELECT id FROM users WHERE empresa_id=:eid)",
     "DELETE FROM role_modules WHERE role_id IN (SELECT id FROM roles WHERE empresa_id=:eid)",
+    # tablas principales
     "DELETE FROM prestamos WHERE empresa_id=:eid",
     "DELETE FROM devoluciones WHERE empresa_id=:eid",
     "DELETE FROM compras WHERE empresa_id=:eid",
@@ -225,10 +239,16 @@ _DELETE_STEPS = [
     "DELETE FROM roles WHERE empresa_id=:eid",
     "DELETE FROM lavadero_orden_detalles WHERE empresa_id=:eid",
     "DELETE FROM lavadero_ordenes WHERE empresa_id=:eid",
+    # detalles_venta: por empresa_id + subquery para capturar filas huérfanas
     "DELETE FROM detalles_venta WHERE empresa_id=:eid",
+    "DELETE FROM detalles_venta WHERE venta_id IN (SELECT id FROM ventas WHERE empresa_id=:eid)",
+    # pagos: por empresa_id + subquery
     "DELETE FROM pagos WHERE empresa_id=:eid",
+    "DELETE FROM pagos WHERE venta_id IN (SELECT id FROM ventas WHERE empresa_id=:eid)",
     "DELETE FROM ventas WHERE empresa_id=:eid",
+    # movimientos_puntos: por empresa_id + subquery por cliente_id
     "DELETE FROM movimientos_puntos WHERE empresa_id=:eid",
+    "DELETE FROM movimientos_puntos WHERE cliente_id IN (SELECT id FROM clientes WHERE empresa_id=:eid)",
     "DELETE FROM clientes WHERE empresa_id=:eid",
     "DELETE FROM producto_impuestos WHERE empresa_id=:eid",
     "DELETE FROM inventory_movements WHERE empresa_id=:eid",
@@ -245,7 +265,6 @@ _DELETE_STEPS = [
     "DELETE FROM restaurante_mesas WHERE empresa_id=:eid",
     "DELETE FROM restaurante_config WHERE empresa_id=:eid",
     "DELETE FROM links_pago_empresa WHERE empresa_id=:eid",
-    "DELETE FROM notificaciones WHERE empresa_id=:eid",
     "DELETE FROM registros_productividad WHERE empresa_id=:eid",
     "DELETE FROM cortes_caja WHERE empresa_id=:eid",
     "DELETE FROM gastos WHERE empresa_id=:eid",

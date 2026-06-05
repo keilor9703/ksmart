@@ -84,6 +84,13 @@ PASOS = [
     ("pagos_parqueadero",
      "DELETE FROM pagos_parqueadero WHERE empresa_id={eid}"),
 
+    # ── notificaciones tiene FK → users.id: eliminar ANTES que users ────────
+    ("notificaciones (empresa)",
+     "DELETE FROM notificaciones WHERE empresa_id={eid}"),
+    ("notificaciones (user_id)",
+     "DELETE FROM notificaciones WHERE user_id IN "
+     "(SELECT id FROM users WHERE empresa_id={eid})"),
+
     # ── credenciales biométricas (user_id → users) ──────────────────────────
     ("credenciales_biometricas",
      "DELETE FROM credenciales_biometricas WHERE user_id IN "
@@ -110,10 +117,22 @@ PASOS = [
     ("roles",                      "DELETE FROM roles WHERE empresa_id={eid}"),
     ("lavadero_orden_detalles",    "DELETE FROM lavadero_orden_detalles WHERE empresa_id={eid}"),
     ("lavadero_ordenes",           "DELETE FROM lavadero_ordenes WHERE empresa_id={eid}"),
-    ("detalles_venta",             "DELETE FROM detalles_venta WHERE empresa_id={eid}"),
-    ("pagos",                      "DELETE FROM pagos WHERE empresa_id={eid}"),
+    # detalles_venta: por empresa_id + subquery para capturar filas huérfanas
+    ("detalles_venta (empresa)",   "DELETE FROM detalles_venta WHERE empresa_id={eid}"),
+    ("detalles_venta (venta_id)",
+     "DELETE FROM detalles_venta WHERE venta_id IN "
+     "(SELECT id FROM ventas WHERE empresa_id={eid})"),
+    # pagos: por empresa_id + subquery
+    ("pagos (empresa)",            "DELETE FROM pagos WHERE empresa_id={eid}"),
+    ("pagos (venta_id)",
+     "DELETE FROM pagos WHERE venta_id IN "
+     "(SELECT id FROM ventas WHERE empresa_id={eid})"),
     ("ventas",                     "DELETE FROM ventas WHERE empresa_id={eid}"),
-    ("movimientos_puntos",         "DELETE FROM movimientos_puntos WHERE empresa_id={eid}"),
+    # movimientos_puntos: por empresa_id + subquery por cliente_id
+    ("movimientos_puntos (empresa)","DELETE FROM movimientos_puntos WHERE empresa_id={eid}"),
+    ("movimientos_puntos (cliente)",
+     "DELETE FROM movimientos_puntos WHERE cliente_id IN "
+     "(SELECT id FROM clientes WHERE empresa_id={eid})"),
     ("clientes",                   "DELETE FROM clientes WHERE empresa_id={eid}"),
     ("producto_impuestos",         "DELETE FROM producto_impuestos WHERE empresa_id={eid}"),
     ("inventory_movements",        "DELETE FROM inventory_movements WHERE empresa_id={eid}"),
@@ -122,7 +141,7 @@ PASOS = [
     ("productos",                  "DELETE FROM productos WHERE empresa_id={eid}"),
     ("tipos_impuesto",             "DELETE FROM tipos_impuesto WHERE empresa_id={eid}"),
     ("empresa_grupo_config",       "DELETE FROM empresa_grupo_config WHERE empresa_id={eid}"),
-    ("grupos_producto (propios)",  "DELETE FROM grupos_producto WHERE empresa_id={eid}"),
+    ("grupos_producto",            "DELETE FROM grupos_producto WHERE empresa_id={eid}"),
     ("lavadero_config",            "DELETE FROM lavadero_config WHERE empresa_id={eid}"),
     ("parqueadero_config",         "DELETE FROM parqueadero_config WHERE empresa_id={eid}"),
     ("metodos_pago_parqueadero",   "DELETE FROM metodos_pago_parqueadero WHERE empresa_id={eid}"),
@@ -130,7 +149,6 @@ PASOS = [
     ("restaurante_mesas",          "DELETE FROM restaurante_mesas WHERE empresa_id={eid}"),
     ("restaurante_config",         "DELETE FROM restaurante_config WHERE empresa_id={eid}"),
     ("links_pago_empresa",         "DELETE FROM links_pago_empresa WHERE empresa_id={eid}"),
-    ("notificaciones",             "DELETE FROM notificaciones WHERE empresa_id={eid}"),
     ("registros_productividad",    "DELETE FROM registros_productividad WHERE empresa_id={eid}"),
     ("cortes_caja",                "DELETE FROM cortes_caja WHERE empresa_id={eid}"),
     ("gastos",                     "DELETE FROM gastos WHERE empresa_id={eid}"),
