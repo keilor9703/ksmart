@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KSmart360 — Pitch Deck</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --o:  #FF6020;
+      --o1: rgba(255,96,32,0.12);
+      --o2: rgba(255,96,32,0.22);
+      --bg: #09090b;
+      --card: rgba(255,255,255,0.04);
+      --bdr: rgba(255,255,255,0.08);
+      --txt: #f1f5f9;
+      --dim: rgba(255,255,255,0.5);
+    }
+
+    html, body { width:100%; height:100%; background:var(--bg); color:var(--txt);
+      font-family:'Segoe UI',system-ui,-apple-system,sans-serif; overflow:hidden; }
+
+    /* ── Slide system ── */
+    .slide {
+      position:absolute; inset:0;
+      display:flex; flex-direction:column; justify-content:center; align-items:center;
+      padding:clamp(1.5rem,4vw,4rem);
+      opacity:0; pointer-events:none;
+      transform:translateX(70px);
+      transition:opacity .42s ease, transform .42s ease;
+    }
+    .slide.active  { opacity:1; pointer-events:all; transform:translateX(0); }
+    .slide.exit    { opacity:0; transform:translateX(-70px); }
+    .inner         { width:100%; max-width:1320px; }
+
+    /* ── Typography ── */
+    .tag {
+      display:inline-flex; align-items:center; gap:.4rem;
+      padding:.3rem .85rem; border-radius:20px;
+      font-size:.6rem; font-weight:800; letter-spacing:2px; text-transform:uppercase;
+      margin-bottom:.9rem;
+    }
+    .t-o { background:rgba(255,96,32,.12); color:var(--o); border:1px solid rgba(255,96,32,.25); }
+    .t-b { background:rgba(59,130,246,.12); color:#60a5fa; border:1px solid rgba(59,130,246,.25); }
+    .t-g { background:rgba(34,197,94,.12);  color:#4ade80; border:1px solid rgba(34,197,94,.25); }
+    .t-p { background:rgba(139,92,246,.12); color:#a78bfa; border:1px solid rgba(139,92,246,.25); }
+
+    h1 { font-size:clamp(3rem,7vw,5.5rem); font-weight:900; line-height:1; letter-spacing:-.02em; }
+    h2 { font-size:clamp(1.6rem,3.2vw,2.6rem); font-weight:800; line-height:1.1; letter-spacing:-.01em; }
+
+    .grad { background:linear-gradient(135deg,#FF6020,#ff9d00);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+
+    .sub { font-size:.95rem; color:var(--dim); margin-top:.5rem; line-height:1.6; }
+
+    /* ── Cards / Grids ── */
+    .card  { background:var(--card); border:1px solid var(--bdr); border-radius:14px; padding:1.2rem; }
+    .g     { display:grid; gap:.85rem; }
+    .g2    { grid-template-columns:repeat(2,1fr); }
+    .g3    { grid-template-columns:repeat(3,1fr); }
+    .g4    { grid-template-columns:repeat(4,1fr); }
+    .g5    { grid-template-columns:repeat(5,1fr); }
+
+    /* ── Fixed chrome ── */
+    #logo { position:fixed; top:1.25rem; left:2rem; font-weight:900; font-size:.9rem;
+      color:var(--o); z-index:200; letter-spacing:-.5px; }
+    #cnt  { position:fixed; top:1.25rem; right:2rem; font-size:.7rem;
+      color:rgba(255,255,255,.25); z-index:200; }
+
+    #dots { position:fixed; bottom:1.75rem; left:50%; transform:translateX(-50%);
+      display:flex; gap:.45rem; z-index:200; }
+    .dot  { width:7px; height:7px; border-radius:4px; background:rgba(255,255,255,.18);
+      cursor:pointer; transition:all .3s; }
+    .dot.on { width:22px; background:var(--o); }
+
+    .arr  { position:fixed; top:50%; transform:translateY(-50%);
+      width:44px; height:44px; border-radius:50%;
+      background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1);
+      color:rgba(255,255,255,.5); font-size:1.2rem; cursor:pointer; z-index:200;
+      display:flex; align-items:center; justify-content:center; transition:all .2s; }
+    .arr:hover { background:rgba(255,96,32,.15); border-color:rgba(255,96,32,.3); color:var(--o); }
+    #a-l { left:1.25rem; } #a-r { right:1.25rem; }
+
+    /* ── Animations ── */
+    @keyframes glow  { 0%,100%{box-shadow:0 0 30px rgba(255,96,32,.3),0 0 60px rgba(255,96,32,.1)} 50%{box-shadow:0 0 55px rgba(255,96,32,.55),0 0 110px rgba(255,96,32,.2)} }
+    @keyframes blink { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }
+
+    .glow-box { animation:glow 3s ease-in-out infinite; }
+
+    .live { display:inline-flex; align-items:center; gap:.4rem; font-size:.75rem; color:#4ade80; }
+    .live-dot { width:7px; height:7px; background:#4ade80; border-radius:50%; animation:blink 2s ease-in-out infinite; }
+
+    /* ── Layer diagram ── */
+    .layer { border-radius:10px; padding:.72rem 1.2rem; text-align:center;
+      font-weight:700; font-size:.8rem; border:1px solid; }
+    .conn-line  { width:2px; height:18px; margin:0 auto;
+      background:linear-gradient(to bottom,rgba(255,96,32,.6),rgba(255,96,32,.12)); }
+    .conn-label { text-align:center; font-size:.58rem; color:rgba(255,255,255,.28); margin:1px 0; }
+  </style>
+</head>
+<body>
+
+<!-- Chrome -->
+<div id="logo">KSmart360</div>
+<div id="cnt"></div>
+<div id="dots"></div>
+<button class="arr" id="a-l">‹</button>
+<button class="arr" id="a-r">›</button>
+
+<!-- Slide containers (content injected by JS) -->
+<div class="slide" id="s0"></div>
+<div class="slide" id="s1"></div>
+<div class="slide" id="s2"></div>
+<div class="slide" id="s3"></div>
+<div class="slide" id="s4"></div>
+<div class="slide" id="s5"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  SLIDE 0 — PORTADA
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('s0').innerHTML = `
+<div style="text-align:center;display:flex;flex-direction:column;align-items:center;
+  background:radial-gradient(ellipse at 20% 50%,rgba(255,96,32,.14) 0%,transparent 65%),
+             radial-gradient(ellipse at 80% 20%,rgba(255,96,32,.07) 0%,transparent 55%),
+             #09090b; position:absolute; inset:0; justify-content:center;">
+
+  <div class="glow-box" style="width:90px;height:90px;border-radius:22px;margin-bottom:1.5rem;
+    background:linear-gradient(135deg,#FF6020,#ff9d00);
+    display:flex;align-items:center;justify-content:center;font-size:2.4rem;">🧠</div>
+
+  <div class="tag t-o">Plataforma SaaS &nbsp;·&nbsp; Colombia &nbsp;·&nbsp; 2025</div>
+
+  <h1><span class="grad">KSmart</span><span style="color:#fff">360</span></h1>
+
+  <p style="font-size:clamp(.95rem,2.2vw,1.35rem);color:rgba(255,255,255,.6);
+    max-width:640px;margin-top:1rem;line-height:1.65;">
+    La plataforma de gestión empresarial que transforma cómo las PYMEs colombianas
+    venden, inventarían, cobran y crecen — todo en un solo sistema, desde la nube.
+  </p>
+
+  <div style="display:flex;gap:4rem;margin-top:3rem;">
+    ${[['5+','Tipos de negocio'],['27+','Módulos activos'],['8','Integraciones'],['∞','Empresas simultáneas']].map(([n,l])=>`
+      <div style="text-align:center;">
+        <div style="font-size:2.2rem;font-weight:900;color:#FF6020;line-height:1;">${n}</div>
+        <div style="font-size:.6rem;color:rgba(255,255,255,.38);text-transform:uppercase;letter-spacing:1.5px;margin-top:.25rem;">${l}</div>
+      </div>`).join('')}
+  </div>
+
+  <div style="margin-top:2.5rem;" class="live">
+    <span class="live-dot"></span>
+    Sistema en producción &nbsp;·&nbsp; Demo en vivo disponible ahora mismo
+  </div>
+</div>
+`;
+
+// ═══════════════════════════════════════════════════════════════
+//  SLIDE 1 — EL PROBLEMA & LA OPORTUNIDAD
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('s1').innerHTML = `
+<div class="inner">
+  <div class="tag t-o">Oportunidad de Mercado</div>
+  <h2>2.5 millones de PYMEs en Colombia <span class="grad">sin ERP accesible</span></h2>
+  <p class="sub" style="max-width:680px;margin-bottom:1.75rem;">
+    El 94&nbsp;% de las empresas colombianas son micro y pequeñas. La mayoría opera con cuadernos,
+    Excel o sistemas costosos que no hablan colombiano.
+  </p>
+
+  <div class="g g3" style="margin-bottom:1.25rem;">
+    ${[
+      {icon:'📓',c:'#ef4444',t:'El problema hoy',
+       items:['Cuadernos y Excel sin trazabilidad','Software importado caro y complejo',
+              'Sin integración DIAN nativa','Sin pasarela de pagos colombiana',
+              'Sin soporte para múltiples negocios']},
+      {icon:'✅',c:'#22c55e',t:'Lo que ofrece KSmart360',
+       items:['ERP completo desde la nube, sin instalación','Suscripción mensual accesible',
+              '100&nbsp;% localizado para Colombia','Wompi + DIAN + WhatsApp integrados',
+              '5 tipos de negocio en un solo sistema']},
+      {icon:'📈',c:'#FF6020',t:'La oportunidad',
+       items:['Mercado de miles de millones sin penetrar','Costo marginal ~$0 por cliente nuevo',
+              'SaaS = ingresos mensuales recurrentes','Barreras de entrada altas (módulos)',
+              'Expansión natural: MX · EC · PE · VE']},
+    ].map(col=>`
+      <div class="card" style="border-top:3px solid ${col.c};">
+        <div style="font-size:1.5rem;margin-bottom:.5rem;">${col.icon}</div>
+        <div style="font-weight:800;font-size:.88rem;color:${col.c};margin-bottom:.7rem;">${col.t}</div>
+        ${col.items.map(i=>`
+          <div style="display:flex;gap:.45rem;margin-bottom:.32rem;font-size:.72rem;color:rgba(255,255,255,.62);">
+            <span style="color:${col.c};flex-shrink:0;">▸</span>${i}
+          </div>`).join('')}
+      </div>`).join('')}
+  </div>
+
+  <div style="display:flex;gap:.6rem;flex-wrap:wrap;">
+    ${['🇨🇴 NIT · Tipo documento · RUT','💳 Wompi (Bancolombia)','📄 Facturación electrónica DIAN',
+       '💬 WhatsApp Cloud API','💱 TRM Datos.gov.co'].map(t=>`
+      <span style="padding:.32rem .8rem;background:rgba(255,96,32,.08);
+        border:1px solid rgba(255,96,32,.2);border-radius:20px;font-size:.68rem;color:#FF6020;">${t}</span>`).join('')}
+  </div>
+</div>
+`;
+
+// ═══════════════════════════════════════════════════════════════
+//  SLIDE 2 — FUNCIONALIDADES ESTRELLA
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('s2').innerHTML = `
+<div class="inner">
+  <div class="tag t-o">Funcionalidades</div>
+  <h2>Todo lo que tu empresa necesita. <span class="grad">Un solo sistema.</span></h2>
+  <p class="sub" style="margin-bottom:1.5rem;">
+    POS · Inventario · Cobranzas · Catálogo Virtual · Producción · Reportes · DIAN · y mucho más
+  </p>
+
+  <div class="g g4" style="margin-bottom:1rem;">
+    ${[
+      {icon:'🛒',c:'#FF6020',t:'POS Dual Mode',
+       d:'Clásico (teclado + barcode) y Touch Mode táctil. Hasta 4 métodos de pago en una sola factura.'},
+      {icon:'📦',c:'#3b82f6',t:'Inventario FEFO',
+       d:'Kardex automático por costo promedio, trazabilidad por lote, alertas de stock mínimo, FEFO para perecederos.'},
+      {icon:'🌐',c:'#22c55e',t:'Catálogo + WhatsApp',
+       d:'Tienda virtual pública con URL única por empresa. El cliente ve productos y pide directo por WhatsApp.'},
+      {icon:'💸',c:'#f59e0b',t:'Préstamos & Cobros',
+       d:'Amortización automática, mora en tiempo real, rutas de cobro, GPS y evidencia fotográfica de cada visita.'},
+      {icon:'🏭',c:'#8b5cf6',t:'Producción BOM',
+       d:'Recetas con ingredientes, rendimiento configurable, rollup de costos, lotes de producción con scrap.'},
+      {icon:'📊',c:'#ec4899',t:'9 Tipos de Reporte',
+       d:'Rentabilidad, IVA neto, CxC, P&L, kardex, vendedores, productividad. Exporta a Excel y PDF.'},
+      {icon:'🧾',c:'#06b6d4',t:'DIAN Electrónica',
+       d:'Resoluciones, numeración automática, campos tributarios NIT/DV. Integración Matias API activa.'},
+      {icon:'👥',c:'#10b981',t:'Clientes & Fidelización',
+       d:'CRM con límite de crédito, historial, cuentas por cobrar aging, programa de puntos canjeables.'},
+    ].map(f=>`
+      <div class="card" style="border-top:2px solid ${f.c}30;">
+        <div style="font-size:1.45rem;margin-bottom:.4rem;">${f.icon}</div>
+        <div style="font-weight:800;font-size:.8rem;color:${f.c};margin-bottom:.32rem;">${f.t}</div>
+        <div style="font-size:.66rem;color:rgba(255,255,255,.48);line-height:1.55;">${f.d}</div>
+      </div>`).join('')}
+  </div>
+
+  <div style="display:flex;gap:.45rem;flex-wrap:wrap;">
+    ${['✅ Biométrico FIDO2/WebAuthn','✅ Modo claro / oscuro','✅ Responsive tablet / móvil',
+       '✅ SuperAdmin multi-empresa','✅ Jobs automáticos (cron)','✅ Rate limiting · Audit log'].map(f=>`
+      <span style="font-size:.66rem;padding:.25rem .65rem;
+        background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);
+        border-radius:12px;color:#4ade80;">${f}</span>`).join('')}
+  </div>
+</div>
+`;
+
+// ═══════════════════════════════════════════════════════════════
+//  SLIDE 3 — TIPOS DE NEGOCIO
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('s3').innerHTML = `
+<div class="inner">
+  <div class="tag t-p">Mercado Objetivo</div>
+  <h2>Un sistema. <span class="grad">Cinco industrias.</span></h2>
+  <p class="sub" style="margin-bottom:1.75rem;">
+    Cada tipo de negocio tiene su perfil de módulos activado automáticamente al registrarse. Sin configuración.
+  </p>
+
+  <div class="g g5">
+    ${[
+      {icon:'🏪',c:'#FF6020',n:'Comercio ERP',
+       s:'Retail · Mayorista · Ferretería · Distribuidora',
+       fs:['POS dual mode','Inventario FEFO','Gestión compras','Facturación DIAN',
+           'Producción BOM','Cartera CxC','Catálogo online']},
+      {icon:'💰',c:'#f59e0b',n:'Prestamista',
+       s:'Microfinanzas · Crédito informal · Cooperativas',
+       fs:['Amortización auto','Mora tiempo real','Rutas de cobro','GPS + evidencia',
+           'Abono a capital','PDF recibos','WhatsApp alerts']},
+      {icon:'🚗',c:'#3b82f6',n:'Parqueadero',
+       s:'Motos · Carros · Bicicletas',
+       fs:['Entrada / salida','Tarifas multi-tipo','Suscripciones','Ocupación real-time',
+           'Multi-pago','Expiración auto','Reportes ingreso']},
+      {icon:'🚿',c:'#22c55e',n:'Lavadero',
+       s:'Autolavado · Detailing · Car wash',
+       fs:['POS servicios','Asignación operario','Comisiones auto',
+           'Reporte productividad','Servicios config.','Control de turno']},
+      {icon:'🍽️',c:'#8b5cf6',n:'Restaurante',
+       s:'Cafetería · Comidas rápidas · Food court',
+       fs:['Mapa de mesas','Multi-zona','Comandas digitales',
+           'KDS pantalla cocina','Estado por ítem','Caja integrada']},
+    ].map(b=>`
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);
+        border-radius:16px;padding:1.25rem;border-top:3px solid ${b.c};">
+        <div style="font-size:2rem;margin-bottom:.45rem;">${b.icon}</div>
+        <div style="font-weight:800;font-size:.88rem;color:${b.c};">${b.n}</div>
+        <div style="font-size:.6rem;color:rgba(255,255,255,.38);margin:.15rem 0 .85rem;line-height:1.4;">${b.s}</div>
+        ${b.fs.map(f=>`
+          <div style="display:flex;gap:.38rem;margin-bottom:.28rem;font-size:.68rem;color:rgba(255,255,255,.58);">
+            <span style="color:${b.c};font-size:.58rem;flex-shrink:0;">▸</span>${f}
+          </div>`).join('')}
+      </div>`).join('')}
+  </div>
+</div>
+`;
+
+// ═══════════════════════════════════════════════════════════════
+//  SLIDE 4 — ARQUITECTURA TÉCNICA
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('s4').innerHTML = `
+<div class="inner">
+  <div class="tag t-b">Arquitectura Técnica</div>
+  <h2>Ingeniería de <span class="grad">nivel empresarial</span></h2>
+  <p class="sub" style="margin-bottom:1.75rem;">
+    Multi-tenant SaaS · Cloud-native · Seguridad desde la base · Escala a miles de empresas sin costo adicional
+  </p>
+
+  <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:2rem;align-items:start;">
+
+    <!-- Left: Architecture diagram -->
+    <div>
+      <p style="font-size:.58rem;text-transform:uppercase;letter-spacing:2px;
+        color:rgba(255,255,255,.32);margin-bottom:.75rem;">Stack & Arquitectura Multi-Tenant SaaS</p>
+
+      <div class="layer" style="border-color:rgba(59,130,246,.5);background:rgba(59,130,246,.07);color:#60a5fa;">
+        ⚛️ &nbsp; React 18 SPA &nbsp;·&nbsp; Material UI v5 &nbsp;·&nbsp; Vercel CDN Global
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;padding:2px 0;">
+        <div class="conn-line"></div>
+        <div class="conn-label">HTTPS / REST / JSON</div>
+        <div class="conn-line"></div>
+      </div>
+      <div class="layer" style="border-color:rgba(255,96,32,.5);background:rgba(255,96,32,.07);color:#FF6020;">
+        🐍 &nbsp; FastAPI Python 3.11 &nbsp;·&nbsp; Render Cloud &nbsp;·&nbsp; JWT + FIDO2
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;padding:2px 0;">
+        <div class="conn-line"></div>
+        <div class="conn-label">SQLAlchemy ORM · empresa_id isolation total</div>
+        <div class="conn-line"></div>
+      </div>
+      <div class="layer" style="border-color:rgba(34,197,94,.5);background:rgba(34,197,94,.07);color:#4ade80;">
+        🐘 &nbsp; PostgreSQL 14 + Supabase &nbsp;·&nbsp; 70+ tablas &nbsp;·&nbsp; Multi-tenant
+      </div>
+
+      <div style="margin-top:1.2rem;background:rgba(255,96,32,.07);
+        border:1px solid rgba(255,96,32,.22);border-radius:12px;padding:1rem;">
+        <div style="font-weight:800;font-size:.8rem;color:#FF6020;margin-bottom:.38rem;">
+          🏢 &nbsp; Multi-Tenancy — Shared Schema
+        </div>
+        <div style="font-size:.7rem;color:rgba(255,255,255,.58);line-height:1.65;">
+          Un solo backend atiende <strong>N empresas simultáneamente</strong> con datos
+          completamente aislados. Cada tabla lleva
+          <code style="background:rgba(255,255,255,.1);padding:.1rem .3rem;border-radius:4px;font-size:.65rem;">empresa_id</code>
+          que hace imposible el acceso cruzado.<br>
+          El <strong>SuperAdmin</strong> gestiona todos los tenants, cambia planes en tiempo real
+          e incluso puede impersonar usuarios para soporte.
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Stack grid + Security + Integrations -->
+    <div style="display:flex;flex-direction:column;gap:1.1rem;">
+
+      <!-- Stack -->
+      <div>
+        <p style="font-size:.58rem;text-transform:uppercase;letter-spacing:2px;
+          color:rgba(255,255,255,.32);margin-bottom:.6rem;">Tech Stack</p>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.38rem;">
+          ${[['⚛️','React 18'],['🎨','MUI v5'],['🐍','FastAPI'],['✅','Pydantic v2'],
+             ['🐘','PostgreSQL'],['☁️','Supabase'],['🚀','Vercel'],['🖥️','Render']].map(([i,l])=>`
+            <div style="display:flex;flex-direction:column;align-items:center;gap:.2rem;
+              padding:.5rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);
+              border-radius:8px;font-size:.58rem;color:rgba(255,255,255,.5);">
+              <span style="font-size:.95rem;">${i}</span>${l}
+            </div>`).join('')}
+        </div>
+      </div>
+
+      <!-- Security -->
+      <div>
+        <p style="font-size:.58rem;text-transform:uppercase;letter-spacing:2px;
+          color:rgba(255,255,255,.32);margin-bottom:.6rem;">Seguridad</p>
+        <div style="display:flex;flex-direction:column;gap:.32rem;">
+          ${[['🔑','JWT firmado · empresa_id en token · Expiración configurable'],
+             ['👆','WebAuthn / FIDO2 · Biométrico huella / cara · Sin contraseña'],
+             ['🔢','PIN de acceso rápido con bloqueo automático'],
+             ['🛡️','bcrypt · RBAC 27+ módulos por rol · Audit Log de superadmin'],
+             ['🌐','CORS whitelist · Rate limiting · HMAC verificado (Wompi)']].map(([i,t])=>`
+            <div style="display:flex;gap:.5rem;align-items:center;padding:.38rem .6rem;
+              background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);
+              border-radius:7px;font-size:.66rem;color:rgba(255,255,255,.58);">
+              <span>${i}</span><span>${t}</span>
+            </div>`).join('')}
+        </div>
+      </div>
+
+      <!-- Integrations -->
+      <div>
+        <p style="font-size:.58rem;text-transform:uppercase;letter-spacing:2px;
+          color:rgba(255,255,255,.32);margin-bottom:.6rem;">Integraciones Activas</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.38rem;">
+          ${[['💳','Wompi','Pasarela SaaS · Tarjeta, Nequi, PSE, QR','#FF6020'],
+             ['📄','DIAN','Facturación electrónica · Matias API','#22c55e'],
+             ['💬','WhatsApp','Cloud API · Pedidos y cobros','#25D366'],
+             ['🏷️','Barcode','OpenFoodFacts · UPCitemdb · BeautyFacts','#60a5fa'],
+             ['📈','Mercado','Yahoo Finance ICE · TRM Datos.gov.co','#f59e0b'],
+             ['👆','FIDO2','WebAuthn biométrico nativo','#8b5cf6']].map(([i,n,d,c])=>`
+            <div style="padding:.58rem;background:rgba(255,255,255,.03);
+              border:1px solid rgba(255,255,255,.07);border-radius:8px;">
+              <div style="font-weight:800;font-size:.73rem;color:${c};">${i} ${n}</div>
+              <div style="font-size:.58rem;color:rgba(255,255,255,.38);margin-top:.15rem;line-height:1.4;">${d}</div>
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+// ═══════════════════════════════════════════════════════════════
+//  SLIDE 5 — MODELO DE NEGOCIO
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('s5').innerHTML = `
+<div class="inner">
+  <div class="tag t-o">Modelo de Negocio</div>
+  <h2>SaaS · Ingresos <span class="grad">recurrentes</span> · Escala infinita</h2>
+  <p class="sub" style="margin-bottom:1.75rem;">
+    Una empresa se registra. Paga. El sistema se activa solo. El costo marginal de crecer es cero.
+  </p>
+
+  <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:2rem;align-items:start;">
+
+    <!-- Plans + Wompi -->
+    <div>
+      <p style="font-size:.58rem;text-transform:uppercase;letter-spacing:2px;
+        color:rgba(255,255,255,.32);margin-bottom:.7rem;">Planes de Suscripción</p>
+
+      <div style="display:flex;flex-direction:column;gap:.58rem;margin-bottom:1.2rem;">
+        ${[
+          {icon:'⚡',c:'#3b82f6',n:'Trial',
+           d:'14 días gratuitos · Sin tarjeta de crédito · Expira automáticamente',note:'Alta conversión'},
+          {icon:'✨',c:'#FF6020',n:'Premium',
+           d:'Suscripción mensual recurrente · Activación automática vía webhook Wompi',note:'MRR garantizado'},
+          {icon:'♾️',c:'#8b5cf6',n:'Vitalicio',
+           d:'Pago único · Asignado por SuperAdmin · Nunca expira',note:'Alianzas estratégicas'},
+        ].map(p=>`
+          <div style="display:flex;align-items:center;gap:1rem;background:rgba(255,255,255,.04);
+            border:1px solid rgba(255,255,255,.08);border-radius:12px;
+            padding:.88rem 1.1rem;border-left:3px solid ${p.c};">
+            <span style="font-size:1.35rem;">${p.icon}</span>
+            <div style="flex:1;">
+              <div style="font-weight:800;color:${p.c};font-size:.85rem;">${p.n}</div>
+              <div style="font-size:.67rem;color:rgba(255,255,255,.48);margin-top:.12rem;">${p.d}</div>
+            </div>
+            <span style="font-size:.58rem;color:rgba(255,255,255,.28);text-align:right;max-width:95px;">${p.note}</span>
+          </div>`).join('')}
+      </div>
+
+      <!-- Wompi -->
+      <div style="background:rgba(255,96,32,.07);border:1px solid rgba(255,96,32,.22);
+        border-radius:12px;padding:1rem 1.1rem;">
+        <div style="font-weight:800;color:#FF6020;font-size:.85rem;margin-bottom:.3rem;">
+          💳 &nbsp; Pasarela Wompi (Bancolombia)
+        </div>
+        <div style="font-size:.7rem;color:rgba(255,255,255,.55);line-height:1.65;">
+          Tarjeta de crédito / débito &nbsp;·&nbsp; Nequi &nbsp;·&nbsp; PSE &nbsp;·&nbsp;
+          QR Bancolombia &nbsp;·&nbsp; Efectivo.<br>
+          Verificación HMAC del webhook.
+          <strong style="color:#fff;">La suscripción se activa sola</strong> al confirmar el
+          pago — sin intervención manual. Cero fricción.
+        </div>
+      </div>
+
+      <!-- Revenue metrics -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem;margin-top:1rem;">
+        ${[['MRR','Ingresos mensuales recurrentes · Por cada cliente'],
+           ['$0','Costo marginal de agregar una empresa nueva'],
+           ['∞','Empresas que puede atender la infraestructura actual']].map(([n,d])=>`
+          <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);
+            border-radius:10px;padding:.8rem;text-align:center;">
+            <div style="font-size:1.2rem;font-weight:900;color:#FF6020;">${n}</div>
+            <div style="font-size:.58rem;color:rgba(255,255,255,.38);margin-top:.25rem;line-height:1.45;">${d}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- Why invest -->
+    <div>
+      <p style="font-size:.58rem;text-transform:uppercase;letter-spacing:2px;
+        color:rgba(255,255,255,.32);margin-bottom:.7rem;">¿Por Qué Invertir en KSmart360?</p>
+      <div style="display:flex;flex-direction:column;gap:.55rem;">
+        ${[
+          ['🎯','Mercado enorme y desatendido',
+           '2.5M PYMEs en Colombia. La mayoría sin ningún sistema de gestión.'],
+          ['💡','Producto real, no una idea',
+           'Sistema completo en producción hoy. No un MVP, no una demo: el producto real.'],
+          ['📈','SaaS = ingresos recurrentes',
+           'MRR crece con cada cliente. Churn bajo porque el sistema está integrado al día a día.'],
+          ['🔒','Foso competitivo profundo',
+           'Parqueadero, préstamos con mora, producción BOM, DIAN, FIDO2 — años de desarrollo especializado.'],
+          ['🇨🇴','100&nbsp;% localizado Colombia',
+           'DIAN, Wompi, TRM, WhatsApp, NIT. Hecho aquí para las necesidades reales.'],
+          ['🌎','Expansión natural a Latinoamérica',
+           'El mismo sistema sirve para México, Ecuador, Perú, Venezuela. Mismo código, nuevo mercado.'],
+        ].map(([i,t,d])=>`
+          <div style="display:flex;gap:.72rem;padding:.68rem .9rem;
+            background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:10px;">
+            <span style="font-size:1.05rem;flex-shrink:0;">${i}</span>
+            <div>
+              <div style="font-weight:700;font-size:.78rem;margin-bottom:.1rem;">${t}</div>
+              <div style="font-size:.64rem;color:rgba(255,255,255,.43);line-height:1.48;">${d}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+// ═══════════════════════════════════════════════════════════════
+//  Navigation engine
+// ═══════════════════════════════════════════════════════════════
+const slides = document.querySelectorAll('.slide');
+const dotsEl = document.getElementById('dots');
+const cntEl  = document.getElementById('cnt');
+let cur = 0;
+
+slides.forEach((_, i) => {
+  const d = document.createElement('div');
+  d.className = 'dot' + (i === 0 ? ' on' : '');
+  d.addEventListener('click', () => go(i));
+  dotsEl.appendChild(d);
+});
+
+function go(n) {
+  if (n === cur || n < 0 || n >= slides.length) return;
+  slides[cur].classList.remove('active');
+  slides[cur].classList.add('exit');
+  const prev = cur;
+  cur = n;
+  slides[cur].classList.add('active');
+  setTimeout(() => slides[prev].classList.remove('exit'), 500);
+  document.querySelectorAll('.dot').forEach((d, i) => d.className = 'dot' + (i === cur ? ' on' : ''));
+  cntEl.textContent = (cur + 1) + ' / ' + slides.length;
+}
+
+document.getElementById('a-l').addEventListener('click', () => go(cur - 1));
+document.getElementById('a-r').addEventListener('click', () => go(cur + 1));
+document.addEventListener('keydown', e => {
+  if (['ArrowRight','ArrowDown',' '].includes(e.key)) { e.preventDefault(); go(cur + 1); }
+  if (['ArrowLeft','ArrowUp'].includes(e.key))        { e.preventDefault(); go(cur - 1); }
+});
+
+slides[0].classList.add('active');
+cntEl.textContent = '1 / ' + slides.length;
+</script>
+</body>
+</html>

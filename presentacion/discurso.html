@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KSmart360 — Discurso para Inversionistas</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --o: #FF6020;
+      --bg: #fafaf9;
+      --txt: #1c1917;
+      --muted: #a8a29e;
+      --border: #e7e5e4;
+    }
+
+    body {
+      font-family: 'Georgia', 'Times New Roman', serif;
+      background: var(--bg);
+      color: var(--txt);
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 3.5rem 2.5rem 5rem;
+      line-height: 1.82;
+    }
+
+    /* ── Header ── */
+    .header-bar {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 2.5rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 2px solid var(--o);
+    }
+
+    .logo-mark {
+      width: 52px; height: 52px;
+      background: linear-gradient(135deg, #FF6020, #ff9d00);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem; flex-shrink: 0;
+    }
+
+    .doc-title   { font-size: 1.6rem; font-weight: 700; color: var(--o); }
+    .doc-meta    { font-size: .8rem; color: var(--muted); margin-top: .15rem; }
+
+    .badge {
+      display: inline-block;
+      padding: .22rem .65rem;
+      background: #fff7ed;
+      color: var(--o);
+      border: 1px solid rgba(255,96,32,.25);
+      border-radius: 12px;
+      font-size: .7rem;
+      font-weight: 700;
+      margin-left: .5rem;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    /* ── Sections ── */
+    .section {
+      margin-bottom: 2.5rem;
+    }
+
+    .section-label {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      margin-bottom: .9rem;
+    }
+
+    .section-num {
+      width: 28px; height: 28px;
+      background: var(--o);
+      color: #fff;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .72rem;
+      font-weight: 900;
+      font-family: 'Segoe UI', sans-serif;
+      flex-shrink: 0;
+    }
+
+    .section-title {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: .65rem;
+      font-weight: 800;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--o);
+    }
+
+    .section-time {
+      margin-left: auto;
+      font-family: 'Segoe UI', sans-serif;
+      font-size: .65rem;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+
+    p {
+      margin-bottom: 1.15rem;
+      font-size: 1.05rem;
+      color: #292524;
+    }
+
+    /* ── Callout ── */
+    .callout {
+      background: #fff7ed;
+      border-left: 4px solid var(--o);
+      padding: 1rem 1.35rem;
+      border-radius: 0 10px 10px 0;
+      margin: 1.4rem 0 1.6rem;
+      font-style: italic;
+      font-size: 1.08rem;
+      color: #44403c;
+    }
+
+    /* ── Tips ── */
+    .tip {
+      font-family: 'Segoe UI', sans-serif;
+      font-size: .76rem;
+      color: var(--muted);
+      font-style: italic;
+      background: #f5f5f4;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: .6rem .9rem;
+      margin: -.5rem 0 1.4rem;
+    }
+
+    /* ── Key phrases (bold orange) ── */
+    strong { color: var(--o); font-weight: 700; }
+
+    /* ── Divider ── */
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 3rem 0;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      text-align: center;
+      font-family: 'Segoe UI', sans-serif;
+      font-size: .78rem;
+      color: var(--muted);
+    }
+
+    /* ── Print-friendly ── */
+    @media print {
+      body { padding: 2rem; }
+      .tip { display: none; }
+    }
+
+    /* ── TOC ── */
+    .toc {
+      background: #f5f5f4;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 3rem;
+      font-family: 'Segoe UI', sans-serif;
+    }
+
+    .toc-title {
+      font-size: .65rem;
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: .75rem;
+    }
+
+    .toc-row {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      padding: .32rem 0;
+      font-size: .85rem;
+      color: #44403c;
+      border-bottom: 1px dotted var(--border);
+    }
+
+    .toc-row:last-child { border-bottom: none; }
+    .toc-dot { width: 6px; height: 6px; background: var(--o); border-radius: 50%; flex-shrink: 0; }
+    .toc-dur { margin-left: auto; font-size: .72rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <div class="header-bar">
+    <div class="logo-mark">🧠</div>
+    <div>
+      <div class="doc-title">KSmart360 <span class="badge">Reunión de Inversión</span></div>
+      <div class="doc-meta">Discurso para presentación ante empresarios e inversionistas &nbsp;·&nbsp; 2025</div>
+    </div>
+  </div>
+
+  <!-- ── TOC ── -->
+  <div class="toc">
+    <div class="toc-title">Estructura del discurso</div>
+    ${[
+      ['1. Apertura — El gancho','~45 s'],
+      ['2. El problema','~1 min'],
+      ['3. La solución: KSmart360','~1 min'],
+      ['4. Funciones estrella (+ demo en vivo)','~1.5 min'],
+      ['5. La arquitectura (para los técnicos)','~45 s'],
+      ['6. El modelo de negocio SaaS','~1 min'],
+      ['7. Por qué invertir ahora','~45 s'],
+      ['8. Cierre y llamado a la acción','~30 s'],
+    ].map(([t,d])=>`
+      <div class="toc-row">
+        <span class="toc-dot"></span>
+        <span>${t}</span>
+        <span class="toc-dur">${d}</span>
+      </div>`).join('')}
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-label">
+      <div class="section-num">1</div>
+      <div class="section-title">Apertura — El gancho</div>
+      <div class="section-time">~45 segundos</div>
+    </div>
+
+    <p>
+      Buenas tardes a todos. Quiero empezar con una pregunta muy sencilla: ¿Cuántas personas en esta sala
+      tienen un familiar, un amigo cercano, o son ellos mismos dueños de una pequeña empresa en Colombia?
+      Una tienda, un negocio de créditos, un parqueadero, un restaurante, un lavadero de carros.
+    </p>
+    <p>
+      Ahora una segunda pregunta. De esos negocios: ¿cuántos saben con exactitud, hoy mismo, cuánto
+      vendieron ayer? ¿Cuánto les deben sus clientes? ¿Qué productos se están agotando?
+      ¿Si sus empleados fueron productivos?
+    </p>
+
+    <div class="callout">
+      La respuesta, en la gran mayoría de los casos, es: ninguno. Y ese es exactamente el problema que
+      KSmart360 viene a resolver.
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-label">
+      <div class="section-num">2</div>
+      <div class="section-title">El problema</div>
+      <div class="section-time">~1 minuto</div>
+    </div>
+
+    <p>
+      En Colombia hay más de <strong>2.5 millones de micro y pequeñas empresas.</strong>
+      Representan el 94&nbsp;% del tejido empresarial del país y generan más del 70&nbsp;% del empleo.
+      La gran mayoría opera con cuadernos, hojas de Excel desactualizadas, o sistemas costosos
+      diseñados para corporaciones multinacionales.
+    </p>
+    <p>
+      Los sistemas ERP que existen en el mercado global cuestan millones de pesos en licencias,
+      requieren semanas de implementación, y <strong>no están adaptados a la realidad colombiana:</strong>
+      no manejan NIT, no se conectan a la DIAN nativamente, no integran pasarelas de pago colombianas
+      como Wompi o Nequi, no hablan el español de negocios de acá.
+    </p>
+    <p>
+      El pequeño empresario colombiano está abandonado tecnológicamente. Esa es la brecha que
+      KSmart360 llena.
+    </p>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-label">
+      <div class="section-num">3</div>
+      <div class="section-title">La solución: KSmart360</div>
+      <div class="section-time">~1 minuto</div>
+    </div>
+
+    <p>
+      <strong>KSmart360</strong> es una plataforma SaaS — Software as a Service — de gestión empresarial
+      diseñada específicamente para la pequeña y mediana empresa colombiana. Es el ERP completo que
+      siempre estuvo reservado para las grandes corporaciones, ahora accesible desde cualquier
+      dispositivo, sin instalación, sin servidores propios, a una fracción del costo.
+    </p>
+    <p>
+      Un solo sistema. Cinco tipos de negocio: <strong>comercio general, préstamos y cobranzas,
+      parqueaderos, lavaderos de carros y restaurantes.</strong>
+      Cada perfil tiene sus módulos activados automáticamente al registrarse. No hay que configurar
+      nada desde cero. La empresa se registra, y en minutos está operando.
+    </p>
+
+    <div class="callout">
+      No vendo un sistema genérico. Vendo la solución exacta, pensada y construida para cada tipo
+      de negocio colombiano.
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-label">
+      <div class="section-num">4</div>
+      <div class="section-title">Funciones estrella</div>
+      <div class="section-time">~1.5 minutos · + Demo en vivo</div>
+    </div>
+
+    <p>
+      El sistema tiene dos modos de punto de venta: uno clásico con teclado y lector de código
+      de barras —ideal para mostradores—, y un modo Touch totalmente táctil, optimizado para
+      tableta. En un solo cobro se pueden combinar hasta cuatro métodos de pago: efectivo,
+      transferencia, tarjeta y crédito del cliente, con validación automática del cupo.
+    </p>
+    <p>
+      El inventario lleva kardex automático por costo promedio ponderado, trazabilidad por lote
+      con fechas de vencimiento, consumo FEFO automático para productos perecederos, y alertas
+      de stock mínimo. Para los negocios que fabrican: recetas con lista de materiales, cálculo
+      de costo de producción y control de rendimiento por lote.
+    </p>
+    <p>
+      Para los negocios de <strong>préstamos:</strong> amortización automática diaria, semanal
+      o mensual, mora calculada en tiempo real, rutas de cobro por zona geográfica, evidencia
+      fotográfica con GPS de cada visita, y notificaciones por WhatsApp. Para
+      <strong>parqueaderos:</strong> entrada y salida de vehículos, tarifas por tipo, suscripciones
+      mensuales, control de ocupación en tiempo real. Para <strong>restaurantes:</strong> mapa
+      digital de mesas, comandas por ítem, y pantalla de cocina en tiempo real.
+    </p>
+    <p>
+      Y para <strong>todos:</strong> un catálogo virtual con URL propia donde los clientes ven
+      los productos con imágenes y realizan pedidos directamente por WhatsApp. Nueve tipos de
+      reportes. Facturación electrónica DIAN. Todo desde el mismo sistema, en el mismo login.
+    </p>
+
+    <div class="tip">
+      💡 En este punto se recomienda hacer una demostración breve en vivo: mostrar el POS touch,
+      registrar una venta rápida, y abrir el catálogo virtual. Máximo 2–3 minutos de demo.
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-label">
+      <div class="section-num">5</div>
+      <div class="section-title">La arquitectura (para los técnicos)</div>
+      <div class="section-time">~45 segundos</div>
+    </div>
+
+    <p>
+      Para quienes les gusta entender el fondo técnico: el sistema está construido sobre
+      <strong>React 18</strong> con Material UI en el frontend, desplegado en Vercel con CDN global.
+      El backend es <strong>FastAPI en Python 3.11,</strong> corriendo en Render.
+      La base de datos es <strong>PostgreSQL en Supabase.</strong>
+    </p>
+    <p>
+      Es una arquitectura <strong>multi-tenant de esquema compartido:</strong> un solo sistema
+      atiende a miles de empresas simultáneamente con datos completamente aislados mediante
+      <em>empresa_id.</em>
+      La autenticación incluye JWT, PIN de acceso rápido con bloqueo automático, y biométrico con
+      <strong>WebAuthn/FIDO2</strong> —el mismo estándar que usan Apple Pay y Google Pay.
+      Se integra con Wompi, WhatsApp Cloud API, y está listo para facturación electrónica DIAN.
+    </p>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-label">
+      <div class="section-num">6</div>
+      <div class="section-title">El modelo de negocio SaaS</div>
+      <div class="section-time">~1 minuto</div>
+    </div>
+
+    <p>
+      El modelo es <strong>SaaS puro.</strong> La empresa se registra y tiene 14 días de prueba
+      completamente gratuita, sin tarjeta de crédito, sin compromiso. Si le funciona —y les funciona—
+      paga una suscripción mensual.
+    </p>
+    <p>
+      El pago se procesa a través de <strong>Wompi de Bancolombia:</strong> tarjeta, Nequi, PSE,
+      o QR Bancolombia. Un webhook verificado activa el plan automáticamente en el acto.
+      Sin intervención manual. Sin fricción. La empresa paga a las 11 de la noche y a las 11:01
+      ya tiene el plan activo.
+    </p>
+    <p>
+      El costo marginal de agregar un nuevo cliente es <strong>prácticamente cero.</strong>
+      La infraestructura ya existe. El código ya funciona. Cada nuevo cliente que entra es ingreso
+      recurrente mensual puro, con un costo de adquisición que disminuye con cada mejora
+      de producto.
+    </p>
+
+    <div class="callout">
+      Este es el modelo de negocio más poderoso en software: el cliente paga cada mes,
+      el sistema escala sin costo adicional, y el producto se vuelve más valioso
+      con cada cliente que entra.
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-label">
+      <div class="section-num">7</div>
+      <div class="section-title">Por qué invertir ahora</div>
+      <div class="section-time">~45 segundos</div>
+    </div>
+
+    <p>
+      <strong>Primero: el producto existe y funciona.</strong> No estoy buscando capital para
+      desarrollar una idea. Estoy aquí con un sistema completo, en producción, funcionando
+      ahora mismo. Pueden verlo en vivo hoy.
+    </p>
+    <p>
+      <strong>Segundo: el mercado es enorme.</strong> 2.5 millones de PYMEs en Colombia.
+      El mismo problema y la misma oportunidad existen en México, Ecuador, Perú y Venezuela.
+      La arquitectura soporta expansión sin reescribir una línea de código.
+    </p>
+    <p>
+      <strong>Tercero: las barreras de entrada son altas.</strong> Los módulos de parqueadero,
+      préstamos con mora calculada en tiempo real, producción con BOM, restaurante con pantalla
+      de cocina, autenticación biométrica FIDO2 — todo eso tomó años de desarrollo altamente
+      especializado. Un competidor no lo replica en semanas ni en meses.
+    </p>
+    <p>
+      Con inversión, puedo acelerar tres cosas concretas: <strong>adquisición de clientes</strong>
+      a escala, completar la <strong>integración DIAN al 100&nbsp;%</strong> con emisión de facturas
+      electrónicas en tiempo real, y <strong>lanzar en al menos dos mercados adicionales</strong>
+      en Latinoamérica.
+    </p>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-label">
+      <div class="section-num">8</div>
+      <div class="section-title">Cierre y llamado a la acción</div>
+      <div class="section-time">~30 segundos</div>
+    </div>
+
+    <p>
+      KSmart360 no es una promesa. No es un prototipo. No es un pitch bonito en diapositivas.
+      Es una realidad que ya está cambiando la forma en que los pequeños empresarios
+      colombianos gestionan sus negocios, <em>hoy, ahora mismo.</em>
+    </p>
+    <p>
+      El momento de entrar es ahora — antes de que el mercado esté saturado, antes de que
+      los grandes jugadores internacionales decidan localizar sus productos para Colombia.
+      Esa ventana existe hoy, y no es infinita.
+    </p>
+
+    <div class="callout">
+      Los invito a ser parte de este proyecto. Y la mejor manera de conocerlo no es
+      escucharme hablar más — es verlo funcionar. Ahora les muestro el sistema en vivo.
+      No maquetas, no pantallas pregrabadas. El producto real.
+    </div>
+
+    <p style="text-align:center;font-weight:700;font-size:1.1rem;color:#44403c;margin-top:.5rem;">
+      Muchas gracias.
+    </p>
+  </div>
+
+  <hr>
+
+  <!-- ── Notes ── -->
+  <div style="font-family:'Segoe UI',sans-serif;margin-bottom:2rem;">
+    <div style="font-size:.65rem;font-weight:800;letter-spacing:2px;text-transform:uppercase;
+      color:var(--muted);margin-bottom:.75rem;">Notas de preparación</div>
+    <div style="display:flex;flex-direction:column;gap:.5rem;">
+      ${[
+        ['⏱️','Duración total estimada','6–8 minutos de discurso + 2–3 minutos de demo = ~10 minutos totales'],
+        ['🎯','Tono recomendado','Confiado pero cercano. Habla de la solución, no del sistema. Usa ejemplos concretos de negocios reales.'],
+        ['📱','Demo sugerida','POS touch registrando una venta → catálogo virtual → módulo de reportes. Máx. 3 pantallas.'],
+        ['❓','Preguntas frecuentes','Precio del plan, número de clientes actuales, roadmap DIAN, expansión internacional.'],
+        ['💼','Material de apoyo','Las diapositivas (presentacion.html) complementan cada sección. Ábrelas en pantalla completa (F11).'],
+      ].map(([i,t,d])=>`
+        <div style="display:flex;gap:.75rem;padding:.7rem .9rem;
+          background:#f5f5f4;border:1px solid var(--border);border-radius:9px;">
+          <span style="font-size:1rem;flex-shrink:0;">${i}</span>
+          <div>
+            <div style="font-weight:700;font-size:.8rem;color:#292524;margin-bottom:.1rem;">${t}</div>
+            <div style="font-size:.75rem;color:var(--muted);line-height:1.5;">${d}</div>
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>
+
+  <div class="footer">
+    KSmart360 &nbsp;·&nbsp; Presentación confidencial &nbsp;·&nbsp; 2025<br>
+    <span style="color:var(--o);font-weight:700;">ksmart360.com</span>
+  </div>
+
+</body>
+</html>
