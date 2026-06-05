@@ -284,5 +284,94 @@ def request_password_reset(request: Request, data: schemas.PasswordResetRequest,
     user = db.query(models.User).filter(models.User.email == data.email).first()
     if user:
         logger.info(f"Solicitud de reset de contraseña para: {data.email}")
-        # TODO: enviar email con token de reset cuando se configure el servicio de correo
     return {"message": "Si el correo está registrado, recibirás las instrucciones."}
+
+
+# ─── RECUPERACIÓN NATIVA SIN EMAIL ──────────────────────────────────────────
+
+def _mask(value: str) -> str:
+    """Enmascara un string dejando los primeros 2 y último carácter visibles."""
+    v = value.strip()
+    if len(v) <= 3:
+        return "*" * len(v)
+    return v[:2] + "*" * (len(v) - 3) + v[-1]
+
+
+@router.post("/recover/buscar")
+@limiter.limit("10/minute")
+def recover_buscar_usuario(request: Request, data: schemas.RecoverBuscarRequest, db: Session = Depends(get_db)):
+    """Paso 1: verifica que el usuario existe y devuelve pistas enmascaradas."""
+    user = db.query(models.User).filter(models.User.username == data.username.strip()).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="No encontramos ese usuario. Revisa que el nombre esté escrito correctamente.")
+
+    hints: dict = {}
+    if user.nombre_completo:
+        hints["nombre_completo"] = _mask(user.nombre_completo)
+    empresa = db.query(models.Empresa).filter(models.Empresa.id == user.empresa_id).first()
+    if empresa:
+        hints["empresa_nombre"] = _mask(empresa.nombre)
+        if empresa.nit:
+            hints["empresa_nit"] = _mask(empresa.nit)
+
+    return {"username": user.username, "hints": hints}
+
+
+@router.post("/recover/verificar")
+@limiter.limit("5/minute")
+def recover_verificar_identidad(request: Request, data: schemas.RecoverVerificarRequest, db: Session = Depends(get_db)):
+    """Paso 2: valida nombre_completo + empresa_nombre + empresa_nit (deben coincidir ≥2/3)."""
+    user = db.query(models.User).filter(models.User.username == data.username.strip()).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="Los datos ingresados no coinciden. Intenta de nuevo.")
+
+    empresa = db.query(models.Empresa).filter(models.Empresa.id == user.empresa_id).first()
+    matches = 0
+
+    if user.nombre_completo and data.nombre_completo.strip():
+        if data.nombre_completo.strip().lower() == user.nombre_completo.strip().lower():
+            matches += 1
+
+    if empresa and data.empresa_nombre.strip():
+        if data.empresa_nombre.strip().lower() == empresa.nombre.strip().lower():
+            matches += 1
+
+    if empresa and empresa.nit and data.empresa_nit and data.empresa_nit.strip():
+        if data.empresa_nit.strip() == empresa.nit.strip():
+            matches += 1
+
+    if matches < 2:
+        logger.warning(f"Verificación fallida para '{data.username}': {matches}/3 campos correctos")
+        raise HTTPException(status_code=400, detail="Los datos ingresados no coinciden con los registrados. Verifica e intenta de nuevo.")
+
+    recovery_token = security.create_access_token(
+        data={"sub": user.username, "type": "password_recovery"},
+        expires_delta=timedelta(minutes=10),
+    )
+    logger.info(f"Identidad verificada para recuperación: {user.username}")
+    return {"recovery_token": recovery_token}
+
+
+@router.post("/recover/cambiar")
+@limiter.limit("5/minute")
+def recover_cambiar_password(request: Request, data: schemas.RecoverCambiarRequest, db: Session = Depends(get_db)):
+    """Paso 3: cambia la contraseña usando el token de recuperación (válido 10 min)."""
+    from jose import jwt, JWTError
+    from core.config import SECRET_KEY, ALGORITHM
+
+    try:
+        payload = jwt.decode(data.recovery_token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "password_recovery":
+            raise HTTPException(status_code=400, detail="Token inválido.")
+        username = payload.get("sub")
+    except JWTError:
+        raise HTTPException(status_code=400, detail="El tiempo de verificación expiró (10 min). Inicia el proceso nuevamente.")
+
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+
+    user.hashed_password = security.get_password_hash(data.nueva_password)
+    db.commit()
+    logger.info(f"Contraseña cambiada exitosamente para: {username}")
+    return {"message": "Contraseña actualizada. Inicia sesión con tu nueva contraseña."}
