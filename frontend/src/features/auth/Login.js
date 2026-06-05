@@ -548,12 +548,15 @@ const Login = ({ onLogin }) => {
         }
         setLoading(true);
         try {
+            const usernameUsed = regData.username.trim().toLowerCase();
+            const passwordUsed = regData.password;
+
             await apiClient.post('/auth/register', {
                 nombre_empresa:  regData.nombre_empresa.trim(),
                 nit:             regData.nit.trim(),
                 tipo_negocio:    regData.tipo_negocio || 'erp',
-                username:        regData.username.trim().toLowerCase(),
-                password:        regData.password,
+                username:        usernameUsed,
+                password:        passwordUsed,
                 nombre_completo: regData.nombre_completo.trim(),
                 email:           regData.email.trim().toLowerCase(),
                 telefono:        regData.telefono.trim(),
@@ -562,19 +565,17 @@ const Login = ({ onLogin }) => {
                 tamano_negocio:  regData.tamano_negocio,
                 origen:          regData.origen || null,
             });
-            const usernameUsed = regData.username.trim().toLowerCase();
+
+            // Auto-login: entrar directo al sistema sin pasar por el login
             localStorage.setItem('last_username', usernameUsed);
-            setPinMode(false);
-            setRegSuccess(true);
-            setTimeout(() => {
-              setRegSuccess(false);
-              setLoginData({ username: usernameUsed, password: '' });
-              setRegData(initialRegState);
-              setStep1Attempted(false);
-              setRegStep(1);
-              setIsLoginView(true);
-              toast.success('¡Cuenta creada! Ya puedes iniciar sesión.');
-            }, 2200);
+            const loginRes = await apiClient.post(
+                '/auth/token',
+                new URLSearchParams({ username: usernameUsed, password: passwordUsed }),
+                { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+            );
+            setRegData(initialRegState);
+            setRegStep(1);
+            handleAuthSuccess({ ...loginRes.data, username: usernameUsed }, '¡Bienvenido a KSmart360! Tu cuenta está lista.');
         } catch (error) {
             const detail = error.response?.data?.detail;
             const msg = Array.isArray(detail)
