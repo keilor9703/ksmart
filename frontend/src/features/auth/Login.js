@@ -399,6 +399,8 @@ const Login = ({ onLogin }) => {
         empresaNombre: '', empresaNit: '', recoveryToken: '',
         nuevaPassword: '', confirmarPassword: '', loading: false, error: '',
     });
+    const [showRecovPwd, setShowRecovPwd]       = useState(false);
+    const [showRecovConfirm, setShowRecovConfirm] = useState(false);
     const [pinMode, setPinMode]           = useState(() => {
         // Mostrar PIN si el usuario tiene PIN configurado y hay username guardado
         return localStorage.getItem('pin_configured') === 'true'
@@ -1594,20 +1596,40 @@ const Login = ({ onLogin }) => {
                             Identidad verificada. Ahora elige una nueva contraseña para tu cuenta <strong style={{ color: '#f1f5f9' }}>{recov.username}</strong>.
                         </Typography>
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <TextField fullWidth label="Nueva contraseña" type="password"
+                            <TextField fullWidth label="Nueva contraseña"
+                                type={showRecovPwd ? 'text' : 'password'}
                                 value={recov.nuevaPassword}
                                 onChange={e => setRecov(s => ({ ...s, nuevaPassword: e.target.value, error: '' }))}
                                 sx={fieldSx}
-                                InputProps={{ startAdornment: <InputAdornment position="start"><Lock sx={{ color: '#f97316' }} /></InputAdornment> }}
+                                InputProps={{
+                                    startAdornment: <InputAdornment position="start"><Lock sx={{ color: '#f97316' }} /></InputAdornment>,
+                                    endAdornment: (
+                                        <InputAdornment position="end">
+                                            <IconButton size="small" tabIndex={-1} onClick={() => setShowRecovPwd(v => !v)} sx={{ color: '#64748b' }}>
+                                                {showRecovPwd ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                                            </IconButton>
+                                        </InputAdornment>
+                                    ),
+                                }}
                             />
-                            <TextField fullWidth label="Confirmar contraseña" type="password"
+                            <TextField fullWidth label="Confirmar contraseña"
+                                type={showRecovConfirm ? 'text' : 'password'}
                                 value={recov.confirmarPassword}
                                 onChange={e => setRecov(s => ({ ...s, confirmarPassword: e.target.value, error: '' }))}
                                 onKeyDown={e => e.key === 'Enter' && recovCambiar()}
                                 sx={fieldSx}
                                 error={!!recov.confirmarPassword && recov.nuevaPassword !== recov.confirmarPassword}
                                 helperText={recov.confirmarPassword && recov.nuevaPassword !== recov.confirmarPassword ? 'Las contraseñas no coinciden' : ''}
-                                InputProps={{ startAdornment: <InputAdornment position="start"><Lock sx={{ color: '#f97316' }} /></InputAdornment> }}
+                                InputProps={{
+                                    startAdornment: <InputAdornment position="start"><Lock sx={{ color: '#f97316' }} /></InputAdornment>,
+                                    endAdornment: (
+                                        <InputAdornment position="end">
+                                            <IconButton size="small" tabIndex={-1} onClick={() => setShowRecovConfirm(v => !v)} sx={{ color: '#64748b' }}>
+                                                {showRecovConfirm ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                                            </IconButton>
+                                        </InputAdornment>
+                                    ),
+                                }}
                             />
                         </Box>
                         {recov.error && (
