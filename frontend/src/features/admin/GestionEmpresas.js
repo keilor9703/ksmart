@@ -150,22 +150,6 @@ export default function GestionSaaS() {
     setOpenModulosDialog(true);
   };
 
-  const handleDeleteEmpresa = async () => {
-    const { empresa } = deleteDialog;
-    if (deleteDialog.confirmText !== empresa.nombre) return;
-    setDeleteDialog(s => ({ ...s, loading: true }));
-    try {
-      await apiClient.delete(`/superadmin/empresas/${empresa.id}`);
-      toast.success(`Empresa "${empresa.nombre}" eliminada permanentemente.`);
-      setDeleteDialog({ open: false, empresa: null, confirmText: '', loading: false });
-      setOpenDrawer(false);
-      refreshAll();
-    } catch (err) {
-      toast.error('Error al eliminar: ' + (err.response?.data?.detail || 'Error desconocido'));
-      setDeleteDialog(s => ({ ...s, loading: false }));
-    }
-  };
-
   const handleSubmitEmpresa = async (e) => {
     e.preventDefault();
     try {
