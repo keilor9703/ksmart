@@ -8,17 +8,14 @@ import {
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import dayjs from 'dayjs';
 import {
   AutoAwesome, ExpandMore, ExpandLess, AccountBalance,
   TrendingUp, Balance, MenuBook, Add, Delete, Receipt,
   CheckCircleOutline, ErrorOutline, Download, LockClock,
   PictureAsPdf, TableChart, Lock,
 } from '@mui/icons-material';
-function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
-function endOfMonth(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59); }
-function startOfYear(d) { return new Date(d.getFullYear(), 0, 1); }
-function endOfYear(d) { return new Date(d.getFullYear(), 11, 31, 23, 59, 59); }
 import apiClient from '../../api';
 
 // ─── Utilidad de descarga ─────────────────────────────────────────────────────
@@ -36,9 +33,9 @@ function descargar(url, filename) {
 
 function BotonesExportar({ tipo, fechaInicio, fechaFin, fechaCorte }) {
   const base = `/contabilidad/exportar`;
-  const fi = fechaInicio ? `fecha_inicio=${encodeURIComponent(fechaInicio.toISOString())}` : '';
-  const ff = fechaFin ? `fecha_fin=${encodeURIComponent(fechaFin.toISOString())}` : '';
-  const fc = fechaCorte ? `fecha_corte=${encodeURIComponent(fechaCorte.toISOString())}` : '';
+  const fi = fechaInicio ? `fecha_inicio=${encodeURIComponent(dayjs(fechaInicio).toISOString())}` : '';
+  const ff = fechaFin ? `fecha_fin=${encodeURIComponent(dayjs(fechaFin).toISOString())}` : '';
+  const fc = fechaCorte ? `fecha_corte=${encodeURIComponent(dayjs(fechaCorte).toISOString())}` : '';
   const qs = (parts) => parts.filter(Boolean).join('&');
 
   const opciones = {
@@ -108,8 +105,8 @@ function LibroDiario({ fechaInicio, fechaFin }) {
     setLoading(true); setError(null);
     try {
       const params = { page: 1, page_size: 100 };
-      if (fechaInicio) params.fecha_inicio = fechaInicio.toISOString();
-      if (fechaFin) params.fecha_fin = fechaFin.toISOString();
+      if (fechaInicio) params.fecha_inicio = dayjs(fechaInicio).toISOString();
+      if (fechaFin) params.fecha_fin = dayjs(fechaFin).toISOString();
       const r = await apiClient.get('/contabilidad/asientos', { params });
       setItems(r.data.items); setTotal(r.data.total);
     } catch { setError('No se pudo cargar el libro diario.'); }
@@ -214,7 +211,7 @@ function LibroDiario({ fechaInicio, fechaFin }) {
 
 function AsientoManualDialog({ open, onClose, onSaved }) {
   const [descripcion, setDescripcion] = useState('');
-  const [fecha, setFecha] = useState(new Date());
+  const [fecha, setFecha] = useState(dayjs());
   const [cuentas, setCuentas] = useState([]);
   const [lineas, setLineas] = useState([
     { cuenta_codigo: '', descripcion: '', debito: '', credito: '' },
@@ -239,7 +236,7 @@ function AsientoManualDialog({ open, onClose, onSaved }) {
     setSaving(true); setError(null);
     try {
       await apiClient.post('/contabilidad/asientos', {
-        fecha: fecha.toISOString(),
+        fecha: dayjs(fecha).toISOString(),
         descripcion,
         lineas: lineas
           .filter(l => l.cuenta_codigo)
@@ -347,8 +344,8 @@ function EstadoResultados({ fechaInicio, fechaFin }) {
     setLoading(true);
     try {
       const params = {};
-      if (fechaInicio) params.fecha_inicio = fechaInicio.toISOString();
-      if (fechaFin) params.fecha_fin = fechaFin.toISOString();
+      if (fechaInicio) params.fecha_inicio = dayjs(fechaInicio).toISOString();
+      if (fechaFin) params.fecha_fin = dayjs(fechaFin).toISOString();
       const r = await apiClient.get('/contabilidad/estado-resultados', { params });
       setData(r.data);
     } finally { setLoading(false); }
@@ -416,7 +413,7 @@ function BalanceGeneral({ fechaFin }) {
     setLoading(true);
     try {
       const params = {};
-      if (fechaFin) params.fecha_corte = fechaFin.toISOString();
+      if (fechaFin) params.fecha_corte = dayjs(fechaFin).toISOString();
       const r = await apiClient.get('/contabilidad/balance-general', { params });
       setData(r.data);
     } finally { setLoading(false); }
@@ -514,8 +511,8 @@ function BalanceComprobacion({ fechaInicio, fechaFin }) {
     setLoading(true);
     try {
       const params = {};
-      if (fechaInicio) params.fecha_inicio = fechaInicio.toISOString();
-      if (fechaFin) params.fecha_fin = fechaFin.toISOString();
+      if (fechaInicio) params.fecha_inicio = dayjs(fechaInicio).toISOString();
+      if (fechaFin) params.fecha_fin = dayjs(fechaFin).toISOString();
       const r = await apiClient.get('/contabilidad/balance-comprobacion', { params });
       setRows(r.data);
     } finally { setLoading(false); }
@@ -585,8 +582,8 @@ function ResumenIVA({ fechaInicio, fechaFin }) {
     setLoading(true);
     try {
       const params = {};
-      if (fechaInicio) params.fecha_inicio = fechaInicio.toISOString();
-      if (fechaFin) params.fecha_fin = fechaFin.toISOString();
+      if (fechaInicio) params.fecha_inicio = dayjs(fechaInicio).toISOString();
+      if (fechaFin) params.fecha_fin = dayjs(fechaFin).toISOString();
       const r = await apiClient.get('/contabilidad/resumen-iva', { params });
       setData(r.data);
     } finally { setLoading(false); }
@@ -701,8 +698,8 @@ function CierreContableTab() {
 }
 
 function DialogCierre({ open, onClose, onDone }) {
-  const [inicio, setInicio] = useState(startOfYear(new Date()));
-  const [fin, setFin] = useState(endOfYear(new Date()));
+  const [inicio, setInicio] = useState(dayjs().startOf('year'));
+  const [fin, setFin] = useState(dayjs().endOf('year'));
   const [descripcion, setDescripcion] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -712,9 +709,9 @@ function DialogCierre({ open, onClose, onDone }) {
     setSaving(true); setError(null);
     try {
       await apiClient.post('/contabilidad/cierres', {
-        periodo_inicio: inicio.toISOString(),
-        periodo_fin: fin.toISOString(),
-        descripcion: descripcion || `Cierre ejercicio ${inicio.getFullYear()}`,
+        periodo_inicio: dayjs(inicio).toISOString(),
+        periodo_fin: dayjs(fin).toISOString(),
+        descripcion: descripcion || `Cierre ejercicio ${dayjs(inicio).year()}`,
       });
       onDone();
     } catch (e) {
@@ -748,7 +745,7 @@ function DialogCierre({ open, onClose, onDone }) {
           <Alert severity="error" sx={{ mt: 1 }}>
             <strong>¿Confirmas el cierre?</strong><br />
             Se generará un asiento de cierre que lleva a cero todas las cuentas de ingresos,
-            costos y gastos del período <strong>{inicio?.toLocaleDateString('es-CO')} al {fin?.toLocaleDateString('es-CO')}</strong>.
+            costos y gastos del período <strong>{inicio ? dayjs(inicio).format('DD/MM/YYYY') : ''} al {fin ? dayjs(fin).format('DD/MM/YYYY') : ''}</strong>.
             Esta acción <strong>no se puede deshacer</strong>.
           </Alert>
         )}
@@ -832,11 +829,11 @@ const EXPORT_BTNS = {
 
 export default function Contabilidad() {
   const [tab, setTab] = useState(0);
-  const [fechaInicio, setFechaInicio] = useState(startOfMonth(new Date()));
-  const [fechaFin, setFechaFin] = useState(endOfMonth(new Date()));
+  const [fechaInicio, setFechaInicio] = useState(dayjs().startOf('month'));
+  const [fechaFin, setFechaFin] = useState(dayjs().endOf('month'));
 
   return (
-    <LocalizationProvider dateAdapter={AdapterDateFns}>
+    <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Box sx={{ p: { xs: 1, md: 3 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3, flexWrap: 'wrap' }}>
           <AutoAwesome sx={{ color: '#6366F1', fontSize: 30 }} />
