@@ -19,6 +19,7 @@ import TopBar from './layout/TopBar';
 
 // ─── EAGER: layout + primer render (se montan siempre o en el primer paint) ───
 import Login from './features/auth/Login';
+import FirstTimeSetup from './features/auth/FirstTimeSetup';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import AnnouncementBanner from './features/saas/components/AnnouncementBanner';
 import { OnboardingProvider } from './context/OnboardingContext';
@@ -125,6 +126,7 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser]       = useState(null);
   const [loading, setLoading] = useState(true);
+  const [needsSetup, setNeedsSetup] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [sidebarPinned, setSidebarPinned] = useState(
     () => localStorage.getItem('sidebarPinned') === 'true'
@@ -144,7 +146,12 @@ function App() {
   const openMenu = Boolean(anchorEl);
 
   useEffect(() => { localStorage.setItem('themeMode', mode); }, [mode]);
-  useEffect(() => { checkAuth(); }, []);
+  useEffect(() => {
+    apiClient.get('/setup/status').then((res) => {
+      if (!res.data.initialized) setNeedsSetup(true);
+      else checkAuth();
+    }).catch(() => checkAuth());
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -291,6 +298,8 @@ const hasAccess = useCallback((path) => {
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100%' }}>
               <CircularProgress sx={{ color: ACCENT }} />
             </Box>
+          ) : needsSetup ? (
+            <FirstTimeSetup onComplete={() => { setNeedsSetup(false); checkAuth(); }} />
           ) : isAuthenticated ? (
             <>
               <ModalHuella />

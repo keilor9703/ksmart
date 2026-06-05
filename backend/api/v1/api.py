@@ -7,7 +7,7 @@ from .endpoints import (
     biometric, webhooks,
     compras, produccion, ordenes_trabajo, panel_operador, planes, saas,
     grupos_producto, lavadero, catalogo, pedidos_virtuales, impuestos,
-    suscripcion, restaurante, puntos, empresa_config,
+    suscripcion, restaurante, puntos, empresa_config, setup,
 )
 
 api_router = APIRouter()
@@ -48,3 +48,4 @@ api_router.include_router(suscripcion.router, prefix="/suscripcion", tags=["susc
 api_router.include_router(restaurante.router, prefix="/restaurante", tags=["restaurante"])
 api_router.include_router(puntos.router, prefix="/clientes", tags=["puntos-fidelizacion"])
 api_router.include_router(empresa_config.router, prefix="", tags=["empresa-config"])
+api_router.include_router(setup.router, prefix="/setup", tags=["setup"])

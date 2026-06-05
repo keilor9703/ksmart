@@ -8,7 +8,7 @@
 
 **Ksmart360** es un sistema ERP SaaS **multi-tenant** diseñado para pequeñas y medianas empresas colombianas. Desde un único punto de acceso centraliza todas las operaciones del negocio con aislamiento completo de datos por empresa, control de roles por módulo y soporte de facturación electrónica DIAN.
 
-El sistema detecta automáticamente el perfil de la empresa (ERP comercial, Prestamista, Parqueadero, Lavadero) y habilita los módulos correspondientes desde el momento del registro.
+El sistema detecta automáticamente el perfil de la empresa (ERP comercial, Prestamista, Parqueadero, Lavadero, Restaurante) y habilita los módulos correspondientes desde el momento del registro.
 
 ---
 
@@ -16,23 +16,24 @@ El sistema detecta automáticamente el perfil de la empresa (ERP comercial, Pres
 
 | # | Módulo | Descripción |
 |---|--------|-------------|
-| 1 | **Ventas / POS** | POS clásico y modo Touch con escáner de código de barras por cámara, 4 métodos de pago, control de cupo de crédito |
-| 2 | **Inventario** | Kardex por promedio ponderado, lotes FEFO, alertas de stock mínimo, importación masiva Excel, grupos con colores |
-| 3 | **Cotizaciones** | Preventas y cotizaciones que se convierten en factura en un clic |
+| 1 | **Ventas / POS** | POS clásico y modo Touch con escáner de código de barras, 4 métodos de pago, control de cupo de crédito |
+| 2 | **Inventario** | Kardex por promedio ponderado, lotes FEFO, alertas de stock mínimo, importación masiva Excel |
+| 3 | **Cotizaciones** | Preventas que se convierten en factura en un clic |
 | 4 | **Clientes / Terceros** | Clientes y proveedores con historial de compras, cupo de crédito, campos DIAN |
 | 5 | **Compras** | Órdenes de compra con actualización automática de costos y stock |
 | 6 | **Producción / Recetas** | Bill of Materials (BOM), lotes de producción, costos de transformación, mermas |
 | 7 | **Órdenes de Trabajo** | Flujo Admin→Operador, evidencias fotográficas, consumo de repuestos, productividad |
 | 8 | **Reportes** | 9 tipos: ventas, rentabilidad, CXC, IVA neto, kardex, productividad, P&L, préstamos, producción |
 | 9 | **Caja** | Corte diario, gastos operativos, integración de recaudos de préstamos |
-| 10 | **Préstamos** | Simulador de amortización, cuotas diarias/semanales/quincenales/mensuales, mora automática, abono a capital |
-| 11 | **Ruta de Cobro** | App de campo para cobradores, evidencia con GPS, reprogramación de visitas, recibo PDF/WhatsApp |
+| 10 | **Préstamos** | Simulador de amortización, cuotas diarias/semanales/quincenales/mensuales, mora automática |
+| 11 | **Ruta de Cobro** | App de campo para cobradores, evidencia con GPS, recibo PDF/WhatsApp |
 | 12 | **Parqueadero** | Entrada/salida de motos, tarifas multi-modal, suscripciones mensuales, alertas WhatsApp |
 | 13 | **Lavadero / Car Wash** | POS de servicios de lavado, asignación de operadores, reportes de productividad |
 | 14 | **Catálogo Virtual** | Tienda pública por slug, sincronización de inventario, pedidos por WhatsApp |
 | 15 | **Facturación DIAN** | Resoluciones DIAN, numeración automática, CUFE, XML/PDF, Matias API |
-| 16 | **Dashboard** | KPIs en tiempo real: ventas, cartera, stock bajo mínimos, precio cacao |
-| 17 | **Admin / SaaS** | Gestión de usuarios, roles, módulos por empresa, planes de suscripción, Wompi |
+| 16 | **Dashboard** | KPIs en tiempo real: ventas, cartera, stock bajo mínimos |
+| 17 | **Restaurante** | Mapa de mesas, comandas, pantalla de cocina, caja de restaurante |
+| 18 | **Admin / SaaS** | Gestión de usuarios, roles, módulos por empresa, planes de suscripción, Wompi |
 
 ---
 
@@ -50,9 +51,6 @@ El sistema detecta automáticamente el perfil de la empresa (ERP comercial, Pres
 | Despliegue Backend | Render |
 | Pagos SaaS | Wompi (Colombia) |
 | Facturación electrónica | Matias API (DIAN Colombia) |
-| Barcode lookup | OpenFoodFacts · UPCitemdb · OpenBeautyFacts |
-| Mensajería | WhatsApp Cloud API |
-| Monitoreo de mercado | Yahoo Finance (ICE Futures cacao) · Datos.gov.co (TRM) |
 
 ---
 
@@ -63,7 +61,6 @@ Frontend (React SPA)  ←→  Backend (FastAPI REST)  ←→  DB (PostgreSQL)
                                     ↓
                          Multi-tenant: empresa_id en cada tabla
                          TenantMixin → aislamiento automático por tenant
-                         27 módulos inicializados por empresa
                          Roles: SuperAdmin · Admin · Operador · Cobrador
 ```
 
@@ -78,94 +75,88 @@ Patrón **Shared Database, Shared Schema**: todas las tablas de negocio heredan 
 ```
 ksmart/
 ├── backend/
-│   ├── main.py                    # App FastAPI, CORS, routers, migrations
+│   ├── main.py                    # App FastAPI, CORS, routers, inicialización
 │   ├── models.py                  # 57 modelos SQLAlchemy
 │   ├── schemas.py                 # Schemas Pydantic (request/response)
 │   ├── database.py                # Conexión + migraciones automáticas
+│   ├── .env.example               # Plantilla de variables de entorno
 │   ├── core/                      # Config, constantes, seguridad
 │   ├── crud/                      # Lógica de negocio modular
 │   ├── services/                  # Servicios de dominio
-│   ├── jobs_service.py            # Tareas programadas (pruebas, cacao, parqueadero)
-│   └── api/v1/endpoints/          # 31 módulos de endpoints
-│       ├── ventas.py
-│       ├── inventario.py
-│       ├── productos.py
-│       ├── grupos_producto.py
-│       ├── clientes.py
-│       ├── compras.py
-│       ├── produccion.py
-│       ├── ordenes_trabajo.py
-│       ├── panel_operador.py
-│       ├── prestamos.py
-│       ├── parqueadero.py
-│       ├── lavadero.py
-│       ├── cotizaciones.py
-│       ├── reportes.py
-│       ├── caja.py
-│       ├── devoluciones.py
-│       ├── resoluciones.py
-│       ├── catalogo.py
+│   └── api/v1/endpoints/          # Módulos de endpoints
+│       ├── setup.py               # Wizard de primer arranque
 │       ├── auth.py + biometric.py
 │       ├── superadmin.py
-│       ├── wompi.py + webhooks.py
-│       └── mercado.py
+│       └── ... (30 módulos más)
 │
 └── frontend/
+    ├── .env.example               # Plantilla de variables de entorno
     └── src/
         ├── features/
-        │   ├── sales/             # Ventas.js, TouchPOSMode.js, Cotizaciones.js
-        │   ├── inventory/         # Productos.js, Lotes.js, AgileBarcodeRegistration.js
-        │   ├── clients/           # Terceros.js, ClienteHistory.js
-        │   ├── reports/           # Reportes.js + 9 sub-reportes
-        │   ├── finance/           # Caja.js, CuentasPorCobrar.js
-        │   ├── loans/             # PrestamoForm.js, RutaCobro.js
-        │   ├── parking/           # ParqueaderoDashboard.jsx (12 archivos)
-        │   ├── lavadero/          # LavaderoVentas.js, LavaderoReporte.js
-        │   ├── workOrders/        # OrdenesTrabajo.js, PanelOperador.js
-        │   ├── production/        # Recetas.js
-        │   ├── purchases/         # Compras.js
-        │   ├── dian/              # ResolucionesDian.js
-        │   ├── admin/             # AdminUsuarios.js, GestionEmpresas.js
-        │   ├── saas/              # CatalogoVirtual.js, CatalogoConfig.js
-        │   ├── dashboard/         # Dashboard.js, CacaoPriceWidget.js
-        │   ├── auth/              # Login.js, SuscripcionExpirada.js
-        │   └── legal/             # LegalPages.jsx
+        │   ├── auth/
+        │   │   ├── Login.js
+        │   │   └── FirstTimeSetup.js  # Wizard de primer arranque
+        │   └── ... (demás módulos)
         ├── layout/                # Sidebar.js, TopBar.js
         ├── api.js                 # Cliente Axios + interceptores JWT
-        ├── theme.js               # getAppTheme(mode) — light/dark
         └── App.js                 # Router, ThemeProvider, auth global
 ```
 
 ---
 
-## Instalación Local
+## Instalación Local (Desarrollo)
 
 ### Requisitos
 
 - Python 3.11+
 - Node.js 18+
-- PostgreSQL 14+ o cuenta Supabase (en desarrollo funciona con SQLite)
+- PostgreSQL 14+ *(en desarrollo local funciona con SQLite sin configuración adicional)*
 
-### Backend
+### 1. Clonar el repositorio
+
+```bash
+git clone https://github.com/keilor9703/ksmart.git
+cd ksmart
+```
+
+### 2. Backend
 
 ```bash
 cd backend
 python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-cp .env.example .env             # Editar con tus valores
+cp .env.example .env               # Editar con tus valores reales
 uvicorn main:app --reload --port 8000
 ```
 
-### Frontend
+Al arrancar por primera vez, el backend:
+1. Crea todas las tablas automáticamente.
+2. Aplica las migraciones de esquema (sin Alembic).
+3. Detecta si la BD está vacía y deja el sistema listo para el wizard.
+
+### 3. Frontend
 
 ```bash
 cd frontend
 npm install
-cp .env.example .env             # Editar VITE_API_URL
-npm start                        # Desarrollo en http://localhost:3000
+cp .env.example .env               # Editar REACT_APP_API_URL
+npm start                          # Inicia en http://localhost:3000
 ```
+
+### 4. Wizard de primer arranque
+
+La primera vez que abras `http://localhost:3000` con una base de datos vacía, el sistema mostrará automáticamente el **Wizard de Configuración Inicial** donde podrás ingresar:
+
+- Nombre y NIT de tu empresa
+- Logo (PNG/JPG hasta 2 MB)
+- Color principal de la marca
+- Usuario y contraseña del administrador dueño del sistema
+
+Una vez completado el wizard, el sistema quedará listo para operar y podrás iniciar sesión.
+
+> **Alternativa sin wizard:** Si prefieres configurar los datos iniciales vía variables de entorno, define `SUPERADMIN_EMPRESA_NOMBRE`, `SUPERADMIN_USERNAME` y `SUPERADMIN_PASSWORD` en el `.env` antes de arrancar el backend. El wizard no aparecerá si la BD ya tiene datos.
 
 ---
 
@@ -173,55 +164,59 @@ npm start                        # Desarrollo en http://localhost:3000
 
 ### Backend (`.env`)
 
-| Variable | Descripción | Req. |
-|----------|-------------|------|
-| `SECRET_KEY` | Clave para firmar JWT (`python -c "import secrets; print(secrets.token_urlsafe(32))"`) | ✅ |
-| `DATABASE_URL` | URL de conexión PostgreSQL (`postgresql://user:pass@host/db`) | ✅ |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Duración del token (default: 120) | ⬜ |
+| Variable | Descripción | Requerida |
+|----------|-------------|-----------|
+| `DATABASE_URL` | URL de conexión PostgreSQL (`postgresql://user:pass@host/db`) | ✅ Producción |
+| `SECRET_KEY` | Clave para firmar JWT — genera con `python -c "import secrets; print(secrets.token_urlsafe(64))"` | ✅ Producción |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Duración del token en minutos (default: 120) | ⬜ |
+| `SUPERADMIN_EMPRESA_NOMBRE` | Nombre de la empresa dueña del sistema (si no usas el wizard) | ⬜ |
+| `SUPERADMIN_EMPRESA_NIT` | NIT de la empresa dueña | ⬜ |
+| `SUPERADMIN_COLOR` | Color principal en hex (default: `#F43F5E`) | ⬜ |
+| `SUPERADMIN_USERNAME` | Nombre de usuario del superadmin (default: `admin`) | ⬜ |
+| `SUPERADMIN_PASSWORD` | Contraseña del superadmin — **cambiar siempre en producción** | ✅ Producción |
+| `EXTRA_CORS_ORIGINS` | URLs adicionales de CORS separadas por coma | ⬜ |
 | `WOMPI_PUBLIC_KEY` | Llave pública Wompi | ⬜ |
-| `WOMPI_INTEGRITY_SECRET` | Secreto de integridad Wompi | ⬜ |
+| `WOMPI_PRIVATE_KEY` | Llave privada Wompi | ⬜ |
 | `MATIAS_API_KEY` | API Key para facturación electrónica DIAN | ⬜ |
+| `CRON_API_KEY` | Clave para proteger endpoints de tareas programadas | ⬜ |
 
 ### Frontend (`.env`)
 
 | Variable | Descripción |
 |----------|-------------|
-| `REACT_APP_API_URL` | URL base del backend (sin `/` al final) |
+| `REACT_APP_API_URL` | URL base del backend sin barra final (ej: `https://api.tudominio.com`) |
 
 ---
 
 ## Migraciones de Base de Datos
 
-Las migraciones se ejecutan automáticamente al iniciar el servidor vía `run_migrations()` en `database.py`. No se requiere Alembic. Para agregar columnas manualmente desde Supabase SQL Editor:
-
-```sql
-ALTER TABLE prestamos ADD COLUMN IF NOT EXISTS tasa_mora FLOAT DEFAULT 2.0;
-ALTER TABLE productos ADD COLUMN IF NOT EXISTS unidades_por_empaque INTEGER DEFAULT 1;
-```
+Las migraciones se ejecutan automáticamente al iniciar el servidor vía `run_migrations()` en `database.py`. No se requiere Alembic ni comandos adicionales.
 
 ---
 
 ## Módulos por Perfil de Empresa
 
-Al registrar una empresa se selecciona el tipo de negocio, que determina los 27 módulos disponibles:
+Al registrar una empresa se selecciona el tipo de negocio, que determina los módulos disponibles:
 
-| Módulo | ERP/Comercio | Prestamista | Parqueadero | Lavadero |
-|--------|:---:|:---:|:---:|:---:|
-| Ventas / POS | ✅ | ⬜ | ⬜ | ⬜ |
-| Inventario | ✅ | ⬜ | ⬜ | ⬜ |
-| Compras | ✅ | ⬜ | ⬜ | ⬜ |
-| Producción / Recetas | ✅ | ⬜ | ⬜ | ⬜ |
-| Órdenes de Trabajo | ✅ | ⬜ | ⬜ | ⬜ |
-| Cotizaciones | ✅ | ⬜ | ⬜ | ⬜ |
-| Resoluciones DIAN | ✅ | ⬜ | ⬜ | ⬜ |
-| Clientes | ✅ | ✅ | ⬜ | ✅ |
-| Caja | ✅ | ✅ | ✅ | ✅ |
-| Reportes | ✅ | ✅ | ✅ | ✅ |
-| Préstamos | ⬜ | ✅ | ⬜ | ⬜ |
-| Ruta de Cobro | ⬜ | ✅ | ⬜ | ⬜ |
-| Parqueadero | ⬜ | ⬜ | ✅ | ⬜ |
-| Catálogo Virtual | ✅ | ⬜ | ⬜ | ⬜ |
-| POS Lavadero | ⬜ | ⬜ | ⬜ | ✅ |
+| Módulo | ERP/Comercio | Prestamista | Parqueadero | Lavadero | Restaurante |
+|--------|:---:|:---:|:---:|:---:|:---:|
+| Ventas / POS | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
+| Inventario | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
+| Compras | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
+| Producción / Recetas | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Órdenes de Trabajo | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Cotizaciones | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
+| Resoluciones DIAN | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Clientes | ✅ | ✅ | ⬜ | ✅ | ✅ |
+| Caja | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Reportes | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Préstamos | ⬜ | ✅ | ⬜ | ⬜ | ⬜ |
+| Ruta de Cobro | ⬜ | ✅ | ⬜ | ⬜ | ⬜ |
+| Parqueadero | ⬜ | ⬜ | ✅ | ⬜ | ⬜ |
+| Catálogo Virtual | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
+| POS Lavadero | ⬜ | ⬜ | ⬜ | ✅ | ⬜ |
+| Mapa de Mesas | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
+| Pantalla Cocina | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 
 ---
 
@@ -229,8 +224,8 @@ Al registrar una empresa se selecciona el tipo de negocio, que determina los 27 
 
 | Rol | Permisos |
 |-----|----------|
-| **SuperAdmin** | Gestión global: empresas, planes, módulos, impersonación |
-| **Admin** | Gestión completa de su empresa, todos los módulos habilitados |
+| **SuperAdmin** | Gestión global: empresas, planes, módulos, impersonación. Tiene acceso a todos los módulos incluyendo "Mi Suscripción" |
+| **Admin** | Gestión completa de su empresa, todos los módulos habilitados para su tenant |
 | **Operador** | Órdenes de trabajo, panel de productividad |
 | **Cobrador** | Ruta de cobro asignada (solo sus cuotas del día) |
 
@@ -245,29 +240,33 @@ Al registrar una empresa se selecciona el tipo de negocio, que determina los 27 
 | `vitalicio` | Sin vencimiento | Asignación manual SuperAdmin |
 | `canceled` | — | Redirige a `/suscripcion-expirada` |
 
+La empresa dueña del sistema (ID=1) tiene el flag `is_protected=true` y nunca expira.
+
 ---
 
 ## API — Endpoints Principales
 
 ```
+# Setup (primer arranque)
+GET    /setup/status                       # ¿Está el sistema inicializado?
+POST   /setup/init                         # Wizard: crear empresa+admin (solo BD vacía)
+
 # Autenticación
 POST   /auth/register                      # Registro de empresa + admin
 POST   /auth/token                         # Login → JWT
 POST   /auth/biometric/register            # Registrar credencial biométrica
 POST   /auth/biometric/authenticate        # Login biométrico (WebAuthn/FIDO2)
 
+# Suscripción
+GET    /suscripcion/mi-suscripcion         # Estado del plan de la empresa actual
+
 # Ventas
 POST   /ventas/                            # Crear venta con validación de stock y cupo
 GET    /ventas/                            # Listar ventas paginadas
-PUT    /ventas/{id}                        # Actualizar estado
-DELETE /ventas/{id}                        # Eliminar con reversión de stock
 
 # Inventario
 GET    /productos/                         # Listar productos
-GET    /productos/barcode/{code}           # Lookup: Local → OpenFoodFacts → UPCitemdb
 GET    /inventario/kardex/{producto_id}    # Kardex por promedio ponderado
-GET    /inventario/movimientos/template    # Plantilla Excel para carga masiva
-GET    /grupos-producto/                   # Grupos/categorías con color y orden
 
 # Clientes
 GET    /clientes/                          # Listar clientes y proveedores
@@ -277,28 +276,6 @@ POST   /clientes/                          # Crear cliente con campos DIAN
 GET    /reportes/dashboard                 # KPIs: ventas hoy, cartera, stock bajo
 GET    /reportes/ventas_summary            # Resumen de ventas por período
 GET    /reportes/rentabilidad_productos    # Margen por producto
-GET    /reportes/clientes_deudores         # CXC con días de mora
-GET    /reportes/iva-neto                  # IVA generado vs descontable
-GET    /reportes/productividad             # Métricas por operario
-
-# Préstamos
-POST   /prestamos/                         # Crear préstamo con plan de cuotas
-GET    /prestamos/cuotas-pendientes        # Ruta del día (filtro por zona)
-POST   /prestamos/{id}/pagar-cuota        # Registrar pago de cuota
-POST   /prestamos/{id}/reprogramar-cuota  # Nueva fecha de visita
-POST   /prestamos/{id}/abono-capital      # Abonar a capital, redistribuir cuotas
-GET    /prestamos/cuotas/{id}/recibo-pdf  # Descargar recibo PDF
-
-# Parqueadero
-GET    /parqueadero/config                 # Tarifas y capacidad
-POST   /parqueadero/vehiculos/entrada      # Registrar entrada
-POST   /parqueadero/vehiculos/salida       # Calcular cobro y registrar salida
-POST   /parqueadero/suscripciones          # Crear suscripción mensual
-GET    /parqueadero/reportes/ingresos      # Ingresos por rango de fechas
-
-# Facturación DIAN
-GET    /resoluciones/                      # Listar resoluciones activas
-POST   /resoluciones/                      # Registrar nueva resolución DIAN
 
 # SuperAdmin
 GET    /superadmin/empresas                # Listar todos los tenants
@@ -310,7 +287,7 @@ Documentación Swagger UI completa: `{API_URL}/docs`
 
 ---
 
-## Despliegue
+## Despliegue en Producción
 
 ### Backend en Render
 
@@ -319,7 +296,13 @@ Build command:  pip install -r requirements.txt
 Start command:  uvicorn main:app --host 0.0.0.0 --port $PORT
 ```
 
-El endpoint `GET /ping` mantiene el servidor activo evitando el cold start del plan gratuito. Las migraciones de base de datos se ejecutan automáticamente al arrancar.
+Variables de entorno a configurar en Render:
+- `DATABASE_URL` (PostgreSQL)
+- `SECRET_KEY` (clave segura generada)
+- `SUPERADMIN_PASSWORD` (contraseña segura)
+- `ENVIRONMENT=production`
+
+Las migraciones y la inicialización ocurren automáticamente al arrancar. En el primer despliegue con BD vacía, abre la URL del frontend y completa el wizard de configuración.
 
 ### Frontend en Vercel
 
@@ -328,7 +311,18 @@ Build command:    npm run build
 Output directory: build
 ```
 
-Configurar `REACT_APP_API_URL` en las variables de entorno del proyecto Vercel. El archivo `vercel.json` debe incluir rewrite de rutas SPA hacia `index.html`.
+Configurar en Vercel:
+- `REACT_APP_API_URL`: URL de tu backend en Render
+
+El archivo `vercel.json` debe incluir rewrite de rutas SPA hacia `index.html`.
+
+### Docker Compose (local o VPS)
+
+```bash
+docker-compose up -d
+```
+
+El `docker-compose.yml` incluye PostgreSQL, PgBouncer y el backend. El frontend puede servirse con Nginx o desplegarse en Vercel/Netlify.
 
 ---
 

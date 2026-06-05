@@ -134,8 +134,8 @@ const Sidebar = ({ expanded, user, hasAccess, onClose, mobile, pinned, onPinTogg
         )}
       </Box>
 
-      {/* Mi Suscripción — visible para admins de empresas cliente (no superadmin) */}
-      {user?.role?.name === 'Admin' && user?.empresa_id !== 1 && (
+      {/* Mi Suscripción — visible para todos los admins, incluyendo el superadmin */}
+      {user?.role?.name === 'Admin' && (
         <Box sx={{ px: 1, pb: 1, borderTop: '1px solid rgba(255,255,255,0.06)', pt: 1 }}>
           <SidebarItem
             expanded={expanded}

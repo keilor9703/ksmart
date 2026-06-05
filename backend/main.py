@@ -75,9 +75,9 @@ def initialize_default_data(db: Session):
     empresa_default = db.query(models.Empresa).first()
     if not empresa_default:
         empresa_default = models.Empresa(
-            nombre="Vialmar Cacao (Mi Fábrica)",
-            nit="1234188418-2",
-            color_primario="#F43F5E",
+            nombre=os.getenv("SUPERADMIN_EMPRESA_NOMBRE", "Mi Empresa"),
+            nit=os.getenv("SUPERADMIN_EMPRESA_NIT", ""),
+            color_primario=os.getenv("SUPERADMIN_COLOR", "#F43F5E"),
             is_active=True
         )
         db.add(empresa_default)
@@ -138,11 +138,17 @@ def initialize_default_data(db: Session):
 
     crud.set_modules_for_role(db, role_id=admin_role.id, module_ids=[m.id for m in created_modules], empresa_id=empresa_default.id)
 
-    admin_user = crud.get_user_by_username(db, username="admin")
+    superadmin_username = os.getenv("SUPERADMIN_USERNAME", "admin")
+    superadmin_password = os.getenv("SUPERADMIN_PASSWORD", "")
+    if not superadmin_password:
+        superadmin_password = "adminpass"
+        logger.warning("⚠️ SUPERADMIN_PASSWORD no configurada. Usando contraseña por defecto.")
+
+    admin_user = crud.get_user_by_username(db, username=superadmin_username)
     if not admin_user:
         crud.create_user(
             db,
-            schemas.UserCreate(username="admin", password="adminpass", role_id=admin_role.id),
+            schemas.UserCreate(username=superadmin_username, password=superadmin_password, role_id=admin_role.id),
             empresa_id=empresa_default.id
         )
 
