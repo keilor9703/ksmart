@@ -366,22 +366,23 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
     }
   };
 
-  const handleDuplicate = async (receta) => {
-    try {
-      await createReceta({
-        nombre:         `Copia de ${receta.nombre}`,
-        producto_id:    receta.producto_id,
-        descripcion:    receta.descripcion || '',
-        porciones:      receta.porciones || 1,
-        precio_sugerido: receta.precio_sugerido || null,
-        servicios: receta.servicios_maquila.map(s => ({ servicio_id: s.servicio.id })),
-        items:     receta.items.map(it => ({ insumo_id: it.insumo.id, cantidad: it.cantidad })),
-      });
-      toast.success(`Receta duplicada como "Copia de ${receta.nombre}"`);
-      loadData();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Error al duplicar la receta');
-    }
+  const handleDuplicate = (receta) => {
+    setEditingReceta(null); // es una nueva receta, no edición
+    setFormData({
+      nombre:          `Copia de ${receta.nombre}`,
+      producto_id:     '',    // debe elegir un producto diferente
+      descripcion:     receta.descripcion || '',
+      porciones:       receta.porciones || 1,
+      precio_sugerido: receta.precio_sugerido ? String(receta.precio_sugerido) : '',
+      servicios: receta.servicios_maquila.map(s => ({ servicio_id: s.servicio.id })),
+      items:     receta.items.map(it => ({ insumo_id: it.insumo.id, cantidad: it.cantidad })),
+    });
+    setProductoInput('');
+    const inputs = {};
+    receta.items.forEach((it, idx) => { inputs[idx] = it.insumo.nombre; });
+    setInsumoInputs(inputs);
+    setOpen(true);
+    toast.info('Selecciona el producto resultante para la copia');
   };
 
   const handleDeleteClick = (id) => { setItemToDelete(id); setShowConfirmDialog(true); };
