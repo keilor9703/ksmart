@@ -260,6 +260,10 @@ def delete_empresa(db: Session, empresa_id: int, admin_id: int) -> dict:
     """
     Elimina una empresa y todos sus registros en orden FK-safe.
     Compatible con PostgreSQL y SQLite.
+
+    Usa savepoints en cada paso: si un paso falla (tabla inexistente o FK
+    inesperada) se hace rollback solo al savepoint y la transacción
+    principal permanece válida para los pasos siguientes.
     """
     empresa = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
     if not empresa:
@@ -274,29 +278,44 @@ def delete_empresa(db: Session, empresa_id: int, admin_id: int) -> dict:
         inspector = sa_inspect(db.get_bind())
         existing_tables = set(inspector.get_table_names())
     except Exception:
-        existing_tables = None  # Skip table-existence check; let DB raise on missing tables
+        existing_tables = None
 
     total_rows = 0
     tablas_afectadas = 0
+    errores = []
 
     for sql in _DELETE_STEPS:
-        # Extract table name: "DELETE FROM <table> ..."
         parts = sql.split()
         table = parts[2] if len(parts) > 2 else ""
 
         if existing_tables is not None and table and table not in existing_tables:
             continue
 
+        # Savepoint: isolates each step so a failure doesn't abort the whole transaction
+        sp = db.begin_nested()
         try:
             result = db.execute(text(sql), {"eid": empresa_id})
             rows = result.rowcount or 0
+            sp.commit()
             if rows:
                 total_rows += rows
                 tablas_afectadas += 1
         except Exception as exc:
-            logger.warning("delete_empresa %s — error en tabla %s: %s", empresa_id, table, exc)
+            sp.rollback()
+            msg = f"{table}: {exc.__class__.__name__}: {str(exc)[:120]}"
+            errores.append(msg)
+            logger.warning("delete_empresa %s — saltado %s", empresa_id, msg)
 
-    # Audit log with empresa_id=None since the empresa no longer exists
+    if errores:
+        # Check if empresa still exists (means the final DELETE failed)
+        still_exists = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
+        if still_exists:
+            db.rollback()
+            raise ValueError(
+                f"No se pudo eliminar la empresa {empresa_id}. "
+                f"Errores en pasos previos: {'; '.join(errores[:3])}"
+            )
+
     db.add(models.SaaSAuditLog(
         admin_id=admin_id,
         accion="DELETE_EMPRESA",
