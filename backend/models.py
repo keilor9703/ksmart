@@ -125,6 +125,14 @@ class SaaSAuditLog(Base):
     empresa = relationship("Empresa")
 
 
+class TipoNegocioConfig(Base):
+    """Módulos por defecto según tipo de negocio (configurable por SuperAdmin)"""
+    __tablename__ = "tipo_negocio_config"
+    tipo    = Column(String(50), primary_key=True)
+    label   = Column(String(100), nullable=True)
+    modulos = Column(JSON, nullable=False)
+
+
 class TenantMixin:
     """
     Mixin mágico: Al heredar de esta clase, la tabla automáticamente

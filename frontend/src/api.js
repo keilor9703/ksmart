@@ -51,11 +51,11 @@ apiClient.interceptors.response.use(
     const status = error.response?.status;
 
     if (status === 401) {
-      if (url.includes('/users/me')) {
-        // Dejar que checkAuth lo maneje (muestra el toast y redirige)
+      if (url.includes('/users/me') || url.includes('/auth/token') || url.includes('/auth/pin')) {
+        // Estos endpoints deben propagar el error para que el componente los maneje
         return Promise.reject(error);
       }
-      // Cualquier otro 401: silenciar completamente
+      // Cualquier otro 401 (componente montado con sesión expirada): silenciar
       _sessionExpired = true;
       return new Promise(() => {});
     }
@@ -193,5 +193,9 @@ export const fetchPlanesPublicos = () => apiClient.get('/planes-activos');
 // ✅ NUEVOS ENDPOINTS SUPERADMIN FASE 1
 export const fetchDashboardStats = () => apiClient.get('/superadmin/dashboard-stats');
 export const fetchAuditLogs = (params = {}) => apiClient.get('/superadmin/audit-logs', { params });
+
+// Configuración de módulos por tipo de negocio
+export const fetchTiposNegocio = () => apiClient.get('/superadmin/tipos-negocio');
+export const updateTipoNegocio = (tipo, data) => apiClient.put(`/superadmin/tipos-negocio/${tipo}`, data);
 
 export default apiClient;

@@ -201,6 +201,12 @@ export default function AdminUsuarios() {
   const handleEditRole = (role) => { setEditingRole(role); setRoleName(role.name); setSelectedModules(role.modules.map(m => m.id)); setFormRoleOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const handleModuleChange = (id) => setSelectedModules(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
+  const modulosFiltrados = React.useMemo(() => {
+    const habilitados = currentUser?.empresa?.modulos_habilitados;
+    if (!habilitados || habilitados.length === 0) return modules;
+    return modules.filter(m => habilitados.includes(m.frontend_path));
+  }, [modules, currentUser]);
+
   const usuariosFiltrados = React.useMemo(() => {
     let list = [...users];
     if (busqueda.trim()) {
@@ -515,7 +521,7 @@ export default function AdminUsuarios() {
                         Seleccione los módulos a los que tendrá acceso
                       </Typography>
                       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                        {modules.map(m => (
+                        {modulosFiltrados.map(m => (
                           <ModuleToggle key={m.id} module={m} checked={selectedModules.includes(m.id)} onChange={handleModuleChange} />
                         ))}
                       </Box>

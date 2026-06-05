@@ -1,18 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, Button, Grid, useTheme, useMediaQuery,
   Tabs, Tab, IconButton, TextField, InputAdornment, Dialog, DialogTitle,
   DialogContent, DialogActions, Stack, MenuItem, FormControlLabel, Switch, Chip, Divider, Collapse,
-  Table, TableHead, TableRow, TableCell, TableBody, TableContainer, CircularProgress
+  Table, TableHead, TableRow, TableCell, TableBody, TableContainer, CircularProgress, FormGroup
 } from '@mui/material';
 import {
   Add, AdminPanelSettings, Autorenew, TrendingUp, Business, LocalOffer,
   History, Campaign, Engineering, ReceiptLong, Search, Edit, Payments,
-  ExpandLess, ExpandMore, Warning, SupportAgent
+  ExpandLess, ExpandMore, Warning, SupportAgent, DeleteForever, Tune,
+  ViewModule, Close,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 
-import apiClient, { createPlan, updatePlan } from '../../api';
+import apiClient, { createPlan, updatePlan, fetchTiposNegocio, updateTipoNegocio } from '../../api';
+import { APP_MODULES } from '../../utils/modulesConfig';
 import { useSaaSData } from '../../hooks/useSaaSData';
 import CurrencyField from '../../components/common/CurrencyField';
 import ModulosEmpresaDialog from './ModulosEmpresaDialog';
@@ -52,6 +54,7 @@ const TABS_CONFIG = [
   { label: 'Avisos', icon: <Campaign fontSize="small" />, fullLabel: 'Comunicación SaaS' },
   { label: 'Tareas', icon: <Engineering fontSize="small" />, fullLabel: 'Jobs del Sistema' },
   { label: 'Finanzas', icon: <ReceiptLong fontSize="small" />, fullLabel: 'Control de Pagos' },
+  { label: 'Perfiles', icon: <Tune fontSize="small" />, fullLabel: 'Módulos por Tipo de Negocio' },
 ];
 
 const formatDateForInput = (dateString) => dateString ? new Date(dateString).toISOString().split('T')[0] : '';
@@ -116,12 +119,35 @@ export default function GestionSaaS() {
   const [openModulosDialog, setOpenModulosDialog] = useState(false);
   const [empresaParaModulos, setEmpresaParaModulos] = useState(null);
   const [showAdvancedEmpresa, setShowAdvancedEmpresa] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, empresa: null, confirmText: '', loading: false });
+  const [tiposNegocio, setTiposNegocio] = useState([]);
+  const [perfilDialog, setPerfilDialog] = useState({ open: false, tipo: null, modulos: [], loading: false });
+
+  useEffect(() => {
+    fetchTiposNegocio().then(r => setTiposNegocio(r.data)).catch(() => {});
+  }, []);
 
   const handleOpenDrawer = (tenant) => { setTenantForDrawer(tenant); setOpenDrawer(true); };
 
   const handleOpenModulos = (empresa) => {
     setEmpresaParaModulos(empresa);
     setOpenModulosDialog(true);
+  };
+
+  const handleDeleteEmpresa = async () => {
+    const { empresa } = deleteDialog;
+    if (deleteDialog.confirmText !== empresa.nombre) return;
+    setDeleteDialog(s => ({ ...s, loading: true }));
+    try {
+      await apiClient.delete(`/superadmin/empresas/${empresa.id}`);
+      toast.success(`Empresa "${empresa.nombre}" eliminada permanentemente.`);
+      setDeleteDialog({ open: false, empresa: null, confirmText: '', loading: false });
+      setOpenDrawer(false);
+      refreshAll();
+    } catch (err) {
+      toast.error('Error al eliminar: ' + (err.response?.data?.detail || 'Error desconocido'));
+      setDeleteDialog(s => ({ ...s, loading: false }));
+    }
   };
 
   const handleSubmitEmpresa = async (e) => {
@@ -189,6 +215,20 @@ export default function GestionSaaS() {
       setOpenDrawer(false);
       refreshAll();
     } catch (err) { toast.error('Error al actualizar el plan'); }
+  };
+
+  const handleSavePerfilTipo = async () => {
+    const { tipo, modulos } = perfilDialog;
+    setPerfilDialog(s => ({ ...s, loading: true }));
+    try {
+      const { data } = await updateTipoNegocio(tipo, { modulos });
+      setTiposNegocio(prev => prev.map(t => t.tipo === tipo ? data : t));
+      toast.success(`Perfil "${tipo}" actualizado. Las nuevas empresas de este tipo usarán esta configuración.`);
+      setPerfilDialog({ open: false, tipo: null, modulos: [], loading: false });
+    } catch {
+      toast.error('Error al guardar el perfil.');
+      setPerfilDialog(s => ({ ...s, loading: false }));
+    }
   };
 
   const handleSubmitPlan = async (e) => {
@@ -443,8 +483,117 @@ export default function GestionSaaS() {
               </Paper>
             )}
           </TabPanel>
+
+          <TabPanel value={tabValue} index={7}>
+            <Box sx={{ mb: 3 }}>
+              <Typography sx={{ fontWeight: 800, fontSize: 16, mb: 0.5 }}>Módulos por defecto según tipo de negocio</Typography>
+              <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+                Define qué módulos se habilitan cuando se registra una nueva empresa de cada tipo.
+                No afecta a empresas ya existentes.
+              </Typography>
+            </Box>
+            <Grid container spacing={2}>
+              {tiposNegocio.map(perfil => (
+                <Grid item xs={12} sm={6} md={4} key={perfil.tipo}>
+                  <Paper sx={{ p: 2.5, borderRadius: 3, border: '1px solid', borderColor: 'divider', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                      <Box>
+                        <Typography sx={{ fontWeight: 800, fontSize: 14 }}>{perfil.label || perfil.tipo}</Typography>
+                        <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{perfil.modulos.length} módulos</Typography>
+                      </Box>
+                      <Button
+                        size="small" variant="outlined" startIcon={<Edit />}
+                        onClick={() => setPerfilDialog({ open: true, tipo: perfil.tipo, modulos: [...perfil.modulos], loading: false })}
+                        sx={{ borderRadius: 2, fontWeight: 700, fontSize: 12 }}
+                      >
+                        Editar
+                      </Button>
+                    </Box>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 'auto' }}>
+                      {perfil.modulos.map(path => (
+                        <Chip
+                          key={path} label={path.replace(/^\//, '')} size="small"
+                          sx={{ fontSize: 10, fontWeight: 600, bgcolor: `${PURPLE}12`, color: PURPLE }}
+                        />
+                      ))}
+                    </Box>
+                  </Paper>
+                </Grid>
+              ))}
+            </Grid>
+          </TabPanel>
         </Box>
       </Box>
+
+      {/* ── DIALOG: Editar perfil tipo negocio ── */}
+      <Dialog open={perfilDialog.open} onClose={() => setPerfilDialog(s => ({ ...s, open: false }))} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ width: 38, height: 38, borderRadius: 2, bgcolor: `${PURPLE}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: PURPLE }}>
+              <ViewModule />
+            </Box>
+            <Box>
+              <Typography sx={{ fontWeight: 800, fontSize: 17 }}>Módulos por defecto</Typography>
+              <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Tipo: {perfilDialog.tipo}</Typography>
+            </Box>
+          </Box>
+          <IconButton size="small" onClick={() => setPerfilDialog(s => ({ ...s, open: false }))}><Close fontSize="small" /></IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 2 }}>
+            Activa los módulos que tendrán habilitados las nuevas empresas de este tipo al registrarse.
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+            <Button size="small" sx={{ fontSize: 11, textTransform: 'none' }}
+              onClick={() => setPerfilDialog(s => ({ ...s, modulos: APP_MODULES.map(m => m.path) }))}>
+              Todos
+            </Button>
+            <Button size="small" sx={{ fontSize: 11, textTransform: 'none', color: 'text.secondary' }}
+              onClick={() => setPerfilDialog(s => ({ ...s, modulos: [] }))}>
+              Ninguno
+            </Button>
+          </Box>
+          <FormGroup sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 1 }}>
+            {APP_MODULES.map(modulo => {
+              const active = perfilDialog.modulos.includes(modulo.path);
+              return (
+                <Box key={modulo.path} sx={{
+                  p: 1, borderRadius: 2, border: '1px solid',
+                  borderColor: active ? `${PURPLE}50` : 'divider',
+                  bgcolor: active ? `${PURPLE}08` : 'transparent',
+                  transition: 'all 0.15s'
+                }}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={active}
+                        onChange={() => setPerfilDialog(s => ({
+                          ...s,
+                          modulos: active ? s.modulos.filter(p => p !== modulo.path) : [...s.modulos, modulo.path]
+                        }))}
+                        size="small"
+                        sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: PURPLE }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: PURPLE } }}
+                      />
+                    }
+                    label={<Typography sx={{ fontSize: 12.5, fontWeight: active ? 700 : 400 }}>{modulo.label}</Typography>}
+                    sx={{ m: 0, width: '100%' }}
+                  />
+                </Box>
+              );
+            })}
+          </FormGroup>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, px: 3 }}>
+          <Button onClick={() => setPerfilDialog(s => ({ ...s, open: false }))} color="inherit" sx={{ fontWeight: 600, textTransform: 'none' }}>Cancelar</Button>
+          <Button
+            variant="contained" onClick={handleSavePerfilTipo} disabled={perfilDialog.loading}
+            startIcon={perfilDialog.loading && <CircularProgress size={16} color="inherit" />}
+            sx={{ bgcolor: PURPLE, '&:hover': { bgcolor: '#7C3AED' }, fontWeight: 700, borderRadius: 2, textTransform: 'none' }}
+          >
+            Guardar perfil
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* ── DIALOGS ── */}
       <TenantDrawer360
@@ -452,7 +601,43 @@ export default function GestionSaaS() {
         onImpersonate={onImpersonate} onOpenPlan={handleOpenAsignarPlan}
         onOpenModulos={handleOpenModulos}
         onToggleStatus={onToggleStatus}
+        onDelete={(t) => setDeleteDialog({ open: true, empresa: t, confirmText: '', loading: false })}
       />
+
+      {/* ── DIALOG: Eliminar empresa ── */}
+      <Dialog open={deleteDialog.open} onClose={() => !deleteDialog.loading && setDeleteDialog(s => ({ ...s, open: false }))} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: '#b91c1c' }}>
+          <DeleteForever /> Eliminar empresa permanentemente
+        </DialogTitle>
+        <DialogContent>
+          <Typography sx={{ mb: 2, fontSize: 14 }}>
+            Esta acción es <strong>irreversible</strong>. Se eliminarán todos los datos de la empresa
+            {deleteDialog.empresa && <strong> "{deleteDialog.empresa.nombre}"</strong>}, incluyendo usuarios, ventas, clientes e inventario.
+          </Typography>
+          <Typography sx={{ mb: 1.5, fontSize: 13, fontWeight: 700 }}>
+            Escribe el nombre exacto de la empresa para confirmar:
+          </Typography>
+          <TextField
+            fullWidth size="small" autoComplete="off"
+            placeholder={deleteDialog.empresa?.nombre}
+            value={deleteDialog.confirmText}
+            onChange={e => setDeleteDialog(s => ({ ...s, confirmText: e.target.value }))}
+            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setDeleteDialog(s => ({ ...s, open: false }))} disabled={deleteDialog.loading} sx={{ fontWeight: 600 }}>Cancelar</Button>
+          <Button
+            variant="contained"
+            disabled={deleteDialog.confirmText !== deleteDialog.empresa?.nombre || deleteDialog.loading}
+            startIcon={deleteDialog.loading && <CircularProgress size={16} color="inherit" />}
+            onClick={handleDeleteEmpresa}
+            sx={{ bgcolor: '#b91c1c', '&:hover': { bgcolor: '#991b1b' }, fontWeight: 700, borderRadius: 2 }}
+          >
+            Eliminar definitivamente
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <ModulosEmpresaDialog
         open={openModulosDialog}
