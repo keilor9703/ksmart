@@ -1558,12 +1558,10 @@ def run_migrations():
             if not _migration_already_applied(conn, migration_v80):
                 if not _column_exists(conn, 'empresas', 'tipo_negocio'):
                     conn.execute(text("ALTER TABLE empresas ADD COLUMN tipo_negocio VARCHAR(30) NOT NULL DEFAULT 'erp'"))
-                    conn.commit()
                     logger.info("V80: añadido empresas.tipo_negocio")
 
                 if not _column_exists(conn, 'ventas', 'origen'):
                     conn.execute(text("ALTER TABLE ventas ADD COLUMN origen VARCHAR(40) DEFAULT 'erp'"))
-                    conn.commit()
                     logger.info("V80: añadido ventas.origen")
 
                 _mark_migration_applied(conn, migration_v80)
