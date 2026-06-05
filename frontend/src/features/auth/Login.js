@@ -13,7 +13,7 @@ import {
     Visibility, VisibilityOff, AlternateEmail, Lock, Business, Person,
     Storefront, AttachMoney, Email, Phone, LocationOn, Group,
     ArrowForward, ArrowBack, CheckCircle, LocalParking, LocalCarWash, Pin,
-    TableRestaurant,
+    TableRestaurant, VpnKey, VerifiedUser, ManageAccounts,
 } from '@mui/icons-material';
 import { Link } from 'react-router-dom';
 
@@ -384,6 +384,7 @@ const Login = ({ onLogin }) => {
     const [isLoginView, setIsLoginView]   = useState(true);
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading]           = useState(false);
+    const [loginFailed, setLoginFailed]   = useState(false);
     const [regStep, setRegStep]           = useState(1);
     const [regSuccess, setRegSuccess]     = useState(false);
     const [rememberMe, setRememberMe]     = useState(false);
@@ -974,7 +975,7 @@ const Login = ({ onLogin }) => {
                                         }
                                     />
                                     <Typography
-                                        onClick={() => { setForgotEmail(''); setForgotSent(false); setForgotOpen(true); }}
+                                        onClick={() => { resetRecov(); setForgotOpen(true); }}
                                         sx={{ fontSize: 12, color: '#22c55e', cursor: 'pointer', fontWeight: 600, '&:hover': { color: '#16a34a', textDecoration: 'underline' } }}
                                     >
                                         ¿Olvidaste tu contraseña?
