@@ -826,10 +826,36 @@ const EXPORT_BTNS = {
   0: 'diario', 1: 'estado-resultados', 2: 'balance-general', 3: 'balance-comprobacion',
 };
 
+// Calcula el bimestre actual (Colombia: ene-feb, mar-abr, may-jun, jul-ago, sep-oct, nov-dic)
+function bimestreActual() {
+  const now = dayjs();
+  const mes = now.month(); // 0-based
+  const inicioMes = Math.floor(mes / 2) * 2;
+  return {
+    inicio: now.month(inicioMes).startOf('month'),
+    fin: now.month(inicioMes + 1).endOf('month'),
+  };
+}
+
 export default function Contabilidad() {
   const [tab, setTab] = useState(0);
   const [fechaInicio, setFechaInicio] = useState(dayjs().startOf('month'));
   const [fechaFin, setFechaFin] = useState(dayjs().endOf('month'));
+  const [inicializando, setInicializando] = useState(false);
+  const [initResult, setInitResult] = useState(null);
+
+  const handleInicializar = async () => {
+    setInicializando(true);
+    setInitResult(null);
+    try {
+      const r = await apiClient.post('/contabilidad/inicializar');
+      setInitResult(r.data.asientos_creados);
+    } catch (e) {
+      setInitResult({ error: 'Error al inicializar' });
+    } finally {
+      setInicializando(false);
+    }
+  };
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
@@ -842,7 +868,25 @@ export default function Contabilidad() {
               Asientos en partida doble · PUC colombiano · Reportes DIAN · Balance General · Exportación PDF/Excel
             </Typography>
           </Box>
+          <Tooltip title="Genera asientos contables para todas las transacciones históricas que aún no los tienen. Ejecuta una sola vez al activar el módulo.">
+            <Button
+              variant="outlined" size="small" startIcon={inicializando ? <CircularProgress size={14} /> : <AccountBalance />}
+              onClick={handleInicializar} disabled={inicializando}
+              sx={{ borderColor: '#6366F1', color: '#6366F1', '&:hover': { borderColor: '#4F46E5', bgcolor: '#6366F111' } }}
+            >
+              {inicializando ? 'Procesando…' : 'Inicializar contabilidad'}
+            </Button>
+          </Tooltip>
         </Box>
+
+        {initResult && !initResult.error && (
+          <Alert severity="success" sx={{ mb: 2 }} onClose={() => setInitResult(null)}>
+            Inicialización completa — Asientos creados: <strong>Ventas {initResult.ventas}</strong> · <strong>Gastos {initResult.gastos}</strong> · <strong>Compras {initResult.compras}</strong> · <strong>Pagos proveedores {initResult.pagos_compra}</strong> · <strong>Cuotas préstamo {initResult.cuotas}</strong>. Total: <strong>{initResult.total}</strong>
+          </Alert>
+        )}
+        {initResult?.error && (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setInitResult(null)}>{initResult.error}</Alert>
+        )}
 
         {tab < 5 && (
           <Grid container spacing={2} sx={{ mb: 2 }} alignItems="center">
@@ -854,6 +898,16 @@ export default function Contabilidad() {
               <DatePicker label="Hasta" value={fechaFin} onChange={setFechaFin}
                 slotProps={{ textField: { size: 'small', fullWidth: true } }} />
             </Grid>
+            {tab === 4 && (
+              <Grid item xs={12} sm="auto">
+                <Tooltip title="Bimestre actual — período estándar para declaración IVA Colombia">
+                  <Button size="small" variant="outlined" color="warning"
+                    onClick={() => { const b = bimestreActual(); setFechaInicio(b.inicio); setFechaFin(b.fin); }}>
+                    Bimestre actual
+                  </Button>
+                </Tooltip>
+              </Grid>
+            )}
             {EXPORT_BTNS[tab] && (
               <Grid item xs={12} md="auto">
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

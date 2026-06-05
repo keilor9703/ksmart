@@ -157,6 +157,22 @@ def ejecutar_cierre(
     )
 
 
+# ─── Backfill histórico ───────────────────────────────────────────────────────
+
+@router.post("/inicializar")
+def inicializar_contabilidad(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_active_user),
+):
+    """
+    Inicializa el PUC y genera asientos contables para todas las transacciones
+    históricas que aún no los tienen. Idempotente — puede ejecutarse varias veces.
+    """
+    from services.contabilidad import backfill_contabilidad
+    resumen = backfill_contabilidad(db, current_user.empresa_id)
+    return {"ok": True, "asientos_creados": resumen}
+
+
 # ─── Exportaciones ────────────────────────────────────────────────────────────
 
 from fastapi.responses import Response

@@ -458,3 +458,123 @@ def registrar_asiento_cuota_prestamo(
         db.flush()
     except Exception as exc:
         logger.exception("Error generando asiento para cuota préstamo: %s", exc)
+
+
+# ─── BACKFILL HISTÓRICO ───────────────────────────────────────────────────────
+
+def backfill_contabilidad(db: Session, empresa_id: int) -> dict:
+    """
+    Genera asientos contables para TODAS las transacciones históricas que
+    aún no tienen asiento. Es idempotente: puede ejecutarse múltiples veces.
+    Devuelve un resumen con cuántos asientos se crearon por tipo.
+    """
+    inicializar_puc(db, empresa_id)
+    db.commit()
+
+    resumen = {"ventas": 0, "gastos": 0, "compras": 0, "pagos_compra": 0, "cuotas": 0}
+
+    # ── Ventas pagadas ────────────────────────────────────────────────────────
+    ventas_sin_asiento = (
+        db.query(models.Venta)
+        .filter(
+            models.Venta.empresa_id == empresa_id,
+            models.Venta.estado_pago == "pagado",
+        )
+        .outerjoin(
+            models.AsientoContable,
+            (models.AsientoContable.tipo_origen == "venta") &
+            (models.AsientoContable.referencia_id == models.Venta.id) &
+            (models.AsientoContable.empresa_id == empresa_id),
+        )
+        .filter(models.AsientoContable.id == None)
+        .all()
+    )
+    for v in ventas_sin_asiento:
+        registrar_asiento_venta(db, v)
+        resumen["ventas"] += 1
+    db.commit()
+
+    # ── Gastos ────────────────────────────────────────────────────────────────
+    gastos_sin_asiento = (
+        db.query(models.Gasto)
+        .filter(models.Gasto.empresa_id == empresa_id)
+        .outerjoin(
+            models.AsientoContable,
+            (models.AsientoContable.tipo_origen == "gasto") &
+            (models.AsientoContable.referencia_id == models.Gasto.id) &
+            (models.AsientoContable.empresa_id == empresa_id),
+        )
+        .filter(models.AsientoContable.id == None)
+        .all()
+    )
+    for g in gastos_sin_asiento:
+        registrar_asiento_gasto(db, g)
+        resumen["gastos"] += 1
+    db.commit()
+
+    # ── Compras ───────────────────────────────────────────────────────────────
+    compras_sin_asiento = (
+        db.query(models.Compra)
+        .filter(models.Compra.empresa_id == empresa_id)
+        .outerjoin(
+            models.AsientoContable,
+            (models.AsientoContable.tipo_origen == "compra") &
+            (models.AsientoContable.referencia_id == models.Compra.id) &
+            (models.AsientoContable.empresa_id == empresa_id),
+        )
+        .filter(models.AsientoContable.id == None)
+        .all()
+    )
+    for c in compras_sin_asiento:
+        registrar_asiento_compra(db, c)
+        resumen["compras"] += 1
+    db.commit()
+
+    # ── Pagos a proveedores ───────────────────────────────────────────────────
+    pagos_sin_asiento = (
+        db.query(models.PagoCompra)
+        .join(models.Compra, models.PagoCompra.compra_id == models.Compra.id)
+        .filter(models.Compra.empresa_id == empresa_id)
+        .outerjoin(
+            models.AsientoContable,
+            (models.AsientoContable.tipo_origen == "pago_compra") &
+            (models.AsientoContable.referencia_id == models.PagoCompra.id) &
+            (models.AsientoContable.empresa_id == empresa_id),
+        )
+        .filter(models.AsientoContable.id == None)
+        .all()
+    )
+    for p in pagos_sin_asiento:
+        compra = db.query(models.Compra).get(p.compra_id)
+        if compra:
+            registrar_asiento_compra(db, compra, pago=p)
+            resumen["pagos_compra"] += 1
+    db.commit()
+
+    # ── Cuotas de préstamo cobradas ───────────────────────────────────────────
+    cuotas_sin_asiento = (
+        db.query(models.CuotaPrestamo)
+        .join(models.Prestamo, models.CuotaPrestamo.prestamo_id == models.Prestamo.id)
+        .filter(
+            models.Prestamo.empresa_id == empresa_id,
+            models.CuotaPrestamo.estado_pago.in_(["Pagado", "Parcial", "pagado", "parcial"]),
+        )
+        .outerjoin(
+            models.AsientoContable,
+            (models.AsientoContable.tipo_origen == "cuota_prestamo") &
+            (models.AsientoContable.referencia_id == models.CuotaPrestamo.id) &
+            (models.AsientoContable.empresa_id == empresa_id),
+        )
+        .filter(models.AsientoContable.id == None)
+        .all()
+    )
+    for cuota in cuotas_sin_asiento:
+        monto = float(cuota.monto_cuota or 0) - float(cuota.saldo_pendiente or 0)
+        if monto > 0:
+            registrar_asiento_cuota_prestamo(db, empresa_id, cuota,
+                monto_recibido=monto, metodo_pago=cuota.metodo_pago)
+            resumen["cuotas"] += 1
+    db.commit()
+
+    resumen["total"] = sum(resumen.values())
+    return resumen
