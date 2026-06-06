@@ -2363,6 +2363,13 @@ class CatalogoEmpresaOut(BaseModel):
     logo_base64: Optional[str] = None
     color_primario: str
     direccion: Optional[str] = None
+    tipo_negocio: str = "erp"
+
+class CatalogoMesaOut(BaseModel):
+    numero: str
+    nombre: Optional[str] = None
+    zona: Optional[str] = None
+    estado: str = "libre"
 
 class CatalogoProductoOut(BaseModel):
     id: int
@@ -2371,13 +2378,33 @@ class CatalogoProductoOut(BaseModel):
     precio: float
     categoria: Optional[str] = None
     image_count: int = 0
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 class CatalogoPublicoOut(BaseModel):
     empresa: CatalogoEmpresaOut
     productos: List[CatalogoProductoOut]
     total_productos: int
+    mesas: List[CatalogoMesaOut] = []
+
+
+# ── Pedido de restaurante desde catálogo público ──────────────────────────────
+class CatalogoItemRestaurante(BaseModel):
+    producto_id: int
+    nombre_producto: str
+    cantidad: float = 1.0
+    precio_unitario: float
+    notas: Optional[str] = None
+
+class PedidoRestaurantePublicoIn(BaseModel):
+    mesa_numero: str
+    items: List[CatalogoItemRestaurante]
+
+class PedidoRestauranteCreatedOut(BaseModel):
+    comanda_id: int
+    numero_comanda: int
+    mesa_numero: str
+    total: float
 
 
 # =========================
