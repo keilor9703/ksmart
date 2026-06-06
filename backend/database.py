@@ -1729,7 +1729,7 @@ def run_migrations():
 
             # V84 - Columna orden en modulos
             migration_v84 = "V84_orden_modulos"
-            if migration_v84 not in applied:
+            if not _migration_already_applied(conn, migration_v84):
                 if not _column_exists(conn, "modulos", "orden"):
                     conn.execute(text("ALTER TABLE modulos ADD COLUMN orden INTEGER DEFAULT 99"))
                     logger.info("V84: columna orden añadida a modulos")
