@@ -251,10 +251,13 @@ def create_pedido_restaurante_publico(
     # Configuración de cocina de la empresa
     cfg = db.query(models.ConfigRestaurante).filter_by(empresa_id=db_empresa.id).first()
     areas = cfg.areas_cocina if cfg else ["Cocina general"]
+    modo_impresion = cfg.imprimir_comanda_auto if cfg else False
 
     # Obtener overrides de grupos de producto
     from crud.grupos_producto import _get_overrides
     overrides = _get_overrides(db, db_empresa.id)
+
+    ahora = datetime.now(timezone.utc)
 
     for it in payload.items:
         area = None
@@ -275,6 +278,9 @@ def create_pedido_restaurante_publico(
             if va_a_cocina:
                 area = areas[0] if areas else "Cocina general"
 
+        if modo_impresion:
+            va_a_cocina = False
+
         nuevo = models.ComandaItem(
             comanda_id=comanda.id,
             producto_id=it.producto_id,
@@ -285,8 +291,8 @@ def create_pedido_restaurante_publico(
             notas=it.notas,
             area_cocina=area or (areas[0] if areas else None),
             va_a_cocina=va_a_cocina,
-            estado="pendiente" if va_a_cocina else "listo",
-            timestamp_listo=None if va_a_cocina else datetime.now(timezone.utc),
+            estado="listo" if not va_a_cocina else "pendiente",
+            timestamp_listo=ahora if not va_a_cocina else None,
         )
         db.add(nuevo)
 

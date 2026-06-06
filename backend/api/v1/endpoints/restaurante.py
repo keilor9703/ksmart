@@ -371,10 +371,13 @@ def agregar_items(
 
     cfg = db.query(models.ConfigRestaurante).filter_by(empresa_id=user.empresa_id).first()
     areas = cfg.areas_cocina if cfg else ["Cocina general"]
+    modo_impresion = cfg.imprimir_comanda_auto if cfg else False  # True → impresora reemplaza pantalla cocina
 
     # Cargar overrides por-empresa una sola vez
     from crud.grupos_producto import _get_overrides
     overrides = _get_overrides(db, user.empresa_id)
+
+    ahora = datetime.now(timezone.utc)
 
     for it in items:
         area = it.area_cocina
@@ -394,6 +397,11 @@ def agregar_items(
                 if not area and va_a_cocina:
                     area = areas[0] if areas else "Cocina general"
 
+        # Si el restaurante trabaja con impresora (sin pantalla cocina),
+        # los ítems nacen como "listo" para no aparecer en PantallaCocina.
+        if modo_impresion:
+            va_a_cocina = False
+
         nuevo = models.ComandaItem(
             comanda_id=comanda.id,
             producto_id=it.producto_id,
@@ -404,8 +412,8 @@ def agregar_items(
             notas=it.notas,
             area_cocina=area or (areas[0] if areas else None),
             va_a_cocina=va_a_cocina,
-            estado="pendiente" if va_a_cocina else "listo",
-            timestamp_listo=None if va_a_cocina else datetime.now(timezone.utc),
+            estado="listo" if not va_a_cocina else "pendiente",
+            timestamp_listo=ahora if not va_a_cocina else None,
         )
         db.add(nuevo)
 
