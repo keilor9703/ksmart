@@ -4,7 +4,7 @@ import {
   TableContainer, TableHead, TableRow, Chip, CircularProgress, Alert,
   TextField, Grid, Card, CardContent, IconButton, Collapse,
   Divider, Button, Dialog, DialogTitle, DialogContent, DialogActions,
-  Tooltip,
+  Tooltip, LinearProgress,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -12,9 +12,10 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
 import {
   AutoAwesome, ExpandMore, ExpandLess, AccountBalance,
-  TrendingUp, Balance, MenuBook, Add, Delete, Receipt,
+  TrendingUp, TrendingDown, Balance, MenuBook, Add, Delete, Receipt,
   CheckCircleOutline, ErrorOutline, Download, LockClock,
-  PictureAsPdf, TableChart, Lock,
+  PictureAsPdf, TableChart, Lock, AttachMoney, Storefront,
+  BusinessCenter, Info,
 } from '@mui/icons-material';
 import apiClient from '../../api';
 import CurrencyField from '../../components/common/CurrencyField';
@@ -355,50 +356,125 @@ function EstadoResultados({ fechaInicio, fechaFin }) {
   if (loading) return <Box sx={{ py: 4, textAlign: 'center' }}><CircularProgress /></Box>;
   if (!data) return null;
 
-  const Row = ({ label, value, indent = 0, bold = false, color = 'inherit', divider = false }) => (
-    <>
-      {divider && <TableRow><TableCell colSpan={2} sx={{ p: 0 }}><Divider /></TableCell></TableRow>}
-      <TableRow>
-        <TableCell sx={{ pl: 2 + indent * 2, fontWeight: bold ? 700 : 400, fontSize: bold ? 14 : 13, color }}>
-          {label}
-        </TableCell>
-        <TableCell align="right" sx={{ fontWeight: bold ? 700 : 400, fontSize: bold ? 14 : 13, color }}>
-          {fmt(value)}
-        </TableCell>
-      </TableRow>
-    </>
+  const margenBruto = data.total_ingresos > 0 ? (data.utilidad_bruta / data.total_ingresos) * 100 : 0;
+  const margenNeto = data.total_ingresos > 0 ? (data.utilidad_neta / data.total_ingresos) * 100 : 0;
+  const esGanancia = data.utilidad_neta >= 0;
+
+  const kpis = [
+    { label: 'Total Ingresos', value: data.total_ingresos, color: '#10B981', icon: <TrendingUp />, desc: 'Ventas + Servicios + Intereses' },
+    { label: 'Total Costos y Gastos', value: data.costo_ventas + data.total_gastos, color: '#EF4444', icon: <TrendingDown />, desc: `${((data.costo_ventas + data.total_gastos) / (data.total_ingresos || 1) * 100).toFixed(1)}% de ingresos` },
+    { label: 'Utilidad Bruta', value: data.utilidad_bruta, color: '#3B82F6', icon: <BusinessCenter />, desc: `Margen ${margenBruto.toFixed(1)}%` },
+    { label: esGanancia ? 'Utilidad Neta' : 'Pérdida Neta', value: data.utilidad_neta, color: esGanancia ? '#10B981' : '#EF4444', icon: esGanancia ? <TrendingUp /> : <TrendingDown />, desc: `Margen neto ${margenNeto.toFixed(1)}%` },
+  ];
+
+  const SectionHeader = ({ label, color }) => (
+    <TableRow>
+      <TableCell colSpan={3} sx={{ bgcolor: color + '18', color, fontWeight: 800, fontSize: 12, letterSpacing: 1, py: 0.75, borderBottom: `2px solid ${color}44` }}>
+        {label}
+      </TableCell>
+    </TableRow>
+  );
+
+  const Row = ({ label, cuenta, value, indent = 0, bold = false, color = 'text.primary', bg = 'transparent' }) => (
+    <TableRow sx={{ bgcolor: bg, '&:hover': { bgcolor: bg !== 'transparent' ? bg : 'action.hover' } }}>
+      <TableCell sx={{ pl: 2 + indent * 2, fontWeight: bold ? 700 : 400, fontSize: bold ? 14 : 12, color, width: '55%' }}>
+        {label}
+      </TableCell>
+      <TableCell sx={{ fontSize: 11, color: 'text.disabled', fontFamily: 'monospace' }}>{cuenta}</TableCell>
+      <TableCell align="right" sx={{ fontWeight: bold ? 700 : 400, fontSize: bold ? 14 : 12, color, pr: 2 }}>
+        {fmt(value)}
+      </TableCell>
+    </TableRow>
   );
 
   return (
-    <TableContainer component={Paper} sx={{ maxWidth: 620 }}>
-      <Table size="small">
-        <TableHead>
-          <TableRow sx={{ bgcolor: 'primary.main' }}>
-            <TableCell sx={{ color: 'white', fontWeight: 700 }}>Estado de Resultados</TableCell>
-            <TableCell align="right" sx={{ color: 'white', fontWeight: 700 }}>Valor</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          <Row label="(+) Venta de mercancías (4135)" value={data.ingresos_operacionales} indent={1} />
-          <Row label="(+) Ingresos por servicios (4175)" value={data.ingresos_servicios} indent={1} />
-          <Row label="(+) Intereses y rendimientos (4210)" value={data.ingresos_financieros} indent={1} />
-          <Row label="TOTAL INGRESOS" value={data.total_ingresos} bold color="success.main" divider />
-          <Row label="(-) Costo de ventas (6135)" value={data.costo_ventas} indent={1} />
-          <Row label="UTILIDAD BRUTA" value={data.utilidad_bruta} bold color={data.utilidad_bruta >= 0 ? 'success.main' : 'error.main'} divider />
-          <Row label="(-) Gastos de personal (5105)" value={0} indent={1} />
-          <Row label="(-) Gastos generales (5195)" value={data.gastos_operacionales} indent={1} />
-          <Row label="(-) Gastos financieros (5305)" value={data.gastos_no_operacionales} indent={1} />
-          <Row label="TOTAL GASTOS" value={data.total_gastos} bold divider />
-          <Row
-            label="UTILIDAD NETA DEL PERÍODO"
-            value={data.utilidad_neta}
-            bold
-            color={data.utilidad_neta >= 0 ? 'success.main' : 'error.main'}
-            divider
-          />
-        </TableBody>
-      </Table>
-    </TableContainer>
+    <Box>
+      {/* KPI Cards */}
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        {kpis.map((k, i) => (
+          <Grid item xs={6} md={3} key={i}>
+            <Paper sx={{ p: 2, border: `1px solid ${k.color}33`, borderRadius: 2, position: 'relative', overflow: 'hidden' }}>
+              <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, bgcolor: k.color }} />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <Box sx={{ color: k.color, display: 'flex' }}>{k.icon}</Box>
+                <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.2 }}>{k.label}</Typography>
+              </Box>
+              <Typography variant="h6" fontWeight={700} sx={{ color: k.color, mb: 0.5 }}>{fmt(k.value)}</Typography>
+              <Typography variant="caption" color="text.disabled">{k.desc}</Typography>
+            </Paper>
+          </Grid>
+        ))}
+      </Grid>
+
+      {/* Margen bruto visual */}
+      <Paper sx={{ p: 2, mb: 3, border: '1px solid', borderColor: 'divider' }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+          <Typography variant="body2" fontWeight={600}>Margen bruto</Typography>
+          <Typography variant="body2" fontWeight={700} color={margenBruto >= 15 ? 'success.main' : 'warning.main'}>{margenBruto.toFixed(1)}%</Typography>
+        </Box>
+        <LinearProgress variant="determinate" value={Math.min(Math.max(margenBruto, 0), 100)}
+          sx={{ height: 8, borderRadius: 4, bgcolor: 'grey.800',
+            '& .MuiLinearProgress-bar': { bgcolor: margenBruto >= 30 ? '#10B981' : margenBruto >= 15 ? '#F59E0B' : '#EF4444', borderRadius: 4 } }} />
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
+          <Typography variant="caption" color="text.disabled">Objetivo mín. 15%</Typography>
+          <Typography variant="caption" color="text.disabled">Objetivo óptimo 30%+</Typography>
+        </Box>
+      </Paper>
+
+      {/* Tabla Estado de Resultados */}
+      <Paper sx={{ border: '1px solid', borderColor: 'divider' }}>
+        <Box sx={{ px: 2, py: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Typography variant="subtitle1" fontWeight={700}>
+            Estado de Resultados — {dayjs(fechaInicio).format('DD/MM/YYYY')} al {dayjs(fechaFin).format('DD/MM/YYYY')}
+          </Typography>
+        </Box>
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: 'grey.900' }}>
+                <TableCell sx={{ color: 'white', fontWeight: 700, width: '55%' }}>CONCEPTO</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 700, fontSize: 11 }}>CUENTA PUC</TableCell>
+                <TableCell align="right" sx={{ color: 'white', fontWeight: 700, pr: 2 }}>VALOR</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              <SectionHeader label="INGRESOS" color="#10B981" />
+              <Row label="Venta de mercancías" cuenta="4135" value={data.ingresos_operacionales} indent={1} />
+              <Row label="Ingresos por servicios" cuenta="4175" value={data.ingresos_servicios} indent={1} />
+              <Row label="Intereses y rendimientos financieros" cuenta="4210" value={data.ingresos_financieros} indent={1} />
+              <Row label="= TOTAL INGRESOS" value={data.total_ingresos} bold color="#10B981" bg="#10B98110" />
+
+              <SectionHeader label="COSTO DE VENTAS" color="#F59E0B" />
+              <Row label="(-) Costo de mercancías vendidas" cuenta="6135" value={data.costo_ventas} indent={1} />
+              <Row label="= UTILIDAD BRUTA" value={data.utilidad_bruta} bold color={data.utilidad_bruta >= 0 ? '#10B981' : '#EF4444'} bg={data.utilidad_bruta >= 0 ? '#10B98110' : '#EF444410'} />
+
+              <SectionHeader label="GASTOS OPERACIONALES" color="#F97316" />
+              <Row label="(-) Gastos de personal y nómina" cuenta="5105" value={data.gastos_personal || 0} indent={1} />
+              <Row label="(-) Gastos generales y diversos" cuenta="5195" value={data.gastos_operacionales} indent={1} />
+              <Row label="(-) Gastos financieros" cuenta="5305" value={data.gastos_no_operacionales} indent={1} />
+              <Row label="= TOTAL GASTOS" value={data.total_gastos} bold color="#F97316" bg="#F9731610" />
+
+              <TableRow sx={{ bgcolor: esGanancia ? '#10B98118' : '#EF444418' }}>
+                <TableCell colSpan={2} sx={{ fontWeight: 800, fontSize: 15, color: esGanancia ? '#10B981' : '#EF4444', py: 1.5, pl: 2 }}>
+                  {esGanancia ? '✓ UTILIDAD NETA DEL PERÍODO' : '✗ PÉRDIDA NETA DEL PERÍODO'}
+                </TableCell>
+                <TableCell align="right" sx={{ fontWeight: 800, fontSize: 15, color: esGanancia ? '#10B981' : '#EF4444', pr: 2 }}>
+                  {fmt(data.utilidad_neta)}
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </TableContainer>
+        <Box sx={{ px: 2, py: 1, borderTop: '1px solid', borderColor: 'divider', display: 'flex', gap: 3 }}>
+          <Typography variant="caption" color="text.disabled">
+            Margen neto: <strong style={{ color: esGanancia ? '#10B981' : '#EF4444' }}>{margenNeto.toFixed(1)}%</strong>
+          </Typography>
+          <Typography variant="caption" color="text.disabled">
+            Margen bruto: <strong style={{ color: margenBruto >= 15 ? '#10B981' : '#F59E0B' }}>{margenBruto.toFixed(1)}%</strong>
+          </Typography>
+        </Box>
+      </Paper>
+    </Box>
   );
 }
 
@@ -593,41 +669,158 @@ function ResumenIVA({ fechaInicio, fechaFin }) {
   if (loading) return <Box sx={{ py: 4, textAlign: 'center' }}><CircularProgress /></Box>;
   if (!data) return null;
 
-  const cards = [
-    { label: 'IVA Generado (cobrado en ventas)', value: data.iva_generado, cuenta: '2408', color: '#EF4444', icon: '📤' },
-    { label: 'IVA Descontable (pagado en compras)', value: data.iva_descontable, cuenta: '1355', color: '#3B82F6', icon: '📥' },
-    { label: data.iva_a_pagar > 0 ? 'IVA a PAGAR a la DIAN' : 'IVA a FAVOR', value: data.iva_a_pagar > 0 ? data.iva_a_pagar : data.iva_a_favor, cuenta: '', color: data.iva_a_pagar > 0 ? '#F97316' : '#10B981', icon: data.iva_a_pagar > 0 ? '⚠️' : '✅' },
-  ];
+  const aPagar = data.iva_a_pagar > 0;
+  const ivaNeto = aPagar ? data.iva_a_pagar : data.iva_a_favor;
+  // Estimado de ICA: 1% sobre base gravable ventas (base = iva_generado / 0.19)
+  const baseGravableVentas = data.iva_generado > 0 ? Math.round(data.iva_generado / 0.19) : 0;
+  const icaEstimado = Math.round(baseGravableVentas * 0.001);
+
+  const bimestre = (() => {
+    const d = dayjs(fechaInicio);
+    const mes = d.month();
+    const bim = Math.floor(mes / 2) + 1;
+    return `Bimestre ${bim} — ${d.format('MMM').toUpperCase()} / ${d.add(1, 'month').format('MMM YYYY').toUpperCase()}`;
+  })();
 
   return (
     <Box>
-      <Alert severity="info" sx={{ mb: 3 }}>
-        Este resumen se basa en los asientos contables del período. El IVA generado proviene de ventas (cuenta 2408)
-        y el IVA descontable de compras (cuenta 1355). Úsalo para preparar la declaración bimestral de IVA ante la DIAN.
-      </Alert>
+      {/* Header período */}
+      <Paper sx={{ p: 2, mb: 3, border: '1px solid', borderColor: '#F9731344', bgcolor: '#F9731308', display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+        <AccountBalance sx={{ color: '#F97316' }} />
+        <Box sx={{ flex: 1 }}>
+          <Typography variant="subtitle1" fontWeight={700} color="#F97316">PERÍODO BIMESTRAL DIAN</Typography>
+          <Typography variant="body2" color="text.secondary">{bimestre} · {dayjs(fechaInicio).format('DD/MM/YYYY')} — {dayjs(fechaFin).format('DD/MM/YYYY')}</Typography>
+        </Box>
+        <Chip label="Formulario 300 · DIAN" sx={{ bgcolor: '#F9731322', color: '#F97316', fontWeight: 600 }} />
+      </Paper>
 
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        {cards.map((c, i) => (
-          <Grid item xs={12} sm={4} key={i}>
-            <Card sx={{ border: `2px solid ${c.color}22` }}>
-              <CardContent>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
-                  {c.icon} {c.label}
-                  {c.cuenta && <span style={{ fontFamily: 'monospace', fontSize: 11, marginLeft: 4, color: '#94a3b8' }}> ({c.cuenta})</span>}
-                </Typography>
-                <Typography variant="h5" fontWeight={700} sx={{ color: c.color }}>{fmt(c.value)}</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
+      {/* KPI Cards */}
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={12} sm={4}>
+          <Paper sx={{ p: 2.5, border: '1px solid #10B98133', borderRadius: 2, position: 'relative', overflow: 'hidden' }}>
+            <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, bgcolor: '#10B981' }} />
+            <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+              Ventas Brutas (inc. IVA)
+            </Typography>
+            <Typography variant="h5" fontWeight={700} color="#10B981" sx={{ mb: 0.5 }}>
+              {fmt(baseGravableVentas + data.iva_generado)}
+            </Typography>
+            <Typography variant="caption" color="text.disabled">Total facturado inc. IVA</Typography>
+          </Paper>
+        </Grid>
+        <Grid item xs={12} sm={4}>
+          <Paper sx={{ p: 2.5, border: '1px solid #3B82F633', borderRadius: 2, position: 'relative', overflow: 'hidden' }}>
+            <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, bgcolor: '#3B82F6' }} />
+            <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+              Base Gravable Ventas
+            </Typography>
+            <Typography variant="h5" fontWeight={700} color="#3B82F6" sx={{ mb: 0.5 }}>
+              {fmt(baseGravableVentas)}
+            </Typography>
+            <Typography variant="caption" color="text.disabled">Ventas sin IVA</Typography>
+          </Paper>
+        </Grid>
+        <Grid item xs={6} sm={2}>
+          <Paper sx={{ p: 2.5, border: '1px solid #EF444433', borderRadius: 2, position: 'relative', overflow: 'hidden' }}>
+            <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, bgcolor: '#EF4444' }} />
+            <Typography variant="caption" color="text.secondary" display="block" gutterBottom>IVA Generado</Typography>
+            <Typography variant="h6" fontWeight={700} color="#EF4444">{fmt(data.iva_generado)}</Typography>
+            <Typography variant="caption" color="text.disabled">IVA cobrado en ventas</Typography>
+          </Paper>
+        </Grid>
+        <Grid item xs={6} sm={2}>
+          <Paper sx={{ p: 2.5, border: '1px solid #6366F133', borderRadius: 2, position: 'relative', overflow: 'hidden' }}>
+            <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, bgcolor: '#6366F1' }} />
+            <Typography variant="caption" color="text.secondary" display="block" gutterBottom>IVA Descontable</Typography>
+            <Typography variant="h6" fontWeight={700} color="#6366F1">{fmt(data.iva_descontable)}</Typography>
+            <Typography variant="caption" color="text.disabled">IVA pagado en compras</Typography>
+          </Paper>
+        </Grid>
       </Grid>
 
-      <Paper sx={{ p: 2 }}>
-        <Typography variant="subtitle2" gutterBottom fontWeight={700}>Fórmula declaración IVA</Typography>
-        <Typography variant="body2" color="text.secondary">
-          IVA a pagar = IVA Generado ({fmt(data.iva_generado)}) − IVA Descontable ({fmt(data.iva_descontable)}) = <strong>{fmt(data.iva_a_pagar > 0 ? data.iva_a_pagar : data.iva_a_favor)}</strong>
-          {data.iva_a_favor > 0 ? ' (saldo a favor)' : ' (valor a pagar)'}
-        </Typography>
+      {/* IVA Neto destacado */}
+      <Paper sx={{ p: 3, mb: 3, border: `2px solid ${aPagar ? '#EF4444' : '#10B981'}55`, bgcolor: aPagar ? '#EF444408' : '#10B98108', borderRadius: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+          <Box>
+            <Typography variant="overline" sx={{ color: aPagar ? '#EF4444' : '#10B981', fontWeight: 700, letterSpacing: 2 }}>
+              IVA NETO — {aPagar ? 'A PAGAR' : 'A FAVOR'}
+            </Typography>
+            <Typography variant="h4" fontWeight={800} sx={{ color: aPagar ? '#EF4444' : '#10B981' }}>
+              {fmt(ivaNeto)}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {aPagar ? 'Debe declarar y pagar este valor a la DIAN (Form. 300)' : 'Saldo a favor — puede descontar en el siguiente período'}
+            </Typography>
+          </Box>
+          <Chip label={aPagar ? 'A PAGAR' : 'A FAVOR'}
+            sx={{ bgcolor: aPagar ? '#EF4444' : '#10B981', color: 'white', fontWeight: 700, fontSize: 13, px: 1 }} />
+        </Box>
+      </Paper>
+
+      {/* Tabla detallada Forma 300 */}
+      <Paper sx={{ border: '1px solid', borderColor: 'divider', mb: 3 }}>
+        <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Typography variant="subtitle2" fontWeight={700}>Detalle declaración IVA (Formulario 300)</Typography>
+        </Box>
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: 'grey.900' }}>
+                <TableCell sx={{ color: 'white', fontWeight: 700 }}>CONCEPTO</TableCell>
+                <TableCell align="right" sx={{ color: 'white', fontWeight: 700 }}>VALOR</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              <TableRow><TableCell colSpan={2} sx={{ bgcolor: '#10B98112', color: '#10B981', fontWeight: 700, fontSize: 11, letterSpacing: 1 }}>VENTAS</TableCell></TableRow>
+              <TableRow hover><TableCell sx={{ pl: 3 }}>Ventas brutas totales (inc. IVA)</TableCell><TableCell align="right" sx={{ color: '#10B981' }}>{fmt(baseGravableVentas + data.iva_generado)}</TableCell></TableRow>
+              <TableRow hover><TableCell sx={{ pl: 3 }}>(-) IVA incluido en ventas</TableCell><TableCell align="right">{fmt(data.iva_generado)}</TableCell></TableRow>
+              <TableRow sx={{ bgcolor: '#10B98108' }}><TableCell sx={{ pl: 3, fontWeight: 700 }}>= Base gravable ventas</TableCell><TableCell align="right" sx={{ fontWeight: 700, color: '#10B981' }}>{fmt(baseGravableVentas)}</TableCell></TableRow>
+              <TableRow sx={{ bgcolor: '#10B98108' }}><TableCell sx={{ pl: 3, fontWeight: 700 }}>IVA generado (≈19% s/ base gravable)</TableCell><TableCell align="right" sx={{ fontWeight: 700, color: '#10B981' }}>{fmt(data.iva_generado)}</TableCell></TableRow>
+
+              <TableRow><TableCell colSpan={2} sx={{ bgcolor: '#3B82F612', color: '#3B82F6', fontWeight: 700, fontSize: 11, letterSpacing: 1 }}>COMPRAS</TableCell></TableRow>
+              <TableRow hover><TableCell sx={{ pl: 3 }}>(-) IVA descontable (crédito fiscal)</TableCell><TableCell align="right" sx={{ color: '#3B82F6' }}>{fmt(data.iva_descontable)}</TableCell></TableRow>
+
+              <TableRow><TableCell colSpan={2} sx={{ bgcolor: '#F9731612', color: '#F97316', fontWeight: 700, fontSize: 11, letterSpacing: 1 }}>RESULTADO</TableCell></TableRow>
+              <TableRow sx={{ bgcolor: aPagar ? '#EF444410' : '#10B98110' }}>
+                <TableCell sx={{ fontWeight: 800, fontSize: 14 }}>IVA Neto — {aPagar ? 'A pagar' : 'A favor'}</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 800, fontSize: 14, color: aPagar ? '#EF4444' : '#10B981' }}>{fmt(ivaNeto)}</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
+
+      {/* ICA estimado */}
+      {icaEstimado > 0 && (
+        <Paper sx={{ p: 2, mb: 3, border: '1px solid', borderColor: '#6366F133', bgcolor: '#6366F108' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <AccountBalance sx={{ color: '#6366F1', fontSize: 28 }} />
+            <Box>
+              <Typography variant="subtitle2" fontWeight={700} color="#6366F1">Estimado ICA — Industria y Comercio</Typography>
+              <Typography variant="h6" fontWeight={700} color="#6366F1">{fmt(icaEstimado)}</Typography>
+              <Typography variant="caption" color="text.secondary">
+                Calculado sobre base gravable ventas ({fmt(baseGravableVentas)}) × tasa estimada 10‰ (1%). Verifica la tarifa vigente de tu municipio con tu contador — la tasa varía según actividad económica y localidad.
+              </Typography>
+            </Box>
+          </Box>
+        </Paper>
+      )}
+
+      {/* Info tributaria */}
+      <Paper sx={{ p: 2, border: '1px solid', borderColor: '#F59E0B44', bgcolor: '#F59E0B08' }}>
+        <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+          <Info sx={{ color: '#F59E0B', fontSize: 18 }} />
+          <Typography variant="subtitle2" fontWeight={700} color="#F59E0B">Información tributaria Colombia</Typography>
+        </Box>
+        {[
+          'Declaración de IVA: Formulario 300 ante DIAN.',
+          'Período: Bimestral (grandes contribuyentes y responsables del régimen común).',
+          'Tarifa general IVA: 19% | Bienes especiales: 5% | Excluidos: 0%.',
+          'Tasa ReteIVA (si aplica): 15% sobre IVA facturado — aplica cuando el comprador es gran contribuyente o agente retenedor.',
+          'Nota: Este reporte muestra IVA consolidado. Consulta tu contador para la declaración definitiva.',
+        ].map((t, i) => (
+          <Typography key={i} variant="caption" color="text.secondary" display="block" sx={{ '&::before': { content: '"•"', mr: 1, color: '#F59E0B' } }}>{t}</Typography>
+        ))}
       </Paper>
     </Box>
   );

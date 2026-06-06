@@ -2639,6 +2639,7 @@ class EstadoResultados(BaseModel):
     total_ingresos: float = 0.0
     costo_ventas: float = 0.0
     utilidad_bruta: float = 0.0
+    gastos_personal: float = 0.0
     gastos_operacionales: float = 0.0
     gastos_no_operacionales: float = 0.0
     total_gastos: float = 0.0

@@ -179,9 +179,10 @@ def get_estado_resultados(
     total_ingresos  = ing_operacional + ing_servicios + ing_financiero
     costo_ventas    = _suma(["6135"], es_debito_resta=True)
     utilidad_bruta  = total_ingresos - costo_ventas
-    gastos_oper     = _suma(["5105", "5195"], es_debito_resta=True)
+    gastos_personal = _suma(["5105"], es_debito_resta=True)
+    gastos_generales= _suma(["5195"], es_debito_resta=True)
     gastos_no_oper  = _suma(["5305"], es_debito_resta=True)
-    total_gastos    = gastos_oper + gastos_no_oper
+    total_gastos    = gastos_personal + gastos_generales + gastos_no_oper
     utilidad_neta   = utilidad_bruta - total_gastos
 
     return schemas.EstadoResultados(
@@ -191,7 +192,8 @@ def get_estado_resultados(
         total_ingresos=total_ingresos,
         costo_ventas=costo_ventas,
         utilidad_bruta=utilidad_bruta,
-        gastos_operacionales=gastos_oper,
+        gastos_personal=gastos_personal,
+        gastos_operacionales=gastos_generales,
         gastos_no_operacionales=gastos_no_oper,
         total_gastos=total_gastos,
         utilidad_neta=utilidad_neta,
