@@ -4,7 +4,7 @@ import {
   TableContainer, TableHead, TableRow, Chip, CircularProgress, Alert,
   TextField, Grid, Card, CardContent, IconButton, Collapse,
   Divider, Button, Dialog, DialogTitle, DialogContent, DialogActions,
-  Tooltip, LinearProgress,
+  Tooltip, LinearProgress, useTheme, useMediaQuery,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -964,6 +964,8 @@ function DialogCierre({ open, onClose, onDone }) {
 function PlanCuentas() {
   const [cuentas, setCuentas] = useState([]);
   const [loading, setLoading] = useState(true);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   useEffect(() => {
     apiClient.get('/contabilidad/cuentas').then((r) => setCuentas(r.data)).finally(() => setLoading(false));
@@ -971,6 +973,53 @@ function PlanCuentas() {
 
   if (loading) return <Box sx={{ py: 4, textAlign: 'center' }}><CircularProgress /></Box>;
 
+  // ── Vista móvil — tarjetas ───────────────────────────────────────────────
+  if (isMobile) {
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+        {cuentas.map((c) => {
+          const isGroup = c.nivel <= 2;
+          const color = TIPO_COLORS[c.tipo] || '#888';
+          return (
+            <Box
+              key={c.id}
+              sx={{
+                px: 1.5, py: 1,
+                pl: 1.5 + c.nivel * 1.2,
+                borderLeft: isGroup ? `3px solid ${color}` : `1px solid transparent`,
+                bgcolor: isGroup
+                  ? theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.025)'
+                  : 'transparent',
+                opacity: c.permite_movimiento ? 1 : 0.55,
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12, color: color, minWidth: 38 }}>
+                  {c.codigo}
+                </Typography>
+                <Typography sx={{ fontSize: 13, fontWeight: isGroup ? 800 : 400, flex: 1 }}>
+                  {c.nombre}
+                </Typography>
+                <Chip
+                  label={c.tipo}
+                  size="small"
+                  sx={{ bgcolor: color + '22', color, fontSize: 10, height: 20 }}
+                />
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.3, pl: 0.5 }}>
+                <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{c.naturaleza}</Typography>
+                {c.permite_movimiento && (
+                  <Typography sx={{ fontSize: 10, color: 'success.main', fontWeight: 700 }}>· Mov. permitido</Typography>
+                )}
+              </Box>
+            </Box>
+          );
+        })}
+      </Box>
+    );
+  }
+
+  // ── Vista desktop — tabla ────────────────────────────────────────────────
   return (
     <TableContainer component={Paper}>
       <Table size="small">
