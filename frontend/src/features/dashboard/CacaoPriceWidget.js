@@ -6,11 +6,11 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Box, Typography, Paper, Skeleton, Chip, IconButton, Tooltip, Link, TextField, InputAdornment
+  Box, Typography, Paper, Skeleton, Chip, IconButton, Tooltip, Link, TextField, InputAdornment, Collapse
 } from '@mui/material';
 import {
   TrendingUp, TrendingDown, TrendingFlat,
-  Refresh, OpenInNew, Spa, Calculate, InfoOutlined
+  Refresh, OpenInNew, Spa, Calculate, InfoOutlined, ExpandMore, ExpandLess
 } from '@mui/icons-material';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
@@ -109,6 +109,17 @@ const CacaoPriceWidget = () => {
   const [loading,       setLoading]       = useState(true);
   const [error,         setError]         = useState(false);
   const [lastRefresh,   setLastRefresh]   = useState(null);
+  const [expanded,      setExpanded]      = useState(
+    () => localStorage.getItem('cacaoWidget_expanded') !== 'false'
+  );
+
+  const toggleExpanded = () => {
+    setExpanded(prev => {
+      const next = !prev;
+      localStorage.setItem('cacaoWidget_expanded', String(next));
+      return next;
+    });
+  };
 
   // Estados para la calculadora
   const [descuentoPct,  setDescuentoPct]  = useState(15);
@@ -221,10 +232,17 @@ const CacaoPriceWidget = () => {
             size="small"
             sx={{ height: 22, fontSize: 11, fontWeight: 700, bgcolor: 'rgba(255,255,255,0.2)', color: 'white', border: 'none' }}
           />
+          <Tooltip title={expanded ? 'Contraer' : 'Expandir'}>
+            <IconButton size="small" onClick={toggleExpanded}
+              sx={{ color: 'white', opacity: 0.85, '&:hover': { opacity: 1, bgcolor: 'rgba(255,255,255,0.15)' } }}>
+              {expanded ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
+            </IconButton>
+          </Tooltip>
         </Box>
       </Box>
 
-      {/* Contenido principal */}
+      {/* Contenido principal colapsable */}
+      <Collapse in={expanded} timeout="auto">
       <Box sx={{ p: 2.5 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
 
@@ -495,6 +513,7 @@ const CacaoPriceWidget = () => {
           </Typography>
         </Box>
       </Box>
+      </Collapse>
     </Paper>
   );
 };
