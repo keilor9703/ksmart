@@ -168,7 +168,7 @@ def _pdf_doc(title: str, empresa_nombre: str, periodo: str):
 def _tabla_style(header_color="#0F172A"):
     from reportlab.platypus import TableStyle
     from reportlab.lib import colors
-    hc = colors.HexColor(f"#{header_color}")
+    hc = colors.HexColor(header_color if header_color.startswith("#") else f"#{header_color}")
     return TableStyle([
         ("BACKGROUND",    (0, 0), (-1, 0), hc),
         ("TEXTCOLOR",     (0, 0), (-1, 0), colors.white),
@@ -279,7 +279,8 @@ def exportar_balance_general_pdf(
         st = _tabla_style(header_color)
         st.add("ALIGN", (1, 0), (1, -1), "RIGHT")
         st.add("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold")
-        st.add("BACKGROUND", (0, -1), (-1, -1), colors.HexColor(f"#{header_color}22"))
+        _hc = header_color.lstrip("#")
+        st.add("BACKGROUND", (0, -1), (-1, -1), colors.HexColor(f"#{_hc}22"))
         t.setStyle(st)
         return t
 
