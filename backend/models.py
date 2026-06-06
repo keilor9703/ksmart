@@ -165,6 +165,7 @@ class Modulo(Base):
     name           = Column(String, unique=True, index=True)
     description    = Column(String, nullable=True)
     frontend_path  = Column(String, unique=True)
+    orden          = Column(Integer, default=99)
 
 
 # ... (tus otros imports)

@@ -203,7 +203,7 @@ def login_for_access_token(
             "sub": user.username,
             "role": user.role.name if user.role else "User",
             "empresa_id": user.empresa_id,
-            "modules": [m.frontend_path for m in user.role.modules] if user.role else []
+            "modules": [m.frontend_path for m in sorted(user.role.modules, key=lambda m: m.orden or 99)] if user.role else []
         },
         expires_delta=access_token_expires
     )
@@ -310,7 +310,7 @@ def verify_pin(
         "sub":        user.username,
         "role":       user.role.name if user.role else "User",
         "empresa_id": user.empresa_id,
-        "modules":    [m.frontend_path for m in user.role.modules] if user.role else [],
+        "modules":    [m.frontend_path for m in sorted(user.role.modules, key=lambda m: m.orden or 99)] if user.role else [],
     })
 
     return {

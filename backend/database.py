@@ -1727,6 +1727,36 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v83)
                 logger.info("V83 (cierres contables) aplicada.")
 
+            # V84 - Columna orden en modulos
+            migration_v84 = "V84_orden_modulos"
+            if migration_v84 not in applied:
+                if not _column_exists(conn, "modulos", "orden"):
+                    conn.execute(text("ALTER TABLE modulos ADD COLUMN orden INTEGER DEFAULT 99"))
+                    logger.info("V84: columna orden añadida a modulos")
+                # Asignar orden por defecto según frontend_path conocidos
+                orden_map = [
+                    ("/ventas", 1), ("/pedidos-virtuales", 2), ("/cotizaciones", 3),
+                    ("/admin/resoluciones", 4), ("/compras", 5), ("/clientes", 6),
+                    ("/productos", 7), ("/inventario", 8), ("/inventario/lotes", 9),
+                    ("/caja", 10), ("/produccion/lotes", 11), ("/produccion/recetas", 12),
+                    ("/ordenes-trabajo", 13), ("/panel-operador", 14),
+                    ("/prestamos", 15), ("/ruta-cobro", 16),
+                    ("/reportes", 17), ("/reportes-inventario", 18),
+                    ("/contabilidad", 19),
+                    ("/parqueadero", 20), ("/parqueadero/buscar", 21),
+                    ("/parqueadero/vehiculos", 22), ("/parqueadero/suscripciones", 23),
+                    ("/parqueadero/config", 24),
+                    ("/lavadero/ventas", 25), ("/lavadero/reporte", 26), ("/lavadero/config", 27),
+                    ("/restaurante", 28), ("/restaurante/cocina", 29),
+                    ("/restaurante/caja", 30), ("/restaurante/config", 31),
+                ]
+                for path, ord_val in orden_map:
+                    conn.execute(text(
+                        "UPDATE modulos SET orden = :o WHERE frontend_path = :p AND (orden IS NULL OR orden = 99)"
+                    ), {"o": ord_val, "p": path})
+                _mark_migration_applied(conn, migration_v84)
+                logger.info("V84 (orden en modulos) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
