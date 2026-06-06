@@ -575,7 +575,12 @@ const Login = ({ onLogin }) => {
             );
             setRegData(initialRegState);
             setRegStep(1);
-            handleAuthSuccess({ ...loginRes.data, username: usernameUsed }, '¡Bienvenido a KSmart360! Tu cuenta está lista.');
+            // Mostrar pantalla de bienvenida 2.2s y luego entrar al sistema
+            setRegSuccess(true);
+            setTimeout(() => {
+                setRegSuccess(false);
+                handleAuthSuccess({ ...loginRes.data, username: usernameUsed }, '¡Bienvenido a KSmart360!');
+            }, 2200);
         } catch (error) {
             const detail = error.response?.data?.detail;
             const msg = Array.isArray(detail)
