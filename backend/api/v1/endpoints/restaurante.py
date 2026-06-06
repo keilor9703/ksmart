@@ -285,6 +285,7 @@ class ComandaEstadoUpdate(BaseModel):
 class CerrarComandaIn(BaseModel):
     metodo_pago: str = "Efectivo"
     propina: float = 0.0
+    propina_efectivo: float = 0.0
     omitir_inventario: bool = False
     cobrado_por_cajero: bool = False
 
@@ -509,9 +510,13 @@ def cerrar_comanda(
                     detail=f"Stock insuficiente para '{prod.nombre}'. Disponible: {prod.stock_actual or 0}, requerido: {item.cantidad}",
                 )
 
-    total_con_propina = round(comanda.total + payload.propina, 2)
+    propina_total = payload.propina + payload.propina_efectivo
+    total_con_propina = round(comanda.total + propina_total, 2)
 
     # ── 2. Crear Venta y detalles (flush, sin commit aún) ─────────────────────
+    propina_obs = []
+    if payload.propina: propina_obs.append(f"Propina tarjeta: ${payload.propina:.0f}")
+    if payload.propina_efectivo: propina_obs.append(f"Propina efectivo: ${payload.propina_efectivo:.0f}")
     venta = models.Venta(
         empresa_id=user.empresa_id,
         operador_id=user.id,
@@ -523,7 +528,7 @@ def cerrar_comanda(
         metodo_pago=payload.metodo_pago,
         observaciones=(
             f"Mesa {comanda.mesa.numero} — Comanda #{comanda.numero_comanda}"
-            + (f" | Propina: ${payload.propina:.0f}" if payload.propina else "")
+            + (" | " + " | ".join(propina_obs) if propina_obs else "")
             + (" | Cobrado en caja" if payload.cobrado_por_cajero else "")
         ),
     )

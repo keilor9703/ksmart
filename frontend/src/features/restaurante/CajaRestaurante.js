@@ -40,6 +40,7 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
   const [metodo, setMetodo] = useState('Efectivo');
   const [recibido, setRecibido] = useState('');
   const [propina, setPropina] = useState(0);
+  const [propinaEfectivo, setPropinaEfectivo] = useState(0);
   const [loading, setLoading] = useState(false);
   const [reciboVenta, setReciboVenta] = useState(null);
   const [reciboOpen, setReciboOpen] = useState(false);
@@ -51,13 +52,13 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
   }, []);
 
   useEffect(() => {
-    if (open) { setMetodo('Efectivo'); setRecibido(''); setPropina(0); }
+    if (open) { setMetodo('Efectivo'); setRecibido(''); setPropina(0); setPropinaEfectivo(0); }
   }, [open, comanda?.id]);
 
   if (!comanda) return null;
 
   const totalBase = comanda.total ?? 0;
-  const totalConPropina = totalBase + (propina || 0);
+  const totalConPropina = totalBase + (propina || 0) + (propinaEfectivo || 0);
   const montoRec = parseInt(recibido.replace(/\./g, ''), 10) || 0;
   const cambio = metodo === 'Efectivo' ? Math.max(0, montoRec - totalConPropina) : 0;
   const faltante = metodo === 'Efectivo' && montoRec > 0 ? Math.max(0, totalConPropina - montoRec) : 0;
@@ -79,6 +80,7 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
       const res = await apiClient.post(`/restaurante/comandas/${comanda.id}/cerrar`, {
         metodo_pago: metodo,
         propina,
+        propina_efectivo: propinaEfectivo,
         omitir_inventario: false,
         cobrado_por_cajero: true,
       });
@@ -159,8 +161,14 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
               <Divider sx={{ my: 1 }} />
               {propina > 0 && (
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                  <Typography fontSize={13} color="text.secondary">Propina</Typography>
+                  <Typography fontSize={13} color="text.secondary">Propina tarjeta</Typography>
                   <Typography fontSize={13}>{fmt(propina)}</Typography>
+                </Box>
+              )}
+              {propinaEfectivo > 0 && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                  <Typography fontSize={13} color="text.secondary">Propina efectivo</Typography>
+                  <Typography fontSize={13}>{fmt(propinaEfectivo)}</Typography>
                 </Box>
               )}
               <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -170,17 +178,28 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
             </Box>
 
             {/* Propina */}
-            <TextField
-              label="Propina (opcional)"
-              type="number"
-              size="small"
-              value={propina || ''}
-              onChange={e => setPropina(Math.max(0, +e.target.value || 0))}
-              InputProps={{
-                startAdornment: <InputAdornment position="start">$</InputAdornment>,
-              }}
-              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-            />
+            <Box sx={{ display: 'flex', gap: 1.5 }}>
+              <TextField
+                label="Propina tarjeta"
+                type="number"
+                size="small"
+                fullWidth
+                value={propina || ''}
+                onChange={e => setPropina(Math.max(0, +e.target.value || 0))}
+                InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+              />
+              <TextField
+                label="Propina efectivo"
+                type="number"
+                size="small"
+                fullWidth
+                value={propinaEfectivo || ''}
+                onChange={e => setPropinaEfectivo(Math.max(0, +e.target.value || 0))}
+                InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+              />
+            </Box>
 
             {/* Método de pago */}
             <FormControl size="small" fullWidth>

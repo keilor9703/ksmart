@@ -14,6 +14,7 @@ import {
   CheckCircle, HourglassBottom, FiberManualRecord,
   Edit, Delete, Settings, Receipt, Note, MenuBook, Print,
   ExpandMore, ExpandLess, PointOfSale, Replay,
+  ViewModule, Map as MapIcon,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
@@ -605,28 +606,45 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
                   {/* Products in category */}
                   {open && (
                     <Stack spacing={0.8} sx={{ mb: 0.5 }}>
-                      {prods.map(prod => (
-                        <Box key={prod.id} onClick={() => addToSelected(prod)} sx={{
-                          p: 1.4, borderRadius: 2, cursor: 'pointer',
-                          border: `1px solid ${alpha(theme.palette.divider, 1)}`,
-                          bgcolor: isDark ? alpha('#fff', 0.025) : alpha('#000', 0.02),
-                          transition: 'all 0.15s',
-                          '&:hover': { borderColor: '#FF6020', bgcolor: alpha('#FF6020', 0.04) },
-                          '&:active': { transform: 'scale(0.98)' },
-                        }}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <Typography fontSize={13} fontWeight={600} sx={{ flex: 1, mr: 1 }}>{prod.nombre}</Typography>
-                            <Typography fontSize={13} fontWeight={700} color="#FF6020" sx={{ flexShrink: 0 }}>
-                              {fmt(prod.precio)}
-                            </Typography>
+                      {prods.map(prod => {
+                        const imgSrc = Array.isArray(prod.imagenes) && prod.imagenes.length > 0 ? prod.imagenes[0] : null;
+                        return (
+                          <Box key={prod.id} onClick={() => addToSelected(prod)} sx={{
+                            display: 'flex', gap: 1, alignItems: 'flex-start',
+                            p: 1.4, borderRadius: 2, cursor: 'pointer',
+                            border: `1px solid ${alpha(theme.palette.divider, 1)}`,
+                            bgcolor: isDark ? alpha('#fff', 0.025) : alpha('#000', 0.02),
+                            transition: 'all 0.15s',
+                            '&:hover': { borderColor: '#FF6020', bgcolor: alpha('#FF6020', 0.04) },
+                            '&:active': { transform: 'scale(0.98)' },
+                          }}>
+                            {imgSrc ? (
+                              <Box sx={{ width: 44, height: 44, borderRadius: 1.5, overflow: 'hidden', flexShrink: 0 }}>
+                                <img src={imgSrc} alt={prod.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                              </Box>
+                            ) : (
+                              <Box sx={{ width: 44, height: 44, borderRadius: 1.5, bgcolor: alpha('#FF6020', 0.12), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <Typography sx={{ fontSize: 20, fontWeight: 800, color: '#FF6020', opacity: 0.7 }}>
+                                  {(prod.nombre || '?')[0].toUpperCase()}
+                                </Typography>
+                              </Box>
+                            )}
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <Typography fontSize={13} fontWeight={600} sx={{ flex: 1, mr: 1 }}>{prod.nombre}</Typography>
+                                <Typography fontSize={13} fontWeight={700} color="#FF6020" sx={{ flexShrink: 0 }}>
+                                  {fmt(prod.precio)}
+                                </Typography>
+                              </Box>
+                              {prod.descripcion && (
+                                <Typography fontSize={11} color="text.secondary" sx={{ mt: 0.3, lineHeight: 1.4 }}>
+                                  {prod.descripcion}
+                                </Typography>
+                              )}
+                            </Box>
                           </Box>
-                          {prod.descripcion && (
-                            <Typography fontSize={11} color="text.secondary" sx={{ mt: 0.3, lineHeight: 1.4 }}>
-                              {prod.descripcion}
-                            </Typography>
-                          )}
-                        </Box>
-                      ))}
+                        );
+                      })}
                     </Stack>
                   )}
                 </Box>
@@ -840,31 +858,48 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
                         {/* Products */}
                         {open && (
                           <Stack spacing={0.7} sx={{ mb: 0.5 }}>
-                            {prods.map(prod => (
-                              <Box key={prod.id}
-                                onClick={() => addToSelected(prod)}
-                                sx={{
-                                  p: 1.2, borderRadius: 2, cursor: 'pointer',
-                                  border: `1px solid ${alpha(theme.palette.divider, 1)}`,
-                                  bgcolor: isDark ? alpha('#fff', 0.025) : alpha('#000', 0.02),
-                                  transition: 'all 0.15s',
-                                  '&:hover': { borderColor: '#FF6020', bgcolor: alpha('#FF6020', 0.04) },
-                                  '&:active': { transform: 'scale(0.98)' },
-                                }}
-                              >
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                  <Typography fontSize={12.5} fontWeight={600} sx={{ flex: 1, mr: 0.5 }}>{prod.nombre}</Typography>
-                                  <Typography fontSize={12} fontWeight={700} color="#FF6020" sx={{ flexShrink: 0 }}>
-                                    {fmt(prod.precio)}
-                                  </Typography>
+                            {prods.map(prod => {
+                              const imgSrc = Array.isArray(prod.imagenes) && prod.imagenes.length > 0 ? prod.imagenes[0] : null;
+                              return (
+                                <Box key={prod.id}
+                                  onClick={() => addToSelected(prod)}
+                                  sx={{
+                                    display: 'flex', gap: 1, alignItems: 'flex-start',
+                                    p: 1.2, borderRadius: 2, cursor: 'pointer',
+                                    border: `1px solid ${alpha(theme.palette.divider, 1)}`,
+                                    bgcolor: isDark ? alpha('#fff', 0.025) : alpha('#000', 0.02),
+                                    transition: 'all 0.15s',
+                                    '&:hover': { borderColor: '#FF6020', bgcolor: alpha('#FF6020', 0.04) },
+                                    '&:active': { transform: 'scale(0.98)' },
+                                  }}
+                                >
+                                  {imgSrc ? (
+                                    <Box sx={{ width: 38, height: 38, borderRadius: 1.5, overflow: 'hidden', flexShrink: 0 }}>
+                                      <img src={imgSrc} alt={prod.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                                    </Box>
+                                  ) : (
+                                    <Box sx={{ width: 38, height: 38, borderRadius: 1.5, bgcolor: alpha('#FF6020', 0.12), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                      <Typography sx={{ fontSize: 17, fontWeight: 800, color: '#FF6020', opacity: 0.7 }}>
+                                        {(prod.nombre || '?')[0].toUpperCase()}
+                                      </Typography>
+                                    </Box>
+                                  )}
+                                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                      <Typography fontSize={12.5} fontWeight={600} sx={{ flex: 1, mr: 0.5 }}>{prod.nombre}</Typography>
+                                      <Typography fontSize={12} fontWeight={700} color="#FF6020" sx={{ flexShrink: 0 }}>
+                                        {fmt(prod.precio)}
+                                      </Typography>
+                                    </Box>
+                                    {prod.descripcion && (
+                                      <Typography fontSize={10} color="text.secondary" sx={{ mt: 0.3, lineHeight: 1.4 }}>
+                                        {prod.descripcion}
+                                      </Typography>
+                                    )}
+                                  </Box>
                                 </Box>
-                                {prod.descripcion && (
-                                  <Typography fontSize={10} color="text.secondary" sx={{ mt: 0.3, lineHeight: 1.4 }}>
-                                    {prod.descripcion}
-                                  </Typography>
-                                )}
-                              </Box>
-                            ))}
+                              );
+                            })}
                           </Stack>
                         )}
                       </Box>
@@ -1100,6 +1135,7 @@ export default function MapaMesas({ user }) {
   const [mesaSeleccionada, setMesaSeleccionada] = useState(null);
   const [panelMode, setPanelMode] = useState(null);  // 'abrir' | 'comanda'
   const [zonaFiltro, setZonaFiltro] = useState('todas');
+  const [vistaPlano, setVistaPlano] = useState(() => localStorage.getItem('mapaMesas_vista') === 'plano');
 
   const empresa = user?.empresa || null;
   const vendedor = user ? (user.nombre_completo || user.username || user.email) : '';
@@ -1169,11 +1205,25 @@ export default function MapaMesas({ user }) {
             </Box>
           </Box>
         </Box>
-        <Button variant="outlined" startIcon={refreshing ? <CircularProgress size={14} /> : <Refresh />}
-          onClick={() => fetchAll(false)} disabled={refreshing}
-          sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12 }}>
-          Actualizar
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Tooltip title={vistaPlano ? 'Vista cuadrícula' : 'Vista plano'}>
+            <IconButton
+              onClick={() => setVistaPlano(v => {
+                const next = !v;
+                localStorage.setItem('mapaMesas_vista', next ? 'plano' : 'lista');
+                return next;
+              })}
+              sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}
+            >
+              {vistaPlano ? <ViewModule fontSize="small" /> : <MapIcon fontSize="small" />}
+            </IconButton>
+          </Tooltip>
+          <Button variant="outlined" startIcon={refreshing ? <CircularProgress size={14} /> : <Refresh />}
+            onClick={() => fetchAll(false)} disabled={refreshing}
+            sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12 }}>
+            Actualizar
+          </Button>
+        </Box>
       </Box>
 
       {/* Filtro zonas */}
@@ -1201,7 +1251,64 @@ export default function MapaMesas({ user }) {
             Configura las mesas del restaurante desde Restaurante → Configuración.
           </Typography>
         </Paper>
+      ) : vistaPlano && mesasFiltradas.some(m => m.pos_x != null && m.pos_y != null) ? (
+        /* ── Vista Plano ── */
+        <Paper elevation={0} sx={{
+          position: 'relative',
+          width: '100%',
+          minHeight: 520,
+          borderRadius: 3,
+          border: `1.5px dashed ${alpha(theme.palette.divider, 1)}`,
+          bgcolor: isDark ? alpha('#fff', 0.02) : alpha('#000', 0.015),
+          overflow: 'auto',
+        }}>
+          <Box sx={{ position: 'relative', width: 900, height: 600, m: 'auto' }}>
+            {mesasFiltradas.map(mesa => {
+              const x = mesa.pos_x ?? 0;
+              const y = mesa.pos_y ?? 0;
+              const est = ESTADO_MESA[mesa.estado] || ESTADO_MESA.libre;
+              return (
+                <Tooltip key={mesa.id} title={`${mesa.nombre || `Mesa ${mesa.numero}`} · ${est.label}`} arrow>
+                  <Box
+                    onClick={() => handleMesaClick(mesa)}
+                    sx={{
+                      position: 'absolute',
+                      left: `${x}%`,
+                      top: `${y}%`,
+                      transform: 'translate(-50%, -50%)',
+                      width: 72,
+                      height: 72,
+                      borderRadius: mesa.forma === 'redonda' ? '50%' : 2.5,
+                      border: `2.5px solid ${est.color}`,
+                      bgcolor: est.bg,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      transition: 'transform 0.15s, box-shadow 0.15s',
+                      '&:hover': { transform: 'translate(-50%, -50%) scale(1.1)', boxShadow: `0 0 0 3px ${alpha(est.color, 0.35)}` },
+                    }}
+                  >
+                    <Typography sx={{ fontSize: 16, fontWeight: 900, color: est.color, lineHeight: 1 }}>
+                      {mesa.numero}
+                    </Typography>
+                    {mesa.comanda_activa && (
+                      <Typography sx={{ fontSize: 9, color: est.color, fontWeight: 700 }}>
+                        {fmt(mesa.comanda_activa.total)}
+                      </Typography>
+                    )}
+                  </Box>
+                </Tooltip>
+              );
+            })}
+          </Box>
+          <Typography sx={{ position: 'absolute', bottom: 8, right: 12, fontSize: 10, color: 'text.disabled' }}>
+            Configura las posiciones en Configuración → Mesas
+          </Typography>
+        </Paper>
       ) : (
+        /* ── Vista Cuadrícula ── */
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
           {mesasFiltradas.map(mesa => (
             <MesaCard key={mesa.id} mesa={mesa} onClick={() => handleMesaClick(mesa)} />
