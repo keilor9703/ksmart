@@ -294,6 +294,8 @@ class CerrarComandaIn(BaseModel):
 def listar_comandas(
     estado: Optional[str] = None,
     mesa_id: Optional[int] = None,
+    autoservicio: Optional[bool] = None,
+    desde: Optional[str] = None,   # ISO datetime — solo comandas más nuevas que este timestamp
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_active_user),
 ):
@@ -305,6 +307,15 @@ def listar_comandas(
         q = q.filter(models.Comanda.estado.in_(["abierta", "enviada", "lista"]))
     if mesa_id:
         q = q.filter(models.Comanda.mesa_id == mesa_id)
+    if autoservicio is True:
+        q = q.filter(models.Comanda.mesero_id == None)
+    if desde:
+        try:
+            from datetime import datetime, timezone
+            dt = datetime.fromisoformat(desde.replace('Z', '+00:00'))
+            q = q.filter(models.Comanda.fecha_apertura > dt)
+        except ValueError:
+            pass
     return [_ser_comanda(c) for c in q.order_by(models.Comanda.fecha_apertura.desc()).all()]
 
 

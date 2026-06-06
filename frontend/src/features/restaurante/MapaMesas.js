@@ -1161,6 +1161,49 @@ export default function MapaMesas({ user }) {
   // un panel abierto (para no desmontar el recibo mientras el usuario lo revisa).
   usePolling(() => fetchAll(true), 15_000, { enabled: !mesaSeleccionada && !config?.imprimir_comanda_auto });
 
+  // ── Vigilancia de comandas de autoservicio (catálogo) ─────────────────────
+  // Solo activo cuando imprimir_comanda_auto está ON.
+  // Cada 8s consulta comandas nuevas con mesero_id=null y dispara impresión
+  // automática en el dispositivo del restaurante por cada una no vista aún.
+  const autoservicioDesdeRef = useRef(new Date().toISOString());
+  const autoservicioImpresosRef = useRef(new Set());
+
+  const checkAutoservicio = useCallback(async () => {
+    if (!config?.imprimir_comanda_auto) return;
+    try {
+      const res = await apiClient.get('/restaurante/comandas', {
+        params: {
+          autoservicio: true,
+          estado: 'enviada',
+          desde: autoservicioDesdeRef.current,
+        },
+      });
+      const nuevas = res.data.filter(c => !autoservicioImpresosRef.current.has(c.id));
+      for (const comanda of nuevas) {
+        autoservicioImpresosRef.current.add(comanda.id);
+        const itemsParaImprimir = (comanda.items || []).filter(i => i.estado !== 'cancelado');
+        if (itemsParaImprimir.length === 0) continue;
+        imprimirComanda({
+          mesa: { numero: comanda.mesa_numero, zona: comanda.mesa_zona, nombre: null },
+          comanda: { numero_comanda: comanda.numero_comanda, personas: comanda.personas },
+          items: itemsParaImprimir,
+          empresaNombre: empresa?.nombre || '',
+          nombreMesero: 'Autoservicio (catálogo)',
+          titulo: 'COMANDA — AUTOSERVICIO',
+          printerSize: config?.tipo_impresora || 'p80',
+        });
+        toast.info(`📱 Mesa ${comanda.mesa_numero} — pedido desde catálogo (imprimiendo)`);
+      }
+      // Avanzar el cursor al timestamp más reciente procesado
+      if (nuevas.length > 0) {
+        autoservicioDesdeRef.current = nuevas[0].fecha_apertura || new Date().toISOString();
+        fetchAll(true); // refrescar mapa para mostrar la mesa como ocupada
+      }
+    } catch { /* silencioso — es vigilancia de fondo */ }
+  }, [config, empresa, fetchAll]);
+
+  usePolling(checkAutoservicio, 8_000, { enabled: !!config?.imprimir_comanda_auto });
+
   const handleMesaClick = (mesa) => {
     setMesaSeleccionada(mesa);
     setPanelMode(mesa.estado === 'libre' ? 'abrir' : 'comanda');
