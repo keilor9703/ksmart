@@ -49,9 +49,16 @@ def _generar_comprobante_entrada_wa(
             "El mensaje se envía sin link."
         )
 
-    # Construir línea de cobro mínimo (si está configurado)
+    # Construir línea de cobro mínimo / tarifa plena
     cobro_minimo_linea = ""
-    if cfg.cobro_minimo_minutos and cfg.cobro_minimo_minutos > 0:
+    if cfg.usar_tarifa_plena:
+        cobro_minimo_linea = (
+            f"• Cobro mínimo ({cfg.cobro_minimo_minutos} min): "
+            f"{_formato_moneda_co(cfg.tarifa_minima or 0)}\n"
+            f"• Tiempo adicional: {_formato_moneda_co(cfg.tarifa_plena or 0)} "
+            f"por cada {cfg.fraccion_minutos or 30} min\n"
+        )
+    elif cfg.cobro_minimo_minutos and cfg.cobro_minimo_minutos > 0:
         monto_minimo = (cfg.tarifa_minuto or 0) * cfg.cobro_minimo_minutos
         cobro_minimo_linea = (
             f"• Cobro mínimo: {cfg.cobro_minimo_minutos} min "
@@ -219,13 +226,30 @@ def registrar_salida_horas(
 
     minutos_reales = max(1, int(round(delta.total_seconds() / 60)))
 
-    # Aplicar cobro mínimo configurado
     cobro_minimo = cfg.cobro_minimo_minutos or 0
-    minutos_cobrar = max(minutos_reales, cobro_minimo) if cobro_minimo > 0 else minutos_reales
 
-    # Calcular monto: tarifa por minuto × minutos cobrados
-    tarifa_min = cfg.tarifa_minuto or 0
-    monto_calc = round(minutos_cobrar * tarifa_min, 0)
+    if cfg.usar_tarifa_plena:
+        # ── Modelo tarifa plena ─────────────────────────────────────────────
+        # Período mínimo → tarifa_minima (plana)
+        # Tiempo adicional → ceil(adicional / fraccion_minutos) × tarifa_plena
+        import math
+        minutos_cobrar = max(minutos_reales, cobro_minimo) if cobro_minimo > 0 else minutos_reales
+        tarifa_minima  = cfg.tarifa_minima or 0.0
+        tarifa_plena   = cfg.tarifa_plena or 0.0
+        fraccion       = max(1, cfg.fraccion_minutos or 30)
+
+        if minutos_cobrar <= cobro_minimo:
+            monto_calc = round(tarifa_minima, 0)
+        else:
+            minutos_extra  = minutos_cobrar - cobro_minimo
+            fracciones     = math.ceil(minutos_extra / fraccion)
+            monto_calc     = round(tarifa_minima + fracciones * tarifa_plena, 0)
+    else:
+        # ── Modelo por minuto (original) ────────────────────────────────────
+        minutos_cobrar = max(minutos_reales, cobro_minimo) if cobro_minimo > 0 else minutos_reales
+        tarifa_min     = cfg.tarifa_minuto or 0
+        monto_calc     = round(minutos_cobrar * tarifa_min, 0)
+
     monto_final = payload.monto_manual if payload.monto_manual is not None else monto_calc
 
     # Compatibilidad con campo legacy horas_cobradas

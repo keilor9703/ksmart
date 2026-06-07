@@ -899,8 +899,13 @@ class ParqueaderoConfig(Base, TenantMixin):
     tarifa_quincenal      = Column(Float, default=0.0)
     tarifa_diaria         = Column(Float, default=0.0)
     tarifa_hora           = Column(Float, default=0.0)
-    tarifa_minuto         = Column(Float, default=0.0)        # ✨ NUEVO
-    cobro_minimo_minutos  = Column(Integer, default=30)       # ✨ NUEVO (0 = desactivado)
+    tarifa_minuto         = Column(Float, default=0.0)
+    cobro_minimo_minutos  = Column(Integer, default=30)       # 0 = desactivado
+    # ── Tarifa plena (modelo: mínimo plano + fracción adicional) ────────────
+    usar_tarifa_plena     = Column(Boolean, default=False)    # activa el modelo de tarifa plena
+    tarifa_minima         = Column(Float, default=0.0)        # cobro plano por el período mínimo
+    tarifa_plena          = Column(Float, default=0.0)        # cobro por cada fracción adicional
+    fraccion_minutos      = Column(Integer, default=30)       # duración de cada fracción adicional
     cupo_total            = Column(Integer, default=0)
     nombre_parqueadero    = Column(String(120), nullable=True)
     direccion             = Column(String(200), nullable=True)

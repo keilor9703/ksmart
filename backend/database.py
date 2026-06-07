@@ -1757,6 +1757,22 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v84)
                 logger.info("V84 (orden en modulos) aplicada.")
 
+            # V86 - Tarifa plena en parqueadero
+            migration_v86 = "v86_parqueadero_tarifa_plena"
+            if not _migration_already_applied(conn, migration_v86):
+                for col, typedef_sqlite, typedef_pg in [
+                    ("usar_tarifa_plena", "BOOLEAN NOT NULL DEFAULT 0", "BOOLEAN NOT NULL DEFAULT FALSE"),
+                    ("tarifa_minima",     "REAL NOT NULL DEFAULT 0.0",  "DOUBLE PRECISION NOT NULL DEFAULT 0.0"),
+                    ("tarifa_plena",      "REAL NOT NULL DEFAULT 0.0",  "DOUBLE PRECISION NOT NULL DEFAULT 0.0"),
+                    ("fraccion_minutos",  "INTEGER NOT NULL DEFAULT 30", "INTEGER NOT NULL DEFAULT 30"),
+                ]:
+                    if not _column_exists(conn, "parqueadero_config", col):
+                        typedef = typedef_sqlite if IS_SQLITE else typedef_pg
+                        conn.execute(text(f"ALTER TABLE parqueadero_config ADD COLUMN {col} {typedef}"))
+                        logger.info(f"V86: añadido parqueadero_config.{col}")
+                _mark_migration_applied(conn, migration_v86)
+                logger.info("V86 (parqueadero tarifa plena) aplicada.")
+
             # V85 - Reservas de restaurante
             migration_v85 = "v85_restaurante_reservas"
             if not _migration_already_applied(conn, migration_v85):

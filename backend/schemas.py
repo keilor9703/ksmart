@@ -1608,8 +1608,12 @@ class ParqueaderoConfigBase(BaseModel):
     tarifa_quincenal:   float   = Field(0.0, ge=0)
     tarifa_diaria:      float   = Field(0.0, ge=0)
     tarifa_hora:        float   = Field(0.0, ge=0)
-    tarifa_minuto:         float   = Field(0.0, ge=0)              # ✨ NUEVO
-    cobro_minimo_minutos:  int     = Field(30, ge=0, le=240)       # ✨ NUEVO
+    tarifa_minuto:         float   = Field(0.0, ge=0)
+    cobro_minimo_minutos:  int     = Field(30, ge=0, le=1440)
+    usar_tarifa_plena:     bool    = Field(False)
+    tarifa_minima:         float   = Field(0.0, ge=0)
+    tarifa_plena:          float   = Field(0.0, ge=0)
+    fraccion_minutos:      int     = Field(30, ge=1, le=1440)
     cupo_total:         int     = Field(0, ge=0)
     nombre_parqueadero: Optional[str] = None
     direccion:          Optional[str] = None

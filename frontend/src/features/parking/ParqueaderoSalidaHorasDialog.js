@@ -51,17 +51,36 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
   }, [open]);
 
   const calcular = () => {
-    if (!acceso?.fecha_entrada) return { minReales: 0, minCobrar: 0, monto: 0 };
+    if (!acceso?.fecha_entrada) return { minReales: 0, minCobrar: 0, monto: 0, detalle: '' };
     const entrada = new Date(acceso.fecha_entrada);
     const ahora = new Date();
     const minReales = Math.max(1, Math.round((ahora - entrada) / 60000));
     const cobroMin = config?.cobro_minimo_minutos || 0;
     const minCobrar = cobroMin > 0 ? Math.max(minReales, cobroMin) : minReales;
+
+    if (config?.usar_tarifa_plena) {
+      const tarMin  = config?.tarifa_minima || 0;
+      const tarPlena = config?.tarifa_plena || 0;
+      const fraccion = config?.fraccion_minutos || 30;
+      let monto;
+      let detalle;
+      if (minCobrar <= cobroMin) {
+        monto = Math.round(tarMin);
+        detalle = `Tarifa mínima (${minCobrar} min)`;
+      } else {
+        const extra = minCobrar - cobroMin;
+        const fracs = Math.ceil(extra / fraccion);
+        monto = Math.round(tarMin + fracs * tarPlena);
+        detalle = `Mínimo + ${fracs} fracción${fracs !== 1 ? 'es' : ''} × ${new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(tarPlena)}`;
+      }
+      return { minReales, minCobrar, monto, detalle };
+    }
+
     const monto = Math.round(minCobrar * (config?.tarifa_minuto || 0));
-    return { minReales, minCobrar, monto };
+    return { minReales, minCobrar, monto, detalle: `${minCobrar} min × ${formatCurrency(config?.tarifa_minuto || 0)}` };
   };
 
-  const { minReales, minCobrar, monto } = calcular();
+  const { minReales, minCobrar, monto, detalle } = calcular();
   const cobroFinal = montoManual === '' ? monto : Number(montoManual);
   const aplicaCobroMinimo = minReales < minCobrar;
 
@@ -235,10 +254,11 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
                 {formatCurrency(monto)}
               </Typography>
               <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-                {minCobrar} min × {formatCurrency(config?.tarifa_minuto || 0)}
+                {detalle}
               </Typography>
               {aplicaCobroMinimo && (
-                <Chip size="small" label={`Cobro mínimo: ${minCobrar} min`}
+                <Chip size="small"
+                  label={config?.usar_tarifa_plena ? `Tarifa mínima: ${minCobrar} min` : `Cobro mínimo: ${minCobrar} min`}
                   sx={{ mt: 0.5, fontSize: 10, bgcolor: '#F59E0B20', color: '#78350F', fontWeight: 700 }} />
               )}
             </Box>
