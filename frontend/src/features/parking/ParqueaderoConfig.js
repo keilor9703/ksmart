@@ -295,7 +295,7 @@ export default function ParqueaderoConfig() {
               type="number" inputProps={{ min: 0, max: 240 }}
               placeholder="30"
               value={config?.cobro_minimo_minutos ?? 30}
-              onChange={handleNumber('cobro_minimo_minutos')}
+              onChange={e => setConfig(prev => ({ ...prev, cobro_minimo_minutos: parseInt(e.target.value) || 0 }))}
               helperText={
                 config?.cobro_minimo_minutos > 0 && config?.tarifa_minuto > 0
                   ? `= ${formatCurrency(valorCobroMinimo)} mínimo`
@@ -399,7 +399,7 @@ export default function ParqueaderoConfig() {
                 type="number" inputProps={{ min: 1, max: 1440 }}
                 placeholder="30"
                 value={config?.fraccion_minutos ?? 30}
-                onChange={handleNumber('fraccion_minutos')}
+                onChange={e => setConfig(prev => ({ ...prev, fraccion_minutos: parseInt(e.target.value) || 1 }))}
                 helperText="Unidad de cobro adicional (ej: 30, 60)"
                 InputProps={{ endAdornment: <InputAdornment position="end">min</InputAdornment> }}
               />
