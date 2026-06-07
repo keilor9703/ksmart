@@ -59,19 +59,21 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
     const minCobrar = cobroMin > 0 ? Math.max(minReales, cobroMin) : minReales;
 
     if (config?.usar_tarifa_plena) {
-      const tarMin  = config?.tarifa_minima || 0;
+      const umbral   = config?.fraccion_minutos || 480;
       const tarPlena = config?.tarifa_plena || 0;
-      const fraccion = config?.fraccion_minutos || 30;
-      let monto;
+      const tarMin   = config?.tarifa_minuto || 0;
+      const periodos = Math.floor(minCobrar / umbral);
+      const resto    = minCobrar % umbral;
+      const monto    = Math.round(periodos * tarPlena + resto * tarMin);
+      const umbralH  = (umbral / 60).toFixed(1).replace('.0', '');
+      const fmt = v => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v);
       let detalle;
-      if (minCobrar <= cobroMin) {
-        monto = Math.round(tarMin);
-        detalle = `Tarifa mínima (${minCobrar} min)`;
+      if (periodos === 0) {
+        detalle = `${minCobrar} min × ${fmt(tarMin)}/min`;
+      } else if (resto === 0) {
+        detalle = `${periodos} período${periodos !== 1 ? 's' : ''} de ${umbralH}h × ${fmt(tarPlena)}`;
       } else {
-        const extra = minCobrar - cobroMin;
-        const fracs = Math.ceil(extra / fraccion);
-        monto = Math.round(tarMin + fracs * tarPlena);
-        detalle = `Mínimo + ${fracs} fracción${fracs !== 1 ? 'es' : ''} × ${new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(tarPlena)}`;
+        detalle = `${periodos} × ${fmt(tarPlena)} + ${resto} min × ${fmt(tarMin)}/min`;
       }
       return { minReales, minCobrar, monto, detalle };
     }

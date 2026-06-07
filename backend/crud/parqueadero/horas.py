@@ -52,11 +52,10 @@ def _generar_comprobante_entrada_wa(
     # Construir línea de cobro mínimo / tarifa plena
     cobro_minimo_linea = ""
     if cfg.usar_tarifa_plena:
+        umbral_h = round((cfg.fraccion_minutos or 480) / 60, 1)
         cobro_minimo_linea = (
-            f"• Cobro mínimo ({cfg.cobro_minimo_minutos} min): "
-            f"{_formato_moneda_co(cfg.tarifa_minima or 0)}\n"
-            f"• Tiempo adicional: {_formato_moneda_co(cfg.tarifa_plena or 0)} "
-            f"por cada {cfg.fraccion_minutos or 30} min\n"
+            f"• Tarifa por minuto: {_formato_moneda_co(cfg.tarifa_minuto or 0)}/min\n"
+            f"• Tarifa plena (cada {umbral_h}h): {_formato_moneda_co(cfg.tarifa_plena or 0)}\n"
         )
     elif cfg.cobro_minimo_minutos and cfg.cobro_minimo_minutos > 0:
         monto_minimo = (cfg.tarifa_minuto or 0) * cfg.cobro_minimo_minutos
@@ -229,21 +228,18 @@ def registrar_salida_horas(
     cobro_minimo = cfg.cobro_minimo_minutos or 0
 
     if cfg.usar_tarifa_plena:
-        # ── Modelo tarifa plena ─────────────────────────────────────────────
-        # Período mínimo → tarifa_minima (plana)
-        # Tiempo adicional → ceil(adicional / fraccion_minutos) × tarifa_plena
+        # ── Modelo híbrido: por minuto + tarifa plena al alcanzar el umbral ─
+        # Períodos completos (umbral) → tarifa_plena c/u
+        # Minutos restantes → tarifa_minuto × min
         import math
         minutos_cobrar = max(minutos_reales, cobro_minimo) if cobro_minimo > 0 else minutos_reales
-        tarifa_minima  = cfg.tarifa_minima or 0.0
-        tarifa_plena   = cfg.tarifa_plena or 0.0
-        fraccion       = max(1, cfg.fraccion_minutos or 30)
+        umbral       = max(1, cfg.fraccion_minutos or 480)   # minutos que definen un período pleno
+        tarifa_plena = cfg.tarifa_plena or 0.0
+        tarifa_min   = cfg.tarifa_minuto or 0.0
 
-        if minutos_cobrar <= cobro_minimo:
-            monto_calc = round(tarifa_minima, 0)
-        else:
-            minutos_extra  = minutos_cobrar - cobro_minimo
-            fracciones     = math.ceil(minutos_extra / fraccion)
-            monto_calc     = round(tarifa_minima + fracciones * tarifa_plena, 0)
+        periodos = minutos_cobrar // umbral
+        resto    = minutos_cobrar % umbral
+        monto_calc = round(periodos * tarifa_plena + resto * tarifa_min, 0)
     else:
         # ── Modelo por minuto (original) ────────────────────────────────────
         minutos_cobrar = max(minutos_reales, cobro_minimo) if cobro_minimo > 0 else minutos_reales

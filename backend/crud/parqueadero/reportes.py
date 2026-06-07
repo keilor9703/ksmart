@@ -21,15 +21,12 @@ def _calcular_monto_estimado(cfg, minutos_reales: int) -> tuple[int, int]:
     minutos_cobrar = max(minutos_reales, cobro_minimo) if cobro_minimo > 0 else minutos_reales
 
     if getattr(cfg, 'usar_tarifa_plena', False):
-        tarifa_minima = cfg.tarifa_minima or 0.0
-        tarifa_plena  = cfg.tarifa_plena  or 0.0
-        fraccion      = max(1, cfg.fraccion_minutos or 30)
-        if minutos_cobrar <= cobro_minimo:
-            monto = round(tarifa_minima)
-        else:
-            extra    = minutos_cobrar - cobro_minimo
-            fracs    = math.ceil(extra / fraccion)
-            monto    = round(tarifa_minima + fracs * tarifa_plena)
+        umbral       = max(1, cfg.fraccion_minutos or 480)
+        tarifa_plena = cfg.tarifa_plena or 0.0
+        tarifa_min   = cfg.tarifa_minuto or 0.0
+        periodos = minutos_cobrar // umbral
+        resto    = minutos_cobrar % umbral
+        monto    = round(periodos * tarifa_plena + resto * tarifa_min)
     else:
         monto = round(minutos_cobrar * (cfg.tarifa_minuto or 0))
 

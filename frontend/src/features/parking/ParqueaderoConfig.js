@@ -76,7 +76,7 @@ export default function ParqueaderoConfig() {
         usar_tarifa_plena:     config.usar_tarifa_plena || false,
         tarifa_minima:         config.tarifa_minima || 0,
         tarifa_plena:          config.tarifa_plena || 0,
-        fraccion_minutos:      config.fraccion_minutos ?? 30,
+        fraccion_minutos:      config.fraccion_minutos ?? 480,
         cupo_total:            config.cupo_total || 0,
         nombre_parqueadero:    config.nombre_parqueadero || null,
         direccion:             config.direccion || null,
@@ -346,9 +346,9 @@ export default function ParqueaderoConfig() {
             }
             label={
               <Box>
-                <Typography sx={{ fontSize: 14, fontWeight: 700 }}>Usar modelo de Tarifa Plena</Typography>
+                <Typography sx={{ fontSize: 14, fontWeight: 700 }}>Habilitar Tarifa Plena por período</Typography>
                 <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-                  Cobra un valor fijo por el período mínimo y una tarifa por fracciones adicionales (modelo estándar de parqueaderos colombianos)
+                  Cobra por minuto mientras no se complete el período. Al alcanzar el umbral, aplica la tarifa plena en lugar del acumulado por minutos.
                 </Typography>
               </Box>
             }
@@ -367,75 +367,74 @@ export default function ParqueaderoConfig() {
               <Schedule sx={{ color: ACCENT }} />
             </Box>
             <Box>
-              <Typography sx={{ fontSize: 16, fontWeight: 800 }}>Tarifa Plena</Typography>
+              <Typography sx={{ fontSize: 16, fontWeight: 800 }}>Configuración de Tarifa Plena</Typography>
               <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-                Valor fijo por el mínimo + fracciones adicionales redondeadas hacia arriba
+                Cobra por minuto hasta el umbral. Al completar el período, aplica la tarifa plena. El ciclo se repite.
               </Typography>
             </Box>
           </Stack>
 
           <Grid container spacing={2}>
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={6}>
               <CurrencyField
-                fullWidth size="small" label="Tarifa mínima *"
-                placeholder="2500"
-                value={config?.tarifa_minima}
-                onChange={handleNumber('tarifa_minima')}
-                helperText={`Cobro plano por los primeros ${config?.cobro_minimo_minutos || 30} min`}
-              />
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <CurrencyField
-                fullWidth size="small" label="Tarifa por fracción adicional *"
-                placeholder="1500"
+                fullWidth size="small" label="Tarifa plena por período *"
+                placeholder="10000"
                 value={config?.tarifa_plena}
                 onChange={handleNumber('tarifa_plena')}
-                helperText={`Valor por cada ${config?.fraccion_minutos || 30} min adicionales`}
+                helperText={`Cobro al completar ${config?.fraccion_minutos || 480} min (${((config?.fraccion_minutos || 480) / 60).toFixed(1)}h)`}
               />
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={6}>
               <TextField
-                fullWidth size="small" label="Minutos por fracción"
-                type="number" inputProps={{ min: 1, max: 1440 }}
-                placeholder="30"
-                value={config?.fraccion_minutos ?? 30}
-                onChange={e => setConfig(prev => ({ ...prev, fraccion_minutos: parseInt(e.target.value) || 1 }))}
-                helperText="Unidad de cobro adicional (ej: 30, 60)"
+                fullWidth size="small" label="Umbral del período (minutos)"
+                type="number" inputProps={{ min: 30, max: 2880 }}
+                placeholder="480"
+                value={config?.fraccion_minutos ?? 480}
+                onChange={e => setConfig(prev => ({ ...prev, fraccion_minutos: parseInt(e.target.value) || 480 }))}
+                helperText={`Tiempo que activa la tarifa plena (ej: 480 = 8 horas)`}
                 InputProps={{ endAdornment: <InputAdornment position="end">min</InputAdornment> }}
               />
             </Grid>
           </Grid>
 
           {/* Simulador */}
-          {config?.tarifa_minima > 0 && config?.tarifa_plena > 0 && (
+          {config?.tarifa_plena > 0 && config?.tarifa_minuto > 0 && (
             <Box sx={{ mt: 2, p: 2, bgcolor: '#FF602008', borderRadius: 2, border: '1px solid #FF602025' }}>
               <Typography sx={{ fontSize: 12, fontWeight: 700, color: ACCENT, mb: 1, textTransform: 'uppercase' }}>
                 Simulador de cobro
               </Typography>
               <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
-                {[
-                  config.cobro_minimo_minutos || 30,
-                  (config.cobro_minimo_minutos || 30) + (config.fraccion_minutos || 30),
-                  (config.cobro_minimo_minutos || 30) + 2 * (config.fraccion_minutos || 30),
-                  (config.cobro_minimo_minutos || 30) + 3 * (config.fraccion_minutos || 30),
-                ].map(mins => {
-                  const min0 = config.cobro_minimo_minutos || 30;
-                  const frac = config.fraccion_minutos || 30;
-                  const tm = config.tarifa_minima || 0;
-                  const tp = config.tarifa_plena || 0;
-                  const extra = Math.max(0, mins - min0);
-                  const fracs = extra > 0 ? Math.ceil(extra / frac) : 0;
-                  const cobro = tm + fracs * tp;
-                  return (
-                    <Chip key={mins} size="small"
-                      label={`${mins} min = ${formatCurrency(cobro)}`}
-                      sx={{ bgcolor: 'background.paper', fontWeight: 600 }}
-                    />
-                  );
-                })}
+                {(() => {
+                  const umbral = config.fraccion_minutos || 480;
+                  const tarMin = config.tarifa_minuto || 0;
+                  const tarPlena = config.tarifa_plena || 0;
+                  const cobMin = config.cobro_minimo_minutos || 0;
+                  const ejemplos = [
+                    Math.round(umbral * 0.4),   // 40% del umbral
+                    Math.round(umbral * 0.75),  // 75% del umbral
+                    umbral,                      // exactamente el umbral
+                    umbral + Math.round(umbral * 0.3),  // 1 período + fracción
+                    umbral * 2,                  // 2 períodos completos
+                  ].filter((v, i, a) => a.indexOf(v) === i && v > 0);
+                  return ejemplos.map(mins => {
+                    const minC = cobMin > 0 ? Math.max(mins, cobMin) : mins;
+                    const periodos = Math.floor(minC / umbral);
+                    const resto = minC % umbral;
+                    const cobro = periodos * tarPlena + resto * tarMin;
+                    const label = mins >= 60
+                      ? `${(mins / 60).toFixed(1).replace('.0', '')}h`
+                      : `${mins}min`;
+                    return (
+                      <Chip key={mins} size="small"
+                        label={`${label} → ${formatCurrency(cobro)}`}
+                        sx={{ bgcolor: 'background.paper', fontWeight: 600, fontSize: 12 }}
+                      />
+                    );
+                  });
+                })()}
               </Stack>
               <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 1 }}>
-                Tiempo adicional se redondea al alza a la fracción completa más cercana
+                Por minuto hasta el umbral · Tarifa plena al completar el período · El ciclo se repite
               </Typography>
             </Box>
           )}
@@ -456,9 +455,9 @@ export default function ParqueaderoConfig() {
             sx={{ bgcolor: '#F59E0B15', color: '#78350F', fontWeight: 700 }} />
           {config?.usar_tarifa_plena ? (
             <>
-              <Chip label={`Mínimo (${config?.cobro_minimo_minutos || 30} min) ${formatCurrency(config?.tarifa_minima || 0)}`}
+              <Chip label={`Por minuto ${formatCurrency(config?.tarifa_minuto || 0)}/min`}
                 sx={{ bgcolor: '#FF602015', color: ACCENT, fontWeight: 700 }} />
-              <Chip label={`Fracción (${config?.fraccion_minutos || 30} min) ${formatCurrency(config?.tarifa_plena || 0)}`}
+              <Chip label={`Plena c/${((config?.fraccion_minutos || 480) / 60).toFixed(1).replace('.0', '')}h ${formatCurrency(config?.tarifa_plena || 0)}`}
                 sx={{ bgcolor: '#FF602015', color: ACCENT, fontWeight: 700 }} />
             </>
           ) : (
