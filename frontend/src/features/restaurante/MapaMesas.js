@@ -1039,7 +1039,6 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
         />
       )}
 
-      <ResumenTurno open={turnoOpen} onClose={() => setTurnoOpen(false)} />
     </Box>
   );
 };
@@ -1409,6 +1408,7 @@ export default function MapaMesas({ user }) {
           </Dialog>
         );
       })()}
+      <ResumenTurno open={turnoOpen} onClose={() => setTurnoOpen(false)} />
     </Box>
   );
 }
