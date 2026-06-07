@@ -726,6 +726,389 @@ def pantalla_cocina(
     return list(comandas_map.values())
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# REPORTES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/reportes/resumen")
+def reporte_resumen(
+    desde: Optional[str] = None,
+    hasta: Optional[str] = None,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_active_user),
+):
+    """Resumen de ventas del restaurante en el período (comandas cerradas)."""
+    from sqlalchemy import func as sqlfunc
+
+    q = db.query(models.Comanda).filter(
+        models.Comanda.empresa_id == user.empresa_id,
+        models.Comanda.estado == "cerrada",
+    )
+    if desde:
+        try:
+            dt = datetime.fromisoformat(desde.replace("Z", "+00:00"))
+            q = q.filter(models.Comanda.fecha_cierre >= dt)
+        except ValueError:
+            pass
+    if hasta:
+        try:
+            dt = datetime.fromisoformat(hasta.replace("Z", "+00:00"))
+            q = q.filter(models.Comanda.fecha_cierre <= dt)
+        except ValueError:
+            pass
+
+    comandas = q.all()
+
+    total_ventas   = sum(c.total or 0 for c in comandas)
+    total_comandas = len(comandas)
+    ticket_promedio = round(total_ventas / total_comandas, 2) if total_comandas else 0
+
+    # Ventas por día
+    por_dia: dict = {}
+    for c in comandas:
+        if c.fecha_cierre:
+            dia = c.fecha_cierre.date().isoformat()
+            por_dia[dia] = por_dia.get(dia, 0) + (c.total or 0)
+    dias = [{"fecha": k, "total": round(v, 2)} for k, v in sorted(por_dia.items())]
+
+    return {
+        "total_ventas": round(total_ventas, 2),
+        "total_comandas": total_comandas,
+        "ticket_promedio": ticket_promedio,
+        "por_dia": dias,
+    }
+
+
+@router.get("/reportes/mesas")
+def reporte_mesas(
+    desde: Optional[str] = None,
+    hasta: Optional[str] = None,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_active_user),
+):
+    q = db.query(models.Comanda).filter(
+        models.Comanda.empresa_id == user.empresa_id,
+        models.Comanda.estado == "cerrada",
+    )
+    if desde:
+        try:
+            dt = datetime.fromisoformat(desde.replace("Z", "+00:00"))
+            q = q.filter(models.Comanda.fecha_cierre >= dt)
+        except ValueError:
+            pass
+    if hasta:
+        try:
+            dt = datetime.fromisoformat(hasta.replace("Z", "+00:00"))
+            q = q.filter(models.Comanda.fecha_cierre <= dt)
+        except ValueError:
+            pass
+
+    mesas_map: dict = {}
+    for c in q.all():
+        num = c.mesa.numero if c.mesa else "—"
+        if num not in mesas_map:
+            mesas_map[num] = {"mesa": num, "zona": c.mesa.zona if c.mesa else None, "total": 0, "comandas": 0}
+        mesas_map[num]["total"] += c.total or 0
+        mesas_map[num]["comandas"] += 1
+
+    result = sorted(mesas_map.values(), key=lambda x: x["total"], reverse=True)
+    for r in result:
+        r["total"] = round(r["total"], 2)
+    return result
+
+
+@router.get("/reportes/meseros")
+def reporte_meseros(
+    desde: Optional[str] = None,
+    hasta: Optional[str] = None,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_active_user),
+):
+    q = db.query(models.Comanda).filter(
+        models.Comanda.empresa_id == user.empresa_id,
+        models.Comanda.estado == "cerrada",
+        models.Comanda.mesero_id != None,
+    )
+    if desde:
+        try:
+            dt = datetime.fromisoformat(desde.replace("Z", "+00:00"))
+            q = q.filter(models.Comanda.fecha_cierre >= dt)
+        except ValueError:
+            pass
+    if hasta:
+        try:
+            dt = datetime.fromisoformat(hasta.replace("Z", "+00:00"))
+            q = q.filter(models.Comanda.fecha_cierre <= dt)
+        except ValueError:
+            pass
+
+    meseros_map: dict = {}
+    for c in q.all():
+        mid = c.mesero_id
+        if mid not in meseros_map:
+            nombre = c.mesero.nombre_completo if c.mesero else f"Usuario #{mid}"
+            meseros_map[mid] = {"mesero_id": mid, "nombre": nombre, "total": 0, "comandas": 0}
+        meseros_map[mid]["total"] += c.total or 0
+        meseros_map[mid]["comandas"] += 1
+
+    result = sorted(meseros_map.values(), key=lambda x: x["total"], reverse=True)
+    for r in result:
+        r["total"] = round(r["total"], 2)
+    return result
+
+
+@router.get("/reportes/productos")
+def reporte_productos(
+    desde: Optional[str] = None,
+    hasta: Optional[str] = None,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_active_user),
+):
+    q = db.query(models.ComandaItem).join(models.Comanda).filter(
+        models.Comanda.empresa_id == user.empresa_id,
+        models.Comanda.estado == "cerrada",
+        models.ComandaItem.estado != "cancelado",
+    )
+    if desde:
+        try:
+            dt = datetime.fromisoformat(desde.replace("Z", "+00:00"))
+            q = q.filter(models.Comanda.fecha_cierre >= dt)
+        except ValueError:
+            pass
+    if hasta:
+        try:
+            dt = datetime.fromisoformat(hasta.replace("Z", "+00:00"))
+            q = q.filter(models.Comanda.fecha_cierre <= dt)
+        except ValueError:
+            pass
+
+    prods_map: dict = {}
+    for item in q.all():
+        nombre = item.nombre_producto
+        if nombre not in prods_map:
+            prods_map[nombre] = {"nombre": nombre, "cantidad": 0, "total": 0}
+        prods_map[nombre]["cantidad"] += item.cantidad
+        prods_map[nombre]["total"] += item.subtotal or 0
+
+    result = sorted(prods_map.values(), key=lambda x: x["cantidad"], reverse=True)
+    for r in result:
+        r["total"] = round(r["total"], 2)
+    return result[:30]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TURNO
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/turno/resumen")
+def resumen_turno(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_active_user),
+):
+    """Resumen del turno actual: ventas del día de hoy."""
+    from sqlalchemy import func as sqlfunc
+
+    hoy = datetime.now(timezone.utc).date()
+
+    comandas_hoy = db.query(models.Comanda).filter(
+        models.Comanda.empresa_id == user.empresa_id,
+        models.Comanda.estado == "cerrada",
+        sqlfunc.date(models.Comanda.fecha_cierre) == hoy,
+    ).all()
+
+    total = sum(c.total or 0 for c in comandas_hoy)
+    num_comandas = len(comandas_hoy)
+
+    # Desglose por método de pago (desde ventas)
+    metodos: dict = {}
+    for c in comandas_hoy:
+        if c.venta_id:
+            venta = db.query(models.Venta).filter(models.Venta.id == c.venta_id).first()
+            if venta:
+                m = venta.metodo_pago or "Otro"
+                metodos[m] = metodos.get(m, 0) + (venta.total or 0)
+
+    # Propinas (extraer de observaciones)
+    propina_tarjeta = 0.0
+    propina_efectivo = 0.0
+    for c in comandas_hoy:
+        if c.venta_id:
+            venta = db.query(models.Venta).filter(models.Venta.id == c.venta_id).first()
+            if venta and venta.observaciones:
+                import re
+                m1 = re.search(r"Propina tarjeta: \$([0-9]+)", venta.observaciones)
+                m2 = re.search(r"Propina efectivo: \$([0-9]+)", venta.observaciones)
+                if m1:
+                    propina_tarjeta += float(m1.group(1))
+                if m2:
+                    propina_efectivo += float(m2.group(1))
+
+    # Mesas activas aún abiertas
+    mesas_abiertas = db.query(models.Mesa).filter(
+        models.Mesa.empresa_id == user.empresa_id,
+        models.Mesa.estado.in_(["ocupada", "en_cuenta"]),
+        models.Mesa.is_active == True,
+    ).count()
+
+    return {
+        "fecha": hoy.isoformat(),
+        "total_ventas": round(total, 2),
+        "num_comandas": num_comandas,
+        "ticket_promedio": round(total / num_comandas, 2) if num_comandas else 0,
+        "por_metodo": [{"metodo": k, "total": round(v, 2)} for k, v in sorted(metodos.items())],
+        "propina_tarjeta": round(propina_tarjeta, 2),
+        "propina_efectivo": round(propina_efectivo, 2),
+        "mesas_abiertas": mesas_abiertas,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# RESERVAS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class ReservaCreate(BaseModel):
+    nombre_cliente: str
+    telefono: Optional[str] = None
+    fecha: str      # "2025-12-25"
+    hora: str       # "19:30"
+    personas: int = 2
+    mesa_id: Optional[int] = None
+    notas: Optional[str] = None
+
+
+class ReservaUpdate(BaseModel):
+    nombre_cliente: Optional[str] = None
+    telefono: Optional[str] = None
+    fecha: Optional[str] = None
+    hora: Optional[str] = None
+    personas: Optional[int] = None
+    mesa_id: Optional[int] = None
+    notas: Optional[str] = None
+    estado: Optional[str] = None
+
+
+def _ser_reserva(r: models.Reserva) -> dict:
+    return {
+        "id": r.id,
+        "nombre_cliente": r.nombre_cliente,
+        "telefono": r.telefono,
+        "fecha": r.fecha.isoformat() if r.fecha else None,
+        "hora": r.hora,
+        "personas": r.personas,
+        "mesa_id": r.mesa_id,
+        "mesa_numero": r.mesa.numero if r.mesa else None,
+        "notas": r.notas,
+        "estado": r.estado,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+    }
+
+
+@router.get("/reservas")
+def listar_reservas(
+    fecha: Optional[str] = None,
+    estado: Optional[str] = None,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_active_user),
+):
+    q = db.query(models.Reserva).filter(models.Reserva.empresa_id == user.empresa_id)
+    if fecha:
+        from datetime import date
+        try:
+            d = date.fromisoformat(fecha)
+            q = q.filter(models.Reserva.fecha == d)
+        except ValueError:
+            pass
+    if estado:
+        q = q.filter(models.Reserva.estado == estado)
+    return [_ser_reserva(r) for r in q.order_by(models.Reserva.fecha, models.Reserva.hora).all()]
+
+
+@router.post("/reservas", status_code=201)
+def crear_reserva(
+    payload: ReservaCreate,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_active_user),
+):
+    from datetime import date
+    try:
+        fecha = date.fromisoformat(payload.fecha)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Formato de fecha inválido (use YYYY-MM-DD).")
+
+    reserva = models.Reserva(
+        empresa_id=user.empresa_id,
+        mesa_id=payload.mesa_id,
+        nombre_cliente=payload.nombre_cliente.strip(),
+        telefono=payload.telefono,
+        fecha=fecha,
+        hora=payload.hora,
+        personas=payload.personas,
+        notas=payload.notas,
+    )
+    db.add(reserva)
+    if payload.mesa_id:
+        mesa = db.query(models.Mesa).filter(
+            models.Mesa.id == payload.mesa_id,
+            models.Mesa.empresa_id == user.empresa_id,
+        ).first()
+        if mesa and mesa.estado == "libre":
+            mesa.estado = "reservada"
+    db.commit()
+    db.refresh(reserva)
+    return _ser_reserva(reserva)
+
+
+@router.put("/reservas/{reserva_id}")
+def actualizar_reserva(
+    reserva_id: int,
+    payload: ReservaUpdate,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_active_user),
+):
+    reserva = db.query(models.Reserva).filter(
+        models.Reserva.id == reserva_id,
+        models.Reserva.empresa_id == user.empresa_id,
+    ).first()
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada.")
+
+    data = payload.dict(exclude_none=True)
+    if "fecha" in data:
+        from datetime import date
+        try:
+            data["fecha"] = date.fromisoformat(data["fecha"])
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Formato de fecha inválido.")
+    for k, v in data.items():
+        setattr(reserva, k, v)
+
+    # Si se cancela o completa, liberar mesa si estaba reservada
+    if payload.estado in ("cancelada", "completada") and reserva.mesa_id:
+        mesa = db.query(models.Mesa).filter(models.Mesa.id == reserva.mesa_id).first()
+        if mesa and mesa.estado == "reservada":
+            mesa.estado = "libre"
+
+    db.commit()
+    db.refresh(reserva)
+    return _ser_reserva(reserva)
+
+
+@router.delete("/reservas/{reserva_id}", status_code=204)
+def eliminar_reserva(
+    reserva_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_active_user),
+):
+    reserva = db.query(models.Reserva).filter(
+        models.Reserva.id == reserva_id,
+        models.Reserva.empresa_id == user.empresa_id,
+    ).first()
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada.")
+    db.delete(reserva)
+    db.commit()
+
+
 @router.patch("/cocina/items/{item_id}")
 def cocina_actualizar_item(
     item_id: int,

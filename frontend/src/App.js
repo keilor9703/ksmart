@@ -78,10 +78,12 @@ const LavaderoConfig           = lazy(() => import('./features/lavadero/Lavadero
 const Contabilidad             = lazy(() => import('./features/contabilidad/Contabilidad'));
 
 // Restaurante
-const MapaMesas         = lazy(() => import('./features/restaurante/MapaMesas'));
-const PantallaCocina    = lazy(() => import('./features/restaurante/PantallaCocina'));
-const RestauranteConfig = lazy(() => import('./features/restaurante/RestauranteConfig'));
-const CajaRestaurante   = lazy(() => import('./features/restaurante/CajaRestaurante'));
+const MapaMesas              = lazy(() => import('./features/restaurante/MapaMesas'));
+const PantallaCocina         = lazy(() => import('./features/restaurante/PantallaCocina'));
+const RestauranteConfig      = lazy(() => import('./features/restaurante/RestauranteConfig'));
+const CajaRestaurante        = lazy(() => import('./features/restaurante/CajaRestaurante'));
+const ReporteRestaurante     = lazy(() => import('./features/restaurante/ReporteRestaurante'));
+const ReservasRestaurante    = lazy(() => import('./features/restaurante/ReservasRestaurante'));
 
 // ─── Constantes de Layout ──────────────────────────────────────────────────────
 const SIDEBAR_FULL  = 240;
@@ -392,10 +394,12 @@ const hasAccess = useCallback((path) => {
                     <Route path="/lavadero/reporte"  element={<ProtectedRoute path="/lavadero/reporte" hasAccess={hasAccess}><LavaderoReporte user={user} /></ProtectedRoute>} />
                     <Route path="/lavadero/config"   element={<ProtectedRoute path="/lavadero/config"  hasAccess={hasAccess}><LavaderoConfig  /></ProtectedRoute>} />
                     <Route path="/contabilidad"      element={<ProtectedRoute path="/contabilidad"     hasAccess={hasAccess}><Contabilidad /></ProtectedRoute>} />
-                    <Route path="/restaurante"        element={<ProtectedRoute path="/restaurante"        hasAccess={hasAccess}><MapaMesas       user={user} /></ProtectedRoute>} />
-                    <Route path="/restaurante/cocina" element={<ProtectedRoute path="/restaurante/cocina" hasAccess={hasAccess}><PantallaCocina  /></ProtectedRoute>} />
-                    <Route path="/restaurante/config" element={<ProtectedRoute path="/restaurante/config" hasAccess={hasAccess}><RestauranteConfig /></ProtectedRoute>} />
-                    <Route path="/restaurante/caja"   element={<ProtectedRoute path="/restaurante/caja"   hasAccess={hasAccess}><CajaRestaurante  user={user} /></ProtectedRoute>} />
+                    <Route path="/restaurante"             element={<ProtectedRoute path="/restaurante"             hasAccess={hasAccess}><MapaMesas            user={user} /></ProtectedRoute>} />
+                    <Route path="/restaurante/cocina"      element={<ProtectedRoute path="/restaurante/cocina"      hasAccess={hasAccess}><PantallaCocina       /></ProtectedRoute>} />
+                    <Route path="/restaurante/config"      element={<ProtectedRoute path="/restaurante/config"      hasAccess={hasAccess}><RestauranteConfig     /></ProtectedRoute>} />
+                    <Route path="/restaurante/caja"        element={<ProtectedRoute path="/restaurante/caja"        hasAccess={hasAccess}><CajaRestaurante       user={user} /></ProtectedRoute>} />
+                    <Route path="/restaurante/reportes"    element={<ProtectedRoute path="/restaurante/reportes"    hasAccess={hasAccess}><ReporteRestaurante    /></ProtectedRoute>} />
+                    <Route path="/restaurante/reservas"    element={<ProtectedRoute path="/restaurante/reservas"    hasAccess={hasAccess}><ReservasRestaurante   /></ProtectedRoute>} />
                     {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (
                       <>
                         <Route path="/superadmin/empresas" element={<GestionEmpresas />} />

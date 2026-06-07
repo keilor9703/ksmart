@@ -1414,6 +1414,25 @@ class ConfigRestaurante(Base):
     empresa = relationship("Empresa")
 
 
+class Reserva(Base):
+    """Reserva de mesa — pre-asignación de mesa para fecha/hora futura."""
+    __tablename__ = "restaurante_reservas"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    empresa_id      = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    mesa_id         = Column(Integer, ForeignKey("restaurante_mesas.id"), nullable=True)
+    nombre_cliente  = Column(String(120), nullable=False)
+    telefono        = Column(String(30), nullable=True)
+    fecha           = Column(Date, nullable=False)
+    hora            = Column(String(10), nullable=False)      # "19:30"
+    personas        = Column(Integer, default=2)
+    notas           = Column(Text, nullable=True)
+    estado          = Column(String(20), default="pendiente") # pendiente | confirmada | cancelada | completada
+    created_at      = Column(DateTime(timezone=True), default=utcnow)
+
+    empresa = relationship("Empresa")
+    mesa    = relationship("Mesa")
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # LINK DE PAGO POS — Configuración por empresa

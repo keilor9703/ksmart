@@ -14,7 +14,7 @@ import {
   CheckCircle, HourglassBottom, FiberManualRecord,
   Edit, Delete, Settings, Receipt, Note, MenuBook, Print,
   ExpandMore, ExpandLess, PointOfSale, Replay,
-  ViewModule, Map as MapIcon,
+  ViewModule, Map as MapIcon, WifiProtectedSetup,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
@@ -22,6 +22,7 @@ import { imprimirComanda, imprimirCuenta } from '../../utils/printComanda';
 import usePolling from '../../hooks/usePolling';
 import ReciboDialog from '../../components/common/ReciboDialog';
 import LinkPagoModal from '../../components/common/LinkPagoModal.jsx';
+import ResumenTurno from './ResumenTurno';
 
 // ─── Config colores de estado ─────────────────────────────────────────────────
 
@@ -1037,6 +1038,8 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
           }}
         />
       )}
+
+      <ResumenTurno open={turnoOpen} onClose={() => setTurnoOpen(false)} />
     </Box>
   );
 };
@@ -1136,6 +1139,7 @@ export default function MapaMesas({ user }) {
   const [panelMode, setPanelMode] = useState(null);  // 'abrir' | 'comanda'
   const [zonaFiltro, setZonaFiltro] = useState('todas');
   const [vistaPlano, setVistaPlano] = useState(() => localStorage.getItem('mapaMesas_vista') === 'plano');
+  const [turnoOpen, setTurnoOpen]   = useState(false);
 
   const empresa = user?.empresa || null;
   const vendedor = user ? (user.nombre_completo || user.username || user.email) : '';
@@ -1259,6 +1263,14 @@ export default function MapaMesas({ user }) {
               sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}
             >
               {vistaPlano ? <ViewModule fontSize="small" /> : <MapIcon fontSize="small" />}
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Resumen del turno">
+            <IconButton
+              onClick={() => setTurnoOpen(true)}
+              sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}
+            >
+              <WifiProtectedSetup fontSize="small" />
             </IconButton>
           </Tooltip>
           <Button variant="outlined" startIcon={refreshing ? <CircularProgress size={14} /> : <Refresh />}

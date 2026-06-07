@@ -1757,6 +1757,60 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v84)
                 logger.info("V84 (orden en modulos) aplicada.")
 
+            # V85 - Reservas de restaurante
+            migration_v85 = "v85_restaurante_reservas"
+            if not _migration_already_applied(conn, migration_v85):
+                if not _table_exists(conn, "restaurante_reservas"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE restaurante_reservas (
+                                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                                empresa_id     INTEGER NOT NULL REFERENCES empresas(id),
+                                mesa_id        INTEGER REFERENCES restaurante_mesas(id),
+                                nombre_cliente VARCHAR(120) NOT NULL,
+                                telefono       VARCHAR(30),
+                                fecha          DATE NOT NULL,
+                                hora           VARCHAR(10) NOT NULL,
+                                personas       INTEGER DEFAULT 2,
+                                notas          TEXT,
+                                estado         VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+                                created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE restaurante_reservas (
+                                id             SERIAL PRIMARY KEY,
+                                empresa_id     INTEGER NOT NULL REFERENCES empresas(id),
+                                mesa_id        INTEGER REFERENCES restaurante_mesas(id),
+                                nombre_cliente VARCHAR(120) NOT NULL,
+                                telefono       VARCHAR(30),
+                                fecha          DATE NOT NULL,
+                                hora           VARCHAR(10) NOT NULL,
+                                personas       INTEGER DEFAULT 2,
+                                notas          TEXT,
+                                estado         VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+                                created_at     TIMESTAMPTZ DEFAULT NOW()
+                            )
+                        """))
+                    conn.execute(text("CREATE INDEX ix_restaurante_reservas_empresa ON restaurante_reservas(empresa_id)"))
+                    conn.execute(text("CREATE INDEX ix_restaurante_reservas_fecha ON restaurante_reservas(empresa_id, fecha)"))
+                    logger.info("V85: tabla restaurante_reservas creada")
+
+                # Insertar módulos nuevos si no existen
+                for path, name, desc in [
+                    ("/restaurante/reservas",  "Reservas",          "Gestión de reservas del restaurante."),
+                    ("/restaurante/reportes",  "Reportes Restaurante", "Reportes de ventas del restaurante."),
+                ]:
+                    conn.execute(text("""
+                        INSERT INTO modulos (name, description, frontend_path)
+                        VALUES (:n, :d, :p)
+                        ON CONFLICT (frontend_path) DO NOTHING
+                    """), {"n": name, "d": desc, "p": path})
+
+                _mark_migration_applied(conn, migration_v85)
+                logger.info("V85 (restaurante_reservas + módulos) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
