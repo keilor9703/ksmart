@@ -26,6 +26,8 @@ import { OnboardingProvider } from './context/OnboardingContext';
 import ModalHuella from './components/common/ModalHuella';
 import GlobalSearch from './components/common/GlobalSearch';
 import { MODULE_ICONS, getModuleConfig, ADMIN_MODULES } from './utils/modulesConfig';
+import ReconectandoScreen from './components/common/ReconectandoScreen';
+import { startKeepAlive, stopKeepAlive } from './services/keepAlive';
 
 // ─── LAZY: cada pantalla en su propio chunk (code-splitting por ruta) ─────────
 // Reduce drásticamente el bundle inicial: el navegador solo descarga el código
@@ -129,6 +131,7 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser]       = useState(null);
   const [loading, setLoading] = useState(true);
+  const [reconectando, setReconectando] = useState(false);
   const [needsSetup, setNeedsSetup] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [sidebarPinned, setSidebarPinned] = useState(
@@ -174,6 +177,8 @@ function App() {
           const res = await apiClient.get('/users/me', {
             headers: { Authorization: `Bearer ${token}` },
           });
+          setReconectando(false);
+
           const emp = res.data.empresa;
           const expirado = emp?.is_plan_expired;
 
@@ -184,6 +189,7 @@ function App() {
           } else {
              setIsAuthenticated(true);
              setUser({ ...res.data, isPlanExpired: false });
+             startKeepAlive();
           }
 
           const modulosDelRol = res.data.role.modules.map(m => m.frontend_path);
@@ -197,12 +203,22 @@ function App() {
 
         } catch (error) {
           const status = error.response?.status;
+
+          // Sin respuesta del servidor → cold start / red caída → pantalla de reconexión
+          if (!status) {
+            setReconectando(true);
+            setLoading(false);
+            return;
+          }
+
           if (status === 402 || status === 403) {
+            setReconectando(false);
             setIsAuthenticated(false);
             setLoading(false);
             navigate('/suscripcion-expirada');
             return;
           } else {
+            setReconectando(false);
             localStorage.removeItem('token');
             localStorage.removeItem('userModules');
             setIsAuthenticated(false);
@@ -233,6 +249,7 @@ const hasAccess = useCallback((path) => {
 }, [user]);
 
   const handleLogout = (showToast = true) => {
+    stopKeepAlive();
     localStorage.removeItem('token');
     localStorage.removeItem('userModules');
     setIsAuthenticated(false);
@@ -297,7 +314,9 @@ const hasAccess = useCallback((path) => {
         />
 
         <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default', width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
-          {loading ? (
+          {reconectando ? (
+            <ReconectandoScreen onRetry={() => { setReconectando(false); setLoading(true); checkAuth(); }} />
+          ) : loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100%' }}>
               <CircularProgress sx={{ color: ACCENT }} />
             </Box>
