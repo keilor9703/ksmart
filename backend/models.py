@@ -393,14 +393,17 @@ class DetalleVenta(Base, TenantMixin):
     id               = Column(Integer, primary_key=True, index=True)
     venta_id         = Column(Integer, ForeignKey("ventas.id"))
     producto_id      = Column(Integer, ForeignKey("productos.id"), nullable=True)   # nullable: libre items have no product
+    variante_id      = Column(Integer, ForeignKey("producto_variantes.id"), nullable=True)
     nombre_libre     = Column(String(200), nullable=True)   # description for libre items
+    nombre_variante  = Column(String(200), nullable=True)   # snapshot del nombre de variante al momento de vender
     cantidad         = Column(Float)
     precio_unitario  = Column(Float)
     descuento_pct    = Column(Float, default=0.0)
     iva_porcentaje   = Column(Float, default=0.0)
 
-    venta   = relationship("Venta", back_populates="detalles")
+    venta    = relationship("Venta", back_populates="detalles")
     producto = relationship("Producto")
+    variante = relationship("ProductoVariante")
 
 class Pago(Base, TenantMixin):
     __tablename__ = "pagos"

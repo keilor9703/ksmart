@@ -29,6 +29,7 @@ import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 import SmartTooltip from '../../components/onboarding/SmartTooltip';
 import BasculaWidget from '../../components/common/BasculaWidget';
 import { esPesable } from '../../hooks/useBascula';
+import VarianteSelectorDialog from '../../components/common/VarianteSelectorDialog';
 
 const ACCENT = '#FF6020';
 const HAS_BARCODE_DETECTOR = typeof window !== 'undefined' && 'BarcodeDetector' in window;
@@ -380,7 +381,8 @@ const Ventas = ({ user }) => {
     const [ventaDevolucion, setVentaDevolucion]   = useState(null);
     const [reciboOpen, setReciboOpen]             = useState(false);
     const [reciboVenta, setReciboVenta]           = useState(null);
-    const [basculaProducto, setBasculaProducto]   = useState(null); // producto siendo pesado
+    const [basculaProducto,  setBasculaProducto]  = useState(null);
+    const [varianteProducto, setVarianteProducto] = useState(null); // producto con variantes esperando selección
     const [tabValue, setTabValue]                 = useState(0);
     const [page, setPage]                         = useState(0);
     const [rowsPerPage, setRowsPerPage]           = useState(10);
@@ -424,38 +426,64 @@ useEffect(() => {
 
     // ── Touch mode cart ops ──
     const handleAddToCartDirect = (producto) => {
+        // Variantes: mostrar selector primero
+        if (producto.tiene_variantes && producto.variantes?.length > 0) {
+            setVarianteProducto(producto);
+            return;
+        }
+        // Pesable: abrir báscula
         if (esPesable(producto.unidad_medida)) {
             setBasculaProducto(producto);
             return;
         }
+        _agregarAlCarritoSimple(producto, 1, producto.precio || 0, null, null);
+    };
+
+    const _agregarAlCarritoSimple = (producto, cantidad, precioUnitario, varianteId, nombreVariante) => {
         setSaleDetails(prev => {
-            const existingIdx = prev.findIndex(d => d.producto?.id === producto.id);
+            // Para productos con variante, la clave del carrito incluye la variante
+            const clave = varianteId
+                ? (d) => d.producto?.id === producto.id && d.varianteId === varianteId
+                : (d) => d.producto?.id === producto.id && !d.varianteId;
+            const existingIdx = prev.findIndex(clave);
             if (existingIdx !== -1) {
-                return prev.map((d, i) => i === existingIdx ? { ...d, cantidad: d.cantidad + 1 } : d);
+                return prev.map((d, i) => i === existingIdx ? { ...d, cantidad: d.cantidad + cantidad } : d);
             }
-            const newRow = { id: Date.now(), producto, cantidad: 1, precioUnitario: producto.precio || 0, descuentoPct: 0 };
+            const newRow = {
+                id: Date.now(),
+                producto,
+                cantidad,
+                precioUnitario,
+                descuentoPct: 0,
+                varianteId,
+                nombreVariante,
+            };
             if (prev.length === 1 && !prev[0].producto) return [newRow];
             return [...prev, newRow];
         });
         playScanBeep();
     };
 
-    const handleConfirmarPesoBascula = (pesoKg, subtotal) => {
+    const handleConfirmarPesoBascula = (pesoKg) => {
         const producto = basculaProducto;
         setBasculaProducto(null);
         if (!producto || pesoKg <= 0) return;
-        setSaleDetails(prev => {
-            const existingIdx = prev.findIndex(d => d.producto?.id === producto.id);
-            if (existingIdx !== -1) {
-                return prev.map((d, i) =>
-                    i === existingIdx ? { ...d, cantidad: d.cantidad + pesoKg } : d
-                );
-            }
-            const newRow = { id: Date.now(), producto, cantidad: pesoKg, precioUnitario: producto.precio || 0, descuentoPct: 0 };
-            if (prev.length === 1 && !prev[0].producto) return [newRow];
-            return [...prev, newRow];
-        });
-        playScanBeep();
+        const varId  = producto._varianteId   || null;
+        const varNom = producto._nombreVariante || null;
+        _agregarAlCarritoSimple(producto, pesoKg, producto.precio || 0, varId, varNom);
+    };
+
+    const handleConfirmarVariante = (variante) => {
+        const producto = varianteProducto;
+        setVarianteProducto(null);
+        if (!producto || !variante) return;
+        const precio = variante.precio != null ? variante.precio : (producto.precio || 0);
+        // Si además es pesable, abrir báscula con precio de la variante
+        if (esPesable(producto.unidad_medida)) {
+            setBasculaProducto({ ...producto, precio, _varianteId: variante.id, _nombreVariante: variante.nombre });
+            return;
+        }
+        _agregarAlCarritoSimple(producto, 1, precio, variante.id, variante.nombre);
     };
     const handleRemoveOneFromCart = (productoId) => {
         setSaleDetails(prev => {
@@ -739,13 +767,15 @@ useEffect(() => {
 
         const ventaData = {
             cliente_id: cliente.id,
-            detalles: validDetails.map(({ producto, cantidad, precioUnitario, descuentoPct, isLibre, nombreLibre }) => ({
-                producto_id: isLibre ? null : producto.id,
-                nombre_libre: isLibre ? (nombreLibre || 'Ítem libre') : undefined,
+            detalles: validDetails.map(({ producto, cantidad, precioUnitario, descuentoPct, isLibre, nombreLibre, varianteId, nombreVariante }) => ({
+                producto_id:     isLibre ? null : producto.id,
+                variante_id:     varianteId || undefined,
+                nombre_libre:    isLibre ? (nombreLibre || 'Ítem libre') : undefined,
+                nombre_variante: nombreVariante || undefined,
                 cantidad,
                 precio_unitario: precioUnitario * (1 - (descuentoPct || 0) / 100),
-                descuento_pct: descuentoPct || 0,
-                iva_porcentaje: 0.0,
+                descuento_pct:   descuentoPct || 0,
+                iva_porcentaje:  0.0,
             })),
             pagada, metodo_pago: pagada ? metodoPago : null,
             iva_porcentaje: parseFloat(ivaPorcentajeGlobal),
@@ -1617,6 +1647,13 @@ useEffect(() => {
                     producto={basculaProducto}
                     onConfirmar={handleConfirmarPesoBascula}
                     onCancelar={() => setBasculaProducto(null)}
+                />
+            )}
+            {varianteProducto && (
+                <VarianteSelectorDialog
+                    producto={varianteProducto}
+                    onSeleccionar={handleConfirmarVariante}
+                    onCancelar={() => setVarianteProducto(null)}
                 />
             )}
             <LinkPagoModal

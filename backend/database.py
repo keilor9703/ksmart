@@ -1827,6 +1827,29 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v85)
                 logger.info("V85 (restaurante_reservas + módulos) aplicada.")
 
+            # V87 - variante_id y nombre_variante en detalles_venta
+            migration_v87 = "v87_detalle_venta_variante"
+            if not _migration_already_applied(conn, migration_v87):
+                if not _column_exists(conn, "detalles_venta", "variante_id"):
+                    if IS_SQLITE:
+                        conn.execute(text(
+                            "ALTER TABLE detalles_venta ADD COLUMN variante_id INTEGER REFERENCES producto_variantes(id)"
+                        ))
+                    else:
+                        conn.execute(text(
+                            "ALTER TABLE detalles_venta ADD COLUMN variante_id INTEGER REFERENCES producto_variantes(id) ON DELETE SET NULL"
+                        ))
+                    logger.info("V87: añadido detalles_venta.variante_id")
+
+                if not _column_exists(conn, "detalles_venta", "nombre_variante"):
+                    conn.execute(text(
+                        "ALTER TABLE detalles_venta ADD COLUMN nombre_variante VARCHAR(200) NULL"
+                    ))
+                    logger.info("V87: añadido detalles_venta.nombre_variante")
+
+                _mark_migration_applied(conn, migration_v87)
+                logger.info("V87 (variante en detalles_venta) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

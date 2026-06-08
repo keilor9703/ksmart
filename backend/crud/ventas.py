@@ -76,12 +76,33 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate, commi
                 detail=f"Producto {d.producto_id} no encontrado o no pertenece a esta empresa"
             )
 
-        precio = d.precio_unitario if d.precio_unitario is not None else prod.precio
+        # Resolver variante si viene variante_id
+        variante_id     = getattr(d, 'variante_id', None)
+        nombre_variante = getattr(d, 'nombre_variante', None)
+        variante_obj    = None
+        if variante_id:
+            variante_obj = db.query(models.ProductoVariante).filter(
+                models.ProductoVariante.id == variante_id,
+                models.ProductoVariante.producto_id == d.producto_id,
+            ).first()
+            if not variante_obj:
+                raise HTTPException(status_code=404, detail=f"Variante {variante_id} no encontrada")
+
+        # Precio: variante > payload > producto padre
+        if d.precio_unitario is not None:
+            precio = d.precio_unitario
+        elif variante_obj and variante_obj.precio is not None:
+            precio = variante_obj.precio
+        else:
+            precio = prod.precio
+
         subtotal = precio * d.cantidad
         total_bruto += subtotal
 
         detalle = models.DetalleVenta(
             producto_id=d.producto_id,
+            variante_id=variante_id,
+            nombre_variante=nombre_variante or (variante_obj.nombre if variante_obj else None),
             cantidad=d.cantidad,
             precio_unitario=precio,
             descuento_pct=getattr(d, 'descuento_pct', 0.0),
@@ -361,6 +382,14 @@ def _ejecutar_movimientos_venta(db: Session, empresa_id: int, db_venta: models.V
                 )
                 prod.stock_actual = (prod.stock_actual or 0) - det.cantidad
                 db.add(prod)
+                # También descontar de la variante si aplica
+                if det.variante_id:
+                    variante = db.query(models.ProductoVariante).filter(
+                        models.ProductoVariante.id == det.variante_id
+                    ).first()
+                    if variante:
+                        variante.stock_actual = (variante.stock_actual or 0) - det.cantidad
+                        db.add(variante)
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e))
         else:
@@ -372,3 +401,11 @@ def _ejecutar_movimientos_venta(db: Session, empresa_id: int, db_venta: models.V
                 motivo         = "venta",
                 referencia     = f"venta #{db_venta.id}",
             ))
+            # Descontar stock de variante para modelo sin lotes
+            if det.variante_id:
+                variante = db.query(models.ProductoVariante).filter(
+                    models.ProductoVariante.id == det.variante_id
+                ).first()
+                if variante:
+                    variante.stock_actual = (variante.stock_actual or 0) - det.cantidad
+                    db.add(variante)
