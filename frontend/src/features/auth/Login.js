@@ -173,14 +173,15 @@ const getPwdStrength = (pwd) => {
   const score = [pwd.length >= 8, hasUpper, hasLower, hasNumber, hasSpecial].filter(Boolean).length;
   if (pwd.length < 4)  return { level: 1, label: 'Muy débil',  color: '#EF4444' };
   if (pwd.length < 8)  return { level: 2, label: 'Débil — usa mín. 8 caracteres', color: '#F59E0B' };
-  if (score >= 5)      return { level: 4, label: 'Muy segura',  color: '#22c55e' };
-  if (score >= 4)      return { level: 4, label: 'Segura',      color: '#22c55e' };
-  if (score >= 3)      return { level: 3, label: 'Aceptable',   color: '#84cc16' };
+  if (score >= 5)      return { level: 5, label: 'Muy segura ✓', color: '#22c55e' };
+  if (score >= 4)      return { level: 4, label: 'Segura',        color: '#84cc16' };
+  if (score >= 3)      return { level: 3, label: 'Aceptable',     color: '#F59E0B' };
   return                      { level: 2, label: 'Débil',        color: '#F59E0B' };
 };
 
 const isEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 const isPhone = (v) => /^[\d+\s()-]{7,20}$/.test(v);
+const isUsername = (v) => /^[a-zA-Z0-9._-]{3,30}$/.test(v);
 
 // ─── Feature Carousel ────────────────────────────────────────────────────────
 function FeatureCarousel() {
@@ -433,20 +434,42 @@ const Login = ({ onLogin }) => {
     };
     const [regData, setRegData] = useState(initialRegState);
 
-    const updateReg = (key) => (e) =>
-        setRegData((prev) => ({ ...prev, [key]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
-
-    const toggleTipoNegocio = (key) => {
-        setRegData(prev => {
-            const current = prev.tipos_negocio || [];
-            const next = current.includes(key)
-                ? current.filter(k => k !== key)
-                : [...current, key];
-            return { ...prev, tipos_negocio: next.length > 0 ? next : [key] };
+    const updateReg = (key) => (e) => {
+        const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+        setRegData((prev) => {
+            const next = { ...prev, [key]: value };
+            // Auto-sugerir username desde nombre_completo
+            if (key === 'nombre_completo') {
+                const autoUser = value
+                    .toLowerCase()
+                    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+                    .trim()
+                    .split(/\s+/)
+                    .slice(0, 2)
+                    .join('.');
+                const cleanUser = autoUser.replace(/[^a-z0-9._-]/g, '');
+                const prevAuto = (prev.nombre_completo || '')
+                    .toLowerCase()
+                    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+                    .trim()
+                    .split(/\s+/)
+                    .slice(0, 2)
+                    .join('.')
+                    .replace(/[^a-z0-9._-]/g, '');
+                if (!prev.username || prev.username === prevAuto) {
+                    next.username = cleanUser;
+                }
+            }
+            return next;
         });
     };
 
     const [step1Attempted, setStep1Attempted] = useState(false);
+    const [step1Touched, setStep1Touched] = useState({});
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+    const touchField = (field) => setStep1Touched(prev => ({ ...prev, [field]: true }));
+    const showFieldError = (field) => (step1Attempted || step1Touched[field]) && step1Errors[field];
 
     const step1Errors = {
         tipo_negocio:   !regData.tipo_negocio,
@@ -470,7 +493,7 @@ const Login = ({ onLogin }) => {
         isEmail(regData.email) &&
         isPhone(regData.telefono) &&
         regData.username.trim().length >= 3 &&
-        regData.password.length >= 1 &&
+        regData.password.length >= 8 &&
         regData.password === regData.confirmPassword &&
         regData.acepta_terminos;
 
@@ -1111,8 +1134,10 @@ const Login = ({ onLogin }) => {
                                             placeholder="Ej: Vialmar Cacao, Almacén Don José…"
                                             value={regData.nombre_empresa}
                                             onChange={updateReg('nombre_empresa')}
-                                            error={step1Attempted && step1Errors.nombre_empresa}
-                                            helperText={step1Attempted && step1Errors.nombre_empresa ? 'Mínimo 2 caracteres' : ''}
+                                            error={showFieldError('nombre_empresa')}
+                                            helperText={showFieldError('nombre_empresa') ? 'Mínimo 2 caracteres' : ''}
+                                            onBlur={() => touchField('nombre_empresa')}
+                                            autoFocus
                                             InputProps={{ startAdornment: <InputAdornment position="start"><Business /></InputAdornment> }}
                                         />
 
@@ -1121,9 +1146,15 @@ const Login = ({ onLogin }) => {
                                             className="orange-field" sx={fieldSx}
                                             placeholder="Ej: 901.123.456-7"
                                             value={regData.nit}
-                                            onChange={updateReg('nit')}
-                                            error={step1Attempted && step1Errors.nit}
-                                            helperText={step1Attempted && step1Errors.nit ? 'Mínimo 5 caracteres' : 'Requerido para la identificación legal de tu espacio'}
+                                            onChange={(e) => {
+                                                const raw = e.target.value.replace(/[^0-9-]/g, '');
+                                                const parts = raw.split('-');
+                                                const clean = parts.length > 2 ? parts[0] + '-' + parts.slice(1).join('') : raw;
+                                                setRegData(prev => ({ ...prev, nit: clean }));
+                                            }}
+                                            error={showFieldError('nit')}
+                                            helperText={showFieldError('nit') ? 'Ingresa un NIT o cédula válido (mín. 5 dígitos)' : 'NIT empresarial o cédula del responsable'}
+                                            onBlur={() => touchField('nit')}
                                             InputProps={{ startAdornment: <InputAdornment position="start"><CheckCircle /></InputAdornment> }}
                                         />
 
@@ -1153,7 +1184,7 @@ const Login = ({ onLogin }) => {
 
                                             <Box sx={{ flex: 1 }}>
                                                 <Autocomplete
-                                                    options={CIUDADES_COLOMBIA}
+                                                    options={regData.pais === 'CO' ? CIUDADES_COLOMBIA : []}
                                                     value={regData.ciudad}
                                                     onChange={(e, newValue) => setRegData({ ...regData, ciudad: newValue || '' })}
                                                     onInputChange={(e, newInputValue) => setRegData({ ...regData, ciudad: newInputValue })}
@@ -1163,8 +1194,9 @@ const Login = ({ onLogin }) => {
                                                             {...params}
                                                             fullWidth required label="Ciudad"
                                                             className="orange-field"
-                                                            error={step1Attempted && step1Errors.ciudad}
-                                                            helperText={step1Attempted && step1Errors.ciudad ? 'Ingresa tu ciudad' : ''}
+                                                            error={showFieldError('ciudad')}
+                                                            helperText={showFieldError('ciudad') ? 'Ingresa tu ciudad' : ''}
+                                                            onBlur={() => touchField('ciudad')}
                                                             sx={{
                                                                 ...fieldSx,
                                                                 '& .MuiOutlinedInput-root': {
@@ -1172,7 +1204,7 @@ const Login = ({ onLogin }) => {
                                                                     pr: '35px !important'
                                                                 }
                                                             }}
-                                                            placeholder="Ej: Buenaventura"
+                                                            placeholder={regData.pais === 'CO' ? 'Ej: Buenaventura' : 'Escribe tu ciudad'}
                                                             InputProps={{
                                                                 ...params.InputProps,
                                                                 startAdornment: (
@@ -1264,6 +1296,8 @@ const Login = ({ onLogin }) => {
                                             placeholder="Ej: María Pérez"
                                             value={regData.nombre_completo}
                                             onChange={updateReg('nombre_completo')}
+                                            autoFocus
+                                            inputProps={{ autoComplete: 'name' }}
                                             InputProps={{ startAdornment: <InputAdornment position="start"><Person /></InputAdornment> }}
                                         />
 
@@ -1279,6 +1313,7 @@ const Login = ({ onLogin }) => {
                                                     ? 'Correo no válido'
                                                     : 'Lo usaremos para recuperar tu cuenta'
                                             }
+                                            inputProps={{ autoComplete: 'email' }}
                                             InputProps={{ startAdornment: <InputAdornment position="start"><Email /></InputAdornment> }}
                                         />
 
@@ -1288,7 +1323,13 @@ const Login = ({ onLogin }) => {
                                             placeholder="Ej: 300 123 4567"
                                             value={regData.telefono}
                                             onChange={updateReg('telefono')}
-                                            helperText="Te avisaremos por aquí si hay algo importante"
+                                            error={regData.telefono.length > 0 && !isPhone(regData.telefono)}
+                                            helperText={
+                                                regData.telefono.length > 0 && !isPhone(regData.telefono)
+                                                    ? 'Teléfono no válido (mín. 7 dígitos)'
+                                                    : 'Te avisaremos por aquí si hay algo importante'
+                                            }
+                                            inputProps={{ autoComplete: 'tel' }}
                                             InputProps={{ startAdornment: <InputAdornment position="start"><Phone /></InputAdornment> }}
                                         />
 
@@ -1297,8 +1338,16 @@ const Login = ({ onLogin }) => {
                                             className="orange-field" sx={fieldSx}
                                             placeholder="Sin espacios. Ej: maria.perez"
                                             value={regData.username}
-                                            onChange={(e) => setRegData({ ...regData, username: e.target.value.replace(/\s/g, '') })}
-                                            helperText="Este será tu nombre para iniciar sesión"
+                                            onChange={(e) => setRegData({ ...regData, username: e.target.value.replace(/[^a-zA-Z0-9._-]/g, '') })}
+                                            error={regData.username.length > 0 && !isUsername(regData.username)}
+                                            helperText={
+                                                regData.username.length > 0 && !isUsername(regData.username)
+                                                    ? 'Solo letras, números, punto, guion bajo o guion (3-30 caracteres)'
+                                                    : regData.username
+                                                        ? `✓ ${regData.username}`
+                                                        : 'Letras, números, punto y guion bajo. Sin espacios.'
+                                            }
+                                            inputProps={{ autoComplete: 'username' }}
                                             InputProps={{ startAdornment: <InputAdornment position="start"><Person /></InputAdornment> }}
                                         />
 
@@ -1309,6 +1358,7 @@ const Login = ({ onLogin }) => {
                                             value={regData.password}
                                             onChange={updateReg('password')}
                                             helperText="Mínimo 8 caracteres"
+                                            inputProps={{ autoComplete: 'new-password' }}
                                             InputProps={{
                                                 startAdornment: <InputAdornment position="start"><Lock /></InputAdornment>,
                                                 endAdornment: (
@@ -1332,7 +1382,7 @@ const Login = ({ onLogin }) => {
                                                 <Box sx={{ mt: -1.5, px: 0.5 }}>
                                                     <LinearProgress
                                                         variant="determinate"
-                                                        value={s.level * 25}
+                                                        value={(s.level / 5) * 100}
                                                         sx={{
                                                             height: 3, borderRadius: 2,
                                                             bgcolor: 'rgba(255,255,255,0.08)',
@@ -1345,13 +1395,23 @@ const Login = ({ onLogin }) => {
                                         })()}
                                         <TextField
                                             fullWidth required label="Confirmar contraseña"
-                                            type={showPassword ? 'text' : 'password'}
+                                            type={showConfirmPassword ? 'text' : 'password'}
                                             className="orange-field" sx={fieldSx}
                                             value={regData.confirmPassword}
                                             onChange={updateReg('confirmPassword')}
                                             error={pwdMatch}
                                             helperText={pwdMatch ? 'Las contraseñas no coinciden' : ''}
-                                            InputProps={{ startAdornment: <InputAdornment position="start"><Lock /></InputAdornment> }}
+                                            inputProps={{ autoComplete: 'new-password' }}
+                                            InputProps={{
+                                                startAdornment: <InputAdornment position="start"><Lock /></InputAdornment>,
+                                                endAdornment: (
+                                                    <InputAdornment position="end">
+                                                        <IconButton onClick={() => setShowConfirmPassword(v => !v)} edge="end" sx={{ color: '#64748b' }}>
+                                                            {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
+                                                        </IconButton>
+                                                    </InputAdornment>
+                                                ),
+                                            }}
                                         />
 
                                         <TextField
