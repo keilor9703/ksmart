@@ -418,9 +418,10 @@ export default function ParqueaderoConfig() {
                   ].filter((v, i, a) => a.indexOf(v) === i && v > 0);
                   return ejemplos.map(mins => {
                     const minC = cobMin > 0 ? Math.max(mins, cobMin) : mins;
-                    const periodos = Math.floor(minC / umbral);
-                    const resto = minC % umbral;
-                    const cobro = periodos * tarPlena + resto * tarMin;
+                    const periodos   = Math.floor(minC / umbral);
+                    const resto      = minC % umbral;
+                    const costoResto = Math.min(resto * tarMin, tarPlena);
+                    const cobro      = periodos * tarPlena + costoResto;
                     const label = mins >= 60
                       ? `${(mins / 60).toFixed(1).replace('.0', '')}h`
                       : `${mins}min`;

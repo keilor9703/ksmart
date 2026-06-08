@@ -26,7 +26,8 @@ def _calcular_monto_estimado(cfg, minutos_reales: int) -> tuple[int, int]:
         tarifa_min   = cfg.tarifa_minuto or 0.0
         periodos = minutos_cobrar // umbral
         resto    = minutos_cobrar % umbral
-        monto    = round(periodos * tarifa_plena + resto * tarifa_min)
+        costo_resto = min(resto * tarifa_min, tarifa_plena)
+        monto    = round(periodos * tarifa_plena + costo_resto)
     else:
         monto = round(minutos_cobrar * (cfg.tarifa_minuto or 0))
 

@@ -228,18 +228,19 @@ def registrar_salida_horas(
     cobro_minimo = cfg.cobro_minimo_minutos or 0
 
     if cfg.usar_tarifa_plena:
-        # ── Modelo híbrido: por minuto + tarifa plena al alcanzar el umbral ─
+        # ── Modelo híbrido: por minuto + tarifa plena al completar el umbral ─
         # Períodos completos (umbral) → tarifa_plena c/u
-        # Minutos restantes → tarifa_minuto × min
-        import math
+        # Minutos restantes → min(resto × tarifa_minuto, tarifa_plena)
+        # Esto garantiza que el cobro nunca supere tarifa_plena dentro del período
         minutos_cobrar = max(minutos_reales, cobro_minimo) if cobro_minimo > 0 else minutos_reales
-        umbral       = max(1, cfg.fraccion_minutos or 480)   # minutos que definen un período pleno
+        umbral       = max(1, cfg.fraccion_minutos or 480)
         tarifa_plena = cfg.tarifa_plena or 0.0
         tarifa_min   = cfg.tarifa_minuto or 0.0
 
         periodos = minutos_cobrar // umbral
         resto    = minutos_cobrar % umbral
-        monto_calc = round(periodos * tarifa_plena + resto * tarifa_min, 0)
+        costo_resto = min(resto * tarifa_min, tarifa_plena)
+        monto_calc = round(periodos * tarifa_plena + costo_resto, 0)
     else:
         # ── Modelo por minuto (original) ────────────────────────────────────
         minutos_cobrar = max(minutos_reales, cobro_minimo) if cobro_minimo > 0 else minutos_reales

@@ -62,9 +62,10 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
       const umbral   = config?.fraccion_minutos || 480;
       const tarPlena = config?.tarifa_plena || 0;
       const tarMin   = config?.tarifa_minuto || 0;
-      const periodos = Math.floor(minCobrar / umbral);
-      const resto    = minCobrar % umbral;
-      const monto    = Math.round(periodos * tarPlena + resto * tarMin);
+      const periodos    = Math.floor(minCobrar / umbral);
+      const resto       = minCobrar % umbral;
+      const costoResto  = Math.min(resto * tarMin, tarPlena);
+      const monto       = Math.round(periodos * tarPlena + costoResto);
       const umbralH  = (umbral / 60).toFixed(1).replace('.0', '');
       const fmt = v => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v);
       let detalle;
