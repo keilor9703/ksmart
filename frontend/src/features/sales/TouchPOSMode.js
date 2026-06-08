@@ -13,6 +13,8 @@ import {
 import { formatCurrency } from '../../utils/formatters';
 import CurrencyField from '../../components/common/CurrencyField';
 import { getProductoByBarcode } from '../../api';
+import { esPesable } from '../../hooks/useBascula';
+import ScaleIcon from '@mui/icons-material/Scale';
 import { toast } from 'react-toastify';
 
 const ACCENT = '#FF6020';
@@ -117,9 +119,16 @@ const ProductCard = ({ producto, qtyInCart, onPress, groupColor }) => {
                 }}>
                     {producto.nombre}
                 </Typography>
-                <Typography sx={{ fontSize: 12, fontWeight: 800, color: ACCENT }}>
-                    {formatCurrency(producto.precio)}
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Typography sx={{ fontSize: 12, fontWeight: 800, color: ACCENT }}>
+                        {formatCurrency(producto.precio)}
+                    </Typography>
+                    {esPesable(producto.unidad_medida) && (
+                        <Tooltip title="Se pesa en báscula">
+                            <ScaleIcon sx={{ fontSize: 13, color: 'text.secondary', opacity: 0.7 }} />
+                        </Tooltip>
+                    )}
+                </Box>
             </Box>
         </Box>
     );

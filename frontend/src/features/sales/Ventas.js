@@ -27,6 +27,8 @@ import {
 import { getProductoByBarcode } from '../../api';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 import SmartTooltip from '../../components/onboarding/SmartTooltip';
+import BasculaWidget from '../../components/common/BasculaWidget';
+import { esPesable } from '../../hooks/useBascula';
 
 const ACCENT = '#FF6020';
 const HAS_BARCODE_DETECTOR = typeof window !== 'undefined' && 'BarcodeDetector' in window;
@@ -378,6 +380,7 @@ const Ventas = ({ user }) => {
     const [ventaDevolucion, setVentaDevolucion]   = useState(null);
     const [reciboOpen, setReciboOpen]             = useState(false);
     const [reciboVenta, setReciboVenta]           = useState(null);
+    const [basculaProducto, setBasculaProducto]   = useState(null); // producto siendo pesado
     const [tabValue, setTabValue]                 = useState(0);
     const [page, setPage]                         = useState(0);
     const [rowsPerPage, setRowsPerPage]           = useState(10);
@@ -421,12 +424,34 @@ useEffect(() => {
 
     // ── Touch mode cart ops ──
     const handleAddToCartDirect = (producto) => {
+        if (esPesable(producto.unidad_medida)) {
+            setBasculaProducto(producto);
+            return;
+        }
         setSaleDetails(prev => {
             const existingIdx = prev.findIndex(d => d.producto?.id === producto.id);
             if (existingIdx !== -1) {
                 return prev.map((d, i) => i === existingIdx ? { ...d, cantidad: d.cantidad + 1 } : d);
             }
             const newRow = { id: Date.now(), producto, cantidad: 1, precioUnitario: producto.precio || 0, descuentoPct: 0 };
+            if (prev.length === 1 && !prev[0].producto) return [newRow];
+            return [...prev, newRow];
+        });
+        playScanBeep();
+    };
+
+    const handleConfirmarPesoBascula = (pesoKg, subtotal) => {
+        const producto = basculaProducto;
+        setBasculaProducto(null);
+        if (!producto || pesoKg <= 0) return;
+        setSaleDetails(prev => {
+            const existingIdx = prev.findIndex(d => d.producto?.id === producto.id);
+            if (existingIdx !== -1) {
+                return prev.map((d, i) =>
+                    i === existingIdx ? { ...d, cantidad: d.cantidad + pesoKg } : d
+                );
+            }
+            const newRow = { id: Date.now(), producto, cantidad: pesoKg, precioUnitario: producto.precio || 0, descuentoPct: 0 };
             if (prev.length === 1 && !prev[0].producto) return [newRow];
             return [...prev, newRow];
         });
@@ -1587,6 +1612,13 @@ useEffect(() => {
                 venta={reciboVenta} empresa={user?.empresa}
                 vendedor={user?.nombre_completo || user?.username}
             />
+            {basculaProducto && (
+                <BasculaWidget
+                    producto={basculaProducto}
+                    onConfirmar={handleConfirmarPesoBascula}
+                    onCancelar={() => setBasculaProducto(null)}
+                />
+            )}
             <LinkPagoModal
                 open={linkPagoModalOpen}
                 onClose={() => { setLinkPagoModalOpen(false); pendingVentaRef.current = null; }}
