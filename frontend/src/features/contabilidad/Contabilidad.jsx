@@ -581,6 +581,8 @@ function BalanceGeneral({ fechaFin }) {
 function BalanceComprobacion({ fechaInicio, fechaFin }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -597,11 +599,72 @@ function BalanceComprobacion({ fechaInicio, fechaFin }) {
 
   if (loading) return <Box sx={{ py: 4, textAlign: 'center' }}><CircularProgress /></Box>;
 
-  const totD = rows.reduce((s, r) => s + r.total_debitos, 0);
-  const totC = rows.reduce((s, r) => s + r.total_creditos, 0);
-  const totSD = rows.reduce((s, r) => s + r.saldo_debito, 0);
-  const totSC = rows.reduce((s, r) => s + r.saldo_credito, 0);
+  const totD  = rows.reduce((s, r) => s + r.total_debitos,  0);
+  const totC  = rows.reduce((s, r) => s + r.total_creditos, 0);
+  const totSD = rows.reduce((s, r) => s + r.saldo_debito,   0);
+  const totSC = rows.reduce((s, r) => s + r.saldo_credito,  0);
 
+  if (rows.length === 0)
+    return <Alert severity="info">Sin movimientos.</Alert>;
+
+  /* ── Vista móvil — tarjetas ─────────────────────────────────────── */
+  if (isMobile) {
+    return (
+      <Box>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {rows.map(r => {
+            const color = TIPO_COLORS[r.tipo] || '#888';
+            return (
+              <Paper key={r.codigo} sx={{ p: 1.5, border: '1px solid', borderColor: 'divider', borderLeft: `3px solid ${color}` }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12, color }}>{r.codigo}</Typography>
+                    <Chip label={r.tipo} size="small"
+                      sx={{ bgcolor: color + '22', color, fontSize: 10, height: 20 }} />
+                  </Box>
+                </Box>
+                <Typography sx={{ fontSize: 13, fontWeight: 500, mb: 1 }}>{r.nombre}</Typography>
+                <Grid container spacing={1}>
+                  <Grid item xs={6}>
+                    <Typography sx={{ fontSize: 10, color: 'text.disabled', textTransform: 'uppercase' }}>Débitos</Typography>
+                    <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{fmt(r.total_debitos)}</Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography sx={{ fontSize: 10, color: 'text.disabled', textTransform: 'uppercase' }}>Créditos</Typography>
+                    <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{fmt(r.total_creditos)}</Typography>
+                  </Grid>
+                  {r.saldo_debito > 0 && (
+                    <Grid item xs={6}>
+                      <Typography sx={{ fontSize: 10, color: 'text.disabled', textTransform: 'uppercase' }}>Saldo Déb.</Typography>
+                      <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'success.main' }}>{fmt(r.saldo_debito)}</Typography>
+                    </Grid>
+                  )}
+                  {r.saldo_credito > 0 && (
+                    <Grid item xs={6}>
+                      <Typography sx={{ fontSize: 10, color: 'text.disabled', textTransform: 'uppercase' }}>Saldo Créd.</Typography>
+                      <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'error.main' }}>{fmt(r.saldo_credito)}</Typography>
+                    </Grid>
+                  )}
+                </Grid>
+              </Paper>
+            );
+          })}
+        </Box>
+        {/* Totales móvil */}
+        <Paper sx={{ mt: 1.5, p: 1.5, bgcolor: 'action.selected' }}>
+          <Typography sx={{ fontWeight: 700, fontSize: 12, mb: 1 }}>TOTALES</Typography>
+          <Grid container spacing={1}>
+            <Grid item xs={6}><Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Débitos</Typography><Typography sx={{ fontWeight: 700 }}>{fmt(totD)}</Typography></Grid>
+            <Grid item xs={6}><Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Créditos</Typography><Typography sx={{ fontWeight: 700 }}>{fmt(totC)}</Typography></Grid>
+            <Grid item xs={6}><Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Saldo Déb.</Typography><Typography sx={{ fontWeight: 700, color: 'success.main' }}>{fmt(totSD)}</Typography></Grid>
+            <Grid item xs={6}><Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Saldo Créd.</Typography><Typography sx={{ fontWeight: 700, color: 'error.main' }}>{fmt(totSC)}</Typography></Grid>
+          </Grid>
+        </Paper>
+      </Box>
+    );
+  }
+
+  /* ── Vista desktop — tabla ──────────────────────────────────────── */
   return (
     <TableContainer component={Paper}>
       <Table size="small">
@@ -616,9 +679,7 @@ function BalanceComprobacion({ fechaInicio, fechaFin }) {
           </TableRow>
         </TableHead>
         <TableBody>
-          {rows.length === 0 ? (
-            <TableRow><TableCell colSpan={7}><Alert severity="info" sx={{ m: 1 }}>Sin movimientos.</Alert></TableCell></TableRow>
-          ) : rows.map(r => (
+          {rows.map(r => (
             <TableRow key={r.codigo} hover>
               <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>{r.codigo}</TableCell>
               <TableCell sx={{ fontSize: 12 }}>{r.nombre}</TableCell>
@@ -632,15 +693,13 @@ function BalanceComprobacion({ fechaInicio, fechaFin }) {
               <TableCell align="right" sx={{ fontSize: 12, color: 'error.main' }}>{r.saldo_credito > 0 ? fmt(r.saldo_credito) : ''}</TableCell>
             </TableRow>
           ))}
-          {rows.length > 0 && (
-            <TableRow sx={{ '& td': { fontWeight: 700, borderTop: '2px solid', borderColor: 'divider' } }}>
-              <TableCell colSpan={3}>TOTALES</TableCell>
-              <TableCell align="right">{fmt(totD)}</TableCell>
-              <TableCell align="right">{fmt(totC)}</TableCell>
-              <TableCell align="right" sx={{ color: 'success.main' }}>{fmt(totSD)}</TableCell>
-              <TableCell align="right" sx={{ color: 'error.main' }}>{fmt(totSC)}</TableCell>
-            </TableRow>
-          )}
+          <TableRow sx={{ '& td': { fontWeight: 700, borderTop: '2px solid', borderColor: 'divider' } }}>
+            <TableCell colSpan={3}>TOTALES</TableCell>
+            <TableCell align="right">{fmt(totD)}</TableCell>
+            <TableCell align="right">{fmt(totC)}</TableCell>
+            <TableCell align="right" sx={{ color: 'success.main' }}>{fmt(totSD)}</TableCell>
+            <TableCell align="right" sx={{ color: 'error.main' }}>{fmt(totSC)}</TableCell>
+          </TableRow>
         </TableBody>
       </Table>
     </TableContainer>
@@ -857,12 +916,12 @@ function CierreContableTab() {
       {cierres.length === 0 ? (
         <Alert severity="info">No hay cierres contables registrados.</Alert>
       ) : (
-        <TableContainer component={Paper}>
-          <Table size="small">
+        <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+          <Table size="small" sx={{ minWidth: 560 }}>
             <TableHead>
               <TableRow sx={{ bgcolor: 'grey.900' }}>
                 {['#', 'Descripción', 'Período inicio', 'Período fin', 'Utilidad neta', 'Fecha cierre'].map(h => (
-                  <TableCell key={h} sx={{ color: 'white', fontWeight: 700 }}>{h}</TableCell>
+                  <TableCell key={h} sx={{ color: 'white', fontWeight: 700, whiteSpace: 'nowrap' }}>{h}</TableCell>
                 ))}
               </TableRow>
             </TableHead>
@@ -1054,13 +1113,13 @@ function PlanCuentas() {
 // ─── Componente principal ────────────────────────────────────────────────────
 
 const TABS = [
-  { label: 'Libro Diario',           icon: <MenuBook fontSize="small" /> },
-  { label: 'Estado de Resultados',   icon: <TrendingUp fontSize="small" /> },
-  { label: 'Balance General',        icon: <AccountBalance fontSize="small" /> },
-  { label: 'Bal. Comprobación',      icon: <Balance fontSize="small" /> },
-  { label: 'IVA / Impuestos',        icon: <Receipt fontSize="small" /> },
-  { label: 'Cierre Contable',        icon: <LockClock fontSize="small" /> },
-  { label: 'Plan de Cuentas (PUC)',  icon: <AutoAwesome fontSize="small" /> },
+  { label: 'Libro Diario',          short: 'Diario',    icon: <MenuBook fontSize="small" /> },
+  { label: 'Estado de Resultados',  short: 'P&L',       icon: <TrendingUp fontSize="small" /> },
+  { label: 'Balance General',       short: 'Bal. Gral', icon: <AccountBalance fontSize="small" /> },
+  { label: 'Bal. Comprobación',     short: 'Comprob.',  icon: <Balance fontSize="small" /> },
+  { label: 'IVA / Impuestos',       short: 'IVA',       icon: <Receipt fontSize="small" /> },
+  { label: 'Cierre Contable',       short: 'Cierre',    icon: <LockClock fontSize="small" /> },
+  { label: 'Plan de Cuentas (PUC)', short: 'PUC',       icon: <AutoAwesome fontSize="small" /> },
 ];
 
 // Botones de exportación por tab
@@ -1085,6 +1144,8 @@ export default function Contabilidad() {
   const [fechaFin, setFechaFin] = useState(dayjs().endOf('month'));
   const [inicializando, setInicializando] = useState(false);
   const [initResult, setInitResult] = useState(null);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const handleInicializar = async () => {
     setInicializando(true);
@@ -1103,20 +1164,24 @@ export default function Contabilidad() {
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Box sx={{ p: { xs: 1, md: 3 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3, flexWrap: 'wrap' }}>
-          <AutoAwesome sx={{ color: '#6366F1', fontSize: 30 }} />
-          <Box sx={{ flex: 1 }}>
-            <Typography variant="h5" fontWeight={700}>Contabilidad Automática</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Asientos en partida doble · PUC colombiano · Reportes DIAN · Balance General · Exportación PDF/Excel
-            </Typography>
+          <AutoAwesome sx={{ color: '#6366F1', fontSize: 30, flexShrink: 0 }} />
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant={isMobile ? 'h6' : 'h5'} fontWeight={700}>Contabilidad Automática</Typography>
+            {!isMobile && (
+              <Typography variant="body2" color="text.secondary">
+                Asientos en partida doble · PUC colombiano · Reportes DIAN · Balance General · Exportación PDF/Excel
+              </Typography>
+            )}
           </Box>
           <Tooltip title="Genera asientos contables para todas las transacciones históricas que aún no los tienen. Ejecuta una sola vez al activar el módulo.">
             <Button
-              variant="outlined" size="small" startIcon={inicializando ? <CircularProgress size={14} /> : <AccountBalance />}
+              variant="outlined" size="small"
+              startIcon={inicializando ? <CircularProgress size={14} /> : <AccountBalance />}
               onClick={handleInicializar} disabled={inicializando}
-              sx={{ borderColor: '#6366F1', color: '#6366F1', '&:hover': { borderColor: '#4F46E5', bgcolor: '#6366F111' } }}
+              sx={{ borderColor: '#6366F1', color: '#6366F1', flexShrink: 0,
+                '&:hover': { borderColor: '#4F46E5', bgcolor: '#6366F111' } }}
             >
-              {inicializando ? 'Procesando…' : 'Inicializar contabilidad'}
+              {isMobile ? (inicializando ? '…' : 'Inicializar') : (inicializando ? 'Procesando…' : 'Inicializar contabilidad')}
             </Button>
           </Tooltip>
         </Box>
@@ -1163,12 +1228,23 @@ export default function Contabilidad() {
         )}
 
         <Tabs value={tab} onChange={(_, v) => setTab(v)}
-          sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}
-          variant="scrollable" scrollButtons="auto">
+          sx={{
+            mb: 3, borderBottom: 1, borderColor: 'divider',
+            '& .MuiTab-root': { minWidth: isMobile ? 0 : 'auto', px: isMobile ? 1 : 2, fontSize: isMobile ? 11 : 13 },
+          }}
+          variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile>
           {TABS.map((t, i) => (
-            <Tab key={i} label={t.label} icon={t.icon} iconPosition="start" />
+            <Tab key={i} label={isMobile ? t.short : t.label} icon={t.icon}
+              iconPosition={isMobile ? 'top' : 'start'}
+              sx={isMobile ? { minHeight: 56, gap: 0, py: 0.5, '& .MuiTab-iconWrapper': { mb: 0 } } : {}} />
           ))}
         </Tabs>
+
+        {isMobile && (
+          <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#6366F1', mb: 1.5 }}>
+            {TABS[tab].label}
+          </Typography>
+        )}
 
         {tab === 0 && <LibroDiario fechaInicio={fechaInicio} fechaFin={fechaFin} />}
         {tab === 1 && <EstadoResultados fechaInicio={fechaInicio} fechaFin={fechaFin} />}
