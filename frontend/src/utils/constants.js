@@ -28,6 +28,7 @@ export const UNIDADES_MEDIDA = [
   { value: 'LTS', label: 'Litros (Lt)' },
   // { value: 'MTS', label: 'Metros (Mts)' },
   // { value: 'PAR', label: 'Pares'        },
+  { value: 'LBS', label: 'Libras (Lb)'  },
   { value: 'CJA', label: 'Caja'         },
   { value: 'PAQ', label: 'Paquete'      },
 ];
