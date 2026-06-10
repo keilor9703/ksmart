@@ -443,7 +443,7 @@ const hasAccess = useCallback((path) => {
                   alignItems: 'center', justifyContent: 'center', gap: { xs: 1, sm: 3 }, 
                   borderTop: `1px solid ${mode === 'dark' ? 'rgba(255,255,255,0.06)' : '#E5E7EB'}`, 
                 }}>
-                  <Typography variant="caption" color="text.secondary">Powered KSMP Systems - 2026</Typography>
+                  <Typography variant="caption" color="text.secondary">Powered by Tech Stack Colombia S.A.S - 2026</Typography>
                   <Box sx={{ display: 'flex', gap: 2 }}>
                     <Typography variant="caption" component="a" href="/terminos" sx={{ color: 'text.secondary', textDecoration: 'none' }}>Términos</Typography>
                     <Typography variant="caption" component="a" href="/privacidad" sx={{ color: 'text.secondary', textDecoration: 'none' }}>Privacidad</Typography>

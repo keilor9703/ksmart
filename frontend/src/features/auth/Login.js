@@ -1519,7 +1519,7 @@ const Login = ({ onLogin }) => {
                     </Box>
 
                     <Typography sx={{ mt: 4, color: '#475569', fontSize: 11.5, textAlign: 'center', fontWeight: 500, letterSpacing: 0.3 }}>
-                        Powered by KSMP Systems · 2026
+                        Powered by Tech Stack Colombia S.A.S · 2026
                     </Typography>
                 </Box>   {/* content box */}
                 </Box>   {/* scroll area */}
