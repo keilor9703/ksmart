@@ -108,6 +108,7 @@ export default function AdminUsuarios() {
   const [users, setUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [username, setUsername] = useState('');
+  const [nombreCompleto, setNombreCompleto] = useState('');
   const [password, setPassword] = useState('');
   const [roleId, setRoleId] = useState('');
   const [editingUser, setEditingUser] = useState(null);
@@ -138,7 +139,8 @@ export default function AdminUsuarios() {
 
   const handleUserSubmit = async (e) => {
     e.preventDefault();
-    const userData = { username, password, role_id: parseInt(roleId) };
+    if (/\s/.test(username)) { toast.error('El nombre de usuario no puede contener espacios'); return; }
+    const userData = { username, password, nombre_completo: nombreCompleto || null, role_id: parseInt(roleId) };
     try {
       if (editingUser) {
         await apiClient.put(`/users/${editingUser.id}`, userData);
@@ -153,11 +155,12 @@ export default function AdminUsuarios() {
     }
   };
 
-  const resetUserForm = () => { setUsername(''); setPassword(''); setRoleId(''); setEditingUser(null); setFormUserOpen(false); };
+  const resetUserForm = () => { setUsername(''); setNombreCompleto(''); setPassword(''); setRoleId(''); setEditingUser(null); setFormUserOpen(false); };
 
   const handleEditUser = (user) => {
     setEditingUser(user);
     setUsername(user.username);
+    setNombreCompleto(user.nombre_completo || '');
     setRoleId(user.role.id);
     setPassword('');
     setFormUserOpen(true);
@@ -357,9 +360,25 @@ export default function AdminUsuarios() {
                 <Box component="form" onSubmit={handleUserSubmit}>
                   <Grid container spacing={2}>
                     <Grid item xs={12} sm={4}>
-                      <TextField label="Nombre de usuario" value={username} onChange={e => setUsername(e.target.value)} fullWidth required size="small"/>
+                      <TextField
+                        label="Nombre de usuario *"
+                        value={username}
+                        onChange={e => setUsername(e.target.value.replace(/\s/g, ''))}
+                        fullWidth required size="small"
+                        helperText="Sin espacios. Es el usuario para iniciar sesión."
+                        inputProps={{ pattern: '\\S+' }}
+                      />
                     </Grid>
                     <Grid item xs={12} sm={4}>
+                      <TextField
+                        label="Nombre completo"
+                        value={nombreCompleto}
+                        onChange={e => setNombreCompleto(e.target.value)}
+                        fullWidth size="small"
+                        helperText="Nombre real del trabajador (aparece en reportes)"
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={5}>
                       <TextField
                         label="Contraseña"
                         type={showPwd ? 'text' : 'password'}
@@ -390,7 +409,7 @@ export default function AdminUsuarios() {
                         }}
                       />
                     </Grid>
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={3}>
                       <FormControl fullWidth required size="small">
                         <InputLabel>Rol</InputLabel>
                         <Select value={roleId} label="Rol" onChange={e => setRoleId(e.target.value)}>
