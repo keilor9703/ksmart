@@ -524,13 +524,25 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
                       <TableRow hover>
                         <TableCell sx={{ fontSize: 12, fontWeight: 700, fontFamily: 'monospace' }}>
                           <Box>
-                            <Typography sx={{ fontSize: 12, fontWeight: 700, fontFamily: 'monospace', color: 'text.primary' }}>
-                              {producto.sku || '—'}
-                            </Typography>
-                            {producto.codigo_barras && (
-                              <Typography sx={{ fontSize: 10, color: 'text.disabled', fontFamily: 'monospace' }}>
-                                {producto.codigo_barras}
+                            {producto.sku ? (
+                              <Typography sx={{
+                                display: 'inline-block',
+                                fontSize: 11, fontWeight: 700, fontFamily: 'monospace',
+                                color: 'text.primary', bgcolor: 'action.hover',
+                                px: 0.8, py: 0.2, borderRadius: 1,
+                              }}>
+                                {producto.sku}
                               </Typography>
+                            ) : (
+                              <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>—</Typography>
+                            )}
+                            {producto.codigo_barras && (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, mt: 0.4 }}>
+                                <Typography sx={{ fontSize: 9, color: 'text.disabled' }}>▐</Typography>
+                                <Typography sx={{ fontSize: 10, color: 'text.disabled', fontFamily: 'monospace' }}>
+                                  {producto.codigo_barras}
+                                </Typography>
+                              </Box>
                             )}
                             {producto.tiene_variantes && (
                               <Chip
