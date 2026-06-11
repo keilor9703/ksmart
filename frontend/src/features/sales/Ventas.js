@@ -1313,63 +1313,98 @@ useEffect(() => {
                                 </Box>
                             )}
 
-                            {/* IVA toggle — ANTES del total para que el número grande refleje la selección */}
-                            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', alignItems: 'center', mb: 1.5 }}>
-                                <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>IVA:</Typography>
-                                {[0, 19].map(pct => (
-                                    <Chip
-                                        key={pct}
-                                        label={pct === 0 ? 'Exento (0%)' : `+${pct}%`}
-                                        onClick={() => setIvaPorcentajeGlobal(pct)}
-                                        size="small"
-                                        sx={{
-                                            cursor: 'pointer', fontWeight: 600, fontSize: 11,
-                                            ...(ivaPorcentajeGlobal == pct
-                                                ? { bgcolor: ACCENT, color: 'white', '& .MuiChip-label': { color: 'white' } }
-                                                : { bgcolor: 'transparent', border: '1px solid', borderColor: 'divider' }
-                                            )
-                                        }}
-                                    />
-                                ))}
+                            {/* ── IVA + Desglose en una sola fila compacta ── */}
+                            <Box sx={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                flexWrap: 'wrap', gap: 1, mb: 1.5,
+                                px: 1.5, py: 1, borderRadius: 2,
+                                bgcolor: 'action.hover',
+                            }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary' }}>IVA:</Typography>
+                                    {[0, 19].map(pct => (
+                                        <Chip
+                                            key={pct}
+                                            label={pct === 0 ? 'Exento (0%)' : `+${pct}%`}
+                                            onClick={() => setIvaPorcentajeGlobal(pct)}
+                                            size="small"
+                                            sx={{
+                                                cursor: 'pointer', fontWeight: 700, fontSize: 12, height: 28,
+                                                ...(ivaPorcentajeGlobal == pct
+                                                    ? { bgcolor: ACCENT, color: 'white', '& .MuiChip-label': { color: 'white' } }
+                                                    : { bgcolor: 'background.paper', border: '1.5px solid', borderColor: 'divider' }
+                                                )
+                                            }}
+                                        />
+                                    ))}
+                                </Box>
+                                {parseFloat(ivaPorcentajeGlobal) > 0 && (() => {
+                                    const rate = parseFloat(ivaPorcentajeGlobal);
+                                    const sub = calculateSubtotal();
+                                    const ivaIncluido = sub * rate / (100 + rate);
+                                    const baseNeta = sub - ivaIncluido;
+                                    return (
+                                        <Box sx={{ display: 'flex', gap: 2 }}>
+                                            <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>
+                                                Base: <strong>{formatCurrency(baseNeta)}</strong>
+                                            </Typography>
+                                            <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>
+                                                IVA {ivaPorcentajeGlobal}%: <strong>{formatCurrency(ivaIncluido)}</strong>
+                                            </Typography>
+                                        </Box>
+                                    );
+                                })()}
                             </Box>
 
-                            {/* Desglose IVA incluido */}
-                            {parseFloat(ivaPorcentajeGlobal) > 0 && (() => {
-                                const rate = parseFloat(ivaPorcentajeGlobal);
-                                const sub = calculateSubtotal();
-                                const ivaIncluido = sub * rate / (100 + rate);
-                                const baseNeta = sub - ivaIncluido;
-                                return (<>
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5, px: 0.5 }}>
-                                        <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>Base (sin IVA)</Typography>
-                                        <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>{formatCurrency(baseNeta)}</Typography>
-                                    </Box>
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, px: 0.5 }}>
-                                        <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>IVA incluido ({ivaPorcentajeGlobal}%)</Typography>
-                                        <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>{formatCurrency(ivaIncluido)}</Typography>
-                                    </Box>
-                                </>);
-                            })()}
-
-                            {/* TOTAL — el número más importante */}
-                            <Box sx={{ textAlign: 'center', py: { xs: 1, md: 1.5 } }}>
-                                <Typography sx={{ fontSize: 10, color: 'text.secondary', letterSpacing: 1.5, textTransform: 'uppercase', mb: 0.5 }}>
-                                    Total a cobrar
-                                </Typography>
-                                {descuentoPuntosImporte > 0
-                                    ? <>
-                                        <Typography sx={{ fontSize: { xs: 28, md: 36 }, fontWeight: 900, color: 'text.disabled', lineHeight: 1, textDecoration: 'line-through' }}>
-                                            {formatCurrency(totalConIva)}
-                                        </Typography>
-                                        <Typography sx={{ fontSize: { xs: 40, md: 52 }, fontWeight: 900, color: '#10B981', lineHeight: 1 }}>
+                            {/* ── TOTAL grande + toggle stock en la misma fila ── */}
+                            <Box sx={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                flexWrap: 'wrap', gap: 1, mb: 2,
+                            }}>
+                                {/* Total */}
+                                <Box>
+                                    <Typography sx={{ fontSize: 11, color: 'text.secondary', letterSpacing: 1.5, textTransform: 'uppercase' }}>
+                                        Total a cobrar
+                                    </Typography>
+                                    {descuentoPuntosImporte > 0
+                                        ? <>
+                                            <Typography sx={{ fontSize: 22, fontWeight: 900, color: 'text.disabled', lineHeight: 1, textDecoration: 'line-through' }}>
+                                                {formatCurrency(totalConIva)}
+                                            </Typography>
+                                            <Typography sx={{ fontSize: { xs: 44, md: 56 }, fontWeight: 900, color: '#10B981', lineHeight: 1 }}>
+                                                {formatCurrency(totalFinal)}
+                                            </Typography>
+                                            <Chip icon={<Stars sx={{ fontSize: '14px !important' }} />} label={`-${formatCurrency(descuentoPuntosImporte)} puntos`} size="small" sx={{ mt: 0.5, bgcolor: '#10B98115', color: '#10B981', fontWeight: 700, fontSize: 10 }} />
+                                          </>
+                                        : <Typography sx={{ fontSize: { xs: 44, md: 56 }, fontWeight: 900, color: ACCENT, lineHeight: 1 }}>
                                             {formatCurrency(totalFinal)}
-                                        </Typography>
-                                        <Chip icon={<Stars sx={{ fontSize: '14px !important' }} />} label={`-${formatCurrency(descuentoPuntosImporte)} puntos`} size="small" sx={{ mt: 0.5, bgcolor: '#10B98115', color: '#10B981', fontWeight: 700, fontSize: 10 }} />
-                                      </>
-                                    : <Typography sx={{ fontSize: { xs: 40, md: 52 }, fontWeight: 900, color: ACCENT, lineHeight: 1 }}>
-                                        {formatCurrency(totalFinal)}
-                                      </Typography>
-                                }
+                                          </Typography>
+                                    }
+                                </Box>
+
+                                {/* Toggle stock — a la derecha del total */}
+                                <Box sx={{
+                                    display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5,
+                                }}>
+                                    <FormControlLabel
+                                        control={
+                                            <Switch
+                                                checked={omitirInventario}
+                                                onChange={e => setOmitirInventario(e.target.checked)}
+                                                sx={{
+                                                    '& .MuiSwitch-switchBase.Mui-checked': { color: '#F59E0B' },
+                                                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#F59E0B' },
+                                                }}
+                                            />
+                                        }
+                                        label={
+                                            <Typography fontSize={13} fontWeight={omitirInventario ? 700 : 500} color={omitirInventario ? '#92400E' : 'text.secondary'}>
+                                                Vender sin validar stock
+                                            </Typography>
+                                        }
+                                        sx={{ m: 0, gap: 0.5 }}
+                                    />
+                                </Box>
                             </Box>
 
                             {/* ── Puntos de fidelización ── */}
@@ -1404,37 +1439,15 @@ useEffect(() => {
                                 </Box>
                             )}
 
-                            {/* ── Opción: vender sin validar stock ── */}
-                            <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-                                <FormControlLabel
-                                    control={
-                                        <Switch
-                                            checked={omitirInventario}
-                                            onChange={e => setOmitirInventario(e.target.checked)}
-                                            size="small"
-                                            sx={{
-                                                '& .MuiSwitch-switchBase.Mui-checked': { color: '#F59E0B' },
-                                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#F59E0B' },
-                                            }}
-                                        />
-                                    }
-                                    label={
-                                        <Typography fontSize={11.5} fontWeight={omitirInventario ? 700 : 400} color={omitirInventario ? '#92400E' : 'text.secondary'}>
-                                            Vender sin validar stock
-                                        </Typography>
-                                    }
-                                    sx={{ m: 0, gap: 0.5 }}
-                                />
-                            </Box>
+                            <Divider sx={{ mb: 2 }} />
 
-                            <Divider sx={{ mb: 2.5 }} />
+                            {/* ── Método de pago + efectivo + botón ── todo en una fila ── */}
+                            <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
 
-                            {/* Método de pago + cambio + botón */}
-                            <Grid container spacing={2} alignItems="flex-end">
                                 {/* Métodos de pago */}
-                                <Grid item xs={12} sm={pagada && metodoPago === 'Efectivo' ? 5 : 7}>
+                                <Box sx={{ flex: 1, minWidth: 0 }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
-                                        <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                                        <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
                                             Método de pago
                                         </Typography>
                                         <SmartTooltip
@@ -1453,11 +1466,11 @@ useEffect(() => {
                                             return (
                                                 <Box key={opt.value} onClick={() => { setPagada(opt.pagada); if (opt.pagada) setMetodoPago(opt.value); }}
                                                     sx={{
-                                                        px: { xs: 1, sm: 1.5 }, py: 0.8, borderRadius: 2, cursor: 'pointer',
+                                                        px: 1.5, py: 1, borderRadius: 2, cursor: 'pointer',
                                                         border: '1.5px solid', borderColor: isSelected ? opt.color : 'divider',
                                                         bgcolor: isSelected ? `${opt.color}15` : 'background.paper',
                                                         color: isSelected ? opt.color : 'text.secondary',
-                                                        fontSize: { xs: 11, sm: 12 }, fontWeight: isSelected ? 700 : 500,
+                                                        fontSize: 13, fontWeight: isSelected ? 700 : 500,
                                                         transition: 'all 0.15s', userSelect: 'none',
                                                         '&:hover': { borderColor: opt.color, bgcolor: `${opt.color}08` },
                                                         whiteSpace: 'nowrap',
@@ -1468,13 +1481,16 @@ useEffect(() => {
                                             );
                                         })}
                                     </Box>
-                                </Grid>
+                                </Box>
 
                                 {/* Efectivo: recibido + cambio */}
                                 {pagada && metodoPago === 'Efectivo' && (
-                                    <Grid item xs={12} sm={3}>
+                                    <Box sx={{ minWidth: 160 }}>
+                                        <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8, mb: 1 }}>
+                                            Valor recibido
+                                        </Typography>
                                         <CurrencyField
-                                            label="Valor recibido" size="small" fullWidth
+                                            label="" size="small" fullWidth
                                             value={valorRecibido} onChange={setValorRecibido}
                                         />
                                         {valorRecibido > 0 && (
@@ -1483,48 +1499,46 @@ useEffect(() => {
                                                 bgcolor: cambioEfectivo >= 0 ? '#10B98112' : '#EF444412',
                                                 border: '1.5px solid', borderColor: cambioEfectivo >= 0 ? '#10B98140' : '#EF444440',
                                             }}>
-                                                <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>Cambio a devolver</Typography>
-                                                <Typography sx={{ fontSize: 16, fontWeight: 800, color: cambioEfectivo >= 0 ? '#10B981' : '#EF4444' }}>
+                                                <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Cambio a devolver</Typography>
+                                                <Typography sx={{ fontSize: 18, fontWeight: 800, color: cambioEfectivo >= 0 ? '#10B981' : '#EF4444' }}>
                                                     {formatCurrency(cambioEfectivo >= 0 ? cambioEfectivo : 0)}
                                                 </Typography>
                                                 {cambioEfectivo < 0 && (
-                                                    <Typography sx={{ fontSize: 9, color: '#EF4444' }}>Faltan {formatCurrency(Math.abs(cambioEfectivo))}</Typography>
+                                                    <Typography sx={{ fontSize: 10, color: '#EF4444' }}>Faltan {formatCurrency(Math.abs(cambioEfectivo))}</Typography>
                                                 )}
                                             </Box>
                                         )}
-                                    </Grid>
+                                    </Box>
                                 )}
 
                                 {/* Botón registrar */}
-                                <Grid item xs={12} sm={pagada && metodoPago === 'Efectivo' ? 4 : 5}>
-                                    <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-                                        {editingVenta && (
-                                            <Button onClick={resetForm} variant="outlined"
-                                                sx={{ borderRadius: 2, fontWeight: 600, borderColor: 'divider' }}>
-                                                Cancelar
-                                            </Button>
-                                        )}
-                                        <Button
-                                            id="btn-registrar-venta"
-                                            type="submit" variant="contained" fullWidth={!editingVenta}
-                                            disabled={savingVenta}
-                                            onClick={handleSubmit}
-                                            startIcon={savingVenta ? <CircularProgress size={16} sx={{ color: 'white' }} /> : (metodoPago === 'Link de Pago' ? <CreditCard /> : <ShoppingCart />)}
-                                            sx={{
-                                                background: metodoPago === 'Link de Pago' ? 'linear-gradient(135deg, #FF6020, #ff9a62)' : `linear-gradient(135deg, ${ACCENT}, #ff9a62)`,
-                                                boxShadow: `0 4px 14px rgba(255,96,32,0.35)`,
-                                                borderRadius: 2, fontWeight: 700, py: 1.4,
-                                                fontSize: 14,
-                                            }}
-                                        >
-                                            {savingVenta ? 'Guardando…' : (editingVenta ? 'Actualizar' : (metodoPago === 'Link de Pago' ? 'Cobrar con Link' : 'Registrar Venta'))}
+                                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'flex-end', gap: 0.5, flexShrink: 0 }}>
+                                    {editingVenta && (
+                                        <Button onClick={resetForm} variant="outlined"
+                                            sx={{ borderRadius: 2, fontWeight: 600, borderColor: 'divider', mb: 0.5 }}>
+                                            Cancelar edición
                                         </Button>
-                                    </Box>
-                                    <Typography sx={{ fontSize: 10, color: 'text.disabled', textAlign: 'right', mt: 0.5 }}>
+                                    )}
+                                    <Button
+                                        id="btn-registrar-venta"
+                                        type="submit" variant="contained"
+                                        disabled={savingVenta}
+                                        onClick={handleSubmit}
+                                        startIcon={savingVenta ? <CircularProgress size={18} sx={{ color: 'white' }} /> : (metodoPago === 'Link de Pago' ? <CreditCard /> : <ShoppingCart />)}
+                                        sx={{
+                                            background: metodoPago === 'Link de Pago' ? 'linear-gradient(135deg, #FF6020, #ff9a62)' : `linear-gradient(135deg, ${ACCENT}, #ff9a62)`,
+                                            boxShadow: `0 4px 14px rgba(255,96,32,0.35)`,
+                                            borderRadius: 3, fontWeight: 800, py: 1.8, px: 4,
+                                            fontSize: 16, whiteSpace: 'nowrap',
+                                        }}
+                                    >
+                                        {savingVenta ? 'Guardando…' : (editingVenta ? 'Actualizar' : (metodoPago === 'Link de Pago' ? 'Cobrar con Link' : 'Registrar Venta'))}
+                                    </Button>
+                                    <Typography sx={{ fontSize: 10, color: 'text.disabled', textAlign: 'right' }}>
                                         Ctrl + Enter
                                     </Typography>
-                                </Grid>
-                            </Grid>
+                                </Box>
+                            </Box>
                         </Paper>
                         )}
                         </TabPanel>
