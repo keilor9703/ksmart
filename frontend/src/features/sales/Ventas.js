@@ -468,9 +468,15 @@ useEffect(() => {
         const producto = basculaProducto;
         setBasculaProducto(null);
         if (!producto || pesoKg <= 0) return;
-        const varId  = producto._varianteId   || null;
+        const varId  = producto._varianteId    || null;
         const varNom = producto._nombreVariante || null;
-        _agregarAlCarritoSimple(producto, pesoKg, producto.precio || 0, varId, varNom);
+        if (producto._detalleId) {
+            // Modo clásico — actualizar fila existente
+            _aplicarProductoEnDetalle(producto._detalleId, producto, pesoKg, producto.precio || 0, varId, varNom);
+        } else {
+            // Modo Touch — agregar al carrito
+            _agregarAlCarritoSimple(producto, pesoKg, producto.precio || 0, varId, varNom);
+        }
     };
 
     const handleConfirmarVariante = (variante) => {
@@ -480,10 +486,16 @@ useEffect(() => {
         const precio = variante.precio != null ? variante.precio : (producto.precio || 0);
         // Si además es pesable, abrir báscula con precio de la variante
         if (esPesable(producto.unidad_medida)) {
-            setBasculaProducto({ ...producto, precio, _varianteId: variante.id, _nombreVariante: variante.nombre });
+            setBasculaProducto({ ...producto, precio, _varianteId: variante.id, _nombreVariante: variante.nombre, _detalleId: producto._detalleId });
             return;
         }
-        _agregarAlCarritoSimple(producto, 1, precio, variante.id, variante.nombre);
+        if (producto._detalleId) {
+            // Modo clásico
+            _aplicarProductoEnDetalle(producto._detalleId, producto, 1, precio, variante.id, variante.nombre);
+        } else {
+            // Modo Touch
+            _agregarAlCarritoSimple(producto, 1, precio, variante.id, variante.nombre);
+        }
     };
     const handleRemoveOneFromCart = (productoId) => {
         setSaleDetails(prev => {
@@ -726,11 +738,39 @@ useEffect(() => {
     };
     const handleFieldChange = (id, field, value) => setSaleDetails(p => p.map(d => d.id === id ? { ...d, [field]: value } : d));
     const handleProductChange = (id, newValue) => {
+        if (!newValue) {
+            handleFieldChange(id, 'producto', null);
+            handleFieldChange(id, 'precioUnitario', 0);
+            return;
+        }
+        // Variantes: mostrar selector primero
+        if (newValue.tiene_variantes && newValue.variantes?.length > 0) {
+            setVarianteProducto({ ...newValue, _detalleId: id });
+            return;
+        }
+        // Pesable: abrir báscula
+        if (esPesable(newValue.unidad_medida)) {
+            setBasculaProducto({ ...newValue, _detalleId: id });
+            return;
+        }
         handleFieldChange(id, 'producto', newValue);
         handleFieldChange(id, 'precioUnitario', newValue?.precio ?? 0);
-        // Auto-sugerir IVA del producto si tiene impuesto asignado
         if (newValue?.impuesto?.porcentaje != null) {
             setIvaPorcentajeGlobal(newValue.impuesto.porcentaje);
+        }
+    };
+
+    // Confirmar peso desde báscula en modo clásico
+    const _aplicarProductoEnDetalle = (detalleId, producto, cantidad, precio, varianteId, nombreVariante) => {
+        handleFieldChange(detalleId, 'producto', producto);
+        handleFieldChange(detalleId, 'precioUnitario', precio);
+        handleFieldChange(detalleId, 'cantidad', cantidad);
+        if (varianteId) {
+            handleFieldChange(detalleId, 'varianteId', varianteId);
+            handleFieldChange(detalleId, 'nombreVariante', nombreVariante);
+        }
+        if (producto?.impuesto?.porcentaje != null) {
+            setIvaPorcentajeGlobal(producto.impuesto.porcentaje);
         }
     };
 
