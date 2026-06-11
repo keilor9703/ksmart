@@ -410,7 +410,7 @@ const Ventas = ({ user }) => {
             .then(r => setClientePuntos(r.data.puntos_disponibles || 0))
             .catch(() => setClientePuntos(0));
     }, []);
-    const fetchProductos     = () => apiClient.get('/productos/', { params: { solo_pos: true } }).then(r => setProductos(r.data)).catch(console.error);
+    const fetchProductos     = () => apiClient.get('/productos/', { params: { solo_pos: true } }).then(r => setProductos([...r.data].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))).catch(console.error);
     const fetchGrupos        = () => apiClient.get('/grupos-producto/').then(r => setGrupos(r.data)).catch(console.error);
     const fetchVentasSummary = () => apiClient.get('/reportes/ventas_summary').then(r => setTotalVentasHoy(r.data.total_ventas_hoy)).catch(console.error);
 
@@ -721,7 +721,7 @@ useEffect(() => {
             setClientes(prev => [...prev, nuevo]);
             setCliente(nuevo); setClienteInput(nuevo.nombre); setIsMostrador(false);
         } else {
-            setProductos(prev => [...prev, nuevo]);
+            setProductos(prev => [...prev, nuevo].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')));
             if (quickCreate.targetIdx !== null) {
                 handleProductChange(quickCreate.targetIdx, nuevo);
                 handleProductoInputChange(quickCreate.targetIdx, nuevo.nombre);
@@ -1181,11 +1181,16 @@ useEffect(() => {
                                         </Button>
                                         <Button size="small" startIcon={<Add />} onClick={handleAddSaleDetail}
                                             sx={{ color: ACCENT, fontWeight: 600, fontSize: 12 }}>
-                                            Agregar línea
+                                            Agregar producto
                                         </Button>
                                     </Box>
                                 </Box>
 
+                                {/* Lista con scroll independiente */}
+                                <Box sx={{ maxHeight: 340, overflowY: 'auto', pr: 0.5,
+                                    '&::-webkit-scrollbar': { width: 4 },
+                                    '&::-webkit-scrollbar-thumb': { bgcolor: `${ACCENT}50`, borderRadius: 2 },
+                                }}>
                                 {saleDetails.map(detail => (
                                     detail.isLibre ? (
                                         <Box key={detail.id} sx={{
@@ -1256,6 +1261,7 @@ useEffect(() => {
                                         />
                                     )
                                 ))}
+                                </Box>{/* fin scroll */}
                             </Box>
                         </Box>
                     ) : (
