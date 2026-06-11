@@ -284,6 +284,8 @@ def cobrar_orden(
         tipo_vehiculo=orden.tipo_vehiculo,
         operador_id=orden.operador_id,
         observaciones=orden.observaciones,
+        descuento_puntos=descuento_pts,
+        puntos_canjeados=body.puntos_canjeados or 0,
         origen='lavadero',
     )
     db.add(venta)

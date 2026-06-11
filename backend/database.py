@@ -1850,6 +1850,17 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v87)
                 logger.info("V87 (variante en detalles_venta) aplicada.")
 
+            migration_v88 = "v88_venta_puntos_fidelizacion"
+            if not _migration_already_applied(conn, migration_v88):
+                for col, tipo in [("descuento_puntos", "FLOAT DEFAULT 0"), ("puntos_canjeados", "INTEGER DEFAULT 0")]:
+                    try:
+                        conn.execute(text(f"ALTER TABLE ventas ADD COLUMN {col} {tipo}"))
+                        logger.info(f"V88: añadido ventas.{col}")
+                    except Exception:
+                        pass
+                _mark_migration_applied(conn, migration_v88)
+                logger.info("V88 (puntos fidelización en ventas) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

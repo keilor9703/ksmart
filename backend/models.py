@@ -478,6 +478,10 @@ class Venta(Base, TenantMixin):
     placa_vehiculo  = Column(String(15), nullable=True)
     tipo_vehiculo   = Column(String(20), nullable=True)
 
+    # Fidelización — puntos canjeados en esta venta
+    descuento_puntos = Column(Float, default=0.0, nullable=True)
+    puntos_canjeados = Column(Integer, default=0, nullable=True)
+
     # Origen del ingreso — identifica qué módulo generó esta venta
     origen          = Column(String(40), nullable=True, default="erp")
     # Valores: 'erp' | 'lavadero' | 'parqueadero_suscripcion' | 'parqueadero_horas' | 'restaurante' | 'pedido_virtual'
