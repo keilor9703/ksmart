@@ -139,7 +139,7 @@ const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRe
     return (
         <Box sx={{
             display: 'flex', flexDirection: isMobile ? 'column' : 'row',
-            alignItems: isMobile ? 'stretch' : 'center',
+            alignItems: isMobile ? 'stretch' : 'flex-start',
             gap: 1, mb: 1.5, p: isMobile ? 2 : 1.5,
             borderRadius: 2, bgcolor: 'action.hover',
             border: '1px solid', borderColor: stockBajo ? '#F59E0B50' : 'divider',
@@ -223,7 +223,7 @@ const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRe
             </Box>
 
             {/* Cantidad con +/- */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: isMobile ? '100%' : 'auto' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: isMobile ? '100%' : 'auto', mt: isMobile ? 0 : 0.4 }}>
                 <IconButton size="small" onClick={() => handleQty(-1)} sx={{ color: '#EF4444', p: 0.5 }}>
                     <RemoveCircle fontSize="small" />
                 </IconButton>
@@ -244,7 +244,7 @@ const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRe
             </Box>
 
             {/* Precio (bloqueado por defecto) */}
-            <Box sx={{ minWidth: isMobile ? '100%' : 120 }}>
+            <Box sx={{ minWidth: isMobile ? '100%' : 120, mt: isMobile ? 0 : 0.4 }}>
                 {priceUnlocked ? (
                     <CurrencyField
                         label="Precio" size="small"
@@ -277,6 +277,7 @@ const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRe
             </Box>
 
             {/* Desc % (compacto) */}
+            <Box sx={{ mt: isMobile ? 0 : 0.4 }}>
             <SmartTooltip
                 id="venta_descuento"
                 title="Descuento por ítem"
@@ -292,9 +293,10 @@ const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRe
                     sx={{ width: isMobile ? '100%' : 68 }}
                 />
             </SmartTooltip>
+            </Box>
 
             {/* Subtotal + quitar */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end', mt: isMobile ? 0 : 0.4 }}>
                 <Box sx={{ textAlign: 'right' }}>
                     {(detail.descuentoPct || 0) > 0 && (
                         <Typography sx={{ fontSize: 10, color: 'text.secondary', textDecoration: 'line-through' }}>{formatCurrency(subtotalSinDesc)}</Typography>
