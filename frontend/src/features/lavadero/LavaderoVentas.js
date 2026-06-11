@@ -62,10 +62,35 @@ const SectionLabel = ({ children }) => (
 );
 
 /* ── Tarjeta de orden en el tablero ─────────────────────────────────────── */
-function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar }) {
+function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar, trabajadores }) {
   const TipoIcon = TIPOS_VEHICULO.find(t => t.label === orden.tipo_vehiculo)?.icon ?? DirectionsCar;
+  const [cambiandoLavador, setCambiandoLavador] = useState(false);
+  const [nuevoLavadorObj, setNuevoLavadorObj] = useState(null);
+  const [confirmandoCambio, setConfirmandoCambio] = useState(false);
+
+  const handleIniciarLavado = () => {
+    // Si es recibido → lavando, ofrecer cambio de lavador
+    if (estadoConfig.key === 'recibido') {
+      setNuevoLavadorObj(null);
+      setConfirmandoCambio(true);
+    } else {
+      onEstadoChange(orden.id, estadoConfig.nextKey);
+    }
+  };
+
+  const handleConfirmarInicio = async () => {
+    setConfirmandoCambio(false);
+    if (nuevoLavadorObj) {
+      // Cambiar lavador y avanzar estado
+      await onEstadoChange(orden.id, estadoConfig.nextKey, nuevoLavadorObj.id);
+    } else {
+      await onEstadoChange(orden.id, estadoConfig.nextKey);
+    }
+    setNuevoLavadorObj(null);
+  };
 
   return (
+    <>
     <Paper
       elevation={0}
       sx={{
@@ -98,22 +123,30 @@ function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar }) {
           ))}
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 0.5 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
-            {orden.operador_nombre && (
-              <>
-                <Person sx={{ fontSize: 13, color: 'text.disabled' }} />
-                <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{orden.operador_nombre}</Typography>
-              </>
-            )}
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
-              <AccessTime sx={{ fontSize: 12, color: 'text.disabled' }} />
-              <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{getElapsed(orden.fecha_entrada)}</Typography>
+        {/* Lavador y cliente */}
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 0.8 }}>
+          {orden.operador_nombre && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4,
+              bgcolor: `${BLUE}12`, px: 1, py: 0.3, borderRadius: 1 }}>
+              <Person sx={{ fontSize: 12, color: BLUE }} />
+              <Typography sx={{ fontSize: 11, fontWeight: 600, color: BLUE }}>{orden.operador_nombre}</Typography>
             </Box>
-            <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{formatCurrency(orden.total || 0)}</Typography>
+          )}
+          {orden.cliente_nombre && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4,
+              bgcolor: `${GREEN}12`, px: 1, py: 0.3, borderRadius: 1 }}>
+              <Person sx={{ fontSize: 12, color: GREEN }} />
+              <Typography sx={{ fontSize: 11, fontWeight: 600, color: GREEN }}>{orden.cliente_nombre}</Typography>
+            </Box>
+          )}
+        </Box>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 0.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+            <AccessTime sx={{ fontSize: 12, color: 'text.disabled' }} />
+            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{getElapsed(orden.fecha_entrada)}</Typography>
           </Box>
+          <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{formatCurrency(orden.total || 0)}</Typography>
         </Box>
 
         {orden.observaciones && (
@@ -127,7 +160,7 @@ function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar }) {
             <Button
               size="small" fullWidth variant="contained"
               startIcon={<estadoConfig.NextIcon sx={{ fontSize: 14 }} />}
-              onClick={() => onEstadoChange(orden.id, estadoConfig.nextKey)}
+              onClick={handleIniciarLavado}
               sx={{
                 bgcolor: estadoConfig.color, '&:hover': { filter: 'brightness(0.9)' },
                 fontWeight: 700, fontSize: 11, textTransform: 'none', borderRadius: 1.5, py: 0.8,
@@ -152,6 +185,38 @@ function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar }) {
         </Box>
       </Box>
     </Paper>
+
+    {/* Diálogo: cambiar lavador al iniciar */}
+    <Dialog open={confirmandoCambio} onClose={() => setConfirmandoCambio(false)} maxWidth="xs" fullWidth>
+      <DialogTitle sx={{ fontWeight: 800, fontSize: 16 }}>Iniciar lavado — {orden.placa}</DialogTitle>
+      <DialogContent>
+        <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 2 }}>
+          Lavador asignado: <strong>{orden.operador_nombre || 'Sin asignar'}</strong>
+        </Typography>
+        <Typography sx={{ fontSize: 13, mb: 1.5 }}>
+          ¿Deseas cambiar el lavador antes de iniciar?
+        </Typography>
+        <Autocomplete
+          size="small"
+          options={trabajadores || []}
+          getOptionLabel={t => t.nombre_completo || t.username}
+          value={nuevoLavadorObj}
+          onChange={(_, v) => setNuevoLavadorObj(v)}
+          renderInput={params => <TextField {...params} label="Cambiar lavador (opcional)" />}
+        />
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+        <Button onClick={() => setConfirmandoCambio(false)} variant="outlined"
+          sx={{ borderRadius: 2, borderColor: 'divider', color: 'text.secondary' }}>
+          Cancelar
+        </Button>
+        <Button onClick={handleConfirmarInicio} variant="contained"
+          sx={{ bgcolor: AMBER, '&:hover': { bgcolor: '#d97706' }, borderRadius: 2, fontWeight: 700 }}>
+          {nuevoLavadorObj ? 'Cambiar y comenzar' : 'Iniciar lavado'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+    </>
   );
 }
 
@@ -365,6 +430,7 @@ export default function LavaderoVentas({ user }) {
   const handleRegistrar = async () => {
     if (!placa.trim()) { toast.warning('Ingresa la placa del vehículo.'); return; }
     if (carrito.length === 0) { toast.warning('Agrega al menos un servicio.'); return; }
+    if (isAdmin && !operadorId) { toast.warning('Debes asignar un lavador antes de registrar.'); return; }
 
     setSaving(true);
     try {
@@ -394,10 +460,13 @@ export default function LavaderoVentas({ user }) {
   };
 
   /* ── Avanzar estado ───────────────────────────────────────────────────── */
-  const handleEstadoChange = async (ordenId, nuevoEstado) => {
+  const handleEstadoChange = async (ordenId, nuevoEstado, nuevoOperadorId = null) => {
     setOrdenes(prev => prev.map(o => o.id === ordenId ? { ...o, estado: nuevoEstado } : o));
     try {
-      await apiClient.patch(`/lavadero/ordenes/${ordenId}`, { estado: nuevoEstado });
+      const payload = { estado: nuevoEstado };
+      if (nuevoOperadorId) payload.operador_id = nuevoOperadorId;
+      await apiClient.patch(`/lavadero/ordenes/${ordenId}`, payload);
+      fetchOrdenes();
     } catch {
       toast.error('Error al actualizar el estado.');
       fetchOrdenes();
@@ -715,7 +784,7 @@ export default function LavaderoVentas({ user }) {
           {/* Botón registrar */}
           <Button
             fullWidth variant="contained" size="large"
-            disabled={saving || carrito.length === 0 || !placa.trim()}
+            disabled={saving || carrito.length === 0 || !placa.trim() || (isAdmin && !operadorId)}
             onClick={handleRegistrar}
             startIcon={saving ? <CircularProgress size={18} color="inherit" /> : <CheckCircle />}
             sx={{
@@ -727,6 +796,11 @@ export default function LavaderoVentas({ user }) {
           >
             {saving ? 'Registrando…' : 'Registrar Entrada'}
           </Button>
+          {isAdmin && !operadorId && (
+            <Typography sx={{ fontSize: 11, color: 'error.main', textAlign: 'center', mt: 0.8 }}>
+              ⚠ Debes asignar un lavador para registrar
+            </Typography>
+          )}
         </Grid>
 
         {/* ══ RIGHT: Tablero kanban ══ */}
@@ -785,6 +859,7 @@ export default function LavaderoVentas({ user }) {
                           key={o.id}
                           orden={o}
                           estadoConfig={est}
+                          trabajadores={trabajadores}
                           onEstadoChange={handleEstadoChange}
                           onCobrar={ord => { setCobrarOrden(ord); setMetodoPago('Efectivo'); setMontoRecibido(0); }}
                           tick={tick}
@@ -809,6 +884,7 @@ export default function LavaderoVentas({ user }) {
                   <OrdenCard
                     key={o.id} orden={o}
                     estadoConfig={est}
+                    trabajadores={trabajadores}
                     onEstadoChange={handleEstadoChange}
                     onCobrar={ord => { setCobrarOrden(ord); setMetodoPago('Efectivo'); setMontoRecibido(0); }}
                     tick={tick}
