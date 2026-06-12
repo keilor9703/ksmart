@@ -1551,6 +1551,52 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v79)
                 logger.info("V79 (username único por empresa) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V80 - Compras: ítems libres + sort_order + grupo Envases
+            # ═══════════════════════════════════════════════════════════════
+            migration_v80 = "v80_compras_items_libres_sort_order"
+            if not _migration_already_applied(conn, migration_v80):
+                # Hacer producto_id nullable en detalles_compra
+                if not IS_SQLITE:
+                    conn.execute(text("""
+                        ALTER TABLE detalles_compra
+                            ALTER COLUMN producto_id DROP NOT NULL
+                    """))
+                # nombre_libre para ítems de única vez
+                if not _column_exists(conn, "detalles_compra", "nombre_libre"):
+                    if IS_SQLITE:
+                        conn.execute(text("ALTER TABLE detalles_compra ADD COLUMN nombre_libre TEXT NULL"))
+                    else:
+                        conn.execute(text("ALTER TABLE detalles_compra ADD COLUMN nombre_libre VARCHAR(200) NULL"))
+                    logger.info("V80: añadido detalles_compra.nombre_libre")
+
+                # sort_order para preservar orden de ingreso
+                if not _column_exists(conn, "detalles_compra", "sort_order"):
+                    conn.execute(text("ALTER TABLE detalles_compra ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0"))
+                    logger.info("V80: añadido detalles_compra.sort_order")
+
+                # Insertar grupo predefinido id=6 "Envases/Empaque" si no existe
+                existe_env = conn.execute(text("SELECT COUNT(*) FROM grupos_producto WHERE id = 6")).scalar()
+                if not existe_env:
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            INSERT INTO grupos_producto(id, empresa_id, nombre, codigo, color, es_predefinido, orden, requiere_cocina, visible_pos)
+                            VALUES(6, NULL, 'Envases/Empaque', 'ENV', '#14B8A6', 1, 6, 0, 0)
+                        """))
+                    else:
+                        conn.execute(text("""
+                            INSERT INTO grupos_producto(id, empresa_id, nombre, codigo, color, es_predefinido, orden, requiere_cocina, visible_pos)
+                            VALUES(6, NULL, 'Envases/Empaque', 'ENV', '#14B8A6', TRUE, 6, FALSE, FALSE)
+                            ON CONFLICT (id) DO NOTHING
+                        """))
+                        conn.execute(text(
+                            "SELECT setval('grupos_producto_id_seq', GREATEST((SELECT MAX(id) FROM grupos_producto), 6), true)"
+                        ))
+                    logger.info("V80: grupo predefinido 'Envases/Empaque' (id=6) insertado")
+
+                _mark_migration_applied(conn, migration_v80)
+                logger.info("V80 (ítems libres en compras + sort_order + grupo Envases) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

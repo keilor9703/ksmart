@@ -74,10 +74,10 @@ const fmtOCNum = (c) => {
 
 const handlePrintOC = (compra) => {
   const empresa = localStorage.getItem('empresa_nombre') || 'Mi Empresa';
-  const rows = (compra.detalles || []).map((d, i) => {
+  const rows = [...(compra.detalles || [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map((d, i) => {
     const sub = d.cantidad * d.precio_unitario;
     return `<tr style="${i % 2 === 0 ? 'background:#f8fafc' : ''}">
-      <td style="padding:10px 12px">${d.producto?.nombre || '—'}</td>
+      <td style="padding:10px 12px">${d.nombre_libre || d.producto?.nombre || '—'}</td>
       <td style="padding:10px 12px;text-align:center">${d.cantidad} ${d.producto?.unidad_medida || ''}</td>
       <td style="padding:10px 12px;text-align:right">${sub.toLocaleString('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0})}</td>
       ${d.numero_lote ? `<td style="padding:10px 12px;text-align:center;font-size:11px">${d.numero_lote} / Vence: ${d.fecha_vencimiento || '—'}</td>` : '<td style="padding:10px 12px;text-align:center;color:#94a3b8">—</td>'}
@@ -222,7 +222,7 @@ const Compras = () => {
     setProductoInputs(prev => { const next = [...prev]; next[idx] = val; return next; });
 
   const addDetalle = () => {
-    setDetalles(p => [...p, { producto_id: '', cantidad: 1, precio_unitario: 0, numero_lote: '', fecha_vencimiento: '', fecha_fabricacion: '' }]);
+    setDetalles(p => [...p, { producto_id: '', nombre_libre: '', es_libre: false, cantidad: 1, precio_unitario: 0, numero_lote: '', fecha_vencimiento: '', fecha_fabricacion: '' }]);
     setProductoInputs(p => [...p, '']);
   };
   const removeDetalle = (idx) => {
@@ -239,17 +239,18 @@ const Compras = () => {
 
   const resetForm = () => {
     setProveedorSel(null); setProveedorInput(''); setRefFactura(''); setObservaciones('');
-    setDetalles([{ producto_id: '', cantidad: 1, precio_unitario: 0, numero_lote: '', fecha_vencimiento: '', fecha_fabricacion: '' }]);
+    setDetalles([{ producto_id: '', nombre_libre: '', es_libre: false, cantidad: 1, precio_unitario: 0, numero_lote: '', fecha_vencimiento: '', fecha_fabricacion: '' }]);
     setProductoInputs(['']);
     setIvaPorcentajeGlobal(0); setPagadaAlCrear(false);
   };
 
   const handleSubmit = async () => {
-    if (!proveedorSel || detalles.some(d => !d.producto_id || d.cantidad <= 0)) {
-      toast.warning('Complete el proveedor y los ítems de compra.');
+    if (!proveedorSel || detalles.some(d => (!d.es_libre && !d.producto_id) || (d.es_libre && !d.nombre_libre?.trim()) || d.cantidad <= 0)) {
+      toast.warning('Complete el proveedor y todos los ítems de compra.');
       return;
     }
     for (let d of detalles) {
+      if (d.es_libre) continue;
       const prod = productos.find(p => p.id === parseInt(d.producto_id));
       if (prod?.maneja_lotes && (!d.numero_lote || !d.fecha_vencimiento)) {
         toast.warning(`El producto "${prod.nombre}" es perecedero. Ingresa el Lote y Vencimiento.`);
@@ -262,9 +263,10 @@ const Compras = () => {
         proveedor_id: proveedorSel.id,
         referencia_factura: refFactura,
         observaciones: observaciones || null,
-        detalles: detalles.map(d => ({
-          ...d,
-          producto_id:     parseInt(d.producto_id),
+        detalles: detalles.map((d, idx) => ({
+          producto_id:     d.es_libre ? null : (parseInt(d.producto_id) || null),
+          nombre_libre:    d.es_libre ? d.nombre_libre.trim() : null,
+          sort_order:      idx,
           cantidad:        parseFloat(d.cantidad),
           precio_unitario: parseFloat(d.precio_unitario),
           iva_porcentaje:  0.0,
@@ -296,16 +298,20 @@ const Compras = () => {
     setObservaciones(c.observaciones || '');
     setIvaPorcentajeGlobal(c.iva_porcentaje || 0);
     setPagadaAlCrear(c.estado_pago === 'pagado');
-    const d = c.detalles.map(item => ({
-      producto_id: item.producto_id,
-      cantidad: item.cantidad,
-      precio_unitario: item.precio_unitario,
-      numero_lote: item.numero_lote || '',
-      fecha_vencimiento: item.fecha_vencimiento || '',
-      fecha_fabricacion: item.fecha_fabricacion || '',
-    }));
+    const d = [...c.detalles]
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      .map(item => ({
+        es_libre: !item.producto_id,
+        producto_id: item.producto_id || '',
+        nombre_libre: item.nombre_libre || '',
+        cantidad: item.cantidad,
+        precio_unitario: item.precio_unitario,
+        numero_lote: item.numero_lote || '',
+        fecha_vencimiento: item.fecha_vencimiento || '',
+        fecha_fabricacion: item.fecha_fabricacion || '',
+      }));
     setDetalles(d);
-    setProductoInputs(d.map(item => productos.find(p => p.id === item.producto_id)?.nombre || ''));
+    setProductoInputs(d.map(item => item.es_libre ? '' : (productos.find(p => p.id === item.producto_id)?.nombre || '')));
     setTab(0);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -525,10 +531,35 @@ const Compras = () => {
               </Box>
 
               {detalles.map((det, idx) => {
-                const prodSel = productos.find(p => p.id === parseInt(det.producto_id));
+                const prodSel = det.es_libre ? null : productos.find(p => p.id === parseInt(det.producto_id));
                 return (
-                  <Box key={idx} sx={{ mb: 1.5, p: isMobile ? 2 : 1.5, borderRadius: 2, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider' }}>
+                  <Box key={idx} sx={{ mb: 1.5, p: isMobile ? 2 : 1.5, borderRadius: 2, bgcolor: 'action.hover', border: '1px solid', borderColor: det.es_libre ? `${ACCENT}40` : 'divider' }}>
                     <Box sx={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: 1.5 }}>
+                      {/* Toggle ítem libre */}
+                      <Tooltip title={det.es_libre ? 'Cambiar a producto del catálogo' : 'Ítem de única vez (sin catálogo)'}>
+                        <Button
+                          size="small"
+                          variant={det.es_libre ? 'contained' : 'outlined'}
+                          onClick={() => {
+                            handleDetalleChange(idx, 'es_libre', !det.es_libre);
+                            handleDetalleChange(idx, 'producto_id', '');
+                            handleDetalleChange(idx, 'nombre_libre', '');
+                            handleProductoInputChange(idx, '');
+                          }}
+                          sx={{ minWidth: 36, px: 1, flexShrink: 0, borderRadius: 1.5, height: 40, fontSize: 18, ...(det.es_libre ? { bgcolor: ACCENT, '&:hover': { bgcolor: '#e0521a' }, borderColor: ACCENT } : { borderColor: 'divider', color: 'text.secondary' }) }}
+                        >✏️</Button>
+                      </Tooltip>
+
+                      {det.es_libre ? (
+                        <TextField
+                          label="Descripción del ítem"
+                          size="small"
+                          value={det.nombre_libre}
+                          onChange={(e) => handleDetalleChange(idx, 'nombre_libre', e.target.value)}
+                          placeholder="Ej: Flete, servicio técnico, varios…"
+                          sx={{ flex: 1, minWidth: isMobile ? '100%' : 220 }}
+                        />
+                      ) : (
                       <Autocomplete
                         options={productos} getOptionLabel={(p) => p.nombre || ''}
                         value={prodSel || null}
@@ -565,6 +596,7 @@ const Compras = () => {
                         )}
                         sx={{ flex: 1, minWidth: isMobile ? '100%' : 220 }}
                       />
+                      )}
                       <TextField type="number" label="Cantidad" value={det.cantidad} onChange={(e) => handleDetalleChange(idx, 'cantidad', e.target.value)} InputProps={{ inputProps: { min: 0, step: 'any' } }} sx={{ width: isMobile ? '100%' : 110 }} size="small" />
                       <CurrencyField label="Precio Unit. (Costo)" value={det.precio_unitario} onChange={(val) => handleDetalleChange(idx, 'precio_unitario', val)} sx={{ width: isMobile ? '100%' : 160 }} size="small" />
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>

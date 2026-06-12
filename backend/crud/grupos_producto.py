@@ -10,6 +10,7 @@ GRUPOS_PREDEFINIDOS = [
     {"id": 3, "nombre": "Activo Fijo",         "codigo": "AF",    "color": "#F59E0B", "orden": 3, "requiere_cocina": False},
     {"id": 4, "nombre": "Insumos",             "codigo": "INS",   "color": "#8B5CF6", "orden": 4, "requiere_cocina": False},
     {"id": 5, "nombre": "Platos y Preparaciones", "codigo": "PLATO", "color": "#EC4899", "orden": 5, "requiere_cocina": True},
+    {"id": 6, "nombre": "Envases/Empaque",     "codigo": "ENV",   "color": "#14B8A6", "orden": 6, "requiere_cocina": False},
 ]
 
 CATEGORIAS_RESTAURANTE = [
