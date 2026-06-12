@@ -14,7 +14,8 @@ import {
   Payments, HourglassBottom, Bolt, Shield,
   Close, QrCode2, Business, Person, Lock, Save,
   Language, LocationOn, Groups, Visibility, VisibilityOff,
-  OpenInNew, Email, Phone, Stars,
+  OpenInNew, Email, Phone, Stars, Storage, Security,
+  Cloud, Speed, Public, VerifiedUser, DataObject,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
@@ -866,6 +867,186 @@ const MiEmpresaTab = () => {
   );
 };
 
+// ─── PlataformaTab ────────────────────────────────────────────────────────────
+
+const PlataformaTab = () => {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+
+  const sectionIcon = (color) => ({
+    width: 36, height: 36, borderRadius: 2, flexShrink: 0,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    bgcolor: alpha(color, isDark ? 0.15 : 0.08),
+  });
+
+  const StatChip = ({ label, value, color }) => (
+    <Box sx={{
+      flex: 1, minWidth: 120,
+      p: 2, borderRadius: 3, textAlign: 'center',
+      bgcolor: alpha(color, isDark ? 0.1 : 0.06),
+      border: `1px solid ${alpha(color, 0.2)}`,
+    }}>
+      <Typography fontWeight={900} fontSize={22} color={color}>{value}</Typography>
+      <Typography fontSize={11} color="text.secondary" fontWeight={600}>{label}</Typography>
+    </Box>
+  );
+
+  const Feature = ({ icon, title, desc }) => (
+    <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+      <Box sx={{ mt: 0.2, color: '#059669', flexShrink: 0 }}>{icon}</Box>
+      <Box>
+        <Typography fontSize={13} fontWeight={700}>{title}</Typography>
+        <Typography fontSize={12} color="text.secondary">{desc}</Typography>
+      </Box>
+    </Box>
+  );
+
+  return (
+    <Box sx={{ pt: 2 }}>
+
+      {/* ── Hero Oracle ── */}
+      <Card elevation={0} sx={{
+        borderRadius: 4, mb: 3, overflow: 'hidden',
+        border: `1px solid ${alpha('#C74634', 0.3)}`,
+        background: isDark
+          ? `linear-gradient(135deg, ${alpha('#C74634', 0.1)} 0%, ${alpha('#0d1117', 0.9)} 100%)`
+          : `linear-gradient(135deg, ${alpha('#C74634', 0.06)} 0%, #fff 100%)`,
+      }}>
+        <Box sx={{ height: 4, background: 'linear-gradient(90deg, #C74634 0%, #f5a623 100%)' }} />
+        <Box sx={{ p: { xs: 2.5, md: 3.5 } }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2.5} alignItems={{ sm: 'center' }}>
+            <Avatar sx={{
+              width: 64, height: 64, flexShrink: 0,
+              bgcolor: alpha('#C74634', isDark ? 0.15 : 0.08),
+              border: `2px solid ${alpha('#C74634', 0.25)}`,
+            }}>
+              <Cloud sx={{ color: '#C74634', fontSize: 32 }} />
+            </Avatar>
+            <Box sx={{ flex: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
+                <Typography fontWeight={900} fontSize={18}>Oracle Cloud Infrastructure</Typography>
+                <Chip
+                  icon={<CheckCircle sx={{ fontSize: '13px !important', color: '#059669 !important' }} />}
+                  label="Activo"
+                  size="small"
+                  sx={{ bgcolor: alpha('#059669', 0.1), color: '#059669', fontWeight: 800, fontSize: 11, border: `1px solid ${alpha('#059669', 0.3)}` }}
+                />
+              </Box>
+              <Typography fontSize={13} color="text.secondary">
+                Ksmart360 opera sobre la misma infraestructura utilizada por instituciones financieras,
+                gobiernos y empresas Fortune 500 a nivel mundial.
+              </Typography>
+            </Box>
+          </Stack>
+
+          {/* Stats */}
+          <Box sx={{ display: 'flex', gap: 2, mt: 3, flexWrap: 'wrap' }}>
+            <StatChip label="CPUs ARM" value="4" color="#C74634" />
+            <StatChip label="RAM (GB)" value="24" color="#2563EB" />
+            <StatChip label="Almacenamiento" value="96 GB" color="#059669" />
+            <StatChip label="Uptime" value="24/7" color="#7C3AED" />
+          </Box>
+        </Box>
+      </Card>
+
+      {/* ── Características ── */}
+      <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${alpha(theme.palette.divider, 1)}`, mb: 2.5 }}>
+        <Box sx={{ px: 2.5, py: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={sectionIcon('#059669')}><VerifiedUser sx={{ color: '#059669', fontSize: 18 }} /></Box>
+          <Box>
+            <Typography fontWeight={700} fontSize={14}>Seguridad e Infraestructura</Typography>
+            <Typography fontSize={12} color="text.secondary">Estándares enterprise en cada capa</Typography>
+          </Box>
+        </Box>
+        <Divider />
+        <Box sx={{ px: 2.5, py: 2.5, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2.5 }}>
+          <Feature
+            icon={<Shield sx={{ fontSize: 18 }} />}
+            title="Servidor dedicado"
+            desc="Recursos exclusivos — sin compartir CPU ni memoria con otros servicios."
+          />
+          <Feature
+            icon={<Security sx={{ fontSize: 18 }} />}
+            title="HTTPS / TLS cifrado"
+            desc="Toda la comunicación entre tu negocio y la plataforma está cifrada con certificado SSL."
+          />
+          <Feature
+            icon={<Storage sx={{ fontSize: 18 }} />}
+            title="Base de datos privada"
+            desc="PostgreSQL en servidor propio. Tus datos no están en infraestructura compartida de terceros."
+          />
+          <Feature
+            icon={<Speed sx={{ fontSize: 18 }} />}
+            title="Arquitectura ARM de alto rendimiento"
+            desc="Procesadores ARM Ampere A1 — la misma arquitectura usada en chips Apple M1/M2."
+          />
+          <Feature
+            icon={<Public sx={{ fontSize: 18 }} />}
+            title="Disponibilidad continua"
+            desc="Servicio activo 24 horas los 7 días de la semana, sin interrupciones por inactividad."
+          />
+          <Feature
+            icon={<DataObject sx={{ fontSize: 18 }} />}
+            title="Soberanía de datos"
+            desc="Control total sobre la información — sin dependencia de servicios gratuitos con vencimiento."
+          />
+        </Box>
+      </Card>
+
+      {/* ── Credenciales Oracle ── */}
+      <Card elevation={0} sx={{
+        borderRadius: 3, mb: 2.5,
+        border: `1px solid ${alpha('#2563EB', 0.25)}`,
+        bgcolor: alpha('#2563EB', isDark ? 0.06 : 0.03),
+      }}>
+        <Box sx={{ px: 2.5, py: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={sectionIcon('#2563EB')}><Cloud sx={{ color: '#2563EB', fontSize: 18 }} /></Box>
+          <Box>
+            <Typography fontWeight={700} fontSize={14}>Infraestructura certificada</Typography>
+            <Typography fontSize={12} color="text.secondary">Respaldada por Oracle Corporation</Typography>
+          </Box>
+        </Box>
+        <Divider sx={{ borderColor: alpha('#2563EB', 0.15) }} />
+        <Box sx={{ px: 2.5, py: 2 }}>
+          {[
+            ['Proveedor cloud', 'Oracle Cloud Infrastructure (OCI)'],
+            ['Región', 'US Ashburn (us-ashburn-1)'],
+            ['Tipo de instancia', 'VM.Standard.A1.Flex — Always Free Tier'],
+            ['Sistema operativo', 'Ubuntu 22.04 LTS'],
+            ['Servidor web', 'Nginx + Gunicorn'],
+            ['Base de datos', 'PostgreSQL 14'],
+            ['API Backend', 'FastAPI (Python)'],
+          ].map(([label, value]) => (
+            <Box key={label} sx={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              py: 1.1, borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+            }}>
+              <Typography fontSize={12.5} color="text.secondary">{label}</Typography>
+              <Typography fontSize={12.5} fontWeight={600}>{value}</Typography>
+            </Box>
+          ))}
+        </Box>
+      </Card>
+
+      {/* ── Nota pie ── */}
+      <Box sx={{
+        p: 2, borderRadius: 2.5,
+        bgcolor: alpha(theme.palette.text.primary, isDark ? 0.04 : 0.025),
+        border: `1px solid ${alpha(theme.palette.divider, 1)}`,
+        display: 'flex', gap: 1.5, alignItems: 'flex-start',
+      }}>
+        <Shield sx={{ fontSize: 16, color: 'text.disabled', mt: 0.2, flexShrink: 0 }} />
+        <Typography fontSize={12} color="text.secondary">
+          Ksmart360 es desarrollado y operado por <strong>TechStack Colombia</strong>.
+          La infraestructura Oracle Cloud garantiza que tu información empresarial cumple con
+          los más altos estándares de disponibilidad y seguridad del sector tecnológico.
+        </Typography>
+      </Box>
+
+    </Box>
+  );
+};
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function MiSuscripcion({ user }) {
@@ -936,10 +1117,14 @@ export default function MiSuscripcion({ user }) {
       >
         <Tab label="Mi Empresa" />
         <Tab label="Suscripción" />
+        <Tab label="Plataforma" />
       </Tabs>
 
       {/* ── Tab 0: Mi Empresa ── */}
       {tab === 0 && <MiEmpresaTab />}
+
+      {/* ── Tab 2: Plataforma ── */}
+      {tab === 2 && <PlataformaTab />}
 
       {/* ── Tab 1: Suscripción ── */}
       {tab === 1 && <>
