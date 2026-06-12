@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>KSmart360 — Pitch Deck</title>
+  <title>KSmart360 — ERP SaaS Colombia</title>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -21,7 +21,6 @@
     html, body { width:100%; height:100%; background:var(--bg); color:var(--txt);
       font-family:'Segoe UI',system-ui,-apple-system,sans-serif; overflow:hidden; }
 
-    /* ── Slide system ── */
     .slide {
       position:absolute; inset:0;
       display:flex; flex-direction:column; justify-content:center; align-items:center;
@@ -34,7 +33,6 @@
     .slide.exit    { opacity:0; transform:translateX(-70px); }
     .inner         { width:100%; max-width:1320px; }
 
-    /* ── Typography ── */
     .tag {
       display:inline-flex; align-items:center; gap:.4rem;
       padding:.3rem .85rem; border-radius:20px;
@@ -45,16 +43,18 @@
     .t-b { background:rgba(59,130,246,.12); color:#60a5fa; border:1px solid rgba(59,130,246,.25); }
     .t-g { background:rgba(34,197,94,.12);  color:#4ade80; border:1px solid rgba(34,197,94,.25); }
     .t-p { background:rgba(139,92,246,.12); color:#a78bfa; border:1px solid rgba(139,92,246,.25); }
+    .t-c { background:rgba(6,182,212,.12);  color:#22d3ee; border:1px solid rgba(6,182,212,.25); }
 
     h1 { font-size:clamp(3rem,7vw,5.5rem); font-weight:900; line-height:1; letter-spacing:-.02em; }
     h2 { font-size:clamp(1.6rem,3.2vw,2.6rem); font-weight:800; line-height:1.1; letter-spacing:-.01em; }
 
     .grad { background:linear-gradient(135deg,#FF6020,#ff9d00);
       -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+    .grad-b { background:linear-gradient(135deg,#3b82f6,#06b6d4);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
 
     .sub { font-size:.95rem; color:var(--dim); margin-top:.5rem; line-height:1.6; }
 
-    /* ── Cards / Grids ── */
     .card  { background:var(--card); border:1px solid var(--bdr); border-radius:14px; padding:1.2rem; }
     .g     { display:grid; gap:.85rem; }
     .g2    { grid-template-columns:repeat(2,1fr); }
@@ -62,7 +62,6 @@
     .g4    { grid-template-columns:repeat(4,1fr); }
     .g5    { grid-template-columns:repeat(5,1fr); }
 
-    /* ── Fixed chrome ── */
     #logo { position:fixed; top:1.25rem; left:2rem; font-weight:900; font-size:.9rem;
       color:var(--o); z-index:200; letter-spacing:-.5px; }
     #cnt  { position:fixed; top:1.25rem; right:2rem; font-size:.7rem;
@@ -82,41 +81,44 @@
     .arr:hover { background:rgba(255,96,32,.15); border-color:rgba(255,96,32,.3); color:var(--o); }
     #a-l { left:1.25rem; } #a-r { right:1.25rem; }
 
-    /* ── Animations ── */
     @keyframes glow  { 0%,100%{box-shadow:0 0 30px rgba(255,96,32,.3),0 0 60px rgba(255,96,32,.1)} 50%{box-shadow:0 0 55px rgba(255,96,32,.55),0 0 110px rgba(255,96,32,.2)} }
     @keyframes blink { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }
+    @keyframes pulse-border { 0%,100%{border-color:rgba(255,96,32,.3)} 50%{border-color:rgba(255,96,32,.7)} }
 
     .glow-box { animation:glow 3s ease-in-out infinite; }
-
     .live { display:inline-flex; align-items:center; gap:.4rem; font-size:.75rem; color:#4ade80; }
     .live-dot { width:7px; height:7px; background:#4ade80; border-radius:50%; animation:blink 2s ease-in-out infinite; }
 
-    /* ── Layer diagram ── */
     .layer { border-radius:10px; padding:.72rem 1.2rem; text-align:center;
       font-weight:700; font-size:.8rem; border:1px solid; }
     .conn-line  { width:2px; height:18px; margin:0 auto;
       background:linear-gradient(to bottom,rgba(255,96,32,.6),rgba(255,96,32,.12)); }
     .conn-label { text-align:center; font-size:.58rem; color:rgba(255,255,255,.28); margin:1px 0; }
+
+    .badge-new { display:inline-flex;align-items:center;gap:.3rem;padding:.15rem .5rem;
+      background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);border-radius:10px;
+      font-size:.55rem;font-weight:800;color:#4ade80;letter-spacing:1px;text-transform:uppercase; }
   </style>
 </head>
 <body>
 
-<!-- Chrome -->
 <div id="logo">KSmart360</div>
 <div id="cnt"></div>
 <div id="dots"></div>
 <button class="arr" id="a-l">‹</button>
 <button class="arr" id="a-r">›</button>
 
-<!-- Slide containers (content injected by JS) -->
 <div class="slide" id="s0"></div>
 <div class="slide" id="s1"></div>
 <div class="slide" id="s2"></div>
 <div class="slide" id="s3"></div>
 <div class="slide" id="s4"></div>
 <div class="slide" id="s5"></div>
+<div class="slide" id="s6"></div>
+<div class="slide" id="s7"></div>
 
 <script>
+
 // ═══════════════════════════════════════════════════════════════
 //  SLIDE 0 — PORTADA
 // ═══════════════════════════════════════════════════════════════
@@ -128,29 +130,35 @@ document.getElementById('s0').innerHTML = `
 
   <div class="glow-box" style="width:90px;height:90px;border-radius:22px;margin-bottom:1.5rem;
     background:linear-gradient(135deg,#FF6020,#ff9d00);
-    display:flex;align-items:center;justify-content:center;font-size:2.4rem;">🧠</div>
+    display:flex;align-items:center;justify-content:center;font-size:2.4rem;">⚡</div>
 
-  <div class="tag t-o">Plataforma SaaS &nbsp;·&nbsp; Colombia &nbsp;·&nbsp; 2026</div>
+  <div class="tag t-o">ERP SaaS &nbsp;·&nbsp; Colombia &nbsp;·&nbsp; Oracle Cloud &nbsp;·&nbsp; 2026</div>
 
   <h1><span class="grad">KSmart</span><span style="color:#fff">360</span></h1>
 
   <p style="font-size:clamp(.95rem,2.2vw,1.35rem);color:rgba(255,255,255,.6);
-    max-width:640px;margin-top:1rem;line-height:1.65;">
-    La plataforma de gestión empresarial que transforma cómo las PYMEs colombianas
-    venden, registran inventario, cobran y crecen — todo en un solo sistema, desde la nube.
+    max-width:680px;margin-top:1rem;line-height:1.65;">
+    La plataforma de gestión empresarial más completa para PYMEs colombianas.
+    Ventas, inventario, producción, cobros, restaurante y facturación DIAN —
+    todo en un solo sistema, desde la nube, con infraestructura <strong style="color:#FF6020;">Oracle Cloud</strong>.
   </p>
 
-  <div style="display:flex;gap:4rem;margin-top:3rem;">
-    ${[['5+','Tipos de negocio'],['27+','Módulos activos'],['8','Integraciones'],['∞','Empresas simultáneas']].map(([n,l])=>`
+  <div style="display:flex;gap:3.5rem;margin-top:3rem;flex-wrap:wrap;justify-content:center;">
+    ${[['18+','Módulos activos'],['5','Tipos de negocio'],['89','Migraciones automáticas'],['∞','Empresas simultáneas']].map(([n,l])=>`
       <div style="text-align:center;">
         <div style="font-size:2.2rem;font-weight:900;color:#FF6020;line-height:1;">${n}</div>
         <div style="font-size:.6rem;color:rgba(255,255,255,.38);text-transform:uppercase;letter-spacing:1.5px;margin-top:.25rem;">${l}</div>
       </div>`).join('')}
   </div>
 
-  <div style="margin-top:2.5rem;" class="live">
+  <div style="display:flex;gap:.6rem;margin-top:2rem;flex-wrap:wrap;justify-content:center;">
+    ${['🏛️ Oracle Cloud ARM','🐘 PostgreSQL 17','⚛️ React 18','🐍 FastAPI','🔐 WebAuthn FIDO2','🧾 DIAN Electrónica','💳 Wompi'].map(t=>`
+      <span style="padding:.3rem .75rem;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:20px;font-size:.65rem;color:rgba(255,255,255,.5);">${t}</span>`).join('')}
+  </div>
+
+  <div style="margin-top:2rem;" class="live">
     <span class="live-dot"></span>
-    Sistema en producción &nbsp;·&nbsp; Demo en vivo disponible ahora mismo
+    Sistema en producción &nbsp;·&nbsp; api.appjeylor.com &nbsp;·&nbsp; Demo en vivo disponible
   </div>
 </div>
 `;
@@ -162,9 +170,9 @@ document.getElementById('s1').innerHTML = `
 <div class="inner">
   <div class="tag t-o">Oportunidad de Mercado</div>
   <h2>2.5 millones de PYMEs en Colombia <span class="grad">sin ERP accesible</span></h2>
-  <p class="sub" style="max-width:680px;margin-bottom:1.75rem;">
-    El 94&nbsp;% de las empresas colombianas son micro y pequeñas. La mayoría opera con cuadernos,
-    Excel o sistemas costosos con funcionalidades limitadas.
+  <p class="sub" style="max-width:700px;margin-bottom:1.75rem;">
+    El 94&nbsp;% de las empresas colombianas son micro y pequeñas. Operan con cuadernos,
+    Excel o sistemas costosos e importados que no están localizados para Colombia.
   </p>
 
   <div class="g g3" style="margin-bottom:1.25rem;">
@@ -172,15 +180,18 @@ document.getElementById('s1').innerHTML = `
       {icon:'📓',c:'#ef4444',t:'El problema hoy',
        items:['Cuadernos y Excel sin trazabilidad','Software importado caro y complejo',
               'Sin integración DIAN nativa','Sin pasarela de pagos colombiana',
-              'Sin soporte para múltiples negocios']},
+              'Sin soporte para múltiples negocios','Descuadres por redondeo de centavos',
+              'Compras sin ítems de gastos ocasionales']},
       {icon:'✅',c:'#22c55e',t:'Lo que ofrece KSmart360',
-       items:['ERP completo desde la nube, sin instalación','Suscripción mensual accesible',
-              '100&nbsp;% localizado para Colombia','Wompi + DIAN + WhatsApp integrados',
-              '4 tipos de negocio en un solo sistema']},
+       items:['ERP completo desde la nube · Sin instalación','Suscripción mensual accesible para PYMEs',
+              '100&nbsp;% localizado Colombia (DIAN · NIT · TRM)','Wompi · WhatsApp · FIDO2 integrados',
+              '5 perfiles de negocio en un solo sistema','Precios con decimales exactos (centavos)',
+              'Ítems libres en compras y categorías diferenciadas']},
       {icon:'📈',c:'#FF6020',t:'La oportunidad',
-       items:['Mercado de miles de millones sin penetrar','Costo marginal ~$0 por cliente nuevo',
-              'SaaS = ingresos mensuales recurrentes','Barreras de entrada altas (módulos)',
-              'Expansión natural: MX · EC · PE · VE']},
+       items:['Mercado de miles de millones sin penetrar','Costo marginal ≈ $0 por cliente nuevo',
+              'SaaS = ingresos mensuales recurrentes','Barreras de entrada altísimas (módulos)',
+              'Oracle Cloud gratis = infraestructura sin costo','Expansión natural: MX · EC · PE · VE',
+              'Producto real en producción — no un MVP']},
     ].map(col=>`
       <div class="card" style="border-top:3px solid ${col.c};">
         <div style="font-size:1.5rem;margin-bottom:.5rem;">${col.icon}</div>
@@ -193,8 +204,8 @@ document.getElementById('s1').innerHTML = `
   </div>
 
   <div style="display:flex;gap:.6rem;flex-wrap:wrap;">
-    ${['🇨🇴 NIT · Tipo documento · RUT','💳 Wompi (Bancolombia)','📄 Facturación electrónica DIAN',
-       '💬 WhatsApp Cloud API','💱 TRM Datos.gov.co'].map(t=>`
+    ${['🇨🇴 NIT · Tipo documento · RUT','💳 Wompi (Bancolombia · PSE · Nequi)','📄 Facturación electrónica DIAN',
+       '💬 WhatsApp Cloud API','💱 TRM Datos.gov.co','🏛️ Oracle Cloud ARM · Always Free'].map(t=>`
       <span style="padding:.32rem .8rem;background:rgba(255,96,32,.08);
         border:1px solid rgba(255,96,32,.2);border-radius:20px;font-size:.68rem;color:#FF6020;">${t}</span>`).join('')}
   </div>
@@ -208,28 +219,28 @@ document.getElementById('s2').innerHTML = `
 <div class="inner">
   <div class="tag t-o">Funcionalidades</div>
   <h2>Todo lo que tu empresa necesita. <span class="grad">Un solo sistema.</span></h2>
-  <p class="sub" style="margin-bottom:1.5rem;">
-    POS · Inventario · Cobranzas · Catálogo Virtual · Producción · Reportes · DIAN · y mucho más
+  <p class="sub" style="margin-bottom:1.4rem;">
+    POS · Inventario · Producción BOM · Compras · Cartera · Catálogo Virtual · Restaurante · DIAN · y mucho más
   </p>
 
   <div class="g g4" style="margin-bottom:1rem;">
     ${[
       {icon:'🛒',c:'#FF6020',t:'POS Dual Mode',
-       d:'Clásico (teclado + barcode) y Touch Mode táctil. Hasta 4 métodos de pago en una sola factura.'},
+       d:'Clásico (teclado + barcode) y Touch Mode táctil. Hasta 4 métodos de pago por factura. Programa de puntos integrado.'},
       {icon:'📦',c:'#3b82f6',t:'Inventario FEFO',
-       d:'Kardex automático por costo promedio, trazabilidad por lote, alertas de stock mínimo, FEFO para perecederos.'},
+       d:'Kardex por costo promedio, lotes perecederos, alertas de stock. Categorías: MP · PT · Insumos · <strong style="color:#14B8A6">Envases</strong> · Activos.'},
       {icon:'🌐',c:'#22c55e',t:'Catálogo + WhatsApp',
-       d:'Tienda virtual pública con URL única por empresa. El cliente ve productos y pide directo por WhatsApp.'},
-      // {icon:'💸',c:'#f59e0b',t:'Préstamos & Cobros',
-      //  d:'Amortización automática, mora en tiempo real, rutas de cobro, GPS y evidencia fotográfica de cada visita.'},
+       d:'Tienda pública con URL única por empresa. Sincronización de stock automática. Pedidos por WhatsApp directo.'},
       {icon:'🏭',c:'#8b5cf6',t:'Producción BOM',
-       d:'Recetas con ingredientes, rendimiento configurable, rollup de costos, lotes de producción con scrap.'},
+       d:'Recetas con ingredientes, rendimiento, merma y costo automático. Lotes de producción: MP → Producto Terminado.'},
       {icon:'📊',c:'#ec4899',t:'9 Tipos de Reporte',
-       d:'Rentabilidad, IVA neto, CxC, P&L, kardex, vendedores, productividad. Exporta a Excel y PDF.'},
+       d:'Rentabilidad, IVA neto, CxC aging, P&L, kardex, productividad, préstamos, producción. Export Excel + PDF.'},
       {icon:'🧾',c:'#06b6d4',t:'DIAN Electrónica',
-       d:'Resoluciones, numeración automática, campos tributarios NIT/DV. Integración Matias API activa.'},
+       d:'Resoluciones, numeración automática, CUFE, XML/PDF. Integración Matias API. Campos tributarios completos.'},
       {icon:'👥',c:'#10b981',t:'Clientes & Fidelización',
-       d:'CRM con límite de crédito, historial, cuentas por cobrar aging, programa de puntos canjeables.'},
+       d:'CRM con cupo de crédito, aging, historial. Programa de puntos canjeables configurado por empresa.'},
+      {icon:'🛍️',c:'#f59e0b',t:'Compras Inteligentes',
+       d:'Ítems de única vez sin catálogo, orden de ingreso preservado, soporte de centavos. OC en PDF automático.'},
     ].map(f=>`
       <div class="card" style="border-top:2px solid ${f.c}30;">
         <div style="font-size:1.45rem;margin-bottom:.4rem;">${f.icon}</div>
@@ -239,8 +250,9 @@ document.getElementById('s2').innerHTML = `
   </div>
 
   <div style="display:flex;gap:.45rem;flex-wrap:wrap;">
-    ${['✅ Biométrico FIDO2/WebAuthn','✅ Modo claro / oscuro','✅ Responsive tablet / móvil',
-       '✅ SuperAdmin multi-empresa','✅ Jobs automáticos (cron)','✅ Rate limiting · Audit log'].map(f=>`
+    ${['✅ Biométrico FIDO2/WebAuthn','✅ PIN de acceso rápido','✅ Modo claro / oscuro','✅ Responsive tablet/móvil',
+       '✅ SuperAdmin multi-empresa','✅ Jobs automáticos (mora · expiración)','✅ Rate limiting · Audit log',
+       '✅ Variantes de producto','✅ Contabilidad automática PUC'].map(f=>`
       <span style="font-size:.66rem;padding:.25rem .65rem;
         background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);
         border-radius:12px;color:#4ade80;">${f}</span>`).join('')}
@@ -254,33 +266,37 @@ document.getElementById('s2').innerHTML = `
 document.getElementById('s3').innerHTML = `
 <div class="inner">
   <div class="tag t-p">Mercado Objetivo</div>
-  <h2>Un sistema. <span class="grad">Cuatro industrias.</span></h2>
+  <h2>Un sistema. <span class="grad">Cinco industrias.</span></h2>
   <p class="sub" style="margin-bottom:1.75rem;">
-    Cada tipo de negocio tiene su perfil de módulos activado automáticamente al registrarse. Sin configuración.
+    Cada tipo de negocio activa exactamente los módulos que necesita al registrarse. Sin configuración manual. Sin pagar por lo que no se usa.
   </p>
 
   <div class="g g5">
     ${[
       {icon:'🏪',c:'#FF6020',n:'Comercio ERP',
-       s:'Retail · Mayorista · Ferretería · Distribuidora',
-       fs:['POS dual mode','Inventario FEFO','Gestión compras','Facturación DIAN',
-           'Producción BOM','Cartera CxC','Catálogo online']},
-      // {icon:'💰',c:'#f59e0b',n:'Prestamista',
-      //  s:'Microfinanzas · Crédito informal · Cooperativas',
-      //  fs:['Amortización auto','Mora tiempo real','Rutas de cobro','GPS + evidencia',
-      //      'Abono a capital','PDF recibos','WhatsApp alerts']},
+       s:'Retail · Mayorista · Ferretería · Distribuidora · Taller',
+       fs:['POS dual mode + barcode','Inventario FEFO + lotes','Compras con ítems libres',
+           'Facturación DIAN electrónica','Producción BOM + transformación',
+           'Cartera CxC + fidelización','Catálogo virtual online']},
+      {icon:'💰',c:'#f59e0b',n:'Prestamista',
+       s:'Microfinanzas · Crédito informal · Cooperativas',
+       fs:['Amortización automática','Mora en tiempo real','Ruta de cobro GPS',
+           'Evidencia fotográfica','Abono a capital','PDF recibos WhatsApp',
+           'Análisis de cartera aging']},
       {icon:'🚗',c:'#3b82f6',n:'Parqueadero',
-       s:'Motos · Carros · Bicicletas',
-       fs:['Entrada / salida','Tarifas multi-tipo','Suscripciones','Ocupación real-time',
-           'Multi-pago','Expiración auto','Reportes ingreso']},
+       s:'Motos · Carros · Bicicletas · Mix',
+       fs:['Entrada / salida rápida','Tarifas por tipo de vehículo','Suscripciones mensuales',
+           'Ocupación en tiempo real','Multi-método de pago','Alertas WhatsApp vencimiento',
+           'Reportes de ingreso']},
       {icon:'🚿',c:'#22c55e',n:'Lavadero',
        s:'Autolavado · Detailing · Car wash',
-       fs:['POS servicios','Asignación operario','Comisiones auto',
-           'Reporte productividad','Servicios config.','Control de turno']},
+       fs:['POS de servicios de lavado','Asignación de operadores','Comisiones automáticas',
+           'Reporte de productividad','Historial por placa','Control de turno y estado']},
       {icon:'🍽️',c:'#8b5cf6',n:'Restaurante',
-       s:'Cafetería · Comidas rápidas · Food court',
-       fs:['Mapa de mesas','Multi-zona','Comandas digitales',
-           'KDS pantalla cocina','Estado por ítem','Caja integrada']},
+       s:'Cafetería · Comidas rápidas · Restaurante',
+       fs:['Mapa de mesas multi-zona','Comandas digitales tablet','KDS pantalla de cocina',
+           'Estado por ítem en tiempo real','Caja integrada del cajero',
+           'Impresión de comandas P80','Categorías de menú configurables']},
     ].map(b=>`
       <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);
         border-radius:16px;padding:1.25rem;border-top:3px solid ${b.c};">
@@ -302,28 +318,35 @@ document.getElementById('s3').innerHTML = `
 document.getElementById('s4').innerHTML = `
 <div class="inner">
   <div class="tag t-b">Arquitectura Técnica</div>
-  <h2>Ingeniería de <span class="grad">nivel empresarial</span></h2>
+  <h2>Ingeniería de <span class="grad">nivel enterprise</span></h2>
   <p class="sub" style="margin-bottom:1.75rem;">
-    Multi-tenant SaaS · Cloud-native · Seguridad desde la base · Escala a miles de empresas sin costo adicional
+    Multi-tenant SaaS · Oracle Cloud ARM · PostgreSQL 17 auto-hospedado · CI/CD automático · Seguridad desde la base
   </p>
 
   <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:2rem;align-items:start;">
 
-    <!-- Left: Architecture diagram -->
     <div>
       <p style="font-size:.58rem;text-transform:uppercase;letter-spacing:2px;
-        color:rgba(255,255,255,.32);margin-bottom:.75rem;">Stack & Arquitectura Multi-Tenant SaaS</p>
+        color:rgba(255,255,255,.32);margin-bottom:.75rem;">Stack & Flujo Multi-Tenant</p>
 
       <div class="layer" style="border-color:rgba(59,130,246,.5);background:rgba(59,130,246,.07);color:#60a5fa;">
         ⚛️ &nbsp; React 18 SPA &nbsp;·&nbsp; Material UI v5 &nbsp;·&nbsp; Vercel CDN Global
       </div>
       <div style="display:flex;flex-direction:column;align-items:center;padding:2px 0;">
         <div class="conn-line"></div>
-        <div class="conn-label">HTTPS / REST / JSON</div>
+        <div class="conn-label">HTTPS / REST / JSON + JWT</div>
+        <div class="conn-line"></div>
+      </div>
+      <div class="layer" style="border-color:rgba(255,166,0,.5);background:rgba(255,166,0,.07);color:#fbbf24;">
+        🌐 &nbsp; Nginx &nbsp;·&nbsp; Let's Encrypt SSL &nbsp;·&nbsp; api.appjeylor.com
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;padding:2px 0;">
+        <div class="conn-line"></div>
+        <div class="conn-label">localhost:8000 · systemd auto-restart</div>
         <div class="conn-line"></div>
       </div>
       <div class="layer" style="border-color:rgba(255,96,32,.5);background:rgba(255,96,32,.07);color:#FF6020;">
-        🐍 &nbsp; FastAPI Python 3.11 &nbsp;·&nbsp; Render Cloud &nbsp;·&nbsp; JWT + FIDO2
+        🐍 &nbsp; FastAPI Python 3.11 &nbsp;·&nbsp; Pydantic v2 &nbsp;·&nbsp; JWT + FIDO2
       </div>
       <div style="display:flex;flex-direction:column;align-items:center;padding:2px 0;">
         <div class="conn-line"></div>
@@ -331,35 +354,33 @@ document.getElementById('s4').innerHTML = `
         <div class="conn-line"></div>
       </div>
       <div class="layer" style="border-color:rgba(34,197,94,.5);background:rgba(34,197,94,.07);color:#4ade80;">
-        🐘 &nbsp; PostgreSQL 14 + Supabase &nbsp;·&nbsp; 70+ tablas &nbsp;·&nbsp; Multi-tenant
+        🐘 &nbsp; PostgreSQL 17 &nbsp;·&nbsp; 70+ tablas &nbsp;·&nbsp; Oracle Cloud auto-hospedado
       </div>
 
       <div style="margin-top:1.2rem;background:rgba(255,96,32,.07);
         border:1px solid rgba(255,96,32,.22);border-radius:12px;padding:1rem;">
         <div style="font-weight:800;font-size:.8rem;color:#FF6020;margin-bottom:.38rem;">
-          🏢 &nbsp; Multi-Tenancy — Shared Schema
+          🏢 &nbsp; Multi-Tenancy — Shared Schema Pattern
         </div>
         <div style="font-size:.7rem;color:rgba(255,255,255,.58);line-height:1.65;">
           Un solo backend atiende <strong>N empresas simultáneamente</strong> con datos
           completamente aislados. Cada tabla lleva
           <code style="background:rgba(255,255,255,.1);padding:.1rem .3rem;border-radius:4px;font-size:.65rem;">empresa_id</code>
-          que hace imposible el acceso cruzado.<br>
+          que hace imposible el acceso cruzado entre tenants.<br>
           El <strong>SuperAdmin</strong> gestiona todos los tenants, cambia planes en tiempo real
           e incluso puede impersonar usuarios para soporte.
         </div>
       </div>
     </div>
 
-    <!-- Right: Stack grid + Security + Integrations -->
     <div style="display:flex;flex-direction:column;gap:1.1rem;">
 
-      <!-- Stack -->
       <div>
         <p style="font-size:.58rem;text-transform:uppercase;letter-spacing:2px;
-          color:rgba(255,255,255,.32);margin-bottom:.6rem;">Tech Stack</p>
+          color:rgba(255,255,255,.32);margin-bottom:.6rem;">Tech Stack Completo</p>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.38rem;">
           ${[['⚛️','React 18'],['🎨','MUI v5'],['🐍','FastAPI'],['✅','Pydantic v2'],
-             ['🐘','PostgreSQL'],['☁️','Supabase'],['🚀','Vercel'],['🖥️','Render']].map(([i,l])=>`
+             ['🐘','PostgreSQL 17'],['🏛️','Oracle Cloud'],['🚀','Vercel'],['🌐','Nginx + SSL']].map(([i,l])=>`
             <div style="display:flex;flex-direction:column;align-items:center;gap:.2rem;
               padding:.5rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);
               border-radius:8px;font-size:.58rem;color:rgba(255,255,255,.5);">
@@ -368,16 +389,16 @@ document.getElementById('s4').innerHTML = `
         </div>
       </div>
 
-      <!-- Security -->
       <div>
         <p style="font-size:.58rem;text-transform:uppercase;letter-spacing:2px;
-          color:rgba(255,255,255,.32);margin-bottom:.6rem;">Seguridad</p>
+          color:rgba(255,255,255,.32);margin-bottom:.6rem;">Seguridad en Capas</p>
         <div style="display:flex;flex-direction:column;gap:.32rem;">
           ${[['🔑','JWT firmado · empresa_id en token · Expiración configurable'],
              ['👆','WebAuthn / FIDO2 · Biométrico huella / cara · Sin contraseña'],
-             ['🔢','PIN de acceso rápido con bloqueo automático'],
-             ['🛡️','bcrypt · RBAC 27+ módulos por rol · Audit Log de superadmin'],
-             ['🌐','CORS whitelist · Rate limiting · HMAC verificado (Wompi)']].map(([i,t])=>`
+             ['🔢','PIN de acceso rápido con bloqueo automático tras intentos fallidos'],
+             ['🛡️','bcrypt · RBAC 18+ módulos por rol · Audit Log SuperAdmin'],
+             ['🌐','CORS whitelist · SlowAPI rate limiting · HMAC Wompi webhooks'],
+             ['🔒','HTTPS forzado · Let\'s Encrypt auto-renovación · Firewall iptables']].map(([i,t])=>`
             <div style="display:flex;gap:.5rem;align-items:center;padding:.38rem .6rem;
               background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);
               border-radius:7px;font-size:.66rem;color:rgba(255,255,255,.58);">
@@ -386,17 +407,16 @@ document.getElementById('s4').innerHTML = `
         </div>
       </div>
 
-      <!-- Integrations -->
       <div>
         <p style="font-size:.58rem;text-transform:uppercase;letter-spacing:2px;
           color:rgba(255,255,255,.32);margin-bottom:.6rem;">Integraciones Activas</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.38rem;">
-          ${[['💳','Wompi','Pasarela SaaS · Tarjeta, Nequi, PSE, QR','#FF6020'],
-             ['📄','DIAN','Facturación electrónica · Matias API','#22c55e'],
-             ['💬','WhatsApp','Cloud API · Pedidos y cobros','#25D366'],
-             ['🏷️','Barcode','OpenFoodFacts · UPCitemdb · BeautyFacts','#60a5fa'],
-             ['📈','Mercado','Yahoo Finance ICE · TRM Datos.gov.co','#f59e0b'],
-             ['👆','FIDO2','WebAuthn biométrico nativo','#8b5cf6']].map(([i,n,d,c])=>`
+          ${[['💳','Wompi','Cobro SaaS · Tarjeta · Nequi · PSE · QR','#FF6020'],
+             ['📄','DIAN','Facturación electrónica · Matias API · CUFE','#22c55e'],
+             ['💬','WhatsApp','Cloud API · Pedidos · Recibos · Alertas','#25D366'],
+             ['👆','FIDO2','WebAuthn biométrico nativo · Huella · Cara','#8b5cf6'],
+             ['🏛️','Oracle','VM ARM · 4 OCPU · 24 GB RAM · 96 GB SSD','#f59e0b'],
+             ['💱','TRM','Datos.gov.co · Tasa de cambio en tiempo real','#60a5fa']].map(([i,n,d,c])=>`
             <div style="padding:.58rem;background:rgba(255,255,255,.03);
               border:1px solid rgba(255,255,255,.07);border-radius:8px;">
               <div style="font-weight:800;font-size:.73rem;color:${c};">${i} ${n}</div>
@@ -410,19 +430,206 @@ document.getElementById('s4').innerHTML = `
 `;
 
 // ═══════════════════════════════════════════════════════════════
-//  SLIDE 5 — MODELO DE NEGOCIO
+//  SLIDE 5 — INFRAESTRUCTURA ORACLE CLOUD
 // ═══════════════════════════════════════════════════════════════
 document.getElementById('s5').innerHTML = `
 <div class="inner">
-  <div class="tag t-o">Modelo de Negocio</div>
-  <h2>SaaS · Ingresos <span class="grad">recurrentes</span> · Escala infinita</h2>
+  <div class="tag t-c">Infraestructura Enterprise</div>
+  <h2>Servidor propio en <span class="grad-b">Oracle Cloud</span> — nivel enterprise, costo cero</h2>
   <p class="sub" style="margin-bottom:1.75rem;">
-    Una empresa se registra. Paga. El sistema se activa solo. El costo marginal de crecer es cero.
+    El backend corre en Oracle Cloud Free Tier Always-Free: la misma infraestructura que usan las empresas Fortune 500, sin costo recurrente de servidor.
+  </p>
+
+  <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:2rem;align-items:start;">
+
+    <div style="display:flex;flex-direction:column;gap:1rem;">
+
+      <!-- Specs card -->
+      <div style="background:rgba(6,182,212,.06);border:1px solid rgba(6,182,212,.2);border-radius:14px;padding:1.25rem;">
+        <div style="font-weight:900;font-size:.9rem;color:#22d3ee;margin-bottom:1rem;">
+          🏛️ &nbsp; Oracle VM.Standard.A1.Flex &nbsp;·&nbsp; ARM64 (Ampere)
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem;margin-bottom:1rem;">
+          ${[['4 OCPU','ARM Ampere · Eficiencia máxima'],['24 GB','RAM DDR5 dedicada'],['96 GB','SSD NVMe local'],['Ubuntu','22.04 LTS · IP fija']].map(([n,d])=>`
+            <div style="text-align:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:.8rem .5rem;">
+              <div style="font-size:1.1rem;font-weight:900;color:#22d3ee;">${n}</div>
+              <div style="font-size:.58rem;color:rgba(255,255,255,.4);margin-top:.2rem;line-height:1.4;">${d}</div>
+            </div>`).join('')}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:.4rem;">
+          ${[
+            ['🐘','PostgreSQL 17','Base de datos auto-hospedada · Sin dependencia Supabase'],
+            ['🌐','Nginx + Let\'s Encrypt','Proxy inverso + SSL automático · HTTPS nativo'],
+            ['⚙️','systemd ksmart.service','Proceso gestionado · Restart automático ante fallos'],
+            ['🔄','CI/CD Webhook','Push a GitHub → Deploy automático en segundos'],
+            ['🔒','Firewall','iptables + Oracle Security List · Solo puertos necesarios abiertos'],
+          ].map(([i,n,d])=>`
+            <div style="display:flex;gap:.6rem;align-items:center;padding:.42rem .7rem;
+              background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:8px;">
+              <span style="font-size:1rem;">${i}</span>
+              <div>
+                <div style="font-weight:700;font-size:.75rem;color:#22d3ee;">${n}</div>
+                <div style="font-size:.62rem;color:rgba(255,255,255,.4);">${d}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>
+
+      <!-- CI/CD flow -->
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:1rem;">
+        <div style="font-weight:800;font-size:.78rem;margin-bottom:.7rem;color:rgba(255,255,255,.7);">🔄 &nbsp; Flujo de Deploy Automático</div>
+        <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+          ${['git push main','→','GitHub Webhook','→','Oracle :9000','→','deploy.sh','→','systemctl restart'].map((s,i)=>
+            i % 2 === 0
+              ? `<div style="padding:.3rem .7rem;background:rgba(255,96,32,.1);border:1px solid rgba(255,96,32,.25);border-radius:8px;font-size:.68rem;color:#FF6020;font-weight:700;">${s}</div>`
+              : `<span style="color:rgba(255,255,255,.3);font-size:.8rem;">${s}</span>`
+          ).join('')}
+        </div>
+        <div style="font-size:.65rem;color:rgba(255,255,255,.35);margin-top:.6rem;">
+          Autenticación HMAC-SHA256 · Webhook service bajo systemd · Deploy en &lt; 30 segundos
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:.9rem;">
+
+      <div style="background:rgba(255,96,32,.06);border:1px solid rgba(255,96,32,.2);border-radius:12px;padding:1rem;">
+        <div style="font-weight:800;color:#FF6020;font-size:.85rem;margin-bottom:.7rem;">¿Por qué Oracle Cloud?</div>
+        ${[
+          ['🏛️','Infraestructura de clase mundial','Misma plataforma que usan bancos y corporaciones Fortune 500 en todo el mundo'],
+          ['💰','Always Free · Sin costo de servidor','VM.Standard.A1.Flex es permanentemente gratuito: presupuesto 100% para producto'],
+          ['⚡','ARM Ampere: eficiencia energética','Procesadores ARM de última generación: mejor rendimiento por OCPU que Intel/AMD'],
+          ['📊','SLA Oracle garantizado','99.9% de disponibilidad respaldado por Oracle Corporation'],
+          ['🔒','Seguridad empresarial','Security Lists, VCN, IAM, auditoría de acceso — controles de nivel bancario'],
+          ['📈','Escalabilidad sin límite','En cualquier momento se pueden agregar más instancias o migrar a OCI pago'],
+        ].map(([i,t,d])=>`
+          <div style="display:flex;gap:.6rem;margin-bottom:.55rem;">
+            <span style="font-size:.95rem;flex-shrink:0;">${i}</span>
+            <div>
+              <div style="font-weight:700;font-size:.75rem;color:rgba(255,255,255,.85);">${t}</div>
+              <div style="font-size:.62rem;color:rgba(255,255,255,.42);line-height:1.5;">${d}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+
+      <div style="background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.2);border-radius:12px;padding:.9rem;">
+        <div style="font-weight:800;color:#4ade80;font-size:.78rem;margin-bottom:.5rem;">🔄 Migraciones Automáticas — V1 a V89</div>
+        <div style="font-size:.68rem;color:rgba(255,255,255,.48);line-height:1.65;">
+          El sistema aplica 89 migraciones de esquema automáticamente al iniciar, sin Alembic ni comandos manuales. La tabla
+          <code style="background:rgba(255,255,255,.1);padding:.05rem .25rem;border-radius:4px;">_schema_meta</code>
+          garantiza idempotencia — nunca se aplica una migración dos veces.
+          Esto permite hacer <strong style="color:#4ade80">deploy sin downtime</strong> en segundos.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+// ═══════════════════════════════════════════════════════════════
+//  SLIDE 6 — NOVEDADES 2026
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('s6').innerHTML = `
+<div class="inner">
+  <div class="tag t-g">Novedades 2026</div>
+  <h2>Mejoras recientes al sistema. <span class="grad">Siempre evolucionando.</span></h2>
+  <p class="sub" style="margin-bottom:1.5rem;">
+    Funcionalidades implementadas a solicitud de usuarios reales en producción — respuesta ágil a necesidades del mercado colombiano.
+  </p>
+
+  <div class="g g3" style="margin-bottom:1rem;">
+    ${[
+      {icon:'💱', c:'#14B8A6', t:'Precios con Decimales Exactos',
+       badge: true,
+       items:[
+         'Soporte completo de centavos (ej: $30.000,56)',
+         'Formato colombiano: punto para miles, coma para decimales',
+         'Evita descuadres contables por redondeo de IVA',
+         'Campo de precio ahora acepta hasta 2 decimales',
+         'Totales y subtotales con precisión exacta',
+       ]},
+      {icon:'📋', c:'#8b5cf6', t:'Ítems de Única Vez en Compras',
+       badge: true,
+       items:[
+         'Líneas libres en facturas de compra sin crear producto',
+         'Ideal para: fletes, honorarios, gastos ocasionales',
+         'Descripción texto libre por línea',
+         'No afecta inventario ni crea movimientos',
+         'Compatible con totales, IVA y OC en PDF',
+       ]},
+      {icon:'🔢', c:'#f59e0b', t:'Orden de Ingreso Preservado',
+       badge: true,
+       items:[
+         'Los ítems se muestran en el mismo orden que se digitaron',
+         'Campo sort_order en base de datos',
+         'Facilita verificación contra factura física original',
+         'Al editar: el orden original se restaura',
+         'La OC en PDF también respeta el orden',
+       ]},
+      {icon:'📦', c:'#22c55e', t:'Categoría Envases/Empaque',
+       badge: true,
+       items:[
+         'Nueva categoría predefinida para material de empaque',
+         'Separada de "Insumos" para filtros exactos',
+         'Código ENV · Color teal · Predefinida global',
+         'Los reportes de MP ya no incluyen envases',
+         'Diferenciación: MP · Insumos · Envases · PT',
+       ]},
+      {icon:'🏛️', c:'#22d3ee', t:'Migración Oracle Cloud',
+       items:[
+         'Backend migrado de Render a Oracle Cloud ARM',
+         'PostgreSQL 17 auto-hospedado (sin Supabase)',
+         'Nginx + Let\'s Encrypt SSL propio',
+         'systemd con auto-restart · IP fija',
+         'CI/CD webhook: deploy automático en cada push',
+       ]},
+      {icon:'🎯', c:'#ec4899', t:'Programa de Fidelización',
+       items:[
+         'Puntos canjeables por cada compra del cliente',
+         'Tasa earn configurable por empresa (COP/punto)',
+         'Tasa redeem: descuento al canjear en venta',
+         'Historial de movimientos por cliente',
+         'Saldo visible en el POS al seleccionar cliente',
+       ]},
+    ].map(f=>`
+      <div class="card" style="border-left:3px solid ${f.c};border-top:none;">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.6rem;">
+          <span style="font-size:1.4rem;">${f.icon}</span>
+          <div>
+            <div style="font-weight:800;font-size:.82rem;color:${f.c};">${f.t}</div>
+            ${f.badge ? `<span class="badge-new">✦ Nuevo</span>` : ''}
+          </div>
+        </div>
+        ${f.items.map(i=>`
+          <div style="display:flex;gap:.4rem;margin-bottom:.28rem;font-size:.7rem;color:rgba(255,255,255,.6);">
+            <span style="color:${f.c};flex-shrink:0;font-size:.65rem;">▸</span>${i}
+          </div>`).join('')}
+      </div>`).join('')}
+  </div>
+
+  <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;">
+    <span style="font-size:.68rem;color:rgba(255,255,255,.4);">También en 2026:</span>
+    ${['Contabilidad automática PUC','Variantes de producto','Reservas de restaurante',
+       'Caja de restaurante para cajero','Links de pago QR por empresa',
+       'Impersonación de empresa por SuperAdmin','PIN de acceso rápido'].map(t=>`
+      <span style="padding:.28rem .7rem;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:12px;font-size:.65rem;color:rgba(255,255,255,.55);">${t}</span>`).join('')}
+  </div>
+</div>
+`;
+
+// ═══════════════════════════════════════════════════════════════
+//  SLIDE 7 — MODELO DE NEGOCIO & CIERRE
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('s7').innerHTML = `
+<div class="inner">
+  <div class="tag t-o">Modelo de Negocio</div>
+  <h2>SaaS · Ingresos <span class="grad">recurrentes</span> · Escala sin costo marginal</h2>
+  <p class="sub" style="margin-bottom:1.75rem;">
+    Una empresa se registra. Paga. El sistema se activa solo. El costo de infraestructura es cero gracias a Oracle Cloud Always Free.
   </p>
 
   <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:2rem;align-items:start;">
 
-    <!-- Plans + Wompi -->
     <div>
       <p style="font-size:.58rem;text-transform:uppercase;letter-spacing:2px;
         color:rgba(255,255,255,.32);margin-bottom:.7rem;">Planes de Suscripción</p>
@@ -430,11 +637,11 @@ document.getElementById('s5').innerHTML = `
       <div style="display:flex;flex-direction:column;gap:.58rem;margin-bottom:1.2rem;">
         ${[
           {icon:'⚡',c:'#3b82f6',n:'Trial',
-           d:'14 días gratuitos · Sin tarjeta de crédito · Expira automáticamente',note:'Alta conversión'},
+           d:'14 días gratuitos · Sin tarjeta de crédito · Expira automáticamente · Alta conversión',note:'Entrada sin fricción'},
           {icon:'✨',c:'#FF6020',n:'Premium',
-           d:'Suscripción mensual recurrente · Activación automática vía webhook Wompi',note:'MRR garantizado'},
+           d:'Suscripción mensual o anual · Activación automática vía webhook Wompi · MRR garantizado',note:'Ingreso recurrente'},
           {icon:'♾️',c:'#8b5cf6',n:'Vitalicio',
-           d:'Pago único · Asignado por SuperAdmin · Nunca expira',note:'Alianzas estratégicas'},
+           d:'Pago único · Asignado por SuperAdmin · Nunca expira · Para alianzas estratégicas',note:'Alianzas clave'},
         ].map(p=>`
           <div style="display:flex;align-items:center;gap:1rem;background:rgba(255,255,255,.04);
             border:1px solid rgba(255,255,255,.08);border-radius:12px;
@@ -448,26 +655,23 @@ document.getElementById('s5').innerHTML = `
           </div>`).join('')}
       </div>
 
-      <!-- Wompi -->
       <div style="background:rgba(255,96,32,.07);border:1px solid rgba(255,96,32,.22);
-        border-radius:12px;padding:1rem 1.1rem;">
+        border-radius:12px;padding:1rem 1.1rem;margin-bottom:.9rem;">
         <div style="font-weight:800;color:#FF6020;font-size:.85rem;margin-bottom:.3rem;">
           💳 &nbsp; Pasarela Wompi (Bancolombia)
         </div>
         <div style="font-size:.7rem;color:rgba(255,255,255,.55);line-height:1.65;">
           Tarjeta de crédito / débito &nbsp;·&nbsp; Nequi &nbsp;·&nbsp; PSE &nbsp;·&nbsp;
           QR Bancolombia &nbsp;·&nbsp; Efectivo.<br>
-          Verificación HMAC del webhook.
-          <strong style="color:#fff;">La suscripción se activa sola</strong> al confirmar el
-          pago — sin intervención manual. Cero fricción.
+          Verificación HMAC del webhook. <strong style="color:#fff;">La suscripción se activa sola</strong>
+          al confirmar el pago — sin intervención manual.
         </div>
       </div>
 
-      <!-- Revenue metrics -->
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem;margin-top:1rem;">
-        ${[['MRR','Ingresos mensuales recurrentes · Por cada cliente'],
-           ['$0','Costo marginal de agregar una empresa nueva'],
-           ['∞','Empresas que puede atender la infraestructura actual']].map(([n,d])=>`
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem;">
+        ${[['MRR','Ingresos recurrentes · crece con cada cliente nuevo'],
+           ['$0','Costo marginal de agregar una empresa más a la plataforma'],
+           ['Oracle','Infraestructura gratuita · Sin costo de servidor recurrente']].map(([n,d])=>`
           <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);
             border-radius:10px;padding:.8rem;text-align:center;">
             <div style="font-size:1.2rem;font-weight:900;color:#FF6020;">${n}</div>
@@ -476,24 +680,25 @@ document.getElementById('s5').innerHTML = `
       </div>
     </div>
 
-    <!-- Why invest -->
     <div>
       <p style="font-size:.58rem;text-transform:uppercase;letter-spacing:2px;
-        color:rgba(255,255,255,.32);margin-bottom:.7rem;">¿Por Qué Invertir en KSmart360?</p>
+        color:rgba(255,255,255,.32);margin-bottom:.7rem;">¿Por Qué KSmart360?</p>
       <div style="display:flex;flex-direction:column;gap:.55rem;">
         ${[
           ['🎯','Mercado enorme y desatendido',
-           '2.5M PYMEs en Colombia. La mayoría sin ningún sistema de gestión.'],
-          ['💡','Producto real, no una idea',
-           'Sistema completo en producción hoy. No un MVP, no una demo: el producto real.'],
-          ['📈','SaaS = ingresos recurrentes',
-           'MRR crece con cada cliente. Churn bajo porque el sistema está integrado al día a día.'],
+           '2.5M PYMEs en Colombia. La mayoría opera sin ningún sistema digital.'],
+          ['💡','Producto real en producción',
+           'Sistema completo activo hoy. No un MVP: el producto final, en uso por clientes reales.'],
+          ['🏛️','Infraestructura Oracle sin costo',
+           'Oracle Cloud Always Free elimina el costo de servidor. El presupuesto va al producto.'],
+          ['📈','SaaS = ingresos predecibles',
+           'MRR crece con cada cliente. Churn bajo porque el sistema está integrado al negocio.'],
           ['🔒','Foso competitivo profundo',
-           'Parqueadero, préstamos con mora, producción BOM, DIAN, FIDO2 — años de desarrollo especializado.'],
-          ['🇨🇴','100&nbsp;% localizado Colombia',
-           'DIAN, Wompi, TRM, WhatsApp, NIT. Hecho aquí para las necesidades reales.'],
+           'Parqueadero + préstamos + producción BOM + DIAN + FIDO2 + restaurante KDS = años de desarrollo.'],
+          ['🇨🇴','100% localizado Colombia',
+           'DIAN · Wompi · TRM · WhatsApp · NIT · Bogotá UTC-5. Hecho aquí para las necesidades reales.'],
           ['🌎','Expansión natural a Latinoamérica',
-           'El mismo sistema sirve para México, Ecuador, Perú, Venezuela. Mismo código, nuevo mercado.'],
+           'Mismo código, nuevo mercado: México, Ecuador, Perú, Venezuela.'],
         ].map(([i,t,d])=>`
           <div style="display:flex;gap:.72rem;padding:.68rem .9rem;
             background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:10px;">
@@ -503,6 +708,19 @@ document.getElementById('s5').innerHTML = `
               <div style="font-size:.64rem;color:rgba(255,255,255,.43);line-height:1.48;">${d}</div>
             </div>
           </div>`).join('')}
+      </div>
+
+      <div style="margin-top:.9rem;background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.22);
+        border-radius:10px;padding:.85rem;text-align:center;">
+        <div class="live" style="justify-content:center;margin-bottom:.3rem;">
+          <span class="live-dot"></span>
+          Sistema activo ahora mismo
+        </div>
+        <div style="font-size:.7rem;color:rgba(255,255,255,.5);line-height:1.6;">
+          🌐 <strong style="color:#fff;">api.appjeylor.com</strong> &nbsp;·&nbsp;
+          Oracle Cloud · Ubuntu 22.04 · IP 158.101.127.148<br>
+          📧 keilor9703@gmail.com &nbsp;·&nbsp; 🌐 techstackcol.com
+        </div>
       </div>
     </div>
   </div>
