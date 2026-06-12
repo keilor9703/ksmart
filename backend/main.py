@@ -69,6 +69,24 @@ def read_root():
 def ping():
     return {"ping": "pong", "timestamp": datetime.now(timezone.utc)}
 
+@app.get("/health")
+def health():
+    from sqlalchemy import text
+    db = SessionLocal()
+    try:
+        db.execute(text("SELECT 1"))
+        db_status = "ok"
+    except Exception as e:
+        db_status = str(e)
+    finally:
+        db.close()
+    return {
+        "status": "ok" if db_status == "ok" else "degraded",
+        "database": db_status,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "version": "2.2.0",
+    }
+
 # --- Startup Logic ---
 def initialize_default_data(db: Session):
     # Auto-healing for Master Company
