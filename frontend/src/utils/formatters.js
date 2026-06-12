@@ -5,25 +5,39 @@ export const formatCurrency = (amount) => {
     style: 'currency',
     currency: 'COP',
     minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(amount);
 };
 
 // ─── Formatea un string numérico con puntos de miles mientras el usuario tipea ─
-// Ejemplo: "1234567" → "1.234.567"
+// Soporta decimales con coma (formato colombiano): "1234567,89" → "1.234.567,89"
 export const formatCurrencyInput = (raw) => {
-  // Quitar todo lo que no sea dígito
-  const digits = String(raw).replace(/\D/g, '');
-  if (!digits) return '';
-  // Agregar puntos de miles
-  return parseInt(digits, 10).toLocaleString('es-CO');
+  const str = String(raw);
+  // Eliminar separadores de miles existentes (puntos) para limpiar la parte entera
+  const withoutThousands = str.replace(/\./g, '');
+  // Separar en parte entera y decimal (usando coma como separador decimal)
+  const parts = withoutThousands.split(',');
+  const intDigits = parts[0].replace(/\D/g, '');
+  const hasDecimal = parts.length > 1;
+  const decPart = hasDecimal ? parts[1].replace(/\D/g, '').slice(0, 2) : null;
+
+  if (!intDigits && decPart === null) return '';
+
+  const intFormatted = intDigits
+    ? parseInt(intDigits, 10).toLocaleString('es-CO')
+    : '0';
+
+  if (decPart !== null) return `${intFormatted},${decPart}`;
+  return intFormatted;
 };
 
 // ─── Convierte string formateado de vuelta a número ──────────────────────────
-// Ejemplo: "1.234.567" → 1234567
+// Ejemplo: "1.234.567,89" → 1234567.89
 export const parseCurrencyInput = (formatted) => {
-  const digits = String(formatted).replace(/\D/g, '');
-  return digits ? parseInt(digits, 10) : 0;
+  const str = String(formatted);
+  // Quitar separadores de miles (puntos), convertir coma decimal a punto
+  const normalized = str.replace(/\./g, '').replace(',', '.');
+  return parseFloat(normalized) || 0;
 };
 
 // ─── Formatea fecha ISO a string legible (Forzando Colombia UTC-5) ────────────

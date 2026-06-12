@@ -44,7 +44,12 @@ const CurrencyField = ({
   useEffect(() => {
     const num = Number(value);
     if (!isNaN(num) && num !== parseCurrencyInput(display)) {
-      setDisplay(num > 0 ? formatCurrencyInput(num) : '');
+      if (num > 0) {
+        // Convertir número a formato colombiano (1234.56 → "1.234,56")
+        setDisplay(num.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 }));
+      } else {
+        setDisplay('');
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
@@ -70,7 +75,7 @@ const CurrencyField = ({
       helperText={helperText}
       error={error}
       sx={sx}
-      inputMode="numeric"
+      inputMode="decimal"
       InputProps={{
         startAdornment: (
           <InputAdornment position="start">

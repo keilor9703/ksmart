@@ -702,14 +702,14 @@ class PanelHistorialItem(BaseModel):
 # COMPRAS
 # =========================
 class DetalleCompraBase(BaseModel):
-    producto_id: int
+    producto_id: Optional[int] = None
+    nombre_libre: Optional[str] = None
+    sort_order: int = 0
     cantidad: float
     precio_unitario: float
     numero_lote: Optional[str] = None
     fecha_vencimiento: Optional[date] = None
     fecha_fabricacion: Optional[date] = None
-
-
 
 
 class DetalleCompraCreate(DetalleCompraBase):
@@ -718,7 +718,7 @@ class DetalleCompraCreate(DetalleCompraBase):
 class DetalleCompra(DetalleCompraBase):
     id: int
     compra_id: int
-    producto: Producto
+    producto: Optional[Producto] = None
     model_config = ConfigDict(from_attributes=True)
 
 class CompraBase(BaseModel):

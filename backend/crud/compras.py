@@ -63,26 +63,34 @@ def create_compra(db: Session, empresa_id: int, compra: schemas.CompraCreate):
     db.add(db_compra)
     db.flush()
 
-    for item in compra.detalles:
-        prod = get_producto(db, empresa_id, item.producto_id)
-        if not prod:
-            raise HTTPException(status_code=404, detail=f"Producto {item.producto_id} no encontrado")
+    for idx, item in enumerate(compra.detalles):
+        if item.producto_id is None and not item.nombre_libre:
+            raise HTTPException(status_code=400, detail=f"El ítem #{idx+1} debe tener un producto o una descripción.")
+
+        prod = None
+        if item.producto_id is not None:
+            prod = get_producto(db, empresa_id, item.producto_id)
+            if not prod:
+                raise HTTPException(status_code=404, detail=f"Producto {item.producto_id} no encontrado")
 
         db_detalle = models.DetalleCompra(
             compra_id=db_compra.id,
             producto_id=item.producto_id,
+            nombre_libre=item.nombre_libre,
+            sort_order=idx,
             cantidad=item.cantidad,
             precio_unitario=item.precio_unitario,
             iva_porcentaje=0.0
         )
         db.add(db_detalle)
 
+        if item.producto_id is None:
+            # Ítem libre: solo registra el gasto, sin tocar inventario
+            continue
+
         # ── Crear lote automático si el detalle trae datos de lote ──────────────
         if item.numero_lote and item.fecha_vencimiento:
-            prod_obj = get_producto(db, empresa_id, item.producto_id)
-            if prod_obj and getattr(prod_obj, 'maneja_lotes', False):
-                if not item.numero_lote or not item.fecha_vencimiento: raise ValueError(f"El producto '{prod.nombre}' es perecedero. Requiere Número de Lote y Fecha de Vencimiento.")
-
+            if prod and getattr(prod, 'maneja_lotes', False):
                 from crud.perecederos import crear_lote_existencia
                 lote_payload = schemas.LoteExistenciaCreate(
                     producto_id       = item.producto_id,
@@ -200,18 +208,23 @@ def update_compra(db: Session, empresa_id: int, compra_id: int, data: schemas.Co
         db.flush()
 
         total_bruto = 0.0
-        for item in data.detalles:
+        for idx, item in enumerate(data.detalles):
             total_bruto += item.cantidad * item.precio_unitario
-            
+
             db_detalle = models.DetalleCompra(
                 compra_id=db_compra.id,
                 producto_id=item.producto_id,
+                nombre_libre=item.nombre_libre,
+                sort_order=idx,
                 cantidad=item.cantidad,
                 precio_unitario=item.precio_unitario,
                 iva_porcentaje=0.0,
                 empresa_id=empresa_id
             )
             db.add(db_detalle)
+
+            if item.producto_id is None:
+                continue
 
             # Aplicar nuevo inventario
             prod = get_producto(db, empresa_id, item.producto_id)

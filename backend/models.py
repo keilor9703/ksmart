@@ -639,13 +639,15 @@ class DetalleCompra(Base, TenantMixin):
     __tablename__ = "detalles_compra"
     id              = Column(Integer, primary_key=True, index=True)
     compra_id       = Column(Integer, ForeignKey("compras.id"))
-    producto_id     = Column(Integer, ForeignKey("productos.id"))
+    producto_id     = Column(Integer, ForeignKey("productos.id"), nullable=True)
+    nombre_libre    = Column(String, nullable=True)
+    sort_order      = Column(Integer, default=0)
     cantidad        = Column(Float)
     precio_unitario = Column(Float)
     iva_porcentaje  = Column(Float, default=0.0)
 
     compra   = relationship("Compra", back_populates="detalles")
-    producto = relationship("Producto")
+    producto = relationship("Producto", foreign_keys=[producto_id])
 
 class PagoCompra(Base, TenantMixin):
     __tablename__ = "pagos_compra"
