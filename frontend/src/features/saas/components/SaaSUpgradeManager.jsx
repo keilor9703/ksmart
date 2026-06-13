@@ -17,9 +17,9 @@ const groupPlanes = (planes) => {
   planes.forEach(p => {
     const code = p.codigo_interno?.toLowerCase() || '';
     const dias = p.dias_duracion;
-    if (code.includes('starter') || code.includes('basico') || code.includes('básico')) {
+    if (code.startsWith('starter')) {
       groups.starter[dias] = p;
-    } else if (code.includes('pro')) {
+    } else if (code.startsWith('pro')) {
       groups.pro[dias] = p;
     }
   });

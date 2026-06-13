@@ -39,8 +39,8 @@ const groupPlanes = (planes) => {
   const g = { starter: {}, pro: {} };
   planes.forEach(p => {
     const code = p.codigo_interno?.toLowerCase() || '';
-    if (code.includes('starter') || code.includes('basico') || code.includes('básico')) g.starter[p.dias_duracion] = p;
-    else if (code.includes('pro')) g.pro[p.dias_duracion] = p;
+    if (code.startsWith('starter')) g.starter[p.dias_duracion] = p;
+    else if (code.startsWith('pro')) g.pro[p.dias_duracion] = p;
   });
   return g;
 };
