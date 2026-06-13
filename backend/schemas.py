@@ -1239,6 +1239,7 @@ class PlanSuscripcionBase(BaseModel):
     caracteristicas: Optional[str] = None
     is_active: bool = True
     is_featured: bool = False
+    empresa_id_exclusivo: Optional[int] = None
 
 class PlanSuscripcionCreate(PlanSuscripcionBase):
     pass
@@ -1250,10 +1251,18 @@ class PlanSuscripcionUpdate(BaseModel):
     caracteristicas: Optional[str] = None
     is_active: Optional[bool] = None
     is_featured: Optional[bool] = None
+    empresa_id_exclusivo: Optional[int] = None
 
 class PlanSuscripcionOut(PlanSuscripcionBase):
     id: int
+    nombre_empresa_exclusiva: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
+
+    @classmethod
+    def from_orm_with_empresa(cls, plan):
+        obj = cls.model_validate(plan)
+        obj.nombre_empresa_exclusiva = plan.empresa_exclusiva.nombre if plan.empresa_exclusiva else None
+        return obj
 
 
 class PagoDigitalPosRequest(BaseModel):

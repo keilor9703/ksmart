@@ -1907,6 +1907,17 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v89)
                 logger.info("V89 (ítems libres en compras + sort_order + grupo Envases) aplicada.")
 
+            # ── V90: planes privados por empresa ──────────────────────────────
+            migration_v90 = "v90_planes_empresa_exclusivo"
+            if not _migration_already_applied(conn, migration_v90):
+                conn.execute(text("""
+                    ALTER TABLE planes_suscripcion
+                    ADD COLUMN IF NOT EXISTS empresa_id_exclusivo INTEGER
+                    REFERENCES empresas(id) ON DELETE SET NULL
+                """))
+                _mark_migration_applied(conn, migration_v90)
+                logger.info("V90 (planes privados por empresa) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

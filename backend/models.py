@@ -725,13 +725,16 @@ class PlanSuscripcion(Base):
     __tablename__ = "planes_suscripcion"
 
     id = Column(Integer, primary_key=True, index=True)
-    nombre = Column(String, nullable=False)              
-    codigo_interno = Column(String, unique=True, index=True, nullable=False) 
-    precio = Column(Float, nullable=False)               
-    dias_duracion = Column(Integer, nullable=False)      
+    nombre = Column(String, nullable=False)
+    codigo_interno = Column(String, unique=True, index=True, nullable=False)
+    precio = Column(Float, nullable=False)
+    dias_duracion = Column(Integer, nullable=False)
     caracteristicas = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     is_featured = Column(Boolean, default=False)
+    # NULL = visible para todas las empresas; valor = plan privado para esa empresa
+    empresa_id_exclusivo = Column(Integer, ForeignKey("empresas.id"), nullable=True, default=None)
+    empresa_exclusiva = relationship("Empresa", foreign_keys=[empresa_id_exclusivo])
 
 
 class RegistroPago(Base):
