@@ -741,7 +741,12 @@ const Compras = () => {
                       : paginatedCompras.map(c => (
                           <TableRow key={c.id} hover>
                             <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{c.id}</TableCell>
-                            <TableCell sx={{ fontSize: 12, whiteSpace: 'nowrap' }}>{new Date(c.fecha).toLocaleDateString()}</TableCell>
+                            <TableCell sx={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                              <Box>
+                                <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{new Date(c.fecha).toLocaleDateString('es-CO')}</Typography>
+                                <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{new Date(c.fecha).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</Typography>
+                              </Box>
+                            </TableCell>
                             <TableCell sx={{ fontWeight: 600 }}>{c.proveedor.nombre}</TableCell>
                             <TableCell sx={{ fontSize: 12, color: 'text.secondary' }}>{c.referencia_factura || '—'}</TableCell>
                             <TableCell sx={{ fontWeight: 700 }}>{formatCurrency(c.total)}</TableCell>
