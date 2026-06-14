@@ -546,14 +546,36 @@ useEffect(() => {
     // ── Atajo de teclado: Ctrl+Enter → registrar venta ──
     useEffect(() => {
         const onKey = (e) => {
+            // Cmd/Ctrl+Enter → registrar venta
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && tabValue === 0 && !savingVenta) {
                 e.preventDefault();
                 document.getElementById('btn-registrar-venta')?.click();
+                return;
+            }
+
+            // Auto-focus al campo de búsqueda cuando:
+            // - Estamos en el tab de venta (0) y la cámara no está activa
+            // - La tecla es un carácter imprimible (letras, números)
+            // - El foco actual NO está en un input, textarea o select
+            if (
+                tabValue === 0 &&
+                !cameraActive &&
+                !e.ctrlKey && !e.metaKey && !e.altKey &&
+                e.key.length === 1 &&
+                barcodeFieldRef.current
+            ) {
+                const active = document.activeElement;
+                const tag = active?.tagName?.toLowerCase();
+                const isTypingElsewhere = tag === 'input' || tag === 'textarea' || tag === 'select' || active?.isContentEditable;
+                if (!isTypingElsewhere) {
+                    barcodeFieldRef.current.focus();
+                    // No prevenimos el default para que el carácter caiga en el campo
+                }
             }
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [tabValue, savingVenta]);
+    }, [tabValue, savingVenta, cameraActive]);
 
     // ── Cámara: inicializar cuando cameraActive pasa a true ──
     const cleanupCamera = useCallback(() => {
