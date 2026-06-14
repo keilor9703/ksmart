@@ -853,7 +853,8 @@ useEffect(() => {
                 metodo_pago: ventaData.metodo_pago, estado_pago: pagada ? 'pagado' : 'pendiente',
             });
             setReciboOpen(true);
-            resetForm(); setTabValue(1);
+            resetForm();
+            setTimeout(() => barcodeFieldRef.current?.focus(), 150);
         } catch (err) {
             toast.error(err.response?.data?.detail || 'Error al guardar la venta.');
         } finally {
