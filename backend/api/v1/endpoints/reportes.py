@@ -367,11 +367,14 @@ def reporte_caja_rango(
     for v in ventas:
         _acumular(_fecha_col(v.fecha), v.metodo_pago, v.total, "ingreso")
 
-    # --- 2. Abonos Cartera ---
-    abonos = db.query(models.Pago).filter(
+    # --- 2. Abonos Cartera (solo pagos parciales, excluye ventas ya contadas arriba) ---
+    abonos = db.query(models.Pago).join(
+        models.Venta, models.Pago.venta_id == models.Venta.id
+    ).filter(
         models.Pago.empresa_id == empresa_id,
         models.Pago.fecha >= start_date,
-        models.Pago.fecha < end_date + timedelta(days=1)
+        models.Pago.fecha < end_date + timedelta(days=1),
+        models.Venta.estado_pago != "pagado",
     ).all()
     for a in abonos:
         _acumular(_fecha_col(a.fecha), a.metodo_pago, a.monto, "ingreso")

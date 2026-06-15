@@ -2384,6 +2384,7 @@ class CatalogoEmpresaOut(BaseModel):
     color_primario: str
     direccion: Optional[str] = None
     tipo_negocio: str = "erp"
+    descripcion: Optional[str] = None
 
 class CatalogoMesaOut(BaseModel):
     numero: str
@@ -2497,6 +2498,7 @@ class PedidoVirtualUpdate(BaseModel):
 class ConvertirVentaRequest(BaseModel):
     metodo_pago: str = "Efectivo"
     omitir_inventario: bool = False
+    iva_porcentaje: float = 0.0
 
 class PedidoWhatsAppMessage(BaseModel):
     mensaje: str

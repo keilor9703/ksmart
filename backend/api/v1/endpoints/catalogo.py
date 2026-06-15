@@ -102,8 +102,9 @@ def get_public_catalogo(
         whatsapp_pedidos=db_empresa.whatsapp_pedidos,
         logo_base64=db_empresa.logo_base64,
         color_primario=db_empresa.color_primario,
-        direccion=db_empresa.ciudad,
+        direccion=db_empresa.direccion,
         tipo_negocio=db_empresa.tipo_negocio or "erp",
+        descripcion=db_empresa.descripcion,
     )
 
     # Para restaurantes, incluir lista de mesas activas

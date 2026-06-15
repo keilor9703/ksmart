@@ -264,9 +264,13 @@ const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, li
   const [loading, setLoading] = useState(false);
   const [recibo, setRecibo] = useState(null);
   const [omitirInventario, setOmitirInventario] = useState(false);
+  const [ivaPct, setIvaPct] = useState(0);
   const omitirInventarioRef = useRef(false);
   omitirInventarioRef.current = omitirInventario;
   const [linkPagoModalOpen, setLinkPagoModalOpen] = useState(false);
+
+  const totalConIva = pedido ? Math.round(pedido.total * (1 + ivaPct / 100)) : 0;
+  const ivaTotal = pedido ? Math.round(pedido.total * (ivaPct / 100)) : 0;
 
   const doConvertir = async () => {
     if (!pedido) return;
@@ -275,14 +279,15 @@ const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, li
       const res = await apiClient.post(`/pedidos-virtuales/${pedido.id}/convertir-venta`, {
         metodo_pago: metodo,
         omitir_inventario: omitirInventarioRef.current,
+        iva_porcentaje: ivaPct,
       });
       const ventaSnap = {
         id: res.data.venta_id,
         fecha: new Date().toISOString(),
         cliente: { nombre: pedido.nombre_cliente, telefono: pedido.celular_cliente },
         detalles: (pedido.detalles || []).map(d => ({ producto: { nombre: d.nombre_producto }, cantidad: d.cantidad, precio_unitario: d.precio_unitario })),
-        total: pedido.total, iva_total: 0, iva_porcentaje: 0,
-        monto_pagado: pedido.total, estado_pago: 'pagado', metodo_pago: metodo,
+        total: totalConIva, iva_total: ivaTotal, iva_porcentaje: ivaPct,
+        monto_pagado: totalConIva, estado_pago: 'pagado', metodo_pago: metodo,
       };
       setRecibo(ventaSnap);
       setOmitirInventario(false);
@@ -319,7 +324,7 @@ const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, li
             </Avatar>
             <Box>
               <Typography fontWeight={800} fontSize={15}>Forma de pago</Typography>
-              <Typography fontSize={12} color="text.secondary">Pedido #{pedido?.id} · {fmt(pedido?.total || 0)}</Typography>
+              <Typography fontSize={12} color="text.secondary">Pedido #{pedido?.id} · {fmt(totalConIva || pedido?.total || 0)}</Typography>
             </Box>
           </Box>
         </DialogTitle>
@@ -351,6 +356,38 @@ const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, li
               );
             })}
           </Stack>
+          {/* Selector IVA */}
+          <Box sx={{ mt: 2.5 }}>
+            <Typography fontSize={12} fontWeight={700} color="text.secondary" sx={{ mb: 1, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              IVA
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              {[0, 5, 19].map(pct => (
+                <Box
+                  key={pct}
+                  onClick={() => setIvaPct(pct)}
+                  sx={{
+                    flex: 1, py: 1, borderRadius: 2, textAlign: 'center', cursor: 'pointer',
+                    border: '2px solid', transition: 'all 0.15s',
+                    borderColor: ivaPct === pct ? '#059669' : 'divider',
+                    bgcolor: ivaPct === pct ? alpha('#059669', 0.08) : 'transparent',
+                  }}
+                >
+                  <Typography fontSize={13} fontWeight={700} color={ivaPct === pct ? '#059669' : 'text.secondary'}>
+                    {pct === 0 ? 'Exento' : `+${pct}%`}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+            {ivaPct > 0 && (
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1, px: 0.5 }}>
+                <Typography fontSize={11} color="text.secondary">Base: {fmt(pedido?.total || 0)}</Typography>
+                <Typography fontSize={11} color="text.secondary">IVA {ivaPct}%: {fmt(ivaTotal)}</Typography>
+                <Typography fontSize={12} fontWeight={800} color="#059669">Total: {fmt(totalConIva)}</Typography>
+              </Box>
+            )}
+          </Box>
+
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
             <FormControlLabel
               control={

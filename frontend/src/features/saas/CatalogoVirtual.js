@@ -350,9 +350,15 @@ const CatalogoVirtual = () => {
               }}>
                 {empresa.nombre}
               </Typography>
-              <Typography sx={{ fontSize: 11, color: textSec, mt: 0.2 }}>
-                Catálogo Virtual
-              </Typography>
+              {empresa.descripcion ? (
+                <Typography sx={{ fontSize: 11, color: textSec, mt: 0.2, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                  {empresa.descripcion}
+                </Typography>
+              ) : (
+                <Typography sx={{ fontSize: 11, color: textSec, mt: 0.2 }}>
+                  Catálogo Virtual
+                </Typography>
+              )}
             </Box>
 
             {/* Dark / light toggle + Powered by — alineados juntos */}
@@ -374,7 +380,9 @@ const CatalogoVirtual = () => {
 
               <Typography
                 component="a"
-                href="/login"
+                href="https://www.techstackcol.com/ksmart360?view=pymes"
+                target="_blank"
+                rel="noopener noreferrer"
                 sx={{
                   fontSize: 9, color: '#94A3B8', textDecoration: 'none', whiteSpace: 'nowrap',
                   fontWeight: 700, letterSpacing: 0.2,
@@ -677,7 +685,9 @@ const CatalogoVirtual = () => {
             </Typography>
             <Button
               component="a"
-              href="/login"
+              href="https://www.techstackcol.com/ksmart360?view=pymes"
+              target="_blank"
+              rel="noopener noreferrer"
               variant="contained"
               size="small"
               endIcon={<ArrowForward sx={{ fontSize: 11 }} />}
