@@ -128,19 +128,6 @@ const ProtectedRoute = ({ path, hasAccess, children }) => {
 };
 
 function App() {
-  // Si el acceso es desde el subdominio del catálogo, renderizar solo el catálogo
-  const isCatalogoDomain = window.location.hostname === 'catalogo.appjeylor.com';
-  if (isCatalogoDomain) {
-    return (
-      <Suspense fallback={<Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}><CircularProgress sx={{ color: ACCENT }} /></Box>}>
-        <Routes>
-          <Route path="/:slug" element={<CatalogoVirtual />} />
-          <Route path="*" element={<CatalogoVirtual />} />
-        </Routes>
-      </Suspense>
-    );
-  }
-
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser]       = useState(null);
   const [loading, setLoading] = useState(true);
