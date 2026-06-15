@@ -31,6 +31,8 @@ class EmpresaBase(BaseModel):
     slug_catalogo: Optional[str] = None
     whatsapp_pedidos: Optional[str] = None
     logo_base64: Optional[str] = None
+    ciudad: Optional[str] = None
+    descripcion: Optional[str] = None
 
     # 🧾 CAMPOS FACTURACIÓN ELECTRÓNICA
     dv: Optional[str] = None

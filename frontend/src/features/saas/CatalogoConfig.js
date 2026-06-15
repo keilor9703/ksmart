@@ -45,7 +45,7 @@ const CatalogoConfig = () => {
       setLogo(emp.logo_base64 || null);
       setColorPrimario(emp.color_primario || '#FF6020');
       setDescripcion(emp.descripcion || '');
-      setDireccionRecogida(emp.direccion || '');
+      setDireccionRecogida(emp.ciudad || '');
     } catch (error) {
       toast.error("Error al cargar configuración");
     } finally {
