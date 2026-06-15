@@ -1459,17 +1459,18 @@ useEffect(() => {
                                             <HelpOutline sx={{ fontSize: 14, color: 'text.disabled', cursor: 'pointer' }} />
                                         </SmartTooltip>
                                     </Box>
-                                    <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap' }}>
+                                    <Box sx={{ display: 'flex', gap: { xs: 0.6, sm: 0.8 }, flexWrap: 'wrap' }}>
                                         {METODOS_PAGO.filter(opt => opt.value !== 'Link de Pago' || !!linkPagoConfig).map(opt => {
                                             const isSelected = pagada ? (opt.pagada && metodoPago === opt.value) : !opt.pagada;
                                             return (
                                                 <Box key={opt.value} onClick={() => { setPagada(opt.pagada); if (opt.pagada) setMetodoPago(opt.value); }}
                                                     sx={{
-                                                        px: 1.5, py: 0.9, borderRadius: 2, cursor: 'pointer',
+                                                        px: { xs: 1, sm: 1.5 }, py: { xs: 0.6, sm: 0.9 },
+                                                        borderRadius: 2, cursor: 'pointer',
                                                         border: '1.5px solid', borderColor: isSelected ? opt.color : 'divider',
                                                         bgcolor: isSelected ? `${opt.color}15` : 'background.paper',
                                                         color: isSelected ? opt.color : 'text.secondary',
-                                                        fontSize: 13, fontWeight: isSelected ? 700 : 500,
+                                                        fontSize: { xs: 11, sm: 13 }, fontWeight: isSelected ? 700 : 500,
                                                         transition: 'all 0.15s', userSelect: 'none',
                                                         '&:hover': { borderColor: opt.color, bgcolor: `${opt.color}08` },
                                                         whiteSpace: 'nowrap',
@@ -1482,8 +1483,35 @@ useEffect(() => {
                                     </Box>
                                 </Box>
 
-                                {/* Efectivo: recibido + cambio */}
-                                {pagada && metodoPago === 'Efectivo' && (
+                                {/* En móvil: valor recibido + botón registrar en la misma fila */}
+                                {isMobile && pagada && metodoPago === 'Efectivo' && (
+                                    <Box sx={{ width: '100%', display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                                        <Box sx={{ flex: 1 }}>
+                                            <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8, mb: 0.8 }}>
+                                                Valor recibido
+                                            </Typography>
+                                            <CurrencyField label="" size="small" fullWidth value={valorRecibido} onChange={setValorRecibido} />
+                                            {valorRecibido > 0 && (
+                                                <Box sx={{
+                                                    mt: 0.8, px: 2, py: 0.6, borderRadius: 2, textAlign: 'center',
+                                                    bgcolor: cambioEfectivo >= 0 ? '#10B98112' : '#EF444412',
+                                                    border: '1.5px solid', borderColor: cambioEfectivo >= 0 ? '#10B98140' : '#EF444440',
+                                                }}>
+                                                    <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Cambio</Typography>
+                                                    <Typography sx={{ fontSize: 16, fontWeight: 800, color: cambioEfectivo >= 0 ? '#10B981' : '#EF4444' }}>
+                                                        {formatCurrency(cambioEfectivo >= 0 ? cambioEfectivo : 0)}
+                                                    </Typography>
+                                                    {cambioEfectivo < 0 && (
+                                                        <Typography sx={{ fontSize: 10, color: '#EF4444' }}>Faltan {formatCurrency(Math.abs(cambioEfectivo))}</Typography>
+                                                    )}
+                                                </Box>
+                                            )}
+                                        </Box>
+                                    </Box>
+                                )}
+
+                                {/* Efectivo: recibido + cambio (solo desktop) */}
+                                {!isMobile && pagada && metodoPago === 'Efectivo' && (
                                     <Box sx={{ minWidth: 160, flexShrink: 0 }}>
                                         <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8, mb: 0.8 }}>
                                             Valor recibido
@@ -1510,7 +1538,34 @@ useEffect(() => {
                                     </Box>
                                 )}
 
-                                {/* Botón registrar */}
+                                {/* En móvil: botón + total en la misma fila */}
+                                {isMobile ? (
+                                    <Box sx={{ width: '100%', display: 'flex', gap: 1.5, alignItems: 'center' }}>
+                                        <Button
+                                            id="btn-registrar-venta"
+                                            type="submit" variant="contained"
+                                            disabled={savingVenta}
+                                            onClick={handleSubmit}
+                                            sx={{
+                                                flex: 1,
+                                                background: metodoPago === 'Link de Pago' ? 'linear-gradient(135deg, #FF6020, #ff9a62)' : `linear-gradient(135deg, ${ACCENT}, #ff9a62)`,
+                                                boxShadow: `0 4px 14px rgba(255,96,32,0.35)`,
+                                                borderRadius: 3, fontWeight: 800, py: 1.5, fontSize: 15,
+                                            }}
+                                            startIcon={savingVenta ? <CircularProgress size={18} sx={{ color: 'white' }} /> : (metodoPago === 'Link de Pago' ? <CreditCard /> : <ShoppingCart />)}
+                                        >
+                                            {savingVenta ? 'Guardando…' : (metodoPago === 'Link de Pago' ? 'Cobrar' : 'Registrar')}
+                                        </Button>
+                                        <Box sx={{ flexShrink: 0, textAlign: 'right' }}>
+                                            <Typography sx={{ fontSize: 9, color: 'text.secondary', letterSpacing: 1, textTransform: 'uppercase' }}>Total</Typography>
+                                            <Typography sx={{ fontSize: 28, fontWeight: 900, color: descuentoPuntosImporte > 0 ? '#10B981' : ACCENT, lineHeight: 1 }}>
+                                                {formatCurrency(totalFinal)}
+                                            </Typography>
+                                        </Box>
+                                    </Box>
+                                ) : (
+                                <>
+                                {/* Botón registrar (desktop) */}
                                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
                                     {editingVenta && (
                                         <Button onClick={resetForm} variant="outlined"
@@ -1538,7 +1593,7 @@ useEffect(() => {
                                     </Button>
                                 </Box>
 
-                                {/* Total a cobrar — extremo derecho */}
+                                {/* Total a cobrar — extremo derecho (desktop) */}
                                 <Box sx={{ flexShrink: 0, textAlign: 'right' }}>
                                     <Typography sx={{ fontSize: 11, color: 'text.secondary', letterSpacing: 1.5, textTransform: 'uppercase' }}>
                                         Total a cobrar
@@ -1558,6 +1613,8 @@ useEffect(() => {
                                           </Typography>
                                     }
                                 </Box>
+                                </>
+                                )}
                             </Box>
                         </Paper>
                         )}
