@@ -1918,6 +1918,13 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v90)
                 logger.info("V90 (planes privados por empresa) aplicada.")
 
+            # ── V91: descripción pública de la empresa (catálogo virtual) ──────
+            migration_v91 = "v91_empresa_descripcion_catalogo"
+            if not _migration_already_applied(conn, migration_v91):
+                conn.execute(text("ALTER TABLE empresas ADD COLUMN IF NOT EXISTS descripcion TEXT"))
+                _mark_migration_applied(conn, migration_v91)
+                logger.info("V91 (empresa.descripcion para catálogo) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
