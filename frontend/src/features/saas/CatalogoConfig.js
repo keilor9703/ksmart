@@ -359,39 +359,45 @@ const CatalogoConfig = () => {
 
         <Grid item xs={12} md={5}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'primary.main', color: '#fff', border: 'none' }}>
+            <Card variant="outlined" sx={{ borderRadius: 4, border: '1.5px solid', borderColor: 'divider' }}>
               <CardContent sx={{ p: 3 }}>
-                <Typography sx={{ fontWeight: 700, fontSize: 16, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <CheckCircle fontSize="small" /> Tu catálogo está listo
-                </Typography>
-                
-                <Box sx={{ bgcolor: 'rgba(255,255,255,0.15)', p: 2, borderRadius: 3, mb: 2 }}>
-                  <Typography variant="caption" sx={{ opacity: 0.8, display: 'block', mb: 0.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                  <CheckCircle sx={{ color: '#10B981', fontSize: 20 }} />
+                  <Typography sx={{ fontWeight: 700, fontSize: 15, color: 'text.primary' }}>
+                    Tu catálogo está listo
+                  </Typography>
+                </Box>
+
+                <Box sx={{
+                  bgcolor: 'action.hover', p: 2, borderRadius: 2, mb: 2,
+                  border: '1px solid', borderColor: 'divider',
+                }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, fontWeight: 600 }}>
                     Enlace público:
                   </Typography>
-                  <Typography sx={{ fontWeight: 600, fontSize: 14, wordBreak: 'break-all' }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: 13, wordBreak: 'break-all', color: 'primary.main' }}>
                     {catalogUrl}
                   </Typography>
                 </Box>
 
                 <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Button 
-                    variant="contained" 
-                    fullWidth 
+                  <Button
+                    variant="outlined"
+                    fullWidth
                     size="small"
                     startIcon={<ContentCopy />}
                     onClick={copyToClipboard}
-                    sx={{ bgcolor: '#fff', color: 'primary.main', fontWeight: 700, '&:hover': { bgcolor: '#f0f0f0' } }}
+                    sx={{ borderRadius: 2, fontWeight: 700 }}
                   >
-                    Copiar
+                    Copiar enlace
                   </Button>
-                  <Button 
-                    variant="contained" 
-                    fullWidth 
+                  <Button
+                    variant="contained"
+                    fullWidth
                     size="small"
                     startIcon={<OpenInNew />}
-                    onClick={() => window.open(`/${slug}`, '_blank')}
-                    sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: '#fff', fontWeight: 700, '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' } }}
+                    onClick={() => window.open(catalogUrl, '_blank', 'noopener,noreferrer')}
+                    sx={{ borderRadius: 2, fontWeight: 700 }}
                   >
                     Abrir
                   </Button>
