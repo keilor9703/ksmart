@@ -102,7 +102,7 @@ def get_public_catalogo(
         whatsapp_pedidos=db_empresa.whatsapp_pedidos,
         logo_base64=db_empresa.logo_base64,
         color_primario=db_empresa.color_primario,
-        direccion=db_empresa.direccion,
+        direccion=db_empresa.ciudad,
         tipo_negocio=db_empresa.tipo_negocio or "erp",
         descripcion=db_empresa.descripcion,
     )
