@@ -104,7 +104,7 @@ def get_public_catalogo(
         color_primario=db_empresa.color_primario,
         direccion=db_empresa.ciudad,
         tipo_negocio=db_empresa.tipo_negocio or "erp",
-        descripcion=db_empresa.descripcion,
+        descripcion=getattr(db_empresa, "descripcion", None),
     )
 
     # Para restaurantes, incluir lista de mesas activas
