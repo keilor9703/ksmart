@@ -7,7 +7,7 @@ import {
 import {
   Storefront, WhatsApp, Link, ContentCopy, OpenInNew,
   CloudUpload, Delete, CheckCircle, Info, Palette, GetApp,
-  CheckCircleOutline, Cancel
+  CheckCircleOutline, Cancel, LocationOn
 } from '@mui/icons-material';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
@@ -25,6 +25,7 @@ const CatalogoConfig = () => {
   const [empresa, setEmpresa] = useState(null);
   const [colorPrimario, setColorPrimario] = useState('#FF6020');
   const [descripcion, setDescripcion] = useState('');
+  const [direccionRecogida, setDireccionRecogida] = useState('');
   const [isDragging, setIsDragging] = useState(false);
 
   const COLOR_PRESETS = ['#FF6020', '#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444'];
@@ -44,6 +45,7 @@ const CatalogoConfig = () => {
       setLogo(emp.logo_base64 || null);
       setColorPrimario(emp.color_primario || '#FF6020');
       setDescripcion(emp.descripcion || '');
+      setDireccionRecogida(emp.direccion || '');
     } catch (error) {
       toast.error("Error al cargar configuración");
     } finally {
@@ -92,6 +94,7 @@ const CatalogoConfig = () => {
         logo_base64: logo,
         color_primario: colorPrimario,
         descripcion: descripcion.trim() || null,
+        direccion_recogida: direccionRecogida.trim() || null,
       });
       toast.success("Configuración guardada exitosamente");
     } catch (error) {
@@ -111,6 +114,7 @@ const CatalogoConfig = () => {
   const catalogSteps = [
     { title: 'Define tu URL', description: 'El slug será la dirección única de tu tienda (ej: ksmart.com/tu-tienda).' },
     { title: 'Vincula WhatsApp', description: 'Asegúrate de incluir el código de país para recibir pedidos directamente.' },
+    { title: 'Agrega tu dirección', description: 'La dirección de recogida aparecerá cuando el cliente elija "Recoger en tienda" al hacer su pedido.' },
     { title: 'Sube tu Logo', description: 'Un logo profesional genera confianza en tus clientes.' },
     { title: 'Activa tus Productos', description: 'Recuerda marcar "Mostrar en catálogo" en la edición de cada producto.' }
   ];
@@ -301,6 +305,19 @@ const CatalogoConfig = () => {
                     {colorPrimario.toUpperCase()}
                   </Typography>
                 </Box>
+              </Box>
+
+              <Box>
+                <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <LocationOn fontSize="small" color="error" /> Dirección de Recogida en Tienda
+                </Typography>
+                <TextField
+                  fullWidth
+                  placeholder="ej: Calle 10 #5-32, Barrio Centro, Medellín"
+                  value={direccionRecogida}
+                  onChange={(e) => setDireccionRecogida(e.target.value)}
+                  helperText="Esta dirección aparecerá al cliente cuando elija 'Recoger en tienda' al hacer su pedido."
+                />
               </Box>
 
               <Box>

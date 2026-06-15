@@ -2374,6 +2374,7 @@ class CatalogoConfigUpdate(BaseModel):
     whatsapp_pedidos: Optional[str] = None
     logo_base64: Optional[str] = None
     color_primario: Optional[str] = None
+    direccion_recogida: Optional[str] = None
 
 class CatalogoEmpresaOut(BaseModel):
     nombre: str

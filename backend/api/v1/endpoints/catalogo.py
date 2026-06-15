@@ -38,6 +38,8 @@ def update_catalogo_config(
         db_empresa.logo_base64 = payload.logo_base64
     if payload.color_primario is not None:
         db_empresa.color_primario = payload.color_primario
+    if payload.direccion_recogida is not None:
+        db_empresa.direccion = payload.direccion_recogida
         
     db.commit()
     db.refresh(db_empresa)

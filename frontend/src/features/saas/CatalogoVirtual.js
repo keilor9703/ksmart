@@ -1035,10 +1035,24 @@ const CatalogoVirtual = () => {
                     </Typography>
                     <TextField fullWidth placeholder="Calle, Barrio, Apartamento..." value={direccion} onChange={(e) => setDireccion(e.target.value)} required />
                   </Box>
-                ) : empresa?.direccion && (
-                  <Alert severity="info" sx={{ borderRadius: 3 }}>
-                    Dirección de recogida: <strong>{empresa.direccion}</strong>
-                  </Alert>
+                ) : (
+                  <Box sx={{
+                    p: 2, borderRadius: 3,
+                    border: '1.5px solid',
+                    borderColor: empresa?.direccion ? 'success.main' : 'warning.main',
+                    bgcolor: empresa?.direccion ? 'success.50' : 'warning.50',
+                  }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 0.8, mb: 0.5 }}>
+                      📍 Punto de recogida
+                    </Typography>
+                    {empresa?.direccion ? (
+                      <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{empresa.direccion}</Typography>
+                    ) : (
+                      <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+                        La tienda te indicará el punto de recogida al confirmar tu pedido.
+                      </Typography>
+                    )}
+                  </Box>
                 )}
                 <Box>
                   <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1 }}>Comentarios adicionales</Typography>
