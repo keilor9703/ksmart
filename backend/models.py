@@ -85,6 +85,9 @@ class Empresa(Base):
     # Configuración de ventas
     omitir_inventario     = Column(Boolean, default=False)
 
+    # Descripción pública del negocio (catálogo virtual)
+    descripcion = Column(Text, nullable=True)
+
     # Programa de fidelización (puntos canjeables)
     fidelizacion_activa      = Column(Boolean, default=True)
     fidelizacion_earn_rate   = Column(Integer, default=1000)  # COP por punto ganado

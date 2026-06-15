@@ -39,8 +39,10 @@ def update_catalogo_config(
     if payload.color_primario is not None:
         db_empresa.color_primario = payload.color_primario
     if payload.direccion_recogida is not None:
-        db_empresa.direccion = payload.direccion_recogida
-        
+        db_empresa.ciudad = payload.direccion_recogida
+    if payload.descripcion is not None:
+        db_empresa.descripcion = payload.descripcion
+
     db.commit()
     db.refresh(db_empresa)
     return db_empresa
@@ -104,7 +106,7 @@ def get_public_catalogo(
         color_primario=db_empresa.color_primario,
         direccion=db_empresa.ciudad,
         tipo_negocio=db_empresa.tipo_negocio or "erp",
-        descripcion=getattr(db_empresa, "descripcion", None),
+        descripcion=db_empresa.descripcion,
     )
 
     # Para restaurantes, incluir lista de mesas activas
