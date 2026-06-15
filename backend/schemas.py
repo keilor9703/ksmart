@@ -2398,6 +2398,8 @@ class CatalogoProductoOut(BaseModel):
     precio: float
     categoria: Optional[str] = None
     image_count: int = 0
+    stock: float = 0.0
+    es_servicio: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 

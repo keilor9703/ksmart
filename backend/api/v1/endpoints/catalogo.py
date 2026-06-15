@@ -91,7 +91,9 @@ def get_public_catalogo(
             descripcion=p.descripcion,
             precio=p.precio,
             categoria=categoria.nombre if categoria else "General",
-            image_count=count
+            image_count=count,
+            stock=p.stock_actual or 0.0,
+            es_servicio=bool(p.es_servicio),
         ))
 
     empresa_out = schemas.CatalogoEmpresaOut(
@@ -176,7 +178,9 @@ def get_catalogo_productos(
             descripcion=p.descripcion,
             precio=p.precio,
             categoria=cat.nombre if cat else "General",
-            image_count=count
+            image_count=count,
+            stock=p.stock_actual or 0.0,
+            es_servicio=bool(p.es_servicio),
         ))
     
     return results

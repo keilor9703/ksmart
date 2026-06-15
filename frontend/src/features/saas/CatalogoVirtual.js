@@ -171,7 +171,10 @@ const CatalogoVirtual = () => {
     return list;
   }, [productos, search, categoria, sortProductos]);
 
+  const isAgotado = (p) => !p.es_servicio && p.stock <= 0;
+
   const addToCart = (producto) => {
+    if (isAgotado(producto)) return;
     setCart(prev => {
       const existing = prev.find(item => item.id === producto.id);
       if (existing) {
@@ -450,21 +453,23 @@ const CatalogoVirtual = () => {
           }}>
             {filteredProductos.map(p => {
               const inCart = cart.find(item => item.id === p.id);
+              const agotado = isAgotado(p);
               return (
                 <Card
                   key={p.id}
                   sx={{
                     borderRadius: 2, display: 'flex', flexDirection: 'column',
                     overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
-                    border: '1px solid', borderColor: divClr,
+                    border: '1px solid', borderColor: agotado ? 'divider' : divClr,
                     cursor: 'pointer',
+                    opacity: agotado ? 0.72 : 1,
                   }}
                   onClick={() => { setSelectedProduct(p); setCurrentImgIndex(0); }}
                 >
                   <Box sx={{ position: 'relative' }}>
                     <CardMedia
                       component="img"
-                      sx={{ aspectRatio: '1/1', objectFit: 'cover' }}
+                      sx={{ aspectRatio: '1/1', objectFit: 'cover', filter: agotado ? 'grayscale(60%)' : 'none' }}
                       image={p.image_count > 0 ? `${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${p.id}/imagen?index=0` : 'https://placehold.co/400x400?text=Sin+imagen'}
                       alt={p.nombre}
                     />
@@ -481,9 +486,14 @@ const CatalogoVirtual = () => {
                         ? <Favorite sx={{ fontSize: 11, color: '#EF4444' }} />
                         : <FavoriteBorder sx={{ fontSize: 11, color: '#94A3B8' }} />}
                     </IconButton>
-                    {p.stock === 0 && (
-                      <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, bgcolor: 'rgba(0,0,0,0.55)', py: 0.3, textAlign: 'center' }}>
-                        <Typography sx={{ fontSize: 9, fontWeight: 700, color: '#fff' }}>Agotado</Typography>
+                    {agotado && (
+                      <Box sx={{
+                        position: 'absolute', bottom: 0, left: 0, right: 0,
+                        bgcolor: 'rgba(0,0,0,0.62)', py: 0.4, textAlign: 'center',
+                      }}>
+                        <Typography sx={{ fontSize: 9, fontWeight: 800, color: '#fff', letterSpacing: 0.5 }}>
+                          AGOTADO
+                        </Typography>
                       </Box>
                     )}
                   </Box>
@@ -491,11 +501,19 @@ const CatalogoVirtual = () => {
                     <Typography sx={{ fontWeight: 600, fontSize: 11, color: textPri, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.3, mb: 0.5, minHeight: 28 }}>
                       {p.nombre}
                     </Typography>
-                    <Typography sx={{ fontWeight: 800, fontSize: 12, color: accentColor, mb: 0.75 }}>
+                    <Typography sx={{ fontWeight: 800, fontSize: 12, color: agotado ? 'text.disabled' : accentColor, mb: 0.75 }}>
                       ${new Intl.NumberFormat('es-CO').format(p.precio)}
                     </Typography>
                     <Box onClick={(e) => e.stopPropagation()}>
-                      {inCart ? (
+                      {agotado ? (
+                        <Box sx={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          bgcolor: 'action.disabledBackground', borderRadius: 1.5, py: '4px',
+                          cursor: 'not-allowed',
+                        }}>
+                          <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.disabled' }}>Sin stock</Typography>
+                        </Box>
+                      ) : inCart ? (
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: subtleBg, borderRadius: 1.5, px: 0.5, py: 0.25 }}>
                           <IconButton size="small" onClick={() => removeFromCart(p.id)} sx={{ p: '2px', color: accentColor }}><Remove sx={{ fontSize: 14 }} /></IconButton>
                           <Typography sx={{ fontWeight: 700, fontSize: 12 }}>{inCart.quantity}</Typography>
@@ -614,16 +632,22 @@ const CatalogoVirtual = () => {
               </DialogContent>
 
               <DialogActions sx={{ p: 3, pt: 0 }}>
-                <Button
-                  fullWidth
-                  variant="contained"
-                  size="large"
-                  startIcon={<ShoppingCart />}
-                  onClick={() => { addToCart(selectedProduct); setSelectedProduct(null); }}
-                  sx={{ bgcolor: accentColor, borderRadius: 3, py: 1.5, fontWeight: 800, '&:hover': { bgcolor: accentColor, opacity: 0.9 } }}
-                >
-                  Agregar al Carrito
-                </Button>
+                {isAgotado(selectedProduct) ? (
+                  <Button fullWidth variant="outlined" size="large" disabled
+                    sx={{ borderRadius: 3, py: 1.5, fontWeight: 800 }}
+                  >
+                    Producto Agotado
+                  </Button>
+                ) : (
+                  <Button
+                    fullWidth variant="contained" size="large"
+                    startIcon={<ShoppingCart />}
+                    onClick={() => { addToCart(selectedProduct); setSelectedProduct(null); }}
+                    sx={{ bgcolor: accentColor, borderRadius: 3, py: 1.5, fontWeight: 800, '&:hover': { bgcolor: accentColor, opacity: 0.9 } }}
+                  >
+                    Agregar al Carrito
+                  </Button>
+                )}
               </DialogActions>
             </>
           )}
