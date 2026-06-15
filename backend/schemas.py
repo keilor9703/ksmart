@@ -1088,6 +1088,7 @@ class DashboardData(BaseModel):
     # Lavadero
     ingresos_lavadero_hoy: float = 0.0
     ordenes_lavadero_hoy: int = 0
+    total_productos: int = 0
 
 # Al final del archivo schemas.py, mantén la reconstrucción:
 DashboardData.model_rebuild()

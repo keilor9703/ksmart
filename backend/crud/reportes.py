@@ -311,6 +311,10 @@ def get_dashboard_data(db: Session, empresa_id: int, tipo_negocio: str = "erp") 
     deudores = get_clientes_deudores(db, empresa_id)
     cuentas_por_cobrar = sum(d.total_debt_amount for d in deudores)
     productos_bajo_stock = len(get_low_stock(db, empresa_id))
+    total_productos = db.query(models.Producto).filter(
+        models.Producto.empresa_id == empresa_id,
+        models.Producto.vigente == True,
+    ).count()
 
     # --- MÉTRICAS PRÉSTAMOS ---
     recaudo_hoy = db.query(func.sum(models.CuotaPrestamo.monto_cuota)).filter(
@@ -412,6 +416,7 @@ def get_dashboard_data(db: Session, empresa_id: int, tipo_negocio: str = "erp") 
         suscripciones_vigentes=suscripciones_vigentes,
         ingresos_lavadero_hoy=float(ingresos_lavadero_hoy),
         ordenes_lavadero_hoy=ordenes_lavadero_hoy,
+        total_productos=total_productos,
     )
 
 

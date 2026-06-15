@@ -94,7 +94,7 @@ export default function ActivationChecklist({ user, data, totalUltimos30 }) {
       label: esPrestamista ? 'Registra tu primer cliente' : 'Agrega tu primer producto',
       desc: esPrestamista ? 'Crea tu base de deudores.' : 'Sube tu catálogo de productos.',
       done: dismissed.includes('add_product')
-        || (esPrestamista ? (data?.capital_en_calle || 0) > 0 : (data?.productos_bajo_stock || 0) > 0),
+        || (esPrestamista ? (data?.capital_en_calle || 0) > 0 : (data?.total_productos || 0) > 0),
       path: esPrestamista ? '/clientes' : '/productos',
     },
     {
