@@ -78,13 +78,60 @@ const getEstadoPagoChip = (estado) => {
     return <Chip label={p.label} color={p.color} size="small" sx={{ fontWeight: 600, fontSize: 11, borderRadius: 1.5 }} />;
 };
 
+// ─── Chip de estado de Factura Electrónica ────────────────────────────────────
+const ChipFE = ({ estado, ventaId, onReintentar }) => {
+    if (!estado || estado === 'no_enviado') return null;
+    if (estado === 'exitoso') {
+        return (
+            <Chip
+                label="✓ FE"
+                size="small"
+                sx={{ ml: 0.5, bgcolor: '#d1fae5', color: '#065f46', fontWeight: 700, fontSize: 10, height: 18, borderRadius: 1 }}
+            />
+        );
+    }
+    if (estado === 'pendiente') {
+        return (
+            <Chip
+                label="⏳ FE"
+                size="small"
+                sx={{ ml: 0.5, bgcolor: '#fef3c7', color: '#92400e', fontWeight: 700, fontSize: 10, height: 18, borderRadius: 1 }}
+            />
+        );
+    }
+    if (estado === 'fallido') {
+        return (
+            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.3 }}>
+                <Chip
+                    label="✗ FE"
+                    size="small"
+                    sx={{ ml: 0.5, bgcolor: '#fee2e2', color: '#991b1b', fontWeight: 700, fontSize: 10, height: 18, borderRadius: 1 }}
+                />
+                <Tooltip title="Reintentar emisión FE">
+                    <IconButton
+                        size="small"
+                        onClick={() => onReintentar && onReintentar(ventaId)}
+                        sx={{ p: 0.2, color: '#DC2626', '&:hover': { bgcolor: '#FEE2E2' } }}
+                    >
+                        <span style={{ fontSize: 11 }}>↺</span>
+                    </IconButton>
+                </Tooltip>
+            </Box>
+        );
+    }
+    return null;
+};
+
 // ─── Venta Card (mobile) ──────────────────────────────────────────────────────
-const VentaCard = ({ venta, handleEdit, handleDelete, handleOpenDetails, handleOpenDevolucion }) => (
+const VentaCard = ({ venta, handleEdit, handleDelete, handleOpenDetails, handleOpenDevolucion, handleReintentarFE }) => (
     <Paper sx={{ p: 2.5, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
             <Box>
                 <Typography sx={{ fontWeight: 700, fontSize: 15 }}>{venta.cliente?.nombre || 'Sin cliente'}</Typography>
-                <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>#{venta.id} · {new Date(venta.fecha + 'Z').toLocaleString()}</Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.3 }}>
+                    <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>#{venta.id}{venta.numero_factura ? ` · ${venta.numero_factura}` : ''} · {new Date(venta.fecha + 'Z').toLocaleString()}</Typography>
+                    <ChipFE estado={venta.estado_electronico} ventaId={venta.id} onReintentar={handleReintentarFE} />
+                </Box>
             </Box>
             {getEstadoPagoChip(venta.estado_pago)}
         </Box>
@@ -910,6 +957,13 @@ useEffect(() => {
     const handleOpenDevolucion = (v) => { setVentaDevolucion(v); setDevolucionOpen(true); };
     const handleDevolucionSuccess = () => { fetchVentas(); fetchVentasSummary(); };
 
+    // ── Reintentar emisión FE ──
+    const handleReintentarFE = (ventaId) => {
+        apiClient.post(`/fe/ventas/${ventaId}/emitir`)
+            .then(() => fetchVentas())
+            .catch(err => console.error('Error al reintentar FE:', err));
+    };
+
     // ── Filtros historial ──
     const filteredVentas = [...ventas]
         .filter(v => {
@@ -1684,6 +1738,7 @@ useEffect(() => {
                                             handleEdit={handleEdit} handleDelete={handleDelete}
                                             handleOpenDetails={handleOpenDetails}
                                             handleOpenDevolucion={handleOpenDevolucion}
+                                            handleReintentarFE={handleReintentarFE}
                                         />
                                     ))
                                 }
@@ -1703,7 +1758,11 @@ useEffect(() => {
                                             ? <TableRow><TableCell colSpan={9} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>No se encontraron ventas</TableCell></TableRow>
                                             : paginatedVentas.map(v => (
                                                 <TableRow key={v.id} hover>
-                                                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{v.id}</TableCell>
+                                                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>
+                                                        #{v.id}
+                                                        {v.numero_factura && <Typography component="span" sx={{ fontSize: 11, ml: 0.5, color: 'text.disabled' }}>{v.numero_factura}</Typography>}
+                                                        <ChipFE estado={v.estado_electronico} ventaId={v.id} onReintentar={handleReintentarFE} />
+                                                    </TableCell>
                                                     <TableCell sx={{ fontWeight: 600 }}>{v.cliente?.nombre || 'N/A'}</TableCell>
                                                     <TableCell>
                                                         {v.detalles.map(d => (

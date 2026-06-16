@@ -1925,6 +1925,44 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v91)
                 logger.info("V91 (empresa.descripcion para catálogo) aplicada.")
 
+            # ── V92: tabla intentos_fe para auditoría de emisión FE ──────────
+            migration_v92 = "v92_intentos_fe"
+            if not _migration_already_applied(conn, migration_v92):
+                if not _table_exists(conn, "intentos_fe"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE intentos_fe (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                venta_id INTEGER NOT NULL REFERENCES ventas(id) ON DELETE CASCADE,
+                                empresa_id INTEGER NOT NULL,
+                                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                estado VARCHAR(20),
+                                payload_enviado TEXT,
+                                respuesta_recibida TEXT,
+                                cufe VARCHAR(200),
+                                mensaje TEXT
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE intentos_fe (
+                                id SERIAL PRIMARY KEY,
+                                venta_id INTEGER NOT NULL REFERENCES ventas(id) ON DELETE CASCADE,
+                                empresa_id INTEGER NOT NULL,
+                                timestamp TIMESTAMPTZ DEFAULT NOW(),
+                                estado VARCHAR(20),
+                                payload_enviado TEXT,
+                                respuesta_recibida TEXT,
+                                cufe VARCHAR(200),
+                                mensaje TEXT
+                            )
+                        """))
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_intentos_fe_venta ON intentos_fe(venta_id)"))
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_intentos_fe_empresa ON intentos_fe(empresa_id)"))
+                    logger.info("V92: tabla intentos_fe creada.")
+                _mark_migration_applied(conn, migration_v92)
+                logger.info("V92 (intentos_fe — auditoría FE) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
