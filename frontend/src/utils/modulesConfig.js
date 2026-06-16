@@ -139,7 +139,6 @@ export const getModuleConfig = (frontendPath, backendName = null) => {
 // ───────────────────────────────────────────────────────────────────────────
 export const ADMIN_MODULES = [
   { path: '/admin/usuarios', label: 'Usuarios y Permisos', icon: null, color: '#a78bfa' },
-  { path: '/admin/catalogo', label: 'Catálogo Virtual', icon: <Storefront />, color: '#F43F5E' },
 ];
 
 
