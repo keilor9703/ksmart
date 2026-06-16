@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import {
   Box, Typography, List, ListItemButton,
   ListItemText, ListItemIcon, Collapse, Divider,
-  Tooltip, Avatar, IconButton,
+  Tooltip, Avatar, IconButton, Menu, MenuItem,
 } from '@mui/material';
 import {
   AdminPanelSettings, Business, KeyboardArrowRight, WorkspacePremium,
-  PushPin, PushPinOutlined, QrCode2,
+  PushPin, PushPinOutlined, QrCode2, Storefront, Link as LinkIcon,
+  Logout, KeyboardArrowUp,
 } from '@mui/icons-material';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { MODULE_ICONS, ADMIN_MODULES, getModuleConfig } from '../utils/modulesConfig';
 
 const SIDEBAR_BG     = '#0f172a';
@@ -19,9 +20,9 @@ const ACCENT         = '#FF6020';
 const SidebarItem = ({ item, expanded, onClick, onClose, active }) => (
   <Tooltip title={!expanded ? (item.label || item.text) : ''} placement="right" arrow>
     <ListItemButton
-      component={onClick ? 'div' : Link}   
-      to={onClick ? undefined : item.path} 
-      onClick={onClick ?? onClose}         
+      component={onClick ? 'div' : Link}
+      to={onClick ? undefined : item.path}
+      onClick={onClick ?? onClose}
       sx={{
         mx: 1, mb: 0.5, borderRadius: 2, minHeight: 44,
         px: expanded ? 2 : 1.5, justifyContent: expanded ? 'flex-start' : 'center',
@@ -44,7 +45,133 @@ const SidebarItem = ({ item, expanded, onClick, onClose, active }) => (
   </Tooltip>
 );
 
-const Sidebar = ({ expanded, user, hasAccess, onClose, mobile, pinned, onPinToggle }) => {
+const UserMenu = ({ user, expanded, onClose: closeSidebar, onLogout }) => {
+  const [anchor, setAnchor] = useState(null);
+  const navigate = useNavigate();
+  const isAdmin = user?.role?.name === 'Admin';
+  const isSuperAdmin = isAdmin && user?.empresa_id === 1;
+
+  const open = Boolean(anchor);
+
+  const handleOpen = (e) => setAnchor(e.currentTarget);
+  const handleClose = () => setAnchor(null);
+
+  const goTo = (path) => {
+    handleClose();
+    if (closeSidebar) closeSidebar();
+    navigate(path);
+  };
+
+  return (
+    <>
+      <Tooltip title={!expanded ? (user?.username || '') : ''} placement="right" arrow>
+        <Box
+          onClick={handleOpen}
+          sx={{
+            borderTop: '1px solid rgba(255,255,255,0.06)',
+            px: expanded ? 2 : 1,
+            py: 1.5,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5,
+            cursor: 'pointer',
+            transition: 'background 0.15s',
+            '&:hover': { bgcolor: SIDEBAR_HOVER },
+          }}
+        >
+          <Avatar sx={{ width: 34, height: 34, flexShrink: 0, background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`, fontSize: 13, fontWeight: 700 }}>
+            {user?.username?.[0]?.toUpperCase()}
+          </Avatar>
+          {expanded && (
+            <>
+              <Box sx={{ overflow: 'hidden', flex: 1 }}>
+                <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0', fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {user?.username}
+                </Typography>
+                <Typography sx={{ fontSize: 11, color: '#64748b' }}>{user?.role?.name}</Typography>
+              </Box>
+              <KeyboardArrowUp sx={{ fontSize: 16, color: '#475569', flexShrink: 0, transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+            </>
+          )}
+        </Box>
+      </Tooltip>
+
+      <Menu
+        anchorEl={anchor}
+        open={open}
+        onClose={handleClose}
+        anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        slotProps={{
+          paper: {
+            sx: {
+              bgcolor: '#1e293b',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 2,
+              minWidth: 220,
+              boxShadow: '0 -8px 32px rgba(0,0,0,0.4)',
+              mb: 0.5,
+            },
+          },
+        }}
+      >
+        {/* Header del menú */}
+        <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            {user?.username}
+          </Typography>
+          <Typography sx={{ fontSize: 11, color: '#64748b' }}>
+            {user?.empresa?.nombre || user?.role?.name}
+          </Typography>
+        </Box>
+
+        {/* Opciones de Mi Cuenta — solo Admin */}
+        {isAdmin && (
+          <Box>
+            <Typography sx={{ px: 2, pt: 1.5, pb: 0.5, fontSize: 10, fontWeight: 700, color: '#475569', letterSpacing: 1, textTransform: 'uppercase', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              Mi Cuenta
+            </Typography>
+
+            <MenuItem onClick={() => goTo('/mi-suscripcion')} sx={menuItemSx}>
+              <WorkspacePremium sx={{ fontSize: 17, color: ACCENT, mr: 1.5 }} />
+              <Typography sx={menuTextSx}>Mi Suscripción</Typography>
+            </MenuItem>
+
+            {!isSuperAdmin && (
+              <MenuItem onClick={() => goTo('/admin/catalogo')} sx={menuItemSx}>
+                <Storefront sx={{ fontSize: 17, color: '#10B981', mr: 1.5 }} />
+                <Typography sx={menuTextSx}>Catálogo Virtual</Typography>
+              </MenuItem>
+            )}
+
+            <MenuItem onClick={() => goTo(isSuperAdmin ? '/superadmin/link-pago' : '/admin/link-pago')} sx={menuItemSx}>
+              <QrCode2 sx={{ fontSize: 17, color: '#3B82F6', mr: 1.5 }} />
+              <Typography sx={menuTextSx}>Link de Pago POS</Typography>
+            </MenuItem>
+
+            <Divider sx={{ my: 0.75, borderColor: 'rgba(255,255,255,0.06)' }} />
+          </Box>
+        )}
+
+        {/* Cerrar sesión */}
+        <MenuItem onClick={() => { handleClose(); onLogout?.(); }} sx={{ ...menuItemSx, '&:hover': { bgcolor: 'rgba(239,68,68,0.1)' } }}>
+          <Logout sx={{ fontSize: 17, color: '#ef4444', mr: 1.5 }} />
+          <Typography sx={{ ...menuTextSx, color: '#ef4444' }}>Cerrar sesión</Typography>
+        </MenuItem>
+      </Menu>
+    </>
+  );
+};
+
+const menuItemSx = {
+  px: 2, py: 1, borderRadius: 1, mx: 0.5,
+  '&:hover': { bgcolor: 'rgba(255,255,255,0.06)' },
+};
+const menuTextSx = {
+  fontSize: 13, fontFamily: "'Plus Jakarta Sans', sans-serif", color: '#cbd5e1',
+};
+
+const Sidebar = ({ expanded, user, hasAccess, onClose, mobile, pinned, onPinToggle, onLogout }) => {
   const location = useLocation();
   const [adminOpen, setAdminOpen] = useState(false);
   const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
@@ -100,7 +227,6 @@ const Sidebar = ({ expanded, user, hasAccess, onClose, mobile, pinned, onPinTogg
         {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (
           <>
             <SidebarItem expanded={expanded} item={{ path: '/superadmin/empresas', label: 'Clientes SaaS', icon: <Business />, color: '#F43F5E' }} active={isActive('/superadmin/empresas')} onClose={mobile ? onClose : undefined} />
-            <SidebarItem expanded={expanded} item={{ path: '/superadmin/link-pago', label: 'Link de Pago POS', icon: <QrCode2 />, color: '#FF6020' }} active={isActive('/superadmin/link-pago')} onClose={mobile ? onClose : undefined} />
             {expanded && <Divider sx={{ mx: 2, my: 1, borderColor: 'rgba(255,255,255,0.06)' }} />}
           </>
         )}
@@ -134,29 +260,7 @@ const Sidebar = ({ expanded, user, hasAccess, onClose, mobile, pinned, onPinTogg
         )}
       </Box>
 
-      {/* Mi Suscripción — visible para todos los admins, incluyendo el superadmin */}
-      {user?.role?.name === 'Admin' && (
-        <Box sx={{ px: 1, pb: 1, borderTop: '1px solid rgba(255,255,255,0.06)', pt: 1 }}>
-          <SidebarItem
-            expanded={expanded}
-            item={{ path: '/mi-suscripcion', label: 'Mi Suscripción', icon: <WorkspacePremium />, color: '#FF6020' }}
-            active={isActive('/mi-suscripcion')}
-            onClose={mobile ? onClose : undefined}
-          />
-        </Box>
-      )}
-
-      <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)', px: expanded ? 2 : 1, py: 1.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <Avatar sx={{ width: 34, height: 34, flexShrink: 0, background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`, fontSize: 13, fontWeight: 700 }}>
-          {user?.username?.[0]?.toUpperCase()}
-        </Avatar>
-        {expanded && (
-          <Box sx={{ overflow: 'hidden', flex: 1 }}>
-            <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0', fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.username}</Typography>
-            <Typography sx={{ fontSize: 11, color: '#64748b' }}>{user?.role?.name}</Typography>
-          </Box>
-        )}
-      </Box>
+      <UserMenu user={user} expanded={expanded} onClose={mobile ? onClose : undefined} onLogout={onLogout} />
     </Box>
   );
 };

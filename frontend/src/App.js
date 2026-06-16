@@ -342,6 +342,7 @@ const hasAccess = useCallback((path) => {
                     hasAccess={hasAccess}
                     pinned={sidebarPinned}
                     onPinToggle={handlePinToggle}
+                    onLogout={handleLogout}
                   />
                 </Box>
               )}
@@ -352,7 +353,7 @@ const hasAccess = useCallback((path) => {
                   ModalProps={{ keepMounted: true }}
                   sx={{ '& .MuiDrawer-paper': { width: SIDEBAR_FULL, border: 'none' } }}
                 >
-                  <Sidebar expanded user={user} hasAccess={hasAccess} onClose={() => setMobileOpen(false)} mobile />
+                  <Sidebar expanded user={user} hasAccess={hasAccess} onClose={() => setMobileOpen(false)} mobile onLogout={handleLogout} />
                 </Drawer>
               )}
 
@@ -429,6 +430,7 @@ const hasAccess = useCallback((path) => {
                       <>
                         <Route path="/admin/usuarios" element={<AdminUsuarios />} />
                         <Route path="/admin/catalogo" element={<CatalogoConfig />} />
+                        <Route path="/admin/link-pago" element={<ConfigLinkPago />} />
                       </>
                     )}
                     <Route path="/mi-suscripcion" element={<MiSuscripcion user={user} />} />
