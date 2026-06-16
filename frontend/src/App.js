@@ -51,6 +51,7 @@ const GestionEmpresas  = lazy(() => import('./features/admin/GestionEmpresas'));
 const InventarioLotes  = lazy(() => import('./features/inventory/InventarioLotes'));
 const Cotizaciones     = lazy(() => import('./features/sales/Cotizaciones'));
 const ResolucionesDian = lazy(() => import('./features/dian/ResolucionesDian'));
+const ConfigFE         = lazy(() => import('./features/dian/ConfigFE'));
 const MiSuscripcion    = lazy(() => import('./features/account/MiSuscripcion'));
 const ConfigLinkPago   = lazy(() => import('./features/account/ConfigLinkPago'));
 
@@ -431,6 +432,7 @@ const hasAccess = useCallback((path) => {
                         <Route path="/admin/usuarios" element={<AdminUsuarios />} />
                         <Route path="/admin/catalogo" element={<CatalogoConfig />} />
                         <Route path="/admin/link-pago" element={<ConfigLinkPago />} />
+                        <Route path="/admin/facturacion-electronica" element={<ConfigFE />} />
                       </>
                     )}
                     <Route path="/mi-suscripcion" element={<MiSuscripcion user={user} />} />

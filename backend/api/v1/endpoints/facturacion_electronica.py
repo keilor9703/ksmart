@@ -218,6 +218,34 @@ def listar_pendientes(
     ]
 
 
+@router.get("/intentos")
+def listar_intentos(
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Lista los últimos intentos de FE de la empresa (auditoría)."""
+    empresa_id = current_user.empresa_id
+    intentos = (
+        db.query(models.IntentoFE)
+        .filter(models.IntentoFE.empresa_id == empresa_id)
+        .order_by(models.IntentoFE.timestamp.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "id":        i.id,
+            "venta_id":  i.venta_id,
+            "timestamp": i.timestamp.isoformat() if i.timestamp else None,
+            "estado":    i.estado,
+            "cufe":      i.cufe,
+            "mensaje":   i.mensaje,
+        }
+        for i in intentos
+    ]
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # POST /webhooks/matias  (sin autenticación de usuario — valida secret en header)
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -7,7 +7,7 @@ import {
 import {
   AdminPanelSettings, Business, KeyboardArrowRight, WorkspacePremium,
   PushPin, PushPinOutlined, QrCode2, Storefront, Link as LinkIcon,
-  Logout, KeyboardArrowUp,
+  Logout, KeyboardArrowUp, Receipt,
 } from '@mui/icons-material';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { MODULE_ICONS, ADMIN_MODULES, getModuleConfig } from '../utils/modulesConfig';
@@ -147,6 +147,11 @@ const UserMenu = ({ user, expanded, onClose: closeSidebar, onLogout }) => {
             <MenuItem onClick={() => goTo(isSuperAdmin ? '/superadmin/link-pago' : '/admin/link-pago')} sx={menuItemSx}>
               <QrCode2 sx={{ fontSize: 17, color: '#3B82F6', mr: 1.5 }} />
               <Typography sx={menuTextSx}>Link de Pago POS</Typography>
+            </MenuItem>
+
+            <MenuItem onClick={() => { navigate('/admin/facturacion-electronica'); handleClose(); }} sx={{ gap: 1.5 }}>
+              <Receipt fontSize="small" sx={{ color: '#8B5CF6' }} />
+              <Typography variant="body2">Facturación Electrónica</Typography>
             </MenuItem>
 
             <Divider sx={{ my: 0.75, borderColor: 'rgba(255,255,255,0.06)' }} />
