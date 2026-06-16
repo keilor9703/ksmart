@@ -443,6 +443,22 @@ class ResolucionDian(Base, TenantMixin):
     nota              = Column(Text, nullable=True)           # Observaciones internas
 
 
+class IntentoFE(Base):
+    """
+    Auditoría de cada intento de emisión de Factura Electrónica.
+    Registra payload enviado a Matias y respuesta recibida para diagnóstico.
+    """
+    __tablename__ = "intentos_fe"
+    id                  = Column(Integer, primary_key=True)
+    venta_id            = Column(Integer, ForeignKey("ventas.id", ondelete="CASCADE"), nullable=False, index=True)
+    empresa_id          = Column(Integer, nullable=False, index=True)
+    timestamp           = Column(DateTime(timezone=True), default=utcnow)
+    estado              = Column(String(20))             # 'exitoso' | 'fallido' | 'pendiente'
+    payload_enviado     = Column(Text, nullable=True)    # JSON del payload enviado a Matias
+    respuesta_recibida  = Column(Text, nullable=True)    # JSON de la respuesta de Matias
+    cufe                = Column(String(200), nullable=True)
+    mensaje             = Column(Text, nullable=True)
+
 
 class Venta(Base, TenantMixin):
     __tablename__ = "ventas"

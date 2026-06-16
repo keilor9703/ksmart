@@ -141,6 +141,65 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate, commi
     if getattr(venta, 'tipo', 'venta') == 'venta':
         _asignar_numero_factura(db, empresa_id, db_venta)
 
+    # Fase 2C: Emisión Factura Electrónica (sync via httpx.Client, nunca hace rollback)
+    # Solo cuando hay número asignado y empresa tiene FE activa.
+    if db_venta.numero_factura and db_venta.estado_electronico == "pendiente":
+        try:
+            import json as _json
+            from services import matias_service as _ms
+
+            empresa_fe = db.query(models.Empresa).filter(
+                models.Empresa.id == empresa_id
+            ).first()
+
+            if empresa_fe and empresa_fe.facturacion_electronica_activa and empresa_fe.matias_api_key:
+                # Cargar cliente (puede ser None → Consumidor Final)
+                cliente_fe = None
+                if db_venta.cliente_id:
+                    cliente_fe = db.query(models.Cliente).filter(
+                        models.Cliente.id         == db_venta.cliente_id,
+                        models.Cliente.empresa_id == empresa_id,
+                    ).first()
+
+                resultado_fe = _ms.emitir_factura(
+                    venta     = db_venta,
+                    empresa   = empresa_fe,
+                    cliente   = cliente_fe,
+                    detalles  = detalles_objs,
+                    api_key   = empresa_fe.matias_api_key,
+                    test_mode = empresa_fe.matias_test_mode,
+                )
+
+                # Actualizar campos FE en la venta
+                db_venta.estado_electronico = resultado_fe["estado"]
+                db_venta.mensaje_proveedor  = resultado_fe.get("mensaje")
+                if resultado_fe.get("cufe"):
+                    db_venta.cufe    = resultado_fe["cufe"]
+                if resultado_fe.get("pdf_url"):
+                    db_venta.pdf_url = resultado_fe["pdf_url"]
+                if resultado_fe.get("xml_url"):
+                    db_venta.xml_url = resultado_fe["xml_url"]
+
+                # Auditoría en intentos_fe
+                intento_fe = models.IntentoFE(
+                    venta_id           = db_venta.id,
+                    empresa_id         = empresa_id,
+                    estado             = resultado_fe["estado"],
+                    payload_enviado    = resultado_fe.get("payload_enviado"),
+                    respuesta_recibida = resultado_fe.get("respuesta_recibida"),
+                    cufe               = resultado_fe.get("cufe"),
+                    mensaje            = resultado_fe.get("mensaje"),
+                )
+                db.add(intento_fe)
+
+        except Exception:
+            # Un error en FE nunca bloquea la creación de la venta
+            import logging as _logging
+            _logging.getLogger("crud.ventas").exception(
+                "Error al emitir FE para venta %s — se guarda sin FE.", db_venta.id
+            )
+            db_venta.estado_electronico = "fallido"
+
     # Fase 2B: campos extra
     db_venta.tipo           = getattr(venta, 'tipo', 'venta')
     db_venta.valida_hasta   = getattr(venta, 'valida_hasta', None)
