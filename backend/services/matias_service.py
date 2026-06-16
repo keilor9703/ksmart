@@ -1,171 +1,284 @@
 """
-Servicio de integración con Matias API (proveedor FE colombiano).
-Skeleton listo para conectar — los campos exactos del payload se marcan con TODO:
-cuando se obtenga la documentación oficial de Matias.
+Servicio de integración con Matias API (Lopezsoft) — Facturación Electrónica DIAN.
+
+Autenticación: Bearer token (JWT, validez 1 año).
+El token se guarda en Empresa.matias_api_key y se obtiene una vez desde el portal
+https://auth.matias-api.com — el usuario lo pega en la configuración de Ksmart360.
+
+La empresa emisora NO va en el payload — Matias la asocia automáticamente al token.
+Solo va: cliente, líneas, totales, resolución y consecutivo.
 """
 
 import json
 import logging
 import os
 from datetime import datetime, timezone
+from typing import Optional
 
 import httpx
 
 logger = logging.getLogger("matias_service")
 
 # ─── URLs base ────────────────────────────────────────────────────────────────
-MATIAS_SANDBOX_URL = os.getenv("MATIAS_SANDBOX_URL", "https://apiv2-test.mattias.co/api/v1")
-MATIAS_PROD_URL    = os.getenv("MATIAS_PROD_URL",    "https://apiv2.mattias.co/api/v1")
+MATIAS_PROD_URL    = os.getenv("MATIAS_PROD_URL",    "https://api-v2.matias-api.com")
+MATIAS_SANDBOX_URL = os.getenv("MATIAS_SANDBOX_URL", "https://sandbox-api.matias-api.com")
 
-# Datos de Consumidor Final DIAN
-CONSUMIDOR_FINAL_NIT      = "222222222222"
-CONSUMIDOR_FINAL_NOMBRE   = "Consumidor Final"
-CONSUMIDOR_FINAL_TIPO_DOC = 13  # Cédula de ciudadanía
+# Consumidor Final — NIT DIAN oficial para ventas sin identificación
+CONSUMIDOR_FINAL_NIT    = "222222222222"
+CONSUMIDOR_FINAL_NOMBRE = "CONSUMIDOR FINAL"
 
-# Timeout para llamadas HTTP (segundos)
+# Constantes de catálogo Matias (obtenidas de GET /identity-documents, /cities, etc.)
+DOC_NIT       = "1"   # NIT
+DOC_CC        = "3"   # Cédula de ciudadanía
+DOC_CE        = "2"   # Cédula de extranjería
+COLOMBIA_ID   = "45"  # country_id Colombia
+BOGOTA_ID     = "149" # city_id Bogotá (fallback)
+UNIDAD_UND    = "1093"  # quantity_units_id: unidad
+ITEM_TYPE_ID  = "4"     # type_item_identifications_id: estándar
+REF_PRICE_ID  = "1"     # reference_price_id: precio de referencia
+
+# Tipos de documento Matias
+TYPE_DOCUMENT_FACTURA_VENTA = 7   # Factura de venta
+OPERATION_TYPE_STANDARD     = 1   # Operación estándar nacional
+
+# Medios de pago Matias
+MEANS_EFECTIVO   = 10
+MEANS_TARJETA    = 48
+MEANS_TRANSFERENCIA = 47
+
 HTTP_TIMEOUT = 30
 
 
 def get_matias_url(test_mode: bool) -> str:
-    """Retorna la URL base según el modo (sandbox o producción)."""
     return MATIAS_SANDBOX_URL if test_mode else MATIAS_PROD_URL
+
+
+def _medio_pago_id(metodo_pago: Optional[str]) -> int:
+    """Mapea el método de pago interno de Ksmart360 al means_payment_id de Matias."""
+    if not metodo_pago:
+        return MEANS_EFECTIVO
+    mp = metodo_pago.lower()
+    if any(w in mp for w in ["tarjeta", "débito", "debito", "crédito", "credito", "nequi", "daviplata"]):
+        return MEANS_TARJETA
+    if any(w in mp for w in ["transferencia", "consignación", "consignacion", "banco", "pse"]):
+        return MEANS_TRANSFERENCIA
+    return MEANS_EFECTIVO
+
+
+def _ciudad_id(ciudad_code: Optional[str]) -> str:
+    """
+    Convierte el código DIAN de ciudad al city_id de Matias.
+    Por ahora retorna el código directamente — ajustar si Matias usa IDs propios.
+    """
+    return ciudad_code or BOGOTA_ID
 
 
 def build_invoice_payload(venta, empresa, cliente, detalles) -> dict:
     """
-    Construye el payload JSON para enviar a Matias API.
+    Construye el payload JSON para POST /invoice de Matias API.
 
-    - Si cliente es None o no tiene cédula, usa datos de Consumidor Final
-      (NIT 222222222222, tipo_documento_id=13).
-    - Los campos marcados con TODO: deben ajustarse cuando se tenga
-      documentación oficial de Matias.
-
-    Args:
-        venta:    instancia de models.Venta (ya tiene numero_factura y resolucion)
-        empresa:  instancia de models.Empresa (emisor)
-        cliente:  instancia de models.Cliente | None
-        detalles: lista de models.DetalleVenta
-
-    Returns:
-        dict con el payload listo para serializar a JSON
+    Estructura validada contra documentación oficial de Lopezsoft (junio 2026).
+    La empresa emisora NO va en el payload — Matias la asocia al Bearer token.
     """
-    fecha_str = (
-        venta.fecha.strftime("%Y-%m-%dT%H:%M:%S")
-        if venta.fecha
-        else datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
-    )
+    ahora = venta.fecha or datetime.now(timezone.utc)
+    fecha_str = ahora.strftime("%Y-%m-%d")
+    hora_str  = ahora.strftime("%H:%M:%S")
 
-    # Separar prefijo y número del numero_factura (ej: "FE001" → prefijo="FE", numero=1)
+    # Separar prefijo y número del numero_factura (ej: "FE00001" → prefijo="FE", numero=1)
     resolucion = getattr(venta, "resolucion", None)
-    prefijo    = resolucion.prefijo if resolucion else ""
-    if venta.numero_factura and prefijo:
-        numero_str = venta.numero_factura[len(prefijo):]
+    prefijo    = (resolucion.prefijo if resolucion else "") or ""
+    raw_num    = venta.numero_factura or ""
+    if prefijo and raw_num.startswith(prefijo):
+        numero_str = raw_num[len(prefijo):]
     else:
-        numero_str = venta.numero_factura or ""
+        numero_str = raw_num
     try:
         numero_int = int(numero_str)
     except (ValueError, TypeError):
         numero_int = 0
 
-    # ── Datos del emisor (empresa) ──────────────────────────────────────────
-    emisor = {
-        # TODO: verificar nombre exacto del campo NIT en Matias
-        "nit":                    empresa.nit or "",
-        "dv":                     empresa.dv or "",
-        "nombre":                 empresa.nombre or "",
-        # TODO: verificar si Matias usa tipo_organizacion_id o tipo_persona
-        "tipo_organizacion_id":   empresa.tipo_organizacion_id or 1,
-        # TODO: verificar si Matias usa tipo_regimen_id o codigo_regimen
-        "tipo_regimen_id":        empresa.tipo_regimen_id or 48,
-        "responsabilidad_fiscal": empresa.responsabilidad_fiscal_codes or "O-13",
-        "departamento_code":      empresa.departamento_code or "",
-        "ciudad_code":            empresa.ciudad_code or "",
-        "correo":                 empresa.correo_facturacion or "",
-        # TODO: verificar campos adicionales del emisor requeridos por Matias
-    }
-
-    # ── Datos del receptor (cliente / consumidor final) ─────────────────────
+    # ── Cliente (receptor) ──────────────────────────────────────────────────
     usar_consumidor_final = (
         cliente is None
         or not getattr(cliente, "cedula", None)
     )
 
     if usar_consumidor_final:
-        receptor = {
-            # TODO: verificar nombre exacto del campo documento en Matias
-            "tipo_documento_id": CONSUMIDOR_FINAL_TIPO_DOC,
-            "documento":         CONSUMIDOR_FINAL_NIT,
-            "nombre":            CONSUMIDOR_FINAL_NOMBRE,
-            "correo":            "",
-            "ciudad_code":       empresa.ciudad_code or "",
-            # TODO: verificar campos obligatorios adicionales para consumidor final
+        customer = {
+            "country_id":         COLOMBIA_ID,
+            "city_id":            _ciudad_id(empresa.ciudad_code),
+            "identity_document_id": DOC_CC,
+            "type_organization_id": 2,   # Persona natural
+            "tax_regime_id":        2,   # No responsable IVA
+            "tax_level_id":         5,   # R-99-PN
+            "company_name":         CONSUMIDOR_FINAL_NOMBRE,
+            "dni":                  CONSUMIDOR_FINAL_NIT,
+            "mobile":               "",
+            "email":                empresa.correo_facturacion or "",
+            "address":              "",
+            "postal_code":          "110111",
         }
     else:
-        receptor = {
-            "tipo_documento_id":      getattr(cliente, "tipo_documento_id", 13),
-            "documento":              cliente.cedula or "",
-            "dv":                     getattr(cliente, "dv", "") or "",
-            "nombre":                 cliente.nombre or "",
-            "correo":                 getattr(cliente, "email", "") or "",
-            "ciudad_code":            getattr(cliente, "ciudad_code", "") or empresa.ciudad_code or "",
-            "tipo_organizacion_id":   getattr(cliente, "tipo_organizacion_id", 2),
-            "tipo_regimen_id":        getattr(cliente, "tipo_regimen_id", 49),
-            "responsabilidad_fiscal": getattr(cliente, "responsabilidad_fiscal_codes", "R-99-PN") or "R-99-PN",
-            # TODO: verificar campos adicionales del receptor requeridos por Matias
+        # Determinar identity_document_id según tipo_documento_id interno
+        tipo_doc = getattr(cliente, "tipo_documento_id", 13)
+        if tipo_doc == 31:   # NIT
+            id_doc = DOC_NIT
+        else:                 # CC y otros
+            id_doc = DOC_CC
+
+        customer = {
+            "country_id":             COLOMBIA_ID,
+            "city_id":                _ciudad_id(getattr(cliente, "ciudad_code", None) or empresa.ciudad_code),
+            "identity_document_id":   id_doc,
+            "type_organization_id":   getattr(cliente, "tipo_organizacion_id", 2),
+            "tax_regime_id":          getattr(cliente, "tipo_regimen_id", 2),
+            "tax_level_id":           5,  # R-99-PN por defecto (ajustar si se mapea)
+            "company_name":           cliente.nombre or "",
+            "dni":                    cliente.cedula or "",
+            "mobile":                 getattr(cliente, "telefono", "") or "",
+            "email":                  getattr(cliente, "email", "") or "",
+            "address":                getattr(cliente, "direccion", "") or "",
+            "postal_code":            "110111",
         }
 
-    # ── Ítems de la factura ─────────────────────────────────────────────────
-    items = []
+    # ── Líneas de factura ───────────────────────────────────────────────────
+    lines         = []
+    iva_total_sum = 0.0
+    base_sum      = 0.0
+
     for det in detalles:
         nombre_item = (
-            det.nombre_libre
-            or (det.producto.nombre if det.producto else None)
+            getattr(det, "nombre_libre", None)
+            or (det.producto.nombre if getattr(det, "producto", None) else None)
             or "Ítem"
         )
-        items.append({
-            # TODO: verificar nombres de campos de ítems en Matias
-            "descripcion":     nombre_item,
-            "cantidad":        det.cantidad,
-            "precio_unitario": det.precio_unitario,
-            "descuento_pct":   getattr(det, "descuento_pct", 0.0) or 0.0,
-            "iva_porcentaje":  getattr(det, "iva_porcentaje", 0.0) or 0.0,
-            # TODO: verificar si Matias necesita unidad_medida, codigo, etc.
-        })
+        codigo_item = (
+            getattr(det.producto, "codigo_barra", None)
+            if getattr(det, "producto", None)
+            else None
+        ) or "SIN-CODIGO"
 
-    # ── Totales ─────────────────────────────────────────────────────────────
-    totales = {
-        # TODO: verificar nombres de campos de totales en Matias
-        "subtotal":        round(venta.total - (venta.iva_total or 0), 2),
-        "iva_total":       round(venta.iva_total or 0, 2),
-        "descuento_total": round(getattr(venta, "descuento_total", 0) or 0, 2),
-        "total":           round(venta.total or 0, 2),
-    }
+        cantidad    = float(det.cantidad or 1)
+        precio_unit = float(det.precio_unitario or 0)
+        desc_pct    = float(getattr(det, "descuento_pct", 0) or 0)
+        iva_pct     = float(getattr(det, "iva_porcentaje", 0) or 0)
 
-    # ── Datos de la resolución DIAN ─────────────────────────────────────────
-    resolucion_payload = {}
-    if resolucion:
-        resolucion_payload = {
-            # TODO: verificar nombres de campos de resolución en Matias
-            "numero_resolucion": resolucion.numero_resolucion or "",
-            "vigencia_desde":    resolucion.vigencia_desde.isoformat() if resolucion.vigencia_desde else "",
-            "vigencia_hasta":    resolucion.vigencia_hasta.isoformat() if resolucion.vigencia_hasta else "",
-            "rango_desde":       resolucion.numero_inicial,
-            "rango_hasta":       resolucion.numero_final,
-            "clave_tecnica":     resolucion.clave_tecnica or "",
+        # Matias espera precios SIN IVA. Si el precio incluye IVA, extraerlo.
+        # Ksmart360 guarda precios con IVA incluido — retroacalcular la base.
+        if iva_pct > 0:
+            precio_sin_iva = round(precio_unit / (1 + iva_pct / 100), 4)
+        else:
+            precio_sin_iva = precio_unit
+
+        subtotal_linea = round(precio_sin_iva * cantidad, 2)
+
+        # Descuento sobre la línea
+        if desc_pct > 0:
+            descuento_val  = round(subtotal_linea * desc_pct / 100, 2)
+            subtotal_linea = round(subtotal_linea - descuento_val, 2)
+        else:
+            descuento_val = 0.0
+
+        iva_linea = round(subtotal_linea * iva_pct / 100, 2)
+        base_sum      += subtotal_linea
+        iva_total_sum += iva_linea
+
+        line = {
+            "invoiced_quantity":           str(cantidad),
+            "quantity_units_id":           UNIDAD_UND,
+            "line_extension_amount":       f"{subtotal_linea:.2f}",
+            "free_of_charge_indicator":    False,
+            "description":                 nombre_item,
+            "code":                        codigo_item,
+            "type_item_identifications_id": ITEM_TYPE_ID,
+            "reference_price_id":          REF_PRICE_ID,
+            "price_amount":                f"{precio_sin_iva:.4f}",
+            "base_quantity":               str(cantidad),
         }
 
-    payload = {
-        # TODO: verificar estructura raíz del payload en Matias
-        "numero":     numero_int,
-        "prefijo":    prefijo,
-        "fecha":      fecha_str,
-        "emisor":     emisor,
-        "receptor":   receptor,
-        "items":      items,
-        "totales":    totales,
-        "resolucion": resolucion_payload,
-        # TODO: añadir campos adicionales requeridos: tipo_factura, moneda, notas, etc.
+        if iva_pct > 0:
+            line["tax_totals"] = [
+                {
+                    "tax_id":         "1",  # IVA
+                    "tax_amount":     round(iva_linea, 2),
+                    "taxable_amount": round(subtotal_linea, 2),
+                    "percent":        int(iva_pct),
+                }
+            ]
+
+        if descuento_val > 0:
+            line["allowance_charges"] = [
+                {
+                    "charge_indicator":        False,
+                    "allowance_charge_reason": "Descuento comercial",
+                    "amount":                  f"{descuento_val:.2f}",
+                    "base_amount":             f"{round(precio_sin_iva * cantidad, 2):.2f}",
+                    "discount_id":             1,
+                }
+            ]
+
+        lines.append(line)
+
+    # ── Totales legales ─────────────────────────────────────────────────────
+    base_sum      = round(base_sum, 2)
+    iva_total_sum = round(iva_total_sum, 2)
+    total_pagar   = round(base_sum + iva_total_sum, 2)
+
+    legal_monetary_totals = {
+        "line_extension_amount": f"{base_sum:.2f}",
+        "tax_exclusive_amount":  f"{base_sum:.2f}",
+        "tax_inclusive_amount":  f"{total_pagar:.2f}",
+        "total_charges":         0,
+        "total_allowance":       0,
+        "payable_amount":        f"{total_pagar:.2f}",
     }
+
+    # tax_totals nivel raíz (suma de todos los impuestos)
+    tax_totals_root = []
+    if iva_total_sum > 0:
+        iva_pct_general = float(getattr(venta, "iva_porcentaje", 0) or 0)
+        tax_totals_root = [
+            {
+                "tax_id":         "1",
+                "tax_amount":     iva_total_sum,
+                "taxable_amount": base_sum,
+                "percent":        int(iva_pct_general),
+            }
+        ]
+
+    # ── Pago ────────────────────────────────────────────────────────────────
+    metodo_pago   = getattr(venta, "metodo_pago", None)
+    estado_pago   = getattr(venta, "estado_pago", "pendiente")
+    payment_method_id = 1 if estado_pago == "pagado" else 2  # 1=contado, 2=crédito
+
+    payments = [
+        {
+            "payment_method_id": payment_method_id,
+            "means_payment_id":  _medio_pago_id(metodo_pago),
+            "value_paid":        f"{total_pagar:.2f}",
+        }
+    ]
+
+    # ── Payload final ────────────────────────────────────────────────────────
+    payload = {
+        "resolution_number": resolucion.numero_resolucion if resolucion else "",
+        "prefix":            prefijo,
+        "document_number":   str(numero_int),
+        "date":              fecha_str,
+        "time":              hora_str,
+        "type_document_id":  TYPE_DOCUMENT_FACTURA_VENTA,
+        "operation_type_id": OPERATION_TYPE_STANDARD,
+        "graphic_representation": 1,  # Generar PDF
+        "send_email":             1 if (not usar_consumidor_final and customer.get("email")) else 0,
+        "notes":             getattr(venta, "observaciones", "") or "",
+        "payments":          payments,
+        "customer":          customer,
+        "lines":             lines,
+        "legal_monetary_totals": legal_monetary_totals,
+    }
+
+    if tax_totals_root:
+        payload["tax_totals"] = tax_totals_root
 
     return payload
 
@@ -179,20 +292,21 @@ def emitir_factura(
     test_mode: bool,
 ) -> dict:
     """
-    Llama a Matias API (sync con httpx.Client) para emitir la factura electrónica.
+    Llama a POST /invoice de Matias API (sync con httpx.Client).
 
-    Retorna un dict con:
+    Retorna:
         {
             "estado":             "exitoso" | "fallido",
             "cufe":               str | None,
             "pdf_url":            str | None,
             "xml_url":            str | None,
+            "qr_url":             str | None,
             "mensaje":            str,
             "payload_enviado":    str (JSON),
             "respuesta_recibida": str (JSON),
         }
 
-    Nunca lanza excepción — captura cualquier error y retorna estado='fallido'.
+    Nunca lanza excepción — un fallo de FE nunca debe bloquear la venta.
     """
     payload_dict: dict = {}
     respuesta_raw: dict = {}
@@ -200,15 +314,18 @@ def emitir_factura(
     try:
         base_url     = get_matias_url(test_mode)
         payload_dict = build_invoice_payload(venta, empresa, cliente, detalles)
-
-        # TODO: ajustar el endpoint exacto de emisión cuando se tenga documentación
-        endpoint = f"{base_url}/invoices"
+        endpoint     = f"{base_url}/invoice"
 
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type":  "application/json",
             "Accept":        "application/json",
         }
+
+        logger.info(
+            "Emitiendo FE venta %s → %s (test_mode=%s)",
+            getattr(venta, "id", "?"), endpoint, test_mode,
+        )
 
         with httpx.Client(timeout=HTTP_TIMEOUT) as http_client:
             response = http_client.post(endpoint, json=payload_dict, headers=headers)
@@ -218,69 +335,79 @@ def emitir_factura(
         except Exception:
             respuesta_raw = {"raw": response.text}
 
-        if response.is_success:
-            # TODO: ajustar nombres de campos en la respuesta según documentación de Matias
-            cufe    = respuesta_raw.get("cufe") or respuesta_raw.get("data", {}).get("cufe")
-            pdf_url = respuesta_raw.get("pdf_url") or respuesta_raw.get("data", {}).get("pdf_url")
-            xml_url = respuesta_raw.get("xml_url") or respuesta_raw.get("data", {}).get("xml_url")
-            mensaje = (
-                respuesta_raw.get("message")
-                or respuesta_raw.get("mensaje")
-                or "Factura emitida exitosamente"
-            )
+        success_flag = respuesta_raw.get("success", False)
+        dian_resp    = respuesta_raw.get("response", {})
+        is_valid     = dian_resp.get("IsValid", "false") == "true"
 
+        if response.is_success and success_flag:
+            # Extraer campos de la respuesta según documentación oficial Matias
+            cufe    = dian_resp.get("XmlDocumentKey")
+            pdf_url = (respuesta_raw.get("pdf") or {}).get("url")
+            xml_url = (respuesta_raw.get("AttachedDocument") or {}).get("url")
+            qr_url  = (respuesta_raw.get("qr") or {}).get("qrDian")
+
+            # Notificaciones DIAN (no son errores, solo avisos)
+            dian_messages = dian_resp.get("ErrorMessage", {}).get("string", [])
+            mensaje = dian_resp.get("StatusDescription", "Factura emitida exitosamente")
+
+            if not is_valid:
+                # Documento rechazado por DIAN (tiene success=True pero IsValid=false)
+                logger.warning("DIAN rechazó factura venta %s: %s", venta.id, dian_messages)
+                return {
+                    "estado":             "fallido",
+                    "cufe":               cufe,
+                    "pdf_url":            None,
+                    "xml_url":            None,
+                    "qr_url":             None,
+                    "mensaje":            f"Rechazada por DIAN: {'; '.join(dian_messages) if dian_messages else mensaje}",
+                    "payload_enviado":    json.dumps(payload_dict, default=str),
+                    "respuesta_recibida": json.dumps(respuesta_raw, default=str),
+                }
+
+            logger.info("FE exitosa venta %s — CUFE: %s", venta.id, cufe)
             return {
                 "estado":             "exitoso",
                 "cufe":               cufe,
                 "pdf_url":            pdf_url,
                 "xml_url":            xml_url,
-                "mensaje":            str(mensaje),
+                "qr_url":             qr_url,
+                "mensaje":            mensaje,
                 "payload_enviado":    json.dumps(payload_dict, default=str),
                 "respuesta_recibida": json.dumps(respuesta_raw, default=str),
             }
         else:
+            # Error HTTP o success=False de Matias
+            errors = respuesta_raw.get("errors", {})
             mensaje_error = (
                 respuesta_raw.get("message")
-                or respuesta_raw.get("error")
-                or respuesta_raw.get("detail")
+                or ("; ".join(f"{k}: {v[0] if isinstance(v, list) else v}" for k, v in errors.items()) if errors else None)
                 or f"HTTP {response.status_code}"
             )
-            logger.warning(
-                "Matias API devolvió error %s para venta %s: %s",
-                response.status_code, venta.id, mensaje_error,
-            )
+            logger.warning("Matias rechazó FE venta %s: %s", getattr(venta, "id", "?"), mensaje_error)
             return {
                 "estado":             "fallido",
                 "cufe":               None,
                 "pdf_url":            None,
                 "xml_url":            None,
+                "qr_url":             None,
                 "mensaje":            str(mensaje_error),
                 "payload_enviado":    json.dumps(payload_dict, default=str),
                 "respuesta_recibida": json.dumps(respuesta_raw, default=str),
             }
 
     except httpx.TimeoutException as exc:
-        logger.error("Timeout llamando Matias API para venta %s: %s", getattr(venta, "id", "?"), exc)
+        logger.error("Timeout Matias API venta %s: %s", getattr(venta, "id", "?"), exc)
         return {
-            "estado":             "fallido",
-            "cufe":               None,
-            "pdf_url":            None,
-            "xml_url":            None,
-            "mensaje":            f"Timeout al contactar Matias API: {exc}",
+            "estado": "fallido", "cufe": None, "pdf_url": None, "xml_url": None, "qr_url": None,
+            "mensaje": f"Timeout al contactar Matias API ({HTTP_TIMEOUT}s)",
             "payload_enviado":    json.dumps(payload_dict, default=str),
             "respuesta_recibida": "{}",
         }
     except Exception as exc:
-        logger.error(
-            "Error inesperado en emitir_factura para venta %s: %s",
-            getattr(venta, "id", "?"), exc,
-        )
+        logger.error("Error inesperado emitir_factura venta %s: %s", getattr(venta, "id", "?"), exc)
         return {
-            "estado":             "fallido",
-            "cufe":               None,
-            "pdf_url":            None,
-            "xml_url":            None,
-            "mensaje":            f"Error interno al emitir FE: {exc}",
+            "estado": "fallido", "cufe": None, "pdf_url": None, "xml_url": None, "qr_url": None,
+            "mensaje": f"Error interno: {exc}",
             "payload_enviado":    json.dumps(payload_dict, default=str),
             "respuesta_recibida": json.dumps(respuesta_raw, default=str),
         }
