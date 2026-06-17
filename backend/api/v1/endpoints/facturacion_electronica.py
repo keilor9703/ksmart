@@ -146,14 +146,22 @@ def emitir_fe(
             models.Cliente.empresa_id == empresa_id,
         ).first()
 
-    # Llamar a Matias
+    # Llamar a Matias — usar token sandbox o producción según modo
+    test_mode = empresa.matias_test_mode
+    api_key   = empresa.matias_sandbox_api_key if test_mode else empresa.matias_api_key
+    if not api_key:
+        raise HTTPException(
+            status_code=400,
+            detail="No hay API Key configurada para el modo activo (sandbox)" if test_mode else "La empresa no tiene configurada la API Key de Matias"
+        )
+
     resultado = matias_service.emitir_factura(
         venta    = venta,
         empresa  = empresa,
         cliente  = cliente,
         detalles = venta.detalles,
-        api_key  = empresa.matias_api_key,
-        test_mode= empresa.matias_test_mode,
+        api_key  = api_key,
+        test_mode= test_mode,
     )
 
     # Actualizar venta

@@ -1963,6 +1963,15 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v92)
                 logger.info("V92 (intentos_fe — auditoría FE) aplicada.")
 
+            # ── V93: columna matias_sandbox_api_key en empresas ──────────────
+            migration_v93 = "v93_matias_sandbox_api_key"
+            if not _migration_already_applied(conn, migration_v93):
+                conn.execute(text(
+                    "ALTER TABLE empresas ADD COLUMN IF NOT EXISTS matias_sandbox_api_key TEXT NULL"
+                ))
+                _mark_migration_applied(conn, migration_v93)
+                logger.info("V93 (empresas.matias_sandbox_api_key) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

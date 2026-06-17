@@ -161,13 +161,15 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate, commi
                         models.Cliente.empresa_id == empresa_id,
                     ).first()
 
+                _test_mode = empresa_fe.matias_test_mode
+                _api_key   = empresa_fe.matias_sandbox_api_key if _test_mode else empresa_fe.matias_api_key
                 resultado_fe = _ms.emitir_factura(
                     venta     = db_venta,
                     empresa   = empresa_fe,
                     cliente   = cliente_fe,
                     detalles  = detalles_objs,
-                    api_key   = empresa_fe.matias_api_key,
-                    test_mode = empresa_fe.matias_test_mode,
+                    api_key   = _api_key or "",
+                    test_mode = _test_mode,
                 )
 
                 # Actualizar campos FE en la venta

@@ -20,8 +20,8 @@ import httpx
 logger = logging.getLogger("matias_service")
 
 # ─── URLs base ────────────────────────────────────────────────────────────────
-MATIAS_PROD_URL    = os.getenv("MATIAS_PROD_URL",    "https://api-v2.matias-api.com")
-MATIAS_SANDBOX_URL = os.getenv("MATIAS_SANDBOX_URL", "https://sandbox-api.matias-api.com")
+MATIAS_PROD_URL    = os.getenv("MATIAS_PROD_URL",    "https://api-v2.matias-api.com/api/ubl2.1")
+MATIAS_SANDBOX_URL = os.getenv("MATIAS_SANDBOX_URL", "https://sandbox-api.matias-api.com/api/ubl2.1")
 
 # Consumidor Final — NIT DIAN oficial para ventas sin identificación
 CONSUMIDOR_FINAL_NIT    = "222222222222"

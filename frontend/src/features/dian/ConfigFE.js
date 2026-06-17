@@ -21,17 +21,22 @@ function ChipEstado({ estado }) {
 }
 
 export default function ConfigFE() {
-  const [config, setConfig]       = useState({ facturacion_electronica_activa: false, matias_api_key: '', matias_test_mode: true });
+  const [config, setConfig]       = useState({ facturacion_electronica_activa: false, matias_api_key: '', matias_sandbox_api_key: '', matias_test_mode: true });
   const [intentos, setIntentos]   = useState([]);
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);
   const [showKey, setShowKey]     = useState(false);
+  const [showSandboxKey, setShowSandboxKey] = useState(false);
   const [loadingIntentos, setLoadingIntentos] = useState(false);
 
   const fetchConfig = async () => {
     try {
       const r = await apiClient.get('/empresa/config-fe');
-      setConfig({ ...r.data, matias_api_key: r.data.matias_api_key || '' });
+      setConfig({
+        ...r.data,
+        matias_api_key:         r.data.matias_api_key         || '',
+        matias_sandbox_api_key: r.data.matias_sandbox_api_key || '',
+      });
     } catch { toast.error('Error cargando configuración FE'); }
     finally { setLoading(false); }
   };
@@ -93,27 +98,6 @@ export default function ConfigFE() {
 
         <Divider sx={{ my: 2 }} />
 
-        <TextField
-          fullWidth
-          label="Bearer Token (API Key de Matias)"
-          value={config.matias_api_key}
-          onChange={e => setConfig(c => ({ ...c, matias_api_key: e.target.value }))}
-          type={showKey ? 'text' : 'password'}
-          multiline={showKey}
-          rows={showKey ? 4 : 1}
-          sx={{ mb: 2 }}
-          helperText="Token JWT obtenido en el panel de Matias API (auth-v2.matias-api.com)"
-          InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                <IconButton onClick={() => setShowKey(s => !s)} edge="end">
-                  {showKey ? <VisibilityOff /> : <Visibility />}
-                </IconButton>
-              </InputAdornment>
-            ),
-          }}
-        />
-
         <FormControlLabel
           control={
             <Switch
@@ -126,17 +110,65 @@ export default function ConfigFE() {
             <Box>
               <Typography fontWeight={600}>Modo Sandbox (pruebas)</Typography>
               <Typography variant="caption" color="text.secondary">
-                Desactivar solo cuando la habilitación DIAN esté completa en Matias
+                Desactivar solo cuando tengas el certificado digital DIAN en producción
               </Typography>
             </Box>
           }
-          sx={{ mb: 3, alignItems: 'flex-start' }}
+          sx={{ mb: 2, alignItems: 'flex-start' }}
         />
 
-        {config.matias_test_mode && (
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            Modo sandbox activo — las facturas no son válidas ante la DIAN
-          </Alert>
+        {config.matias_test_mode ? (
+          <>
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              Modo sandbox activo — las facturas no son válidas ante la DIAN. Usa el token de <strong>sandbox-auth.matias-api.com</strong>
+            </Alert>
+            <TextField
+              fullWidth
+              label="Token Sandbox (sandbox-auth.matias-api.com)"
+              value={config.matias_sandbox_api_key}
+              onChange={e => setConfig(c => ({ ...c, matias_sandbox_api_key: e.target.value }))}
+              type={showSandboxKey ? 'text' : 'password'}
+              multiline={showSandboxKey}
+              rows={showSandboxKey ? 4 : 1}
+              sx={{ mb: 2 }}
+              helperText="Genera este token en el panel sandbox de Matias (es diferente al de producción)"
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => setShowSandboxKey(s => !s)} edge="end">
+                      {showSandboxKey ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </>
+        ) : (
+          <>
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Modo producción — las facturas se reportan a la DIAN. Requiere certificado digital válido.
+            </Alert>
+            <TextField
+              fullWidth
+              label="Token Producción (auth-v2.matias-api.com)"
+              value={config.matias_api_key}
+              onChange={e => setConfig(c => ({ ...c, matias_api_key: e.target.value }))}
+              type={showKey ? 'text' : 'password'}
+              multiline={showKey}
+              rows={showKey ? 4 : 1}
+              sx={{ mb: 2 }}
+              helperText="Token JWT obtenido en el panel de producción de Matias API"
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => setShowKey(s => !s)} edge="end">
+                      {showKey ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </>
         )}
 
         <Button

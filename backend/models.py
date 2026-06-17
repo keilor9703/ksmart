@@ -79,7 +79,8 @@ class Empresa(Base):
 
     # Configuración de Integración
     facturacion_electronica_activa = Column(Boolean, default=False)
-    matias_api_key        = Column(String, nullable=True)
+    matias_api_key        = Column(String, nullable=True)   # token producción
+    matias_sandbox_api_key= Column(String, nullable=True)   # token sandbox
     matias_test_mode      = Column(Boolean, default=True)
 
     # Configuración de ventas

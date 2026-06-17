@@ -254,6 +254,7 @@ def get_config_fe(
     return {
         "facturacion_electronica_activa": getattr(empresa, "facturacion_electronica_activa", False) or False,
         "matias_api_key":                 getattr(empresa, "matias_api_key", None),
+        "matias_sandbox_api_key":         getattr(empresa, "matias_sandbox_api_key", None),
         "matias_test_mode":               getattr(empresa, "matias_test_mode", True) if getattr(empresa, "matias_test_mode", None) is not None else True,
     }
 
@@ -274,6 +275,9 @@ def update_config_fe(
     if "matias_api_key" in payload:
         key = payload["matias_api_key"]
         empresa.matias_api_key = key.strip() if key else None
+    if "matias_sandbox_api_key" in payload:
+        key = payload["matias_sandbox_api_key"]
+        empresa.matias_sandbox_api_key = key.strip() if key else None
     if "matias_test_mode" in payload:
         empresa.matias_test_mode = bool(payload["matias_test_mode"])
 
@@ -281,5 +285,6 @@ def update_config_fe(
     return {
         "facturacion_electronica_activa": empresa.facturacion_electronica_activa,
         "matias_api_key":                 empresa.matias_api_key,
+        "matias_sandbox_api_key":         empresa.matias_sandbox_api_key,
         "matias_test_mode":               empresa.matias_test_mode,
     }
