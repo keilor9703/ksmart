@@ -72,7 +72,7 @@ export const MODULE_ICONS = {
   '/clientes':            { icon: <Groups />,                 color: '#3B82F6', label: 'Gestión de Terceros' },
   
   // Productos e Inventario (Tonos Morados y Amarillos)
-  '/productos':           { icon: <Category />,               color: '#673AB7', label: 'Catálogo de Productos' },
+  '/productos':           { icon: <Category />,               color: '#673AB7', label: 'Productos' },
   '/inventario':          { icon: <Inventory2OutlinedIcon />, color: '#F59E0B', label: 'Control de Inventarios' },
   '/inventario/lotes':    { icon: <Layers />,                 color: '#8B5CF6', label: 'Lotes y Perecederos' },
 
