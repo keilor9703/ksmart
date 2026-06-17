@@ -288,6 +288,7 @@ function PinNumpad({ username, onSuccess, onCancel }) {
     const [pin, setPin] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const successFired = React.useRef(false);
 
     const addDigit = (d) => {
         if (pin.length < pinLength) setPin(p => p + d);
@@ -295,10 +296,12 @@ function PinNumpad({ username, onSuccess, onCancel }) {
     const removeDigit = () => setPin(p => p.slice(0, -1));
 
     const handleVerify = useCallback(async (currentPin) => {
+        if (successFired.current) return;
         setLoading(true);
         setError('');
         try {
             const { data } = await apiClient.post('/auth/pin/verify', { username, pin: currentPin });
+            successFired.current = true;
             onSuccess(data);
         } catch (err) {
             const msg = err.response?.data?.detail || 'PIN incorrecto.';
