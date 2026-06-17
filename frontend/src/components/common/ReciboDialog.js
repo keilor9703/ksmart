@@ -122,7 +122,7 @@ ${vendedor ? `<div>Vendedor: ${vendedor}</div>` : ''}
 <hr class="sep">
 ${venta.cufe && venta.estado_electronico === 'exitoso' ? `
 <hr class="sep">
-${empresa?.matias_test_mode ? '<div class="c" style="color:#b45309;font-size:9px;font-weight:700;">⚠ AMBIENTE DE PRUEBAS — No válido ante DIAN real</div>' : '<div class="c" style="color:#16a34a;font-size:9px;font-weight:700;">✓ FACTURA ELECTRÓNICA — Registrada ante la DIAN</div>'}
+${empresa?.matias_test_mode ? '<div class="c" style="color:#b45309;font-size:9px;font-weight:700;">⚠ AMBIENTE DE PRUEBAS — No válido ante la DIAN</div>' : '<div class="c" style="color:#16a34a;font-size:9px;font-weight:700;">✓ FACTURA ELECTRÓNICA — Registrada ante la DIAN</div>'}
 ${venta.numero_factura ? `<div class="c" style="font-size:10px;">Factura N°: ${venta.numero_factura}</div>` : ''}
 <div style="font-size:8px;word-break:break-all;">CUFE: ${venta.cufe}</div>
 <hr class="sep">` : ''}
@@ -199,7 +199,7 @@ td{padding:8px 6px;border-bottom:1px solid #f2f2f2;font-size:13px;}
   ${empresa?.whatsapp_pedidos ? `<div>📞 WhatsApp: ${empresa.whatsapp_pedidos}</div>` : ''}
   ${venta.cufe && venta.estado_electronico === 'exitoso'
   ? (empresa?.matias_test_mode
-      ? `<div style="margin-top:8px;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:8px;font-size:11px;color:#92400e;"><strong>⚠ Ambiente de pruebas</strong><br>Esta factura electrónica fue generada en modo sandbox. No está registrada ante la DIAN real.<br>${venta.numero_factura ? `Factura N°: <strong>${venta.numero_factura}</strong><br>` : ''}CUFE: <span style="font-size:9px;word-break:break-all;">${venta.cufe}</span></div>`
+      ? `<div style="margin-top:8px;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:8px;font-size:11px;color:#92400e;"><strong>⚠ Ambiente de pruebas</strong><br>Esta factura electrónica fue generada en modo sandbox. No está registrada ante la DIAN.<br>${venta.numero_factura ? `Factura N°: <strong>${venta.numero_factura}</strong><br>` : ''}CUFE: <span style="font-size:9px;word-break:break-all;">${venta.cufe}</span></div>`
       : `<div style="margin-top:8px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;font-size:11px;color:#166534;"><strong>✓ Factura Electrónica registrada ante la DIAN</strong><br>${venta.numero_factura ? `Factura N°: <strong>${venta.numero_factura}</strong><br>` : ''}CUFE: <span style="font-size:9px;word-break:break-all;">${venta.cufe}</span>${venta.pdf_url ? `<br><a href="${venta.pdf_url}" style="color:#15803d;">Ver factura PDF →</a>` : ''}</div>`)
   : `<div style="margin-top:8px;">Este documento es un comprobante de venta · No es factura con validez fiscal DIAN</div>`
 }
@@ -282,7 +282,7 @@ const ThermalPreview = ({ venta, empresa, vendedor, dateStr, saldo }) => {
         {venta.cufe && venta.estado_electronico === 'exitoso' ? (
           <Box sx={{ mt: 0.5, border: '1px dashed', borderColor: empresa?.matias_test_mode ? '#d97706' : '#16a34a', borderRadius: 1, p: 0.5 }}>
             <Typography sx={{ fontFamily: 'inherit', fontSize: 9, fontWeight: 700, color: empresa?.matias_test_mode ? '#92400e' : '#15803d', textAlign: 'center' }}>
-              {empresa?.matias_test_mode ? '⚠ PRUEBAS — No válido ante DIAN real' : '✓ FACTURA ELECTRÓNICA DIAN'}
+              {empresa?.matias_test_mode ? '⚠ PRUEBAS — No válido ante la DIAN' : '✓ FACTURA ELECTRÓNICA DIAN'}
             </Typography>
             {venta.numero_factura && <Typography sx={{ fontFamily: 'inherit', fontSize: 9, textAlign: 'center' }}>N°: {venta.numero_factura}</Typography>}
             <Typography sx={{ fontFamily: 'inherit', fontSize: 8, color: '#666', wordBreak: 'break-all' }}>CUFE: {venta.cufe?.substring(0,40)}...</Typography>
@@ -384,7 +384,7 @@ const A4Preview = ({ venta, empresa, vendedor, dateStr, saldo }) => {
         {venta.cufe && venta.estado_electronico === 'exitoso' ? (
           <Box sx={{ mt: 1.5, p: 1.5, borderRadius: 1.5, bgcolor: empresa?.matias_test_mode ? '#fffbeb' : '#f0fdf4', border: '1px solid', borderColor: empresa?.matias_test_mode ? '#fcd34d' : '#86efac' }}>
             <Typography sx={{ fontSize: 11, fontWeight: 700, color: empresa?.matias_test_mode ? '#92400e' : '#166534' }}>
-              {empresa?.matias_test_mode ? '⚠ Ambiente de pruebas — No registrada ante la DIAN real' : '✓ Factura Electrónica registrada ante la DIAN'}
+              {empresa?.matias_test_mode ? '⚠ Ambiente de pruebas — No registrada ante la DIAN' : '✓ Factura Electrónica registrada ante la DIAN'}
             </Typography>
             {venta.numero_factura && <Typography sx={{ fontSize: 11, color: empresa?.matias_test_mode ? '#b45309' : '#15803d' }}>Factura N°: <strong>{venta.numero_factura}</strong></Typography>}
             <Typography sx={{ fontSize: 9, color: '#666', wordBreak: 'break-all', mt: 0.5 }}>CUFE: {venta.cufe}</Typography>
