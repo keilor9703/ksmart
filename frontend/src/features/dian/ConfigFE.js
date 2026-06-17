@@ -3,15 +3,16 @@ import {
   Box, Typography, Paper, Button, TextField, Switch, FormControlLabel,
   Divider, Chip, Table, TableBody, TableCell, TableContainer, TableHead,
   TableRow, InputAdornment, IconButton, CircularProgress, Alert,
-  useTheme, useMediaQuery, Stack, Pagination,
+  useTheme, useMediaQuery, Stack, Pagination, Tabs, Tab,
 } from '@mui/material';
 import {
   Visibility, VisibilityOff, Save, Receipt, CheckCircle, ErrorOutline,
-  HourglassEmpty, Refresh, MenuBook,
+  HourglassEmpty, Refresh, MenuBook, Settings, Gavel,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../api';
+import ResolucionesDian from './ResolucionesDian';
 
 const PURPLE = '#8B5CF6';
 
@@ -26,6 +27,7 @@ export default function ConfigFE() {
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
+  const [tabValue, setTabValue]   = useState(0);
   const [config, setConfig]       = useState({ facturacion_electronica_activa: false, matias_api_key: '', matias_sandbox_api_key: '', matias_test_mode: true });
   const [intentos, setIntentos]       = useState([]);
   const [intentosTotal, setIntentosTotal] = useState(0);
@@ -76,7 +78,7 @@ export default function ConfigFE() {
   if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>;
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 800, mx: 'auto' }}>
+    <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 900, mx: 'auto' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Receipt sx={{ color: PURPLE, fontSize: 32 }} />
@@ -96,6 +98,119 @@ export default function ConfigFE() {
         </Button>
       </Box>
 
+      <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)} sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
+        <Tab label="Configuración" icon={<Settings fontSize="small" />} iconPosition="start" />
+        <Tab label="Resoluciones DIAN" icon={<Gavel fontSize="small" />} iconPosition="start" />
+        <Tab label="Historial de emisiones" icon={<Receipt fontSize="small" />} iconPosition="start" />
+      </Tabs>
+
+      {tabValue === 1 && <ResolucionesDian embedded />}
+
+      {tabValue === 2 && (
+      <Paper sx={{ p: { xs: 1.5, md: 3 } }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Box>
+            <Typography variant="subtitle1" fontWeight={600}>Últimos intentos de emisión</Typography>
+            {intentosTotal > 0 && (
+              <Typography variant="caption" color="text.secondary">{intentosTotal} registro{intentosTotal !== 1 ? 's' : ''} en total</Typography>
+            )}
+          </Box>
+          <IconButton onClick={() => fetchIntentos(intentosPage)} size="small" disabled={loadingIntentos}>
+            {loadingIntentos ? <CircularProgress size={18} /> : <Refresh />}
+          </IconButton>
+        </Box>
+
+        {intentos.length === 0 ? (
+          <Typography color="text.secondary" variant="body2">Aún no hay intentos registrados.</Typography>
+        ) : isMobile ? (
+          // ── Vista de tarjetas en móvil ──────────────────────────────────
+          <Box>
+            <Stack spacing={1.5}>
+              {intentos.map(i => (
+                <Paper key={i.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                    <Typography fontWeight={700}>Venta #{i.venta_id}</Typography>
+                    <ChipEstado estado={i.estado} />
+                  </Box>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    {i.timestamp ? new Date(i.timestamp).toLocaleString('es-CO') : '—'}
+                  </Typography>
+                  {i.cufe && (
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ wordBreak: 'break-all', mt: 0.5 }}>
+                      <strong>CUFE:</strong> {i.cufe}
+                    </Typography>
+                  )}
+                  {i.mensaje && (
+                    <Typography variant="body2" sx={{ mt: 0.5, fontSize: 13, wordBreak: 'break-word' }}>
+                      {i.mensaje}
+                    </Typography>
+                  )}
+                </Paper>
+              ))}
+            </Stack>
+            {intentosPages > 1 && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                <Pagination
+                  count={intentosPages}
+                  page={intentosPage}
+                  onChange={(_, p) => fetchIntentos(p)}
+                  size="small"
+                  color="primary"
+                  disabled={loadingIntentos}
+                />
+              </Box>
+            )}
+          </Box>
+        ) : (
+          <Box>
+            <TableContainer sx={{ overflowX: 'auto' }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Venta</TableCell>
+                    <TableCell>Fecha</TableCell>
+                    <TableCell>Estado</TableCell>
+                    <TableCell>CUFE</TableCell>
+                    <TableCell>Mensaje</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {intentos.map(i => (
+                    <TableRow key={i.id}>
+                      <TableCell>#{i.venta_id}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                        {i.timestamp ? new Date(i.timestamp).toLocaleString('es-CO') : '—'}
+                      </TableCell>
+                      <TableCell><ChipEstado estado={i.estado} /></TableCell>
+                      <TableCell sx={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span title={i.cufe}>{i.cufe ? `${i.cufe.slice(0, 16)}…` : '—'}</span>
+                      </TableCell>
+                      <TableCell sx={{ maxWidth: 320, fontSize: 12, wordBreak: 'break-word' }}>
+                        {i.mensaje || '—'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            {intentosPages > 1 && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                <Pagination
+                  count={intentosPages}
+                  page={intentosPage}
+                  onChange={(_, p) => fetchIntentos(p)}
+                  size="small"
+                  color="primary"
+                  disabled={loadingIntentos}
+                />
+              </Box>
+            )}
+          </Box>
+        )}
+      </Paper>
+      )}
+
+      {tabValue === 0 && (
       <Paper sx={{ p: 3, mb: 3 }}>
         <Typography variant="subtitle1" fontWeight={600} mb={2}>Configuración de conexión</Typography>
 
@@ -203,108 +318,7 @@ export default function ConfigFE() {
           {saving ? 'Guardando…' : 'Guardar cambios'}
         </Button>
       </Paper>
-
-      <Paper sx={{ p: { xs: 1.5, md: 3 } }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Box>
-            <Typography variant="subtitle1" fontWeight={600}>Últimos intentos de emisión</Typography>
-            {intentosTotal > 0 && (
-              <Typography variant="caption" color="text.secondary">{intentosTotal} registro{intentosTotal !== 1 ? 's' : ''} en total</Typography>
-            )}
-          </Box>
-          <IconButton onClick={() => fetchIntentos(intentosPage)} size="small" disabled={loadingIntentos}>
-            {loadingIntentos ? <CircularProgress size={18} /> : <Refresh />}
-          </IconButton>
-        </Box>
-
-        {intentos.length === 0 ? (
-          <Typography color="text.secondary" variant="body2">Aún no hay intentos registrados.</Typography>
-        ) : isMobile ? (
-          // ── Vista de tarjetas en móvil ──────────────────────────────────
-          <Box>
-            <Stack spacing={1.5}>
-              {intentos.map(i => (
-                <Paper key={i.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                    <Typography fontWeight={700}>Venta #{i.venta_id}</Typography>
-                    <ChipEstado estado={i.estado} />
-                  </Box>
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    {i.timestamp ? new Date(i.timestamp).toLocaleString('es-CO') : '—'}
-                  </Typography>
-                  {i.cufe && (
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ wordBreak: 'break-all', mt: 0.5 }}>
-                      <strong>CUFE:</strong> {i.cufe}
-                    </Typography>
-                  )}
-                  {i.mensaje && (
-                    <Typography variant="body2" sx={{ mt: 0.5, fontSize: 13, wordBreak: 'break-word' }}>
-                      {i.mensaje}
-                    </Typography>
-                  )}
-                </Paper>
-              ))}
-            </Stack>
-            {intentosPages > 1 && (
-              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-                <Pagination
-                  count={intentosPages}
-                  page={intentosPage}
-                  onChange={(_, p) => fetchIntentos(p)}
-                  size="small"
-                  color="primary"
-                  disabled={loadingIntentos}
-                />
-              </Box>
-            )}
-          </Box>
-        ) : (
-          <Box>
-            <TableContainer sx={{ overflowX: 'auto' }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Venta</TableCell>
-                    <TableCell>Fecha</TableCell>
-                    <TableCell>Estado</TableCell>
-                    <TableCell>CUFE</TableCell>
-                    <TableCell>Mensaje</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {intentos.map(i => (
-                    <TableRow key={i.id}>
-                      <TableCell>#{i.venta_id}</TableCell>
-                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                        {i.timestamp ? new Date(i.timestamp).toLocaleString('es-CO') : '—'}
-                      </TableCell>
-                      <TableCell><ChipEstado estado={i.estado} /></TableCell>
-                      <TableCell sx={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        <span title={i.cufe}>{i.cufe ? `${i.cufe.slice(0, 16)}…` : '—'}</span>
-                      </TableCell>
-                      <TableCell sx={{ maxWidth: 320, fontSize: 12, wordBreak: 'break-word' }}>
-                        {i.mensaje || '—'}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            {intentosPages > 1 && (
-              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-                <Pagination
-                  count={intentosPages}
-                  page={intentosPage}
-                  onChange={(_, p) => fetchIntentos(p)}
-                  size="small"
-                  color="primary"
-                  disabled={loadingIntentos}
-                />
-              </Box>
-            )}
-          </Box>
-        )}
-      </Paper>
+      )}
     </Box>
   );
 }

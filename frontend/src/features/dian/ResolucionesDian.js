@@ -244,7 +244,7 @@ const ResolucionCard = ({ r, onActivar, onEdit, onDuplicate, onEliminar, onAjust
 );
 
 /* ══════════════════════════════════════════════════════════════════════════ */
-const ResolucionesDian = () => {
+const ResolucionesDian = ({ embedded = false }) => {
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -392,6 +392,7 @@ const ResolucionesDian = () => {
     <Box sx={{ width: '100%' }}>
 
       {/* ── Header ── */}
+      {!embedded && (
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: `${TEAL}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: TEAL }}>
@@ -431,6 +432,21 @@ const ResolucionesDian = () => {
           Nueva Resolución
         </Button>
       </Box>
+      )}
+      {embedded && (
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+        <Button
+          variant="contained" startIcon={<Add />} onClick={openCreate}
+          sx={{
+            bgcolor: TEAL, '&:hover': { bgcolor: '#0F766E' },
+            borderRadius: 2, fontWeight: 600,
+            width: isMobile ? '100%' : 'auto',
+          }}
+        >
+          Nueva Resolución
+        </Button>
+      </Box>
+      )}
 
       {/* ── Banner resolución activa ── */}
       {activa ? (

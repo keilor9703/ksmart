@@ -23,7 +23,6 @@ import {
 // Importaciones individuales (Best Practice para evitar lentitud de compilación)
 import ShoppingCart from '@mui/icons-material/ShoppingCart';
 import RequestQuote from '@mui/icons-material/RequestQuote';
-import Gavel from '@mui/icons-material/Gavel';
 import LocalMall from '@mui/icons-material/LocalMall';
 import Groups from '@mui/icons-material/Groups';
 import Category from '@mui/icons-material/Category';
@@ -65,8 +64,7 @@ export const MODULE_ICONS = {
   '/ventas':              { icon: <ShoppingCart />,           color: '#FF6020', label: 'Ventas (POS)' },
   '/pedidos-virtuales':   { icon: <Storefront />,             color: '#F43F5E', label: 'Pedidos Virtuales' },
   '/cotizaciones':        { icon: <RequestQuote />,           color: '#E65100', label: 'Cotizaciones' },
-  '/admin/resoluciones':  { icon: <Gavel />,                  color: '#FFB300', label: 'Resoluciones DIAN' },
-  
+
   // Compras y Terceros (Tonos Verdes y Azules)
   '/compras':             { icon: <LocalMall />,              color: '#10B981', label: 'Compras y Gastos' },
   '/clientes':            { icon: <Groups />,                 color: '#3B82F6', label: 'Gestión de Terceros' },

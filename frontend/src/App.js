@@ -8,7 +8,7 @@ import useMediaQueryHook from '@mui/material/useMediaQuery';
 import { ToastContainer, toast, Slide } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import './styles/toast.css';
-import { Route, Routes, useNavigate } from 'react-router-dom';
+import { Route, Routes, useNavigate, Navigate } from 'react-router-dom';
 
 import apiClient from './api';
 import getAppTheme from './theme';
@@ -50,7 +50,6 @@ const AdminUsuarios    = lazy(() => import('./features/admin/AdminUsuarios'));
 const GestionEmpresas  = lazy(() => import('./features/admin/GestionEmpresas'));
 const InventarioLotes  = lazy(() => import('./features/inventory/InventarioLotes'));
 const Cotizaciones     = lazy(() => import('./features/sales/Cotizaciones'));
-const ResolucionesDian = lazy(() => import('./features/dian/ResolucionesDian'));
 const ConfigFE         = lazy(() => import('./features/dian/ConfigFE'));
 const OnboardingFE     = lazy(() => import('./features/dian/OnboardingFE'));
 const MiSuscripcion    = lazy(() => import('./features/account/MiSuscripcion'));
@@ -392,7 +391,7 @@ const hasAccess = useCallback((path) => {
                     <Route path="/ventas"             element={<ProtectedRoute path="/ventas"             hasAccess={hasAccess}><Ventas user={user} /></ProtectedRoute>} />
                     <Route path="/pedidos-virtuales" element={<ProtectedRoute path="/pedidos-virtuales" hasAccess={hasAccess}><PedidosVirtuales user={user} /></ProtectedRoute>} />
                     <Route path="/cotizaciones"       element={<ProtectedRoute path="/cotizaciones"       hasAccess={hasAccess}><Cotizaciones /></ProtectedRoute>} />
-                    <Route path="/admin/resoluciones" element={<ProtectedRoute path="/admin/resoluciones" hasAccess={hasAccess}><ResolucionesDian /></ProtectedRoute>} />
+                    <Route path="/admin/resoluciones" element={<Navigate to="/admin/facturacion-electronica" replace />} />
                     <Route path="/compras"            element={<ProtectedRoute path="/compras"            hasAccess={hasAccess}><Compras /></ProtectedRoute>} />
                     <Route path="/clientes"           element={<ProtectedRoute path="/clientes"           hasAccess={hasAccess}><Terceros /></ProtectedRoute>} />
                     <Route path="/productos"          element={<ProtectedRoute path="/productos"          hasAccess={hasAccess}><Productos /></ProtectedRoute>} />
