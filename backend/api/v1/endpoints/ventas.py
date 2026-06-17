@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -166,14 +166,47 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
 
     return db_venta
 
-@router.get("/", response_model=List[schemas.Venta])
+@router.get("/")
 def read_ventas(
-    skip: int = 0,
-    limit: int = Query(default=100, le=500),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=25, ge=1, le=100),
+    search: str = Query(default=""),
+    fecha_inicio: Optional[str] = Query(default=None),
+    fecha_fin: Optional[str] = Query(default=None),
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: models.User = Depends(get_current_active_user),
 ):
-    return crud.get_ventas(db, empresa_id=current_user.empresa_id, skip=skip, limit=limit)
+    from datetime import datetime, timezone, timedelta
+
+    fi = None
+    ff = None
+    if fecha_inicio:
+        try:
+            fi = datetime.fromisoformat(fecha_inicio).replace(tzinfo=timezone.utc)
+        except ValueError:
+            pass
+    if fecha_fin:
+        try:
+            ff = (datetime.fromisoformat(fecha_fin) + timedelta(days=1)).replace(tzinfo=timezone.utc)
+        except ValueError:
+            pass
+
+    total, items = crud.get_ventas(
+        db,
+        empresa_id=current_user.empresa_id,
+        skip=(page - 1) * page_size,
+        limit=page_size,
+        search=search.strip(),
+        fecha_inicio=fi,
+        fecha_fin=ff,
+    )
+    return {
+        "total":     total,
+        "page":      page,
+        "page_size": page_size,
+        "pages":     max(1, (total + page_size - 1) // page_size),
+        "items":     [schemas.Venta.model_validate(v) for v in items],
+    }
 
 @router.get("/{venta_id}", response_model=schemas.Venta)
 def read_venta(venta_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):

@@ -13,8 +13,16 @@ from services.contabilidad import registrar_asiento_venta
 # VENTAS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def get_ventas(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
-    return (
+def get_ventas(
+    db: Session,
+    empresa_id: int,
+    skip: int = 0,
+    limit: int = 25,
+    search: str = "",
+    fecha_inicio=None,
+    fecha_fin=None,
+):
+    q = (
         db.query(models.Venta)
         .options(
             joinedload(models.Venta.cliente),
@@ -22,10 +30,21 @@ def get_ventas(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
             joinedload(models.Venta.pagos),
         )
         .filter(models.Venta.empresa_id == empresa_id, models.Venta.tipo == "venta")
-        .order_by(models.Venta.fecha.desc())
-        .offset(skip)
-        .limit(limit)
-        .all()
+    )
+    if search:
+        term = f"%{search}%"
+        q = q.outerjoin(models.Venta.cliente).filter(
+            models.Cliente.nombre.ilike(term)
+            | models.Venta.numero_factura.ilike(term)
+        )
+    if fecha_inicio:
+        q = q.filter(models.Venta.fecha >= fecha_inicio)
+    if fecha_fin:
+        q = q.filter(models.Venta.fecha <= fecha_fin)
+
+    total = q.count()
+    items = q.order_by(models.Venta.fecha.desc()).offset(skip).limit(limit).all()
+    return total, items
     )
 
 def get_venta(db: Session, empresa_id: int, venta_id: int):

@@ -434,10 +434,12 @@ const Ventas = ({ user }) => {
     const [varianteProducto, setVarianteProducto] = useState(null); // producto con variantes esperando selección
     const [tabValue, setTabValue]                 = useState(0);
     const [page, setPage]                         = useState(0);
-    const [rowsPerPage, setRowsPerPage]           = useState(10);
+    const [rowsPerPage, setRowsPerPage]           = useState(25);
     const [searchTerm, setSearchTerm]             = useState('');
     const [fechaInicio, setFechaInicio]           = useState('');
     const [fechaFin, setFechaFin]                 = useState('');
+    const [ventasTotal, setVentasTotal]           = useState(0);
+    const [ventasPages, setVentasPages]           = useState(1);
 
     // ── Fetch inicial ──
     useEffect(() => {
@@ -449,7 +451,19 @@ const Ventas = ({ user }) => {
         })).catch(() => {});
     }, []);
 
-    const fetchVentas        = () => apiClient.get('/ventas/').then(r => setVentas(r.data)).catch(console.error);
+    const fetchVentas = (p = page, rpp = rowsPerPage, search = searchTerm, fi = fechaInicio, ff = fechaFin) => {
+        const params = { page: p + 1, page_size: rpp };
+        if (search) params.search = search;
+        if (fi) params.fecha_inicio = fi;
+        if (ff) params.fecha_fin = ff;
+        apiClient.get('/ventas/', { params })
+            .then(r => {
+                setVentas(r.data.items);
+                setVentasTotal(r.data.total);
+                setVentasPages(r.data.pages);
+            })
+            .catch(console.error);
+    };
     const fetchClientes      = () => apiClient.get('/clientes/').then(r => setClientes(r.data)).catch(console.error);
     const fetchClientePuntos = useCallback((clienteId) => {
         if (!clienteId) { setClientePuntos(0); setPuntosACanjear(0); return; }
@@ -964,18 +978,10 @@ useEffect(() => {
             .catch(err => console.error('Error al reintentar FE:', err));
     };
 
-    // ── Filtros historial ──
-    const filteredVentas = [...ventas]
-        .filter(v => {
-            const matchName = (v.cliente?.nombre || '').toLowerCase().includes(searchTerm.toLowerCase());
-            const vDate = new Date(v.fecha + 'Z');
-            const matchStart = !fechaInicio || vDate >= new Date(fechaInicio);
-            const matchEnd   = !fechaFin   || vDate <= new Date(fechaFin + 'T23:59:59');
-            return matchName && matchStart && matchEnd;
-        })
-        .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-    const paginatedVentas = filteredVentas.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-    const totalPendiente = ventas.filter(v => v.estado_pago === 'pendiente').reduce((s, v) => s + (v.total - v.monto_pagado), 0);
+    // Filtros y paginación son server-side; ventas ya viene filtrado y paginado
+    const filteredVentas  = ventas;
+    const paginatedVentas = ventas;
+    const totalPendiente  = ventas.filter(v => v.estado_pago === 'pendiente').reduce((s, v) => s + (v.total - v.monto_pagado), 0);
 
     const exportCSV = () => {
         const headers = ['ID', 'Fecha', 'Cliente', 'Total', 'Pagado', 'Estado', 'Método'];
@@ -1686,7 +1692,7 @@ useEffect(() => {
                                     fullWidth size="small"
                                     placeholder="Buscar por nombre de cliente…"
                                     value={searchTerm}
-                                    onChange={(e) => { setSearchTerm(e.target.value); setPage(0); }}
+                                    onChange={(e) => { const v = e.target.value; setSearchTerm(v); setPage(0); fetchVentas(0, rowsPerPage, v, fechaInicio, fechaFin); }}
                                     InputProps={{ startAdornment: <InputAdornment position="start"><Search sx={{ color: 'text.secondary', fontSize: 18 }} /></InputAdornment> }}
                                 />
                             </Grid>
@@ -1694,7 +1700,7 @@ useEffect(() => {
                                 <TextField
                                     fullWidth size="small" type="date" label="Desde"
                                     value={fechaInicio}
-                                    onChange={(e) => { setFechaInicio(e.target.value); setPage(0); }}
+                                    onChange={(e) => { const v = e.target.value; setFechaInicio(v); setPage(0); fetchVentas(0, rowsPerPage, searchTerm, v, fechaFin); }}
                                     InputLabelProps={{ shrink: true }}
                                     sx={{ input: { colorScheme: isDark ? 'dark' : 'light' } }}
                                 />
@@ -1703,14 +1709,14 @@ useEffect(() => {
                                 <TextField
                                     fullWidth size="small" type="date" label="Hasta"
                                     value={fechaFin}
-                                    onChange={(e) => { setFechaFin(e.target.value); setPage(0); }}
+                                    onChange={(e) => { const v = e.target.value; setFechaFin(v); setPage(0); fetchVentas(0, rowsPerPage, searchTerm, fechaInicio, v); }}
                                     InputLabelProps={{ shrink: true }}
                                     sx={{ input: { colorScheme: isDark ? 'dark' : 'light' } }}
                                 />
                             </Grid>
                             {(fechaInicio || fechaFin || searchTerm) && (
                                 <Grid item xs={12} sm={1}>
-                                    <Button size="small" variant="text" onClick={() => { setFechaInicio(''); setFechaFin(''); setSearchTerm(''); setPage(0); }}
+                                    <Button size="small" variant="text" onClick={() => { setFechaInicio(''); setFechaFin(''); setSearchTerm(''); setPage(0); fetchVentas(0, rowsPerPage, '', '', ''); }}
                                         sx={{ color: 'text.secondary', fontSize: 11, whiteSpace: 'nowrap' }}>
                                         Limpiar
                                     </Button>
@@ -1719,9 +1725,9 @@ useEffect(() => {
                         </Grid>
 
                         {/* Resultado del filtro */}
-                        {filteredVentas.length !== ventas.length && (
+                        {(searchTerm || fechaInicio || fechaFin) && (
                             <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1.5 }}>
-                                Mostrando {filteredVentas.length} de {ventas.length} ventas
+                                {ventasTotal} venta{ventasTotal !== 1 ? 's' : ''} encontrada{ventasTotal !== 1 ? 's' : ''}
                             </Typography>
                         )}
 
@@ -1798,9 +1804,9 @@ useEffect(() => {
 
                         <TablePagination
                             rowsPerPageOptions={[10, 25, 50]} component="div"
-                            count={filteredVentas.length} rowsPerPage={rowsPerPage} page={page}
-                            onPageChange={(_, p) => setPage(p)}
-                            onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+                            count={ventasTotal} rowsPerPage={rowsPerPage} page={page}
+                            onPageChange={(_, p) => { setPage(p); fetchVentas(p, rowsPerPage); }}
+                            onRowsPerPageChange={(e) => { const rpp = parseInt(e.target.value, 10); setRowsPerPage(rpp); setPage(0); fetchVentas(0, rpp); }}
                             labelRowsPerPage="Filas:" labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
                         />
                     </Box>
