@@ -73,6 +73,19 @@ def _ciudad_id(ciudad_code: Optional[str]) -> str:
     return ciudad_code or BOGOTA_ID
 
 
+def _normalizar_telefono(telefono: Optional[str]) -> str:
+    """
+    Matias exige entre 7 y 15 dígitos en customer.mobile.
+    Limpia el valor recibido y aplica fallback si está vacío o es inválido.
+    """
+    if not telefono:
+        return "0000000"
+    solo_digitos = "".join(c for c in str(telefono) if c.isdigit())
+    if len(solo_digitos) < 7:
+        return "0000000"
+    return solo_digitos[:15]
+
+
 def build_invoice_payload(venta, empresa, cliente, detalles) -> dict:
     """
     Construye el payload JSON para POST /invoice de Matias API.
@@ -106,16 +119,16 @@ def build_invoice_payload(venta, empresa, cliente, detalles) -> dict:
     if usar_consumidor_final:
         customer = {
             "country_id":         COLOMBIA_ID,
-            "city_id":            _ciudad_id(empresa.ciudad_code),
+            "city_id":            _ciudad_id(empresa.ciudad_code if hasattr(empresa, 'ciudad_code') else None),
             "identity_document_id": DOC_CC,
             "type_organization_id": 2,   # Persona natural
             "tax_regime_id":        2,   # No responsable IVA
             "tax_level_id":         5,   # R-99-PN
             "company_name":         CONSUMIDOR_FINAL_NOMBRE,
             "dni":                  CONSUMIDOR_FINAL_NIT,
-            "mobile":               "",
+            "mobile":               "0000000",
             "email":                empresa.correo_facturacion or "",
-            "address":              "",
+            "address":              "No registra",
             "postal_code":          "110111",
         }
     else:
@@ -135,9 +148,9 @@ def build_invoice_payload(venta, empresa, cliente, detalles) -> dict:
             "tax_level_id":           5,  # R-99-PN por defecto (ajustar si se mapea)
             "company_name":           cliente.nombre or "",
             "dni":                    cliente.cedula or "",
-            "mobile":                 getattr(cliente, "telefono", "") or "",
+            "mobile":                 _normalizar_telefono(getattr(cliente, "telefono", None)),
             "email":                  getattr(cliente, "email", "") or "",
-            "address":                getattr(cliente, "direccion", "") or "",
+            "address":                getattr(cliente, "direccion", "") or "No registra",
             "postal_code":            "110111",
         }
 
@@ -379,9 +392,13 @@ def emitir_factura(
         else:
             # Error HTTP o success=False de Matias
             errors = respuesta_raw.get("errors", {})
+            errores_lista = [
+                f"{k}: {v[0] if isinstance(v, list) else v}"
+                for k, v in errors.items()
+            ] if errors else []
             mensaje_error = (
-                respuesta_raw.get("message")
-                or ("; ".join(f"{k}: {v[0] if isinstance(v, list) else v}" for k, v in errors.items()) if errors else None)
+                "; ".join(errores_lista)
+                or respuesta_raw.get("message")
                 or f"HTTP {response.status_code}"
             )
             logger.warning("Matias rechazó FE venta %s: %s", getattr(venta, "id", "?"), mensaje_error)
