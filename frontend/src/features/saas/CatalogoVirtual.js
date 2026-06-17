@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Box, Typography, Grid, Card, CardContent, CardMedia, IconButton,
@@ -22,6 +22,9 @@ import MenuItem from '@mui/material/MenuItem';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
 
+// Inline SVG placeholder — no external dependency
+const PLACEHOLDER_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'%3E%3Crect width='400' height='400' fill='%23f1f5f9'/%3E%3Ctext x='50%25' y='50%25' font-size='48' text-anchor='middle' dominant-baseline='middle' fill='%2394a3b8'%3E%F0%9F%93%B7%3C/text%3E%3C/svg%3E";
+
 const CatalogoVirtual = () => {
   const { slug } = useParams();
   const outerTheme = useTheme();
@@ -38,7 +41,6 @@ const CatalogoVirtual = () => {
     }
   }, []);
 
-
   // ── Local theme mode — independent of system/app preference ──────────
   const [catMode, setCatMode] = useState(() =>
     localStorage.getItem(`cat_theme_${slug}`) || 'light'
@@ -51,7 +53,7 @@ const CatalogoVirtual = () => {
   }), [catMode]);
   const isDark = catMode === 'dark';
 
-  // Semantic color tokens for custom Box/Typography that bypass MUI theming
+  // Semantic color tokens
   const pageBg    = isDark ? '#0F172A' : '#F8FAFC';
   const paperBg   = isDark ? '#1E293B' : '#ffffff';
   const subtleBg  = isDark ? '#1A2332' : '#F1F5F9';
@@ -66,13 +68,17 @@ const CatalogoVirtual = () => {
     setCatMode(next);
     localStorage.setItem(`cat_theme_${slug}`, next);
   };
-  // ─────────────────────────────────────────────────────────────────────
 
+  // ── Core state ────────────────────────────────────────────────────────
   const [loading, setLoading] = useState(true);
   const [empresa, setEmpresa] = useState(null);
   const [mesas, setMesas] = useState([]);
   const [productos, setProductos] = useState([]);
+
+  // Improvement #3: debounced search
+  const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
+
   const [categoria, setCategoria] = useState('Todas');
   const [cart, setCart] = useState(() => {
     const saved = localStorage.getItem(`cart_${slug}`);
@@ -85,30 +91,51 @@ const CatalogoVirtual = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [currentImgIndex, setCurrentImgIndex] = useState(0);
 
+  // Improvement #2: touch swipe refs
+  const touchStartXRef = useRef(null);
+
   // Formulario de Pedido (comercio)
-  const [nombre, setNombre] = useState('');
-  const [celular, setCelular] = useState('');
+  // Improvement #5: read from localStorage on mount
+  const [nombre, setNombre] = useState(() => {
+    try { return localStorage.getItem(`cat_cliente_${slug}`) ? JSON.parse(localStorage.getItem(`cat_cliente_${slug}`)).nombre || '' : ''; } catch { return ''; }
+  });
+  const [celular, setCelular] = useState(() => {
+    try { return localStorage.getItem(`cat_cliente_${slug}`) ? JSON.parse(localStorage.getItem(`cat_cliente_${slug}`)).celular || '' : ''; } catch { return ''; }
+  });
   const [tipoEntrega, setTipoEntrega] = useState('domicilio');
   const [direccion, setDireccion] = useState('');
   const [comentarios, setComentarios] = useState('');
 
+  // Improvement #12: checkout steps
+  const [checkoutStep, setCheckoutStep] = useState(1);
+
   // Restaurante — notas por ítem y número de mesa
-  const [itemNotas, setItemNotas] = useState({});         // { [producto_id]: 'sin cebolla' }
+  const [itemNotas, setItemNotas] = useState({});
   const [mesaNumero, setMesaNumero] = useState('');
-  const [mesaNotasOpen, setMesaNotasOpen] = useState(null); // producto_id con nota abierta
-  const [confirmedComanda, setConfirmedComanda] = useState(null); // {comanda_id, numero_comanda, mesa_numero, total}
+  const [mesaNotasOpen, setMesaNotasOpen] = useState(null);
+  const [confirmedComanda, setConfirmedComanda] = useState(null);
 
   const [sortProductos, setSortProductos] = useState('');
-  const [favoritos, setFavoritos]         = useState(() => {
+  const [favoritos, setFavoritos] = useState(() => {
     try { return JSON.parse(localStorage.getItem(`favs_${slug}`) || '[]'); } catch { return []; }
   });
   const [showScrollTop, setShowScrollTop] = useState(false);
-  const [orderSent, setOrderSent]         = useState(false);
-  const [terminosOpen, setTerminosOpen]   = useState(false);
+  const [orderSent, setOrderSent] = useState(false);
+  const [terminosOpen, setTerminosOpen] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, [slug]);
+  // Improvement #6: add-to-cart flash animation
+  const [flashId, setFlashId] = useState(null);
+
+  // Improvement #14: "¡Agregado!" text flash
+  const [addedFlash, setAddedFlash] = useState(false);
+
+  // Improvement #10: collapsible header on scroll
+  const [scrollY, setScrollY] = useState(0);
+  const headerCollapsed = scrollY > 80;
+
+  // ── Effects ──────────────────────────────────────────────────────────
+
+  useEffect(() => { fetchData(); }, [slug]);
 
   useEffect(() => {
     localStorage.setItem(`cart_${slug}`, JSON.stringify(cart));
@@ -118,12 +145,31 @@ const CatalogoVirtual = () => {
     localStorage.setItem(`favs_${slug}`, JSON.stringify(favoritos));
   }, [favoritos, slug]);
 
+  // Improvement #3: debounce search 300ms
   useEffect(() => {
-    const handleScroll = () => setShowScrollTop(window.scrollY > 350);
+    const timer = setTimeout(() => setSearch(searchInput), 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  // Improvement #5: save customer data to localStorage
+  useEffect(() => {
+    if (nombre || celular) {
+      localStorage.setItem(`cat_cliente_${slug}`, JSON.stringify({ nombre, celular }));
+    }
+  }, [nombre, celular, slug]);
+
+  // Scroll tracking for collapsible header (#10) and scroll-to-top (#existing)
+  useEffect(() => {
+    const handleScroll = () => {
+      const y = window.scrollY;
+      setScrollY(y);
+      setShowScrollTop(y > 350);
+    };
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // ── Data fetching ─────────────────────────────────────────────────────
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -131,31 +177,35 @@ const CatalogoVirtual = () => {
       setEmpresa(res.data.empresa);
       setProductos(res.data.productos);
       setMesas(res.data.mesas || []);
-
-      // SEO: Título dinámico
       document.title = `${res.data.empresa.nombre} - Catálogo Virtual`;
     } catch (error) {
       if (error.response?.status === 404) {
         toast.error("Catálogo no encontrado o inactivo.");
       }
-      // Otros errores (auth expirada, red) se manejan globalmente — no mostrar toast aquí
     } finally {
       setLoading(false);
     }
   };
 
+  // ── Derived data ──────────────────────────────────────────────────────
   const categorias = useMemo(() => {
     const cats = new Set(productos.map(p => p.categoria));
     return ['Todas', ...Array.from(cats)];
   }, [productos]);
 
-  const categoryCounts = React.useMemo(() => {
+  const categoryCounts = useMemo(() => {
     const counts = {};
     productos.forEach(p => { counts[p.categoria] = (counts[p.categoria] || 0) + 1; });
     return counts;
   }, [productos]);
 
-  const filteredProductos = React.useMemo(() => {
+  // Improvement #7: badge logic — newest 3 by id desc
+  const newestIds = useMemo(() => {
+    const sorted = [...productos].sort((a, b) => b.id - a.id);
+    return new Set(sorted.slice(0, 3).map(p => p.id));
+  }, [productos]);
+
+  const filteredProductos = useMemo(() => {
     let list = productos.filter(p => {
       const matchesSearch = p.nombre.toLowerCase().includes(search.toLowerCase()) ||
                           (p.descripcion && p.descripcion.toLowerCase().includes(search.toLowerCase()));
@@ -173,7 +223,8 @@ const CatalogoVirtual = () => {
 
   const isAgotado = (p) => !p.es_servicio && p.stock <= 0;
 
-  const addToCart = (producto) => {
+  // ── Cart actions ──────────────────────────────────────────────────────
+  const addToCart = useCallback((producto) => {
     if (isAgotado(producto)) return;
     setCart(prev => {
       const existing = prev.find(item => item.id === producto.id);
@@ -182,7 +233,13 @@ const CatalogoVirtual = () => {
       }
       return [...prev, { ...producto, quantity: 1 }];
     });
-  };
+    // Improvement #6: flash card border
+    setFlashId(producto.id);
+    setTimeout(() => setFlashId(null), 600);
+    // Improvement #14: "¡Agregado!" text
+    setAddedFlash(true);
+    setTimeout(() => setAddedFlash(false), 1000);
+  }, []);
 
   const removeFromCart = (id) => {
     setCart(prev => {
@@ -202,7 +259,28 @@ const CatalogoVirtual = () => {
   const cartTotal = cart.reduce((sum, item) => sum + (item.precio * item.quantity), 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  // ── Flujo COMERCIO — WhatsApp ─────────────────────────────────────────────
+  // ── Touch swipe handlers (Improvement #2) ────────────────────────────
+  const handleTouchStart = (e) => {
+    touchStartXRef.current = e.touches[0].clientX;
+  };
+  const handleTouchMove = (e) => {
+    // prevent default only if horizontal swipe detected — keep passive
+  };
+  const handleTouchEnd = (e) => {
+    if (touchStartXRef.current === null || !selectedProduct) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
+    touchStartXRef.current = null;
+    if (Math.abs(deltaX) < 50) return;
+    if (deltaX < 0) {
+      // swipe left → next
+      setCurrentImgIndex(prev => (prev < selectedProduct.image_count - 1 ? prev + 1 : 0));
+    } else {
+      // swipe right → prev
+      setCurrentImgIndex(prev => (prev > 0 ? prev - 1 : selectedProduct.image_count - 1));
+    }
+  };
+
+  // ── Flujo COMERCIO — WhatsApp ─────────────────────────────────────────
   const handleSendOrder = async () => {
     if (!nombre || !celular) {
       toast.warning("Nombre y celular son obligatorios");
@@ -224,8 +302,8 @@ const CatalogoVirtual = () => {
         direccion_entrega: tipoEntrega === 'domicilio' ? direccion : null,
         comentarios:       comentarios || null,
         detalles: cart.map(item => ({
-          producto_id:    item.id,
-          cantidad:       item.quantity,
+          producto_id:     item.id,
+          cantidad:        item.quantity,
           precio_unitario: item.precio,
         })),
       };
@@ -261,10 +339,11 @@ const CatalogoVirtual = () => {
       setCart([]);
       setOrderModalOpen(false);
       setCartOpen(false);
+      setCheckoutStep(1);
     }, 2500);
   };
 
-  // ── Flujo RESTAURANTE — directo a cocina ──────────────────────────────────
+  // ── Flujo RESTAURANTE — directo a cocina ─────────────────────────────
   const handleSendOrderRestaurante = async () => {
     if (!mesaNumero.trim()) {
       toast.warning("Indica el número de tu mesa");
@@ -297,6 +376,7 @@ const CatalogoVirtual = () => {
     }
   };
 
+  // ── Loading skeleton ──────────────────────────────────────────────────
   if (loading) return (
     <ThemeProvider theme={catTheme}>
       <Box sx={{ bgcolor: pageBg, minHeight: '100vh' }}>
@@ -328,40 +408,82 @@ const CatalogoVirtual = () => {
       </Box>
     </ThemeProvider>
   );
-  if (!empresa) return <Box sx={{ p: 5, textAlign: 'center' }}><Typography variant="h5">Catálogo no disponible</Typography></Box>;
+
+  if (!empresa) return (
+    <Box sx={{ p: 5, textAlign: 'center' }}>
+      <Typography variant="h5">Catálogo no disponible</Typography>
+    </Box>
+  );
 
   const accentColor = empresa.color_primario || '#FF6020';
 
   return (
     <ThemeProvider theme={catTheme}>
-      <Box sx={{ bgcolor: pageBg, minHeight: '100vh', pb: 10 }}>
-        {/* HEADER */}
-        <Box sx={{ bgcolor: paperBg, px: 2, pt: 3, pb: 2, boxShadow: '0 2px 10px rgba(0,0,0,0.05)', position: 'sticky', top: 0, zIndex: 100 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+      <Box sx={{ bgcolor: pageBg, minHeight: '100vh', pb: cartCount > 0 ? 14 : 10 }}>
+
+        {/* ── HEADER (Improvement #10: collapsible on scroll) ─────────── */}
+        <Box sx={{
+          bgcolor: paperBg,
+          px: 2,
+          pt: headerCollapsed ? 1 : 3,
+          pb: headerCollapsed ? 1 : 2,
+          boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+          position: 'sticky',
+          top: 0,
+          zIndex: 100,
+          transition: 'padding 0.3s ease',
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: headerCollapsed ? 1 : 2 }}>
             {empresa.logo_base64 ? (
-              <Avatar src={empresa.logo_base64} variant="rounded" sx={{ width: 50, height: 50 }} />
+              <Avatar
+                src={empresa.logo_base64}
+                variant="rounded"
+                sx={{
+                  width: headerCollapsed ? 36 : 50,
+                  height: headerCollapsed ? 36 : 50,
+                  transition: 'width 0.3s, height 0.3s',
+                }}
+              />
             ) : (
-              <Avatar sx={{ bgcolor: accentColor, width: 50, height: 50 }} variant="rounded"><Storefront /></Avatar>
+              <Avatar
+                sx={{
+                  bgcolor: accentColor,
+                  width: headerCollapsed ? 36 : 50,
+                  height: headerCollapsed ? 36 : 50,
+                  transition: 'width 0.3s, height 0.3s',
+                }}
+                variant="rounded"
+              >
+                <Storefront />
+              </Avatar>
             )}
             <Box sx={{ flexGrow: 1, minWidth: 0, overflow: 'hidden' }}>
               <Typography sx={{
-                fontWeight: 800, fontSize: { xs: 15, sm: 18 }, color: textPri,
-                lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                fontWeight: 800,
+                fontSize: { xs: headerCollapsed ? 13 : 15, sm: headerCollapsed ? 15 : 18 },
+                color: textPri,
+                lineHeight: 1.2,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                transition: 'font-size 0.3s',
               }}>
                 {empresa.nombre}
               </Typography>
-              {empresa.descripcion ? (
-                <Typography sx={{ fontSize: 11, color: textSec, mt: 0.2, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                  {empresa.descripcion}
-                </Typography>
-              ) : (
-                <Typography sx={{ fontSize: 11, color: textSec, mt: 0.2 }}>
-                  Catálogo Virtual
-                </Typography>
+              {/* Description hidden when collapsed */}
+              {!headerCollapsed && (
+                empresa.descripcion ? (
+                  <Typography sx={{ fontSize: 11, color: textSec, mt: 0.2, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    {empresa.descripcion}
+                  </Typography>
+                ) : (
+                  <Typography sx={{ fontSize: 11, color: textSec, mt: 0.2 }}>
+                    Catálogo Virtual
+                  </Typography>
+                )
               )}
             </Box>
 
-            {/* Dark / light toggle + Powered by — alineados juntos */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
               <Tooltip title={isDark ? 'Modo claro' : 'Modo oscuro'}>
                 <IconButton
@@ -395,19 +517,20 @@ const CatalogoVirtual = () => {
             </Box>
           </Box>
 
+          {/* Improvement #3: searchInput state for immediate value, search debounced */}
           <TextField
             fullWidth
             size="small"
             placeholder={`¿Qué buscas en ${empresa?.nombre || 'la tienda'}?`}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 3, bgcolor: subtleBg } }}
             InputProps={{
               startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment>
             }}
           />
 
-          {/* FILTRO CATEGORÍAS */}
+          {/* Filtro Categorías */}
           <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto', pb: 1, '&::-webkit-scrollbar': { display: 'none' } }}>
             {categorias.map(cat => (
               <Chip
@@ -452,25 +575,44 @@ const CatalogoVirtual = () => {
           </Select>
         </Box>
 
-        {/* PRODUCTOS */}
+        {/* ── PRODUCTOS GRID (Improvement #1: 2 cols on xs) ───────────── */}
         <Box sx={{ px: 1, pb: 2, pt: 1 }}>
           <Box sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(4, 1fr)', md: 'repeat(5, 1fr)', lg: 'repeat(6, 1fr)' },
+            gridTemplateColumns: {
+              xs: 'repeat(2, 1fr)',
+              sm: 'repeat(3, 1fr)',
+              md: 'repeat(4, 1fr)',
+              lg: 'repeat(5, 1fr)',
+            },
             gap: '6px',
           }}>
             {filteredProductos.map(p => {
               const inCart = cart.find(item => item.id === p.id);
               const agotado = isAgotado(p);
+              // Improvement #7: badge logic
+              const isNuevo = p.es_nuevo || newestIds.has(p.id);
+              const isOferta = p.precio_antes && p.precio_antes > p.precio;
+              // Improvement #6: flash card
+              const isFlashing = flashId === p.id;
+
               return (
                 <Card
                   key={p.id}
                   sx={{
-                    borderRadius: 2, display: 'flex', flexDirection: 'column',
-                    overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
-                    border: '1px solid', borderColor: agotado ? 'divider' : divClr,
+                    borderRadius: 2,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                    boxShadow: isFlashing
+                      ? `0 0 0 3px #22c55e, 0 2px 12px rgba(34,197,94,0.25)`
+                      : '0 1px 4px rgba(0,0,0,0.07)',
+                    border: '1px solid',
+                    borderColor: isFlashing ? '#22c55e' : (agotado ? 'divider' : divClr),
                     cursor: 'pointer',
                     opacity: agotado ? 0.72 : 1,
+                    transform: isFlashing ? 'scale(1.08)' : 'scale(1)',
+                    transition: 'transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease',
                   }}
                   onClick={() => { setSelectedProduct(p); setCurrentImgIndex(0); }}
                 >
@@ -478,7 +620,9 @@ const CatalogoVirtual = () => {
                     <CardMedia
                       component="img"
                       sx={{ aspectRatio: '1/1', objectFit: 'cover', filter: agotado ? 'grayscale(60%)' : 'none' }}
-                      image={p.image_count > 0 ? `${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${p.id}/imagen?index=0` : 'https://placehold.co/400x400?text=Sin+imagen'}
+                      image={p.image_count > 0
+                        ? `${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${p.id}/imagen?index=0`
+                        : PLACEHOLDER_IMG}
                       alt={p.nombre}
                     />
                     <IconButton
@@ -494,6 +638,23 @@ const CatalogoVirtual = () => {
                         ? <Favorite sx={{ fontSize: 11, color: '#EF4444' }} />
                         : <FavoriteBorder sx={{ fontSize: 11, color: '#94A3B8' }} />}
                     </IconButton>
+
+                    {/* Improvement #7: Nuevo / Oferta badges */}
+                    {(isNuevo || isOferta) && (
+                      <Box sx={{ position: 'absolute', top: 3, left: 3, display: 'flex', flexDirection: 'column', gap: 0.4 }}>
+                        {isNuevo && (
+                          <Box sx={{ bgcolor: '#6366f1', px: 0.8, py: 0.2, borderRadius: 1 }}>
+                            <Typography sx={{ fontSize: 8, fontWeight: 800, color: '#fff', letterSpacing: 0.3 }}>NUEVO</Typography>
+                          </Box>
+                        )}
+                        {isOferta && (
+                          <Box sx={{ bgcolor: '#ef4444', px: 0.8, py: 0.2, borderRadius: 1 }}>
+                            <Typography sx={{ fontSize: 8, fontWeight: 800, color: '#fff', letterSpacing: 0.3 }}>OFERTA</Typography>
+                          </Box>
+                        )}
+                      </Box>
+                    )}
+
                     {agotado && (
                       <Box sx={{
                         position: 'absolute', bottom: 0, left: 0, right: 0,
@@ -505,13 +666,39 @@ const CatalogoVirtual = () => {
                       </Box>
                     )}
                   </Box>
+
+                  {/* Improvement #13: price hierarchy — name fontSize 12, price fontSize 14 bold */}
                   <CardContent sx={{ p: '6px 7px 7px !important', flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                    <Typography sx={{ fontWeight: 600, fontSize: 11, color: textPri, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.3, mb: 0.5, minHeight: 28 }}>
+                    <Typography sx={{
+                      fontWeight: 600,
+                      fontSize: 12,
+                      color: textPri,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      lineHeight: 1.3,
+                      mb: 0.5,
+                      minHeight: 30,
+                    }}>
                       {p.nombre}
                     </Typography>
-                    <Typography sx={{ fontWeight: 800, fontSize: 12, color: agotado ? 'text.disabled' : accentColor, mb: 0.75 }}>
+
+                    {/* Improvement #7: crossed-out original price if oferta */}
+                    {isOferta && (
+                      <Typography sx={{ fontSize: 10, color: textSec, textDecoration: 'line-through', lineHeight: 1, mb: 0.2 }}>
+                        ${new Intl.NumberFormat('es-CO').format(p.precio_antes)}
+                      </Typography>
+                    )}
+                    <Typography sx={{
+                      fontWeight: 900,
+                      fontSize: 14,
+                      color: agotado ? 'text.disabled' : (isOferta ? '#ef4444' : accentColor),
+                      mb: 0.75,
+                    }}>
                       ${new Intl.NumberFormat('es-CO').format(p.precio)}
                     </Typography>
+
                     <Box onClick={(e) => e.stopPropagation()}>
                       {agotado ? (
                         <Box sx={{
@@ -562,7 +749,7 @@ const CatalogoVirtual = () => {
               {(search || categoria !== 'Todas') && (
                 <Button
                   variant="outlined"
-                  onClick={() => { setSearch(''); setCategoria('Todas'); setSortProductos(''); }}
+                  onClick={() => { setSearchInput(''); setSearch(''); setCategoria('Todas'); setSortProductos(''); }}
                   sx={{ borderRadius: 3, fontWeight: 700 }}
                 >
                   Ver todos los productos
@@ -572,7 +759,7 @@ const CatalogoVirtual = () => {
           )}
         </Box>
 
-        {/* DETALLE DE PRODUCTO */}
+        {/* ── DETALLE DE PRODUCTO ─────────────────────────────────────── */}
         <Dialog
           open={Boolean(selectedProduct)}
           onClose={() => setSelectedProduct(null)}
@@ -591,10 +778,17 @@ const CatalogoVirtual = () => {
                   <Close fontSize="small" />
                 </IconButton>
 
-                {/* Galería Principal */}
-                <Box sx={{ width: '100%', aspectRatio: '1/1', bgcolor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                {/* Improvement #2: touch swipe on gallery */}
+                <Box
+                  sx={{ width: '100%', aspectRatio: '1/1', bgcolor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}
+                  onTouchStart={handleTouchStart}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
+                >
                   <img
-                    src={selectedProduct.image_count > 0 ? `${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${selectedProduct.id}/imagen?index=${currentImgIndex}` : 'https://placehold.co/400x400?text=No+Image'}
+                    src={selectedProduct.image_count > 0
+                      ? `${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${selectedProduct.id}/imagen?index=${currentImgIndex}`
+                      : PLACEHOLDER_IMG}
                     alt={selectedProduct.nombre}
                     style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                   />
@@ -616,17 +810,64 @@ const CatalogoVirtual = () => {
 
                       <Box sx={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 1 }}>
                         {[...Array(selectedProduct.image_count)].map((_, i) => (
-                          <Box key={i} sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: i === currentImgIndex ? accentColor : 'rgba(255,255,255,0.5)', transition: 'all 0.2s' }} />
+                          <Box
+                            key={i}
+                            onClick={() => setCurrentImgIndex(i)}
+                            sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: i === currentImgIndex ? accentColor : 'rgba(255,255,255,0.5)', transition: 'all 0.2s', cursor: 'pointer' }}
+                          />
                         ))}
                       </Box>
                     </>
                   )}
                 </Box>
+
+                {/* Improvement #8: thumbnail strip */}
+                {selectedProduct.image_count > 1 && (
+                  <Box sx={{
+                    display: 'flex',
+                    gap: 1,
+                    p: 1.5,
+                    overflowX: 'auto',
+                    bgcolor: paperBg,
+                    '&::-webkit-scrollbar': { display: 'none' },
+                  }}>
+                    {[...Array(selectedProduct.image_count)].map((_, i) => (
+                      <Box
+                        key={i}
+                        onClick={() => setCurrentImgIndex(i)}
+                        sx={{
+                          width: 48,
+                          height: 48,
+                          flexShrink: 0,
+                          borderRadius: 1.5,
+                          overflow: 'hidden',
+                          border: '2px solid',
+                          borderColor: i === currentImgIndex ? accentColor : borderClr,
+                          cursor: 'pointer',
+                          transition: 'border-color 0.15s',
+                        }}
+                      >
+                        <img
+                          src={`${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${selectedProduct.id}/imagen?index=${i}`}
+                          alt={`${selectedProduct.nombre} ${i + 1}`}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      </Box>
+                    ))}
+                  </Box>
+                )}
               </Box>
 
               <DialogContent sx={{ p: 3 }}>
                 <Chip label={selectedProduct.categoria} size="small" sx={{ mb: 1, fontWeight: 700, bgcolor: `${accentColor}15`, color: accentColor }} />
                 <Typography variant="h5" sx={{ fontWeight: 800, mb: 1 }}>{selectedProduct.nombre}</Typography>
+
+                {/* Improvement #7: oferta price in detail */}
+                {selectedProduct.precio_antes && selectedProduct.precio_antes > selectedProduct.precio && (
+                  <Typography sx={{ fontSize: 14, color: textSec, textDecoration: 'line-through', mb: 0.3 }}>
+                    ${new Intl.NumberFormat('es-CO').format(selectedProduct.precio_antes)}
+                  </Typography>
+                )}
                 <Typography variant="h4" sx={{ fontWeight: 800, color: accentColor, mb: 3 }}>
                   ${new Intl.NumberFormat('es-CO').format(selectedProduct.precio)}
                 </Typography>
@@ -639,6 +880,7 @@ const CatalogoVirtual = () => {
                 )}
               </DialogContent>
 
+              {/* Improvement #9: +/- in dialog when already in cart */}
               <DialogActions sx={{ p: 3, pt: 0 }}>
                 {isAgotado(selectedProduct) ? (
                   <Button fullWidth variant="outlined" size="large" disabled
@@ -646,22 +888,62 @@ const CatalogoVirtual = () => {
                   >
                     Producto Agotado
                   </Button>
-                ) : (
-                  <Button
-                    fullWidth variant="contained" size="large"
-                    startIcon={<ShoppingCart />}
-                    onClick={() => { addToCart(selectedProduct); setSelectedProduct(null); }}
-                    sx={{ bgcolor: accentColor, borderRadius: 3, py: 1.5, fontWeight: 800, '&:hover': { bgcolor: accentColor, opacity: 0.9 } }}
-                  >
-                    Agregar al Carrito
-                  </Button>
-                )}
+                ) : (() => {
+                  const inCartItem = cart.find(item => item.id === selectedProduct.id);
+                  if (inCartItem) {
+                    return (
+                      <Box sx={{ width: '100%', display: 'flex', gap: 1.5, alignItems: 'center' }}>
+                        <Box sx={{
+                          display: 'flex', alignItems: 'center', gap: 1,
+                          bgcolor: subtleBg, borderRadius: 3, px: 1.5, py: 1,
+                          flex: 1, justifyContent: 'center',
+                        }}>
+                          <IconButton
+                            size="small"
+                            onClick={() => removeFromCart(selectedProduct.id)}
+                            sx={{ bgcolor: paperBg, color: accentColor, '&:hover': { bgcolor: subtleHov } }}
+                          >
+                            <Remove />
+                          </IconButton>
+                          <Typography sx={{ fontWeight: 800, fontSize: 18, minWidth: 28, textAlign: 'center' }}>
+                            {inCartItem.quantity}
+                          </Typography>
+                          <IconButton
+                            size="small"
+                            onClick={() => addToCart(selectedProduct)}
+                            sx={{ bgcolor: paperBg, color: accentColor, '&:hover': { bgcolor: subtleHov } }}
+                          >
+                            <Add />
+                          </IconButton>
+                        </Box>
+                        <Button
+                          variant="contained"
+                          size="large"
+                          onClick={() => setSelectedProduct(null)}
+                          sx={{ bgcolor: accentColor, borderRadius: 3, py: 1.5, fontWeight: 800, flex: 1, '&:hover': { bgcolor: accentColor, opacity: 0.9 } }}
+                        >
+                          Listo ✓
+                        </Button>
+                      </Box>
+                    );
+                  }
+                  return (
+                    <Button
+                      fullWidth variant="contained" size="large"
+                      startIcon={<ShoppingCart />}
+                      onClick={() => { addToCart(selectedProduct); setSelectedProduct(null); }}
+                      sx={{ bgcolor: accentColor, borderRadius: 3, py: 1.5, fontWeight: 800, '&:hover': { bgcolor: accentColor, opacity: 0.9 } }}
+                    >
+                      Agregar al Carrito
+                    </Button>
+                  );
+                })()}
               </DialogActions>
             </>
           )}
         </Dialog>
 
-        {/* ── BANNER PROMOCIONAL — compacto ──────────────────────────────── */}
+        {/* ── BANNER PROMOCIONAL ──────────────────────────────────────── */}
         <Box sx={{ px: 2, py: 1.5 }}>
           <Box sx={{
             display: 'flex', alignItems: 'center', gap: 1.5,
@@ -703,33 +985,37 @@ const CatalogoVirtual = () => {
           </Box>
         </Box>
 
-        {/* CARRITO FLOTANTE */}
+        {/* Improvement #11: Sticky bottom bar with total */}
         {cartCount > 0 && (
-          <Zoom in={cartCount > 0}>
-            <Fab
-              variant="extended"
-              onClick={() => setCartOpen(true)}
-              sx={{
-                position: 'fixed',
-                bottom: 24,
-                left: '50%',
-                transform: 'translateX(-50%) !important',
-                bgcolor: accentColor,
-                color: '#fff',
-                px: 3,
-                boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
-                '&:hover': { bgcolor: accentColor, opacity: 0.9 }
-              }}
-            >
-              <Badge badgeContent={cartCount} color="error" sx={{ mr: 1.5 }}>
-                <ShoppingBag />
-              </Badge>
-              Ver Pedido • ${new Intl.NumberFormat('es-CO').format(cartTotal)}
-            </Fab>
-          </Zoom>
+          <Box
+            onClick={() => setCartOpen(true)}
+            sx={{
+              position: 'fixed',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: 56,
+              bgcolor: accentColor,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 1.5,
+              cursor: 'pointer',
+              zIndex: 200,
+              boxShadow: '0 -4px 20px rgba(0,0,0,0.18)',
+              px: 2,
+            }}
+          >
+            <ShoppingBag sx={{ color: '#fff', fontSize: 20 }} />
+            <Typography sx={{ fontWeight: 800, fontSize: 14, color: '#fff' }}>
+              {addedFlash
+                ? '¡Agregado! 🎉'
+                : `${cartCount} ${cartCount === 1 ? 'producto' : 'productos'} • $${new Intl.NumberFormat('es-CO').format(cartTotal)} • Ver pedido →`}
+            </Typography>
+          </Box>
         )}
 
-        {/* SCROLL TO TOP */}
+        {/* Scroll to Top */}
         {showScrollTop && (
           <Zoom in={showScrollTop}>
             <Fab
@@ -737,7 +1023,7 @@ const CatalogoVirtual = () => {
               onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
               sx={{
                 position: 'fixed',
-                bottom: cartCount > 0 ? 90 : 24,
+                bottom: cartCount > 0 ? 72 : 24,
                 right: 16,
                 bgcolor: paperBg,
                 color: textSec,
@@ -752,7 +1038,7 @@ const CatalogoVirtual = () => {
           </Zoom>
         )}
 
-        {/* DRAWER / BOTTOM SHEET DEL CARRITO */}
+        {/* ── DRAWER DEL CARRITO ──────────────────────────────────────── */}
         <Drawer
           anchor={isMobile ? 'bottom' : 'right'}
           open={cartOpen}
@@ -762,7 +1048,7 @@ const CatalogoVirtual = () => {
               width: isMobile ? '100%' : 400,
               maxHeight: isMobile ? '90vh' : '100vh',
               borderRadius: isMobile ? '24px 24px 0 0' : 0,
-              overflow: 'hidden'
+              overflow: 'hidden',
             }
           }}
         >
@@ -796,7 +1082,7 @@ const CatalogoVirtual = () => {
                     </Box>
                   </Box>
 
-                  {/* Campo de notas por ítem — solo restaurantes */}
+                  {/* Notas por ítem — solo restaurantes */}
                   {empresa?.tipo_negocio === 'restaurante' && (
                     <Box sx={{ mt: 0.8 }}>
                       {mesaNotasOpen === item.id ? (
@@ -859,7 +1145,7 @@ const CatalogoVirtual = () => {
               fullWidth
               size="large"
               endIcon={empresa?.tipo_negocio === 'restaurante' ? <TableRestaurant /> : <ArrowForward />}
-              onClick={() => setOrderModalOpen(true)}
+              onClick={() => { setOrderModalOpen(true); setCheckoutStep(1); }}
               sx={{ bgcolor: accentColor, borderRadius: 3, py: 1.5, fontWeight: 700, '&:hover': { bgcolor: accentColor, opacity: 0.9 } }}
             >
               {empresa?.tipo_negocio === 'restaurante' ? 'Pedir a cocina' : 'Siguiente'}
@@ -867,7 +1153,7 @@ const CatalogoVirtual = () => {
           </Box>
         </Drawer>
 
-        {/* DIALOG DE PEDIDO — bifurca según tipo_negocio */}
+        {/* ── DIALOG DE PEDIDO ────────────────────────────────────────── */}
         <Dialog
           open={orderModalOpen}
           onClose={() => !orderSent && setOrderModalOpen(false)}
@@ -881,13 +1167,16 @@ const CatalogoVirtual = () => {
               {empresa?.tipo_negocio === 'restaurante'
                 ? <TableRestaurant sx={{ color: accentColor }} />
                 : <ShoppingCart sx={{ color: accentColor }} />}
-              {empresa?.tipo_negocio === 'restaurante' ? 'Enviar pedido a cocina' : 'Finalizar pedido'}
+              {empresa?.tipo_negocio === 'restaurante'
+                ? 'Enviar pedido a cocina'
+                : checkoutStep === 1 ? 'Tus datos' : 'Entrega'}
             </Box>
-            {!orderSent && <IconButton size="small" onClick={() => setOrderModalOpen(false)}><Close fontSize="small" /></IconButton>}
+            {!orderSent && <IconButton size="small" onClick={() => { setOrderModalOpen(false); setCheckoutStep(1); }}><Close fontSize="small" /></IconButton>}
           </DialogTitle>
 
           <DialogContent dividers sx={{ position: 'relative', p: 0 }}>
-            {/* ── Pantalla de ÉXITO ── */}
+
+            {/* Pantalla de ÉXITO */}
             {orderSent && (
               <Box sx={{
                 display: 'flex', flexDirection: 'column',
@@ -928,7 +1217,7 @@ const CatalogoVirtual = () => {
               </Box>
             )}
 
-            {/* ── Formulario RESTAURANTE ── */}
+            {/* Formulario RESTAURANTE */}
             {!orderSent && empresa?.tipo_negocio === 'restaurante' && (
               <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
                 {/* Resumen del pedido */}
@@ -1020,79 +1309,148 @@ const CatalogoVirtual = () => {
               </Box>
             )}
 
-            {/* ── Formulario COMERCIO ── */}
+            {/* Improvement #12: Formulario COMERCIO en 2 pasos */}
             {!orderSent && empresa?.tipo_negocio !== 'restaurante' && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, p: 3 }}>
-                <Box>
-                  <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Person fontSize="small" color="action" /> Tu Nombre *
+
+                {/* Step indicator */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                  {[1, 2].map(step => (
+                    <React.Fragment key={step}>
+                      <Box sx={{
+                        width: 28, height: 28, borderRadius: '50%',
+                        bgcolor: step <= checkoutStep ? accentColor : subtleBg,
+                        border: `2px solid ${step <= checkoutStep ? accentColor : borderClr}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'all 0.2s',
+                      }}>
+                        <Typography sx={{ fontSize: 12, fontWeight: 800, color: step <= checkoutStep ? '#fff' : textSec }}>
+                          {step}
+                        </Typography>
+                      </Box>
+                      {step < 2 && (
+                        <Box sx={{ flex: 1, height: 2, bgcolor: checkoutStep > step ? accentColor : borderClr, borderRadius: 1, transition: 'background 0.2s' }} />
+                      )}
+                    </React.Fragment>
+                  ))}
+                  <Typography sx={{ fontSize: 11, color: textSec, ml: 1 }}>
+                    Paso {checkoutStep} de 2
                   </Typography>
-                  <TextField fullWidth placeholder="¿Cómo te llamas?" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
                 </Box>
-                <Box>
-                  <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Phone fontSize="small" color="action" /> Número de Celular *
-                  </Typography>
-                  <TextField fullWidth placeholder="Ej: 300 123 4567" value={celular} onChange={(e) => setCelular(e.target.value.replace(/\D/g, ''))} required />
-                </Box>
-                <Box>
-                  <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1.5 }}>Tipo de Entrega</Typography>
-                  <RadioGroup value={tipoEntrega} onChange={(e) => setTipoEntrega(e.target.value)}>
-                    <Grid container spacing={2}>
-                      <Grid item xs={6}>
-                        <Paper variant="outlined" onClick={() => setTipoEntrega('domicilio')}
-                          sx={{ p: 2, textAlign: 'center', borderRadius: 3, cursor: 'pointer',
-                            borderColor: tipoEntrega === 'domicilio' ? accentColor : 'divider',
-                            bgcolor: tipoEntrega === 'domicilio' ? `${accentColor}05` : 'transparent' }}>
-                          <Typography sx={{ fontSize: 24, mb: 0.5 }}>🛵</Typography>
-                          <Typography sx={{ fontWeight: 700, fontSize: 12 }}>A domicilio</Typography>
-                          <Radio value="domicilio" sx={{ display: 'none' }} />
-                        </Paper>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Paper variant="outlined" onClick={() => setTipoEntrega('recoger')}
-                          sx={{ p: 2, textAlign: 'center', borderRadius: 3, cursor: 'pointer',
-                            borderColor: tipoEntrega === 'recoger' ? accentColor : 'divider',
-                            bgcolor: tipoEntrega === 'recoger' ? `${accentColor}05` : 'transparent' }}>
-                          <Typography sx={{ fontSize: 24, mb: 0.5 }}>🏪</Typography>
-                          <Typography sx={{ fontWeight: 700, fontSize: 12 }}>Recoger en tienda</Typography>
-                          <Radio value="recoger" sx={{ display: 'none' }} />
-                        </Paper>
-                      </Grid>
-                    </Grid>
-                  </RadioGroup>
-                </Box>
-                {tipoEntrega === 'domicilio' ? (
-                  <Box>
-                    <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <LocationOn fontSize="small" color="action" /> Dirección de Entrega *
-                    </Typography>
-                    <TextField fullWidth placeholder="Calle, Barrio, Apartamento..." value={direccion} onChange={(e) => setDireccion(e.target.value)} required />
-                  </Box>
-                ) : (
-                  <Box sx={{
-                    p: 2, borderRadius: 3,
-                    border: '1.5px solid',
-                    borderColor: empresa?.direccion ? 'success.main' : 'warning.main',
-                    bgcolor: empresa?.direccion ? 'success.50' : 'warning.50',
-                  }}>
-                    <Typography sx={{ fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 0.8, mb: 0.5 }}>
-                      📍 Punto de recogida
-                    </Typography>
-                    {empresa?.direccion ? (
-                      <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{empresa.direccion}</Typography>
-                    ) : (
-                      <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-                        La tienda te indicará el punto de recogida al confirmar tu pedido.
+
+                {/* Step 1: nombre + celular */}
+                {checkoutStep === 1 && (
+                  <>
+                    <Box>
+                      <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Person fontSize="small" color="action" /> Tu Nombre *
                       </Typography>
-                    )}
-                  </Box>
+                      <TextField
+                        fullWidth
+                        placeholder="¿Cómo te llamas?"
+                        value={nombre}
+                        onChange={(e) => setNombre(e.target.value)}
+                        required
+                      />
+                      {nombre && (
+                        <Typography sx={{ fontSize: 10, color: '#22c55e', mt: 0.4, fontWeight: 600 }}>✓ Datos guardados</Typography>
+                      )}
+                    </Box>
+                    <Box>
+                      <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Phone fontSize="small" color="action" /> Número de Celular *
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        placeholder="Ej: 300 123 4567"
+                        value={celular}
+                        onChange={(e) => setCelular(e.target.value.replace(/\D/g, ''))}
+                        required
+                      />
+                      {celular && (
+                        <Typography sx={{ fontSize: 10, color: '#22c55e', mt: 0.4, fontWeight: 600 }}>✓ Datos guardados</Typography>
+                      )}
+                    </Box>
+                  </>
                 )}
-                <Box>
-                  <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1 }}>Comentarios adicionales</Typography>
-                  <TextField fullWidth multiline rows={2} placeholder="¿Algo más que debamos saber?"
-                    value={comentarios} onChange={(e) => setComentarios(e.target.value)} />
-                </Box>
+
+                {/* Step 2: tipo entrega + dirección + comentarios */}
+                {checkoutStep === 2 && (
+                  <>
+                    <Box>
+                      <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1.5 }}>Tipo de Entrega</Typography>
+                      <RadioGroup value={tipoEntrega} onChange={(e) => setTipoEntrega(e.target.value)}>
+                        <Grid container spacing={2}>
+                          <Grid item xs={6}>
+                            <Paper variant="outlined" onClick={() => setTipoEntrega('domicilio')}
+                              sx={{ p: 2, textAlign: 'center', borderRadius: 3, cursor: 'pointer',
+                                borderColor: tipoEntrega === 'domicilio' ? accentColor : 'divider',
+                                bgcolor: tipoEntrega === 'domicilio' ? `${accentColor}05` : 'transparent' }}>
+                              <Typography sx={{ fontSize: 24, mb: 0.5 }}>🛵</Typography>
+                              <Typography sx={{ fontWeight: 700, fontSize: 12 }}>A domicilio</Typography>
+                              <Radio value="domicilio" sx={{ display: 'none' }} />
+                            </Paper>
+                          </Grid>
+                          <Grid item xs={6}>
+                            <Paper variant="outlined" onClick={() => setTipoEntrega('recoger')}
+                              sx={{ p: 2, textAlign: 'center', borderRadius: 3, cursor: 'pointer',
+                                borderColor: tipoEntrega === 'recoger' ? accentColor : 'divider',
+                                bgcolor: tipoEntrega === 'recoger' ? `${accentColor}05` : 'transparent' }}>
+                              <Typography sx={{ fontSize: 24, mb: 0.5 }}>🏪</Typography>
+                              <Typography sx={{ fontWeight: 700, fontSize: 12 }}>Recoger en tienda</Typography>
+                              <Radio value="recoger" sx={{ display: 'none' }} />
+                            </Paper>
+                          </Grid>
+                        </Grid>
+                      </RadioGroup>
+                    </Box>
+
+                    {tipoEntrega === 'domicilio' ? (
+                      <Box>
+                        <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <LocationOn fontSize="small" color="action" /> Dirección de Entrega *
+                        </Typography>
+                        <TextField
+                          fullWidth
+                          placeholder="Calle, Barrio, Apartamento..."
+                          value={direccion}
+                          onChange={(e) => setDireccion(e.target.value)}
+                          required
+                        />
+                      </Box>
+                    ) : (
+                      <Box sx={{
+                        p: 2, borderRadius: 3,
+                        border: '1.5px solid',
+                        borderColor: empresa?.direccion ? 'success.main' : 'warning.main',
+                        bgcolor: empresa?.direccion ? 'success.50' : 'warning.50',
+                      }}>
+                        <Typography sx={{ fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 0.8, mb: 0.5 }}>
+                          📍 Punto de recogida
+                        </Typography>
+                        {empresa?.direccion ? (
+                          <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{empresa.direccion}</Typography>
+                        ) : (
+                          <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+                            La tienda te indicará el punto de recogida al confirmar tu pedido.
+                          </Typography>
+                        )}
+                      </Box>
+                    )}
+
+                    <Box>
+                      <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1 }}>Comentarios adicionales</Typography>
+                      <TextField
+                        fullWidth
+                        multiline
+                        rows={2}
+                        placeholder="¿Algo más que debamos saber?"
+                        value={comentarios}
+                        onChange={(e) => setComentarios(e.target.value)}
+                      />
+                    </Box>
+                  </>
+                )}
               </Box>
             )}
           </DialogContent>
@@ -1111,14 +1469,44 @@ const CatalogoVirtual = () => {
                 </Button>
               ) : (
                 <>
-                  <Button
-                    fullWidth variant="contained" size="large"
-                    startIcon={<WhatsApp />}
-                    onClick={handleSendOrder}
-                    sx={{ bgcolor: '#25D366', borderRadius: 3, py: 1.5, fontWeight: 800, '&:hover': { bgcolor: '#128C7E' } }}
-                  >
-                    Enviar por WhatsApp
-                  </Button>
+                  {/* Improvement #12: step navigation */}
+                  {checkoutStep === 1 && (
+                    <Button
+                      fullWidth variant="contained" size="large"
+                      endIcon={<ArrowForward />}
+                      onClick={() => {
+                        if (!nombre || !celular) {
+                          toast.warning("Nombre y celular son obligatorios");
+                          return;
+                        }
+                        setCheckoutStep(2);
+                      }}
+                      sx={{ bgcolor: accentColor, borderRadius: 3, py: 1.5, fontWeight: 800, '&:hover': { bgcolor: accentColor, opacity: 0.9 } }}
+                    >
+                      Continuar →
+                    </Button>
+                  )}
+
+                  {checkoutStep === 2 && (
+                    <>
+                      <Button
+                        fullWidth variant="contained" size="large"
+                        startIcon={<WhatsApp />}
+                        onClick={handleSendOrder}
+                        sx={{ bgcolor: '#25D366', borderRadius: 3, py: 1.5, fontWeight: 800, '&:hover': { bgcolor: '#128C7E' } }}
+                      >
+                        Enviar por WhatsApp
+                      </Button>
+                      <Button
+                        fullWidth variant="text" size="medium"
+                        onClick={() => setCheckoutStep(1)}
+                        sx={{ borderRadius: 3, fontWeight: 700, color: textSec }}
+                      >
+                        ← Atrás
+                      </Button>
+                    </>
+                  )}
+
                   <Typography sx={{ fontSize: 11, color: '#94A3B8', textAlign: 'center', lineHeight: 1.5 }}>
                     Al enviar tu pedido aceptas los{' '}
                     <Box component="span" onClick={() => { setOrderModalOpen(false); setTerminosOpen(true); }}
@@ -1133,7 +1521,7 @@ const CatalogoVirtual = () => {
           )}
         </Dialog>
 
-        {/* ── FOOTER ─────────────────────────────────────────────────────── */}
+        {/* ── FOOTER ─────────────────────────────────────────────────── */}
         <Box sx={{ mt: 4, borderTop: '1px solid', borderColor: divClr, px: 2, py: 3, textAlign: 'center', bgcolor: isDark ? '#0F172A' : '#FAFAFA' }}>
           <Typography sx={{ fontSize: 12, color: textSec, mb: 0.5 }}>
             {empresa?.nombre} · Catálogo virtual operado con KSmart360
@@ -1151,7 +1539,7 @@ const CatalogoVirtual = () => {
           </Button>
         </Box>
 
-        {/* ── MODAL TÉRMINOS Y CONDICIONES ───────────────────────────────── */}
+        {/* ── MODAL TÉRMINOS Y CONDICIONES ────────────────────────────── */}
         <Dialog open={terminosOpen} onClose={() => setTerminosOpen(false)} maxWidth="md" fullWidth scroll="paper"
           PaperProps={{ sx: { borderRadius: 3, m: { xs: 1, sm: 3 } } }}>
           <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1, borderBottom: '1px solid', borderColor: divClr }}>
@@ -1167,7 +1555,6 @@ const CatalogoVirtual = () => {
           <DialogContent sx={{ px: { xs: 2, sm: 3 }, py: 2 }}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 13, lineHeight: 1.7 }}>
 
-              {/* Aviso general */}
               <Alert severity="info" sx={{ borderRadius: 2, fontSize: 12 }}>
                 Los productos, precios y disponibilidad publicados en este catálogo virtual son de responsabilidad
                 exclusiva de <strong>{empresa?.nombre}</strong>. KSmart360 actúa únicamente como plataforma
@@ -1243,9 +1630,9 @@ const CatalogoVirtual = () => {
                   {new Date().getFullYear()}
                 </Typography>
               </Box>
-
             </Box>
           </DialogContent>
+
           <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid', borderColor: divClr }}>
             <Button onClick={() => setTerminosOpen(false)} variant="contained"
               sx={{ bgcolor: accentColor, borderRadius: 2, fontWeight: 700, textTransform: 'none', '&:hover': { bgcolor: accentColor, opacity: 0.88 } }}>
