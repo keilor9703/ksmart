@@ -19,12 +19,15 @@ import TopBar from './layout/TopBar';
 
 // ─── EAGER: layout + primer render (se montan siempre o en el primer paint) ───
 import Login from './features/auth/Login';
+import FirstTimeSetup from './features/auth/FirstTimeSetup';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import AnnouncementBanner from './features/saas/components/AnnouncementBanner';
 import { OnboardingProvider } from './context/OnboardingContext';
 import ModalHuella from './components/common/ModalHuella';
 import GlobalSearch from './components/common/GlobalSearch';
 import { MODULE_ICONS, getModuleConfig, ADMIN_MODULES } from './utils/modulesConfig';
+import ReconectandoScreen from './components/common/ReconectandoScreen';
+import { startKeepAlive, stopKeepAlive } from './services/keepAlive';
 
 // ─── LAZY: cada pantalla en su propio chunk (code-splitting por ruta) ─────────
 // Reduce drásticamente el bundle inicial: el navegador solo descarga el código
@@ -48,6 +51,8 @@ const GestionEmpresas  = lazy(() => import('./features/admin/GestionEmpresas'));
 const InventarioLotes  = lazy(() => import('./features/inventory/InventarioLotes'));
 const Cotizaciones     = lazy(() => import('./features/sales/Cotizaciones'));
 const ResolucionesDian = lazy(() => import('./features/dian/ResolucionesDian'));
+const ConfigFE         = lazy(() => import('./features/dian/ConfigFE'));
+const OnboardingFE     = lazy(() => import('./features/dian/OnboardingFE'));
 const MiSuscripcion    = lazy(() => import('./features/account/MiSuscripcion'));
 const ConfigLinkPago   = lazy(() => import('./features/account/ConfigLinkPago'));
 
@@ -74,12 +79,15 @@ const ParqueaderoConfig        = lazy(() => import('./features/parking/Parqueade
 const LavaderoVentas           = lazy(() => import('./features/lavadero/LavaderoVentas'));
 const LavaderoReporte          = lazy(() => import('./features/lavadero/LavaderoReporte'));
 const LavaderoConfig           = lazy(() => import('./features/lavadero/LavaderoConfig'));
+const Contabilidad             = lazy(() => import('./features/contabilidad/Contabilidad'));
 
 // Restaurante
-const MapaMesas         = lazy(() => import('./features/restaurante/MapaMesas'));
-const PantallaCocina    = lazy(() => import('./features/restaurante/PantallaCocina'));
-const RestauranteConfig = lazy(() => import('./features/restaurante/RestauranteConfig'));
-const CajaRestaurante   = lazy(() => import('./features/restaurante/CajaRestaurante'));
+const MapaMesas              = lazy(() => import('./features/restaurante/MapaMesas'));
+const PantallaCocina         = lazy(() => import('./features/restaurante/PantallaCocina'));
+const RestauranteConfig      = lazy(() => import('./features/restaurante/RestauranteConfig'));
+const CajaRestaurante        = lazy(() => import('./features/restaurante/CajaRestaurante'));
+const ReporteRestaurante     = lazy(() => import('./features/restaurante/ReporteRestaurante'));
+const ReservasRestaurante    = lazy(() => import('./features/restaurante/ReservasRestaurante'));
 
 // ─── Constantes de Layout ──────────────────────────────────────────────────────
 const SIDEBAR_FULL  = 240;
@@ -125,6 +133,8 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser]       = useState(null);
   const [loading, setLoading] = useState(true);
+  const [reconectando, setReconectando] = useState(false);
+  const [needsSetup, setNeedsSetup] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [sidebarPinned, setSidebarPinned] = useState(
     () => localStorage.getItem('sidebarPinned') === 'true'
@@ -144,7 +154,12 @@ function App() {
   const openMenu = Boolean(anchorEl);
 
   useEffect(() => { localStorage.setItem('themeMode', mode); }, [mode]);
-  useEffect(() => { checkAuth(); }, []);
+  useEffect(() => {
+    apiClient.get('/setup/status').then((res) => {
+      if (!res.data.initialized) setNeedsSetup(true);
+      else checkAuth();
+    }).catch(() => checkAuth());
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -164,6 +179,8 @@ function App() {
           const res = await apiClient.get('/users/me', {
             headers: { Authorization: `Bearer ${token}` },
           });
+          setReconectando(false);
+
           const emp = res.data.empresa;
           const expirado = emp?.is_plan_expired;
 
@@ -174,6 +191,7 @@ function App() {
           } else {
              setIsAuthenticated(true);
              setUser({ ...res.data, isPlanExpired: false });
+             startKeepAlive();
           }
 
           const modulosDelRol = res.data.role.modules.map(m => m.frontend_path);
@@ -187,12 +205,22 @@ function App() {
 
         } catch (error) {
           const status = error.response?.status;
+
+          // Sin respuesta del servidor → cold start / red caída → pantalla de reconexión
+          if (!status) {
+            setReconectando(true);
+            setLoading(false);
+            return;
+          }
+
           if (status === 402 || status === 403) {
+            setReconectando(false);
             setIsAuthenticated(false);
             setLoading(false);
             navigate('/suscripcion-expirada');
             return;
           } else {
+            setReconectando(false);
             localStorage.removeItem('token');
             localStorage.removeItem('userModules');
             setIsAuthenticated(false);
@@ -223,6 +251,7 @@ const hasAccess = useCallback((path) => {
 }, [user]);
 
   const handleLogout = (showToast = true) => {
+    stopKeepAlive();
     localStorage.removeItem('token');
     localStorage.removeItem('userModules');
     setIsAuthenticated(false);
@@ -287,10 +316,14 @@ const hasAccess = useCallback((path) => {
         />
 
         <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default', width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
-          {loading ? (
+          {reconectando ? (
+            <ReconectandoScreen onRetry={() => { setReconectando(false); setLoading(true); checkAuth(); }} />
+          ) : loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100%' }}>
               <CircularProgress sx={{ color: ACCENT }} />
             </Box>
+          ) : needsSetup ? (
+            <FirstTimeSetup onComplete={() => { setNeedsSetup(false); checkAuth(); }} />
           ) : isAuthenticated ? (
             <>
               <ModalHuella />
@@ -311,6 +344,7 @@ const hasAccess = useCallback((path) => {
                     hasAccess={hasAccess}
                     pinned={sidebarPinned}
                     onPinToggle={handlePinToggle}
+                    onLogout={handleLogout}
                   />
                 </Box>
               )}
@@ -321,7 +355,7 @@ const hasAccess = useCallback((path) => {
                   ModalProps={{ keepMounted: true }}
                   sx={{ '& .MuiDrawer-paper': { width: SIDEBAR_FULL, border: 'none' } }}
                 >
-                  <Sidebar expanded user={user} hasAccess={hasAccess} onClose={() => setMobileOpen(false)} mobile />
+                  <Sidebar expanded user={user} hasAccess={hasAccess} onClose={() => setMobileOpen(false)} mobile onLogout={handleLogout} />
                 </Drawer>
               )}
 
@@ -381,10 +415,13 @@ const hasAccess = useCallback((path) => {
                     <Route path="/lavadero/ventas"   element={<ProtectedRoute path="/lavadero/ventas"  hasAccess={hasAccess}><LavaderoVentas  user={user} /></ProtectedRoute>} />
                     <Route path="/lavadero/reporte"  element={<ProtectedRoute path="/lavadero/reporte" hasAccess={hasAccess}><LavaderoReporte user={user} /></ProtectedRoute>} />
                     <Route path="/lavadero/config"   element={<ProtectedRoute path="/lavadero/config"  hasAccess={hasAccess}><LavaderoConfig  /></ProtectedRoute>} />
-                    <Route path="/restaurante"        element={<ProtectedRoute path="/restaurante"        hasAccess={hasAccess}><MapaMesas       user={user} /></ProtectedRoute>} />
-                    <Route path="/restaurante/cocina" element={<ProtectedRoute path="/restaurante/cocina" hasAccess={hasAccess}><PantallaCocina  /></ProtectedRoute>} />
-                    <Route path="/restaurante/config" element={<ProtectedRoute path="/restaurante/config" hasAccess={hasAccess}><RestauranteConfig /></ProtectedRoute>} />
-                    <Route path="/restaurante/caja"   element={<ProtectedRoute path="/restaurante/caja"   hasAccess={hasAccess}><CajaRestaurante  user={user} /></ProtectedRoute>} />
+                    <Route path="/contabilidad"      element={<ProtectedRoute path="/contabilidad"     hasAccess={hasAccess}><Contabilidad /></ProtectedRoute>} />
+                    <Route path="/restaurante"             element={<ProtectedRoute path="/restaurante"             hasAccess={hasAccess}><MapaMesas            user={user} /></ProtectedRoute>} />
+                    <Route path="/restaurante/cocina"      element={<ProtectedRoute path="/restaurante/cocina"      hasAccess={hasAccess}><PantallaCocina       /></ProtectedRoute>} />
+                    <Route path="/restaurante/config"      element={<ProtectedRoute path="/restaurante/config"      hasAccess={hasAccess}><RestauranteConfig     /></ProtectedRoute>} />
+                    <Route path="/restaurante/caja"        element={<ProtectedRoute path="/restaurante/caja"        hasAccess={hasAccess}><CajaRestaurante       user={user} /></ProtectedRoute>} />
+                    <Route path="/restaurante/reportes"    element={<ProtectedRoute path="/restaurante/reportes"    hasAccess={hasAccess}><ReporteRestaurante    /></ProtectedRoute>} />
+                    <Route path="/restaurante/reservas"    element={<ProtectedRoute path="/restaurante/reservas"    hasAccess={hasAccess}><ReservasRestaurante   /></ProtectedRoute>} />
                     {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (
                       <>
                         <Route path="/superadmin/empresas" element={<GestionEmpresas />} />
@@ -395,6 +432,9 @@ const hasAccess = useCallback((path) => {
                       <>
                         <Route path="/admin/usuarios" element={<AdminUsuarios />} />
                         <Route path="/admin/catalogo" element={<CatalogoConfig />} />
+                        <Route path="/admin/link-pago" element={<ConfigLinkPago />} />
+                        <Route path="/admin/facturacion-electronica" element={<ConfigFE />} />
+                        <Route path="/admin/facturacion-electronica/guia" element={<OnboardingFE />} />
                       </>
                     )}
                     <Route path="/mi-suscripcion" element={<MiSuscripcion user={user} />} />
@@ -409,7 +449,7 @@ const hasAccess = useCallback((path) => {
                   alignItems: 'center', justifyContent: 'center', gap: { xs: 1, sm: 3 }, 
                   borderTop: `1px solid ${mode === 'dark' ? 'rgba(255,255,255,0.06)' : '#E5E7EB'}`, 
                 }}>
-                  <Typography variant="caption" color="text.secondary">Powered KSMP Systems - 2026</Typography>
+                  <Typography variant="caption" color="text.secondary">Powered by Tech Stack Colombia S.A.S - 2026</Typography>
                   <Box sx={{ display: 'flex', gap: 2 }}>
                     <Typography variant="caption" component="a" href="/terminos" sx={{ color: 'text.secondary', textDecoration: 'none' }}>Términos</Typography>
                     <Typography variant="caption" component="a" href="/privacidad" sx={{ color: 'text.secondary', textDecoration: 'none' }}>Privacidad</Typography>
