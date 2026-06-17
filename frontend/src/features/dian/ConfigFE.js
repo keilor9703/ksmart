@@ -215,8 +215,8 @@ export default function ConfigFE() {
                     <TableCell sx={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       <span title={i.cufe}>{i.cufe ? `${i.cufe.slice(0, 16)}…` : '—'}</span>
                     </TableCell>
-                    <TableCell sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <span title={i.mensaje}>{i.mensaje || '—'}</span>
+                    <TableCell sx={{ maxWidth: 320, fontSize: 12, wordBreak: 'break-word' }}>
+                      {i.mensaje || '—'}
                     </TableCell>
                   </TableRow>
                 ))}
