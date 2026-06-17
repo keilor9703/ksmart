@@ -274,13 +274,22 @@ def build_invoice_payload(venta, empresa, cliente, detalles) -> dict:
     estado_pago   = getattr(venta, "estado_pago", "pendiente")
     payment_method_id = 1 if estado_pago == "pagado" else 2  # 1=contado, 2=crédito
 
-    payments = [
-        {
-            "payment_method_id": payment_method_id,
-            "means_payment_id":  _medio_pago_id(metodo_pago),
-            "value_paid":        f"{total_pagar:.2f}",
-        }
-    ]
+    pago = {
+        "payment_method_id": payment_method_id,
+        "means_payment_id":  _medio_pago_id(metodo_pago),
+        "value_paid":        f"{total_pagar:.2f}",
+    }
+    # A crédito (payment_method_id=2): Matias exige fecha de vencimiento.
+    if payment_method_id == 2:
+        venc = getattr(venta, "fecha_vencimiento", None)
+        if venc:
+            venc_str = venc.astimezone(tz_colombia).strftime("%Y-%m-%d") if getattr(venc, "tzinfo", None) else venc.strftime("%Y-%m-%d")
+        else:
+            # Sin fecha definida → 30 días desde la emisión (default razonable)
+            venc_str = (ahora_col + timedelta(days=30)).strftime("%Y-%m-%d")
+        pago["payment_due_date"] = venc_str
+
+    payments = [pago]
 
     # ── Payload final ────────────────────────────────────────────────────────
     payload = {
