@@ -108,6 +108,9 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate, commi
             descuento_pct=getattr(d, 'descuento_pct', 0.0),
             iva_porcentaje=getattr(d, 'iva_porcentaje', 0.0),
         )
+        # Asociar la relación producto explícitamente para que la FE (Matias)
+        # tenga el nombre y código disponibles sin depender de lazy-load.
+        detalle.producto = prod
         detalles_objs.append(detalle)
 
     iva_porc = float(getattr(venta, 'iva_porcentaje', 0) or 0)

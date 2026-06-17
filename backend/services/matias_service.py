@@ -58,9 +58,10 @@ def _medio_pago_id(metodo_pago: Optional[str]) -> int:
     if not metodo_pago:
         return MEANS_EFECTIVO
     mp = metodo_pago.lower()
-    if any(w in mp for w in ["tarjeta", "débito", "debito", "crédito", "credito", "nequi", "daviplata"]):
+    if any(w in mp for w in ["tarjeta", "débito", "debito", "crédito", "credito"]):
         return MEANS_TARJETA
-    if any(w in mp for w in ["transferencia", "consignación", "consignacion", "banco", "pse"]):
+    if any(w in mp for w in ["transferencia", "consignación", "consignacion", "banco",
+                              "pse", "nequi", "daviplata", "qr", "link", "wompi", "digital"]):
         return MEANS_TRANSFERENCIA
     return MEANS_EFECTIVO
 
@@ -163,14 +164,20 @@ def build_invoice_payload(venta, empresa, cliente, detalles) -> dict:
     base_sum      = 0.0
 
     for det in detalles:
+        prod = getattr(det, "producto", None)
         nombre_item = (
             getattr(det, "nombre_libre", None)
-            or (det.producto.nombre if getattr(det, "producto", None) else None)
+            or (prod.nombre if prod else None)
             or "Ítem"
         )
+        # Adjuntar nombre de variante si existe (ej: "Camiseta - Talla M")
+        nombre_variante = getattr(det, "nombre_variante", None)
+        if nombre_variante:
+            nombre_item = f"{nombre_item} - {nombre_variante}"
+
         codigo_item = (
-            getattr(det.producto, "codigo_barra", None)
-            if getattr(det, "producto", None)
+            (getattr(prod, "codigo_barras", None) or getattr(prod, "sku", None) or str(getattr(prod, "id", "")))
+            if prod
             else None
         ) or "SIN-CODIGO"
 
