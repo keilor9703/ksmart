@@ -17,11 +17,13 @@ const RED     = '#EF4444';
 
 const UPLOAD_CONFIG = {
   clientes: {
-    headers: ['nombre', 'cedula', 'telefono', 'direccion', 'cupo_credito'],
+    headers: ['nombre', 'cedula', 'telefono', 'direccion', 'cupo_credito', 'es_cliente', 'es_proveedor'],
     tips: [
       { col: 'nombre', desc: 'Razón social o nombre completo del tercero.' },
-      { col: 'cedula', desc: 'NIT o Documento. Debe ser único.' },
-      { col: 'cupo_credito', desc: 'Monto máximo de deuda permitida (solo números).' }
+      { col: 'cedula', desc: 'NIT o Documento de identidad. Debe ser único.' },
+      { col: 'cupo_credito', desc: 'Monto máximo de deuda permitida (solo números, ej: 500000).' },
+      { col: 'es_cliente', desc: 'SI si le vendes a este tercero, NO si no.' },
+      { col: 'es_proveedor', desc: 'SI si le compras a este tercero, NO si no.' }
     ]
   },
   productos: {
@@ -33,8 +35,9 @@ const UPLOAD_CONFIG = {
     ]
   },
   movimientos: {
-    headers: ['producto_id', 'tipo', 'cantidad', 'costo_unitario', 'motivo'],
+    headers: ['producto_nombre', 'tipo', 'cantidad', 'costo_unitario', 'motivo'],
     tips: [
+      { col: 'producto_nombre', desc: 'Nombre exacto del producto tal como aparece en el sistema.' },
       { col: 'tipo', desc: 'Usa exactamente "entrada", "salida" o "ajuste".' },
       { col: 'cantidad', desc: 'Debe ser mayor a 0 (solo números).' }
     ]

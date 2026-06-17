@@ -24,7 +24,7 @@ def get_clientes_template(current_user: models.User = Depends(get_current_active
     ws_inst.cell(row=2, column=2, value="🛠 CÓMO REGISTRAR TERCEROS").font = Font(size=14, bold=True, color="3B82F6")
     instrucciones = [
         "1. Usa la pestaña 'Plantilla Datos' para registrar clientes o proveedores.",
-        "2. La CÉDULA/NIT no debe repetirse. Si ya existe, se omitirá.",
+        "2. La columna CEDULA (NIT o documento) no debe repetirse. Si ya existe, se omitirá.",
         "3. ES_CLIENTE y ES_PROVEEDOR: Usa la lista desplegable (SI / NO).",
         "4. No modifiques ni elimines la Fila 1."
     ]
@@ -33,7 +33,7 @@ def get_clientes_template(current_user: models.User = Depends(get_current_active
     ws_inst.column_dimensions['B'].width = 80
 
     ws_datos = wb.create_sheet(title="Plantilla Datos")
-    headers = ["NOMBRE", "IDENTIFICACION", "TELEFONO", "DIRECCION", "CUPO_CREDITO", "ES_CLIENTE", "ES_PROVEEDOR"]
+    headers = ["NOMBRE", "CEDULA", "TELEFONO", "DIRECCION", "CUPO_CREDITO", "ES_CLIENTE", "ES_PROVEEDOR"]
     header_fill = PatternFill(start_color="3B82F6", end_color="3B82F6", fill_type="solid")
     header_font = Font(color="FFFFFF", bold=True)
 
@@ -48,8 +48,8 @@ def get_clientes_template(current_user: models.User = Depends(get_current_active
     dv.add("G2:G1000")
 
     ejemplos = [
-        ["Distribuidora XYZ", "900123456", "3001234567", "Calle 10", 5000000, "NO", "SI"],
-        ["Juan Pérez", "10203040", "3100000000", "Cra 5", 0, "SI", "NO"]
+        ["Distribuidora XYZ S.A.S", "900123456-1", "3001234567", "Calle 10 # 5-20", 5000000, "NO", "SI"],
+        ["Juan Pérez", "10203040", "3100000000", "Carrera 5 # 10-30", 0, "SI", "NO"]
     ]
     for r_idx, row in enumerate(ejemplos, 2):
         for c_idx, val in enumerate(row, 1):
