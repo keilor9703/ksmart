@@ -3,6 +3,7 @@ import {
   Box, Typography, Paper, Button, TextField, Switch, FormControlLabel,
   Divider, Chip, Table, TableBody, TableCell, TableContainer, TableHead,
   TableRow, InputAdornment, IconButton, CircularProgress, Alert,
+  useTheme, useMediaQuery, Stack,
 } from '@mui/material';
 import {
   Visibility, VisibilityOff, Save, Receipt, CheckCircle, ErrorOutline,
@@ -21,6 +22,8 @@ function ChipEstado({ estado }) {
 }
 
 export default function ConfigFE() {
+  const theme    = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [config, setConfig]       = useState({ facturacion_electronica_activa: false, matias_api_key: '', matias_sandbox_api_key: '', matias_test_mode: true });
   const [intentos, setIntentos]   = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -182,7 +185,7 @@ export default function ConfigFE() {
         </Button>
       </Paper>
 
-      <Paper sx={{ p: 3 }}>
+      <Paper sx={{ p: { xs: 1.5, md: 3 } }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="subtitle1" fontWeight={600}>Últimos intentos de emisión</Typography>
           <IconButton onClick={fetchIntentos} size="small" disabled={loadingIntentos}>
@@ -192,8 +195,33 @@ export default function ConfigFE() {
 
         {intentos.length === 0 ? (
           <Typography color="text.secondary" variant="body2">Aún no hay intentos registrados.</Typography>
+        ) : isMobile ? (
+          // ── Vista de tarjetas en móvil ──────────────────────────────────
+          <Stack spacing={1.5}>
+            {intentos.map(i => (
+              <Paper key={i.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                  <Typography fontWeight={700}>Venta #{i.venta_id}</Typography>
+                  <ChipEstado estado={i.estado} />
+                </Box>
+                <Typography variant="caption" color="text.secondary" display="block">
+                  {i.timestamp ? new Date(i.timestamp).toLocaleString('es-CO') : '—'}
+                </Typography>
+                {i.cufe && (
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ wordBreak: 'break-all', mt: 0.5 }}>
+                    <strong>CUFE:</strong> {i.cufe}
+                  </Typography>
+                )}
+                {i.mensaje && (
+                  <Typography variant="body2" sx={{ mt: 0.5, fontSize: 13, wordBreak: 'break-word' }}>
+                    {i.mensaje}
+                  </Typography>
+                )}
+              </Paper>
+            ))}
+          </Stack>
         ) : (
-          <TableContainer>
+          <TableContainer sx={{ overflowX: 'auto' }}>
             <Table size="small">
               <TableHead>
                 <TableRow>
