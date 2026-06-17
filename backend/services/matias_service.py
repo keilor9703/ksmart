@@ -12,7 +12,7 @@ Solo va: cliente, líneas, totales, resolución y consecutivo.
 import json
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 import httpx
@@ -94,8 +94,11 @@ def build_invoice_payload(venta, empresa, cliente, detalles) -> dict:
     La empresa emisora NO va en el payload — Matias la asocia al Bearer token.
     """
     ahora = venta.fecha or datetime.now(timezone.utc)
-    fecha_str = ahora.strftime("%Y-%m-%d")
-    hora_str  = ahora.strftime("%H:%M:%S")
+    # Convertir a zona horaria de Colombia (UTC-5)
+    tz_colombia = timezone(timedelta(hours=-5))
+    ahora_col = ahora.astimezone(tz_colombia) if ahora.tzinfo else ahora.replace(tzinfo=timezone.utc).astimezone(tz_colombia)
+    fecha_str = ahora_col.strftime("%Y-%m-%d")
+    hora_str  = ahora_col.strftime("%H:%M:%S")
 
     # Separar prefijo y número del numero_factura (ej: "FE00001" → prefijo="FE", numero=1)
     resolucion = getattr(venta, "resolucion", None)
