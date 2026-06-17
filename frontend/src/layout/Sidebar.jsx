@@ -149,9 +149,9 @@ const UserMenu = ({ user, expanded, onClose: closeSidebar, onLogout }) => {
               <Typography sx={menuTextSx}>Link de Pago POS</Typography>
             </MenuItem>
 
-            <MenuItem onClick={() => { navigate('/admin/facturacion-electronica'); handleClose(); }} sx={{ gap: 1.5 }}>
-              <Receipt fontSize="small" sx={{ color: '#8B5CF6' }} />
-              <Typography variant="body2">Facturación Electrónica</Typography>
+            <MenuItem onClick={() => goTo('/admin/facturacion-electronica')} sx={menuItemSx}>
+              <Receipt sx={{ fontSize: 17, color: '#8B5CF6', mr: 1.5 }} />
+              <Typography sx={menuTextSx}>Facturación Electrónica</Typography>
             </MenuItem>
 
             <Divider sx={{ my: 0.75, borderColor: 'rgba(255,255,255,0.06)' }} />
