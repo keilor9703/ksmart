@@ -336,8 +336,9 @@ def emitir_factura(
             respuesta_raw = {"raw": response.text}
 
         success_flag = respuesta_raw.get("success", False)
-        dian_resp    = respuesta_raw.get("response", {})
-        is_valid     = dian_resp.get("IsValid", "false") == "true"
+        # Matias usa "data" en éxito y "response" en error
+        dian_resp    = respuesta_raw.get("data") or respuesta_raw.get("response") or {}
+        is_valid     = str(dian_resp.get("IsValid", "false")).lower() == "true"
 
         if response.is_success and success_flag:
             # Extraer campos de la respuesta según documentación oficial Matias
@@ -347,7 +348,7 @@ def emitir_factura(
             qr_url  = (respuesta_raw.get("qr") or {}).get("qrDian")
 
             # Notificaciones DIAN (no son errores, solo avisos)
-            dian_messages = dian_resp.get("ErrorMessage", {}).get("string", [])
+            dian_messages = (dian_resp.get("ErrorMessage") or {}).get("string", [])
             mensaje = dian_resp.get("StatusDescription", "Factura emitida exitosamente")
 
             if not is_valid:
