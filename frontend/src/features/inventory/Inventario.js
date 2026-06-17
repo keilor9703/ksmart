@@ -351,13 +351,13 @@ export default function Inventario() {
               startIcon={<Receipt sx={{ fontSize: 16 }} />}
               onClick={() => setVista('movimientos')}
               sx={{
-                borderRadius: 2, fontWeight: 600, fontSize: 11, textTransform: 'none',
+                borderRadius: 2, fontWeight: 600, fontSize: { xs: 10, md: 11 }, textTransform: 'none',
                 ...(vista === 'movimientos'
                   ? { bgcolor: '#06B6D4', '&:hover': { bgcolor: '#0891B2' }, boxShadow: 'none' }
                   : { borderColor: '#06B6D4', color: '#06B6D4' }),
               }}
             >
-              {isMobile ? '' : 'Movimientos'}
+              Movimientos
             </Button>
             <Button
               size="small"
@@ -365,13 +365,13 @@ export default function Inventario() {
               startIcon={<Settings sx={{ fontSize: 16 }} />}
               onClick={() => setVista('config')}
               sx={{
-                borderRadius: 2, fontWeight: 600, fontSize: 11, textTransform: 'none',
+                borderRadius: 2, fontWeight: 600, fontSize: { xs: 10, md: 11 }, textTransform: 'none',
                 ...(vista === 'config'
                   ? { bgcolor: '#6366F1', '&:hover': { bgcolor: '#4F46E5' }, boxShadow: 'none' }
                   : { borderColor: '#6366F1', color: '#6366F1' }),
               }}
             >
-              {isMobile ? '' : 'Categorías'}
+              Categorías
             </Button>
           </Box>
         </Box>
