@@ -118,16 +118,16 @@ def build_invoice_payload(venta, empresa, cliente, detalles) -> dict:
 
     if usar_consumidor_final:
         customer = {
-            "country_id":         COLOMBIA_ID,
-            "city_id":            _ciudad_id(empresa.ciudad_code if hasattr(empresa, 'ciudad_code') else None),
+            "country_id":           COLOMBIA_ID,
+            "city_id":              _ciudad_id(getattr(empresa, "ciudad_code", None)),
             "identity_document_id": DOC_CC,
-            "type_organization_id": 2,   # Persona natural
-            "tax_regime_id":        2,   # No responsable IVA
-            "tax_level_id":         5,   # R-99-PN
+            "type_organization_id": 2,    # Persona natural
+            "tax_regime_id":        49,   # No responsable IVA (código DIAN)
+            "tax_level_id":         7,    # No aplica
             "company_name":         CONSUMIDOR_FINAL_NOMBRE,
             "dni":                  CONSUMIDOR_FINAL_NIT,
             "mobile":               "0000000",
-            "email":                empresa.correo_facturacion or "",
+            "email":                getattr(empresa, "correo_facturacion", "") or "",
             "address":              "No registra",
             "postal_code":          "110111",
         }
@@ -139,13 +139,18 @@ def build_invoice_payload(venta, empresa, cliente, detalles) -> dict:
         else:                 # CC y otros
             id_doc = DOC_CC
 
+        # Mapear régimen tributario al código DIAN que usa Matias
+        # 48 = Responsable IVA, 49 = No responsable IVA
+        regimen_interno = getattr(cliente, "tipo_regimen_id", None)
+        tax_regime = 48 if regimen_interno == 1 else 49
+
         customer = {
             "country_id":             COLOMBIA_ID,
-            "city_id":                _ciudad_id(getattr(cliente, "ciudad_code", None) or empresa.ciudad_code),
+            "city_id":                _ciudad_id(getattr(cliente, "ciudad_code", None) or getattr(empresa, "ciudad_code", None)),
             "identity_document_id":   id_doc,
             "type_organization_id":   getattr(cliente, "tipo_organizacion_id", 2),
-            "tax_regime_id":          getattr(cliente, "tipo_regimen_id", 2),
-            "tax_level_id":           5,  # R-99-PN por defecto (ajustar si se mapea)
+            "tax_regime_id":          tax_regime,
+            "tax_level_id":           7,   # No aplica (ajustar si se necesita discriminar IVA)
             "company_name":           cliente.nombre or "",
             "dni":                    cliente.cedula or "",
             "mobile":                 _normalizar_telefono(getattr(cliente, "telefono", None)),
