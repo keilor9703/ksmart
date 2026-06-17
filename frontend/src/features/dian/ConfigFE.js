@@ -221,84 +221,88 @@ export default function ConfigFE() {
           <Typography color="text.secondary" variant="body2">Aún no hay intentos registrados.</Typography>
         ) : isMobile ? (
           // ── Vista de tarjetas en móvil ──────────────────────────────────
-          <Stack spacing={1.5}>
-            {intentos.map(i => (
-              <Paper key={i.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                  <Typography fontWeight={700}>Venta #{i.venta_id}</Typography>
-                  <ChipEstado estado={i.estado} />
-                </Box>
-                <Typography variant="caption" color="text.secondary" display="block">
-                  {i.timestamp ? new Date(i.timestamp).toLocaleString('es-CO') : '—'}
-                </Typography>
-                {i.cufe && (
-                  <Typography variant="caption" color="text.secondary" display="block" sx={{ wordBreak: 'break-all', mt: 0.5 }}>
-                    <strong>CUFE:</strong> {i.cufe}
+          <Box>
+            <Stack spacing={1.5}>
+              {intentos.map(i => (
+                <Paper key={i.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                    <Typography fontWeight={700}>Venta #{i.venta_id}</Typography>
+                    <ChipEstado estado={i.estado} />
+                  </Box>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    {i.timestamp ? new Date(i.timestamp).toLocaleString('es-CO') : '—'}
                   </Typography>
-                )}
-                {i.mensaje && (
-                  <Typography variant="body2" sx={{ mt: 0.5, fontSize: 13, wordBreak: 'break-word' }}>
-                    {i.mensaje}
-                  </Typography>
-                )}
-              </Paper>
-            ))}
-          </Stack>
-          {intentosPages > 1 && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-              <Pagination
-                count={intentosPages}
-                page={intentosPage}
-                onChange={(_, p) => fetchIntentos(p)}
-                size="small"
-                color="primary"
-                disabled={loadingIntentos}
-              />
-            </Box>
-          )}
+                  {i.cufe && (
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ wordBreak: 'break-all', mt: 0.5 }}>
+                      <strong>CUFE:</strong> {i.cufe}
+                    </Typography>
+                  )}
+                  {i.mensaje && (
+                    <Typography variant="body2" sx={{ mt: 0.5, fontSize: 13, wordBreak: 'break-word' }}>
+                      {i.mensaje}
+                    </Typography>
+                  )}
+                </Paper>
+              ))}
+            </Stack>
+            {intentosPages > 1 && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                <Pagination
+                  count={intentosPages}
+                  page={intentosPage}
+                  onChange={(_, p) => fetchIntentos(p)}
+                  size="small"
+                  color="primary"
+                  disabled={loadingIntentos}
+                />
+              </Box>
+            )}
+          </Box>
         ) : (
-          <TableContainer sx={{ overflowX: 'auto' }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Venta</TableCell>
-                  <TableCell>Fecha</TableCell>
-                  <TableCell>Estado</TableCell>
-                  <TableCell>CUFE</TableCell>
-                  <TableCell>Mensaje</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {intentos.map(i => (
-                  <TableRow key={i.id}>
-                    <TableCell>#{i.venta_id}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      {i.timestamp ? new Date(i.timestamp).toLocaleString('es-CO') : '—'}
-                    </TableCell>
-                    <TableCell><ChipEstado estado={i.estado} /></TableCell>
-                    <TableCell sx={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <span title={i.cufe}>{i.cufe ? `${i.cufe.slice(0, 16)}…` : '—'}</span>
-                    </TableCell>
-                    <TableCell sx={{ maxWidth: 320, fontSize: 12, wordBreak: 'break-word' }}>
-                      {i.mensaje || '—'}
-                    </TableCell>
+          <Box>
+            <TableContainer sx={{ overflowX: 'auto' }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Venta</TableCell>
+                    <TableCell>Fecha</TableCell>
+                    <TableCell>Estado</TableCell>
+                    <TableCell>CUFE</TableCell>
+                    <TableCell>Mensaje</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-          {intentosPages > 1 && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-              <Pagination
-                count={intentosPages}
-                page={intentosPage}
-                onChange={(_, p) => fetchIntentos(p)}
-                size="small"
-                color="primary"
-                disabled={loadingIntentos}
-              />
-            </Box>
-          )}
+                </TableHead>
+                <TableBody>
+                  {intentos.map(i => (
+                    <TableRow key={i.id}>
+                      <TableCell>#{i.venta_id}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                        {i.timestamp ? new Date(i.timestamp).toLocaleString('es-CO') : '—'}
+                      </TableCell>
+                      <TableCell><ChipEstado estado={i.estado} /></TableCell>
+                      <TableCell sx={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span title={i.cufe}>{i.cufe ? `${i.cufe.slice(0, 16)}…` : '—'}</span>
+                      </TableCell>
+                      <TableCell sx={{ maxWidth: 320, fontSize: 12, wordBreak: 'break-word' }}>
+                        {i.mensaje || '—'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            {intentosPages > 1 && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                <Pagination
+                  count={intentosPages}
+                  page={intentosPage}
+                  onChange={(_, p) => fetchIntentos(p)}
+                  size="small"
+                  color="primary"
+                  disabled={loadingIntentos}
+                />
+              </Box>
+            )}
+          </Box>
         )}
       </Paper>
     </Box>
