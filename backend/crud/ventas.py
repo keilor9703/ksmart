@@ -45,7 +45,6 @@ def get_ventas(
     total = q.count()
     items = q.order_by(models.Venta.fecha.desc()).offset(skip).limit(limit).all()
     return total, items
-    )
 
 def get_venta(db: Session, empresa_id: int, venta_id: int):
     return (
