@@ -266,11 +266,11 @@ const PASOS = [
           </ListItem>
           <ListItem>
             <ListItemIcon><CheckCircle fontSize="small" color="success" /></ListItemIcon>
-            <ListItemText primary='En el recibo de la venta verás el estado "Exitoso" y el CUFE asignado por la DIAN.' />
+            <ListItemText primary='Revisa el historial en "Últimos intentos de emisión" — verás el estado "Exitoso" y el CUFE asignado por la DIAN.' />
           </ListItem>
           <ListItem>
             <ListItemIcon><CheckCircle fontSize="small" color="success" /></ListItemIcon>
-            <ListItemText primary='Revisa el historial en "Últimos intentos de emisión" para confirmar sin errores.' />
+            <ListItemText primary='Si el estado es "Fallido", el mensaje de error te indicará qué corregir.' />
           </ListItem>
         </List>
         <Alert severity="success" sx={{ mt: 1.5 }}>
