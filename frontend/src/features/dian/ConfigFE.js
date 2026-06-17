@@ -3,7 +3,7 @@ import {
   Box, Typography, Paper, Button, TextField, Switch, FormControlLabel,
   Divider, Chip, Table, TableBody, TableCell, TableContainer, TableHead,
   TableRow, InputAdornment, IconButton, CircularProgress, Alert,
-  useTheme, useMediaQuery, Stack,
+  useTheme, useMediaQuery, Stack, Pagination,
 } from '@mui/material';
 import {
   Visibility, VisibilityOff, Save, Receipt, CheckCircle, ErrorOutline,
@@ -27,10 +27,13 @@ export default function ConfigFE() {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
   const [config, setConfig]       = useState({ facturacion_electronica_activa: false, matias_api_key: '', matias_sandbox_api_key: '', matias_test_mode: true });
-  const [intentos, setIntentos]   = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [saving, setSaving]       = useState(false);
-  const [showKey, setShowKey]     = useState(false);
+  const [intentos, setIntentos]       = useState([]);
+  const [intentosTotal, setIntentosTotal] = useState(0);
+  const [intentosPages, setIntentosPages] = useState(1);
+  const [intentosPage, setIntentosPage]   = useState(1);
+  const [loading, setLoading]         = useState(true);
+  const [saving, setSaving]           = useState(false);
+  const [showKey, setShowKey]         = useState(false);
   const [showSandboxKey, setShowSandboxKey] = useState(false);
   const [loadingIntentos, setLoadingIntentos] = useState(false);
 
@@ -46,16 +49,19 @@ export default function ConfigFE() {
     finally { setLoading(false); }
   };
 
-  const fetchIntentos = async () => {
+  const fetchIntentos = async (page = 1) => {
     setLoadingIntentos(true);
     try {
-      const r = await apiClient.get('/fe/intentos');
-      setIntentos(r.data);
+      const r = await apiClient.get('/fe/intentos', { params: { page, page_size: 10 } });
+      setIntentos(r.data.items);
+      setIntentosTotal(r.data.total);
+      setIntentosPages(r.data.pages);
+      setIntentosPage(page);
     } catch { /* silencioso */ }
     finally { setLoadingIntentos(false); }
   };
 
-  useEffect(() => { fetchConfig(); fetchIntentos(); }, []);
+  useEffect(() => { fetchConfig(); fetchIntentos(1); }, []);
 
   const handleSave = async () => {
     setSaving(true);
@@ -200,8 +206,13 @@ export default function ConfigFE() {
 
       <Paper sx={{ p: { xs: 1.5, md: 3 } }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="subtitle1" fontWeight={600}>Últimos intentos de emisión</Typography>
-          <IconButton onClick={fetchIntentos} size="small" disabled={loadingIntentos}>
+          <Box>
+            <Typography variant="subtitle1" fontWeight={600}>Últimos intentos de emisión</Typography>
+            {intentosTotal > 0 && (
+              <Typography variant="caption" color="text.secondary">{intentosTotal} registro{intentosTotal !== 1 ? 's' : ''} en total</Typography>
+            )}
+          </Box>
+          <IconButton onClick={() => fetchIntentos(intentosPage)} size="small" disabled={loadingIntentos}>
             {loadingIntentos ? <CircularProgress size={18} /> : <Refresh />}
           </IconButton>
         </Box>
@@ -233,6 +244,18 @@ export default function ConfigFE() {
               </Paper>
             ))}
           </Stack>
+          {intentosPages > 1 && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+              <Pagination
+                count={intentosPages}
+                page={intentosPage}
+                onChange={(_, p) => fetchIntentos(p)}
+                size="small"
+                color="primary"
+                disabled={loadingIntentos}
+              />
+            </Box>
+          )}
         ) : (
           <TableContainer sx={{ overflowX: 'auto' }}>
             <Table size="small">
@@ -264,6 +287,18 @@ export default function ConfigFE() {
               </TableBody>
             </Table>
           </TableContainer>
+          {intentosPages > 1 && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+              <Pagination
+                count={intentosPages}
+                page={intentosPage}
+                onChange={(_, p) => fetchIntentos(p)}
+                size="small"
+                color="primary"
+                disabled={loadingIntentos}
+              />
+            </Box>
+          )}
         )}
       </Paper>
     </Box>
