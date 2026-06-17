@@ -13,7 +13,8 @@ import {
   Search, ShoppingCart, Add, Remove, WhatsApp,
   Storefront, LocationOn, Person, Phone, Close,
   ArrowForward, ShoppingBag, RocketLaunch, BarChart, Inventory2,
-  Favorite, FavoriteBorder, KeyboardArrowUp, FilterList
+  Favorite, FavoriteBorder, KeyboardArrowUp, FilterList,
+  TableRestaurant, CheckCircle, EditNote,
 } from '@mui/icons-material';
 import DarkMode from '@mui/icons-material/DarkMode';
 import LightMode from '@mui/icons-material/LightMode';
@@ -69,6 +70,7 @@ const CatalogoVirtual = () => {
 
   const [loading, setLoading] = useState(true);
   const [empresa, setEmpresa] = useState(null);
+  const [mesas, setMesas] = useState([]);
   const [productos, setProductos] = useState([]);
   const [search, setSearch] = useState('');
   const [categoria, setCategoria] = useState('Todas');
@@ -83,12 +85,18 @@ const CatalogoVirtual = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [currentImgIndex, setCurrentImgIndex] = useState(0);
 
-  // Formulario de Pedido
+  // Formulario de Pedido (comercio)
   const [nombre, setNombre] = useState('');
   const [celular, setCelular] = useState('');
   const [tipoEntrega, setTipoEntrega] = useState('domicilio');
   const [direccion, setDireccion] = useState('');
   const [comentarios, setComentarios] = useState('');
+
+  // Restaurante — notas por ítem y número de mesa
+  const [itemNotas, setItemNotas] = useState({});         // { [producto_id]: 'sin cebolla' }
+  const [mesaNumero, setMesaNumero] = useState('');
+  const [mesaNotasOpen, setMesaNotasOpen] = useState(null); // producto_id con nota abierta
+  const [confirmedComanda, setConfirmedComanda] = useState(null); // {comanda_id, numero_comanda, mesa_numero, total}
 
   const [sortProductos, setSortProductos] = useState('');
   const [favoritos, setFavoritos]         = useState(() => {
@@ -122,6 +130,7 @@ const CatalogoVirtual = () => {
       const res = await apiClient.get(`/catalogo/${slug}`);
       setEmpresa(res.data.empresa);
       setProductos(res.data.productos);
+      setMesas(res.data.mesas || []);
 
       // SEO: Título dinámico
       document.title = `${res.data.empresa.nombre} - Catálogo Virtual`;
@@ -162,7 +171,10 @@ const CatalogoVirtual = () => {
     return list;
   }, [productos, search, categoria, sortProductos]);
 
+  const isAgotado = (p) => !p.es_servicio && p.stock <= 0;
+
   const addToCart = (producto) => {
+    if (isAgotado(producto)) return;
     setCart(prev => {
       const existing = prev.find(item => item.id === producto.id);
       if (existing) {
@@ -190,6 +202,7 @@ const CatalogoVirtual = () => {
   const cartTotal = cart.reduce((sum, item) => sum + (item.precio * item.quantity), 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
+  // ── Flujo COMERCIO — WhatsApp ─────────────────────────────────────────────
   const handleSendOrder = async () => {
     if (!nombre || !celular) {
       toast.warning("Nombre y celular son obligatorios");
@@ -202,7 +215,6 @@ const CatalogoVirtual = () => {
 
     const formatCurrency = (val) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(val);
 
-    // 1. Register order in backend (fire-and-forget; WhatsApp opens regardless)
     let numeroPedido = null;
     try {
       const payload = {
@@ -220,10 +232,9 @@ const CatalogoVirtual = () => {
       const res = await apiClient.post(`/catalogo/${slug}/pedido`, payload);
       numeroPedido = res.data.id;
     } catch {
-      // If backend fails, continue with WhatsApp anyway so the customer is not blocked
+      // WhatsApp abre igual aunque falle el backend
     }
 
-    // 2. Build WhatsApp message
     let message = `🛍️ *NUEVO PEDIDO - ${empresa.nombre}*`;
     if (numeroPedido) message += ` #${numeroPedido}`;
     message += `\n\n`;
@@ -251,6 +262,39 @@ const CatalogoVirtual = () => {
       setOrderModalOpen(false);
       setCartOpen(false);
     }, 2500);
+  };
+
+  // ── Flujo RESTAURANTE — directo a cocina ──────────────────────────────────
+  const handleSendOrderRestaurante = async () => {
+    if (!mesaNumero.trim()) {
+      toast.warning("Indica el número de tu mesa");
+      return;
+    }
+    try {
+      const res = await apiClient.post(`/catalogo/${slug}/pedido-restaurante`, {
+        mesa_numero: mesaNumero.trim(),
+        items: cart.map(item => ({
+          producto_id:     item.id,
+          nombre_producto: item.nombre,
+          cantidad:        item.quantity,
+          precio_unitario: item.precio,
+          notas:           itemNotas[item.id] || null,
+        })),
+      });
+      setConfirmedComanda(res.data);
+      setOrderSent(true);
+      setTimeout(() => {
+        setOrderSent(false);
+        setCart([]);
+        setItemNotas({});
+        setMesaNumero('');
+        setOrderModalOpen(false);
+        setCartOpen(false);
+        setConfirmedComanda(null);
+      }, 4000);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || 'No se pudo enviar el pedido a cocina');
+    }
   };
 
   if (loading) return (
@@ -306,9 +350,15 @@ const CatalogoVirtual = () => {
               }}>
                 {empresa.nombre}
               </Typography>
-              <Typography sx={{ fontSize: 11, color: textSec, mt: 0.2 }}>
-                Catálogo Virtual
-              </Typography>
+              {empresa.descripcion ? (
+                <Typography sx={{ fontSize: 11, color: textSec, mt: 0.2, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                  {empresa.descripcion}
+                </Typography>
+              ) : (
+                <Typography sx={{ fontSize: 11, color: textSec, mt: 0.2 }}>
+                  Catálogo Virtual
+                </Typography>
+              )}
             </Box>
 
             {/* Dark / light toggle + Powered by — alineados juntos */}
@@ -330,7 +380,9 @@ const CatalogoVirtual = () => {
 
               <Typography
                 component="a"
-                href="/login"
+                href="https://www.techstackcol.com/ksmart360?view=pymes"
+                target="_blank"
+                rel="noopener noreferrer"
                 sx={{
                   fontSize: 9, color: '#94A3B8', textDecoration: 'none', whiteSpace: 'nowrap',
                   fontWeight: 700, letterSpacing: 0.2,
@@ -409,21 +461,23 @@ const CatalogoVirtual = () => {
           }}>
             {filteredProductos.map(p => {
               const inCart = cart.find(item => item.id === p.id);
+              const agotado = isAgotado(p);
               return (
                 <Card
                   key={p.id}
                   sx={{
                     borderRadius: 2, display: 'flex', flexDirection: 'column',
                     overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
-                    border: '1px solid', borderColor: divClr,
+                    border: '1px solid', borderColor: agotado ? 'divider' : divClr,
                     cursor: 'pointer',
+                    opacity: agotado ? 0.72 : 1,
                   }}
                   onClick={() => { setSelectedProduct(p); setCurrentImgIndex(0); }}
                 >
                   <Box sx={{ position: 'relative' }}>
                     <CardMedia
                       component="img"
-                      sx={{ aspectRatio: '1/1', objectFit: 'cover' }}
+                      sx={{ aspectRatio: '1/1', objectFit: 'cover', filter: agotado ? 'grayscale(60%)' : 'none' }}
                       image={p.image_count > 0 ? `${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${p.id}/imagen?index=0` : 'https://placehold.co/400x400?text=Sin+imagen'}
                       alt={p.nombre}
                     />
@@ -440,9 +494,14 @@ const CatalogoVirtual = () => {
                         ? <Favorite sx={{ fontSize: 11, color: '#EF4444' }} />
                         : <FavoriteBorder sx={{ fontSize: 11, color: '#94A3B8' }} />}
                     </IconButton>
-                    {p.stock === 0 && (
-                      <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, bgcolor: 'rgba(0,0,0,0.55)', py: 0.3, textAlign: 'center' }}>
-                        <Typography sx={{ fontSize: 9, fontWeight: 700, color: '#fff' }}>Agotado</Typography>
+                    {agotado && (
+                      <Box sx={{
+                        position: 'absolute', bottom: 0, left: 0, right: 0,
+                        bgcolor: 'rgba(0,0,0,0.62)', py: 0.4, textAlign: 'center',
+                      }}>
+                        <Typography sx={{ fontSize: 9, fontWeight: 800, color: '#fff', letterSpacing: 0.5 }}>
+                          AGOTADO
+                        </Typography>
                       </Box>
                     )}
                   </Box>
@@ -450,11 +509,19 @@ const CatalogoVirtual = () => {
                     <Typography sx={{ fontWeight: 600, fontSize: 11, color: textPri, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.3, mb: 0.5, minHeight: 28 }}>
                       {p.nombre}
                     </Typography>
-                    <Typography sx={{ fontWeight: 800, fontSize: 12, color: accentColor, mb: 0.75 }}>
+                    <Typography sx={{ fontWeight: 800, fontSize: 12, color: agotado ? 'text.disabled' : accentColor, mb: 0.75 }}>
                       ${new Intl.NumberFormat('es-CO').format(p.precio)}
                     </Typography>
                     <Box onClick={(e) => e.stopPropagation()}>
-                      {inCart ? (
+                      {agotado ? (
+                        <Box sx={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          bgcolor: 'action.disabledBackground', borderRadius: 1.5, py: '4px',
+                          cursor: 'not-allowed',
+                        }}>
+                          <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.disabled' }}>Sin stock</Typography>
+                        </Box>
+                      ) : inCart ? (
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: subtleBg, borderRadius: 1.5, px: 0.5, py: 0.25 }}>
                           <IconButton size="small" onClick={() => removeFromCart(p.id)} sx={{ p: '2px', color: accentColor }}><Remove sx={{ fontSize: 14 }} /></IconButton>
                           <Typography sx={{ fontWeight: 700, fontSize: 12 }}>{inCart.quantity}</Typography>
@@ -573,16 +640,22 @@ const CatalogoVirtual = () => {
               </DialogContent>
 
               <DialogActions sx={{ p: 3, pt: 0 }}>
-                <Button
-                  fullWidth
-                  variant="contained"
-                  size="large"
-                  startIcon={<ShoppingCart />}
-                  onClick={() => { addToCart(selectedProduct); setSelectedProduct(null); }}
-                  sx={{ bgcolor: accentColor, borderRadius: 3, py: 1.5, fontWeight: 800, '&:hover': { bgcolor: accentColor, opacity: 0.9 } }}
-                >
-                  Agregar al Carrito
-                </Button>
+                {isAgotado(selectedProduct) ? (
+                  <Button fullWidth variant="outlined" size="large" disabled
+                    sx={{ borderRadius: 3, py: 1.5, fontWeight: 800 }}
+                  >
+                    Producto Agotado
+                  </Button>
+                ) : (
+                  <Button
+                    fullWidth variant="contained" size="large"
+                    startIcon={<ShoppingCart />}
+                    onClick={() => { addToCart(selectedProduct); setSelectedProduct(null); }}
+                    sx={{ bgcolor: accentColor, borderRadius: 3, py: 1.5, fontWeight: 800, '&:hover': { bgcolor: accentColor, opacity: 0.9 } }}
+                  >
+                    Agregar al Carrito
+                  </Button>
+                )}
               </DialogActions>
             </>
           )}
@@ -612,7 +685,9 @@ const CatalogoVirtual = () => {
             </Typography>
             <Button
               component="a"
-              href="/login"
+              href="https://www.techstackcol.com/ksmart360?view=pymes"
+              target="_blank"
+              rel="noopener noreferrer"
               variant="contained"
               size="small"
               endIcon={<ArrowForward sx={{ fontSize: 11 }} />}
@@ -699,35 +774,69 @@ const CatalogoVirtual = () => {
 
             <List sx={{ flexGrow: 1, overflowY: 'auto' }}>
               {cart.map(item => (
-                <ListItem key={item.id} sx={{ px: 0, py: 2 }}>
-                  <ListItemAvatar>
+                <ListItem key={item.id} sx={{ px: 0, py: 1.5, flexDirection: 'column', alignItems: 'stretch' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Avatar
                       variant="rounded"
                       src={item.image_count > 0 ? `${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${item.id}/imagen?index=0` : null}
-                      sx={{ bgcolor: subtleBg, color: '#94A3B8' }}
+                      sx={{ bgcolor: subtleBg, color: '#94A3B8', width: 44, height: 44, flexShrink: 0 }}
                     >
                       <ShoppingBag />
                     </Avatar>
-                  </ListItemAvatar>
-
-                  <ListItemText
-                    primary={<Typography sx={{ fontWeight: 700, fontSize: 14 }}>{item.nombre}</Typography>}
-                    secondary={
-                      <Box>
-                        <Typography sx={{ color: accentColor, fontWeight: 700, fontSize: 13 }}>
-                          ${new Intl.NumberFormat('es-CO').format(item.precio)} c/u
-                        </Typography>
-                        <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 600 }}>
-                          Subtotal: ${new Intl.NumberFormat('es-CO').format(item.precio * item.quantity)}
-                        </Typography>
-                      </Box>
-                    }
-                  />
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, bgcolor: subtleBg, borderRadius: 2, p: 0.5 }}>
-                    <IconButton size="small" onClick={() => removeFromCart(item.id)} sx={{ bgcolor: paperBg, color: accentColor }}><Remove fontSize="small" /></IconButton>
-                    <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{item.quantity}</Typography>
-                    <IconButton size="small" onClick={() => addToCart(item)} sx={{ bgcolor: paperBg, color: accentColor }}><Add fontSize="small" /></IconButton>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography sx={{ fontWeight: 700, fontSize: 13, lineHeight: 1.3 }}>{item.nombre}</Typography>
+                      <Typography sx={{ color: accentColor, fontWeight: 700, fontSize: 12 }}>
+                        ${new Intl.NumberFormat('es-CO').format(item.precio)} c/u · Sub: ${new Intl.NumberFormat('es-CO').format(item.precio * item.quantity)}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: subtleBg, borderRadius: 2, p: 0.5, flexShrink: 0 }}>
+                      <IconButton size="small" onClick={() => removeFromCart(item.id)} sx={{ bgcolor: paperBg, color: accentColor, p: '3px' }}><Remove sx={{ fontSize: 14 }} /></IconButton>
+                      <Typography sx={{ fontWeight: 700, fontSize: 13, minWidth: 16, textAlign: 'center' }}>{item.quantity}</Typography>
+                      <IconButton size="small" onClick={() => addToCart(item)} sx={{ bgcolor: paperBg, color: accentColor, p: '3px' }}><Add sx={{ fontSize: 14 }} /></IconButton>
+                    </Box>
                   </Box>
+
+                  {/* Campo de notas por ítem — solo restaurantes */}
+                  {empresa?.tipo_negocio === 'restaurante' && (
+                    <Box sx={{ mt: 0.8 }}>
+                      {mesaNotasOpen === item.id ? (
+                        <TextField
+                          size="small"
+                          fullWidth
+                          autoFocus
+                          placeholder="Ej: sin cebolla, extra salsa..."
+                          value={itemNotas[item.id] || ''}
+                          onChange={e => setItemNotas(prev => ({ ...prev, [item.id]: e.target.value }))}
+                          onBlur={() => setMesaNotasOpen(null)}
+                          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: 12 } }}
+                          InputProps={{
+                            endAdornment: (
+                              <IconButton size="small" onClick={() => setMesaNotasOpen(null)} sx={{ p: 0.3 }}>
+                                <Close sx={{ fontSize: 14 }} />
+                              </IconButton>
+                            )
+                          }}
+                        />
+                      ) : (
+                        <Box
+                          onClick={() => setMesaNotasOpen(item.id)}
+                          sx={{
+                            display: 'flex', alignItems: 'center', gap: 0.6,
+                            cursor: 'pointer', px: 1, py: 0.4, borderRadius: 1.5,
+                            border: `1px dashed ${itemNotas[item.id] ? accentColor : borderClr}`,
+                            bgcolor: itemNotas[item.id] ? `${accentColor}08` : 'transparent',
+                            '&:hover': { bgcolor: `${accentColor}06` },
+                          }}
+                        >
+                          <EditNote sx={{ fontSize: 13, color: itemNotas[item.id] ? accentColor : textSec }} />
+                          <Typography sx={{ fontSize: 11, color: itemNotas[item.id] ? accentColor : textSec, fontStyle: itemNotas[item.id] ? 'normal' : 'italic' }}>
+                            {itemNotas[item.id] || 'Agregar nota (opcional)'}
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
+                  )}
+                  <Divider sx={{ mt: 1.5 }} />
                 </ListItem>
               ))}
             </List>
@@ -749,166 +858,279 @@ const CatalogoVirtual = () => {
               variant="contained"
               fullWidth
               size="large"
-              endIcon={<ArrowForward />}
+              endIcon={empresa?.tipo_negocio === 'restaurante' ? <TableRestaurant /> : <ArrowForward />}
               onClick={() => setOrderModalOpen(true)}
               sx={{ bgcolor: accentColor, borderRadius: 3, py: 1.5, fontWeight: 700, '&:hover': { bgcolor: accentColor, opacity: 0.9 } }}
             >
-              Siguiente
+              {empresa?.tipo_negocio === 'restaurante' ? 'Pedir a cocina' : 'Siguiente'}
             </Button>
           </Box>
         </Drawer>
 
-        {/* DIALOG DE DATOS DEL CLIENTE */}
+        {/* DIALOG DE PEDIDO — bifurca según tipo_negocio */}
         <Dialog
           open={orderModalOpen}
-          onClose={() => setOrderModalOpen(false)}
+          onClose={() => !orderSent && setOrderModalOpen(false)}
           fullScreen={isMobile}
+          maxWidth="sm"
+          fullWidth
           PaperProps={{ sx: { borderRadius: isMobile ? 0 : 4 } }}
         >
-          <DialogTitle sx={{ fontWeight: 800, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            Finalizar Pedido
-            {isMobile && <IconButton onClick={() => setOrderModalOpen(false)}><Close /></IconButton>}
+          <DialogTitle sx={{ fontWeight: 800, display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              {empresa?.tipo_negocio === 'restaurante'
+                ? <TableRestaurant sx={{ color: accentColor }} />
+                : <ShoppingCart sx={{ color: accentColor }} />}
+              {empresa?.tipo_negocio === 'restaurante' ? 'Enviar pedido a cocina' : 'Finalizar pedido'}
+            </Box>
+            {!orderSent && <IconButton size="small" onClick={() => setOrderModalOpen(false)}><Close fontSize="small" /></IconButton>}
           </DialogTitle>
-          <DialogContent dividers sx={{ position: 'relative' }}>
+
+          <DialogContent dividers sx={{ position: 'relative', p: 0 }}>
+            {/* ── Pantalla de ÉXITO ── */}
             {orderSent && (
               <Box sx={{
-                position: 'absolute', inset: 0, zIndex: 20,
                 display: 'flex', flexDirection: 'column',
                 alignItems: 'center', justifyContent: 'center',
-                bgcolor: paperBg, gap: 2, px: 2,
-                borderRadius: 'inherit',
+                minHeight: 260, gap: 2, px: 3, py: 4,
+                textAlign: 'center',
               }}>
-                <Typography sx={{ fontSize: 64, lineHeight: 1 }}>🎉</Typography>
-                <Typography sx={{ fontWeight: 900, fontSize: 22, color: textPri, textAlign: 'center' }}>
-                  ¡Pedido enviado!
-                </Typography>
-                <Typography sx={{ color: textSec, textAlign: 'center', maxWidth: 280, fontSize: 14 }}>
-                  Se abrió WhatsApp con tu pedido listo para enviar. El vendedor te contactará pronto.
-                </Typography>
+                {empresa?.tipo_negocio === 'restaurante' ? (
+                  <>
+                    <CheckCircle sx={{ fontSize: 72, color: '#059669' }} />
+                    <Typography sx={{ fontWeight: 900, fontSize: 22, color: textPri }}>
+                      ¡Pedido enviado a cocina!
+                    </Typography>
+                    {confirmedComanda && (
+                      <Box sx={{ p: 2, borderRadius: 3, bgcolor: `${accentColor}10`, border: `1px solid ${accentColor}40`, width: '100%', maxWidth: 280 }}>
+                        <Typography sx={{ fontSize: 13, color: textSec }}>Mesa</Typography>
+                        <Typography sx={{ fontWeight: 900, fontSize: 28, color: accentColor }}>
+                          {confirmedComanda.mesa_numero}
+                        </Typography>
+                        <Typography sx={{ fontSize: 12, color: textSec, mt: 0.5 }}>
+                          Comanda #{confirmedComanda.numero_comanda}
+                        </Typography>
+                      </Box>
+                    )}
+                    <Typography sx={{ color: textSec, fontSize: 13, maxWidth: 260 }}>
+                      Tu pedido ya está en la cocina. El mesero te traerá tu orden en breve.
+                    </Typography>
+                  </>
+                ) : (
+                  <>
+                    <Typography sx={{ fontSize: 64, lineHeight: 1 }}>🎉</Typography>
+                    <Typography sx={{ fontWeight: 900, fontSize: 22, color: textPri }}>¡Pedido enviado!</Typography>
+                    <Typography sx={{ color: textSec, fontSize: 14, maxWidth: 280 }}>
+                      Se abrió WhatsApp con tu pedido. El vendedor te contactará pronto.
+                    </Typography>
+                  </>
+                )}
               </Box>
             )}
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, py: 1 }}>
-              <Box>
-                <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Person fontSize="small" color="action" /> Tu Nombre *
-                </Typography>
-                <TextField
-                  fullWidth
-                  placeholder="¿Cómo te llamas?"
-                  value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
-                  required
-                />
-              </Box>
 
-              <Box>
-                <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Phone fontSize="small" color="action" /> Número de Celular *
-                </Typography>
-                <TextField
-                  fullWidth
-                  placeholder="Ej: 300 123 4567"
-                  value={celular}
-                  onChange={(e) => setCelular(e.target.value.replace(/\D/g, ''))}
-                  required
-                />
-              </Box>
+            {/* ── Formulario RESTAURANTE ── */}
+            {!orderSent && empresa?.tipo_negocio === 'restaurante' && (
+              <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                {/* Resumen del pedido */}
+                <Box sx={{ p: 2, borderRadius: 2.5, bgcolor: subtleBg, border: `1px solid ${borderClr}` }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: 12, color: textSec, textTransform: 'uppercase', letterSpacing: 0.8, mb: 1 }}>
+                    Tu pedido
+                  </Typography>
+                  {cart.map(item => (
+                    <Box key={item.id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.6 }}>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+                          {item.quantity}× {item.nombre}
+                        </Typography>
+                        {itemNotas[item.id] && (
+                          <Typography sx={{ fontSize: 11, color: accentColor, fontStyle: 'italic' }}>
+                            📝 {itemNotas[item.id]}
+                          </Typography>
+                        )}
+                      </Box>
+                      <Typography sx={{ fontSize: 13, fontWeight: 700, flexShrink: 0, ml: 1 }}>
+                        ${new Intl.NumberFormat('es-CO').format(item.precio * item.quantity)}
+                      </Typography>
+                    </Box>
+                  ))}
+                  <Divider sx={{ my: 1 }} />
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography sx={{ fontWeight: 800 }}>Total</Typography>
+                    <Typography sx={{ fontWeight: 900, color: accentColor }}>
+                      ${new Intl.NumberFormat('es-CO').format(cartTotal)}
+                    </Typography>
+                  </Box>
+                </Box>
 
-              <Box>
-                <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1.5 }}>
-                  Tipo de Entrega
-                </Typography>
-                <RadioGroup value={tipoEntrega} onChange={(e) => setTipoEntrega(e.target.value)}>
-                  <Grid container spacing={2}>
-                    <Grid item xs={6}>
-                      <Paper
-                        variant="outlined"
-                        onClick={() => setTipoEntrega('domicilio')}
-                        sx={{
-                          p: 2, textAlign: 'center', borderRadius: 3, cursor: 'pointer',
-                          borderColor: tipoEntrega === 'domicilio' ? accentColor : 'divider',
-                          bgcolor: tipoEntrega === 'domicilio' ? `${accentColor}05` : 'transparent'
-                        }}
-                      >
-                        <Typography sx={{ fontSize: 24, mb: 0.5 }}>🛵</Typography>
-                        <Typography sx={{ fontWeight: 700, fontSize: 12 }}>A domicilio</Typography>
-                        <Radio value="domicilio" sx={{ display: 'none' }} />
-                      </Paper>
-                    </Grid>
-                    <Grid item xs={6}>
-                      <Paper
-                        variant="outlined"
-                        onClick={() => setTipoEntrega('recoger')}
-                        sx={{
-                          p: 2, textAlign: 'center', borderRadius: 3, cursor: 'pointer',
-                          borderColor: tipoEntrega === 'recoger' ? accentColor : 'divider',
-                          bgcolor: tipoEntrega === 'recoger' ? `${accentColor}05` : 'transparent'
-                        }}
-                      >
-                        <Typography sx={{ fontSize: 24, mb: 0.5 }}>🏪</Typography>
-                        <Typography sx={{ fontWeight: 700, fontSize: 12 }}>Recoger en tienda</Typography>
-                        <Radio value="recoger" sx={{ display: 'none' }} />
-                      </Paper>
-                    </Grid>
-                  </Grid>
-                </RadioGroup>
-              </Box>
-
-              {tipoEntrega === 'domicilio' ? (
+                {/* Número de mesa */}
                 <Box>
                   <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <LocationOn fontSize="small" color="action" /> Dirección de Entrega *
+                    <TableRestaurant fontSize="small" sx={{ color: accentColor }} />
+                    ¿En qué mesa estás? *
                   </Typography>
-                  <TextField
-                    fullWidth
-                    placeholder="Calle, Barrio, Apartamento..."
-                    value={direccion}
-                    onChange={(e) => setDireccion(e.target.value)}
-                    required
-                  />
+                  <Typography sx={{ fontSize: 12, color: textSec, mb: 1.5 }}>
+                    Mira el número en la tarjeta de tu mesa.
+                  </Typography>
+                  {mesas.length > 0 ? (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                      {mesas.map(m => (
+                        <Box
+                          key={m.numero}
+                          onClick={() => setMesaNumero(m.numero)}
+                          sx={{
+                            width: 52, height: 52, borderRadius: 2.5,
+                            border: `2.5px solid ${mesaNumero === m.numero ? accentColor : borderClr}`,
+                            bgcolor: mesaNumero === m.numero ? `${accentColor}12` : subtleBg,
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                            cursor: 'pointer', transition: 'all 0.15s',
+                            '&:hover': { borderColor: accentColor, bgcolor: `${accentColor}08` },
+                            opacity: m.estado === 'reservada' ? 0.4 : 1,
+                          }}
+                        >
+                          <Typography sx={{ fontWeight: 900, fontSize: 15, color: mesaNumero === m.numero ? accentColor : textPri, lineHeight: 1 }}>
+                            {m.numero}
+                          </Typography>
+                          {m.zona && (
+                            <Typography sx={{ fontSize: 8, color: textSec, lineHeight: 1, mt: 0.2 }}>{m.zona}</Typography>
+                          )}
+                        </Box>
+                      ))}
+                    </Box>
+                  ) : (
+                    <TextField
+                      fullWidth
+                      placeholder="Ej: 5, A3, Barra-2"
+                      value={mesaNumero}
+                      onChange={e => setMesaNumero(e.target.value)}
+                      size="small"
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                    />
+                  )}
+                  {mesas.length > 0 && (
+                    <TextField
+                      fullWidth
+                      placeholder="O escribe el número de tu mesa"
+                      value={mesaNumero}
+                      onChange={e => setMesaNumero(e.target.value)}
+                      size="small"
+                      sx={{ mt: 1.5, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                    />
+                  )}
                 </Box>
-              ) : empresa.direccion && (
-                <Alert severity="info" sx={{ borderRadius: 3 }}>
-                  Dirección de recogida: <strong>{empresa.direccion}</strong>
-                </Alert>
-              )}
+              </Box>
+            )}
 
-              <Box>
-                <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1 }}>
-                  Comentarios adicionales
-                </Typography>
-                <TextField
-                  fullWidth
-                  multiline
-                  rows={2}
-                  placeholder="¿Algo más que debamos saber?"
-                  value={comentarios}
-                  onChange={(e) => setComentarios(e.target.value)}
-                />
+            {/* ── Formulario COMERCIO ── */}
+            {!orderSent && empresa?.tipo_negocio !== 'restaurante' && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, p: 3 }}>
+                <Box>
+                  <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Person fontSize="small" color="action" /> Tu Nombre *
+                  </Typography>
+                  <TextField fullWidth placeholder="¿Cómo te llamas?" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
+                </Box>
+                <Box>
+                  <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Phone fontSize="small" color="action" /> Número de Celular *
+                  </Typography>
+                  <TextField fullWidth placeholder="Ej: 300 123 4567" value={celular} onChange={(e) => setCelular(e.target.value.replace(/\D/g, ''))} required />
+                </Box>
+                <Box>
+                  <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1.5 }}>Tipo de Entrega</Typography>
+                  <RadioGroup value={tipoEntrega} onChange={(e) => setTipoEntrega(e.target.value)}>
+                    <Grid container spacing={2}>
+                      <Grid item xs={6}>
+                        <Paper variant="outlined" onClick={() => setTipoEntrega('domicilio')}
+                          sx={{ p: 2, textAlign: 'center', borderRadius: 3, cursor: 'pointer',
+                            borderColor: tipoEntrega === 'domicilio' ? accentColor : 'divider',
+                            bgcolor: tipoEntrega === 'domicilio' ? `${accentColor}05` : 'transparent' }}>
+                          <Typography sx={{ fontSize: 24, mb: 0.5 }}>🛵</Typography>
+                          <Typography sx={{ fontWeight: 700, fontSize: 12 }}>A domicilio</Typography>
+                          <Radio value="domicilio" sx={{ display: 'none' }} />
+                        </Paper>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Paper variant="outlined" onClick={() => setTipoEntrega('recoger')}
+                          sx={{ p: 2, textAlign: 'center', borderRadius: 3, cursor: 'pointer',
+                            borderColor: tipoEntrega === 'recoger' ? accentColor : 'divider',
+                            bgcolor: tipoEntrega === 'recoger' ? `${accentColor}05` : 'transparent' }}>
+                          <Typography sx={{ fontSize: 24, mb: 0.5 }}>🏪</Typography>
+                          <Typography sx={{ fontWeight: 700, fontSize: 12 }}>Recoger en tienda</Typography>
+                          <Radio value="recoger" sx={{ display: 'none' }} />
+                        </Paper>
+                      </Grid>
+                    </Grid>
+                  </RadioGroup>
+                </Box>
+                {tipoEntrega === 'domicilio' ? (
+                  <Box>
+                    <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <LocationOn fontSize="small" color="action" /> Dirección de Entrega *
+                    </Typography>
+                    <TextField fullWidth placeholder="Calle, Barrio, Apartamento..." value={direccion} onChange={(e) => setDireccion(e.target.value)} required />
+                  </Box>
+                ) : (
+                  <Box sx={{
+                    p: 2, borderRadius: 3,
+                    border: '1.5px solid',
+                    borderColor: empresa?.direccion ? 'success.main' : 'warning.main',
+                    bgcolor: empresa?.direccion ? 'success.50' : 'warning.50',
+                  }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 0.8, mb: 0.5 }}>
+                      📍 Punto de recogida
+                    </Typography>
+                    {empresa?.direccion ? (
+                      <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{empresa.direccion}</Typography>
+                    ) : (
+                      <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+                        La tienda te indicará el punto de recogida al confirmar tu pedido.
+                      </Typography>
+                    )}
+                  </Box>
+                )}
+                <Box>
+                  <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1 }}>Comentarios adicionales</Typography>
+                  <TextField fullWidth multiline rows={2} placeholder="¿Algo más que debamos saber?"
+                    value={comentarios} onChange={(e) => setComentarios(e.target.value)} />
+                </Box>
               </Box>
-            </Box>
+            )}
           </DialogContent>
-          <DialogActions sx={{ p: 3, flexDirection: 'column', gap: 1 }}>
-            <Button
-              fullWidth
-              variant="contained"
-              size="large"
-              startIcon={<WhatsApp />}
-              onClick={handleSendOrder}
-              sx={{ bgcolor: '#25D366', borderRadius: 3, py: 1.5, fontWeight: 800, '&:hover': { bgcolor: '#128C7E' } }}
-            >
-              Enviar por WhatsApp
-            </Button>
-            <Typography sx={{ fontSize: 11, color: '#94A3B8', textAlign: 'center', lineHeight: 1.5 }}>
-              Al enviar tu pedido aceptas los{' '}
-              <Box component="span"
-                onClick={() => { setOrderModalOpen(false); setTerminosOpen(true); }}
-                sx={{ color: accentColor, cursor: 'pointer', fontWeight: 700, textDecoration: 'underline' }}>
-                Términos y Condiciones
-              </Box>
-              {' '}de {empresa?.nombre}.
-            </Typography>
-          </DialogActions>
+
+          {!orderSent && (
+            <DialogActions sx={{ p: 3, flexDirection: 'column', gap: 1 }}>
+              {empresa?.tipo_negocio === 'restaurante' ? (
+                <Button
+                  fullWidth variant="contained" size="large"
+                  startIcon={<CheckCircle />}
+                  onClick={handleSendOrderRestaurante}
+                  disabled={!mesaNumero.trim()}
+                  sx={{ bgcolor: accentColor, borderRadius: 3, py: 1.5, fontWeight: 800, '&:hover': { bgcolor: accentColor, opacity: 0.9 } }}
+                >
+                  Enviar a cocina
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    fullWidth variant="contained" size="large"
+                    startIcon={<WhatsApp />}
+                    onClick={handleSendOrder}
+                    sx={{ bgcolor: '#25D366', borderRadius: 3, py: 1.5, fontWeight: 800, '&:hover': { bgcolor: '#128C7E' } }}
+                  >
+                    Enviar por WhatsApp
+                  </Button>
+                  <Typography sx={{ fontSize: 11, color: '#94A3B8', textAlign: 'center', lineHeight: 1.5 }}>
+                    Al enviar tu pedido aceptas los{' '}
+                    <Box component="span" onClick={() => { setOrderModalOpen(false); setTerminosOpen(true); }}
+                      sx={{ color: accentColor, cursor: 'pointer', fontWeight: 700, textDecoration: 'underline' }}>
+                      Términos y Condiciones
+                    </Box>
+                    {' '}de {empresa?.nombre}.
+                  </Typography>
+                </>
+              )}
+            </DialogActions>
+          )}
         </Dialog>
 
         {/* ── FOOTER ─────────────────────────────────────────────────────── */}

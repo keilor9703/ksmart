@@ -47,6 +47,7 @@ def registrar_nuevo_cliente(request: Request, data: schemas.RegistroSaaS, db: Se
             ciudad              = data.ciudad,
             tamano_negocio      = data.tamano_negocio,
             origen_marketing    = data.origen,
+            tipo_negocio        = data.tipo_negocio,
         )
         db.add(nueva_emp)
         db.flush()
@@ -77,6 +78,9 @@ def registrar_nuevo_cliente(request: Request, data: schemas.RegistroSaaS, db: Se
         if data.tipo_negocio == "restaurante":
             from crud.grupos_producto import seed_categorias_restaurante
             seed_categorias_restaurante(db, nueva_emp.id)
+
+        from services.contabilidad import inicializar_puc
+        inicializar_puc(db, nueva_emp.id)
 
         db.commit()
 
@@ -199,7 +203,7 @@ def login_for_access_token(
             "sub": user.username,
             "role": user.role.name if user.role else "User",
             "empresa_id": user.empresa_id,
-            "modules": [m.frontend_path for m in user.role.modules] if user.role else []
+            "modules": [m.frontend_path for m in sorted(user.role.modules, key=lambda m: m.orden or 99)] if user.role else []
         },
         expires_delta=access_token_expires
     )
@@ -306,7 +310,7 @@ def verify_pin(
         "sub":        user.username,
         "role":       user.role.name if user.role else "User",
         "empresa_id": user.empresa_id,
-        "modules":    [m.frontend_path for m in user.role.modules] if user.role else [],
+        "modules":    [m.frontend_path for m in sorted(user.role.modules, key=lambda m: m.orden or 99)] if user.role else [],
     })
 
     return {

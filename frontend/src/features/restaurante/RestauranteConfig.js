@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box, Typography, Button, IconButton, Tooltip, CircularProgress,
   useTheme, alpha, TextField, Dialog, DialogTitle, DialogContent,
@@ -176,6 +176,139 @@ const DialogMesa = ({ open, onClose, mesa, zonas, onSaved }) => {
   );
 };
 
+// ─── PlanoInteractivo ─────────────────────────────────────────────────────────
+
+const ESTADO_COLORS = {
+  libre: '#22C55E',
+  ocupada: '#EF4444',
+  en_cuenta: '#F59E0B',
+  reservada: '#8B5CF6',
+};
+
+const PlanoInteractivo = ({ mesas, onPositionSaved }) => {
+  const containerRef = useRef(null);
+  const [dragging, setDragging] = useState(null); // { id, startX, startY, origX, origY }
+  const [positions, setPositions] = useState({});  // { id: {x, y} }
+  const [saving, setSaving] = useState(null);
+
+  useEffect(() => {
+    const pos = {};
+    mesas.forEach(m => { pos[m.id] = { x: m.pos_x ?? 10, y: m.pos_y ?? 10 }; });
+    setPositions(pos);
+  }, [mesas]);
+
+  const getRelativePos = (clientX, clientY) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return { x: 0, y: 0 };
+    const x = Math.max(0, Math.min(95, ((clientX - rect.left) / rect.width) * 100));
+    const y = Math.max(0, Math.min(92, ((clientY - rect.top) / rect.height) * 100));
+    return { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
+  };
+
+  const onPointerDown = (e, mesa) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDragging({ id: mesa.id, startX: e.clientX, startY: e.clientY, origX: positions[mesa.id]?.x ?? mesa.pos_x, origY: positions[mesa.id]?.y ?? mesa.pos_y });
+  };
+
+  const onPointerMove = (e) => {
+    if (!dragging) return;
+    const { x, y } = getRelativePos(e.clientX, e.clientY);
+    setPositions(prev => ({ ...prev, [dragging.id]: { x, y } }));
+  };
+
+  const onPointerUp = async (e) => {
+    if (!dragging) return;
+    const pos = positions[dragging.id];
+    setDragging(null);
+    if (!pos) return;
+    setSaving(dragging.id);
+    try {
+      await apiClient.put(`/restaurante/mesas/${dragging.id}`, { pos_x: pos.x, pos_y: pos.y });
+      onPositionSaved?.();
+    } catch {
+      toast.error('Error al guardar posición');
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  return (
+    <Box>
+      <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+        Arrastra las mesas para posicionarlas en el plano. Los cambios se guardan automáticamente.
+      </Typography>
+      <Box
+        ref={containerRef}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        sx={{
+          position: 'relative',
+          width: '100%',
+          height: { xs: 320, sm: 460 },
+          bgcolor: 'rgba(0,0,0,0.03)',
+          border: '2px dashed rgba(0,0,0,0.15)',
+          borderRadius: 2,
+          overflow: 'hidden',
+          backgroundImage: 'radial-gradient(circle, rgba(0,0,0,0.06) 1px, transparent 1px)',
+          backgroundSize: '24px 24px',
+        }}
+      >
+        {mesas.map(mesa => {
+          const pos = positions[mesa.id] ?? { x: mesa.pos_x ?? 10, y: mesa.pos_y ?? 10 };
+          const color = ESTADO_COLORS[mesa.estado] || ESTADO_COLORS.libre;
+          const isDragging = dragging?.id === mesa.id;
+          const isSaving = saving === mesa.id;
+          return (
+            <Box
+              key={mesa.id}
+              onPointerDown={e => onPointerDown(e, mesa)}
+              sx={{
+                position: 'absolute',
+                left: `${pos.x}%`,
+                top: `${pos.y}%`,
+                transform: 'translate(-50%, -50%)',
+                cursor: isDragging ? 'grabbing' : 'grab',
+                userSelect: 'none',
+                zIndex: isDragging ? 10 : 1,
+                transition: isDragging ? 'none' : 'left 0.1s, top 0.1s',
+              }}
+            >
+              <Box sx={{
+                width: 64, height: 64, borderRadius: '12px',
+                bgcolor: isSaving ? '#94a3b8' : color,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                boxShadow: isDragging ? '0 8px 24px rgba(0,0,0,0.25)' : '0 2px 8px rgba(0,0,0,0.15)',
+                border: `2px solid ${isDragging ? ACCENT : 'rgba(0,0,0,0.15)'}`,
+                transition: 'box-shadow 0.15s',
+              }}>
+                <Typography sx={{ color: '#fff', fontWeight: 800, fontSize: 15, lineHeight: 1 }}>
+                  {mesa.numero}
+                </Typography>
+                <Typography sx={{ color: 'rgba(255,255,255,0.85)', fontSize: 9, mt: 0.2 }}>
+                  {mesa.zona || ''}
+                </Typography>
+              </Box>
+            </Box>
+          );
+        })}
+        {mesas.length === 0 && (
+          <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Typography color="text.disabled">Crea mesas para verlas aquí</Typography>
+          </Box>
+        )}
+      </Box>
+      <Box sx={{ display: 'flex', gap: 2, mt: 1.5, flexWrap: 'wrap' }}>
+        {Object.entries(ESTADO_COLORS).map(([estado, color]) => (
+          <Box key={estado} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box sx={{ width: 12, height: 12, borderRadius: '3px', bgcolor: color }} />
+            <Typography variant="caption" sx={{ textTransform: 'capitalize' }}>{estado}</Typography>
+          </Box>
+        ))}
+      </Box>
+    </Box>
+  );
+};
+
 // ─── Tab Mesas ────────────────────────────────────────────────────────────────
 
 const TabMesas = ({ zonas }) => {
@@ -186,6 +319,7 @@ const TabMesas = ({ zonas }) => {
   const [mesaEditing, setMesaEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [filtroZona, setFiltroZona] = useState('todas');
+  const [vistaPlano, setVistaPlano] = useState(false);
 
   const fetchMesas = useCallback(async () => {
     try {
@@ -220,10 +354,10 @@ const TabMesas = ({ zonas }) => {
 
   return (
     <Box>
-      {/* Filtro zona + botón nuevo */}
+      {/* Controles superiores */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
-        <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap' }}>
-          {['todas', ...zonas].map(z => (
+        <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap', alignItems: 'center' }}>
+          {!vistaPlano && ['todas', ...zonas].map(z => (
             <Chip
               key={z}
               label={z === 'todas' ? 'Todas las zonas' : z}
@@ -238,18 +372,34 @@ const TabMesas = ({ zonas }) => {
             />
           ))}
         </Box>
-        <Button
-          variant="contained" startIcon={<Add />} size="small"
-          onClick={() => { setMesaEditing(null); setDialogOpen(true); }}
-          sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e55516' } }}
-        >
-          Nueva mesa
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Tooltip title={vistaPlano ? 'Vista lista' : 'Vista plano'}>
+            <IconButton
+              size="small"
+              onClick={() => setVistaPlano(v => !v)}
+              sx={{ bgcolor: vistaPlano ? alpha(ACCENT, 0.12) : 'transparent', color: ACCENT, border: `1px solid ${alpha(ACCENT, 0.3)}` }}
+            >
+              <DragIndicator sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
+          <Button
+            variant="contained" startIcon={<Add />} size="small"
+            onClick={() => { setMesaEditing(null); setDialogOpen(true); }}
+            sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e55516' } }}
+          >
+            Nueva mesa
+          </Button>
+        </Box>
       </Box>
+
+      {/* Vista plano interactivo */}
+      {vistaPlano && (
+        <PlanoInteractivo mesas={mesas} onPositionSaved={fetchMesas} />
+      )}
 
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress sx={{ color: ACCENT }} /></Box>
-      ) : (
+      ) : !vistaPlano && (
         <Grid container spacing={1.5}>
           {mesasFiltradas.map(mesa => (
             <Grid item xs={6} sm={4} md={3} key={mesa.id}>

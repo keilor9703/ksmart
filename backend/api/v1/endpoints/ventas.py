@@ -72,11 +72,13 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
                 productos_locked[d.producto_id] = prod
 
     if not venta.pagada and db_cliente is not None:
-        iva_pct = float(getattr(venta, 'iva_porcentaje', 0) or 0)
+        # Los precios unitarios ya incluyen IVA — no aplicar IVA adicional
         total_nueva = sum(
-            (d.precio_unitario if d.precio_unitario is not None else (productos_locked[d.producto_id].precio if d.producto_id else 0)) * (d.cantidad or 1)
+            (d.precio_unitario if d.precio_unitario is not None else (productos_locked[d.producto_id].precio if d.producto_id else 0))
+            * (d.cantidad or 1)
+            * (1 - float(getattr(d, 'descuento_pct', 0) or 0) / 100)
             for d in venta.detalles
-        ) * (1 + iva_pct / 100)
+        ) - float(getattr(venta, 'descuento_puntos', 0) or 0)
         deuda_actual = crud.get_cliente_deuda(db, empresa_id=empresa_id, cliente_id=venta.cliente_id)
         if (deuda_actual + total_nueva) > db_cliente.cupo_credito:
             cupo_disp = db_cliente.cupo_credito - deuda_actual

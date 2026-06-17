@@ -286,6 +286,7 @@ def cobrar_orden(
         observaciones=orden.observaciones,
         descuento_puntos=descuento_pts,
         puntos_canjeados=body.puntos_canjeados or 0,
+        origen='lavadero',
     )
     db.add(venta)
     db.flush()
@@ -351,7 +352,7 @@ def reporte_lavadero(
     # Query from LavaderoOrden (paid orders)
     q = db.query(
         models.User.id.label("operador_id"),
-        models.User.nombre_completo.label("nombre"),
+        func.coalesce(models.User.nombre_completo, models.User.username).label("nombre"),
         func.count(models.LavaderoOrden.id).label("num_lavadas"),
         func.sum(models.LavaderoOrden.total).label("total_ventas"),
         func.min(models.LavaderoOrden.fecha_entrada).label("primera_lavada"),

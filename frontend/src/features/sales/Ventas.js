@@ -29,6 +29,7 @@ import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 import SmartTooltip from '../../components/onboarding/SmartTooltip';
 import BasculaWidget from '../../components/common/BasculaWidget';
 import { esPesable } from '../../hooks/useBascula';
+import VarianteSelectorDialog from '../../components/common/VarianteSelectorDialog';
 
 const ACCENT = '#FF6020';
 const HAS_BARCODE_DETECTOR = typeof window !== 'undefined' && 'BarcodeDetector' in window;
@@ -77,13 +78,60 @@ const getEstadoPagoChip = (estado) => {
     return <Chip label={p.label} color={p.color} size="small" sx={{ fontWeight: 600, fontSize: 11, borderRadius: 1.5 }} />;
 };
 
+// ─── Chip de estado de Factura Electrónica ────────────────────────────────────
+const ChipFE = ({ estado, ventaId, onReintentar }) => {
+    if (!estado || estado === 'no_enviado') return null;
+    if (estado === 'exitoso') {
+        return (
+            <Chip
+                label="✓ FE"
+                size="small"
+                sx={{ ml: 0.5, bgcolor: '#d1fae5', color: '#065f46', fontWeight: 700, fontSize: 10, height: 18, borderRadius: 1 }}
+            />
+        );
+    }
+    if (estado === 'pendiente') {
+        return (
+            <Chip
+                label="⏳ FE"
+                size="small"
+                sx={{ ml: 0.5, bgcolor: '#fef3c7', color: '#92400e', fontWeight: 700, fontSize: 10, height: 18, borderRadius: 1 }}
+            />
+        );
+    }
+    if (estado === 'fallido') {
+        return (
+            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.3 }}>
+                <Chip
+                    label="✗ FE"
+                    size="small"
+                    sx={{ ml: 0.5, bgcolor: '#fee2e2', color: '#991b1b', fontWeight: 700, fontSize: 10, height: 18, borderRadius: 1 }}
+                />
+                <Tooltip title="Reintentar emisión FE">
+                    <IconButton
+                        size="small"
+                        onClick={() => onReintentar && onReintentar(ventaId)}
+                        sx={{ p: 0.2, color: '#DC2626', '&:hover': { bgcolor: '#FEE2E2' } }}
+                    >
+                        <span style={{ fontSize: 11 }}>↺</span>
+                    </IconButton>
+                </Tooltip>
+            </Box>
+        );
+    }
+    return null;
+};
+
 // ─── Venta Card (mobile) ──────────────────────────────────────────────────────
-const VentaCard = ({ venta, handleEdit, handleDelete, handleOpenDetails, handleOpenDevolucion }) => (
+const VentaCard = ({ venta, handleEdit, handleDelete, handleOpenDetails, handleOpenDevolucion, handleReintentarFE }) => (
     <Paper sx={{ p: 2.5, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
             <Box>
                 <Typography sx={{ fontWeight: 700, fontSize: 15 }}>{venta.cliente?.nombre || 'Sin cliente'}</Typography>
-                <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>#{venta.id} · {new Date(venta.fecha + 'Z').toLocaleString()}</Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.3 }}>
+                    <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>#{venta.id}{venta.numero_factura ? ` · ${venta.numero_factura}` : ''} · {new Date(venta.fecha + 'Z').toLocaleString()}</Typography>
+                    <ChipFE estado={venta.estado_electronico} ventaId={venta.id} onReintentar={handleReintentarFE} />
+                </Box>
             </Box>
             {getEstadoPagoChip(venta.estado_pago)}
         </Box>
@@ -138,7 +186,7 @@ const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRe
     return (
         <Box sx={{
             display: 'flex', flexDirection: isMobile ? 'column' : 'row',
-            alignItems: isMobile ? 'stretch' : 'center',
+            alignItems: isMobile ? 'stretch' : 'flex-start',
             gap: 1, mb: 1.5, p: isMobile ? 2 : 1.5,
             borderRadius: 2, bgcolor: 'action.hover',
             border: '1px solid', borderColor: stockBajo ? '#F59E0B50' : 'divider',
@@ -222,7 +270,7 @@ const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRe
             </Box>
 
             {/* Cantidad con +/- */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: isMobile ? '100%' : 'auto' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: isMobile ? '100%' : 'auto', mt: isMobile ? 0 : 0.4 }}>
                 <IconButton size="small" onClick={() => handleQty(-1)} sx={{ color: '#EF4444', p: 0.5 }}>
                     <RemoveCircle fontSize="small" />
                 </IconButton>
@@ -243,7 +291,7 @@ const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRe
             </Box>
 
             {/* Precio (bloqueado por defecto) */}
-            <Box sx={{ minWidth: isMobile ? '100%' : 120 }}>
+            <Box sx={{ minWidth: isMobile ? '100%' : 120, mt: isMobile ? 0 : 0.4 }}>
                 {priceUnlocked ? (
                     <CurrencyField
                         label="Precio" size="small"
@@ -276,6 +324,7 @@ const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRe
             </Box>
 
             {/* Desc % (compacto) */}
+            <Box sx={{ mt: isMobile ? 0 : 0.4 }}>
             <SmartTooltip
                 id="venta_descuento"
                 title="Descuento por ítem"
@@ -291,9 +340,10 @@ const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRe
                     sx={{ width: isMobile ? '100%' : 68 }}
                 />
             </SmartTooltip>
+            </Box>
 
             {/* Subtotal + quitar */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end', mt: isMobile ? 0 : 0.4 }}>
                 <Box sx={{ textAlign: 'right' }}>
                     {(detail.descuentoPct || 0) > 0 && (
                         <Typography sx={{ fontSize: 10, color: 'text.secondary', textDecoration: 'line-through' }}>{formatCurrency(subtotalSinDesc)}</Typography>
@@ -380,7 +430,8 @@ const Ventas = ({ user }) => {
     const [ventaDevolucion, setVentaDevolucion]   = useState(null);
     const [reciboOpen, setReciboOpen]             = useState(false);
     const [reciboVenta, setReciboVenta]           = useState(null);
-    const [basculaProducto, setBasculaProducto]   = useState(null); // producto siendo pesado
+    const [basculaProducto,  setBasculaProducto]  = useState(null);
+    const [varianteProducto, setVarianteProducto] = useState(null); // producto con variantes esperando selección
     const [tabValue, setTabValue]                 = useState(0);
     const [page, setPage]                         = useState(0);
     const [rowsPerPage, setRowsPerPage]           = useState(10);
@@ -406,7 +457,7 @@ const Ventas = ({ user }) => {
             .then(r => setClientePuntos(r.data.puntos_disponibles || 0))
             .catch(() => setClientePuntos(0));
     }, []);
-    const fetchProductos     = () => apiClient.get('/productos/', { params: { solo_pos: true } }).then(r => setProductos(r.data)).catch(console.error);
+    const fetchProductos     = () => apiClient.get('/productos/', { params: { solo_pos: true } }).then(r => setProductos([...r.data].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))).catch(console.error);
     const fetchGrupos        = () => apiClient.get('/grupos-producto/').then(r => setGrupos(r.data)).catch(console.error);
     const fetchVentasSummary = () => apiClient.get('/reportes/ventas_summary').then(r => setTotalVentasHoy(r.data.total_ventas_hoy)).catch(console.error);
 
@@ -424,38 +475,76 @@ useEffect(() => {
 
     // ── Touch mode cart ops ──
     const handleAddToCartDirect = (producto) => {
+        // Variantes: mostrar selector primero
+        if (producto.tiene_variantes && producto.variantes?.length > 0) {
+            setVarianteProducto(producto);
+            return;
+        }
+        // Pesable: abrir báscula
         if (esPesable(producto.unidad_medida)) {
             setBasculaProducto(producto);
             return;
         }
+        _agregarAlCarritoSimple(producto, 1, producto.precio || 0, null, null);
+    };
+
+    const _agregarAlCarritoSimple = (producto, cantidad, precioUnitario, varianteId, nombreVariante) => {
         setSaleDetails(prev => {
-            const existingIdx = prev.findIndex(d => d.producto?.id === producto.id);
+            // Para productos con variante, la clave del carrito incluye la variante
+            const clave = varianteId
+                ? (d) => d.producto?.id === producto.id && d.varianteId === varianteId
+                : (d) => d.producto?.id === producto.id && !d.varianteId;
+            const existingIdx = prev.findIndex(clave);
             if (existingIdx !== -1) {
-                return prev.map((d, i) => i === existingIdx ? { ...d, cantidad: d.cantidad + 1 } : d);
+                return prev.map((d, i) => i === existingIdx ? { ...d, cantidad: d.cantidad + cantidad } : d);
             }
-            const newRow = { id: Date.now(), producto, cantidad: 1, precioUnitario: producto.precio || 0, descuentoPct: 0 };
+            const newRow = {
+                id: Date.now(),
+                producto,
+                cantidad,
+                precioUnitario,
+                descuentoPct: 0,
+                varianteId,
+                nombreVariante,
+            };
             if (prev.length === 1 && !prev[0].producto) return [newRow];
             return [...prev, newRow];
         });
         playScanBeep();
     };
 
-    const handleConfirmarPesoBascula = (pesoKg, subtotal) => {
+    const handleConfirmarPesoBascula = (pesoKg) => {
         const producto = basculaProducto;
         setBasculaProducto(null);
         if (!producto || pesoKg <= 0) return;
-        setSaleDetails(prev => {
-            const existingIdx = prev.findIndex(d => d.producto?.id === producto.id);
-            if (existingIdx !== -1) {
-                return prev.map((d, i) =>
-                    i === existingIdx ? { ...d, cantidad: d.cantidad + pesoKg } : d
-                );
-            }
-            const newRow = { id: Date.now(), producto, cantidad: pesoKg, precioUnitario: producto.precio || 0, descuentoPct: 0 };
-            if (prev.length === 1 && !prev[0].producto) return [newRow];
-            return [...prev, newRow];
-        });
-        playScanBeep();
+        const varId  = producto._varianteId    || null;
+        const varNom = producto._nombreVariante || null;
+        if (producto._detalleId) {
+            // Modo clásico — actualizar fila existente
+            _aplicarProductoEnDetalle(producto._detalleId, producto, pesoKg, producto.precio || 0, varId, varNom);
+        } else {
+            // Modo Touch — agregar al carrito
+            _agregarAlCarritoSimple(producto, pesoKg, producto.precio || 0, varId, varNom);
+        }
+    };
+
+    const handleConfirmarVariante = (variante) => {
+        const producto = varianteProducto;
+        setVarianteProducto(null);
+        if (!producto || !variante) return;
+        const precio = variante.precio != null ? variante.precio : (producto.precio || 0);
+        // Si además es pesable, abrir báscula con precio de la variante
+        if (esPesable(producto.unidad_medida)) {
+            setBasculaProducto({ ...producto, precio, _varianteId: variante.id, _nombreVariante: variante.nombre, _detalleId: producto._detalleId });
+            return;
+        }
+        if (producto._detalleId) {
+            // Modo clásico
+            _aplicarProductoEnDetalle(producto._detalleId, producto, 1, precio, variante.id, variante.nombre);
+        } else {
+            // Modo Touch
+            _agregarAlCarritoSimple(producto, 1, precio, variante.id, variante.nombre);
+        }
     };
     const handleRemoveOneFromCart = (productoId) => {
         setSaleDetails(prev => {
@@ -504,14 +593,36 @@ useEffect(() => {
     // ── Atajo de teclado: Ctrl+Enter → registrar venta ──
     useEffect(() => {
         const onKey = (e) => {
+            // Cmd/Ctrl+Enter → registrar venta
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && tabValue === 0 && !savingVenta) {
                 e.preventDefault();
                 document.getElementById('btn-registrar-venta')?.click();
+                return;
+            }
+
+            // Auto-focus al campo de búsqueda cuando:
+            // - Estamos en el tab de venta (0) y la cámara no está activa
+            // - La tecla es un carácter imprimible (letras, números)
+            // - El foco actual NO está en un input, textarea o select
+            if (
+                tabValue === 0 &&
+                !cameraActive &&
+                !e.ctrlKey && !e.metaKey && !e.altKey &&
+                e.key.length === 1 &&
+                barcodeFieldRef.current
+            ) {
+                const active = document.activeElement;
+                const tag = active?.tagName?.toLowerCase();
+                const isTypingElsewhere = tag === 'input' || tag === 'textarea' || tag === 'select' || active?.isContentEditable;
+                if (!isTypingElsewhere) {
+                    barcodeFieldRef.current.focus();
+                    // No prevenimos el default para que el carácter caiga en el campo
+                }
             }
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [tabValue, savingVenta]);
+    }, [tabValue, savingVenta, cameraActive]);
 
     // ── Cámara: inicializar cuando cameraActive pasa a true ──
     const cleanupCamera = useCallback(() => {
@@ -679,7 +790,7 @@ useEffect(() => {
             setClientes(prev => [...prev, nuevo]);
             setCliente(nuevo); setClienteInput(nuevo.nombre); setIsMostrador(false);
         } else {
-            setProductos(prev => [...prev, nuevo]);
+            setProductos(prev => [...prev, nuevo].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')));
             if (quickCreate.targetIdx !== null) {
                 handleProductChange(quickCreate.targetIdx, nuevo);
                 handleProductoInputChange(quickCreate.targetIdx, nuevo.nombre);
@@ -698,11 +809,39 @@ useEffect(() => {
     };
     const handleFieldChange = (id, field, value) => setSaleDetails(p => p.map(d => d.id === id ? { ...d, [field]: value } : d));
     const handleProductChange = (id, newValue) => {
+        if (!newValue) {
+            handleFieldChange(id, 'producto', null);
+            handleFieldChange(id, 'precioUnitario', 0);
+            return;
+        }
+        // Variantes: mostrar selector primero
+        if (newValue.tiene_variantes && newValue.variantes?.length > 0) {
+            setVarianteProducto({ ...newValue, _detalleId: id });
+            return;
+        }
+        // Pesable: abrir báscula
+        if (esPesable(newValue.unidad_medida)) {
+            setBasculaProducto({ ...newValue, _detalleId: id });
+            return;
+        }
         handleFieldChange(id, 'producto', newValue);
         handleFieldChange(id, 'precioUnitario', newValue?.precio ?? 0);
-        // Auto-sugerir IVA del producto si tiene impuesto asignado
         if (newValue?.impuesto?.porcentaje != null) {
             setIvaPorcentajeGlobal(newValue.impuesto.porcentaje);
+        }
+    };
+
+    // Confirmar peso desde báscula en modo clásico
+    const _aplicarProductoEnDetalle = (detalleId, producto, cantidad, precio, varianteId, nombreVariante) => {
+        handleFieldChange(detalleId, 'producto', producto);
+        handleFieldChange(detalleId, 'precioUnitario', precio);
+        handleFieldChange(detalleId, 'cantidad', cantidad);
+        if (varianteId) {
+            handleFieldChange(detalleId, 'varianteId', varianteId);
+            handleFieldChange(detalleId, 'nombreVariante', nombreVariante);
+        }
+        if (producto?.impuesto?.porcentaje != null) {
+            setIvaPorcentajeGlobal(producto.impuesto.porcentaje);
         }
     };
 
@@ -739,13 +878,15 @@ useEffect(() => {
 
         const ventaData = {
             cliente_id: cliente.id,
-            detalles: validDetails.map(({ producto, cantidad, precioUnitario, descuentoPct, isLibre, nombreLibre }) => ({
-                producto_id: isLibre ? null : producto.id,
-                nombre_libre: isLibre ? (nombreLibre || 'Ítem libre') : undefined,
+            detalles: validDetails.map(({ producto, cantidad, precioUnitario, descuentoPct, isLibre, nombreLibre, varianteId, nombreVariante }) => ({
+                producto_id:     isLibre ? null : producto.id,
+                variante_id:     varianteId || undefined,
+                nombre_libre:    isLibre ? (nombreLibre || 'Ítem libre') : undefined,
+                nombre_variante: nombreVariante || undefined,
                 cantidad,
                 precio_unitario: precioUnitario * (1 - (descuentoPct || 0) / 100),
-                descuento_pct: descuentoPct || 0,
-                iva_porcentaje: 0.0,
+                descuento_pct:   descuentoPct || 0,
+                iva_porcentaje:  0.0,
             })),
             pagada, metodo_pago: pagada ? metodoPago : null,
             iva_porcentaje: parseFloat(ivaPorcentajeGlobal),
@@ -781,7 +922,8 @@ useEffect(() => {
                 metodo_pago: ventaData.metodo_pago, estado_pago: pagada ? 'pagado' : 'pendiente',
             });
             setReciboOpen(true);
-            resetForm(); setTabValue(1);
+            resetForm();
+            setTimeout(() => barcodeFieldRef.current?.focus(), 150);
         } catch (err) {
             toast.error(err.response?.data?.detail || 'Error al guardar la venta.');
         } finally {
@@ -814,6 +956,13 @@ useEffect(() => {
     const handleCloseDetails   = ()  => { setDetailModalOpen(false); setSelectedVenta(null); };
     const handleOpenDevolucion = (v) => { setVentaDevolucion(v); setDevolucionOpen(true); };
     const handleDevolucionSuccess = () => { fetchVentas(); fetchVentasSummary(); };
+
+    // ── Reintentar emisión FE ──
+    const handleReintentarFE = (ventaId) => {
+        apiClient.post(`/fe/ventas/${ventaId}/emitir`)
+            .then(() => fetchVentas())
+            .catch(err => console.error('Error al reintentar FE:', err));
+    };
 
     // ── Filtros historial ──
     const filteredVentas = [...ventas]
@@ -1109,11 +1258,16 @@ useEffect(() => {
                                         </Button>
                                         <Button size="small" startIcon={<Add />} onClick={handleAddSaleDetail}
                                             sx={{ color: ACCENT, fontWeight: 600, fontSize: 12 }}>
-                                            Agregar línea
+                                            Agregar producto
                                         </Button>
                                     </Box>
                                 </Box>
 
+                                {/* Lista con scroll independiente */}
+                                <Box sx={{ maxHeight: 340, overflowY: 'auto', pr: 0.5,
+                                    '&::-webkit-scrollbar': { width: 4 },
+                                    '&::-webkit-scrollbar-thumb': { bgcolor: `${ACCENT}50`, borderRadius: 2 },
+                                }}>
                                 {saleDetails.map(detail => (
                                     detail.isLibre ? (
                                         <Box key={detail.id} sx={{
@@ -1184,6 +1338,7 @@ useEffect(() => {
                                         />
                                     )
                                 ))}
+                                </Box>{/* fin scroll */}
                             </Box>
                         </Box>
                     ) : (
@@ -1243,63 +1398,68 @@ useEffect(() => {
                                 </Box>
                             )}
 
-                            {/* IVA toggle — ANTES del total para que el número grande refleje la selección */}
-                            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', alignItems: 'center', mb: 1.5 }}>
-                                <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>IVA:</Typography>
-                                {[0, 19].map(pct => (
-                                    <Chip
-                                        key={pct}
-                                        label={pct === 0 ? 'Exento (0%)' : `+${pct}%`}
-                                        onClick={() => setIvaPorcentajeGlobal(pct)}
-                                        size="small"
-                                        sx={{
-                                            cursor: 'pointer', fontWeight: 600, fontSize: 11,
-                                            ...(ivaPorcentajeGlobal == pct
-                                                ? { bgcolor: ACCENT, color: 'white', '& .MuiChip-label': { color: 'white' } }
-                                                : { bgcolor: 'transparent', border: '1px solid', borderColor: 'divider' }
-                                            )
-                                        }}
-                                    />
-                                ))}
-                            </Box>
-
-                            {/* Desglose IVA incluido */}
-                            {parseFloat(ivaPorcentajeGlobal) > 0 && (() => {
-                                const rate = parseFloat(ivaPorcentajeGlobal);
-                                const sub = calculateSubtotal();
-                                const ivaIncluido = sub * rate / (100 + rate);
-                                const baseNeta = sub - ivaIncluido;
-                                return (<>
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5, px: 0.5 }}>
-                                        <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>Base (sin IVA)</Typography>
-                                        <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>{formatCurrency(baseNeta)}</Typography>
-                                    </Box>
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, px: 0.5 }}>
-                                        <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>IVA incluido ({ivaPorcentajeGlobal}%)</Typography>
-                                        <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>{formatCurrency(ivaIncluido)}</Typography>
-                                    </Box>
-                                </>);
-                            })()}
-
-                            {/* TOTAL — el número más importante */}
-                            <Box sx={{ textAlign: 'center', py: { xs: 1, md: 1.5 } }}>
-                                <Typography sx={{ fontSize: 10, color: 'text.secondary', letterSpacing: 1.5, textTransform: 'uppercase', mb: 0.5 }}>
-                                    Total a cobrar
-                                </Typography>
-                                {descuentoPuntosImporte > 0
-                                    ? <>
-                                        <Typography sx={{ fontSize: { xs: 28, md: 36 }, fontWeight: 900, color: 'text.disabled', lineHeight: 1, textDecoration: 'line-through' }}>
-                                            {formatCurrency(totalConIva)}
+                            {/* ── Fila 1: IVA + desglose + toggle stock ── */}
+                            <Box sx={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                flexWrap: 'wrap', gap: 1, mb: 1.5,
+                                px: 1.5, py: 1, borderRadius: 2,
+                                bgcolor: 'action.hover',
+                            }}>
+                                {/* IVA chips */}
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                                    <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary' }}>IVA:</Typography>
+                                    {[0, 19].map(pct => (
+                                        <Chip
+                                            key={pct}
+                                            label={pct === 0 ? 'Exento (0%)' : `+${pct}%`}
+                                            onClick={() => setIvaPorcentajeGlobal(pct)}
+                                            size="small"
+                                            sx={{
+                                                cursor: 'pointer', fontWeight: 700, fontSize: 12, height: 28,
+                                                ...(ivaPorcentajeGlobal == pct
+                                                    ? { bgcolor: ACCENT, color: 'white', '& .MuiChip-label': { color: 'white' } }
+                                                    : { bgcolor: 'background.paper', border: '1.5px solid', borderColor: 'divider' }
+                                                )
+                                            }}
+                                        />
+                                    ))}
+                                    {parseFloat(ivaPorcentajeGlobal) > 0 && (() => {
+                                        const rate = parseFloat(ivaPorcentajeGlobal);
+                                        const sub = calculateSubtotal();
+                                        const ivaIncluido = sub * rate / (100 + rate);
+                                        const baseNeta = sub - ivaIncluido;
+                                        return (
+                                            <Box sx={{ display: 'flex', gap: 1.5, ml: 1 }}>
+                                                <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>
+                                                    Base: <strong>{formatCurrency(baseNeta)}</strong>
+                                                </Typography>
+                                                <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>
+                                                    IVA {ivaPorcentajeGlobal}%: <strong>{formatCurrency(ivaIncluido)}</strong>
+                                                </Typography>
+                                            </Box>
+                                        );
+                                    })()}
+                                </Box>
+                                {/* Toggle stock en la misma fila de IVA */}
+                                <FormControlLabel
+                                    control={
+                                        <Switch
+                                            checked={omitirInventario}
+                                            onChange={e => setOmitirInventario(e.target.checked)}
+                                            size="small"
+                                            sx={{
+                                                '& .MuiSwitch-switchBase.Mui-checked': { color: '#F59E0B' },
+                                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#F59E0B' },
+                                            }}
+                                        />
+                                    }
+                                    label={
+                                        <Typography fontSize={12} fontWeight={omitirInventario ? 700 : 500} color={omitirInventario ? '#92400E' : 'text.secondary'}>
+                                            Sin validar stock
                                         </Typography>
-                                        <Typography sx={{ fontSize: { xs: 40, md: 52 }, fontWeight: 900, color: '#10B981', lineHeight: 1 }}>
-                                            {formatCurrency(totalFinal)}
-                                        </Typography>
-                                        <Chip icon={<Stars sx={{ fontSize: '14px !important' }} />} label={`-${formatCurrency(descuentoPuntosImporte)} puntos`} size="small" sx={{ mt: 0.5, bgcolor: '#10B98115', color: '#10B981', fontWeight: 700, fontSize: 10 }} />
-                                      </>
-                                    : <Typography sx={{ fontSize: { xs: 40, md: 52 }, fontWeight: 900, color: ACCENT, lineHeight: 1 }}>
-                                        {formatCurrency(totalFinal)}
-                                      </Typography>
-                                }
+                                    }
+                                    sx={{ m: 0, gap: 0.5 }}
+                                />
                             </Box>
 
                             {/* ── Puntos de fidelización ── */}
@@ -1334,37 +1494,13 @@ useEffect(() => {
                                 </Box>
                             )}
 
-                            {/* ── Opción: vender sin validar stock ── */}
-                            <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-                                <FormControlLabel
-                                    control={
-                                        <Switch
-                                            checked={omitirInventario}
-                                            onChange={e => setOmitirInventario(e.target.checked)}
-                                            size="small"
-                                            sx={{
-                                                '& .MuiSwitch-switchBase.Mui-checked': { color: '#F59E0B' },
-                                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#F59E0B' },
-                                            }}
-                                        />
-                                    }
-                                    label={
-                                        <Typography fontSize={11.5} fontWeight={omitirInventario ? 700 : 400} color={omitirInventario ? '#92400E' : 'text.secondary'}>
-                                            Vender sin validar stock
-                                        </Typography>
-                                    }
-                                    sx={{ m: 0, gap: 0.5 }}
-                                />
-                            </Box>
+                            {/* ── Fila 2: Métodos de pago | Valor recibido | Botón | Total ── */}
+                            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
 
-                            <Divider sx={{ mb: 2.5 }} />
-
-                            {/* Método de pago + cambio + botón */}
-                            <Grid container spacing={2} alignItems="flex-end">
                                 {/* Métodos de pago */}
-                                <Grid item xs={12} sm={pagada && metodoPago === 'Efectivo' ? 5 : 7}>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
-                                        <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                                <Box sx={{ flex: 1, minWidth: 0 }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.8 }}>
+                                        <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
                                             Método de pago
                                         </Typography>
                                         <SmartTooltip
@@ -1377,17 +1513,18 @@ useEffect(() => {
                                             <HelpOutline sx={{ fontSize: 14, color: 'text.disabled', cursor: 'pointer' }} />
                                         </SmartTooltip>
                                     </Box>
-                                    <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap' }}>
+                                    <Box sx={{ display: 'flex', gap: { xs: 0.6, sm: 0.8 }, flexWrap: 'wrap' }}>
                                         {METODOS_PAGO.filter(opt => opt.value !== 'Link de Pago' || !!linkPagoConfig).map(opt => {
                                             const isSelected = pagada ? (opt.pagada && metodoPago === opt.value) : !opt.pagada;
                                             return (
                                                 <Box key={opt.value} onClick={() => { setPagada(opt.pagada); if (opt.pagada) setMetodoPago(opt.value); }}
                                                     sx={{
-                                                        px: { xs: 1, sm: 1.5 }, py: 0.8, borderRadius: 2, cursor: 'pointer',
+                                                        px: { xs: 1, sm: 1.5 }, py: { xs: 0.6, sm: 0.9 },
+                                                        borderRadius: 2, cursor: 'pointer',
                                                         border: '1.5px solid', borderColor: isSelected ? opt.color : 'divider',
                                                         bgcolor: isSelected ? `${opt.color}15` : 'background.paper',
                                                         color: isSelected ? opt.color : 'text.secondary',
-                                                        fontSize: { xs: 11, sm: 12 }, fontWeight: isSelected ? 700 : 500,
+                                                        fontSize: { xs: 11, sm: 13 }, fontWeight: isSelected ? 700 : 500,
                                                         transition: 'all 0.15s', userSelect: 'none',
                                                         '&:hover': { borderColor: opt.color, bgcolor: `${opt.color}08` },
                                                         whiteSpace: 'nowrap',
@@ -1398,63 +1535,141 @@ useEffect(() => {
                                             );
                                         })}
                                     </Box>
-                                </Grid>
+                                </Box>
 
-                                {/* Efectivo: recibido + cambio */}
-                                {pagada && metodoPago === 'Efectivo' && (
-                                    <Grid item xs={12} sm={3}>
+                                {/* En móvil: valor recibido + botón registrar en la misma fila */}
+                                {isMobile && pagada && metodoPago === 'Efectivo' && (
+                                    <Box sx={{ width: '100%', display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                                        <Box sx={{ flex: 1 }}>
+                                            <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8, mb: 0.8 }}>
+                                                Valor recibido
+                                            </Typography>
+                                            <CurrencyField label="" size="small" fullWidth value={valorRecibido} onChange={setValorRecibido} />
+                                            {valorRecibido > 0 && (
+                                                <Box sx={{
+                                                    mt: 0.8, px: 2, py: 0.6, borderRadius: 2, textAlign: 'center',
+                                                    bgcolor: cambioEfectivo >= 0 ? '#10B98112' : '#EF444412',
+                                                    border: '1.5px solid', borderColor: cambioEfectivo >= 0 ? '#10B98140' : '#EF444440',
+                                                }}>
+                                                    <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Cambio</Typography>
+                                                    <Typography sx={{ fontSize: 16, fontWeight: 800, color: cambioEfectivo >= 0 ? '#10B981' : '#EF4444' }}>
+                                                        {formatCurrency(cambioEfectivo >= 0 ? cambioEfectivo : 0)}
+                                                    </Typography>
+                                                    {cambioEfectivo < 0 && (
+                                                        <Typography sx={{ fontSize: 10, color: '#EF4444' }}>Faltan {formatCurrency(Math.abs(cambioEfectivo))}</Typography>
+                                                    )}
+                                                </Box>
+                                            )}
+                                        </Box>
+                                    </Box>
+                                )}
+
+                                {/* Efectivo: recibido + cambio (solo desktop) */}
+                                {!isMobile && pagada && metodoPago === 'Efectivo' && (
+                                    <Box sx={{ minWidth: 160, flexShrink: 0 }}>
+                                        <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8, mb: 0.8 }}>
+                                            Valor recibido
+                                        </Typography>
                                         <CurrencyField
-                                            label="Valor recibido" size="small" fullWidth
+                                            label="" size="small" fullWidth
                                             value={valorRecibido} onChange={setValorRecibido}
                                         />
                                         {valorRecibido > 0 && (
                                             <Box sx={{
-                                                mt: 0.8, px: 2, py: 0.8, borderRadius: 2, textAlign: 'center',
+                                                mt: 0.8, px: 2, py: 0.6, borderRadius: 2, textAlign: 'center',
                                                 bgcolor: cambioEfectivo >= 0 ? '#10B98112' : '#EF444412',
                                                 border: '1.5px solid', borderColor: cambioEfectivo >= 0 ? '#10B98140' : '#EF444440',
                                             }}>
-                                                <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>Cambio a devolver</Typography>
-                                                <Typography sx={{ fontSize: 16, fontWeight: 800, color: cambioEfectivo >= 0 ? '#10B981' : '#EF4444' }}>
+                                                <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Cambio a devolver</Typography>
+                                                <Typography sx={{ fontSize: 18, fontWeight: 800, color: cambioEfectivo >= 0 ? '#10B981' : '#EF4444' }}>
                                                     {formatCurrency(cambioEfectivo >= 0 ? cambioEfectivo : 0)}
                                                 </Typography>
                                                 {cambioEfectivo < 0 && (
-                                                    <Typography sx={{ fontSize: 9, color: '#EF4444' }}>Faltan {formatCurrency(Math.abs(cambioEfectivo))}</Typography>
+                                                    <Typography sx={{ fontSize: 10, color: '#EF4444' }}>Faltan {formatCurrency(Math.abs(cambioEfectivo))}</Typography>
                                                 )}
                                             </Box>
                                         )}
-                                    </Grid>
+                                    </Box>
                                 )}
 
-                                {/* Botón registrar */}
-                                <Grid item xs={12} sm={pagada && metodoPago === 'Efectivo' ? 4 : 5}>
-                                    <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-                                        {editingVenta && (
-                                            <Button onClick={resetForm} variant="outlined"
-                                                sx={{ borderRadius: 2, fontWeight: 600, borderColor: 'divider' }}>
-                                                Cancelar
-                                            </Button>
-                                        )}
+                                {/* En móvil: botón + total en la misma fila */}
+                                {isMobile ? (
+                                    <Box sx={{ width: '100%', display: 'flex', gap: 1.5, alignItems: 'center' }}>
                                         <Button
                                             id="btn-registrar-venta"
-                                            type="submit" variant="contained" fullWidth={!editingVenta}
+                                            type="submit" variant="contained"
                                             disabled={savingVenta}
                                             onClick={handleSubmit}
-                                            startIcon={savingVenta ? <CircularProgress size={16} sx={{ color: 'white' }} /> : (metodoPago === 'Link de Pago' ? <CreditCard /> : <ShoppingCart />)}
                                             sx={{
+                                                flex: 1,
                                                 background: metodoPago === 'Link de Pago' ? 'linear-gradient(135deg, #FF6020, #ff9a62)' : `linear-gradient(135deg, ${ACCENT}, #ff9a62)`,
                                                 boxShadow: `0 4px 14px rgba(255,96,32,0.35)`,
-                                                borderRadius: 2, fontWeight: 700, py: 1.4,
-                                                fontSize: 14,
+                                                borderRadius: 3, fontWeight: 800, py: 1.5, fontSize: 15,
                                             }}
+                                            startIcon={savingVenta ? <CircularProgress size={18} sx={{ color: 'white' }} /> : (metodoPago === 'Link de Pago' ? <CreditCard /> : <ShoppingCart />)}
                                         >
-                                            {savingVenta ? 'Guardando…' : (editingVenta ? 'Actualizar' : (metodoPago === 'Link de Pago' ? 'Cobrar con Link' : 'Registrar Venta'))}
+                                            {savingVenta ? 'Guardando…' : (metodoPago === 'Link de Pago' ? 'Cobrar' : 'Registrar')}
                                         </Button>
+                                        <Box sx={{ flexShrink: 0, textAlign: 'right' }}>
+                                            <Typography sx={{ fontSize: 9, color: 'text.secondary', letterSpacing: 1, textTransform: 'uppercase' }}>Total</Typography>
+                                            <Typography sx={{ fontSize: 28, fontWeight: 900, color: descuentoPuntosImporte > 0 ? '#10B981' : ACCENT, lineHeight: 1 }}>
+                                                {formatCurrency(totalFinal)}
+                                            </Typography>
+                                        </Box>
                                     </Box>
-                                    <Typography sx={{ fontSize: 10, color: 'text.disabled', textAlign: 'right', mt: 0.5 }}>
+                                ) : (
+                                <>
+                                {/* Botón registrar (desktop) */}
+                                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                                    {editingVenta && (
+                                        <Button onClick={resetForm} variant="outlined"
+                                            sx={{ borderRadius: 2, fontWeight: 600, borderColor: 'divider', mb: 0.5 }}>
+                                            Cancelar edición
+                                        </Button>
+                                    )}
+                                    <Typography sx={{ fontSize: 10, color: 'text.disabled', mb: 0.4 }}>
                                         Ctrl + Enter
                                     </Typography>
-                                </Grid>
-                            </Grid>
+                                    <Button
+                                        id="btn-registrar-venta"
+                                        type="submit" variant="contained"
+                                        disabled={savingVenta}
+                                        onClick={handleSubmit}
+                                        startIcon={savingVenta ? <CircularProgress size={18} sx={{ color: 'white' }} /> : (metodoPago === 'Link de Pago' ? <CreditCard /> : <ShoppingCart />)}
+                                        sx={{
+                                            background: metodoPago === 'Link de Pago' ? 'linear-gradient(135deg, #FF6020, #ff9a62)' : `linear-gradient(135deg, ${ACCENT}, #ff9a62)`,
+                                            boxShadow: `0 4px 14px rgba(255,96,32,0.35)`,
+                                            borderRadius: 3, fontWeight: 800, py: 1.8, px: 4,
+                                            fontSize: 16, whiteSpace: 'nowrap',
+                                        }}
+                                    >
+                                        {savingVenta ? 'Guardando…' : (editingVenta ? 'Actualizar' : (metodoPago === 'Link de Pago' ? 'Cobrar con Link' : 'Registrar Venta'))}
+                                    </Button>
+                                </Box>
+
+                                {/* Total a cobrar — extremo derecho (desktop) */}
+                                <Box sx={{ flexShrink: 0, textAlign: 'right' }}>
+                                    <Typography sx={{ fontSize: 11, color: 'text.secondary', letterSpacing: 1.5, textTransform: 'uppercase' }}>
+                                        Total a cobrar
+                                    </Typography>
+                                    {descuentoPuntosImporte > 0
+                                        ? <>
+                                            <Typography sx={{ fontSize: 18, fontWeight: 900, color: 'text.disabled', lineHeight: 1, textDecoration: 'line-through' }}>
+                                                {formatCurrency(totalConIva)}
+                                            </Typography>
+                                            <Typography sx={{ fontSize: { xs: 36, md: 48 }, fontWeight: 900, color: '#10B981', lineHeight: 1 }}>
+                                                {formatCurrency(totalFinal)}
+                                            </Typography>
+                                            <Chip icon={<Stars sx={{ fontSize: '14px !important' }} />} label={`-${formatCurrency(descuentoPuntosImporte)} pts`} size="small" sx={{ mt: 0.5, bgcolor: '#10B98115', color: '#10B981', fontWeight: 700, fontSize: 10 }} />
+                                          </>
+                                        : <Typography sx={{ fontSize: { xs: 36, md: 48 }, fontWeight: 900, color: ACCENT, lineHeight: 1 }}>
+                                            {formatCurrency(totalFinal)}
+                                          </Typography>
+                                    }
+                                </Box>
+                                </>
+                                )}
+                            </Box>
                         </Paper>
                         )}
                         </TabPanel>
@@ -1523,6 +1738,7 @@ useEffect(() => {
                                             handleEdit={handleEdit} handleDelete={handleDelete}
                                             handleOpenDetails={handleOpenDetails}
                                             handleOpenDevolucion={handleOpenDevolucion}
+                                            handleReintentarFE={handleReintentarFE}
                                         />
                                     ))
                                 }
@@ -1542,7 +1758,11 @@ useEffect(() => {
                                             ? <TableRow><TableCell colSpan={9} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>No se encontraron ventas</TableCell></TableRow>
                                             : paginatedVentas.map(v => (
                                                 <TableRow key={v.id} hover>
-                                                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{v.id}</TableCell>
+                                                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>
+                                                        #{v.id}
+                                                        {v.numero_factura && <Typography component="span" sx={{ fontSize: 11, ml: 0.5, color: 'text.disabled' }}>{v.numero_factura}</Typography>}
+                                                        <ChipFE estado={v.estado_electronico} ventaId={v.id} onReintentar={handleReintentarFE} />
+                                                    </TableCell>
                                                     <TableCell sx={{ fontWeight: 600 }}>{v.cliente?.nombre || 'N/A'}</TableCell>
                                                     <TableCell>
                                                         {v.detalles.map(d => (
@@ -1617,6 +1837,13 @@ useEffect(() => {
                     producto={basculaProducto}
                     onConfirmar={handleConfirmarPesoBascula}
                     onCancelar={() => setBasculaProducto(null)}
+                />
+            )}
+            {varianteProducto && (
+                <VarianteSelectorDialog
+                    producto={varianteProducto}
+                    onSeleccionar={handleConfirmarVariante}
+                    onCancelar={() => setVarianteProducto(null)}
                 />
             )}
             <LinkPagoModal

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box, Typography, Chip, Button, IconButton, Tooltip,
   CircularProgress, useTheme, alpha, Stack, Divider,
@@ -174,6 +174,23 @@ const ComandaCard = ({ comanda, onAdvance, advancing }) => {
 
 // ─── Pantalla principal ───────────────────────────────────────────────────────
 
+// ─── Web Audio beep ───────────────────────────────────────────────────────────
+const playBeep = () => {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    gain.gain.setValueAtTime(0.4, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.4);
+  } catch (_) {}
+};
+
 const PantallaCocina = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -185,11 +202,20 @@ const PantallaCocina = () => {
   const [fullscreen, setFullscreen] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [countdown, setCountdown] = useState(10);
+  const [sonidoActivo, setSonidoActivo] = useState(() => localStorage.getItem('cocina_sonido') !== 'off');
+  const prevIdsRef = useRef(null);
 
   const fetchData = useCallback(async () => {
     try {
       const res = await apiClient.get('/restaurante/cocina');
       const data = res.data;
+      // Detectar nuevas comandas para emitir sonido
+      const currentIds = new Set(data.map(c => c.id));
+      if (prevIdsRef.current !== null) {
+        const nuevas = [...currentIds].filter(id => !prevIdsRef.current.has(id));
+        if (nuevas.length > 0 && sonidoActivo) playBeep();
+      }
+      prevIdsRef.current = currentIds;
       setComandas(data);
       // Extraer áreas únicas de los items
       const allAreas = new Set();
@@ -202,7 +228,7 @@ const PantallaCocina = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [sonidoActivo]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -313,6 +339,19 @@ const PantallaCocina = () => {
                 <Typography sx={{ color: '#64748b', fontSize: 11 }}>{countdown}s</Typography>
               )}
             </Box>
+            <Tooltip title={sonidoActivo ? 'Silenciar alertas' : 'Activar alertas de sonido'}>
+              <IconButton
+                size="small"
+                onClick={() => setSonidoActivo(v => {
+                  const next = !v;
+                  localStorage.setItem('cocina_sonido', next ? 'on' : 'off');
+                  return next;
+                })}
+                sx={{ color: sonidoActivo ? '#F59E0B' : '#475569', p: 0.5 }}
+              >
+                <NotificationsActive sx={{ fontSize: 17 }} />
+              </IconButton>
+            </Tooltip>
             <IconButton size="small" onClick={fetchData} sx={{ color: '#94a3b8', p: 0.5 }}>
               <Refresh sx={{ fontSize: 17 }} />
             </IconButton>

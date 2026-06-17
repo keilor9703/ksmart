@@ -240,3 +240,51 @@ def update_config_ventas(
         "fidelizacion_earn_rate":   empresa.fidelizacion_earn_rate,
         "fidelizacion_redeem_rate": empresa.fidelizacion_redeem_rate,
     }
+
+
+@router.get("/empresa/config-fe")
+def get_config_fe(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Devuelve la configuración de Facturación Electrónica de la empresa."""
+    empresa = db.query(models.Empresa).filter_by(id=current_user.empresa_id).first()
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada.")
+    return {
+        "facturacion_electronica_activa": getattr(empresa, "facturacion_electronica_activa", False) or False,
+        "matias_api_key":                 getattr(empresa, "matias_api_key", None),
+        "matias_sandbox_api_key":         getattr(empresa, "matias_sandbox_api_key", None),
+        "matias_test_mode":               getattr(empresa, "matias_test_mode", True) if getattr(empresa, "matias_test_mode", None) is not None else True,
+    }
+
+
+@router.put("/empresa/config-fe")
+def update_config_fe(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Actualiza la configuración de Facturación Electrónica de la empresa."""
+    empresa = db.query(models.Empresa).filter_by(id=current_user.empresa_id).first()
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada.")
+
+    if "facturacion_electronica_activa" in payload:
+        empresa.facturacion_electronica_activa = bool(payload["facturacion_electronica_activa"])
+    if "matias_api_key" in payload:
+        key = payload["matias_api_key"]
+        empresa.matias_api_key = key.strip() if key else None
+    if "matias_sandbox_api_key" in payload:
+        key = payload["matias_sandbox_api_key"]
+        empresa.matias_sandbox_api_key = key.strip() if key else None
+    if "matias_test_mode" in payload:
+        empresa.matias_test_mode = bool(payload["matias_test_mode"])
+
+    db.commit()
+    return {
+        "facturacion_electronica_activa": empresa.facturacion_electronica_activa,
+        "matias_api_key":                 empresa.matias_api_key,
+        "matias_sandbox_api_key":         empresa.matias_sandbox_api_key,
+        "matias_test_mode":               empresa.matias_test_mode,
+    }

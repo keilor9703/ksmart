@@ -14,7 +14,7 @@ import axios from 'axios';
 //   },
 // });
 
-const base = process.env.REACT_APP_API_URL || "http://localhost:8000";
+const base = process.env.REACT_APP_API_URL || "https://api.appjeylor.com";
 
 export const apiClient = axios.create({
   baseURL: base,

@@ -25,11 +25,14 @@ class EmpresaBase(BaseModel):
     trial_ends_at: Optional[datetime] = None
     modulos_habilitados: Optional[List[str]] = None
     is_protected: bool = False
-    
+    tipo_negocio: Optional[str] = "erp"
+
     # 👇 NUEVOS CAMPOS CATÁLOGO VIRTUAL
     slug_catalogo: Optional[str] = None
     whatsapp_pedidos: Optional[str] = None
     logo_base64: Optional[str] = None
+    ciudad: Optional[str] = None
+    descripcion: Optional[str] = None
 
     # 🧾 CAMPOS FACTURACIÓN ELECTRÓNICA
     dv: Optional[str] = None
@@ -436,7 +439,9 @@ class Pago(PagoCreate):
 
 class DetalleVentaCreate(BaseModel):
     producto_id: Optional[int] = None     # None for libre items
+    variante_id: Optional[int] = None     # None if product has no variants
     nombre_libre: Optional[str] = None    # description for libre items
+    nombre_variante: Optional[str] = None # snapshot nombre variante
     cantidad: Optional[float] = 1.0
     precio_unitario: Optional[float] = None
     descuento_pct: float = 0.0
@@ -444,15 +449,19 @@ class DetalleVentaCreate(BaseModel):
 
 class DetalleVentaBase(BaseModel):
     producto_id: Optional[int] = None
+    variante_id: Optional[int] = None
     cantidad: Optional[float]
 
 class DetalleVenta(DetalleVentaBase):
     id: int
     venta_id: int
     producto_id: Optional[int] = None
+    variante_id: Optional[int] = None
     nombre_libre: Optional[str] = None
+    nombre_variante: Optional[str] = None
     precio_unitario: float
     producto: Optional[Producto] = None
+    variante: Optional[ProductoVarianteOut] = None
     model_config = ConfigDict(from_attributes=True)
 
 class VentaBase(BaseModel):
@@ -502,6 +511,7 @@ class Venta(VentaBase):
     pdf_url: Optional[str] = None
     estado_electronico: str = "no_enviado"
     mensaje_proveedor: Optional[str] = None
+    origen: Optional[str] = "erp"
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -1070,6 +1080,16 @@ class DashboardData(BaseModel):
     # Comunes
     ordenes_recientes: List[OrdenTrabajo]
 
+    tipo_negocio: str = "erp"
+    # Parqueadero
+    ingresos_parq_hoy: float = 0.0
+    ocupacion_actual: int = 0
+    suscripciones_vigentes: int = 0
+    # Lavadero
+    ingresos_lavadero_hoy: float = 0.0
+    ordenes_lavadero_hoy: int = 0
+    total_productos: int = 0
+
 # Al final del archivo schemas.py, mantén la reconstrucción:
 DashboardData.model_rebuild()
 # =========================
@@ -1222,6 +1242,7 @@ class PlanSuscripcionBase(BaseModel):
     caracteristicas: Optional[str] = None
     is_active: bool = True
     is_featured: bool = False
+    empresa_id_exclusivo: Optional[int] = None
 
 class PlanSuscripcionCreate(PlanSuscripcionBase):
     pass
@@ -1233,10 +1254,18 @@ class PlanSuscripcionUpdate(BaseModel):
     caracteristicas: Optional[str] = None
     is_active: Optional[bool] = None
     is_featured: Optional[bool] = None
+    empresa_id_exclusivo: Optional[int] = None
 
 class PlanSuscripcionOut(PlanSuscripcionBase):
     id: int
+    nombre_empresa_exclusiva: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
+
+    @classmethod
+    def from_orm_with_empresa(cls, plan):
+        obj = cls.model_validate(plan)
+        obj.nombre_empresa_exclusiva = plan.empresa_exclusiva.nombre if plan.empresa_exclusiva else None
+        return obj
 
 
 class PagoDigitalPosRequest(BaseModel):
@@ -1597,8 +1626,12 @@ class ParqueaderoConfigBase(BaseModel):
     tarifa_quincenal:   float   = Field(0.0, ge=0)
     tarifa_diaria:      float   = Field(0.0, ge=0)
     tarifa_hora:        float   = Field(0.0, ge=0)
-    tarifa_minuto:         float   = Field(0.0, ge=0)              # ✨ NUEVO
-    cobro_minimo_minutos:  int     = Field(30, ge=0, le=240)       # ✨ NUEVO
+    tarifa_minuto:         float   = Field(0.0, ge=0)
+    cobro_minimo_minutos:  int     = Field(30, ge=0, le=1440)
+    usar_tarifa_plena:     bool    = Field(False)
+    tarifa_minima:         float   = Field(0.0, ge=0)
+    tarifa_plena:          float   = Field(0.0, ge=0)
+    fraccion_minutos:      int     = Field(30, ge=1, le=1440)
     cupo_total:         int     = Field(0, ge=0)
     nombre_parqueadero: Optional[str] = None
     direccion:          Optional[str] = None
@@ -2344,6 +2377,8 @@ class CatalogoConfigUpdate(BaseModel):
     whatsapp_pedidos: Optional[str] = None
     logo_base64: Optional[str] = None
     color_primario: Optional[str] = None
+    direccion_recogida: Optional[str] = None
+    descripcion: Optional[str] = None
 
 class CatalogoEmpresaOut(BaseModel):
     nombre: str
@@ -2352,6 +2387,14 @@ class CatalogoEmpresaOut(BaseModel):
     logo_base64: Optional[str] = None
     color_primario: str
     direccion: Optional[str] = None
+    tipo_negocio: str = "erp"
+    descripcion: Optional[str] = None
+
+class CatalogoMesaOut(BaseModel):
+    numero: str
+    nombre: Optional[str] = None
+    zona: Optional[str] = None
+    estado: str = "libre"
 
 class CatalogoProductoOut(BaseModel):
     id: int
@@ -2360,13 +2403,35 @@ class CatalogoProductoOut(BaseModel):
     precio: float
     categoria: Optional[str] = None
     image_count: int = 0
-    
+    stock: float = 0.0
+    es_servicio: bool = False
+
     model_config = ConfigDict(from_attributes=True)
 
 class CatalogoPublicoOut(BaseModel):
     empresa: CatalogoEmpresaOut
     productos: List[CatalogoProductoOut]
     total_productos: int
+    mesas: List[CatalogoMesaOut] = []
+
+
+# ── Pedido de restaurante desde catálogo público ──────────────────────────────
+class CatalogoItemRestaurante(BaseModel):
+    producto_id: int
+    nombre_producto: str
+    cantidad: float = 1.0
+    precio_unitario: float
+    notas: Optional[str] = None
+
+class PedidoRestaurantePublicoIn(BaseModel):
+    mesa_numero: str
+    items: List[CatalogoItemRestaurante]
+
+class PedidoRestauranteCreatedOut(BaseModel):
+    comanda_id: int
+    numero_comanda: int
+    mesa_numero: str
+    total: float
 
 
 # =========================
@@ -2437,6 +2502,7 @@ class PedidoVirtualUpdate(BaseModel):
 class ConvertirVentaRequest(BaseModel):
     metodo_pago: str = "Efectivo"
     omitir_inventario: bool = False
+    iva_porcentaje: float = 0.0
 
 class PedidoWhatsAppMessage(BaseModel):
     mensaje: str
@@ -2569,3 +2635,123 @@ class LinkPagoOut(BaseModel):
     instrucciones: Optional[str] = None
     is_active:     bool
     model_config = ConfigDict(from_attributes=True)
+
+
+# =========================
+# CONTABILIDAD AUTOMÁTICA
+# =========================
+
+class CuentaContableOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    codigo: str
+    nombre: str
+    tipo: str
+    naturaleza: str
+    nivel: int
+    padre_codigo: Optional[str] = None
+    permite_movimiento: bool
+    is_active: bool
+
+class LineaAsientoOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    cuenta_contable_id: int
+    descripcion: Optional[str] = None
+    debito: float
+    credito: float
+    orden: int
+    cuenta: Optional[CuentaContableOut] = None
+
+class AsientoContableOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    numero: int
+    fecha: datetime
+    descripcion: str
+    tipo_origen: str
+    referencia_id: Optional[int] = None
+    referencia_tipo: Optional[str] = None
+    total_debitos: float
+    total_creditos: float
+    created_at: datetime
+    lineas: List[LineaAsientoOut] = []
+
+class BalanceComprobacionItem(BaseModel):
+    codigo: str
+    nombre: str
+    tipo: str
+    naturaleza: str
+    total_debitos: float
+    total_creditos: float
+    saldo_debito: float
+    saldo_credito: float
+
+class EstadoResultados(BaseModel):
+    ingresos_operacionales: float = 0.0
+    ingresos_servicios: float = 0.0
+    ingresos_financieros: float = 0.0
+    total_ingresos: float = 0.0
+    costo_ventas: float = 0.0
+    utilidad_bruta: float = 0.0
+    gastos_personal: float = 0.0
+    gastos_operacionales: float = 0.0
+    gastos_no_operacionales: float = 0.0
+    total_gastos: float = 0.0
+    utilidad_neta: float = 0.0
+    periodo_inicio: Optional[datetime] = None
+    periodo_fin: Optional[datetime] = None
+
+class AsientosListResponse(BaseModel):
+    items: List[AsientoContableOut]
+    total: int
+    page: int
+    page_size: int
+
+class BalanceGeneralItem(BaseModel):
+    codigo: str
+    nombre: str
+    saldo: float
+
+class BalanceGeneral(BaseModel):
+    activos: List[BalanceGeneralItem] = []
+    pasivos: List[BalanceGeneralItem] = []
+    patrimonio: List[BalanceGeneralItem] = []
+    total_activos: float = 0.0
+    total_pasivos: float = 0.0
+    total_patrimonio: float = 0.0
+    total_pasivos_patrimonio: float = 0.0
+    fecha_corte: Optional[datetime] = None
+
+class ResumenIVA(BaseModel):
+    iva_generado: float = 0.0
+    iva_descontable: float = 0.0
+    iva_a_pagar: float = 0.0
+    iva_a_favor: float = 0.0
+    periodo_inicio: Optional[datetime] = None
+    periodo_fin: Optional[datetime] = None
+
+class LineaAsientoManual(BaseModel):
+    cuenta_codigo: str
+    descripcion: Optional[str] = None
+    debito: float = 0.0
+    credito: float = 0.0
+
+class AsientoManualCreate(BaseModel):
+    fecha: datetime
+    descripcion: str
+    lineas: List[LineaAsientoManual]
+
+class CierreContableOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    periodo_inicio: datetime
+    periodo_fin: datetime
+    descripcion: Optional[str] = None
+    utilidad_neta: float
+    created_at: datetime
+
+class CierreContableCreate(BaseModel):
+    periodo_inicio: datetime
+    periodo_fin: datetime
+    descripcion: Optional[str] = None

@@ -3,12 +3,35 @@ from sqlalchemy import func
 from typing import Optional, List
 from datetime import date, datetime, timedelta, timezone
 from fastapi import HTTPException
+import math
 import models, schemas
 from crud.common import BOGOTA_TZ, get_utc_boundaries
 from crud.parqueadero.config import get_or_create_parq_config
 from crud.parqueadero.vehiculos import get_vehiculo, get_vehiculo_por_placa
 from crud.parqueadero.config import _enriquecer_vehiculo, _enriquecer_suscripcion
 from crud.parqueadero.suscripciones import get_suscripcion_activa, list_todas_suscripciones
+
+
+def _calcular_monto_estimado(cfg, minutos_reales: int) -> tuple[int, int]:
+    """
+    Devuelve (minutos_cobrar, monto_estimado) respetando el modo activo:
+    tarifa plena o tarifa por minuto.
+    """
+    cobro_minimo = cfg.cobro_minimo_minutos or 0
+    minutos_cobrar = max(minutos_reales, cobro_minimo) if cobro_minimo > 0 else minutos_reales
+
+    if getattr(cfg, 'usar_tarifa_plena', False):
+        umbral       = max(1, cfg.fraccion_minutos or 480)
+        tarifa_plena = cfg.tarifa_plena or 0.0
+        tarifa_min   = cfg.tarifa_minuto or 0.0
+        periodos = minutos_cobrar // umbral
+        resto    = minutos_cobrar % umbral
+        costo_resto = min(resto * tarifa_min, tarifa_plena)
+        monto    = round(periodos * tarifa_plena + costo_resto)
+    else:
+        monto = round(minutos_cobrar * (cfg.tarifa_minuto or 0))
+
+    return minutos_cobrar, monto
 
 
 def buscar_por_placa(db: Session, empresa_id: int, placa: str) -> dict:
@@ -46,11 +69,9 @@ def buscar_por_placa(db: Session, empresa_id: int, placa: str) -> dict:
         delta = ahora_utc - entrada
         minutos_reales = max(1, int(round(delta.total_seconds() / 60)))
 
-        cobro_minimo = cfg.cobro_minimo_minutos or 0
-        minutos_cobrar = max(minutos_reales, cobro_minimo) if cobro_minimo > 0 else minutos_reales
-
-        monto_estim = round(minutos_cobrar * (cfg.tarifa_minuto or 0), 0)
+        minutos_cobrar, monto_estim = _calcular_monto_estimado(cfg, minutos_reales)
         horas_display = round(minutos_cobrar / 60, 2)
+        cobro_minimo = cfg.cobro_minimo_minutos or 0
 
         return {
             "tipo_resultado":      "tiene_acceso_abierto",
@@ -200,9 +221,7 @@ def get_baja_info(db: Session, empresa_id: int, vehiculo_id: int) -> dict:
             entrada = entrada.replace(tzinfo=timezone.utc)
         delta = ahora_utc - entrada
         minutos_reales = max(1, int(round(delta.total_seconds() / 60)))
-        cobro_minimo = cfg.cobro_minimo_minutos or 0
-        minutos_cobrar = max(minutos_reales, cobro_minimo) if cobro_minimo > 0 else minutos_reales
-        monto_estim = round(minutos_cobrar * (cfg.tarifa_minuto or 0), 0)
+        _, monto_estim = _calcular_monto_estimado(cfg, minutos_reales)
 
         accesos_data.append({
             "id":              a.id,

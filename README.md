@@ -1,38 +1,175 @@
 # Ksmart360 — ERP & SaaS Multi-Tenant para Empresas Colombianas
 
-> Plataforma integral de gestión empresarial: ventas POS, inventario FEFO, producción BOM, compras, órdenes de trabajo, préstamos con ruta de cobro, parqueadero, lavadero, catálogo virtual y facturación electrónica DIAN.
+> **La plataforma de gestión empresarial más completa para PYMEs colombianas.** Ventas POS, inventario FEFO con lotes, producción BOM, compras, órdenes de trabajo, préstamos con ruta de cobro, parqueadero, lavadero, restaurante, catálogo virtual y facturación electrónica DIAN — todo en un solo sistema, desde la nube, con infraestructura Oracle Cloud de nivel enterprise.
+
+<div align="center">
+
+![Estado](https://img.shields.io/badge/Estado-Producción-green)
+![Versión](https://img.shields.io/badge/Versión-2.2.0-blue)
+![Colombia](https://img.shields.io/badge/Localización-Colombia-yellow)
+![Multi--tenant](https://img.shields.io/badge/Arquitectura-Multi--Tenant-orange)
+
+</div>
 
 ---
 
-## Descripción
+## ¿Qué es Ksmart360?
 
-**Ksmart360** es un sistema ERP SaaS **multi-tenant** diseñado para pequeñas y medianas empresas colombianas. Desde un único punto de acceso centraliza todas las operaciones del negocio con aislamiento completo de datos por empresa, control de roles por módulo y soporte de facturación electrónica DIAN.
+**Ksmart360** es un ERP SaaS **multi-tenant** nativo en la nube, diseñado desde cero para pequeñas y medianas empresas colombianas. En lugar de comprar módulos por separado o pagar por costosos sistemas importados, una empresa accede desde el navegador a todo lo que necesita para operar: punto de venta, inventario, compras, cartera, producción, reportes y facturación electrónica DIAN.
 
-El sistema detecta automáticamente el perfil de la empresa (ERP comercial, Prestamista, Parqueadero, Lavadero) y habilita los módulos correspondientes desde el momento del registro.
+El sistema detecta automáticamente el perfil de negocio (Comercio ERP, Prestamista, Parqueadero, Lavadero, Restaurante) y habilita exactamente los módulos que esa industria necesita, sin configuración manual.
+
+### Infraestructura Oracle Cloud — Nivel Enterprise
+
+El backend de producción corre sobre **Oracle Cloud Free Tier Always-Free**, infraestructura de clase mundial con SLA garantizado:
+
+- **Servidor:** Oracle VM.Standard.A1.Flex — 4 OCPU ARM · 24 GB RAM · 96 GB disco
+- **OS:** Ubuntu 22.04 LTS — IP pública fija `158.101.127.148`
+- **Base de datos:** PostgreSQL 17 auto-hospedado (sin dependencia de terceros)
+- **Proxy inverso:** Nginx + Let's Encrypt SSL (HTTPS nativo)
+- **Process manager:** systemd (`ksmart.service`) — reinicio automático ante fallos
+- **CI/CD:** Webhook GitHub → deploy automático en cada push a `main`
+- **API pública:** `https://api.appjeylor.com`
 
 ---
 
 ## Módulos del Sistema
 
-| # | Módulo | Descripción |
-|---|--------|-------------|
-| 1 | **Ventas / POS** | POS clásico y modo Touch con escáner de código de barras por cámara, 4 métodos de pago, control de cupo de crédito |
-| 2 | **Inventario** | Kardex por promedio ponderado, lotes FEFO, alertas de stock mínimo, importación masiva Excel, grupos con colores |
-| 3 | **Cotizaciones** | Preventas y cotizaciones que se convierten en factura en un clic |
-| 4 | **Clientes / Terceros** | Clientes y proveedores con historial de compras, cupo de crédito, campos DIAN |
-| 5 | **Compras** | Órdenes de compra con actualización automática de costos y stock |
-| 6 | **Producción / Recetas** | Bill of Materials (BOM), lotes de producción, costos de transformación, mermas |
-| 7 | **Órdenes de Trabajo** | Flujo Admin→Operador, evidencias fotográficas, consumo de repuestos, productividad |
-| 8 | **Reportes** | 9 tipos: ventas, rentabilidad, CXC, IVA neto, kardex, productividad, P&L, préstamos, producción |
-| 9 | **Caja** | Corte diario, gastos operativos, integración de recaudos de préstamos |
-| 10 | **Préstamos** | Simulador de amortización, cuotas diarias/semanales/quincenales/mensuales, mora automática, abono a capital |
-| 11 | **Ruta de Cobro** | App de campo para cobradores, evidencia con GPS, reprogramación de visitas, recibo PDF/WhatsApp |
-| 12 | **Parqueadero** | Entrada/salida de motos, tarifas multi-modal, suscripciones mensuales, alertas WhatsApp |
-| 13 | **Lavadero / Car Wash** | POS de servicios de lavado, asignación de operadores, reportes de productividad |
-| 14 | **Catálogo Virtual** | Tienda pública por slug, sincronización de inventario, pedidos por WhatsApp |
-| 15 | **Facturación DIAN** | Resoluciones DIAN, numeración automática, CUFE, XML/PDF, Matias API |
-| 16 | **Dashboard** | KPIs en tiempo real: ventas, cartera, stock bajo mínimos, precio cacao |
-| 17 | **Admin / SaaS** | Gestión de usuarios, roles, módulos por empresa, planes de suscripción, Wompi |
+### 🛒 Ventas & POS
+
+| Funcionalidad | Detalle |
+|--------------|---------|
+| **POS Dual Mode** | Modo Clásico (teclado + escáner de código de barras) y Touch Mode táctil para pantallas |
+| **Múltiples métodos de pago** | Efectivo, tarjeta, Nequi/Bancolombia, enlace de pago — hasta 4 métodos por factura |
+| **Control de cupo de crédito** | Bloqueo automático si el cliente supera su límite; cálculo preciso con IVA implícito |
+| **Ítems de servicio** | Líneas libres sin afectar inventario; precios con decimales (centavos exactos) |
+| **Cotizaciones → Factura** | Preventas que se convierten en factura con un clic; sin re-digitación |
+| **Programa de fidelización** | Puntos canjeables por compra; configuración de tasa earn/redeem por empresa |
+| **Descuento por puntos** | El cajero aplica puntos del cliente directamente en la venta |
+
+### 📦 Inventario
+
+| Funcionalidad | Detalle |
+|--------------|---------|
+| **Kardex automático** | Costo promedio ponderado calculado en cada entrada/salida |
+| **Lotes FEFO** | Control de perecederos por número de lote, fecha de vencimiento y fabricación |
+| **Alertas de stock mínimo** | Notificación automática cuando un producto baja del umbral configurado |
+| **Categorías diferenciadas** | Materia Prima · Producto Terminado · Insumos · **Envases/Empaque** · Activos Fijos · Platos |
+| **Importación masiva Excel** | Carga de productos, clientes y movimientos desde plantilla descargable |
+| **Movimientos de ajuste** | Entradas y salidas manuales con motivo, referencia y usuario trazable |
+| **Variantes de producto** | Un mismo producto en múltiples presentaciones (talla, color, capacidad) con stock independiente |
+
+### 🏭 Producción / Transformación
+
+| Funcionalidad | Detalle |
+|--------------|---------|
+| **Recetas BOM** | Bill of Materials con ingredientes, rendimiento configurable y costo automático |
+| **Lotes de producción** | Seguimiento desde materia prima hasta producto terminado, con cantidad real y merma |
+| **Rollup de costos** | El costo del producto terminado se calcula automáticamente a partir de insumos |
+| **Servicios de maquila** | Recetas que incluyen servicios externos con su costo |
+| **Transformación de inventario** | Salida de materia prima + entrada de producto terminado en una sola operación |
+
+### 🛍️ Compras
+
+| Funcionalidad | Detalle |
+|--------------|---------|
+| **Órdenes de compra PDF** | Generación automática de OC con número correlativo anual |
+| **Ítems de única vez** | Líneas libres (descripción + valor) sin necesidad de crear producto en catálogo |
+| **Orden de ingreso preservado** | Los ítems de la factura física se muestran en el mismo orden que se digitaron |
+| **Actualización automática de costos** | El costo del producto se actualiza al precio de la última compra |
+| **Lotes en compras** | Registro de número de lote y fecha de vencimiento directamente en la orden de compra |
+| **Gestión de pagos** | Registro de abonos parciales, estado pendiente/parcial/pagado |
+| **Precios con decimales** | Soporte completo de centavos (ej: $30.000,56) para evitar descuadres contables |
+
+### 💰 Préstamos & Cartera
+
+| Funcionalidad | Detalle |
+|--------------|---------|
+| **Simulador de amortización** | Cálculo automático de cuotas diarias, semanales, quincenales o mensuales |
+| **Mora automática** | Interés de mora calculado diariamente sobre cuotas vencidas |
+| **Ruta de cobro** | App de campo para cobradores: cuotas del día, abono, evidencia fotográfica con GPS |
+| **PDF de recibos** | Comprobante de pago descargable y enviable por WhatsApp |
+| **Cuentas por cobrar aging** | Análisis de cartera por antigüedad: 0-30, 31-60, 61-90, +90 días |
+
+### 🚗 Parqueadero
+
+| Funcionalidad | Detalle |
+|--------------|---------|
+| **Entrada/Salida** | Registro de ingreso y salida de motos, carros y bicicletas |
+| **Tarifas multi-modal** | Por hora, fracción, día o tarifa plana configurable por tipo de vehículo |
+| **Suscripciones mensuales** | Abonados con fecha de expiración y alerta de vencimiento |
+| **Ocupación en tiempo real** | Cupos disponibles y ocupados por categoría |
+| **Alertas WhatsApp** | Notificación automática al suscriptor cuando su mensualidad está por vencer |
+
+### 🚿 Lavadero / Car Wash
+
+| Funcionalidad | Detalle |
+|--------------|---------|
+| **POS de servicios** | Registro de órdenes de lavado con placa, tipo de vehículo y servicios |
+| **Asignación de operadores** | Cada servicio queda asignado al lavador responsable |
+| **Comisiones automáticas** | Porcentaje de comisión por servicio calculado al cerrar la orden |
+| **Reporte de productividad** | Servicios por operador, ingresos y comisiones del período |
+
+### 🍽️ Restaurante
+
+| Funcionalidad | Detalle |
+|--------------|---------|
+| **Mapa de mesas** | Vista visual interactiva de mesas por zona/área; estado en tiempo real |
+| **Comandas digitales** | El mesero toma el pedido desde tablet; llega automáticamente a cocina |
+| **Pantalla KDS** | Kitchen Display System — el cocinero ve cada ítem y marca como listo |
+| **Categorías de menú** | Entradas, Platos Principales, Menú del Día, Adiciones, Postres, Bebidas |
+| **Caja de restaurante** | Panel de cobro de mesas por parte del cajero; múltiples métodos de pago |
+| **Impresión de comandas** | Impresión automática o manual de comandas en impresora P80 |
+
+### 🧾 Facturación Electrónica DIAN
+
+| Funcionalidad | Detalle |
+|--------------|---------|
+| **Resoluciones DIAN** | Configuración de prefijo, rango y vigencia; múltiples resoluciones por empresa |
+| **Numeración automática** | El número de factura se asigna en orden al confirmar la venta |
+| **Campos tributarios** | NIT, DV, tipo de organización, régimen, responsabilidades fiscales (DIAN) |
+| **Integración Matias API** | Envío de XML/PDF a la DIAN y consulta del CUFE en tiempo real |
+| **Modo pruebas / producción** | Switch configurable por empresa para habilitar el ambiente de pruebas DIAN |
+
+### 📊 Reportes (9 tipos)
+
+| Reporte | Información |
+|---------|------------|
+| Resumen de Ventas | Ventas por período, método de pago, vendedor |
+| Rentabilidad por Producto | Margen bruto, costo vs precio de venta |
+| Cuentas por Cobrar | Saldo de cada cliente, días vencidos, aging |
+| IVA Neto | IVA generado en ventas menos IVA descontable en compras |
+| Kardex de Inventario | Movimientos detallados de un producto con costos |
+| P&L Simplificado | Ingresos − Costos − Gastos = Utilidad del período |
+| Productividad Operadores | Órdenes completadas y valor generado por operador |
+| Reporte de Préstamos | Cartera activa, cuotas cobradas, mora acumulada |
+| Reporte de Producción | Lotes producidos, merma, costo unitario |
+
+### ⚙️ Administración SaaS
+
+| Funcionalidad | Detalle |
+|--------------|---------|
+| **Panel SuperAdmin** | Gestión de todos los tenants: empresas, planes, módulos, suspensión |
+| **Impersonación** | El SuperAdmin puede entrar como cualquier empresa para soporte remoto |
+| **Planes de suscripción** | Trial 14 días → Premium mensual/anual → Vitalicio; activación automática vía Wompi |
+| **Módulos por tipo de negocio** | Perfiles configurables por el SuperAdmin sin tocar código |
+| **Audit log** | Registro de todas las acciones críticas del SuperAdmin con fecha y detalle |
+| **Anuncios globales** | Notificaciones push a todos los tenants desde el panel SuperAdmin |
+| **Jobs automáticos** | Expiración de trials, renovaciones, limpieza — con registro de ejecuciones |
+| **Mi Suscripción** | Cada empresa ve su plan, fechas, módulos activos e información de la plataforma Oracle Cloud |
+
+### 🔐 Seguridad
+
+| Capa | Implementación |
+|------|---------------|
+| **Autenticación** | JWT firmado con `empresa_id` en payload; expiración configurable |
+| **Biométrico** | WebAuthn / FIDO2 — huella dactilar o reconocimiento facial, sin contraseña |
+| **PIN de acceso rápido** | PIN de 4-6 dígitos con bloqueo automático por intentos fallidos |
+| **Roles y módulos** | RBAC: SuperAdmin · Admin · Operador · Cobrador; cada módulo se habilita individualmente |
+| **Rate limiting** | SlowAPI — protección contra abuso de endpoints de autenticación |
+| **Aislamiento multi-tenant** | `empresa_id` obligatorio en cada tabla; imposible el acceso cruzado entre tenants |
+| **Contraseñas** | bcrypt con salt; nunca almacenadas en texto plano |
+| **HTTPS** | SSL/TLS con Let's Encrypt; renovación automática vía Certbot |
 
 ---
 
@@ -40,36 +177,90 @@ El sistema detecta automáticamente el perfil de la empresa (ERP comercial, Pres
 
 | Capa | Tecnología |
 |------|-----------|
-| Frontend | React 18 + Material UI v5 |
-| Backend | FastAPI (Python 3.11) |
-| Base de datos | PostgreSQL (producción) / SQLite (desarrollo) |
-| ORM | SQLAlchemy |
-| Autenticación | JWT (python-jose) + WebAuthn / FIDO2 (biométrico) |
-| PDF | ReportLab |
-| Despliegue Frontend | Vercel |
-| Despliegue Backend | Render |
-| Pagos SaaS | Wompi (Colombia) |
-| Facturación electrónica | Matias API (DIAN Colombia) |
-| Barcode lookup | OpenFoodFacts · UPCitemdb · OpenBeautyFacts |
-| Mensajería | WhatsApp Cloud API |
-| Monitoreo de mercado | Yahoo Finance (ICE Futures cacao) · Datos.gov.co (TRM) |
+| **Frontend** | React 18 + Material UI v5 |
+| **Backend** | FastAPI (Python 3.11) + Pydantic v2 |
+| **Base de datos** | PostgreSQL 17 (producción auto-hospedada) / SQLite (desarrollo) |
+| **ORM** | SQLAlchemy 2.x |
+| **Autenticación** | JWT (python-jose) + WebAuthn/FIDO2 (py_webauthn) |
+| **PDF** | ReportLab |
+| **Proceso backend** | systemd + uvicorn |
+| **Proxy inverso** | Nginx + Let's Encrypt (Certbot) |
+| **Infraestructura** | Oracle Cloud Free Tier — VM.Standard.A1.Flex (ARM64) |
+| **CI/CD** | GitHub webhook → script de deploy automático en el servidor |
+| **Despliegue Frontend** | Vercel (CDN global) |
+| **Pagos SaaS** | Wompi (Colombia) — cobro recurrente con tarjeta |
+| **Facturación electrónica** | Matias API (DIAN Colombia) |
 
 ---
 
 ## Arquitectura
 
 ```
-Frontend (React SPA)  ←→  Backend (FastAPI REST)  ←→  DB (PostgreSQL)
-                                    ↓
-                         Multi-tenant: empresa_id en cada tabla
-                         TenantMixin → aislamiento automático por tenant
-                         27 módulos inicializados por empresa
-                         Roles: SuperAdmin · Admin · Operador · Cobrador
+┌─────────────────────────────────────────────────────────────────┐
+│                     CLIENTES (Navegador / Móvil)                │
+└─────────────────────┬───────────────────────────────────────────┘
+                      │ HTTPS
+┌─────────────────────▼───────────────────────────────────────────┐
+│          Frontend React 18 SPA — Vercel CDN Global              │
+│          Material UI · Framer Motion · Chart.js                 │
+└─────────────────────┬───────────────────────────────────────────┘
+                      │ REST / JSON + JWT
+┌─────────────────────▼───────────────────────────────────────────┐
+│         Nginx (Proxy inverso + SSL Let's Encrypt)               │
+│                    api.appjeylor.com                            │
+└─────────────────────┬───────────────────────────────────────────┘
+                      │ localhost:8000
+┌─────────────────────▼───────────────────────────────────────────┐
+│    FastAPI Python 3.11 — uvicorn — systemd (auto-restart)       │
+│    • Multi-tenant: empresa_id en cada endpoint                  │
+│    • 30+ módulos de API · Pydantic v2 · SQLAlchemy ORM          │
+│    • WebAuthn/FIDO2 · JWT · Rate limiting · Audit log           │
+└─────────────────────┬───────────────────────────────────────────┘
+                      │ SQLAlchemy
+┌─────────────────────▼───────────────────────────────────────────┐
+│    PostgreSQL 17 — Auto-hospedado en Oracle Cloud               │
+│    • 70+ tablas · TenantMixin · empresa_id isolation            │
+│    • Migraciones automáticas sin Alembic (V1 → V89)            │
+└─────────────────────────────────────────────────────────────────┘
+
+Oracle Cloud VM.Standard.A1.Flex — 4 OCPU ARM · 24 GB RAM · 96 GB SSD
+Ubuntu 22.04 LTS · IP fija · Firewall iptables + Security List OCI
 ```
 
-### Aislamiento Multi-Tenant
+### Patrón Multi-Tenant (Shared Database, Shared Schema)
 
-Patrón **Shared Database, Shared Schema**: todas las tablas de negocio heredan de `TenantMixin`, el cual inyecta `empresa_id` como FK obligatorio. La dependencia `get_current_active_user` en FastAPI extrae el `empresa_id` del JWT y lo aplica a todas las consultas, impidiendo acceso cruzado entre empresas.
+```python
+class TenantMixin:
+    @declared_attr
+    def empresa_id(cls):
+        return Column(Integer, ForeignKey('empresas.id'), index=True)
+
+# Cada endpoint extrae el empresa_id del JWT y lo aplica automáticamente
+# → Imposible el acceso cruzado entre tenants
+```
+
+Un solo backend atiende **N empresas simultáneamente**. El `empresa_id` del JWT se inyecta en todas las consultas; el patrón `TenantMixin` garantiza aislamiento sin esfuerzo adicional por parte del desarrollador.
+
+---
+
+## CI/CD — Deploy Automático
+
+Cada push a `main` dispara un webhook en GitHub que invoca el servidor Oracle:
+
+```
+Push a GitHub main
+       │
+       ▼
+GitHub Webhook → POST http://158.101.127.148:9000/hooks/deploy-ksmart
+       │
+       ▼
+/home/ubuntu/deploy.sh
+  git pull origin main
+  pip install -r requirements.txt
+  sudo systemctl restart ksmart
+```
+
+El servicio `webhook` (puerto 9000) corre bajo systemd con verificación HMAC-SHA256 para autenticar las llamadas de GitHub.
 
 ---
 
@@ -78,75 +269,82 @@ Patrón **Shared Database, Shared Schema**: todas las tablas de negocio heredan 
 ```
 ksmart/
 ├── backend/
-│   ├── main.py                    # App FastAPI, CORS, routers, migrations
-│   ├── models.py                  # 57 modelos SQLAlchemy
-│   ├── schemas.py                 # Schemas Pydantic (request/response)
-│   ├── database.py                # Conexión + migraciones automáticas
-│   ├── core/                      # Config, constantes, seguridad
-│   ├── crud/                      # Lógica de negocio modular
-│   ├── services/                  # Servicios de dominio
-│   ├── jobs_service.py            # Tareas programadas (pruebas, cacao, parqueadero)
-│   └── api/v1/endpoints/          # 31 módulos de endpoints
-│       ├── ventas.py
-│       ├── inventario.py
-│       ├── productos.py
-│       ├── grupos_producto.py
-│       ├── clientes.py
-│       ├── compras.py
-│       ├── produccion.py
-│       ├── ordenes_trabajo.py
-│       ├── panel_operador.py
-│       ├── prestamos.py
-│       ├── parqueadero.py
-│       ├── lavadero.py
-│       ├── cotizaciones.py
-│       ├── reportes.py
-│       ├── caja.py
-│       ├── devoluciones.py
-│       ├── resoluciones.py
-│       ├── catalogo.py
-│       ├── auth.py + biometric.py
-│       ├── superadmin.py
-│       ├── wompi.py + webhooks.py
-│       └── mercado.py
+│   ├── main.py                    # App FastAPI, CORS, routers, inicialización
+│   ├── models.py                  # 70+ modelos SQLAlchemy · TenantMixin
+│   ├── schemas.py                 # Schemas Pydantic v2 (request/response)
+│   ├── database.py                # Conexión + migraciones automáticas V1→V89
+│   ├── core/
+│   │   ├── config.py              # SECRET_KEY, algoritmos JWT, configuración
+│   │   ├── constants.py           # PlanType, AccessStatus, enums SaaS
+│   │   ├── limiter.py             # Rate limiting (SlowAPI)
+│   │   └── security.py            # bcrypt, JWT encode/decode
+│   ├── crud/                      # Lógica de negocio por dominio
+│   │   ├── clientes.py · productos.py · ventas.py · compras.py
+│   │   ├── inventario.py · perecederos.py · produccion.py
+│   │   ├── prestamos.py · parqueadero.py · lavadero.py
+│   │   ├── grupos_producto.py · puntos.py · biometria.py
+│   │   └── empresas.py · usuarios.py · reportes.py
+│   ├── services/
+│   │   ├── contabilidad.py        # Asientos automáticos PUC colombiano
+│   │   └── jobs_service.py        # Tareas programadas (expiración, mora)
+│   └── api/v1/endpoints/          # 35+ módulos de endpoints
+│       ├── auth.py                # Login, registro, refresh token
+│       ├── biometric.py           # WebAuthn/FIDO2 (registro + autenticación)
+│       ├── ventas.py · compras.py · productos.py · clientes.py
+│       ├── inventario.py · produccion.py · cotizaciones.py
+│       ├── prestamos.py · ruta_cobro.py
+│       ├── parqueadero.py · lavadero.py · restaurante.py
+│       ├── reportes.py · caja.py · gastos.py
+│       ├── facturacion_electronica.py
+│       ├── suscripcion.py · wompi_webhooks.py
+│       ├── superadmin.py          # Panel SuperAdmin multi-tenant
+│       ├── setup.py               # Wizard de primer arranque
+│       └── catalogo_virtual.py    # Tienda pública por slug
 │
 └── frontend/
     └── src/
         ├── features/
-        │   ├── sales/             # Ventas.js, TouchPOSMode.js, Cotizaciones.js
-        │   ├── inventory/         # Productos.js, Lotes.js, AgileBarcodeRegistration.js
-        │   ├── clients/           # Terceros.js, ClienteHistory.js
-        │   ├── reports/           # Reportes.js + 9 sub-reportes
-        │   ├── finance/           # Caja.js, CuentasPorCobrar.js
-        │   ├── loans/             # PrestamoForm.js, RutaCobro.js
-        │   ├── parking/           # ParqueaderoDashboard.jsx (12 archivos)
-        │   ├── lavadero/          # LavaderoVentas.js, LavaderoReporte.js
-        │   ├── workOrders/        # OrdenesTrabajo.js, PanelOperador.js
-        │   ├── production/        # Recetas.js
-        │   ├── purchases/         # Compras.js
-        │   ├── dian/              # ResolucionesDian.js
-        │   ├── admin/             # AdminUsuarios.js, GestionEmpresas.js
-        │   ├── saas/              # CatalogoVirtual.js, CatalogoConfig.js
-        │   ├── dashboard/         # Dashboard.js, CacaoPriceWidget.js
-        │   ├── auth/              # Login.js, SuscripcionExpirada.js
-        │   └── legal/             # LegalPages.jsx
-        ├── layout/                # Sidebar.js, TopBar.js
+        │   ├── auth/              # Login, Setup Wizard, biométrico, PIN
+        │   ├── pos/               # POS clásico + Touch Mode
+        │   ├── purchases/         # Compras con ítems libres y sort_order
+        │   ├── inventory/         # Productos, Kardex, Lotes, Alertas
+        │   ├── produccion/        # Recetas y Lotes de Producción
+        │   ├── clientes/          # CRM, cartera, fidelización
+        │   ├── cotizaciones/      # Preventas
+        │   ├── reportes/          # 9 tipos de reporte + dashboard
+        │   ├── caja/              # Corte de caja, gastos
+        │   ├── prestamos/         # Préstamos, cuotas, ruta de cobro
+        │   ├── parqueadero/       # Módulo completo de parqueadero
+        │   ├── lavadero/          # POS lavadero + reportes
+        │   ├── restaurante/       # Mesas, comandas, cocina, caja
+        │   ├── catalogo/          # Catálogo virtual público
+        │   ├── ordenes_trabajo/   # Flujo Admin→Operador
+        │   ├── facturacion/       # DIAN electrónica
+        │   └── account/           # Mi Suscripción, configuración empresa
+        ├── components/common/     # CurrencyField, DatePicker, QuickCreate, etc.
+        ├── layout/                # Sidebar, TopBar, ThemeProvider
         ├── api.js                 # Cliente Axios + interceptores JWT
-        ├── theme.js               # getAppTheme(mode) — light/dark
-        └── App.js                 # Router, ThemeProvider, auth global
+        └── App.js                 # Router, auth global, theme
 ```
 
 ---
 
-## Instalación Local
+## Instalación Local (Desarrollo)
 
 ### Requisitos
 
 - Python 3.11+
 - Node.js 18+
-- PostgreSQL 14+ o cuenta Supabase (en desarrollo funciona con SQLite)
+- PostgreSQL 14+ *(en desarrollo local funciona con SQLite automáticamente sin configuración)*
 
-### Backend
+### 1. Clonar
+
+```bash
+git clone https://github.com/keilor9703/ksmart.git
+cd ksmart
+```
+
+### 2. Backend
 
 ```bash
 cd backend
@@ -158,14 +356,31 @@ cp .env.example .env             # Editar con tus valores
 uvicorn main:app --reload --port 8000
 ```
 
-### Frontend
+Al arrancar, el backend:
+1. Crea todas las tablas automáticamente (`Base.metadata.create_all`)
+2. Aplica las migraciones de esquema V1→V89 sin Alembic
+3. Detecta BD vacía y activa el Wizard de primer arranque
+
+### 3. Frontend
 
 ```bash
 cd frontend
 npm install
-cp .env.example .env             # Editar VITE_API_URL
-npm start                        # Desarrollo en http://localhost:3000
+cp .env.example .env             # Editar REACT_APP_API_URL=http://localhost:8000
+npm start                        # http://localhost:3000
 ```
+
+### 4. Wizard de primer arranque
+
+La primera vez que abras el frontend con BD vacía, el sistema muestra el **Wizard de Configuración Inicial**:
+
+- Nombre y NIT de la empresa
+- Logo (PNG/JPG hasta 2 MB)
+- Color principal de la marca
+- Tipo de negocio (ERP, Prestamista, Parqueadero, Lavadero, Restaurante)
+- Usuario y contraseña del administrador
+
+> **Sin wizard:** Define `SUPERADMIN_EMPRESA_NOMBRE`, `SUPERADMIN_USERNAME` y `SUPERADMIN_PASSWORD` en `.env` para inicialización automática.
 
 ---
 
@@ -173,55 +388,161 @@ npm start                        # Desarrollo en http://localhost:3000
 
 ### Backend (`.env`)
 
-| Variable | Descripción | Req. |
-|----------|-------------|------|
-| `SECRET_KEY` | Clave para firmar JWT (`python -c "import secrets; print(secrets.token_urlsafe(32))"`) | ✅ |
-| `DATABASE_URL` | URL de conexión PostgreSQL (`postgresql://user:pass@host/db`) | ✅ |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Duración del token (default: 120) | ⬜ |
-| `WOMPI_PUBLIC_KEY` | Llave pública Wompi | ⬜ |
-| `WOMPI_INTEGRITY_SECRET` | Secreto de integridad Wompi | ⬜ |
-| `MATIAS_API_KEY` | API Key para facturación electrónica DIAN | ⬜ |
+| Variable | Descripción | Requerida |
+|----------|-------------|-----------|
+| `DATABASE_URL` | `postgresql://user:pass@host/db` | ✅ Producción |
+| `SECRET_KEY` | Clave JWT — `python -c "import secrets; print(secrets.token_urlsafe(64))"` | ✅ |
+| `ENVIRONMENT` | `production` o `development` | ✅ |
+| `TZ` | Zona horaria (`America/Bogota`) | ✅ |
+| `SUPERADMIN_PASSWORD` | Contraseña del admin inicial | ✅ |
+| `WEBAUTHN_ORIGIN` | Origen para FIDO2 (ej: `https://www.tudominio.com`) | ✅ Biométrico |
+| `WEBAUTHN_RP_ID` | RP ID para FIDO2 (ej: `tudominio.com`) | ✅ Biométrico |
+| `WOMPI_PUBLIC_KEY` | Llave pública Wompi | ⬜ SaaS |
+| `WOMPI_PRIVATE_KEY` | Llave privada Wompi | ⬜ SaaS |
+| `WOMPI_INTEGRITY_SECRET` | Secret de integridad Wompi | ⬜ SaaS |
+| `WOMPI_EVENTS_SECRET` | Secret de eventos Wompi | ⬜ SaaS |
+| `EXTRA_CORS_ORIGINS` | URLs adicionales separadas por coma | ⬜ |
 
 ### Frontend (`.env`)
 
 | Variable | Descripción |
 |----------|-------------|
-| `REACT_APP_API_URL` | URL base del backend (sin `/` al final) |
+| `REACT_APP_API_URL` | URL del backend (ej: `https://api.tudominio.com`) |
+
+---
+
+## Despliegue en Producción (Oracle Cloud)
+
+### Servidor Oracle Cloud
+
+```bash
+# Instalar dependencias del sistema
+sudo apt update && sudo apt install -y python3.11 python3.11-venv python3-pip \
+  nginx certbot python3-certbot-nginx postgresql postgresql-client-17 \
+  webhook netfilter-persistent
+
+# Clonar y configurar backend
+git clone https://github.com/keilor9703/ksmart.git /home/ubuntu/ksmart
+cd /home/ubuntu/ksmart/backend
+python3.11 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env   # ← Editar con valores de producción
+```
+
+### systemd — Servicio Backend
+
+```ini
+# /etc/systemd/system/ksmart.service
+[Unit]
+Description=Ksmart Backend
+After=network.target postgresql.service
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/ksmart/backend
+EnvironmentFile=/home/ubuntu/ksmart/backend/.env
+ExecStart=/home/ubuntu/ksmart/backend/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable ksmart
+sudo systemctl start ksmart
+```
+
+### Nginx + SSL
+
+```nginx
+# /etc/nginx/sites-available/ksmart
+server {
+    listen 443 ssl;
+    server_name api.tudominio.com;
+    ssl_certificate     /etc/letsencrypt/live/api.tudominio.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.tudominio.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+```bash
+sudo certbot --nginx -d api.tudominio.com
+sudo systemctl reload nginx
+```
+
+### Deploy automático (CI/CD)
+
+```bash
+# /home/ubuntu/deploy.sh
+#!/bin/bash
+cd /home/ubuntu/ksmart
+git pull origin main
+source backend/venv/bin/activate
+pip install -r backend/requirements.txt -q
+sudo systemctl restart ksmart
+echo "✅ Deploy completado"
+```
+
+```bash
+chmod +x /home/ubuntu/deploy.sh
+# El webhook escucha en :9000 y ejecuta este script en cada push a main
+```
+
+### Frontend en Vercel
+
+```bash
+# Variables de entorno en Vercel
+REACT_APP_API_URL=https://api.tudominio.com
+```
+
+```json
+// vercel.json — SPA routing
+{
+  "rewrites": [{ "source": "/(.*)", "destination": "/" }]
+}
+```
 
 ---
 
 ## Migraciones de Base de Datos
 
-Las migraciones se ejecutan automáticamente al iniciar el servidor vía `run_migrations()` en `database.py`. No se requiere Alembic. Para agregar columnas manualmente desde Supabase SQL Editor:
+Las migraciones se aplican automáticamente al iniciar el servidor. No se requiere Alembic ni comandos adicionales. El sistema lleva registro en la tabla `_schema_meta` y nunca aplica una migración dos veces.
 
-```sql
-ALTER TABLE prestamos ADD COLUMN IF NOT EXISTS tasa_mora FLOAT DEFAULT 2.0;
-ALTER TABLE productos ADD COLUMN IF NOT EXISTS unidades_por_empaque INTEGER DEFAULT 1;
-```
+**Versión actual: V89** — incluye todas las tablas, columnas y grupos de producto predefinidos.
 
 ---
 
 ## Módulos por Perfil de Empresa
 
-Al registrar una empresa se selecciona el tipo de negocio, que determina los 27 módulos disponibles:
-
-| Módulo | ERP/Comercio | Prestamista | Parqueadero | Lavadero |
-|--------|:---:|:---:|:---:|:---:|
-| Ventas / POS | ✅ | ⬜ | ⬜ | ⬜ |
-| Inventario | ✅ | ⬜ | ⬜ | ⬜ |
-| Compras | ✅ | ⬜ | ⬜ | ⬜ |
-| Producción / Recetas | ✅ | ⬜ | ⬜ | ⬜ |
-| Órdenes de Trabajo | ✅ | ⬜ | ⬜ | ⬜ |
-| Cotizaciones | ✅ | ⬜ | ⬜ | ⬜ |
-| Resoluciones DIAN | ✅ | ⬜ | ⬜ | ⬜ |
-| Clientes | ✅ | ✅ | ⬜ | ✅ |
-| Caja | ✅ | ✅ | ✅ | ✅ |
-| Reportes | ✅ | ✅ | ✅ | ✅ |
-| Préstamos | ⬜ | ✅ | ⬜ | ⬜ |
-| Ruta de Cobro | ⬜ | ✅ | ⬜ | ⬜ |
-| Parqueadero | ⬜ | ⬜ | ✅ | ⬜ |
-| Catálogo Virtual | ✅ | ⬜ | ⬜ | ⬜ |
-| POS Lavadero | ⬜ | ⬜ | ⬜ | ✅ |
+| Módulo | ERP/Comercio | Prestamista | Parqueadero | Lavadero | Restaurante |
+|--------|:---:|:---:|:---:|:---:|:---:|
+| Ventas / POS | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
+| Inventario | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
+| Compras | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
+| Producción / Recetas | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Órdenes de Trabajo | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Cotizaciones | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
+| Facturación DIAN | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Catálogo Virtual | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Clientes / CRM | ✅ | ✅ | ⬜ | ✅ | ✅ |
+| Caja & Gastos | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Reportes | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Préstamos | ⬜ | ✅ | ⬜ | ⬜ | ⬜ |
+| Ruta de Cobro | ⬜ | ✅ | ⬜ | ⬜ | ⬜ |
+| Parqueadero | ⬜ | ⬜ | ✅ | ⬜ | ⬜ |
+| POS Lavadero | ⬜ | ⬜ | ⬜ | ✅ | ⬜ |
+| Mapa de Mesas | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
+| Pantalla Cocina KDS | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
+| Fidelización de clientes | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
 
 ---
 
@@ -229,115 +550,96 @@ Al registrar una empresa se selecciona el tipo de negocio, que determina los 27 
 
 | Rol | Permisos |
 |-----|----------|
-| **SuperAdmin** | Gestión global: empresas, planes, módulos, impersonación |
-| **Admin** | Gestión completa de su empresa, todos los módulos habilitados |
-| **Operador** | Órdenes de trabajo, panel de productividad |
-| **Cobrador** | Ruta de cobro asignada (solo sus cuotas del día) |
+| **SuperAdmin** | Gestión global de la plataforma: empresas, planes, módulos, audit log, impersonación |
+| **Admin** | Gestión completa de su empresa; todos los módulos habilitados para su tenant |
+| **Operador** | Órdenes de trabajo asignadas; panel de productividad |
+| **Cobrador** | Ruta de cobro asignada; cuotas del día con evidencia GPS |
 
 ---
 
 ## Planes SaaS
 
-| Plan | Duración | Notas |
-|------|----------|-------|
-| `trial` | 14 días | Auto-expiración vía jobs_service |
-| `premium` | Mensual/Anual | Activación automática por webhook Wompi |
+| Plan | Duración | Activación |
+|------|----------|-----------|
+| `trial` | 14 días | Automática al registrarse |
+| `premium` | Mensual o anual | Webhook Wompi (pago exitoso) |
 | `vitalicio` | Sin vencimiento | Asignación manual SuperAdmin |
 | `canceled` | — | Redirige a `/suscripcion-expirada` |
+
+La empresa propietaria del sistema (`id=1`) tiene `is_protected=true` y nunca expira.
 
 ---
 
 ## API — Endpoints Principales
 
 ```
+# Primer arranque
+GET    /setup/status                         ¿Sistema inicializado?
+POST   /setup/init                           Crear empresa + admin (BD vacía)
+
 # Autenticación
-POST   /auth/register                      # Registro de empresa + admin
-POST   /auth/token                         # Login → JWT
-POST   /auth/biometric/register            # Registrar credencial biométrica
-POST   /auth/biometric/authenticate        # Login biométrico (WebAuthn/FIDO2)
+POST   /auth/token                           Login → JWT
+POST   /auth/biometric/register             Registrar credencial biométrica
+POST   /auth/biometric/authenticate         Login biométrico FIDO2
+POST   /auth/pin                             Login con PIN
 
 # Ventas
-POST   /ventas/                            # Crear venta con validación de stock y cupo
-GET    /ventas/                            # Listar ventas paginadas
-PUT    /ventas/{id}                        # Actualizar estado
-DELETE /ventas/{id}                        # Eliminar con reversión de stock
+POST   /ventas/                              Crear venta (valida stock, cupo, puntos)
+GET    /ventas/                              Listar ventas paginadas
+DELETE /ventas/{id}                          Eliminar y revertir inventario
 
 # Inventario
-GET    /productos/                         # Listar productos
-GET    /productos/barcode/{code}           # Lookup: Local → OpenFoodFacts → UPCitemdb
-GET    /inventario/kardex/{producto_id}    # Kardex por promedio ponderado
-GET    /inventario/movimientos/template    # Plantilla Excel para carga masiva
-GET    /grupos-producto/                   # Grupos/categorías con color y orden
+GET    /productos/                           Listar productos con stock
+GET    /inventario/kardex/{producto_id}      Kardex por costo promedio
+GET    /inventario/alertas/bajo-stock        Productos bajo stock mínimo
+GET    /inventario/movimientos/template      Plantilla Excel para importación
 
-# Clientes
-GET    /clientes/                          # Listar clientes y proveedores
-POST   /clientes/                          # Crear cliente con campos DIAN
+# Compras
+POST   /compras/                             Registrar compra (con ítems libres)
+GET    /compras/                             Historial de compras
+POST   /compras/pagos/                       Abonar a una compra
 
 # Reportes
-GET    /reportes/dashboard                 # KPIs: ventas hoy, cartera, stock bajo
-GET    /reportes/ventas_summary            # Resumen de ventas por período
-GET    /reportes/rentabilidad_productos    # Margen por producto
-GET    /reportes/clientes_deudores         # CXC con días de mora
-GET    /reportes/iva-neto                  # IVA generado vs descontable
-GET    /reportes/productividad             # Métricas por operario
-
-# Préstamos
-POST   /prestamos/                         # Crear préstamo con plan de cuotas
-GET    /prestamos/cuotas-pendientes        # Ruta del día (filtro por zona)
-POST   /prestamos/{id}/pagar-cuota        # Registrar pago de cuota
-POST   /prestamos/{id}/reprogramar-cuota  # Nueva fecha de visita
-POST   /prestamos/{id}/abono-capital      # Abonar a capital, redistribuir cuotas
-GET    /prestamos/cuotas/{id}/recibo-pdf  # Descargar recibo PDF
-
-# Parqueadero
-GET    /parqueadero/config                 # Tarifas y capacidad
-POST   /parqueadero/vehiculos/entrada      # Registrar entrada
-POST   /parqueadero/vehiculos/salida       # Calcular cobro y registrar salida
-POST   /parqueadero/suscripciones          # Crear suscripción mensual
-GET    /parqueadero/reportes/ingresos      # Ingresos por rango de fechas
-
-# Facturación DIAN
-GET    /resoluciones/                      # Listar resoluciones activas
-POST   /resoluciones/                      # Registrar nueva resolución DIAN
+GET    /reportes/dashboard                   KPIs en tiempo real
+GET    /reportes/ventas_summary              Resumen de ventas por período
+GET    /reportes/rentabilidad_productos      Margen bruto por producto
+GET    /reportes/iva_neto                    IVA generado − IVA descontable
+GET    /reportes/kardex                      Movimientos de inventario
+GET    /reportes/cuentas_por_cobrar          Aging de cartera
 
 # SuperAdmin
-GET    /superadmin/empresas                # Listar todos los tenants
-PATCH  /superadmin/empresas/{id}/plan      # Actualizar plan de suscripción
-POST   /superadmin/impersonate/{id}        # Soporte: entrar como empresa
+GET    /superadmin/empresas                  Todos los tenants
+PATCH  /superadmin/empresas/{id}/plan        Cambiar plan de suscripción
+POST   /superadmin/impersonate/{id}          Soporte: entrar como empresa
+GET    /superadmin/dashboard-stats           Métricas globales de la plataforma
+GET    /superadmin/audit-logs                Historial de acciones críticas
 ```
 
-Documentación Swagger UI completa: `{API_URL}/docs`
+Documentación Swagger completa en: `{API_URL}/docs`
 
 ---
 
-## Despliegue
+## Integraciones
 
-### Backend en Render
-
-```
-Build command:  pip install -r requirements.txt
-Start command:  uvicorn main:app --host 0.0.0.0 --port $PORT
-```
-
-El endpoint `GET /ping` mantiene el servidor activo evitando el cold start del plan gratuito. Las migraciones de base de datos se ejecutan automáticamente al arrancar.
-
-### Frontend en Vercel
-
-```
-Build command:    npm run build
-Output directory: build
-```
-
-Configurar `REACT_APP_API_URL` en las variables de entorno del proyecto Vercel. El archivo `vercel.json` debe incluir rewrite de rutas SPA hacia `index.html`.
+| Integración | Propósito |
+|------------|-----------|
+| **Wompi** | Cobro recurrente de suscripciones SaaS con tarjeta (Colombia) |
+| **Matias API** | Facturación electrónica DIAN — UBL 2.1, CUFE, XML/PDF |
+| **FIDO2/WebAuthn** | Autenticación biométrica sin contraseña (huella, cara) |
+| **WhatsApp Cloud API** | Alertas de parqueadero, recibos de cobro, notificaciones |
+| **TRM Datos.gov.co** | Tasa de cambio diaria del Banco de la República |
+| **Oracle Cloud OCI** | Infraestructura ARM de alta disponibilidad |
+| **Vercel CDN** | Frontend servido desde edge locations globales |
+| **Let's Encrypt** | Certificados SSL gratuitos con renovación automática |
 
 ---
 
 ## Licencia
 
-Proyecto privado — Todos los derechos reservados © 2026 KSMP Systems.
+Proyecto privado — Todos los derechos reservados © 2026 Tech Stack Colombia SAS / KSMP Systems.
 
-## Autor
+## Desarrollado por
 
-**KSMP Systems**  
-Desarrollado para empresas colombianas  
-[appjeylor.com](https://appjeylor.com)
+**Tech Stack Colombia SAS**
+Soluciones tecnológicas para empresas colombianas
+🌐 [techstackcol.com](https://techstackcol.com) · 📧 keilor9703@gmail.com

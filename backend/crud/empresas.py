@@ -279,6 +279,10 @@ _DELETE_STEPS = [
     "DELETE FROM resoluciones_dian WHERE empresa_id=:eid",
     "DELETE FROM registros_pagos WHERE empresa_id=:eid",
     "DELETE FROM saas_audit_logs WHERE empresa_id=:eid",
+    # contabilidad
+    "DELETE FROM lineas_asiento WHERE asiento_id IN (SELECT id FROM asientos_contables WHERE empresa_id=:eid)",
+    "DELETE FROM asientos_contables WHERE empresa_id=:eid",
+    "DELETE FROM cuentas_contables WHERE empresa_id=:eid",
     "DELETE FROM empresas WHERE id=:eid",
 ]
 

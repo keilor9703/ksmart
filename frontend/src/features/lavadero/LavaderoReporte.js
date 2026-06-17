@@ -146,7 +146,11 @@ export default function LavaderoReporte({ user }) {
                   { title: 'Exporta los datos', description: 'Usa el botón CSV para descargar el reporte en Excel.' },
                 ]}
                 faqItems={[
-                  { q: '¿Qué significa el % participación?', a: 'Es la proporción del ingreso de ese trabajador sobre el total del período. Útil para calcular comisiones.' },
+                  { q: '¿Qué significa la columna "Lavadas"?', a: 'Es el número total de órdenes de lavado cobradas por ese trabajador en el período seleccionado. Solo cuentan órdenes marcadas como pagadas.' },
+                  { q: '¿Qué significa "Total ventas"?', a: 'Es la suma del valor cobrado en todas las órdenes del trabajador en el período. Es el ingreso bruto que ese empleado generó para el negocio.' },
+                  { q: '¿Cómo se calcula la "Comisión"?', a: 'Se calcula aplicando el porcentaje de comisión configurado (visible en el KPI superior como "Global %") sobre el Total ventas de cada trabajador. Ejemplo: si el porcentaje es 30% y el trabajador vendió $100.000, su comisión es $30.000.' },
+                  { q: '¿Qué es el "Prom./lavada"?', a: 'Es el valor promedio cobrado por cada lavada. Se obtiene dividiendo el Total ventas entre el número de Lavadas. Sirve para medir si el trabajador está vendiendo servicios de mayor o menor valor.' },
+                  { q: '¿Qué significa "% Part."?', a: 'Es el porcentaje de participación: qué proporción del ingreso total del negocio en ese período aportó ese trabajador. Se calcula como (Total ventas del trabajador ÷ Total ventas de todos) × 100.' },
                   { q: '¿Por qué no aparece un lavador?', a: 'Solo aparecen empleados con lavadas registradas en el período. Si no hizo ninguna, no aparece.' },
                   { q: '¿Puedo ver el reporte del día de hoy?', a: 'Sí, haz clic en el botón "Hoy". El reporte se actualiza al instante.' },
                   { q: '¿Qué incluye el reporte?', a: 'Solo ventas con placa de vehículo registrada. No incluye otros tipos de ventas del sistema.' },

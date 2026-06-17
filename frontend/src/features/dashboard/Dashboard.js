@@ -179,9 +179,18 @@ const Dashboard = ({ user }) => {
     return mods?.includes('/prestamos') && !mods?.includes('/ventas');
   }, [user]);
 
+  const tipoNegocio = useMemo(() => {
+    // Prefer the value returned by the dashboard API (authoritative), fall back to user.empresa
+    return data?.tipo_negocio || user?.empresa?.tipo_negocio || 'erp';
+  }, [data, user]);
+
   const esParqueadero = useMemo(() => {
-    return user?.empresa?.modulos_habilitados?.includes('/parqueadero');
-  }, [user]);
+    return tipoNegocio === 'parqueadero' || user?.empresa?.modulos_habilitados?.includes('/parqueadero');
+  }, [tipoNegocio, user]);
+
+  const esLavadero = useMemo(() => {
+    return tipoNegocio === 'lavadero';
+  }, [tipoNegocio]);
 
   const accesosRapidos = useMemo(() => {
     const todos = [
@@ -317,16 +326,31 @@ const Dashboard = ({ user }) => {
         ) : esParqueadero ? (
           <>
             <Grid item xs={6} sm={3}>
-              <KpiCard title="Vehículos Dentro" value={data?.accesos_dentro?.length || 0} icon={<LocalParking />} color={BLUE} sub="Por horas" onClick={() => navigate('/parqueadero')} loading={loadingMain}/>
+              <KpiCard title="Vehículos Dentro" value={data?.ocupacion_actual ?? (data?.accesos_dentro?.length || 0)} icon={<LocalParking />} color={BLUE} sub="Por horas" onClick={() => navigate('/parqueadero')} loading={loadingMain}/>
             </Grid>
             <Grid item xs={6} sm={3}>
-              <KpiCard title="Ingresos Hoy" value={formatCurrency(data?.ingresos_hoy || 0)} icon={<AttachMoney />} color={GREEN} sub="Mensualidades y horas" onClick={() => navigate('/parqueadero')} loading={loadingMain}/>
+              <KpiCard title="Ingresos Hoy" value={formatCurrency(data?.ingresos_parq_hoy ?? data?.ingresos_hoy ?? 0)} icon={<AttachMoney />} color={GREEN} sub="Mensualidades y horas" onClick={() => navigate('/parqueadero')} loading={loadingMain}/>
             </Grid>
             <Grid item xs={6} sm={3}>
-              <KpiCard title="Vencimientos" value={data?.vencidas || 0} icon={<Warning />} color={RED} sub="Mensualidades por cobrar" onClick={() => navigate('/parqueadero')} loading={loadingMain}/>
+              <KpiCard title="Suscripciones" value={data?.suscripciones_vigentes ?? (data?.vencidas || 0)} icon={<TwoWheeler />} color={PURPLE} sub="Vigentes hoy" onClick={() => navigate('/parqueadero')} loading={loadingMain}/>
             </Grid>
             <Grid item xs={6} sm={3}>
-              <KpiCard title="Caja hoy" value={formatCurrency(caja?.total_dia || 0)} icon={<PointOfSale />} color={PURPLE} loading={loadingCaja}/>
+              <KpiCard title="Caja hoy" value={formatCurrency(caja?.total_dia || 0)} icon={<PointOfSale />} color={YELLOW} loading={loadingCaja}/>
+            </Grid>
+          </>
+        ) : esLavadero ? (
+          <>
+            <Grid item xs={6} sm={3}>
+              <KpiCard title="Ingresos Lavadero" value={formatCurrency(data?.ingresos_lavadero_hoy || 0)} icon={<MonetizationOn />} color={ACCENT} sub="Órdenes cobradas hoy" onClick={() => navigate('/lavadero')} loading={loadingMain}/>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <KpiCard title="Órdenes Hoy" value={data?.ordenes_lavadero_hoy || 0} icon={<TwoWheeler />} color={BLUE} sub="Vehículos lavados hoy" onClick={() => navigate('/lavadero')} loading={loadingMain}/>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <KpiCard title="Por cobrar" value={formatCurrency(data?.cuentas_por_cobrar || 0)} icon={<AccountBalanceWallet />} color={YELLOW} sub="Cartera pendiente" loading={loadingMain}/>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <KpiCard title="Caja hoy" value={formatCurrency(caja?.total_dia || 0)} icon={<PointOfSale />} color={GREEN} loading={loadingCaja}/>
             </Grid>
           </>
         ) : (

@@ -7,6 +7,7 @@ import models, schemas
 from crud.common import BOGOTA_TZ
 from crud.productos import get_producto
 from crud.inventario import create_movement
+from services.contabilidad import registrar_asiento_compra
 
 
 def get_compras(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
@@ -123,6 +124,8 @@ def create_compra(db: Session, empresa_id: int, compra: schemas.CompraCreate):
 
     db.commit()
     db.refresh(db_compra)
+    registrar_asiento_compra(db, db_compra)
+    db.commit()
     return db_compra
 
 
@@ -152,6 +155,8 @@ def create_pago_compra(db: Session, empresa_id: int, pago: schemas.PagoCompraCre
 
     db.commit()
     db.refresh(db_compra)
+    registrar_asiento_compra(db, db_compra, pago=db_pago)
+    db.commit()
     return db_pago
 
 

@@ -449,13 +449,13 @@ def run_migrations():
                     for gid, nombre, codigo, color, orden in predefinidos:
                         if IS_SQLITE:
                             conn.execute(text("""
-                                INSERT INTO grupos_producto(id, empresa_id, nombre, codigo, color, es_predefinido, orden)
-                                VALUES(:id, NULL, :nombre, :codigo, :color, 1, :orden)
+                                INSERT INTO grupos_producto(id, empresa_id, nombre, codigo, color, es_predefinido, orden, visible_pos)
+                                VALUES(:id, NULL, :nombre, :codigo, :color, 1, :orden, 1)
                             """), {"id": gid, "nombre": nombre, "codigo": codigo, "color": color, "orden": orden})
                         else:
                             conn.execute(text("""
-                                INSERT INTO grupos_producto(id, empresa_id, nombre, codigo, color, es_predefinido, orden)
-                                VALUES(:id, NULL, :nombre, :codigo, :color, TRUE, :orden)
+                                INSERT INTO grupos_producto(id, empresa_id, nombre, codigo, color, es_predefinido, orden, visible_pos)
+                                VALUES(:id, NULL, :nombre, :codigo, :color, TRUE, :orden, TRUE)
                                 ON CONFLICT (id) DO NOTHING
                             """), {"id": gid, "nombre": nombre, "codigo": codigo, "color": color, "orden": orden})
 
@@ -994,13 +994,13 @@ def run_migrations():
                 if not existe_plato:
                     if IS_SQLITE:
                         conn.execute(text("""
-                            INSERT INTO grupos_producto(id, empresa_id, nombre, codigo, color, es_predefinido, orden, requiere_cocina)
-                            VALUES(5, NULL, 'Platos y Preparaciones', 'PLATO', '#EC4899', 1, 5, 1)
+                            INSERT INTO grupos_producto(id, empresa_id, nombre, codigo, color, es_predefinido, orden, requiere_cocina, visible_pos)
+                            VALUES(5, NULL, 'Platos y Preparaciones', 'PLATO', '#EC4899', 1, 5, 1, 1)
                         """))
                     else:
                         conn.execute(text("""
-                            INSERT INTO grupos_producto(id, empresa_id, nombre, codigo, color, es_predefinido, orden, requiere_cocina)
-                            VALUES(5, NULL, 'Platos y Preparaciones', 'PLATO', '#EC4899', TRUE, 5, TRUE)
+                            INSERT INTO grupos_producto(id, empresa_id, nombre, codigo, color, es_predefinido, orden, requiere_cocina, visible_pos)
+                            VALUES(5, NULL, 'Platos y Preparaciones', 'PLATO', '#EC4899', TRUE, 5, TRUE, TRUE)
                             ON CONFLICT (id) DO NOTHING
                         """))
                         conn.execute(text(
@@ -1552,10 +1552,320 @@ def run_migrations():
                 logger.info("V79 (username único por empresa) aplicada.")
 
             # ═══════════════════════════════════════════════════════════════
-            # V80 - Compras: ítems libres + sort_order + grupo Envases
+            # V80 - tipo_negocio en empresas + origen en ventas
             # ═══════════════════════════════════════════════════════════════
-            migration_v80 = "v80_compras_items_libres_sort_order"
+            migration_v80 = "v80_tipo_negocio_origen_venta"
             if not _migration_already_applied(conn, migration_v80):
+                if not _column_exists(conn, 'empresas', 'tipo_negocio'):
+                    conn.execute(text("ALTER TABLE empresas ADD COLUMN tipo_negocio VARCHAR(30) NOT NULL DEFAULT 'erp'"))
+                    logger.info("V80: añadido empresas.tipo_negocio")
+
+                if not _column_exists(conn, 'ventas', 'origen'):
+                    conn.execute(text("ALTER TABLE ventas ADD COLUMN origen VARCHAR(40) DEFAULT 'erp'"))
+                    logger.info("V80: añadido ventas.origen")
+
+                _mark_migration_applied(conn, migration_v80)
+                logger.info("V80 (tipo_negocio en empresas + origen en ventas) aplicada.")
+
+            # ═══════════════════════════════════════════════════════════════
+            # V81 - CONTABILIDAD AUTOMÁTICA (PUC colombiano)
+            # ═══════════════════════════════════════════════════════════════
+            migration_v81 = "v81_contabilidad_automatica"
+            if not _migration_already_applied(conn, migration_v81):
+                if not _table_exists(conn, "cuentas_contables"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE cuentas_contables (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                empresa_id INTEGER NOT NULL REFERENCES empresas(id),
+                                codigo VARCHAR(10) NOT NULL,
+                                nombre VARCHAR(200) NOT NULL,
+                                tipo VARCHAR(20) NOT NULL,
+                                naturaleza VARCHAR(10) NOT NULL,
+                                nivel INTEGER DEFAULT 3,
+                                padre_codigo VARCHAR(10),
+                                is_active BOOLEAN DEFAULT 1,
+                                permite_movimiento BOOLEAN DEFAULT 1,
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                UNIQUE(empresa_id, codigo)
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE cuentas_contables (
+                                id SERIAL PRIMARY KEY,
+                                empresa_id INTEGER NOT NULL REFERENCES empresas(id),
+                                codigo VARCHAR(10) NOT NULL,
+                                nombre VARCHAR(200) NOT NULL,
+                                tipo VARCHAR(20) NOT NULL,
+                                naturaleza VARCHAR(10) NOT NULL,
+                                nivel INTEGER DEFAULT 3,
+                                padre_codigo VARCHAR(10),
+                                is_active BOOLEAN DEFAULT TRUE,
+                                permite_movimiento BOOLEAN DEFAULT TRUE,
+                                created_at TIMESTAMPTZ DEFAULT NOW(),
+                                UNIQUE(empresa_id, codigo)
+                            )
+                        """))
+                    logger.info("V81: tabla cuentas_contables creada")
+
+                if not _table_exists(conn, "asientos_contables"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE asientos_contables (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                empresa_id INTEGER NOT NULL REFERENCES empresas(id),
+                                numero INTEGER NOT NULL,
+                                fecha TIMESTAMP NOT NULL,
+                                descripcion VARCHAR(500) NOT NULL,
+                                tipo_origen VARCHAR(30) NOT NULL,
+                                referencia_id INTEGER,
+                                referencia_tipo VARCHAR(30),
+                                total_debitos REAL DEFAULT 0,
+                                total_creditos REAL DEFAULT 0,
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE asientos_contables (
+                                id SERIAL PRIMARY KEY,
+                                empresa_id INTEGER NOT NULL REFERENCES empresas(id),
+                                numero INTEGER NOT NULL,
+                                fecha TIMESTAMPTZ NOT NULL,
+                                descripcion VARCHAR(500) NOT NULL,
+                                tipo_origen VARCHAR(30) NOT NULL,
+                                referencia_id INTEGER,
+                                referencia_tipo VARCHAR(30),
+                                total_debitos DOUBLE PRECISION DEFAULT 0,
+                                total_creditos DOUBLE PRECISION DEFAULT 0,
+                                created_at TIMESTAMPTZ DEFAULT NOW()
+                            )
+                        """))
+                    logger.info("V81: tabla asientos_contables creada")
+
+                if not _table_exists(conn, "lineas_asiento"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE lineas_asiento (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                empresa_id INTEGER NOT NULL REFERENCES empresas(id),
+                                asiento_id INTEGER NOT NULL REFERENCES asientos_contables(id),
+                                cuenta_contable_id INTEGER NOT NULL REFERENCES cuentas_contables(id),
+                                descripcion VARCHAR(300),
+                                debito REAL DEFAULT 0,
+                                credito REAL DEFAULT 0,
+                                orden INTEGER DEFAULT 0
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE lineas_asiento (
+                                id SERIAL PRIMARY KEY,
+                                empresa_id INTEGER NOT NULL REFERENCES empresas(id),
+                                asiento_id INTEGER NOT NULL REFERENCES asientos_contables(id),
+                                cuenta_contable_id INTEGER NOT NULL REFERENCES cuentas_contables(id),
+                                descripcion VARCHAR(300),
+                                debito DOUBLE PRECISION DEFAULT 0,
+                                credito DOUBLE PRECISION DEFAULT 0,
+                                orden INTEGER DEFAULT 0
+                            )
+                        """))
+                    logger.info("V81: tabla lineas_asiento creada")
+
+                _mark_migration_applied(conn, migration_v81)
+                logger.info("V81 (contabilidad automática) aplicada.")
+
+            # ═══════════════════════════════════════════════════════════════
+            # V82 - Registrar módulo Contabilidad en tabla modulos
+            # ═══════════════════════════════════════════════════════════════
+            migration_v82 = "v82_modulo_contabilidad"
+            if not _migration_already_applied(conn, migration_v82):
+                conn.execute(text("""
+                    INSERT INTO modulos (name, description, frontend_path)
+                    VALUES ('Contabilidad', 'Asientos automáticos, estado de resultados, balance general y reportes fiscales.', '/contabilidad')
+                    ON CONFLICT (frontend_path) DO NOTHING
+                """))
+                _mark_migration_applied(conn, migration_v82)
+                logger.info("V82 (módulo contabilidad registrado) aplicada.")
+
+            # ═══════════════════════════════════════════════════════════════
+            # V83 - Tabla de cierres contables
+            # ═══════════════════════════════════════════════════════════════
+            migration_v83 = "v83_cierres_contables"
+            if not _migration_already_applied(conn, migration_v83):
+                if not _table_exists(conn, "cierres_contables"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE cierres_contables (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                empresa_id INTEGER NOT NULL REFERENCES empresas(id),
+                                periodo_inicio TIMESTAMP NOT NULL,
+                                periodo_fin TIMESTAMP NOT NULL,
+                                descripcion VARCHAR(300),
+                                asiento_id INTEGER REFERENCES asientos_contables(id),
+                                utilidad_neta REAL DEFAULT 0,
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                created_by_id INTEGER REFERENCES users(id)
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE cierres_contables (
+                                id SERIAL PRIMARY KEY,
+                                empresa_id INTEGER NOT NULL REFERENCES empresas(id),
+                                periodo_inicio TIMESTAMPTZ NOT NULL,
+                                periodo_fin TIMESTAMPTZ NOT NULL,
+                                descripcion VARCHAR(300),
+                                asiento_id INTEGER REFERENCES asientos_contables(id),
+                                utilidad_neta DOUBLE PRECISION DEFAULT 0,
+                                created_at TIMESTAMPTZ DEFAULT NOW(),
+                                created_by_id INTEGER REFERENCES users(id)
+                            )
+                        """))
+                    logger.info("V83: tabla cierres_contables creada")
+                _mark_migration_applied(conn, migration_v83)
+                logger.info("V83 (cierres contables) aplicada.")
+
+            # V84 - Columna orden en modulos
+            migration_v84 = "V84_orden_modulos"
+            if not _migration_already_applied(conn, migration_v84):
+                if not _column_exists(conn, "modulos", "orden"):
+                    conn.execute(text("ALTER TABLE modulos ADD COLUMN orden INTEGER DEFAULT 99"))
+                    logger.info("V84: columna orden añadida a modulos")
+                # Asignar orden por defecto según frontend_path conocidos
+                orden_map = [
+                    ("/ventas", 1), ("/pedidos-virtuales", 2), ("/cotizaciones", 3),
+                    ("/admin/resoluciones", 4), ("/compras", 5), ("/clientes", 6),
+                    ("/productos", 7), ("/inventario", 8), ("/inventario/lotes", 9),
+                    ("/caja", 10), ("/produccion/lotes", 11), ("/produccion/recetas", 12),
+                    ("/ordenes-trabajo", 13), ("/panel-operador", 14),
+                    ("/prestamos", 15), ("/ruta-cobro", 16),
+                    ("/reportes", 17), ("/reportes-inventario", 18),
+                    ("/contabilidad", 19),
+                    ("/parqueadero", 20), ("/parqueadero/buscar", 21),
+                    ("/parqueadero/vehiculos", 22), ("/parqueadero/suscripciones", 23),
+                    ("/parqueadero/config", 24),
+                    ("/lavadero/ventas", 25), ("/lavadero/reporte", 26), ("/lavadero/config", 27),
+                    ("/restaurante", 28), ("/restaurante/cocina", 29),
+                    ("/restaurante/caja", 30), ("/restaurante/config", 31),
+                ]
+                for path, ord_val in orden_map:
+                    conn.execute(text(
+                        "UPDATE modulos SET orden = :o WHERE frontend_path = :p AND (orden IS NULL OR orden = 99)"
+                    ), {"o": ord_val, "p": path})
+                _mark_migration_applied(conn, migration_v84)
+                logger.info("V84 (orden en modulos) aplicada.")
+
+            # V86 - Tarifa plena en parqueadero
+            migration_v86 = "v86_parqueadero_tarifa_plena"
+            if not _migration_already_applied(conn, migration_v86):
+                for col, typedef_sqlite, typedef_pg in [
+                    ("usar_tarifa_plena", "BOOLEAN NOT NULL DEFAULT 0", "BOOLEAN NOT NULL DEFAULT FALSE"),
+                    ("tarifa_minima",     "REAL NOT NULL DEFAULT 0.0",  "DOUBLE PRECISION NOT NULL DEFAULT 0.0"),
+                    ("tarifa_plena",      "REAL NOT NULL DEFAULT 0.0",  "DOUBLE PRECISION NOT NULL DEFAULT 0.0"),
+                    ("fraccion_minutos",  "INTEGER NOT NULL DEFAULT 30", "INTEGER NOT NULL DEFAULT 30"),
+                ]:
+                    if not _column_exists(conn, "parqueadero_config", col):
+                        typedef = typedef_sqlite if IS_SQLITE else typedef_pg
+                        conn.execute(text(f"ALTER TABLE parqueadero_config ADD COLUMN {col} {typedef}"))
+                        logger.info(f"V86: añadido parqueadero_config.{col}")
+                _mark_migration_applied(conn, migration_v86)
+                logger.info("V86 (parqueadero tarifa plena) aplicada.")
+
+            # V85 - Reservas de restaurante
+            migration_v85 = "v85_restaurante_reservas"
+            if not _migration_already_applied(conn, migration_v85):
+                if not _table_exists(conn, "restaurante_reservas"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE restaurante_reservas (
+                                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                                empresa_id     INTEGER NOT NULL REFERENCES empresas(id),
+                                mesa_id        INTEGER REFERENCES restaurante_mesas(id),
+                                nombre_cliente VARCHAR(120) NOT NULL,
+                                telefono       VARCHAR(30),
+                                fecha          DATE NOT NULL,
+                                hora           VARCHAR(10) NOT NULL,
+                                personas       INTEGER DEFAULT 2,
+                                notas          TEXT,
+                                estado         VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+                                created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE restaurante_reservas (
+                                id             SERIAL PRIMARY KEY,
+                                empresa_id     INTEGER NOT NULL REFERENCES empresas(id),
+                                mesa_id        INTEGER REFERENCES restaurante_mesas(id),
+                                nombre_cliente VARCHAR(120) NOT NULL,
+                                telefono       VARCHAR(30),
+                                fecha          DATE NOT NULL,
+                                hora           VARCHAR(10) NOT NULL,
+                                personas       INTEGER DEFAULT 2,
+                                notas          TEXT,
+                                estado         VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+                                created_at     TIMESTAMPTZ DEFAULT NOW()
+                            )
+                        """))
+                    conn.execute(text("CREATE INDEX ix_restaurante_reservas_empresa ON restaurante_reservas(empresa_id)"))
+                    conn.execute(text("CREATE INDEX ix_restaurante_reservas_fecha ON restaurante_reservas(empresa_id, fecha)"))
+                    logger.info("V85: tabla restaurante_reservas creada")
+
+                # Insertar módulos nuevos si no existen
+                for path, name, desc in [
+                    ("/restaurante/reservas",  "Reservas",          "Gestión de reservas del restaurante."),
+                    ("/restaurante/reportes",  "Reportes Restaurante", "Reportes de ventas del restaurante."),
+                ]:
+                    conn.execute(text("""
+                        INSERT INTO modulos (name, description, frontend_path)
+                        VALUES (:n, :d, :p)
+                        ON CONFLICT (frontend_path) DO NOTHING
+                    """), {"n": name, "d": desc, "p": path})
+
+                _mark_migration_applied(conn, migration_v85)
+                logger.info("V85 (restaurante_reservas + módulos) aplicada.")
+
+            # V87 - variante_id y nombre_variante en detalles_venta
+            migration_v87 = "v87_detalle_venta_variante"
+            if not _migration_already_applied(conn, migration_v87):
+                if not _column_exists(conn, "detalles_venta", "variante_id"):
+                    if IS_SQLITE:
+                        conn.execute(text(
+                            "ALTER TABLE detalles_venta ADD COLUMN variante_id INTEGER REFERENCES producto_variantes(id)"
+                        ))
+                    else:
+                        conn.execute(text(
+                            "ALTER TABLE detalles_venta ADD COLUMN variante_id INTEGER REFERENCES producto_variantes(id) ON DELETE SET NULL"
+                        ))
+                    logger.info("V87: añadido detalles_venta.variante_id")
+
+                if not _column_exists(conn, "detalles_venta", "nombre_variante"):
+                    conn.execute(text(
+                        "ALTER TABLE detalles_venta ADD COLUMN nombre_variante VARCHAR(200) NULL"
+                    ))
+                    logger.info("V87: añadido detalles_venta.nombre_variante")
+
+                _mark_migration_applied(conn, migration_v87)
+                logger.info("V87 (variante en detalles_venta) aplicada.")
+
+            migration_v88 = "v88_venta_puntos_fidelizacion"
+            if not _migration_already_applied(conn, migration_v88):
+                for col, tipo in [("descuento_puntos", "FLOAT DEFAULT 0"), ("puntos_canjeados", "INTEGER DEFAULT 0")]:
+                    try:
+                        conn.execute(text(f"ALTER TABLE ventas ADD COLUMN {col} {tipo}"))
+                        logger.info(f"V88: añadido ventas.{col}")
+                    except Exception:
+                        pass
+                _mark_migration_applied(conn, migration_v88)
+                logger.info("V88 (puntos fidelización en ventas) aplicada.")
+
+            # ═══════════════════════════════════════════════════════════════
+            # V89 - Compras: ítems libres + sort_order + grupo Envases
+            # ═══════════════════════════════════════════════════════════════
+            migration_v89 = "v89_compras_items_libres_sort_order"
+            if not _migration_already_applied(conn, migration_v89):
                 # Hacer producto_id nullable en detalles_compra
                 if not IS_SQLITE:
                     conn.execute(text("""
@@ -1568,12 +1878,12 @@ def run_migrations():
                         conn.execute(text("ALTER TABLE detalles_compra ADD COLUMN nombre_libre TEXT NULL"))
                     else:
                         conn.execute(text("ALTER TABLE detalles_compra ADD COLUMN nombre_libre VARCHAR(200) NULL"))
-                    logger.info("V80: añadido detalles_compra.nombre_libre")
+                    logger.info("V89: añadido detalles_compra.nombre_libre")
 
                 # sort_order para preservar orden de ingreso
                 if not _column_exists(conn, "detalles_compra", "sort_order"):
                     conn.execute(text("ALTER TABLE detalles_compra ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0"))
-                    logger.info("V80: añadido detalles_compra.sort_order")
+                    logger.info("V89: añadido detalles_compra.sort_order")
 
                 # Insertar grupo predefinido id=6 "Envases/Empaque" si no existe
                 existe_env = conn.execute(text("SELECT COUNT(*) FROM grupos_producto WHERE id = 6")).scalar()
@@ -1592,10 +1902,75 @@ def run_migrations():
                         conn.execute(text(
                             "SELECT setval('grupos_producto_id_seq', GREATEST((SELECT MAX(id) FROM grupos_producto), 6), true)"
                         ))
-                    logger.info("V80: grupo predefinido 'Envases/Empaque' (id=6) insertado")
+                    logger.info("V89: grupo predefinido 'Envases/Empaque' (id=6) insertado")
 
-                _mark_migration_applied(conn, migration_v80)
-                logger.info("V80 (ítems libres en compras + sort_order + grupo Envases) aplicada.")
+                _mark_migration_applied(conn, migration_v89)
+                logger.info("V89 (ítems libres en compras + sort_order + grupo Envases) aplicada.")
+
+            # ── V90: planes privados por empresa ──────────────────────────────
+            migration_v90 = "v90_planes_empresa_exclusivo"
+            if not _migration_already_applied(conn, migration_v90):
+                conn.execute(text("""
+                    ALTER TABLE planes_suscripcion
+                    ADD COLUMN IF NOT EXISTS empresa_id_exclusivo INTEGER
+                    REFERENCES empresas(id) ON DELETE SET NULL
+                """))
+                _mark_migration_applied(conn, migration_v90)
+                logger.info("V90 (planes privados por empresa) aplicada.")
+
+            # ── V91: descripción pública de la empresa (catálogo virtual) ──────
+            migration_v91 = "v91_empresa_descripcion_catalogo"
+            if not _migration_already_applied(conn, migration_v91):
+                conn.execute(text("ALTER TABLE empresas ADD COLUMN IF NOT EXISTS descripcion TEXT"))
+                _mark_migration_applied(conn, migration_v91)
+                logger.info("V91 (empresa.descripcion para catálogo) aplicada.")
+
+            # ── V92: tabla intentos_fe para auditoría de emisión FE ──────────
+            migration_v92 = "v92_intentos_fe"
+            if not _migration_already_applied(conn, migration_v92):
+                if not _table_exists(conn, "intentos_fe"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE intentos_fe (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                venta_id INTEGER NOT NULL REFERENCES ventas(id) ON DELETE CASCADE,
+                                empresa_id INTEGER NOT NULL,
+                                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                estado VARCHAR(20),
+                                payload_enviado TEXT,
+                                respuesta_recibida TEXT,
+                                cufe VARCHAR(200),
+                                mensaje TEXT
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE intentos_fe (
+                                id SERIAL PRIMARY KEY,
+                                venta_id INTEGER NOT NULL REFERENCES ventas(id) ON DELETE CASCADE,
+                                empresa_id INTEGER NOT NULL,
+                                timestamp TIMESTAMPTZ DEFAULT NOW(),
+                                estado VARCHAR(20),
+                                payload_enviado TEXT,
+                                respuesta_recibida TEXT,
+                                cufe VARCHAR(200),
+                                mensaje TEXT
+                            )
+                        """))
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_intentos_fe_venta ON intentos_fe(venta_id)"))
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_intentos_fe_empresa ON intentos_fe(empresa_id)"))
+                    logger.info("V92: tabla intentos_fe creada.")
+                _mark_migration_applied(conn, migration_v92)
+                logger.info("V92 (intentos_fe — auditoría FE) aplicada.")
+
+            # ── V93: columna matias_sandbox_api_key en empresas ──────────────
+            migration_v93 = "v93_matias_sandbox_api_key"
+            if not _migration_already_applied(conn, migration_v93):
+                conn.execute(text(
+                    "ALTER TABLE empresas ADD COLUMN IF NOT EXISTS matias_sandbox_api_key TEXT NULL"
+                ))
+                _mark_migration_applied(conn, migration_v93)
+                logger.info("V93 (empresas.matias_sandbox_api_key) aplicada.")
 
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)

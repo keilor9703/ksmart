@@ -7,6 +7,7 @@ import models, schemas
 from crud.common import BOGOTA_TZ, get_utc_boundaries
 from crud.clientes import get_cliente
 from crud.productos import get_producto
+from services.contabilidad import registrar_asiento_venta
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # VENTAS
@@ -75,17 +76,41 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate, commi
                 detail=f"Producto {d.producto_id} no encontrado o no pertenece a esta empresa"
             )
 
-        precio = d.precio_unitario if d.precio_unitario is not None else prod.precio
+        # Resolver variante si viene variante_id
+        variante_id     = getattr(d, 'variante_id', None)
+        nombre_variante = getattr(d, 'nombre_variante', None)
+        variante_obj    = None
+        if variante_id:
+            variante_obj = db.query(models.ProductoVariante).filter(
+                models.ProductoVariante.id == variante_id,
+                models.ProductoVariante.producto_id == d.producto_id,
+            ).first()
+            if not variante_obj:
+                raise HTTPException(status_code=404, detail=f"Variante {variante_id} no encontrada")
+
+        # Precio: variante > payload > producto padre
+        if d.precio_unitario is not None:
+            precio = d.precio_unitario
+        elif variante_obj and variante_obj.precio is not None:
+            precio = variante_obj.precio
+        else:
+            precio = prod.precio
+
         subtotal = precio * d.cantidad
         total_bruto += subtotal
 
         detalle = models.DetalleVenta(
             producto_id=d.producto_id,
+            variante_id=variante_id,
+            nombre_variante=nombre_variante or (variante_obj.nombre if variante_obj else None),
             cantidad=d.cantidad,
             precio_unitario=precio,
             descuento_pct=getattr(d, 'descuento_pct', 0.0),
             iva_porcentaje=getattr(d, 'iva_porcentaje', 0.0),
         )
+        # Asociar la relación producto explícitamente para que la FE (Matias)
+        # tenga el nombre y código disponibles sin depender de lazy-load.
+        detalle.producto = prod
         detalles_objs.append(detalle)
 
     iva_porc = float(getattr(venta, 'iva_porcentaje', 0) or 0)
@@ -119,6 +144,67 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate, commi
     if getattr(venta, 'tipo', 'venta') == 'venta':
         _asignar_numero_factura(db, empresa_id, db_venta)
 
+    # Fase 2C: Emisión Factura Electrónica (sync via httpx.Client, nunca hace rollback)
+    # Solo cuando hay número asignado y empresa tiene FE activa.
+    if db_venta.numero_factura and db_venta.estado_electronico == "pendiente":
+        try:
+            import json as _json
+            from services import matias_service as _ms
+
+            empresa_fe = db.query(models.Empresa).filter(
+                models.Empresa.id == empresa_id
+            ).first()
+
+            if empresa_fe and empresa_fe.facturacion_electronica_activa and empresa_fe.matias_api_key:
+                # Cargar cliente (puede ser None → Consumidor Final)
+                cliente_fe = None
+                if db_venta.cliente_id:
+                    cliente_fe = db.query(models.Cliente).filter(
+                        models.Cliente.id         == db_venta.cliente_id,
+                        models.Cliente.empresa_id == empresa_id,
+                    ).first()
+
+                _test_mode = empresa_fe.matias_test_mode
+                _api_key   = empresa_fe.matias_sandbox_api_key if _test_mode else empresa_fe.matias_api_key
+                resultado_fe = _ms.emitir_factura(
+                    venta     = db_venta,
+                    empresa   = empresa_fe,
+                    cliente   = cliente_fe,
+                    detalles  = detalles_objs,
+                    api_key   = _api_key or "",
+                    test_mode = _test_mode,
+                )
+
+                # Actualizar campos FE en la venta
+                db_venta.estado_electronico = resultado_fe["estado"]
+                db_venta.mensaje_proveedor  = resultado_fe.get("mensaje")
+                if resultado_fe.get("cufe"):
+                    db_venta.cufe    = resultado_fe["cufe"]
+                if resultado_fe.get("pdf_url"):
+                    db_venta.pdf_url = resultado_fe["pdf_url"]
+                if resultado_fe.get("xml_url"):
+                    db_venta.xml_url = resultado_fe["xml_url"]
+
+                # Auditoría en intentos_fe
+                intento_fe = models.IntentoFE(
+                    venta_id           = db_venta.id,
+                    empresa_id         = empresa_id,
+                    estado             = resultado_fe["estado"],
+                    payload_enviado    = resultado_fe.get("payload_enviado"),
+                    respuesta_recibida = resultado_fe.get("respuesta_recibida"),
+                    cufe               = resultado_fe.get("cufe"),
+                    mensaje            = resultado_fe.get("mensaje"),
+                )
+                db.add(intento_fe)
+
+        except Exception:
+            # Un error en FE nunca bloquea la creación de la venta
+            import logging as _logging
+            _logging.getLogger("crud.ventas").exception(
+                "Error al emitir FE para venta %s — se guarda sin FE.", db_venta.id
+            )
+            db_venta.estado_electronico = "fallido"
+
     # Fase 2B: campos extra
     db_venta.tipo           = getattr(venta, 'tipo', 'venta')
     db_venta.valida_hasta   = getattr(venta, 'valida_hasta', None)
@@ -132,6 +218,9 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate, commi
     if commit:
         db.commit()
         db.refresh(db_venta)
+        if db_venta.estado_pago == "pagado":
+            registrar_asiento_venta(db, db_venta)
+            db.commit()
     return db_venta
 
 def update_venta(db: Session, empresa_id: int, venta_id: int, venta: schemas.VentaCreate):
@@ -357,6 +446,14 @@ def _ejecutar_movimientos_venta(db: Session, empresa_id: int, db_venta: models.V
                 )
                 prod.stock_actual = (prod.stock_actual or 0) - det.cantidad
                 db.add(prod)
+                # También descontar de la variante si aplica
+                if det.variante_id:
+                    variante = db.query(models.ProductoVariante).filter(
+                        models.ProductoVariante.id == det.variante_id
+                    ).first()
+                    if variante:
+                        variante.stock_actual = (variante.stock_actual or 0) - det.cantidad
+                        db.add(variante)
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e))
         else:
@@ -368,3 +465,11 @@ def _ejecutar_movimientos_venta(db: Session, empresa_id: int, db_venta: models.V
                 motivo         = "venta",
                 referencia     = f"venta #{db_venta.id}",
             ))
+            # Descontar stock de variante para modelo sin lotes
+            if det.variante_id:
+                variante = db.query(models.ProductoVariante).filter(
+                    models.ProductoVariante.id == det.variante_id
+                ).first()
+                if variante:
+                    variante.stock_actual = (variante.stock_actual or 0) - det.cantidad
+                    db.add(variante)

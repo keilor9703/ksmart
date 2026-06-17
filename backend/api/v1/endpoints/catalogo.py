@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from datetime import datetime, timezone
 import models, schemas
 from api import deps
 from crud import pedidos_virtuales as crud_pv
@@ -37,7 +38,11 @@ def update_catalogo_config(
         db_empresa.logo_base64 = payload.logo_base64
     if payload.color_primario is not None:
         db_empresa.color_primario = payload.color_primario
-        
+    if payload.direccion_recogida is not None:
+        db_empresa.ciudad = payload.direccion_recogida
+    if payload.descripcion is not None:
+        db_empresa.descripcion = payload.descripcion
+
     db.commit()
     db.refresh(db_empresa)
     return db_empresa
@@ -88,7 +93,9 @@ def get_public_catalogo(
             descripcion=p.descripcion,
             precio=p.precio,
             categoria=categoria.nombre if categoria else "General",
-            image_count=count
+            image_count=count,
+            stock=p.stock_actual or 0.0,
+            es_servicio=bool(p.es_servicio),
         ))
 
     empresa_out = schemas.CatalogoEmpresaOut(
@@ -97,13 +104,33 @@ def get_public_catalogo(
         whatsapp_pedidos=db_empresa.whatsapp_pedidos,
         logo_base64=db_empresa.logo_base64,
         color_primario=db_empresa.color_primario,
-        direccion=db_empresa.ciudad # O dirección si existiera un campo específico
+        direccion=db_empresa.ciudad,
+        tipo_negocio=db_empresa.tipo_negocio or "erp",
+        descripcion=db_empresa.descripcion,
     )
+
+    # Para restaurantes, incluir lista de mesas activas
+    mesas_out = []
+    if db_empresa.tipo_negocio == "restaurante":
+        db_mesas = db.query(models.Mesa).filter(
+            models.Mesa.empresa_id == db_empresa.id,
+            models.Mesa.is_active == True,
+        ).order_by(models.Mesa.numero).all()
+        mesas_out = [
+            schemas.CatalogoMesaOut(
+                numero=m.numero,
+                nombre=m.nombre,
+                zona=m.zona,
+                estado=m.estado,
+            )
+            for m in db_mesas
+        ]
 
     return schemas.CatalogoPublicoOut(
         empresa=empresa_out,
         productos=productos_out,
-        total_productos=total
+        total_productos=total,
+        mesas=mesas_out,
     )
 
 @router.get("/{slug}/productos", response_model=List[schemas.CatalogoProductoOut])
@@ -154,7 +181,9 @@ def get_catalogo_productos(
             descripcion=p.descripcion,
             precio=p.precio,
             categoria=cat.nombre if cat else "General",
-            image_count=count
+            image_count=count,
+            stock=p.stock_actual or 0.0,
+            es_servicio=bool(p.es_servicio),
         ))
     
     return results
@@ -175,6 +204,128 @@ def create_pedido_virtual_publico(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{slug}/pedido-restaurante", response_model=schemas.PedidoRestauranteCreatedOut, status_code=201)
+def create_pedido_restaurante_publico(
+    slug: str,
+    payload: schemas.PedidoRestaurantePublicoIn,
+    db: Session = Depends(deps.get_db),
+):
+    """
+    Recibe un pedido desde el catálogo público de un restaurante (autoservicio de mesa).
+    No requiere autenticación. Crea o reutiliza la comanda activa de la mesa.
+    """
+    db_empresa = db.query(models.Empresa).filter(models.Empresa.slug_catalogo == slug).first()
+    if not db_empresa:
+        raise HTTPException(status_code=404, detail="Catálogo no encontrado.")
+    if db_empresa.tipo_negocio != "restaurante":
+        raise HTTPException(status_code=400, detail="Este catálogo no es de un restaurante.")
+
+    # Buscar la mesa por número
+    mesa = db.query(models.Mesa).filter(
+        models.Mesa.empresa_id == db_empresa.id,
+        models.Mesa.numero == payload.mesa_numero,
+        models.Mesa.is_active == True,
+    ).first()
+    if not mesa:
+        raise HTTPException(status_code=404, detail=f"Mesa '{payload.mesa_numero}' no encontrada.")
+
+    # Buscar comanda activa o crear una nueva
+    comanda = db.query(models.Comanda).filter(
+        models.Comanda.mesa_id == mesa.id,
+        models.Comanda.empresa_id == db_empresa.id,
+        models.Comanda.estado.in_(["abierta", "enviada", "lista"]),
+    ).first()
+
+    if not comanda:
+        # Contar comandas del día para número consecutivo
+        hoy = datetime.now(timezone.utc).date()
+        count = db.query(models.Comanda).filter(
+            models.Comanda.empresa_id == db_empresa.id,
+            models.Comanda.fecha_apertura >= datetime(hoy.year, hoy.month, hoy.day, tzinfo=timezone.utc),
+        ).count()
+        comanda = models.Comanda(
+            empresa_id=db_empresa.id,
+            mesa_id=mesa.id,
+            mesero_id=None,  # autoservicio
+            numero_comanda=count + 1,
+            personas=1,
+            notas="Pedido desde catálogo (autoservicio)",
+        )
+        db.add(comanda)
+        mesa.estado = "ocupada"
+        db.flush()
+
+    # Configuración de cocina de la empresa
+    cfg = db.query(models.ConfigRestaurante).filter_by(empresa_id=db_empresa.id).first()
+    areas = cfg.areas_cocina if cfg else ["Cocina general"]
+    modo_impresion = cfg.imprimir_comanda_auto if cfg else False
+
+    # Obtener overrides de grupos de producto
+    from crud.grupos_producto import _get_overrides
+    overrides = _get_overrides(db, db_empresa.id)
+
+    ahora = datetime.now(timezone.utc)
+
+    for it in payload.items:
+        area = None
+        va_a_cocina = True
+
+        prod = db.query(models.Producto).filter(
+            models.Producto.id == it.producto_id,
+            models.Producto.empresa_id == db_empresa.id,
+            models.Producto.vigente == True,
+        ).first()
+
+        if prod and prod.grupo_item:
+            ov = overrides.get(prod.grupo_item)
+            if ov and ov.requiere_cocina is not None:
+                va_a_cocina = ov.requiere_cocina
+            else:
+                va_a_cocina = getattr(prod, "requiere_cocina", True)
+            if va_a_cocina:
+                area = areas[0] if areas else "Cocina general"
+
+        if modo_impresion:
+            va_a_cocina = False
+
+        nuevo = models.ComandaItem(
+            comanda_id=comanda.id,
+            producto_id=it.producto_id,
+            nombre_producto=it.nombre_producto,
+            cantidad=it.cantidad,
+            precio_unitario=it.precio_unitario,
+            subtotal=round(it.cantidad * it.precio_unitario, 2),
+            notas=it.notas,
+            area_cocina=area or (areas[0] if areas else None),
+            va_a_cocina=va_a_cocina,
+            estado="listo" if not va_a_cocina else "pendiente",
+            timestamp_listo=ahora if not va_a_cocina else None,
+        )
+        db.add(nuevo)
+
+    # Transición de estado: abierta → enviada
+    if comanda.estado == "abierta":
+        comanda.estado = "enviada"
+
+    db.flush()
+
+    # Recalcular total
+    total = sum(
+        i.subtotal for i in comanda.items if i.estado != "cancelado"
+    )
+    comanda.total = round(total, 2)
+
+    db.commit()
+    db.refresh(comanda)
+
+    return schemas.PedidoRestauranteCreatedOut(
+        comanda_id=comanda.id,
+        numero_comanda=comanda.numero_comanda,
+        mesa_numero=mesa.numero,
+        total=comanda.total,
+    )
 
 
 @router.get("/{slug}/productos/{producto_id}/imagen")

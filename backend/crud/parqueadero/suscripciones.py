@@ -368,6 +368,22 @@ def registrar_pago_suscripcion(
     db.commit()
     db.refresh(susc)
 
+    # Registrar el pago como Venta para consolidación financiera
+    import models as _models
+    venta_parq = _models.Venta(
+        empresa_id  = empresa_id,
+        total       = payload.monto,
+        monto_pagado= payload.monto,
+        estado_pago = "pagado",
+        metodo_pago = payload.metodo_pago,
+        origen      = "parqueadero_suscripcion",
+        tipo        = "venta",
+        fecha_pago  = datetime.now(timezone.utc),
+        observaciones = f"Suscripción #{susc.id} | {susc.tipo} | Placa: {susc.vehiculo.placa if susc.vehiculo else ''}",
+    )
+    db.add(venta_parq)
+    db.commit()
+
     susc = (
         db.query(models.SuscripcionParqueadero)
         .options(

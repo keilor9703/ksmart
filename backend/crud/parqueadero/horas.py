@@ -49,9 +49,15 @@ def _generar_comprobante_entrada_wa(
             "El mensaje se envía sin link."
         )
 
-    # Construir línea de cobro mínimo (si está configurado)
+    # Construir línea de cobro mínimo / tarifa plena
     cobro_minimo_linea = ""
-    if cfg.cobro_minimo_minutos and cfg.cobro_minimo_minutos > 0:
+    if cfg.usar_tarifa_plena:
+        umbral_h = round((cfg.fraccion_minutos or 480) / 60, 1)
+        cobro_minimo_linea = (
+            f"• Tarifa por minuto: {_formato_moneda_co(cfg.tarifa_minuto or 0)}/min\n"
+            f"• Tarifa plena (cada {umbral_h}h): {_formato_moneda_co(cfg.tarifa_plena or 0)}\n"
+        )
+    elif cfg.cobro_minimo_minutos and cfg.cobro_minimo_minutos > 0:
         monto_minimo = (cfg.tarifa_minuto or 0) * cfg.cobro_minimo_minutos
         cobro_minimo_linea = (
             f"• Cobro mínimo: {cfg.cobro_minimo_minutos} min "
@@ -219,13 +225,28 @@ def registrar_salida_horas(
 
     minutos_reales = max(1, int(round(delta.total_seconds() / 60)))
 
-    # Aplicar cobro mínimo configurado
     cobro_minimo = cfg.cobro_minimo_minutos or 0
-    minutos_cobrar = max(minutos_reales, cobro_minimo) if cobro_minimo > 0 else minutos_reales
 
-    # Calcular monto: tarifa por minuto × minutos cobrados
-    tarifa_min = cfg.tarifa_minuto or 0
-    monto_calc = round(minutos_cobrar * tarifa_min, 0)
+    if cfg.usar_tarifa_plena:
+        # ── Modelo híbrido: por minuto + tarifa plena al completar el umbral ─
+        # Períodos completos (umbral) → tarifa_plena c/u
+        # Minutos restantes → min(resto × tarifa_minuto, tarifa_plena)
+        # Esto garantiza que el cobro nunca supere tarifa_plena dentro del período
+        minutos_cobrar = max(minutos_reales, cobro_minimo) if cobro_minimo > 0 else minutos_reales
+        umbral       = max(1, cfg.fraccion_minutos or 480)
+        tarifa_plena = cfg.tarifa_plena or 0.0
+        tarifa_min   = cfg.tarifa_minuto or 0.0
+
+        periodos = minutos_cobrar // umbral
+        resto    = minutos_cobrar % umbral
+        costo_resto = min(resto * tarifa_min, tarifa_plena)
+        monto_calc = round(periodos * tarifa_plena + costo_resto, 0)
+    else:
+        # ── Modelo por minuto (original) ────────────────────────────────────
+        minutos_cobrar = max(minutos_reales, cobro_minimo) if cobro_minimo > 0 else minutos_reales
+        tarifa_min     = cfg.tarifa_minuto or 0
+        monto_calc     = round(minutos_cobrar * tarifa_min, 0)
+
     monto_final = payload.monto_manual if payload.monto_manual is not None else monto_calc
 
     # Compatibilidad con campo legacy horas_cobradas
@@ -243,5 +264,25 @@ def registrar_salida_horas(
 
     db.commit()
     db.refresh(acceso)
+
+    # Solo crear venta si hubo cobro
+    if monto_final and monto_final > 0:
+        import models as _models
+        placa_str = acceso.placa or ''
+        venta_parq = _models.Venta(
+            empresa_id  = empresa_id,
+            total       = monto_final,
+            monto_pagado= monto_final,
+            estado_pago = "pagado",
+            metodo_pago = payload.metodo_pago or "Efectivo",
+            origen      = "parqueadero_horas",
+            tipo        = "venta",
+            placa_vehiculo = placa_str,
+            fecha_pago  = datetime.now(timezone.utc),
+            observaciones = f"Acceso por minutos | Placa: {placa_str} | {minutos_cobrar} min",
+        )
+        db.add(venta_parq)
+        db.commit()
+        db.refresh(acceso)
 
     return acceso

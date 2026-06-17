@@ -282,7 +282,7 @@ def get_total_sales_today(db: Session, empresa_id: int) -> float:
     return float(total or 0)
 
 # 1. Reemplaza la función get_dashboard_data:
-def get_dashboard_data(db: Session, empresa_id: int) -> schemas.DashboardData:
+def get_dashboard_data(db: Session, empresa_id: int, tipo_negocio: str = "erp") -> schemas.DashboardData:
     from crud.ordenes_trabajo import get_ordenes_trabajo
     hoy_colombia = datetime.now(BOGOTA_TZ).date()
     inicio_utc_hoy, fin_utc_hoy = get_utc_boundaries(hoy_colombia)
@@ -311,6 +311,10 @@ def get_dashboard_data(db: Session, empresa_id: int) -> schemas.DashboardData:
     deudores = get_clientes_deudores(db, empresa_id)
     cuentas_por_cobrar = sum(d.total_debt_amount for d in deudores)
     productos_bajo_stock = len(get_low_stock(db, empresa_id))
+    total_productos = db.query(models.Producto).filter(
+        models.Producto.empresa_id == empresa_id,
+        models.Producto.vigente == True,
+    ).count()
 
     # --- MÉTRICAS PRÉSTAMOS ---
     recaudo_hoy = db.query(func.sum(models.CuotaPrestamo.monto_cuota)).filter(
@@ -357,6 +361,44 @@ def get_dashboard_data(db: Session, empresa_id: int) -> schemas.DashboardData:
         if t and t > 0
     )
 
+    # --- MÉTRICAS PARQUEADERO ---
+    ingresos_parq_hoy = 0.0
+    ocupacion_actual = 0
+    suscripciones_vigentes = 0
+    if tipo_negocio == "parqueadero":
+        ingresos_parq_hoy = db.query(func.sum(models.Venta.total)).filter(
+            models.Venta.empresa_id == empresa_id,
+            models.Venta.origen.in_(["parqueadero_suscripcion", "parqueadero_horas"]),
+            models.Venta.fecha >= inicio_utc_hoy,
+            models.Venta.fecha <= fin_utc_hoy,
+        ).scalar() or 0.0
+        ocupacion_actual = db.query(models.AccesoParqueadero).filter(
+            models.AccesoParqueadero.empresa_id == empresa_id,
+            models.AccesoParqueadero.estado == "dentro",
+        ).count()
+        suscripciones_vigentes = db.query(models.SuscripcionParqueadero).filter(
+            models.SuscripcionParqueadero.empresa_id == empresa_id,
+            models.SuscripcionParqueadero.estado == "vigente",
+            models.SuscripcionParqueadero.fecha_vencimiento >= datetime.now(BOGOTA_TZ).date(),
+        ).count()
+
+    # --- MÉTRICAS LAVADERO ---
+    ingresos_lavadero_hoy = 0.0
+    ordenes_lavadero_hoy = 0
+    if tipo_negocio == "lavadero":
+        ingresos_lavadero_hoy = db.query(func.sum(models.Venta.total)).filter(
+            models.Venta.empresa_id == empresa_id,
+            models.Venta.origen == "lavadero",
+            models.Venta.fecha >= inicio_utc_hoy,
+            models.Venta.fecha <= fin_utc_hoy,
+        ).scalar() or 0.0
+        ordenes_lavadero_hoy = db.query(models.LavaderoOrden).filter(
+            models.LavaderoOrden.empresa_id == empresa_id,
+            models.LavaderoOrden.pagado == True,
+            models.LavaderoOrden.fecha_entrada >= inicio_utc_hoy,
+            models.LavaderoOrden.fecha_entrada <= fin_utc_hoy,
+        ).count()
+
     return schemas.DashboardData(
         ventas_hoy=ventas_hoy,
         cuentas_por_cobrar=cuentas_por_cobrar,
@@ -368,6 +410,13 @@ def get_dashboard_data(db: Session, empresa_id: int) -> schemas.DashboardData:
         ventas_ayer=round(ventas_ayer, 2),
         ordenes_recientes=get_ordenes_trabajo(db, empresa_id, skip=0, limit=5),
         ventas_ultimos_30_dias=ventas_30,
+        tipo_negocio=tipo_negocio,
+        ingresos_parq_hoy=float(ingresos_parq_hoy),
+        ocupacion_actual=ocupacion_actual,
+        suscripciones_vigentes=suscripciones_vigentes,
+        ingresos_lavadero_hoy=float(ingresos_lavadero_hoy),
+        ordenes_lavadero_hoy=ordenes_lavadero_hoy,
+        total_productos=total_productos,
     )
 
 

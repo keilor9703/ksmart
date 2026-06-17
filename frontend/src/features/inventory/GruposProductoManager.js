@@ -19,7 +19,7 @@ const COLOR_PRESETS = [
 const DEFAULT_FORM = { nombre: '', codigo: '', color: '#6366F1', orden: 99, requiere_cocina: false, visible_pos: true };
 
 // ── Card móvil por categoría ──────────────────────────────────────────────────
-const GrupoCard = ({ grupo, onEdit, onDelete, onConfig }) => (
+const GrupoCard = ({ grupo, onEdit, onDelete, onConfig, esRestaurante }) => (
   <Paper sx={{
     p: 2, mb: 1.5, borderRadius: 2.5,
     border: '1px solid', borderColor: 'divider',
@@ -71,7 +71,7 @@ const GrupoCard = ({ grupo, onEdit, onDelete, onConfig }) => (
         <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>Tipo</Typography>
         <Typography sx={{ fontSize: 12, fontWeight: 700 }}>{grupo.es_predefinido ? 'Sistema' : 'Custom'}</Typography>
       </Box>
-      {grupo.requiere_cocina && (
+      {esRestaurante && grupo.requiere_cocina && (
         <Chip
           icon={<OutdoorGrill sx={{ fontSize: '12px !important' }} />}
           label="Cocina"
@@ -206,7 +206,7 @@ export default function GruposProductoManager({ onGruposChange }) {
       {isMobile ? (
         <Box>
           {grupos.map(g => (
-            <GrupoCard key={g.id} grupo={g} onEdit={openEdit} onDelete={setDeleteId} onConfig={openConfig} />
+            <GrupoCard key={g.id} grupo={g} onEdit={openEdit} onDelete={setDeleteId} onConfig={openConfig} esRestaurante={esRestaurante} />
           ))}
         </Box>
       ) : (
@@ -464,27 +464,29 @@ export default function GruposProductoManager({ onGruposChange }) {
               />
             </Box>
 
-            <Box sx={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              p: 1.5, borderRadius: 2,
-              border: `1px solid ${configForm.requiere_cocina ? 'rgba(236,72,153,0.4)' : 'rgba(0,0,0,0.12)'}`,
-              bgcolor: configForm.requiere_cocina ? 'rgba(236,72,153,0.06)' : 'transparent',
-              transition: 'all 0.2s',
-            }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <OutdoorGrill sx={{ fontSize: 18, color: configForm.requiere_cocina ? '#EC4899' : 'text.disabled' }} />
-                <Box>
-                  <Typography fontSize={13} fontWeight={600}>¿Va a cocina?</Typography>
-                  <Typography fontSize={11} color="text.secondary">Los pedidos de esta categoría se envían a cocina</Typography>
+            {esRestaurante && (
+              <Box sx={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                p: 1.5, borderRadius: 2,
+                border: `1px solid ${configForm.requiere_cocina ? 'rgba(236,72,153,0.4)' : 'rgba(0,0,0,0.12)'}`,
+                bgcolor: configForm.requiere_cocina ? 'rgba(236,72,153,0.06)' : 'transparent',
+                transition: 'all 0.2s',
+              }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <OutdoorGrill sx={{ fontSize: 18, color: configForm.requiere_cocina ? '#EC4899' : 'text.disabled' }} />
+                  <Box>
+                    <Typography fontSize={13} fontWeight={600}>¿Va a cocina?</Typography>
+                    <Typography fontSize={11} color="text.secondary">Los pedidos de esta categoría se envían a cocina</Typography>
+                  </Box>
                 </Box>
+                <Switch
+                  checked={configForm.requiere_cocina}
+                  onChange={e => setConfigForm(f => ({ ...f, requiere_cocina: e.target.checked }))}
+                  size="small"
+                  sx={{ '& .Mui-checked + .MuiSwitch-track': { bgcolor: '#EC4899 !important' } }}
+                />
               </Box>
-              <Switch
-                checked={configForm.requiere_cocina}
-                onChange={e => setConfigForm(f => ({ ...f, requiere_cocina: e.target.checked }))}
-                size="small"
-                sx={{ '& .Mui-checked + .MuiSwitch-track': { bgcolor: '#EC4899 !important' } }}
-              />
-            </Box>
+            )}
           </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>

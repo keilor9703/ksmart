@@ -53,7 +53,7 @@ const LegalLayout = ({ title, icon: Icon, accentColor, children }) => {
           </Box>
 
           <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 4, ml: 0.5 }}>
-            Última actualización: Mayo 19, 2026 · Ksmart360 — KSMP Systems
+            Última actualización: Mayo 19, 2026 · Ksmart360 — Tech Stack Colombia S.A.S
           </Typography>
 
           <Divider sx={{ mb: 4 }} />
@@ -91,7 +91,7 @@ const LegalLayout = ({ title, icon: Icon, accentColor, children }) => {
         {/* Footer */}
         <Box sx={{ mt: 4, textAlign: 'center' }}>
           <Typography variant="caption" color="text.secondary">
-            © 2026 KSMP Systems — Todos los derechos reservados.{' '}
+            © 2026 Tech Stack Colombia S.A.S — Todos los derechos reservados.{' '}
             <Box component="span" sx={{ color: accentColor || ACCENT }}>Ksmart360®</Box>
           </Typography>
         </Box>
@@ -125,7 +125,7 @@ export const Terminos = () => (
     <S n="1" title="Aceptación de los Términos">
       <p>
         Los presentes Términos y Condiciones de Uso (en adelante, "los Términos") regulan el acceso y uso de la plataforma
-        Ksmart360, propiedad de <strong>KSMP Systems</strong> (en adelante, "la Empresa"), con domicilio en Colombia.
+        Ksmart360, propiedad de <strong>Tech Stack Colombia S.A.S</strong> (en adelante, "la Empresa"), con domicilio en Colombia.
         El uso de la plataforma implica la aceptación plena e incondicional de estos Términos. Si no acepta alguna
         disposición, debe abstenerse de utilizar el servicio.
       </p>
@@ -165,7 +165,7 @@ export const Terminos = () => (
       <ul>
         <li>El usuario es el único responsable de la confidencialidad de sus credenciales de acceso.</li>
         <li>Queda prohibida la transferencia o cesión de cuentas a terceros sin autorización expresa de la Empresa.</li>
-        <li>El usuario debe notificar de inmediato cualquier uso no autorizado de su cuenta a <strong>soporte@appjeylor.com</strong>.</li>
+        <li>El usuario debe notificar de inmediato cualquier uso no autorizado de su cuenta a <strong>soporte@techstackcol.com</strong>.</li>
         <li>La Empresa no será responsable de pérdidas derivadas del acceso no autorizado por negligencia del usuario.</li>
       </ul>
     </S>
@@ -221,7 +221,7 @@ export const Terminos = () => (
     <S n="7" title="Propiedad Intelectual">
       <p>
         Todo el contenido de Ksmart360, incluyendo pero sin limitarse a: código fuente, diseño visual, interfaces,
-        logotipos, marcas, base de datos, documentación y algoritmos, son propiedad exclusiva de KSMP Systems o de sus
+        logotipos, marcas, base de datos, documentación y algoritmos, son propiedad exclusiva de Tech Stack Colombia S.A.S o de sus
         licenciantes, y están protegidos por las leyes colombianas e internacionales de propiedad intelectual.
       </p>
       <p>
@@ -296,7 +296,7 @@ export const Terminos = () => (
       </p>
       <p>
         Ante cualquier conflicto, las partes procurarán, en primera instancia, una solución amigable a través del
-        canal de soporte: <strong>soporte@appjeylor.com</strong>.
+        canal de soporte: <strong>soporte@techstackcol.com</strong>.
       </p>
     </S>
 
@@ -311,7 +311,7 @@ export const Privacidad = () => (
 
     <Box className="highlight-box" sx={{ borderColor: '#3B82F625 !important', bgcolor: '#3B82F608 !important' }}>
       <Typography variant="body2" sx={{ mb: 0 }}>
-        En <strong>KSMP Systems</strong>, respetamos su privacidad y nos comprometemos a proteger sus datos personales.
+        En <strong>Tech Stack Colombia S.A.S</strong>, respetamos su privacidad y nos comprometemos a proteger sus datos personales.
         Esta Política describe cómo recopilamos, usamos y protegemos la información cuando utiliza Ksmart360.
         Es complementaria a nuestra Política de Tratamiento de Datos (Habeas Data).
       </Typography>
@@ -319,9 +319,9 @@ export const Privacidad = () => (
 
     <S n="1" title="Responsable del Tratamiento">
       <p>
-        <strong>KSMP Systems</strong> es el responsable del tratamiento de los datos personales recopilados a través
+        <strong>Tech Stack Colombia S.A.S</strong> es el responsable del tratamiento de los datos personales recopilados a través
         de la plataforma Ksmart360. Para cualquier consulta relacionada con privacidad, puede contactarnos en:
-        <strong> soporte@appjeylor.com</strong>.
+        <strong> soporte@techstackcol.com</strong>.
       </p>
     </S>
 
@@ -461,7 +461,7 @@ export const Privacidad = () => (
         <li><strong>Oposición:</strong> objetar el tratamiento basado en interés legítimo.</li>
       </ul>
       <p>
-        Para ejercer cualquiera de estos derechos, contáctenos en <strong>soporte@appjeylor.com</strong> con el
+        Para ejercer cualquiera de estos derechos, contáctenos en <strong>soporte@techstackcol.com</strong> con el
         asunto "Derechos ARCO". Responderemos en un plazo máximo de <strong>10 días hábiles</strong>.
       </p>
     </S>
@@ -485,7 +485,7 @@ export const HabeasData = () => (
     <Box className="highlight-box" sx={{ borderColor: '#10B98125 !important', bgcolor: '#10B98108 !important' }}>
       <Typography variant="body2" sx={{ mb: 0 }}>
         De conformidad con la <strong>Ley Estatutaria 1581 de 2012</strong>, el Decreto 1377 de 2013 y demás normas
-        concordantes, <strong>KSMP Systems</strong> adopta la presente Política de Tratamiento de Datos Personales,
+        concordantes, <strong>Tech Stack Colombia S.A.S</strong> adopta la presente Política de Tratamiento de Datos Personales,
         en calidad de responsable del tratamiento de la información personal que recopila a través de la plataforma
         Ksmart360.
       </Typography>
@@ -505,8 +505,9 @@ export const HabeasData = () => (
 
     <S n="2" title="Responsable del Tratamiento">
       <p>
-        <strong>KSMP Systems</strong><br />
-        Correo electrónico: <strong>soporte@appjeylor.com</strong><br />
+        <strong>Tech Stack Colombia S.A.S</strong><br />
+        Soporte: <strong>soporte@techstackcol.com</strong><br />
+        Gerencia: <strong>gerencia@techstackcol.com</strong><br />
         Plataforma: <strong>Ksmart360</strong><br />
         País: <strong>Colombia</strong>
       </p>
@@ -517,7 +518,7 @@ export const HabeasData = () => (
     </S>
 
     <S n="3" title="Datos Personales Objeto de Tratamiento">
-      <p>KSMP Systems trata las siguientes categorías de datos personales:</p>
+      <p>Tech Stack Colombia S.A.S trata las siguientes categorías de datos personales:</p>
       <ul>
         <li><strong>Datos de identificación:</strong> nombre completo, tipo y número de documento (CC, NIT, CE),
         número de teléfono y correo electrónico.</li>
@@ -539,7 +540,7 @@ export const HabeasData = () => (
 
     <S n="4" title="Finalidades del Tratamiento">
       <p>
-        Los datos personales recopilados por KSMP Systems serán utilizados exclusivamente para las siguientes
+        Los datos personales recopilados por Tech Stack Colombia S.A.S serán utilizados exclusivamente para las siguientes
         finalidades:
       </p>
       <ul>
@@ -581,7 +582,7 @@ export const HabeasData = () => (
         deberá:
       </p>
       <ol>
-        <li>Enviar una solicitud escrita al correo <strong>soporte@appjeylor.com</strong> con el asunto:
+        <li>Enviar una solicitud escrita al correo <strong>soporte@techstackcol.com</strong> con el asunto:
         <em>"Ejercicio de Derechos — Habeas Data"</em>.</li>
         <li>Incluir: nombre completo, número de documento de identidad, descripción precisa del derecho
         a ejercer, datos de contacto y, si aplica, documentos que sustenten la solicitud.</li>
@@ -613,7 +614,7 @@ export const HabeasData = () => (
 
     <S n="8" title="Transmisión y Transferencia de Datos">
       <p>
-        KSMP Systems puede compartir los datos personales con encargados del tratamiento (empresas que prestan
+        Tech Stack Colombia S.A.S puede compartir los datos personales con encargados del tratamiento (empresas que prestan
         servicios de infraestructura tecnológica, procesamiento de pagos, comunicaciones) mediante contratos
         que imponen obligaciones equivalentes de protección.
       </p>
@@ -626,7 +627,7 @@ export const HabeasData = () => (
 
     <S n="9" title="Medidas de Seguridad de la Información">
       <p>
-        KSMP Systems implementa medidas técnicas, humanas y administrativas para garantizar la seguridad,
+        Tech Stack Colombia S.A.S implementa medidas técnicas, humanas y administrativas para garantizar la seguridad,
         confidencialidad e integridad de los datos personales tratados, incluyendo:
       </p>
       <ul>
@@ -646,7 +647,7 @@ export const HabeasData = () => (
     <S n="10" title="Vigencia de la Política y Conservación de los Datos">
       <p>
         La presente Política de Tratamiento de Datos rige a partir de su publicación (Mayo 19, 2026) y permanecerá
-        vigente mientras KSMP Systems desarrolle actividades de tratamiento de datos personales.
+        vigente mientras Tech Stack Colombia S.A.S desarrolle actividades de tratamiento de datos personales.
       </p>
       <p>
         Los datos personales serán conservados durante el período en que persista la relación contractual con el

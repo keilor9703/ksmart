@@ -73,6 +73,10 @@ export default function ParqueaderoConfig() {
         tarifa_hora:           config.tarifa_hora || 0,
         tarifa_minuto:         config.tarifa_minuto || 0,
         cobro_minimo_minutos:  config.cobro_minimo_minutos ?? 30,
+        usar_tarifa_plena:     config.usar_tarifa_plena || false,
+        tarifa_minima:         config.tarifa_minima || 0,
+        tarifa_plena:          config.tarifa_plena || 0,
+        fraccion_minutos:      config.fraccion_minutos ?? 480,
         cupo_total:            config.cupo_total || 0,
         nombre_parqueadero:    config.nombre_parqueadero || null,
         direccion:             config.direccion || null,
@@ -291,7 +295,7 @@ export default function ParqueaderoConfig() {
               type="number" inputProps={{ min: 0, max: 240 }}
               placeholder="30"
               value={config?.cobro_minimo_minutos ?? 30}
-              onChange={handleNumber('cobro_minimo_minutos')}
+              onChange={e => setConfig(prev => ({ ...prev, cobro_minimo_minutos: parseInt(e.target.value) || 0 }))}
               helperText={
                 config?.cobro_minimo_minutos > 0 && config?.tarifa_minuto > 0
                   ? `= ${formatCurrency(valorCobroMinimo)} mínimo`
@@ -312,7 +316,7 @@ export default function ParqueaderoConfig() {
           </Alert>
         )}
 
-        {config?.tarifa_minuto > 0 && (
+        {config?.tarifa_minuto > 0 && !config?.usar_tarifa_plena && (
           <Box sx={{ mt: 2, p: 2, bgcolor: '#10B98110', borderRadius: 2 }}>
             <Typography sx={{ fontSize: 12, fontWeight: 700, color: '#065F46', mb: 1, textTransform: 'uppercase' }}>
               Ejemplos de cobro
@@ -329,7 +333,114 @@ export default function ParqueaderoConfig() {
             </Stack>
           </Box>
         )}
+
+        {/* ── Toggle tarifa plena ── */}
+        <Box sx={{ mt: 2.5, pt: 2.5, borderTop: '1px dashed rgba(0,0,0,0.12)' }}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={config?.usar_tarifa_plena || false}
+                onChange={(e) => setConfig(prev => ({ ...prev, usar_tarifa_plena: e.target.checked }))}
+                sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#FF6020' }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#FF6020' } }}
+              />
+            }
+            label={
+              <Box>
+                <Typography sx={{ fontSize: 14, fontWeight: 700 }}>Habilitar Tarifa Plena por período</Typography>
+                <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                  Cobra por minuto mientras no se complete el período. Al alcanzar el umbral, aplica la tarifa plena en lugar del acumulado por minutos.
+                </Typography>
+              </Box>
+            }
+          />
+        </Box>
       </Paper>
+
+      {/* ─── Tarifa plena ──────────────────────────────────────────────────── */}
+      {config?.usar_tarifa_plena && (
+        <Paper sx={{ p: 3, mb: 2, borderRadius: 3, border: '2px solid', borderColor: '#FF602040' }}>
+          <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
+            <Box sx={{
+              width: 40, height: 40, borderRadius: 2,
+              bgcolor: '#FF602015', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Schedule sx={{ color: ACCENT }} />
+            </Box>
+            <Box>
+              <Typography sx={{ fontSize: 16, fontWeight: 800 }}>Configuración de Tarifa Plena</Typography>
+              <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                Cobra por minuto hasta el umbral. Al completar el período, aplica la tarifa plena. El ciclo se repite.
+              </Typography>
+            </Box>
+          </Stack>
+
+          <Grid container spacing={2}>
+            <Grid item xs={12} md={6}>
+              <CurrencyField
+                fullWidth size="small" label="Tarifa plena por período *"
+                placeholder="10000"
+                value={config?.tarifa_plena}
+                onChange={handleNumber('tarifa_plena')}
+                helperText={`Cobro al completar ${config?.fraccion_minutos || 480} min (${((config?.fraccion_minutos || 480) / 60).toFixed(1)}h)`}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth size="small" label="Umbral del período (minutos)"
+                type="number" inputProps={{ min: 30, max: 2880 }}
+                placeholder="480"
+                value={config?.fraccion_minutos ?? 480}
+                onChange={e => setConfig(prev => ({ ...prev, fraccion_minutos: parseInt(e.target.value) || 480 }))}
+                helperText={`Tiempo que activa la tarifa plena (ej: 480 = 8 horas)`}
+                InputProps={{ endAdornment: <InputAdornment position="end">min</InputAdornment> }}
+              />
+            </Grid>
+          </Grid>
+
+          {/* Simulador */}
+          {config?.tarifa_plena > 0 && config?.tarifa_minuto > 0 && (
+            <Box sx={{ mt: 2, p: 2, bgcolor: '#FF602008', borderRadius: 2, border: '1px solid #FF602025' }}>
+              <Typography sx={{ fontSize: 12, fontWeight: 700, color: ACCENT, mb: 1, textTransform: 'uppercase' }}>
+                Simulador de cobro
+              </Typography>
+              <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
+                {(() => {
+                  const umbral = config.fraccion_minutos || 480;
+                  const tarMin = config.tarifa_minuto || 0;
+                  const tarPlena = config.tarifa_plena || 0;
+                  const cobMin = config.cobro_minimo_minutos || 0;
+                  const ejemplos = [
+                    Math.round(umbral * 0.4),   // 40% del umbral
+                    Math.round(umbral * 0.75),  // 75% del umbral
+                    umbral,                      // exactamente el umbral
+                    umbral + Math.round(umbral * 0.3),  // 1 período + fracción
+                    umbral * 2,                  // 2 períodos completos
+                  ].filter((v, i, a) => a.indexOf(v) === i && v > 0);
+                  return ejemplos.map(mins => {
+                    const minC = cobMin > 0 ? Math.max(mins, cobMin) : mins;
+                    const periodos   = Math.floor(minC / umbral);
+                    const resto      = minC % umbral;
+                    const costoResto = Math.min(resto * tarMin, tarPlena);
+                    const cobro      = periodos * tarPlena + costoResto;
+                    const label = mins >= 60
+                      ? `${(mins / 60).toFixed(1).replace('.0', '')}h`
+                      : `${mins}min`;
+                    return (
+                      <Chip key={mins} size="small"
+                        label={`${label} → ${formatCurrency(cobro)}`}
+                        sx={{ bgcolor: 'background.paper', fontWeight: 600, fontSize: 12 }}
+                      />
+                    );
+                  });
+                })()}
+              </Stack>
+              <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 1 }}>
+                Por minuto hasta el umbral · Tarifa plena al completar el período · El ciclo se repite
+              </Typography>
+            </Box>
+          )}
+        </Paper>
+      )}
 
       {/* ─── Vista previa de tarifas ────────────────────────────── */}
       <Paper sx={{ p: 3, mb: 2, borderRadius: 3, bgcolor: 'background.default' }}>
@@ -343,10 +454,21 @@ export default function ParqueaderoConfig() {
             sx={{ bgcolor: '#3B82F615', color: '#1E3A8A', fontWeight: 700 }} />
           <Chip label={`Diaria ${formatCurrency(config?.tarifa_diaria || 0)}`}
             sx={{ bgcolor: '#F59E0B15', color: '#78350F', fontWeight: 700 }} />
-          <Chip label={`Minuto ${formatCurrency(config?.tarifa_minuto || 0)}`}
-            sx={{ bgcolor: '#10B98115', color: '#065F46', fontWeight: 700 }} />
-          <Chip label={`Hora (info) ${formatCurrency(config?.tarifa_hora || 0)}`}
-            sx={{ bgcolor: '#94A3B815', color: '#475569', fontWeight: 700 }} />
+          {config?.usar_tarifa_plena ? (
+            <>
+              <Chip label={`Por minuto ${formatCurrency(config?.tarifa_minuto || 0)}/min`}
+                sx={{ bgcolor: '#FF602015', color: ACCENT, fontWeight: 700 }} />
+              <Chip label={`Plena c/${((config?.fraccion_minutos || 480) / 60).toFixed(1).replace('.0', '')}h ${formatCurrency(config?.tarifa_plena || 0)}`}
+                sx={{ bgcolor: '#FF602015', color: ACCENT, fontWeight: 700 }} />
+            </>
+          ) : (
+            <>
+              <Chip label={`Minuto ${formatCurrency(config?.tarifa_minuto || 0)}`}
+                sx={{ bgcolor: '#10B98115', color: '#065F46', fontWeight: 700 }} />
+              <Chip label={`Hora (info) ${formatCurrency(config?.tarifa_hora || 0)}`}
+                sx={{ bgcolor: '#94A3B815', color: '#475569', fontWeight: 700 }} />
+            </>
+          )}
           <Chip label={`Cupo ${config?.cupo_total || 0} vehículos`}
             sx={{ bgcolor: ACCENT + '15', color: ACCENT, fontWeight: 700 }} />
         </Stack>

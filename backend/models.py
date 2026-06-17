@@ -65,6 +65,7 @@ class Empresa(Base):
 
     # 👇 NUEVOS CAMPOS FASE 2 - AUTOMATIZACIÓN
     is_protected = Column(Boolean, default=False) # QA, Partners, Demos
+    tipo_negocio     = Column(String(30), default="erp", nullable=False, server_default="erp")
 
     # 🧾 CAMPOS FACTURACIÓN ELECTRÓNICA (DIAN / MATIAS API)
     dv                    = Column(String(1), nullable=True)  # Dígito de Verificación
@@ -78,11 +79,15 @@ class Empresa(Base):
 
     # Configuración de Integración
     facturacion_electronica_activa = Column(Boolean, default=False)
-    matias_api_key        = Column(String, nullable=True)
+    matias_api_key        = Column(String, nullable=True)   # token producción
+    matias_sandbox_api_key= Column(String, nullable=True)   # token sandbox
     matias_test_mode      = Column(Boolean, default=True)
 
     # Configuración de ventas
     omitir_inventario     = Column(Boolean, default=False)
+
+    # Descripción pública del negocio (catálogo virtual)
+    descripcion = Column(Text, nullable=True)
 
     # Programa de fidelización (puntos canjeables)
     fidelizacion_activa      = Column(Boolean, default=True)
@@ -164,6 +169,7 @@ class Modulo(Base):
     name           = Column(String, unique=True, index=True)
     description    = Column(String, nullable=True)
     frontend_path  = Column(String, unique=True)
+    orden          = Column(Integer, default=99)
 
 
 # ... (tus otros imports)
@@ -391,14 +397,17 @@ class DetalleVenta(Base, TenantMixin):
     id               = Column(Integer, primary_key=True, index=True)
     venta_id         = Column(Integer, ForeignKey("ventas.id"))
     producto_id      = Column(Integer, ForeignKey("productos.id"), nullable=True)   # nullable: libre items have no product
+    variante_id      = Column(Integer, ForeignKey("producto_variantes.id"), nullable=True)
     nombre_libre     = Column(String(200), nullable=True)   # description for libre items
+    nombre_variante  = Column(String(200), nullable=True)   # snapshot del nombre de variante al momento de vender
     cantidad         = Column(Float)
     precio_unitario  = Column(Float)
     descuento_pct    = Column(Float, default=0.0)
     iva_porcentaje   = Column(Float, default=0.0)
 
-    venta   = relationship("Venta", back_populates="detalles")
+    venta    = relationship("Venta", back_populates="detalles")
     producto = relationship("Producto")
+    variante = relationship("ProductoVariante")
 
 class Pago(Base, TenantMixin):
     __tablename__ = "pagos"
@@ -434,6 +443,22 @@ class ResolucionDian(Base, TenantMixin):
     clave_tecnica     = Column(String(200), nullable=True)   # Clave técnica DIAN para FE
     nota              = Column(Text, nullable=True)           # Observaciones internas
 
+
+class IntentoFE(Base):
+    """
+    Auditoría de cada intento de emisión de Factura Electrónica.
+    Registra payload enviado a Matias y respuesta recibida para diagnóstico.
+    """
+    __tablename__ = "intentos_fe"
+    id                  = Column(Integer, primary_key=True)
+    venta_id            = Column(Integer, ForeignKey("ventas.id", ondelete="CASCADE"), nullable=False, index=True)
+    empresa_id          = Column(Integer, nullable=False, index=True)
+    timestamp           = Column(DateTime(timezone=True), default=utcnow)
+    estado              = Column(String(20))             # 'exitoso' | 'fallido' | 'pendiente'
+    payload_enviado     = Column(Text, nullable=True)    # JSON del payload enviado a Matias
+    respuesta_recibida  = Column(Text, nullable=True)    # JSON de la respuesta de Matias
+    cufe                = Column(String(200), nullable=True)
+    mensaje             = Column(Text, nullable=True)
 
 
 class Venta(Base, TenantMixin):
@@ -472,6 +497,14 @@ class Venta(Base, TenantMixin):
     operador_id     = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     placa_vehiculo  = Column(String(15), nullable=True)
     tipo_vehiculo   = Column(String(20), nullable=True)
+
+    # Fidelización — puntos canjeados en esta venta
+    descuento_puntos = Column(Float, default=0.0, nullable=True)
+    puntos_canjeados = Column(Integer, default=0, nullable=True)
+
+    # Origen del ingreso — identifica qué módulo generó esta venta
+    origen          = Column(String(40), nullable=True, default="erp")
+    # Valores: 'erp' | 'lavadero' | 'parqueadero_suscripcion' | 'parqueadero_horas' | 'restaurante' | 'pedido_virtual'
 
     cliente                = relationship("Cliente", back_populates="ventas")
     detalles               = relationship("DetalleVenta", back_populates="venta", cascade="all, delete-orphan")
@@ -712,13 +745,16 @@ class PlanSuscripcion(Base):
     __tablename__ = "planes_suscripcion"
 
     id = Column(Integer, primary_key=True, index=True)
-    nombre = Column(String, nullable=False)              
-    codigo_interno = Column(String, unique=True, index=True, nullable=False) 
-    precio = Column(Float, nullable=False)               
-    dias_duracion = Column(Integer, nullable=False)      
+    nombre = Column(String, nullable=False)
+    codigo_interno = Column(String, unique=True, index=True, nullable=False)
+    precio = Column(Float, nullable=False)
+    dias_duracion = Column(Integer, nullable=False)
     caracteristicas = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     is_featured = Column(Boolean, default=False)
+    # NULL = visible para todas las empresas; valor = plan privado para esa empresa
+    empresa_id_exclusivo = Column(Integer, ForeignKey("empresas.id"), nullable=True, default=None)
+    empresa_exclusiva = relationship("Empresa", foreign_keys=[empresa_id_exclusivo])
 
 
 class RegistroPago(Base):
@@ -895,8 +931,13 @@ class ParqueaderoConfig(Base, TenantMixin):
     tarifa_quincenal      = Column(Float, default=0.0)
     tarifa_diaria         = Column(Float, default=0.0)
     tarifa_hora           = Column(Float, default=0.0)
-    tarifa_minuto         = Column(Float, default=0.0)        # ✨ NUEVO
-    cobro_minimo_minutos  = Column(Integer, default=30)       # ✨ NUEVO (0 = desactivado)
+    tarifa_minuto         = Column(Float, default=0.0)
+    cobro_minimo_minutos  = Column(Integer, default=30)       # 0 = desactivado
+    # ── Tarifa plena (modelo: mínimo plano + fracción adicional) ────────────
+    usar_tarifa_plena     = Column(Boolean, default=False)    # activa el modelo de tarifa plena
+    tarifa_minima         = Column(Float, default=0.0)        # cobro plano por el período mínimo
+    tarifa_plena          = Column(Float, default=0.0)        # cobro por cada fracción adicional
+    fraccion_minutos      = Column(Integer, default=30)       # duración de cada fracción adicional
     cupo_total            = Column(Integer, default=0)
     nombre_parqueadero    = Column(String(120), nullable=True)
     direccion             = Column(String(200), nullable=True)
@@ -1410,6 +1451,25 @@ class ConfigRestaurante(Base):
     empresa = relationship("Empresa")
 
 
+class Reserva(Base):
+    """Reserva de mesa — pre-asignación de mesa para fecha/hora futura."""
+    __tablename__ = "restaurante_reservas"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    empresa_id      = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    mesa_id         = Column(Integer, ForeignKey("restaurante_mesas.id"), nullable=True)
+    nombre_cliente  = Column(String(120), nullable=False)
+    telefono        = Column(String(30), nullable=True)
+    fecha           = Column(Date, nullable=False)
+    hora            = Column(String(10), nullable=False)      # "19:30"
+    personas        = Column(Integer, default=2)
+    notas           = Column(Text, nullable=True)
+    estado          = Column(String(20), default="pendiente") # pendiente | confirmada | cancelada | completada
+    created_at      = Column(DateTime(timezone=True), default=utcnow)
+
+    empresa = relationship("Empresa")
+    mesa    = relationship("Mesa")
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # LINK DE PAGO POS — Configuración por empresa
@@ -1489,3 +1549,73 @@ class LavaderoConfig(Base, TenantMixin):
     nombre_lavadero     = Column(String(120), nullable=True)
     created_at          = Column(DateTime(timezone=True), default=utcnow)
     updated_at          = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MÓDULO CONTABILIDAD AUTOMÁTICA — PUC colombiano + asientos automáticos
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class CuentaContable(Base, TenantMixin):
+    __tablename__ = "cuentas_contables"
+    id                  = Column(Integer, primary_key=True, index=True)
+    codigo              = Column(String(10), nullable=False, index=True)
+    nombre              = Column(String(200), nullable=False)
+    tipo                = Column(String(20), nullable=False)   # activo|pasivo|patrimonio|ingreso|costo|gasto
+    naturaleza          = Column(String(10), nullable=False)   # debito|credito
+    nivel               = Column(Integer, default=3)           # 1=clase 2=grupo 3=cuenta
+    padre_codigo        = Column(String(10), nullable=True)
+    is_active           = Column(Boolean, default=True)
+    permite_movimiento  = Column(Boolean, default=True)        # False en cuentas de grupo
+    created_at          = Column(DateTime(timezone=True), default=utcnow)
+
+    lineas = relationship("LineaAsiento", back_populates="cuenta")
+
+    __table_args__ = (
+        UniqueConstraint("empresa_id", "codigo", name="uq_cuenta_empresa_codigo"),
+    )
+
+
+class AsientoContable(Base, TenantMixin):
+    __tablename__ = "asientos_contables"
+    id              = Column(Integer, primary_key=True, index=True)
+    numero          = Column(Integer, nullable=False)          # secuencial por empresa
+    fecha           = Column(DateTime(timezone=True), nullable=False, index=True)
+    descripcion     = Column(String(500), nullable=False)
+    tipo_origen     = Column(String(30), nullable=False, index=True)  # venta|gasto|compra|cuota_prestamo|manual
+    referencia_id   = Column(Integer, nullable=True)
+    referencia_tipo = Column(String(30), nullable=True)
+    total_debitos   = Column(Float, default=0.0)
+    total_creditos  = Column(Float, default=0.0)
+    created_at      = Column(DateTime(timezone=True), default=utcnow)
+
+    lineas = relationship("LineaAsiento", back_populates="asiento", cascade="all, delete-orphan")
+
+
+class LineaAsiento(Base, TenantMixin):
+    __tablename__ = "lineas_asiento"
+    id                  = Column(Integer, primary_key=True, index=True)
+    asiento_id          = Column(Integer, ForeignKey("asientos_contables.id"), nullable=False, index=True)
+    cuenta_contable_id  = Column(Integer, ForeignKey("cuentas_contables.id"), nullable=False)
+    descripcion         = Column(String(300), nullable=True)
+    debito              = Column(Float, default=0.0)
+    credito             = Column(Float, default=0.0)
+    orden               = Column(Integer, default=0)
+
+    asiento = relationship("AsientoContable", back_populates="lineas")
+    cuenta  = relationship("CuentaContable", back_populates="lineas")
+
+
+class CierreContable(Base, TenantMixin):
+    """Registro de cierres contables por período. Impide modificar asientos en períodos cerrados."""
+    __tablename__ = "cierres_contables"
+    id              = Column(Integer, primary_key=True, index=True)
+    periodo_inicio  = Column(DateTime(timezone=True), nullable=False)
+    periodo_fin     = Column(DateTime(timezone=True), nullable=False)
+    descripcion     = Column(String(300), nullable=True)
+    asiento_id      = Column(Integer, ForeignKey("asientos_contables.id"), nullable=True)
+    utilidad_neta   = Column(Float, default=0.0)
+    created_at      = Column(DateTime(timezone=True), default=utcnow)
+    created_by_id   = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    asiento    = relationship("AsientoContable")
+    created_by = relationship("User")

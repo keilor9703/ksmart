@@ -39,6 +39,7 @@ _base_origins = [
     "https://www.appjeylor.com",
     "https://appjeylor.com",
     "https://api.appjeylor.com",
+    "https://catalogo.appjeylor.com",
 ]
 _extra = [o.strip() for o in os.getenv("EXTRA_CORS_ORIGINS", "").split(",") if o.strip()]
 origins = _base_origins + _extra
@@ -69,15 +70,33 @@ def read_root():
 def ping():
     return {"ping": "pong", "timestamp": datetime.now(timezone.utc)}
 
+@app.get("/health")
+def health():
+    from sqlalchemy import text
+    db = SessionLocal()
+    try:
+        db.execute(text("SELECT 1"))
+        db_status = "ok"
+    except Exception as e:
+        db_status = str(e)
+    finally:
+        db.close()
+    return {
+        "status": "ok" if db_status == "ok" else "degraded",
+        "database": db_status,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "version": "2.2.0",
+    }
+
 # --- Startup Logic ---
 def initialize_default_data(db: Session):
     # Auto-healing for Master Company
     empresa_default = db.query(models.Empresa).first()
     if not empresa_default:
         empresa_default = models.Empresa(
-            nombre="Vialmar Cacao (Mi Fábrica)",
-            nit="1234188418-2",
-            color_primario="#F43F5E",
+            nombre=os.getenv("SUPERADMIN_EMPRESA_NOMBRE", "Mi Empresa"),
+            nit=os.getenv("SUPERADMIN_EMPRESA_NIT", ""),
+            color_primario=os.getenv("SUPERADMIN_COLOR", "#F43F5E"),
             is_active=True
         )
         db.add(empresa_default)
@@ -138,11 +157,17 @@ def initialize_default_data(db: Session):
 
     crud.set_modules_for_role(db, role_id=admin_role.id, module_ids=[m.id for m in created_modules], empresa_id=empresa_default.id)
 
-    admin_user = crud.get_user_by_username(db, username="admin")
+    superadmin_username = os.getenv("SUPERADMIN_USERNAME", "admin")
+    superadmin_password = os.getenv("SUPERADMIN_PASSWORD", "")
+    if not superadmin_password:
+        superadmin_password = "adminpass"
+        logger.warning("⚠️ SUPERADMIN_PASSWORD no configurada. Usando contraseña por defecto.")
+
+    admin_user = crud.get_user_by_username(db, username=superadmin_username)
     if not admin_user:
         crud.create_user(
             db,
-            schemas.UserCreate(username="admin", password="adminpass", role_id=admin_role.id),
+            schemas.UserCreate(username=superadmin_username, password=superadmin_password, role_id=admin_role.id),
             empresa_id=empresa_default.id
         )
 

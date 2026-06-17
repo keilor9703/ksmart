@@ -15,6 +15,7 @@ import CurrencyField from '../../components/common/CurrencyField';
 import { getProductoByBarcode } from '../../api';
 import { esPesable } from '../../hooks/useBascula';
 import ScaleIcon from '@mui/icons-material/Scale';
+import StyleIcon from '@mui/icons-material/Style';
 import { toast } from 'react-toastify';
 
 const ACCENT = '#FF6020';
@@ -123,6 +124,11 @@ const ProductCard = ({ producto, qtyInCart, onPress, groupColor }) => {
                     <Typography sx={{ fontSize: 12, fontWeight: 800, color: ACCENT }}>
                         {formatCurrency(producto.precio)}
                     </Typography>
+                    {producto.tiene_variantes && (
+                        <Tooltip title="Tiene variantes">
+                            <StyleIcon sx={{ fontSize: 13, color: 'text.secondary', opacity: 0.7 }} />
+                        </Tooltip>
+                    )}
                     {esPesable(producto.unidad_medida) && (
                         <Tooltip title="Se pesa en báscula">
                             <ScaleIcon sx={{ fontSize: 13, color: 'text.secondary', opacity: 0.7 }} />
@@ -151,6 +157,11 @@ const CartItemRow = ({ detail, onAddOne, onRemoveOne, onRemoveAll }) => {
                 }}>
                     {detail.producto?.nombre}
                 </Typography>
+                {detail.nombreVariante && (
+                    <Typography sx={{ fontSize: 10, color: 'primary.main', fontWeight: 600 }}>
+                        {detail.nombreVariante}
+                    </Typography>
+                )}
                 <Typography sx={{ fontSize: 10.5, color: 'text.secondary' }}>
                     {formatCurrency(detail.precioUnitario)} c/u
                     {(detail.descuentoPct || 0) > 0 && (

@@ -214,6 +214,7 @@ def convertir_a_venta(
     user_id: int,
     metodo_pago: str = "Efectivo",
     omitir_inventario: bool = False,
+    iva_porcentaje: float = 0.0,
 ) -> models.PedidoVirtual:
     pedido = get_pedido(db, pedido_id, empresa_id)
     if not pedido:
@@ -240,10 +241,14 @@ def convertir_a_venta(
         db.add(cliente)
         db.flush()
 
+    factor_iva = 1 + (iva_porcentaje / 100)
+    total_con_iva = round(pedido.total * factor_iva, 2)
+    iva_total = round(pedido.total * (iva_porcentaje / 100), 2)
+
     venta = models.Venta(
         empresa_id      = empresa_id,
         cliente_id      = cliente.id,
-        total           = pedido.total,
+        total           = total_con_iva,
         descuento_total = 0.0,
         estado_pago     = "pendiente",
         operador_id     = user_id,
@@ -263,7 +268,7 @@ def convertir_a_venta(
             cantidad        = d.cantidad,
             precio_unitario = d.precio_unitario,
             descuento_pct   = 0.0,
-            iva_porcentaje  = 0.0,
+            iva_porcentaje  = iva_porcentaje,
         ))
 
     # Ensure stock is decremented (may not have been if skipped confirmation)

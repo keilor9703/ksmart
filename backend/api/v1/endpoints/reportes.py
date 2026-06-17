@@ -40,7 +40,8 @@ def get_cuentas_por_cobrar(db: Session = Depends(get_db), current_user: models.U
 
 @router.get("/dashboard", response_model=schemas.DashboardData)
 def get_dashboard_report(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
-    return crud.get_dashboard_data(db, empresa_id=current_user.empresa_id)
+    tipo_negocio = getattr(current_user.empresa, "tipo_negocio", "erp") or "erp"
+    return crud.get_dashboard_data(db, empresa_id=current_user.empresa_id, tipo_negocio=tipo_negocio)
 
 @router.get("/iva-neto")
 def get_iva_neto(
@@ -366,11 +367,14 @@ def reporte_caja_rango(
     for v in ventas:
         _acumular(_fecha_col(v.fecha), v.metodo_pago, v.total, "ingreso")
 
-    # --- 2. Abonos Cartera ---
-    abonos = db.query(models.Pago).filter(
+    # --- 2. Abonos Cartera (solo pagos parciales, excluye ventas ya contadas arriba) ---
+    abonos = db.query(models.Pago).join(
+        models.Venta, models.Pago.venta_id == models.Venta.id
+    ).filter(
         models.Pago.empresa_id == empresa_id,
         models.Pago.fecha >= start_date,
-        models.Pago.fecha < end_date + timedelta(days=1)
+        models.Pago.fecha < end_date + timedelta(days=1),
+        models.Venta.estado_pago != "pagado",
     ).all()
     for a in abonos:
         _acumular(_fecha_col(a.fecha), a.metodo_pago, a.monto, "ingreso")
