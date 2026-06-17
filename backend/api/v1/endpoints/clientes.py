@@ -25,8 +25,10 @@ def get_clientes_template(current_user: models.User = Depends(get_current_active
     instrucciones = [
         "1. Usa la pestaña 'Plantilla Datos' para registrar clientes o proveedores.",
         "2. La columna CEDULA (NIT o documento) no debe repetirse. Si ya existe, se omitirá.",
-        "3. ES_CLIENTE y ES_PROVEEDOR: Usa la lista desplegable (SI / NO).",
-        "4. No modifiques ni elimines la Fila 1."
+        "3. ES_CLIENTE: SI si le vendes a este tercero. ES_PROVEEDOR: SI si le compras.",
+        "4. CUPO_CREDITO: Escribe solo números sin puntos ni símbolos (ej: 500000).",
+        "5. TELEFONO: Escribe solo números sin espacios ni guiones (ej: 3001234567).",
+        "6. No modifiques ni elimines la Fila 1 (cabeceras)."
     ]
     for i, inst in enumerate(instrucciones, 4):
         ws_inst.cell(row=i, column=2, value=inst).font = Font(size=11)

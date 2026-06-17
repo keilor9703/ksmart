@@ -101,7 +101,7 @@ export const uploadFile = async (uploadType, file) => {
         const response = await apiClient.post(`/${uploadType}/upload`, formData, config);
         return response.data;
     } catch (error) {
-        throw error.response.data;
+        throw error?.response?.data ?? { message: 'Error de conexión al servidor' };
     }
 };
 

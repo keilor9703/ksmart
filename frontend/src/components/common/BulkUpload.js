@@ -75,10 +75,11 @@ const BulkUpload = ({ uploadType, onUploadSuccess }) => {
     if (ext === 'csv') {
       const reader = new FileReader();
       reader.onload = (e) => {
-        const headers = e.target.result.split('\n')[0].split(',').map(h => h.trim().toLowerCase());
-        const missing = config.headers.filter(h => !headers.includes(h));
+        // Normalizar a minúsculas para comparar sin importar si la plantilla usa MAYÚSCULAS
+        const rawHeaders = e.target.result.split('\n')[0].split(',').map(h => h.trim().toLowerCase().replace(/["\r]/g, ''));
+        const missing = config.headers.filter(h => !rawHeaders.includes(h.toLowerCase()));
         if (missing.length > 0) {
-          setValidationError(`Columnas faltantes: ${missing.join(', ')}`);
+          setValidationError(`Columnas faltantes en el CSV: ${missing.join(', ')}`);
         } else {
           setValidationError(null);
         }
@@ -286,7 +287,7 @@ const handleDownloadTemplate = async () => {
             '&.Mui-disabled': { opacity: 0.6 },
           }}
         >
-          {loading ? 'Procesando datos...' : '2. Subir Inventario'}
+          {loading ? 'Procesando datos...' : `2. Subir ${uploadType === 'clientes' ? 'Terceros' : uploadType === 'productos' ? 'Productos' : 'Movimientos'}`}
         </Button>
       </Box>
     </Box>

@@ -49,9 +49,16 @@ def bulk_create_productos(db: Session, empresa_id: int, file: IO, filename: str)
         raise HTTPException(status_code=400, detail=f"Error procesando archivo: {e}")
 
     # 4. Forzar tipos de datos en las columnas numéricas
+    # Limpiar formato de moneda que el usuario pudo haber escrito (ej: "$1.200,00" → 1200.0)
     numeric_cols = ['precio', 'costo', 'stock_minimo', 'grupo_item']
     for col in numeric_cols:
         if col in df.columns:
+            df[col] = (
+                df[col].astype(str)
+                       .str.replace(r'[\$\s]', '', regex=True)
+                       .str.replace(r'\.(?=\d{3})', '', regex=True)  # separador de miles
+                       .str.replace(',', '.', regex=False)
+            )
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
     created_count = 0
@@ -70,7 +77,12 @@ def bulk_create_productos(db: Session, empresa_id: int, file: IO, filename: str)
     seen_names = set()
 
     def map_group(val):
-        return resolve_grupo_by_name(db, empresa_id, str(val))
+        # pandas lee los dropdowns de Excel como float (ej: 1.0) — convertir a entero primero
+        try:
+            clean = str(int(float(str(val).strip())))
+        except (ValueError, TypeError):
+            clean = str(val).strip()
+        return resolve_grupo_by_name(db, empresa_id, clean)
 
     for index, row in df.iterrows():
         try:
@@ -96,9 +108,12 @@ def bulk_create_productos(db: Session, empresa_id: int, file: IO, filename: str)
 
             seen_names.add(norm_name)
 
-            # Saneamiento del campo es_servicio (Para evitar fallos si el usuario deja en blanco)
+            # es_servicio puede llegar como 0, 1, 0.0, 1.0, "0", "1", True, False
             es_servicio_val = row.get('es_servicio', 0)
-            es_servicio = bool(int(float(es_servicio_val))) if pd.notna(es_servicio_val) else False
+            try:
+                es_servicio = bool(int(float(str(es_servicio_val)))) if pd.notna(es_servicio_val) else False
+            except (ValueError, TypeError):
+                es_servicio = False
 
             producto_data = schemas.ProductoCreate(
                 nombre=raw_name,
@@ -139,7 +154,12 @@ def bulk_create_clientes(db: Session, empresa_id: int, file: IO, filename: str):
     for index, row in df.iterrows():
         try:
             nombre = str(row.get('nombre', '')).strip()
-            cedula = str(row.get("cedula", "")).strip() if pd.notna(row.get("cedula")) else None
+            # Excel a veces guarda NIT/cédula como número (ej: 900123456.0) — limpiar el .0
+            _ced_raw = row.get("cedula")
+            if pd.notna(_ced_raw):
+                cedula = str(int(float(_ced_raw))) if str(_ced_raw).replace('.','').isdigit() else str(_ced_raw).strip()
+            else:
+                cedula = None
 
             # Omitir filas vacías
             if (not nombre or nombre == 'nan') and not cedula:
@@ -162,7 +182,7 @@ def bulk_create_clientes(db: Session, empresa_id: int, file: IO, filename: str):
             cliente_data = schemas.ClienteCreate(
                 nombre=nombre,
                 cedula=cedula,
-                telefono=str(row.get('telefono', '')) if pd.notna(row.get('telefono')) else None,
+                telefono=(lambda v: str(int(float(v))) if str(v).replace('.','').isdigit() else str(v).strip())(row.get('telefono','')) if pd.notna(row.get('telefono')) else None,
                 direccion=str(row.get('direccion', '')) if pd.notna(row.get('direccion')) else None,
                 cupo_credito=float(row.get('cupo_credito', 0.0)) if pd.notna(row.get('cupo_credito')) else 0.0,
                 es_cliente=es_cliente,
