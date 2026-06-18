@@ -76,7 +76,7 @@ def get_productos(
     filter_group: str = None,
     filter_stock: str = None,
 ):
-    from sqlalchemy import or_, ilike_op
+    from sqlalchemy import or_
     q = db.query(models.Producto).filter(
         models.Producto.empresa_id == empresa_id,
         models.Producto.vigente == True,
