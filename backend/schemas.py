@@ -839,6 +839,7 @@ class LoteProduccionConfirm(BaseModel):
     # 👇 NUEVOS CAMPOS PARA PRODUCCIÓN FEFO
     numero_lote: Optional[str] = None
     fecha_vencimiento: Optional[date] = None
+    fecha_fabricacion: Optional[date] = None
 
 class LoteProduccion(LoteProduccionBase):
     id: int

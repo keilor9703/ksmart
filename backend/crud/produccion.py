@@ -199,6 +199,8 @@ def get_or_create_cliente_interno(db: Session, empresa_id: int) -> models.Client
 
 def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confirm_data: schemas.LoteProduccionConfirm):
     from crud.ventas import consumir_stock_fefo
+    from crud.perecederos import crear_lote_existencia
+
     db_lote = get_lote(db, empresa_id, lote_id)
     if not db_lote or db_lote.estado != "En produccion":
         raise ValueError("El lote no existe o ya ha sido procesado.")
@@ -207,33 +209,43 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
     cantidad_teorica = db_lote.cantidad_a_producir
     cantidad_final = confirm_data.cantidad_real
 
-    costo_total_acumulado = 0.0
+    if cantidad_final is None or cantidad_final <= 0:
+        raise ValueError("La cantidad realmente producida debe ser mayor a cero.")
 
-    # ─── 1. CONSUMO DE INSUMOS ───
+    # ─── 1. PRE-VALIDACIÓN: verificar TODO el stock antes de consumir nada ───
+    #     Esto garantiza atomicidad: o se consume todo o no se consume nada.
+    insumos_plan = []  # (insumo, cantidad_requerida)
     for item in receta.items:
         insumo = get_producto(db, empresa_id, item.insumo_id)
         if not insumo:
             raise ValueError(f"Insumo {item.insumo_id} no encontrado")
-
         cantidad_requerida = item.cantidad * cantidad_teorica
         if (insumo.stock_actual or 0) < cantidad_requerida:
-            raise ValueError(f"Stock insuficiente para: {insumo.nombre}. Req: {cantidad_requerida}, Disp: {insumo.stock_actual}")
+            raise ValueError(
+                f"Stock insuficiente para: {insumo.nombre}. "
+                f"Req: {cantidad_requerida}, Disp: {insumo.stock_actual or 0}"
+            )
+        insumos_plan.append((insumo, cantidad_requerida))
 
-        costo_insumo_total = cantidad_requerida * (insumo.costo or 0.0)
-        costo_total_acumulado += costo_insumo_total
+    costo_total_acumulado = 0.0
+
+    # ─── 2. CONSUMO DE INSUMOS (sin commits intermedios) ───
+    for insumo, cantidad_requerida in insumos_plan:
+        costo_total_acumulado += cantidad_requerida * (insumo.costo or 0.0)
 
         if getattr(insumo, "maneja_lotes", False):
-            # Consumo de insumo usando FEFO
+            # Consumo de insumo usando FEFO — commit diferido al cierre
             consumir_stock_fefo(
                 db, empresa_id, insumo.id, cantidad_requerida,
-                motivo="Producción - Consumo", referencia=f"Lote #{db_lote.id}"
+                motivo="Producción - Consumo", referencia=f"Lote #{db_lote.id}",
+                commit=False,
             )
             insumo.stock_actual = (insumo.stock_actual or 0) - cantidad_requerida
             db.add(insumo)
         else:
-            # Consumo de insumo regular
+            # Consumo de insumo regular — commit diferido
             mov_salida = schemas.InventoryMovementCreate(
-                producto_id=item.insumo_id,
+                producto_id=insumo.id,
                 tipo=schemas.MovementType.salida,
                 cantidad=cantidad_requerida,
                 costo_unitario=insumo.costo or 0.0,
@@ -241,11 +253,25 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
                 referencia=f"Lote #{db_lote.id}",
                 observacion=f"Consumo para {cantidad_teorica} de {receta.producto_resultante.nombre}"
             )
-            create_movement(db, empresa_id, mov_salida)
+            create_movement(db, empresa_id, mov_salida, commit=False)
+
+    # ─── 3. COSTO DE SERVICIOS DE MAQUILA (mano de obra / procesos externos) ───
+    #     Se suma al costo de producción. Si el usuario indicó un precio puntual
+    #     en el cierre (precios_servicios) se usa ese; si no, el precio del servicio.
+    precios_override = {p.servicio_id: p.precio for p in (confirm_data.precios_servicios or [])}
+    for srv in (receta.servicios_maquila or []):
+        servicio = get_producto(db, empresa_id, srv.servicio_id)
+        if not servicio:
+            continue
+        costo_servicio = precios_override.get(
+            srv.servicio_id,
+            servicio.costo if (servicio.costo or 0) > 0 else (servicio.precio or 0.0)
+        )
+        costo_total_acumulado += float(costo_servicio or 0.0)
 
     costo_unitario_final = (costo_total_acumulado / cantidad_final) if cantidad_final > 0 else 0.0
 
-    # ─── 2. INGRESO DEL PRODUCTO TERMINADO A BODEGA ───
+    # ─── 4. INGRESO DEL PRODUCTO TERMINADO A BODEGA ───
     if getattr(receta.producto_resultante, "maneja_lotes", False):
         if not confirm_data.numero_lote or not confirm_data.fecha_vencimiento:
             raise ValueError(f"El producto resultante '{receta.producto_resultante.nombre}' es perecedero. Debes asignarle Número de Lote y Fecha de Vencimiento.")
@@ -254,14 +280,13 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
             producto_id=receta.producto_id,
             numero_lote=confirm_data.numero_lote,
             fecha_vencimiento=confirm_data.fecha_vencimiento,
-            fecha_fabricacion=confirm_data.fecha_fabricacion if hasattr(confirm_data, 'fecha_fabricacion') else None,
+            fecha_fabricacion=confirm_data.fecha_fabricacion,
             cantidad_inicial=cantidad_final,
             costo_unitario=costo_unitario_final,
             referencia_compra=f"Producción #{db_lote.id}",
             observaciones=confirm_data.observaciones
         )
-        from crud.lotes import crear_lote_existencia
-        crear_lote_existencia(db, empresa_id, payload_lote)
+        crear_lote_existencia(db, empresa_id, payload_lote, commit=False)
     else:
         mov_entrada = schemas.InventoryMovementCreate(
             producto_id=receta.producto_id,
@@ -272,9 +297,9 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
             referencia=f"Lote #{db_lote.id}",
             observacion=f"Costo unitario calculado: {costo_unitario_final:.2f}"
         )
-        create_movement(db, empresa_id, mov_entrada)
+        create_movement(db, empresa_id, mov_entrada, commit=False)
 
-    # Actualizamos el estado del lote de producción
+    # ─── 5. Cierre del lote de producción ───
     db_lote.estado = "Confirmado"
     db_lote.cantidad_real = cantidad_final
     db_lote.costo_total = costo_total_acumulado
@@ -283,6 +308,7 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
     if confirm_data.observaciones:
         db_lote.observaciones = (db_lote.observaciones or "") + " | Cierre: " + confirm_data.observaciones
 
+    # Un único commit: toda la confirmación es atómica.
     db.commit()
     db.refresh(db_lote)
     return db_lote

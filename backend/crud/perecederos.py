@@ -57,6 +57,7 @@ def crear_lote_existencia(
     db: Session,
     empresa_id: int,
     payload: schemas.LoteExistenciaCreate,
+    commit: bool = True,
 ) -> models.LoteExistencia:
     """
     Crea o actualiza un lote de existencias.
@@ -121,8 +122,11 @@ def crear_lote_existencia(
         numero_lote    = payload.numero_lote,
     ))
 
-    db.commit()
-    db.refresh(lote)
+    if commit:
+        db.commit()
+        db.refresh(lote)
+    else:
+        db.flush()
     return lote
 
 
