@@ -638,28 +638,32 @@ const ProductoForm = ({
                   {/* Calculadora inversa: margen → precio */}
                   {!esServicio && (
                     <Grid item xs={12}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1.5, borderRadius: 2, bgcolor: 'action.hover' }}>
-                        <Tune sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }} />
-                        <Typography sx={{ fontSize: 12, color: 'text.secondary', flexShrink: 0 }}>Calcular precio por margen:</Typography>
-                        <TextField
-                          size="small"
-                          placeholder="Margen %"
-                          value={marginInput}
-                          onChange={e => {
-                            const m = e.target.value;
-                            setMarginInput(m);
-                            const mNum = parseFloat(m);
-                            const c = parseFloat(costo) || 0;
-                            if (!isNaN(mNum) && mNum < 100 && c > 0) {
-                              setPrecio(String(Math.round(c / (1 - mNum / 100))));
-                            }
-                          }}
-                          InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
-                          sx={{ width: 110 }}
-                          type="number"
-                          inputProps={{ min: 0, max: 99, step: 1 }}
-                        />
-                        <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>→ precio automático</Typography>
+                      <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'action.hover' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mb: 1 }}>
+                          <Tune sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }} />
+                          <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 500 }}>Calcular precio por margen</Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <TextField
+                            size="small"
+                            placeholder="Margen %"
+                            value={marginInput}
+                            onChange={e => {
+                              const m = e.target.value;
+                              setMarginInput(m);
+                              const mNum = parseFloat(m);
+                              const c = parseFloat(costo) || 0;
+                              if (!isNaN(mNum) && mNum < 100 && c > 0) {
+                                setPrecio(String(Math.round(c / (1 - mNum / 100))));
+                              }
+                            }}
+                            InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                            sx={{ width: 120 }}
+                            type="number"
+                            inputProps={{ min: 0, max: 99, step: 1 }}
+                          />
+                          <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>→ precio automático</Typography>
+                        </Box>
                       </Box>
                     </Grid>
                   )}
