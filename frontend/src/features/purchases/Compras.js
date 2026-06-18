@@ -3,13 +3,14 @@ import {
   Box, Paper, Typography, Tabs, Tab, TextField, MenuItem, Button,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel,
   IconButton, Grid, Divider, useTheme, Chip, TablePagination, Autocomplete,
-  Dialog, DialogTitle, DialogContent, DialogActions,
-  List, ListItem, ListItemText, Tooltip, InputAdornment, useMediaQuery, Stack, Alert
+  Dialog, DialogTitle, DialogContent, DialogActions, Select, FormControl, InputLabel,
+  List, ListItem, ListItemText, Tooltip, InputAdornment, useMediaQuery, Stack, Alert,
+  CircularProgress,
 } from '@mui/material';
 import {
   Add, Delete, ShoppingBag, Receipt, Payment, CheckCircle,
-  Visibility, Search, TrendingDown, AttachMoney, Warning,
-  LocalShipping, Close, Science, Edit, Print, FilterList
+  Visibility, Search, TrendingDown, AttachMoney, Warning, MoneyOff,
+  LocalShipping, Close, Science, Edit, Print, FilterList, Category, CalendarToday,
 } from '@mui/icons-material';
 import apiClient, { createCompra, addPagoCompra } from '../../api';
 import { formatCurrency } from '../../utils/formatters';
@@ -24,6 +25,11 @@ const GREEN   = '#10B981';
 const RED     = '#EF4444';
 const BLUE    = '#3B82F6';
 const YELLOW  = '#F59E0B';
+
+const CATEGORIAS_GASTO = [
+  'Arriendo', 'Servicios públicos', 'Nómina', 'Domicilios', 'Papelería',
+  'Mantenimiento', 'Transporte', 'Publicidad', 'Impuestos', 'Otro',
+];
 
 // ─── TabPanel ─────────────────────────────────────────────────────────────────
 function TabPanel({ children, value, index }) {
@@ -142,6 +148,7 @@ const Compras = () => {
 
   const [tab, setTab]               = useState(0);
   const [proveedores, setProveedores] = useState([]);
+  const [terceros, setTerceros]       = useState([]);
   const [productos, setProductos]     = useState([]);
   const [compras, setCompras]         = useState([]);
   const [loading, setLoading]         = useState(false);
@@ -203,13 +210,33 @@ const Compras = () => {
   const [historialLoading, setHistorialLoading] = useState(false);
   const [historialError, setHistorialError]     = useState('');
 
+  // ── Estado Gastos ──────────────────────────────────────────────────────────
+  const [gastos, setGastos]                   = useState([]);
+  const [loadingGastos, setLoadingGastos]     = useState(false);
+  const [editingGastoId, setEditingGastoId]   = useState(null);
+  const [gastoTercero, setGastoTercero]       = useState(null);
+  const [terceroInput, setTerceroInput]       = useState('');
+  const [gastoMonto, setGastoMonto]           = useState('');
+  const [gastoConcepto, setGastoConcepto]     = useState('');
+  const [gastoMetodo, setGastoMetodo]         = useState('Efectivo');
+  const [gastoFecha, setGastoFecha]           = useState(new Date().toISOString().slice(0,10));
+  const [gastoCategoria, setGastoCategoria]   = useState('');
+  const [busquedaGasto, setBusquedaGasto]     = useState('');
+  const [filtroCategoria, setFiltroCategoria] = useState('');
+  const [filtroMetodoPago, setFiltroMetodoPago] = useState('');
+  const [gastosPage, setGastosPage]           = useState(0);
+  const [gastosRpp, setGastosRpp]             = useState(10);
+  const [deleteGastoId, setDeleteGastoId]     = useState(null);
+  const [openDeleteGasto, setOpenDeleteGasto] = useState(false);
+
   // ── Carga inicial ──────────────────────────────────────────────────────────
-  useEffect(() => { loadBaseData(); fetchHistorial(); }, []);
+  useEffect(() => { loadBaseData(); fetchHistorial(); fetchGastos(); }, []);
 
   const loadBaseData = async () => {
     try {
       const [provRes, prodRes] = await Promise.all([apiClient.get('/clientes/'), apiClient.get('/productos/?page_size=500')]);
       setProveedores(provRes.data.filter(c => c.es_proveedor));
+      setTerceros(provRes.data);
       const prodData = Array.isArray(prodRes.data) ? prodRes.data : (prodRes.data.items || []);
       setProductos(prodData.filter(p => !p.es_servicio));
     } catch { toast.error('Error cargando proveedores/productos'); }
@@ -257,6 +284,61 @@ const Compras = () => {
     setDetalles([{ producto_id: '', nombre_libre: '', es_libre: false, cantidad: 1, precio_unitario: 0, numero_lote: '', fecha_vencimiento: '', fecha_fabricacion: '' }]);
     setProductoInputs(['']);
     setIvaPorcentajeGlobal(0); setPagadaAlCrear(false);
+  };
+
+  // ── CRUD Gastos ────────────────────────────────────────────────────────────
+  const fetchGastos = async () => {
+    setLoadingGastos(true);
+    try {
+      const { data } = await apiClient.get('/caja/gastos');
+      setGastos(data);
+    } catch { toast.error('Error al cargar gastos'); }
+    finally { setLoadingGastos(false); }
+  };
+
+  const resetGastoForm = () => {
+    setEditingGastoId(null); setGastoTercero(null); setTerceroInput('');
+    setGastoMonto(''); setGastoConcepto(''); setGastoMetodo('Efectivo');
+    setGastoFecha(new Date().toISOString().slice(0,10)); setGastoCategoria('');
+  };
+
+  const handleRegistrarGasto = async (e) => {
+    e?.preventDefault();
+    if (!gastoTercero || !gastoMonto || !gastoConcepto) {
+      toast.warning('Completa beneficiario, concepto y monto.'); return;
+    }
+    const payload = {
+      tercero_id: gastoTercero.id, monto: parseFloat(gastoMonto),
+      concepto: gastoConcepto, metodo_pago: gastoMetodo,
+      fecha: gastoFecha, ...(gastoCategoria && { categoria: gastoCategoria }),
+    };
+    try {
+      if (editingGastoId) {
+        await apiClient.patch(`/caja/gastos/${editingGastoId}`, payload);
+        toast.success('Gasto actualizado');
+      } else {
+        await apiClient.post('/caja/gastos', payload);
+        toast.success('Gasto registrado');
+      }
+      resetGastoForm(); fetchGastos();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Error al guardar el gasto'); }
+  };
+
+  const handleEditGasto = (g) => {
+    setEditingGastoId(g.id); setGastoTercero(g.tercero); setTerceroInput(g.tercero?.nombre || '');
+    setGastoMonto(String(g.monto)); setGastoConcepto(g.concepto || '');
+    setGastoMetodo(g.metodo_pago || 'Efectivo');
+    setGastoFecha(g.fecha ? g.fecha.slice(0,10) : new Date().toISOString().slice(0,10));
+    setGastoCategoria(g.categoria || '');
+  };
+
+  const handleDeleteGasto = (id) => { setDeleteGastoId(id); setOpenDeleteGasto(true); };
+  const handleConfirmDeleteGasto = async () => {
+    try {
+      await apiClient.delete(`/caja/gastos/${deleteGastoId}`);
+      toast.success('Gasto eliminado'); setOpenDeleteGasto(false); fetchGastos();
+    } catch { toast.error('Error al eliminar el gasto'); }
+    finally { setDeleteGastoId(null); }
   };
 
   const handleSubmit = async () => {
@@ -371,6 +453,26 @@ const Compras = () => {
   const now = new Date();
   const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1);
 
+  const filteredGastos = useMemo(() => {
+    return gastos.filter(g => {
+      if (filtroCategoria && g.categoria !== filtroCategoria) return false;
+      if (filtroMetodoPago && g.metodo_pago !== filtroMetodoPago) return false;
+      if (busquedaGasto) {
+        const q = busquedaGasto.toLowerCase();
+        if (!g.tercero?.nombre?.toLowerCase().includes(q) &&
+            !g.concepto?.toLowerCase().includes(q) &&
+            !g.categoria?.toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+  }, [gastos, busquedaGasto, filtroCategoria, filtroMetodoPago]);
+
+  const paginatedGastos = filteredGastos.slice(gastosPage * gastosRpp, gastosPage * gastosRpp + gastosRpp);
+  const gastosTotalMes  = useMemo(() => {
+    const m = new Date().toISOString().slice(0,7);
+    return gastos.filter(g => g.fecha?.startsWith(m)).reduce((s,g) => s + g.monto, 0);
+  }, [gastos]);
+
   const cuentasPorPagar   = compras.filter(c => c.estado_pago !== 'pagado');
   const totalPorPagar     = cuentasPorPagar.reduce((s, c) => s + (c.total - c.monto_pagado), 0);
   const totalCompras      = compras.reduce((s, c) => s + c.total, 0);
@@ -451,8 +553,9 @@ const Compras = () => {
           '& .Mui-selected': { color: `${GREEN} !important` },
         }}>
           <Tab label={editingCompraId ? '✏️ Editando Compra' : '➕ Registrar Compra'} />
-          <Tab label={`📋 Historial (${compras.length})`} />
+          <Tab label={`📋 Historial (${comprasTotal})`} />
           <Tab label={`⚠️ Por Pagar (${cuentasPorPagar.length})`} />
+          <Tab label={`💸 Gastos (${gastos.length})`} />
         </Tabs>
 
         {/* ══ Tab 0: Registrar ══ */}
@@ -894,7 +997,182 @@ const Compras = () => {
             )}
           </Box>
         </TabPanel>
+
+        {/* ══ Tab 3: Gastos ══ */}
+        <TabPanel value={tab} index={3}>
+          <Box sx={{ px: { xs: 2, md: 3 }, pb: 3 }}>
+            <Grid container spacing={3}>
+              {/* ── Formulario ── */}
+              <Grid item xs={12} md={5}>
+                <Paper sx={{ p: 3, borderRadius: 3, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: 15, mb: 2 }}>
+                    {editingGastoId ? 'Modificar gasto' : 'Registrar nuevo gasto'}
+                  </Typography>
+                  <Box component="form" onSubmit={handleRegistrarGasto}>
+                    <Stack spacing={2}>
+                      <Autocomplete
+                        options={terceros} getOptionLabel={o => o?.nombre || ''}
+                        value={gastoTercero} onChange={(_, v) => setGastoTercero(v)}
+                        inputValue={terceroInput} onInputChange={(_, v) => setTerceroInput(v)}
+                        noOptionsText={
+                          <Box sx={{ py: 0.5 }}>
+                            <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>No encontrado</Typography>
+                            <Button size="small" variant="contained" fullWidth startIcon={<Add />}
+                              onClick={() => openQuickCreate('tercero', terceroInput)}
+                              sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12 }}>
+                              Crear "{terceroInput || 'nuevo beneficiario'}"
+                            </Button>
+                          </Box>
+                        }
+                        renderInput={params => (
+                          <TextField {...params} label="Beneficiario (a quién se paga) *" required size="small"
+                            InputProps={{ ...params.InputProps, endAdornment: (<>{params.InputProps.endAdornment}<Tooltip title="Crear beneficiario"><IconButton size="small" onClick={() => openQuickCreate('tercero', terceroInput)} sx={{ color: BLUE, p: 0.5 }}><Add fontSize="small" /></IconButton></Tooltip></>) }}
+                          />
+                        )}
+                      />
+                      <TextField label="Concepto *" required size="small" fullWidth value={gastoConcepto} onChange={e => setGastoConcepto(e.target.value)} placeholder="Ej: Arriendo local mes de junio" />
+                      <CurrencyField label="Monto *" value={gastoMonto} onChange={setGastoMonto} required />
+                      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                        <TextField label="Fecha" type="date" size="small" fullWidth value={gastoFecha}
+                          onChange={e => setGastoFecha(e.target.value)} InputLabelProps={{ shrink: true }}
+                          InputProps={{ startAdornment: <InputAdornment position="start"><CalendarToday sx={{ fontSize: 14, color: 'text.secondary' }} /></InputAdornment> }}
+                        />
+                        <FormControl size="small" fullWidth>
+                          <InputLabel>Categoría</InputLabel>
+                          <Select value={gastoCategoria} onChange={e => setGastoCategoria(e.target.value)} label="Categoría"
+                            startAdornment={<InputAdornment position="start"><Category sx={{ fontSize: 14, color: 'text.secondary' }} /></InputAdornment>}>
+                            <MenuItem value=""><em>Sin categoría</em></MenuItem>
+                            {CATEGORIAS_GASTO.map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                          </Select>
+                        </FormControl>
+                      </Stack>
+                      <Box>
+                        <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 1 }}>Método de pago</Typography>
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                          {['Efectivo', 'Transferencia', 'Tarjeta', 'Nequi'].map(opt => (
+                            <Chip key={opt} label={opt} onClick={() => setGastoMetodo(opt)} sx={{ fontWeight: 600, fontSize: 12, borderRadius: 1.5, cursor: 'pointer', bgcolor: gastoMetodo === opt ? `${RED}18` : 'background.paper', color: gastoMetodo === opt ? RED : 'text.secondary', border: '1.5px solid', borderColor: gastoMetodo === opt ? RED : 'divider' }} />
+                          ))}
+                        </Box>
+                      </Box>
+                      <Stack direction="row" spacing={1}>
+                        <Button type="submit" variant="contained" fullWidth
+                          sx={{ background: editingGastoId ? `linear-gradient(135deg,${BLUE},#60a5fa)` : `linear-gradient(135deg,${RED},#f87171)`, boxShadow: `0 4px 14px rgba(239,68,68,0.25)`, borderRadius: 2, fontWeight: 600 }}>
+                          {editingGastoId ? 'Actualizar gasto' : 'Registrar gasto'}
+                        </Button>
+                        {editingGastoId && (
+                          <Button variant="outlined" fullWidth onClick={resetGastoForm} sx={{ borderRadius: 2, fontWeight: 600 }}>Cancelar</Button>
+                        )}
+                      </Stack>
+                    </Stack>
+                  </Box>
+                </Paper>
+              </Grid>
+
+              {/* ── Historial de gastos ── */}
+              <Grid item xs={12} md={7}>
+                <Paper sx={{ p: 3, borderRadius: 3, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: 15 }}>Historial de gastos</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Este mes:</Typography>
+                      <Typography sx={{ fontSize: 13, fontWeight: 800, color: RED }}>{formatCurrency(gastosTotalMes)}</Typography>
+                    </Box>
+                  </Box>
+
+                  {/* Chips categoría */}
+                  {[...new Set(gastos.map(g => g.categoria).filter(Boolean))].length > 0 && (
+                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 1.5 }}>
+                      <Chip label={`Todas (${gastos.length})`} size="small" onClick={() => { setFiltroCategoria(''); setGastosPage(0); }}
+                        sx={{ fontWeight: 600, fontSize: 11, borderRadius: 1.5, cursor: 'pointer', bgcolor: !filtroCategoria ? `${BLUE}20` : 'background.paper', color: !filtroCategoria ? BLUE : 'text.secondary', border: '1.5px solid', borderColor: !filtroCategoria ? BLUE : 'divider' }} />
+                      {[...new Set(gastos.map(g => g.categoria).filter(Boolean))].sort().map(cat => (
+                        <Chip key={cat} label={cat} size="small" onClick={() => { setFiltroCategoria(cat); setGastosPage(0); }}
+                          sx={{ fontWeight: 600, fontSize: 11, borderRadius: 1.5, cursor: 'pointer', bgcolor: filtroCategoria === cat ? `${BLUE}20` : 'background.paper', color: filtroCategoria === cat ? BLUE : 'text.secondary', border: '1.5px solid', borderColor: filtroCategoria === cat ? BLUE : 'divider' }} />
+                      ))}
+                    </Box>
+                  )}
+
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mb: 2 }}>
+                    <TextField size="small" fullWidth placeholder="Buscar por beneficiario, concepto…" value={busquedaGasto}
+                      onChange={e => { setBusquedaGasto(e.target.value); setGastosPage(0); }}
+                      InputProps={{ startAdornment: <InputAdornment position="start"><Search sx={{ fontSize: 16, color: 'text.secondary' }} /></InputAdornment> }} />
+                    <FormControl size="small" sx={{ minWidth: 130 }}>
+                      <InputLabel>Método</InputLabel>
+                      <Select value={filtroMetodoPago} onChange={e => { setFiltroMetodoPago(e.target.value); setGastosPage(0); }} label="Método">
+                        <MenuItem value="">Todos</MenuItem>
+                        {['Efectivo', 'Transferencia', 'Tarjeta', 'Nequi'].map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                      </Select>
+                    </FormControl>
+                  </Stack>
+
+                  {loadingGastos ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress size={24} sx={{ color: RED }} /></Box>
+                  ) : filteredGastos.length === 0 ? (
+                    <Box sx={{ textAlign: 'center', py: 5, color: 'text.secondary' }}>
+                      <MoneyOff sx={{ fontSize: 40, opacity: 0.2, mb: 1 }} />
+                      <Typography fontSize={13}>{gastos.length === 0 ? 'No hay gastos registrados' : 'Sin resultados con estos filtros'}</Typography>
+                    </Box>
+                  ) : (
+                    <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                      <Table size="small">
+                        <TableHead sx={{ bgcolor: 'action.hover' }}>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase' }}>Fecha</TableCell>
+                            <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase' }}>Beneficiario</TableCell>
+                            <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase' }}>Concepto</TableCell>
+                            <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase' }}>Categoría</TableCell>
+                            <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase' }}>Método</TableCell>
+                            <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase' }} align="right">Monto</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 700, fontSize: 11 }}>Acc.</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {paginatedGastos.map(g => (
+                            <TableRow key={g.id} hover>
+                              <TableCell sx={{ fontSize: 11, whiteSpace: 'nowrap' }}>{new Date(g.fecha).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}</TableCell>
+                              <TableCell sx={{ fontWeight: 600, fontSize: 12 }}>{g.tercero?.nombre || '—'}</TableCell>
+                              <TableCell sx={{ fontSize: 12, color: 'text.secondary', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.concepto}</TableCell>
+                              <TableCell>
+                                {g.categoria
+                                  ? <Chip label={g.categoria} size="small" sx={{ fontSize: 9, height: 18, bgcolor: `${BLUE}12`, color: BLUE, fontWeight: 600 }} />
+                                  : <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>—</Typography>}
+                              </TableCell>
+                              <TableCell sx={{ fontSize: 11 }}>{g.metodo_pago}</TableCell>
+                              <TableCell align="right" sx={{ color: RED, fontWeight: 700 }}>{formatCurrency(g.monto)}</TableCell>
+                              <TableCell align="center">
+                                <Stack direction="row" spacing={0.3} justifyContent="center">
+                                  <Tooltip title="Editar"><IconButton size="small" onClick={() => handleEditGasto(g)} sx={{ color: BLUE, '&:hover': { bgcolor: '#EFF6FF' } }}><Edit fontSize="small" /></IconButton></Tooltip>
+                                  <Tooltip title="Eliminar"><IconButton size="small" onClick={() => handleDeleteGasto(g.id)} sx={{ color: RED, '&:hover': { bgcolor: '#FEF2F2' } }}><Delete fontSize="small" /></IconButton></Tooltip>
+                                </Stack>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
+                  {filteredGastos.length > gastosRpp && (
+                    <TablePagination component="div" count={filteredGastos.length} page={gastosPage}
+                      onPageChange={(_, p) => setGastosPage(p)} rowsPerPage={gastosRpp}
+                      onRowsPerPageChange={e => { setGastosRpp(parseInt(e.target.value,10)); setGastosPage(0); }}
+                      rowsPerPageOptions={[10, 25, 50]} labelRowsPerPage="Filas:"
+                      labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`} />
+                  )}
+                </Paper>
+              </Grid>
+            </Grid>
+          </Box>
+        </TabPanel>
       </Paper>
+
+      {/* ══ Diálogo: Eliminar Gasto ══ */}
+      <Dialog open={openDeleteGasto} onClose={() => setOpenDeleteGasto(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+        <DialogTitle>Eliminar gasto</DialogTitle>
+        <DialogContent><Typography>¿Confirmas que deseas eliminar este gasto? Esta acción no se puede deshacer.</Typography></DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenDeleteGasto(false)}>Cancelar</Button>
+          <Button onClick={handleConfirmDeleteGasto} color="error" variant="contained" sx={{ borderRadius: 2 }}>Eliminar</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* ══ Diálogo: Registrar Pago ══ */}
       <Dialog open={openPayDialog} onClose={() => setOpenPayDialog(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
