@@ -479,55 +479,6 @@ export default function Caja() {
     setCortesPage(0);
   };
 
-  // ─── Gastos filtrados, ordenados y paginados ────────────────────────────────
-  const filteredGastos = useMemo(() => {
-    return gastos.filter(g => {
-      if (filtroCategoria && g.categoria !== filtroCategoria) return false;
-      if (filtroMetodo && g.metodo_pago !== filtroMetodo) return false;
-      if (busquedaGasto) {
-        const q = busquedaGasto.toLowerCase();
-        const inTercero  = g.tercero?.nombre?.toLowerCase().includes(q);
-        const inConcepto = g.concepto?.toLowerCase().includes(q);
-        const inCategoria = g.categoria?.toLowerCase().includes(q);
-        if (!inTercero && !inConcepto && !inCategoria) return false;
-      }
-      if (filtroGastoDesde) {
-        if (new Date(g.fecha) < new Date(filtroGastoDesde)) return false;
-      }
-      if (filtroGastoHasta) {
-        const hasta = new Date(filtroGastoHasta); hasta.setHours(23, 59, 59);
-        if (new Date(g.fecha) > hasta) return false;
-      }
-      return true;
-    });
-  }, [gastos, busquedaGasto, filtroMetodo, filtroGastoDesde, filtroGastoHasta, filtroCategoria]);
-
-  const sortedGastos = useMemo(() => {
-    return [...filteredGastos].sort((a, b) => {
-      if (gastosSortCol === 'beneficiario') {
-        const va = a.tercero?.nombre || ''; const vb = b.tercero?.nombre || '';
-        return gastosSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
-      }
-      if (gastosSortCol === 'categoria') {
-        const va = a.categoria || ''; const vb = b.categoria || '';
-        return gastosSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
-      }
-      if (gastosSortCol === 'metodo') {
-        return gastosSortDir === 'asc'
-          ? (a.metodo_pago || '').localeCompare(b.metodo_pago || '')
-          : (b.metodo_pago || '').localeCompare(a.metodo_pago || '');
-      }
-      const va = gastosSortCol === 'monto' ? a.monto : new Date(a.fecha);
-      const vb = gastosSortCol === 'monto' ? b.monto : new Date(b.fecha);
-      return gastosSortDir === 'asc' ? va - vb : vb - va;
-    });
-  }, [filteredGastos, gastosSortCol, gastosSortDir]);
-
-  const paginatedGastos = sortedGastos.slice(
-    gastosPage * gastosRowsPerPage,
-    gastosPage * gastosRowsPerPage + gastosRowsPerPage
-  );
-
   // ─── Cortes filtrados, ordenados y paginados ────────────────────────────────
   const filteredCortes = useMemo(() => {
     return historial.filter(c => {
@@ -559,30 +510,7 @@ export default function Caja() {
     cortesPage * cortesRowsPerPage + cortesRowsPerPage
   );
 
-  // ─── KPIs de gastos ────────────────────────────────────────────────────────
-  const hoy = todayISO();
-  const mesActual = hoy.slice(0, 7);
-  const gastosHoy = useMemo(() => gastos.filter(g => g.fecha?.startsWith(hoy)), [gastos, hoy]);
-  const gastosMes = useMemo(() => gastos.filter(g => g.fecha?.startsWith(mesActual)), [gastos, mesActual]);
-  const totalHoy  = gastosHoy.reduce((s, g) => s + g.monto, 0);
-  const totalMes  = gastosMes.reduce((s, g) => s + g.monto, 0);
-  const topMetodo = useMemo(() => {
-    const tally = {};
-    gastos.forEach(g => { tally[g.metodo_pago] = (tally[g.metodo_pago] || 0) + g.monto; });
-    return Object.entries(tally).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
-  }, [gastos]);
-
   // ─── Análisis ──────────────────────────────────────────────────────────────
-  const categoriasDisponibles = useMemo(() => {
-    const cats = [...new Set(gastos.map(g => g.categoria).filter(Boolean))].sort();
-    return cats;
-  }, [gastos]);
-
-  const categoriasCounts = useMemo(() => {
-    const counts = {};
-    gastos.forEach(g => { if (g.categoria) counts[g.categoria] = (counts[g.categoria] || 0) + 1; });
-    return counts;
-  }, [gastos]);
 
   const gastosPorCategoria = useMemo(() => {
     const map = {};
@@ -612,28 +540,10 @@ export default function Caja() {
       .slice(0, 5);
   }, [gastos]);
 
+  const mesActual = todayISO().slice(0, 7);
   const cortesMes = useMemo(() => historial.filter(c => c.fecha?.startsWith(mesActual)), [historial, mesActual]);
   const diferenciaAcumuladaMes = useMemo(() => cortesMes.reduce((s, c) => s + (c.diferencia || 0), 0), [cortesMes]);
 
-  // ─── CSV Export ────────────────────────────────────────────────────────────
-  const handleExportCSV = () => {
-    const rows = [
-      ['Fecha', 'Beneficiario', 'Concepto', 'Categoría', 'Método', 'Monto'],
-      ...filteredGastos.map(g => [
-        g.fecha ? new Date(g.fecha).toLocaleDateString('es-CO') : '',
-        g.tercero?.nombre || '',
-        g.concepto || '',
-        g.categoria || '',
-        g.metodo_pago || '',
-        g.monto,
-      ]),
-    ];
-    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'gastos.csv';
-    a.click(); URL.revokeObjectURL(url);
-  };
 
   const handleExportCSVCortes = () => {
     const rows = [
@@ -656,7 +566,6 @@ export default function Caja() {
     a.click(); URL.revokeObjectURL(url);
   };
 
-  const hasGastoFilters = busquedaGasto || filtroMetodo || filtroGastoDesde || filtroGastoHasta || filtroCategoria;
 
   const openQuickCreate = (initialName = '') => setQuickCreate({ open: true, type: 'tercero', initialName });
   const closeQuickCreate = () => setQuickCreate({ ...quickCreate, open: false });
@@ -719,7 +628,7 @@ export default function Caja() {
           }}
         >
           <Tab label="Corte y Resumen" />
-          <Tab label="Registrar Gasto (Egreso)" />
+          <Tab label="Gastos" />
           <Tab label="Análisis" />
         </Tabs>
       </Paper>
@@ -905,264 +814,35 @@ export default function Caja() {
       {/* ── TAB 1: REGISTRO DE GASTOS ───────────────────────────────────────── */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       <TabPanel value={tab} index={1} sx={{ pt: 0 }}>
-        {/* KPIs de gastos */}
-        <Grid container spacing={1.5} sx={{ mb: 3 }}>
-          <Grid item xs={6} sm={3}>
-            <KpiCard label="Gastos Hoy" value={formatCurrency(totalHoy)} icon={<MoneyOff />} color={RED} sub={`${gastosHoy.length} egreso${gastosHoy.length !== 1 ? 's' : ''}`} />
-          </Grid>
-          <Grid item xs={6} sm={3}>
-            <KpiCard label="Gastos Este Mes" value={formatCurrency(totalMes)} icon={<ReceiptLong />} color={YELLOW} sub={`${gastosMes.length} registro${gastosMes.length !== 1 ? 's' : ''}`} />
-          </Grid>
-          <Grid item xs={6} sm={3}>
-            <KpiCard label="Total Registros" value={gastos.length} icon={<TrendingUp />} color={BLUE} sub="histórico" />
-          </Grid>
-          <Grid item xs={6} sm={3}>
-            <KpiCard label="Método Frecuente" value={topMetodo} icon={<CreditCard />} color={GREEN} sub="por monto total" />
-          </Grid>
-        </Grid>
-
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={5}>
-            <Paper sx={{ p: 3, borderRadius: 3, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-              <Typography sx={{ fontWeight: 700, fontSize: 15, mb: 2 }}>
-                {editingGastoId ? 'Modificar gasto' : 'Registrar nuevo gasto'}
-              </Typography>
-              <Box component="form" onSubmit={handleRegistrarGasto}>
-                <Stack spacing={2}>
-                  <Autocomplete
-                    options={terceros} getOptionLabel={(o) => o?.nombre || ''}
-                    value={gastoTercero} onChange={(_, v) => setGastoTercero(v)}
-                    inputValue={terceroInput} onInputChange={(_, v) => setTerceroInput(v)}
-                    filterOptions={(opts, state) => {
-                      const q = (state.inputValue || '').toLowerCase().trim();
-                      if (!q) return opts;
-                      return opts.filter(o => o.nombre.toLowerCase().includes(q) || (o.cedula || '').toLowerCase().includes(q));
-                    }}
-                    noOptionsText={
-                      <Box sx={{ py: 0.5 }}>
-                        <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>No se encontró ningún beneficiario</Typography>
-                        <Button size="small" variant="contained" fullWidth startIcon={<Add />} onClick={() => openQuickCreate(terceroInput)} sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12, bgcolor: '#3B82F6', '&:hover': { bgcolor: '#2563EB' } }}>
-                          Crear "{terceroInput || 'nuevo beneficiario'}"
-                        </Button>
-                      </Box>
-                    }
-                    renderInput={(params) => (
-                      <TextField {...params} label="Beneficiario (A quién se le paga) *" required fullWidth size="small"
-                        InputProps={{
-                          ...params.InputProps,
-                          endAdornment: (
-                            <>
-                              {params.InputProps.endAdornment}
-                              <Tooltip title="Crear nuevo proveedor/beneficiario">
-                                <IconButton size="small" onClick={() => openQuickCreate(terceroInput)} sx={{ color: '#3B82F6', p: 0.5 }}><Add fontSize="small" /></IconButton>
-                              </Tooltip>
-                            </>
-                          ),
-                        }}
-                      />
-                    )}
-                  />
-                  <TextField label="Concepto / Razón del gasto *" required fullWidth size="small" value={gastoConcepto} onChange={e => setGastoConcepto(e.target.value)} placeholder="Ej: Compra de insumos de aseo" />
-                  <CurrencyField label="Monto del gasto *" value={gastoMonto} onChange={setGastoMonto} required />
-
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-                      <TextField
-                        label="Fecha del gasto"
-                        type="date"
-                        size="small"
-                        fullWidth
-                        value={gastoFecha}
-                        onChange={e => setGastoFecha(e.target.value)}
-                        InputLabelProps={{ shrink: true }}
-                        InputProps={{ startAdornment: <InputAdornment position="start"><CalendarToday sx={{ fontSize: 14, color: 'text.secondary' }} /></InputAdornment> }}
-                      />
-                      <FormControl size="small" fullWidth>
-                        <InputLabel>Categoría</InputLabel>
-                        <Select
-                          value={gastoCategoria}
-                          onChange={e => setGastoCategoria(e.target.value)}
-                          label="Categoría"
-                          startAdornment={<InputAdornment position="start"><Category sx={{ fontSize: 14, color: 'text.secondary' }} /></InputAdornment>}
-                        >
-                          <MenuItem value=""><em>Sin categoría</em></MenuItem>
-                          {CATEGORIAS_GASTO.map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
-                        </Select>
-                      </FormControl>
-                  </Stack>
-
-                  <Box>
-                    <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 1 }}>Método de Pago (Salida)</Typography>
-                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                      {['Efectivo', 'Transferencia', 'Tarjeta'].map(opt => (
-                        <Chip key={opt} label={opt} onClick={() => setGastoMetodo(opt)}
-                          sx={{ fontWeight: 600, fontSize: 12, borderRadius: 1.5, bgcolor: gastoMetodo === opt ? `${ACCENT}20` : 'background.paper', color: gastoMetodo === opt ? ACCENT : 'text.secondary', border: '1.5px solid', borderColor: gastoMetodo === opt ? ACCENT : 'divider', '&:hover': { borderColor: ACCENT }, cursor: 'pointer' }}
-                        />
-                      ))}
-                    </Box>
-                  </Box>
-                  <Stack direction="row" spacing={1}>
-                    <Button type="submit" variant="contained" fullWidth disabled={submitting} sx={{ mt: 1, background: editingGastoId ? `linear-gradient(135deg, ${BLUE}, #60a5fa)` : `linear-gradient(135deg, ${RED}, #f87171)`, boxShadow: `0 4px 14px rgba(239,68,68,0.3)`, borderRadius: 2, fontWeight: 600 }}>
-                      {submitting ? 'Guardando...' : editingGastoId ? 'Actualizar Salida' : 'Registrar Salida'}
-                    </Button>
-                    {editingGastoId && (
-                      <Button variant="outlined" fullWidth onClick={resetGastoForm} sx={{ mt: 1, borderRadius: 2, fontWeight: 600 }}>
-                        Cancelar
-                      </Button>
-                    )}
-                  </Stack>
-                </Stack>
-              </Box>
-            </Paper>
-          </Grid>
-
-          <Grid item xs={12} md={7}>
-            <Paper sx={{ p: 3, borderRadius: 3, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-              {/* Header historial */}
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
-                <Typography sx={{ fontWeight: 700, fontSize: 15 }}>Historial de Gastos</Typography>
-                <Button size="small" startIcon={<FileDownload />} onClick={handleExportCSV} variant="outlined" sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12 }}>
-                  CSV
-                </Button>
-              </Box>
-
-              {/* Filtros por categoría */}
-              {categoriasDisponibles.length > 0 && (
-                <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 1 }}>
-                  <Chip
-                    label={`Todas (${gastos.length})`}
-                    onClick={() => { setFiltroCategoria(''); setGastosPage(0); }}
-                    size="small"
-                    sx={{ fontWeight: 600, fontSize: 11, borderRadius: 1.5, cursor: 'pointer',
-                      bgcolor: !filtroCategoria ? `${BLUE}20` : 'background.paper',
-                      color: !filtroCategoria ? BLUE : 'text.secondary',
-                      border: '1.5px solid', borderColor: !filtroCategoria ? BLUE : 'divider' }} />
-                  {categoriasDisponibles.map(cat => (
-                    <Chip key={cat} label={`${cat} (${categoriasCounts[cat] || 0})`}
-                      onClick={() => { setFiltroCategoria(cat); setGastosPage(0); }}
-                      size="small"
-                      sx={{ fontWeight: 600, fontSize: 11, borderRadius: 1.5, cursor: 'pointer',
-                        bgcolor: filtroCategoria === cat ? `${BLUE}20` : 'background.paper',
-                        color: filtroCategoria === cat ? BLUE : 'text.secondary',
-                        border: '1.5px solid', borderColor: filtroCategoria === cat ? BLUE : 'divider' }} />
-                  ))}
-                </Box>
-              )}
-
-              {/* Filtros */}
-              <Stack spacing={1} sx={{ mb: 2 }}>
-                <TextField
-                  size="small" fullWidth
-                  placeholder="Buscar por beneficiario, concepto o categoría..."
-                  value={busquedaGasto}
-                  onChange={e => { setBusquedaGasto(e.target.value); setGastosPage(0); }}
-                  InputProps={{ startAdornment: <InputAdornment position="start"><Search sx={{ fontSize: 16, color: 'text.secondary' }} /></InputAdornment> }}
-                />
-                <Stack direction="row" spacing={1} flexWrap="wrap">
-                  <TextField
-                    size="small" label="Desde" type="date"
-                    value={filtroGastoDesde}
-                    onChange={e => { setFiltroGastoDesde(e.target.value); setGastosPage(0); }}
-                    InputLabelProps={{ shrink: true }}
-                    sx={{ flex: 1, minWidth: 130 }}
-                  />
-                  <TextField
-                    size="small" label="Hasta" type="date"
-                    value={filtroGastoHasta}
-                    onChange={e => { setFiltroGastoHasta(e.target.value); setGastosPage(0); }}
-                    InputLabelProps={{ shrink: true }}
-                    sx={{ flex: 1, minWidth: 130 }}
-                  />
-                  <FormControl size="small" sx={{ flex: 1, minWidth: 130 }}>
-                    <InputLabel>Método</InputLabel>
-                    <Select value={filtroMetodo} onChange={e => { setFiltroMetodo(e.target.value); setGastosPage(0); }} label="Método">
-                      <MenuItem value="">Todos</MenuItem>
-                      {['Efectivo', 'Transferencia', 'Tarjeta'].map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
-                    </Select>
-                  </FormControl>
-                </Stack>
-                {hasGastoFilters && (
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
-                      <FilterList sx={{ fontSize: 13, verticalAlign: 'middle', mr: 0.5 }} />
-                      {filteredGastos.length} de {gastos.length} registros
-                    </Typography>
-                    <Chip label="Limpiar filtros" size="small" onDelete={() => { setBusquedaGasto(''); setFiltroMetodo(''); setFiltroGastoDesde(''); setFiltroGastoHasta(''); setFiltroCategoria(''); setGastosPage(0); }} sx={{ fontSize: 10 }} />
-                  </Box>
-                )}
-              </Stack>
-
-              {loadingGastos ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress size={24} sx={{ color: RED }} /></Box>
-              ) : filteredGastos.length === 0 ? (
-                <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
-                  <ReceiptLong sx={{ fontSize: 40, opacity: 0.2, mb: 1 }} />
-                  <Typography fontSize={13}>{gastos.length === 0 ? 'No hay gastos registrados' : 'No hay resultados con estos filtros'}</Typography>
-                </Box>
-              ) : isMobile ? (
-                <Box>{paginatedGastos.map(g => <GastoCard key={g.id} gasto={g} onEdit={handleEditGasto} onDelete={handleDeleteGasto} />)}</Box>
-              ) : (
-                <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                  <Table size="small" stickyHeader>
-                    <TableHead>
-                      <TableRow>
-                        <SortTh col="fecha" label="Fecha" sortCol={gastosSortCol} sortDir={gastosSortDir} onSort={handleGastoSort} />
-                        <SortTh col="beneficiario" label="Beneficiario" sortCol={gastosSortCol} sortDir={gastosSortDir} onSort={handleGastoSort} />
-                        <TableCell sx={{ fontSize: 11, fontWeight: 600 }}>Concepto</TableCell>
-                        <SortTh col="categoria" label="Categoría" sortCol={gastosSortCol} sortDir={gastosSortDir} onSort={handleGastoSort} />
-                        <SortTh col="metodo" label="Método" sortCol={gastosSortCol} sortDir={gastosSortDir} onSort={handleGastoSort} />
-                        <SortTh col="monto" label="Monto" sortCol={gastosSortCol} sortDir={gastosSortDir} onSort={handleGastoSort} />
-                        <TableCell sx={{ fontSize: 11, fontWeight: 600 }} align="center">Acc.</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {paginatedGastos.map(g => (
-                        <TableRow key={g.id} hover>
-                          <TableCell sx={{ fontSize: 11, whiteSpace: 'nowrap' }}>{new Date(g.fecha).toLocaleDateString()}</TableCell>
-                          <TableCell sx={{ fontWeight: 600, fontSize: 12 }}>{g.tercero?.nombre}</TableCell>
-                          <TableCell sx={{ fontSize: 12, color: 'text.secondary' }}>{g.concepto}</TableCell>
-                          <TableCell>
-                            {g.categoria ? (
-                              <Chip label={g.categoria} size="small" sx={{ fontSize: 9, height: 18, bgcolor: `${BLUE}12`, color: BLUE, fontWeight: 600 }} />
-                            ) : <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>—</Typography>}
-                          </TableCell>
-                          <TableCell sx={{ fontSize: 11 }}>{g.metodo_pago}</TableCell>
-                          <TableCell sx={{ color: RED, fontWeight: 700 }}>{formatCurrency(g.monto)}</TableCell>
-                          <TableCell align="center">
-                            <Stack direction="row" spacing={0.5} justifyContent="center">
-                              <Tooltip title="Editar">
-                                <IconButton size="small" onClick={() => handleEditGasto(g)} color="primary">
-                                  <Edit fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="Eliminar">
-                                <IconButton size="small" onClick={() => handleDeleteGasto(g.id)} color="error">
-                                  <Delete fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            </Stack>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              )}
-              {filteredGastos.length > gastosRowsPerPage && (
-                <TablePagination
-                  component="div"
-                  count={filteredGastos.length}
-                  page={gastosPage}
-                  onPageChange={(_, p) => setGastosPage(p)}
-                  rowsPerPage={gastosRowsPerPage}
-                  onRowsPerPageChange={e => { setGastosRowsPerPage(parseInt(e.target.value, 10)); setGastosPage(0); }}
-                  rowsPerPageOptions={[10, 25, 50]}
-                  labelRowsPerPage="Por página:"
-                  labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
-                />
-              )}
-            </Paper>
-          </Grid>
-        </Grid>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', py: 8, gap: 3 }}>
+          <Box sx={{ width: 72, height: 72, borderRadius: 3, bgcolor: `${RED}12`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <MoneyOff sx={{ fontSize: 36, color: RED }} />
+          </Box>
+          <Box sx={{ textAlign: 'center', maxWidth: 460 }}>
+            <Typography sx={{ fontWeight: 700, fontSize: 20, mb: 1 }}>Gestión de Gastos</Typography>
+            <Typography sx={{ color: 'text.secondary', fontSize: 14, lineHeight: 1.6 }}>
+              El registro y control de gastos se gestiona desde el módulo <strong>Compras y Gastos</strong>.
+              Allí puedes registrar nuevos gastos, ver el historial completo, filtrar por categoría, método de pago y fechas.
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <Button
+              variant="contained"
+              size="large"
+              startIcon={<MoneyOff />}
+              onClick={() => { window.location.href = '/compras'; }}
+              sx={{ background: `linear-gradient(135deg, ${RED}, #f87171)`, boxShadow: `0 4px 14px rgba(239,68,68,0.3)`, borderRadius: 2, fontWeight: 600, px: 4 }}
+            >
+              Ir a Compras y Gastos
+            </Button>
+          </Box>
+          <Paper sx={{ p: 2.5, borderRadius: 2, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider', maxWidth: 420, width: '100%' }}>
+            <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.secondary', mb: 1, textTransform: 'uppercase', letterSpacing: 0.5 }}>¿Por qué está allá?</Typography>
+            <Typography sx={{ fontSize: 13, color: 'text.secondary', lineHeight: 1.7 }}>
+              Los gastos y las compras son dos caras del mismo concepto: salidas de dinero. Tenerlos en un solo módulo evita duplicar información y facilita la gestión de proveedores, cuentas por pagar y control de egresos desde un único lugar.
+            </Typography>
+          </Paper>
+        </Box>
       </TabPanel>
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
