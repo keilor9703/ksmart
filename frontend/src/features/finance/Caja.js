@@ -965,8 +965,7 @@ export default function Caja() {
                   <TextField label="Concepto / Razón del gasto *" required fullWidth size="small" value={gastoConcepto} onChange={e => setGastoConcepto(e.target.value)} placeholder="Ej: Compra de insumos de aseo" />
                   <CurrencyField label="Monto del gasto *" value={gastoMonto} onChange={setGastoMonto} required />
 
-                  <Grid container spacing={1.5}>
-                    <Grid item xs={12} sm={6}>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
                       <TextField
                         label="Fecha del gasto"
                         type="date"
@@ -977,8 +976,6 @@ export default function Caja() {
                         InputLabelProps={{ shrink: true }}
                         InputProps={{ startAdornment: <InputAdornment position="start"><CalendarToday sx={{ fontSize: 14, color: 'text.secondary' }} /></InputAdornment> }}
                       />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
                       <FormControl size="small" fullWidth>
                         <InputLabel>Categoría</InputLabel>
                         <Select
@@ -991,8 +988,7 @@ export default function Caja() {
                           {CATEGORIAS_GASTO.map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
                         </Select>
                       </FormControl>
-                    </Grid>
-                  </Grid>
+                  </Stack>
 
                   <Box>
                     <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 1 }}>Método de Pago (Salida)</Typography>
