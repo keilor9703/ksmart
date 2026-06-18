@@ -444,88 +444,120 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
         sx={{ mb: 1.5 }}
         InputProps={{
           startAdornment: <InputAdornment position="start"><Search sx={{ color: 'text.secondary', fontSize: 20 }} /></InputAdornment>,
+          endAdornment: searchTerm
+            ? <InputAdornment position="end"><IconButton size="small" onClick={() => { setSearchTerm(''); setPage(0); }}><Close fontSize="small" /></IconButton></InputAdornment>
+            : null,
         }}
       />
 
-      {/* ── Mobile sort ── */}
-      {isMobile && (
-        <Box sx={{ display: 'flex', gap: 1, mb: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-          <SwapVert sx={{ fontSize: 16, color: 'text.secondary' }} />
-          {mobileSortOptions.map(opt => (
+      {/* ── Toolbar: ordenar (mobile) + exportar ── */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, flexWrap: 'nowrap' }}>
+        {/* Sort chips — solo en mobile, scrollables */}
+        {isMobile && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flex: 1, overflow: 'hidden' }}>
+            <SwapVert sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }} />
+            <Box sx={{ display: 'flex', gap: 0.8, overflowX: 'auto', pb: 0.3, '&::-webkit-scrollbar': { display: 'none' } }}>
+              {mobileSortOptions.map(opt => (
+                <Chip
+                  key={opt.value}
+                  label={opt.label + (sortBy === opt.value ? (sortDir === 'asc' ? ' ↑' : ' ↓') : '')}
+                  size="small"
+                  onClick={() => handleSort(opt.value)}
+                  sx={{
+                    fontWeight: 600, fontSize: 11, borderRadius: 1.5, cursor: 'pointer', flexShrink: 0,
+                    ...(sortBy === opt.value
+                      ? { bgcolor: accentColor, color: '#fff' }
+                      : { bgcolor: 'action.hover', color: 'text.secondary' }),
+                  }}
+                />
+              ))}
+            </Box>
+          </Box>
+        )}
+
+        {/* Exportar — icon-only en mobile, con texto en desktop */}
+        <Box sx={{ display: 'flex', gap: 0.8, ml: isMobile ? 0 : 0, flexShrink: 0 }}>
+          <Tooltip title="Descargar plantilla Excel">
+            {isMobile
+              ? <IconButton size="small" onClick={handleTemplate} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+                  <Download fontSize="small" />
+                </IconButton>
+              : <Button variant="outlined" size="small" startIcon={<Download />} onClick={handleTemplate}
+                  sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12, borderColor: 'divider', color: 'text.secondary' }}>
+                  Plantilla
+                </Button>
+            }
+          </Tooltip>
+          <Tooltip title="Exportar lista a Excel">
+            {isMobile
+              ? <IconButton size="small" onClick={() => handleExport('xlsx')} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+                  <Download fontSize="small" />
+                </IconButton>
+              : <Button variant="outlined" size="small" startIcon={<Download />} onClick={() => handleExport('xlsx')}
+                  sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12, borderColor: 'divider', color: 'text.secondary' }}>
+                  Exportar
+                </Button>
+            }
+          </Tooltip>
+        </Box>
+      </Box>
+
+      {/* ── Filtros de categoría — scroll horizontal, sin wrap ── */}
+      <Box sx={{ mb: 1 }}>
+        {isMobile && (
+          <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: 0.6, mb: 0.5 }}>
+            Categoría
+          </Typography>
+        )}
+        <Box sx={{ display: 'flex', gap: 0.8, overflowX: 'auto', pb: 0.3, '&::-webkit-scrollbar': { display: 'none' }, flexWrap: isMobile ? 'nowrap' : 'wrap' }}>
+          {groupFilters.map(f => (
             <Chip
-              key={opt.value}
-              label={opt.label + (sortBy === opt.value ? (sortDir === 'asc' ? ' ↑' : ' ↓') : '')}
+              key={f.value}
+              label={
+                f.color
+                  ? <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: filterGroup === f.value ? '#fff' : f.color, display: 'inline-block', flexShrink: 0 }} />
+                      {f.label}
+                    </Box>
+                  : f.label
+              }
+              onClick={() => { setFilterGroup(f.value); setFilterStock('all'); setPage(0); }}
               size="small"
-              onClick={() => handleSort(opt.value)}
               sx={{
-                fontWeight: 600, fontSize: 11, borderRadius: 1.5, cursor: 'pointer',
-                ...(sortBy === opt.value
-                  ? { bgcolor: accentColor, color: '#fff' }
+                fontWeight: 600, fontSize: 12, borderRadius: 1.5, cursor: 'pointer', flexShrink: 0,
+                ...(filterGroup === f.value
+                  ? { bgcolor: f.color || accentColor, color: '#fff' }
                   : { bgcolor: 'action.hover', color: 'text.secondary' }),
               }}
             />
           ))}
         </Box>
-      )}
-
-      {/* ── Botones exportar ── */}
-      <Box sx={{ display: 'flex', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
-        <Tooltip title="Descargar plantilla Excel">
-          <Button variant="outlined" size="small" startIcon={<Download />} onClick={handleTemplate}
-            sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12, borderColor: 'divider', color: 'text.secondary' }}>
-            Plantilla
-          </Button>
-        </Tooltip>
-        <Tooltip title="Exportar lista a Excel">
-          <Button variant="outlined" size="small" startIcon={<Download />} onClick={() => handleExport('xlsx')}
-            sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12, borderColor: 'divider', color: 'text.secondary' }}>
-            Exportar
-          </Button>
-        </Tooltip>
       </Box>
 
-      {/* ── Filtros de grupo ── */}
-      <Box sx={{ display: 'flex', gap: 1, mb: 1, flexWrap: 'wrap' }}>
-        {groupFilters.map(f => (
-          <Chip
-            key={f.value}
-            label={
-              f.color
-                ? <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: filterGroup === f.value ? '#fff' : f.color, display: 'inline-block' }} />
-                    {f.label}
-                  </Box>
-                : f.label
-            }
-            onClick={() => { setFilterGroup(f.value); setFilterStock('all'); setPage(0); }}
-            size="small"
-            sx={{
-              fontWeight: 600, fontSize: 12, borderRadius: 1.5, cursor: 'pointer',
-              ...(filterGroup === f.value
-                ? { bgcolor: f.color || accentColor, color: '#fff' }
-                : { bgcolor: 'action.hover', color: 'text.secondary' }),
-            }}
-          />
-        ))}
-      </Box>
-
-      {/* ── Filtros de stock (ocultos cuando se filtra por servicios) ── */}
+      {/* ── Filtros de stock — scroll horizontal, ocultos para servicios ── */}
       {filterGroup !== 'servicio' && (
-        <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-          {stockFilters.map(f => (
-            <Chip
-              key={f.value}
-              label={f.label}
-              onClick={() => { setFilterStock(f.value); setPage(0); }}
-              size="small"
-              sx={{
-                fontWeight: 600, fontSize: 12, borderRadius: 1.5, cursor: 'pointer',
-                ...(filterStock === f.value
-                  ? { bgcolor: accentColor, color: '#fff' }
-                  : { bgcolor: 'action.hover', color: 'text.secondary' }),
-              }}
-            />
-          ))}
+        <Box sx={{ mb: 2 }}>
+          {isMobile && (
+            <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: 0.6, mb: 0.5 }}>
+              Stock
+            </Typography>
+          )}
+          <Box sx={{ display: 'flex', gap: 0.8, overflowX: 'auto', pb: 0.3, '&::-webkit-scrollbar': { display: 'none' }, flexWrap: isMobile ? 'nowrap' : 'wrap' }}>
+            {stockFilters.map(f => (
+              <Chip
+                key={f.value}
+                label={f.label}
+                onClick={() => { setFilterStock(f.value); setPage(0); }}
+                size="small"
+                sx={{
+                  fontWeight: 600, fontSize: 12, borderRadius: 1.5, cursor: 'pointer', flexShrink: 0,
+                  ...(filterStock === f.value
+                    ? { bgcolor: accentColor, color: '#fff' }
+                    : { bgcolor: 'action.hover', color: 'text.secondary' }),
+                }}
+              />
+            ))}
+          </Box>
         </Box>
       )}
 
