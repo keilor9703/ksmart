@@ -438,8 +438,10 @@ const Ventas = ({ user }) => {
     const [searchTerm, setSearchTerm]             = useState('');
     const [fechaInicio, setFechaInicio]           = useState('');
     const [fechaFin, setFechaFin]                 = useState('');
+    const [estadoPagoFiltro, setEstadoPagoFiltro] = useState('');
     const [ventasTotal, setVentasTotal]           = useState(0);
     const [ventasPages, setVentasPages]           = useState(1);
+    const [ventasStats, setVentasStats]           = useState({ sum_total: 0, sum_pagado: 0, sum_pendiente: 0 });
 
     // ── Fetch inicial ──
     useEffect(() => {
@@ -451,16 +453,18 @@ const Ventas = ({ user }) => {
         })).catch(() => {});
     }, []);
 
-    const fetchVentas = (p = page, rpp = rowsPerPage, search = searchTerm, fi = fechaInicio, ff = fechaFin) => {
+    const fetchVentas = (p = page, rpp = rowsPerPage, search = searchTerm, fi = fechaInicio, ff = fechaFin, ep = estadoPagoFiltro) => {
         const params = { page: p + 1, page_size: rpp };
         if (search) params.search = search;
         if (fi) params.fecha_inicio = fi;
         if (ff) params.fecha_fin = ff;
+        if (ep) params.estado_pago = ep;
         apiClient.get('/ventas/', { params })
             .then(r => {
                 setVentas(r.data.items);
                 setVentasTotal(r.data.total);
                 setVentasPages(r.data.pages);
+                if (r.data.stats) setVentasStats(r.data.stats);
             })
             .catch(console.error);
     };
@@ -1685,53 +1689,87 @@ useEffect(() => {
                 <TabPanel value={tabValue} index={1}>
                     <Box sx={{ px: { xs: 2, md: 3 }, pb: 3 }}>
 
-                        {/* Filtros */}
-                        <Grid container spacing={1.5} sx={{ mb: 2.5 }} alignItems="center">
-                            <Grid item xs={12} sm={5}>
-                                <TextField
-                                    fullWidth size="small"
-                                    placeholder="Buscar por nombre de cliente…"
-                                    value={searchTerm}
-                                    onChange={(e) => { const v = e.target.value; setSearchTerm(v); setPage(0); fetchVentas(0, rowsPerPage, v, fechaInicio, fechaFin); }}
-                                    InputProps={{ startAdornment: <InputAdornment position="start"><Search sx={{ color: 'text.secondary', fontSize: 18 }} /></InputAdornment> }}
-                                />
-                            </Grid>
-                            <Grid item xs={6} sm={3}>
-                                <TextField
-                                    fullWidth size="small" type="date" label="Desde"
-                                    value={fechaInicio}
-                                    onChange={(e) => { const v = e.target.value; setFechaInicio(v); setPage(0); fetchVentas(0, rowsPerPage, searchTerm, v, fechaFin); }}
-                                    InputLabelProps={{ shrink: true }}
-                                    sx={{ input: { colorScheme: isDark ? 'dark' : 'light' } }}
-                                />
-                            </Grid>
-                            <Grid item xs={6} sm={3}>
-                                <TextField
-                                    fullWidth size="small" type="date" label="Hasta"
-                                    value={fechaFin}
-                                    onChange={(e) => { const v = e.target.value; setFechaFin(v); setPage(0); fetchVentas(0, rowsPerPage, searchTerm, fechaInicio, v); }}
-                                    InputLabelProps={{ shrink: true }}
-                                    sx={{ input: { colorScheme: isDark ? 'dark' : 'light' } }}
-                                />
-                            </Grid>
-                            {(fechaInicio || fechaFin || searchTerm) && (
-                                <Grid item xs={12} sm={1}>
-                                    <Button size="small" variant="text" onClick={() => { setFechaInicio(''); setFechaFin(''); setSearchTerm(''); setPage(0); fetchVentas(0, rowsPerPage, '', '', ''); }}
-                                        sx={{ color: 'text.secondary', fontSize: 11, whiteSpace: 'nowrap' }}>
-                                        Limpiar
-                                    </Button>
-                                </Grid>
+                        {/* ── Buscador principal ── */}
+                        <TextField
+                            fullWidth size="small" sx={{ mb: 1.5 }}
+                            placeholder="Buscar por cliente, producto, N° venta, N° factura…"
+                            value={searchTerm}
+                            onChange={(e) => { const v = e.target.value; setSearchTerm(v); setPage(0); fetchVentas(0, rowsPerPage, v, fechaInicio, fechaFin, estadoPagoFiltro); }}
+                            InputProps={{ startAdornment: <InputAdornment position="start"><Search sx={{ color: 'text.secondary', fontSize: 18 }} /></InputAdornment>,
+                                endAdornment: searchTerm ? <InputAdornment position="end"><IconButton size="small" onClick={() => { setSearchTerm(''); setPage(0); fetchVentas(0, rowsPerPage, '', fechaInicio, fechaFin, estadoPagoFiltro); }}><Close fontSize="small" /></IconButton></InputAdornment> : null,
+                            }}
+                        />
+
+                        {/* ── Filtros de fecha + estado ── */}
+                        <Box sx={{ display: 'flex', gap: 1, mb: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+                            {/* Atajos de fecha */}
+                            {[
+                                { label: 'Hoy', fn: () => { const d = new Date().toISOString().slice(0,10); setFechaInicio(d); setFechaFin(d); setPage(0); fetchVentas(0, rowsPerPage, searchTerm, d, d, estadoPagoFiltro); } },
+                                { label: 'Esta semana', fn: () => { const now = new Date(); const mon = new Date(now); mon.setDate(now.getDate() - now.getDay() + 1); const fi = mon.toISOString().slice(0,10); const ff = now.toISOString().slice(0,10); setFechaInicio(fi); setFechaFin(ff); setPage(0); fetchVentas(0, rowsPerPage, searchTerm, fi, ff, estadoPagoFiltro); } },
+                                { label: 'Este mes', fn: () => { const now = new Date(); const fi = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`; const ff = now.toISOString().slice(0,10); setFechaInicio(fi); setFechaFin(ff); setPage(0); fetchVentas(0, rowsPerPage, searchTerm, fi, ff, estadoPagoFiltro); } },
+                            ].map(s => (
+                                <Chip key={s.label} label={s.label} size="small" onClick={s.fn}
+                                    sx={{ fontSize: 11, fontWeight: 600, cursor: 'pointer', bgcolor: 'action.hover', borderRadius: 1.5 }} />
+                            ))}
+                            <TextField size="small" type="date" label="Desde" value={fechaInicio}
+                                onChange={(e) => { const v = e.target.value; setFechaInicio(v); setPage(0); fetchVentas(0, rowsPerPage, searchTerm, v, fechaFin, estadoPagoFiltro); }}
+                                InputLabelProps={{ shrink: true }} sx={{ width: 145, input: { colorScheme: isDark ? 'dark' : 'light' } }} />
+                            <TextField size="small" type="date" label="Hasta" value={fechaFin}
+                                onChange={(e) => { const v = e.target.value; setFechaFin(v); setPage(0); fetchVentas(0, rowsPerPage, searchTerm, fechaInicio, v, estadoPagoFiltro); }}
+                                InputLabelProps={{ shrink: true }} sx={{ width: 145, input: { colorScheme: isDark ? 'dark' : 'light' } }} />
+                            {(fechaInicio || fechaFin || searchTerm || estadoPagoFiltro) && (
+                                <Button size="small" variant="text" onClick={() => { setFechaInicio(''); setFechaFin(''); setSearchTerm(''); setEstadoPagoFiltro(''); setPage(0); fetchVentas(0, rowsPerPage, '', '', '', ''); }}
+                                    sx={{ color: 'text.secondary', fontSize: 11, whiteSpace: 'nowrap', ml: 'auto' }}>
+                                    Limpiar todo
+                                </Button>
                             )}
-                        </Grid>
+                        </Box>
 
-                        {/* Resultado del filtro */}
-                        {(searchTerm || fechaInicio || fechaFin) && (
-                            <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1.5 }}>
-                                {ventasTotal} venta{ventasTotal !== 1 ? 's' : ''} encontrada{ventasTotal !== 1 ? 's' : ''}
+                        {/* ── Chips de estado ── */}
+                        <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+                            {[
+                                { value: '',          label: `Todas (${ventasTotal})` },
+                                { value: 'pagado',    label: 'Pagadas', color: '#16a34a' },
+                                { value: 'pendiente', label: 'Pendientes', color: '#EF4444' },
+                                { value: 'credito',   label: 'Crédito', color: '#F59E0B' },
+                            ].map(f => (
+                                <Chip key={f.value} label={f.label} size="small"
+                                    onClick={() => { setEstadoPagoFiltro(f.value); setPage(0); fetchVentas(0, rowsPerPage, searchTerm, fechaInicio, fechaFin, f.value); }}
+                                    sx={{
+                                        fontSize: 11, fontWeight: 600, cursor: 'pointer', borderRadius: 1.5,
+                                        ...(estadoPagoFiltro === f.value
+                                            ? { bgcolor: f.color || ACCENT, color: '#fff' }
+                                            : { bgcolor: 'action.hover', color: 'text.secondary' }),
+                                    }}
+                                />
+                            ))}
+                        </Box>
+
+                        {/* ── Barra de resumen financiero ── */}
+                        <Box sx={{
+                            display: 'flex', gap: 2, mb: 2, px: 2, py: 1.5, borderRadius: 2,
+                            bgcolor: 'action.hover', flexWrap: 'wrap', alignItems: 'center',
+                        }}>
+                            <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 600 }}>
+                                {ventasTotal} venta{ventasTotal !== 1 ? 's' : ''}
                             </Typography>
-                        )}
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Total:</Typography>
+                                <Typography sx={{ fontSize: 13, fontWeight: 800, color: 'text.primary' }}>{formatCurrency(ventasStats.sum_total)}</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Cobrado:</Typography>
+                                <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#16a34a' }}>{formatCurrency(ventasStats.sum_pagado)}</Typography>
+                            </Box>
+                            {ventasStats.sum_pendiente > 0 && (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Pendiente:</Typography>
+                                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#EF4444' }}>{formatCurrency(ventasStats.sum_pendiente)}</Typography>
+                                </Box>
+                            )}
+                        </Box>
 
-                        {/* Cards (mobile) / Tabla (desktop) */}
+                        {/* ── Cards (mobile) / Tabla (desktop) ── */}
                         {isMobile ? (
                             <Box>
                                 {paginatedVentas.length === 0
@@ -1753,49 +1791,87 @@ useEffect(() => {
                             <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
                                 <Table size="small">
                                     <TableHead>
-                                        <TableRow>
-                                            {['#', 'Cliente', 'Productos', 'Total', 'Pagado', 'Saldo', 'Estado', 'Fecha', 'Acciones'].map(h => (
-                                                <TableCell key={h} sx={{ fontWeight: 700, fontSize: 12 }}>{h}</TableCell>
-                                            ))}
+                                        <TableRow sx={{ bgcolor: 'action.hover' }}>
+                                            <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, width: 110 }}>Venta / FE</TableCell>
+                                            <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Cliente</TableCell>
+                                            <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Productos</TableCell>
+                                            <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }} align="right">Total</TableCell>
+                                            <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Estado</TableCell>
+                                            <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, display: { xs: 'none', md: 'table-cell' } }}>Fecha</TableCell>
+                                            <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Acciones</TableCell>
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
                                         {paginatedVentas.length === 0
-                                            ? <TableRow><TableCell colSpan={9} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>No se encontraron ventas</TableCell></TableRow>
-                                            : paginatedVentas.map(v => (
-                                                <TableRow key={v.id} hover>
-                                                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>
-                                                        #{v.id}
-                                                        {v.numero_factura && <Typography component="span" sx={{ fontSize: 11, ml: 0.5, color: 'text.disabled' }}>{v.numero_factura}</Typography>}
-                                                        <ChipFE estado={v.estado_electronico} ventaId={v.id} onReintentar={handleReintentarFE} />
-                                                    </TableCell>
-                                                    <TableCell sx={{ fontWeight: 600 }}>{v.cliente?.nombre || 'N/A'}</TableCell>
+                                            ? <TableRow><TableCell colSpan={7} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>No se encontraron ventas</TableCell></TableRow>
+                                            : paginatedVentas.map(v => {
+                                                const saldo = (v.total || 0) - (v.monto_pagado || 0);
+                                                const productosSummary = v.detalles?.length > 0
+                                                    ? v.detalles.length === 1
+                                                        ? `${v.detalles[0].producto?.nombre || v.detalles[0].nombre_producto} ×${v.detalles[0].cantidad}`
+                                                        : `${v.detalles[0].producto?.nombre || v.detalles[0].nombre_producto} ×${v.detalles[0].cantidad} + ${v.detalles.length - 1} más`
+                                                    : '—';
+                                                const productosTooltip = v.detalles?.map(d => `${d.producto?.nombre || d.nombre_producto} ×${d.cantidad}`).join('\n');
+                                                const fechaVenta = new Date(v.fecha + (v.fecha?.endsWith('Z') ? '' : 'Z'));
+                                                const fechaStr = fechaVenta.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+                                                const horaStr  = fechaVenta.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+                                                return (
+                                                <TableRow key={v.id} hover sx={{ '&:hover': { bgcolor: 'action.hover' } }}>
+                                                    {/* ID + FE separados */}
                                                     <TableCell>
-                                                        {v.detalles.map(d => (
-                                                            <Typography key={d.id} sx={{ fontSize: 12, color: 'text.secondary' }}>{d.producto?.nombre} × {d.cantidad}</Typography>
-                                                        ))}
+                                                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3 }}>
+                                                            <Typography sx={{
+                                                                fontSize: 12, fontWeight: 800, fontFamily: 'monospace',
+                                                                bgcolor: `${ACCENT}14`, color: ACCENT,
+                                                                px: 0.8, py: 0.2, borderRadius: 1, display: 'inline-block', width: 'fit-content',
+                                                            }}>
+                                                                V-{String(v.id).padStart(4, '0')}
+                                                            </Typography>
+                                                            {v.numero_factura && (
+                                                                <Typography sx={{ fontSize: 10, fontFamily: 'monospace', color: 'text.disabled' }}>
+                                                                    {v.numero_factura}
+                                                                </Typography>
+                                                            )}
+                                                            <ChipFE estado={v.estado_electronico} ventaId={v.id} onReintentar={handleReintentarFE} />
+                                                        </Box>
                                                     </TableCell>
-                                                    <TableCell sx={{ fontWeight: 700 }}>{formatCurrency(v.total)}</TableCell>
-                                                    <TableCell sx={{ color: '#16a34a', fontWeight: 600 }}>{formatCurrency(v.monto_pagado)}</TableCell>
-                                                    <TableCell sx={{ color: v.total - v.monto_pagado > 0 ? '#EF4444' : 'text.primary', fontWeight: 600 }}>
-                                                        {formatCurrency(v.total - v.monto_pagado)}
+                                                    <TableCell>
+                                                        <Typography sx={{ fontWeight: 600, fontSize: 13 }}>{v.cliente?.nombre || <Typography component="span" sx={{ color: 'text.disabled', fontStyle: 'italic', fontSize: 12 }}>Consumidor final</Typography>}</Typography>
+                                                        {v.cliente?.celular && <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>{v.cliente.celular}</Typography>}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Tooltip title={<Box sx={{ whiteSpace: 'pre-line', fontSize: 12 }}>{productosTooltip}</Box>} arrow>
+                                                            <Typography sx={{ fontSize: 12, color: 'text.secondary', cursor: v.detalles?.length > 1 ? 'help' : 'default', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                {productosSummary}
+                                                            </Typography>
+                                                        </Tooltip>
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                        <Typography sx={{ fontWeight: 800, fontSize: 13 }}>{formatCurrency(v.total)}</Typography>
+                                                        {saldo > 0 && (
+                                                            <Typography sx={{ fontSize: 10, color: '#EF4444', fontWeight: 600 }}>
+                                                                Saldo: {formatCurrency(saldo)}
+                                                            </Typography>
+                                                        )}
                                                     </TableCell>
                                                     <TableCell>{getEstadoPagoChip(v.estado_pago)}</TableCell>
-                                                    <TableCell sx={{ fontSize: 12, color: 'text.secondary', whiteSpace: 'nowrap' }}>
-                                                        {new Date(v.fecha + 'Z').toLocaleString()}
+                                                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
+                                                        <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{fechaStr}</Typography>
+                                                        <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>{horaStr}</Typography>
                                                     </TableCell>
                                                     <TableCell>
-                                                        <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                                            <Tooltip title="Ver detalle"><IconButton size="small" onClick={() => handleOpenDetails(v)} sx={{ color: '#3B82F6', '&:hover': { bgcolor: '#EFF6FF' } }}><Visibility fontSize="small" /></IconButton></Tooltip>
+                                                        <Box sx={{ display: 'flex', gap: 0.3 }}>
+                                                            <Tooltip title="Ver comprobante"><IconButton size="small" onClick={() => handleOpenDetails(v)} sx={{ color: '#3B82F6', '&:hover': { bgcolor: '#EFF6FF' } }}><Visibility fontSize="small" /></IconButton></Tooltip>
                                                             {v.detalles?.length > 0 && (
                                                                 <Tooltip title="Registrar devolución"><IconButton size="small" onClick={() => handleOpenDevolucion(v)} sx={{ color: '#F59E0B', '&:hover': { bgcolor: '#FFFBEB' } }}><AssignmentReturn fontSize="small" /></IconButton></Tooltip>
                                                             )}
-                                                            <Tooltip title="Editar"><IconButton size="small" onClick={() => handleEdit(v)} sx={{ color: ACCENT, '&:hover': { bgcolor: '#FFF0E9' } }}><Edit fontSize="small" /></IconButton></Tooltip>
+                                                            <Tooltip title="Editar venta"><IconButton size="small" onClick={() => handleEdit(v)} sx={{ color: ACCENT, '&:hover': { bgcolor: '#FFF0E9' } }}><Edit fontSize="small" /></IconButton></Tooltip>
                                                             <Tooltip title="Eliminar"><IconButton size="small" onClick={() => handleDelete(v.id)} sx={{ color: '#EF4444', '&:hover': { bgcolor: '#FEF2F2' } }}><Delete fontSize="small" /></IconButton></Tooltip>
                                                         </Box>
                                                     </TableCell>
                                                 </TableRow>
-                                            ))
+                                                );
+                                            })
                                         }
                                     </TableBody>
                                 </Table>

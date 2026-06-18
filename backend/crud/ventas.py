@@ -21,7 +21,9 @@ def get_ventas(
     search: str = "",
     fecha_inicio=None,
     fecha_fin=None,
+    estado_pago: str = "",
 ):
+    from sqlalchemy import cast, String, or_
     q = (
         db.query(models.Venta)
         .options(
@@ -33,10 +35,21 @@ def get_ventas(
     )
     if search:
         term = f"%{search}%"
-        q = q.outerjoin(models.Venta.cliente).filter(
-            models.Cliente.nombre.ilike(term)
-            | models.Venta.numero_factura.ilike(term)
-        )
+        # Join cliente once; also join detalles for product name search
+        q = (
+            q.outerjoin(models.Venta.cliente)
+             .outerjoin(models.Venta.detalles)
+             .filter(
+                or_(
+                    models.Cliente.nombre.ilike(term),
+                    models.Venta.numero_factura.ilike(term),
+                    cast(models.Venta.id, String).ilike(term),
+                    models.DetalleVenta.nombre_producto.ilike(term),
+                )
+            )
+        ).distinct()
+    if estado_pago:
+        q = q.filter(models.Venta.estado_pago == estado_pago)
     if fecha_inicio:
         q = q.filter(models.Venta.fecha >= fecha_inicio)
     if fecha_fin:
@@ -44,7 +57,42 @@ def get_ventas(
 
     total = q.count()
     items = q.order_by(models.Venta.fecha.desc()).offset(skip).limit(limit).all()
-    return total, items
+
+    # Aggregate stats for the filtered set (before pagination)
+    from sqlalchemy import func as sqlfunc
+    agg = db.query(
+        sqlfunc.coalesce(sqlfunc.sum(models.Venta.total), 0).label("sum_total"),
+        sqlfunc.coalesce(sqlfunc.sum(models.Venta.monto_pagado), 0).label("sum_pagado"),
+    ).filter(models.Venta.empresa_id == empresa_id, models.Venta.tipo == "venta")
+    # Apply same filters for the aggregate
+    if search:
+        term = f"%{search}%"
+        agg = (
+            agg.outerjoin(models.Venta.cliente)
+               .outerjoin(models.Venta.detalles)
+               .filter(
+                   or_(
+                       models.Cliente.nombre.ilike(term),
+                       models.Venta.numero_factura.ilike(term),
+                       cast(models.Venta.id, String).ilike(term),
+                       models.DetalleVenta.nombre_producto.ilike(term),
+                   )
+               ).distinct()
+        )
+    if estado_pago:
+        agg = agg.filter(models.Venta.estado_pago == estado_pago)
+    if fecha_inicio:
+        agg = agg.filter(models.Venta.fecha >= fecha_inicio)
+    if fecha_fin:
+        agg = agg.filter(models.Venta.fecha <= fecha_fin)
+    agg_result = agg.one()
+
+    stats = {
+        "sum_total":    float(agg_result.sum_total),
+        "sum_pagado":   float(agg_result.sum_pagado),
+        "sum_pendiente": float(agg_result.sum_total) - float(agg_result.sum_pagado),
+    }
+    return total, items, stats
 
 def get_venta(db: Session, empresa_id: int, venta_id: int):
     return (

@@ -173,6 +173,7 @@ def read_ventas(
     search: str = Query(default=""),
     fecha_inicio: Optional[str] = Query(default=None),
     fecha_fin: Optional[str] = Query(default=None),
+    estado_pago: Optional[str] = Query(default=None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
@@ -191,7 +192,7 @@ def read_ventas(
         except ValueError:
             pass
 
-    total, items = crud.get_ventas(
+    total, items, stats = crud.get_ventas(
         db,
         empresa_id=current_user.empresa_id,
         skip=(page - 1) * page_size,
@@ -199,6 +200,7 @@ def read_ventas(
         search=search.strip(),
         fecha_inicio=fi,
         fecha_fin=ff,
+        estado_pago=estado_pago or "",
     )
     return {
         "total":     total,
@@ -206,6 +208,7 @@ def read_ventas(
         "page_size": page_size,
         "pages":     max(1, (total + page_size - 1) // page_size),
         "items":     [schemas.Venta.model_validate(v) for v in items],
+        "stats":     stats,
     }
 
 @router.get("/{venta_id}", response_model=schemas.Venta)
