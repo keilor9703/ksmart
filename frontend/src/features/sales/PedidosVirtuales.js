@@ -812,7 +812,7 @@ const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange,
 
 // ─── PedidoCard ───────────────────────────────────────────────────────────────
 
-const PedidoCard = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConvertir, onWhatsApp, onEdit, onDetail, linkPagoConfig }) => {
+const PedidoCard = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConvertir, onWhatsApp, onEdit, onDetail, onComprobante, linkPagoConfig }) => {
   const theme = useTheme();
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [justUpdated, setJustUpdated] = useState(false);
@@ -994,8 +994,8 @@ const PedidoCard = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConv
 
             {/* Receipt for delivered */}
             {isEntregado && pedido.venta_id && (
-              <Tooltip title="Ver comprobante">
-                <IconButton size="small" onClick={() => onDetail(pedido)}
+              <Tooltip title="Ver comprobante de venta">
+                <IconButton size="small" onClick={() => onComprobante(pedido)}
                   sx={{ borderRadius: 2, border: `1px solid ${alpha('#059669', 0.4)}`, color: '#059669', width: 30, height: 30 }}>
                   <Receipt sx={{ fontSize: 15 }} />
                 </IconButton>
@@ -1014,7 +1014,7 @@ const PedidoCard = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConv
 
 // ─── ListView row ─────────────────────────────────────────────────────────────
 
-const ListRow = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConvertir, onWhatsApp, onEdit, onDetail, linkPagoConfig }) => {
+const ListRow = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConvertir, onWhatsApp, onEdit, onDetail, onComprobante, linkPagoConfig }) => {
   const theme = useTheme();
   const [paymentOpen, setPaymentOpen] = useState(false);
   const meta = getEstadoMeta(pedido.estado);
@@ -1075,6 +1075,13 @@ const ListRow = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConvert
                 </IconButton>
               </Tooltip>
             )}
+            {isEntregado && pedido.venta_id && (
+              <Tooltip title="Ver comprobante de venta">
+                <IconButton size="small" onClick={() => onComprobante(pedido)} sx={{ color: '#059669', p: 0.5 }}>
+                  <Receipt sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Tooltip>
+            )}
           </Box>
         </TableCell>
       </TableRow>
@@ -1107,6 +1114,16 @@ export default function PedidosVirtuales({ user }) {
   const [editPedido,     setEditPedido]     = useState(null);
   const [waPedido,       setWaPedido]       = useState(null);
   const [linkPagoConfig, setLinkPagoConfig] = useState(null);
+  const [comprobantePedido, setComprobantePedido] = useState(null); // {venta, pedido}
+
+  const handleComprobante = async (pedido) => {
+    try {
+      const res = await apiClient.get(`/ventas/${pedido.venta_id}`);
+      setComprobantePedido({ venta: res.data, pedido });
+    } catch {
+      toast.error('No se pudo cargar el comprobante de venta');
+    }
+  };
 
   const empresa = user?.empresa || null;
   const vendedor = user ? (`${user.nombre_completo || ''}`.trim() || user.username || user.email) : '';
@@ -1281,7 +1298,7 @@ export default function PedidosVirtuales({ user }) {
             <PedidoCard key={p.id} pedido={p} empresa={empresa} vendedor={vendedor}
               onStateChange={handleStateChange} onCancel={setCancelPedido}
               onConvertir={handleConvertir} onWhatsApp={setWaPedido}
-              onEdit={setEditPedido} onDetail={setDetailPedido} linkPagoConfig={linkPagoConfig} />
+              onEdit={setEditPedido} onDetail={setDetailPedido} onComprobante={handleComprobante} linkPagoConfig={linkPagoConfig} />
           ))}
         </Box>
       ) : (
@@ -1304,7 +1321,7 @@ export default function PedidosVirtuales({ user }) {
                   <ListRow key={p.id} pedido={p} empresa={empresa} vendedor={vendedor}
                     onStateChange={handleStateChange} onCancel={setCancelPedido}
                     onConvertir={handleConvertir} onWhatsApp={setWaPedido}
-                    onEdit={setEditPedido} onDetail={setDetailPedido} linkPagoConfig={linkPagoConfig} />
+                    onEdit={setEditPedido} onDetail={setDetailPedido} onComprobante={handleComprobante} linkPagoConfig={linkPagoConfig} />
                 ))}
               </TableBody>
             </Table>
@@ -1326,6 +1343,16 @@ export default function PedidosVirtuales({ user }) {
         pedido={editPedido} onSuccess={handleEditSuccess} />
 
       <WADialog open={!!waPedido} onClose={() => setWaPedido(null)} pedido={waPedido} />
+
+      {comprobantePedido && (
+        <ReciboDialog
+          open={!!comprobantePedido}
+          onClose={() => setComprobantePedido(null)}
+          venta={comprobantePedido.venta}
+          empresa={empresa}
+          vendedor={vendedor}
+        />
+      )}
     </Box>
   );
 }
