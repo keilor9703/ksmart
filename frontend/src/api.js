@@ -55,6 +55,10 @@ apiClient.interceptors.response.use(
         // Estos endpoints deben propagar el error para que el componente los maneje
         return Promise.reject(error);
       }
+      // Endpoints públicos (catálogo, etc.) deben propagar el error normalmente
+      if (url.includes('/catalogo/') || url.includes('/planes-activos')) {
+        return Promise.reject(error);
+      }
       // Cualquier otro 401 (componente montado con sesión expirada): silenciar
       _sessionExpired = true;
       return new Promise(() => {});

@@ -294,6 +294,7 @@ const CatalogoVirtual = () => {
     const formatCurrency = (val) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(val);
 
     let numeroPedido = null;
+    let backendOk = false;
     try {
       const payload = {
         nombre_cliente:    nombre,
@@ -309,8 +310,11 @@ const CatalogoVirtual = () => {
       };
       const res = await apiClient.post(`/catalogo/${slug}/pedido`, payload);
       numeroPedido = res.data.id;
-    } catch {
-      // WhatsApp abre igual aunque falle el backend
+      backendOk = true;
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      const msg = typeof detail === 'string' ? detail : 'No se pudo registrar el pedido en el sistema.';
+      toast.warning(`⚠️ ${msg} Tu pedido llegará por WhatsApp de todas formas.`, { autoClose: 8000 });
     }
 
     let message = `🛍️ *NUEVO PEDIDO - ${empresa.nombre}*`;
@@ -331,6 +335,7 @@ const CatalogoVirtual = () => {
     });
     message += `\n💰 *TOTAL: ${formatCurrency(cartTotal)}*`;
     if (numeroPedido) message += `\n\n📋 *Pedido #${numeroPedido}* — guardado en el sistema.`;
+    else message += `\n\n⚠️ _Pedido no guardado en sistema — confirmar manualmente._`;
 
     window.open(`https://wa.me/${empresa.whatsapp_pedidos}?text=${encodeURIComponent(message)}`, '_blank');
     setOrderSent(true);

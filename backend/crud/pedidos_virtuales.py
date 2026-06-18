@@ -38,14 +38,16 @@ def create_pedido_publico(db: Session, slug: str, payload: schemas.PedidoVirtual
     detalles_data = []
 
     for item in payload.detalles:
+        # Buscar el producto validando que pertenezca a la empresa y esté vigente.
+        # No se requiere mostrar_en_catalogo==True porque el cliente pudo haber cargado
+        # el catálogo antes de que se hiciera un cambio, y rechazarlo sería una mala UX.
         producto = db.query(models.Producto).filter(
             models.Producto.id == item.producto_id,
             models.Producto.empresa_id == empresa.id,
-            models.Producto.mostrar_en_catalogo == True,
             models.Producto.vigente == True,
         ).first()
         if not producto:
-            raise ValueError(f"Producto {item.producto_id} no disponible en el catálogo")
+            raise ValueError(f"Producto {item.producto_id} no encontrado en esta tienda")
 
         subtotal = round(item.cantidad * item.precio_unitario, 2)
         total += subtotal
