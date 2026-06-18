@@ -22,7 +22,7 @@ import {
     Receipt, AttachMoney, AssignmentReturn, Add, QrCodeScanner,
     Videocam, VideocamOff, LockOutlined, LockOpenOutlined,
     AddCircle, RemoveCircle, PersonOutline, HelpOutline,
-    Keyboard, TouchApp, FileDownload, Stars, CreditCard,
+    Keyboard, TouchApp, FileDownload, Stars, CreditCard, Close,
 } from '@mui/icons-material';
 import { getProductoByBarcode } from '../../api';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
