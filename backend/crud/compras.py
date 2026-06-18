@@ -10,15 +10,78 @@ from crud.inventario import create_movement
 from services.contabilidad import registrar_asiento_compra
 
 
-def get_compras(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
-    """✅ FILTRADO POR EMPRESA"""
-    return db.query(models.Compra).options(
-        joinedload(models.Compra.proveedor),
-        joinedload(models.Compra.detalles).joinedload(models.DetalleCompra.producto),
-        joinedload(models.Compra.pagos)
-    ).filter(
-        models.Compra.empresa_id == empresa_id  # ✅
-    ).order_by(models.Compra.fecha.desc()).offset(skip).limit(limit).all()
+def get_compras(
+    db: Session, empresa_id: int, skip: int = 0, limit: int = 25,
+    search: str = "", fecha_inicio=None, fecha_fin=None, estado_pago: str = ""
+):
+    from sqlalchemy import cast, String, or_
+    q = (
+        db.query(models.Compra)
+        .options(
+            joinedload(models.Compra.proveedor),
+            joinedload(models.Compra.detalles).joinedload(models.DetalleCompra.producto),
+            joinedload(models.Compra.pagos),
+        )
+        .filter(models.Compra.empresa_id == empresa_id)
+    )
+    if search:
+        import re
+        term = f"%{search}%"
+        conditions = [
+            models.Cliente.nombre.ilike(term),
+            models.Compra.referencia_factura.ilike(term),
+            cast(models.Compra.id, String).ilike(term),
+        ]
+        m = re.match(r'^[Cc]-?0*(\d+)$', search.strip())
+        if m:
+            try:
+                conditions.append(models.Compra.id == int(m.group(1)))
+            except ValueError:
+                pass
+        q = q.outerjoin(models.Compra.proveedor).filter(or_(*conditions)).distinct()
+    if estado_pago and estado_pago != "todos":
+        q = q.filter(models.Compra.estado_pago == estado_pago)
+    if fecha_inicio:
+        q = q.filter(models.Compra.fecha >= fecha_inicio)
+    if fecha_fin:
+        q = q.filter(models.Compra.fecha <= fecha_fin)
+
+    total = q.count()
+    items = q.order_by(models.Compra.fecha.desc()).offset(skip).limit(limit).all()
+
+    from sqlalchemy import func as sqlfunc
+    agg_q = db.query(
+        sqlfunc.coalesce(sqlfunc.sum(models.Compra.total), 0).label("sum_total"),
+        sqlfunc.coalesce(sqlfunc.sum(models.Compra.monto_pagado), 0).label("sum_pagado"),
+    ).filter(models.Compra.empresa_id == empresa_id)
+    if search:
+        import re
+        term = f"%{search}%"
+        conditions = [
+            models.Cliente.nombre.ilike(term),
+            models.Compra.referencia_factura.ilike(term),
+            cast(models.Compra.id, String).ilike(term),
+        ]
+        m = re.match(r'^[Cc]-?0*(\d+)$', search.strip())
+        if m:
+            try:
+                conditions.append(models.Compra.id == int(m.group(1)))
+            except ValueError:
+                pass
+        agg_q = agg_q.outerjoin(models.Compra.proveedor).filter(or_(*conditions)).distinct()
+    if estado_pago and estado_pago != "todos":
+        agg_q = agg_q.filter(models.Compra.estado_pago == estado_pago)
+    if fecha_inicio:
+        agg_q = agg_q.filter(models.Compra.fecha >= fecha_inicio)
+    if fecha_fin:
+        agg_q = agg_q.filter(models.Compra.fecha <= fecha_fin)
+    agg = agg_q.one()
+    stats = {
+        "sum_total": float(agg.sum_total),
+        "sum_pagado": float(agg.sum_pagado),
+        "sum_pendiente": float(agg.sum_total) - float(agg.sum_pagado),
+    }
+    return total, items, stats
 
 def get_compra(db: Session, empresa_id: int, compra_id: int):
     """✅ FILTRADO POR EMPRESA"""
@@ -282,8 +345,10 @@ def delete_compra(db: Session, empresa_id: int, compra_id: int):
     if not db_compra:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
 
-    # Revertir inventario
+    # Revertir inventario (skip free-text items with no producto_id)
     for detalle in db_compra.detalles:
+        if detalle.producto_id is None:
+            continue
         reversa = schemas.InventoryMovementCreate(
             producto_id=detalle.producto_id,
             tipo=schemas.MovementType.salida,

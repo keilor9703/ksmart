@@ -11,7 +11,7 @@ import {
   Visibility, Search, TrendingDown, AttachMoney, Warning,
   LocalShipping, Close, Science, Edit, Print, FilterList
 } from '@mui/icons-material';
-import apiClient, { fetchCompras, createCompra, addPagoCompra } from '../../api';
+import apiClient, { createCompra, addPagoCompra } from '../../api';
 import { formatCurrency } from '../../utils/formatters';
 import { toast } from 'react-toastify';
 import CurrencyField from '../../components/common/CurrencyField';
@@ -197,24 +197,39 @@ const Compras = () => {
   const [sortBy, setSortBy]             = useState('fecha');
   const [sortDir, setSortDir]           = useState('desc');
   const [page, setPage]                 = useState(0);
-  const [rowsPerPage, setRowsPerPage]   = useState(10);
+  const [rowsPerPage, setRowsPerPage]   = useState(25);
+  const [comprasTotal, setComprasTotal] = useState(0);
+  const [comprasStats, setComprasStats] = useState({ sum_total: 0, sum_pagado: 0, sum_pendiente: 0 });
+  const [historialLoading, setHistorialLoading] = useState(false);
+  const [historialError, setHistorialError]     = useState('');
 
   // ── Carga inicial ──────────────────────────────────────────────────────────
   useEffect(() => { loadBaseData(); fetchHistorial(); }, []);
 
   const loadBaseData = async () => {
     try {
-      const [provRes, prodRes] = await Promise.all([apiClient.get('/clientes/'), apiClient.get('/productos/')]);
+      const [provRes, prodRes] = await Promise.all([apiClient.get('/clientes/'), apiClient.get('/productos/?page_size=500')]);
       setProveedores(provRes.data.filter(c => c.es_proveedor));
-      setProductos(prodRes.data.filter(p => !p.es_servicio));
+      const prodData = Array.isArray(prodRes.data) ? prodRes.data : (prodRes.data.items || []);
+      setProductos(prodData.filter(p => !p.es_servicio));
     } catch { toast.error('Error cargando proveedores/productos'); }
   };
 
-  const fetchHistorial = async () => {
+  const fetchHistorial = async (p = 0, rpp = rowsPerPage, search = searchTerm, fi = fechaDesde, ff = fechaHasta, ep = filtroEstado) => {
+    setHistorialLoading(true);
+    setHistorialError('');
     try {
-      const res = await fetchCompras();
-      setCompras(res.data);
-    } catch { toast.error('Error cargando historial de compras'); }
+      const params = new URLSearchParams({ page: p + 1, page_size: rpp, search: search || '' });
+      if (fi) params.set('fecha_inicio', fi);
+      if (ff) params.set('fecha_fin', ff);
+      if (ep && ep !== 'todos') params.set('estado_pago', ep);
+      const res = await apiClient.get(`/compras/?${params}`);
+      setCompras(res.data.items);
+      setComprasTotal(res.data.total);
+      setComprasStats(res.data.stats || { sum_total: 0, sum_pagado: 0, sum_pendiente: 0 });
+    } catch {
+      setHistorialError('No se pudo cargar el historial de compras.');
+    } finally { setHistorialLoading(false); }
   };
 
   const [productoInputs, setProductoInputs] = useState(['']);
@@ -356,28 +371,6 @@ const Compras = () => {
   const now = new Date();
   const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const filteredCompras = useMemo(() => {
-    let list = compras.filter(c => {
-      const matchSearch = c.proveedor.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (c.referencia_factura || '').toLowerCase().includes(searchTerm.toLowerCase());
-      const matchEstado = filtroEstado === 'todos' || c.estado_pago === filtroEstado;
-      let matchFecha = true;
-      if (fechaDesde) matchFecha = matchFecha && new Date(c.fecha) >= new Date(fechaDesde);
-      if (fechaHasta) { const h = new Date(fechaHasta); h.setHours(23,59,59); matchFecha = matchFecha && new Date(c.fecha) <= h; }
-      return matchSearch && matchEstado && matchFecha;
-    });
-    list = [...list].sort((a, b) => {
-      let va, vb;
-      if (sortBy === 'fecha')      { va = new Date(a.fecha); vb = new Date(b.fecha); }
-      else if (sortBy === 'total') { va = a.total; vb = b.total; }
-      else if (sortBy === 'proveedor') { return sortDir === 'asc' ? a.proveedor.nombre.localeCompare(b.proveedor.nombre) : b.proveedor.nombre.localeCompare(a.proveedor.nombre); }
-      else return 0;
-      return sortDir === 'asc' ? va - vb : vb - va;
-    });
-    return list;
-  }, [compras, searchTerm, filtroEstado, fechaDesde, fechaHasta, sortBy, sortDir]);
-
-  const paginatedCompras  = filteredCompras.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   const cuentasPorPagar   = compras.filter(c => c.estado_pago !== 'pagado');
   const totalPorPagar     = cuentasPorPagar.reduce((s, c) => s + (c.total - c.monto_pagado), 0);
   const totalCompras      = compras.reduce((s, c) => s + c.total, 0);
@@ -653,42 +646,82 @@ const Compras = () => {
         {/* ══ Tab 1: Historial ══ */}
         <TabPanel value={tab} index={1}>
           <Box sx={{ px: { xs: 2, md: 3 }, pb: 3 }}>
-            {/* Filtros */}
-            <Box sx={{ mb: 2, display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+            {/* Búsqueda */}
+            <Box sx={{ mb: 1.5 }}>
               <TextField
-                fullWidth placeholder="Buscar por proveedor o nro. factura…"
-                value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setPage(0); }}
-                InputProps={{ startAdornment: <InputAdornment position="start"><Search sx={{ color: 'text.secondary', fontSize: 20 }} /></InputAdornment> }}
-                sx={{ flex: 1, minWidth: 200 }} size="small"
+                fullWidth placeholder="Buscar por proveedor, N° factura, código C0001…"
+                value={searchTerm}
+                onChange={(e) => { setSearchTerm(e.target.value); setPage(0); fetchHistorial(0, rowsPerPage, e.target.value, fechaDesde, fechaHasta, filtroEstado); }}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start"><Search sx={{ color: 'text.secondary', fontSize: 20 }} /></InputAdornment>,
+                  endAdornment: searchTerm ? <InputAdornment position="end"><IconButton size="small" onClick={() => { setSearchTerm(''); setPage(0); fetchHistorial(0, rowsPerPage, '', fechaDesde, fechaHasta, filtroEstado); }}><Close fontSize="small" /></IconButton></InputAdornment> : null,
+                }}
+                size="small"
               />
-              <TextField label="Desde" type="date" size="small" value={fechaDesde} onChange={e => { setFechaDesde(e.target.value); setPage(0); }} InputLabelProps={{ shrink: true }} sx={{ minWidth: 145 }} />
-              <TextField label="Hasta" type="date" size="small" value={fechaHasta} onChange={e => { setFechaHasta(e.target.value); setPage(0); }} InputLabelProps={{ shrink: true }} sx={{ minWidth: 145 }} />
             </Box>
-            <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+
+            {/* Chips rápidos + rango de fechas */}
+            <Box sx={{ display: 'flex', gap: 1, mb: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
               {[
-                { id: 'todos', label: 'Todos' },
+                { label: 'Hoy', fn: () => { const d = new Date().toISOString().slice(0,10); setFechaDesde(d); setFechaHasta(d); setPage(0); fetchHistorial(0, rowsPerPage, searchTerm, d, d, filtroEstado); } },
+                { label: 'Esta semana', fn: () => { const now = new Date(); const mon = new Date(now); mon.setDate(now.getDate() - now.getDay() + 1); const fi = mon.toISOString().slice(0,10); const ff = now.toISOString().slice(0,10); setFechaDesde(fi); setFechaHasta(ff); setPage(0); fetchHistorial(0, rowsPerPage, searchTerm, fi, ff, filtroEstado); } },
+                { label: 'Este mes', fn: () => { const now = new Date(); const fi = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`; const ff = now.toISOString().slice(0,10); setFechaDesde(fi); setFechaHasta(ff); setPage(0); fetchHistorial(0, rowsPerPage, searchTerm, fi, ff, filtroEstado); } },
+              ].map(({ label, fn }) => (
+                <Chip key={label} label={label} size="small" onClick={fn} variant="outlined" sx={{ fontWeight: 600, cursor: 'pointer' }} />
+              ))}
+              <Typography sx={{ fontSize: 11, color: 'text.disabled', mx: 0.5 }}>Desde</Typography>
+              <TextField type="date" size="small" value={fechaDesde} onChange={(e) => { setFechaDesde(e.target.value); setPage(0); fetchHistorial(0, rowsPerPage, searchTerm, e.target.value, fechaHasta, filtroEstado); }} InputLabelProps={{ shrink: true }} sx={{ width: 145 }} inputProps={{ style: { fontSize: 12 } }} />
+              <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>Hasta</Typography>
+              <TextField type="date" size="small" value={fechaHasta} onChange={(e) => { setFechaHasta(e.target.value); setPage(0); fetchHistorial(0, rowsPerPage, searchTerm, fechaDesde, e.target.value, filtroEstado); }} InputLabelProps={{ shrink: true }} sx={{ width: 145 }} inputProps={{ style: { fontSize: 12 } }} />
+              {(fechaDesde || fechaHasta || searchTerm || filtroEstado !== 'todos') && (
+                <Button size="small" variant="text" onClick={() => { setFechaDesde(''); setFechaHasta(''); setSearchTerm(''); setFiltroEstado('todos'); setPage(0); fetchHistorial(0, rowsPerPage, '', '', '', 'todos'); }} sx={{ fontSize: 12, color: 'text.secondary' }}>
+                  Limpiar todo
+                </Button>
+              )}
+            </Box>
+
+            {/* Chips de estado */}
+            <Box sx={{ display: 'flex', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
+              {[
+                { id: 'todos', label: 'Todas' },
                 { id: 'pagado', label: 'Pagadas' },
                 { id: 'parcial', label: 'Parciales' },
                 { id: 'pendiente', label: 'Pendientes' },
               ].map(f => (
-                <Chip key={f.id} label={f.label} size="small" onClick={() => { setFiltroEstado(f.id); setPage(0); }}
-                  sx={{ fontWeight: 700, flexShrink: 0, bgcolor: filtroEstado === f.id ? GREEN : 'transparent', color: filtroEstado === f.id ? 'white' : 'text.primary', border: filtroEstado === f.id ? 'none' : '1px solid', borderColor: 'divider' }} />
+                <Chip key={f.id} label={f.label} size="small"
+                  onClick={() => { setFiltroEstado(f.id); setPage(0); fetchHistorial(0, rowsPerPage, searchTerm, fechaDesde, fechaHasta, f.id); }}
+                  sx={{ fontWeight: 700, cursor: 'pointer', bgcolor: filtroEstado === f.id ? GREEN : 'transparent', color: filtroEstado === f.id ? 'white' : 'text.primary', border: filtroEstado === f.id ? 'none' : '1px solid', borderColor: 'divider' }} />
               ))}
-              <Typography variant="caption" sx={{ ml: 'auto', alignSelf: 'center', color: 'text.secondary' }}>
-                <FilterList sx={{ fontSize: 12, verticalAlign: 'middle' }} /> {filteredCompras.length} de {compras.length}
-              </Typography>
+            </Box>
+
+            {/* Barra financiera */}
+            <Box sx={{ display: 'flex', gap: 3, mb: 2, px: 1.5, py: 1, bgcolor: 'action.hover', borderRadius: 2, flexWrap: 'wrap' }}>
+              <Box sx={{ display: 'flex', gap: 0.7, alignItems: 'center' }}>
+                <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{comprasTotal} compras · Total:</Typography>
+                <Typography sx={{ fontSize: 13, fontWeight: 800, color: 'text.primary' }}>{formatCurrency(comprasStats.sum_total)}</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 0.7, alignItems: 'center' }}>
+                <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Pagado:</Typography>
+                <Typography sx={{ fontSize: 13, fontWeight: 700, color: GREEN }}>{formatCurrency(comprasStats.sum_pagado)}</Typography>
+              </Box>
+              {comprasStats.sum_pendiente > 0 && (
+                <Box sx={{ display: 'flex', gap: 0.7, alignItems: 'center' }}>
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Pendiente:</Typography>
+                  <Typography sx={{ fontSize: 13, fontWeight: 700, color: RED }}>{formatCurrency(comprasStats.sum_pendiente)}</Typography>
+                </Box>
+              )}
             </Box>
 
             {isMobile ? (
               <Box>
-                {paginatedCompras.length === 0
+                {compras.length === 0
                   ? <Box sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}><Receipt sx={{ fontSize: 48, mb: 1, opacity: 0.3 }} /><Typography>No se encontraron compras</Typography></Box>
-                  : paginatedCompras.map(c => (
+                  : compras.map(c => (
                       <Paper key={c.id} sx={{ p: 2.5, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
                           <Box>
                             <Typography sx={{ fontWeight: 700, fontSize: 15 }}>{c.proveedor.nombre}</Typography>
-                            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>#{c.id} · {new Date(c.fecha).toLocaleDateString()} · {c.referencia_factura || 'Sin ref.'}</Typography>
+                            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>C{String(c.id).padStart(4,'0')} · {new Date(c.fecha).toLocaleDateString()} · {c.referencia_factura || 'Sin ref.'}</Typography>
                           </Box>
                           <EstadoChip estado={c.estado_pago} />
                         </Box>
@@ -718,7 +751,7 @@ const Compras = () => {
                 <Table size="small">
                   <TableHead sx={{ bgcolor: 'action.hover' }}>
                     <TableRow>
-                      <TableCell sx={{ fontWeight: 700 }}>#</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, width: 80 }}>Compra</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>
                         <TableSortLabel active={sortBy === 'fecha'} direction={sortBy === 'fecha' ? sortDir : 'asc'} onClick={() => handleSort('fecha')}>Fecha</TableSortLabel>
                       </TableCell>
@@ -736,11 +769,15 @@ const Compras = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {paginatedCompras.length === 0
+                    {compras.length === 0
                       ? <TableRow><TableCell colSpan={9} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>No se encontraron compras</TableCell></TableRow>
-                      : paginatedCompras.map(c => (
+                      : compras.map(c => (
                           <TableRow key={c.id} hover>
-                            <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{c.id}</TableCell>
+                            <TableCell>
+                              <Typography sx={{ fontSize: 12, fontWeight: 800, fontFamily: 'monospace', bgcolor: `${GREEN}14`, color: GREEN, px: 0.8, py: 0.2, borderRadius: 1, display: 'inline-block' }}>
+                                C{String(c.id).padStart(4, '0')}
+                              </Typography>
+                            </TableCell>
                             <TableCell sx={{ fontSize: 12, whiteSpace: 'nowrap' }}>
                               <Box>
                                 <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{new Date(c.fecha).toLocaleDateString('es-CO')}</Typography>
@@ -770,10 +807,10 @@ const Compras = () => {
             )}
 
             <TablePagination
-              rowsPerPageOptions={[5, 10, 25]} component="div"
-              count={filteredCompras.length} rowsPerPage={rowsPerPage} page={page}
-              onPageChange={(_, p) => setPage(p)}
-              onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+              rowsPerPageOptions={[10, 25, 50]} component="div"
+              count={comprasTotal} rowsPerPage={rowsPerPage} page={page}
+              onPageChange={(_, p) => { setPage(p); fetchHistorial(p, rowsPerPage); }}
+              onRowsPerPageChange={(e) => { const rpp = parseInt(e.target.value, 10); setRowsPerPage(rpp); setPage(0); fetchHistorial(0, rpp); }}
               labelRowsPerPage="Filas:" labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
             />
           </Box>
@@ -805,7 +842,7 @@ const Compras = () => {
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
                           <Box>
                             <Typography sx={{ fontWeight: 700, fontSize: 15 }}>{c.proveedor.nombre}</Typography>
-                            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{c.referencia_factura || `#${c.id}`} · {new Date(c.fecha).toLocaleDateString()}</Typography>
+                            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{c.referencia_factura || `C${String(c.id).padStart(4,'0')}`} · {new Date(c.fecha).toLocaleDateString()}</Typography>
                           </Box>
                           <EstadoChip estado={c.estado_pago} />
                         </Box>
@@ -835,7 +872,7 @@ const Compras = () => {
                         {[...cuentasPorPagar].sort((a, b) => new Date(a.fecha) - new Date(b.fecha)).map(c => (
                           <TableRow key={c.id} hover>
                             <TableCell sx={{ fontWeight: 600 }}>{c.proveedor.nombre}</TableCell>
-                            <TableCell sx={{ fontSize: 12, color: 'text.secondary' }}>{c.referencia_factura || `#${c.id}`}</TableCell>
+                            <TableCell sx={{ fontSize: 12, color: 'text.secondary' }}>{c.referencia_factura || `C${String(c.id).padStart(4,'0')}`}</TableCell>
                             <TableCell sx={{ fontSize: 12, color: 'text.secondary', whiteSpace: 'nowrap' }}>{new Date(c.fecha).toLocaleDateString()}</TableCell>
                             <TableCell sx={{ fontWeight: 600 }}>{formatCurrency(c.total)}</TableCell>
                             <TableCell sx={{ color: GREEN, fontWeight: 600 }}>{formatCurrency(c.monto_pagado)}</TableCell>
