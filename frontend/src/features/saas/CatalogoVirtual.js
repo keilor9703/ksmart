@@ -313,8 +313,10 @@ const CatalogoVirtual = () => {
       backendOk = true;
     } catch (err) {
       const detail = err?.response?.data?.detail;
-      const msg = typeof detail === 'string' ? detail : 'No se pudo registrar el pedido en el sistema.';
-      toast.warning(`⚠️ ${msg} Tu pedido llegará por WhatsApp de todas formas.`, { autoClose: 8000 });
+      const status = err?.response?.status;
+      const msg = typeof detail === 'string' ? detail : (typeof detail === 'object' ? JSON.stringify(detail) : 'No se pudo registrar el pedido en el sistema.');
+      console.error('[Catalogo] Error al guardar pedido:', status, detail, err);
+      toast.warning(`⚠️ ${msg} Tu pedido llegará por WhatsApp de todas formas.`, { autoClose: 10000 });
     }
 
     let message = `🛍️ *NUEVO PEDIDO - ${empresa.nombre}*`;

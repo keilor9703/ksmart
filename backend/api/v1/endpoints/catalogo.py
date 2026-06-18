@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -8,6 +9,8 @@ from api import deps
 from crud import pedidos_virtuales as crud_pv
 import base64
 import json
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -188,6 +191,15 @@ def get_catalogo_productos(
     
     return results
 
+@router.get("/{slug}/ping")
+def ping_catalogo(slug: str, db: Session = Depends(deps.get_db)):
+    """Endpoint de diagnóstico público. Verifica que el slug existe y que la API responde."""
+    empresa = db.query(models.Empresa).filter(models.Empresa.slug_catalogo == slug).first()
+    if not empresa:
+        raise HTTPException(status_code=404, detail=f"No existe catálogo con slug '{slug}'")
+    return {"ok": True, "empresa": empresa.nombre, "slug": slug}
+
+
 @router.post("/{slug}/pedido", response_model=schemas.PedidoVirtualCreatedOut, status_code=201)
 def create_pedido_virtual_publico(
     slug: str,
@@ -204,6 +216,11 @@ def create_pedido_virtual_publico(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Error inesperado creando pedido para slug=%s: %s", slug, e)
+        raise HTTPException(status_code=500, detail=f"Error interno al guardar el pedido: {type(e).__name__}: {e}")
 
 
 @router.post("/{slug}/pedido-restaurante", response_model=schemas.PedidoRestauranteCreatedOut, status_code=201)

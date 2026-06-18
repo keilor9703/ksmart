@@ -1,3 +1,4 @@
+import logging
 import urllib.parse
 from datetime import datetime, timezone
 from typing import Optional, List
@@ -8,6 +9,8 @@ import models
 import schemas
 from crud import notificaciones as crud_notif
 from crud import pagos as crud_pagos
+
+logger = logging.getLogger(__name__)
 
 
 def _utcnow():
@@ -80,8 +83,11 @@ def create_pedido_publico(db: Session, slug: str, payload: schemas.PedidoVirtual
     db.commit()
     db.refresh(pedido)
 
-    # Notify all empresa users about the new order
-    _notificar_nuevo_pedido(db, empresa.id, pedido)
+    # Notificar — aislado del commit principal para que un fallo no revierta el pedido
+    try:
+        _notificar_nuevo_pedido(db, empresa.id, pedido)
+    except Exception as e:
+        logger.warning("No se pudo notificar pedido #%s: %s", pedido.id, e)
 
     return pedido
 
