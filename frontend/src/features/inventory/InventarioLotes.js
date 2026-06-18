@@ -579,9 +579,22 @@ const InventarioLotes = () => {
               </Box>
             ) : isMobile ? (
               /* ─ Cards mobile ─ */
-              lotesPaginated.map(lote => (
-                <LoteCard key={lote.id} lote={lote} onAjustar={abrirAjuste} />
-              ))
+              <>
+                {lotesPaginated.map(lote => (
+                  <LoteCard key={lote.id} lote={lote} onAjustar={abrirAjuste} />
+                ))}
+                <TablePagination
+                  component="div"
+                  count={lotesSorted.length}
+                  page={lotesPage}
+                  onPageChange={(_, newPage) => setLotesPage(newPage)}
+                  rowsPerPage={lotesPP}
+                  onRowsPerPageChange={e => { setLotesPP(parseInt(e.target.value, 10)); setLotesPage(0); }}
+                  rowsPerPageOptions={[10, 15, 25]}
+                  labelRowsPerPage="Filas:"
+                  labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
+                />
+              </>
             ) : (
               /* ─ Tabla desktop ─ */
               <>
@@ -659,19 +672,6 @@ const InventarioLotes = () => {
                   labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
                 />
               </>
-            ) : null}
-            {isMobile && lotesSorted.length > lotesPP && (
-              <TablePagination
-                component="div"
-                count={lotesSorted.length}
-                page={lotesPage}
-                onPageChange={(_, newPage) => setLotesPage(newPage)}
-                rowsPerPage={lotesPP}
-                onRowsPerPageChange={e => { setLotesPP(parseInt(e.target.value, 10)); setLotesPage(0); }}
-                rowsPerPageOptions={[10, 15, 25]}
-                labelRowsPerPage="Filas:"
-                labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
-              />
             )}
           </Box>
         )}
