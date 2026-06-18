@@ -39,12 +39,14 @@ def get_ventas(
         q = (
             q.outerjoin(models.Venta.cliente)
              .outerjoin(models.Venta.detalles)
+             .outerjoin(models.DetalleVenta.producto)
              .filter(
                 or_(
                     models.Cliente.nombre.ilike(term),
                     models.Venta.numero_factura.ilike(term),
                     cast(models.Venta.id, String).ilike(term),
-                    models.DetalleVenta.nombre_producto.ilike(term),
+                    models.DetalleVenta.nombre_libre.ilike(term),
+                    models.Producto.nombre.ilike(term),
                 )
             )
         ).distinct()
@@ -70,12 +72,14 @@ def get_ventas(
         agg = (
             agg.outerjoin(models.Venta.cliente)
                .outerjoin(models.Venta.detalles)
+               .outerjoin(models.DetalleVenta.producto)
                .filter(
                    or_(
                        models.Cliente.nombre.ilike(term),
                        models.Venta.numero_factura.ilike(term),
                        cast(models.Venta.id, String).ilike(term),
-                       models.DetalleVenta.nombre_producto.ilike(term),
+                       models.DetalleVenta.nombre_libre.ilike(term),
+                       models.Producto.nombre.ilike(term),
                    )
                ).distinct()
         )
