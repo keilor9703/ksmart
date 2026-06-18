@@ -1792,7 +1792,8 @@ useEffect(() => {
                                 <Table size="small">
                                     <TableHead>
                                         <TableRow sx={{ bgcolor: 'action.hover' }}>
-                                            <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, width: 110 }}>Venta / FE</TableCell>
+                                            <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, width: 90 }}>Venta</TableCell>
+                                            <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, width: 120, display: { xs: 'none', lg: 'table-cell' } }}>Fact. Electrónica</TableCell>
                                             <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Cliente</TableCell>
                                             <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Productos</TableCell>
                                             <TableCell sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }} align="right">Total</TableCell>
@@ -1803,7 +1804,7 @@ useEffect(() => {
                                     </TableHead>
                                     <TableBody>
                                         {paginatedVentas.length === 0
-                                            ? <TableRow><TableCell colSpan={7} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>No se encontraron ventas</TableCell></TableRow>
+                                            ? <TableRow><TableCell colSpan={8} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>No se encontraron ventas</TableCell></TableRow>
                                             : paginatedVentas.map(v => {
                                                 const saldo = (v.total || 0) - (v.monto_pagado || 0);
                                                 const productosSummary = v.detalles?.length > 0
@@ -1817,23 +1818,28 @@ useEffect(() => {
                                                 const horaStr  = fechaVenta.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
                                                 return (
                                                 <TableRow key={v.id} hover sx={{ '&:hover': { bgcolor: 'action.hover' } }}>
-                                                    {/* ID + FE separados */}
+                                                    {/* Columna: ID de Venta */}
                                                     <TableCell>
-                                                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3 }}>
-                                                            <Typography sx={{
-                                                                fontSize: 12, fontWeight: 800, fontFamily: 'monospace',
-                                                                bgcolor: `${ACCENT}14`, color: ACCENT,
-                                                                px: 0.8, py: 0.2, borderRadius: 1, display: 'inline-block', width: 'fit-content',
-                                                            }}>
-                                                                V{String(v.id).padStart(4, '0')}
-                                                            </Typography>
-                                                            {v.numero_factura && (
-                                                                <Typography sx={{ fontSize: 11, fontFamily: 'monospace', color: 'text.secondary', fontWeight: 600 }}>
-                                                                    FE: {v.numero_factura}
+                                                        <Typography sx={{
+                                                            fontSize: 12, fontWeight: 800, fontFamily: 'monospace',
+                                                            bgcolor: `${ACCENT}14`, color: ACCENT,
+                                                            px: 0.8, py: 0.2, borderRadius: 1, display: 'inline-block',
+                                                        }}>
+                                                            V{String(v.id).padStart(4, '0')}
+                                                        </Typography>
+                                                    </TableCell>
+                                                    {/* Columna: Factura Electrónica */}
+                                                    <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}>
+                                                        {v.numero_factura ? (
+                                                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3 }}>
+                                                                <Typography sx={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: 'text.primary' }}>
+                                                                    {v.numero_factura}
                                                                 </Typography>
-                                                            )}
+                                                                <ChipFE estado={v.estado_electronico} ventaId={v.id} onReintentar={handleReintentarFE} />
+                                                            </Box>
+                                                        ) : (
                                                             <ChipFE estado={v.estado_electronico} ventaId={v.id} onReintentar={handleReintentarFE} />
-                                                        </Box>
+                                                        )}
                                                     </TableCell>
                                                     <TableCell>
                                                         <Typography sx={{ fontWeight: 600, fontSize: 13 }}>{v.cliente?.nombre || <Typography component="span" sx={{ color: 'text.disabled', fontStyle: 'italic', fontSize: 12 }}>Consumidor final</Typography>}</Typography>
