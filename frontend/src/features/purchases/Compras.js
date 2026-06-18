@@ -1111,6 +1111,29 @@ const Compras = () => {
                       <MoneyOff sx={{ fontSize: 40, opacity: 0.2, mb: 1 }} />
                       <Typography fontSize={13}>{gastos.length === 0 ? 'No hay gastos registrados' : 'Sin resultados con estos filtros'}</Typography>
                     </Box>
+                  ) : isMobile ? (
+                    <Box>
+                      {paginatedGastos.map(g => (
+                        <Paper key={g.id} sx={{ p: 2, mb: 1.5, borderRadius: 3, boxShadow: '0 2px 10px rgba(0,0,0,0.06)' }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 0.2 }}>{g.tercero?.nombre || 'Sin beneficiario'}</Typography>
+                              <Typography sx={{ fontSize: 12, color: 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.concepto}</Typography>
+                            </Box>
+                            <Typography sx={{ fontWeight: 800, fontSize: 15, color: RED, ml: 1, flexShrink: 0 }}>{formatCurrency(g.monto)}</Typography>
+                          </Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 1 }}>
+                            {g.categoria && <Chip label={g.categoria} size="small" sx={{ fontSize: 9, height: 18, bgcolor: `${BLUE}12`, color: BLUE, fontWeight: 600 }} />}
+                            <Chip label={g.metodo_pago} size="small" sx={{ fontSize: 9, height: 18, bgcolor: 'action.hover', fontWeight: 600 }} />
+                            <Typography sx={{ fontSize: 11, color: 'text.disabled', ml: 'auto' }}>{new Date(g.fecha).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}</Typography>
+                          </Box>
+                          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
+                            <IconButton size="small" onClick={() => handleEditGasto(g)} sx={{ color: BLUE, '&:hover': { bgcolor: '#EFF6FF' } }}><Edit fontSize="small" /></IconButton>
+                            <IconButton size="small" onClick={() => handleDeleteGasto(g.id)} sx={{ color: RED, '&:hover': { bgcolor: '#FEF2F2' } }}><Delete fontSize="small" /></IconButton>
+                          </Box>
+                        </Paper>
+                      ))}
+                    </Box>
                   ) : (
                     <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
                       <Table size="small">
