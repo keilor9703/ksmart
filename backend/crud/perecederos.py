@@ -322,12 +322,13 @@ def sugerencia_fefo(
         consumo = min(lote.cantidad_actual, restante)
         restante -= consumo
         plan.append({
-            "lote_id":           lote.id,
-            "numero_lote":       lote.numero_lote,
-            "fecha_vencimiento": lote.fecha_vencimiento.isoformat(),
-            "dias_restantes":    (lote.fecha_vencimiento - date.today()).days,
+            "lote_id":             lote.id,
+            "numero_lote":         lote.numero_lote,
+            "fecha_vencimiento":   lote.fecha_vencimiento.isoformat(),
+            "dias_restantes":      (lote.fecha_vencimiento - date.today()).days,
             "cantidad_disponible": lote.cantidad_actual,
-            "a_consumir":        consumo,
+            "a_consumir":          consumo,
+            "costo_unitario":      lote.costo_unitario,
         })
 
     if restante > 0:

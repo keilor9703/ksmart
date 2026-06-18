@@ -496,9 +496,18 @@ const InventarioLotes = () => {
         <Box sx={{ p: 2, display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center', borderBottom: '1px solid', borderColor: 'divider' }}>
           <TextField
             size="small" placeholder="Buscar producto o lote..."
-            value={busqueda} onChange={e => setBusqueda(e.target.value)}
+            value={busqueda} onChange={e => { setBusqueda(e.target.value); setLotesPage(0); }}
             sx={{ flex: 1, minWidth: 160 }}
-            InputProps={{ startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment> }}
+            InputProps={{
+              startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment>,
+              endAdornment: busqueda ? (
+                <InputAdornment position="end">
+                  <IconButton size="small" onClick={() => { setBusqueda(''); setLotesPage(0); }}>
+                    <Close fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ) : null,
+            }}
           />
           {tab === 0 && (
             <>
@@ -570,7 +579,7 @@ const InventarioLotes = () => {
               </Box>
             ) : isMobile ? (
               /* ─ Cards mobile ─ */
-              lotesSorted.map(lote => (
+              lotesPaginated.map(lote => (
                 <LoteCard key={lote.id} lote={lote} onAjustar={abrirAjuste} />
               ))
             ) : (
@@ -646,10 +655,23 @@ const InventarioLotes = () => {
                   rowsPerPage={lotesPP}
                   onRowsPerPageChange={e => { setLotesPP(parseInt(e.target.value, 10)); setLotesPage(0); }}
                   rowsPerPageOptions={[10, 15, 25, 50]}
-                  labelRowsPerPage="Filas por página:"
+                  labelRowsPerPage="Filas:"
                   labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
                 />
               </>
+            ) : null}
+            {isMobile && lotesSorted.length > lotesPP && (
+              <TablePagination
+                component="div"
+                count={lotesSorted.length}
+                page={lotesPage}
+                onPageChange={(_, newPage) => setLotesPage(newPage)}
+                rowsPerPage={lotesPP}
+                onRowsPerPageChange={e => { setLotesPP(parseInt(e.target.value, 10)); setLotesPage(0); }}
+                rowsPerPageOptions={[10, 15, 25]}
+                labelRowsPerPage="Filas:"
+                labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
+              />
             )}
           </Box>
         )}
@@ -864,11 +886,9 @@ const InventarioLotes = () => {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Science sx={{ color: PURPLE }} /> Simulador FEFO
           </Box>
-          {isMobile && (
-            <IconButton size="small" onClick={() => setModalFefo({ open: false, producto: null, cantidad: '', resultado: null })}>
-              <Close fontSize="small" />
-            </IconButton>
-          )}
+          <IconButton size="small" onClick={() => setModalFefo({ open: false, producto: null, cantidad: '', resultado: null })}>
+            <Close fontSize="small" />
+          </IconButton>
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
