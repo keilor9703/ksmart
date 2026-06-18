@@ -126,12 +126,24 @@ const ChipFE = ({ estado, ventaId, onReintentar }) => {
 const VentaCard = ({ venta, handleEdit, handleDelete, handleOpenDetails, handleOpenDevolucion, handleReintentarFE }) => (
     <Paper sx={{ p: 2.5, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
-            <Box>
-                <Typography sx={{ fontWeight: 700, fontSize: 15 }}>{venta.cliente?.nombre || 'Sin cliente'}</Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.3 }}>
-                    <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>#{venta.id}{venta.numero_factura ? ` · ${venta.numero_factura}` : ''} · {new Date(venta.fecha + 'Z').toLocaleString()}</Typography>
+            <Box sx={{ flex: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
+                    <Typography sx={{
+                        fontSize: 12, fontWeight: 800, fontFamily: 'monospace',
+                        bgcolor: `${ACCENT}14`, color: ACCENT,
+                        px: 0.8, py: 0.2, borderRadius: 1, display: 'inline-block',
+                    }}>
+                        V{String(venta.id).padStart(4, '0')}
+                    </Typography>
                     <ChipFE estado={venta.estado_electronico} ventaId={venta.id} onReintentar={handleReintentarFE} />
                 </Box>
+                <Typography sx={{ fontWeight: 700, fontSize: 15 }}>{venta.cliente?.nombre || 'Consumidor final'}</Typography>
+                {venta.numero_factura && (
+                    <Typography sx={{ fontSize: 11, fontFamily: 'monospace', color: 'text.secondary', fontWeight: 600 }}>
+                        FE: {venta.numero_factura}
+                    </Typography>
+                )}
+                <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>{new Date(venta.fecha + (venta.fecha?.endsWith('Z') ? '' : 'Z')).toLocaleString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</Typography>
             </Box>
             {getEstadoPagoChip(venta.estado_pago)}
         </Box>
