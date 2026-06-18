@@ -15,7 +15,8 @@ from crud.inventario import create_movement
 def get_recetas(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
     return db.query(models.Receta).options(
         joinedload(models.Receta.producto_resultante),
-        joinedload(models.Receta.items).joinedload(models.RecetaItem.insumo)
+        joinedload(models.Receta.items).joinedload(models.RecetaItem.insumo),
+        joinedload(models.Receta.servicios_maquila).joinedload(models.RecetaServicio.servicio),
     ).filter(
         models.Receta.empresa_id == empresa_id
     ).offset(skip).limit(limit).all()
@@ -23,7 +24,8 @@ def get_recetas(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
 def get_receta(db: Session, empresa_id: int, receta_id: int):
     return db.query(models.Receta).options(
         joinedload(models.Receta.producto_resultante),
-        joinedload(models.Receta.items).joinedload(models.RecetaItem.insumo)
+        joinedload(models.Receta.items).joinedload(models.RecetaItem.insumo),
+        joinedload(models.Receta.servicios_maquila).joinedload(models.RecetaServicio.servicio),
     ).filter(
         models.Receta.id == receta_id,
         models.Receta.empresa_id == empresa_id
@@ -34,6 +36,16 @@ def get_receta_by_producto(db: Session, empresa_id: int, producto_id: int):
         models.Receta.producto_id == producto_id,
         models.Receta.empresa_id == empresa_id
     ).first()
+
+def check_can_delete_receta(db: Session, empresa_id: int, receta_id: int):
+    lotes = db.query(models.LoteProduccion).filter(
+        models.LoteProduccion.receta_id == receta_id,
+        models.LoteProduccion.empresa_id == empresa_id
+    ).count()
+    bloqueos = []
+    if lotes > 0:
+        bloqueos.append(f"tiene {lotes} lote(s) de producción asociados")
+    return bloqueos
 
 def create_receta(db: Session, empresa_id: int, receta: schemas.RecetaCreate):
     producto = get_producto(db, empresa_id, receta.producto_id)
@@ -51,6 +63,8 @@ def create_receta(db: Session, empresa_id: int, receta: schemas.RecetaCreate):
         producto_id=receta.producto_id,
         nombre=receta.nombre,
         descripcion=receta.descripcion,
+        rendimiento_esperado=getattr(receta, 'rendimiento_esperado', 1.0) or 1.0,
+        notas_tecnicas=getattr(receta, 'notas_tecnicas', None),
         empresa_id=empresa_id
     )
     db.add(db_receta)
@@ -60,7 +74,8 @@ def create_receta(db: Session, empresa_id: int, receta: schemas.RecetaCreate):
         db_item = models.RecetaItem(
             receta_id=db_receta.id,
             insumo_id=item.insumo_id,
-            cantidad=item.cantidad
+            cantidad=item.cantidad,
+            merma_pct=getattr(item, 'merma_pct', 0.0) or 0.0,
         )
         db.add(db_item)
 
@@ -70,7 +85,8 @@ def create_receta(db: Session, empresa_id: int, receta: schemas.RecetaCreate):
             raise ValueError(f"Servicio {srv.servicio_id} no encontrado")
         db_srv = models.RecetaServicio(
             receta_id=db_receta.id,
-            servicio_id=srv.servicio_id
+            servicio_id=srv.servicio_id,
+            cantidad=getattr(srv, 'cantidad', 1.0) or 1.0,
         )
         db.add(db_srv)
 
@@ -100,19 +116,28 @@ def update_receta(db: Session, empresa_id: int, receta_id: int, receta: schemas.
     db_receta.producto_id = receta.producto_id
     db_receta.nombre = receta.nombre
     db_receta.descripcion = receta.descripcion
+    db_receta.rendimiento_esperado = getattr(receta, 'rendimiento_esperado', 1.0) or 1.0
+    db_receta.notas_tecnicas = getattr(receta, 'notas_tecnicas', None)
 
-    # Reemplazar items
     db.query(models.RecetaItem).filter(models.RecetaItem.receta_id == receta_id).delete()
     for item in receta.items:
-        db.add(models.RecetaItem(receta_id=receta_id, insumo_id=item.insumo_id, cantidad=item.cantidad))
+        db.add(models.RecetaItem(
+            receta_id=receta_id,
+            insumo_id=item.insumo_id,
+            cantidad=item.cantidad,
+            merma_pct=getattr(item, 'merma_pct', 0.0) or 0.0,
+        ))
 
-    # Reemplazar servicios
     db.query(models.RecetaServicio).filter(models.RecetaServicio.receta_id == receta_id).delete()
     for srv in receta.servicios:
         serv = get_producto(db, empresa_id, srv.servicio_id)
         if not serv:
             raise ValueError(f"Servicio {srv.servicio_id} no encontrado")
-        db.add(models.RecetaServicio(receta_id=receta_id, servicio_id=srv.servicio_id))
+        db.add(models.RecetaServicio(
+            receta_id=receta_id,
+            servicio_id=srv.servicio_id,
+            cantidad=getattr(srv, 'cantidad', 1.0) or 1.0,
+        ))
 
     db.commit()
     db.refresh(db_receta)
@@ -133,6 +158,7 @@ def delete_receta(db: Session, empresa_id: int, receta_id: int):
 def get_lotes(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
     return db.query(models.LoteProduccion).options(
         joinedload(models.LoteProduccion.receta).joinedload(models.Receta.producto_resultante),
+        joinedload(models.LoteProduccion.receta).joinedload(models.Receta.items).joinedload(models.RecetaItem.insumo),
         joinedload(models.LoteProduccion.cliente)
     ).filter(
         models.LoteProduccion.empresa_id == empresa_id
@@ -142,6 +168,7 @@ def get_lote(db: Session, empresa_id: int, lote_id: int):
     return db.query(models.LoteProduccion).options(
         joinedload(models.LoteProduccion.receta).joinedload(models.Receta.producto_resultante),
         joinedload(models.LoteProduccion.receta).joinedload(models.Receta.items).joinedload(models.RecetaItem.insumo),
+        joinedload(models.LoteProduccion.receta).joinedload(models.Receta.servicios_maquila).joinedload(models.RecetaServicio.servicio),
         joinedload(models.LoteProduccion.cliente)
     ).filter(
         models.LoteProduccion.id == lote_id,
@@ -168,6 +195,7 @@ def create_lote(db: Session, empresa_id: int, lote: schemas.LoteProduccionCreate
         cantidad_a_producir=lote.cantidad_a_producir,
         cliente_id=cliente_id,
         observaciones=lote.observaciones,
+        numero_lote_produccion=getattr(lote, 'numero_lote_produccion', None),
         estado="En produccion",
         empresa_id=empresa_id,
         fecha_planificada=datetime.now(timezone.utc)
@@ -186,7 +214,7 @@ def get_or_create_cliente_interno(db: Session, empresa_id: int) -> models.Client
         return interno
 
     interno = models.Cliente(
-        nombre="Vialmar - Producción interna",
+        nombre="Producción Interna",
         cedula="INTERNO",
         es_cliente=True,
         es_proveedor=False,
@@ -213,28 +241,29 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
         raise ValueError("La cantidad realmente producida debe ser mayor a cero.")
 
     # ─── 1. PRE-VALIDACIÓN: verificar TODO el stock antes de consumir nada ───
-    #     Esto garantiza atomicidad: o se consume todo o no se consume nada.
-    insumos_plan = []  # (insumo, cantidad_requerida)
+    insumos_plan = []  # (insumo, cantidad_requerida_con_merma, item)
     for item in receta.items:
         insumo = get_producto(db, empresa_id, item.insumo_id)
         if not insumo:
             raise ValueError(f"Insumo {item.insumo_id} no encontrado")
-        cantidad_requerida = item.cantidad * cantidad_teorica
+        merma_pct = getattr(item, 'merma_pct', 0.0) or 0.0
+        factor_merma = 1.0 + (merma_pct / 100.0)
+        cantidad_requerida = item.cantidad * cantidad_teorica * factor_merma
         if (insumo.stock_actual or 0) < cantidad_requerida:
             raise ValueError(
                 f"Stock insuficiente para: {insumo.nombre}. "
-                f"Req: {cantidad_requerida}, Disp: {insumo.stock_actual or 0}"
+                f"Req: {round(cantidad_requerida, 4)}, Disp: {insumo.stock_actual or 0}"
             )
-        insumos_plan.append((insumo, cantidad_requerida))
+        insumos_plan.append((insumo, cantidad_requerida, item))
 
-    costo_total_acumulado = 0.0
+    costo_insumos_acumulado = 0.0
+    costo_maquila_acumulado = 0.0
 
     # ─── 2. CONSUMO DE INSUMOS (sin commits intermedios) ───
-    for insumo, cantidad_requerida in insumos_plan:
-        costo_total_acumulado += cantidad_requerida * (insumo.costo or 0.0)
+    for insumo, cantidad_requerida, item in insumos_plan:
+        costo_insumos_acumulado += cantidad_requerida * (insumo.costo or 0.0)
 
         if getattr(insumo, "maneja_lotes", False):
-            # Consumo de insumo usando FEFO — commit diferido al cierre
             consumir_stock_fefo(
                 db, empresa_id, insumo.id, cantidad_requerida,
                 motivo="Producción - Consumo", referencia=f"Lote #{db_lote.id}",
@@ -243,7 +272,6 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
             insumo.stock_actual = (insumo.stock_actual or 0) - cantidad_requerida
             db.add(insumo)
         else:
-            # Consumo de insumo regular — commit diferido
             mov_salida = schemas.InventoryMovementCreate(
                 producto_id=insumo.id,
                 tipo=schemas.MovementType.salida,
@@ -255,20 +283,21 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
             )
             create_movement(db, empresa_id, mov_salida, commit=False)
 
-    # ─── 3. COSTO DE SERVICIOS DE MAQUILA (mano de obra / procesos externos) ───
-    #     Se suma al costo de producción. Si el usuario indicó un precio puntual
-    #     en el cierre (precios_servicios) se usa ese; si no, el precio del servicio.
+    # ─── 3. COSTO DE SERVICIOS DE MAQUILA ───
     precios_override = {p.servicio_id: p.precio for p in (confirm_data.precios_servicios or [])}
     for srv in (receta.servicios_maquila or []):
         servicio = get_producto(db, empresa_id, srv.servicio_id)
         if not servicio:
             continue
-        costo_servicio = precios_override.get(
+        precio_unit = precios_override.get(
             srv.servicio_id,
             servicio.costo if (servicio.costo or 0) > 0 else (servicio.precio or 0.0)
         )
-        costo_total_acumulado += float(costo_servicio or 0.0)
+        cantidad_srv = getattr(srv, 'cantidad', 1.0) or 1.0
+        costo_servicio = cantidad_srv * float(precio_unit or 0.0)
+        costo_maquila_acumulado += costo_servicio
 
+    costo_total_acumulado = costo_insumos_acumulado + costo_maquila_acumulado
     costo_unitario_final = (costo_total_acumulado / cantidad_final) if cantidad_final > 0 else 0.0
 
     # ─── 4. INGRESO DEL PRODUCTO TERMINADO A BODEGA ───
@@ -295,20 +324,21 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
             costo_unitario=costo_unitario_final,
             motivo="Producción - Finalizado",
             referencia=f"Lote #{db_lote.id}",
-            observacion=f"Costo unitario calculado: {costo_unitario_final:.2f}"
+            observacion=f"Costo unit: {costo_unitario_final:.2f} (MP: {costo_insumos_acumulado:.2f} | Maquila: {costo_maquila_acumulado:.2f})"
         )
         create_movement(db, empresa_id, mov_entrada, commit=False)
 
-    # ─── 5. Cierre del lote de producción ───
+    # ─── 5. Cierre del lote ───
     db_lote.estado = "Confirmado"
     db_lote.cantidad_real = cantidad_final
     db_lote.costo_total = costo_total_acumulado
+    db_lote.costo_insumos = costo_insumos_acumulado
+    db_lote.costo_maquila = costo_maquila_acumulado
     db_lote.costo_unitario_resultado = costo_unitario_final
     db_lote.fecha_confirmacion = datetime.now(timezone.utc)
     if confirm_data.observaciones:
         db_lote.observaciones = (db_lote.observaciones or "") + " | Cierre: " + confirm_data.observaciones
 
-    # Un único commit: toda la confirmación es atómica.
     db.commit()
     db.refresh(db_lote)
     return db_lote
@@ -323,3 +353,77 @@ def cancelar_lote(db: Session, empresa_id: int, lote_id: int):
         db.commit()
         return True
     return False
+
+def get_analisis_receta(db: Session, empresa_id: int, receta_id: int, cantidad: float = 1.0):
+    """Cost analysis and profitability for a recipe at a given production quantity."""
+    receta = get_receta(db, empresa_id, receta_id)
+    if not receta:
+        return None
+
+    rendimiento = getattr(receta, 'rendimiento_esperado', 1.0) or 1.0
+    costo_insumos = 0.0
+    costo_maquila = 0.0
+    detalle_insumos = []
+    detalle_maquila = []
+
+    for item in receta.items:
+        insumo = get_producto(db, empresa_id, item.insumo_id)
+        if not insumo:
+            continue
+        merma_pct = getattr(item, 'merma_pct', 0.0) or 0.0
+        factor = 1.0 + merma_pct / 100.0
+        qty_neta = item.cantidad * cantidad
+        qty_con_merma = qty_neta * factor
+        costo_unit = insumo.costo or 0.0
+        subtotal = qty_con_merma * costo_unit
+        costo_insumos += subtotal
+        detalle_insumos.append({
+            "insumo": insumo.nombre,
+            "unidad": insumo.unidad_medida,
+            "cantidad_neta": round(qty_neta, 4),
+            "merma_pct": merma_pct,
+            "cantidad_con_merma": round(qty_con_merma, 4),
+            "costo_unitario": costo_unit,
+            "subtotal": round(subtotal, 2),
+            "stock_disponible": insumo.stock_actual or 0,
+            "stock_suficiente": (insumo.stock_actual or 0) >= qty_con_merma,
+        })
+
+    for srv in (receta.servicios_maquila or []):
+        servicio = get_producto(db, empresa_id, srv.servicio_id)
+        if not servicio:
+            continue
+        cantidad_srv = getattr(srv, 'cantidad', 1.0) or 1.0
+        precio_srv = (servicio.costo or 0) if (servicio.costo or 0) > 0 else (servicio.precio or 0.0)
+        subtotal = cantidad_srv * float(precio_srv)
+        costo_maquila += subtotal
+        detalle_maquila.append({
+            "servicio": servicio.nombre,
+            "cantidad": cantidad_srv,
+            "precio_unitario": float(precio_srv),
+            "subtotal": round(subtotal, 2),
+        })
+
+    costo_total = costo_insumos + costo_maquila
+    unidades_netas = cantidad * rendimiento
+    costo_por_unidad = costo_total / unidades_netas if unidades_netas > 0 else 0.0
+    precio_venta = getattr(receta, 'precio_sugerido', None) or (
+        getattr(receta.producto_resultante, 'precio_venta', None) or 0.0
+    )
+    margen_pct = ((precio_venta - costo_por_unidad) / precio_venta * 100) if precio_venta > 0 and costo_por_unidad > 0 else None
+
+    return {
+        "receta_id": receta.id,
+        "nombre": receta.nombre,
+        "cantidad_produccion": cantidad,
+        "rendimiento_esperado": rendimiento,
+        "unidades_netas": round(unidades_netas, 2),
+        "costo_insumos": round(costo_insumos, 2),
+        "costo_maquila": round(costo_maquila, 2),
+        "costo_total": round(costo_total, 2),
+        "costo_por_unidad": round(costo_por_unidad, 2),
+        "precio_venta_sugerido": precio_venta,
+        "margen_pct": round(margen_pct, 1) if margen_pct is not None else None,
+        "detalle_insumos": detalle_insumos,
+        "detalle_maquila": detalle_maquila,
+    }

@@ -777,6 +777,7 @@ class PagoCompra(BaseModel):
 class RecetaItemBase(BaseModel):
     insumo_id: int
     cantidad: float
+    merma_pct: float = 0.0
 
 class RecetaItemCreate(RecetaItemBase):
     pass
@@ -789,6 +790,7 @@ class RecetaItem(RecetaItemBase):
 
 class RecetaServicioBase(BaseModel):
     servicio_id: int
+    cantidad: float = 1.0
 
 class RecetaServicio(RecetaServicioBase):
     id: int
@@ -800,10 +802,14 @@ class RecetaBase(BaseModel):
     producto_id: int
     nombre: str
     descripcion: Optional[str] = None
+    rendimiento_esperado: float = 1.0
+    notas_tecnicas: Optional[str] = None
+    precio_sugerido: Optional[float] = None
 
 class RecetaCreate(RecetaBase):
     items: List[RecetaItemCreate]
     servicios: List[RecetaServicioBase] = []
+    porciones: int = 1
 
 class Receta(RecetaBase):
     id: int
@@ -820,7 +826,7 @@ class LoteProduccionBase(BaseModel):
     observaciones: Optional[str] = None
 
 class LoteProduccionCreate(LoteProduccionBase):
-    pass
+    numero_lote_produccion: Optional[str] = None
 
 class LoteServicioPrecio(BaseModel):
     servicio_id: int
@@ -852,6 +858,9 @@ class LoteProduccion(LoteProduccionBase):
     receta: Receta
     cliente: Optional[Cliente] = None
     venta_id: Optional[int] = None
+    numero_lote_produccion: Optional[str] = None
+    costo_insumos: float = 0.0
+    costo_maquila: float = 0.0
     model_config = ConfigDict(from_attributes=True)
 
 # =========================

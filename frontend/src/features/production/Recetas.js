@@ -139,8 +139,10 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
   const [formData, setFormData] = useState({
     producto_id: '', nombre: '', descripcion: '',
     porciones: 1, precio_sugerido: '',
+    rendimiento_esperado: 1.0,
+    notas_tecnicas: '',
     servicios: [],
-    items: [{ insumo_id: '', cantidad: '' }],
+    items: [{ insumo_id: '', cantidad: '', merma_pct: '' }],
   });
 
   const [productoInput, setProductoInput] = useState('');
@@ -245,14 +247,18 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
       const costoBase = prod?.costo ?? prod?.costo_unitario ?? 0;
       const unidadesEmp = Math.max(1, prod?.unidades_por_empaque || 1);
       const cu = costoBase / unidadesEmp;
-      return { prod, qty, cu, subtotal: cu * qty, unidadesEmp, costoBase };
+      const merma = parseFloat(item.merma_pct) || 0;
+      const factorMerma = 1 + merma / 100;
+      return { prod, qty, cu, subtotal: cu * qty * factorMerma, unidadesEmp, costoBase, merma, factorMerma };
     });
   }, [formData.items, productosMap]);
 
   const costoLiveServicios = useMemo(() => {
     return formData.servicios.map(srv => {
       const svc = productosMap[parseInt(srv.servicio_id)];
-      return { svc, costo: svc?.precio_venta || svc?.costo_unitario || 0 };
+      const precio = svc?.precio_venta || svc?.costo_unitario || 0;
+      const cantidad = parseFloat(srv.cantidad) || 1;
+      return { svc, costo: precio * cantidad, precioUnit: precio, cantidad };
     });
   }, [formData.servicios, productosMap]);
 
@@ -279,8 +285,10 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
       descripcion:    receta.descripcion || '',
       porciones:      receta.porciones || 1,
       precio_sugerido: receta.precio_sugerido ? String(receta.precio_sugerido) : '',
-      items:    receta.items.map(it => ({ insumo_id: it.insumo.id, cantidad: it.cantidad })),
-      servicios: receta.servicios_maquila.map(s => ({ servicio_id: s.servicio.id })),
+      rendimiento_esperado: receta.rendimiento_esperado || 1.0,
+      notas_tecnicas: receta.notas_tecnicas || '',
+      items:    receta.items.map(it => ({ insumo_id: it.insumo.id, cantidad: it.cantidad, merma_pct: it.merma_pct || '' })),
+      servicios: receta.servicios_maquila.map(s => ({ servicio_id: s.servicio.id, cantidad: s.cantidad || 1 })),
     });
     setProductoInput(receta.producto_resultante.nombre);
     const inputs = {};
@@ -294,7 +302,7 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
     setEditingReceta(null);
     setProductoInput('');
     setInsumoInputs({});
-    setFormData({ producto_id: '', nombre: '', descripcion: '', porciones: 1, precio_sugerido: '', servicios: [], items: [{ insumo_id: '', cantidad: '' }] });
+    setFormData({ producto_id: '', nombre: '', descripcion: '', porciones: 1, precio_sugerido: '', rendimiento_esperado: 1.0, notas_tecnicas: '', servicios: [], items: [{ insumo_id: '', cantidad: '', merma_pct: '' }] });
   };
 
   const openQuickCreate = (type, initialName = '', targetIdx = null) =>
@@ -314,8 +322,8 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
     closeQuickCreate();
   };
 
-  const addItem     = () => setFormData(f => ({ ...f, items: [...f.items, { insumo_id: '', cantidad: '' }] }));
-  const addServicio = () => setFormData(f => ({ ...f, servicios: [...f.servicios, { servicio_id: '' }] }));
+  const addItem     = () => setFormData(f => ({ ...f, items: [...f.items, { insumo_id: '', cantidad: '', merma_pct: '' }] }));
+  const addServicio = () => setFormData(f => ({ ...f, servicios: [...f.servicios, { servicio_id: '', cantidad: 1 }] }));
 
   const removeItem = (i) => {
     setFormData(f => ({ ...f, items: f.items.filter((_, idx) => idx !== i) }));
@@ -328,6 +336,8 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
   const handleInsumoInputChange = (i, val) => setInsumoInputs(prev => ({ ...prev, [i]: val }));
   const handleServicioChange = (i, val) =>
     setFormData(f => { const servicios = [...f.servicios]; servicios[i].servicio_id = val; return { ...f, servicios }; });
+  const handleServicioCantidadChange = (i, val) =>
+    setFormData(f => { const servicios = [...f.servicios]; servicios[i].cantidad = val; return { ...f, servicios }; });
 
   const handleSubmit = async () => {
     if (!formData.producto_id || formData.items.some(it => !it.insumo_id || !it.cantidad)) {
@@ -341,12 +351,15 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
       producto_id:    parseInt(formData.producto_id),
       porciones:      parseInt(formData.porciones) || 1,
       precio_sugerido: parseFloat(formData.precio_sugerido) || null,
+      rendimiento_esperado: parseFloat(formData.rendimiento_esperado) || 1.0,
+      notas_tecnicas: formData.notas_tecnicas || null,
       servicios: formData.servicios
         .filter(s => s.servicio_id !== '')
-        .map(s => ({ servicio_id: parseInt(s.servicio_id) })),
+        .map(s => ({ servicio_id: parseInt(s.servicio_id), cantidad: parseFloat(s.cantidad) || 1 })),
       items: formData.items.map(it => ({
         insumo_id: parseInt(it.insumo_id),
         cantidad:  parseFloat(it.cantidad),
+        merma_pct: parseFloat(it.merma_pct) || 0,
       })),
     };
     try {
@@ -374,8 +387,10 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
       descripcion:     receta.descripcion || '',
       porciones:       receta.porciones || 1,
       precio_sugerido: receta.precio_sugerido ? String(receta.precio_sugerido) : '',
-      servicios: receta.servicios_maquila.map(s => ({ servicio_id: s.servicio.id })),
-      items:     receta.items.map(it => ({ insumo_id: it.insumo.id, cantidad: it.cantidad })),
+      rendimiento_esperado: receta.rendimiento_esperado || 1.0,
+      notas_tecnicas: receta.notas_tecnicas || '',
+      servicios: receta.servicios_maquila.map(s => ({ servicio_id: s.servicio.id, cantidad: s.cantidad || 1 })),
+      items:     receta.items.map(it => ({ insumo_id: it.insumo.id, cantidad: it.cantidad, merma_pct: it.merma_pct || '' })),
     });
     setProductoInput('');
     const inputs = {};
@@ -696,6 +711,32 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
                   helperText={margenPct !== null ? `Margen: ${margenPct.toFixed(1)}%` : 'Para calcular el margen'} />
               </Grid>
             </Grid>
+            <Grid container spacing={1.5} sx={{ mt: 0 }}>
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  fullWidth
+                  type="number"
+                  label="Rendimiento esperado (%)"
+                  value={Math.round((parseFloat(formData.rendimiento_esperado) || 1.0) * 100)}
+                  onChange={e => setFormData({ ...formData, rendimiento_esperado: (parseFloat(e.target.value) || 100) / 100 })}
+                  size="small"
+                  inputProps={{ min: 1, max: 100, step: 1 }}
+                  helperText="% del lote que sale bien (ej: 95 = 5% merma total)"
+                />
+              </Grid>
+              <Grid item xs={12} sm={8}>
+                <TextField
+                  fullWidth
+                  label="Notas técnicas (opcional)"
+                  value={formData.notas_tecnicas}
+                  onChange={e => setFormData({ ...formData, notas_tecnicas: e.target.value })}
+                  size="small"
+                  placeholder="Temperatura, tiempo de cocción, pasos críticos..."
+                  multiline
+                  rows={1}
+                />
+              </Grid>
+            </Grid>
           </Stack>
 
           {/* ── Servicios de Maquila ── */}
@@ -735,6 +776,16 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
                     )}
                     renderInput={params => <TextField {...params} label="Servicio" size="small" placeholder="Escribe para buscar…" fullWidth />}
                     fullWidth sx={{ flex: 1 }} size="small" noOptionsText="Sin resultados" ListboxProps={{ style: { maxHeight: 220 } }}
+                  />
+                  <TextField
+                    type="number"
+                    label="Cant."
+                    size="small"
+                    value={srv.cantidad}
+                    onChange={e => handleServicioCantidadChange(idx, e.target.value)}
+                    sx={{ width: 80 }}
+                    InputProps={{ inputProps: { min: 0.01, step: 'any' } }}
+                    title="Cantidad de unidades del servicio por lote"
                   />
                   {costoLiveServicios[idx]?.costo > 0 && (
                     <Typography sx={{ fontSize: 11, fontWeight: 700, color: CYAN, whiteSpace: 'nowrap' }}>
@@ -864,6 +915,16 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
                         </Box>
                       )}
                     </Box>
+                    <TextField
+                      type="number"
+                      label="Merma %"
+                      size="small"
+                      value={item.merma_pct}
+                      onChange={e => handleItemChange(idx, 'merma_pct', e.target.value)}
+                      sx={{ width: 90 }}
+                      InputProps={{ inputProps: { min: 0, max: 100, step: 1 } }}
+                      helperText="Desperdicio"
+                    />
                     <Tooltip title="Quitar">
                       <span>
                         <IconButton size="small" onClick={() => removeItem(idx)} disabled={formData.items.length === 1}
@@ -884,6 +945,17 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
               <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 1.5 }}>
                 Resumen de Costos
               </Typography>
+              {/* Insumos subtotal */}
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>📦 Insumos / Materias Primas</Typography>
+                <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{formatCurrency(costoLiveItems.reduce((s,i) => s + i.subtotal, 0))}</Typography>
+              </Box>
+              {costoLiveServicios.reduce((s, s2) => s + s2.costo, 0) > 0 && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>⚙️ Maquila / Servicios</Typography>
+                  <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{formatCurrency(costoLiveServicios.reduce((s, s2) => s + s2.costo, 0))}</Typography>
+                </Box>
+              )}
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                 <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Costo total del lote</Typography>
                 <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{formatCurrency(costoLiveTotal)}</Typography>

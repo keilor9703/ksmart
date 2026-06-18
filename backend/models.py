@@ -597,6 +597,9 @@ class Receta(Base, TenantMixin):
     descripcion = Column(String, nullable=True)
     created_at  = Column(DateTime(timezone=True), default=utcnow)
 
+    rendimiento_esperado = Column(Float, default=1.0, nullable=True)
+    notas_tecnicas       = Column(Text, nullable=True)
+
     producto_resultante = relationship("Producto", foreign_keys=[producto_id])
     items               = relationship("RecetaItem", back_populates="receta", cascade="all, delete-orphan")
     servicios_maquila   = relationship("RecetaServicio", back_populates="receta", cascade="all, delete-orphan")
@@ -606,6 +609,7 @@ class RecetaServicio(Base, TenantMixin):
     id          = Column(Integer, primary_key=True, index=True)
     receta_id   = Column(Integer, ForeignKey("recetas.id"))
     servicio_id = Column(Integer, ForeignKey("productos.id"))
+    cantidad    = Column(Float, default=1.0, nullable=True)
 
     receta   = relationship("Receta", back_populates="servicios_maquila")
     servicio = relationship("Producto")
@@ -616,6 +620,7 @@ class RecetaItem(Base, TenantMixin):
     receta_id  = Column(Integer, ForeignKey("recetas.id"))
     insumo_id  = Column(Integer, ForeignKey("productos.id"))
     cantidad   = Column(Float)
+    merma_pct  = Column(Float, default=0.0, nullable=True)
 
     receta = relationship("Receta", back_populates="items")
     insumo = relationship("Producto")
@@ -633,7 +638,10 @@ class LoteProduccion(Base, TenantMixin):
     estado                   = Column(String, default="En produccion")
     cliente_id               = Column(Integer, ForeignKey("clientes.id"), nullable=True)
     venta_id                 = Column(Integer, ForeignKey("ventas.id"), nullable=True)
-    observaciones            = Column(Text, nullable=True)
+    observaciones                = Column(Text, nullable=True)
+    numero_lote_produccion       = Column(String(100), nullable=True)
+    costo_insumos                = Column(Float, default=0.0)
+    costo_maquila                = Column(Float, default=0.0)
 
     receta          = relationship("Receta")
     cliente         = relationship("Cliente")

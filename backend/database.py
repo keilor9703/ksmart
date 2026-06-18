@@ -1972,6 +1972,26 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v93)
                 logger.info("V93 (empresas.matias_sandbox_api_key) aplicada.")
 
+            # ── V94: producción avanzada (merma_pct, rendimiento_esperado, costo breakdown) ──
+            migration_v94 = "v94_produccion_avanzada"
+            if not _migration_already_applied(conn, migration_v94):
+                sqls = [
+                    "ALTER TABLE receta_items ADD COLUMN IF NOT EXISTS merma_pct FLOAT DEFAULT 0.0",
+                    "ALTER TABLE receta_servicios ADD COLUMN IF NOT EXISTS cantidad FLOAT DEFAULT 1.0",
+                    "ALTER TABLE recetas ADD COLUMN IF NOT EXISTS rendimiento_esperado FLOAT DEFAULT 1.0",
+                    "ALTER TABLE recetas ADD COLUMN IF NOT EXISTS notas_tecnicas TEXT",
+                    "ALTER TABLE lotes_produccion ADD COLUMN IF NOT EXISTS numero_lote_produccion VARCHAR(100)",
+                    "ALTER TABLE lotes_produccion ADD COLUMN IF NOT EXISTS costo_insumos FLOAT DEFAULT 0.0",
+                    "ALTER TABLE lotes_produccion ADD COLUMN IF NOT EXISTS costo_maquila FLOAT DEFAULT 0.0",
+                ]
+                for sql in sqls:
+                    try:
+                        conn.execute(text(sql))
+                    except Exception:
+                        pass  # Column may already exist in SQLite
+                _mark_migration_applied(conn, migration_v94)
+                logger.info("V94 (producción avanzada) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

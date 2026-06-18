@@ -59,6 +59,19 @@ def actualizar_receta(
     return result
 
 
+@router.get("/recetas/{receta_id}/analisis")
+def analisis_receta(
+    receta_id: int,
+    cantidad: float = 1.0,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    result = crud.get_analisis_receta(db, empresa_id=current_user.empresa_id, receta_id=receta_id, cantidad=cantidad)
+    if not result:
+        raise HTTPException(status_code=404, detail="Receta no encontrada")
+    return result
+
+
 @router.delete("/recetas/{receta_id}")
 def eliminar_receta(
     receta_id: int,

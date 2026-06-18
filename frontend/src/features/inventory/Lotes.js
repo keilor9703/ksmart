@@ -64,7 +64,7 @@ const Lotes = () => {
   const [selectedLote, setSelectedLote] = useState(null);
   const [loading, setLoading]         = useState(false);
 
-  const [formData, setFormData]       = useState({ receta_id: '', cantidad_a_producir: '', cliente_id: '', observaciones: '' });
+  const [formData, setFormData]       = useState({ receta_id: '', cantidad_a_producir: '', cliente_id: '', observaciones: '', numero_lote_produccion: '' });
   const [confirmData, setConfirmData] = useState({
     cantidad_real:     '',
     observaciones:     '',
@@ -439,7 +439,7 @@ const Lotes = () => {
                         <Chip label="En Curso" size="small" sx={{ bgcolor: '#FEF3C7', color: '#D97706', fontWeight: 600, fontSize: 10 }} />
                       </Box>
                       <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 600 }}>
-                        ORDEN #{l.id} · {new Date(l.fecha_planificada).toLocaleDateString()}
+                        ORDEN #{l.id}{l.numero_lote_produccion ? ` · ${l.numero_lote_produccion}` : ''} · {new Date(l.fecha_planificada).toLocaleDateString()}
                       </Typography>
                       <Typography sx={{ fontWeight: 800, fontSize: 18, mt: 0.5, mb: 1 }}>
                         {l.receta.producto_resultante.nombre}
@@ -620,7 +620,18 @@ const Lotes = () => {
                                     </Box>
                                   ) : '—'}
                                 </TableCell>
-                                <TableCell sx={{ fontWeight: 600 }}>{l.estado === 'Confirmado' ? formatCurrency(l.costo_unitario_resultado) : '—'}</TableCell>
+                                <TableCell sx={{ fontWeight: 600 }}>
+                                  {l.estado === 'Confirmado' ? (
+                                    <Box>
+                                      <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{formatCurrency(l.costo_unitario_resultado)}/u</Typography>
+                                      {(l.costo_insumos > 0 || l.costo_maquila > 0) && (
+                                        <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
+                                          📦 {formatCurrency(l.costo_insumos)} + ⚙️ {formatCurrency(l.costo_maquila)}
+                                        </Typography>
+                                      )}
+                                    </Box>
+                                  ) : '—'}
+                                </TableCell>
                                 <TableCell>
                                   <Chip
                                     label={l.estado}
@@ -688,6 +699,17 @@ const Lotes = () => {
                     onChange={(e) => setFormData({ ...formData, cantidad_a_producir: e.target.value })} />
                 </Grid>
                 <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="N° Orden Producción (opcional)"
+                    value={formData.numero_lote_produccion}
+                    onChange={(e) => setFormData({ ...formData, numero_lote_produccion: e.target.value.toUpperCase() })}
+                    placeholder="Ej: OP-2026-001"
+                    helperText="Identificador interno del lote"
+                    size="small"
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
                   <TextField select fullWidth label="Destino (Cliente o Bodega)"
                     value={formData.cliente_id}
                     onChange={(e) => setFormData({ ...formData, cliente_id: e.target.value })}
@@ -740,9 +762,9 @@ const Lotes = () => {
           <Button onClick={() => setOpen(false)} sx={{ color: 'text.secondary', fontWeight: 600 }}>Cancelar</Button>
           <Button variant="contained" onClick={async () => {
             if (!formData.receta_id || !formData.cantidad_a_producir) { toast.warning('Completa receta y cantidad'); return; }
-            await createLote({ ...formData, cliente_id: formData.cliente_id ? Number(formData.cliente_id) : null, receta_id: Number(formData.receta_id), cantidad_a_producir: Number(formData.cantidad_a_producir) });
+            await createLote({ ...formData, cliente_id: formData.cliente_id ? Number(formData.cliente_id) : null, receta_id: Number(formData.receta_id), cantidad_a_producir: Number(formData.cantidad_a_producir), numero_lote_produccion: formData.numero_lote_produccion || null });
             loadData(); setOpen(false);
-            setFormData({ receta_id: '', cantidad_a_producir: '', cliente_id: '', observaciones: '' });
+            setFormData({ receta_id: '', cantidad_a_producir: '', cliente_id: '', observaciones: '', numero_lote_produccion: '' });
             toast.success('Orden enviada a planta');
           }} sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#0891B2' }, fontWeight: 600 }}>
             Enviar a Planta
@@ -795,6 +817,47 @@ const Lotes = () => {
             sx={{ mb: 2 }}
             helperText="El sistema calculará automáticamente el nuevo costo unitario promediando las mermas."
           />
+
+          {/* Profitability preview */}
+          {confirmData.cantidad_real > 0 && productoResultante?.precio_venta > 0 && (
+            <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider', mb: 2 }}>
+              <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', mb: 1 }}>
+                Análisis de Rentabilidad (estimado)
+              </Typography>
+              {(() => {
+                const costoEstimado = (selectedLote?.receta?.items || []).reduce((s, it) => {
+                  return s + (it.cantidad || 0) * (it.insumo?.costo || 0);
+                }, 0) * selectedLote?.cantidad_a_producir;
+                const cantReal = parseFloat(confirmData.cantidad_real) || 1;
+                const costoUnit = costoEstimado / cantReal;
+                const precioVenta = productoResultante.precio_venta;
+                const margen = precioVenta > 0 ? ((precioVenta - costoUnit) / precioVenta * 100) : null;
+                const colorM = margen === null ? 'text.secondary' : margen >= 30 ? GREEN : margen >= 10 ? '#F59E0B' : RED;
+                return (
+                  <>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                      <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Precio de venta</Typography>
+                      <Typography sx={{ fontSize: 12, fontWeight: 700 }}>{formatCurrency(precioVenta)}</Typography>
+                    </Box>
+                    {costoUnit > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                        <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Costo est. por unidad</Typography>
+                        <Typography sx={{ fontSize: 12, fontWeight: 700 }}>{formatCurrency(costoUnit)}</Typography>
+                      </Box>
+                    )}
+                    {margen !== null && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Margen estimado</Typography>
+                        <Typography sx={{ fontSize: 13, fontWeight: 800, color: colorM }}>
+                          {margen.toFixed(1)}% {margen >= 30 ? '✓' : margen >= 10 ? '⚠' : '✗'}
+                        </Typography>
+                      </Box>
+                    )}
+                  </>
+                );
+              })()}
+            </Box>
+          )}
 
           {/* SECCIÓN PERECEDERO */}
           {productoEsPerecible && (
