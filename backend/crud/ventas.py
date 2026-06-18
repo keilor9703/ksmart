@@ -33,22 +33,31 @@ def get_ventas(
         )
         .filter(models.Venta.empresa_id == empresa_id, models.Venta.tipo == "venta")
     )
+    def _build_search_filter(search_str):
+        import re
+        term = f"%{search_str}%"
+        conditions = [
+            models.Cliente.nombre.ilike(term),
+            models.Venta.numero_factura.ilike(term),
+            cast(models.Venta.id, String).ilike(term),
+            models.DetalleVenta.nombre_libre.ilike(term),
+            models.Producto.nombre.ilike(term),
+        ]
+        # Support V0141 / V-0141 formats: extract numeric part and match by ID
+        m = re.match(r'^[Vv]-?0*(\d+)$', search_str.strip())
+        if m:
+            try:
+                conditions.append(models.Venta.id == int(m.group(1)))
+            except ValueError:
+                pass
+        return or_(*conditions)
+
     if search:
-        term = f"%{search}%"
-        # Join cliente once; also join detalles for product name search
         q = (
             q.outerjoin(models.Venta.cliente)
              .outerjoin(models.Venta.detalles)
              .outerjoin(models.DetalleVenta.producto)
-             .filter(
-                or_(
-                    models.Cliente.nombre.ilike(term),
-                    models.Venta.numero_factura.ilike(term),
-                    cast(models.Venta.id, String).ilike(term),
-                    models.DetalleVenta.nombre_libre.ilike(term),
-                    models.Producto.nombre.ilike(term),
-                )
-            )
+             .filter(_build_search_filter(search))
         ).distinct()
     if estado_pago:
         q = q.filter(models.Venta.estado_pago == estado_pago)
@@ -66,22 +75,13 @@ def get_ventas(
         sqlfunc.coalesce(sqlfunc.sum(models.Venta.total), 0).label("sum_total"),
         sqlfunc.coalesce(sqlfunc.sum(models.Venta.monto_pagado), 0).label("sum_pagado"),
     ).filter(models.Venta.empresa_id == empresa_id, models.Venta.tipo == "venta")
-    # Apply same filters for the aggregate
     if search:
-        term = f"%{search}%"
         agg = (
             agg.outerjoin(models.Venta.cliente)
                .outerjoin(models.Venta.detalles)
                .outerjoin(models.DetalleVenta.producto)
-               .filter(
-                   or_(
-                       models.Cliente.nombre.ilike(term),
-                       models.Venta.numero_factura.ilike(term),
-                       cast(models.Venta.id, String).ilike(term),
-                       models.DetalleVenta.nombre_libre.ilike(term),
-                       models.Producto.nombre.ilike(term),
-                   )
-               ).distinct()
+               .filter(_build_search_filter(search))
+               .distinct()
         )
     if estado_pago:
         agg = agg.filter(models.Venta.estado_pago == estado_pago)

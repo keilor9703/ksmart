@@ -1825,11 +1825,11 @@ useEffect(() => {
                                                                 bgcolor: `${ACCENT}14`, color: ACCENT,
                                                                 px: 0.8, py: 0.2, borderRadius: 1, display: 'inline-block', width: 'fit-content',
                                                             }}>
-                                                                V-{String(v.id).padStart(4, '0')}
+                                                                V{String(v.id).padStart(4, '0')}
                                                             </Typography>
                                                             {v.numero_factura && (
-                                                                <Typography sx={{ fontSize: 10, fontFamily: 'monospace', color: 'text.disabled' }}>
-                                                                    {v.numero_factura}
+                                                                <Typography sx={{ fontSize: 11, fontFamily: 'monospace', color: 'text.secondary', fontWeight: 600 }}>
+                                                                    FE: {v.numero_factura}
                                                                 </Typography>
                                                             )}
                                                             <ChipFE estado={v.estado_electronico} ventaId={v.id} onReintentar={handleReintentarFE} />
