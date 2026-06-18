@@ -1992,6 +1992,21 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v94)
                 logger.info("V94 (producción avanzada) aplicada.")
 
+            migration_v95 = "v95_productos_indexes"
+            if not _migration_already_applied(conn, migration_v95):
+                idx_sqls = [
+                    "CREATE INDEX IF NOT EXISTS ix_productos_empresa_sku ON productos (empresa_id, sku)",
+                    "CREATE INDEX IF NOT EXISTS ix_productos_empresa_barcode ON productos (empresa_id, codigo_barras)",
+                    "CREATE INDEX IF NOT EXISTS ix_productos_empresa_vigente ON productos (empresa_id, vigente)",
+                ]
+                for sql in idx_sqls:
+                    try:
+                        conn.execute(text(sql))
+                    except Exception:
+                        pass
+                _mark_migration_applied(conn, migration_v95)
+                logger.info("V95 (índices compuestos productos) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

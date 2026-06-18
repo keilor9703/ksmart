@@ -171,7 +171,8 @@ async def get_producto_por_barcode(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    # 1. Buscar en mi empresa (Resultado exacto)
+    import asyncio
+    # 1. Buscar SOLO en la empresa del usuario autenticado (sin cross-tenant)
     local_prod = db.query(models.Producto).filter(
         models.Producto.codigo_barras == barcode,
         models.Producto.empresa_id == current_user.empresa_id,
@@ -181,39 +182,16 @@ async def get_producto_por_barcode(
     if local_prod:
         return local_prod
 
-    # 2. Si no existe en mi empresa, buscar en el SISTEMA GLOBAL (Sugerencia)
-    global_prod = db.query(models.Producto).filter(
-        models.Producto.codigo_barras == barcode,
-        models.Producto.vigente == True,
-    ).first()
-
-    if global_prod:
-        return {
-            "id": 0, 
-            "nombre": global_prod.nombre,
-            "codigo_barras": barcode,
-            "unidad_medida": global_prod.unidad_medida,
-            "grupo_item": global_prod.grupo_item,
-            "precio": 0.0,
-            "costo": 0.0,
-            "descripcion": global_prod.descripcion,
-            "empresa_id": current_user.empresa_id
-        }
-
-    # 3. BÚSQUEDA EN CASCADA POR APIs PÚBLICAS
+    # 2. BÚSQUEDA PARALELA EN APIs PÚBLICAS (no se comparten datos entre tenants)
     async with httpx.AsyncClient(timeout=4.0) as client:
-        # Definimos el orden de las APIs a consultar
-        buscadores = [
-            fetch_openfoodfacts,
-            fetch_upcitemdb,
-            fetch_openbeauty_and_pets
-        ]
-
-        for buscador in buscadores:
-            resultado_api = await buscador(client, barcode)
-            
-            if resultado_api and resultado_api["nombre"]:
-                # ¡Bingo! Encontramos el producto en alguna de las APIs
+        results = await asyncio.gather(
+            fetch_openfoodfacts(client, barcode),
+            fetch_upcitemdb(client, barcode),
+            fetch_openbeauty_and_pets(client, barcode),
+            return_exceptions=True,
+        )
+        for resultado_api in results:
+            if resultado_api and not isinstance(resultado_api, Exception) and resultado_api.get("nombre"):
                 return {
                     "id": 0,
                     "nombre": resultado_api["nombre"],
@@ -222,11 +200,10 @@ async def get_producto_por_barcode(
                     "grupo_item": 2,
                     "precio": 0.0,
                     "costo": 0.0,
-                    "descripcion": resultado_api["descripcion"],
+                    "descripcion": resultado_api.get("descripcion", ""),
                     "empresa_id": current_user.empresa_id
                 }
 
-    # 4. Si fallaron todas las APIs y la base de datos local
     return None
 
 @router.get("/template")
@@ -297,16 +274,96 @@ def get_productos_template(current_user: models.User = Depends(get_current_activ
 def upload_productos(file: UploadFile = File(...), db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
     return crud.bulk_create_productos(db=db, empresa_id=current_user.empresa_id, file=file.file, filename=file.filename)
 
+@router.post("/{producto_id}/duplicate", response_model=schemas.Producto)
+def duplicate_producto(
+    producto_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    original = crud.get_producto(db, empresa_id=current_user.empresa_id, producto_id=producto_id)
+    if not original:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    import copy
+    nuevo = schemas.ProductoCreate(
+        nombre=f"Copia de {original.nombre}",
+        precio=original.precio,
+        costo=original.costo,
+        es_servicio=original.es_servicio,
+        unidad_medida=original.unidad_medida,
+        grupo_item=original.grupo_item,
+        stock_minimo=original.stock_minimo,
+        maneja_lotes=original.maneja_lotes,
+        descripcion=original.descripcion,
+        mostrar_en_catalogo=False,
+        imagenes=list(original.imagenes or []),
+        # SKU y barcode no se copian para evitar duplicados
+    )
+    return crud.create_producto(db=db, empresa_id=current_user.empresa_id, producto=nuevo)
+
+
 @router.post("/", response_model=schemas.Producto)
 def create_producto(producto: schemas.ProductoCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+    # Validar barcode único en la empresa
+    if producto.codigo_barras:
+        existing = db.query(models.Producto).filter(
+            models.Producto.empresa_id == current_user.empresa_id,
+            models.Producto.codigo_barras == producto.codigo_barras,
+            models.Producto.vigente == True,
+        ).first()
+        if existing:
+            raise HTTPException(status_code=409, detail=f"Ya existe un producto con el código de barras '{producto.codigo_barras}'.")
     return crud.create_producto(db=db, empresa_id=current_user.empresa_id, producto=producto)
 
+@router.get("/low-stock", response_model=List[schemas.Producto])
+def get_low_stock(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Productos físicos con stock_actual < stock_minimo."""
+    from sqlalchemy import and_
+    items = db.query(models.Producto).filter(
+        models.Producto.empresa_id == current_user.empresa_id,
+        models.Producto.vigente == True,
+        models.Producto.es_servicio == False,
+        models.Producto.stock_actual < models.Producto.stock_minimo,
+    ).order_by(models.Producto.stock_actual.asc()).all()
+    from crud.impuestos import attach_impuestos_to_productos
+    return attach_impuestos_to_productos(db, current_user.empresa_id, items)
+
+
 @router.get("/", response_model=List[schemas.Producto])
-def read_productos(skip: int = 0, limit: int = 500, solo_pos: bool = False, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
-    return crud.get_productos(db, empresa_id=current_user.empresa_id, skip=skip, limit=limit, solo_pos=solo_pos)
+def read_productos(
+    skip: int = 0,
+    limit: int = 500,
+    solo_pos: bool = False,
+    q: Optional[str] = Query(None, description="Buscar por nombre, SKU, barcode, categoría"),
+    grupo: Optional[str] = Query(None, description="ID de grupo o 'servicio'"),
+    stock: Optional[str] = Query(None, description="ok | bajo | sinStock"),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    return crud.get_productos(
+        db,
+        empresa_id=current_user.empresa_id,
+        skip=skip,
+        limit=limit,
+        solo_pos=solo_pos,
+        search=q,
+        filter_group=grupo,
+        filter_stock=stock,
+    )
 
 @router.put("/{producto_id}", response_model=schemas.Producto)
 def update_producto(producto_id: int, producto: schemas.ProductoCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+    if producto.codigo_barras:
+        existing = db.query(models.Producto).filter(
+            models.Producto.empresa_id == current_user.empresa_id,
+            models.Producto.codigo_barras == producto.codigo_barras,
+            models.Producto.vigente == True,
+            models.Producto.id != producto_id,
+        ).first()
+        if existing:
+            raise HTTPException(status_code=409, detail=f"Ya existe otro producto con el código de barras '{producto.codigo_barras}'.")
     db_producto = crud.update_producto(db, empresa_id=current_user.empresa_id, producto_id=producto_id, producto=producto)
     if db_producto is None:
         raise HTTPException(status_code=404, detail="Producto no encontrado")

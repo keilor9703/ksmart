@@ -66,15 +66,23 @@ def get_producto(db: Session, empresa_id: int, producto_id: int):
         attach_impuestos_to_productos(db, empresa_id, [p])
     return p
 
-def get_productos(db: Session, empresa_id: int, skip: int = 0, limit: int = 100, solo_pos: bool = False):
+def get_productos(
+    db: Session,
+    empresa_id: int,
+    skip: int = 0,
+    limit: int = 100,
+    solo_pos: bool = False,
+    search: str = None,
+    filter_group: str = None,
+    filter_stock: str = None,
+):
+    from sqlalchemy import or_, ilike_op
     q = db.query(models.Producto).filter(
         models.Producto.empresa_id == empresa_id,
         models.Producto.vigente == True,
     )
     if solo_pos:
-        from sqlalchemy import or_
         from crud.grupos_producto import _get_overrides, _apply_empresa_overrides
-        # Traer todos los grupos visibles para esta empresa con overlay aplicado
         grupos = db.query(models.GrupoProducto).filter(
             or_(
                 models.GrupoProducto.empresa_id.is_(None),
@@ -84,6 +92,53 @@ def get_productos(db: Session, empresa_id: int, skip: int = 0, limit: int = 100,
         _apply_empresa_overrides(grupos, _get_overrides(db, empresa_id))
         visible_ids = [g.id for g in grupos if g.visible_pos]
         q = q.filter(models.Producto.grupo_item.in_(visible_ids))
+
+    if filter_group:
+        if filter_group == 'servicio':
+            q = q.filter(models.Producto.es_servicio == True)
+        else:
+            try:
+                q = q.filter(
+                    models.Producto.es_servicio == False,
+                    models.Producto.grupo_item == int(filter_group),
+                )
+            except (ValueError, TypeError):
+                pass
+
+    if filter_stock and filter_stock != 'all':
+        if filter_stock == 'ok':
+            q = q.filter(
+                models.Producto.es_servicio == False,
+                models.Producto.stock_actual > models.Producto.stock_minimo,
+            )
+        elif filter_stock == 'bajo':
+            q = q.filter(
+                models.Producto.es_servicio == False,
+                models.Producto.stock_actual <= models.Producto.stock_minimo,
+                models.Producto.stock_actual > 0,
+            )
+        elif filter_stock == 'sinStock':
+            q = q.filter(
+                models.Producto.es_servicio == False,
+                models.Producto.stock_actual <= 0,
+            )
+
+    if search:
+        s = f"%{search}%"
+        # Join with GrupoProducto for category search
+        q = q.outerjoin(
+            models.GrupoProducto,
+            models.Producto.grupo_item == models.GrupoProducto.id,
+        ).filter(
+            or_(
+                models.Producto.nombre.ilike(s),
+                models.Producto.sku.ilike(s),
+                models.Producto.codigo_barras.ilike(s),
+                models.Producto.descripcion.ilike(s),
+                models.GrupoProducto.nombre.ilike(s),
+            )
+        )
+
     items = q.offset(skip).limit(limit).all()
     return attach_impuestos_to_productos(db, empresa_id, items)
 

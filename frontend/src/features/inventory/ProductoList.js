@@ -8,11 +8,14 @@ import {
   TableHead, TableRow, TableSortLabel, IconButton, Typography,
   useMediaQuery, useTheme,
   Box, TextField, Chip, Button, Grid, Paper, Divider, Tooltip, InputAdornment,
-  Collapse,
+  Collapse, CircularProgress, Alert, Checkbox, Dialog, DialogTitle,
+  DialogContent, DialogActions, Select, MenuItem, FormControl, InputLabel,
+  LinearProgress,
 } from '@mui/material';
 import {
   Edit, Delete, Search, Download, Inventory,
-  Warning, CheckCircle, Category, Settings
+  Warning, CheckCircle, Category, Settings, ContentCopy, SwapVert,
+  FilterList, Close,
 } from '@mui/icons-material';
 
 const DEFAULT_ACCENT = '#8B5CF6';
@@ -165,6 +168,8 @@ const ProductoCard = ({ producto, grupos, onEditProducto, handleDelete, accentCo
 const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT_ACCENT }) => {
   const [productos, setProductos]         = useState([]);
   const [grupos, setGrupos]               = useState([]);
+  const [loading, setLoading]             = useState(true);
+  const [error, setError]                 = useState(null);
   const [searchTerm, setSearchTerm]       = useState('');
   const [filterGroup, setFilterGroup]     = useState('all');
   const [filterStock, setFilterStock]     = useState('all');
@@ -175,6 +180,10 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
   const [page, setPage]               = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [expandedProducts, setExpandedProducts] = useState(new Set());
+  // Bulk selection
+  const [selected, setSelected]           = useState(new Set());
+  const [bulkPriceDialog, setBulkPriceDialog] = useState(false);
+  const [bulkPct, setBulkPct]             = useState('');
 
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -186,10 +195,46 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
     apiClient.get('/grupos-producto/').then(r => setGrupos(r.data || [])).catch(() => {});
   }, []);
 
-  const fetchProductos = () =>
-    apiClient.get('/productos/').then(r => setProductos(r.data)).catch(console.error);
+  const fetchProductos = () => {
+    setLoading(true);
+    setError(null);
+    apiClient.get('/productos/')
+      .then(r => { setProductos(r.data); setSelected(new Set()); })
+      .catch(() => setError('No se pudieron cargar los productos. Intenta recargar la página.'))
+      .finally(() => setLoading(false));
+  };
 
   const handleDelete = (id) => { setProductoToDelete(id); setShowConfirmDialog(true); };
+
+  const handleDuplicate = async (id) => {
+    try {
+      await apiClient.post(`/productos/${id}/duplicate`);
+      toast.success('Producto duplicado');
+      fetchProductos();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al duplicar');
+    }
+  };
+
+  const handleBulkPriceApply = async () => {
+    const pct = parseFloat(bulkPct);
+    if (isNaN(pct)) return;
+    const ids = Array.from(selected);
+    let ok = 0;
+    for (const id of ids) {
+      const prod = productos.find(p => p.id === id);
+      if (!prod) continue;
+      const newPrecio = Math.round(prod.precio * (1 + pct / 100));
+      try {
+        await apiClient.put(`/productos/${id}`, { ...prod, precio: newPrecio });
+        ok++;
+      } catch {}
+    }
+    toast.success(`${ok} productos actualizados`);
+    setBulkPriceDialog(false);
+    setBulkPct('');
+    fetchProductos();
+  };
 
   const confirmDelete = () => {
     apiClient.delete(`/productos/${productoToDelete}`)
@@ -240,12 +285,12 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
       else list = list.filter(p => !p.es_servicio && String(p.grupo_item) === filterGroup);
     }
 
-    // Stock filter (applied after group filter)
+    // Stock filter (applied after group filter) — consistent: bajo means stock_actual < stock_minimo
     if (filterStock !== 'all') {
       if (filterStock === 'ok') {
-        list = list.filter(p => !p.es_servicio && (p.stock_actual ?? 0) > (p.stock_minimo ?? 0));
+        list = list.filter(p => !p.es_servicio && (p.stock_actual ?? 0) >= (p.stock_minimo ?? 0));
       } else if (filterStock === 'bajo') {
-        list = list.filter(p => !p.es_servicio && (p.stock_actual ?? 0) <= (p.stock_minimo ?? 0) && (p.stock_actual ?? 0) > 0);
+        list = list.filter(p => !p.es_servicio && (p.stock_actual ?? 0) < (p.stock_minimo ?? 0) && (p.stock_actual ?? 0) > 0);
       } else if (filterStock === 'sinStock') {
         list = list.filter(p => !p.es_servicio && (p.stock_actual ?? 0) <= 0);
       }
@@ -293,25 +338,36 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
   }, [filteredProductos, page, rowsPerPage, sortBy, sortDir]);
 
   // ── Stats ────────────────────────────────────────────────────────────────
-  const stockBajo        = productos.filter(p => !p.es_servicio && (p.stock_actual ?? 0) <= (p.stock_minimo ?? 0)).length;
+  const stockBajo        = productos.filter(p => !p.es_servicio && (p.stock_actual ?? 0) < (p.stock_minimo ?? 0)).length;
   const servicios        = productos.filter(p => p.es_servicio).length;
   const productosN       = productos.filter(p => !p.es_servicio).length;
   const valorInventario  = productos
     .filter(p => !p.es_servicio)
     .reduce((sum, p) => sum + (p.stock_actual ?? 0) * (p.costo ?? 0), 0);
 
-  // ── Filtros de grupo dinámicos ────────────────────────────────────────────
+  // ── Filtros de grupo dinámicos con conteos ────────────────────────────────
   const groupFilters = [
-    { value: 'all',      label: 'Todos' },
-    ...grupos.map(g => ({ value: String(g.id), label: g.nombre, color: g.color })),
-    { value: 'servicio', label: 'Servicios' },
+    { value: 'all',      label: `Todos (${productos.length})` },
+    ...grupos.map(g => ({
+      value: String(g.id), label: g.nombre, color: g.color,
+      count: productos.filter(p => !p.es_servicio && p.grupo_item === g.id).length,
+    })),
+    { value: 'servicio', label: `Servicios (${productos.filter(p => p.es_servicio).length})` },
   ];
 
   const stockFilters = [
-    { value: 'all',      label: 'Todos' },
-    { value: 'ok',       label: '✓ Stock OK' },
-    { value: 'bajo',     label: '⚠ Bajo mínimo' },
-    { value: 'sinStock', label: '⛔ Sin stock' },
+    { value: 'all',      label: `Todos (${productos.filter(p => !p.es_servicio).length})` },
+    { value: 'ok',       label: `✓ OK (${productos.filter(p => !p.es_servicio && (p.stock_actual ?? 0) >= (p.stock_minimo ?? 0)).length})` },
+    { value: 'bajo',     label: `⚠ Bajo (${productos.filter(p => !p.es_servicio && (p.stock_actual ?? 0) < (p.stock_minimo ?? 0) && (p.stock_actual ?? 0) > 0).length})` },
+    { value: 'sinStock', label: `⛔ Sin stock (${productos.filter(p => !p.es_servicio && (p.stock_actual ?? 0) <= 0).length})` },
+  ];
+
+  // Mobile sort options
+  const mobileSortOptions = [
+    { value: 'nombre',  label: 'Nombre' },
+    { value: 'precio',  label: 'Precio' },
+    { value: 'costo',   label: 'Costo' },
+    { value: 'stock',   label: 'Stock' },
   ];
 
   // ── Margen helper ─────────────────────────────────────────────────────────
@@ -327,8 +383,22 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
     return '#EF4444';
   };
 
+  // ── Bulk selection helpers ─────────────────────────────────────────────────
+  const allVisibleIds = paginatedProductos.map(p => p.id);
+  const allSelected   = allVisibleIds.length > 0 && allVisibleIds.every(id => selected.has(id));
+  const someSelected  = allVisibleIds.some(id => selected.has(id)) && !allSelected;
+  const toggleSelect  = (id) => setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+  const toggleAll     = () => {
+    if (allSelected) setSelected(prev => { const s = new Set(prev); allVisibleIds.forEach(id => s.delete(id)); return s; });
+    else setSelected(prev => { const s = new Set(prev); allVisibleIds.forEach(id => s.add(id)); return s; });
+  };
+
   return (
     <Box sx={{ width: '100%', maxWidth: '100%' }}>
+      {/* ── Loading / Error ── */}
+      {loading && <LinearProgress sx={{ mb: 1, borderRadius: 1 }} />}
+      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+
       {/* ── KPI Cards ── */}
       <Grid container spacing={1.5} sx={{ mb: 2 }}>
         <Grid item xs={6} sm={3}>
@@ -376,6 +446,27 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
           startAdornment: <InputAdornment position="start"><Search sx={{ color: 'text.secondary', fontSize: 20 }} /></InputAdornment>,
         }}
       />
+
+      {/* ── Mobile sort ── */}
+      {isMobile && (
+        <Box sx={{ display: 'flex', gap: 1, mb: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+          <SwapVert sx={{ fontSize: 16, color: 'text.secondary' }} />
+          {mobileSortOptions.map(opt => (
+            <Chip
+              key={opt.value}
+              label={opt.label + (sortBy === opt.value ? (sortDir === 'asc' ? ' ↑' : ' ↓') : '')}
+              size="small"
+              onClick={() => handleSort(opt.value)}
+              sx={{
+                fontWeight: 600, fontSize: 11, borderRadius: 1.5, cursor: 'pointer',
+                ...(sortBy === opt.value
+                  ? { bgcolor: accentColor, color: '#fff' }
+                  : { bgcolor: 'action.hover', color: 'text.secondary' }),
+              }}
+            />
+          ))}
+        </Box>
+      )}
 
       {/* ── Botones exportar ── */}
       <Box sx={{ display: 'flex', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
@@ -438,6 +529,28 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
         </Box>
       )}
 
+      {/* ── Bulk action bar ── */}
+      {selected.size > 0 && (
+        <Box sx={{
+          display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5, px: 2, py: 1.5,
+          bgcolor: `${accentColor}12`, borderRadius: 2, border: `1px solid ${accentColor}30`, flexWrap: 'wrap',
+        }}>
+          <Typography sx={{ fontWeight: 700, fontSize: 13, color: accentColor }}>
+            {selected.size} seleccionado{selected.size > 1 ? 's' : ''}
+          </Typography>
+          <Button size="small" variant="outlined"
+            sx={{ borderRadius: 2, fontSize: 12, borderColor: accentColor, color: accentColor }}
+            onClick={() => setBulkPriceDialog(true)}>
+            Ajustar precios %
+          </Button>
+          <Button size="small" variant="outlined" color="error"
+            sx={{ borderRadius: 2, fontSize: 12 }}
+            onClick={() => setSelected(new Set())}>
+            <Close fontSize="small" sx={{ mr: 0.5 }} /> Cancelar
+          </Button>
+        </Box>
+      )}
+
       {/* ── Lista ── */}
       {isMobile ? (
         <Box>
@@ -457,6 +570,14 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
           <Table size="small">
             <TableHead>
               <TableRow sx={{ bgcolor: 'action.hover' }}>
+                <TableCell padding="checkbox">
+                  <Checkbox
+                    size="small"
+                    checked={allSelected}
+                    indeterminate={someSelected}
+                    onChange={toggleAll}
+                  />
+                </TableCell>
                 <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>SKU</TableCell>
                 <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>
                   <TableSortLabel
@@ -504,7 +625,7 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
             <TableBody>
               {paginatedProductos.length === 0
                 ? <TableRow>
-                    <TableCell colSpan={10} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
+                    <TableCell colSpan={11} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
                       No se encontraron productos
                     </TableCell>
                   </TableRow>
@@ -521,7 +642,10 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
 
                     return (
                       <Fragment key={producto.id}>
-                      <TableRow hover>
+                      <TableRow hover selected={selected.has(producto.id)}>
+                        <TableCell padding="checkbox">
+                          <Checkbox size="small" checked={selected.has(producto.id)} onChange={() => toggleSelect(producto.id)} />
+                        </TableCell>
                         <TableCell sx={{ fontSize: 12, fontWeight: 700, fontFamily: 'monospace' }}>
                           <Box>
                             {producto.sku ? (
@@ -626,6 +750,12 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
                                 <Edit fontSize="small" />
                               </IconButton>
                             </Tooltip>
+                            <Tooltip title="Duplicar producto">
+                              <IconButton size="small" onClick={() => handleDuplicate(producto.id)}
+                                sx={{ color: '#64748b', '&:hover': { bgcolor: 'action.hover' } }}>
+                                <ContentCopy fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
                             <Tooltip title="Eliminar">
                               <IconButton size="small" onClick={() => handleDelete(producto.id)}
                                 sx={{ color: '#EF4444', '&:hover': { bgcolor: '#FEF2F2' } }}>
@@ -637,7 +767,7 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
                       </TableRow>
                       {producto.tiene_variantes && varCount > 0 && (
                         <TableRow>
-                          <TableCell colSpan={10} sx={{ p: 0, border: 0 }}>
+                          <TableCell colSpan={11} sx={{ p: 0, border: 0 }}>
                             <Collapse in={isExpanded} timeout="auto" unmountOnExit>
                               <Box sx={{ px: 4, py: 1.5, bgcolor: 'action.hover' }}>
                                 <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', mb: 1, textTransform: 'uppercase', letterSpacing: 0.5 }}>
@@ -704,6 +834,32 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
         title="Eliminar producto"
         message="¿Estás seguro de que quieres eliminar este producto/servicio? Esta acción no se puede deshacer."
       />
+
+      {/* ── Bulk price dialog ── */}
+      <Dialog open={bulkPriceDialog} onClose={() => setBulkPriceDialog(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Ajustar precios en masa</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 2 }}>
+            Se aplicará el ajuste a <strong>{selected.size}</strong> producto(s) seleccionado(s).
+          </Typography>
+          <TextField
+            fullWidth
+            label="Variación de precio (%)"
+            placeholder="Ej: 10 para subir 10%, -5 para bajar 5%"
+            value={bulkPct}
+            onChange={e => setBulkPct(e.target.value)}
+            type="number"
+            InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+            autoFocus
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setBulkPriceDialog(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={handleBulkPriceApply} disabled={!bulkPct}>
+            Aplicar
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

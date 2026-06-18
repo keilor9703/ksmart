@@ -151,6 +151,9 @@ const ProductoForm = ({
   const [pendingFiles,        setPendingFiles]        = useState([]);
   const [formOpen,            setFormOpen]            = useState(false);
   const [bulkOpen,            setBulkOpen]            = useState(false);
+  const [isSaving,            setIsSaving]            = useState(false);
+  // Reverse price calculator: type margin% to compute precio from costo
+  const [marginInput,         setMarginInput]         = useState('');
 
   // ── Variant state ──
   const [tieneVariantes,    setTieneVariantes]    = useState(false);
@@ -303,49 +306,69 @@ const ProductoForm = ({
   const removeImage = (index) => setImagenes(prev => prev.filter((_, i) => i !== index));
   const handleClose = () => { resetFields(); setFormOpen(false); if (onClose) onClose(); };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const data = {
-      nombre,
-      sku: sku.trim().toUpperCase() || undefined,
-      codigo_barras: codigoBarras || null,
-      precio: parseFloat(precio) || 0.0,
-      costo: esServicio ? 0.0 : parseFloat(costo) || 0.0,
-      es_servicio: esServicio,
-      unidad_medida: esServicio ? 'UND' : unidadMedida,
-      grupo_item: esServicio ? 2 : parseInt(grupoItem),
-      stock_minimo: esServicio || stockMinimo === '' ? 0 : parseFloat(stockMinimo),
-      maneja_lotes: esServicio ? false : manejaLotes,
-      unidades_por_empaque: esServicio ? 1 : (parseFloat(unidadesPorEmpaque) > 1 ? parseFloat(unidadesPorEmpaque) : 1),
-      imagenes,
-      mostrar_en_catalogo: mostrarEnCatalogo,
-      descripcion: descripcion || null,
-      tiene_variantes: tieneVariantes,
-      ...(!productoToEdit && !esServicio && {
-        stock_inicial:     parseFloat(stockInicial) || 0,
-        numero_lote:       numeroLote || undefined,
-        fecha_vencimiento: fechaVencimiento || undefined,
-      }),
-    };
+  const buildPayload = () => ({
+    nombre,
+    sku: sku.trim().toUpperCase() || undefined,
+    codigo_barras: codigoBarras || null,
+    precio: parseFloat(precio) || 0.0,
+    costo: esServicio ? 0.0 : parseFloat(costo) || 0.0,
+    es_servicio: esServicio,
+    unidad_medida: esServicio ? 'UND' : unidadMedida,
+    grupo_item: esServicio ? 2 : parseInt(grupoItem),
+    stock_minimo: esServicio || stockMinimo === '' ? 0 : parseFloat(stockMinimo),
+    maneja_lotes: esServicio ? false : manejaLotes,
+    unidades_por_empaque: esServicio ? 1 : (parseFloat(unidadesPorEmpaque) > 1 ? parseFloat(unidadesPorEmpaque) : 1),
+    imagenes,
+    mostrar_en_catalogo: mostrarEnCatalogo,
+    descripcion: descripcion || null,
+    tiene_variantes: tieneVariantes,
+    ...(!productoToEdit && !esServicio && {
+      stock_inicial:     parseFloat(stockInicial) || 0,
+      numero_lote:       numeroLote || undefined,
+      fecha_vencimiento: fechaVencimiento || undefined,
+    }),
+  });
 
-    const req = productoToEdit
-      ? apiClient.put(`/productos/${productoToEdit.id}`, data)
-      : apiClient.post('/productos/', data);
-
-    req.then(async (res) => {
+  const saveProducto = async (andCreateAnother = false) => {
+    if (isSaving) return;
+    setIsSaving(true);
+    const data = buildPayload();
+    try {
+      const res = productoToEdit
+        ? await apiClient.put(`/productos/${productoToEdit.id}`, data)
+        : await apiClient.post('/productos/', data);
       const productoId = res.data.id;
+      // Assign tax atomically — surface any error to the user
       try {
         if (impuestoId) {
           await apiClient.post(`/impuestos/producto/${productoId}`, { impuesto_id: parseInt(impuestoId) });
         } else {
           await apiClient.delete(`/impuestos/producto/${productoId}`).catch(() => {});
         }
-      } catch {}
+      } catch {
+        toast.warning('Producto guardado, pero no se pudo asignar el impuesto. Intente editarlo.');
+      }
       toast.success(`Ítem ${productoToEdit ? 'actualizado' : 'agregado'} exitosamente`);
-      if (productoToEdit) { onProductoUpdated(res.data); } else { resetFields(); onProductoAdded(res.data); }
-      handleClose();
-    }).catch(() => toast.error(`Error al ${productoToEdit ? 'actualizar' : 'agregar'} el ítem.`));
+      if (productoToEdit) {
+        onProductoUpdated(res.data);
+        if (!andCreateAnother) handleClose();
+      } else {
+        onProductoAdded(res.data);
+        if (andCreateAnother) {
+          resetFields();
+        } else {
+          handleClose();
+        }
+      }
+    } catch (err) {
+      const msg = err.response?.data?.detail || `Error al ${productoToEdit ? 'actualizar' : 'agregar'} el ítem.`;
+      toast.error(msg);
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  const handleSubmit = (e) => { e.preventDefault(); saveProducto(false); };
 
   // ── Computed values ──
   const isEditing      = Boolean(productoToEdit);
@@ -606,9 +629,38 @@ const ProductoForm = ({
                       <CurrencyField
                         label={isMateriaPrima ? 'Costo de Adquisición *' : 'Costo Actual *'}
                         value={costo}
-                        onChange={val => setCosto(val)}
+                        onChange={val => { setCosto(val); setMarginInput(''); }}
                         required
                       />
+                    </Grid>
+                  )}
+
+                  {/* Calculadora inversa: margen → precio */}
+                  {!esServicio && (
+                    <Grid item xs={12}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1.5, borderRadius: 2, bgcolor: 'action.hover' }}>
+                        <Tune sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }} />
+                        <Typography sx={{ fontSize: 12, color: 'text.secondary', flexShrink: 0 }}>Calcular precio por margen:</Typography>
+                        <TextField
+                          size="small"
+                          placeholder="Margen %"
+                          value={marginInput}
+                          onChange={e => {
+                            const m = e.target.value;
+                            setMarginInput(m);
+                            const mNum = parseFloat(m);
+                            const c = parseFloat(costo) || 0;
+                            if (!isNaN(mNum) && mNum < 100 && c > 0) {
+                              setPrecio(String(Math.round(c / (1 - mNum / 100))));
+                            }
+                          }}
+                          InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                          sx={{ width: 110 }}
+                          type="number"
+                          inputProps={{ min: 0, max: 99, step: 1 }}
+                        />
+                        <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>→ precio automático</Typography>
+                      </Box>
                     </Grid>
                   )}
 
@@ -969,11 +1021,21 @@ const ProductoForm = ({
 
           {/* ── Action Buttons ── */}
           <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'flex-end', mt: 1.5, pt: 2.5, borderTop: '1px solid', borderColor: 'divider', flexWrap: 'wrap' }}>
-            <Button onClick={handleClose} variant="outlined"
+            <Button onClick={handleClose} variant="outlined" disabled={isSaving}
               sx={{ borderRadius: 2, fontWeight: 600, borderColor: 'divider', color: 'text.secondary', px: 3 }}>
               Cancelar
             </Button>
-            <Button type="submit" variant="contained"
+            {!isEditing && (
+              <Button
+                variant="outlined"
+                disabled={isSaving || !nombre}
+                onClick={() => saveProducto(true)}
+                sx={{ borderRadius: 2, fontWeight: 600, borderColor: accentColor, color: accentColor, px: 2 }}
+              >
+                Guardar y crear otro
+              </Button>
+            )}
+            <Button type="submit" variant="contained" disabled={isSaving || !nombre}
               sx={{
                 background: esServicio
                   ? 'linear-gradient(135deg, #06B6D4, #22d3ee)'
@@ -982,7 +1044,7 @@ const ProductoForm = ({
                 borderRadius: 2, fontWeight: 700, px: 4,
               }}
             >
-              {isEditing ? 'Actualizar Cambios' : `Guardar ${esServicio ? 'Servicio' : 'Producto'}`}
+              {isSaving ? 'Guardando…' : (isEditing ? 'Actualizar Cambios' : `Guardar ${esServicio ? 'Servicio' : 'Producto'}`)}
             </Button>
           </Box>
 
