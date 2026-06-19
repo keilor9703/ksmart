@@ -760,6 +760,7 @@ class PlanSuscripcion(Base):
     caracteristicas = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     is_featured = Column(Boolean, default=False)
+    incluye_fe = Column(Boolean, default=True)  # False = plan Starter (sin FE)
     # NULL = visible para todas las empresas; valor = plan privado para esa empresa
     empresa_id_exclusivo = Column(Integer, ForeignKey("empresas.id"), nullable=True, default=None)
     empresa_exclusiva = relationship("Empresa", foreign_keys=[empresa_id_exclusivo])
