@@ -232,27 +232,24 @@ def confirmar_pago_widget(
     logger.info(f"✅ Suscripción activada vía widget (verificada con API Wompi): empresa {empresa_id_ref}")
 
     # ── Facturación electrónica de la suscripción ────────────────────────────
-    # KSmart (empresa_id=1) emite la FE al cliente usando sus propias credenciales Matías.
+    # El dueño del sistema (PlataformaConfig) emite la FE al cliente que pagó,
+    # usando sus propias credenciales Matías. Independiente de las empresas clientes.
     try:
-        ksmart_empresa = db.query(models.Empresa).filter_by(id=1).first()
+        plataforma = db.query(models.PlataformaConfig).filter_by(id=1).first()
         if (
-            ksmart_empresa
-            and ksmart_empresa.facturacion_electronica_activa
-            and (ksmart_empresa.matias_api_key or ksmart_empresa.matias_sandbox_api_key)
+            plataforma
+            and plataforma.facturacion_electronica_activa
+            and (plataforma.matias_api_key or plataforma.matias_sandbox_api_key)
+            and plataforma.resolucion_numero
         ):
-            test_mode = ksmart_empresa.matias_test_mode if ksmart_empresa.matias_test_mode is not None else True
-            api_key   = ksmart_empresa.matias_sandbox_api_key if test_mode else ksmart_empresa.matias_api_key
-            resolucion = (
-                db.query(models.ResolucionDian)
-                .filter_by(empresa_id=1, is_active=True)
-                .first()
-            )
-            if api_key and resolucion:
+            test_mode = plataforma.matias_test_mode if plataforma.matias_test_mode is not None else True
+            api_key   = plataforma.matias_sandbox_api_key if test_mode else plataforma.matias_api_key
+            if api_key:
                 resultado = _ms.emitir_factura_suscripcion(
                     registro_pago   = nuevo_pago,
                     empresa_cliente = empresa,
                     plan            = plan,
-                    resolucion      = resolucion,
+                    plataforma      = plataforma,
                     api_key         = api_key,
                     test_mode       = test_mode,
                 )
@@ -260,8 +257,8 @@ def confirmar_pago_widget(
                 nuevo_pago.cufe_fe               = resultado.get("cufe_fe")
                 nuevo_pago.pdf_url_fe            = resultado.get("pdf_url_fe")
                 nuevo_pago.numero_factura_ksmart = resultado.get("numero_factura")
-                if resultado["estado"] == "exitoso" and resolucion:
-                    resolucion.numero_actual += 1
+                if resultado["estado"] == "exitoso":
+                    plataforma.resolucion_numero_actual = (plataforma.resolucion_numero_actual or 0) + 1
                 db.commit()
                 logger.info("FE suscripción empresa %s: %s", empresa_id_ref, resultado["estado"])
     except Exception as _fe_exc:

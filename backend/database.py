@@ -2021,6 +2021,76 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v96)
                 logger.info("V96 (FE en registros_pagos) aplicada.")
 
+            # ── V97: tabla plataforma_config (dueño del sistema, singleton) ───
+            migration_v97 = "v97_plataforma_config"
+            if not _migration_already_applied(conn, migration_v97):
+                if not _table_exists(conn, "plataforma_config"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE plataforma_config (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                nombre_empresa VARCHAR(150),
+                                nit VARCHAR(20),
+                                dv VARCHAR(1),
+                                tipo_organizacion_id INTEGER DEFAULT 1,
+                                tipo_regimen_id INTEGER DEFAULT 48,
+                                responsabilidad_fiscal_codes VARCHAR DEFAULT 'O-13',
+                                departamento_code VARCHAR(5),
+                                ciudad_code VARCHAR(5),
+                                correo_facturacion VARCHAR,
+                                direccion VARCHAR,
+                                telefono VARCHAR(20),
+                                logo_base64 TEXT,
+                                facturacion_electronica_activa BOOLEAN DEFAULT 0,
+                                matias_api_key VARCHAR,
+                                matias_sandbox_api_key VARCHAR,
+                                matias_test_mode BOOLEAN DEFAULT 1,
+                                resolucion_prefijo VARCHAR(10) DEFAULT '',
+                                resolucion_numero VARCHAR(50),
+                                resolucion_numero_actual INTEGER DEFAULT 0,
+                                resolucion_numero_inicial INTEGER DEFAULT 1,
+                                resolucion_numero_final INTEGER DEFAULT 99999999,
+                                resolucion_vigencia_desde DATE,
+                                resolucion_vigencia_hasta DATE,
+                                resolucion_clave_tecnica VARCHAR(200),
+                                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE plataforma_config (
+                                id SERIAL PRIMARY KEY,
+                                nombre_empresa VARCHAR(150),
+                                nit VARCHAR(20),
+                                dv VARCHAR(1),
+                                tipo_organizacion_id INTEGER DEFAULT 1,
+                                tipo_regimen_id INTEGER DEFAULT 48,
+                                responsabilidad_fiscal_codes VARCHAR DEFAULT 'O-13',
+                                departamento_code VARCHAR(5),
+                                ciudad_code VARCHAR(5),
+                                correo_facturacion VARCHAR,
+                                direccion VARCHAR,
+                                telefono VARCHAR(20),
+                                logo_base64 TEXT,
+                                facturacion_electronica_activa BOOLEAN DEFAULT FALSE,
+                                matias_api_key VARCHAR,
+                                matias_sandbox_api_key VARCHAR,
+                                matias_test_mode BOOLEAN DEFAULT TRUE,
+                                resolucion_prefijo VARCHAR(10) DEFAULT '',
+                                resolucion_numero VARCHAR(50),
+                                resolucion_numero_actual INTEGER DEFAULT 0,
+                                resolucion_numero_inicial INTEGER DEFAULT 1,
+                                resolucion_numero_final INTEGER DEFAULT 99999999,
+                                resolucion_vigencia_desde DATE,
+                                resolucion_vigencia_hasta DATE,
+                                resolucion_clave_tecnica VARCHAR(200),
+                                updated_at TIMESTAMPTZ DEFAULT NOW()
+                            )
+                        """))
+                    logger.info("V97: tabla plataforma_config creada.")
+                _mark_migration_applied(conn, migration_v97)
+                logger.info("V97 (plataforma_config) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

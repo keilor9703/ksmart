@@ -9,7 +9,7 @@ import {
   Add, AdminPanelSettings, Autorenew, TrendingUp, Business, LocalOffer,
   History, Campaign, Engineering, ReceiptLong, Search, Edit, Payments,
   ExpandLess, ExpandMore, Warning, SupportAgent, DeleteForever, Tune,
-  ViewModule, Close,
+  ViewModule, Close, Storefront,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 
@@ -27,6 +27,7 @@ import AuditLogsTable from './components/AuditLogsTable';
 import AnnouncementsManager from './components/AnnouncementsManager';
 import JobsControl from './components/JobsControl';
 import PlanFormDialog from './components/PlanFormDialog'; // ✅ Nuevo Componente Importado
+import PlataformaConfigForm from './components/PlataformaConfigForm';
 
 const ACCENT = '#F43F5E';
 const BLUE = '#3B82F6';
@@ -55,6 +56,7 @@ const TABS_CONFIG = [
   { label: 'Tareas', icon: <Engineering fontSize="small" />, fullLabel: 'Jobs del Sistema' },
   { label: 'Finanzas', icon: <ReceiptLong fontSize="small" />, fullLabel: 'Control de Pagos' },
   { label: 'Perfiles', icon: <Tune fontSize="small" />, fullLabel: 'Módulos por Tipo de Negocio' },
+  { label: 'Mi Empresa', icon: <Storefront fontSize="small" />, fullLabel: 'Datos del Facturador (Plataforma)' },
 ];
 
 const formatDateForInput = (dateString) => dateString ? new Date(dateString).toISOString().split('T')[0] : '';
@@ -521,6 +523,10 @@ export default function GestionSaaS() {
                 </Grid>
               ))}
             </Grid>
+          </TabPanel>
+
+          <TabPanel value={tabValue} index={8}>
+            <PlataformaConfigForm />
           </TabPanel>
         </Box>
       </Box>

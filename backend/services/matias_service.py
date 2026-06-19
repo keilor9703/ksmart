@@ -315,11 +315,11 @@ def build_invoice_payload(venta, empresa, cliente, detalles) -> dict:
     return payload
 
 
-def build_subscription_invoice_payload(registro_pago, empresa_cliente, plan, resolucion) -> dict:
+def build_subscription_invoice_payload(registro_pago, empresa_cliente, plan, plataforma) -> dict:
     """
-    Construye el payload para facturar una suscripción de KSmart.
-    La empresa emisora es KSmart (asociada al Bearer token de Matías).
-    El receptor es la empresa cliente que pagó.
+    Construye el payload para facturar una suscripción del sistema.
+    La empresa emisora es el dueño del sistema (asociado al Bearer token de Matías,
+    configurado en PlataformaConfig). El receptor es la empresa cliente que pagó.
     """
     ahora = registro_pago.fecha_pago or datetime.now(timezone.utc)
     tz_colombia = timezone(timedelta(hours=-5))
@@ -327,8 +327,8 @@ def build_subscription_invoice_payload(registro_pago, empresa_cliente, plan, res
     fecha_str = ahora_col.strftime("%Y-%m-%d")
     hora_str  = ahora_col.strftime("%H:%M:%S")
 
-    prefijo   = (resolucion.prefijo if resolucion else "") or ""
-    siguiente = (resolucion.numero_actual + 1) if resolucion else 1
+    prefijo   = (plataforma.resolucion_prefijo if plataforma else "") or ""
+    siguiente = ((plataforma.resolucion_numero_actual or 0) + 1) if plataforma else 1
 
     # ── Cliente (empresa que pagó la suscripción) ───────────────────────────
     nit_cliente = getattr(empresa_cliente, "nit", None)
@@ -397,7 +397,7 @@ def build_subscription_invoice_payload(registro_pago, empresa_cliente, plan, res
     }
 
     return {
-        "resolution_number": resolucion.numero_resolucion if resolucion else "",
+        "resolution_number": (plataforma.resolucion_numero if plataforma else "") or "",
         "prefix":            prefijo,
         "document_number":   str(siguiente),
         "date":              fecha_str,
@@ -406,7 +406,7 @@ def build_subscription_invoice_payload(registro_pago, empresa_cliente, plan, res
         "operation_type_id": OPERATION_TYPE_STANDARD,
         "graphic_representation": 1,
         "send_email": 1 if customer.get("email") and nit_cliente else 0,
-        "notes":      f"Pago suscripción plataforma KSmart360. Ref: {registro_pago.bold_tx_id or ''}",
+        "notes":      f"Pago suscripción plataforma. Ref: {registro_pago.bold_tx_id or ''}",
         "payments":   [pago],
         "customer":   customer,
         "lines":      lines,
@@ -418,13 +418,13 @@ def emitir_factura_suscripcion(
     registro_pago,
     empresa_cliente,
     plan,
-    resolucion,
+    plataforma,
     api_key: str,
     test_mode: bool,
 ) -> dict:
     """
-    Emite la factura electrónica de una suscripción KSmart usando las
-    credenciales Matías de la empresa KSmart (empresa_id=1).
+    Emite la factura electrónica de una suscripción usando las credenciales
+    Matías del dueño del sistema (PlataformaConfig).
 
     Retorna dict con: estado, cufe_fe, pdf_url_fe, numero_factura, mensaje
     Nunca lanza excepción.
@@ -433,7 +433,7 @@ def emitir_factura_suscripcion(
     respuesta_raw: dict = {}
     try:
         base_url     = get_matias_url(test_mode)
-        payload_dict = build_subscription_invoice_payload(registro_pago, empresa_cliente, plan, resolucion)
+        payload_dict = build_subscription_invoice_payload(registro_pago, empresa_cliente, plan, plataforma)
         endpoint     = f"{base_url}/invoice"
         headers = {
             "Authorization": f"Bearer {api_key}",

@@ -460,3 +460,127 @@ def notificar_vencimientos_lotes(db: Session = Depends(get_db), _: models.User =
     """
     total = crud_perecederos.notificar_vencimientos_proximos(db)
     return {"msg": f"Se generaron {total} notificaciones de vencimiento."}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CONFIGURACIÓN DE LA PLATAFORMA (DUEÑO DEL SISTEMA)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _get_or_create_plataforma(db: Session) -> models.PlataformaConfig:
+    cfg = db.query(models.PlataformaConfig).filter_by(id=1).first()
+    if not cfg:
+        cfg = models.PlataformaConfig(id=1)
+        db.add(cfg)
+        db.commit()
+        db.refresh(cfg)
+    return cfg
+
+
+# Campos editables y si deben enmascararse en la respuesta GET
+_PLATAFORMA_FIELDS = [
+    "nombre_empresa", "nit", "dv", "tipo_organizacion_id", "tipo_regimen_id",
+    "responsabilidad_fiscal_codes", "departamento_code", "ciudad_code",
+    "correo_facturacion", "direccion", "telefono", "logo_base64",
+    "facturacion_electronica_activa", "matias_api_key", "matias_sandbox_api_key",
+    "matias_test_mode", "resolucion_prefijo", "resolucion_numero",
+    "resolucion_numero_actual", "resolucion_numero_inicial", "resolucion_numero_final",
+    "resolucion_vigencia_desde", "resolucion_vigencia_hasta", "resolucion_clave_tecnica",
+]
+
+
+def _serialize_plataforma(cfg: models.PlataformaConfig) -> dict:
+    """Serializa la config. Las API keys se enmascaran (solo se indica si existen)."""
+    def _mask(val):
+        if not val:
+            return None
+        return f"••••••••{val[-4:]}" if len(val) > 4 else "••••"
+    return {
+        "nombre_empresa":               cfg.nombre_empresa,
+        "nit":                          cfg.nit,
+        "dv":                           cfg.dv,
+        "tipo_organizacion_id":         cfg.tipo_organizacion_id,
+        "tipo_regimen_id":              cfg.tipo_regimen_id,
+        "responsabilidad_fiscal_codes": cfg.responsabilidad_fiscal_codes,
+        "departamento_code":            cfg.departamento_code,
+        "ciudad_code":                  cfg.ciudad_code,
+        "correo_facturacion":           cfg.correo_facturacion,
+        "direccion":                    cfg.direccion,
+        "telefono":                     cfg.telefono,
+        "logo_base64":                  cfg.logo_base64,
+        "facturacion_electronica_activa": cfg.facturacion_electronica_activa,
+        "matias_api_key_set":           bool(cfg.matias_api_key),
+        "matias_api_key_preview":       _mask(cfg.matias_api_key),
+        "matias_sandbox_api_key_set":   bool(cfg.matias_sandbox_api_key),
+        "matias_sandbox_api_key_preview": _mask(cfg.matias_sandbox_api_key),
+        "matias_test_mode":             cfg.matias_test_mode,
+        "resolucion_prefijo":           cfg.resolucion_prefijo,
+        "resolucion_numero":            cfg.resolucion_numero,
+        "resolucion_numero_actual":     cfg.resolucion_numero_actual,
+        "resolucion_numero_inicial":    cfg.resolucion_numero_inicial,
+        "resolucion_numero_final":      cfg.resolucion_numero_final,
+        "resolucion_vigencia_desde":    cfg.resolucion_vigencia_desde.isoformat() if cfg.resolucion_vigencia_desde else None,
+        "resolucion_vigencia_hasta":    cfg.resolucion_vigencia_hasta.isoformat() if cfg.resolucion_vigencia_hasta else None,
+        "resolucion_clave_tecnica":     cfg.resolucion_clave_tecnica,
+    }
+
+
+@router.get("/plataforma-config")
+def get_plataforma_config(db: Session = Depends(get_db)):
+    """Devuelve la configuración del dueño del sistema (datos fiscales + Matías)."""
+    cfg = _get_or_create_plataforma(db)
+    return _serialize_plataforma(cfg)
+
+
+@router.put("/plataforma-config")
+def update_plataforma_config(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(get_current_superadmin_user),
+):
+    """
+    Actualiza la configuración del dueño del sistema.
+
+    Las API keys solo se sobrescriben si vienen con un valor no vacío en el payload;
+    enviar cadena vacía las borra explícitamente, omitirlas las deja intactas.
+    """
+    cfg = _get_or_create_plataforma(db)
+
+    # Campos de texto/numéricos/booleanos directos
+    simples = [
+        "nombre_empresa", "nit", "dv", "tipo_organizacion_id", "tipo_regimen_id",
+        "responsabilidad_fiscal_codes", "departamento_code", "ciudad_code",
+        "correo_facturacion", "direccion", "telefono", "logo_base64",
+        "facturacion_electronica_activa", "matias_test_mode",
+        "resolucion_prefijo", "resolucion_numero", "resolucion_numero_actual",
+        "resolucion_numero_inicial", "resolucion_numero_final", "resolucion_clave_tecnica",
+    ]
+    for campo in simples:
+        if campo in payload:
+            valor = payload[campo]
+            if isinstance(valor, str) and campo not in ("logo_base64",):
+                valor = valor.strip() or None
+            setattr(cfg, campo, valor)
+
+    # Fechas de vigencia
+    from datetime import date as _date
+    for campo in ("resolucion_vigencia_desde", "resolucion_vigencia_hasta"):
+        if campo in payload:
+            val = payload[campo]
+            if val:
+                try:
+                    setattr(cfg, campo, _date.fromisoformat(str(val)[:10]))
+                except ValueError:
+                    raise HTTPException(status_code=400, detail=f"Fecha inválida en {campo}.")
+            else:
+                setattr(cfg, campo, None)
+
+    # API keys: solo sobrescribir si la clave viene en el payload
+    for campo in ("matias_api_key", "matias_sandbox_api_key"):
+        if campo in payload:
+            val = payload[campo]
+            setattr(cfg, campo, val.strip() if isinstance(val, str) and val.strip() else None)
+
+    db.commit()
+    db.refresh(cfg)
+    crud_empresas.log_saas_event(db, current_admin.id, "UPDATE_PLATAFORMA_CONFIG", None, {})
+    return _serialize_plataforma(cfg)

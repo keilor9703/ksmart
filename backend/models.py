@@ -1633,3 +1633,53 @@ class CierreContable(Base, TenantMixin):
 
     asiento    = relationship("AsientoContable")
     created_by = relationship("User")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CONFIGURACIÓN DE LA PLATAFORMA (DUEÑO DEL SISTEMA — SINGLETON)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class PlataformaConfig(Base):
+    """
+    Configuración del dueño del sistema (la empresa que percibe los ingresos por
+    suscripciones, ej: Teck Stack Colombia). Es un singleton: siempre id=1.
+
+    Independiente de la tabla `empresas` (clientes del SaaS). Aquí se guardan los
+    datos fiscales y las credenciales Matías con los que se factura electrónicamente
+    cada suscripción vendida. Si el sistema se vende, solo se actualiza este registro.
+    """
+    __tablename__ = "plataforma_config"
+
+    id                = Column(Integer, primary_key=True, index=True)
+
+    # Datos fiscales del facturador (dueño del sistema)
+    nombre_empresa    = Column(String(150), nullable=True)   # "Teck Stack Colombia"
+    nit               = Column(String(20),  nullable=True)
+    dv                = Column(String(1),   nullable=True)    # Dígito de verificación
+    tipo_organizacion_id = Column(Integer, default=1)         # 1: Jurídica, 2: Natural
+    tipo_regimen_id      = Column(Integer, default=48)        # 48: Responsable IVA, 49: No
+    responsabilidad_fiscal_codes = Column(String, default="O-13")
+    departamento_code = Column(String(5),  nullable=True)
+    ciudad_code       = Column(String(5),  nullable=True)
+    correo_facturacion= Column(String,     nullable=True)
+    direccion         = Column(String,     nullable=True)
+    telefono          = Column(String(20), nullable=True)
+    logo_base64       = Column(Text,       nullable=True)
+
+    # Integración Matías (credenciales del dueño del sistema)
+    facturacion_electronica_activa = Column(Boolean, default=False)
+    matias_api_key         = Column(String, nullable=True)   # token producción
+    matias_sandbox_api_key = Column(String, nullable=True)   # token sandbox
+    matias_test_mode       = Column(Boolean, default=True)
+
+    # Resolución DIAN de la plataforma (numeración de facturas de suscripción)
+    resolucion_prefijo      = Column(String(10), default="")
+    resolucion_numero       = Column(String(50), nullable=True)   # Nro. resolución DIAN oficial
+    resolucion_numero_actual= Column(Integer, default=0)          # Último consecutivo asignado
+    resolucion_numero_inicial = Column(Integer, default=1)
+    resolucion_numero_final = Column(Integer, default=99999999)
+    resolucion_vigencia_desde = Column(Date, nullable=True)
+    resolucion_vigencia_hasta = Column(Date, nullable=True)
+    resolucion_clave_tecnica  = Column(String(200), nullable=True)
+
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
