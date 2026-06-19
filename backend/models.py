@@ -779,6 +779,12 @@ class RegistroPago(Base):
     fecha_pago = Column(DateTime(timezone=True), server_default=func.now())
     payload_auditoria = Column(JSON)
 
+    # Factura electrónica emitida por KSmart al cliente
+    numero_factura_ksmart = Column(String(20), nullable=True)
+    estado_fe             = Column(String, default="no_configurado")  # no_configurado | exitoso | fallido
+    cufe_fe               = Column(String, nullable=True)
+    pdf_url_fe            = Column(String, nullable=True)
+
     empresa = relationship("Empresa")
     plan = relationship("PlanSuscripcion")
 

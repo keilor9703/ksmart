@@ -2007,6 +2007,20 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v95)
                 logger.info("V95 (índices compuestos productos) aplicada.")
 
+            # ── V96: columnas FE en registros_pagos ──────────────────────────
+            migration_v96 = "v96_registros_pagos_fe"
+            if not _migration_already_applied(conn, migration_v96):
+                for col, col_type in [
+                    ("numero_factura_ksmart", "VARCHAR(20)"),
+                    ("estado_fe",             "VARCHAR(30) DEFAULT 'no_configurado'"),
+                    ("cufe_fe",               "TEXT"),
+                    ("pdf_url_fe",            "TEXT"),
+                ]:
+                    if not _column_exists(conn, "registros_pagos", col):
+                        conn.execute(text(f"ALTER TABLE registros_pagos ADD COLUMN {col} {col_type}"))
+                _mark_migration_applied(conn, migration_v96)
+                logger.info("V96 (FE en registros_pagos) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

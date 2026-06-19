@@ -315,6 +315,173 @@ def build_invoice_payload(venta, empresa, cliente, detalles) -> dict:
     return payload
 
 
+def build_subscription_invoice_payload(registro_pago, empresa_cliente, plan, resolucion) -> dict:
+    """
+    Construye el payload para facturar una suscripción de KSmart.
+    La empresa emisora es KSmart (asociada al Bearer token de Matías).
+    El receptor es la empresa cliente que pagó.
+    """
+    ahora = registro_pago.fecha_pago or datetime.now(timezone.utc)
+    tz_colombia = timezone(timedelta(hours=-5))
+    ahora_col = ahora.astimezone(tz_colombia) if getattr(ahora, "tzinfo", None) else ahora.replace(tzinfo=timezone.utc).astimezone(tz_colombia)
+    fecha_str = ahora_col.strftime("%Y-%m-%d")
+    hora_str  = ahora_col.strftime("%H:%M:%S")
+
+    prefijo   = (resolucion.prefijo if resolucion else "") or ""
+    siguiente = (resolucion.numero_actual + 1) if resolucion else 1
+
+    # ── Cliente (empresa que pagó la suscripción) ───────────────────────────
+    nit_cliente = getattr(empresa_cliente, "nit", None)
+    if nit_cliente:
+        customer = {
+            "country_id":             COLOMBIA_ID,
+            "city_id":                _ciudad_id(getattr(empresa_cliente, "ciudad_code", None)),
+            "identity_document_id":   DOC_NIT,
+            "type_organization_id":   getattr(empresa_cliente, "tipo_organizacion_id", 2),
+            "tax_regime_id":          2,
+            "tax_level_id":           5,
+            "company_name":           empresa_cliente.nombre or "",
+            "dni":                    nit_cliente,
+            "mobile":                 _normalizar_telefono(None),
+            "email":                  getattr(empresa_cliente, "correo_facturacion", "") or getattr(empresa_cliente, "email", "") or "",
+            "address":                getattr(empresa_cliente, "ciudad", "") or "No registra",
+            "postal_code":            "110111",
+        }
+    else:
+        customer = {
+            "country_id":           COLOMBIA_ID,
+            "city_id":              BOGOTA_ID,
+            "identity_document_id": DOC_CC,
+            "type_organization_id": 2,
+            "tax_regime_id":        2,
+            "tax_level_id":         5,
+            "company_name":         empresa_cliente.nombre or CONSUMIDOR_FINAL_NOMBRE,
+            "dni":                  CONSUMIDOR_FINAL_NIT,
+            "mobile":               "0000000",
+            "email":                getattr(empresa_cliente, "correo_facturacion", "") or "",
+            "address":              "No registra",
+            "postal_code":          "110111",
+        }
+
+    # ── Línea: servicio de suscripción (sin IVA — si aplica IVA ajustar aquí) ──
+    precio = float(registro_pago.monto or plan.precio or 0)
+    lines = [
+        {
+            "invoiced_quantity":            "1",
+            "quantity_units_id":            UNIDAD_UND,
+            "line_extension_amount":        f"{precio:.2f}",
+            "free_of_charge_indicator":     False,
+            "description":                  f"Suscripción KSmart360 — {plan.nombre}",
+            "code":                         f"SUBS-{plan.codigo_interno.upper()}",
+            "type_item_identifications_id": ITEM_TYPE_ID,
+            "reference_price_id":           REF_PRICE_ID,
+            "price_amount":                 f"{precio:.4f}",
+            "base_quantity":                "1",
+        }
+    ]
+
+    legal_monetary_totals = {
+        "line_extension_amount": f"{precio:.2f}",
+        "tax_exclusive_amount":  f"{precio:.2f}",
+        "tax_inclusive_amount":  f"{precio:.2f}",
+        "total_charges":         0,
+        "total_allowance":       0,
+        "payable_amount":        f"{precio:.2f}",
+    }
+
+    metodo_pago = getattr(registro_pago, "metodo_pago", None)
+    pago = {
+        "payment_method_id": 1,  # contado
+        "means_payment_id":  _medio_pago_id(metodo_pago),
+        "value_paid":        f"{precio:.2f}",
+    }
+
+    return {
+        "resolution_number": resolucion.numero_resolucion if resolucion else "",
+        "prefix":            prefijo,
+        "document_number":   str(siguiente),
+        "date":              fecha_str,
+        "time":              hora_str,
+        "type_document_id":  TYPE_DOCUMENT_FACTURA_VENTA,
+        "operation_type_id": OPERATION_TYPE_STANDARD,
+        "graphic_representation": 1,
+        "send_email": 1 if customer.get("email") and nit_cliente else 0,
+        "notes":      f"Pago suscripción plataforma KSmart360. Ref: {registro_pago.bold_tx_id or ''}",
+        "payments":   [pago],
+        "customer":   customer,
+        "lines":      lines,
+        "legal_monetary_totals": legal_monetary_totals,
+    }
+
+
+def emitir_factura_suscripcion(
+    registro_pago,
+    empresa_cliente,
+    plan,
+    resolucion,
+    api_key: str,
+    test_mode: bool,
+) -> dict:
+    """
+    Emite la factura electrónica de una suscripción KSmart usando las
+    credenciales Matías de la empresa KSmart (empresa_id=1).
+
+    Retorna dict con: estado, cufe_fe, pdf_url_fe, numero_factura, mensaje
+    Nunca lanza excepción.
+    """
+    payload_dict: dict = {}
+    respuesta_raw: dict = {}
+    try:
+        base_url     = get_matias_url(test_mode)
+        payload_dict = build_subscription_invoice_payload(registro_pago, empresa_cliente, plan, resolucion)
+        endpoint     = f"{base_url}/invoice"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type":  "application/json",
+            "Accept":        "application/json",
+        }
+        prefijo   = payload_dict.get("prefix", "")
+        doc_num   = payload_dict.get("document_number", "")
+        logger.info("Emitiendo FE suscripción empresa %s → %s (test=%s)", getattr(empresa_cliente, "id", "?"), endpoint, test_mode)
+
+        with httpx.Client(timeout=HTTP_TIMEOUT) as http_client:
+            response = http_client.post(endpoint, json=payload_dict, headers=headers)
+        try:
+            respuesta_raw = response.json()
+        except Exception:
+            respuesta_raw = {"raw": response.text}
+
+        success_flag = respuesta_raw.get("success", False)
+        dian_resp    = respuesta_raw.get("data") or respuesta_raw.get("response") or {}
+        is_valid     = str(dian_resp.get("IsValid", "false")).lower() == "true"
+
+        if response.is_success and success_flag and is_valid:
+            cufe    = dian_resp.get("XmlDocumentKey")
+            pdf_url = (respuesta_raw.get("pdf") or {}).get("url")
+            mensaje = dian_resp.get("StatusDescription", "Factura emitida exitosamente")
+            logger.info("FE suscripción exitosa empresa %s — CUFE: %s", getattr(empresa_cliente, "id", "?"), cufe)
+            return {
+                "estado":            "exitoso",
+                "cufe_fe":           cufe,
+                "pdf_url_fe":        pdf_url,
+                "numero_factura":    f"{prefijo}{doc_num}",
+                "mensaje":           mensaje,
+            }
+        else:
+            errors = respuesta_raw.get("errors", {})
+            errores_lista = [f"{k}: {v[0] if isinstance(v, list) else v}" for k, v in errors.items()] if errors else []
+            mensaje_error = "; ".join(errores_lista) or respuesta_raw.get("message") or f"HTTP {response.status_code}"
+            logger.warning("FE suscripción fallida empresa %s: %s", getattr(empresa_cliente, "id", "?"), mensaje_error)
+            return {"estado": "fallido", "cufe_fe": None, "pdf_url_fe": None, "numero_factura": None, "mensaje": str(mensaje_error)}
+
+    except httpx.TimeoutException as exc:
+        logger.error("Timeout Matias FE suscripción: %s", exc)
+        return {"estado": "fallido", "cufe_fe": None, "pdf_url_fe": None, "numero_factura": None, "mensaje": f"Timeout ({HTTP_TIMEOUT}s)"}
+    except Exception as exc:
+        logger.error("Error inesperado FE suscripción: %s", exc)
+        return {"estado": "fallido", "cufe_fe": None, "pdf_url_fe": None, "numero_factura": None, "mensaje": str(exc)}
+
+
 def emitir_factura(
     venta,
     empresa,

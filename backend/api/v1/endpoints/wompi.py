@@ -13,6 +13,7 @@ from typing import Optional
 import models
 import schemas
 from api.deps import get_db, get_current_user
+from services import matias_service as _ms
 
 router = APIRouter()
 logger = logging.getLogger("wompi")
@@ -229,4 +230,41 @@ def confirmar_pago_widget(
         return {"status": "ok", "mensaje": "Suscripción ya activa."}
 
     logger.info(f"✅ Suscripción activada vía widget (verificada con API Wompi): empresa {empresa_id_ref}")
+
+    # ── Facturación electrónica de la suscripción ────────────────────────────
+    # KSmart (empresa_id=1) emite la FE al cliente usando sus propias credenciales Matías.
+    try:
+        ksmart_empresa = db.query(models.Empresa).filter_by(id=1).first()
+        if (
+            ksmart_empresa
+            and ksmart_empresa.facturacion_electronica_activa
+            and (ksmart_empresa.matias_api_key or ksmart_empresa.matias_sandbox_api_key)
+        ):
+            test_mode = ksmart_empresa.matias_test_mode if ksmart_empresa.matias_test_mode is not None else True
+            api_key   = ksmart_empresa.matias_sandbox_api_key if test_mode else ksmart_empresa.matias_api_key
+            resolucion = (
+                db.query(models.ResolucionDian)
+                .filter_by(empresa_id=1, is_active=True)
+                .first()
+            )
+            if api_key and resolucion:
+                resultado = _ms.emitir_factura_suscripcion(
+                    registro_pago   = nuevo_pago,
+                    empresa_cliente = empresa,
+                    plan            = plan,
+                    resolucion      = resolucion,
+                    api_key         = api_key,
+                    test_mode       = test_mode,
+                )
+                nuevo_pago.estado_fe             = resultado["estado"]
+                nuevo_pago.cufe_fe               = resultado.get("cufe_fe")
+                nuevo_pago.pdf_url_fe            = resultado.get("pdf_url_fe")
+                nuevo_pago.numero_factura_ksmart = resultado.get("numero_factura")
+                if resultado["estado"] == "exitoso" and resolucion:
+                    resolucion.numero_actual += 1
+                db.commit()
+                logger.info("FE suscripción empresa %s: %s", empresa_id_ref, resultado["estado"])
+    except Exception as _fe_exc:
+        logger.error("Error emitiendo FE de suscripción empresa %s: %s", empresa_id_ref, _fe_exc)
+
     return {"status": "ok", "mensaje": f"Suscripción activada por {plan.dias_duracion} días."}

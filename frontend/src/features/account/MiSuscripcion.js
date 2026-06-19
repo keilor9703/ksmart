@@ -384,7 +384,7 @@ const HistorialTable = ({ historial }) => {
         <Table size="small">
           <TableHead>
             <TableRow sx={{ bgcolor: isDark ? alpha('#fff', 0.03) : alpha('#000', 0.025) }}>
-              {['Fecha', 'Plan', 'Monto', 'Método', 'ID Transacción', ''].map(h => (
+              {['Fecha', 'Plan', 'Monto', 'Método', 'ID Transacción', 'Factura', ''].map(h => (
                 <TableCell key={h} sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, py: 1.2 }}>
                   {h}
                 </TableCell>
@@ -430,6 +430,30 @@ const HistorialTable = ({ historial }) => {
                         <ContentCopy sx={{ fontSize: 12, color: 'text.disabled', flexShrink: 0 }} />
                       </Box>
                     ) : <Typography fontSize={11} color="text.disabled">—</Typography>}
+                  </TableCell>
+                  <TableCell onClick={e => e.stopPropagation()}>
+                    {pago.pdf_url_fe ? (
+                      <Chip
+                        component="a"
+                        href={pago.pdf_url_fe}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        icon={<Receipt sx={{ fontSize: '12px !important' }} />}
+                        label={pago.numero_factura_ksmart || 'Ver PDF'}
+                        size="small"
+                        clickable
+                        sx={{
+                          bgcolor: alpha('#2563eb', 0.1), color: '#2563eb',
+                          fontWeight: 700, fontSize: 10, height: 20,
+                          '& .MuiChip-icon': { ml: '4px' },
+                          textDecoration: 'none',
+                        }}
+                      />
+                    ) : pago.estado_fe === 'fallido' ? (
+                      <Typography fontSize={10} color="error.main">FE fallida</Typography>
+                    ) : (
+                      <Typography fontSize={10} color="text.disabled">—</Typography>
+                    )}
                   </TableCell>
                   <TableCell align="right">
                     <Chip icon={<CheckCircle sx={{ fontSize: '12px !important', color: '#059669 !important' }} />}

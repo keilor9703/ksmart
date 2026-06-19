@@ -81,6 +81,9 @@ def get_mi_suscripcion(
             "wompi_tx_id":  r.bold_tx_id,
             "email_pagador": r.email_pagador,
             "plan":         plan_data,
+            "numero_factura_ksmart": r.numero_factura_ksmart,
+            "estado_fe":    r.estado_fe,
+            "pdf_url_fe":   r.pdf_url_fe,
         })
 
     # Planes disponibles para renovación

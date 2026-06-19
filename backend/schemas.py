@@ -1297,13 +1297,17 @@ class MovimientoPuntosOut(BaseModel):
 class RegistroPagoOut(BaseModel):
     id: int
     monto: float
-    moneda: str
-    metodo_pago: str
-    bold_tx_id: str
-    email_pagador: str
+    moneda: Optional[str] = None
+    metodo_pago: Optional[str] = None
+    bold_tx_id: Optional[str] = None
+    email_pagador: Optional[str] = None
     fecha_pago: datetime
     empresa_nombre: str
     plan_nombre: str
+    numero_factura_ksmart: Optional[str] = None
+    estado_fe: Optional[str] = None
+    cufe_fe: Optional[str] = None
+    pdf_url_fe: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 
