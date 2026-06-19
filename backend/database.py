@@ -2091,6 +2091,33 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v97)
                 logger.info("V97 (plataforma_config) aplicada.")
 
+            # ── V98: ON DELETE SET NULL en FK opcionales de ventas ────────────
+            # Evita FK constraint errors al eliminar una venta que tenga
+            # movimientos de puntos, pedidos virtuales, asientos, comandas, etc.
+            migration_v98 = "v98_ventas_fk_set_null"
+            if not _migration_already_applied(conn, migration_v98):
+                if not IS_SQLITE:
+                    fk_fixes = [
+                        ("movimientos_puntos", "movimientos_puntos_venta_id_fkey", "venta_id", "ventas"),
+                        ("pedidos_virtuales",  "pedidos_virtuales_venta_id_fkey",  "venta_id", "ventas"),
+                        ("comandas",           "comandas_venta_id_fkey",           "venta_id", "ventas"),
+                        ("lavadero_ordenes",   "lavadero_ordenes_venta_id_fkey",   "venta_id", "ventas"),
+                        ("asientos_contables", "asientos_contables_venta_id_fkey", "venta_id", "ventas"),
+                        ("ordenes_produccion", "ordenes_produccion_venta_id_fkey", "venta_id", "ventas"),
+                    ]
+                    for tabla, constraint, col, ref_tabla in fk_fixes:
+                        try:
+                            if _column_exists(conn, tabla, col):
+                                conn.execute(text(f"ALTER TABLE {tabla} DROP CONSTRAINT IF EXISTS {constraint}"))
+                                conn.execute(text(
+                                    f"ALTER TABLE {tabla} ADD CONSTRAINT {constraint} "
+                                    f"FOREIGN KEY ({col}) REFERENCES {ref_tabla}(id) ON DELETE SET NULL"
+                                ))
+                        except Exception as _fk_exc:
+                            logger.warning("V98: no se pudo actualizar FK %s.%s: %s", tabla, col, _fk_exc)
+                _mark_migration_applied(conn, migration_v98)
+                logger.info("V98 (ventas FK ON DELETE SET NULL) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

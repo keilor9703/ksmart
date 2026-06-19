@@ -351,9 +351,61 @@ def delete_venta(db: Session, empresa_id: int, venta_id: int):
         models.Venta.id == venta_id,
         models.Venta.empresa_id == empresa_id
     ).first()
-    if db_venta:
-        db.delete(db_venta)
-        db.commit()
+    if not db_venta:
+        return None
+
+    # Nullear FK opcionales que apuntan a ventas.id sin ON DELETE SET NULL
+    # para evitar FK constraint errors en PostgreSQL y SQLite con FK activadas.
+    db.query(models.MovimientoPuntos).filter(
+        models.MovimientoPuntos.venta_id == venta_id
+    ).update({"venta_id": None}, synchronize_session=False)
+
+    # ordenes de producción vinculadas
+    try:
+        from models import OrdenProduccion
+        db.query(OrdenProduccion).filter(
+            OrdenProduccion.venta_id == venta_id
+        ).update({"venta_id": None}, synchronize_session=False)
+    except Exception:
+        pass
+
+    # pedidos del catálogo virtual vinculados
+    try:
+        from models import PedidoVirtual
+        db.query(PedidoVirtual).filter(
+            PedidoVirtual.venta_id == venta_id
+        ).update({"venta_id": None}, synchronize_session=False)
+    except Exception:
+        pass
+
+    # comandas de restaurante/lavadero vinculadas
+    try:
+        from models import Comanda
+        db.query(Comanda).filter(
+            Comanda.venta_id == venta_id
+        ).update({"venta_id": None}, synchronize_session=False)
+    except Exception:
+        pass
+
+    try:
+        from models import LavaderoOrden
+        db.query(LavaderoOrden).filter(
+            LavaderoOrden.venta_id == venta_id
+        ).update({"venta_id": None}, synchronize_session=False)
+    except Exception:
+        pass
+
+    # asientos contables vinculados
+    try:
+        from models import AsientoContable
+        db.query(AsientoContable).filter(
+            AsientoContable.venta_id == venta_id
+        ).update({"venta_id": None}, synchronize_session=False)
+    except Exception:
+        pass
+
+    db.delete(db_venta)
+    db.commit()
     return db_venta
 
 
