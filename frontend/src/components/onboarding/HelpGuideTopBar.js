@@ -194,7 +194,7 @@ const HelpGuideTopBar = ({ moduleName, steps = [], moduleColor, faqItems }) => {
             <Button 
               size="small" 
               variant="outlined" 
-              href="https://wa.me/573175882321?text=Hola,%20necesito%20ayuda%20con%20soporte%20t%C3%A9cnico."
+              href="https://wa.me/573132354086?text=Hola,%20necesito%20ayuda%20con%20soporte%20t%C3%A9cnico."
               target="_blank"
               rel="noopener noreferrer"
               sx={{ borderRadius: 2, fontWeight: 600, fontSize: 11, whiteSpace: 'nowrap' }}
