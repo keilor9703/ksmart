@@ -11,7 +11,7 @@ Flujo principal:
 from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from pydantic import BaseModel
 
@@ -19,6 +19,7 @@ import crud
 import models
 import schemas
 from api.deps import get_db, get_current_active_user, get_current_admin_user
+from services import matias_service as _ms
 
 router = APIRouter()
 
@@ -596,12 +597,43 @@ def cerrar_comanda(
 
     db.commit()
 
+    # ── 5. Emisión FE automática (si empresa tiene FE activa) ─────────────────
+    numero_factura = None
+    estado_fe = None
+    try:
+        empresa = db.query(models.Empresa).filter(models.Empresa.id == user.empresa_id).first()
+        if empresa and empresa.facturacion_electronica_activa and empresa.matias_api_key:
+            db.refresh(venta)
+            detalles = db.query(models.DetalleVenta).filter(models.DetalleVenta.venta_id == venta.id).all()
+            cliente = None
+            if venta.cliente_id:
+                cliente = db.query(models.Cliente).filter(models.Cliente.id == venta.cliente_id).first()
+            resultado = _ms.emitir_factura(
+                venta=venta,
+                empresa=empresa,
+                cliente=cliente,
+                detalles=detalles,
+                api_key=empresa.matias_api_key,
+                test_mode=getattr(empresa, "matias_test_mode", True),
+            )
+            venta.numero_factura = resultado.get("numero_factura")
+            venta.cufe = resultado.get("cufe")
+            venta.pdf_url = resultado.get("pdf_url")
+            venta.estado_fe = resultado.get("estado")
+            db.commit()
+            numero_factura = venta.numero_factura
+            estado_fe = venta.estado_fe
+    except Exception:
+        pass  # FE no bloquea el cobro
+
     return {
         "status": "ok",
         "venta_id": venta.id,
         "total": total_con_propina,
         "mesa": comanda.mesa.numero,
         "comanda": comanda.numero_comanda,
+        "numero_factura": numero_factura,
+        "estado_fe": estado_fe,
     }
 
 
@@ -959,6 +991,151 @@ def resumen_turno(
         "propina_tarjeta": round(propina_tarjeta, 2),
         "propina_efectivo": round(propina_efectivo, 2),
         "mesas_abiertas": mesas_abiertas,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# HISTORIAL DE VENTAS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/historial")
+def historial_ventas(
+    fecha_inicio: Optional[str] = Query(None),
+    fecha_fin: Optional[str] = Query(None),
+    mesa: Optional[str] = Query(None),
+    estado_fe: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_active_user),
+):
+    """Historial de ventas de restaurante con datos FE."""
+    q = (
+        db.query(models.Comanda)
+        .options(
+            joinedload(models.Comanda.mesa),
+            joinedload(models.Comanda.mesero),
+            joinedload(models.Comanda.items).joinedload(models.ComandaItem.producto),
+        )
+        .filter(
+            models.Comanda.empresa_id == user.empresa_id,
+            models.Comanda.estado == "cerrada",
+            models.Comanda.venta_id.isnot(None),
+        )
+    )
+
+    if fecha_inicio:
+        try:
+            fi = datetime.fromisoformat(fecha_inicio).replace(tzinfo=timezone.utc)
+        except ValueError:
+            fi = datetime.strptime(fecha_inicio, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        q = q.filter(models.Comanda.fecha_cierre >= fi)
+
+    if fecha_fin:
+        try:
+            ff = datetime.fromisoformat(fecha_fin).replace(tzinfo=timezone.utc)
+        except ValueError:
+            from datetime import timedelta
+            ff = datetime.strptime(fecha_fin, "%Y-%m-%d").replace(tzinfo=timezone.utc) + timedelta(days=1)
+        q = q.filter(models.Comanda.fecha_cierre <= ff)
+
+    if mesa:
+        q = q.join(models.Mesa, models.Comanda.mesa_id == models.Mesa.id).filter(
+            models.Mesa.numero.ilike(f"%{mesa}%")
+        )
+
+    comandas = q.order_by(models.Comanda.fecha_cierre.desc()).limit(200).all()
+
+    venta_ids = [c.venta_id for c in comandas if c.venta_id]
+    ventas_map: dict = {}
+    if venta_ids:
+        ventas = db.query(models.Venta).filter(models.Venta.id.in_(venta_ids)).all()
+        ventas_map = {v.id: v for v in ventas}
+
+    if estado_fe:
+        filtered = []
+        for c in comandas:
+            v = ventas_map.get(c.venta_id)
+            ve = getattr(v, "estado_fe", None) if v else None
+            if estado_fe == "sin_fe" and ve is None:
+                filtered.append(c)
+            elif ve == estado_fe:
+                filtered.append(c)
+        comandas = filtered
+
+    resultado = []
+    for c in comandas:
+        v = ventas_map.get(c.venta_id)
+        items = [
+            {
+                "nombre": i.producto.nombre if i.producto else i.nombre_libre or "—",
+                "cantidad": i.cantidad,
+                "precio_unitario": i.precio_unitario,
+                "subtotal": i.subtotal,
+            }
+            for i in c.items if i.estado != "cancelado"
+        ]
+        resultado.append({
+            "comanda_id": c.id,
+            "numero_comanda": c.numero_comanda,
+            "mesa": c.mesa.numero if c.mesa else "—",
+            "mesero": c.mesero.nombre_completo if c.mesero else "—",
+            "fecha_apertura": c.fecha_apertura.isoformat() if c.fecha_apertura else None,
+            "fecha_cierre": c.fecha_cierre.isoformat() if c.fecha_cierre else None,
+            "total": c.total,
+            "metodo_pago": v.metodo_pago if v else None,
+            "items": items,
+            "venta_id": c.venta_id,
+            "numero_factura": getattr(v, "numero_factura", None) if v else None,
+            "estado_fe": getattr(v, "estado_fe", None) if v else None,
+            "cufe": getattr(v, "cufe", None) if v else None,
+            "pdf_url": getattr(v, "pdf_url", None) if v else None,
+        })
+
+    return resultado
+
+
+@router.post("/ventas/{venta_id}/reintentar-fe")
+def reintentar_fe(
+    venta_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_active_user),
+):
+    """Reintenta la emisión de FE para una venta de restaurante fallida."""
+    venta = db.query(models.Venta).filter(
+        models.Venta.id == venta_id,
+        models.Venta.empresa_id == user.empresa_id,
+    ).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+
+    empresa = db.query(models.Empresa).filter(models.Empresa.id == user.empresa_id).first()
+    if not empresa or not empresa.facturacion_electronica_activa or not empresa.matias_api_key:
+        raise HTTPException(status_code=400, detail="FE no configurada para esta empresa")
+
+    detalles = db.query(models.DetalleVenta).filter(models.DetalleVenta.venta_id == venta_id).all()
+    cliente = None
+    if venta.cliente_id:
+        cliente = db.query(models.Cliente).filter(models.Cliente.id == venta.cliente_id).first()
+
+    resultado = _ms.emitir_factura(
+        venta=venta,
+        empresa=empresa,
+        cliente=cliente,
+        detalles=detalles,
+        api_key=empresa.matias_api_key,
+        test_mode=getattr(empresa, "matias_test_mode", True),
+    )
+    venta.numero_factura = resultado.get("numero_factura")
+    venta.cufe = resultado.get("cufe")
+    venta.pdf_url = resultado.get("pdf_url")
+    venta.estado_fe = resultado.get("estado")
+    db.commit()
+
+    return {
+        "estado": venta.estado_fe,
+        "numero_factura": venta.numero_factura,
+        "cufe": venta.cufe,
+        "pdf_url": venta.pdf_url,
+        "mensaje": resultado.get("mensaje"),
     }
 
 
