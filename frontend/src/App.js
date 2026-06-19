@@ -25,7 +25,7 @@ import AnnouncementBanner from './features/saas/components/AnnouncementBanner';
 import { OnboardingProvider } from './context/OnboardingContext';
 import ModalHuella from './components/common/ModalHuella';
 import GlobalSearch from './components/common/GlobalSearch';
-import { MODULE_ICONS, getModuleConfig, ADMIN_MODULES } from './utils/modulesConfig';
+import { MODULE_ICONS, getModuleConfig, ADMIN_MODULES, HIDDEN_FROM_SIDEBAR } from './utils/modulesConfig';
 import ReconectandoScreen from './components/common/ReconectandoScreen';
 import { startKeepAlive, stopKeepAlive } from './services/keepAlive';
 
@@ -284,7 +284,7 @@ const hasAccess = useCallback((path) => {
     const adminPaths = new Set(ADMIN_MODULES.map(a => a.path));
     const modulosDelRol = user.role?.modules || [];
     return modulosDelRol
-      .filter(m => hasAccess(m.frontend_path))
+      .filter(m => hasAccess(m.frontend_path) && !HIDDEN_FROM_SIDEBAR.has(m.frontend_path))
       .map(m => {
         const cfg = getModuleConfig(m.frontend_path, m.name);
         return { path: m.frontend_path, label: cfg.label, icon: cfg.icon, color: cfg.color };

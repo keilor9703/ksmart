@@ -139,6 +139,16 @@ export const ADMIN_MODULES = [
   { path: '/admin/usuarios', label: 'Usuarios y Permisos', icon: null, color: '#a78bfa' },
 ];
 
+// ─── Paths que NUNCA deben aparecer en el sidebar ────────────────────────
+// Módulos que existen en la BD (para control de permisos) pero cuya UI
+// está embebida en otro módulo o son rutas internas sin vista propia.
+// ───────────────────────────────────────────────────────────────────────────
+export const HIDDEN_FROM_SIDEBAR = new Set([
+  '/admin/resoluciones',   // embebido como tab en Facturación Electrónica
+  '/admin/modules',        // gestión interna, sin vista propia en el menú
+  '/admin/catalogo',       // configuración interna del catálogo virtual
+]);
+
 
 // ─── COMPATIBILIDAD HACIA ATRÁS ────────────────────────────────────────────
 // Si algún código viejo importa APP_MODULES, lo seguimos exportando.

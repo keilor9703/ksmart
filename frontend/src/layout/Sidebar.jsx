@@ -10,7 +10,7 @@ import {
   Logout, KeyboardArrowUp, Receipt,
 } from '@mui/icons-material';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { MODULE_ICONS, ADMIN_MODULES, getModuleConfig } from '../utils/modulesConfig';
+import { MODULE_ICONS, ADMIN_MODULES, HIDDEN_FROM_SIDEBAR, getModuleConfig } from '../utils/modulesConfig';
 
 const SIDEBAR_BG     = '#0f172a';
 const SIDEBAR_HOVER  = 'rgba(255,255,255,0.06)';
@@ -192,7 +192,7 @@ const Sidebar = ({ expanded, user, hasAccess, onClose, mobile, pinned, onPinTogg
     const adminPaths = new Set(ADMIN_MODULES.map(a => a.path));
     const modulosDelRol = user.role?.modules || [];
     return modulosDelRol
-      .filter(m => hasAccess(m.frontend_path) && !adminPaths.has(m.frontend_path))
+      .filter(m => hasAccess(m.frontend_path) && !adminPaths.has(m.frontend_path) && !HIDDEN_FROM_SIDEBAR.has(m.frontend_path))
       .map(m => {
         const cfg = getModuleConfig(m.frontend_path, m.name);
         return {
