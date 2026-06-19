@@ -267,7 +267,26 @@ def update_config_fe(
         raise HTTPException(status_code=404, detail="Empresa no encontrada.")
 
     if "facturacion_electronica_activa" in payload:
-        empresa.facturacion_electronica_activa = bool(payload["facturacion_electronica_activa"])
+        quiere_activar = bool(payload["facturacion_electronica_activa"])
+        if quiere_activar:
+            # Verificar que el plan activo incluya FE
+            ultimo_pago = (
+                db.query(models.RegistroPago)
+                .filter(models.RegistroPago.empresa_id == current_user.empresa_id)
+                .order_by(models.RegistroPago.fecha_pago.desc())
+                .first()
+            )
+            plan_incluye_fe = True  # Por defecto se permite (trial, vitalicio, etc.)
+            if ultimo_pago and ultimo_pago.plan:
+                plan_incluye_fe = getattr(ultimo_pago.plan, "incluye_fe", True)
+                if plan_incluye_fe is None:
+                    plan_incluye_fe = True
+            if not plan_incluye_fe:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Tu plan actual no incluye facturación electrónica. Actualiza tu suscripción.",
+                )
+        empresa.facturacion_electronica_activa = quiere_activar
     if "matias_api_key" in payload:
         key = payload["matias_api_key"]
         empresa.matias_api_key = key.strip() if key else None

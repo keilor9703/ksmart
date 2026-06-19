@@ -2118,6 +2118,32 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v98)
                 logger.info("V98 (ventas FK ON DELETE SET NULL) aplicada.")
 
+            # ── V99: incluye_fe en planes_suscripcion ─────────────────────────
+            migration_v99 = "v99_planes_incluye_fe"
+            if not _migration_already_applied(conn, migration_v99):
+                if not _column_exists(conn, "planes_suscripcion", "incluye_fe"):
+                    if IS_SQLITE:
+                        conn.execute(text(
+                            "ALTER TABLE planes_suscripcion ADD COLUMN incluye_fe BOOLEAN DEFAULT 1"
+                        ))
+                    else:
+                        conn.execute(text(
+                            "ALTER TABLE planes_suscripcion ADD COLUMN incluye_fe BOOLEAN DEFAULT TRUE"
+                        ))
+                    logger.info("V99: añadido planes_suscripcion.incluye_fe")
+                # Desactivar FE para planes Starter (case-insensitive)
+                if IS_SQLITE:
+                    conn.execute(text(
+                        "UPDATE planes_suscripcion SET incluye_fe = 0 WHERE LOWER(nombre) LIKE '%starter%'"
+                    ))
+                else:
+                    conn.execute(text(
+                        "UPDATE planes_suscripcion SET incluye_fe = FALSE WHERE LOWER(nombre) LIKE '%starter%'"
+                    ))
+                logger.info("V99: incluye_fe = FALSE para planes Starter")
+                _mark_migration_applied(conn, migration_v99)
+                logger.info("V99 (incluye_fe en planes_suscripcion) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
