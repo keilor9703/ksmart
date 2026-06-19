@@ -509,33 +509,29 @@ const ProductoForm = ({
 
               {/* § 1 — Información General */}
               <SectionCard icon={<Category fontSize="small" />} title="Información General" accent={accentColor}>
-                <Grid container spacing={2}>
-                  {/* Nombre — fila propia, ancho completo */}
-                  <Grid item xs={12}>
-                    <TextField
-                      label={esServicio ? 'Nombre del Servicio *' : 'Nombre del Producto *'}
-                      value={nombre}
-                      onChange={e => setNombre(e.target.value)}
-                      fullWidth required
-                    />
-                  </Grid>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {/* Nombre — fila completa */}
+                  <TextField
+                    label={esServicio ? 'Nombre del Servicio *' : 'Nombre del Producto *'}
+                    value={nombre}
+                    onChange={e => setNombre(e.target.value)}
+                    fullWidth required
+                  />
 
-                  {/* Descripción — fila propia, ancho completo, 2 filas de alto */}
-                  <Grid item xs={12}>
-                    <TextField
-                      label="Descripción"
-                      value={descripcion}
-                      onChange={e => setDescripcion(e.target.value)}
-                      fullWidth multiline rows={2}
-                      placeholder={esServicio
-                        ? 'Ej: Servicio de instalación y configuración incluida…'
-                        : 'Ej: Presentación de 500 g, sabor original, apto para veganos…'}
-                      helperText="Opcional — aparece en el catálogo virtual y en cotizaciones"
-                    />
-                  </Grid>
+                  {/* Descripción — fila completa, 2 líneas de alto */}
+                  <TextField
+                    label="Descripción"
+                    value={descripcion}
+                    onChange={e => setDescripcion(e.target.value)}
+                    fullWidth multiline rows={2}
+                    placeholder={esServicio
+                      ? 'Ej: Servicio de instalación y configuración incluida…'
+                      : 'Ej: Presentación de 500 g, sabor original, apto para veganos…'}
+                    helperText="Opcional — aparece en el catálogo virtual y en cotizaciones"
+                  />
 
                   {!esServicio && (
-                    <>
+                    <Grid container spacing={2}>
                       {/* Categoría — fila propia para que no se trunque */}
                       <Grid item xs={12} sx={{ width: '100%' }}>
                         <Autocomplete
@@ -594,9 +590,9 @@ const ProductoForm = ({
                           inputProps={{ style: { fontFamily: 'monospace' } }}
                         />
                       </Grid>
-                    </>
+                    </Grid>
                   )}
-                </Grid>
+                </Box>
               </SectionCard>
 
               {/* § 2 — Precios e Impuestos */}
