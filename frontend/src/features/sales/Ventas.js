@@ -386,6 +386,7 @@ const Ventas = ({ user }) => {
     const [clientes, setClientes]   = useState([]);
     const [productos, setProductos] = useState([]);
     const [grupos, setGrupos]       = useState([]);
+    const [empleados, setEmpleados] = useState([]);
 
     // ── UI Mode ──
     const [viewMode, setViewMode] = useState(localStorage.getItem('ventas_view_mode') || 'classic');
@@ -393,6 +394,7 @@ const Ventas = ({ user }) => {
     // ── Form ──
     const [cliente, setCliente]     = useState(null);
     const [isMostrador, setIsMostrador] = useState(false);
+    const [atendidoPor, setAtendidoPor] = useState(null);
     const [saleDetails, setSaleDetails] = useState([{ id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0, descuentoPct: 0 }]);
     const [ivaPorcentajeGlobal, setIvaPorcentajeGlobal] = useState(19);
     const [valorRecibido, setValorRecibido] = useState(0);
@@ -458,6 +460,7 @@ const Ventas = ({ user }) => {
     // ── Fetch inicial ──
     useEffect(() => {
         fetchVentas(); fetchClientes(); fetchProductos(); fetchVentasSummary(); fetchGrupos();
+        apiClient.get('/admin/usuarios/').then(r => setEmpleados(r.data.filter(u => u.is_active))).catch(() => {});
         apiClient.get('/empresa/link-pago').then(r => setLinkPagoConfig(r.data)).catch(() => {});
         apiClient.get('/empresa/config-ventas').then(r => setConfigFidelizacion({
             activa:      r.data.fidelizacion_activa     ?? true,
@@ -920,7 +923,7 @@ useEffect(() => {
             })),
             pagada, metodo_pago: pagada ? metodoPago : null,
             iva_porcentaje: parseFloat(ivaPorcentajeGlobal),
-            operador_id: user?.id,
+            operador_id: atendidoPor?.id ?? user?.id,
             descuento_puntos: descuentoPuntosImporte,
             puntos_canjeados: puntosACanjear,
             omitir_inventario: omitirInventarioRef.current,
@@ -965,6 +968,7 @@ useEffect(() => {
 
     const resetForm = () => {
         setCliente(null); setClienteInput(''); setIsMostrador(false);
+        setAtendidoPor(null);
         const initialId = Date.now();
         setSaleDetails([{ id: initialId, producto: null, cantidad: 1, precioUnitario: 0, descuentoPct: 0 }]);
         setProductoInputs({}); setIvaPorcentajeGlobal(19); setValorRecibido(0);
@@ -1193,6 +1197,43 @@ useEffect(() => {
                                     />
                                 </Box>
                             </Box>
+
+                            {/* ── 1b. Atendido por ── */}
+                            {empleados.length > 1 && (
+                              <Box sx={{ mb: 2.5 }}>
+                                <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 1 }}>
+                                  Atendido por
+                                </Typography>
+                                <Autocomplete
+                                  options={empleados}
+                                  getOptionLabel={o => o.nombre_completo || o.username}
+                                  value={atendidoPor}
+                                  onChange={(_, v) => setAtendidoPor(v)}
+                                  renderOption={(props, option) => (
+                                    <Box component="li" {...props} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                      <Box sx={{
+                                        width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                                        bgcolor: `${ACCENT}20`, color: ACCENT,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        fontSize: 12, fontWeight: 800,
+                                      }}>
+                                        {(option.nombre_completo || option.username).charAt(0).toUpperCase()}
+                                      </Box>
+                                      <Box>
+                                        <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{option.nombre_completo || option.username}</Typography>
+                                        {option.nombre_completo && <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>@{option.username}</Typography>}
+                                      </Box>
+                                    </Box>
+                                  )}
+                                  renderInput={params => (
+                                    <TextField {...params} size="small" fullWidth
+                                      placeholder={`${user?.nombre_completo || user?.username} (por defecto)`}
+                                      helperText="Deja vacío si el vendedor es quien inicia sesión"
+                                    />
+                                  )}
+                                />
+                              </Box>
+                            )}
 
                             {/* ── 2. Escáner de código de barras (prominente) ── */}
                             <Paper elevation={0} sx={{
