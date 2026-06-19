@@ -55,17 +55,12 @@ export default function ConfigFE() {
   const fetchSuscripcion = async () => {
     try {
       const r = await apiClient.get('/mi-suscripcion');
-      const planes = r.data?.planes_disponibles || [];
-      // Verificar si el plan actual incluye FE consultando el último pago
       const historial = r.data?.historial_pagos || [];
       if (historial.length > 0 && historial[0].plan) {
-        const planActual = planes.find(p => p.id === historial[0].plan.id);
-        if (planActual) {
-          setPlanIncluyeFE(planActual.incluye_fe !== false);
-          return;
-        }
+        setPlanIncluyeFE(historial[0].plan.incluye_fe !== false);
+        return;
       }
-      // Si no hay historial de pagos (trial), permitir FE
+      // Sin historial de pagos (trial) → permitir FE
       setPlanIncluyeFE(true);
     } catch { /* silencioso — en caso de error, no bloquear */ }
   };

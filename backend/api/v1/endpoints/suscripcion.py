@@ -71,6 +71,7 @@ def get_mi_suscripcion(
                 "precio":        r.plan.precio,
                 "dias_duracion": r.plan.dias_duracion,
                 "caracteristicas": r.plan.caracteristicas,
+                "incluye_fe":    getattr(r.plan, "incluye_fe", True) if getattr(r.plan, "incluye_fe", None) is not None else True,
             }
         historial.append({
             "id":           r.id,
