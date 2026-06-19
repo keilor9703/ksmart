@@ -35,7 +35,7 @@ export default function PlataformaConfigForm() {
 
   const cargar = useCallback(() => {
     setLoading(true);
-    apiClient.get('/admin/plataforma-config')
+    apiClient.get('/superadmin/plataforma-config')
       .then(r => setCfg(r.data))
       .catch(() => toast.error('No se pudo cargar la configuración de la plataforma.'))
       .finally(() => setLoading(false));
@@ -58,7 +58,7 @@ export default function PlataformaConfigForm() {
       if (prodKey.trim())    payload.matias_api_key = prodKey.trim();
       if (sandboxKey.trim()) payload.matias_sandbox_api_key = sandboxKey.trim();
 
-      const r = await apiClient.put('/admin/plataforma-config', payload);
+      const r = await apiClient.put('/superadmin/plataforma-config', payload);
       setCfg(r.data);
       setProdKey(''); setSandboxKey('');
       toast.success('Configuración de la plataforma guardada.');
