@@ -22,6 +22,7 @@ router = APIRouter(
 )
 
 from services.jobs_service import SaaSJobService
+from services import matias_service as _ms
 
 @router.get("/empresas", response_model=List[schemas.EmpresaMetricsOut])
 def listar_empresas(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
@@ -228,7 +229,15 @@ def listar_historial_pagos(db: Session = Depends(get_db)):
     ).order_by(models.RegistroPago.fecha_pago.desc()).all()
 
     return [
-        {**p.__dict__, "empresa_nombre": p.empresa.nombre, "plan_nombre": p.plan.nombre}
+        {
+            **p.__dict__,
+            "empresa_nombre":        p.empresa.nombre if p.empresa else "—",
+            "plan_nombre":           p.plan.nombre    if p.plan    else "—",
+            "numero_factura_ksmart": p.numero_factura_ksmart,
+            "estado_fe":             p.estado_fe,
+            "cufe_fe":               p.cufe_fe,
+            "pdf_url_fe":            p.pdf_url_fe,
+        }
         for p in pagos
     ]
 
@@ -460,6 +469,70 @@ def notificar_vencimientos_lotes(db: Session = Depends(get_db), _: models.User =
     """
     total = crud_perecederos.notificar_vencimientos_proximos(db)
     return {"msg": f"Se generaron {total} notificaciones de vencimiento."}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# REINTENTO DE FACTURACIÓN ELECTRÓNICA DE SUSCRIPCIÓN
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/reintentar-fe/{pago_id}")
+def reintentar_fe_suscripcion(
+    pago_id: int,
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(get_current_superadmin_user),
+):
+    """
+    Reintenta la emisión de la factura electrónica para un registro de pago.
+    Útil cuando la primera emisión falló por error de red, configuración incompleta, etc.
+    """
+    pago = db.query(models.RegistroPago).options(
+        joinedload(models.RegistroPago.empresa),
+        joinedload(models.RegistroPago.plan),
+    ).filter(models.RegistroPago.id == pago_id).first()
+
+    if not pago:
+        raise HTTPException(status_code=404, detail="Registro de pago no encontrado.")
+    if not pago.empresa or not pago.plan:
+        raise HTTPException(status_code=400, detail="El pago no tiene empresa o plan asociados.")
+
+    plataforma = db.query(models.PlataformaConfig).filter_by(id=1).first()
+    if not plataforma or not plataforma.facturacion_electronica_activa:
+        raise HTTPException(status_code=400, detail="La facturación electrónica de la plataforma no está activa.")
+    if not plataforma.resolucion_numero:
+        raise HTTPException(status_code=400, detail="No hay resolución DIAN configurada para la plataforma.")
+
+    test_mode = plataforma.matias_test_mode if plataforma.matias_test_mode is not None else True
+    api_key   = plataforma.matias_sandbox_api_key if test_mode else plataforma.matias_api_key
+    if not api_key:
+        raise HTTPException(status_code=400, detail="No hay API key de Matías configurada para la plataforma.")
+
+    resultado = _ms.emitir_factura_suscripcion(
+        registro_pago   = pago,
+        empresa_cliente = pago.empresa,
+        plan            = pago.plan,
+        plataforma      = plataforma,
+        api_key         = api_key,
+        test_mode       = test_mode,
+    )
+
+    pago.estado_fe             = resultado["estado"]
+    pago.cufe_fe               = resultado.get("cufe_fe")
+    pago.pdf_url_fe            = resultado.get("pdf_url_fe")
+    pago.numero_factura_ksmart = resultado.get("numero_factura") or pago.numero_factura_ksmart
+
+    if resultado["estado"] == "exitoso":
+        plataforma.resolucion_numero_actual = (plataforma.resolucion_numero_actual or 0) + 1
+
+    db.commit()
+    logger.info("Reintento FE pago %s: %s por admin %s", pago_id, resultado["estado"], current_admin.id)
+
+    return {
+        "estado":            resultado["estado"],
+        "numero_factura":    pago.numero_factura_ksmart,
+        "pdf_url_fe":        pago.pdf_url_fe,
+        "cufe_fe":           pago.cufe_fe,
+        "mensaje":           resultado.get("mensaje"),
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

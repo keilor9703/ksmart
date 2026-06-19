@@ -28,6 +28,7 @@ import AnnouncementsManager from './components/AnnouncementsManager';
 import JobsControl from './components/JobsControl';
 import PlanFormDialog from './components/PlanFormDialog'; // ✅ Nuevo Componente Importado
 import PlataformaConfigForm from './components/PlataformaConfigForm';
+import FinanzasTab from './components/FinanzasTab';
 
 const ACCENT = '#F43F5E';
 const BLUE = '#3B82F6';
@@ -384,106 +385,7 @@ export default function GestionSaaS() {
           <TabPanel value={tabValue} index={5}><JobsControl /></TabPanel>
 
           <TabPanel value={tabValue} index={6}>
-            {/* ── Panel de recuperación de pagos perdidos ── */}
-            <Paper sx={{ p: 2.5, mb: 3, borderRadius: 3, border: '1px solid', borderColor: 'warning.main', bgcolor: 'warning.light', opacity: 0.95 }}>
-              <Typography sx={{ fontWeight: 800, fontSize: 13, color: 'warning.dark', mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Warning fontSize="small" /> Recuperar pago no registrado
-              </Typography>
-              <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1.5 }}>
-                Si un cliente pagó con Wompi pero el pago no aparece en la tabla, pega aquí el ID de transacción de Wompi (lo encuentras en tu panel Wompi → Transacciones).
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
-                <TextField
-                  size="small"
-                  placeholder="ID de transacción Wompi (ej: wom_prod_abc123...)"
-                  value={wompiRecoveryId}
-                  onChange={e => setWompiRecoveryId(e.target.value)}
-                  sx={{ flex: 1, minWidth: 260, bgcolor: 'background.paper', borderRadius: 2 }}
-                />
-                <Button
-                  variant="contained"
-                  disabled={!wompiRecoveryId.trim() || recoveryLoading}
-                  startIcon={recoveryLoading ? <CircularProgress size={16} color="inherit" /> : <Search />}
-                  sx={{ bgcolor: 'warning.dark', color: '#fff', fontWeight: 700, borderRadius: 2, '&:hover': { bgcolor: 'warning.dark' } }}
-                  onClick={async () => {
-                    setRecoveryLoading(true);
-                    try {
-                      const { data } = await apiClient.post('/superadmin/recuperar-pago-wompi', { wompi_id: wompiRecoveryId.trim() });
-                      toast.success(`✅ ${data.mensaje || 'Pago recuperado'} — Empresa: ${data.empresa} | Plan: ${data.plan} | Activo hasta: ${data.activo_hasta ? new Date(data.activo_hasta).toLocaleDateString('es-CO') : '—'}`);
-                      setWompiRecoveryId('');
-                      // Refrescar lista de pagos
-                      const res = await apiClient.get('/superadmin/historial-pagos');
-                      // El hook useSaaSData no expone setPagos; recargar la página es el fallback
-                      window.location.reload();
-                    } catch (err) {
-                      const msg = err?.response?.data?.detail || 'Error al recuperar el pago';
-                      toast.error(msg);
-                    } finally {
-                      setRecoveryLoading(false);
-                    }
-                  }}
-                >
-                  Recuperar pago
-                </Button>
-              </Box>
-            </Paper>
-
-            <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
-              <Paper sx={{ p: 2.5, borderRadius: 3, bgcolor: `${GREEN}08`, border: `1px solid ${GREEN}20`, flex: 1, minWidth: 200 }}>
-                <Typography variant="caption" sx={{ fontWeight: 800, color: GREEN, textTransform: 'uppercase' }}>Ingresos Totales</Typography>
-                <Typography sx={{ fontWeight: 900, fontSize: 28, color: GREEN }}>
-                  ${new Intl.NumberFormat('es-CO').format(pagos.reduce((acc, p) => acc + (p.monto || 0), 0))}
-                </Typography>
-                <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.5 }}>{pagos.length} transacciones registradas</Typography>
-              </Paper>
-              <Button
-                variant="contained"
-                startIcon={<Payments />}
-                sx={{ bgcolor: GREEN, borderRadius: 2, fontWeight: 700, alignSelf: 'center', px: 3 }}
-                onClick={() => {
-                  if (!pagos.length) return;
-                  const headers = Object.keys(pagos[0]).join(',');
-                  const rows = pagos.map(p => Object.values(p).map(v => `"${v ?? ''}"`).join(','));
-                  const csv = [headers, ...rows].join('\n');
-                  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'historial_pagos.csv'; a.click();
-                }}
-              >
-                Exportar CSV
-              </Button>
-            </Box>
-            {pagos.length > 0 ? (
-              <Paper sx={{ borderRadius: 3, overflow: 'hidden' }}>
-                <TableContainer sx={{ maxHeight: '60vh' }}>
-                  <Table size="small" stickyHeader>
-                    <TableHead>
-                      <TableRow>
-                        {Object.keys(pagos[0]).map(k => (
-                          <TableCell key={k} sx={{ fontWeight: 800, bgcolor: 'action.hover', textTransform: 'capitalize', fontSize: 12 }}>{k.replace(/_/g, ' ')}</TableCell>
-                        ))}
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {pagos.map((p, i) => (
-                        <TableRow key={i} hover>
-                          {Object.values(p).map((v, j) => (
-                            <TableCell key={j} sx={{ fontSize: 12 }}>
-                              {typeof v === 'number' && Object.keys(p)[j] === 'monto'
-                                ? `$${new Intl.NumberFormat('es-CO').format(v)}`
-                                : String(v ?? '-')}
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Paper>
-            ) : (
-              <Paper sx={{ p: 6, textAlign: 'center', borderRadius: 3 }}>
-                <ReceiptLong sx={{ fontSize: 48, color: 'action.disabled', mb: 1 }} />
-                <Typography color="text.secondary">No hay registros de pagos aún.</Typography>
-              </Paper>
-            )}
+            <FinanzasTab pagos={pagos} />
           </TabPanel>
 
           <TabPanel value={tabValue} index={7}>
