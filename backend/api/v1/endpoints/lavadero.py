@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import Optional, List
 from datetime import datetime, date, timezone
@@ -8,6 +8,7 @@ from pydantic import BaseModel
 import models
 from api.deps import get_db, get_current_active_user
 from models import utcnow
+from services import matias_service as _ms
 
 router = APIRouter()
 
@@ -335,7 +336,120 @@ def cobrar_orden(
 
     db.commit()
     db.refresh(orden)
+
+    # ── Facturación electrónica (mismo flujo que ventas POS) ─────────────────
+    try:
+        empresa_fe = db.query(models.Empresa).filter_by(id=current_user.empresa_id).first()
+        if (
+            empresa_fe
+            and empresa_fe.facturacion_electronica_activa
+            and (empresa_fe.matias_api_key or empresa_fe.matias_sandbox_api_key)
+        ):
+            from crud.ventas import _get_resolucion_activa, _asignar_numero_factura
+            resolucion = _get_resolucion_activa(db, current_user.empresa_id)
+            if resolucion:
+                numero = _asignar_numero_factura(db, current_user.empresa_id, venta)
+                venta.numero_factura = numero
+                db.flush()
+
+                test_mode = empresa_fe.matias_test_mode if empresa_fe.matias_test_mode is not None else True
+                api_key   = empresa_fe.matias_sandbox_api_key if test_mode else empresa_fe.matias_api_key
+
+                cliente_fe = db.query(models.Cliente).filter_by(
+                    id=orden.cliente_id, empresa_id=current_user.empresa_id
+                ).first() if orden.cliente_id else None
+
+                detalles_fe = db.query(models.DetalleVenta).filter_by(
+                    venta_id=venta.id, empresa_id=current_user.empresa_id
+                ).options(joinedload(models.DetalleVenta.producto)).all()
+
+                resultado_fe = _ms.emitir_factura(
+                    venta=venta,
+                    empresa=empresa_fe,
+                    cliente=cliente_fe,
+                    detalles=detalles_fe,
+                    api_key=api_key,
+                    test_mode=test_mode,
+                )
+                venta.estado_electronico = resultado_fe["estado"]
+                venta.cufe               = resultado_fe.get("cufe")
+                venta.pdf_url            = resultado_fe.get("pdf_url")
+                venta.xml_url            = resultado_fe.get("xml_url")
+                venta.qr_data            = resultado_fe.get("qr_url")
+                venta.mensaje_proveedor  = resultado_fe.get("mensaje")
+                db.commit()
+    except Exception as _fe_exc:
+        import logging
+        logging.getLogger("lavadero").error("Error FE en cobrar_orden %s: %s", orden_id, _fe_exc)
+
+    db.refresh(orden)
     return {**_orden_to_dict(orden), "venta_id": venta.id}
+
+
+# ─── Historial de ventas ──────────────────────────────────────────────────────
+
+@router.get("/historial")
+def historial_ventas(
+    fecha_inicio: Optional[date] = Query(None),
+    fecha_fin:    Optional[date] = Query(None),
+    placa:        Optional[str]  = Query(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Historial de órdenes cobradas con datos de FE y cliente."""
+    q = (
+        db.query(models.LavaderoOrden)
+        .filter(
+            models.LavaderoOrden.empresa_id == current_user.empresa_id,
+            models.LavaderoOrden.pagado == True,
+        )
+        .options(
+            joinedload(models.LavaderoOrden.detalles),
+            joinedload(models.LavaderoOrden.cliente),
+            joinedload(models.LavaderoOrden.operador),
+        )
+    )
+    if placa:
+        q = q.filter(models.LavaderoOrden.placa.ilike(f"%{placa.upper().replace('-','')}%"))
+    if fecha_inicio:
+        q = q.filter(
+            models.LavaderoOrden.fecha_entrada >= datetime.combine(fecha_inicio, datetime.min.time()).replace(tzinfo=timezone.utc)
+        )
+    if fecha_fin:
+        q = q.filter(
+            models.LavaderoOrden.fecha_entrada <= datetime.combine(fecha_fin, datetime.max.time()).replace(tzinfo=timezone.utc)
+        )
+
+    ordenes = q.order_by(models.LavaderoOrden.fecha_salida.desc()).all()
+
+    resultado = []
+    for o in ordenes:
+        # Traer datos de FE desde la Venta vinculada
+        venta_fe = db.query(
+            models.Venta.numero_factura,
+            models.Venta.estado_electronico,
+            models.Venta.cufe,
+            models.Venta.pdf_url,
+        ).filter_by(id=o.venta_id).first() if o.venta_id else None
+
+        resultado.append({
+            "id":           o.id,
+            "placa":        o.placa,
+            "tipo_vehiculo":o.tipo_vehiculo,
+            "fecha_entrada":o.fecha_entrada.isoformat() if o.fecha_entrada else None,
+            "fecha_salida": o.fecha_salida.isoformat()  if o.fecha_salida  else None,
+            "total":        o.total,
+            "metodo_pago":  o.metodo_pago,
+            "cliente_nombre": o.cliente.nombre if o.cliente else None,
+            "operador_nombre": (o.operador.nombre_completo or o.operador.username) if o.operador else None,
+            "servicios":    [{"nombre": d.nombre_servicio or d.nombre_libre, "precio": d.precio_unitario, "cantidad": d.cantidad} for d in o.detalles],
+            "venta_id":     o.venta_id,
+            "numero_factura":  venta_fe.numero_factura  if venta_fe else None,
+            "estado_fe":       venta_fe.estado_electronico if venta_fe else None,
+            "cufe":            venta_fe.cufe             if venta_fe else None,
+            "pdf_url":         venta_fe.pdf_url          if venta_fe else None,
+        })
+    return resultado
 
 
 # ─── Reporte ─────────────────────────────────────────────────────────────────

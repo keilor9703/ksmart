@@ -4,12 +4,15 @@ import {
   IconButton, Divider, Autocomplete, CircularProgress,
   Tooltip, InputAdornment, Dialog, DialogTitle, DialogContent,
   DialogActions, ToggleButtonGroup, ToggleButton, Badge, alpha,
+  Table, TableHead, TableRow, TableCell, TableBody, TableContainer,
+  Tabs, Tab,
 } from '@mui/material';
 import {
   DirectionsCar, Add, Remove, DeleteOutline, LocalCarWash,
   TwoWheeler, LocalShipping, DriveEta, ClearAll, Notes,
   Refresh, AccessTime, AttachMoney, CheckCircle, PlayArrow,
   Done, Close, Person, WhatsApp, Print, Storefront, QrCode2, Stars,
+  History, PictureAsPdf, ContentCopy, Search,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
@@ -295,8 +298,33 @@ export default function LavaderoVentas({ user }) {
 
   /* ── Fidelización ──────────────────────────────────────────────────────── */
   const [configFidel,     setConfigFidel]     = useState({ activa: true, redeem_rate: 100 });
-  const [cobrarPuntos,    setCobrarPuntos]    = useState(0);   // puntos disponibles del cliente
+  const [cobrarPuntos,    setCobrarPuntos]    = useState(0);
   const [puntosACanjear,  setPuntosACanjear]  = useState(0);
+
+  /* ── Historial ────────────────────────────────────────────────────────── */
+  const [mainTab,         setMainTab]         = useState(0);  // 0=POS 1=Historial
+  const [historial,       setHistorial]       = useState([]);
+  const [histLoading,     setHistLoading]     = useState(false);
+  const [histFechaIni,    setHistFechaIni]    = useState('');
+  const [histFechaFin,    setHistFechaFin]    = useState('');
+  const [histPlaca,       setHistPlaca]       = useState('');
+
+  const fetchHistorial = useCallback(async () => {
+    setHistLoading(true);
+    try {
+      const params = {};
+      if (histFechaIni) params.fecha_inicio = histFechaIni;
+      if (histFechaFin) params.fecha_fin    = histFechaFin;
+      if (histPlaca.trim()) params.placa    = histPlaca.trim();
+      const { data } = await apiClient.get('/lavadero/historial', { params });
+      setHistorial(data);
+    } catch { toast.error('No se pudo cargar el historial.'); }
+    finally { setHistLoading(false); }
+  }, [histFechaIni, histFechaFin, histPlaca]);
+
+  useEffect(() => {
+    if (mainTab === 1) fetchHistorial();
+  }, [mainTab, fetchHistorial]);
 
   /* ── Computed ─────────────────────────────────────────────────────────── */
   const metodosDisponibles = useMemo(
@@ -567,6 +595,143 @@ export default function LavaderoVentas({ user }) {
           Actualizar tablero
         </Button>
       </Box>
+
+      {/* ── Tabs principales: POS | Historial ── */}
+      <Tabs
+        value={mainTab} onChange={(_, v) => setMainTab(v)}
+        sx={{ mb: 2, borderBottom: '1px solid', borderColor: 'divider',
+          '& .MuiTab-root': { fontWeight: 700, textTransform: 'none', minHeight: 44 },
+          '& .MuiTabs-indicator': { bgcolor: ACCENT },
+          '& .Mui-selected': { color: `${ACCENT} !important` },
+        }}
+      >
+        <Tab icon={<LocalCarWash fontSize="small" />} iconPosition="start" label="POS Lavadero" />
+        <Tab icon={<History fontSize="small" />} iconPosition="start" label="Historial de ventas" />
+      </Tabs>
+
+      {/* ══ TAB 1: Historial ══ */}
+      {mainTab === 1 && (
+        <Box>
+          {/* Filtros */}
+          <Paper sx={{ p: 2, mb: 2.5, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+            <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <TextField label="Desde" type="date" size="small" InputLabelProps={{ shrink: true }}
+                value={histFechaIni} onChange={e => setHistFechaIni(e.target.value)} sx={{ width: 155 }} />
+              <TextField label="Hasta" type="date" size="small" InputLabelProps={{ shrink: true }}
+                value={histFechaFin} onChange={e => setHistFechaFin(e.target.value)} sx={{ width: 155 }} />
+              <TextField label="Placa" size="small"
+                value={histPlaca} onChange={e => setHistPlaca(e.target.value.toUpperCase())}
+                inputProps={{ style: { textTransform: 'uppercase', letterSpacing: 2 } }}
+                sx={{ width: 130 }} />
+              <Button variant="contained" startIcon={histLoading ? <CircularProgress size={14} color="inherit" /> : <Search />}
+                onClick={fetchHistorial} disabled={histLoading}
+                sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e5551c' }, fontWeight: 700, borderRadius: 2 }}>
+                Buscar
+              </Button>
+            </Box>
+          </Paper>
+
+          {/* KPIs rápidos */}
+          {historial.length > 0 && (
+            <Box sx={{ display: 'flex', gap: 2, mb: 2.5, flexWrap: 'wrap' }}>
+              <Paper sx={{ p: 2, borderRadius: 3, bgcolor: alpha(GREEN, 0.07), border: `1px solid ${alpha(GREEN, 0.2)}`, flex: 1, minWidth: 150 }}>
+                <Typography sx={{ fontWeight: 800, fontSize: 11, color: GREEN, textTransform: 'uppercase' }}>Total cobrado</Typography>
+                <Typography sx={{ fontWeight: 900, fontSize: 22, color: GREEN }}>
+                  ${new Intl.NumberFormat('es-CO').format(historial.reduce((a, h) => a + (h.total || 0), 0))}
+                </Typography>
+              </Paper>
+              <Paper sx={{ p: 2, borderRadius: 3, bgcolor: alpha(BLUE, 0.07), border: `1px solid ${alpha(BLUE, 0.2)}`, flex: 1, minWidth: 150 }}>
+                <Typography sx={{ fontWeight: 800, fontSize: 11, color: BLUE, textTransform: 'uppercase' }}>Órdenes</Typography>
+                <Typography sx={{ fontWeight: 900, fontSize: 22, color: BLUE }}>{historial.length}</Typography>
+              </Paper>
+              <Paper sx={{ p: 2, borderRadius: 3, bgcolor: alpha(ACCENT, 0.07), border: `1px solid ${alpha(ACCENT, 0.2)}`, flex: 1, minWidth: 150 }}>
+                <Typography sx={{ fontWeight: 800, fontSize: 11, color: ACCENT, textTransform: 'uppercase' }}>FE emitidas</Typography>
+                <Typography sx={{ fontWeight: 900, fontSize: 22, color: ACCENT }}>
+                  {historial.filter(h => h.estado_fe === 'exitoso').length}
+                </Typography>
+              </Paper>
+            </Box>
+          )}
+
+          {/* Tabla */}
+          <Paper sx={{ borderRadius: 3, overflow: 'hidden' }}>
+            <TableContainer sx={{ maxHeight: '65vh' }}>
+              <Table size="small" stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    {['Fecha', 'Placa', 'Vehículo', 'Servicios', 'Total', 'Método', 'Cliente', 'Operador', 'FE', 'N° Factura', 'PDF'].map(h => (
+                      <TableCell key={h} sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.3, bgcolor: 'action.hover' }}>{h}</TableCell>
+                    ))}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {historial.length === 0 && !histLoading && (
+                    <TableRow>
+                      <TableCell colSpan={11} align="center" sx={{ py: 6, color: 'text.disabled' }}>
+                        Sin registros. Usa los filtros y presiona Buscar.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {historial.map(h => {
+                    const feColor = h.estado_fe === 'exitoso' ? GREEN : h.estado_fe === 'fallido' ? RED : '#94a3b8';
+                    const feLabel = h.estado_fe === 'exitoso' ? 'Emitida' : h.estado_fe === 'fallido' ? 'Fallida' : 'Sin FE';
+                    return (
+                      <TableRow key={h.id} hover sx={{ '& td': { py: 1.1 } }}>
+                        <TableCell>
+                          <Typography sx={{ fontSize: 12, fontWeight: 600 }}>
+                            {h.fecha_salida ? new Date(h.fecha_salida).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                          </Typography>
+                          <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
+                            {h.fecha_salida ? new Date(h.fecha_salida).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : ''}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography sx={{ fontSize: 13, fontWeight: 800, letterSpacing: 2, fontFamily: 'monospace' }}>{h.placa}</Typography>
+                        </TableCell>
+                        <TableCell><Typography sx={{ fontSize: 12 }}>{h.tipo_vehiculo || '—'}</Typography></TableCell>
+                        <TableCell sx={{ maxWidth: 200 }}>
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.3 }}>
+                            {(h.servicios || []).map((s, i) => (
+                              <Chip key={i} label={`${s.nombre}${s.cantidad > 1 ? ` x${s.cantidad}` : ''}`} size="small"
+                                sx={{ fontSize: 10, height: 18, bgcolor: alpha(ACCENT, 0.1), color: ACCENT }} />
+                            ))}
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Typography sx={{ fontSize: 13, fontWeight: 800, color: GREEN }}>
+                            ${new Intl.NumberFormat('es-CO').format(h.total || 0)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell><Typography sx={{ fontSize: 12 }}>{h.metodo_pago || '—'}</Typography></TableCell>
+                        <TableCell><Typography sx={{ fontSize: 12 }}>{h.cliente_nombre || '—'}</Typography></TableCell>
+                        <TableCell><Typography sx={{ fontSize: 12 }}>{h.operador_nombre || '—'}</Typography></TableCell>
+                        <TableCell>
+                          <Chip label={feLabel} size="small" sx={{ bgcolor: alpha(feColor, 0.1), color: feColor, fontWeight: 700, fontSize: 10, height: 20 }} />
+                        </TableCell>
+                        <TableCell>
+                          <Typography sx={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 600 }}>{h.numero_factura || '—'}</Typography>
+                        </TableCell>
+                        <TableCell>
+                          {h.pdf_url ? (
+                            <Tooltip title="Ver PDF factura electrónica">
+                              <IconButton size="small" component="a" href={h.pdf_url} target="_blank" rel="noopener noreferrer" sx={{ color: BLUE }}>
+                                <PictureAsPdf fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          ) : <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>—</Typography>}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
+        </Box>
+      )}
+
+      {/* ══ TAB 0: POS ══ */}
+      {mainTab === 0 && <>
 
       {/* ── Mobile tab switcher ── */}
       <Box sx={{ display: { xs: 'flex', md: 'none' }, mb: 2 }}>
@@ -1178,6 +1343,8 @@ export default function LavaderoVentas({ user }) {
         linkConfig={metodoLinkQR}
         clienteTelefono={cobrarOrden?.cliente_telefono || ''}
       />
+
+      </> /* fin TAB 0 POS */}
     </Box>
   );
 }
