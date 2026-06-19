@@ -200,11 +200,7 @@ def change_password_mi_cuenta(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
-    """Cambia la contraseña del usuario autenticado verificando la contraseña actual."""
-    if not current_user.hashed_password or not security.verify_password(
-        payload.password_actual, current_user.hashed_password
-    ):
-        raise HTTPException(status_code=400, detail="La contraseña actual es incorrecta.")
+    """Cambia la contraseña del usuario autenticado (no requiere contraseña actual)."""
     current_user.hashed_password = security.get_password_hash(payload.nueva_password)
     db.commit()
     return {"message": "Contraseña actualizada correctamente."}

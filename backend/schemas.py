@@ -2579,8 +2579,7 @@ class MiCuentaUpdate(BaseModel):
     telefono:        Optional[str] = None
 
 class CambiarPasswordMiCuentaRequest(BaseModel):
-    password_actual: str
-    nueva_password:  str = Field(..., min_length=1, max_length=80)
+    nueva_password:  str = Field(..., min_length=6, max_length=80)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -470,16 +470,16 @@ const MiEmpresaTab = () => {
   const [cuenta, setCuenta]       = useState(null);
   const [loading, setLoading]     = useState(true);
   const [savingInfo, setSavingInfo] = useState(false);
-  const [savingPwd, setSavingPwd]   = useState(false);
-  const [pwdOpen, setPwdOpen]       = useState(false);
-  const [showCurPwd, setShowCurPwd] = useState(false);
-  const [showNewPwd, setShowNewPwd] = useState(false);
+  const [savingPwd, setSavingPwd]     = useState(false);
+  const [pwdOpen, setPwdOpen]         = useState(false);
+  const [showNewPwd, setShowNewPwd]   = useState(false);
+  const [showConfPwd, setShowConfPwd] = useState(false);
 
   const [form, setForm] = useState({
     empresa_nombre: '', ciudad: '', pais: '', tamano_negocio: '',
     nombre_completo: '', email: '', telefono: '',
   });
-  const [pwd, setPwd] = useState({ password_actual: '', nueva_password: '' });
+  const [pwd, setPwd] = useState({ nueva_password: '', confirmar_password: '' });
 
   const [fidel, setFidel] = useState({ activa: true, earn_rate: 1000, redeem_rate: 100 });
   const [savingFidel, setSavingFidel] = useState(false);
@@ -547,12 +547,33 @@ const MiEmpresaTab = () => {
     }
   };
 
+  const pwdStrength = (() => {
+    const p = pwd.nueva_password;
+    if (!p) return { score: 0, label: '', color: '' };
+    let score = 0;
+    if (p.length >= 6)  score++;
+    if (p.length >= 10) score++;
+    if (/[A-Z]/.test(p)) score++;
+    if (/[0-9]/.test(p)) score++;
+    if (/[^A-Za-z0-9]/.test(p)) score++;
+    if (score <= 1) return { score, label: 'Muy débil', color: '#EF4444' };
+    if (score === 2) return { score, label: 'Débil',    color: '#F97316' };
+    if (score === 3) return { score, label: 'Regular',  color: '#F59E0B' };
+    if (score === 4) return { score, label: 'Fuerte',   color: '#10B981' };
+    return { score, label: 'Muy fuerte', color: '#059669' };
+  })();
+
+  const pwdMatch = pwd.confirmar_password && pwd.nueva_password === pwd.confirmar_password;
+  const pwdMismatch = pwd.confirmar_password && pwd.nueva_password !== pwd.confirmar_password;
+
   const handleSavePwd = async () => {
+    if (pwd.nueva_password.length < 6) return toast.warning('La contraseña debe tener al menos 6 caracteres.');
+    if (!pwdMatch) return toast.warning('Las contraseñas no coinciden.');
     setSavingPwd(true);
     try {
-      await apiClient.put('/empresa/mi-cuenta/password', pwd);
+      await apiClient.put('/empresa/mi-cuenta/password', { nueva_password: pwd.nueva_password });
       toast.success('Contraseña actualizada correctamente');
-      setPwd({ password_actual: '', nueva_password: '' });
+      setPwd({ nueva_password: '', confirmar_password: '' });
       setPwdOpen(false);
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al cambiar la contraseña');
@@ -816,43 +837,83 @@ const MiEmpresaTab = () => {
           <Divider />
           <Box sx={{ px: 2.5, py: 2.5 }}>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2, mb: 2 }}>
-              <TextField
-                label="Contraseña actual" size="small" fullWidth
-                type={showCurPwd ? 'text' : 'password'}
-                value={pwd.password_actual}
-                onChange={e => setPwd(p => ({ ...p, password_actual: e.target.value }))}
-                InputProps={{
-                  startAdornment: <InputAdornment position="start"><Lock sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment>,
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton size="small" onClick={() => setShowCurPwd(v => !v)} edge="end">
-                        {showCurPwd ? <VisibilityOff sx={{ fontSize: 16 }} /> : <Visibility sx={{ fontSize: 16 }} />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }}
-              />
-              <TextField
-                label="Nueva contraseña" size="small" fullWidth
-                type={showNewPwd ? 'text' : 'password'}
-                value={pwd.nueva_password}
-                onChange={e => setPwd(p => ({ ...p, nueva_password: e.target.value }))}
-                InputProps={{
-                  startAdornment: <InputAdornment position="start"><Lock sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment>,
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton size="small" onClick={() => setShowNewPwd(v => !v)} edge="end">
-                        {showNewPwd ? <VisibilityOff sx={{ fontSize: 16 }} /> : <Visibility sx={{ fontSize: 16 }} />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }}
-              />
+              {/* Nueva contraseña */}
+              <Box>
+                <TextField
+                  label="Nueva contraseña" size="small" fullWidth
+                  type={showNewPwd ? 'text' : 'password'}
+                  value={pwd.nueva_password}
+                  onChange={e => setPwd(p => ({ ...p, nueva_password: e.target.value }))}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start"><Lock sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment>,
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton size="small" onClick={() => setShowNewPwd(v => !v)} edge="end">
+                          {showNewPwd ? <VisibilityOff sx={{ fontSize: 16 }} /> : <Visibility sx={{ fontSize: 16 }} />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+                {/* Barra de fortaleza */}
+                {pwd.nueva_password.length > 0 && (
+                  <Box sx={{ mt: 1 }}>
+                    <Box sx={{ display: 'flex', gap: 0.5, mb: 0.5 }}>
+                      {[1,2,3,4,5].map(i => (
+                        <Box key={i} sx={{
+                          flex: 1, height: 4, borderRadius: 2,
+                          bgcolor: i <= pwdStrength.score ? pwdStrength.color : 'action.hover',
+                          transition: 'background-color 0.3s',
+                        }} />
+                      ))}
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                      <Typography sx={{ fontSize: 11, color: pwdStrength.color, fontWeight: 700 }}>
+                        {pwdStrength.label}
+                      </Typography>
+                      {[
+                        { ok: pwd.nueva_password.length >= 6,       label: '6+ caracteres' },
+                        { ok: /[A-Z]/.test(pwd.nueva_password),      label: 'Mayúscula' },
+                        { ok: /[0-9]/.test(pwd.nueva_password),      label: 'Número' },
+                        { ok: /[^A-Za-z0-9]/.test(pwd.nueva_password), label: 'Símbolo' },
+                      ].map(({ ok, label }) => (
+                        <Typography key={label} sx={{ fontSize: 10, color: ok ? '#10B981' : 'text.disabled', display: 'flex', alignItems: 'center', gap: 0.3 }}>
+                          {ok ? '✓' : '·'} {label}
+                        </Typography>
+                      ))}
+                    </Box>
+                  </Box>
+                )}
+              </Box>
+
+              {/* Confirmar contraseña */}
+              <Box>
+                <TextField
+                  label="Confirmar contraseña" size="small" fullWidth
+                  type={showConfPwd ? 'text' : 'password'}
+                  value={pwd.confirmar_password}
+                  onChange={e => setPwd(p => ({ ...p, confirmar_password: e.target.value }))}
+                  error={pwdMismatch}
+                  helperText={pwdMismatch ? 'Las contraseñas no coinciden' : pwdMatch ? '✓ Contraseñas coinciden' : ''}
+                  FormHelperTextProps={{ sx: { color: pwdMatch ? '#10B981' : undefined, fontWeight: 600 } }}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start"><Lock sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment>,
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton size="small" onClick={() => setShowConfPwd(v => !v)} edge="end">
+                          {showConfPwd ? <VisibilityOff sx={{ fontSize: 16 }} /> : <Visibility sx={{ fontSize: 16 }} />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Box>
             </Box>
+
             <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
               <Button
                 variant="contained" onClick={handleSavePwd}
-                disabled={savingPwd || !pwd.password_actual || !pwd.nueva_password}
+                disabled={savingPwd || !pwd.nueva_password || !pwd.confirmar_password || pwdMismatch}
                 startIcon={savingPwd ? <CircularProgress size={16} color="inherit" /> : <Save />}
                 sx={{ borderRadius: 2.5, bgcolor: '#7C3AED', '&:hover': { bgcolor: '#6d28d9' }, fontWeight: 700, px: 3 }}
               >
