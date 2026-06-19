@@ -280,6 +280,32 @@ const PlanCard = ({ plan, onSuccess, current }) => {
         ))}
       </Box>
 
+      <Box sx={{ mb: 2 }}>
+        {plan.incluye_fe !== false ? (
+          <Chip
+            icon={<CheckCircle sx={{ fontSize: '13px !important', color: '#059669 !important' }} />}
+            label="FE incluida"
+            size="small"
+            sx={{
+              bgcolor: alpha('#059669', 0.1), color: '#059669',
+              fontWeight: 700, fontSize: 11,
+              border: `1px solid ${alpha('#059669', 0.3)}`,
+              '& .MuiChip-icon': { ml: '4px' },
+            }}
+          />
+        ) : (
+          <Chip
+            label="Sin FE"
+            size="small"
+            sx={{
+              bgcolor: alpha('#6b7280', 0.1), color: '#6b7280',
+              fontWeight: 700, fontSize: 11,
+              border: `1px solid ${alpha('#6b7280', 0.3)}`,
+            }}
+          />
+        )}
+      </Box>
+
       <WompiButton planName={plan.codigo_interno} onSuccess={onSuccess} />
     </Card>
   );

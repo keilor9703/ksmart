@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import {
   Visibility, VisibilityOff, Save, Receipt, CheckCircle, ErrorOutline,
-  HourglassEmpty, Refresh, MenuBook, Settings, Gavel,
+  HourglassEmpty, Refresh, MenuBook, Settings, Gavel, Upgrade,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
@@ -38,6 +38,7 @@ export default function ConfigFE() {
   const [showKey, setShowKey]         = useState(false);
   const [showSandboxKey, setShowSandboxKey] = useState(false);
   const [loadingIntentos, setLoadingIntentos] = useState(false);
+  const [planIncluyeFE, setPlanIncluyeFE] = useState(true);
 
   const fetchConfig = async () => {
     try {
@@ -49,6 +50,24 @@ export default function ConfigFE() {
       });
     } catch { toast.error('Error cargando configuración FE'); }
     finally { setLoading(false); }
+  };
+
+  const fetchSuscripcion = async () => {
+    try {
+      const r = await apiClient.get('/mi-suscripcion');
+      const planes = r.data?.planes_disponibles || [];
+      // Verificar si el plan actual incluye FE consultando el último pago
+      const historial = r.data?.historial_pagos || [];
+      if (historial.length > 0 && historial[0].plan) {
+        const planActual = planes.find(p => p.id === historial[0].plan.id);
+        if (planActual) {
+          setPlanIncluyeFE(planActual.incluye_fe !== false);
+          return;
+        }
+      }
+      // Si no hay historial de pagos (trial), permitir FE
+      setPlanIncluyeFE(true);
+    } catch { /* silencioso — en caso de error, no bloquear */ }
   };
 
   const fetchIntentos = async (page = 1) => {
@@ -63,7 +82,7 @@ export default function ConfigFE() {
     finally { setLoadingIntentos(false); }
   };
 
-  useEffect(() => { fetchConfig(); fetchIntentos(1); }, []);
+  useEffect(() => { fetchConfig(); fetchIntentos(1); fetchSuscripcion(); }, []);
 
   const handleSave = async () => {
     setSaving(true);
@@ -76,6 +95,44 @@ export default function ConfigFE() {
   };
 
   if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>;
+
+  if (!planIncluyeFE) {
+    return (
+      <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 900, mx: 'auto' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+          <Receipt sx={{ color: PURPLE, fontSize: 32 }} />
+          <Box>
+            <Typography variant="h5" fontWeight={700}>Facturación Electrónica</Typography>
+            <Typography variant="body2" color="text.secondary">Configuración Matias API — DIAN Colombia</Typography>
+          </Box>
+        </Box>
+        <Paper sx={{
+          p: 4, textAlign: 'center',
+          border: `2px dashed #F59E0B`,
+          borderRadius: 3,
+          bgcolor: 'rgba(245,158,11,0.04)',
+        }}>
+          <Receipt sx={{ fontSize: 56, color: '#F59E0B', mb: 2 }} />
+          <Typography variant="h6" fontWeight={700} mb={1}>
+            Tu plan actual no incluye Facturación Electrónica
+          </Typography>
+          <Typography color="text.secondary" mb={3} maxWidth={480} mx="auto">
+            Para emitir facturas electrónicas válidas ante la DIAN, necesitas un plan que incluya esta funcionalidad.
+            Actualiza tu suscripción para acceder a la configuración completa de FE.
+          </Typography>
+          <Button
+            variant="contained"
+            size="large"
+            startIcon={<Upgrade />}
+            onClick={() => navigate('/cuenta/suscripcion')}
+            sx={{ bgcolor: '#F59E0B', '&:hover': { bgcolor: '#D97706' }, fontWeight: 700, borderRadius: 2.5, px: 4 }}
+          >
+            Actualizar plan
+          </Button>
+        </Paper>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 900, mx: 'auto' }}>

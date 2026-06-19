@@ -1253,6 +1253,7 @@ class PlanSuscripcionBase(BaseModel):
     is_active: bool = True
     is_featured: bool = False
     empresa_id_exclusivo: Optional[int] = None
+    incluye_fe: bool = True
 
 class PlanSuscripcionCreate(PlanSuscripcionBase):
     pass

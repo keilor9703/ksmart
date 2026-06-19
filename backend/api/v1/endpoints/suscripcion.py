@@ -99,6 +99,7 @@ def get_mi_suscripcion(
             "precio":          p.precio,
             "dias_duracion":   p.dias_duracion,
             "caracteristicas": p.caracteristicas,
+            "incluye_fe":      getattr(p, "incluye_fe", True) if getattr(p, "incluye_fe", None) is not None else True,
         }
         for p in planes
     ]

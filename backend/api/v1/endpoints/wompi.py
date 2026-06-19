@@ -211,6 +211,11 @@ def confirmar_pago_widget(
     base  = empresa.trial_ends_at if empresa.trial_ends_at and empresa.trial_ends_at > ahora else ahora
     empresa.trial_ends_at = base + timedelta(days=plan.dias_duracion)
 
+    # 6a. Si el plan no incluye FE, desactivar facturación electrónica de la empresa
+    if getattr(plan, "incluye_fe", True) == False:
+        empresa.facturacion_electronica_activa = False
+        logger.info(f"Plan {plan.codigo_interno} no incluye FE — facturacion_electronica_activa desactivada para empresa {empresa_id_ref}")
+
     nuevo_pago = models.RegistroPago(
         empresa_id   = empresa_id_ref,
         plan_id      = plan_id,
