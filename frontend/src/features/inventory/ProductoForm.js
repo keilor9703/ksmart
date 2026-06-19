@@ -510,6 +510,7 @@ const ProductoForm = ({
               {/* § 1 — Información General */}
               <SectionCard icon={<Category fontSize="small" />} title="Información General" accent={accentColor}>
                 <Grid container spacing={2}>
+                  {/* Nombre — fila propia, ancho completo */}
                   <Grid item xs={12}>
                     <TextField
                       label={esServicio ? 'Nombre del Servicio *' : 'Nombre del Producto *'}
@@ -519,12 +520,13 @@ const ProductoForm = ({
                     />
                   </Grid>
 
+                  {/* Descripción — fila propia, ancho completo, 2 filas de alto */}
                   <Grid item xs={12}>
                     <TextField
                       label="Descripción"
                       value={descripcion}
                       onChange={e => setDescripcion(e.target.value)}
-                      fullWidth multiline rows={3}
+                      fullWidth multiline rows={2}
                       placeholder={esServicio
                         ? 'Ej: Servicio de instalación y configuración incluida…'
                         : 'Ej: Presentación de 500 g, sabor original, apto para veganos…'}
