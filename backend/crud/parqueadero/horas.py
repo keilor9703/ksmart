@@ -268,6 +268,7 @@ def registrar_salida_horas(
     # Solo crear venta si hubo cobro
     if monto_final and monto_final > 0:
         import models as _models
+        from crud import ventas as _crud_ventas
         placa_str = acceso.placa or ''
         venta_parq = _models.Venta(
             empresa_id  = empresa_id,
@@ -283,6 +284,34 @@ def registrar_salida_horas(
         )
         db.add(venta_parq)
         db.commit()
+        db.refresh(venta_parq)
+
+        # FE individual: solo cuando el cliente proporciona su NIT/CC
+        nit = (payload.cliente_nit or "").strip()
+        if nit:
+            nombre_fe = (payload.cliente_nombre or "").strip() or f"Cliente {nit}"
+            # Buscar o crear cliente
+            cliente_fe = db.query(_models.Cliente).filter(
+                _models.Cliente.empresa_id == empresa_id,
+                _models.Cliente.nit == nit,
+            ).first()
+            if not cliente_fe:
+                cliente_fe = _models.Cliente(
+                    empresa_id = empresa_id,
+                    nombre     = nombre_fe,
+                    nit        = nit,
+                )
+                db.add(cliente_fe)
+                db.commit()
+                db.refresh(cliente_fe)
+
+            detalle = _crud_ventas._DetalleSintetico(
+                descripcion=f"Parqueadero {minutos_cobrar} min — Placa {placa_str}",
+                monto=float(monto_final),
+            )
+            _crud_ventas.emitir_fe_venta(db, empresa_id, venta_parq, [detalle], cliente=cliente_fe)
+            db.commit()
+
         db.refresh(acceso)
 
     return acceso

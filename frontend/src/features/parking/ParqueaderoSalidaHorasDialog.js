@@ -5,7 +5,7 @@ import {
   CircularProgress, IconButton, Chip, Switch, FormControlLabel
 } from '@mui/material';
 import {
-  Close, Save, WhatsApp, OpenInNew, Print, CheckCircle, QrCode2
+  Close, Save, WhatsApp, OpenInNew, Print, CheckCircle, QrCode2, Receipt, ExpandMore, ExpandLess
 } from '@mui/icons-material';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
@@ -31,6 +31,11 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
   const [montoRecibido,    setMontoRecibido]   = useState('');    // para calculadora de vueltas
   const [linkPagoModalOpen, setLinkPagoModalOpen] = useState(false); // modal QR/link
 
+  // FE individual (campo opcional)
+  const [feExpanded,    setFeExpanded]    = useState(false);
+  const [clienteNit,    setClienteNit]    = useState('');
+  const [clienteNombre, setClienteNombre] = useState('');
+
   // Post-salida state
   const [salidaData, setSalidaData] = useState(null);
 
@@ -48,6 +53,9 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
     setMontoRecibido('');
     setEnviarWA(!!acceso?.telefono);
     setSalidaData(null);
+    setFeExpanded(false);
+    setClienteNit('');
+    setClienteNombre('');
   }, [open]);
 
   const calcular = () => {
@@ -101,10 +109,12 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
     setLoading(true);
     try {
       await apiClient.post('/parqueadero/accesos/salida', {
-        acceso_id:    acceso.id,
-        metodo_pago:  metodoPago,
-        monto_manual: montoManual === '' ? null : Number(montoManual),
-        observaciones: obs || null,
+        acceso_id:      acceso.id,
+        metodo_pago:    metodoPago,
+        monto_manual:   montoManual === '' ? null : Number(montoManual),
+        observaciones:  obs || null,
+        cliente_nit:    clienteNit.trim() || null,
+        cliente_nombre: clienteNombre.trim() || null,
       });
 
       if (enviarWA && acceso.telefono) {
@@ -354,6 +364,46 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
                 }
               />
             )}
+
+            {/* ── Sección FE individual (opcional) ── */}
+            <Box sx={{ mt: 1.5 }}>
+              <Button
+                size="small"
+                startIcon={<Receipt sx={{ fontSize: 16 }} />}
+                endIcon={feExpanded ? <ExpandLess sx={{ fontSize: 16 }} /> : <ExpandMore sx={{ fontSize: 16 }} />}
+                onClick={() => setFeExpanded(v => !v)}
+                sx={{
+                  color: feExpanded ? '#6366F1' : 'text.secondary',
+                  fontWeight: 600, fontSize: 12, textTransform: 'none', p: 0.5,
+                  '&:hover': { bgcolor: 'rgba(99,102,241,0.08)' },
+                }}
+              >
+                Factura electrónica a nombre del cliente
+              </Button>
+
+              {feExpanded && (
+                <Box sx={{ mt: 1, p: 1.5, bgcolor: 'rgba(99,102,241,0.06)', borderRadius: 2, border: '1px solid rgba(99,102,241,0.2)' }}>
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 1 }}>
+                    Opcional — si el cliente solicita factura con su NIT o cédula
+                  </Typography>
+                  <Stack spacing={1.5}>
+                    <TextField
+                      fullWidth size="small" label="NIT / Cédula del cliente"
+                      value={clienteNit}
+                      onChange={(e) => setClienteNit(e.target.value)}
+                      inputProps={{ inputMode: 'numeric' }}
+                      placeholder="Ej: 900123456 ó 12345678"
+                    />
+                    <TextField
+                      fullWidth size="small" label="Nombre o razón social"
+                      value={clienteNombre}
+                      onChange={(e) => setClienteNombre(e.target.value)}
+                      placeholder="Ej: Juan Pérez"
+                    />
+                  </Stack>
+                </Box>
+              )}
+            </Box>
           </DialogContent>
 
           <DialogActions sx={{ p: 2 }}>

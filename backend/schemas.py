@@ -1836,13 +1836,15 @@ class AccesoEntradaCreate(BaseModel):
 
 class AccesoSalidaCreate(BaseModel):
     """Registra la salida y calcula el cobro automático."""
-    acceso_id:     int
-    metodo_pago:   str = "Efectivo"
-    monto_manual:  Optional[float] = Field(
+    acceso_id:      int
+    metodo_pago:    str = "Efectivo"
+    monto_manual:   Optional[float] = Field(
         None, ge=0,
         description="Si se envía, sobrescribe el cálculo automático (descuento o ajuste manual)."
     )
-    observaciones: Optional[str] = None
+    observaciones:  Optional[str] = None
+    cliente_nit:    Optional[str] = Field(None, description="NIT o CC para emitir FE individual.")
+    cliente_nombre: Optional[str] = Field(None, description="Nombre del cliente para FE individual.")
 
 
 class AccesoOut(BaseModel):
