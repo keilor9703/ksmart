@@ -425,6 +425,49 @@ def historial_ventas(
     return resultado
 
 
+@router.post("/ventas/{venta_id}/reintentar-fe")
+def reintentar_fe_lavadero(
+    venta_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Reintenta la emisión FE de una venta de lavadero."""
+    venta = db.query(models.Venta).filter(
+        models.Venta.id == venta_id,
+        models.Venta.empresa_id == current_user.empresa_id,
+        models.Venta.origen == "lavadero",
+    ).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta de lavadero no encontrada.")
+
+    from sqlalchemy.orm import joinedload as _jl
+    from crud import ventas as _crud_ventas
+
+    detalles = db.query(models.DetalleVenta).filter_by(
+        venta_id=venta.id, empresa_id=current_user.empresa_id
+    ).options(_jl(models.DetalleVenta.producto)).all()
+
+    cliente = db.query(models.Cliente).filter_by(
+        id=venta.cliente_id, empresa_id=current_user.empresa_id
+    ).first() if venta.cliente_id else None
+
+    resultado = _crud_ventas.emitir_fe_venta(
+        db, current_user.empresa_id, venta, detalles, cliente=cliente
+    )
+    db.commit()
+
+    if not resultado:
+        raise HTTPException(status_code=400, detail="FE no disponible (empresa sin resolución activa o FE inactiva).")
+
+    return {
+        "estado":         venta.estado_electronico,
+        "numero_factura": venta.numero_factura,
+        "cufe":           venta.cufe,
+        "pdf_url":        venta.pdf_url,
+        "mensaje":        venta.mensaje_proveedor,
+    }
+
+
 # ─── Reporte ─────────────────────────────────────────────────────────────────
 
 @router.get("/reporte")

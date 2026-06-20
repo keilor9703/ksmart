@@ -23,6 +23,7 @@ import {
     Videocam, VideocamOff, LockOutlined, LockOpenOutlined,
     AddCircle, RemoveCircle, PersonOutline, HelpOutline,
     Keyboard, TouchApp, FileDownload, Stars, CreditCard, Close,
+    PictureAsPdf,
 } from '@mui/icons-material';
 import { getProductoByBarcode } from '../../api';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
@@ -167,6 +168,13 @@ const VentaCard = ({ venta, handleEdit, handleDelete, handleOpenDetails, handleO
         </Grid>
         <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
             <Tooltip title="Ver detalle"><IconButton size="small" onClick={() => handleOpenDetails(venta)} sx={{ color: '#3B82F6', bgcolor: '#EFF6FF', borderRadius: 1.5 }}><Visibility fontSize="small" /></IconButton></Tooltip>
+            {venta.pdf_url && (
+                <Tooltip title="PDF factura electrónica">
+                    <IconButton size="small" component="a" href={venta.pdf_url} target="_blank" rel="noopener noreferrer" sx={{ color: '#EF4444', bgcolor: '#FEF2F2', borderRadius: 1.5 }}>
+                        <PictureAsPdf fontSize="small" />
+                    </IconButton>
+                </Tooltip>
+            )}
             {venta.detalles?.length > 0 && (
                 <Tooltip title="Registrar devolución"><IconButton size="small" onClick={() => handleOpenDevolucion(venta)} sx={{ color: '#F59E0B', bgcolor: '#FFFBEB', borderRadius: 1.5 }}><AssignmentReturn fontSize="small" /></IconButton></Tooltip>
             )}
@@ -1921,6 +1929,13 @@ useEffect(() => {
                                                     <TableCell>
                                                         <Box sx={{ display: 'flex', gap: 0.3 }}>
                                                             <Tooltip title="Ver comprobante"><IconButton size="small" onClick={() => handleOpenDetails(v)} sx={{ color: '#3B82F6', '&:hover': { bgcolor: '#EFF6FF' } }}><Visibility fontSize="small" /></IconButton></Tooltip>
+                                                            {v.pdf_url && (
+                                                                <Tooltip title="Descargar PDF factura electrónica">
+                                                                    <IconButton size="small" component="a" href={v.pdf_url} target="_blank" rel="noopener noreferrer" sx={{ color: '#EF4444', '&:hover': { bgcolor: '#FEF2F2' } }}>
+                                                                        <PictureAsPdf fontSize="small" />
+                                                                    </IconButton>
+                                                                </Tooltip>
+                                                            )}
                                                             {v.detalles?.length > 0 && (
                                                                 <Tooltip title="Registrar devolución"><IconButton size="small" onClick={() => handleOpenDevolucion(v)} sx={{ color: '#F59E0B', '&:hover': { bgcolor: '#FFFBEB' } }}><AssignmentReturn fontSize="small" /></IconButton></Tooltip>
                                                             )}

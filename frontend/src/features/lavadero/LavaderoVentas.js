@@ -12,7 +12,7 @@ import {
   TwoWheeler, LocalShipping, DriveEta, ClearAll, Notes,
   Refresh, AccessTime, AttachMoney, CheckCircle, PlayArrow,
   Done, Close, Person, WhatsApp, Print, Storefront, QrCode2, Stars,
-  History, PictureAsPdf, ContentCopy, Search,
+  History, PictureAsPdf, ContentCopy, Search, Replay,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
@@ -305,6 +305,7 @@ export default function LavaderoVentas({ user }) {
   const [mainTab,         setMainTab]         = useState(0);  // 0=POS 1=Historial
   const [historial,       setHistorial]       = useState([]);
   const [histLoading,     setHistLoading]     = useState(false);
+  const [reintentando,    setReintentando]    = useState(null);
   const [histFechaIni,    setHistFechaIni]    = useState('');
   const [histFechaFin,    setHistFechaFin]    = useState('');
   const [histPlaca,       setHistPlaca]       = useState('');
@@ -325,6 +326,23 @@ export default function LavaderoVentas({ user }) {
   useEffect(() => {
     if (mainTab === 1) fetchHistorial();
   }, [mainTab, fetchHistorial]);
+
+  const reintentarFE = async (ventaId) => {
+    setReintentando(ventaId);
+    try {
+      const r = await apiClient.post(`/lavadero/ventas/${ventaId}/reintentar-fe`);
+      if (r.data.estado === 'exitoso') {
+        toast.success(`✅ FE emitida — N° ${r.data.numero_factura || ''}`);
+      } else {
+        toast.warning(`FE ${r.data.estado}: ${r.data.mensaje || 'Sin detalles'}`);
+      }
+      fetchHistorial();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || 'Error al reintentar FE');
+    } finally {
+      setReintentando(null);
+    }
+  };
 
   /* ── Computed ─────────────────────────────────────────────────────────── */
   const metodosDisponibles = useMemo(
@@ -712,13 +730,30 @@ export default function LavaderoVentas({ user }) {
                           <Typography sx={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 600 }}>{h.numero_factura || '—'}</Typography>
                         </TableCell>
                         <TableCell>
-                          {h.pdf_url ? (
-                            <Tooltip title="Ver PDF factura electrónica">
-                              <IconButton size="small" component="a" href={h.pdf_url} target="_blank" rel="noopener noreferrer" sx={{ color: BLUE }}>
-                                <PictureAsPdf fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          ) : <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>—</Typography>}
+                          <Box sx={{ display: 'flex', gap: 0.3, alignItems: 'center' }}>
+                            {h.pdf_url ? (
+                              <Tooltip title="Ver PDF factura electrónica">
+                                <IconButton size="small" component="a" href={h.pdf_url} target="_blank" rel="noopener noreferrer" sx={{ color: '#EF4444' }}>
+                                  <PictureAsPdf fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            ) : <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>—</Typography>}
+                            {h.venta_id && (h.estado_fe === 'fallido' || !h.estado_fe) && (
+                              <Tooltip title={h.estado_fe === 'fallido' ? 'Reintentar emisión FE' : 'Emitir FE'}>
+                                <span>
+                                  <IconButton size="small"
+                                    disabled={reintentando === h.venta_id}
+                                    onClick={() => reintentarFE(h.venta_id)}
+                                    sx={{ color: '#6366F1' }}
+                                  >
+                                    {reintentando === h.venta_id
+                                      ? <CircularProgress size={14} />
+                                      : <Replay fontSize="small" />}
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            )}
+                          </Box>
                         </TableCell>
                       </TableRow>
                     );
