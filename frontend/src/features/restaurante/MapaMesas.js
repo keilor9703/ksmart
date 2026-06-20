@@ -143,6 +143,11 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isDark = theme.palette.mode === 'dark';
+
+  // Modo de impresión (solo_pantalla | solo_impresion | ambos)
+  const modoImpresion = config?.modo_impresion_comanda || (config?.imprimir_comanda_auto ? 'solo_impresion' : 'solo_pantalla');
+  const debeImprimir  = modoImpresion === 'solo_impresion' || modoImpresion === 'ambos';
+  const debePantalla  = modoImpresion === 'solo_pantalla'  || modoImpresion === 'ambos';
   const [search, setSearch] = useState('');
   const [selectedItems, setSelectedItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1151,7 +1156,6 @@ export default function MapaMesas({ user }) {
   // modo_impresion_comanda: 'solo_pantalla' | 'solo_impresion' | 'ambos'
   const modoImpresion = config?.modo_impresion_comanda || (config?.imprimir_comanda_auto ? 'solo_impresion' : 'solo_pantalla');
   const debeImprimir   = modoImpresion === 'solo_impresion' || modoImpresion === 'ambos';
-  const debePantalla   = modoImpresion === 'solo_pantalla'  || modoImpresion === 'ambos';
 
   const [mesaSeleccionada, setMesaSeleccionada] = useState(null);
   const [panelMode, setPanelMode] = useState(null);  // 'abrir' | 'comanda'
