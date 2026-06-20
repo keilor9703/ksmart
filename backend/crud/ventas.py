@@ -225,7 +225,9 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate, commi
                 models.Empresa.id == empresa_id
             ).first()
 
-            if empresa_fe and empresa_fe.facturacion_electronica_activa and empresa_fe.matias_api_key:
+            if (empresa_fe and empresa_fe.facturacion_electronica_activa
+                    and empresa_fe.matias_api_key
+                    and plan_incluye_fe(db, empresa_id)):
                 # Cargar cliente (puede ser None → Consumidor Final)
                 cliente_fe = None
                 if db_venta.cliente_id:
@@ -473,6 +475,28 @@ class _DetalleSintetico:
         self.iva_porcentaje  = 0
 
 
+def plan_incluye_fe(db: Session, empresa_id: int) -> bool:
+    """
+    Validación EN VIVO de si el plan vigente de la empresa incluye FE.
+
+    Complementa al flag empresa.facturacion_electronica_activa (que se fija al
+    activar FE o al pagar un plan). Esto cierra los bordes en que el flag no se
+    recalcula solo: plan vencido sin renovar, o cambio retroactivo de incluye_fe
+    en el plan. Si no hay pago/plan registrado (trial, vitalicio, cortesía), se
+    permite por defecto — el flag sigue siendo el control principal.
+    """
+    ultimo_pago = (
+        db.query(models.RegistroPago)
+        .filter(models.RegistroPago.empresa_id == empresa_id)
+        .order_by(models.RegistroPago.fecha_pago.desc())
+        .first()
+    )
+    if not ultimo_pago or not ultimo_pago.plan:
+        return True  # sin plan de pago registrado → no bloqueamos por esta vía
+    incluye = getattr(ultimo_pago.plan, "incluye_fe", True)
+    return True if incluye is None else bool(incluye)
+
+
 def emitir_fe_venta(
     db: Session,
     empresa_id: int,
@@ -487,11 +511,14 @@ def emitir_fe_venta(
     IntentoFE de auditoría.
 
     Retorna el dict de resultado de Matías, o None si la empresa no tiene FE
-    activa / sin resolución. Nunca lanza excepción salvo el límite de resolución.
-    El caller debe hacer db.commit() después.
+    activa / el plan no la incluye / sin resolución. Nunca lanza excepción salvo
+    el límite de resolución. El caller debe hacer db.commit() después.
     """
     empresa_fe = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
     if not empresa_fe or not empresa_fe.facturacion_electronica_activa:
+        return None
+    # Doble capa: además del flag, validar en vivo que el plan vigente incluya FE
+    if not plan_incluye_fe(db, empresa_id):
         return None
     if not (empresa_fe.matias_api_key or empresa_fe.matias_sandbox_api_key):
         return None

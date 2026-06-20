@@ -132,6 +132,14 @@ def emitir_fe(
             detail="La empresa no tiene Facturación Electrónica activada"
         )
 
+    # Validación en vivo: el plan vigente debe incluir FE
+    from crud.ventas import plan_incluye_fe
+    if not plan_incluye_fe(db, empresa_id):
+        raise HTTPException(
+            status_code=403,
+            detail="Tu plan actual no incluye facturación electrónica. Actualiza tu suscripción."
+        )
+
     if not empresa.matias_api_key:
         raise HTTPException(
             status_code=400,
