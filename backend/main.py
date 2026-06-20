@@ -130,6 +130,7 @@ def initialize_default_data(db: Session):
         {"name": "Vehículos",           "description": "Gestión de vehículos.",                            "frontend_path": "/parqueadero/vehiculos"},
         {"name": "Suscripciones Parq.", "description": "Renovaciones y pagos.",                            "frontend_path": "/parqueadero/suscripciones"},
         {"name": "Config Parqueadero",  "description": "Tarifas y cupo total.",                            "frontend_path": "/parqueadero/config"},
+        {"name": "Cierre Caja FE Parq.","description": "Factura electrónica consolidada diaria.",          "frontend_path": "/parqueadero/cierre-fe"},
         {"name": "POS Lavadero",         "description": "Punto de venta especializado para lavadero.",       "frontend_path": "/lavadero/ventas"},
         {"name": "Reporte Lavadero",     "description": "Reporte de productividad por trabajador.",          "frontend_path": "/lavadero/reporte"},
         {"name": "Config Lavadero",      "description": "Comisiones e impresión del lavadero.",              "frontend_path": "/lavadero/config"},
@@ -139,6 +140,8 @@ def initialize_default_data(db: Session):
         {"name": "Mapa de Mesas",        "description": "Gestión de mesas y comandas del restaurante.",      "frontend_path": "/restaurante"},
         {"name": "Pantalla Cocina",      "description": "Pantalla de órdenes para el área de cocina.",       "frontend_path": "/restaurante/cocina"},
         {"name": "Config Restaurante",   "description": "Configuración de áreas y mesas.",                   "frontend_path": "/restaurante/config"},
+        {"name": "Caja Restaurante",     "description": "Cobro de comandas y cierre de turno.",              "frontend_path": "/restaurante/caja"},
+        {"name": "Reportes Restaurante", "description": "Reportes de ventas y desempeño del restaurante.",   "frontend_path": "/restaurante/reportes"},
     ]
 
     admin_role = crud.get_role_by_name(db, name="Admin", empresa_id=empresa_default.id)
