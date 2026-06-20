@@ -146,7 +146,13 @@ const CatalogoConfig = () => {
         <HelpGuideTopBar
           moduleName={labelModulo}
           steps={catalogSteps}
-          faqItems={[
+          faqItems={esRestaurante ? [
+            { q: '¿Cómo acceden mis clientes al menú?', a: 'Descarga el código QR y colócalo en cada mesa (o imprímelo en la carta). El cliente lo escanea con su celular, ve la carta y pide directo a cocina sin necesidad de app ni mesero.' },
+            { q: '¿Qué platos aparecen en el menú?', a: 'Solo los productos que tengan activada la opción "Mostrar en catálogo" en su ficha. Ve a Productos → edita el plato → activa la opción.' },
+            { q: '¿Los pedidos llegan automáticamente a cocina?', a: 'Sí. Cuando el cliente confirma su pedido desde la mesa, se crea o actualiza la comanda de esa mesa y los platos aparecen en la Pantalla de Cocina. Además se genera una notificación y la mesa se marca como "📱 Cliente" en el Mapa de Mesas para que el personal la atienda.' },
+            { q: '¿Necesito validar el inventario de los platos?', a: 'No. Al ser preparación en cocina, el menú digital no bloquea por stock: los clientes siempre pueden pedir cualquier plato visible en la carta.' },
+            { q: '¿Puedo cambiar los colores y el logo?', a: 'Sí, usa el selector de color y sube tu logo en esta misma sección de configuración. Los cambios se reflejan en tu menú digital de inmediato.' },
+          ] : [
             { q: '¿Cómo comparten mis clientes el catálogo?', a: 'Copia el enlace de tu tienda o descarga el código QR y compártelo por WhatsApp, redes sociales o imprímelo en material publicitario.' },
             { q: '¿Qué productos aparecen en el catálogo?', a: 'Solo los productos que tengan activada la opción "Mostrar en catálogo" en su ficha. Ve a Productos → edita el producto → activa la opción.' },
             { q: '¿Los pedidos llegan automáticamente al sistema?', a: 'Sí. Cada vez que un cliente completa su carrito, el pedido se crea automáticamente en el módulo Pedidos Virtuales con estado "Nuevo" y se genera una notificación en tiempo real para todos los usuarios. Desde ese módulo puedes confirmarlo, prepararlo, marcarlo como enviado y finalmente convertirlo en venta con un solo clic, lo que descuenta el inventario y genera el comprobante.' },
