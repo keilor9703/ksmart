@@ -54,7 +54,7 @@ export default function ConfigFE() {
 
   const fetchSuscripcion = async () => {
     try {
-      const r = await apiClient.get('/mi-suscripcion');
+      const r = await apiClient.get('/suscripcion/mi-suscripcion');
       const historial = r.data?.historial_pagos || [];
       if (historial.length > 0 && historial[0].plan) {
         setPlanIncluyeFE(historial[0].plan.incluye_fe !== false);
