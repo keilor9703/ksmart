@@ -88,6 +88,7 @@ def run_first_time_setup(payload: SetupPayload, db: Session = Depends(get_db)):
         {"name": "Vehículos",           "description": "Gestión de vehículos.",                           "frontend_path": "/parqueadero/vehiculos"},
         {"name": "Suscripciones Parq.", "description": "Renovaciones y pagos.",                           "frontend_path": "/parqueadero/suscripciones"},
         {"name": "Config Parqueadero",  "description": "Tarifas y cupo total.",                           "frontend_path": "/parqueadero/config"},
+        {"name": "Cierre Caja FE Parq.", "description": "Factura electrónica consolidada diaria.",          "frontend_path": "/parqueadero/cierre-fe"},
         {"name": "POS Lavadero",        "description": "Punto de venta para lavadero.",                   "frontend_path": "/lavadero/ventas"},
         {"name": "Reporte Lavadero",    "description": "Reporte de productividad por trabajador.",        "frontend_path": "/lavadero/reporte"},
         {"name": "Config Lavadero",     "description": "Comisiones e impresión del lavadero.",            "frontend_path": "/lavadero/config"},

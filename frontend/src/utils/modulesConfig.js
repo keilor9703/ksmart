@@ -53,6 +53,7 @@ import Storefront from '@mui/icons-material/Storefront';
 import QrCode2 from '@mui/icons-material/QrCode2';
 import Settings from '@mui/icons-material/Settings';
 import AutoAwesome from '@mui/icons-material/AutoAwesome';
+import Receipt from '@mui/icons-material/Receipt';
 
 
 // ─── DICCIONARIO de iconos y colores por frontend_path ────────────────────
@@ -95,6 +96,7 @@ export const MODULE_ICONS = {
   '/parqueadero/vehiculos':      { icon: <TwoWheeler />,      color: '#9C27B0', label: 'Vehículos' },
   '/parqueadero/suscripciones':  { icon: <Autorenew />,       color: '#FF4081', label: 'Suscripciones' },
   '/parqueadero/config':         { icon: <SettingsSuggest />, color: '#6B7280', label: 'Tarifas y cupo' },
+  '/parqueadero/cierre-fe':      { icon: <Receipt />,         color: '#FF6020', label: 'Cierre de Caja FE' },
 
   // Lavadero
   '/lavadero/ventas':   { icon: <LocalCarWash />,    color: '#0EA5E9', label: 'POS Lavadero' },

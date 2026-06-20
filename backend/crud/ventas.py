@@ -457,6 +457,93 @@ def _asignar_numero_factura(db: Session, empresa_id: int, venta: models.Venta) -
     return numero_str
 
 
+class _DetalleSintetico:
+    """
+    Detalle 'en memoria' para emitir FE de servicios sin DetalleVenta persistido
+    (parqueadero por horas, suscripciones, cierres consolidados).
+    Expone exactamente los atributos que build_invoice_payload() consume.
+    """
+    def __init__(self, descripcion: str, monto: float, cantidad: float = 1):
+        self.producto        = None
+        self.nombre_libre    = descripcion
+        self.nombre_variante = None
+        self.cantidad        = cantidad
+        self.precio_unitario = monto
+        self.descuento_pct   = 0
+        self.iva_porcentaje  = 0
+
+
+def emitir_fe_venta(
+    db: Session,
+    empresa_id: int,
+    venta: models.Venta,
+    detalles: list,
+    cliente=None,
+) -> Optional[dict]:
+    """
+    Emisión canónica de FE para una Venta ya creada (usada por restaurante y
+    parqueadero). Asigna número DIAN si falta, emite vía Matías, actualiza
+    estado_electronico/cufe/pdf_url/xml_url/mensaje_proveedor y registra el
+    IntentoFE de auditoría.
+
+    Retorna el dict de resultado de Matías, o None si la empresa no tiene FE
+    activa / sin resolución. Nunca lanza excepción salvo el límite de resolución.
+    El caller debe hacer db.commit() después.
+    """
+    empresa_fe = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
+    if not empresa_fe or not empresa_fe.facturacion_electronica_activa:
+        return None
+    if not (empresa_fe.matias_api_key or empresa_fe.matias_sandbox_api_key):
+        return None
+
+    # Asignar número DIAN si la venta no tiene uno
+    if not venta.numero_factura:
+        numero = _asignar_numero_factura(db, empresa_id, venta)
+        if not numero:
+            return None  # sin resolución activa → no se puede emitir
+
+    try:
+        from services import matias_service as _ms
+        test_mode = empresa_fe.matias_test_mode
+        api_key   = empresa_fe.matias_sandbox_api_key if test_mode else empresa_fe.matias_api_key
+
+        resultado = _ms.emitir_factura(
+            venta     = venta,
+            empresa   = empresa_fe,
+            cliente   = cliente,
+            detalles  = detalles,
+            api_key   = api_key or "",
+            test_mode = test_mode,
+        )
+
+        venta.estado_electronico = resultado["estado"]
+        venta.mensaje_proveedor  = resultado.get("mensaje")
+        if resultado.get("cufe"):
+            venta.cufe = resultado["cufe"]
+        if resultado.get("pdf_url"):
+            venta.pdf_url = resultado["pdf_url"]
+        if resultado.get("xml_url"):
+            venta.xml_url = resultado["xml_url"]
+
+        db.add(models.IntentoFE(
+            venta_id           = venta.id,
+            empresa_id         = empresa_id,
+            estado             = resultado["estado"],
+            payload_enviado    = resultado.get("payload_enviado"),
+            respuesta_recibida = resultado.get("respuesta_recibida"),
+            cufe               = resultado.get("cufe"),
+            mensaje            = resultado.get("mensaje"),
+        ))
+        return resultado
+    except Exception:
+        import logging as _logging
+        _logging.getLogger("crud.ventas").exception(
+            "Error al emitir FE para venta %s — se guarda sin FE.", getattr(venta, "id", "?")
+        )
+        venta.estado_electronico = "fallido"
+        return None
+
+
 def get_lotes_fefo(
     db: Session,
     empresa_id: int,

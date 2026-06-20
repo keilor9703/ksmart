@@ -370,6 +370,7 @@ def registrar_pago_suscripcion(
 
     # Registrar el pago como Venta para consolidación financiera
     import models as _models
+    placa_susc = susc.vehiculo.placa if susc.vehiculo else ""
     venta_parq = _models.Venta(
         empresa_id  = empresa_id,
         total       = payload.monto,
@@ -378,11 +379,34 @@ def registrar_pago_suscripcion(
         metodo_pago = payload.metodo_pago,
         origen      = "parqueadero_suscripcion",
         tipo        = "venta",
+        placa_vehiculo = placa_susc,
         fecha_pago  = datetime.now(timezone.utc),
-        observaciones = f"Suscripción #{susc.id} | {susc.tipo} | Placa: {susc.vehiculo.placa if susc.vehiculo else ''}",
+        observaciones = f"Suscripción #{susc.id} | {susc.tipo} | Placa: {placa_susc}",
     )
     db.add(venta_parq)
     db.commit()
+    db.refresh(venta_parq)
+
+    # ── Facturación electrónica (suscripción = cliente identificable) ─────────
+    # Las suscripciones son contratos recurrentes de monto significativo: se
+    # factura individualmente. Si el vehículo tiene cliente con cédula/NIT se
+    # emite a su nombre; de lo contrario, a Consumidor Final.
+    try:
+        from crud import ventas as _crud_ventas
+        cliente_fe = susc.vehiculo.cliente if (susc.vehiculo and susc.vehiculo.cliente) else None
+        detalle = _crud_ventas._DetalleSintetico(
+            descripcion=f"Suscripción parqueadero {susc.tipo} — Placa {placa_susc}",
+            monto=float(payload.monto or 0),
+        )
+        _crud_ventas.emitir_fe_venta(
+            db, empresa_id, venta_parq, [detalle], cliente=cliente_fe
+        )
+        db.commit()
+    except Exception:
+        import logging as _logging
+        _logging.getLogger("crud.parqueadero").exception(
+            "Error FE suscripción parqueadero venta %s", venta_parq.id
+        )
 
     susc = (
         db.query(models.SuscripcionParqueadero)

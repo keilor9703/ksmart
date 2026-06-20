@@ -157,6 +157,11 @@ from crud.parqueadero.reportes import (
     reporte_ingresos_parqueadero, notificar_vencimientos_parqueadero,
 )
 
+# Parqueadero — cierre FE consolidado
+from crud.parqueadero.cierre_fe import (
+    preview_cierre_fe, ejecutar_cierre_fe, listar_cierres_fe,
+)
+
 # Parqueadero — métodos de pago
 from crud.parqueadero.metodos_pago import (
     listar_metodos_pago, get_metodo_por_modalidad,

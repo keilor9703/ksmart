@@ -75,6 +75,7 @@ const ParqueaderoBuscar        = lazy(() => import('./features/parking/Parqueade
 const ParqueaderoVehiculos     = lazy(() => import('./features/parking/ParqueaderoVehiculos'));
 const ParqueaderoSuscripciones = lazy(() => import('./features/parking/ParqueaderoSuscripciones'));
 const ParqueaderoConfig        = lazy(() => import('./features/parking/ParqueaderoConfig'));
+const ParqueaderoCierreFE      = lazy(() => import('./features/parking/ParqueaderoCierreFE'));
 const LavaderoVentas           = lazy(() => import('./features/lavadero/LavaderoVentas'));
 const LavaderoReporte          = lazy(() => import('./features/lavadero/LavaderoReporte'));
 const LavaderoConfig           = lazy(() => import('./features/lavadero/LavaderoConfig'));
@@ -411,6 +412,7 @@ const hasAccess = useCallback((path) => {
                     <Route path="/parqueadero/vehiculos"      element={<ProtectedRoute path="/parqueadero/vehiculos"      hasAccess={hasAccess}><ParqueaderoVehiculos      /></ProtectedRoute>} />
                     <Route path="/parqueadero/suscripciones"  element={<ProtectedRoute path="/parqueadero/suscripciones"  hasAccess={hasAccess}><ParqueaderoSuscripciones  /></ProtectedRoute>} />
                     <Route path="/parqueadero/config"         element={<ProtectedRoute path="/parqueadero/config"         hasAccess={hasAccess}><ParqueaderoConfig         /></ProtectedRoute>} />
+                    <Route path="/parqueadero/cierre-fe"      element={<ProtectedRoute path="/parqueadero/cierre-fe"      hasAccess={hasAccess}><ParqueaderoCierreFE user={user} /></ProtectedRoute>} />
                     <Route path="/lavadero/ventas"   element={<ProtectedRoute path="/lavadero/ventas"  hasAccess={hasAccess}><LavaderoVentas  user={user} /></ProtectedRoute>} />
                     <Route path="/lavadero/reporte"  element={<ProtectedRoute path="/lavadero/reporte" hasAccess={hasAccess}><LavaderoReporte user={user} /></ProtectedRoute>} />
                     <Route path="/lavadero/config"   element={<ProtectedRoute path="/lavadero/config"  hasAccess={hasAccess}><LavaderoConfig  /></ProtectedRoute>} />

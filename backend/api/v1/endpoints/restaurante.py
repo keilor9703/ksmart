@@ -20,6 +20,7 @@ import models
 import schemas
 from api.deps import get_db, get_current_active_user, get_current_admin_user
 from services import matias_service as _ms
+from crud import ventas as _crud_ventas
 
 router = APIRouter()
 
@@ -597,34 +598,23 @@ def cerrar_comanda(
 
     db.commit()
 
-    # ── 5. Emisión FE automática (si empresa tiene FE activa) ─────────────────
+    # ── 5. Emisión FE automática (helper canónico — asigna número DIAN,
+    #       emite vía Matías y registra IntentoFE). No bloquea el cobro. ───────
     numero_factura = None
     estado_fe = None
     try:
-        empresa = db.query(models.Empresa).filter(models.Empresa.id == user.empresa_id).first()
-        if empresa and empresa.facturacion_electronica_activa and empresa.matias_api_key:
-            db.refresh(venta)
-            detalles = db.query(models.DetalleVenta).filter(models.DetalleVenta.venta_id == venta.id).all()
-            cliente = None
-            if venta.cliente_id:
-                cliente = db.query(models.Cliente).filter(models.Cliente.id == venta.cliente_id).first()
-            resultado = _ms.emitir_factura(
-                venta=venta,
-                empresa=empresa,
-                cliente=cliente,
-                detalles=detalles,
-                api_key=empresa.matias_api_key,
-                test_mode=getattr(empresa, "matias_test_mode", True),
-            )
-            venta.numero_factura = resultado.get("numero_factura")
-            venta.cufe = resultado.get("cufe")
-            venta.pdf_url = resultado.get("pdf_url")
-            venta.estado_fe = resultado.get("estado")
-            db.commit()
+        db.refresh(venta)
+        detalles = db.query(models.DetalleVenta).filter(models.DetalleVenta.venta_id == venta.id).all()
+        cliente = None
+        if venta.cliente_id:
+            cliente = db.query(models.Cliente).filter(models.Cliente.id == venta.cliente_id).first()
+        resultado = _crud_ventas.emitir_fe_venta(db, user.empresa_id, venta, detalles, cliente=cliente)
+        db.commit()
+        if resultado:
             numero_factura = venta.numero_factura
-            estado_fe = venta.estado_fe
+            estado_fe = venta.estado_electronico
     except Exception:
-        pass  # FE no bloquea el cobro
+        db.rollback()  # la venta ya está commiteada arriba; FE no la afecta
 
     return {
         "status": "ok",
@@ -1050,11 +1040,20 @@ def historial_ventas(
         ventas = db.query(models.Venta).filter(models.Venta.id.in_(venta_ids)).all()
         ventas_map = {v.id: v for v in ventas}
 
+    def _estado_fe(v):
+        """Mapea estado_electronico de la Venta al estado FE expuesto al front."""
+        if not v:
+            return None
+        e = getattr(v, "estado_electronico", None)
+        if e in ("exitoso", "fallido", "pendiente"):
+            return e
+        return None  # no_enviado / None → "Sin FE"
+
     if estado_fe:
         filtered = []
         for c in comandas:
             v = ventas_map.get(c.venta_id)
-            ve = getattr(v, "estado_fe", None) if v else None
+            ve = _estado_fe(v)
             if estado_fe == "sin_fe" and ve is None:
                 filtered.append(c)
             elif ve == estado_fe:
@@ -1085,7 +1084,7 @@ def historial_ventas(
             "items": items,
             "venta_id": c.venta_id,
             "numero_factura": getattr(v, "numero_factura", None) if v else None,
-            "estado_fe": getattr(v, "estado_fe", None) if v else None,
+            "estado_fe": _estado_fe(v),
             "cufe": getattr(v, "cufe", None) if v else None,
             "pdf_url": getattr(v, "pdf_url", None) if v else None,
         })
@@ -1116,22 +1115,13 @@ def reintentar_fe(
     if venta.cliente_id:
         cliente = db.query(models.Cliente).filter(models.Cliente.id == venta.cliente_id).first()
 
-    resultado = _ms.emitir_factura(
-        venta=venta,
-        empresa=empresa,
-        cliente=cliente,
-        detalles=detalles,
-        api_key=empresa.matias_api_key,
-        test_mode=getattr(empresa, "matias_test_mode", True),
-    )
-    venta.numero_factura = resultado.get("numero_factura")
-    venta.cufe = resultado.get("cufe")
-    venta.pdf_url = resultado.get("pdf_url")
-    venta.estado_fe = resultado.get("estado")
+    resultado = _crud_ventas.emitir_fe_venta(db, user.empresa_id, venta, detalles, cliente=cliente)
     db.commit()
+    if not resultado:
+        raise HTTPException(status_code=400, detail="No se pudo emitir la FE (sin resolución DIAN activa o FE inactiva).")
 
     return {
-        "estado": venta.estado_fe,
+        "estado": venta.estado_electronico,
         "numero_factura": venta.numero_factura,
         "cufe": venta.cufe,
         "pdf_url": venta.pdf_url,

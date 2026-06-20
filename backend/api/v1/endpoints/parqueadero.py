@@ -1,5 +1,5 @@
 from typing import List, Optional
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -278,6 +278,39 @@ def reporte_ingresos(
         db, empresa_id=current_user.empresa_id,
         start_date=start_date, end_date=end_date,
     )
+
+# --- 8b. CIERRE FE CONSOLIDADO (modelo POS DIAN) ---
+
+@router.get("/cierre-fe/preview", response_model=dict)
+def preview_cierre_fe(
+    fecha: Optional[date] = Query(None, description="Día a consolidar (por defecto hoy)"),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Resumen de accesos por horas pendientes de facturar para el día."""
+    dia = fecha or datetime.now(timezone.utc).date()
+    return crud.preview_cierre_fe(db, empresa_id=current_user.empresa_id, dia=dia)
+
+
+@router.post("/cierre-fe", response_model=dict)
+def ejecutar_cierre_fe(
+    fecha: Optional[date] = Query(None, description="Día a consolidar (por defecto hoy)"),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Emite la FE consolidada del día a Consumidor Final (modelo POS DIAN)."""
+    dia = fecha or datetime.now(timezone.utc).date()
+    return crud.ejecutar_cierre_fe(db, empresa_id=current_user.empresa_id, dia=dia)
+
+
+@router.get("/cierres-fe", response_model=List[dict])
+def listar_cierres_fe(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Historial de cierres consolidados de FE."""
+    return crud.listar_cierres_fe(db, empresa_id=current_user.empresa_id)
+
 
 # --- 9. MÉTODOS DE PAGO ---
 
