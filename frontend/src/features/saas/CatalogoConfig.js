@@ -112,7 +112,19 @@ const CatalogoConfig = () => {
     toast.info("Enlace copiado al portapapeles");
   };
 
-  const catalogSteps = [
+  // El catálogo de un restaurante es un Menú Digital con QR de mesa: el cliente
+  // escanea, ve la carta y pide directo a cocina (sin stock, sin domicilio/recogida).
+  const esRestaurante = empresa?.tipo_negocio === 'restaurante';
+  const labelModulo  = esRestaurante ? 'Menú Digital' : 'Catálogo Virtual';
+  const labelEntidad = esRestaurante ? 'menú' : 'tienda';
+
+  const catalogSteps = esRestaurante ? [
+    { title: 'Define tu URL', description: 'El slug será la dirección única de tu menú digital (ej: tudominio.com/mi-restaurante).' },
+    { title: 'Sube tu logo', description: 'Un logo profesional refuerza tu marca en la cabecera del menú.' },
+    { title: 'Elige tu color', description: 'Personaliza el menú con el color de tu restaurante.' },
+    { title: 'Imprime el QR en las mesas', description: 'Descarga el código QR y colócalo en cada mesa. Tus clientes lo escanean, ven la carta y piden directo a cocina.' },
+    { title: 'Activa tus platos', description: 'Marca "Mostrar en catálogo" en cada plato que quieras ofrecer en la carta.' },
+  ] : [
     { title: 'Define tu URL', description: 'El slug será la dirección única de tu tienda (ej: ksmart.com/tu-tienda).' },
     { title: 'Vincula WhatsApp', description: 'Asegúrate de incluir el código de país para recibir pedidos directamente.' },
     { title: 'Agrega tu dirección', description: 'La dirección de recogida aparecerá cuando el cliente elija "Recoger en tienda" al hacer su pedido.' },
@@ -129,10 +141,10 @@ const CatalogoConfig = () => {
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.5 }}>
         <Typography variant="h5" sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Storefront sx={{ color: 'primary.main', fontSize: 32 }} />
-          Configuración de Catálogo Virtual
+          Configuración de {labelModulo}
         </Typography>
         <HelpGuideTopBar
-          moduleName="Catálogo Virtual"
+          moduleName={labelModulo}
           steps={catalogSteps}
           faqItems={[
             { q: '¿Cómo comparten mis clientes el catálogo?', a: 'Copia el enlace de tu tienda o descarga el código QR y compártelo por WhatsApp, redes sociales o imprímelo en material publicitario.' },
@@ -143,17 +155,19 @@ const CatalogoConfig = () => {
         />
       </Box>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
-        Personaliza tu tienda online y comparte el enlace directo con tus clientes para recibir pedidos por WhatsApp.
+        {esRestaurante
+          ? 'Personaliza tu menú digital e imprime el código QR para cada mesa. Tus clientes escanean, ven la carta y piden directo a cocina.'
+          : 'Personaliza tu tienda online y comparte el enlace directo con tus clientes para recibir pedidos por WhatsApp.'}
       </Typography>
 
       <Grid container spacing={3}>
-        <Grid item xs={12} md={7}>
+        <Grid size={{ xs: 12, md: 7 }}>
           <Paper variant="outlined" sx={{ p: 3, borderRadius: 4 }}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               
               <Box>
                 <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Link fontSize="small" color="primary" /> URL del Catálogo (Slug)
+                  <Link fontSize="small" color="primary" /> URL del {labelModulo} (Slug)
                 </Typography>
                 <SmartTooltip
                   id="cat_slug_tip"
@@ -191,11 +205,12 @@ const CatalogoConfig = () => {
 
               <Box>
                 <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <WhatsApp fontSize="small" sx={{ color: '#25D366' }} /> WhatsApp para Pedidos
+                  <WhatsApp fontSize="small" sx={{ color: '#25D366' }} />
+                  {esRestaurante ? 'WhatsApp de Contacto (Opcional)' : 'WhatsApp para Pedidos'}
                 </Typography>
-                <SmartTooltip 
-                  id="cat_whatsapp_tip" 
-                  title="Formato Internacional" 
+                <SmartTooltip
+                  id="cat_whatsapp_tip"
+                  title="Formato Internacional"
                   description="Es vital incluir el código de país (ej: 57 para Colombia) para que el botón de pedido funcione correctamente."
                 >
                   <TextField
@@ -203,7 +218,9 @@ const CatalogoConfig = () => {
                     placeholder="ej: 573001234567"
                     value={whatsapp}
                     onChange={(e) => setWhatsapp(e.target.value.replace(/\D/g, ''))}
-                    helperText="Incluye código de país sin el signo +. Ejemplo: 57 para Colombia."
+                    helperText={esRestaurante
+                      ? 'Los pedidos de mesa llegan directo a cocina. Este número es solo para contacto del cliente.'
+                      : 'Incluye código de país sin el signo +. Ejemplo: 57 para Colombia.'}
                   />
                 </SmartTooltip>
               </Box>
@@ -265,7 +282,7 @@ const CatalogoConfig = () => {
 
               <Box>
                 <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Palette fontSize="small" sx={{ color: colorPrimario }} /> Color Principal de la Tienda
+                  <Palette fontSize="small" sx={{ color: colorPrimario }} /> Color Principal del {labelModulo}
                 </Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
                   <Tooltip title="Seleccionar color personalizado">
@@ -308,28 +325,32 @@ const CatalogoConfig = () => {
                 </Box>
               </Box>
 
-              <Box>
-                <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <LocationOn fontSize="small" color="error" /> Dirección de Recogida en Tienda
-                </Typography>
-                <TextField
-                  fullWidth
-                  placeholder="ej: Calle 10 #5-32, Barrio Centro, Medellín"
-                  value={direccionRecogida}
-                  onChange={(e) => setDireccionRecogida(e.target.value)}
-                  helperText="Esta dirección aparecerá al cliente cuando elija 'Recoger en tienda' al hacer su pedido."
-                />
-              </Box>
+              {!esRestaurante && (
+                <Box>
+                  <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <LocationOn fontSize="small" color="error" /> Dirección de Recogida en Tienda
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    placeholder="ej: Calle 10 #5-32, Barrio Centro, Medellín"
+                    value={direccionRecogida}
+                    onChange={(e) => setDireccionRecogida(e.target.value)}
+                    helperText="Esta dirección aparecerá al cliente cuando elija 'Recoger en tienda' al hacer su pedido."
+                  />
+                </Box>
+              )}
 
               <Box>
                 <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1 }}>
-                  Descripción de la Tienda (Opcional)
+                  {esRestaurante ? 'Descripción del Restaurante (Opcional)' : 'Descripción de la Tienda (Opcional)'}
                 </Typography>
                 <TextField
                   fullWidth
                   multiline
                   rows={3}
-                  placeholder="Describe tu tienda, productos destacados o tu propuesta de valor para los clientes…"
+                  placeholder={esRestaurante
+                    ? 'Describe tu restaurante, especialidades de la casa o tu propuesta gastronómica…'
+                    : 'Describe tu tienda, productos destacados o tu propuesta de valor para los clientes…'}
                   value={descripcion}
                   onChange={(e) => e.target.value.length <= 200 && setDescripcion(e.target.value)}
                   helperText={`${descripcion.length}/200 caracteres`}
@@ -358,14 +379,14 @@ const CatalogoConfig = () => {
           </Paper>
         </Grid>
 
-        <Grid item xs={12} md={5}>
+        <Grid size={{ xs: 12, md: 5 }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             <Card variant="outlined" sx={{ borderRadius: 4, border: '1.5px solid', borderColor: 'divider' }}>
               <CardContent sx={{ p: 3 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                   <CheckCircle sx={{ color: '#10B981', fontSize: 20 }} />
                   <Typography sx={{ fontWeight: 700, fontSize: 15, color: 'text.primary' }}>
-                    Tu catálogo está listo
+                    {esRestaurante ? 'Tu menú digital está listo' : 'Tu catálogo está listo'}
                   </Typography>
                 </Box>
 
@@ -407,12 +428,12 @@ const CatalogoConfig = () => {
             </Card>
 
             <Alert icon={<Info fontSize="inherit" />} severity="info" sx={{ borderRadius: 3 }}>
-              Recuerda activar la opción <strong>"Mostrar en tienda virtual"</strong> en tus productos para que aparezcan en el catálogo.
+              Recuerda activar la opción <strong>"Mostrar en catálogo"</strong> en tus {esRestaurante ? 'platos' : 'productos'} para que aparezcan en el {labelEntidad}.
             </Alert>
 
             <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, textAlign: 'center' }}>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                Escanea para ir al catálogo:
+                {esRestaurante ? 'Imprime este QR y colócalo en cada mesa:' : 'Escanea para ir al catálogo:'}
               </Typography>
               <Box id="qr-canvas-wrapper" sx={{ display: 'inline-block', p: 1.5, bgcolor: '#fff', borderRadius: 2, border: '1px solid', borderColor: 'divider', mb: 1.5 }}>
                 <QRCodeCanvas

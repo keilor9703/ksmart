@@ -177,7 +177,7 @@ const CatalogoVirtual = () => {
       setEmpresa(res.data.empresa);
       setProductos(res.data.productos);
       setMesas(res.data.mesas || []);
-      document.title = `${res.data.empresa.nombre} - Catálogo Virtual`;
+      document.title = `${res.data.empresa.nombre} - ${res.data.empresa.tipo_negocio === 'restaurante' ? 'Menú Digital' : 'Catálogo Virtual'}`;
     } catch (error) {
       if (error.response?.status === 404) {
         toast.error("Catálogo no encontrado o inactivo.");
@@ -221,7 +221,10 @@ const CatalogoVirtual = () => {
     return list;
   }, [productos, search, categoria, sortProductos]);
 
-  const isAgotado = (p) => !p.es_servicio && p.stock <= 0;
+  // En restaurantes los productos se preparan en cocina (no manejan stock real),
+  // por lo que nunca deben marcarse como agotados ni bloquear el pedido.
+  const esRestaurante = empresa?.tipo_negocio === 'restaurante';
+  const isAgotado = (p) => !esRestaurante && !p.es_servicio && p.stock <= 0;
 
   // ── Cart actions ──────────────────────────────────────────────────────
   const addToCart = useCallback((producto) => {
@@ -239,7 +242,7 @@ const CatalogoVirtual = () => {
     // Improvement #14: "¡Agregado!" text
     setAddedFlash(true);
     setTimeout(() => setAddedFlash(false), 1000);
-  }, []);
+  }, [esRestaurante]);
 
   const removeFromCart = (id) => {
     setCart(prev => {
@@ -403,7 +406,7 @@ const CatalogoVirtual = () => {
         <Box sx={{ p: 2 }}>
           <Grid container spacing={2}>
             {[...Array(8)].map((_, i) => (
-              <Grid item xs={6} sm={4} md={3} key={i}>
+              <Grid size={{ xs: 6, sm: 4, md: 3 }} key={i}>
                 <Skeleton variant="rounded" sx={{ aspectRatio: '1/1', borderRadius: 3 }} />
                 <Skeleton sx={{ mt: 1 }} width="75%" height={18} />
                 <Skeleton width="45%" height={22} sx={{ mt: 0.5 }} />
@@ -1388,7 +1391,7 @@ const CatalogoVirtual = () => {
                       <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1.5 }}>Tipo de Entrega</Typography>
                       <RadioGroup value={tipoEntrega} onChange={(e) => setTipoEntrega(e.target.value)}>
                         <Grid container spacing={2}>
-                          <Grid item xs={6}>
+                          <Grid size={{ xs: 6 }}>
                             <Paper variant="outlined" onClick={() => setTipoEntrega('domicilio')}
                               sx={{ p: 2, textAlign: 'center', borderRadius: 3, cursor: 'pointer',
                                 borderColor: tipoEntrega === 'domicilio' ? accentColor : 'divider',
@@ -1398,7 +1401,7 @@ const CatalogoVirtual = () => {
                               <Radio value="domicilio" sx={{ display: 'none' }} />
                             </Paper>
                           </Grid>
-                          <Grid item xs={6}>
+                          <Grid size={{ xs: 6 }}>
                             <Paper variant="outlined" onClick={() => setTipoEntrega('recoger')}
                               sx={{ p: 2, textAlign: 'center', borderRadius: 3, cursor: 'pointer',
                                 borderColor: tipoEntrega === 'recoger' ? accentColor : 'divider',
