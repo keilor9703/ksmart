@@ -359,7 +359,7 @@ export default function AdminUsuarios() {
                 </Box>
                 <Box component="form" onSubmit={handleUserSubmit}>
                   <Grid container spacing={2}>
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={3}>
                       <TextField
                         label="Nombre de usuario *"
                         value={username}
@@ -369,7 +369,7 @@ export default function AdminUsuarios() {
                         inputProps={{ pattern: '\\S+' }}
                       />
                     </Grid>
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={3}>
                       <TextField
                         label="Nombre completo"
                         value={nombreCompleto}
@@ -378,7 +378,7 @@ export default function AdminUsuarios() {
                         helperText="Nombre real del trabajador (aparece en reportes)"
                       />
                     </Grid>
-                    <Grid item xs={12} sm={5}>
+                    <Grid item xs={12} sm={3}>
                       <TextField
                         label="Contraseña"
                         type={showPwd ? 'text' : 'password'}
