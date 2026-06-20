@@ -2144,26 +2144,21 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v99)
                 logger.info("V99 (incluye_fe en planes_suscripcion) aplicada.")
 
-            # V102 - Módulos faltantes: Cierre FE parqueadero + Caja/Reportes restaurante
-            migration_v102 = "v102_modulos_faltantes_parq_rest"
-            if not _migration_already_applied(conn, migration_v102):
-                modulos_nuevos = [
-                    ("Cierre Caja FE Parq.", "Factura electrónica consolidada diaria.", "/parqueadero/cierre-fe"),
-                    ("Caja Restaurante",     "Cobro de comandas y cierre de turno.",    "/restaurante/caja"),
-                    ("Reportes Restaurante", "Reportes de ventas y desempeño del restaurante.", "/restaurante/reportes"),
-                ]
-                for nombre, desc, path in modulos_nuevos:
-                    existe = conn.execute(
-                        text("SELECT id FROM modulos WHERE frontend_path = :p"), {"p": path}
-                    ).fetchone()
-                    if not existe:
-                        conn.execute(
-                            text("INSERT INTO modulos (name, description, frontend_path) VALUES (:n, :d, :p)"),
-                            {"n": nombre, "d": desc, "p": path}
-                        )
-                        logger.info(f"V102: insertado módulo '{nombre}' ({path})")
-                _mark_migration_applied(conn, migration_v102)
-                logger.info("V102 (módulos faltantes parqueadero/restaurante) aplicada.")
+            # V100 - Origen de comanda (autoservicio desde menú digital)
+            migration_v100 = "v100_comandas_origen"
+            if not _migration_already_applied(conn, migration_v100):
+                if not _column_exists(conn, "restaurante_comandas", "origen"):
+                    if IS_SQLITE:
+                        conn.execute(text(
+                            "ALTER TABLE restaurante_comandas ADD COLUMN origen VARCHAR(20) DEFAULT 'mesero'"
+                        ))
+                    else:
+                        conn.execute(text(
+                            "ALTER TABLE restaurante_comandas ADD COLUMN origen VARCHAR(20) DEFAULT 'mesero'"
+                        ))
+                    logger.info("V100: añadido restaurante_comandas.origen")
+                _mark_migration_applied(conn, migration_v100)
+                logger.info("V100 (origen en comandas) aplicada.")
 
             # V101 - Modo de impresión de comanda (solo_pantalla | solo_impresion | ambos)
             migration_v101 = "v101_modo_impresion_comanda"
@@ -2186,21 +2181,29 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v101)
                 logger.info("V101 (modo_impresion_comanda) aplicada.")
 
-            # V100 - Origen de comanda (autoservicio desde menú digital)
-            migration_v100 = "v100_comandas_origen"
-            if not _migration_already_applied(conn, migration_v100):
-                if not _column_exists(conn, "restaurante_comandas", "origen"):
-                    if IS_SQLITE:
-                        conn.execute(text(
-                            "ALTER TABLE restaurante_comandas ADD COLUMN origen VARCHAR(20) DEFAULT 'mesero'"
-                        ))
-                    else:
-                        conn.execute(text(
-                            "ALTER TABLE restaurante_comandas ADD COLUMN origen VARCHAR(20) DEFAULT 'mesero'"
-                        ))
-                    logger.info("V100: añadido restaurante_comandas.origen")
-                _mark_migration_applied(conn, migration_v100)
-                logger.info("V100 (origen en comandas) aplicada.")
+            # V102 - Módulos faltantes: Cierre FE parqueadero + Caja/Reportes restaurante
+            migration_v102 = "v102_modulos_faltantes_parq_rest"
+            if not _migration_already_applied(conn, migration_v102):
+                if _table_exists(conn, "modulos"):
+                    modulos_nuevos = [
+                        ("Cierre Caja FE Parq.", "Factura electrónica consolidada diaria.", "/parqueadero/cierre-fe"),
+                        ("Caja Restaurante",     "Cobro de comandas y cierre de turno.",    "/restaurante/caja"),
+                        ("Reportes Restaurante", "Reportes de ventas y desempeño del restaurante.", "/restaurante/reportes"),
+                    ]
+                    for nombre, desc, path in modulos_nuevos:
+                        existe = conn.execute(
+                            text("SELECT id FROM modulos WHERE frontend_path = :p"), {"p": path}
+                        ).fetchone()
+                        if not existe:
+                            conn.execute(
+                                text("INSERT INTO modulos (name, description, frontend_path) VALUES (:n, :d, :p)"),
+                                {"n": nombre, "d": desc, "p": path}
+                            )
+                            logger.info(f"V102: insertado módulo '{nombre}' ({path})")
+                    _mark_migration_applied(conn, migration_v102)
+                    logger.info("V102 (módulos faltantes parqueadero/restaurante) aplicada.")
+                else:
+                    logger.warning("V102: tabla 'modulos' no existe aún, se reintentará en el próximo arranque.")
 
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
