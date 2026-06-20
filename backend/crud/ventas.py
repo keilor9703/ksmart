@@ -524,6 +524,8 @@ def emitir_fe_venta(
             venta.pdf_url = resultado["pdf_url"]
         if resultado.get("xml_url"):
             venta.xml_url = resultado["xml_url"]
+        if resultado.get("qr_url"):
+            venta.qr_data = resultado["qr_url"]
 
         db.add(models.IntentoFE(
             venta_id           = venta.id,

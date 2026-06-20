@@ -8,7 +8,6 @@ from pydantic import BaseModel
 import models
 from api.deps import get_db, get_current_active_user
 from models import utcnow
-from services import matias_service as _ms
 
 router = APIRouter()
 
@@ -337,47 +336,21 @@ def cobrar_orden(
     db.commit()
     db.refresh(orden)
 
-    # ── Facturación electrónica (mismo flujo que ventas POS) ─────────────────
+    # ── Facturación electrónica (helper canónico, compartido con POS/restaurante/parqueadero) ──
     try:
-        empresa_fe = db.query(models.Empresa).filter_by(id=current_user.empresa_id).first()
-        if (
-            empresa_fe
-            and empresa_fe.facturacion_electronica_activa
-            and (empresa_fe.matias_api_key or empresa_fe.matias_sandbox_api_key)
-        ):
-            from crud.ventas import _get_resolucion_activa, _asignar_numero_factura
-            resolucion = _get_resolucion_activa(db, current_user.empresa_id)
-            if resolucion:
-                numero = _asignar_numero_factura(db, current_user.empresa_id, venta)
-                venta.numero_factura = numero
-                db.flush()
+        from crud import ventas as _crud_ventas
+        cliente_fe = db.query(models.Cliente).filter_by(
+            id=orden.cliente_id, empresa_id=current_user.empresa_id
+        ).first() if orden.cliente_id else None
 
-                test_mode = empresa_fe.matias_test_mode if empresa_fe.matias_test_mode is not None else True
-                api_key   = empresa_fe.matias_sandbox_api_key if test_mode else empresa_fe.matias_api_key
+        detalles_fe = db.query(models.DetalleVenta).filter_by(
+            venta_id=venta.id, empresa_id=current_user.empresa_id
+        ).options(joinedload(models.DetalleVenta.producto)).all()
 
-                cliente_fe = db.query(models.Cliente).filter_by(
-                    id=orden.cliente_id, empresa_id=current_user.empresa_id
-                ).first() if orden.cliente_id else None
-
-                detalles_fe = db.query(models.DetalleVenta).filter_by(
-                    venta_id=venta.id, empresa_id=current_user.empresa_id
-                ).options(joinedload(models.DetalleVenta.producto)).all()
-
-                resultado_fe = _ms.emitir_factura(
-                    venta=venta,
-                    empresa=empresa_fe,
-                    cliente=cliente_fe,
-                    detalles=detalles_fe,
-                    api_key=api_key,
-                    test_mode=test_mode,
-                )
-                venta.estado_electronico = resultado_fe["estado"]
-                venta.cufe               = resultado_fe.get("cufe")
-                venta.pdf_url            = resultado_fe.get("pdf_url")
-                venta.xml_url            = resultado_fe.get("xml_url")
-                venta.qr_data            = resultado_fe.get("qr_url")
-                venta.mensaje_proveedor  = resultado_fe.get("mensaje")
-                db.commit()
+        _crud_ventas.emitir_fe_venta(
+            db, current_user.empresa_id, venta, detalles_fe, cliente=cliente_fe,
+        )
+        db.commit()
     except Exception as _fe_exc:
         import logging
         logging.getLogger("lavadero").error("Error FE en cobrar_orden %s: %s", orden_id, _fe_exc)
