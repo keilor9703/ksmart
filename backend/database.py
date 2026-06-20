@@ -2154,11 +2154,11 @@ def run_migrations():
                 ]
                 for nombre, desc, path in modulos_nuevos:
                     existe = conn.execute(
-                        text("SELECT id FROM modules WHERE frontend_path = :p"), {"p": path}
+                        text("SELECT id FROM modulos WHERE frontend_path = :p"), {"p": path}
                     ).fetchone()
                     if not existe:
                         conn.execute(
-                            text("INSERT INTO modules (name, description, frontend_path) VALUES (:n, :d, :p)"),
+                            text("INSERT INTO modulos (name, description, frontend_path) VALUES (:n, :d, :p)"),
                             {"n": nombre, "d": desc, "p": path}
                         )
                         logger.info(f"V102: insertado módulo '{nombre}' ({path})")
