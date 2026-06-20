@@ -293,13 +293,13 @@ def registrar_salida_horas(
             # Buscar o crear cliente
             cliente_fe = db.query(_models.Cliente).filter(
                 _models.Cliente.empresa_id == empresa_id,
-                _models.Cliente.nit == nit,
+                _models.Cliente.cedula == nit,
             ).first()
             if not cliente_fe:
                 cliente_fe = _models.Cliente(
                     empresa_id = empresa_id,
                     nombre     = nombre_fe,
-                    nit        = nit,
+                    cedula     = nit,
                 )
                 db.add(cliente_fe)
                 db.commit()
