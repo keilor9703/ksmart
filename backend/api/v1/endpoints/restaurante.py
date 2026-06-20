@@ -1012,20 +1012,20 @@ def historial_ventas(
         )
     )
 
+    from datetime import timedelta
     if fecha_inicio:
-        try:
-            fi = datetime.fromisoformat(fecha_inicio).replace(tzinfo=timezone.utc)
-        except ValueError:
+        if "T" in fecha_inicio:
+            fi = datetime.fromisoformat(fecha_inicio.replace("Z", "+00:00"))
+        else:
             fi = datetime.strptime(fecha_inicio, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         q = q.filter(models.Comanda.fecha_cierre >= fi)
 
     if fecha_fin:
-        try:
-            ff = datetime.fromisoformat(fecha_fin).replace(tzinfo=timezone.utc)
-        except ValueError:
-            from datetime import timedelta
+        if "T" in fecha_fin:
+            ff = datetime.fromisoformat(fecha_fin.replace("Z", "+00:00"))
+        else:
             ff = datetime.strptime(fecha_fin, "%Y-%m-%d").replace(tzinfo=timezone.utc) + timedelta(days=1)
-        q = q.filter(models.Comanda.fecha_cierre <= ff)
+        q = q.filter(models.Comanda.fecha_cierre < ff)
 
     if mesa:
         q = q.join(models.Mesa, models.Comanda.mesa_id == models.Mesa.id).filter(
