@@ -359,7 +359,7 @@ export default function AdminUsuarios() {
                 </Box>
                 <Box component="form" onSubmit={handleUserSubmit}>
                   <Grid container spacing={2}>
-                    <Grid item xs={12} sm={3}>
+                    <Grid size={{ xs: 12, sm: 3 }}>
                       <TextField
                         label="Nombre de usuario *"
                         value={username}
@@ -369,7 +369,7 @@ export default function AdminUsuarios() {
                         inputProps={{ pattern: '\\S+' }}
                       />
                     </Grid>
-                    <Grid item xs={12} sm={3}>
+                    <Grid size={{ xs: 12, sm: 3 }}>
                       <TextField
                         label="Nombre completo"
                         value={nombreCompleto}
@@ -378,7 +378,7 @@ export default function AdminUsuarios() {
                         helperText="Nombre real del trabajador (aparece en reportes)"
                       />
                     </Grid>
-                    <Grid item xs={12} sm={3}>
+                    <Grid size={{ xs: 12, sm: 3 }}>
                       <TextField
                         label="Contraseña"
                         type={showPwd ? 'text' : 'password'}
@@ -409,7 +409,7 @@ export default function AdminUsuarios() {
                         }}
                       />
                     </Grid>
-                    <Grid item xs={12} sm={3}>
+                    <Grid size={{ xs: 12, sm: 3 }}>
                       <FormControl fullWidth required size="small">
                         <InputLabel>Rol</InputLabel>
                         <Select value={roleId} label="Rol" onChange={e => setRoleId(e.target.value)}>
@@ -419,14 +419,14 @@ export default function AdminUsuarios() {
                     </Grid>
 
                     {/* ✨ ALERTA ROL MODULOS AÑADIDA AQUÍ COMO UN GRID ITEM DE ANCHO COMPLETO ✨ */}
-                    <Grid item xs={12}>
+                    <Grid size={12}>
                       <AlertaRolModulos
                         rolSeleccionado={roles.find(r => r.id === roleId)}
                         empresaActual={currentUser?.empresa}
                       />
                     </Grid>
 
-                    <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+                    <Grid size={12} sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
                       <Button type="submit" variant="contained" sx={{ bgcolor: ACCENT, fontWeight: 700 }}>
                         {editingUser ? 'Actualizar' : 'Guardar'}
                       </Button>
@@ -532,10 +532,10 @@ export default function AdminUsuarios() {
                 </Box>
                 <Box component="form" onSubmit={handleRoleSubmit}>
                   <Grid container spacing={2}>
-                    <Grid item xs={12} sm={4}>
+                    <Grid size={{ xs: 12, sm: 4 }}>
                       <TextField label="Nombre del Rol" value={roleName} onChange={e => setRoleName(e.target.value)} fullWidth required disabled={!!editingRole} size="small" helperText={editingRole ? 'El nombre no se puede cambiar' : ''} />
                     </Grid>
-                    <Grid item xs={12} sm={8}>
+                    <Grid size={{ xs: 12, sm: 8 }}>
                       <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.secondary', mb: 1.5, textTransform: 'uppercase' }}>
                         Seleccione los módulos a los que tendrá acceso
                       </Typography>
@@ -545,7 +545,7 @@ export default function AdminUsuarios() {
                         ))}
                       </Box>
                     </Grid>
-                    <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+                    <Grid size={12} sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
                       <Button type="submit" variant="contained" sx={{ bgcolor: ACCENT, fontWeight: 700 }}>
                         {editingRole ? 'Guardar Permisos' : 'Crear Rol'}
                       </Button>
