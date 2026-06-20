@@ -18,6 +18,24 @@ router = APIRouter()
 # CONFIGURACIÓN (PROTEGIDO)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+@router.get("/config")
+def get_catalogo_config(
+    db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_active_user),
+):
+    """Devuelve la configuración del catálogo de la empresa."""
+    emp = db.query(models.Empresa).filter(models.Empresa.id == current_user.empresa_id).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada.")
+    return {
+        "slug_catalogo":    emp.slug_catalogo,
+        "whatsapp_pedidos": emp.whatsapp_pedidos,
+        "logo_base64":      emp.logo_base64,
+        "color_primario":   emp.color_primario,
+        "descripcion":      emp.descripcion,
+    }
+
+
 @router.put("/config", response_model=schemas.EmpresaOut)
 def update_catalogo_config(
     payload: schemas.CatalogoConfigUpdate,
