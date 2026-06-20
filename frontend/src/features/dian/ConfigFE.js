@@ -119,7 +119,7 @@ export default function ConfigFE() {
             variant="contained"
             size="large"
             startIcon={<Upgrade />}
-            onClick={() => navigate('/cuenta/suscripcion')}
+            onClick={() => navigate('/mi-suscripcion')}
             sx={{ bgcolor: '#F59E0B', '&:hover': { bgcolor: '#D97706' }, fontWeight: 700, borderRadius: 2.5, px: 4 }}
           >
             Actualizar plan
