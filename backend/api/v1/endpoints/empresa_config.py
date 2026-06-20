@@ -16,13 +16,19 @@ def _get_link_activo(db: Session, empresa_id: int) -> Optional[models.LinkPagoEm
     )
 
 
-@router.get("/empresa/link-pago", response_model=Optional[schemas.LinkPagoOut])
+@router.get("/empresa/link-pago")
 def get_link_pago(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
     """Devuelve el link de pago activo de la empresa (o null si no tiene)."""
-    return _get_link_activo(db, current_user.empresa_id)
+    link = _get_link_activo(db, current_user.empresa_id)
+    if link is None:
+        return None
+    empresa = db.query(models.Empresa).filter(models.Empresa.id == current_user.empresa_id).first()
+    data = schemas.LinkPagoOut.model_validate(link).model_dump()
+    data["logo_base64"] = getattr(empresa, "logo_base64", None)
+    return data
 
 
 @router.get("/empresa/link-pago/todos", response_model=List[schemas.LinkPagoOut])

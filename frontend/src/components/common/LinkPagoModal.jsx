@@ -7,7 +7,7 @@ import {
 import {
   CheckCircle, Close, WhatsApp, QrCode2, OpenInNew,
 } from '@mui/icons-material';
-import { QRCodeSVG } from 'qrcode.react';
+import { QRCodeCanvas } from 'qrcode.react';
 
 export default function LinkPagoModal({ open, onClose, onConfirm, linkConfig, clienteTelefono }) {
   const theme = useTheme();
@@ -107,13 +107,15 @@ export default function LinkPagoModal({ open, onClose, onConfirm, linkConfig, cl
               />
             )}
             {isUrl && (
-              <QRCodeSVG
+              <QRCodeCanvas
                 value={linkConfig.link_url}
                 size={240}
-                level="M"
-                includeMargin={false}
+                level="H"
                 fgColor="#111827"
                 bgColor="#ffffff"
+                {...(linkConfig.logo_base64 ? {
+                  imageSettings: { src: linkConfig.logo_base64, height: 52, width: 52, excavate: true }
+                } : {})}
               />
             )}
           </Box>

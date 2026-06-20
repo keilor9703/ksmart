@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box, Typography, Paper, TextField, Button, Grid, Divider,
   IconButton, Switch, FormControlLabel, Alert, InputAdornment,
@@ -9,6 +9,7 @@ import {
   CloudUpload, Delete, CheckCircle, Info, Palette, GetApp,
   CheckCircleOutline, Cancel, LocationOn
 } from '@mui/icons-material';
+import { QRCodeCanvas } from 'qrcode.react';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
 import { compressImageToWebP } from '../../utils/imageOptimizer';
@@ -413,11 +414,22 @@ const CatalogoConfig = () => {
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
                 Escanea para ir al catálogo:
               </Typography>
-              <Box sx={{ display: 'inline-block', p: 1.5, bgcolor: '#fff', borderRadius: 2, border: '1px solid', borderColor: 'divider', mb: 1.5 }}>
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(catalogUrl)}`}
-                  alt="QR Code"
-                  style={{ width: 120, height: 120, display: 'block' }}
+              <Box id="qr-canvas-wrapper" sx={{ display: 'inline-block', p: 1.5, bgcolor: '#fff', borderRadius: 2, border: '1px solid', borderColor: 'divider', mb: 1.5 }}>
+                <QRCodeCanvas
+                  value={catalogUrl}
+                  size={160}
+                  level="H"
+                  marginSize={1}
+                  {...(logo ? {
+                    imageSettings: {
+                      src: logo,
+                      x: undefined,
+                      y: undefined,
+                      height: 36,
+                      width: 36,
+                      excavate: true,
+                    }
+                  } : {})}
                 />
               </Box>
               <Box>
@@ -425,11 +437,14 @@ const CatalogoConfig = () => {
                   size="small"
                   variant="outlined"
                   startIcon={<GetApp />}
-                  component="a"
-                  href={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(catalogUrl)}&format=png`}
-                  download={`qr-${slug || 'catalogo'}.png`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  onClick={() => {
+                    const canvas = document.querySelector('#qr-canvas-wrapper canvas');
+                    if (!canvas) return;
+                    const link = document.createElement('a');
+                    link.download = `qr-${slug || 'catalogo'}.png`;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                  }}
                   sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12 }}
                 >
                   Descargar QR

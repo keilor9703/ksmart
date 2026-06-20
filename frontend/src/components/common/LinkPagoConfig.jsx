@@ -8,7 +8,7 @@ import {
   QrCode2, Link as LinkIcon, Delete, Save, Upload, CheckCircle,
   WarningAmber,
 } from '@mui/icons-material';
-import { QRCodeSVG } from 'qrcode.react';
+import { QRCodeCanvas } from 'qrcode.react';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
 import { compressImageToWebP } from '../../utils/imageOptimizer';
@@ -22,6 +22,7 @@ export default function LinkPagoConfig() {
   const [saving, setSaving]     = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [config, setConfig]     = useState(null); // existing saved config
+  const [empresaLogo, setEmpresaLogo] = useState(null);
 
   const [nombre, setNombre]           = useState('');
   const [tipo, setTipo]               = useState('url');
@@ -33,15 +34,22 @@ export default function LinkPagoConfig() {
   const fetchConfig = async () => {
     setLoading(true);
     try {
-      const res = await apiClient.get('/empresa/link-pago');
-      if (res.data) {
-        setConfig(res.data);
-        setNombre(res.data.nombre || '');
-        setTipo(res.data.tipo || 'url');
-        setLinkUrl(res.data.link_url || '');
-        setQrBase64(res.data.qr_base64 || '');
-        setQrMimeType(res.data.qr_mime_type || '');
-        setInstrucciones(res.data.instrucciones || '');
+      const [res, empRes] = await Promise.allSettled([
+        apiClient.get('/empresa/link-pago'),
+        apiClient.get('/catalogo/config'),
+      ]);
+      if (res.status === 'fulfilled' && res.value.data) {
+        const d = res.value.data;
+        setConfig(d);
+        setNombre(d.nombre || '');
+        setTipo(d.tipo || 'url');
+        setLinkUrl(d.link_url || '');
+        setQrBase64(d.qr_base64 || '');
+        setQrMimeType(d.qr_mime_type || '');
+        setInstrucciones(d.instrucciones || '');
+      }
+      if (empRes.status === 'fulfilled' && empRes.value.data?.logo_base64) {
+        setEmpresaLogo(empRes.value.data.logo_base64);
       }
     } catch {
       // No config yet — form stays empty
@@ -279,7 +287,13 @@ export default function LinkPagoConfig() {
             }}
           >
             {tipo === 'url' && linkUrl && (
-              <QRCodeSVG value={linkUrl} size={160} level="M" fgColor="#111827" bgColor="#ffffff" />
+              <QRCodeCanvas
+                value={linkUrl} size={160} level="H"
+                fgColor="#111827" bgColor="#ffffff"
+                {...(empresaLogo ? {
+                  imageSettings: { src: empresaLogo, height: 36, width: 36, excavate: true }
+                } : {})}
+              />
             )}
             {tipo === 'qr_imagen' && qrBase64 && (
               <img
