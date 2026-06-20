@@ -300,7 +300,10 @@ def create_pedido_restaurante_publico(
     # Configuración de cocina de la empresa
     cfg = db.query(models.ConfigRestaurante).filter_by(empresa_id=db_empresa.id).first()
     areas = cfg.areas_cocina if cfg else ["Cocina general"]
-    modo_impresion = cfg.imprimir_comanda_auto if cfg else False
+    modo = getattr(cfg, "modo_impresion_comanda", None) or (
+        "solo_impresion" if (cfg and cfg.imprimir_comanda_auto) else "solo_pantalla"
+    )
+    impresora_reemplaza_pantalla = (modo == "solo_impresion")
 
     # Obtener overrides de grupos de producto
     from crud.grupos_producto import _get_overrides
@@ -327,7 +330,7 @@ def create_pedido_restaurante_publico(
             if va_a_cocina:
                 area = areas[0] if areas else "Cocina general"
 
-        if modo_impresion:
+        if impresora_reemplaza_pantalla:
             va_a_cocina = False
 
         nuevo = models.ComandaItem(

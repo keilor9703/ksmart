@@ -241,7 +241,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
     setLoading(true);
     try {
       await apiClient.post(`/restaurante/comandas/${comanda.id}/items`, selectedItems);
-      if (config?.imprimir_comanda_auto) {
+      if (debeImprimir) {
         imprimirComanda({
           mesa,
           comanda,
@@ -464,7 +464,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
             ) : (
               /* Botón: solicitar cuenta para que vaya a la caja */
               <Button fullWidth variant="outlined"
-                disabled={loading || (!config?.imprimir_comanda_auto && (hayPendientes || hayEnPrep))}
+                disabled={loading || (debePantalla && (hayPendientes || hayEnPrep))}
                 startIcon={loading ? <CircularProgress size={15} color="inherit" /> : <PointOfSale />}
                 onClick={handleSolicitarCuenta}
                 sx={{ borderRadius: 2, fontWeight: 700, fontSize: 13, py: 1, mb: 1.5, borderColor: '#7C3AED', color: '#7C3AED', '&:hover': { bgcolor: alpha('#7C3AED', 0.06), borderColor: '#6D28D9' } }}>
@@ -550,13 +550,13 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
                   />
                 </Box>
                 <Button fullWidth variant="contained"
-                  disabled={loading || !puedeConfirmarCobro || (!config?.imprimir_comanda_auto && (hayPendientes || hayEnPrep))}
+                  disabled={loading || !puedeConfirmarCobro || (debePantalla && (hayPendientes || hayEnPrep))}
                   startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <Receipt />}
                   onClick={handleCerrarCuenta}
                   sx={{ borderRadius: 2, fontWeight: 800, fontSize: 14, py: 1.2, bgcolor: '#059669', '&:hover': { bgcolor: '#047857' }, mb: 0.5 }}>
                   Cobrar directamente (mesero)
                 </Button>
-                {!config?.imprimir_comanda_auto && (hayPendientes || hayEnPrep) && (
+                {debePantalla && (hayPendientes || hayEnPrep) && (
                   <Typography fontSize={11} color="text.secondary" textAlign="center">
                     Espera a que cocina confirme todos los ítems
                   </Typography>
@@ -1147,6 +1147,12 @@ export default function MapaMesas({ user }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Helpers derivados del modo de impresión
+  // modo_impresion_comanda: 'solo_pantalla' | 'solo_impresion' | 'ambos'
+  const modoImpresion = config?.modo_impresion_comanda || (config?.imprimir_comanda_auto ? 'solo_impresion' : 'solo_pantalla');
+  const debeImprimir   = modoImpresion === 'solo_impresion' || modoImpresion === 'ambos';
+  const debePantalla   = modoImpresion === 'solo_pantalla'  || modoImpresion === 'ambos';
+
   const [mesaSeleccionada, setMesaSeleccionada] = useState(null);
   const [panelMode, setPanelMode] = useState(null);  // 'abrir' | 'comanda'
   const [zonaFiltro, setZonaFiltro] = useState('todas');
@@ -1175,17 +1181,17 @@ export default function MapaMesas({ user }) {
   useEffect(() => { fetchAll(); }, [fetchAll]);
   // Refresco automático cada 15s; se pausa si la pestaña está oculta o hay
   // un panel abierto (para no desmontar el recibo mientras el usuario lo revisa).
-  usePolling(() => fetchAll(true), 15_000, { enabled: !mesaSeleccionada && !config?.imprimir_comanda_auto });
+  usePolling(() => fetchAll(true), 15_000, { enabled: !mesaSeleccionada && !debeImprimir });
 
   // ── Vigilancia de comandas de autoservicio (catálogo) ─────────────────────
-  // Solo activo cuando imprimir_comanda_auto está ON.
+  // Solo activo cuando el modo incluye impresión (solo_impresion | ambos).
   // Cada 8s consulta comandas nuevas con mesero_id=null y dispara impresión
   // automática en el dispositivo del restaurante por cada una no vista aún.
   const autoservicioDesdeRef = useRef(new Date().toISOString());
   const autoservicioImpresosRef = useRef(new Set());
 
   const checkAutoservicio = useCallback(async () => {
-    if (!config?.imprimir_comanda_auto) return;
+    if (!debeImprimir) return;
     try {
       const res = await apiClient.get('/restaurante/comandas', {
         params: {
@@ -1218,7 +1224,7 @@ export default function MapaMesas({ user }) {
     } catch { /* silencioso — es vigilancia de fondo */ }
   }, [config, empresa, fetchAll]);
 
-  usePolling(checkAutoservicio, 8_000, { enabled: !!config?.imprimir_comanda_auto });
+  usePolling(checkAutoservicio, 8_000, { enabled: debeImprimir });
 
   const handleMesaClick = (mesa) => {
     setMesaSeleccionada(mesa);

@@ -2144,6 +2144,27 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v99)
                 logger.info("V99 (incluye_fe en planes_suscripcion) aplicada.")
 
+            # V101 - Modo de impresión de comanda (solo_pantalla | solo_impresion | ambos)
+            migration_v101 = "v101_modo_impresion_comanda"
+            if not _migration_already_applied(conn, migration_v101):
+                if not _column_exists(conn, "restaurante_config", "modo_impresion_comanda"):
+                    conn.execute(text(
+                        "ALTER TABLE restaurante_config ADD COLUMN modo_impresion_comanda VARCHAR(20) DEFAULT 'solo_pantalla'"
+                    ))
+                    logger.info("V101: añadido restaurante_config.modo_impresion_comanda")
+                # Migrar valor legacy: imprimir_comanda_auto=True → solo_impresion
+                if IS_SQLITE:
+                    conn.execute(text(
+                        "UPDATE restaurante_config SET modo_impresion_comanda = 'solo_impresion' WHERE imprimir_comanda_auto = 1 AND (modo_impresion_comanda IS NULL OR modo_impresion_comanda = 'solo_pantalla')"
+                    ))
+                else:
+                    conn.execute(text(
+                        "UPDATE restaurante_config SET modo_impresion_comanda = 'solo_impresion' WHERE imprimir_comanda_auto = TRUE AND (modo_impresion_comanda IS NULL OR modo_impresion_comanda = 'solo_pantalla')"
+                    ))
+                logger.info("V101: migración legacy imprimir_comanda_auto → modo_impresion_comanda")
+                _mark_migration_applied(conn, migration_v101)
+                logger.info("V101 (modo_impresion_comanda) aplicada.")
+
             # V100 - Origen de comanda (autoservicio desde menú digital)
             migration_v100 = "v100_comandas_origen"
             if not _migration_already_applied(conn, migration_v100):

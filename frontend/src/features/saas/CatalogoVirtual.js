@@ -488,7 +488,7 @@ const CatalogoVirtual = () => {
                   </Typography>
                 ) : (
                   <Typography sx={{ fontSize: 11, color: textSec, mt: 0.2 }}>
-                    Catálogo Virtual
+                    {empresa?.tipo_negocio === 'restaurante' ? 'Menú Digital' : 'Catálogo Virtual'}
                   </Typography>
                 )
               )}

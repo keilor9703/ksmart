@@ -119,7 +119,8 @@ class ConfigRestauranteIn(BaseModel):
     tiempo_cocina_estimado: Optional[int] = None
     propina_sugerida_pct: Optional[float] = None
     permitir_nota_por_item: Optional[bool] = None
-    imprimir_comanda_auto: Optional[bool] = None
+    imprimir_comanda_auto: Optional[bool] = None          # legacy
+    modo_impresion_comanda: Optional[str] = None          # solo_pantalla | solo_impresion | ambos
     tipo_impresora: Optional[str] = None
     mesero_puede_cobrar_directo: Optional[bool] = None
 
@@ -141,6 +142,9 @@ def get_config(
         "propina_sugerida_pct": cfg.propina_sugerida_pct,
         "permitir_nota_por_item": cfg.permitir_nota_por_item,
         "imprimir_comanda_auto": cfg.imprimir_comanda_auto,
+        "modo_impresion_comanda": getattr(cfg, "modo_impresion_comanda", None) or (
+            "solo_impresion" if cfg.imprimir_comanda_auto else "solo_pantalla"
+        ),
         "tipo_impresora": cfg.tipo_impresora or 'p80',
         "mesero_puede_cobrar_directo": cfg.mesero_puede_cobrar_directo,
     }
@@ -156,7 +160,13 @@ def update_config(
     if not cfg:
         cfg = models.ConfigRestaurante(empresa_id=user.empresa_id)
         db.add(cfg)
-    for field, val in payload.dict(exclude_none=True).items():
+    data = payload.dict(exclude_none=True)
+    # Sincronizar legacy imprimir_comanda_auto con el nuevo modo
+    if "modo_impresion_comanda" in data:
+        data["imprimir_comanda_auto"] = data["modo_impresion_comanda"] in ("solo_impresion", "ambos")
+    elif "imprimir_comanda_auto" in data:
+        data["modo_impresion_comanda"] = "solo_impresion" if data["imprimir_comanda_auto"] else "solo_pantalla"
+    for field, val in data.items():
         setattr(cfg, field, val)
     db.commit(); db.refresh(cfg)
     return {"ok": True}
@@ -374,7 +384,13 @@ def agregar_items(
 
     cfg = db.query(models.ConfigRestaurante).filter_by(empresa_id=user.empresa_id).first()
     areas = cfg.areas_cocina if cfg else ["Cocina general"]
-    modo_impresion = cfg.imprimir_comanda_auto if cfg else False  # True → impresora reemplaza pantalla cocina
+    modo = getattr(cfg, "modo_impresion_comanda", None) or (
+        "solo_impresion" if (cfg and cfg.imprimir_comanda_auto) else "solo_pantalla"
+    )
+    # solo_impresion → ítems no aparecen en PantallaCocina (va_a_cocina=False)
+    # solo_pantalla  → van a PantallaCocina, no se imprime
+    # ambos          → van a PantallaCocina Y se imprime la comanda
+    impresora_reemplaza_pantalla = (modo == "solo_impresion")
 
     # Cargar overrides por-empresa una sola vez
     from crud.grupos_producto import _get_overrides
@@ -400,9 +416,9 @@ def agregar_items(
                 if not area and va_a_cocina:
                     area = areas[0] if areas else "Cocina general"
 
-        # Si el restaurante trabaja con impresora (sin pantalla cocina),
-        # los ítems nacen como "listo" para no aparecer en PantallaCocina.
-        if modo_impresion:
+        # Modo solo_impresion: impresora reemplaza la pantalla de cocina.
+        # Los ítems nacen como "listo" para no aparecer en PantallaCocina.
+        if impresora_reemplaza_pantalla:
             va_a_cocina = False
 
         nuevo = models.ComandaItem(

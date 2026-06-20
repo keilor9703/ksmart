@@ -547,26 +547,44 @@ const TabGeneral = ({ config, set, saving, onSave, loading }) => {
       {/* Impresión de comandas */}
       <Paper elevation={0} sx={{ p: 2.5, borderRadius: 2, border: '1px solid rgba(0,0,0,0.08)' }}>
         <Typography sx={{ fontWeight: 700, mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Print sx={{ color: ACCENT, fontSize: 20 }} /> Impresión de comandas
+          <Print sx={{ color: ACCENT, fontSize: 20 }} /> Gestión de comandas
         </Typography>
         <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
-          Para restaurantes sin pantallas en cocina. Al activar esta opción, cada vez que un mesero envíe un pedido a cocina se abrirá automáticamente el diálogo de impresión del navegador para imprimir el ticket en la impresora térmica conectada al dispositivo.
+          Define cómo se procesan los pedidos cuando el mesero los envía a cocina. Puedes usar solo la pantalla de cocina, solo la impresora térmica, o ambas al mismo tiempo.
         </Typography>
-        <FormControlLabel
-          control={
-            <Switch
-              checked={config.imprimir_comanda_auto ?? false}
-              onChange={e => set('imprimir_comanda_auto', e.target.checked)}
-              sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: ACCENT }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: ACCENT } }}
-            />
-          }
-          label={
-            <Box>
-              <Typography sx={{ fontSize: 14, fontWeight: 500 }}>Imprimir comanda automáticamente al enviar a cocina</Typography>
-              <Typography variant="caption" color="text.secondary">El mesero deberá tener una impresora térmica configurada en su dispositivo</Typography>
-            </Box>
-          }
-        />
+
+        <ToggleButtonGroup
+          value={config.modo_impresion_comanda || (config.imprimir_comanda_auto ? 'solo_impresion' : 'solo_pantalla')}
+          exclusive
+          onChange={(_, v) => v && set('modo_impresion_comanda', v)}
+          size="small"
+          sx={{
+            mb: 1.5, flexWrap: 'wrap', gap: 0.5,
+            '& .MuiToggleButton-root': {
+              px: 2, py: 0.8, fontSize: 13, fontWeight: 600,
+              borderRadius: '8px !important', textTransform: 'none',
+            },
+            '& .Mui-selected': { color: `${ACCENT} !important`, borderColor: `${ACCENT} !important`, bgcolor: `${alpha(ACCENT, 0.09)} !important` },
+          }}
+        >
+          <ToggleButton value="solo_pantalla">🖥️ Solo pantalla de cocina</ToggleButton>
+          <ToggleButton value="solo_impresion">🖨️ Solo impresora</ToggleButton>
+          <ToggleButton value="ambos">🖥️ + 🖨️ Pantalla e impresora</ToggleButton>
+        </ToggleButtonGroup>
+
+        {(() => {
+          const modo = config.modo_impresion_comanda || (config.imprimir_comanda_auto ? 'solo_impresion' : 'solo_pantalla');
+          const desc = {
+            solo_pantalla:  'Los pedidos aparecen en la Pantalla de Cocina. No se imprime ticket.',
+            solo_impresion: 'Al enviar un pedido se abre el diálogo de impresión automáticamente. Los ítems NO aparecen en la Pantalla de Cocina.',
+            ambos:          'Los pedidos aparecen en la Pantalla de Cocina Y se imprime el ticket automáticamente al mismo tiempo.',
+          };
+          return (
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+              {desc[modo]}
+            </Typography>
+          );
+        })()}
 
         <Divider sx={{ my: 2 }} />
 

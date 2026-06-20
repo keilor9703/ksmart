@@ -1460,7 +1460,8 @@ class ConfigRestaurante(Base):
     tiempo_cocina_estimado  = Column(Integer, default=15)     # minutos estimados
     propina_sugerida_pct    = Column(Float, default=10.0)
     permitir_nota_por_item          = Column(Boolean, default=True)
-    imprimir_comanda_auto           = Column(Boolean, default=False)
+    imprimir_comanda_auto           = Column(Boolean, default=False)   # legacy — usar modo_impresion_comanda
+    modo_impresion_comanda          = Column(String(20), default='solo_pantalla')  # solo_pantalla | solo_impresion | ambos
     tipo_impresora                  = Column(String(10), default='p80')
     mesero_puede_cobrar_directo     = Column(Boolean, default=False)
 
