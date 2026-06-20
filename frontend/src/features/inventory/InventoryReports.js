@@ -582,19 +582,19 @@ export default function InventoryReports() {
           <TabPanel value={tab} index={0}>
             {/* KPIs */}
             <Grid container spacing={1.5} sx={{ mb: 2.5 }}>
-              <Grid item xs={6} sm={4} md={2.4}>
+              <Grid size={{ xs: 6, sm: 4, md: 2.4 }}>
                 <KpiCard label="Valor a costo" value={formatCurrency(inv.total_valor_costo)} icon={<AttachMoney />} color={ACCENT} />
               </Grid>
-              <Grid item xs={6} sm={4} md={2.4}>
+              <Grid size={{ xs: 6, sm: 4, md: 2.4 }}>
                 <KpiCard label="Valor a precio venta" value={formatCurrency(inv.total_valor_venta)} icon={<TrendingUp />} color={GREEN} />
               </Grid>
-              <Grid item xs={6} sm={4} md={2.4}>
+              <Grid size={{ xs: 6, sm: 4, md: 2.4 }}>
                 <KpiCard label="Total ítems" value={inv.items.length} icon={<Inventory2Outlined />} color={BLUE} />
               </Grid>
-              <Grid item xs={6} sm={6} md={2.4}>
+              <Grid size={{ xs: 6, sm: 6, md: 2.4 }}>
                 <KpiCard label="Bajo mínimo" value={invBajoMinimo} icon={<WarningAmber />} color={RED} />
               </Grid>
-              <Grid item xs={6} sm={6} md={2.4}>
+              <Grid size={{ xs: 6, sm: 6, md: 2.4 }}>
                 <KpiCard label="Agotados" value={invAgotados} icon={<WarningAmber />} color="#7C3AED" />
               </Grid>
             </Grid>
@@ -802,19 +802,19 @@ export default function InventoryReports() {
                 Parámetros
               </Typography>
               <Grid container spacing={1.5} alignItems="flex-end">
-                <Grid item xs={6} sm={3}>
+                <Grid size={{ xs: 6, sm: 3 }}>
                   <TextField type="date" label="Desde" size="small" value={rotStart}
                     onChange={e => setRotStart(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
                 </Grid>
-                <Grid item xs={6} sm={3}>
+                <Grid size={{ xs: 6, sm: 3 }}>
                   <TextField type="date" label="Hasta" size="small" value={rotEnd}
                     onChange={e => setRotEnd(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
                 </Grid>
-                <Grid item xs={6} sm={2}>
+                <Grid size={{ xs: 6, sm: 2 }}>
                   <TextField type="number" label="Top N" size="small" value={rotLimit}
                     onChange={e => setRotLimit(parseInt(e.target.value || '10', 10))} fullWidth />
                 </Grid>
-                <Grid item xs={6} sm={2}>
+                <Grid size={{ xs: 6, sm: 2 }}>
                   <TextField select label="Servicios" size="small"
                     SelectProps={{ native: true }}
                     value={rotIncServ ? '1' : '0'}
@@ -823,7 +823,7 @@ export default function InventoryReports() {
                     <option value="1">Incluir</option>
                   </TextField>
                 </Grid>
-                <Grid item xs={12} sm={2}>
+                <Grid size={{ xs: 12, sm: 2 }}>
                   <Box sx={{ display: 'flex', gap: 1 }}>
                     <Button variant="contained" onClick={loadRotacion} fullWidth size="small"
                       disabled={rotLoading}
@@ -865,7 +865,7 @@ export default function InventoryReports() {
                 )}
 
                 <Grid container spacing={2.5}>
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                       <TrendingUp sx={{ color: GREEN, fontSize: 20 }} />
                       <Typography sx={{ fontWeight: 700, fontSize: 14 }}>Más vendidos</Typography>
@@ -876,7 +876,7 @@ export default function InventoryReports() {
                       : <RotTable rows={rot.top} emptyText="Sin datos de ventas en el período" totalIngresos={totalTopIngresos} />
                     }
                   </Grid>
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                       <TrendingDown sx={{ color: RED, fontSize: 20 }} />
                       <Typography sx={{ fontWeight: 700, fontSize: 14 }}>Menor rotación</Typography>
@@ -930,15 +930,15 @@ export default function InventoryReports() {
 
               {/* Fila 2: fechas + botones */}
               <Grid container spacing={1.5} alignItems="center">
-                <Grid item xs={6} sm={3}>
+                <Grid size={{ xs: 6, sm: 3 }}>
                   <TextField type="date" label="Inicio" size="small" value={kStart}
                     onChange={e => setKStart(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
                 </Grid>
-                <Grid item xs={6} sm={3}>
+                <Grid size={{ xs: 6, sm: 3 }}>
                   <TextField type="date" label="Fin" size="small" value={kEnd}
                     onChange={e => setKEnd(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
                 </Grid>
-                <Grid item xs={8} sm={4}>
+                <Grid size={{ xs: 8, sm: 4 }}>
                   <Button variant="contained" onClick={loadKardex} disabled={!producto || kLoading}
                     startIcon={kLoading ? <CircularProgress size={14} color="inherit" /> : <ReceiptLong />}
                     fullWidth size="small"
@@ -946,7 +946,7 @@ export default function InventoryReports() {
                     {kLoading ? 'Cargando…' : 'Consultar'}
                   </Button>
                 </Grid>
-                <Grid item xs={4} sm={2}>
+                <Grid size={{ xs: 4, sm: 2 }}>
                   <Box sx={{ display: 'flex', gap: 0.5 }}>
                     <Tooltip title="Exportar Kardex a Excel">
                       <span style={{ flex: 1 }}>
@@ -1071,13 +1071,13 @@ export default function InventoryReports() {
           <TabPanel value={tab} index={3}>
             {/* KPI cards */}
             <Grid container spacing={1.5} sx={{ mb: 2.5 }}>
-              <Grid item xs={12} sm={4}>
+              <Grid size={{ xs: 12, sm: 4 }}>
                 <KpiCard label="Agotados" value={alertasAgotado.length} icon={<WarningAmber />} color="#7C3AED" />
               </Grid>
-              <Grid item xs={12} sm={4}>
+              <Grid size={{ xs: 12, sm: 4 }}>
                 <KpiCard label="Bajo mínimo" value={alertasBajo.length} icon={<WarningAmber />} color={RED} />
               </Grid>
-              <Grid item xs={12} sm={4}>
+              <Grid size={{ xs: 12, sm: 4 }}>
                 <KpiCard label="Sin mínimo config." value={alertasSinMin.length} icon={<WarningAmber />} color="#94A3B8" />
               </Grid>
             </Grid>

@@ -576,7 +576,7 @@ const MovementCard = ({ row }) => {
           { label: 'Motivo',     val: row.motivo || '—' },
           { label: 'Referencia', val: row.referencia || '—' },
         ].map(({ label, val }) => (
-          <Grid item xs={4} key={label}>
+          <Grid size={{ xs: 4 }} key={label}>
             <Box sx={{ p: 0.8, borderRadius: 1.5, bgcolor: 'action.hover', textAlign: 'center' }}>
               <Typography sx={{ fontSize: 9, color: 'text.secondary', mb: 0.1 }}>{label}</Typography>
               <Typography sx={{ fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{val}</Typography>
@@ -670,9 +670,10 @@ const MovementsTable = ({ refreshKey }) => {
       formatDate(r.created_at)
     ]);
     const csv = [headers, ...csvRows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const now = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' }).replace(/[/:, ]/g, '-');
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'movimientos.csv';
+    const a = document.createElement('a'); a.href = url; a.download = `movimientos_${now}.csv`;
     document.body.appendChild(a); a.click(); a.remove();
   };
 
@@ -687,7 +688,7 @@ const MovementsTable = ({ refreshKey }) => {
     <Box sx={{ width: '100%', boxSizing: 'border-box' }}>
       <Grid container spacing={1} sx={{ mb: 2 }}>
         {stats.map(({ label, val, color }) => (
-          <Grid item xs={6} sm={3} key={label}>
+          <Grid size={{ xs: 6, sm: 3 }} key={label}>
             <Box sx={{ px: 1.5, py: 1, borderRadius: 2, bgcolor: `${color}0D`, border: `1px solid ${color}25`, width: '100%', boxSizing: 'border-box' }}>
               <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>{label}</Typography>
               <Typography sx={{ fontWeight: 700, fontSize: 15, color }}>{val}</Typography>
@@ -774,7 +775,7 @@ const MovementsTable = ({ refreshKey }) => {
                 <SortHeader col="tipo"     label="Tipo" />
                 <SortHeader col="cantidad" label="Cantidad" align="left" />
                 <TableCell>Motivo</TableCell>
-                <TableCell>Referencia</TableCell>
+                <TableCell>Referencia / Lote</TableCell>
                 <SortHeader col="fecha"    label="Fecha" />
               </TableRow>
             </TableHead>
@@ -791,7 +792,13 @@ const MovementsTable = ({ refreshKey }) => {
                       </TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>{r.cantidad}</TableCell>
                       <TableCell sx={{ fontSize: 12, color: 'text.secondary' }}>{r.motivo || '—'}</TableCell>
-                      <TableCell sx={{ fontSize: 12, color: 'text.secondary' }}>{r.referencia || '—'}</TableCell>
+                      <TableCell sx={{ fontSize: 12, color: 'text.secondary' }}>
+                        {r.referencia || '—'}
+                        {r.numero_lote && (
+                          <Chip label={`Lote: ${r.numero_lote}`} size="small"
+                            sx={{ ml: 0.5, height: 16, fontSize: 9, fontWeight: 700, bgcolor: '#ECFDF5', color: GREEN, '& .MuiChip-label': { px: 0.6 } }} />
+                        )}
+                      </TableCell>
                       <TableCell sx={{ fontSize: 11, color: 'text.secondary', whiteSpace: 'nowrap' }}>{formatDate(r.created_at)}</TableCell>
                     </TableRow>
                   ))

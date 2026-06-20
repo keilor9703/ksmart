@@ -93,7 +93,7 @@ const StockCard = ({ producto, grupos }) => {
           { label: 'Costo unit.',  val: formatCurrency(producto.costo),   color: 'text.primary' },
           { label: 'Valorización', val: formatCurrency(stock * producto.costo), color: ACCENT },
         ].map(({ label, val, color }) => (
-          <Grid item xs={6} key={label}>
+          <Grid size={{ xs: 6 }} key={label}>
             <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'action.hover', textAlign: 'center' }}>
               <Typography sx={{ fontSize: 9, color: 'text.secondary', mb: 0.1 }}>{label}</Typography>
               <Typography sx={{ fontSize: 12, fontWeight: 700, color }}>{val}</Typography>
@@ -238,11 +238,12 @@ export default function Inventario() {
         stock < (p.stock_minimo ?? 0) ? 'Bajo' : 'Normal',
       ];
     });
+    const now = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' }).replace(/[/:, ]/g, '-');
     const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = 'stock_inventario.csv';
+    a.href = url; a.download = `stock_inventario_${now}.csv`;
     document.body.appendChild(a); a.click(); a.remove();
   };
 
@@ -270,13 +271,13 @@ export default function Inventario() {
 
       {/* ── KPIs globales ── */}
       <Grid container spacing={1.5} sx={{ mb: 2 }}>
-        <Grid item xs={6} sm={4}>
+        <Grid size={{ xs: 6, sm: 4 }}>
           <KpiCard label="Valorización total" value={formatCurrency(valorTotal)} icon={<AttachMoney />} color={ACCENT} />
         </Grid>
-        <Grid item xs={6} sm={4}>
+        <Grid size={{ xs: 6, sm: 4 }}>
           <KpiCard label="Total SKUs" value={soloProductos.length} icon={<Category />} color={BLUE} />
         </Grid>
-        <Grid item xs={12} sm={4}>
+        <Grid size={{ xs: 12, sm: 4 }}>
           <KpiCard
             label="Alertas de stock" value={stockBajoCount} icon={<Warning />}
             color={stockBajoCount > 0 ? RED : GREEN}

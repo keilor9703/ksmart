@@ -5,7 +5,7 @@ import {
   TableSortLabel, TablePagination,
   Chip, IconButton, Stack, CircularProgress, Avatar, Tooltip,
   Dialog, DialogTitle, DialogContent, DialogActions, InputAdornment,
-  Tabs, Tab, Autocomplete, LinearProgress, Alert, useTheme, useMediaQuery, Divider
+  Tabs, Tab, Autocomplete, LinearProgress, Alert, useTheme, useMediaQuery, Divider,
 } from '@mui/material';
 import {
   Warning, Error as ErrorIcon, CheckCircle, Info,
@@ -109,7 +109,7 @@ const LoteCard = ({ lote, onAjustar }) => {
 
       {/* Fila 2: datos en grid 2x2 */}
       <Grid container spacing={1} sx={{ mb: 1.5 }}>
-        <Grid item xs={6}>
+        <Grid size={{ xs: 6 }}>
           <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Vencimiento</Typography>
           <Typography sx={{ fontSize: 12, fontWeight: 700, color: cfg.color }}>
             {fmtFecha(lote.fecha_vencimiento)}
@@ -118,7 +118,7 @@ const LoteCard = ({ lote, onAjustar }) => {
             <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>Fab: {fmtFecha(lote.fecha_fabricacion)}</Typography>
           )}
         </Grid>
-        <Grid item xs={6}>
+        <Grid size={{ xs: 6 }}>
           <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Valor total</Typography>
           <Typography sx={{ fontSize: 12, fontWeight: 700 }}>
             {formatCurrency(lote.cantidad_actual * lote.costo_unitario)}
@@ -200,20 +200,19 @@ const InventarioLotes = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [resLotes, resAlertas, resResumen, resProd, resClie] = await Promise.all([
+      const [resLotes, resAlertas, resResumen, resProd, resClie] = await Promise.allSettled([
         apiClient.get('/inventario/lotes?solo_activos=true'),
         apiClient.get(`/reportes/proximos-a-vencer?dias=${diasAlerta}`),
         apiClient.get('/reportes/resumen-alertas-vencimiento'),
         apiClient.get('/productos/'),
         apiClient.get('/clientes/'),
       ]);
-      setLotes(resLotes.data);
-      setAlertas(resAlertas.data);
-      setResumen(resResumen.data);
-      setProductos(resProd.data.filter(p => p.maneja_lotes));
-      setClientes(resClie.data.filter(c => c.es_proveedor));
-    } catch {
-      toast.error('Error al cargar los datos de lotes');
+      if (resLotes.status === 'fulfilled')   setLotes(resLotes.value.data);
+      else toast.error('Error al cargar lotes');
+      if (resAlertas.status === 'fulfilled') setAlertas(resAlertas.value.data);
+      if (resResumen.status === 'fulfilled') setResumen(resResumen.value.data);
+      if (resProd.status === 'fulfilled')    setProductos(resProd.value.data.filter(p => p.maneja_lotes));
+      if (resClie.status === 'fulfilled')    setClientes(resClie.value.data.filter(c => c.es_proveedor));
     } finally {
       setLoading(false);
     }
@@ -255,6 +254,11 @@ const InventarioLotes = () => {
 
   const handleAjustar = async () => {
     if (!ajusteForm.cantidad || !ajusteForm.motivo) return toast.warning('Ingresa cantidad y motivo.');
+    const cant = parseFloat(ajusteForm.cantidad);
+    if (cant < 0 && modalAjuste.lote) {
+      const nuevaCant = modalAjuste.lote.cantidad_actual + cant;
+      if (!window.confirm(`¿Confirmas restar ${Math.abs(cant)} unidades del lote "${modalAjuste.lote.numero_lote}"? Stock resultante: ${nuevaCant.toFixed(2)}`)) return;
+    }
     try {
       await apiClient.patch(`/inventario/lotes/${modalAjuste.lote.id}/ajuste`, {
         cantidad:   parseFloat(ajusteForm.cantidad),
@@ -377,11 +381,12 @@ const InventarioLotes = () => {
       l.referencia_compra || ''
     ]);
     const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const now = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' }).replace(/[/:, ]/g, '-');
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'lotes_perecederos.csv';
+    a.download = `lotes_perecederos_${now}.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -442,7 +447,7 @@ const InventarioLotes = () => {
             { label: 'Alertas ≤15d',  val: resumen.alertas,                color: YELLOW, bg: '#FFFBEB', icon: <Warning /> },
             { label: 'Avisos ≤30d',   val: resumen.avisos,                 color: BLUE,   bg: '#EFF6FF', icon: <CalendarMonth /> },
           ].map(({ label, val, color, bg, icon }) => (
-            <Grid item xs={6} sm={4} md={2} key={label}>
+            <Grid size={{ xs: 6, sm: 4, md: 2 }} key={label}>
               <Paper sx={(theme) => ({
                 p: 2, borderRadius: 3, border: '1px solid', borderColor: 'divider',
                 bgcolor: (typeof val === 'number' && val > 0) || typeof val === 'string'
