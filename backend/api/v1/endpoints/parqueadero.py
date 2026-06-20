@@ -163,6 +163,96 @@ def registrar_pago(
         usuario_id=current_user.id, payload=payload,
     )
 
+
+@router.get("/suscripciones/historial-fe", response_model=List[dict])
+def historial_fe_suscripciones(
+    fecha_inicio: Optional[date] = Query(None),
+    fecha_fin:    Optional[date] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Ventas de suscripción/horas con su estado de FE, para historial y reintento."""
+    from sqlalchemy import and_, or_
+    hoy = datetime.now(timezone.utc).date()
+    fi = fecha_inicio or hoy
+    ff = fecha_fin or hoy
+    inicio_utc = datetime(fi.year, fi.month, fi.day, 0, 0, 0, tzinfo=timezone.utc)
+    fin_utc    = datetime(ff.year, ff.month, ff.day, 23, 59, 59, tzinfo=timezone.utc)
+
+    ventas = (
+        db.query(models.Venta)
+        .filter(
+            models.Venta.empresa_id == current_user.empresa_id,
+            models.Venta.origen.in_(["parqueadero_suscripcion", "parqueadero_horas"]),
+            models.Venta.fecha_pago >= inicio_utc,
+            models.Venta.fecha_pago <= fin_utc,
+        )
+        .order_by(models.Venta.fecha_pago.desc())
+        .all()
+    )
+
+    def _estado_fe(v):
+        if v.estado_electronico == "exitoso":  return "exitoso"
+        if v.estado_electronico == "fallido":  return "fallido"
+        if v.estado_electronico == "pendiente": return "pendiente"
+        return None
+
+    return [
+        {
+            "venta_id":        v.id,
+            "fecha":           v.fecha_pago.isoformat() if v.fecha_pago else None,
+            "origen":          v.origen,
+            "total":           float(v.total or 0),
+            "metodo_pago":     v.metodo_pago,
+            "placa":           v.placa_vehiculo,
+            "observaciones":   v.observaciones,
+            "estado_fe":       _estado_fe(v),
+            "numero_factura":  v.numero_factura,
+            "cufe":            v.cufe,
+            "pdf_url":         v.pdf_url,
+            "mensaje_proveedor": v.mensaje_proveedor,
+        }
+        for v in ventas
+    ]
+
+
+@router.post("/ventas/{venta_id}/reintentar-fe", response_model=dict)
+def reintentar_fe_suscripcion(
+    venta_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Reintenta la emisión FE de una venta de parqueadero (suscripción u horas)."""
+    venta = db.query(models.Venta).filter(
+        models.Venta.id == venta_id,
+        models.Venta.empresa_id == current_user.empresa_id,
+        models.Venta.origen.in_(["parqueadero_suscripcion", "parqueadero_horas"]),
+    ).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada.")
+
+    from crud import ventas as _crud_ventas
+    detalle = _crud_ventas._DetalleSintetico(
+        descripcion=venta.observaciones or f"Parqueadero — {venta.origen}",
+        monto=float(venta.total or 0),
+    )
+    resultado = _crud_ventas.emitir_fe_venta(
+        db, current_user.empresa_id, venta, [detalle], cliente=None
+    )
+    db.commit()
+
+    if not resultado:
+        raise HTTPException(status_code=400, detail="FE no disponible (empresa sin resolución activa o FE inactiva).")
+
+    return {
+        "estado":          venta.estado_electronico,
+        "numero_factura":  venta.numero_factura,
+        "cufe":            venta.cufe,
+        "pdf_url":         venta.pdf_url,
+        "mensaje":         venta.mensaje_proveedor,
+    }
+
+
 # --- 5. ACCESOS POR HORAS ---
 
 @router.post("/accesos/entrada", response_model=schemas.AccesoEntradaResponse)

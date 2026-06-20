@@ -12,13 +12,15 @@ import {
   Box, Paper, Typography, Stack, Chip, IconButton, Tooltip,
   Skeleton, Alert, Button, ToggleButton, ToggleButtonGroup,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  TableSortLabel, TablePagination,
+  TableSortLabel, TablePagination, Tab, Tabs,
   Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem,
   InputAdornment, Divider, useMediaQuery, useTheme, CircularProgress
 } from '@mui/material';
 import {
   EventRepeat, Refresh, Payment, Visibility,
-  AttachMoney, Cancel, Close, Save, Search, FileDownload
+  AttachMoney, Cancel, Close, Save, Search, FileDownload,
+  CheckCircle, ErrorOutline, HourglassEmpty, PictureAsPdf, Replay,
+  Receipt, CalendarToday, ContentCopy,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../api';
@@ -32,6 +34,30 @@ import { METODOS_PAGO_SIMPLE as METODOS_PAGO } from '../../utils/constants';
 const ACCENT = '#FF6020';
 
 export default function ParqueaderoSuscripciones() {
+  const [tab, setTab] = useState(0);
+  return (
+    <Box sx={{ p: { xs: 1, md: 2 }, maxWidth: 1400, mx: 'auto' }}>
+      <Paper sx={{ mb: 2, borderRadius: 3 }}>
+        <Tabs
+          value={tab} onChange={(_, v) => setTab(v)}
+          sx={{
+            px: 1,
+            '& .MuiTab-root': { fontWeight: 700, textTransform: 'none', minHeight: 48 },
+            '& .Mui-selected': { color: ACCENT },
+            '& .MuiTabs-indicator': { bgcolor: ACCENT },
+          }}
+        >
+          <Tab icon={<EventRepeat sx={{ fontSize: 18 }} />} iconPosition="start" label="Suscripciones" />
+          <Tab icon={<Receipt sx={{ fontSize: 18 }} />}     iconPosition="start" label="Historial FE" />
+        </Tabs>
+      </Paper>
+      {tab === 0 && <SuscripcionesTab />}
+      {tab === 1 && <HistorialFETab />}
+    </Box>
+  );
+}
+
+function SuscripcionesTab() {
   const [items, setItems]       = useState([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(null);
@@ -173,7 +199,7 @@ export default function ParqueaderoSuscripciones() {
   );
 
   return (
-    <Box sx={{ p: { xs: 1, md: 2 }, maxWidth: 1400, mx: 'auto' }}>
+    <Box>
 
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
         <Stack direction="row" alignItems="center" spacing={1.5}>
@@ -365,6 +391,236 @@ export default function ParqueaderoSuscripciones() {
           </Button>
         </DialogActions>
       </Dialog>
+    </Box>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HISTORIAL FE
+// ═══════════════════════════════════════════════════════════════════════════
+
+const fmt = (n) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n || 0);
+const fmtDatetime = (iso) => iso ? new Date(iso).toLocaleString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+const toIso = (d) => d.toISOString().split('T')[0];
+const copy = (txt) => navigator.clipboard?.writeText(txt).then(() => {});
+
+const RANGOS = [
+  { label: 'Hoy',      getDates: () => { const d = new Date(); return [d, d]; } },
+  { label: '7 días',   getDates: () => { const d = new Date(), d2 = new Date(); d2.setDate(d.getDate() - 6); return [d2, d]; } },
+  { label: '30 días',  getDates: () => { const d = new Date(), d2 = new Date(); d2.setDate(d.getDate() - 29); return [d2, d]; } },
+  { label: 'Este mes', getDates: () => { const d = new Date(); return [new Date(d.getFullYear(), d.getMonth(), 1), d]; } },
+];
+
+function ChipFE({ estado }) {
+  if (estado === 'exitoso')   return <Chip label="FE OK"     size="small" icon={<CheckCircle   sx={{ fontSize: '14px !important' }} />} color="success" />;
+  if (estado === 'fallido')   return <Chip label="Fallida"   size="small" icon={<ErrorOutline  sx={{ fontSize: '14px !important' }} />} color="error" />;
+  if (estado === 'pendiente') return <Chip label="Pendiente" size="small" icon={<HourglassEmpty sx={{ fontSize: '14px !important' }} />} color="warning" />;
+  return <Chip label="Sin FE" size="small" sx={{ bgcolor: 'rgba(0,0,0,0.06)', color: 'text.secondary' }} />;
+}
+
+function HistorialFETab() {
+  const today = toIso(new Date());
+  const [fechaIni, setFechaIni] = useState(today);
+  const [fechaFin, setFechaFin] = useState(today);
+  const [historial, setHistorial] = useState([]);
+  const [loading, setLoading]     = useState(false);
+  const [reintentando, setReintentando] = useState(null);
+
+  const fetchHistorial = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await apiClient.get('/parqueadero/suscripciones/historial-fe', {
+        params: { fecha_inicio: fechaIni, fecha_fin: fechaFin },
+      });
+      setHistorial(r.data);
+    } catch {
+      toast.error('Error cargando historial de FE');
+    } finally {
+      setLoading(false);
+    }
+  }, [fechaIni, fechaFin]);
+
+  useEffect(() => { fetchHistorial(); }, [fetchHistorial]);
+
+  const reintentar = async (ventaId) => {
+    setReintentando(ventaId);
+    try {
+      const r = await apiClient.post(`/parqueadero/ventas/${ventaId}/reintentar-fe`);
+      const estado = r.data.estado;
+      if (estado === 'exitoso') {
+        toast.success(`✅ FE emitida — N° ${r.data.numero_factura || ''}`);
+      } else {
+        toast.warning(`FE ${estado}: ${r.data.mensaje || 'Sin detalles'}`);
+      }
+      fetchHistorial();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || 'Error al reintentar FE');
+    } finally {
+      setReintentando(null);
+    }
+  };
+
+  const totalVentas  = historial.reduce((s, v) => s + (v.total || 0), 0);
+  const feOk         = historial.filter(v => v.estado_fe === 'exitoso').length;
+  const feFallidas   = historial.filter(v => v.estado_fe === 'fallido').length;
+  const sinFe        = historial.filter(v => !v.estado_fe).length;
+
+  return (
+    <Box>
+      {/* Filtros de fecha */}
+      <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid rgba(0,0,0,0.08)', mb: 2 }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems="flex-end">
+          <TextField
+            label="Desde" type="date" size="small" value={fechaIni}
+            onChange={e => setFechaIni(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={{ width: 150 }}
+          />
+          <TextField
+            label="Hasta" type="date" size="small" value={fechaFin}
+            onChange={e => setFechaFin(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={{ width: 150 }}
+          />
+          <Stack direction="row" spacing={0.5} flexWrap="wrap">
+            {RANGOS.map(r => (
+              <Button key={r.label} size="small" variant="outlined"
+                startIcon={<CalendarToday sx={{ fontSize: 13 }} />}
+                onClick={() => {
+                  const [d1, d2] = r.getDates();
+                  setFechaIni(toIso(d1));
+                  setFechaFin(toIso(d2));
+                }}
+                sx={{ fontWeight: 600, textTransform: 'none', borderRadius: 2, fontSize: 12 }}
+              >
+                {r.label}
+              </Button>
+            ))}
+          </Stack>
+          <Button variant="contained" size="small" startIcon={<Refresh />}
+            onClick={fetchHistorial} disabled={loading}
+            sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700, whiteSpace: 'nowrap' }}
+          >
+            {loading ? <CircularProgress size={16} color="inherit" /> : 'Buscar'}
+          </Button>
+        </Stack>
+      </Paper>
+
+      {/* KPIs */}
+      <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
+        <KpiSmall label="Total cobrado"  value={fmt(totalVentas)}        color="text.primary" />
+        <KpiSmall label="FE exitosas"    value={String(feOk)}            color="#10B981" />
+        <KpiSmall label="FE fallidas"    value={String(feFallidas)}      color={feFallidas > 0 ? '#EF4444' : 'text.secondary'} />
+        <KpiSmall label="Sin FE"         value={String(sinFe)}           color={sinFe > 0 ? '#F59E0B' : 'text.secondary'} />
+        <KpiSmall label="Total registros" value={String(historial.length)} color="text.primary" />
+      </Stack>
+
+      {/* Tabla */}
+      {historial.length === 0 && !loading ? (
+        <Paper sx={{ p: 4, textAlign: 'center', borderRadius: 3 }}>
+          <Receipt sx={{ fontSize: 64, color: 'text.disabled', mb: 1 }} />
+          <Typography sx={{ fontWeight: 700, mb: 0.5 }}>Sin registros en este período</Typography>
+          <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+            Cambia el rango de fechas o registra pagos de suscripciones.
+          </Typography>
+        </Paper>
+      ) : (
+        <TableContainer component={Paper} sx={{ borderRadius: 3 }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Fecha</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Origen</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Placa</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Total</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Método</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>FE</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>N° Factura</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase' }}>Acciones</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {loading ? (
+                [1, 2, 3].map(i => (
+                  <TableRow key={i}>
+                    {[1,2,3,4,5,6,7,8].map(j => (
+                      <TableCell key={j}><Skeleton variant="text" /></TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : historial.map(v => (
+                <TableRow key={v.venta_id} hover>
+                  <TableCell sx={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                    {fmtDatetime(v.fecha)}
+                  </TableCell>
+                  <TableCell>
+                    <Chip size="small"
+                      label={v.origen === 'parqueadero_suscripcion' ? 'Suscripción' : 'Por horas'}
+                      sx={{
+                        fontSize: 10, fontWeight: 700, height: 18,
+                        bgcolor: v.origen === 'parqueadero_suscripcion' ? '#6366F120' : '#F59E0B20',
+                        color:   v.origen === 'parqueadero_suscripcion' ? '#4338CA'   : '#92400E',
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Typography sx={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 13, letterSpacing: 1 }}>
+                      {v.placa || '—'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700, fontSize: 13 }}>
+                    {fmt(v.total)}
+                  </TableCell>
+                  <TableCell sx={{ fontSize: 12 }}>{v.metodo_pago || '—'}</TableCell>
+                  <TableCell><ChipFE estado={v.estado_fe} /></TableCell>
+                  <TableCell>
+                    {v.numero_factura ? (
+                      <Stack direction="row" alignItems="center" spacing={0.5}>
+                        <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{v.numero_factura}</Typography>
+                        {v.cufe && (
+                          <Tooltip title={`Copiar CUFE: ${v.cufe}`}>
+                            <IconButton size="small" onClick={() => copy(v.cufe)}>
+                              <ContentCopy sx={{ fontSize: 13 }} />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                      </Stack>
+                    ) : <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>—</Typography>}
+                  </TableCell>
+                  <TableCell align="center">
+                    <Stack direction="row" spacing={0} justifyContent="center">
+                      {v.pdf_url && (
+                        <Tooltip title="Descargar PDF">
+                          <IconButton size="small" onClick={() => window.open(v.pdf_url, '_blank')}
+                            sx={{ color: '#EF4444' }}>
+                            <PictureAsPdf fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      {(v.estado_fe === 'fallido' || !v.estado_fe) && (
+                        <Tooltip title={v.estado_fe === 'fallido' ? `Reintentar FE${v.mensaje_proveedor ? ` — ${v.mensaje_proveedor}` : ''}` : 'Emitir FE'}>
+                          <span>
+                            <IconButton size="small"
+                              disabled={reintentando === v.venta_id}
+                              onClick={() => reintentar(v.venta_id)}
+                              sx={{ color: '#6366F1' }}
+                            >
+                              {reintentando === v.venta_id
+                                ? <CircularProgress size={16} />
+                                : <Replay fontSize="small" />}
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      )}
+                    </Stack>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
     </Box>
   );
 }
