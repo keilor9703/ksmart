@@ -4,17 +4,104 @@ import {
   Divider, Chip, Table, TableBody, TableCell, TableContainer, TableHead,
   TableRow, InputAdornment, IconButton, CircularProgress, Alert,
   useTheme, useMediaQuery, Stack, Pagination, Tabs, Tab,
+  Dialog, DialogTitle, DialogContent, Card, alpha,
 } from '@mui/material';
 import {
   Visibility, VisibilityOff, Save, Receipt, CheckCircle, ErrorOutline,
-  HourglassEmpty, Refresh, MenuBook, Settings, Gavel, Upgrade,
+  HourglassEmpty, Refresh, MenuBook, Settings, Gavel, Upgrade, Close, Shield,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../api';
+import WompiButton from '../../components/common/WompiButton';
 import ResolucionesDian from './ResolucionesDian';
 
 const PURPLE = '#8B5CF6';
+const fmtCOP = (val) =>
+  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(val ?? 0);
+
+// ─── PlanCardFE — tarjeta de plan dentro del modal ─────────────────────────────
+function PlanCardFE({ plan, onSuccess }) {
+  const theme = useTheme();
+  const ACCENT = '#FF6020';
+  const features = plan.caracteristicas?.split(',').map(f => f.trim()).filter(Boolean) || [];
+  return (
+    <Card elevation={0} sx={{
+      borderRadius: 3, p: 2.5, height: '100%', display: 'flex', flexDirection: 'column',
+      border: `1.5px solid ${plan.incluye_fe !== false ? alpha('#059669', 0.4) : alpha(theme.palette.divider, 1)}`,
+      transition: 'all 0.2s',
+      '&:hover': { borderColor: alpha(ACCENT, 0.5), boxShadow: `0 4px 20px ${alpha(ACCENT, 0.1)}` },
+    }}>
+      <Typography fontSize={12} fontWeight={800} color={ACCENT} textTransform="uppercase" mb={1} letterSpacing={0.8}>
+        {plan.nombre}
+      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, mb: 1.5 }}>
+        <Typography fontWeight={900} fontSize={26}>{fmtCOP(plan.precio)}</Typography>
+        <Typography fontSize={13} color="text.secondary">/ {plan.dias_duracion} días</Typography>
+      </Box>
+      <Box sx={{ flex: 1, mb: 2 }}>
+        {features.map((feat, i) => (
+          <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mb: 0.6 }}>
+            <CheckCircle sx={{ fontSize: 13, color: '#059669', flexShrink: 0 }} />
+            <Typography fontSize={12.5} color="text.secondary">{feat}</Typography>
+          </Box>
+        ))}
+      </Box>
+      <Box sx={{ mb: 1.5 }}>
+        {plan.incluye_fe !== false ? (
+          <Chip
+            icon={<CheckCircle sx={{ fontSize: '13px !important', color: '#059669 !important' }} />}
+            label="FE incluida" size="small"
+            sx={{ bgcolor: alpha('#059669', 0.1), color: '#059669', fontWeight: 700, fontSize: 11, border: `1px solid ${alpha('#059669', 0.3)}`, '& .MuiChip-icon': { ml: '4px' } }}
+          />
+        ) : (
+          <Chip label="Sin FE" size="small"
+            sx={{ bgcolor: alpha('#6b7280', 0.1), color: '#6b7280', fontWeight: 700, fontSize: 11, border: `1px solid ${alpha('#6b7280', 0.3)}` }}
+          />
+        )}
+      </Box>
+      <WompiButton planName={plan.codigo_interno} onSuccess={onSuccess} />
+    </Card>
+  );
+}
+
+// ─── PlanesDialog — modal con planes disponibles ───────────────────────────────
+function PlanesDialog({ open, onClose, planes }) {
+  const conFE = planes.filter(p => p.incluye_fe !== false);
+  const lista = conFE.length > 0 ? conFE : planes;
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 4 } }}>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
+        <Box>
+          <Typography variant="h6" fontWeight={800}>Planes con Facturación Electrónica</Typography>
+          <Typography variant="body2" color="text.secondary">Elige un plan que incluya FE para emitir facturas ante la DIAN</Typography>
+        </Box>
+        <IconButton onClick={onClose}><Close /></IconButton>
+      </DialogTitle>
+      <DialogContent>
+        {lista.length === 0 ? (
+          <Typography color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+            No hay planes disponibles en este momento.
+          </Typography>
+        ) : (
+          <Box sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: `repeat(${Math.min(lista.length, 3)}, 1fr)` },
+            gap: 2, mt: 1,
+          }}>
+            {lista.map(plan => (
+              <PlanCardFE key={plan.id} plan={plan} onSuccess={() => { onClose(); window.location.reload(); }} />
+            ))}
+          </Box>
+        )}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mt: 2.5, mb: 1, color: 'text.disabled' }}>
+          <Shield sx={{ fontSize: 14 }} />
+          <Typography fontSize={11.5}>Pagos seguros procesados por <strong>Wompi (Bancolombia)</strong></Typography>
+        </Box>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function ChipEstado({ estado }) {
   if (estado === 'exitoso')   return <Chip label="Exitoso"   size="small" icon={<CheckCircle />}   color="success" />;
@@ -39,6 +126,8 @@ export default function ConfigFE() {
   const [showSandboxKey, setShowSandboxKey] = useState(false);
   const [loadingIntentos, setLoadingIntentos] = useState(false);
   const [planIncluyeFE, setPlanIncluyeFE] = useState(true);
+  const [planes, setPlanes] = useState([]);
+  const [planesOpen, setPlanesOpen] = useState(false);
 
   const fetchConfig = async () => {
     try {
@@ -55,6 +144,7 @@ export default function ConfigFE() {
   const fetchSuscripcion = async () => {
     try {
       const r = await apiClient.get('/suscripcion/mi-suscripcion');
+      setPlanes(r.data?.planes_disponibles || []);
       const historial = r.data?.historial_pagos || [];
       if (historial.length > 0 && historial[0].plan) {
         setPlanIncluyeFE(historial[0].plan.incluye_fe !== false);
@@ -119,12 +209,13 @@ export default function ConfigFE() {
             variant="contained"
             size="large"
             startIcon={<Upgrade />}
-            onClick={() => navigate('/mi-suscripcion')}
+            onClick={() => setPlanesOpen(true)}
             sx={{ bgcolor: '#F59E0B', '&:hover': { bgcolor: '#D97706' }, fontWeight: 700, borderRadius: 2.5, px: 4 }}
           >
             Actualizar plan
           </Button>
         </Paper>
+        <PlanesDialog open={planesOpen} onClose={() => setPlanesOpen(false)} planes={planes} />
       </Box>
     );
   }
