@@ -114,7 +114,7 @@ export default function LinkPagoModal({ open, onClose, onConfirm, linkConfig, cl
                 fgColor="#111827"
                 bgColor="#ffffff"
                 {...(linkConfig.logo_base64 ? {
-                  imageSettings: { src: linkConfig.logo_base64, height: 52, width: 52, excavate: true }
+                  imageSettings: { src: linkConfig.logo_base64, height: 68, width: 68, excavate: true }
                 } : {})}
               />
             )}

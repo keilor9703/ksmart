@@ -425,8 +425,8 @@ const CatalogoConfig = () => {
                       src: logo,
                       x: undefined,
                       y: undefined,
-                      height: 36,
-                      width: 36,
+                      height: 48,
+                      width: 48,
                       excavate: true,
                     }
                   } : {})}

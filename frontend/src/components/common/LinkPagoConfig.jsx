@@ -291,7 +291,7 @@ export default function LinkPagoConfig() {
                 value={linkUrl} size={160} level="H"
                 fgColor="#111827" bgColor="#ffffff"
                 {...(empresaLogo ? {
-                  imageSettings: { src: empresaLogo, height: 36, width: 36, excavate: true }
+                  imageSettings: { src: empresaLogo, height: 48, width: 48, excavate: true }
                 } : {})}
               />
             )}
