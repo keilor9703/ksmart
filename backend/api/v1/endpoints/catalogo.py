@@ -286,11 +286,16 @@ def create_pedido_restaurante_publico(
             mesero_id=None,  # autoservicio
             numero_comanda=count + 1,
             personas=1,
-            notas="Pedido desde catálogo (autoservicio)",
+            notas="Pedido desde menú digital (autoservicio)",
+            origen="autoservicio",
         )
         db.add(comanda)
         mesa.estado = "ocupada"
         db.flush()
+    else:
+        # Si el cliente añade items a una comanda ya existente, marcarla como
+        # autoservicio para que el personal sepa que el pedido llegó del menú digital.
+        comanda.origen = "autoservicio"
 
     # Configuración de cocina de la empresa
     cfg = db.query(models.ConfigRestaurante).filter_by(empresa_id=db_empresa.id).first()
@@ -351,6 +356,28 @@ def create_pedido_restaurante_publico(
         i.subtotal for i in comanda.items if i.estado != "cancelado"
     )
     comanda.total = round(total, 2)
+
+    # ── Notificar al personal: nuevo pedido desde el menú digital ────────────
+    # Se avisa a administradores, socios, meseros y cajeros para que atiendan
+    # la mesa. La pantalla de cocina y el mapa de mesas también lo marcan visual-
+    # mente vía el campo `origen="autoservicio"`.
+    try:
+        staff = db.query(models.User).join(models.Role).filter(
+            models.User.empresa_id == db_empresa.id,
+            models.Role.name.in_(["Admin", "Socio", "Mesero", "Cajero", "Administrador"]),
+        ).all()
+        mesa_label = mesa.nombre or f"Mesa {mesa.numero}"
+        mensaje = f"🍽️ Nuevo pedido desde el menú digital — {mesa_label} (Comanda #{comanda.numero_comanda})"
+        for u in staff:
+            db.add(models.Notificacion(
+                usuario_id=u.id,
+                empresa_id=db_empresa.id,
+                mensaje=mensaje,
+                tipo="info",
+                leido=False,
+            ))
+    except Exception:
+        logger.exception("No se pudo crear notificación de pedido autoservicio (slug=%s)", slug)
 
     db.commit()
     db.refresh(comanda)

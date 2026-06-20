@@ -771,7 +771,13 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
           <TableRestaurant sx={{ color: '#F59E0B', fontSize: 19 }} />
         </Avatar>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography fontWeight={800} fontSize={15} noWrap>Mesa {mesa.numero}{mesa.nombre ? ` — ${mesa.nombre}` : ''}</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+            <Typography fontWeight={800} fontSize={15} noWrap>Mesa {mesa.numero}{mesa.nombre ? ` — ${mesa.nombre}` : ''}</Typography>
+            {comanda.origen === 'autoservicio' && (
+              <Chip label="📱 Pedido del cliente" size="small"
+                sx={{ fontSize: 10, height: 19, fontWeight: 800, bgcolor: alpha('#7C3AED', 0.15), color: '#7C3AED' }} />
+            )}
+          </Box>
           <Typography fontSize={12} color="text.secondary" noWrap>
             Comanda #{comanda.numero_comanda} · {comanda.personas} persona{comanda.personas !== 1 ? 's' : ''} · {timeAgo(comanda.fecha_apertura)}
           </Typography>
@@ -1052,6 +1058,7 @@ const MesaCard = ({ mesa, onClick }) => {
   const itemsPendientes = comanda?.items?.filter(i => i.estado === 'pendiente').length || 0;
   const itemsListos = comanda?.items?.filter(i => i.estado === 'listo').length || 0;
   const tiempoAbierta = comanda ? timeAgo(comanda.fecha_apertura) : null;
+  const esAutoservicio = comanda?.origen === 'autoservicio';
 
   return (
     <Box
@@ -1112,9 +1119,15 @@ const MesaCard = ({ mesa, onClick }) => {
       {comanda && (
         <>
           <Typography fontSize={10} color="text.secondary">{tiempoAbierta}</Typography>
-          <Typography fontSize={11} fontWeight={800} color="#FF6020" sx={{ mt: 0.3 }}>
-            {fmt(comanda.total)}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 0.3 }}>
+            <Typography fontSize={11} fontWeight={800} color="#FF6020">
+              {fmt(comanda.total)}
+            </Typography>
+            {esAutoservicio && (
+              <Chip label="📱 Cliente" size="small"
+                sx={{ fontSize: 8, height: 16, fontWeight: 800, bgcolor: alpha('#7C3AED', 0.15), color: '#7C3AED', px: 0.2 }} />
+            )}
+          </Box>
         </>
       )}
     </Box>

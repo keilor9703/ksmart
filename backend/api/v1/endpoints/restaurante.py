@@ -90,6 +90,7 @@ def _ser_comanda(c: models.Comanda) -> dict:
         "numero_comanda": c.numero_comanda,
         "personas": c.personas, "notas": c.notas,
         "estado": c.estado, "total": c.total,
+        "origen": getattr(c, "origen", None) or "mesero",
         "venta_id": c.venta_id,
         "fecha_apertura": c.fecha_apertura.isoformat() if c.fecha_apertura else None,
         "fecha_cierre": c.fecha_cierre.isoformat() if c.fecha_cierre else None,

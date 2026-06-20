@@ -1415,6 +1415,7 @@ class Comanda(Base):
     personas        = Column(Integer, default=1)
     notas           = Column(Text, nullable=True)
     estado          = Column(String(20), default="abierta")    # abierta | enviada | lista | cerrada | cancelada
+    origen          = Column(String(20), default="mesero")      # mesero | autoservicio (pedido del cliente desde el menú digital)
     total           = Column(Float, default=0.0)
     venta_id        = Column(Integer, ForeignKey("ventas.id"), nullable=True)
     fecha_apertura  = Column(DateTime(timezone=True), default=utcnow)

@@ -140,6 +140,13 @@ const ComandaCard = ({ comanda, onAdvance, advancing }) => {
               {comanda.mesa_zona}
             </Typography>
           )}
+          {comanda.origen === 'autoservicio' && (
+            <Chip
+              label="📱 Cliente"
+              size="small"
+              sx={{ bgcolor: '#7C3AED', color: '#fff', fontWeight: 700, fontSize: 11, height: 20 }}
+            />
+          )}
         </Box>
         <Box sx={{ display: 'flex', gap: 0.5 }}>
           {pendientes > 0 && <Chip label={`${pendientes} pend.`} size="small" sx={{ bgcolor: '#F59E0B', color: '#fff', fontWeight: 700, fontSize: 11 }} />}

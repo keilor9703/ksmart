@@ -2144,6 +2144,22 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v99)
                 logger.info("V99 (incluye_fe en planes_suscripcion) aplicada.")
 
+            # V100 - Origen de comanda (autoservicio desde menú digital)
+            migration_v100 = "v100_comandas_origen"
+            if not _migration_already_applied(conn, migration_v100):
+                if not _column_exists(conn, "restaurante_comandas", "origen"):
+                    if IS_SQLITE:
+                        conn.execute(text(
+                            "ALTER TABLE restaurante_comandas ADD COLUMN origen VARCHAR(20) DEFAULT 'mesero'"
+                        ))
+                    else:
+                        conn.execute(text(
+                            "ALTER TABLE restaurante_comandas ADD COLUMN origen VARCHAR(20) DEFAULT 'mesero'"
+                        ))
+                    logger.info("V100: añadido restaurante_comandas.origen")
+                _mark_migration_applied(conn, migration_v100)
+                logger.info("V100 (origen en comandas) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
