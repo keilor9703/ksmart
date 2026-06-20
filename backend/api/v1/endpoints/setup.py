@@ -94,9 +94,11 @@ def run_first_time_setup(payload: SetupPayload, db: Session = Depends(get_db)):
         {"name": "Gestión Usuarios",    "description": "Administración de usuarios y roles.",              "frontend_path": "/admin/usuarios"},
         {"name": "Catálogo Virtual",    "description": "Tienda virtual con pedidos por WhatsApp.",         "frontend_path": "/admin/catalogo"},
         {"name": "Pedidos Virtuales",   "description": "Pedidos recibidos desde la tienda virtual.",       "frontend_path": "/pedidos-virtuales"},
-        {"name": "Mapa de Mesas",       "description": "Gestión de mesas y comandas.",                    "frontend_path": "/restaurante"},
-        {"name": "Pantalla Cocina",     "description": "Pantalla de órdenes para cocina.",                "frontend_path": "/restaurante/cocina"},
-        {"name": "Config Restaurante",  "description": "Configuración de áreas y mesas.",                 "frontend_path": "/restaurante/config"},
+        {"name": "Mapa de Mesas",         "description": "Gestión de mesas y comandas.",                    "frontend_path": "/restaurante"},
+        {"name": "Pantalla Cocina",       "description": "Pantalla de órdenes para cocina.",                "frontend_path": "/restaurante/cocina"},
+        {"name": "Config Restaurante",    "description": "Configuración de áreas y mesas.",                 "frontend_path": "/restaurante/config"},
+        {"name": "Caja Restaurante",      "description": "Cobro de mesas y cierre de comandas.",            "frontend_path": "/restaurante/caja"},
+        {"name": "Reportes Restaurante",  "description": "Reportes de ventas e historial con FE.",          "frontend_path": "/restaurante/reportes"},
     ]
 
     created_modules = []

@@ -102,10 +102,11 @@ export const MODULE_ICONS = {
   '/lavadero/config':   { icon: <SettingsSuggest />, color: '#6B7280', label: 'Config. Lavadero' },
 
   // Restaurante
-  '/restaurante':        { icon: <TableRestaurant />, color: '#F97316', label: 'Mapa de Mesas' },
-  '/restaurante/cocina': { icon: <OutdoorGrill />,    color: '#EF4444', label: 'Pantalla Cocina' },
-  '/restaurante/config': { icon: <RoomService />,     color: '#8B5CF6', label: 'Config Restaurante' },
-  '/restaurante/caja':   { icon: <PointOfSale />,     color: '#7C3AED', label: 'Caja Restaurante' },
+  '/restaurante':          { icon: <TableRestaurant />, color: '#F97316', label: 'Mapa de Mesas' },
+  '/restaurante/cocina':   { icon: <OutdoorGrill />,    color: '#EF4444', label: 'Pantalla Cocina' },
+  '/restaurante/config':   { icon: <RoomService />,     color: '#8B5CF6', label: 'Config Restaurante' },
+  '/restaurante/caja':     { icon: <PointOfSale />,     color: '#7C3AED', label: 'Caja Restaurante' },
+  '/restaurante/reportes': { icon: <BarChart />,        color: '#F97316', label: 'Reportes Restaurante' },
 
   // Contabilidad
   '/contabilidad': { icon: <AutoAwesome />, color: '#6366F1', label: 'Contabilidad' },
