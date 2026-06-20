@@ -340,51 +340,70 @@ const ComandaCard = ({ comanda, onClick }) => {
         border: `2px solid ${alpha('#7C3AED', 0.3)}`,
         bgcolor: alpha('#7C3AED', 0.04),
         transition: 'all 0.2s',
+        '&:active': { transform: 'scale(0.99)' },
         '&:hover': {
           borderColor: '#7C3AED',
           bgcolor: alpha('#7C3AED', 0.08),
-          transform: 'translateY(-2px)',
           boxShadow: `0 6px 20px ${alpha('#7C3AED', 0.2)}`,
         },
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 1.5 }}>
-        <Avatar sx={{ bgcolor: alpha('#7C3AED', 0.12), width: 44, height: 44, flexShrink: 0 }}>
-          <TableRestaurant sx={{ color: '#7C3AED', fontSize: 22 }} />
+      {/* Fila superior: ícono + mesa + precio */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+        <Avatar sx={{ bgcolor: alpha('#7C3AED', 0.12), width: 40, height: 40, flexShrink: 0 }}>
+          <TableRestaurant sx={{ color: '#7C3AED', fontSize: 20 }} />
         </Avatar>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.3 }}>
-            <Typography fontWeight={900} fontSize={18} color="#7C3AED">
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flexWrap: 'wrap' }}>
+            <Typography fontWeight={900} fontSize={17} color="#7C3AED" lineHeight={1}>
               Mesa {comanda.mesa_numero}
             </Typography>
-            <Chip label={`Ticket #${comanda.numero_comanda}`} size="small"
-              sx={{ fontSize: 10, height: 20, fontWeight: 700, bgcolor: alpha('#7C3AED', 0.12), color: '#7C3AED' }} />
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
-              <Person sx={{ fontSize: 12, color: 'text.disabled' }} />
-              <Typography fontSize={11} color="text.secondary">{comanda.personas} personas</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
-              <AccessTime sx={{ fontSize: 12, color: 'text.disabled' }} />
-              <Typography fontSize={11} color="text.secondary">{espera}</Typography>
-            </Box>
-            {comanda.mesero_nombre && (
-              <Typography fontSize={11} color="text.disabled" noWrap>
-                Mesero: {comanda.mesero_nombre}
-              </Typography>
-            )}
+            <Chip
+              label={`Ticket #${comanda.numero_comanda}`}
+              size="small"
+              sx={{ fontSize: 10, height: 18, fontWeight: 700,
+                bgcolor: alpha('#7C3AED', 0.12), color: '#7C3AED' }}
+            />
           </Box>
         </Box>
-        <Typography fontWeight={900} fontSize={20} color="#FF6020" sx={{ flexShrink: 0 }}>
+        {/* Precio alineado a la derecha, nunca se corta */}
+        <Typography
+          fontWeight={900} fontSize={18} color="#FF6020"
+          sx={{ flexShrink: 0, textAlign: 'right', minWidth: 'max-content' }}
+        >
           {fmt(comanda.total)}
         </Typography>
       </Box>
 
-      {/* Preview items */}
-      <Stack spacing={0.4}>
+      {/* Metadata: personas · tiempo · mesero */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.2, flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+          <Person sx={{ fontSize: 12, color: 'text.disabled' }} />
+          <Typography fontSize={11} color="text.secondary">{comanda.personas} personas</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+          <AccessTime sx={{ fontSize: 12, color: 'text.disabled' }} />
+          <Typography fontSize={11} color="text.secondary">{espera}</Typography>
+        </Box>
+        {comanda.mesero_nombre && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, minWidth: 0 }}>
+            <Person sx={{ fontSize: 12, color: 'text.disabled' }} />
+            <Typography fontSize={11} color="text.disabled"
+              sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 130 }}>
+              {comanda.mesero_nombre}
+            </Typography>
+          </Box>
+        )}
+      </Box>
+
+      {/* Preview ítems */}
+      <Box sx={{
+        bgcolor: alpha('#7C3AED', 0.04), borderRadius: 2,
+        px: 1.2, py: 0.8, mb: 1.5,
+      }}>
         {itemsActivos.slice(0, 3).map(item => (
-          <Typography key={item.id} fontSize={12} color="text.secondary" noWrap>
+          <Typography key={item.id} fontSize={12} color="text.secondary"
+            sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {item.cantidad}× {item.nombre_producto}
           </Typography>
         ))}
@@ -393,14 +412,15 @@ const ComandaCard = ({ comanda, onClick }) => {
             +{itemsActivos.length - 3} más...
           </Typography>
         )}
-      </Stack>
+      </Box>
 
       <Button
-        fullWidth variant="contained" size="small"
+        fullWidth variant="contained" size="medium"
         startIcon={<AttachMoney />}
         sx={{
-          mt: 1.5, borderRadius: 2, fontWeight: 700, fontSize: 12,
+          borderRadius: 2.5, fontWeight: 700, fontSize: 13,
           bgcolor: '#7C3AED', '&:hover': { bgcolor: '#6D28D9' },
+          py: 1,
         }}
         onClick={onClick}
       >
