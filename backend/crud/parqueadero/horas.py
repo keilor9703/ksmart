@@ -288,32 +288,35 @@ def registrar_salida_horas(
         db.commit()
         db.refresh(venta_parq)
 
-        # FE individual: solo cuando el cliente pidió FE (solicita_fe=True)
+        # Documento electrónico DIAN por acceso: FE si el cliente la pidió
+        # (solicita_fe), Documento Equivalente POS (DEE) en caso contrario.
+        # emitir_fe_venta decide el tipo y sólo emite si hay resolución del tipo
+        # requerido; si no hay resolución POS configurada, el acceso queda
+        # pendiente y podrá incluirse en el cierre FE consolidado del día.
         nit = (payload.cliente_nit or "").strip()
-        if solicita_fe:
-            nombre_fe = (payload.cliente_nombre or "").strip() or f"Cliente {nit}" if nit else "Consumidor Final"
-            cliente_fe = None
-            if nit:
-                cliente_fe = db.query(_models.Cliente).filter(
-                    _models.Cliente.empresa_id == empresa_id,
-                    _models.Cliente.cedula == nit,
-                ).first()
-                if not cliente_fe:
-                    cliente_fe = _models.Cliente(
-                        empresa_id = empresa_id,
-                        nombre     = nombre_fe,
-                        cedula     = nit,
-                    )
-                    db.add(cliente_fe)
-                    db.commit()
-                    db.refresh(cliente_fe)
+        cliente_fe = None
+        if solicita_fe and nit:
+            nombre_fe = (payload.cliente_nombre or "").strip() or f"Cliente {nit}"
+            cliente_fe = db.query(_models.Cliente).filter(
+                _models.Cliente.empresa_id == empresa_id,
+                _models.Cliente.cedula == nit,
+            ).first()
+            if not cliente_fe:
+                cliente_fe = _models.Cliente(
+                    empresa_id = empresa_id,
+                    nombre     = nombre_fe,
+                    cedula     = nit,
+                )
+                db.add(cliente_fe)
+                db.commit()
+                db.refresh(cliente_fe)
 
-            detalle = _crud_ventas._DetalleSintetico(
-                descripcion=f"Parqueadero {minutos_cobrar} min — Placa {placa_str}",
-                monto=float(monto_final),
-            )
-            _crud_ventas.emitir_fe_venta(db, empresa_id, venta_parq, [detalle], cliente=cliente_fe)
-            db.commit()
+        detalle = _crud_ventas._DetalleSintetico(
+            descripcion=f"Parqueadero {minutos_cobrar} min — Placa {placa_str}",
+            monto=float(monto_final),
+        )
+        _crud_ventas.emitir_fe_venta(db, empresa_id, venta_parq, [detalle], cliente=cliente_fe)
+        db.commit()
 
         db.refresh(acceso)
 

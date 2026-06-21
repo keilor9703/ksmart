@@ -8,12 +8,25 @@ from crud.productos import get_producto
 from crud.inventario import create_movement
 
 
-def _get_resolucion_activa(db: Session, empresa_id: int) -> Optional[models.ResolucionDian]:
-    """Retorna la resolución activa de la empresa, si existe."""
-    return db.query(models.ResolucionDian).filter(
+def _get_resolucion_activa(db: Session, empresa_id: int, tipo: str = "fe") -> Optional[models.ResolucionDian]:
+    """
+    Retorna la resolución activa de la empresa para el tipo indicado ('fe'|'pos').
+    Por defecto 'fe' (Factura Electrónica). Tolera legados con tipo NULL/'' como 'fe'.
+    """
+    from sqlalchemy import or_
+    q = db.query(models.ResolucionDian).filter(
         models.ResolucionDian.empresa_id == empresa_id,
         models.ResolucionDian.is_active  == True,
-    ).first()
+    )
+    if tipo == "fe":
+        q = q.filter(or_(
+            models.ResolucionDian.tipo == "fe",
+            models.ResolucionDian.tipo.is_(None),
+            models.ResolucionDian.tipo == "",
+        ))
+    else:
+        q = q.filter(models.ResolucionDian.tipo == tipo)
+    return q.first()
 
 
 def _asignar_numero_factura(db: Session, empresa_id: int, venta: models.Venta) -> Optional[str]:
@@ -110,6 +123,7 @@ def get_resoluciones(db: Session, empresa_id: int) -> List[models.ResolucionDian
         r_dict = {
             "id":                   r.id,
             "empresa_id":           r.empresa_id,
+            "tipo":                 getattr(r, "tipo", None) or "fe",
             "prefijo":              r.prefijo or "",
             "numero_resolucion":    r.numero_resolucion,
             "numero_actual":        r.numero_actual,
@@ -144,6 +158,7 @@ def create_resolucion(
     """Crea una resolución. Si is_active=True desactiva las demás."""
     resolucion = models.ResolucionDian(
         empresa_id        = empresa_id,
+        tipo              = (payload.tipo or "fe"),
         prefijo           = payload.prefijo or "",
         numero_resolucion = payload.numero_resolucion,
         numero_actual     = payload.numero_inicial - 1,
@@ -187,13 +202,11 @@ def activar_resolucion(
     empresa_id: int,
     resolucion_id: int,
 ) -> Optional[models.ResolucionDian]:
-    """Activa una resolución y desactiva todas las demás de la empresa."""
-    # Desactivar todas
-    db.query(models.ResolucionDian).filter(
-        models.ResolucionDian.empresa_id == empresa_id,
-    ).update({"is_active": False})
-
-    # Activar la seleccionada
+    """
+    Activa una resolución y desactiva las demás DEL MISMO TIPO de la empresa.
+    Una empresa puede tener simultáneamente una resolución 'fe' y una 'pos' activas.
+    """
+    # Localizar la resolución a activar primero (para conocer su tipo)
     resolucion = db.query(models.ResolucionDian).filter(
         models.ResolucionDian.id         == resolucion_id,
         models.ResolucionDian.empresa_id == empresa_id,
@@ -201,6 +214,22 @@ def activar_resolucion(
     if not resolucion:
         db.rollback()
         return None
+
+    tipo_res = getattr(resolucion, "tipo", None) or "fe"
+    # Desactivar las demás del mismo tipo (incluye legados 'fe' con tipo NULL)
+    from sqlalchemy import or_
+    q = db.query(models.ResolucionDian).filter(
+        models.ResolucionDian.empresa_id == empresa_id,
+    )
+    if tipo_res == "fe":
+        q = q.filter(or_(
+            models.ResolucionDian.tipo == "fe",
+            models.ResolucionDian.tipo.is_(None),
+            models.ResolucionDian.tipo == "",
+        ))
+    else:
+        q = q.filter(models.ResolucionDian.tipo == tipo_res)
+    q.update({"is_active": False}, synchronize_session=False)
 
     resolucion.is_active = True
     db.commit()

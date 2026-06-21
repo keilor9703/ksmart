@@ -2216,6 +2216,17 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v103)
                 logger.info("V103 (solicita_fe en ventas) aplicada.")
 
+            # V104 - tipo en resoluciones_dian (fe | pos) para Documento Equivalente POS
+            migration_v104 = "v104_resoluciones_tipo"
+            if not _migration_already_applied(conn, migration_v104):
+                if not _column_exists(conn, "resoluciones_dian", "tipo"):
+                    conn.execute(text(
+                        "ALTER TABLE resoluciones_dian ADD COLUMN tipo VARCHAR(10) NOT NULL DEFAULT 'fe'"
+                    ))
+                    logger.info("V104: columna 'tipo' añadida a resoluciones_dian")
+                _mark_migration_applied(conn, migration_v104)
+                logger.info("V104 (tipo en resoluciones_dian) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

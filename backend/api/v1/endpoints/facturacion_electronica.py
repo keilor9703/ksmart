@@ -350,28 +350,3 @@ def webhook_matias(
     )
     return {"ok": True, "procesado": True, "venta_id": venta.id, "estado": estado_mapeado}
 
-
-# ─── FE Consolidada Diaria ────────────────────────────────────────────────────
-
-from pydantic import BaseModel as _BM
-
-class ConsolidarDiaIn(_BM):
-    fecha: Optional[str] = None  # 'YYYY-MM-DD' en hora Colombia; None = hoy
-
-
-@router.post("/fe/consolidar-dia", tags=["Facturación Electrónica"])
-def consolidar_fe_dia(
-    payload: ConsolidarDiaIn,
-    db: Session = Depends(get_db),
-    user=Depends(get_current_active_user),
-):
-    """
-    Emite una única Factura Electrónica consolidada con el total de todas las
-    ventas del día que no solicitaron FE individual.
-
-    Llamar al cierre del día desde el módulo de Caja / Cierre de turno.
-    """
-    from crud.ventas import emitir_fe_consolidada_dia
-    result = emitir_fe_consolidada_dia(db, user.empresa_id, payload.fecha)
-    db.commit()
-    return result

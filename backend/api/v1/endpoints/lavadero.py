@@ -445,8 +445,7 @@ def reintentar_fe_lavadero(
     from sqlalchemy.orm import joinedload as _jl
     from crud import ventas as _crud_ventas
 
-    # El retry siempre emite FE independientemente del flag original
-    venta.solicita_fe = True
+    # El retry reemite el documento del tipo que ya correspondía (FE o DEE-POS).
 
     detalles = db.query(models.DetalleVenta).filter_by(
         venta_id=venta.id, empresa_id=current_user.empresa_id

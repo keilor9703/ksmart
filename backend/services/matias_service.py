@@ -38,8 +38,15 @@ ITEM_TYPE_ID  = "4"     # type_item_identifications_id: estándar
 REF_PRICE_ID  = "1"     # reference_price_id: precio de referencia
 
 # Tipos de documento Matias
-TYPE_DOCUMENT_FACTURA_VENTA = 7   # Factura de venta
-OPERATION_TYPE_STANDARD     = 1   # Operación estándar nacional
+TYPE_DOCUMENT_FACTURA_VENTA   = 7    # Factura de venta (FE, CUFE)
+TYPE_DOCUMENT_POS_ELECTRONICO = 20   # Documento Equivalente Electrónico / Tiquete POS (DEE, CUDE)
+OPERATION_TYPE_STANDARD       = 1    # Operación estándar nacional
+
+# Datos del fabricante del software (software_manufacturer) — obligatorio en DEE POS.
+# Identifican al proveedor tecnológico (Ksmart360) ante la DIAN. Configurables por env.
+SW_MANUFACTURER_OWNER   = os.getenv("MATIAS_SW_OWNER_NAME",   "KSMART360")
+SW_MANUFACTURER_COMPANY = os.getenv("MATIAS_SW_COMPANY_NAME", "KSMART360 SAS")
+SW_MANUFACTURER_NAME    = os.getenv("MATIAS_SW_SOFTWARE_NAME", "KSMART360 POS")
 
 # Medios de pago Matias
 MEANS_EFECTIVO      = 10
@@ -87,13 +94,20 @@ def _normalizar_telefono(telefono: Optional[str]) -> str:
     return solo_digitos[:15]
 
 
-def build_invoice_payload(venta, empresa, cliente, detalles) -> dict:
+def build_invoice_payload(venta, empresa, cliente, detalles, tipo_documento: str = "fe") -> dict:
     """
     Construye el payload JSON para POST /invoice de Matias API.
+
+    tipo_documento:
+        "fe"  → Factura Electrónica (type_document_id=7, cliente identificado, CUFE)
+        "pos" → Documento Equivalente Electrónico / Tiquete POS
+                (type_document_id=20, consumidor final por defecto, CUDE).
+                Requiere los bloques point_of_sale y software_manufacturer.
 
     Estructura validada contra documentación oficial de Lopezsoft (junio 2026).
     La empresa emisora NO va en el payload — Matias la asocia al Bearer token.
     """
+    es_pos = (tipo_documento == "pos")
     ahora = venta.fecha or datetime.now(timezone.utc)
     # Convertir a zona horaria de Colombia (UTC-5)
     tz_colombia = timezone(timedelta(hours=-5))
@@ -298,7 +312,7 @@ def build_invoice_payload(venta, empresa, cliente, detalles) -> dict:
         "document_number":   str(numero_int),
         "date":              fecha_str,
         "time":              hora_str,
-        "type_document_id":  TYPE_DOCUMENT_FACTURA_VENTA,
+        "type_document_id":  TYPE_DOCUMENT_POS_ELECTRONICO if es_pos else TYPE_DOCUMENT_FACTURA_VENTA,
         "operation_type_id": OPERATION_TYPE_STANDARD,
         "graphic_representation": 1,  # Generar PDF
         "send_email":             1 if (not usar_consumidor_final and customer.get("email")) else 0,
@@ -311,6 +325,23 @@ def build_invoice_payload(venta, empresa, cliente, detalles) -> dict:
 
     if tax_totals_root:
         payload["tax_totals"] = tax_totals_root
+
+    # ── Bloques obligatorios del Documento Equivalente POS (DEE) ─────────────
+    if es_pos:
+        caja = getattr(empresa, "nombre", None) or "Caja principal"
+        payload["point_of_sale"] = {
+            "cashier_name":    (getattr(venta, "operador_nombre", None) or caja)[:100],
+            "terminal_number": "CAJA01",
+            "cashier_type":    "Caja principal",
+            "sales_code":      "POS01",
+            "address":         getattr(empresa, "direccion", None) or "No registra",
+            "sub_total":       f"{base_sum:.2f}",
+        }
+        payload["software_manufacturer"] = {
+            "owner_name":   SW_MANUFACTURER_OWNER,
+            "company_name": SW_MANUFACTURER_COMPANY,
+            "software_name": SW_MANUFACTURER_NAME,
+        }
 
     return payload
 
@@ -489,9 +520,12 @@ def emitir_factura(
     detalles,
     api_key: str,
     test_mode: bool,
+    tipo_documento: str = "fe",
 ) -> dict:
     """
     Llama a POST /invoice de Matias API (sync con httpx.Client).
+
+    tipo_documento: "fe" (Factura Electrónica) | "pos" (Documento Equivalente POS/DEE).
 
     Retorna:
         {
@@ -512,7 +546,7 @@ def emitir_factura(
 
     try:
         base_url     = get_matias_url(test_mode)
-        payload_dict = build_invoice_payload(venta, empresa, cliente, detalles)
+        payload_dict = build_invoice_payload(venta, empresa, cliente, detalles, tipo_documento=tipo_documento)
         endpoint     = f"{base_url}/invoice"
 
         headers = {
@@ -522,7 +556,8 @@ def emitir_factura(
         }
 
         logger.info(
-            "Emitiendo FE venta %s → %s (test_mode=%s)",
+            "Emitiendo %s venta %s → %s (test_mode=%s)",
+            "DEE-POS" if tipo_documento == "pos" else "FE",
             getattr(venta, "id", "?"), endpoint, test_mode,
         )
 

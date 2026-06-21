@@ -1129,7 +1129,8 @@ def reintentar_fe(
     if not empresa or not empresa.facturacion_electronica_activa or not empresa.matias_api_key:
         raise HTTPException(status_code=400, detail="FE no configurada para esta empresa")
 
-    venta.solicita_fe = True  # retry siempre emite independientemente del flag original
+    # El retry reemite el documento del tipo que ya correspondía a la venta
+    # (FE si la pidió o ≥5 UVT; DEE-POS en caso contrario). No se fuerza solicita_fe.
     detalles = db.query(models.DetalleVenta).filter(models.DetalleVenta.venta_id == venta_id).all()
     cliente = None
     if venta.cliente_id:

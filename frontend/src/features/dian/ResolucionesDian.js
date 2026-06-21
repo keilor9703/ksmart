@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Box, Paper, Typography, Button, TextField, Grid, Chip,
+  Box, Paper, Typography, Button, TextField, MenuItem, Grid, Chip,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   IconButton, Dialog, DialogTitle, DialogContent, DialogActions,
   Alert, Tooltip, LinearProgress, Divider, useTheme, useMediaQuery,
@@ -60,6 +60,7 @@ const copyToClipboard = (text) => {
 };
 
 const EMPTY_FORM = {
+  tipo: 'fe',
   prefijo: '', numero_resolucion: '',
   numero_inicial: 1, numero_final: 99999999,
   vigencia_desde: '', vigencia_hasta: '',
@@ -155,6 +156,10 @@ const ResolucionCard = ({ r, onActivar, onEdit, onDuplicate, onEliminar, onAjust
         <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap' }}>
           <Chip label={r.prefijo || 'sin prefijo'} size="small"
             sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 11, bgcolor: `${TEAL}18`, color: TEAL }} />
+          <Chip label={(r.tipo || 'fe') === 'pos' ? 'POS' : 'FE'} size="small"
+            sx={{ fontWeight: 700, fontSize: 10,
+              bgcolor: (r.tipo || 'fe') === 'pos' ? `${AMBER}18` : `${GREEN}18`,
+              color: (r.tipo || 'fe') === 'pos' ? AMBER : GREEN }} />
           <ExpiryChip days={r.dias_para_vencer} />
         </Box>
       </Box>
@@ -277,6 +282,7 @@ const ResolucionesDian = ({ embedded = false }) => {
 
   const openEdit = (r) => {
     setForm({
+      tipo:              r.tipo || 'fe',
       prefijo:           r.prefijo || '',
       numero_resolucion: r.numero_resolucion || '',
       numero_inicial:    r.numero_inicial,
@@ -292,6 +298,7 @@ const ResolucionesDian = ({ embedded = false }) => {
 
   const openDuplicate = (r) => {
     setForm({
+      tipo:              r.tipo || 'fe',
       prefijo:           r.prefijo || '',
       numero_resolucion: '',
       numero_inicial:    r.numero_final + 1,
@@ -313,6 +320,7 @@ const ResolucionesDian = ({ embedded = false }) => {
     setLoading(true);
     try {
       const payload = {
+        tipo:              form.tipo || 'fe',
         prefijo:           form.prefijo.trim(),
         numero_resolucion: form.numero_resolucion.trim() || null,
         numero_inicial:    parseInt(form.numero_inicial),
@@ -379,7 +387,8 @@ const ResolucionesDian = ({ embedded = false }) => {
     }
   };
 
-  const activa = resoluciones.find(r => r.is_active);
+  const activa = resoluciones.find(r => r.is_active && (r.tipo || 'fe') === 'fe')
+              || resoluciones.find(r => r.is_active);
 
   /* ── preview next number ── */
   const previewNum = (form.prefijo || '') + String(parseInt(form.numero_inicial) || 1).padStart(5, '0');
@@ -599,6 +608,12 @@ const ResolucionesDian = ({ embedded = false }) => {
                         <TableCell>
                           <Chip label={r.prefijo || '(sin)'} size="small"
                             sx={{ fontFamily: 'monospace', fontWeight: 700, bgcolor: `${TEAL}15`, color: TEAL }} />
+                          <Chip
+                            label={(r.tipo || 'fe') === 'pos' ? 'POS' : 'FE'}
+                            size="small"
+                            sx={{ ml: 0.5, fontWeight: 700, fontSize: 10,
+                              bgcolor: (r.tipo || 'fe') === 'pos' ? `${AMBER}18` : `${GREEN}18`,
+                              color: (r.tipo || 'fe') === 'pos' ? AMBER : GREEN }} />
                         </TableCell>
 
                         {/* Rango */}
@@ -699,6 +714,22 @@ const ResolucionesDian = ({ embedded = false }) => {
           </Alert>
 
           <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <TextField
+                select fullWidth label="Tipo de documento"
+                value={form.tipo}
+                onChange={e => setForm(p => ({ ...p, tipo: e.target.value }))}
+                disabled={!!modal.editing}
+                helperText={
+                  form.tipo === 'pos'
+                    ? 'Documento Equivalente POS: se emite cuando el cliente NO pide factura (consumidor final). Requiere su propia resolución DIAN con prefijo distinto (ej. FPOS).'
+                    : 'Factura Electrónica: se emite cuando el cliente la solicita o la venta supera 5 UVT.'
+                }
+              >
+                <MenuItem value="fe">Factura Electrónica (FE)</MenuItem>
+                <MenuItem value="pos">Documento Equivalente POS (Tiquete electrónico)</MenuItem>
+              </TextField>
+            </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth label="Número de Resolución DIAN"
