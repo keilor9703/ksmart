@@ -372,6 +372,7 @@ def _emitir_fe_pago_suscripcion(
         tipo           = "venta",
         placa_vehiculo = placa_susc,
         fecha_pago     = datetime.now(timezone.utc),
+        solicita_fe    = True,  # suscripciones siempre emiten FE individual
         observaciones  = f"Suscripción #{susc.id} | {susc.tipo} | Placa: {placa_susc}",
     )
     db.add(venta_parq)

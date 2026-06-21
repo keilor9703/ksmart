@@ -299,6 +299,7 @@ class CerrarComandaIn(BaseModel):
     metodo_pago: str = "Efectivo"
     propina: float = 0.0
     propina_efectivo: float = 0.0
+    solicita_fe: bool = False
     omitir_inventario: bool = False
     cobrado_por_cajero: bool = False
 
@@ -564,6 +565,7 @@ def cerrar_comanda(
         monto_pagado=total_con_propina,
         estado_pago="pagado",
         metodo_pago=payload.metodo_pago,
+        solicita_fe=payload.solicita_fe,
         observaciones=(
             f"Mesa {comanda.mesa.numero} — Comanda #{comanda.numero_comanda}"
             + (" | " + " | ".join(propina_obs) if propina_obs else "")
@@ -1127,6 +1129,7 @@ def reintentar_fe(
     if not empresa or not empresa.facturacion_electronica_activa or not empresa.matias_api_key:
         raise HTTPException(status_code=400, detail="FE no configurada para esta empresa")
 
+    venta.solicita_fe = True  # retry siempre emite independientemente del flag original
     detalles = db.query(models.DetalleVenta).filter(models.DetalleVenta.venta_id == venta_id).all()
     cliente = None
     if venta.cliente_id:

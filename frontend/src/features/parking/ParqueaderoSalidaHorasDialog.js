@@ -35,6 +35,7 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
   const [feExpanded,    setFeExpanded]    = useState(false);
   const [clienteNit,    setClienteNit]    = useState('');
   const [clienteNombre, setClienteNombre] = useState('');
+  const [solicitaFe,    setSolicitaFe]    = useState(false);
 
   // Post-salida state
   const [salidaData, setSalidaData] = useState(null);
@@ -115,6 +116,7 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
         observaciones:  obs || null,
         cliente_nit:    clienteNit.trim() || null,
         cliente_nombre: clienteNombre.trim() || null,
+        solicita_fe:    solicitaFe,
       });
 
       if (enviarWA && acceso.telefono) {
@@ -367,24 +369,27 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
 
             {/* ── Sección FE individual (opcional) ── */}
             <Box sx={{ mt: 1.5 }}>
-              <Button
-                size="small"
-                startIcon={<Receipt sx={{ fontSize: 16 }} />}
-                endIcon={feExpanded ? <ExpandLess sx={{ fontSize: 16 }} /> : <ExpandMore sx={{ fontSize: 16 }} />}
-                onClick={() => setFeExpanded(v => !v)}
-                sx={{
-                  color: feExpanded ? '#6366F1' : 'text.secondary',
-                  fontWeight: 600, fontSize: 12, textTransform: 'none', p: 0.5,
-                  '&:hover': { bgcolor: 'rgba(99,102,241,0.08)' },
-                }}
-              >
-                Factura electrónica a nombre del cliente
-              </Button>
+              <FormControlLabel
+                control={
+                  <Switch
+                    size="small"
+                    checked={solicitaFe}
+                    onChange={e => { setSolicitaFe(e.target.checked); if (e.target.checked) setFeExpanded(true); }}
+                    color="primary"
+                  />
+                }
+                label={
+                  <Typography fontSize={12} fontWeight={solicitaFe ? 700 : 500} color={solicitaFe ? 'primary.main' : 'text.secondary'}>
+                    🧾 ¿El cliente requiere factura electrónica?
+                  </Typography>
+                }
+                sx={{ m: 0, mb: 0.5 }}
+              />
 
-              {feExpanded && (
+              {solicitaFe && (
                 <Box sx={{ mt: 1, p: 1.5, bgcolor: 'rgba(99,102,241,0.06)', borderRadius: 2, border: '1px solid rgba(99,102,241,0.2)' }}>
                   <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 1 }}>
-                    Opcional — si el cliente solicita factura con su NIT o cédula
+                    Opcional — datos del cliente para la factura (si no los ingresa, se emite a Consumidor Final)
                   </Typography>
                   <Stack spacing={1.5}>
                     <TextField

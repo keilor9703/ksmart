@@ -506,6 +506,11 @@ class Venta(Base, TenantMixin):
     origen          = Column(String(40), nullable=True, default="erp")
     # Valores: 'erp' | 'lavadero' | 'parqueadero_suscripcion' | 'parqueadero_horas' | 'restaurante' | 'pedido_virtual'
 
+    # Facturación electrónica opcional por venta
+    # True  → cliente pidió FE individual → se emite inmediatamente
+    # False → cliente NO pidió FE → se acumula para FE consolidada al cierre del día
+    solicita_fe     = Column(Boolean, default=False, nullable=False)
+
     cliente                = relationship("Cliente", back_populates="ventas")
     detalles               = relationship("DetalleVenta", back_populates="venta", cascade="all, delete-orphan")
     pagos                  = relationship("Pago", back_populates="venta", cascade="all, delete-orphan")

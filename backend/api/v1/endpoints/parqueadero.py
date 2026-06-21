@@ -232,6 +232,8 @@ def reintentar_fe_suscripcion(
         raise HTTPException(status_code=404, detail="Venta no encontrada.")
 
     from crud import ventas as _crud_ventas
+    # El retry siempre emite FE independientemente del flag original
+    venta.solicita_fe = True
     detalle = _crud_ventas._DetalleSintetico(
         descripcion=venta.observaciones or f"Parqueadero — {venta.origen}",
         monto=float(venta.total or 0),

@@ -201,7 +201,8 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate, commi
         estado_pago="pagado" if venta.pagada else "pendiente",
         metodo_pago=venta.metodo_pago if venta.pagada else None,
         empresa_id=empresa_id,
-        fecha=ahora_utc # Forzado explicito para no depender del default base
+        fecha=ahora_utc,  # Forzado explicito para no depender del default base
+        solicita_fe=getattr(venta, 'solicita_fe', False),
     )
     db.add(db_venta)
     db.flush()
@@ -214,9 +215,10 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate, commi
     if getattr(venta, 'tipo', 'venta') == 'venta':
         _asignar_numero_factura(db, empresa_id, db_venta)
 
-    # Fase 2C: Emisión Factura Electrónica (sync via httpx.Client, nunca hace rollback)
-    # Solo cuando hay número asignado y empresa tiene FE activa.
-    if db_venta.numero_factura and db_venta.estado_electronico == "pendiente":
+    # Fase 2C: Emisión Factura Electrónica individual
+    # Solo se emite si el cliente PIDIÓ factura (solicita_fe=True).
+    # Si no la pidió, la venta queda sin FE y será incluida en el consolidado diario.
+    if db_venta.solicita_fe and db_venta.numero_factura and db_venta.estado_electronico == "pendiente":
         try:
             import json as _json
             from services import matias_service as _ms
@@ -514,6 +516,11 @@ def emitir_fe_venta(
     activa / el plan no la incluye / sin resolución. Nunca lanza excepción salvo
     el límite de resolución. El caller debe hacer db.commit() después.
     """
+    # Solo emitir FE individual si el cliente la solicitó explícitamente.
+    # Las ventas sin FE se acumulan para el consolidado diario.
+    if not getattr(venta, 'solicita_fe', False):
+        return None
+
     empresa_fe = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
     if not empresa_fe or not empresa_fe.facturacion_electronica_activa:
         return None
@@ -571,6 +578,158 @@ def emitir_fe_venta(
         )
         venta.estado_electronico = "fallido"
         return None
+
+
+def emitir_fe_consolidada_dia(
+    db: Session,
+    empresa_id: int,
+    fecha_str: Optional[str] = None,
+) -> dict:
+    """
+    Emite UNA sola Factura Electrónica consolidada con el total de todas las ventas
+    del día que NO solicitaron FE individual (solicita_fe=False, estado_electronico='no_enviado').
+
+    - fecha_str: 'YYYY-MM-DD' en hora local Colombia (UTC-5). Si None, usa hoy.
+    - Retorna dict con: total_ventas, total_monto, resultado_fe (o error).
+    - El campo 'origen' de la venta consolidada es 'consolidado_diario'.
+
+    El caller debe hacer db.commit() tras recibir el resultado.
+    """
+    from datetime import date as _date, timedelta as _td, timezone as _tz
+    import logging as _log
+    _logger = _log.getLogger("crud.ventas.consolidado")
+
+    COL_UTC_OFFSET = -5
+    if fecha_str:
+        dia = _date.fromisoformat(fecha_str)
+    else:
+        # Hoy en hora Colombia
+        from datetime import datetime as _dt
+        dia = (_dt.now(_tz.utc) + _td(hours=COL_UTC_OFFSET)).date()
+
+    # Rango UTC que corresponde al día colombiano
+    from datetime import datetime as _dt
+    inicio_utc = _dt(dia.year, dia.month, dia.day, 5, 0, 0, tzinfo=_tz.utc)   # 00:00 COL = 05:00 UTC
+    fin_utc    = _dt(dia.year, dia.month, dia.day + 1, 5, 0, 0, tzinfo=_tz.utc) if dia.day < 28 else (
+        inicio_utc + _td(days=1)
+    )
+
+    ventas_sin_fe = (
+        db.query(models.Venta)
+        .filter(
+            models.Venta.empresa_id == empresa_id,
+            models.Venta.solicita_fe == False,
+            models.Venta.estado_electronico == "no_enviado",
+            models.Venta.tipo == "venta",
+            models.Venta.estado_pago == "pagado",
+            models.Venta.fecha >= inicio_utc,
+            models.Venta.fecha < fin_utc,
+        )
+        .all()
+    )
+
+    if not ventas_sin_fe:
+        return {"total_ventas": 0, "total_monto": 0.0, "resultado_fe": None,
+                "mensaje": "No hay ventas sin FE para el día indicado."}
+
+    total_monto = sum(v.total for v in ventas_sin_fe)
+    total_iva   = sum(v.iva_total for v in ventas_sin_fe)
+
+    # Crear una venta sintética consolidada para enviar a Matias
+    empresa_fe = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
+    if not empresa_fe or not empresa_fe.facturacion_electronica_activa or not plan_incluye_fe(db, empresa_id):
+        return {"total_ventas": len(ventas_sin_fe), "total_monto": total_monto,
+                "resultado_fe": None, "mensaje": "FE no activa o plan sin FE."}
+
+    from datetime import datetime as _dt2
+    venta_consolidada = models.Venta(
+        empresa_id   = empresa_id,
+        total        = total_monto,
+        iva_total    = total_iva,
+        iva_porcentaje = 0.0,
+        monto_pagado = total_monto,
+        estado_pago  = "pagado",
+        metodo_pago  = "consolidado",
+        fecha        = _dt2.now(_tz.utc),
+        tipo         = "venta",
+        solicita_fe  = True,
+        origen       = "consolidado_diario",
+        observaciones = f"Venta consolidada {dia.isoformat()} — {len(ventas_sin_fe)} ventas sin FE",
+    )
+    db.add(venta_consolidada)
+    db.flush()
+
+    # Asignar número DIAN a la venta consolidada
+    numero = _asignar_numero_factura(db, empresa_id, venta_consolidada)
+    if not numero:
+        db.expunge(venta_consolidada)
+        return {"total_ventas": len(ventas_sin_fe), "total_monto": total_monto,
+                "resultado_fe": None, "mensaje": "Sin resolución DIAN activa."}
+
+    # Detalle consolidado: un solo ítem con descripción del día
+    from models import DetalleVenta as _DV
+    detalle_consolidado = _DV(
+        venta_id       = venta_consolidada.id,
+        empresa_id     = empresa_id,
+        nombre_libre   = f"Ventas consolidadas {dia.isoformat()}",
+        cantidad       = 1,
+        precio_unitario = total_monto,
+        iva_porcentaje = 0.0,
+    )
+    db.add(detalle_consolidado)
+    db.flush()
+
+    # Emitir FE
+    try:
+        from services import matias_service as _ms
+        test_mode = empresa_fe.matias_test_mode
+        api_key   = empresa_fe.matias_sandbox_api_key if test_mode else empresa_fe.matias_api_key
+        resultado = _ms.emitir_factura(
+            venta     = venta_consolidada,
+            empresa   = empresa_fe,
+            cliente   = None,  # Consumidor final consolidado
+            detalles  = [detalle_consolidado],
+            api_key   = api_key or "",
+            test_mode = test_mode,
+        )
+        venta_consolidada.estado_electronico = resultado["estado"]
+        venta_consolidada.mensaje_proveedor  = resultado.get("mensaje")
+        if resultado.get("cufe"):    venta_consolidada.cufe    = resultado["cufe"]
+        if resultado.get("pdf_url"): venta_consolidada.pdf_url = resultado["pdf_url"]
+        if resultado.get("xml_url"): venta_consolidada.xml_url = resultado["xml_url"]
+
+        if resultado["estado"] == "exitoso":
+            # Marcar las ventas originales como incluidas en el consolidado
+            for v in ventas_sin_fe:
+                v.estado_electronico = "consolidado"
+                v.mensaje_proveedor  = f"Incluida en FE consolidada #{venta_consolidada.numero_factura}"
+            _logger.info(
+                "FE consolidada emitida: %s ventas, $%s COP, CUFE %s",
+                len(ventas_sin_fe), total_monto, resultado.get("cufe", "?")
+            )
+
+        db.add(models.IntentoFE(
+            venta_id           = venta_consolidada.id,
+            empresa_id         = empresa_id,
+            estado             = resultado["estado"],
+            payload_enviado    = resultado.get("payload_enviado"),
+            respuesta_recibida = resultado.get("respuesta_recibida"),
+            cufe               = resultado.get("cufe"),
+            mensaje            = resultado.get("mensaje"),
+        ))
+
+        return {
+            "total_ventas": len(ventas_sin_fe),
+            "total_monto": total_monto,
+            "venta_consolidada_id": venta_consolidada.id,
+            "numero_factura": venta_consolidada.numero_factura,
+            "resultado_fe": resultado,
+        }
+    except Exception:
+        _logger.exception("Error emitiendo FE consolidada para empresa %s día %s", empresa_id, dia)
+        venta_consolidada.estado_electronico = "fallido"
+        return {"total_ventas": len(ventas_sin_fe), "total_monto": total_monto,
+                "resultado_fe": None, "mensaje": "Error al emitir FE consolidada."}
 
 
 def get_lotes_fefo(

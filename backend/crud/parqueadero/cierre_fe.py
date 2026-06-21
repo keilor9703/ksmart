@@ -87,6 +87,7 @@ def ejecutar_cierre_fe(db: Session, empresa_id: int, dia: date_cls) -> dict:
         origen       = ORIGEN_CIERRE,
         tipo         = "cierre",
         fecha_pago   = datetime.now(timezone.utc),
+        solicita_fe  = True,  # cierre consolidado siempre emite FE
         observaciones = f"Cierre FE parqueadero {dia.isoformat()} — {num} accesos por horas",
     )
     db.add(consolidada)

@@ -483,6 +483,8 @@ class VentaBase(BaseModel):
     puntos_canjeados: int = 0                    # Puntos descontados (para log)
     # Por-venta: no persiste en BD, solo controla lógica en el endpoint
     omitir_inventario: bool = False
+    # FE individual: True = emitir FE ahora; False (default) = acumular para consolidado
+    solicita_fe: bool = False
 
 
 class VentaCreate(VentaBase):
@@ -1845,6 +1847,7 @@ class AccesoSalidaCreate(BaseModel):
     observaciones:  Optional[str] = None
     cliente_nit:    Optional[str] = Field(None, description="NIT o CC para emitir FE individual.")
     cliente_nombre: Optional[str] = Field(None, description="Nombre del cliente para FE individual.")
+    solicita_fe:    bool = Field(False, description="True si el cliente quiere factura electrónica individual.")
 
 
 class AccesoOut(BaseModel):
