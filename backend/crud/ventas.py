@@ -484,21 +484,57 @@ def _tipo_documento_dian(venta: models.Venta) -> str:
     return "pos"
 
 
-def _docs_electronicos_mes_actual(db: Session, empresa_id: int) -> int:
-    """Cuenta documentos electrónicos exitosos emitidos en el mes calendario actual (Colombia UTC-5)."""
+def _periodo_actual() -> str:
+    """Período mensual vigente en horario Colombia (UTC-5), formato 'YYYY-MM'."""
     import pytz
     from datetime import datetime
-    bog = pytz.timezone("America/Bogota")
-    ahora = datetime.now(bog)
-    inicio_mes = ahora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    return (
-        db.query(models.Venta)
-        .filter(
-            models.Venta.empresa_id == empresa_id,
-            models.Venta.fecha >= inicio_mes,
-            models.Venta.estado_electronico == "exitoso",
-        )
-        .count()
+    return datetime.now(pytz.timezone("America/Bogota")).strftime("%Y-%m")
+
+
+def _docs_electronicos_mes_actual(db: Session, empresa_id: int) -> int:
+    """
+    Documentos electrónicos exitosos emitidos en el mes vigente.
+
+    Lectura O(1): usa el contador persistido en 'empresas' en lugar de un
+    COUNT(*) sobre 'ventas' (que no escala con millones de filas). Si el
+    período almacenado no coincide con el mes actual, el contador es obsoleto
+    y el consumo del mes es 0 (reseteo perezoso).
+    """
+    periodo = _periodo_actual()
+    row = (
+        db.query(models.Empresa.docs_electronicos_contador,
+                 models.Empresa.docs_electronicos_periodo)
+        .filter(models.Empresa.id == empresa_id)
+        .first()
+    )
+    if not row:
+        return 0
+    contador, periodo_guardado = row
+    if periodo_guardado != periodo:
+        return 0  # contador pertenece a un mes anterior → mes actual en 0
+    return int(contador or 0)
+
+
+def _incrementar_contador_docs(db: Session, empresa_id: int) -> None:
+    """
+    Incrementa atómicamente el contador de documentos electrónicos del mes.
+
+    UPDATE atómico O(1) que resetea a 1 si el período cambió, o suma 1 si es el
+    mismo mes. Seguro ante concurrencia (la condición vive en el propio UPDATE,
+    no en Python). No hace commit — lo hace el caller junto con la venta.
+    """
+    from sqlalchemy import text as _text
+    periodo = _periodo_actual()
+    db.execute(
+        _text(
+            "UPDATE empresas SET "
+            "docs_electronicos_contador = CASE "
+            "  WHEN docs_electronicos_periodo = :periodo "
+            "  THEN docs_electronicos_contador + 1 ELSE 1 END, "
+            "docs_electronicos_periodo = :periodo "
+            "WHERE id = :empresa_id"
+        ),
+        {"periodo": periodo, "empresa_id": empresa_id},
     )
 
 
@@ -610,6 +646,9 @@ def emitir_fe_venta(
             cufe               = resultado.get("cufe"),
             mensaje            = resultado.get("mensaje"),
         ))
+        # Solo los documentos efectivamente emitidos cuentan contra el límite.
+        if resultado.get("estado") == "exitoso":
+            _incrementar_contador_docs(db, empresa_id)
         return resultado
     except Exception:
         import logging as _logging

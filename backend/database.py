@@ -2237,6 +2237,46 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v105)
                 logger.info("V105 (max_documentos_mes en planes_suscripcion) aplicada.")
 
+            migration_v106 = "v106_empresas_contador_docs_fe"
+            if not _migration_already_applied(conn, migration_v106):
+                if not _column_exists(conn, "empresas", "docs_electronicos_contador"):
+                    conn.execute(text(
+                        "ALTER TABLE empresas ADD COLUMN docs_electronicos_contador INTEGER NOT NULL DEFAULT 0"
+                    ))
+                    logger.info("V106: columna 'docs_electronicos_contador' añadida a empresas")
+                if not _column_exists(conn, "empresas", "docs_electronicos_periodo"):
+                    conn.execute(text(
+                        "ALTER TABLE empresas ADD COLUMN docs_electronicos_periodo VARCHAR(7) NULL"
+                    ))
+                    logger.info("V106: columna 'docs_electronicos_periodo' añadida a empresas")
+                # Backfill único: inicializar el contador con el consumo real del
+                # mes en curso para empresas que ya emitieron documentos. Es un
+                # COUNT(*) puntual de una sola vez (no en caliente). Específico de
+                # PostgreSQL; si falla (p.ej. SQLite en tests) se ignora y el
+                # reseteo perezoso corrige a partir del próximo mes.
+                try:
+                    # SAVEPOINT: si el backfill falla (p.ej. SQLite), solo se
+                    # revierte esta parte sin abortar el resto de la migración.
+                    with conn.begin_nested():
+                        conn.execute(text(
+                            "UPDATE empresas e SET "
+                            "  docs_electronicos_contador = sub.cnt, "
+                            "  docs_electronicos_periodo  = to_char("
+                            "    now() AT TIME ZONE 'America/Bogota', 'YYYY-MM') "
+                            "FROM ("
+                            "  SELECT empresa_id, COUNT(*) AS cnt FROM ventas "
+                            "  WHERE estado_electronico = 'exitoso' "
+                            "    AND fecha >= date_trunc('month', "
+                            "        now() AT TIME ZONE 'America/Bogota') "
+                            "  GROUP BY empresa_id"
+                            ") sub WHERE e.id = sub.empresa_id"
+                        ))
+                    logger.info("V106: backfill de contador de docs FE completado")
+                except Exception as bf_err:
+                    logger.warning("V106: backfill omitido (%s)", bf_err)
+                _mark_migration_applied(conn, migration_v106)
+                logger.info("V106 (contador de docs FE en empresas) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

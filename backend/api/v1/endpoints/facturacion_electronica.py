@@ -163,6 +163,8 @@ def emitir_fe(
             detail="No hay API Key configurada para el modo activo (sandbox)" if test_mode else "La empresa no tiene configurada la API Key de Matias"
         )
 
+    estado_previo = venta.estado_electronico
+
     resultado = matias_service.emitir_factura(
         venta    = venta,
         empresa  = empresa,
@@ -174,6 +176,12 @@ def emitir_fe(
 
     # Actualizar venta
     _aplicar_resultado_a_venta(db, venta, resultado)
+
+    # Contar contra el límite solo en la transición a 'exitoso' (evita doble conteo
+    # al re-emitir una venta que ya estaba exitosa).
+    if resultado.get("estado") == "exitoso" and estado_previo != "exitoso":
+        from crud.ventas import _incrementar_contador_docs
+        _incrementar_contador_docs(db, empresa_id)
 
     # Registrar auditoría
     _registrar_intento(db, venta_id=venta.id, empresa_id=empresa_id, resultado=resultado)
@@ -324,8 +332,15 @@ def webhook_matias(
         "pendiente": "pendiente",
     }.get(str(nuevo_estado).lower(), "fallido")
 
+    estado_previo = venta.estado_electronico
     venta.estado_electronico = estado_mapeado
     venta.mensaje_proveedor  = mensaje or venta.mensaje_proveedor
+
+    # Contar contra el límite solo en la transición a 'exitoso' (un documento que
+    # pasó de pendiente/fallido a confirmado por la DIAN vía webhook).
+    if estado_mapeado == "exitoso" and estado_previo != "exitoso":
+        from crud.ventas import _incrementar_contador_docs
+        _incrementar_contador_docs(db, venta.empresa_id)
 
     # Registrar auditoría del callback
     _registrar_intento(

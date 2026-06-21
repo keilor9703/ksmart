@@ -83,6 +83,14 @@ class Empresa(Base):
     matias_sandbox_api_key= Column(String, nullable=True)   # token sandbox
     matias_test_mode      = Column(Boolean, default=True)
 
+    # Contador de documentos electrónicos del período mensual vigente.
+    # Diseñado para escala: evita COUNT(*) sobre 'ventas' en cada lectura.
+    # 'docs_electronicos_periodo' guarda el mes "YYYY-MM" al que pertenece el
+    # contador; si no coincide con el mes actual, el contador se considera 0
+    # (reseteo perezoso, sin job nocturno).
+    docs_electronicos_contador = Column(Integer, default=0, nullable=False, server_default="0")
+    docs_electronicos_periodo  = Column(String(7), nullable=True)  # "YYYY-MM"
+
     # Configuración de ventas
     omitir_inventario     = Column(Boolean, default=False)
 
