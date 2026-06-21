@@ -35,8 +35,7 @@ const SectionCard = ({ icon, title, accent = DEFAULT_ACCENT, children, defaultOp
   const isMobile = useMediaQuery('(max-width:899px)');
   const [open, setOpen] = useState(defaultOpen);
 
-  // En desktop siempre mostramos todo; en móvil respetamos el estado
-  const isOpen = !isMobile || open;
+  const isOpen = open;
 
   return (
     <Box sx={{
@@ -49,16 +48,16 @@ const SectionCard = ({ icon, title, accent = DEFAULT_ACCENT, children, defaultOp
       boxShadow: '0 1px 8px rgba(0,0,0,0.05)',
     }}>
       <Box
-        onClick={() => isMobile && setOpen(o => !o)}
+        onClick={() => setOpen(o => !o)}
         sx={{
           px: 2.5, py: 1.5,
           display: 'flex', alignItems: 'center', gap: 1.2,
           borderBottom: isOpen ? '1px solid' : 'none',
           borderColor: 'divider',
           bgcolor: alpha(accent, 0.05),
-          cursor: isMobile ? 'pointer' : 'default',
+          cursor: 'pointer',
           userSelect: 'none',
-          '&:hover': isMobile ? { bgcolor: alpha(accent, 0.09) } : {},
+          '&:hover': { bgcolor: alpha(accent, 0.09) },
           transition: 'background-color 0.15s',
         }}
       >
@@ -71,11 +70,10 @@ const SectionCard = ({ icon, title, accent = DEFAULT_ACCENT, children, defaultOp
           {icon}
         </Box>
         <Typography sx={{ fontWeight: 700, fontSize: 13.5, flex: 1 }}>{title}</Typography>
-        {isMobile && (
-          open
-            ? <ExpandLess sx={{ color: accent, fontSize: 20 }} />
-            : <ExpandMore sx={{ color: 'text.secondary', fontSize: 20 }} />
-        )}
+        {open
+          ? <ExpandLess sx={{ color: accent, fontSize: 20 }} />
+          : <ExpandMore sx={{ color: 'text.secondary', fontSize: 20 }} />
+        }
       </Box>
       <Collapse in={isOpen}>
         <Box sx={{ p: 2.5 }}>
