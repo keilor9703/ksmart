@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box, Typography, Button, Dialog, DialogContent,
   IconButton, CircularProgress, useTheme, Chip, Divider,
   Accordion, AccordionSummary, AccordionDetails,
 } from '@mui/material';
-import { Close, WorkspacePremium, Check, ReceiptLong, ExpandMore, GppGood, Warning } from '@mui/icons-material';
+import { Close, WorkspacePremium, ReceiptLong, ExpandMore, GppGood } from '@mui/icons-material';
 import apiClient from '../../../api';
 import { formatCurrency } from '../../../utils/formatters';
 import WompiButton from '../../../components/common/WompiButton';

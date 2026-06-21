@@ -13,7 +13,7 @@ import {
     Visibility, VisibilityOff, AlternateEmail, Lock, Business, Person,
     Storefront, AttachMoney, Email, Phone, LocationOn, Group,
     ArrowForward, ArrowBack, CheckCircle, LocalParking, LocalCarWash, Pin,
-    TableRestaurant, VpnKey, VerifiedUser, ManageAccounts,
+    TableRestaurant, ManageAccounts,
 } from '@mui/icons-material';
 import { Link } from 'react-router-dom';
 
@@ -388,7 +388,7 @@ const Login = ({ onLogin }) => {
     const [isLoginView, setIsLoginView]   = useState(true);
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading]           = useState(false);
-    const [loginFailed, setLoginFailed]   = useState(false);
+    const [, setLoginFailed]   = useState(false);
     const [regStep, setRegStep]           = useState(1);
     const [regSuccess, setRegSuccess]     = useState(false);
     const [rememberMe, setRememberMe]     = useState(false);

@@ -350,3 +350,48 @@ def webhook_matias(
     )
     return {"ok": True, "procesado": True, "venta_id": venta.id, "estado": estado_mapeado}
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# GET /fe/uso-documentos-mes
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/uso-documentos-mes")
+def uso_documentos_mes(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """
+    Retorna el consumo de documentos electrónicos del mes actual para la empresa.
+    Incluye: usados, límite del plan, porcentaje y estado (ok / advertencia / limite).
+    Solo relevante si la empresa tiene FE activa y su plan tiene max_documentos_mes.
+    """
+    from crud.ventas import _docs_electronicos_mes_actual, _max_docs_mes_plan
+
+    empresa_id = current_user.empresa_id
+    empresa    = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
+
+    if not empresa or not empresa.facturacion_electronica_activa:
+        return {"activo": False}
+
+    limite = _max_docs_mes_plan(db, empresa_id)
+    if limite is None:
+        return {"activo": True, "limite": None, "usados": None, "porcentaje": None, "estado": "sin_limite"}
+
+    usados     = _docs_electronicos_mes_actual(db, empresa_id)
+    porcentaje = round((usados / limite) * 100, 1) if limite > 0 else 100
+
+    if porcentaje >= 100:
+        estado = "limite"
+    elif porcentaje >= 80:
+        estado = "advertencia"
+    else:
+        estado = "ok"
+
+    return {
+        "activo":     True,
+        "usados":     usados,
+        "limite":     limite,
+        "porcentaje": porcentaje,
+        "estado":     estado,
+    }
+
