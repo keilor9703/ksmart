@@ -22,7 +22,6 @@ import Login from './features/auth/Login';
 import FirstTimeSetup from './features/auth/FirstTimeSetup';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import AnnouncementBanner from './features/saas/components/AnnouncementBanner';
-import FEUsageBanner from './features/saas/components/FEUsageBanner';
 import { OnboardingProvider } from './context/OnboardingContext';
 import ModalHuella from './components/common/ModalHuella';
 import GlobalSearch from './components/common/GlobalSearch';
@@ -381,7 +380,6 @@ const hasAccess = useCallback((path) => {
               >
                 <Box sx={{ flex: 1, p: { xs: 1, sm: 2, md: 3 }, minWidth: 0, overflow: 'hidden', maxWidth: '100%' }}>
                   <AnnouncementBanner />
-                  <FEUsageBanner user={user} isDark={mode === 'dark'} />
                   <Suspense fallback={<RouteFallback />}>
                   <Routes>
                     <Route path="/" element={

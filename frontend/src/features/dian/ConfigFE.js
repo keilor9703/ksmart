@@ -112,6 +112,7 @@ function ChipEstado({ estado }) {
 
 export default function ConfigFE() {
   const theme    = useTheme();
+  const isDark   = theme.palette.mode === 'dark';
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
   const [tabValue, setTabValue]   = useState(0);
@@ -128,6 +129,7 @@ export default function ConfigFE() {
   const [planIncluyeFE, setPlanIncluyeFE] = useState(true);
   const [planes, setPlanes] = useState([]);
   const [planesOpen, setPlanesOpen] = useState(false);
+  const [feUsage, setFeUsage] = useState(null);
 
   const fetchConfig = async () => {
     try {
@@ -167,7 +169,14 @@ export default function ConfigFE() {
     finally { setLoadingIntentos(false); }
   };
 
-  useEffect(() => { fetchConfig(); fetchIntentos(1); fetchSuscripcion(); }, []);
+  const fetchFeUsage = async () => {
+    try {
+      const r = await apiClient.get('/fe/uso-documentos-mes');
+      setFeUsage(r.data);
+    } catch { /* silencioso */ }
+  };
+
+  useEffect(() => { fetchConfig(); fetchIntentos(1); fetchSuscripcion(); fetchFeUsage(); }, []);
 
   const handleSave = async () => {
     setSaving(true);
@@ -240,6 +249,69 @@ export default function ConfigFE() {
           Ver guía de activación
         </Button>
       </Box>
+
+      {/* ── Widget uso de documentos electrónicos ── */}
+      {feUsage?.activo && feUsage?.limite != null && (
+        <Paper variant="outlined" sx={{ p: 2, mb: 3, borderRadius: 2.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Receipt sx={{ fontSize: 18, color: PURPLE }} />
+              <Typography fontWeight={700} fontSize={14}>Documentos electrónicos — mes actual</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography fontSize={22} fontWeight={900}
+                color={feUsage.porcentaje >= 100 ? 'error.main' : feUsage.porcentaje >= 80 ? '#F59E0B' : '#10B981'}>
+                {feUsage.usados}
+              </Typography>
+              <Typography fontSize={14} color="text.secondary">/ {feUsage.limite} docs</Typography>
+              <Chip
+                label={`${feUsage.porcentaje}%`}
+                size="small"
+                sx={{
+                  fontWeight: 800, fontSize: 11, height: 22,
+                  bgcolor: feUsage.porcentaje >= 100
+                    ? alpha('#EF4444', 0.12)
+                    : feUsage.porcentaje >= 80
+                      ? alpha('#F59E0B', 0.12)
+                      : alpha('#10B981', 0.12),
+                  color: feUsage.porcentaje >= 100 ? '#EF4444' : feUsage.porcentaje >= 80 ? '#F59E0B' : '#10B981',
+                }}
+              />
+            </Box>
+          </Box>
+
+          {/* Barra de progreso */}
+          <Box sx={{ position: 'relative', height: 10, borderRadius: 5, bgcolor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)', overflow: 'hidden' }}>
+            <Box sx={{
+              position: 'absolute', left: 0, top: 0, bottom: 0,
+              width: `${Math.min(feUsage.porcentaje, 100)}%`,
+              borderRadius: 5,
+              bgcolor: feUsage.porcentaje >= 100 ? '#EF4444' : feUsage.porcentaje >= 80 ? '#F59E0B' : '#10B981',
+              transition: 'width 0.4s ease',
+            }} />
+          </Box>
+
+          {/* Mensaje de estado */}
+          <Box sx={{ mt: 1.2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+            <Typography fontSize={12} color="text.secondary">
+              {feUsage.porcentaje >= 100
+                ? '🚫 Límite alcanzado. Las nuevas ventas no generarán documento electrónico hasta el próximo mes o al cambiar de plan.'
+                : feUsage.porcentaje >= 80
+                  ? `⚠ Quedan ${feUsage.limite - feUsage.usados} documentos disponibles este mes.`
+                  : `Quedan ${feUsage.limite - feUsage.usados} documentos disponibles este mes.`}
+            </Typography>
+            {feUsage.porcentaje >= 80 && (
+              <Button size="small" variant="outlined" onClick={() => navigate('/mi-suscripcion')}
+                sx={{ fontSize: 11, fontWeight: 700, borderRadius: 2, py: 0.3, px: 1.2,
+                  borderColor: feUsage.porcentaje >= 100 ? '#EF4444' : '#F59E0B',
+                  color: feUsage.porcentaje >= 100 ? '#EF4444' : '#F59E0B',
+                }}>
+                Actualizar plan
+              </Button>
+            )}
+          </Box>
+        </Paper>
+      )}
 
       <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)} sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
         <Tab label="Configuración" icon={<Settings fontSize="small" />} iconPosition="start" />
