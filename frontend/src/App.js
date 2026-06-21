@@ -252,12 +252,14 @@ const hasAccess = useCallback((path) => {
 
   const handleLogout = (showToast = true) => {
     stopKeepAlive();
+    setLoading(true); // evita que /:slug renderice con la URL anterior mientras navega a /login
     localStorage.removeItem('token');
     localStorage.removeItem('userModules');
     setIsAuthenticated(false);
     setUser(null);
     if (showToast) toast.info('Sesión cerrada.');
     navigate('/login');
+    setTimeout(() => setLoading(false), 50);
   };
 
   const handlePinToggle = () => {
