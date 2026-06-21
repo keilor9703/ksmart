@@ -384,11 +384,92 @@ const PaymentDetailDialog = ({ open, onClose, pago }) => {
 
 // ─── HistorialTable ───────────────────────────────────────────────────────────
 
+const PagoCard = ({ pago, onClick, isDark }) => {
+  const metodoLabel = METODO_LABELS[pago.metodo_pago] || pago.metodo_pago || '—';
+  const metodoIcon  = METODO_ICONS[pago.metodo_pago]  || <Payments sx={{ fontSize: 14 }} />;
+  return (
+    <Box onClick={onClick} sx={{
+      border: '1px solid', borderColor: 'divider',
+      borderRadius: 2.5, p: 2, mb: 1.5,
+      bgcolor: 'background.paper',
+      cursor: 'pointer',
+      '&:hover': { bgcolor: isDark ? alpha('#fff', 0.03) : alpha('#000', 0.02) },
+      transition: 'background-color 0.15s',
+    }}>
+      {/* Fila 1: fecha + monto + estado */}
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1 }}>
+        <Box>
+          <Typography fontSize={13} fontWeight={700}>{fmtDate(pago.fecha_pago)}</Typography>
+          <Typography fontSize={11} color="text.disabled">
+            {pago.fecha_pago ? new Date(pago.fecha_pago).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : ''}
+          </Typography>
+        </Box>
+        <Box sx={{ textAlign: 'right' }}>
+          <Typography fontSize={15} fontWeight={900} color="#FF6020">{fmt(pago.monto)}</Typography>
+          <Chip icon={<CheckCircle sx={{ fontSize: '11px !important', color: '#059669 !important' }} />}
+            label="Pagado" size="small" sx={{
+              bgcolor: alpha('#059669', 0.1), color: '#059669',
+              fontWeight: 700, fontSize: 10, height: 18, mt: 0.3,
+              '& .MuiChip-icon': { ml: '4px' },
+            }} />
+        </Box>
+      </Box>
+
+      <Divider sx={{ mb: 1 }} />
+
+      {/* Fila 2: plan + método */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.8 }}>
+        <Box>
+          <Typography fontSize={11} color="text.disabled" textTransform="uppercase" letterSpacing={0.4} fontWeight={600}>Plan</Typography>
+          <Typography fontSize={12.5} fontWeight={600}>{pago.plan?.nombre || '—'}</Typography>
+          {pago.plan?.dias_duracion && (
+            <Typography fontSize={10.5} color="text.disabled">{pago.plan.dias_duracion} días</Typography>
+          )}
+        </Box>
+        <Box sx={{ textAlign: 'right' }}>
+          <Typography fontSize={11} color="text.disabled" textTransform="uppercase" letterSpacing={0.4} fontWeight={600}>Método</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end', color: 'text.secondary' }}>
+            {metodoIcon}
+            <Typography fontSize={12}>{metodoLabel}</Typography>
+          </Box>
+        </Box>
+      </Box>
+
+      {/* Fila 3: ID transacción + factura */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 0.8 }}>
+        {pago.wompi_tx_id && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, minWidth: 0 }}
+            onClick={e => { e.stopPropagation(); copyToClipboard(pago.wompi_tx_id); }}>
+            <Typography fontSize={10.5} fontFamily="monospace" color="text.disabled"
+              sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>
+              {pago.wompi_tx_id}
+            </Typography>
+            <ContentCopy sx={{ fontSize: 11, color: 'text.disabled', flexShrink: 0 }} />
+          </Box>
+        )}
+        {pago.pdf_url_fe && (
+          <Chip component="a" href={pago.pdf_url_fe} target="_blank" rel="noopener noreferrer"
+            icon={<Receipt sx={{ fontSize: '11px !important' }} />}
+            label={pago.numero_factura_ksmart || 'Ver PDF'} size="small" clickable
+            onClick={e => e.stopPropagation()}
+            sx={{
+              bgcolor: alpha('#2563eb', 0.1), color: '#2563eb',
+              fontWeight: 700, fontSize: 10, height: 20,
+              '& .MuiChip-icon': { ml: '4px' },
+              textDecoration: 'none',
+            }} />
+        )}
+      </Box>
+    </Box>
+  );
+};
+
 const HistorialTable = ({ historial }) => {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
+  const theme   = useTheme();
+  const isDark  = theme.palette.mode === 'dark';
+  const isMobile = theme.breakpoints.values.md > window.innerWidth;
   const [detailPago, setDetailPago] = useState(null);
-  const [showAll, setShowAll] = useState(false);
+  const [showAll,    setShowAll]    = useState(false);
 
   const items = showAll ? historial : historial.slice(0, 5);
 
@@ -406,95 +487,97 @@ const HistorialTable = ({ historial }) => {
 
   return (
     <>
-      <TableContainer>
-        <Table size="small">
-          <TableHead>
-            <TableRow sx={{ bgcolor: isDark ? alpha('#fff', 0.03) : alpha('#000', 0.025) }}>
-              {['Fecha', 'Plan', 'Monto', 'Método', 'ID Transacción', 'Factura', ''].map(h => (
-                <TableCell key={h} sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, py: 1.2 }}>
-                  {h}
-                </TableCell>
-              ))}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {items.map((pago) => {
-              const metodoLabel = METODO_LABELS[pago.metodo_pago] || pago.metodo_pago || '—';
-              const metodoIcon = METODO_ICONS[pago.metodo_pago] || <Payments sx={{ fontSize: 15 }} />;
-              return (
-                <TableRow key={pago.id} hover sx={{ cursor: 'pointer', '& td': { py: 1.3 } }}
-                  onClick={() => setDetailPago(pago)}>
-                  <TableCell>
-                    <Typography fontSize={12.5} fontWeight={600}>{fmtDate(pago.fecha_pago)}</Typography>
-                    <Typography fontSize={10.5} color="text.disabled">
-                      {pago.fecha_pago ? new Date(pago.fecha_pago).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : ''}
-                    </Typography>
+      {/* ── Cards en móvil ── */}
+      <Box sx={{ display: { xs: 'block', md: 'none' } }}>
+        {items.map(pago => (
+          <PagoCard key={pago.id} pago={pago} isDark={isDark} onClick={() => setDetailPago(pago)} />
+        ))}
+      </Box>
+
+      {/* ── Tabla en desktop ── */}
+      <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: isDark ? alpha('#fff', 0.03) : alpha('#000', 0.025) }}>
+                {['Fecha', 'Plan', 'Monto', 'Método', 'ID Transacción', 'Factura', ''].map(h => (
+                  <TableCell key={h} sx={{ fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, py: 1.2 }}>
+                    {h}
                   </TableCell>
-                  <TableCell>
-                    <Typography fontSize={12.5}>{pago.plan?.nombre || '—'}</Typography>
-                    {pago.plan?.dias_duracion && (
-                      <Typography fontSize={10.5} color="text.disabled">{pago.plan.dias_duracion} días</Typography>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Typography fontSize={13} fontWeight={800} color="#FF6020">{fmt(pago.monto)}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, color: 'text.secondary' }}>
-                      {metodoIcon}
-                      <Typography fontSize={12}>{metodoLabel}</Typography>
-                    </Box>
-                  </TableCell>
-                  <TableCell sx={{ maxWidth: 140 }}>
-                    {pago.wompi_tx_id ? (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
-                        onClick={e => { e.stopPropagation(); copyToClipboard(pago.wompi_tx_id); }}>
-                        <Typography fontSize={11} fontFamily="monospace" color="text.disabled"
-                          sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 110 }}>
-                          {pago.wompi_tx_id}
-                        </Typography>
-                        <ContentCopy sx={{ fontSize: 12, color: 'text.disabled', flexShrink: 0 }} />
+                ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {items.map((pago) => {
+                const metodoLabel = METODO_LABELS[pago.metodo_pago] || pago.metodo_pago || '—';
+                const metodoIcon  = METODO_ICONS[pago.metodo_pago]  || <Payments sx={{ fontSize: 15 }} />;
+                return (
+                  <TableRow key={pago.id} hover sx={{ cursor: 'pointer', '& td': { py: 1.3 } }}
+                    onClick={() => setDetailPago(pago)}>
+                    <TableCell>
+                      <Typography fontSize={12.5} fontWeight={600}>{fmtDate(pago.fecha_pago)}</Typography>
+                      <Typography fontSize={10.5} color="text.disabled">
+                        {pago.fecha_pago ? new Date(pago.fecha_pago).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : ''}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography fontSize={12.5}>{pago.plan?.nombre || '—'}</Typography>
+                      {pago.plan?.dias_duracion && (
+                        <Typography fontSize={10.5} color="text.disabled">{pago.plan.dias_duracion} días</Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Typography fontSize={13} fontWeight={800} color="#FF6020">{fmt(pago.monto)}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, color: 'text.secondary' }}>
+                        {metodoIcon}
+                        <Typography fontSize={12}>{metodoLabel}</Typography>
                       </Box>
-                    ) : <Typography fontSize={11} color="text.disabled">—</Typography>}
-                  </TableCell>
-                  <TableCell onClick={e => e.stopPropagation()}>
-                    {pago.pdf_url_fe ? (
-                      <Chip
-                        component="a"
-                        href={pago.pdf_url_fe}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        icon={<Receipt sx={{ fontSize: '12px !important' }} />}
-                        label={pago.numero_factura_ksmart || 'Ver PDF'}
-                        size="small"
-                        clickable
-                        sx={{
-                          bgcolor: alpha('#2563eb', 0.1), color: '#2563eb',
+                    </TableCell>
+                    <TableCell sx={{ maxWidth: 140 }}>
+                      {pago.wompi_tx_id ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+                          onClick={e => { e.stopPropagation(); copyToClipboard(pago.wompi_tx_id); }}>
+                          <Typography fontSize={11} fontFamily="monospace" color="text.disabled"
+                            sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 110 }}>
+                            {pago.wompi_tx_id}
+                          </Typography>
+                          <ContentCopy sx={{ fontSize: 12, color: 'text.disabled', flexShrink: 0 }} />
+                        </Box>
+                      ) : <Typography fontSize={11} color="text.disabled">—</Typography>}
+                    </TableCell>
+                    <TableCell onClick={e => e.stopPropagation()}>
+                      {pago.pdf_url_fe ? (
+                        <Chip component="a" href={pago.pdf_url_fe} target="_blank" rel="noopener noreferrer"
+                          icon={<Receipt sx={{ fontSize: '12px !important' }} />}
+                          label={pago.numero_factura_ksmart || 'Ver PDF'} size="small" clickable
+                          sx={{
+                            bgcolor: alpha('#2563eb', 0.1), color: '#2563eb',
+                            fontWeight: 700, fontSize: 10, height: 20,
+                            '& .MuiChip-icon': { ml: '4px' }, textDecoration: 'none',
+                          }} />
+                      ) : pago.estado_fe === 'fallido' ? (
+                        <Typography fontSize={10} color="error.main">FE fallida</Typography>
+                      ) : (
+                        <Typography fontSize={10} color="text.disabled">—</Typography>
+                      )}
+                    </TableCell>
+                    <TableCell align="right">
+                      <Chip icon={<CheckCircle sx={{ fontSize: '12px !important', color: '#059669 !important' }} />}
+                        label="Pagado" size="small" sx={{
+                          bgcolor: alpha('#059669', 0.1), color: '#059669',
                           fontWeight: 700, fontSize: 10, height: 20,
                           '& .MuiChip-icon': { ml: '4px' },
-                          textDecoration: 'none',
-                        }}
-                      />
-                    ) : pago.estado_fe === 'fallido' ? (
-                      <Typography fontSize={10} color="error.main">FE fallida</Typography>
-                    ) : (
-                      <Typography fontSize={10} color="text.disabled">—</Typography>
-                    )}
-                  </TableCell>
-                  <TableCell align="right">
-                    <Chip icon={<CheckCircle sx={{ fontSize: '12px !important', color: '#059669 !important' }} />}
-                      label="Pagado" size="small" sx={{
-                        bgcolor: alpha('#059669', 0.1), color: '#059669',
-                        fontWeight: 700, fontSize: 10, height: 20,
-                        '& .MuiChip-icon': { ml: '4px' },
-                      }} />
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </TableContainer>
+                        }} />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
 
       {historial.length > 5 && (
         <Box sx={{ textAlign: 'center', pt: 1.5 }}>
