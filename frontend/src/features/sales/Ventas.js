@@ -1611,8 +1611,11 @@ useEffect(() => {
                                 </Box>
 
                                 {/* Toggle Factura Electrónica */}
-                                {pagada && (
+                                {pagada && user?.empresa?.facturacion_electronica_activa && (
                                     <Box sx={{ width: '100%', mt: 0.5 }}>
+                                        <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.5 }}>
+                                            📄 Esta venta generará un <strong>{solicitaFe ? 'Factura Electrónica (FE)' : 'Documento Equivalente Electrónico (DEE/POS)'}</strong> a la DIAN y consumirá 1 documento de tu cuota mensual.
+                                        </Typography>
                                         <FormControlLabel
                                             control={
                                                 <Switch
@@ -1624,13 +1627,13 @@ useEffect(() => {
                                             }
                                             label={
                                                 <Typography sx={{ fontSize: 12, fontWeight: 600, color: solicitaFe ? 'primary.main' : 'text.secondary' }}>
-                                                    🧾 ¿El cliente requiere factura electrónica?
+                                                    🧾 ¿El cliente requiere factura electrónica (FE)?
                                                 </Typography>
                                             }
                                         />
                                         {solicitaFe && (
                                             <Typography sx={{ fontSize: 11, color: 'text.secondary', ml: 4, mt: 0.3 }}>
-                                                Se emitirá una FE individual a la DIAN y consumirá 1 documento de tu cuota mensual.
+                                                Se emitirá con los datos del cliente y tendrá validez tributaria como FE.
                                             </Typography>
                                         )}
                                     </Box>
