@@ -2227,6 +2227,16 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v104)
                 logger.info("V104 (tipo en resoluciones_dian) aplicada.")
 
+            migration_v105 = "v105_planes_max_documentos_mes"
+            if not _migration_already_applied(conn, migration_v105):
+                if not _column_exists(conn, "planes_suscripcion", "max_documentos_mes"):
+                    conn.execute(text(
+                        "ALTER TABLE planes_suscripcion ADD COLUMN max_documentos_mes INTEGER NULL"
+                    ))
+                    logger.info("V105: columna 'max_documentos_mes' añadida a planes_suscripcion")
+                _mark_migration_applied(conn, migration_v105)
+                logger.info("V105 (max_documentos_mes en planes_suscripcion) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

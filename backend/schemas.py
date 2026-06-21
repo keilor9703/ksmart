@@ -1256,6 +1256,7 @@ class PlanSuscripcionBase(BaseModel):
     is_featured: bool = False
     empresa_id_exclusivo: Optional[int] = None
     incluye_fe: bool = True
+    max_documentos_mes: Optional[int] = None  # None = sin límite; 0 = sin FE
 
 class PlanSuscripcionCreate(PlanSuscripcionBase):
     pass
@@ -1268,6 +1269,7 @@ class PlanSuscripcionUpdate(BaseModel):
     is_active: Optional[bool] = None
     is_featured: Optional[bool] = None
     empresa_id_exclusivo: Optional[int] = None
+    max_documentos_mes: Optional[int] = None
 
 class PlanSuscripcionOut(PlanSuscripcionBase):
     id: int

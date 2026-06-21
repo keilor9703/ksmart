@@ -484,6 +484,37 @@ def _tipo_documento_dian(venta: models.Venta) -> str:
     return "pos"
 
 
+def _docs_electronicos_mes_actual(db: Session, empresa_id: int) -> int:
+    """Cuenta documentos electrónicos exitosos emitidos en el mes calendario actual (Colombia UTC-5)."""
+    import pytz
+    from datetime import datetime
+    bog = pytz.timezone("America/Bogota")
+    ahora = datetime.now(bog)
+    inicio_mes = ahora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    return (
+        db.query(models.Venta)
+        .filter(
+            models.Venta.empresa_id == empresa_id,
+            models.Venta.fecha >= inicio_mes,
+            models.Venta.estado_electronico == "exitoso",
+        )
+        .count()
+    )
+
+
+def _max_docs_mes_plan(db: Session, empresa_id: int) -> Optional[int]:
+    """Retorna el límite de docs/mes del plan activo, o None si no hay límite."""
+    ultimo_pago = (
+        db.query(models.RegistroPago)
+        .filter(models.RegistroPago.empresa_id == empresa_id)
+        .order_by(models.RegistroPago.fecha_pago.desc())
+        .first()
+    )
+    if not ultimo_pago or not ultimo_pago.plan:
+        return None  # trial/vitalicio → sin límite
+    return getattr(ultimo_pago.plan, "max_documentos_mes", None)
+
+
 def emitir_fe_venta(
     db: Session,
     empresa_id: int,
@@ -511,6 +542,24 @@ def emitir_fe_venta(
         return None
     if not (empresa_fe.matias_api_key or empresa_fe.matias_sandbox_api_key):
         return None
+
+    # Verificar límite de documentos mensuales del plan
+    limite = _max_docs_mes_plan(db, empresa_id)
+    if limite is not None and limite > 0:
+        usados = _docs_electronicos_mes_actual(db, empresa_id)
+        if usados >= limite:
+            import logging as _logging
+            _logging.getLogger("crud.ventas").warning(
+                "Empresa %s: límite de %d docs/mes alcanzado (%d usados). "
+                "La venta %s no tendrá documento electrónico.",
+                empresa_id, limite, usados, getattr(venta, "id", "?"),
+            )
+            venta.estado_electronico = "limite_plan"
+            venta.mensaje_proveedor = (
+                f"Límite de {limite} documentos electrónicos mensuales alcanzado. "
+                "Actualiza tu plan en Ksmart360."
+            )
+            return None
 
     tipo_doc = _tipo_documento_dian(venta)
     # En DEE/POS, si no hay cliente identificado, build_invoice_payload emite a
