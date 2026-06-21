@@ -387,8 +387,10 @@ const ResolucionesDian = ({ embedded = false }) => {
     }
   };
 
-  const activa = resoluciones.find(r => r.is_active && (r.tipo || 'fe') === 'fe')
-              || resoluciones.find(r => r.is_active);
+  const activa    = resoluciones.find(r => r.is_active && (r.tipo || 'fe') === 'fe')
+                 || resoluciones.find(r => r.is_active);
+  const activaPos = resoluciones.find(r => r.is_active && r.tipo === 'pos');
+  const sinDee    = activa && !activaPos; // tiene FE pero no tiene DEE/POS
 
   /* ── preview next number ── */
   const previewNum = (form.prefijo || '') + String(parseInt(form.numero_inicial) || 1).padStart(5, '0');
@@ -527,6 +529,17 @@ const ResolucionesDian = ({ embedded = false }) => {
       ) : (
         <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
           No hay resolución activa. Las ventas se registrarán sin número de factura DIAN hasta que actives una.
+        </Alert>
+      )}
+
+      {/* ── Aviso: FE activa pero sin resolución DEE/POS ── */}
+      {sinDee && (
+        <Alert severity="warning" icon={<Warning />} sx={{ mb: 3, borderRadius: 2 }}>
+          <strong>Sin resolución DEE/POS configurada.</strong> Las ventas donde el cliente <em>no</em> solicita
+          factura electrónica se generan como Documento Equivalente Electrónico (DEE / Tiquete POS), que
+          requiere una habilitación DIAN separada a la de FE. Sin ella, esas ventas no se reportan a la DIAN
+          ni consumen cupo del plan, pero tampoco cumplen la obligación normativa.{' '}
+          Tramita la habilitación POS ante la DIAN y regístrala aquí con tipo <strong>POS</strong>.
         </Alert>
       )}
 
