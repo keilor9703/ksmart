@@ -434,37 +434,57 @@ const ProductoForm = ({
 
       {/* Image grid 2×2 */}
       <Grid container spacing={1.5}>
-        {[0, 1, 2, 3].map(idx => (
-          <Grid item xs={6} key={idx}>
-            <Box sx={{
-              width: '100%', aspectRatio: '1/1', borderRadius: 2,
-              border: '2px dashed', borderColor: imagenes[idx] ? accentColor : 'divider',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              position: 'relative', overflow: 'hidden', bgcolor: 'background.default',
-              transition: 'border-color 0.2s',
-            }}>
-              {imagenes[idx] ? (
-                <>
-                  <img src={imagenes[idx]} alt={`img-${idx}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  <IconButton size="small" onClick={() => removeImage(idx)}
-                    sx={{ position: 'absolute', top: 4, right: 4, bgcolor: 'rgba(255,255,255,0.85)', '&:hover': { bgcolor: '#fff' } }}>
-                    <Delete fontSize="small" color="error" />
-                  </IconButton>
-                </>
-              ) : (
-                <Button component="label"
-                  disabled={isCompressing || (idx > 0 && !imagenes[idx - 1])}
-                  sx={{ flexDirection: 'column', gap: 0.5, width: '100%', height: '100%', color: 'text.disabled', textTransform: 'none' }}>
-                  <input hidden accept="image/*" type="file" multiple onChange={handleImageChange} />
-                  {isCompressing
-                    ? <Typography sx={{ fontSize: 9 }}>Procesando…</Typography>
-                    : <><AddPhotoAlternate fontSize="medium" /><Typography sx={{ fontWeight: 600, fontSize: 9 }}>Subir</Typography></>
-                  }
-                </Button>
-              )}
-            </Box>
-          </Grid>
-        ))}
+        {[0, 1, 2, 3].map(idx => {
+          const isEmpty    = !imagenes[idx];
+          const isPrimary  = idx === 0 && isEmpty;
+          const isNext     = idx > 0 && isEmpty && !!imagenes[idx - 1];
+          const borderClr  = imagenes[idx] ? accentColor : isPrimary ? '#2563EB' : 'divider';
+          const bgClr      = isPrimary ? alpha('#2563EB', 0.07) : 'background.default';
+          const iconClr    = isPrimary ? '#2563EB' : isNext ? 'text.secondary' : 'text.disabled';
+          return (
+            <Grid item xs={6} key={idx}>
+              <Box sx={{
+                width: '100%', aspectRatio: '1/1', borderRadius: 2,
+                border: isPrimary ? '2px dashed' : '2px dashed',
+                borderColor: borderClr,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                position: 'relative', overflow: 'hidden', bgcolor: bgClr,
+                transition: 'border-color 0.2s, background-color 0.2s',
+                boxShadow: isPrimary ? '0 0 0 3px rgba(37,99,235,0.12)' : 'none',
+              }}>
+                {imagenes[idx] ? (
+                  <>
+                    <img src={imagenes[idx]} alt={`img-${idx}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <IconButton size="small" onClick={() => removeImage(idx)}
+                      sx={{ position: 'absolute', top: 4, right: 4, bgcolor: 'rgba(255,255,255,0.85)', '&:hover': { bgcolor: '#fff' } }}>
+                      <Delete fontSize="small" color="error" />
+                    </IconButton>
+                  </>
+                ) : (
+                  <Button component="label"
+                    disabled={isCompressing || (idx > 0 && !imagenes[idx - 1])}
+                    sx={{ flexDirection: 'column', gap: 0.5, width: '100%', height: '100%', color: iconClr, textTransform: 'none' }}>
+                    <input hidden accept="image/*" type="file" multiple onChange={handleImageChange} />
+                    {isCompressing && idx === 0
+                      ? <Typography sx={{ fontSize: 9 }}>Procesando…</Typography>
+                      : <>
+                          <AddPhotoAlternate fontSize="medium" />
+                          <Typography sx={{ fontWeight: isPrimary ? 700 : 600, fontSize: 9 }}>
+                            {isPrimary ? 'Foto principal' : 'Subir'}
+                          </Typography>
+                          {isPrimary && (
+                            <Typography sx={{ fontSize: 8, color: '#2563EB', fontWeight: 600, mt: 0.2 }}>
+                              Toca aquí
+                            </Typography>
+                          )}
+                        </>
+                    }
+                  </Button>
+                )}
+              </Box>
+            </Grid>
+          );
+        })}
       </Grid>
       <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 1.5 }}>
         Hasta <strong>4 fotos</strong>. Formato cuadrado recomendado.
