@@ -2205,6 +2205,28 @@ def run_migrations():
                 else:
                     logger.warning("V102: tabla 'modulos' no existe aún, se reintentará en el próximo arranque.")
 
+            # V103 - solicita_fe en ventas (FE individual vs consolidada)
+            migration_v103 = "v103_ventas_solicita_fe"
+            if not _migration_already_applied(conn, migration_v103):
+                if not _column_exists(conn, "ventas", "solicita_fe"):
+                    conn.execute(text(
+                        "ALTER TABLE ventas ADD COLUMN solicita_fe BOOLEAN NOT NULL DEFAULT FALSE"
+                    ))
+                    logger.info("V103: columna 'solicita_fe' añadida a ventas")
+                _mark_migration_applied(conn, migration_v103)
+                logger.info("V103 (solicita_fe en ventas) aplicada.")
+
+            # V104 - tipo en resoluciones_dian (fe | pos) para Documento Equivalente POS
+            migration_v104 = "v104_resoluciones_tipo"
+            if not _migration_already_applied(conn, migration_v104):
+                if not _column_exists(conn, "resoluciones_dian", "tipo"):
+                    conn.execute(text(
+                        "ALTER TABLE resoluciones_dian ADD COLUMN tipo VARCHAR(10) NOT NULL DEFAULT 'fe'"
+                    ))
+                    logger.info("V104: columna 'tipo' añadida a resoluciones_dian")
+                _mark_migration_applied(conn, migration_v104)
+                logger.info("V104 (tipo en resoluciones_dian) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

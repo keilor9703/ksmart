@@ -483,6 +483,8 @@ class VentaBase(BaseModel):
     puntos_canjeados: int = 0                    # Puntos descontados (para log)
     # Por-venta: no persiste en BD, solo controla lógica en el endpoint
     omitir_inventario: bool = False
+    # FE individual: True = emitir FE ahora; False (default) = acumular para consolidado
+    solicita_fe: bool = False
 
 
 class VentaCreate(VentaBase):
@@ -1519,6 +1521,7 @@ class LoteConsumidoOut(BaseModel):
 # ════════════════════════════════════════════════════════════════════════════
 
 class ResolucionDianCreate(BaseModel):
+    tipo: str = "fe"  # "fe"=Factura Electrónica | "pos"=Documento Equivalente POS
     prefijo: str = ""
     numero_resolucion: Optional[str] = None
     numero_inicial: int = 1
@@ -1529,6 +1532,7 @@ class ResolucionDianCreate(BaseModel):
     nota: Optional[str] = None
 
 class ResolucionDianUpdate(BaseModel):
+    tipo: Optional[str] = None
     prefijo: Optional[str] = None
     numero_resolucion: Optional[str] = None
     numero_inicial: Optional[int] = None
@@ -1545,6 +1549,7 @@ class ResolucionDianAjusteNumero(BaseModel):
 class ResolucionDianOut(BaseModel):
     id: int
     empresa_id: Optional[int] = None
+    tipo: str = "fe"
     prefijo: str = ""
     numero_resolucion: Optional[str] = None
     numero_actual: int
@@ -1845,6 +1850,7 @@ class AccesoSalidaCreate(BaseModel):
     observaciones:  Optional[str] = None
     cliente_nit:    Optional[str] = Field(None, description="NIT o CC para emitir FE individual.")
     cliente_nombre: Optional[str] = Field(None, description="Nombre del cliente para FE individual.")
+    solicita_fe:    bool = Field(False, description="True si el cliente quiere factura electrónica individual.")
 
 
 class AccesoOut(BaseModel):

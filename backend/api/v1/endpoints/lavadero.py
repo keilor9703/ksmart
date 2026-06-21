@@ -37,6 +37,7 @@ class CobrarIn(BaseModel):
     monto_pagado: Optional[float] = None
     puntos_canjeados: Optional[int] = None
     descuento_puntos: Optional[float] = None
+    solicita_fe: bool = False
 
 class LavaderoConfigUpdate(BaseModel):
     comision_pct_global: Optional[float] = None
@@ -287,6 +288,7 @@ def cobrar_orden(
         descuento_puntos=descuento_pts,
         puntos_canjeados=body.puntos_canjeados or 0,
         origen='lavadero',
+        solicita_fe=body.solicita_fe,
     )
     db.add(venta)
     db.flush()
@@ -442,6 +444,8 @@ def reintentar_fe_lavadero(
 
     from sqlalchemy.orm import joinedload as _jl
     from crud import ventas as _crud_ventas
+
+    # El retry reemite el documento del tipo que ya correspondía (FE o DEE-POS).
 
     detalles = db.query(models.DetalleVenta).filter_by(
         venta_id=venta.id, empresa_id=current_user.empresa_id

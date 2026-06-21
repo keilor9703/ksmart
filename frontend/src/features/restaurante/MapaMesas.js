@@ -155,6 +155,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
   const [reciboOpen, setReciboOpen]   = useState(false);
   const [propina, setPropina] = useState(0);
   const [metodo, setMetodo] = useState('Efectivo');
+  const [solicitaFe, setSolicitaFe] = useState(false);
   const [tab, setTab] = useState(0); // 0=Pedido, 1=Menú (solo móvil)
   const [linkPagoConfig, setLinkPagoConfig] = useState(null);
   const [linkPagoModalOpen, setLinkPagoModalOpen] = useState(false);
@@ -284,6 +285,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
     try {
       const res = await apiClient.post(`/restaurante/comandas/${comanda.id}/cerrar`, {
         metodo_pago: metodo, propina, omitir_inventario: omitirInventarioRef.current,
+        solicita_fe: solicitaFe,
       });
       const ventaSnap = {
         id: res.data.venta_id,
@@ -554,6 +556,22 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
                     sx={{ m: 0, gap: 0.5 }}
                   />
                 </Box>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      size="small"
+                      checked={solicitaFe}
+                      onChange={e => setSolicitaFe(e.target.checked)}
+                      color="primary"
+                    />
+                  }
+                  label={
+                    <Typography fontSize={11} fontWeight={solicitaFe ? 700 : 400} color={solicitaFe ? 'primary.main' : 'text.secondary'}>
+                      🧾 ¿El cliente requiere factura electrónica?
+                    </Typography>
+                  }
+                  sx={{ m: 0, mb: 1, gap: 0.5 }}
+                />
                 <Button fullWidth variant="contained"
                   disabled={loading || !puedeConfirmarCobro || (debePantalla && (hayPendientes || hayEnPrep))}
                   startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <Receipt />}

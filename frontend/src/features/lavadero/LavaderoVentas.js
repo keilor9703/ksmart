@@ -5,7 +5,7 @@ import {
   Tooltip, InputAdornment, Dialog, DialogTitle, DialogContent,
   DialogActions, ToggleButtonGroup, ToggleButton, Badge, alpha,
   Table, TableHead, TableRow, TableCell, TableBody, TableContainer,
-  Tabs, Tab,
+  Tabs, Tab, Switch, FormControlLabel,
 } from '@mui/material';
 import {
   DirectionsCar, Add, Remove, DeleteOutline, LocalCarWash,
@@ -290,6 +290,7 @@ export default function LavaderoVentas({ user }) {
   const [config,        setConfig]        = useState(null);
   const [cobrarOrden,   setCobrarOrden]   = useState(null);
   const [metodoPago,    setMetodoPago]    = useState('Efectivo');
+  const [solicitaFe,    setSolicitaFe]    = useState(false);
   const [cobrando,      setCobrando]      = useState(false);
   const [cobraData,     setCobraData]     = useState(null);   // post-cobro result
   const [montoRecibido, setMontoRecibido] = useState(0);
@@ -532,6 +533,7 @@ export default function LavaderoVentas({ user }) {
         monto_pagado:     totalFinal,
         puntos_canjeados: puntosACanjear || 0,
         descuento_puntos: descuentoPts || 0,
+        solicita_fe:      solicitaFe,
       });
       setCobraData(resData);
       fetchOrdenes();
@@ -1329,6 +1331,26 @@ export default function LavaderoVentas({ user }) {
                       )}
                     </Box>
                   )}
+
+                  {/* Toggle Factura Electrónica */}
+                  <Box sx={{ mt: 1.5 }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          size="small"
+                          checked={solicitaFe}
+                          onChange={e => setSolicitaFe(e.target.checked)}
+                          color="primary"
+                        />
+                      }
+                      label={
+                        <Typography sx={{ fontSize: 12, fontWeight: solicitaFe ? 700 : 500, color: solicitaFe ? 'primary.main' : 'text.secondary' }}>
+                          🧾 ¿El cliente requiere factura electrónica?
+                        </Typography>
+                      }
+                      sx={{ m: 0 }}
+                    />
+                  </Box>
 
                   {/* Botón QR/Link cuando ese método está seleccionado */}
                   {metodoPago === 'Link/QR' && metodoLinkQR && (

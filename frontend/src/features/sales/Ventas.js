@@ -408,6 +408,7 @@ const Ventas = ({ user }) => {
     const [valorRecibido, setValorRecibido] = useState(0);
     const [pagada, setPagada]       = useState(true);
     const [metodoPago, setMetodoPago] = useState('Efectivo');
+    const [solicitaFe, setSolicitaFe] = useState(false);
     const [editingVenta, setEditingVenta] = useState(null);
     const [savingVenta, setSavingVenta]   = useState(false);
 
@@ -935,6 +936,7 @@ useEffect(() => {
             descuento_puntos: descuentoPuntosImporte,
             puntos_canjeados: puntosACanjear,
             omitir_inventario: omitirInventarioRef.current,
+            solicita_fe: solicitaFe,
         };
 
         const snapDetails = validDetails.map(d => ({
@@ -980,7 +982,7 @@ useEffect(() => {
         const initialId = Date.now();
         setSaleDetails([{ id: initialId, producto: null, cantidad: 1, precioUnitario: 0, descuentoPct: 0 }]);
         setProductoInputs({}); setIvaPorcentajeGlobal(19); setValorRecibido(0);
-        setPagada(true); setMetodoPago('Efectivo'); setEditingVenta(null);
+        setPagada(true); setMetodoPago('Efectivo'); setSolicitaFe(false); setEditingVenta(null);
         setPuntosACanjear(0); setClientePuntos(0); setOmitirInventario(false); pendingVentaRef.current = null;
         cleanupCamera(); setCameraActive(false);
         setTimeout(() => barcodeFieldRef.current?.focus(), 300);
@@ -1607,6 +1609,32 @@ useEffect(() => {
                                         })}
                                     </Box>
                                 </Box>
+
+                                {/* Toggle Factura Electrónica */}
+                                {pagada && (
+                                    <Box sx={{ width: '100%', mt: 0.5 }}>
+                                        <FormControlLabel
+                                            control={
+                                                <Switch
+                                                    size="small"
+                                                    checked={solicitaFe}
+                                                    onChange={e => setSolicitaFe(e.target.checked)}
+                                                    color="primary"
+                                                />
+                                            }
+                                            label={
+                                                <Typography sx={{ fontSize: 12, fontWeight: 600, color: solicitaFe ? 'primary.main' : 'text.secondary' }}>
+                                                    🧾 ¿El cliente requiere factura electrónica?
+                                                </Typography>
+                                            }
+                                        />
+                                        {solicitaFe && (
+                                            <Typography sx={{ fontSize: 11, color: 'text.secondary', ml: 4, mt: 0.3 }}>
+                                                Se emitirá una FE individual a la DIAN y consumirá 1 documento de tu cuota mensual.
+                                            </Typography>
+                                        )}
+                                    </Box>
+                                )}
 
                                 {/* En móvil: valor recibido + botón registrar en la misma fila */}
                                 {isMobile && pagada && metodoPago === 'Efectivo' && (

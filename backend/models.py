@@ -424,14 +424,17 @@ class Pago(Base, TenantMixin):
 
 class ResolucionDian(Base, TenantMixin):
     """
-    Resolución de numeración emitida por la DIAN para facturación electrónica.
-    Solo puede haber una activa por empresa (is_active=True).
-    La numeración auto-incrementa en cada nueva venta.
+    Resolución de numeración emitida por la DIAN.
+    Cada empresa puede tener una resolución activa POR TIPO (is_active=True):
+      - tipo="fe":  Factura Electrónica (cliente identificado, CUFE)
+      - tipo="pos": Documento Equivalente Electrónico / Tiquete POS (DEE, CUDE)
+    La numeración auto-incrementa en cada nuevo documento de su tipo.
     """
     __tablename__ = "resoluciones_dian"
 
     id                = Column(Integer, primary_key=True, index=True)
-    prefijo           = Column(String(10), default="")          # Ej: "FE", "FAC", ""
+    tipo              = Column(String(10), nullable=False, default="fe")  # "fe" | "pos"
+    prefijo           = Column(String(10), default="")          # Ej: "FE", "FAC", "FPOS"
     numero_resolucion = Column(String(50), nullable=True)       # Nro. DIAN oficial
     numero_actual     = Column(Integer, nullable=False, default=0)    # Último asignado
     numero_inicial    = Column(Integer, nullable=False, default=1)    # Inicio del rango
@@ -505,6 +508,11 @@ class Venta(Base, TenantMixin):
     # Origen del ingreso — identifica qué módulo generó esta venta
     origen          = Column(String(40), nullable=True, default="erp")
     # Valores: 'erp' | 'lavadero' | 'parqueadero_suscripcion' | 'parqueadero_horas' | 'restaurante' | 'pedido_virtual'
+
+    # Facturación electrónica opcional por venta
+    # True  → cliente pidió FE individual → se emite inmediatamente
+    # False → cliente NO pidió FE → se acumula para FE consolidada al cierre del día
+    solicita_fe     = Column(Boolean, default=False, nullable=False)
 
     cliente                = relationship("Cliente", back_populates="ventas")
     detalles               = relationship("DetalleVenta", back_populates="venta", cascade="all, delete-orphan")
