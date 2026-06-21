@@ -6,6 +6,7 @@ import CurrencyField from '../../components/common/CurrencyField';
 import ImageCropperDialog from '../../components/common/ImageCropperDialog';
 import { compressImageToWebP } from '../../utils/imageOptimizer';
 import SmartTooltip from '../../components/onboarding/SmartTooltip';
+import useMediaQuery from '@mui/material/useMediaQuery';
 
 import {
   Box, Typography, Grid, TextField, Button, Collapse, Divider, Chip,
@@ -29,38 +30,61 @@ const PRICE_COLOR     = '#F43F5E';
 const INVENTORY_COLOR = '#10B981';
 const CATALOG_COLOR   = '#F59E0B';
 
-// ─── Section Card ─────────────────────────────────────────────────────────────
-const SectionCard = ({ icon, title, accent = DEFAULT_ACCENT, children }) => (
-  <Box sx={{
-    borderRadius: 3,
-    border: '1px solid',
-    borderColor: 'divider',
-    bgcolor: 'background.paper',
-    mb: 2.5,
-    overflow: 'hidden',
-    boxShadow: '0 1px 8px rgba(0,0,0,0.05)',
-  }}>
+// ─── Section Card — colapsable en móvil, siempre abierta en desktop ───────────
+const SectionCard = ({ icon, title, accent = DEFAULT_ACCENT, children, defaultOpen = true }) => {
+  const isMobile = useMediaQuery('(max-width:899px)');
+  const [open, setOpen] = useState(defaultOpen);
+
+  // En desktop siempre mostramos todo; en móvil respetamos el estado
+  const isOpen = !isMobile || open;
+
+  return (
     <Box sx={{
-      px: 2.5, py: 1.5,
-      display: 'flex', alignItems: 'center', gap: 1.2,
-      borderBottom: '1px solid', borderColor: 'divider',
-      bgcolor: alpha(accent, 0.05),
+      borderRadius: 3,
+      border: '1px solid',
+      borderColor: 'divider',
+      bgcolor: 'background.paper',
+      mb: 2.5,
+      overflow: 'hidden',
+      boxShadow: '0 1px 8px rgba(0,0,0,0.05)',
     }}>
-      <Box sx={{
-        width: 28, height: 28, borderRadius: 1.5,
-        bgcolor: alpha(accent, 0.14),
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: accent, flexShrink: 0,
-      }}>
-        {icon}
+      <Box
+        onClick={() => isMobile && setOpen(o => !o)}
+        sx={{
+          px: 2.5, py: 1.5,
+          display: 'flex', alignItems: 'center', gap: 1.2,
+          borderBottom: isOpen ? '1px solid' : 'none',
+          borderColor: 'divider',
+          bgcolor: alpha(accent, 0.05),
+          cursor: isMobile ? 'pointer' : 'default',
+          userSelect: 'none',
+          '&:hover': isMobile ? { bgcolor: alpha(accent, 0.09) } : {},
+          transition: 'background-color 0.15s',
+        }}
+      >
+        <Box sx={{
+          width: 28, height: 28, borderRadius: 1.5,
+          bgcolor: alpha(accent, 0.14),
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: accent, flexShrink: 0,
+        }}>
+          {icon}
+        </Box>
+        <Typography sx={{ fontWeight: 700, fontSize: 13.5, flex: 1 }}>{title}</Typography>
+        {isMobile && (
+          open
+            ? <ExpandLess sx={{ color: accent, fontSize: 20 }} />
+            : <ExpandMore sx={{ color: 'text.secondary', fontSize: 20 }} />
+        )}
       </Box>
-      <Typography sx={{ fontWeight: 700, fontSize: 13.5 }}>{title}</Typography>
+      <Collapse in={isOpen}>
+        <Box sx={{ p: 2.5 }}>
+          {children}
+        </Box>
+      </Collapse>
     </Box>
-    <Box sx={{ p: 2.5 }}>
-      {children}
-    </Box>
-  </Box>
-);
+  );
+};
 
 // ─── Collapsible Panel wrapper (unchanged) ────────────────────────────────────
 const Panel = ({ title, icon, chip, open, onToggle, forceOpen, onClose, children, accentColor }) => (
@@ -383,7 +407,7 @@ const ProductoForm = ({
 
   // ── Catalog section (shared between columns) ──────────────────────────────
   const CatalogSection = (
-    <SectionCard icon={<Storefront fontSize="small" />} title="Catálogo Virtual" accent={CATALOG_COLOR}>
+    <SectionCard icon={<Storefront fontSize="small" />} title="Catálogo Virtual" accent={CATALOG_COLOR} defaultOpen={false}>
       {/* Visible toggle */}
       <Box sx={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -596,7 +620,7 @@ const ProductoForm = ({
               </SectionCard>
 
               {/* § 2 — Precios e Impuestos */}
-              <SectionCard icon={<LocalOffer fontSize="small" />} title="Precios e Impuestos" accent={PRICE_COLOR}>
+              <SectionCard icon={<LocalOffer fontSize="small" />} title="Precios e Impuestos" accent={PRICE_COLOR} defaultOpen={false}>
                 <Grid container spacing={2}>
                   {/* Fila 1: Precio | Costo */}
                   <Grid item xs={12} md={6}>
@@ -746,7 +770,7 @@ const ProductoForm = ({
               </SectionCard>
 
               {/* § Variantes */}
-              <SectionCard icon={<Tune fontSize="small" />} title="Variantes" accent="#8B5CF6">
+              <SectionCard icon={<Tune fontSize="small" />} title="Variantes" accent="#8B5CF6" defaultOpen={false}>
                 <FormControlLabel
                   control={<Switch checked={tieneVariantes} onChange={e => setTieneVariantes(e.target.checked)} />}
                   label={<Box><Typography variant="body2" fontWeight={600}>Este ítem tiene variantes</Typography><Typography variant="caption" color="text.secondary">Tallas, colores, presentaciones, niveles de servicio…</Typography></Box>}
@@ -816,7 +840,7 @@ const ProductoForm = ({
 
               {/* § 3 — Inventario y Logística (solo productos físicos) */}
               {!esServicio && (
-                <SectionCard icon={<Inventory fontSize="small" />} title="Inventario y Logística" accent={INVENTORY_COLOR}>
+                <SectionCard icon={<Inventory fontSize="small" />} title="Inventario y Logística" accent={INVENTORY_COLOR} defaultOpen={false}>
                   <Grid container spacing={2}>
 
                     {/* Stock mínimo */}
