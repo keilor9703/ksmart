@@ -769,6 +769,7 @@ useEffect(() => {
         const barcode = code.trim();
         if (!barcode) return;
         setSearchingBarcode(true);
+        let abrioModal = false;
         try {
             const res = await getProductoByBarcode(barcode);
             if (res.data) {
@@ -776,6 +777,18 @@ useEffect(() => {
                 if (producto.id === 0) {
                     toast.warning(`"${producto.nombre}" no está en tu inventario. Regístralo primero.`);
                     openQuickCreate('producto', producto.nombre);
+                    return;
+                }
+                // Variantes: abrir selector antes de agregar
+                if (producto.tiene_variantes && producto.variantes?.length > 0) {
+                    setVarianteProducto(producto);
+                    abrioModal = true;
+                    return;
+                }
+                // Pesable: abrir báscula (tanto si ya está en carrito como si es nuevo)
+                if (esPesable(producto.unidad_medida)) {
+                    setBasculaProducto(producto);
+                    abrioModal = true;
                     return;
                 }
                 const existingIdx = saleDetails.findIndex(d => d.producto?.id === producto.id);
@@ -806,7 +819,10 @@ useEffect(() => {
         } finally {
             setSearchingBarcode(false);
             setBarcodeInput('');
-            setTimeout(() => barcodeFieldRef.current?.focus(), 100);
+            // No devolver foco al campo si se abrió báscula o selector de variantes
+            if (!abrioModal) {
+                setTimeout(() => barcodeFieldRef.current?.focus(), 100);
+            }
         }
     };
 
