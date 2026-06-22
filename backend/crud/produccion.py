@@ -340,6 +340,12 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
     db_lote.costo_maquila = costo_maquila_acumulado
     db_lote.costo_unitario_resultado = costo_unitario_final
     db_lote.fecha_confirmacion = datetime.now(timezone.utc)
+
+    # ─── Propagación de costo en cascada: actualizar el costo del producto resultante
+    # para que el siguiente lote que lo use como insumo tome el costo real de producción.
+    if costo_unitario_final > 0 and receta.producto_resultante:
+        receta.producto_resultante.costo = costo_unitario_final
+        db.add(receta.producto_resultante)
     if confirm_data.observaciones:
         db_lote.observaciones = (db_lote.observaciones or "") + " | Cierre: " + confirm_data.observaciones
 
