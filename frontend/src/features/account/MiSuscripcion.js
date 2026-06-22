@@ -437,12 +437,12 @@ const PlanesSection = ({ planes, planActualId, onSuccess }) => {
         display: 'grid',
         gridTemplateColumns: {
           xs: '1fr',
-          sm: planKeys.length <= 2 ? `repeat(${planKeys.length}, 1fr)` : 'repeat(2, 1fr)',
+          sm: 'repeat(2, 1fr)',
           md: 'repeat(2, 1fr)',
-          lg: 'repeat(3, 1fr)',
-          xl: `repeat(${Math.min(planKeys.length, 4)}, 1fr)`,
+          lg: 'repeat(2, 1fr)',
+          xl: 'repeat(2, 1fr)',
         },
-        gap: 2,
+        gap: 2.5,
         alignItems: 'stretch',
       }}>
         {planKeys.map(k => {
