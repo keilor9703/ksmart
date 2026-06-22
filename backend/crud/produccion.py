@@ -348,11 +348,14 @@ def cancelar_lote(db: Session, empresa_id: int, lote_id: int):
         models.LoteProduccion.id == lote_id,
         models.LoteProduccion.empresa_id == empresa_id
     ).first()
-    if db_lote and db_lote.estado == "En produccion":
-        db_lote.estado = "Cancelado"
-        db.commit()
-        return True
-    return False
+    if not db_lote:
+        raise ValueError("Lote no encontrado.")
+    if db_lote.estado != "En produccion":
+        raise ValueError(f"El lote no se puede cancelar porque su estado es '{db_lote.estado}'.")
+    db_lote.estado = "Cancelado"
+    db.commit()
+    db.refresh(db_lote)
+    return db_lote
 
 def get_analisis_receta(db: Session, empresa_id: int, receta_id: int, cantidad: float = 1.0):
     """Cost analysis and profitability for a recipe at a given production quantity."""
