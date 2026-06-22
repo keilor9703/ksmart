@@ -23,13 +23,14 @@ import {
     Videocam, VideocamOff, LockOutlined, LockOpenOutlined,
     AddCircle, RemoveCircle, PersonOutline, HelpOutline,
     Keyboard, TouchApp, FileDownload, Stars, CreditCard, Close,
-    PictureAsPdf,
+    PictureAsPdf, Scale,
 } from '@mui/icons-material';
 import { getProductoByBarcode } from '../../api';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 import SmartTooltip from '../../components/onboarding/SmartTooltip';
 import BasculaWidget from '../../components/common/BasculaWidget';
-import { esPesable } from '../../hooks/useBascula';
+import BasculaConfigDialog from '../../components/common/BasculaConfigDialog';
+import { esPesable, useBascula } from '../../hooks/useBascula';
 import VarianteSelectorDialog from '../../components/common/VarianteSelectorDialog';
 
 const ACCENT = '#FF6020';
@@ -453,7 +454,9 @@ const Ventas = ({ user }) => {
     const [ventaDevolucion, setVentaDevolucion]   = useState(null);
     const [reciboOpen, setReciboOpen]             = useState(false);
     const [reciboVenta, setReciboVenta]           = useState(null);
-    const [basculaProducto,  setBasculaProducto]  = useState(null);
+    const [basculaProducto,    setBasculaProducto]    = useState(null);
+    const [basculaConfigOpen,  setBasculaConfigOpen]  = useState(false);
+    const { config: basculaConfig, guardarConfig: guardarBasculaConfig } = useBascula();
     const [varianteProducto, setVarianteProducto] = useState(null); // producto con variantes esperando selección
     const [tabValue, setTabValue]                 = useState(0);
     const [page, setPage]                         = useState(0);
@@ -1084,6 +1087,11 @@ useEffect(() => {
                             <TouchApp fontSize="small" /> {!isMobile && 'Táctil'}
                         </ToggleButton>
                     </ToggleButtonGroup>
+                    <Tooltip title="Configurar báscula digital (USB/Serial)">
+                        <IconButton onClick={() => setBasculaConfigOpen(true)} size="small" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+                            <Scale fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
                     <Tooltip title="Exportar historial filtrado a CSV">
                         <IconButton onClick={exportCSV} size="small" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
                             <FileDownload fontSize="small" />
@@ -2026,6 +2034,12 @@ useEffect(() => {
                     onCancelar={() => setBasculaProducto(null)}
                 />
             )}
+            <BasculaConfigDialog
+                open={basculaConfigOpen}
+                config={basculaConfig}
+                onGuardar={guardarBasculaConfig}
+                onClose={() => setBasculaConfigOpen(false)}
+            />
             {varianteProducto && (
                 <VarianteSelectorDialog
                     producto={varianteProducto}
