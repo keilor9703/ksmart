@@ -693,12 +693,12 @@ const Lotes = () => {
             <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
               <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', mb: 1.5 }}>Configuración del Lote</Typography>
               <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
+                <Grid item xs={12}>
                   <TextField fullWidth type="number" label="Cantidad Esperada *"
                     value={formData.cantidad_a_producir}
                     onChange={(e) => setFormData({ ...formData, cantidad_a_producir: e.target.value })} />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid item xs={12}>
                   <TextField
                     fullWidth
                     label="N° Orden Producción (opcional)"
@@ -706,7 +706,6 @@ const Lotes = () => {
                     onChange={(e) => setFormData({ ...formData, numero_lote_produccion: e.target.value.toUpperCase() })}
                     placeholder="Ej: OP-2026-001"
                     helperText="Identificador interno del lote"
-                    size="small"
                   />
                 </Grid>
                 <Grid item xs={12}>
