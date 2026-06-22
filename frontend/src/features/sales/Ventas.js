@@ -1156,7 +1156,9 @@ useEffect(() => {
                 ════════════════════════════════════════ */}
                 <TabPanel value={tabValue} index={0}>
                     {viewMode === 'classic' ? (
-                        <Box component="form" onSubmit={handleSubmit} sx={{ p: { xs: 2, md: 3 } }}>
+                        <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', gap: 0, alignItems: 'stretch', minHeight: 0, flexDirection: { xs: 'column', md: 'row' } }}>
+                          {/* ── LEFT PANEL ── */}
+                          <Box sx={{ flex: 1, minWidth: 0, p: { xs: 2, md: 3 }, overflowY: 'auto', maxHeight: { md: 'calc(100vh - 220px)' } }}>
                             {/* ── 1. Cliente ── */}
                             <Box sx={{ mb: 2.5 }}>
                                 <Typography sx={{ fontWeight: 600, fontSize: 11, mb: 1, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
@@ -1361,7 +1363,7 @@ useEffect(() => {
                                 </Box>
 
                                 {/* Lista con scroll independiente */}
-                                <Box sx={{ maxHeight: 340, overflowY: 'auto', pr: 0.5,
+                                <Box sx={{ maxHeight: { xs: 340, md: 'calc(100vh - 460px)' }, overflowY: 'auto', pr: 0.5,
                                     '&::-webkit-scrollbar': { width: 4 },
                                     '&::-webkit-scrollbar-thumb': { bgcolor: `${ACCENT}50`, borderRadius: 2 },
                                 }}>
@@ -1437,56 +1439,20 @@ useEffect(() => {
                                 ))}
                                 </Box>{/* fin scroll */}
                             </Box>
-                        </Box>
-                    ) : (
-                        <Box sx={{ p: { xs: 1.5, md: 2 } }}>
-                            <TouchPOSMode
-                                grupos={grupos}
-                                productos={productos}
-                                saleDetails={saleDetails}
-                                onAddProduct={handleAddToCartDirect}
-                                onRemoveOne={handleRemoveOneFromCart}
-                                onRemoveAll={handleRemoveAllFromCart}
-                                cliente={cliente}
-                                setCliente={(v) => { setCliente(v); setIsMostrador(false); }}
-                                clientes={clientes}
-                                isMostrador={isMostrador}
-                                onSetMostrador={handleSetMostrador}
-                                clienteInput={clienteInput}
-                                setClienteInput={setClienteInput}
-                                pagada={pagada}
-                                setPagada={setPagada}
-                                metodoPago={metodoPago}
-                                setMetodoPago={setMetodoPago}
-                                valorRecibido={valorRecibido}
-                                setValorRecibido={setValorRecibido}
-                                ivaPorcentajeGlobal={ivaPorcentajeGlobal}
-                                setIvaPorcentajeGlobal={setIvaPorcentajeGlobal}
-                                onSubmit={handleVentaSubmit}
-                                savingVenta={savingVenta}
-                                calculateSubtotal={calculateSubtotal}
-                                cambioEfectivo={cambioEfectivo}
-                                openQuickCreate={openQuickCreate}
-                                isDark={isDark}
-                                omitirInventario={omitirInventario}
-                                setOmitirInventario={setOmitirInventario}
-                                linkPagoConfig={linkPagoConfig}
-                                fidelizacionActiva={configFidelizacion.activa}
-                                clientePuntos={clientePuntos}
-                                puntosACanjear={puntosACanjear}
-                                setPuntosACanjear={setPuntosACanjear}
-                                redeemRate={configFidelizacion.redeem_rate || PUNTOS_REDEEM_RATE_DEFAULT}
-                            />
-                        </Box>
-                    )}
+                          </Box>{/* end LEFT PANEL */}
 
-                                        {/* ── 4. Panel de totales y cobro (SOLO CLASSIC) ── */}
-                    {viewMode === 'classic' && (
-                        <Paper elevation={0} sx={{
-                            p: { xs: 2, md: 3 }, borderRadius: 3,
-                            border: `1.5px solid ${ACCENT}30`,
+                          {/* ── vertical DIVIDER — desktop only ── */}
+                          <Box sx={{ display: { xs: 'none', md: 'block' }, width: '1px', bgcolor: 'divider', flexShrink: 0 }} />
+
+                          {/* ── RIGHT PANEL ── */}
+                          <Box sx={{
+                            width: { xs: '100%', md: 380 }, flexShrink: 0,
+                            p: { xs: 2, md: 3 },
+                            display: 'flex', flexDirection: 'column', gap: 2,
+                            overflowY: 'auto', maxHeight: { md: 'calc(100vh - 220px)' },
                             bgcolor: isDark ? 'background.paper' : '#FFFBF9',
-                        }}>
+                            borderLeft: { md: `1.5px solid ${ACCENT}20` },
+                          }}>
                             {/* Línea de descuento */}
                             {calculateDescuentoTotal() > 0 && (
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
@@ -1597,7 +1563,7 @@ useEffect(() => {
                                 {/* Métodos de pago */}
                                 <Box sx={{ flex: 1, minWidth: 0 }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.8 }}>
-                                        <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                                        <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
                                             Método de pago
                                         </Typography>
                                         <SmartTooltip
@@ -1616,12 +1582,12 @@ useEffect(() => {
                                             return (
                                                 <Box key={opt.value} onClick={() => { setPagada(opt.pagada); if (opt.pagada) setMetodoPago(opt.value); }}
                                                     sx={{
-                                                        px: { xs: 1, sm: 1.5 }, py: { xs: 0.6, sm: 0.9 },
+                                                        px: 2, py: 1.2,
                                                         borderRadius: 2, cursor: 'pointer',
                                                         border: '1.5px solid', borderColor: isSelected ? opt.color : 'divider',
                                                         bgcolor: isSelected ? `${opt.color}15` : 'background.paper',
                                                         color: isSelected ? opt.color : 'text.secondary',
-                                                        fontSize: { xs: 11, sm: 13 }, fontWeight: isSelected ? 700 : 500,
+                                                        fontSize: 14, fontWeight: isSelected ? 700 : 500,
                                                         transition: 'all 0.15s', userSelect: 'none',
                                                         '&:hover': { borderColor: opt.color, bgcolor: `${opt.color}08` },
                                                         whiteSpace: 'nowrap',
@@ -1753,7 +1719,7 @@ useEffect(() => {
                                             Cancelar edición
                                         </Button>
                                     )}
-                                    <Typography sx={{ fontSize: 10, color: 'text.disabled', mb: 0.4 }}>
+                                    <Typography sx={{ fontSize: 12, color: 'text.disabled', mb: 0.4 }}>
                                         Ctrl + Enter
                                     </Typography>
                                     <Button
@@ -1765,8 +1731,8 @@ useEffect(() => {
                                         sx={{
                                             background: metodoPago === 'Link de Pago' ? 'linear-gradient(135deg, #FF6020, #ff9a62)' : `linear-gradient(135deg, ${ACCENT}, #ff9a62)`,
                                             boxShadow: `0 4px 14px rgba(255,96,32,0.35)`,
-                                            borderRadius: 3, fontWeight: 800, py: 1.8, px: 4,
-                                            fontSize: 16, whiteSpace: 'nowrap',
+                                            borderRadius: 3, fontWeight: 800, py: 2.5,
+                                            fontSize: 18, whiteSpace: 'nowrap',
                                         }}
                                     >
                                         {savingVenta ? 'Guardando…' : (editingVenta ? 'Actualizar' : (metodoPago === 'Link de Pago' ? 'Cobrar con Link' : 'Registrar Venta'))}
@@ -1775,7 +1741,7 @@ useEffect(() => {
 
                                 {/* Total a cobrar — extremo derecho (desktop) */}
                                 <Box sx={{ flexShrink: 0, textAlign: 'right' }}>
-                                    <Typography sx={{ fontSize: 11, color: 'text.secondary', letterSpacing: 1.5, textTransform: 'uppercase' }}>
+                                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'text.secondary', letterSpacing: 1.5, textTransform: 'uppercase' }}>
                                         Total a cobrar
                                     </Typography>
                                     {descuentoPuntosImporte > 0
@@ -1783,12 +1749,12 @@ useEffect(() => {
                                             <Typography sx={{ fontSize: 18, fontWeight: 900, color: 'text.disabled', lineHeight: 1, textDecoration: 'line-through' }}>
                                                 {formatCurrency(totalConIva)}
                                             </Typography>
-                                            <Typography sx={{ fontSize: { xs: 36, md: 48 }, fontWeight: 900, color: '#10B981', lineHeight: 1 }}>
+                                            <Typography sx={{ fontSize: { xs: 44, md: 56 }, fontWeight: 900, color: '#10B981', lineHeight: 1 }}>
                                                 {formatCurrency(totalFinal)}
                                             </Typography>
                                             <Chip icon={<Stars sx={{ fontSize: '14px !important' }} />} label={`-${formatCurrency(descuentoPuntosImporte)} pts`} size="small" sx={{ mt: 0.5, bgcolor: '#10B98115', color: '#10B981', fontWeight: 700, fontSize: 10 }} />
                                           </>
-                                        : <Typography sx={{ fontSize: { xs: 36, md: 48 }, fontWeight: 900, color: ACCENT, lineHeight: 1 }}>
+                                        : <Typography sx={{ fontSize: { xs: 44, md: 56 }, fontWeight: 900, color: ACCENT, lineHeight: 1 }}>
                                             {formatCurrency(totalFinal)}
                                           </Typography>
                                     }
@@ -1796,8 +1762,50 @@ useEffect(() => {
                                 </>
                                 )}
                             </Box>
-                        </Paper>
-                        )}
+                          </Box>{/* end RIGHT PANEL */}
+                        </Box>
+                    ) : (
+                        <Box sx={{ p: { xs: 1.5, md: 2 } }}>
+                            <TouchPOSMode
+                                grupos={grupos}
+                                productos={productos}
+                                saleDetails={saleDetails}
+                                onAddProduct={handleAddToCartDirect}
+                                onRemoveOne={handleRemoveOneFromCart}
+                                onRemoveAll={handleRemoveAllFromCart}
+                                cliente={cliente}
+                                setCliente={(v) => { setCliente(v); setIsMostrador(false); }}
+                                clientes={clientes}
+                                isMostrador={isMostrador}
+                                onSetMostrador={handleSetMostrador}
+                                clienteInput={clienteInput}
+                                setClienteInput={setClienteInput}
+                                pagada={pagada}
+                                setPagada={setPagada}
+                                metodoPago={metodoPago}
+                                setMetodoPago={setMetodoPago}
+                                valorRecibido={valorRecibido}
+                                setValorRecibido={setValorRecibido}
+                                ivaPorcentajeGlobal={ivaPorcentajeGlobal}
+                                setIvaPorcentajeGlobal={setIvaPorcentajeGlobal}
+                                onSubmit={handleVentaSubmit}
+                                savingVenta={savingVenta}
+                                calculateSubtotal={calculateSubtotal}
+                                cambioEfectivo={cambioEfectivo}
+                                openQuickCreate={openQuickCreate}
+                                isDark={isDark}
+                                omitirInventario={omitirInventario}
+                                setOmitirInventario={setOmitirInventario}
+                                linkPagoConfig={linkPagoConfig}
+                                fidelizacionActiva={configFidelizacion.activa}
+                                clientePuntos={clientePuntos}
+                                puntosACanjear={puntosACanjear}
+                                setPuntosACanjear={setPuntosACanjear}
+                                redeemRate={configFidelizacion.redeem_rate || PUNTOS_REDEEM_RATE_DEFAULT}
+                            />
+                        </Box>
+                    )}
+
                         </TabPanel>
                 {/* ════════════════════════════════════════
                     TAB 1 — HISTORIAL
