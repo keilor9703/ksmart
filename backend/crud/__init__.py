@@ -62,6 +62,7 @@ from crud.produccion import (
     get_lotes, get_lote, create_lote,
     get_or_create_cliente_interno, confirmar_lote_produccion, cancelar_lote,
     get_analisis_receta, check_can_delete_receta,
+    get_simulacion_receta, get_next_numero_lote,
 )
 
 from crud.validaciones import (

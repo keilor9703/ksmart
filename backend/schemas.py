@@ -379,6 +379,7 @@ class Producto(ProductoBase):
     impuesto: Optional[ImpuestoInfo] = None
     requiere_cocina: bool = False
     categoria: Optional[str] = None
+    costo_produccion: Optional[float] = None  # Calculado del último lote de producción confirmado
     model_config = ConfigDict(from_attributes=True)
 
 class MovementType(str, Enum):

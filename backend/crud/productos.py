@@ -5,6 +5,7 @@ import re
 import models, schemas
 from crud.perecederos import crear_lote_existencia
 from crud.impuestos import attach_impuestos_to_productos
+from sqlalchemy import func
 
 import json
 
@@ -56,6 +57,41 @@ def sku_exists(db: Session, empresa_id: int, sku: str, exclude_id: int = None) -
     return q.first() is not None
 
 
+def attach_costo_produccion(db: Session, empresa_id: int, productos: list):
+    """Anexa producto.costo_produccion = costo_unitario del último lote confirmado
+    que tenga como producto resultante a este producto. UNA sola consulta."""
+    if not productos:
+        return productos
+    # Map producto_id -> receta_ids
+    receta_to_producto = dict(
+        db.query(models.Receta.id, models.Receta.producto_id).filter(
+            models.Receta.empresa_id == empresa_id,
+            models.Receta.producto_id.in_([p.id for p in productos]),
+        ).all()
+    )
+    if not receta_to_producto:
+        return productos
+    # Último lote confirmado por receta (DISTINCT ON evitado para portabilidad)
+    lotes = db.query(
+        models.LoteProduccion.receta_id,
+        models.LoteProduccion.costo_unitario_resultado,
+        models.LoteProduccion.fecha_confirmacion,
+    ).filter(
+        models.LoteProduccion.empresa_id == empresa_id,
+        models.LoteProduccion.estado == "Confirmado",
+        models.LoteProduccion.receta_id.in_(list(receta_to_producto.keys())),
+    ).order_by(models.LoteProduccion.fecha_confirmacion.desc()).all()
+    # producto_id -> costo del lote más reciente
+    costo_map = {}
+    for receta_id, costo, _fc in lotes:
+        prod_id = receta_to_producto.get(receta_id)
+        if prod_id and prod_id not in costo_map:
+            costo_map[prod_id] = float(costo or 0.0)
+    for p in productos:
+        p.__dict__['costo_produccion'] = costo_map.get(p.id)
+    return productos
+
+
 def get_producto(db: Session, empresa_id: int, producto_id: int):
     p = db.query(models.Producto).filter(
         models.Producto.id == producto_id,
@@ -64,6 +100,7 @@ def get_producto(db: Session, empresa_id: int, producto_id: int):
     ).first()
     if p:
         attach_impuestos_to_productos(db, empresa_id, [p])
+        attach_costo_produccion(db, empresa_id, [p])
     return p
 
 def get_productos(
@@ -140,7 +177,9 @@ def get_productos(
         )
 
     items = q.offset(skip).limit(limit).all()
-    return attach_impuestos_to_productos(db, empresa_id, items)
+    attach_impuestos_to_productos(db, empresa_id, items)
+    attach_costo_produccion(db, empresa_id, items)
+    return items
 
 def create_producto(db: Session, empresa_id: int, producto: schemas.ProductoCreate):
     # Extraer campos de inicialización de stock para que no rompan el constructor del Modelo

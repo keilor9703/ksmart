@@ -108,7 +108,9 @@ const Lotes = () => {
     } catch { toast.error('Error cargando el panel de producción'); }
   };
 
-  const handleOpenConfirm = (lote) => {
+  const [simulacionCierre, setSimulacionCierre] = useState(null);
+
+  const handleOpenConfirm = async (lote) => {
     setSelectedLote(lote);
     setConfirmData({
       cantidad_real:     lote.cantidad_a_producir,
@@ -117,7 +119,13 @@ const Lotes = () => {
       fecha_vencimiento: '',
       fecha_fabricacion: '',
     });
+    setSimulacionCierre(null);
     setOpenConfirm(true);
+    // Pre-validar stock antes de que el usuario intente finalizar
+    try {
+      const res = await apiClient.get(`/produccion/recetas/${lote.receta_id}/simular?cantidad=${lote.cantidad_a_producir}`);
+      setSimulacionCierre(res.data);
+    } catch { /* sin simulación */ }
   };
 
   // ¿El producto resultante del lote seleccionado maneja_lotes?
@@ -319,7 +327,14 @@ const Lotes = () => {
             <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Control de planta, mermas y generación de lotes</Typography>
           </Box>
         </Box>
-        <Button variant="contained" startIcon={<Add />} onClick={() => setOpen(true)}
+        <Button variant="contained" startIcon={<Add />} onClick={async () => {
+          // Autogenerar número de orden al abrir
+          try {
+            const res = await apiClient.get('/produccion/lotes/next-numero');
+            setFormData(fd => ({ ...fd, numero_lote_produccion: res.data.numero_lote_produccion || '' }));
+          } catch { /* si falla, el usuario puede ingresarlo manualmente */ }
+          setOpen(true);
+        }}
           sx={{ background: `linear-gradient(135deg, ${ACCENT}, #22d3ee)`, boxShadow: `0 4px 14px rgba(6,182,212,0.35)`, borderRadius: 2, fontWeight: 600, width: isMobile ? '100%' : 'auto' }}>
           Lanzar Producción
         </Button>
@@ -430,7 +445,7 @@ const Lotes = () => {
             ) : (
               <Grid container spacing={2}>
                 {lotesEnPlantaFiltrados.map(l => (
-                  <Grid item xs={12} md={6} key={l.id}>
+                  <Grid item xs={12} sm={6} md={4} lg={3} key={l.id}>
                     <Paper sx={{ p: 2.5, borderRadius: 3, borderLeft: '4px solid #F59E0B', border: '1px solid', borderColor: 'divider', position: 'relative' }}>
                       <Box sx={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 0.5, alignItems: 'center' }}>
                         {esPerecible(l.receta?.producto_resultante) && (
@@ -730,20 +745,41 @@ const Lotes = () => {
             ) : simulacion ? (
               <Box sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: simulacion.factible ? '#10B98150' : '#EF444450', bgcolor: simulacion.factible ? '#10B9810A' : '#EF44440A' }}>
                 <Typography sx={{ fontWeight: 700, fontSize: 13, color: simulacion.factible ? '#10B981' : '#EF4444', mb: 1 }}>
-                  {simulacion.factible ? '✅ Inventario suficiente para esta producción' : '⚠️ Faltan insumos en inventario'}
+                  {simulacion.factible ? '✅ Inventario suficiente para esta producción' : '⚠️ Stock insuficiente — no podrás finalizar el lote'}
                 </Typography>
-                {!simulacion.factible && (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 2 }}>
-                    {simulacion.faltantes.map(f => (
-                      <Typography key={f.insumo_id} sx={{ fontSize: 12, color: '#EF4444' }}>
-                        • Falta <strong>{f.faltante} {f.unidad}</strong> de {f.nombre} (Req: {f.requerido} | Disp: {f.disponible})
-                      </Typography>
-                    ))}
-                    <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.5 }}>
-                      *Puedes crear el lote para planificarlo, pero no podrás finalizarlo hasta ingresar el stock faltante.
+
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, p: 1, borderRadius: 1, bgcolor: '#fff' }}>
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Máximo producible con stock actual:</Typography>
+                  <Typography sx={{ fontSize: 12, fontWeight: 800, color: ACCENT }}>
+                    {Math.floor(simulacion.cantidad_maxima_producible || 0)} unidades
+                  </Typography>
+                </Box>
+
+                {/* Detalle de insumos requeridos */}
+                {simulacion.detalle_insumos?.length > 0 && (
+                  <Box sx={{ mb: 1 }}>
+                    <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', mb: 0.5 }}>
+                      Insumos a consumir
                     </Typography>
+                    {simulacion.detalle_insumos.map(d => (
+                      <Box key={d.insumo_id} sx={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, py: 0.25 }}>
+                        <Typography sx={{ fontSize: 12, color: d.suficiente ? 'text.primary' : '#EF4444' }}>
+                          {d.suficiente ? '✓' : '✗'} {d.nombre}
+                        </Typography>
+                        <Typography sx={{ fontSize: 12, color: d.suficiente ? 'text.secondary' : '#EF4444', fontWeight: 600 }}>
+                          {d.requerido} / {d.disponible} {d.unidad}
+                        </Typography>
+                      </Box>
+                    ))}
                   </Box>
                 )}
+
+                {!simulacion.factible && (
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.5, fontStyle: 'italic' }}>
+                    Puedes crear el lote para planificarlo, pero no podrás finalizarlo hasta ingresar el stock faltante.
+                  </Typography>
+                )}
+
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed', borderColor: 'divider', pt: 1, mt: 1 }}>
                   <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Costo estimado:</Typography>
                   <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{formatCurrency(simulacion.costo_teorico_total)}</Typography>
@@ -803,6 +839,37 @@ const Lotes = () => {
               Cantidad Esperada: {selectedLote?.cantidad_a_producir}
             </Typography>
           </Box>
+
+          {/* Pre-validación de stock para el cierre */}
+          {simulacionCierre && (
+            <Box sx={{ p: 2, mb: 2.5, borderRadius: 2, border: '1px solid',
+              borderColor: simulacionCierre.factible ? '#10B98150' : '#EF444450',
+              bgcolor: simulacionCierre.factible ? '#10B9810A' : '#EF44440A' }}>
+              <Typography sx={{ fontWeight: 700, fontSize: 13, color: simulacionCierre.factible ? '#10B981' : '#EF4444', mb: 1 }}>
+                {simulacionCierre.factible
+                  ? '✅ Stock disponible para finalizar este lote'
+                  : '⚠️ Stock insuficiente — no podrás finalizar este lote'}
+              </Typography>
+              {!simulacionCierre.factible && (
+                <>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, p: 1, borderRadius: 1, bgcolor: '#fff' }}>
+                    <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Máximo producible con stock actual:</Typography>
+                    <Typography sx={{ fontSize: 12, fontWeight: 800, color: ACCENT }}>
+                      {Math.floor(simulacionCierre.cantidad_maxima_producible || 0)} unidades
+                    </Typography>
+                  </Box>
+                  {simulacionCierre.faltantes?.map(f => (
+                    <Typography key={f.insumo_id} sx={{ fontSize: 12, color: '#EF4444' }}>
+                      • Falta <strong>{f.faltante} {f.unidad}</strong> de {f.nombre} (Req: {f.requerido} | Disp: {f.disponible})
+                    </Typography>
+                  ))}
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.5, fontStyle: 'italic' }}>
+                    Ingresa el stock faltante en el módulo de inventario antes de finalizar.
+                  </Typography>
+                </>
+              )}
+            </Box>
+          )}
 
           {/* Cantidad real */}
           <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary', mb: 1.5, textTransform: 'uppercase' }}>
@@ -937,10 +1004,10 @@ const Lotes = () => {
           <Button
             onClick={handleConfirmarFinal}
             variant="contained"
-            disabled={loading}
+            disabled={loading || (simulacionCierre && !simulacionCierre.factible)}
             sx={{ bgcolor: GREEN, '&:hover': { bgcolor: '#059669' }, fontWeight: 600, px: { xs: 2, sm: 3 }, flex: isMobile ? 1 : 'none' }}
           >
-            {loading ? 'Procesando…' : 'Finalizar e Ingresar a Inventario'}
+            {loading ? 'Procesando…' : (simulacionCierre && !simulacionCierre.factible) ? 'Stock insuficiente' : 'Finalizar e Ingresar a Inventario'}
           </Button>
         </DialogActions>
       </Dialog>

@@ -59,6 +59,27 @@ def actualizar_receta(
     return result
 
 
+@router.get("/recetas/{receta_id}/simular")
+def simular_receta(
+    receta_id: int,
+    cantidad: float = 1.0,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    result = crud.get_simulacion_receta(db, empresa_id=current_user.empresa_id, receta_id=receta_id, cantidad=cantidad)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Receta no encontrada")
+    return result
+
+
+@router.get("/lotes/next-numero")
+def next_numero_lote(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    return {"numero_lote_produccion": crud.get_next_numero_lote(db, empresa_id=current_user.empresa_id)}
+
+
 @router.get("/recetas/{receta_id}/analisis")
 def analisis_receta(
     receta_id: int,

@@ -631,6 +631,11 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
                     Costo
                   </TableSortLabel>
                 </TableCell>
+                <Tooltip title="Costo unitario real calculado del último lote de producción confirmado (cascada de insumos y maquila)">
+                  <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>
+                    Costo Producción
+                  </TableCell>
+                </Tooltip>
                 <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>
                   <TableSortLabel
                     active={sortBy === 'precio'}
@@ -657,7 +662,7 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
             <TableBody>
               {paginatedProductos.length === 0
                 ? <TableRow>
-                    <TableCell colSpan={11} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
+                    <TableCell colSpan={12} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
                       No se encontraron productos
                     </TableCell>
                   </TableRow>
@@ -738,6 +743,9 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
                         </TableCell>
                         <TableCell sx={{ fontSize: 12 }}>{producto.unidad_medida}</TableCell>
                         <TableCell sx={{ fontSize: 12 }}>{formatCurrency(producto.costo)}</TableCell>
+                        <TableCell sx={{ fontSize: 12, fontWeight: 700, color: producto.costo_produccion != null ? '#06B6D4' : 'text.disabled' }}>
+                          {producto.costo_produccion != null ? formatCurrency(producto.costo_produccion) : '—'}
+                        </TableCell>
                         <TableCell sx={{ fontWeight: 800, fontSize: 13 }}>{formatCurrency(producto.precio)}</TableCell>
                         <TableCell>
                           {isService ? (
@@ -799,7 +807,7 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
                       </TableRow>
                       {producto.tiene_variantes && varCount > 0 && (
                         <TableRow>
-                          <TableCell colSpan={11} sx={{ p: 0, border: 0 }}>
+                          <TableCell colSpan={12} sx={{ p: 0, border: 0 }}>
                             <Collapse in={isExpanded} timeout="auto" unmountOnExit>
                               <Box sx={{ px: 4, py: 1.5, bgcolor: 'action.hover' }}>
                                 <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', mb: 1, textTransform: 'uppercase', letterSpacing: 0.5 }}>

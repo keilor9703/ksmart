@@ -190,12 +190,16 @@ def create_lote(db: Session, empresa_id: int, lote: schemas.LoteProduccionCreate
         if not cliente:
             raise ValueError("Cliente no encontrado o no pertenece a esta empresa")
 
+    numero_lote_produccion = getattr(lote, 'numero_lote_produccion', None)
+    if not numero_lote_produccion:
+        numero_lote_produccion = get_next_numero_lote(db, empresa_id)
+
     db_lote = models.LoteProduccion(
         receta_id=lote.receta_id,
         cantidad_a_producir=lote.cantidad_a_producir,
         cliente_id=cliente_id,
         observaciones=lote.observaciones,
-        numero_lote_produccion=getattr(lote, 'numero_lote_produccion', None),
+        numero_lote_produccion=numero_lote_produccion,
         estado="En produccion",
         empresa_id=empresa_id,
         fecha_planificada=datetime.now(timezone.utc)
@@ -356,6 +360,90 @@ def cancelar_lote(db: Session, empresa_id: int, lote_id: int):
     db.commit()
     db.refresh(db_lote)
     return db_lote
+
+def get_simulacion_receta(db: Session, empresa_id: int, receta_id: int, cantidad: float = 1.0):
+    """Devuelve la simulación de un lote: factibilidad, faltantes, costo estimado y
+    cantidad máxima producible según stock actual de insumos."""
+    receta = get_receta(db, empresa_id, receta_id)
+    if not receta:
+        return None
+
+    faltantes = []
+    detalle_insumos = []
+    costo_total = 0.0
+    cantidad_maxima = float('inf')
+
+    for item in receta.items:
+        insumo = get_producto(db, empresa_id, item.insumo_id)
+        if not insumo:
+            continue
+        merma_pct = getattr(item, 'merma_pct', 0.0) or 0.0
+        factor = 1.0 + merma_pct / 100.0
+        qty_unitaria_con_merma = item.cantidad * factor  # consumo por 1 unidad pedida
+        requerido = qty_unitaria_con_merma * cantidad
+        disponible = float(insumo.stock_actual or 0)
+        costo_total += requerido * float(insumo.costo or 0.0)
+
+        # Cuántas unidades del lote se pueden producir con este insumo
+        if qty_unitaria_con_merma > 0:
+            max_por_insumo = disponible / qty_unitaria_con_merma
+            cantidad_maxima = min(cantidad_maxima, max_por_insumo)
+
+        detalle_insumos.append({
+            "insumo_id": insumo.id,
+            "nombre": insumo.nombre,
+            "unidad": insumo.unidad_medida,
+            "requerido": round(requerido, 4),
+            "disponible": round(disponible, 4),
+            "suficiente": disponible >= requerido,
+        })
+
+        if disponible < requerido:
+            faltantes.append({
+                "insumo_id": insumo.id,
+                "nombre": insumo.nombre,
+                "unidad": insumo.unidad_medida,
+                "requerido": round(requerido, 4),
+                "disponible": round(disponible, 4),
+                "faltante": round(requerido - disponible, 4),
+            })
+
+    # Servicios de maquila al costo configurado
+    for srv in (receta.servicios_maquila or []):
+        servicio = get_producto(db, empresa_id, srv.servicio_id)
+        if not servicio:
+            continue
+        cantidad_srv = getattr(srv, 'cantidad', 1.0) or 1.0
+        precio_srv = (servicio.costo or 0) if (servicio.costo or 0) > 0 else (servicio.precio or 0.0)
+        costo_total += cantidad_srv * float(precio_srv)
+
+    if cantidad_maxima == float('inf'):
+        cantidad_maxima = 0.0  # no hay insumos definidos
+
+    return {
+        "receta_id": receta.id,
+        "cantidad_solicitada": cantidad,
+        "factible": len(faltantes) == 0,
+        "faltantes": faltantes,
+        "detalle_insumos": detalle_insumos,
+        "costo_teorico_total": round(costo_total, 2),
+        "costo_por_unidad": round(costo_total / cantidad, 2) if cantidad > 0 else 0.0,
+        "cantidad_maxima_producible": round(cantidad_maxima, 4),
+    }
+
+
+def get_next_numero_lote(db: Session, empresa_id: int) -> str:
+    """Genera el siguiente código de orden con patrón OP{YYYYMMDD}{seq}."""
+    from datetime import date
+    hoy = date.today()
+    prefijo = f"OP{hoy.strftime('%Y%m%d')}"
+    # Contar lotes de la empresa con número que empiece por el prefijo de hoy
+    count = db.query(models.LoteProduccion).filter(
+        models.LoteProduccion.empresa_id == empresa_id,
+        models.LoteProduccion.numero_lote_produccion.like(f"{prefijo}%"),
+    ).count()
+    return f"{prefijo}{count + 1}"
+
 
 def get_analisis_receta(db: Session, empresa_id: int, receta_id: int, cantidad: float = 1.0):
     """Cost analysis and profitability for a recipe at a given production quantity."""
