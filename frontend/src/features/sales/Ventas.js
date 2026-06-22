@@ -1557,210 +1557,142 @@ useEffect(() => {
                                 </Box>
                             )}
 
-                            {/* ── Fila 2: Métodos de pago | Valor recibido | Botón | Total ── */}
-                            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-
-                                {/* Métodos de pago */}
-                                <Box sx={{ flex: 1, minWidth: 0 }}>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.8 }}>
-                                        <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
-                                            Método de pago
-                                        </Typography>
-                                        <SmartTooltip
-                                            id="venta_metodo_pago"
-                                            title="Métodos de pago"
-                                            description="'Por Cobrar' registra la venta como deuda del cliente. Puedes ver y cobrar las deudas pendientes en el historial."
-                                            variant="info"
-                                            placement="right"
-                                        >
-                                            <HelpOutline sx={{ fontSize: 14, color: 'text.disabled', cursor: 'pointer' }} />
-                                        </SmartTooltip>
-                                    </Box>
-                                    <Box sx={{ display: 'flex', gap: { xs: 0.6, sm: 0.8 }, flexWrap: 'wrap' }}>
-                                        {METODOS_PAGO.filter(opt => opt.value !== 'Link de Pago' || !!linkPagoConfig).map(opt => {
-                                            const isSelected = pagada ? (opt.pagada && metodoPago === opt.value) : !opt.pagada;
-                                            return (
-                                                <Box key={opt.value} onClick={() => { setPagada(opt.pagada); if (opt.pagada) setMetodoPago(opt.value); }}
-                                                    sx={{
-                                                        px: 2, py: 1.2,
-                                                        borderRadius: 2, cursor: 'pointer',
-                                                        border: '1.5px solid', borderColor: isSelected ? opt.color : 'divider',
-                                                        bgcolor: isSelected ? `${opt.color}15` : 'background.paper',
-                                                        color: isSelected ? opt.color : 'text.secondary',
-                                                        fontSize: 14, fontWeight: isSelected ? 700 : 500,
-                                                        transition: 'all 0.15s', userSelect: 'none',
-                                                        '&:hover': { borderColor: opt.color, bgcolor: `${opt.color}08` },
-                                                        whiteSpace: 'nowrap',
-                                                    }}
-                                                >
-                                                    {opt.label}
-                                                </Box>
-                                            );
-                                        })}
-                                    </Box>
+                            {/* ── Métodos de pago ── */}
+                            <Box>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.8 }}>
+                                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                                        Método de pago
+                                    </Typography>
+                                    <SmartTooltip
+                                        id="venta_metodo_pago"
+                                        title="Métodos de pago"
+                                        description="'Por Cobrar' registra la venta como deuda del cliente. Puedes ver y cobrar las deudas pendientes en el historial."
+                                        variant="info"
+                                        placement="right"
+                                    >
+                                        <HelpOutline sx={{ fontSize: 14, color: 'text.disabled', cursor: 'pointer' }} />
+                                    </SmartTooltip>
                                 </Box>
+                                <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap' }}>
+                                    {METODOS_PAGO.filter(opt => opt.value !== 'Link de Pago' || !!linkPagoConfig).map(opt => {
+                                        const isSelected = pagada ? (opt.pagada && metodoPago === opt.value) : !opt.pagada;
+                                        return (
+                                            <Box key={opt.value} onClick={() => { setPagada(opt.pagada); if (opt.pagada) setMetodoPago(opt.value); }}
+                                                sx={{
+                                                    px: 2, py: 1.2,
+                                                    borderRadius: 2, cursor: 'pointer',
+                                                    border: '1.5px solid', borderColor: isSelected ? opt.color : 'divider',
+                                                    bgcolor: isSelected ? `${opt.color}15` : 'background.paper',
+                                                    color: isSelected ? opt.color : 'text.secondary',
+                                                    fontSize: 14, fontWeight: isSelected ? 700 : 500,
+                                                    transition: 'all 0.15s', userSelect: 'none',
+                                                    '&:hover': { borderColor: opt.color, bgcolor: `${opt.color}08` },
+                                                    whiteSpace: 'nowrap',
+                                                }}
+                                            >
+                                                {opt.label}
+                                            </Box>
+                                        );
+                                    })}
+                                </Box>
+                            </Box>
 
-                                {/* Toggle Factura Electrónica */}
-                                {pagada && user?.empresa?.facturacion_electronica_activa && (
-                                    <Box sx={{ width: '100%', mt: 0.5 }}>
-                                        <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.5 }}>
-                                            📄 Esta venta generará un <strong>{solicitaFe ? 'Factura Electrónica (FE)' : 'Documento Equivalente Electrónico (DEE/POS)'}</strong> a la DIAN y consumirá 1 documento de tu cuota mensual.
-                                        </Typography>
-                                        <FormControlLabel
-                                            control={
-                                                <Switch
-                                                    size="small"
-                                                    checked={solicitaFe}
-                                                    onChange={e => setSolicitaFe(e.target.checked)}
-                                                    color="primary"
-                                                />
-                                            }
-                                            label={
-                                                <Typography sx={{ fontSize: 12, fontWeight: 600, color: solicitaFe ? 'primary.main' : 'text.secondary' }}>
-                                                    🧾 ¿El cliente requiere factura electrónica (FE)?
-                                                </Typography>
-                                            }
-                                        />
-                                        {solicitaFe && (
-                                            <Typography sx={{ fontSize: 11, color: 'text.secondary', ml: 4, mt: 0.3 }}>
-                                                Se emitirá con los datos del cliente y tendrá validez tributaria como FE.
+                            {/* ── Factura Electrónica ── */}
+                            {pagada && user?.empresa?.facturacion_electronica_activa && (
+                                <Box>
+                                    <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.5 }}>
+                                        📄 Esta venta generará un <strong>{solicitaFe ? 'Factura Electrónica (FE)' : 'Documento Equivalente Electrónico (DEE/POS)'}</strong> a la DIAN y consumirá 1 documento de tu cuota mensual.
+                                    </Typography>
+                                    <FormControlLabel
+                                        control={
+                                            <Switch
+                                                size="small"
+                                                checked={solicitaFe}
+                                                onChange={e => setSolicitaFe(e.target.checked)}
+                                                color="primary"
+                                            />
+                                        }
+                                        label={
+                                            <Typography sx={{ fontSize: 12, fontWeight: 600, color: solicitaFe ? 'primary.main' : 'text.secondary' }}>
+                                                🧾 ¿El cliente requiere factura electrónica (FE)?
                                             </Typography>
-                                        )}
-                                    </Box>
-                                )}
+                                        }
+                                    />
+                                </Box>
+                            )}
 
-                                {/* En móvil: valor recibido + botón registrar en la misma fila */}
-                                {isMobile && pagada && metodoPago === 'Efectivo' && (
-                                    <Box sx={{ width: '100%', display: 'flex', gap: 1, alignItems: 'flex-start' }}>
-                                        <Box sx={{ flex: 1 }}>
-                                            <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8, mb: 0.8 }}>
-                                                Valor recibido
+                            {/* ── Valor recibido + Cambio (Efectivo) ── */}
+                            {pagada && metodoPago === 'Efectivo' && (
+                                <Box>
+                                    <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8, mb: 0.8 }}>
+                                        Valor recibido
+                                    </Typography>
+                                    <CurrencyField label="" size="small" fullWidth value={valorRecibido} onChange={setValorRecibido} />
+                                    {valorRecibido > 0 && (
+                                        <Box sx={{
+                                            mt: 0.8, px: 2, py: 0.6, borderRadius: 2, textAlign: 'center',
+                                            bgcolor: cambioEfectivo >= 0 ? '#10B98112' : '#EF444412',
+                                            border: '1.5px solid', borderColor: cambioEfectivo >= 0 ? '#10B98140' : '#EF444440',
+                                        }}>
+                                            <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Cambio a devolver</Typography>
+                                            <Typography sx={{ fontSize: 18, fontWeight: 800, color: cambioEfectivo >= 0 ? '#10B981' : '#EF4444' }}>
+                                                {formatCurrency(cambioEfectivo >= 0 ? cambioEfectivo : 0)}
                                             </Typography>
-                                            <CurrencyField label="" size="small" fullWidth value={valorRecibido} onChange={setValorRecibido} />
-                                            {valorRecibido > 0 && (
-                                                <Box sx={{
-                                                    mt: 0.8, px: 2, py: 0.6, borderRadius: 2, textAlign: 'center',
-                                                    bgcolor: cambioEfectivo >= 0 ? '#10B98112' : '#EF444412',
-                                                    border: '1.5px solid', borderColor: cambioEfectivo >= 0 ? '#10B98140' : '#EF444440',
-                                                }}>
-                                                    <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Cambio</Typography>
-                                                    <Typography sx={{ fontSize: 16, fontWeight: 800, color: cambioEfectivo >= 0 ? '#10B981' : '#EF4444' }}>
-                                                        {formatCurrency(cambioEfectivo >= 0 ? cambioEfectivo : 0)}
-                                                    </Typography>
-                                                    {cambioEfectivo < 0 && (
-                                                        <Typography sx={{ fontSize: 10, color: '#EF4444' }}>Faltan {formatCurrency(Math.abs(cambioEfectivo))}</Typography>
-                                                    )}
-                                                </Box>
+                                            {cambioEfectivo < 0 && (
+                                                <Typography sx={{ fontSize: 10, color: '#EF4444' }}>Faltan {formatCurrency(Math.abs(cambioEfectivo))}</Typography>
                                             )}
                                         </Box>
-                                    </Box>
-                                )}
+                                    )}
+                                </Box>
+                            )}
 
-                                {/* Efectivo: recibido + cambio (solo desktop) */}
-                                {!isMobile && pagada && metodoPago === 'Efectivo' && (
-                                    <Box sx={{ minWidth: 160, flexShrink: 0 }}>
-                                        <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8, mb: 0.8 }}>
-                                            Valor recibido
-                                        </Typography>
-                                        <CurrencyField
-                                            label="" size="small" fullWidth
-                                            value={valorRecibido} onChange={setValorRecibido}
-                                        />
-                                        {valorRecibido > 0 && (
-                                            <Box sx={{
-                                                mt: 0.8, px: 2, py: 0.6, borderRadius: 2, textAlign: 'center',
-                                                bgcolor: cambioEfectivo >= 0 ? '#10B98112' : '#EF444412',
-                                                border: '1.5px solid', borderColor: cambioEfectivo >= 0 ? '#10B98140' : '#EF444440',
-                                            }}>
-                                                <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Cambio a devolver</Typography>
-                                                <Typography sx={{ fontSize: 18, fontWeight: 800, color: cambioEfectivo >= 0 ? '#10B981' : '#EF4444' }}>
-                                                    {formatCurrency(cambioEfectivo >= 0 ? cambioEfectivo : 0)}
-                                                </Typography>
-                                                {cambioEfectivo < 0 && (
-                                                    <Typography sx={{ fontSize: 10, color: '#EF4444' }}>Faltan {formatCurrency(Math.abs(cambioEfectivo))}</Typography>
-                                                )}
-                                            </Box>
-                                        )}
-                                    </Box>
-                                )}
-
-                                {/* En móvil: botón + total en la misma fila */}
-                                {isMobile ? (
-                                    <Box sx={{ width: '100%', display: 'flex', gap: 1.5, alignItems: 'center' }}>
-                                        <Button
-                                            id="btn-registrar-venta"
-                                            type="submit" variant="contained"
-                                            disabled={savingVenta}
-                                            onClick={handleSubmit}
-                                            sx={{
-                                                flex: 1,
-                                                background: metodoPago === 'Link de Pago' ? 'linear-gradient(135deg, #FF6020, #ff9a62)' : `linear-gradient(135deg, ${ACCENT}, #ff9a62)`,
-                                                boxShadow: `0 4px 14px rgba(255,96,32,0.35)`,
-                                                borderRadius: 3, fontWeight: 800, py: 1.5, fontSize: 15,
-                                            }}
-                                            startIcon={savingVenta ? <CircularProgress size={18} sx={{ color: 'white' }} /> : (metodoPago === 'Link de Pago' ? <CreditCard /> : <ShoppingCart />)}
-                                        >
-                                            {savingVenta ? 'Guardando…' : (metodoPago === 'Link de Pago' ? 'Cobrar' : 'Registrar')}
-                                        </Button>
-                                        <Box sx={{ flexShrink: 0, textAlign: 'right' }}>
-                                            <Typography sx={{ fontSize: 9, color: 'text.secondary', letterSpacing: 1, textTransform: 'uppercase' }}>Total</Typography>
-                                            <Typography sx={{ fontSize: 28, fontWeight: 900, color: descuentoPuntosImporte > 0 ? '#10B981' : ACCENT, lineHeight: 1 }}>
-                                                {formatCurrency(totalFinal)}
-                                            </Typography>
-                                        </Box>
-                                    </Box>
-                                ) : (
-                                <>
-                                {/* Botón registrar (desktop) */}
-                                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                            {/* ── Botón + Total (fila fija al fondo) ── */}
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 'auto', pt: 1 }}>
+                                <Box sx={{ flex: 1 }}>
                                     {editingVenta && (
-                                        <Button onClick={resetForm} variant="outlined"
-                                            sx={{ borderRadius: 2, fontWeight: 600, borderColor: 'divider', mb: 0.5 }}>
+                                        <Button onClick={resetForm} variant="outlined" fullWidth
+                                            sx={{ borderRadius: 2, fontWeight: 600, borderColor: 'divider', mb: 1 }}>
                                             Cancelar edición
                                         </Button>
                                     )}
-                                    <Typography sx={{ fontSize: 12, color: 'text.disabled', mb: 0.4 }}>
+                                    <Typography sx={{ fontSize: 11, color: 'text.disabled', textAlign: 'center', mb: 0.4 }}>
                                         Ctrl + Enter
                                     </Typography>
                                     <Button
                                         id="btn-registrar-venta"
-                                        type="submit" variant="contained"
+                                        type="submit" variant="contained" fullWidth
                                         disabled={savingVenta}
                                         onClick={handleSubmit}
                                         startIcon={savingVenta ? <CircularProgress size={18} sx={{ color: 'white' }} /> : (metodoPago === 'Link de Pago' ? <CreditCard /> : <ShoppingCart />)}
                                         sx={{
-                                            background: metodoPago === 'Link de Pago' ? 'linear-gradient(135deg, #FF6020, #ff9a62)' : `linear-gradient(135deg, ${ACCENT}, #ff9a62)`,
+                                            background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`,
                                             boxShadow: `0 4px 14px rgba(255,96,32,0.35)`,
-                                            borderRadius: 3, fontWeight: 800, py: 2.5,
-                                            fontSize: 18, whiteSpace: 'nowrap',
+                                            borderRadius: 3, fontWeight: 800, py: 2,
+                                            fontSize: 16, whiteSpace: 'nowrap',
                                         }}
                                     >
                                         {savingVenta ? 'Guardando…' : (editingVenta ? 'Actualizar' : (metodoPago === 'Link de Pago' ? 'Cobrar con Link' : 'Registrar Venta'))}
                                     </Button>
                                 </Box>
-
-                                {/* Total a cobrar — extremo derecho (desktop) */}
                                 <Box sx={{ flexShrink: 0, textAlign: 'right' }}>
-                                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'text.secondary', letterSpacing: 1.5, textTransform: 'uppercase' }}>
+                                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.secondary', letterSpacing: 1.5, textTransform: 'uppercase' }}>
                                         Total a cobrar
                                     </Typography>
                                     {descuentoPuntosImporte > 0
                                         ? <>
-                                            <Typography sx={{ fontSize: 18, fontWeight: 900, color: 'text.disabled', lineHeight: 1, textDecoration: 'line-through' }}>
+                                            <Typography sx={{ fontSize: 16, fontWeight: 900, color: 'text.disabled', lineHeight: 1, textDecoration: 'line-through' }}>
                                                 {formatCurrency(totalConIva)}
                                             </Typography>
-                                            <Typography sx={{ fontSize: { xs: 44, md: 56 }, fontWeight: 900, color: '#10B981', lineHeight: 1 }}>
+                                            <Typography sx={{ fontSize: { xs: 40, md: 48 }, fontWeight: 900, color: '#10B981', lineHeight: 1 }}>
                                                 {formatCurrency(totalFinal)}
                                             </Typography>
                                             <Chip icon={<Stars sx={{ fontSize: '14px !important' }} />} label={`-${formatCurrency(descuentoPuntosImporte)} pts`} size="small" sx={{ mt: 0.5, bgcolor: '#10B98115', color: '#10B981', fontWeight: 700, fontSize: 10 }} />
                                           </>
-                                        : <Typography sx={{ fontSize: { xs: 44, md: 56 }, fontWeight: 900, color: ACCENT, lineHeight: 1 }}>
+                                        : <Typography sx={{ fontSize: { xs: 40, md: 48 }, fontWeight: 900, color: ACCENT, lineHeight: 1 }}>
                                             {formatCurrency(totalFinal)}
                                           </Typography>
                                     }
                                 </Box>
-                                </>
-                                )}
                             </Box>
                           </Box>{/* end RIGHT PANEL */}
                         </Box>
