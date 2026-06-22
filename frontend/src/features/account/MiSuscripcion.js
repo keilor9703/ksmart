@@ -1543,12 +1543,6 @@ const PlataformaTab = () => {
         <Box sx={{ px: 2.5, py: 2 }}>
           {[
             ['Proveedor cloud', 'Oracle Cloud Infrastructure (OCI)'],
-            ['Región', 'US Ashburn (us-ashburn-1)'],
-            ['Tipo de instancia', 'VM.Standard.A1.Flex — Always Free Tier'],
-            ['Sistema operativo', 'Ubuntu 22.04 LTS'],
-            ['Servidor web', 'Nginx + Gunicorn'],
-            ['Base de datos', 'PostgreSQL 14'],
-            ['API Backend', 'FastAPI (Python)'],
           ].map(([label, value]) => (
             <Box key={label} sx={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
