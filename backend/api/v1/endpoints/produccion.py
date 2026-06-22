@@ -119,7 +119,10 @@ def crear_lote(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
-    return crud.create_lote(db, empresa_id=current_user.empresa_id, lote=lote)
+    try:
+        return crud.create_lote(db, empresa_id=current_user.empresa_id, lote=lote)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post("/lotes/{lote_id}/confirmar", response_model=schemas.LoteProduccion)
@@ -129,10 +132,13 @@ def confirmar_lote(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
-    return crud.confirmar_lote_produccion(
-        db, empresa_id=current_user.empresa_id,
-        lote_id=lote_id, confirm_data=confirm_data,
-    )
+    try:
+        return crud.confirmar_lote_produccion(
+            db, empresa_id=current_user.empresa_id,
+            lote_id=lote_id, confirm_data=confirm_data,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.put("/lotes/{lote_id}/cancelar", response_model=schemas.LoteProduccion)
@@ -141,4 +147,7 @@ def cancelar_lote(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
-    return crud.cancelar_lote(db, empresa_id=current_user.empresa_id, lote_id=lote_id)
+    try:
+        return crud.cancelar_lote(db, empresa_id=current_user.empresa_id, lote_id=lote_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
