@@ -238,76 +238,414 @@ const HeroCard = ({ suscripcion, planActual, onRefresh, refreshing }) => {
   );
 };
 
-// ─── PlanCard (para renovación) ───────────────────────────────────────────────
+// ─── Constantes de planes ────────────────────────────────────────────────────
 
-const PlanCard = ({ plan, onSuccess, current }) => {
-  const theme = useTheme();
+const PLAN_PERIODOS = [
+  { label: 'Mensual',    dias: 30,  descuento: null   },
+  { label: 'Trimestral', dias: 90,  descuento: '-10%' },
+  { label: 'Anual',      dias: 365, descuento: '-20%' },
+];
+
+const PLAN_ORDER_MS = ['basico', 'emprendedor', 'comercio', 'empresarial'];
+
+const PLAN_META_MS = {
+  basico:      { emoji: '🚀', color: '#6B7280', label: 'Básico',       featured: false, fe: false,
+                 tagline: 'Todo el sistema. Sin restricciones de módulos.' },
+  emprendedor: { emoji: '✨', color: '#2563EB', label: 'Emprendedor',   featured: false, fe: true,
+                 tagline: 'Para el negocio que comienza a facturar electrónicamente.' },
+  comercio:    { emoji: '🏆', color: '#F43F5E', label: 'Comercio',      featured: true,  fe: true,
+                 tagline: 'El plan más elegido. Ideal para negocios en pleno crecimiento.' },
+  empresarial: { emoji: '🏢', color: '#7C3AED', label: 'Empresarial',   featured: false, fe: true,
+                 tagline: 'Para operaciones de alto volumen con máxima capacidad FE.' },
+};
+
+const PLAN_FEATURES_MS = {
+  basico: [
+    'Todos los módulos según tu negocio',
+    'POS clásico y touch, inventario, compras',
+    'Contabilidad automática en partida doble',
+    'Programa de puntos y fidelización',
+    'Usuarios ilimitados — celular, tablet y PC',
+    'Exportación Excel y PDF',
+  ],
+  emprendedor: [
+    'Todo lo del plan Básico incluido',
+    'Facturación electrónica DIAN (CUFE, QR)',
+    'Gestión de resoluciones DIAN',
+    'Soporte estándar',
+  ],
+  comercio: [
+    'Todo lo del plan Emprendedor incluido',
+    'Alertas de vencimiento de resoluciones',
+    'Soporte prioritario',
+    'Reportes financieros avanzados',
+  ],
+  empresarial: [
+    'Todo lo del plan Comercio incluido',
+    'Onboarding personalizado',
+    'Soporte dedicado',
+    'Acceso anticipado a nuevas funciones',
+  ],
+};
+
+const getPlanKeyMS = (codigo = '') => {
+  const lower = codigo.toLowerCase();
+  return PLAN_ORDER_MS.find(k => lower.startsWith(k)) || null;
+};
+
+const groupPlanesMS = (planes) => {
+  const groups = {};
+  PLAN_ORDER_MS.forEach(k => { groups[k] = {}; });
+  planes.forEach(p => {
+    const key = getPlanKeyMS(p.codigo_interno);
+    if (key) groups[key][p.dias_duracion] = p;
+  });
+  return groups;
+};
+
+// ─── PlanesSection ────────────────────────────────────────────────────────────
+
+const PlanesSection = ({ planes, planActualId, onSuccess }) => {
+  const theme  = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const ACCENT = '#FF6020';
-  const features = plan.caracteristicas?.split(',').map(f => f.trim()).filter(Boolean) || [];
+  const [periodoIdx, setPeriodoIdx] = useState(0);
+  const periodo = PLAN_PERIODOS[periodoIdx];
+  const groups  = groupPlanesMS(planes);
+  const planKeys = PLAN_ORDER_MS.filter(k => groups[k][30] || groups[k][periodo.dias]);
+
+  // Tabla comparativa — filas: FE docs + precio
+  const filas = [
+    {
+      label: 'FE docs/mes',
+      render: (k) => {
+        const p = groups[k][periodo.dias] || groups[k][30];
+        if (!p) return '—';
+        if (!PLAN_META_MS[k]?.fe) return <Typography sx={{ fontSize: 13, color: 'text.disabled' }}>—</Typography>;
+        return (
+          <Typography sx={{ fontSize: 13, fontWeight: 700, color: PLAN_META_MS[k].color }}>
+            {p.max_documentos_mes ? `${p.max_documentos_mes} docs` : 'Ilimitado'}
+          </Typography>
+        );
+      },
+    },
+    {
+      label: 'Precio/mes',
+      render: (k) => {
+        const p = groups[k][periodo.dias] || groups[k][30];
+        if (!p) return '—';
+        const pm = periodo.dias === 30 ? p.precio : Math.round(p.precio / (periodo.dias / 30));
+        const featured = PLAN_META_MS[k]?.featured;
+        return (
+          <Box>
+            <Typography sx={{ fontSize: 16, fontWeight: 900, color: featured ? PLAN_META_MS[k].color : 'text.primary' }}>
+              {fmt(pm)}
+            </Typography>
+            <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>/mes</Typography>
+          </Box>
+        );
+      },
+    },
+    {
+      label: 'Pago mensual',
+      render: () => <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>cada mes</Typography>,
+    },
+  ];
 
   return (
-    <Card elevation={0} sx={{
-      borderRadius: 3,
-      border: `1.5px solid ${current ? alpha(ACCENT, 0.5) : alpha(theme.palette.divider, 1)}`,
-      bgcolor: current ? alpha(ACCENT, isDark ? 0.07 : 0.03) : 'background.paper',
-      p: 2.5, height: '100%', display: 'flex', flexDirection: 'column',
-      position: 'relative', transition: 'all 0.2s',
-      '&:hover': { borderColor: alpha(ACCENT, 0.5), boxShadow: `0 4px 20px ${alpha(ACCENT, 0.1)}` },
-    }}>
-      {current && (
-        <Chip label="Plan actual" size="small" sx={{
-          position: 'absolute', top: -10, right: 12,
-          bgcolor: ACCENT, color: '#fff', fontWeight: 700, fontSize: 10,
-        }} />
-      )}
-
-      <Typography fontSize={12} fontWeight={800} color={ACCENT} textTransform="uppercase" mb={1} letterSpacing={0.8}>
-        {plan.nombre}
-      </Typography>
-
-      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, mb: 1.5 }}>
-        <Typography fontWeight={900} fontSize={28}>{fmt(plan.precio)}</Typography>
-        <Typography fontSize={13} color="text.secondary">/ {plan.dias_duracion} días</Typography>
-      </Box>
-
-      <Box sx={{ flex: 1, mb: 2.5 }}>
-        {features.map((feat, i) => (
-          <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mb: 0.6 }}>
-            <CheckCircle sx={{ fontSize: 13, color: '#059669', flexShrink: 0 }} />
-            <Typography fontSize={12.5} color="text.secondary">{feat}</Typography>
+    <Box sx={{ p: { xs: 2, sm: 3 } }}>
+      {/* ── Tabs de periodo ── */}
+      <Box sx={{
+        display: 'inline-flex', gap: 0.5, p: 0.5, mb: 3,
+        borderRadius: 2.5,
+        bgcolor: isDark ? 'rgba(255,255,255,0.06)' : '#F3F4F6',
+      }}>
+        {PLAN_PERIODOS.map((p, i) => (
+          <Box
+            key={p.dias}
+            onClick={() => setPeriodoIdx(i)}
+            sx={{
+              px: 2, py: 0.75, borderRadius: 2, cursor: 'pointer',
+              fontWeight: periodoIdx === i ? 700 : 500,
+              fontSize: 13,
+              color: periodoIdx === i ? 'text.primary' : 'text.secondary',
+              bgcolor: periodoIdx === i ? (isDark ? '#1E293B' : '#fff') : 'transparent',
+              boxShadow: periodoIdx === i ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+              transition: 'all 0.15s',
+              display: 'flex', alignItems: 'center', gap: 0.6,
+              userSelect: 'none',
+            }}
+          >
+            {p.label}
+            {p.descuento && (
+              <Chip label={p.descuento} size="small" sx={{
+                height: 18, fontSize: 10, fontWeight: 800,
+                bgcolor: alpha('#10B981', 0.15), color: '#059669',
+              }} />
+            )}
           </Box>
         ))}
       </Box>
 
+      {/* ── Tabla comparativa ── */}
+      <Box sx={{
+        overflowX: 'auto', mb: 3,
+        borderRadius: 2, border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#E5E7EB'}`,
+      }}>
+        <Table size="small" sx={{ minWidth: 480 }}>
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ fontWeight: 700, fontSize: 12, color: 'text.secondary', width: 110 }} />
+              {planKeys.map(k => (
+                <TableCell key={k} align="center" sx={{
+                  fontWeight: 800, fontSize: 13,
+                  color: PLAN_META_MS[k]?.featured ? PLAN_META_MS[k].color : 'text.primary',
+                  borderBottom: PLAN_META_MS[k]?.featured
+                    ? `2px solid ${PLAN_META_MS[k].color}`
+                    : undefined,
+                }}>
+                  {PLAN_META_MS[k]?.label}
+                  {PLAN_META_MS[k]?.featured && (
+                    <Typography component="span" sx={{ ml: 0.5, fontSize: 13 }}>⭐</Typography>
+                  )}
+                </TableCell>
+              ))}
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {filas.map((fila) => (
+              <TableRow key={fila.label} sx={{ '&:last-child td': { border: 0 } }}>
+                <TableCell sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 600 }}>
+                  {fila.label}
+                </TableCell>
+                {planKeys.map(k => (
+                  <TableCell key={k} align="center" sx={{
+                    bgcolor: PLAN_META_MS[k]?.featured
+                      ? alpha(PLAN_META_MS[k].color, isDark ? 0.08 : 0.04)
+                      : undefined,
+                  }}>
+                    {fila.render(k)}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Box>
+
+      {/* ── Cards de planes ── */}
+      <Box sx={{
+        display: 'grid',
+        gridTemplateColumns: {
+          xs: '1fr',
+          sm: planKeys.length <= 2 ? `repeat(${planKeys.length}, 1fr)` : 'repeat(2, 1fr)',
+          md: `repeat(${Math.min(planKeys.length, 4)}, 1fr)`,
+        },
+        gap: 2,
+        alignItems: 'stretch',
+      }}>
+        {planKeys.map(k => {
+          const plan = groups[k][periodo.dias] || groups[k][30];
+          if (!plan) return null;
+          return (
+            <PlanCard
+              key={k}
+              planKey={k}
+              plan={plan}
+              periodo={periodo}
+              onSuccess={onSuccess}
+              isCurrent={planActualId === plan.id}
+            />
+          );
+        })}
+      </Box>
+
+      {/* ── Sello de seguridad ── */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mt: 3, color: 'text.disabled' }}>
+        <Shield sx={{ fontSize: 14 }} />
+        <Typography fontSize={11.5}>Pagos seguros procesados por <strong>Wompi (Bancolombia)</strong></Typography>
+      </Box>
+    </Box>
+  );
+};
+
+// ─── PlanCard (rediseñado) ────────────────────────────────────────────────────
+
+const PlanCard = ({ planKey, plan, periodo, onSuccess, isCurrent }) => {
+  const theme   = useTheme();
+  const isDark  = theme.palette.mode === 'dark';
+  const meta    = PLAN_META_MS[planKey] || {};
+  const color   = meta.color || '#6B7280';
+  const features = PLAN_FEATURES_MS[planKey] || [];
+
+  const precioMes = periodo.dias === 30
+    ? plan.precio
+    : Math.round(plan.precio / (periodo.dias / 30));
+
+  return (
+    <Box sx={{
+      position: 'relative',
+      borderRadius: 3,
+      border: `2px solid`,
+      borderColor: meta.featured ? color : isCurrent ? `${color}80` : (isDark ? 'rgba(255,255,255,0.1)' : '#E5E7EB'),
+      bgcolor: meta.featured
+        ? (isDark ? `${color}18` : color)
+        : (isDark ? 'rgba(255,255,255,0.03)' : '#fff'),
+      p: 2.5,
+      display: 'flex', flexDirection: 'column',
+      transition: 'all 0.2s',
+      boxShadow: meta.featured
+        ? `0 8px 32px ${color}35`
+        : isCurrent ? `0 2px 12px ${color}20` : '0 1px 4px rgba(0,0,0,0.06)',
+      '&:hover': {
+        borderColor: color,
+        boxShadow: `0 6px 24px ${color}25`,
+        transform: 'translateY(-2px)',
+      },
+    }}>
+      {/* Badge "Más elegido" */}
+      {meta.featured && (
+        <Box sx={{
+          position: 'absolute', top: -13, left: '50%', transform: 'translateX(-50%)',
+          bgcolor: isDark ? color : '#1E293B',
+          color: '#fff', fontSize: 11, fontWeight: 800, px: 1.5, py: 0.4,
+          borderRadius: 2, whiteSpace: 'nowrap', letterSpacing: 0.3,
+        }}>
+          ⭐ Más elegido
+        </Box>
+      )}
+      {isCurrent && !meta.featured && (
+        <Chip label="Plan actual" size="small" sx={{
+          position: 'absolute', top: -10, right: 12,
+          bgcolor: color, color: '#fff', fontWeight: 700, fontSize: 10,
+        }} />
+      )}
+
+      {/* Emoji + nombre */}
+      <Box sx={{ mb: 1.5, mt: meta.featured ? 1 : 0 }}>
+        <Typography sx={{ fontSize: 26, lineHeight: 1, mb: 0.5 }}>{meta.emoji}</Typography>
+        <Typography sx={{
+          fontWeight: 800, fontSize: 18,
+          color: meta.featured ? (isDark ? '#fff' : '#fff') : 'text.primary',
+        }}>
+          {meta.label}
+        </Typography>
+        <Typography sx={{
+          fontSize: 12, lineHeight: 1.4, mt: 0.3,
+          color: meta.featured ? (isDark ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.85)') : 'text.secondary',
+        }}>
+          {meta.tagline}
+        </Typography>
+      </Box>
+
+      {/* Precio */}
+      <Box sx={{ mb: 1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+          <Typography sx={{
+            fontWeight: 900, fontSize: 30, lineHeight: 1,
+            color: meta.featured ? (isDark ? '#fff' : '#fff') : color,
+          }}>
+            {fmt(precioMes)}
+          </Typography>
+          <Typography sx={{
+            fontSize: 12,
+            color: meta.featured ? 'rgba(255,255,255,0.7)' : 'text.secondary',
+          }}>
+            /mes
+          </Typography>
+        </Box>
+        {periodo.dias > 30 && (
+          <Typography sx={{ fontSize: 11, color: '#10B981', fontWeight: 700, mt: 0.3 }}>
+            Hasta {periodo.descuento} pagando {periodo.label.toLowerCase()}
+          </Typography>
+        )}
+      </Box>
+
+      {/* Badge FE */}
       <Box sx={{ mb: 2 }}>
-        {plan.incluye_fe !== false ? (
+        {meta.fe && plan.max_documentos_mes ? (
           <Chip
-            icon={<CheckCircle sx={{ fontSize: '13px !important', color: '#059669 !important' }} />}
-            label="FE incluida"
+            label={`✅ FE DIAN · ${plan.max_documentos_mes} docs/mes`}
             size="small"
             sx={{
-              bgcolor: alpha('#059669', 0.1), color: '#059669',
+              bgcolor: meta.featured ? 'rgba(255,255,255,0.2)' : alpha('#10B981', 0.1),
+              color: meta.featured ? '#fff' : '#059669',
               fontWeight: 700, fontSize: 11,
-              border: `1px solid ${alpha('#059669', 0.3)}`,
-              '& .MuiChip-icon': { ml: '4px' },
+              border: `1px solid ${meta.featured ? 'rgba(255,255,255,0.3)' : alpha('#10B981', 0.3)}`,
+            }}
+          />
+        ) : meta.fe ? (
+          <Chip
+            label="✅ FE DIAN incluida"
+            size="small"
+            sx={{
+              bgcolor: meta.featured ? 'rgba(255,255,255,0.2)' : alpha('#10B981', 0.1),
+              color: meta.featured ? '#fff' : '#059669',
+              fontWeight: 700, fontSize: 11,
+              border: `1px solid ${meta.featured ? 'rgba(255,255,255,0.3)' : alpha('#10B981', 0.3)}`,
             }}
           />
         ) : (
           <Chip
-            label="Sin FE"
+            label="Sin FE DIAN"
             size="small"
             sx={{
-              bgcolor: alpha('#6b7280', 0.1), color: '#6b7280',
+              bgcolor: alpha('#6B7280', 0.08), color: '#6B7280',
               fontWeight: 700, fontSize: 11,
-              border: `1px solid ${alpha('#6b7280', 0.3)}`,
+              border: `1px solid ${alpha('#6B7280', 0.2)}`,
             }}
           />
         )}
       </Box>
 
-      <WompiButton planName={plan.codigo_interno} onSuccess={onSuccess} />
-    </Card>
+      {/* Features */}
+      <Box sx={{ flex: 1, mb: 2 }}>
+        {features.map((feat, i) => (
+          <Box key={i} sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.8, mb: 0.7 }}>
+            <Box sx={{
+              width: 16, height: 16, borderRadius: '50%', flexShrink: 0, mt: 0.1,
+              bgcolor: meta.featured ? 'rgba(255,255,255,0.25)' : alpha('#10B981', 0.15),
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Typography sx={{ fontSize: 9, fontWeight: 900, color: meta.featured ? '#fff' : '#059669' }}>✓</Typography>
+            </Box>
+            <Typography sx={{
+              fontSize: 12, lineHeight: 1.4,
+              color: meta.featured ? (isDark ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.9)') : 'text.secondary',
+            }}>
+              {feat}
+            </Typography>
+          </Box>
+        ))}
+      </Box>
+
+      {/* Nota DIAN si aplica FE */}
+      {meta.fe && (
+        <Box sx={{
+          p: 1, borderRadius: 1.5, mb: 1.5,
+          bgcolor: meta.featured ? 'rgba(0,0,0,0.15)' : alpha('#F59E0B', 0.08),
+          border: `1px solid ${meta.featured ? 'rgba(255,255,255,0.1)' : alpha('#F59E0B', 0.25)}`,
+        }}>
+          <Typography sx={{
+            fontSize: 10.5, lineHeight: 1.4,
+            color: meta.featured ? 'rgba(255,255,255,0.75)' : '#92400E',
+          }}>
+            ⚠️ Requiere resolución DIAN y firma digital
+          </Typography>
+        </Box>
+      )}
+
+      {/* Botón */}
+      <WompiButton
+        planName={plan.codigo_interno}
+        onSuccess={onSuccess}
+        sx={meta.featured ? {
+          bgcolor: isDark ? '#fff' : '#fff',
+          color: color,
+          fontWeight: 800,
+          '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' },
+        } : {}}
+      />
+    </Box>
   );
 };
 
@@ -1381,26 +1719,11 @@ export default function MiSuscripcion({ user }) {
 
           <Collapse in={showPlanes} timeout="auto">
             <Divider />
-            <Box sx={{ p: 2.5 }}>
-              <Box sx={{
-                display: 'grid',
-                gridTemplateColumns: { xs: '1fr', sm: `repeat(${Math.min(planes_disponibles.length, 3)}, 1fr)` },
-                gap: 2,
-              }}>
-                {planes_disponibles.map(plan => (
-                  <PlanCard
-                    key={plan.id}
-                    plan={plan}
-                    current={planActual?.id === plan.id}
-                    onSuccess={handleRenewSuccess}
-                  />
-                ))}
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mt: 2.5, color: 'text.disabled' }}>
-                <Shield sx={{ fontSize: 14 }} />
-                <Typography fontSize={11.5}>Pagos seguros procesados por <strong>Wompi (Bancolombia)</strong></Typography>
-              </Box>
-            </Box>
+            <PlanesSection
+              planes={planes_disponibles}
+              planActualId={planActual?.id}
+              onSuccess={handleRenewSuccess}
+            />
           </Collapse>
         </Card>
       )}
