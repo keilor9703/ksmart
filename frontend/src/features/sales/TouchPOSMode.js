@@ -229,6 +229,7 @@ const CartPanel = ({
     omitirInventario, setOmitirInventario,
     linkPagoConfig,
     fidelizacionActiva, clientePuntos, puntosACanjear, setPuntosACanjear, redeemRate,
+    solicitaFe, setSolicitaFe, feActiva,
 }) => {
     const validItems = saleDetails.filter(d => d.producto && d.cantidad > 0);
     const subtotal = calculateSubtotal();
@@ -522,6 +523,30 @@ const CartPanel = ({
                     </Box>
                 )}
 
+                {/* ── Factura Electrónica ── */}
+                {pagada && feActiva && (
+                    <Box sx={{ mb: 1.5 }}>
+                        <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.5 }}>
+                            📄 Esta venta generará un <strong>{solicitaFe ? 'Factura Electrónica (FE)' : 'Documento Equivalente Electrónico (DEE/POS)'}</strong> a la DIAN y consumirá 1 documento de tu cuota mensual.
+                        </Typography>
+                        <FormControlLabel
+                            control={
+                                <Switch
+                                    size="small"
+                                    checked={solicitaFe || false}
+                                    onChange={e => setSolicitaFe?.(e.target.checked)}
+                                    color="primary"
+                                />
+                            }
+                            label={
+                                <Typography sx={{ fontSize: 12, fontWeight: 600, color: solicitaFe ? 'primary.main' : 'text.secondary' }}>
+                                    🧾 ¿El cliente requiere factura electrónica (FE)?
+                                </Typography>
+                            }
+                        />
+                    </Box>
+                )}
+
                 {/* ── Total + Botón ── */}
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 0.5 }}>
                     <Box sx={{ flex: 1 }}>
@@ -662,6 +687,7 @@ const TouchPOSMode = ({
     omitirInventario, setOmitirInventario,
     linkPagoConfig,
     fidelizacionActiva, clientePuntos, puntosACanjear, setPuntosACanjear, redeemRate,
+    solicitaFe, setSolicitaFe, feActiva,
 }) => {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -863,13 +889,14 @@ const TouchPOSMode = ({
         omitirInventario, setOmitirInventario,
         linkPagoConfig,
         fidelizacionActiva, clientePuntos, puntosACanjear, setPuntosACanjear, redeemRate,
+        solicitaFe, setSolicitaFe, feActiva,
     };
 
     return (
         <Box sx={{
             display: 'flex', gap: 0,
-            height: 'calc(100vh - 310px)',
-            minHeight: 520,
+            height: 'calc(100vh - 180px)',
+            minHeight: 560,
         }}>
             {/* ══ Products Panel ══ */}
             <Box sx={{

@@ -1802,6 +1802,9 @@ useEffect(() => {
                                 puntosACanjear={puntosACanjear}
                                 setPuntosACanjear={setPuntosACanjear}
                                 redeemRate={configFidelizacion.redeem_rate || PUNTOS_REDEEM_RATE_DEFAULT}
+                                solicitaFe={solicitaFe}
+                                setSolicitaFe={setSolicitaFe}
+                                feActiva={!!user?.empresa?.facturacion_electronica_activa}
                             />
                         </Box>
                     )}
