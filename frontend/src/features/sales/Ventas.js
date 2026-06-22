@@ -1446,7 +1446,7 @@ useEffect(() => {
 
                           {/* ── RIGHT PANEL ── */}
                           <Box sx={{
-                            width: { xs: '100%', md: 380 }, flexShrink: 0,
+                            width: { xs: '100%', md: 480 }, flexShrink: 0,
                             p: { xs: 2, md: 3 },
                             display: 'flex', flexDirection: 'column', gap: 2,
                             overflowY: 'auto', maxHeight: { md: 'calc(100vh - 220px)' },
