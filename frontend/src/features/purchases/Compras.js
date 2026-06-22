@@ -1258,27 +1258,78 @@ const Compras = () => {
 
       {/* ══ Diálogo: Detalle completo ══ */}
       <Dialog open={openDetailDialog} onClose={() => setOpenDetailDialog(false)} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box>
-            <Typography sx={{ fontWeight: 700, fontSize: 17 }}>Detalle de Compra {compraDetalle && fmtOCNum(compraDetalle)}</Typography>
-            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{compraDetalle?.proveedor?.nombre}</Typography>
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', pb: 1 }}>
+          <Box sx={{ flex: 1, minWidth: 0, pr: 1 }}>
+            <Typography sx={{ fontWeight: 700, fontSize: 17, lineHeight: 1.3 }}>Detalle de Compra {compraDetalle && fmtOCNum(compraDetalle)}</Typography>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.3 }}>{compraDetalle?.proveedor?.nombre}</Typography>
           </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
             <EstadoChip estado={compraDetalle?.estado_pago} />
             <IconButton size="small" onClick={() => setOpenDetailDialog(false)}><Close fontSize="small" /></IconButton>
           </Box>
         </DialogTitle>
         <DialogContent dividers>
-          <Grid container spacing={2} sx={{ mb: 3 }}>
-            {[{ label: 'Proveedor', val: compraDetalle?.proveedor?.nombre }, { label: 'Fecha', val: compraDetalle ? new Date(compraDetalle.fecha).toLocaleString() : '' }, { label: 'Ref. Factura', val: compraDetalle?.referencia_factura || 'N/A' }].map(({ label, val }) => (
-              <Grid item xs={12} sm={4} key={label}><Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'action.hover' }}><Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.3 }}>{label}</Typography><Typography sx={{ fontWeight: 600, fontSize: 14 }}>{val}</Typography></Box></Grid>
-            ))}
+          {/* ── Info cards ── */}
+          <Grid container spacing={1.5} sx={{ mb: 2.5 }}>
+            <Grid item xs={6}>
+              <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'action.hover' }}>
+                <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.3 }}>Fecha</Typography>
+                <Typography sx={{ fontWeight: 600, fontSize: 13 }}>
+                  {compraDetalle ? new Date(compraDetalle.fecha).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
+                </Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={6}>
+              <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'action.hover' }}>
+                <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.3 }}>Ref. Factura</Typography>
+                <Typography sx={{ fontWeight: 600, fontSize: 13 }}>{compraDetalle?.referencia_factura || 'N/A'}</Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={12}>
+              <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'action.hover', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box>
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.3 }}>Proveedor</Typography>
+                  <Typography sx={{ fontWeight: 600, fontSize: 13 }}>{compraDetalle?.proveedor?.nombre}</Typography>
+                </Box>
+                <Box sx={{ textAlign: 'right' }}>
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.3 }}>Total</Typography>
+                  <Typography sx={{ fontWeight: 800, fontSize: 15, color: GREEN }}>{formatCurrency(compraDetalle?.total || 0)}</Typography>
+                </Box>
+              </Box>
+            </Grid>
           </Grid>
+
           {compraDetalle?.observaciones && (
             <Alert severity="info" sx={{ mb: 2.5, borderRadius: 2, fontSize: 13 }}>{compraDetalle.observaciones}</Alert>
           )}
+
           <SectionLabel>Ítems comprados</SectionLabel>
-          <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', mb: 3 }}>
+          {/* En móvil: cards por ítem en vez de tabla horizontal */}
+          <Box sx={{ display: { xs: 'flex', sm: 'none' }, flexDirection: 'column', gap: 1, mb: 3 }}>
+            {compraDetalle?.detalles.map((d, idx) => (
+              <Box key={idx} sx={{ p: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.5 }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: 13, flex: 1, pr: 1 }}>{d.producto.nombre}</Typography>
+                  <Typography sx={{ fontWeight: 800, fontSize: 14, color: GREEN, flexShrink: 0 }}>{formatCurrency(d.cantidad * d.precio_unitario)}</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Cant: <strong>{d.cantidad} {d.producto.unidad_medida}</strong></Typography>
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>P/u: <strong>{formatCurrency(d.precio_unitario)}</strong></Typography>
+                </Box>
+                {d.numero_lote && (
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.5 }}>
+                    Lote: {d.numero_lote}{d.fecha_vencimiento ? ` · Vence: ${new Date(d.fecha_vencimiento).toLocaleDateString('es-CO')}` : ''}
+                  </Typography>
+                )}
+              </Box>
+            ))}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 1.5, py: 1, bgcolor: 'action.hover', borderRadius: 2 }}>
+              <Typography sx={{ fontWeight: 700, fontSize: 13 }}>Total compra:</Typography>
+              <Typography sx={{ fontWeight: 800, fontSize: 14, color: GREEN }}>{formatCurrency(compraDetalle?.total || 0)}</Typography>
+            </Box>
+          </Box>
+          {/* En desktop: tabla normal */}
+          <TableContainer sx={{ display: { xs: 'none', sm: 'block' }, borderRadius: 2, border: '1px solid', borderColor: 'divider', mb: 3 }}>
             <Table size="small">
               <TableHead sx={{ bgcolor: 'action.hover' }}>
                 <TableRow>
@@ -1306,8 +1357,36 @@ const Compras = () => {
               </TableBody>
             </Table>
           </TableContainer>
+
           <SectionLabel>Historial de pagos / abonos</SectionLabel>
-          <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+          {/* Móvil: cards */}
+          <Box sx={{ display: { xs: 'flex', sm: 'none' }, flexDirection: 'column', gap: 1 }}>
+            {compraDetalle?.pagos?.length > 0
+              ? compraDetalle.pagos.map((p, idx) => (
+                  <Box key={idx} sx={{ p: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{new Date(p.fecha).toLocaleDateString('es-CO')}</Typography>
+                      <Typography sx={{ fontWeight: 700, color: GREEN }}>{formatCurrency(p.monto)}</Typography>
+                    </Box>
+                    <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{p.metodo_pago}</Typography>
+                    {p.detalle_pago && <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{p.detalle_pago}</Typography>}
+                  </Box>
+                ))
+              : <Box sx={{ py: 2, textAlign: 'center' }}><Typography sx={{ fontSize: 13, color: 'text.secondary' }}>No hay pagos registrados</Typography></Box>
+            }
+            <Box sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 1.5, py: 1.2, bgcolor: 'action.hover' }}>
+                <Typography sx={{ fontWeight: 700, fontSize: 13 }}>Total pagado:</Typography>
+                <Typography sx={{ fontWeight: 800, fontSize: 14, color: GREEN }}>{formatCurrency(compraDetalle?.monto_pagado || 0)}</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 1.5, py: 1.2 }}>
+                <Typography sx={{ fontWeight: 700, fontSize: 13, color: RED }}>Saldo pendiente:</Typography>
+                <Typography sx={{ fontWeight: 800, fontSize: 14, color: RED }}>{formatCurrency(compraDetalle ? compraDetalle.total - compraDetalle.monto_pagado : 0)}</Typography>
+              </Box>
+            </Box>
+          </Box>
+          {/* Desktop: tabla */}
+          <TableContainer sx={{ display: { xs: 'none', sm: 'block' }, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
             <Table size="small">
               <TableHead sx={{ bgcolor: 'action.hover' }}>
                 <TableRow>{['Fecha', 'Método', 'Referencia', 'Monto'].map(h => <TableCell key={h} align={h === 'Monto' ? 'right' : 'left'} sx={{ fontWeight: 700 }}>{h}</TableCell>)}</TableRow>
@@ -1336,7 +1415,7 @@ const Compras = () => {
             </Table>
           </TableContainer>
         </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2, gap: 1 }}>
+        <DialogActions sx={{ px: 3, py: 2, gap: 1, flexWrap: 'wrap' }}>
           {compraDetalle?.estado_pago !== 'pagado' && (
             <Button variant="contained" startIcon={<Payment />} onClick={() => { setOpenDetailDialog(false); handleOpenPay(compraDetalle); }}
               sx={{ background: `linear-gradient(135deg, ${GREEN}, #34d399)`, borderRadius: 2, fontWeight: 600, mr: 'auto' }}>
