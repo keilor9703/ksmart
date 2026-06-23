@@ -1351,7 +1351,14 @@ useEffect(() => {
                                         placeholder="Escanea o digita el código de barras y presiona Enter…"
                                         value={barcodeInput}
                                         onChange={(e) => setBarcodeInput(e.target.value)}
-                                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleProcessBarcode(barcodeInput); } }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                const val = e.target.value.trim();
+                                                if (val) handleProcessBarcode(val);
+                                            }
+                                        }}
                                         inputRef={barcodeFieldRef}
                                         autoComplete="off"
                                         disabled={searchingBarcode}
