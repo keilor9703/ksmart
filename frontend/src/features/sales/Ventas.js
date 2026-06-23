@@ -1014,7 +1014,17 @@ useEffect(() => {
         }
     };
 
-    const handleSubmit = (e) => { e.preventDefault(); handleVentaSubmit(); };
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        // En móvil el botón "Ir" del teclado dispara submit en vez de onKeyDown.
+        // Si el foco está en el campo de barras y tiene contenido, procesamos el código.
+        const active = document.activeElement;
+        if (barcodeFieldRef.current && barcodeFieldRef.current.contains(active)) {
+            const val = (active?.value || barcodeInput || '').trim();
+            if (val) { handleProcessBarcode(val); return; }
+        }
+        handleVentaSubmit();
+    };
 
     const resetForm = () => {
         setCliente(null); setClienteInput(''); setIsMostrador(false);
