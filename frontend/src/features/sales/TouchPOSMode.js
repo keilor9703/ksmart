@@ -267,18 +267,47 @@ const CartPanel = ({
                 )}
             </Box>
 
+            {/* ¿Factura Electrónica? (primera pregunta) */}
+            {feActiva && (
+                <Box sx={{
+                    px: 1.5, py: 1, borderBottom: '1px solid', borderColor: 'divider', flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1,
+                    bgcolor: solicitaFe ? 'primary.50' : (isDark ? `${ACCENT}08` : `${ACCENT}05`),
+                }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, minWidth: 0 }}>
+                        <Typography sx={{ fontSize: 18 }}>🧾</Typography>
+                        <Box sx={{ minWidth: 0 }}>
+                            <Typography sx={{ fontSize: 12.5, fontWeight: 700, lineHeight: 1.2 }}>
+                                ¿Requiere Factura Electrónica?
+                            </Typography>
+                            <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
+                                {solicitaFe ? 'FE — exige cliente con NIT/cédula' : 'DEE/POS — consumidor final'}
+                            </Typography>
+                        </Box>
+                    </Box>
+                    <Switch
+                        size="small"
+                        checked={solicitaFe || false}
+                        onChange={e => setSolicitaFe?.(e.target.checked)}
+                        color="primary"
+                    />
+                </Box>
+            )}
+
             {/* Cliente */}
             <Box sx={{
                 px: 1.5, py: 1.2,
                 borderBottom: '1px solid', borderColor: 'divider', flexShrink: 0,
             }}>
                 <Box sx={{ display: 'flex', gap: 0.8, alignItems: 'center' }}>
-                    <Tooltip title="Venta a consumidor final anónimo">
+                    <Tooltip title={solicitaFe ? 'No disponible: la FE exige cliente identificado' : 'Venta a consumidor final anónimo'}>
+                        <span>
                         <Button
                             size="small"
                             variant={isMostrador ? 'contained' : 'outlined'}
                             startIcon={<PersonOutline sx={{ fontSize: 13 }} />}
                             onClick={onSetMostrador}
+                            disabled={solicitaFe}
                             sx={{
                                 borderRadius: 1.5, fontWeight: 600, fontSize: 11,
                                 py: 0.5, px: 1, borderColor: '#64748B', whiteSpace: 'nowrap', flexShrink: 0,
@@ -290,6 +319,7 @@ const CartPanel = ({
                         >
                             Mostrador
                         </Button>
+                        </span>
                     </Tooltip>
                     <Autocomplete
                         sx={{ flex: 1, minWidth: 0 }}
@@ -523,28 +553,11 @@ const CartPanel = ({
                     </Box>
                 )}
 
-                {/* ── Factura Electrónica ── */}
+                {/* ── Resumen tipo de documento DIAN ── */}
                 {pagada && feActiva && (
-                    <Box sx={{ mb: 1.5 }}>
-                        <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.5 }}>
-                            📄 Esta venta generará un <strong>{solicitaFe ? 'Factura Electrónica (FE)' : 'Documento Equivalente Electrónico (DEE/POS)'}</strong> a la DIAN y consumirá 1 documento de tu cuota mensual.
-                        </Typography>
-                        <FormControlLabel
-                            control={
-                                <Switch
-                                    size="small"
-                                    checked={solicitaFe || false}
-                                    onChange={e => setSolicitaFe?.(e.target.checked)}
-                                    color="primary"
-                                />
-                            }
-                            label={
-                                <Typography sx={{ fontSize: 12, fontWeight: 600, color: solicitaFe ? 'primary.main' : 'text.secondary' }}>
-                                    🧾 ¿El cliente requiere factura electrónica (FE)?
-                                </Typography>
-                            }
-                        />
-                    </Box>
+                    <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 1.5 }}>
+                        📄 Generará un <strong>{solicitaFe ? 'Factura Electrónica (FE)' : 'Documento Equivalente Electrónico (DEE/POS)'}</strong> a la DIAN y consumirá 1 documento de tu cuota mensual.
+                    </Typography>
                 )}
 
                 {/* ── Total + Botón ── */}

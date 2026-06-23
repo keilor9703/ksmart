@@ -828,6 +828,10 @@ useEffect(() => {
 
     // ── Mostrador ──
     const handleSetMostrador = () => {
+        if (solicitaFe) {
+            toast.warning('La Factura Electrónica exige un cliente identificado. Desactiva FE para vender como Mostrador.');
+            return;
+        }
         const candidato = clientes.find(c =>
             c.nombre.toLowerCase().includes('consumidor') ||
             c.nombre.toLowerCase().includes('mostrador') ||
@@ -840,6 +844,19 @@ useEffect(() => {
             toast.info('Crea un cliente "Consumidor Final" para usar esta opción rápida.');
             openQuickCreate('tercero', 'Consumidor Final');
         }
+    };
+
+    // Determina si un cliente está identificado (tiene cédula/NIT) para FE
+    const clienteIdentificado = (c) => !!(c && (c.cedula || '').trim());
+
+    // Toggle de FE: al activarlo se exige cliente identificado (no Mostrador).
+    const handleToggleFe = (checked) => {
+        if (checked && (isMostrador || !clienteIdentificado(cliente))) {
+            // Limpiar Mostrador / cliente sin identificación: el cajero debe elegir uno válido
+            setCliente(null); setClienteInput(''); setIsMostrador(false);
+            toast.info('Selecciona o registra un cliente con NIT/cédula para emitir Factura Electrónica.');
+        }
+        setSolicitaFe(checked);
     };
 
     // ── QuickCreate ──
@@ -917,6 +934,10 @@ useEffect(() => {
     // ── Submit ──
     const handleVentaSubmit = async () => {
         if (!cliente) { toast.error('Selecciona un cliente o usa el botón Mostrador.'); return; }
+        if (solicitaFe && !clienteIdentificado(cliente)) {
+            toast.error('La Factura Electrónica requiere un cliente con NIT/cédula. Edita el cliente o desactiva FE.');
+            return;
+        }
         const validDetails = saleDetails.filter(d => d.isLibre ? d.precioUnitario > 0 : (d.producto !== null && d.cantidad > 0));
         if (validDetails.length === 0) { toast.error('Agrega al menos un producto al carrito.'); return; }
 
@@ -1159,6 +1180,45 @@ useEffect(() => {
                         <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', gap: 0, alignItems: 'stretch', minHeight: 0, flexDirection: { xs: 'column', md: 'row' } }}>
                           {/* ── LEFT PANEL ── */}
                           <Box sx={{ flex: 1, minWidth: 0, p: { xs: 2, md: 3 }, overflowY: 'auto', maxHeight: { md: 'calc(100vh - 220px)' } }}>
+                            {/* ── 0. ¿Factura Electrónica? (primera pregunta al cliente) ── */}
+                            {user?.empresa?.facturacion_electronica_activa && (
+                                <Paper elevation={0} sx={{
+                                    mb: 2.5, p: 1.5, borderRadius: 3,
+                                    border: '1.5px solid', borderColor: solicitaFe ? 'primary.main' : `${ACCENT}40`,
+                                    bgcolor: solicitaFe ? 'primary.50' : (isDark ? `${ACCENT}08` : `${ACCENT}05`),
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap',
+                                }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                                        <Typography sx={{ fontSize: 22 }}>🧾</Typography>
+                                        <Box sx={{ minWidth: 0 }}>
+                                            <Typography sx={{ fontSize: 14, fontWeight: 700 }}>
+                                                ¿El cliente requiere Factura Electrónica?
+                                            </Typography>
+                                            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                                                {solicitaFe
+                                                    ? 'Factura Electrónica (FE) — requiere cliente con NIT/cédula'
+                                                    : 'Documento Equivalente POS (DEE) — consumidor final'}
+                                            </Typography>
+                                        </Box>
+                                    </Box>
+                                    <FormControlLabel
+                                        control={
+                                            <Switch
+                                                checked={solicitaFe}
+                                                onChange={e => handleToggleFe(e.target.checked)}
+                                                color="primary"
+                                            />
+                                        }
+                                        label={
+                                            <Typography sx={{ fontSize: 13, fontWeight: 700, color: solicitaFe ? 'primary.main' : 'text.secondary' }}>
+                                                {solicitaFe ? 'SÍ — FE' : 'No'}
+                                            </Typography>
+                                        }
+                                        sx={{ m: 0 }}
+                                    />
+                                </Paper>
+                            )}
+
                             {/* ── 1. Cliente ── */}
                             <Box sx={{ mb: 2.5 }}>
                                 <Typography sx={{ fontWeight: 600, fontSize: 11, mb: 1, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
@@ -1166,11 +1226,13 @@ useEffect(() => {
                                 </Typography>
                                 <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', flexWrap: 'wrap' }}>
                                     {/* Botón Mostrador */}
-                                    <Tooltip title="Venta a cliente anónimo (Consumidor Final)">
+                                    <Tooltip title={solicitaFe ? 'No disponible: la Factura Electrónica exige un cliente identificado' : 'Venta a cliente anónimo (Consumidor Final)'}>
+                                        <span>
                                         <Button
                                             size="small" variant={isMostrador ? 'contained' : 'outlined'}
                                             startIcon={<PersonOutline fontSize="small" />}
                                             onClick={handleSetMostrador}
+                                            disabled={solicitaFe}
                                             sx={{
                                                 borderRadius: 2, fontWeight: 600, fontSize: 12,
                                                 borderColor: '#64748B', whiteSpace: 'nowrap',
@@ -1182,6 +1244,7 @@ useEffect(() => {
                                         >
                                             Mostrador
                                         </Button>
+                                        </span>
                                     </Tooltip>
 
                                     <Autocomplete
@@ -1189,7 +1252,12 @@ useEffect(() => {
                                         options={clientes}
                                         getOptionLabel={(o) => o?.nombre || ''}
                                         value={cliente}
-                                        onChange={(_, v) => { setCliente(v); setIsMostrador(false); }}
+                                        onChange={(_, v) => {
+                                            if (solicitaFe && v && !clienteIdentificado(v)) {
+                                                toast.warning(`"${v.nombre}" no tiene NIT/cédula registrado. Edítalo o elige otro cliente para emitir FE.`);
+                                            }
+                                            setCliente(v); setIsMostrador(false);
+                                        }}
                                         inputValue={clienteInput}
                                         onInputChange={(_, v) => setClienteInput(v)}
                                         filterOptions={(opts, state) => {
@@ -1597,28 +1665,11 @@ useEffect(() => {
                                 </Box>
                             </Box>
 
-                            {/* ── Factura Electrónica ── */}
+                            {/* ── Resumen tipo de documento DIAN ── */}
                             {pagada && user?.empresa?.facturacion_electronica_activa && (
-                                <Box>
-                                    <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.5 }}>
-                                        📄 Esta venta generará un <strong>{solicitaFe ? 'Factura Electrónica (FE)' : 'Documento Equivalente Electrónico (DEE/POS)'}</strong> a la DIAN y consumirá 1 documento de tu cuota mensual.
-                                    </Typography>
-                                    <FormControlLabel
-                                        control={
-                                            <Switch
-                                                size="small"
-                                                checked={solicitaFe}
-                                                onChange={e => setSolicitaFe(e.target.checked)}
-                                                color="primary"
-                                            />
-                                        }
-                                        label={
-                                            <Typography sx={{ fontSize: 12, fontWeight: 600, color: solicitaFe ? 'primary.main' : 'text.secondary' }}>
-                                                🧾 ¿El cliente requiere factura electrónica (FE)?
-                                            </Typography>
-                                        }
-                                    />
-                                </Box>
+                                <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                                    📄 Generará un <strong>{solicitaFe ? 'Factura Electrónica (FE)' : 'Documento Equivalente Electrónico (DEE/POS)'}</strong> a la DIAN y consumirá 1 documento de tu cuota mensual.
+                                </Typography>
                             )}
 
                             {/* ── Valor recibido + Cambio (Efectivo) ── */}
@@ -1735,7 +1786,7 @@ useEffect(() => {
                                 setPuntosACanjear={setPuntosACanjear}
                                 redeemRate={configFidelizacion.redeem_rate || PUNTOS_REDEEM_RATE_DEFAULT}
                                 solicitaFe={solicitaFe}
-                                setSolicitaFe={setSolicitaFe}
+                                setSolicitaFe={handleToggleFe}
                                 feActiva={!!user?.empresa?.facturacion_electronica_activa}
                             />
                         </Box>
