@@ -1663,12 +1663,12 @@ useEffect(() => {
                                         return (
                                             <Box key={opt.value} onClick={() => { setPagada(opt.pagada); if (opt.pagada) setMetodoPago(opt.value); }}
                                                 sx={{
-                                                    px: 2, py: 1.2,
+                                                    px: 1.5, py: 0.7,
                                                     borderRadius: 2, cursor: 'pointer',
                                                     border: '1.5px solid', borderColor: isSelected ? opt.color : 'divider',
                                                     bgcolor: isSelected ? `${opt.color}15` : 'background.paper',
                                                     color: isSelected ? opt.color : 'text.secondary',
-                                                    fontSize: 14, fontWeight: isSelected ? 700 : 500,
+                                                    fontSize: 13, fontWeight: isSelected ? 700 : 500,
                                                     transition: 'all 0.15s', userSelect: 'none',
                                                     '&:hover': { borderColor: opt.color, bgcolor: `${opt.color}08` },
                                                     whiteSpace: 'nowrap',

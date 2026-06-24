@@ -368,251 +368,236 @@ const CartPanel = ({
                 </Box>
             </Box>
 
-            {/* Cart items list */}
-            <Box sx={{ flex: 1, overflowY: 'auto', px: 0.5 }}>
-                {validItems.length === 0 ? (
-                    <Box sx={{ textAlign: 'center', py: 5, color: 'text.secondary' }}>
-                        <ShoppingCart sx={{ fontSize: 40, opacity: 0.18, mb: 0.8 }} />
-                        <Typography sx={{ fontSize: 13, fontWeight: 500 }}>Carrito vacío</Typography>
-                        <Typography sx={{ fontSize: 11, color: 'text.disabled', mt: 0.3 }}>
-                            Toca un producto para añadirlo
-                        </Typography>
-                    </Box>
-                ) : (
-                    validItems.map(detail => (
-                        <CartItemRow
-                            key={detail.id}
-                            detail={detail}
-                            onAddOne={onAddOne}
-                            onRemoveOne={onRemoveOne}
-                            onRemoveAll={onRemoveAll}
-                        />
-                    ))
-                )}
-            </Box>
+            {/* ── Scrollable middle: cart items + options ── */}
+            <Box sx={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+                {/* Cart items */}
+                <Box sx={{ px: 0.5, flex: 1 }}>
+                    {validItems.length === 0 ? (
+                        <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
+                            <ShoppingCart sx={{ fontSize: 36, opacity: 0.18, mb: 0.8 }} />
+                            <Typography sx={{ fontSize: 13, fontWeight: 500 }}>Carrito vacío</Typography>
+                            <Typography sx={{ fontSize: 11, color: 'text.disabled', mt: 0.3 }}>
+                                Toca un producto para añadirlo
+                            </Typography>
+                        </Box>
+                    ) : (
+                        validItems.map(detail => (
+                            <CartItemRow
+                                key={detail.id}
+                                detail={detail}
+                                onAddOne={onAddOne}
+                                onRemoveOne={onRemoveOne}
+                                onRemoveAll={onRemoveAll}
+                            />
+                        ))
+                    )}
+                </Box>
 
-            {/* Footer: total + payment + submit */}
-            <Box sx={{
-                borderTop: '1.5px solid', borderColor: 'divider',
-                flexShrink: 0, px: 2, pt: 1.5, pb: 2,
-                bgcolor: isDark ? 'background.paper' : '#FFFBF9',
-            }}>
-                {/* ── IVA + Sin validar stock (misma fila) ── */}
-                <Box sx={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    flexWrap: 'wrap', gap: 1, mb: 1.5,
-                    px: 1.5, py: 1, borderRadius: 2,
-                    bgcolor: 'action.hover',
-                }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                        <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary' }}>IVA:</Typography>
+                {/* ── Options: IVA, stock, loyalty, payment, cash ── */}
+                <Box sx={{ px: 1.5, pt: 1, pb: 0.5, borderTop: '1px solid', borderColor: 'divider' }}>
+                    {/* IVA + Sin validar stock */}
+                    <Box sx={{
+                        display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap',
+                        px: 1, py: 0.8, borderRadius: 2, bgcolor: 'action.hover', mb: 1,
+                    }}>
+                        <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary' }}>IVA:</Typography>
                         {[0, 19].map(pct => (
                             <Chip
                                 key={pct}
-                                label={pct === 0 ? 'Exento (0%)' : `+${pct}%`}
+                                label={pct === 0 ? '0%' : '+19%'}
                                 size="small"
                                 onClick={() => setIvaPorcentajeGlobal(pct)}
                                 sx={{
-                                    fontSize: 12, fontWeight: 700, cursor: 'pointer', height: 28,
+                                    height: 22, fontSize: 11, fontWeight: 700, cursor: 'pointer',
                                     ...(ivaPorcentajeGlobal === pct
                                         ? { bgcolor: ACCENT, color: 'white', '& .MuiChip-label': { color: 'white' } }
-                                        : { bgcolor: 'background.paper', border: '1.5px solid', borderColor: 'divider' }
+                                        : { bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }
                                     ),
                                 }}
                             />
                         ))}
                         {ivaPorc > 0 && (
-                            <Box sx={{ display: 'flex', gap: 1.5, ml: 0.5 }}>
-                                <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>
-                                    Base: <strong>{formatCurrency(subtotal - ivaAmount)}</strong>
-                                </Typography>
-                                <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>
-                                    IVA {ivaPorc}%: <strong>{formatCurrency(ivaAmount)}</strong>
-                                </Typography>
-                            </Box>
-                        )}
-                    </Box>
-                    <FormControlLabel
-                        control={
-                            <Switch
-                                checked={omitirInventario || false}
-                                onChange={e => setOmitirInventario?.(e.target.checked)}
-                                size="small"
-                                sx={{
-                                    '& .MuiSwitch-switchBase.Mui-checked': { color: '#F59E0B' },
-                                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#F59E0B' },
-                                }}
-                            />
-                        }
-                        label={
-                            <Typography fontSize={12} fontWeight={omitirInventario ? 700 : 500} color={omitirInventario ? '#92400E' : 'text.secondary'}>
-                                Sin validar stock
+                            <Typography sx={{ color: 'text.secondary', fontSize: 10, ml: 0.5 }}>
+                                IVA: <strong>{formatCurrency(ivaAmount)}</strong>
                             </Typography>
-                        }
-                        sx={{ m: 0, gap: 0.5 }}
-                    />
-                </Box>
-
-                {/* ── Puntos de fidelización ── */}
-                {fidelizacionActiva && cliente && !isMostrador && clientePuntos > 0 && (
-                    <Box sx={{ mb: 1.5, p: 1.5, borderRadius: 2, bgcolor: '#10B98108', border: '1px solid #10B98128' }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                                <Stars sx={{ fontSize: 15, color: '#10B981' }} />
-                                <Typography sx={{ fontSize: 12, fontWeight: 700, color: '#10B981' }}>
-                                    {clientePuntos} puntos disponibles
-                                </Typography>
-                                <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-                                    (= {formatCurrency(clientePuntos * (redeemRate || 100))})
-                                </Typography>
-                            </Box>
-                            {puntosACanjear > 0 && (
-                                <Chip label={`Canjeando ${puntosACanjear} pts`} size="small"
-                                    onDelete={() => setPuntosACanjear(0)}
-                                    sx={{ bgcolor: '#10B98118', color: '#10B981', fontWeight: 700, fontSize: 10 }} />
-                            )}
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography sx={{ fontSize: 11, color: 'text.secondary', flexShrink: 0 }}>Canjear:</Typography>
-                            {[0, Math.floor(clientePuntos * 0.25), Math.floor(clientePuntos * 0.5), clientePuntos].filter((v, i, a) => a.indexOf(v) === i && v >= 0).map(pts => (
-                                <Chip
-                                    key={pts}
-                                    label={pts === 0 ? 'Ninguno' : `${pts} pts`}
+                        )}
+                        <Box sx={{ flex: 1 }} />
+                        <FormControlLabel
+                            control={
+                                <Switch
+                                    checked={omitirInventario || false}
+                                    onChange={e => setOmitirInventario?.(e.target.checked)}
                                     size="small"
-                                    onClick={() => setPuntosACanjear(pts)}
                                     sx={{
-                                        fontSize: 10, fontWeight: 700, cursor: 'pointer',
-                                        bgcolor: puntosACanjear === pts ? '#10B98120' : 'background.paper',
-                                        color: puntosACanjear === pts ? '#10B981' : 'text.secondary',
-                                        border: '1px solid', borderColor: puntosACanjear === pts ? '#10B981' : 'divider',
+                                        '& .MuiSwitch-switchBase.Mui-checked': { color: '#F59E0B' },
+                                        '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#F59E0B' },
                                     }}
                                 />
-                            ))}
+                            }
+                            label={
+                                <Typography fontSize={11} fontWeight={omitirInventario ? 700 : 400} color={omitirInventario ? '#92400E' : 'text.secondary'}>
+                                    Sin stock
+                                </Typography>
+                            }
+                            sx={{ m: 0, gap: 0.3 }}
+                        />
+                    </Box>
+
+                    {/* Puntos de fidelización */}
+                    {fidelizacionActiva && cliente && !isMostrador && clientePuntos > 0 && (
+                        <Box sx={{ mb: 1, p: 1, borderRadius: 2, bgcolor: '#10B98108', border: '1px solid #10B98128' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+                                <Stars sx={{ fontSize: 13, color: '#10B981' }} />
+                                <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#10B981' }}>
+                                    {clientePuntos} pts
+                                </Typography>
+                                <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
+                                    = {formatCurrency(clientePuntos * (redeemRate || 100))}
+                                </Typography>
+                                <Box sx={{ flex: 1 }} />
+                                {[0, Math.floor(clientePuntos * 0.5), clientePuntos].filter((v, i, a) => a.indexOf(v) === i).map(pts => (
+                                    <Chip
+                                        key={pts}
+                                        label={pts === 0 ? 'Ninguno' : `${pts} pts`}
+                                        size="small"
+                                        onClick={() => setPuntosACanjear(pts)}
+                                        sx={{
+                                            height: 20, fontSize: 10, fontWeight: 700, cursor: 'pointer',
+                                            bgcolor: puntosACanjear === pts ? '#10B98120' : 'background.paper',
+                                            color: puntosACanjear === pts ? '#10B981' : 'text.secondary',
+                                            border: '1px solid', borderColor: puntosACanjear === pts ? '#10B981' : 'divider',
+                                        }}
+                                    />
+                                ))}
+                            </Box>
+                        </Box>
+                    )}
+
+                    {/* Método de pago */}
+                    <Box sx={{ mb: 1 }}>
+                        <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8, mb: 0.6 }}>
+                            Método de pago
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                            {[...METODOS_PAGO, ...(linkPagoConfig ? [{ value: 'Link de Pago', label: '📲 Link/QR', pagada: true, color: '#FF6020' }] : [])].map(opt => {
+                                const isSelected = pagada
+                                    ? (opt.pagada && metodoPago === opt.value)
+                                    : !opt.pagada;
+                                return (
+                                    <Box
+                                        key={opt.value}
+                                        onClick={() => { setPagada(opt.pagada); if (opt.pagada) setMetodoPago(opt.value); }}
+                                        sx={{
+                                            px: 1.2, py: 0.5, borderRadius: 1.5, cursor: 'pointer',
+                                            border: '1.5px solid',
+                                            borderColor: isSelected ? opt.color : 'divider',
+                                            bgcolor: isSelected ? `${opt.color}15` : 'background.paper',
+                                            color: isSelected ? opt.color : 'text.secondary',
+                                            fontSize: 12, fontWeight: isSelected ? 700 : 500,
+                                            transition: 'all 0.12s', userSelect: 'none',
+                                            '&:hover': { borderColor: opt.color, bgcolor: `${opt.color}08` },
+                                            whiteSpace: 'nowrap',
+                                        }}
+                                    >
+                                        {opt.label}
+                                    </Box>
+                                );
+                            })}
                         </Box>
                     </Box>
-                )}
 
-                {/* ── Método de pago ── */}
-                <Box sx={{ mb: 1.5 }}>
-                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8, mb: 0.8 }}>
-                        Método de pago
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap' }}>
-                        {[...METODOS_PAGO, ...(linkPagoConfig ? [{ value: 'Link de Pago', label: '📲 Link/QR', pagada: true, color: '#FF6020' }] : [])].map(opt => {
-                            const isSelected = pagada
-                                ? (opt.pagada && metodoPago === opt.value)
-                                : !opt.pagada;
-                            return (
-                                <Box
-                                    key={opt.value}
-                                    onClick={() => { setPagada(opt.pagada); if (opt.pagada) setMetodoPago(opt.value); }}
-                                    sx={{
-                                        px: 2, py: 1.2, borderRadius: 2, cursor: 'pointer',
-                                        border: '1.5px solid',
-                                        borderColor: isSelected ? opt.color : 'divider',
-                                        bgcolor: isSelected ? `${opt.color}15` : 'background.paper',
-                                        color: isSelected ? opt.color : 'text.secondary',
-                                        fontSize: 14, fontWeight: isSelected ? 700 : 500,
-                                        transition: 'all 0.12s', userSelect: 'none',
-                                        '&:hover': { borderColor: opt.color, bgcolor: `${opt.color}08` },
-                                        whiteSpace: 'nowrap',
-                                    }}
-                                >
-                                    {opt.label}
+                    {/* Efectivo: recibido + cambio */}
+                    {pagada && metodoPago === 'Efectivo' && (
+                        <Box sx={{ mb: 1 }}>
+                            <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8, mb: 0.5 }}>
+                                Valor recibido
+                            </Typography>
+                            <CurrencyField
+                                label="" size="small" fullWidth
+                                value={valorRecibido} onChange={setValorRecibido}
+                            />
+                            {valorRecibido > 0 && (
+                                <Box sx={{
+                                    mt: 0.5, px: 1.5, py: 0.5, borderRadius: 1.5, textAlign: 'center',
+                                    bgcolor: cambioEfectivo >= 0 ? '#10B98112' : '#EF444412',
+                                    border: '1.5px solid', borderColor: cambioEfectivo >= 0 ? '#10B98140' : '#EF444440',
+                                }}>
+                                    <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>Cambio</Typography>
+                                    <Typography sx={{ fontSize: 16, fontWeight: 800, color: cambioEfectivo >= 0 ? '#10B981' : '#EF4444' }}>
+                                        {formatCurrency(cambioEfectivo >= 0 ? cambioEfectivo : 0)}
+                                    </Typography>
+                                    {cambioEfectivo < 0 && (
+                                        <Typography sx={{ fontSize: 10, color: '#EF4444' }}>Faltan {formatCurrency(Math.abs(cambioEfectivo))}</Typography>
+                                    )}
                                 </Box>
-                            );
-                        })}
-                    </Box>
-                </Box>
+                            )}
+                        </Box>
+                    )}
 
-                {/* ── Efectivo: recibido + cambio ── */}
-                {pagada && metodoPago === 'Efectivo' && (
-                    <Box sx={{ mb: 1.5 }}>
-                        <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8, mb: 0.8 }}>
-                            Valor recibido
+                    {/* DIAN doc type note */}
+                    {pagada && feActiva && (
+                        <Typography sx={{ fontSize: 10, color: 'text.secondary', mb: 0.5 }}>
+                            📄 <strong>{solicitaFe ? 'FE' : 'DEE/POS'}</strong> — consumirá 1 doc de tu cuota mensual.
                         </Typography>
-                        <CurrencyField
-                            label="" size="small" fullWidth
-                            value={valorRecibido} onChange={setValorRecibido}
-                        />
-                        {valorRecibido > 0 && (
-                            <Box sx={{
-                                mt: 0.8, px: 2, py: 0.6, borderRadius: 2, textAlign: 'center',
-                                bgcolor: cambioEfectivo >= 0 ? '#10B98112' : '#EF444412',
-                                border: '1.5px solid', borderColor: cambioEfectivo >= 0 ? '#10B98140' : '#EF444440',
-                            }}>
-                                <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Cambio a devolver</Typography>
-                                <Typography sx={{ fontSize: 18, fontWeight: 800, color: cambioEfectivo >= 0 ? '#10B981' : '#EF4444' }}>
-                                    {formatCurrency(cambioEfectivo >= 0 ? cambioEfectivo : 0)}
-                                </Typography>
-                                {cambioEfectivo < 0 && (
-                                    <Typography sx={{ fontSize: 10, color: '#EF4444' }}>Faltan {formatCurrency(Math.abs(cambioEfectivo))}</Typography>
-                                )}
-                            </Box>
-                        )}
-                    </Box>
-                )}
+                    )}
+                </Box>
+            </Box>
 
-                {/* ── Resumen tipo de documento DIAN ── */}
-                {pagada && feActiva && (
-                    <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 1.5 }}>
-                        📄 Generará un <strong>{solicitaFe ? 'Factura Electrónica (FE)' : 'Documento Equivalente Electrónico (DEE/POS)'}</strong> a la DIAN y consumirá 1 documento de tu cuota mensual.
-                    </Typography>
-                )}
-
-                {/* ── Total + Botón ── */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 0.5 }}>
-                    <Box sx={{ flex: 1 }}>
-                        <Typography sx={{ fontSize: 12, color: 'text.secondary', letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 700 }}>
-                            Total a cobrar
+            {/* ── Sticky footer: total + submit ── */}
+            <Box sx={{
+                borderTop: '2px solid', borderColor: 'divider',
+                flexShrink: 0, px: 1.5, pt: 1, pb: 1.5,
+                bgcolor: isDark ? 'background.paper' : '#FFFBF9',
+            }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography sx={{ fontSize: 10, color: 'text.secondary', letterSpacing: 1, textTransform: 'uppercase', fontWeight: 700 }}>
+                            Total
                         </Typography>
                         {descuentoPuntos > 0 ? (
                             <>
-                                <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'text.secondary', textDecoration: 'line-through', lineHeight: 1 }}>
+                                <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'text.secondary', textDecoration: 'line-through', lineHeight: 1 }}>
                                     {formatCurrency(subtotal)}
                                 </Typography>
-                                <Typography sx={{ fontSize: 40, fontWeight: 900, color: '#10B981', lineHeight: 1.1 }}>
+                                <Typography sx={{ fontSize: 28, fontWeight: 900, color: '#10B981', lineHeight: 1.1 }}>
                                     {formatCurrency(total)}
                                 </Typography>
-                                <Chip label={`-${formatCurrency(descuentoPuntos)} pts`} size="small"
-                                    sx={{ mt: 0.3, bgcolor: '#10B98118', color: '#10B981', fontWeight: 700, fontSize: 9 }} />
                             </>
                         ) : (
-                            <Typography sx={{ fontSize: 40, fontWeight: 900, color: ACCENT, lineHeight: 1.1 }}>
+                            <Typography sx={{ fontSize: 28, fontWeight: 900, color: ACCENT, lineHeight: 1.1 }}>
                                 {formatCurrency(total)}
+                            </Typography>
+                        )}
+                        {!cliente && validItems.length > 0 && (
+                            <Typography sx={{ fontSize: 10, color: '#F59E0B', fontWeight: 600, mt: 0.2 }}>
+                                Selecciona un cliente
                             </Typography>
                         )}
                     </Box>
                     <Box sx={{ flexShrink: 0 }}>
-                        <Typography sx={{ fontSize: 11, color: 'text.disabled', textAlign: 'center', mb: 0.4 }}>
-                            Ctrl + Enter
-                        </Typography>
                         <Button
                             variant="contained"
                             disabled={savingVenta || validItems.length === 0 || !cliente}
                             onClick={onSubmit}
                             startIcon={savingVenta
-                                ? <CircularProgress size={16} sx={{ color: 'white' }} />
-                                : <ShoppingCart sx={{ fontSize: 20 }} />
+                                ? <CircularProgress size={15} sx={{ color: 'white' }} />
+                                : <ShoppingCart sx={{ fontSize: 18 }} />
                             }
                             sx={{
                                 background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`,
-                                boxShadow: `0 4px 14px rgba(255,96,32,0.35)`,
-                                borderRadius: 3, fontWeight: 800, py: 2, px: 3, fontSize: 16,
+                                boxShadow: `0 3px 10px rgba(255,96,32,0.3)`,
+                                borderRadius: 2.5, fontWeight: 800, py: 1.5, px: 2.5, fontSize: 14,
                                 whiteSpace: 'nowrap',
                                 '&:disabled': { background: 'rgba(0,0,0,0.12)', boxShadow: 'none' },
                             }}
                         >
-                            {savingVenta ? 'Guardando…' : 'Registrar Venta'}
+                            {savingVenta ? 'Guardando…' : 'Cobrar'}
                         </Button>
+                        <Typography sx={{ fontSize: 10, color: 'text.disabled', textAlign: 'center', mt: 0.3 }}>
+                            Ctrl+Enter
+                        </Typography>
                     </Box>
                 </Box>
-
-                {!cliente && validItems.length > 0 && (
-                    <Typography sx={{ fontSize: 11, color: '#F59E0B', textAlign: 'center', mt: 0.8, fontWeight: 600 }}>
-                        Selecciona un cliente para continuar
-                    </Typography>
-                )}
             </Box>
         </Box>
     );
@@ -821,12 +806,16 @@ const TouchPOSMode = ({
                     openQuickCreate('producto', producto.nombre);
                     return;
                 }
-                onAddProduct(producto);
                 if (producto.impuesto?.porcentaje != null) {
                     setIvaPorcentajeGlobal(producto.impuesto.porcentaje);
                 }
-                playScanBeep();
-                toast.success(`${producto.nombre} añadido al carrito`);
+                const esProd = esPesable(producto.unidad_medida);
+                const tieneVariantes = producto.tiene_variantes && producto.variantes?.length > 0;
+                onAddProduct(producto);
+                if (!esProd && !tieneVariantes) {
+                    playScanBeep();
+                    toast.success(`${producto.nombre} añadido al carrito`);
+                }
             } else {
                 toast.warning(`Código "${barcode}" no encontrado`);
             }
