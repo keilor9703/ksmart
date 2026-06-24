@@ -1345,7 +1345,16 @@ useEffect(() => {
                                 border: `1.5px solid ${ACCENT}40`,
                                 bgcolor: isDark ? `${ACCENT}08` : `${ACCENT}05`,
                             }}>
-                                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                                <Box
+                                    component="form"
+                                    onSubmit={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        const val = (barcodeFieldRef.current?.value || barcodeInput || '').trim();
+                                        if (val) handleProcessBarcode(val);
+                                    }}
+                                    sx={{ display: 'flex', gap: 1, alignItems: 'center' }}
+                                >
                                     <TextField
                                         fullWidth
                                         placeholder="Escanea o digita el código de barras y presiona Enter…"
