@@ -204,180 +204,232 @@ const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRe
         onFieldChange(detail.id, 'cantidad', next);
     };
 
+    // ── Campos reutilizables (mismo contenido en móvil y escritorio) ──
+    const cantidadEl = (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: isMobile ? 0 : 0.4 }}>
+            <IconButton size="small" onClick={() => handleQty(-1)} sx={{ color: '#EF4444', p: 0.5 }}>
+                <RemoveCircle fontSize="small" />
+            </IconButton>
+            <TextField
+                type="number" size="small"
+                value={detail.cantidad}
+                onChange={(e) => {
+                    const isDecimal = detail.producto && ['MTS', 'KGS', 'LTS'].includes(detail.producto.unidad_medida);
+                    const parsed = isDecimal ? parseFloat(e.target.value) : parseInt(e.target.value, 10);
+                    onFieldChange(detail.id, 'cantidad', isNaN(parsed) ? 0 : parsed);
+                }}
+                inputProps={{ min: 0, step: detail.producto && ['MTS', 'KGS', 'LTS'].includes(detail.producto.unidad_medida) ? 'any' : '1' }}
+                sx={{ width: 64, '& input': { textAlign: 'center', fontWeight: 700, fontSize: 14, p: '6px 4px' } }}
+            />
+            <IconButton size="small" onClick={() => handleQty(1)} sx={{ color: '#10B981', p: 0.5 }}>
+                <AddCircle fontSize="small" />
+            </IconButton>
+        </Box>
+    );
+
+    const precioEl = (
+        priceUnlocked ? (
+            <CurrencyField
+                label="Precio" size="small"
+                value={detail.precioUnitario}
+                onChange={(val) => onFieldChange(detail.id, 'precioUnitario', val)}
+                InputProps={{
+                    endAdornment: (
+                        <Tooltip title="Bloquear precio">
+                            <IconButton size="small" onClick={() => setPriceUnlocked(false)} sx={{ p: 0.3 }}>
+                                <LockOpenOutlined sx={{ fontSize: 14, color: ACCENT }} />
+                            </IconButton>
+                        </Tooltip>
+                    )
+                }}
+            />
+        ) : (
+            <Tooltip title="Clic para editar precio">
+                <Box onClick={() => setPriceUnlocked(true)} sx={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    px: 1.5, py: 0.8, borderRadius: 1.5, cursor: 'pointer',
+                    border: '1px dashed', borderColor: 'divider',
+                    '&:hover': { borderColor: ACCENT, bgcolor: `${ACCENT}06` },
+                    transition: 'all 0.15s',
+                }}>
+                    <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{formatCurrency(detail.precioUnitario)}</Typography>
+                    <LockOutlined sx={{ fontSize: 12, color: 'text.disabled', ml: 0.5 }} />
+                </Box>
+            </Tooltip>
+        )
+    );
+
+    const descEl = (
+        <SmartTooltip
+            id="venta_descuento"
+            title="Descuento por ítem"
+            description="Ingresa un % de descuento para este producto. El subtotal se ajusta automáticamente."
+            variant="warning"
+            placement="top"
+        >
+            <TextField
+                type="number" size="small" label="Desc. %"
+                value={detail.descuentoPct || 0}
+                onChange={(e) => onFieldChange(detail.id, 'descuentoPct', Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
+                inputProps={{ min: 0, max: 100, step: 1 }}
+                sx={{ width: isMobile ? 90 : 68 }}
+            />
+        </SmartTooltip>
+    );
+
+    const subtotalEl = (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end' }}>
+            <Box sx={{ textAlign: 'right' }}>
+                {(detail.descuentoPct || 0) > 0 && (
+                    <Typography sx={{ fontSize: 10, color: 'text.secondary', textDecoration: 'line-through' }}>{formatCurrency(subtotalSinDesc)}</Typography>
+                )}
+                <Typography sx={{ fontWeight: 800, fontSize: 15, color: (detail.descuentoPct || 0) > 0 ? '#10B981' : ACCENT }}>
+                    {formatCurrency(subtotalFinal)}
+                </Typography>
+            </Box>
+            <Tooltip title="Quitar">
+                <IconButton onClick={() => onRemove(detail.id)} size="small" sx={{ color: '#EF4444', bgcolor: '#FEF2F2', borderRadius: 1.5 }}>
+                    <RemoveCircle fontSize="small" />
+                </IconButton>
+            </Tooltip>
+        </Box>
+    );
+
+    const productoBox = (
+        <>
+            <Autocomplete
+                options={productos}
+                getOptionLabel={(p) => p?.nombre || ''}
+                value={detail.producto}
+                onChange={(_, v) => { onProductChange(detail.id, v); setPriceUnlocked(false); }}
+                inputValue={productoInput}
+                onInputChange={(_, v) => onProductoInputChange(v)}
+                filterOptions={(opts, state) => {
+                    const q = (state.inputValue || '').toLowerCase().trim();
+                    if (!q) return opts;
+                    return opts.filter(o =>
+                        o.nombre.toLowerCase().includes(q) ||
+                        (o.codigo_barras && o.codigo_barras.toLowerCase().includes(q)) ||
+                        (o.descripcion && o.descripcion.toLowerCase().includes(q))
+                    );
+                }}
+                noOptionsText={
+                    <Box sx={{ py: 0.5 }}>
+                        <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>No se encontró el producto</Typography>
+                        <Button size="small" variant="contained" fullWidth startIcon={<Add />} onClick={openQuickCreate}
+                            sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12, bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' } }}>
+                            Crear "{productoInput || 'nuevo producto'}"
+                        </Button>
+                    </Box>
+                }
+                renderOption={(props, option) => (
+                    <li {...props} key={option.id}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 2, alignItems: 'center' }}>
+                            <Box>
+                                <Typography sx={{ fontSize: 13.5, fontWeight: 500 }}>{option.nombre}</Typography>
+                                {option.descripcion && (
+                                    <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{option.descripcion}</Typography>
+                                )}
+                            </Box>
+                            <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+                                <Typography sx={{ fontSize: 12, fontWeight: 700, color: ACCENT }}>{formatCurrency(option.precio)}</Typography>
+                                <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                                    <Typography sx={{ fontSize: 10, color: option.es_servicio ? '#3B82F6' : (option.stock_actual <= 0 ? '#EF4444' : 'text.secondary') }}>
+                                        {option.es_servicio ? 'Servicio' : `Stock: ${option.stock_actual ?? 0}`}
+                                    </Typography>
+                                    {option.impuesto && (
+                                        <Typography sx={{ fontSize: 10, fontWeight: 700, color: option.impuesto.porcentaje > 0 ? '#F43F5E' : '#10B981' }}>
+                                            {option.impuesto.codigo}
+                                        </Typography>
+                                    )}
+                                </Box>
+                            </Box>
+                        </Box>
+                    </li>
+                )}
+                renderInput={(params) => (
+                    <TextField {...params} size="small" label="Producto / Servicio" placeholder="Busca por nombre…"
+                        InputProps={{
+                            ...params.InputProps,
+                            endAdornment: (<>{params.InputProps.endAdornment}<Tooltip title="Crear nuevo producto"><IconButton size="small" onClick={openQuickCreate} sx={{ color: '#10B981', p: 0.5 }}><Add fontSize="small" /></IconButton></Tooltip></>),
+                        }}
+                    />
+                )}
+            />
+            {/* Stock badge + impuesto badge */}
+            {detail.producto && (
+                <Box sx={{ display: 'flex', gap: 0.8, mt: 0.4, flexWrap: 'wrap' }}>
+                    {!isService && stock !== null && (
+                        <Typography sx={{ fontSize: 10, color: stockBajo ? '#F59E0B' : 'text.disabled', fontWeight: 600 }}>
+                            {stockBajo ? `⚠ Stock bajo: ${stock}` : `Stock: ${stock}`}
+                        </Typography>
+                    )}
+                    {detail.producto.impuesto && (
+                        <Box component="span" sx={{ fontSize: 10, fontWeight: 700, color: detail.producto.impuesto.porcentaje > 0 ? '#F43F5E' : '#10B981', bgcolor: detail.producto.impuesto.porcentaje > 0 ? '#F43F5E18' : '#10B98118', px: 0.8, py: 0.2, borderRadius: 1 }}>
+                            {detail.producto.impuesto.codigo} {detail.producto.impuesto.porcentaje}%
+                        </Box>
+                    )}
+                </Box>
+            )}
+        </>
+    );
+
+    // ── Móvil: filas compactas (cantidad+precio) y (desc+total) ──
+    if (isMobile) {
+        return (
+            <Box sx={{
+                display: 'flex', flexDirection: 'column',
+                gap: 1.2, mb: 1.5, p: 1.5,
+                borderRadius: 2, bgcolor: 'action.hover',
+                border: '1px solid', borderColor: stockBajo ? '#F59E0B50' : 'divider',
+            }}>
+                {/* Producto */}
+                <Box>
+                    {productoBox}
+                </Box>
+                {/* Cantidad + Precio (misma fila) */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {cantidadEl}
+                    <Box sx={{ flex: 1, minWidth: 0 }}>{precioEl}</Box>
+                </Box>
+                {/* Desc % + Total (misma fila) */}
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                    {descEl}
+                    {subtotalEl}
+                </Box>
+            </Box>
+        );
+    }
+
     return (
         <Box sx={{
-            display: 'flex', flexDirection: isMobile ? 'column' : 'row',
-            alignItems: isMobile ? 'stretch' : 'flex-start',
-            gap: 1, mb: 1.5, p: isMobile ? 2 : 1.5,
+            display: 'flex', flexDirection: 'row',
+            alignItems: 'flex-start',
+            gap: 1, mb: 1.5, p: 1.5,
             borderRadius: 2, bgcolor: 'action.hover',
             border: '1px solid', borderColor: stockBajo ? '#F59E0B50' : 'divider',
         }}>
             {/* Producto */}
-            <Box sx={{ flex: 1, minWidth: isMobile ? '100%' : 200 }}>
-                <Autocomplete
-                    options={productos}
-                    getOptionLabel={(p) => p?.nombre || ''}
-                    value={detail.producto}
-                    onChange={(_, v) => { onProductChange(detail.id, v); setPriceUnlocked(false); }}
-                    inputValue={productoInput}
-                    onInputChange={(_, v) => onProductoInputChange(v)}
-                    filterOptions={(opts, state) => {
-                        const q = (state.inputValue || '').toLowerCase().trim();
-                        if (!q) return opts;
-                        return opts.filter(o =>
-                            o.nombre.toLowerCase().includes(q) ||
-                            (o.codigo_barras && o.codigo_barras.toLowerCase().includes(q)) ||
-                            (o.descripcion && o.descripcion.toLowerCase().includes(q))
-                        );
-                    }}
-                    noOptionsText={
-                        <Box sx={{ py: 0.5 }}>
-                            <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>No se encontró el producto</Typography>
-                            <Button size="small" variant="contained" fullWidth startIcon={<Add />} onClick={openQuickCreate}
-                                sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12, bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' } }}>
-                                Crear "{productoInput || 'nuevo producto'}"
-                            </Button>
-                        </Box>
-                    }
-                    renderOption={(props, option) => (
-                        <li {...props} key={option.id}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 2, alignItems: 'center' }}>
-                                <Box>
-                                    <Typography sx={{ fontSize: 13.5, fontWeight: 500 }}>{option.nombre}</Typography>
-                                    {option.descripcion && (
-                                        <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{option.descripcion}</Typography>
-                                    )}
-                                </Box>
-                                <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-                                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: ACCENT }}>{formatCurrency(option.precio)}</Typography>
-                                    <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                                        <Typography sx={{ fontSize: 10, color: option.es_servicio ? '#3B82F6' : (option.stock_actual <= 0 ? '#EF4444' : 'text.secondary') }}>
-                                            {option.es_servicio ? 'Servicio' : `Stock: ${option.stock_actual ?? 0}`}
-                                        </Typography>
-                                        {option.impuesto && (
-                                            <Typography sx={{ fontSize: 10, fontWeight: 700, color: option.impuesto.porcentaje > 0 ? '#F43F5E' : '#10B981' }}>
-                                                {option.impuesto.codigo}
-                                            </Typography>
-                                        )}
-                                    </Box>
-                                </Box>
-                            </Box>
-                        </li>
-                    )}
-                    renderInput={(params) => (
-                        <TextField {...params} size="small" label="Producto / Servicio" placeholder="Busca por nombre…"
-                            InputProps={{
-                                ...params.InputProps,
-                                endAdornment: (<>{params.InputProps.endAdornment}<Tooltip title="Crear nuevo producto"><IconButton size="small" onClick={openQuickCreate} sx={{ color: '#10B981', p: 0.5 }}><Add fontSize="small" /></IconButton></Tooltip></>),
-                            }}
-                        />
-                    )}
-                />
-                {/* Stock badge + impuesto badge */}
-                {detail.producto && (
-                    <Box sx={{ display: 'flex', gap: 0.8, mt: 0.4, flexWrap: 'wrap' }}>
-                        {!isService && stock !== null && (
-                            <Typography sx={{ fontSize: 10, color: stockBajo ? '#F59E0B' : 'text.disabled', fontWeight: 600 }}>
-                                {stockBajo ? `⚠ Stock bajo: ${stock}` : `Stock: ${stock}`}
-                            </Typography>
-                        )}
-                        {detail.producto.impuesto && (
-                            <Box component="span" sx={{ fontSize: 10, fontWeight: 700, color: detail.producto.impuesto.porcentaje > 0 ? '#F43F5E' : '#10B981', bgcolor: detail.producto.impuesto.porcentaje > 0 ? '#F43F5E18' : '#10B98118', px: 0.8, py: 0.2, borderRadius: 1 }}>
-                                {detail.producto.impuesto.codigo} {detail.producto.impuesto.porcentaje}%
-                            </Box>
-                        )}
-                    </Box>
-                )}
+            <Box sx={{ flex: 1, minWidth: 200 }}>
+                {productoBox}
             </Box>
 
             {/* Cantidad con +/- */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: isMobile ? '100%' : 'auto', mt: isMobile ? 0 : 0.4 }}>
-                <IconButton size="small" onClick={() => handleQty(-1)} sx={{ color: '#EF4444', p: 0.5 }}>
-                    <RemoveCircle fontSize="small" />
-                </IconButton>
-                <TextField
-                    type="number" size="small"
-                    value={detail.cantidad}
-                    onChange={(e) => {
-                        const isDecimal = detail.producto && ['MTS', 'KGS', 'LTS'].includes(detail.producto.unidad_medida);
-                        const parsed = isDecimal ? parseFloat(e.target.value) : parseInt(e.target.value, 10);
-                        onFieldChange(detail.id, 'cantidad', isNaN(parsed) ? 0 : parsed);
-                    }}
-                    inputProps={{ min: 0, step: detail.producto && ['MTS', 'KGS', 'LTS'].includes(detail.producto.unidad_medida) ? 'any' : '1' }}
-                    sx={{ width: 64, '& input': { textAlign: 'center', fontWeight: 700, fontSize: 14, p: '6px 4px' } }}
-                />
-                <IconButton size="small" onClick={() => handleQty(1)} sx={{ color: '#10B981', p: 0.5 }}>
-                    <AddCircle fontSize="small" />
-                </IconButton>
-            </Box>
+            {cantidadEl}
 
             {/* Precio (bloqueado por defecto) */}
-            <Box sx={{ minWidth: isMobile ? '100%' : 120, mt: isMobile ? 0 : 0.4 }}>
-                {priceUnlocked ? (
-                    <CurrencyField
-                        label="Precio" size="small"
-                        value={detail.precioUnitario}
-                        onChange={(val) => onFieldChange(detail.id, 'precioUnitario', val)}
-                        InputProps={{
-                            endAdornment: (
-                                <Tooltip title="Bloquear precio">
-                                    <IconButton size="small" onClick={() => setPriceUnlocked(false)} sx={{ p: 0.3 }}>
-                                        <LockOpenOutlined sx={{ fontSize: 14, color: ACCENT }} />
-                                    </IconButton>
-                                </Tooltip>
-                            )
-                        }}
-                    />
-                ) : (
-                    <Tooltip title="Clic para editar precio">
-                        <Box onClick={() => setPriceUnlocked(true)} sx={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                            px: 1.5, py: 0.8, borderRadius: 1.5, cursor: 'pointer',
-                            border: '1px dashed', borderColor: 'divider',
-                            '&:hover': { borderColor: ACCENT, bgcolor: `${ACCENT}06` },
-                            transition: 'all 0.15s',
-                        }}>
-                            <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{formatCurrency(detail.precioUnitario)}</Typography>
-                            <LockOutlined sx={{ fontSize: 12, color: 'text.disabled', ml: 0.5 }} />
-                        </Box>
-                    </Tooltip>
-                )}
+            <Box sx={{ minWidth: 120, mt: 0.4 }}>
+                {precioEl}
             </Box>
 
             {/* Desc % (compacto) */}
-            <Box sx={{ mt: isMobile ? 0 : 0.4 }}>
-            <SmartTooltip
-                id="venta_descuento"
-                title="Descuento por ítem"
-                description="Ingresa un % de descuento para este producto. El subtotal se ajusta automáticamente."
-                variant="warning"
-                placement="top"
-            >
-                <TextField
-                    type="number" size="small" label="Desc. %"
-                    value={detail.descuentoPct || 0}
-                    onChange={(e) => onFieldChange(detail.id, 'descuentoPct', Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
-                    inputProps={{ min: 0, max: 100, step: 1 }}
-                    sx={{ width: isMobile ? '100%' : 68 }}
-                />
-            </SmartTooltip>
+            <Box sx={{ mt: 0.4 }}>
+                {descEl}
             </Box>
 
             {/* Subtotal + quitar */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end', mt: isMobile ? 0 : 0.4 }}>
-                <Box sx={{ textAlign: 'right' }}>
-                    {(detail.descuentoPct || 0) > 0 && (
-                        <Typography sx={{ fontSize: 10, color: 'text.secondary', textDecoration: 'line-through' }}>{formatCurrency(subtotalSinDesc)}</Typography>
-                    )}
-                    <Typography sx={{ fontWeight: 800, fontSize: 14, color: (detail.descuentoPct || 0) > 0 ? '#10B981' : ACCENT }}>
-                        {formatCurrency(subtotalFinal)}
-                    </Typography>
-                </Box>
-                <Tooltip title="Quitar">
-                    <IconButton onClick={() => onRemove(detail.id)} size="small" sx={{ color: '#EF4444', bgcolor: '#FEF2F2', borderRadius: 1.5 }}>
-                        <RemoveCircle fontSize="small" />
-                    </IconButton>
-                </Tooltip>
+            <Box sx={{ mt: 0.4 }}>
+                {subtotalEl}
             </Box>
         </Box>
     );
