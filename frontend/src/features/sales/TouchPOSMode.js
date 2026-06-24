@@ -549,54 +549,56 @@ const CartPanel = ({
                 flexShrink: 0, px: 1.5, pt: 1, pb: 1.5,
                 bgcolor: isDark ? 'background.paper' : '#FFFBF9',
             }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography sx={{ fontSize: 10, color: 'text.secondary', letterSpacing: 1, textTransform: 'uppercase', fontWeight: 700 }}>
-                            Total
-                        </Typography>
-                        {descuentoPuntos > 0 ? (
-                            <>
-                                <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'text.secondary', textDecoration: 'line-through', lineHeight: 1 }}>
-                                    {formatCurrency(subtotal)}
-                                </Typography>
-                                <Typography sx={{ fontSize: 28, fontWeight: 900, color: '#10B981', lineHeight: 1.1 }}>
-                                    {formatCurrency(total)}
-                                </Typography>
-                            </>
-                        ) : (
-                            <Typography sx={{ fontSize: 28, fontWeight: 900, color: ACCENT, lineHeight: 1.1 }}>
-                                {formatCurrency(total)}
+                {/* Total (fila propia) */}
+                <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1, mb: 1 }}>
+                    <Typography sx={{ fontSize: 11, color: 'text.secondary', letterSpacing: 1, textTransform: 'uppercase', fontWeight: 700, flexShrink: 0 }}>
+                        Total a cobrar
+                    </Typography>
+                    <Box sx={{ textAlign: 'right', minWidth: 0 }}>
+                        {descuentoPuntos > 0 && (
+                            <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'text.secondary', textDecoration: 'line-through', lineHeight: 1 }}>
+                                {formatCurrency(subtotal)}
                             </Typography>
                         )}
-                        {!cliente && validItems.length > 0 && (
-                            <Typography sx={{ fontSize: 10, color: '#F59E0B', fontWeight: 600, mt: 0.2 }}>
-                                Selecciona un cliente
-                            </Typography>
-                        )}
-                    </Box>
-                    <Box sx={{ flexShrink: 0 }}>
-                        <Button
-                            variant="contained"
-                            disabled={savingVenta || validItems.length === 0 || !cliente}
-                            onClick={onSubmit}
-                            startIcon={savingVenta
-                                ? <CircularProgress size={15} sx={{ color: 'white' }} />
-                                : <ShoppingCart sx={{ fontSize: 18 }} />
-                            }
-                            sx={{
-                                background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`,
-                                boxShadow: `0 3px 10px rgba(255,96,32,0.3)`,
-                                borderRadius: 2.5, fontWeight: 800, py: 1.5, px: 2.5, fontSize: 14,
-                                whiteSpace: 'nowrap',
-                                '&:disabled': { background: 'rgba(0,0,0,0.12)', boxShadow: 'none' },
-                            }}
-                        >
-                            {savingVenta ? 'Guardando…' : 'Cobrar'}
-                        </Button>
-                        <Typography sx={{ fontSize: 10, color: 'text.disabled', textAlign: 'center', mt: 0.3 }}>
-                            Ctrl+Enter
+                        <Typography sx={{
+                            fontSize: 32, fontWeight: 900, lineHeight: 1.05,
+                            color: descuentoPuntos > 0 ? '#10B981' : ACCENT,
+                            whiteSpace: 'nowrap',
+                        }}>
+                            {formatCurrency(total)}
                         </Typography>
                     </Box>
+                </Box>
+
+                {/* Botón (fila propia, ancho completo) */}
+                <Button
+                    fullWidth
+                    variant="contained"
+                    disabled={savingVenta || validItems.length === 0 || !cliente}
+                    onClick={onSubmit}
+                    startIcon={savingVenta
+                        ? <CircularProgress size={16} sx={{ color: 'white' }} />
+                        : <ShoppingCart sx={{ fontSize: 20 }} />
+                    }
+                    sx={{
+                        background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`,
+                        boxShadow: `0 3px 10px rgba(255,96,32,0.3)`,
+                        borderRadius: 2.5, fontWeight: 800, py: 1.5, fontSize: 16,
+                        '&:disabled': { background: 'rgba(0,0,0,0.12)', boxShadow: 'none' },
+                    }}
+                >
+                    {savingVenta ? 'Guardando…' : 'Registrar Venta'}
+                </Button>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mt: 0.5 }}>
+                    {!cliente && validItems.length > 0 ? (
+                        <Typography sx={{ fontSize: 11, color: '#F59E0B', fontWeight: 600 }}>
+                            Selecciona un cliente para continuar
+                        </Typography>
+                    ) : (
+                        <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
+                            Ctrl + Enter para registrar
+                        </Typography>
+                    )}
                 </Box>
             </Box>
         </Box>
