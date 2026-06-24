@@ -1014,17 +1014,7 @@ useEffect(() => {
         }
     };
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        // En móvil el botón "Ir" del teclado dispara submit en vez de onKeyDown.
-        // Si el foco está en el campo de barras y tiene contenido, procesamos el código.
-        const active = document.activeElement;
-        if (barcodeFieldRef.current && barcodeFieldRef.current.contains(active)) {
-            const val = (active?.value || barcodeInput || '').trim();
-            if (val) { handleProcessBarcode(val); return; }
-        }
-        handleVentaSubmit();
-    };
+    const handleSubmit = (e) => { if (e?.preventDefault) e.preventDefault(); handleVentaSubmit(); };
 
     const resetForm = () => {
         setCliente(null); setClienteInput(''); setIsMostrador(false);
@@ -1187,7 +1177,7 @@ useEffect(() => {
                 ════════════════════════════════════════ */}
                 <TabPanel value={tabValue} index={0}>
                     {viewMode === 'classic' ? (
-                        <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', gap: 0, alignItems: 'stretch', minHeight: 0, flexDirection: { xs: 'column', md: 'row' } }}>
+                        <Box sx={{ display: 'flex', gap: 0, alignItems: 'stretch', minHeight: 0, flexDirection: { xs: 'column', md: 'row' } }}>
                           {/* ── LEFT PANEL ── */}
                           <Box sx={{ flex: 1, minWidth: 0, p: { xs: 2, md: 3 }, overflowY: 'auto', maxHeight: { md: 'calc(100vh - 220px)' } }}>
                             {/* ── 0. ¿Factura Electrónica? (primera pregunta al cliente) ── */}
