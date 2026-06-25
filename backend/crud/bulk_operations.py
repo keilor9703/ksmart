@@ -314,13 +314,15 @@ def bulk_create_clientes(db: Session, empresa_id: int, file: IO, filename: str):
             except (ValueError, TypeError):
                 cupo = 0.0
 
-            # ZONA
-            raw_zona = str(row.get('zona', '')).strip() if pd.notna(row.get('zona')) else ''
-            zona = raw_zona if raw_zona not in ('nan', 'NAN', '') else None
+            # DV (dígito verificador) — solo aplica para NIT
+            raw_dv = str(row.get('dv', '')).strip() if pd.notna(row.get('dv')) else ''
+            if raw_dv in ('nan', 'NAN', '0.0', ''):
+                raw_dv = None
 
             cliente_data = schemas.ClienteCreate(
                 nombre=nombre,
                 cedula=cedula,
+                dv=raw_dv,
                 telefono=telefono,
                 direccion=direccion,
                 email=raw_email,
@@ -331,7 +333,6 @@ def bulk_create_clientes(db: Session, empresa_id: int, file: IO, filename: str):
                 tipo_organizacion_id=persona_cfg['tipo_organizacion_id'],
                 tipo_regimen_id=persona_cfg['tipo_regimen_id'],
                 responsabilidad_fiscal_codes=persona_cfg['responsabilidad_fiscal_codes'],
-                zona=zona,
             )
             create_cliente(db, empresa_id, cliente_data)
             created_count += 1
