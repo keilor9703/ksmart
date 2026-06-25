@@ -30,17 +30,17 @@ def get_clientes_template(current_user: models.User = Depends(get_current_active
         ("PASO 1", "Ve a la pestaña 'Plantilla Datos' e ingresa tus terceros a partir de la fila 2."),
         ("PASO 2", "NO modifiques, renombres ni elimines la fila 1 (cabeceras en azul)."),
         ("NOMBRE", "Razón social o nombre completo. Obligatorio."),
-        ("CEDULA", "NIT o número de documento. Obligatorio y único por empresa. Sin puntos ni guiones (ej: 9001234567)."),
-        ("TELEFONO", "Solo números, sin espacios ni guiones (ej: 3001234567)."),
-        ("DIRECCION", "Dirección física del tercero. Opcional."),
-        ("EMAIL", "Correo electrónico. Requerido para emitir Factura Electrónica (FE). Opcional si no usa FE."),
-        ("CUPO_CREDITO", "Monto máximo de deuda permitida en COP. Solo números (ej: 500000). Deja 0 si no aplica."),
-        ("ES_CLIENTE", "SI si le vendes a este tercero · NO si no."),
-        ("ES_PROVEEDOR", "SI si le compras a este tercero · NO si no."),
+        ("CEDULA", "NIT o número de documento. Obligatorio y único. Sin puntos ni guiones (ej: 9001234567). Para NIT NO incluyas el dígito verificador aquí."),
         ("TIPO_DOCUMENTO", "CC (Cédula) · NIT (Empresa/RUT) · CE (Cédula Extranjería) · PA (Pasaporte) · TI (Tarjeta Identidad). Por defecto: CC."),
-        ("TIPO_PERSONA", "NATURAL (persona natural) · JURIDICA (empresa/sociedad). Por defecto: NATURAL."),
-        ("ZONA", "Zona geográfica o zona de vendedor. Opcional (ej: Norte, Sur, Centro)."),
-        ("NOTA", "Terceros con CEDULA ya existente en el sistema serán omitidos sin error. ES_CLIENTE y ES_PROVEEDOR pueden ser ambos SI (ej: un proveedor al que también le vendes)."),
+        ("DV", "Dígito verificador — SOLO para NIT. Déjalo vacío para CC, CE, PA, TI. El sistema lo calcula si lo dejas en blanco para NIT."),
+        ("TIPO_PERSONA", "NATURAL (persona natural/independiente) · JURIDICA (empresa, S.A.S., LTDA, etc.). Afecta el régimen tributario para Factura Electrónica."),
+        ("TELEFONO", "Solo números, sin espacios ni guiones (ej: 3001234567)."),
+        ("DIRECCION", "Dirección fiscal del tercero. Opcional."),
+        ("EMAIL", "⚠ Requerido para emitir Factura Electrónica (FE) a este cliente. Déjalo vacío si no emites FE."),
+        ("CUPO_CREDITO", "Límite de crédito en COP. Solo números (ej: 500000). Deja 0 si no maneja crédito."),
+        ("ES_CLIENTE", "SI → le vendes · NO → no le vendes."),
+        ("ES_PROVEEDOR", "SI → le compras · NO → no le compras. Pueden ser ambos SI."),
+        ("NOTA FE", "Para que la Factura Electrónica funcione el tercero debe tener: CEDULA/NIT, EMAIL, TIPO_DOCUMENTO y TIPO_PERSONA correctos. Persona JURIDICA usa régimen IVA responsable; NATURAL usa no responsable."),
     ]
     ws_inst.cell(row=4, column=2, value="COLUMNA").font = Font(bold=True, size=11)
     ws_inst.cell(row=4, column=3, value="DESCRIPCIÓN").font = Font(bold=True, size=11)
@@ -56,17 +56,17 @@ def get_clientes_template(current_user: models.User = Depends(get_current_active
     headers = [
         "nombre",         # A — obligatorio
         "cedula",         # B — obligatorio
-        "telefono",       # C
-        "direccion",      # D
-        "email",          # E — nuevo
-        "cupo_credito",   # F
-        "es_cliente",     # G — SI/NO
-        "es_proveedor",   # H — SI/NO
-        "tipo_documento", # I — nuevo
-        "tipo_persona",   # J — nuevo
-        "zona",           # K — nuevo
+        "tipo_documento", # C — CC/NIT/CE/PA/TI
+        "dv",             # D — dígito verificador (solo NIT)
+        "tipo_persona",   # E — NATURAL/JURIDICA
+        "telefono",       # F
+        "direccion",      # G
+        "email",          # H — para FE
+        "cupo_credito",   # I
+        "es_cliente",     # J — SI/NO
+        "es_proveedor",   # K — SI/NO
     ]
-    col_widths = [30, 18, 16, 30, 30, 16, 14, 14, 16, 14, 16]
+    col_widths = [30, 18, 16, 8, 14, 16, 30, 30, 16, 14, 14]
 
     header_fill = PatternFill(start_color="3B82F6", end_color="3B82F6", fill_type="solid")
     header_font = Font(color="FFFFFF", bold=True, size=11)
@@ -81,25 +81,25 @@ def get_clientes_template(current_user: models.User = Depends(get_current_active
     ws_datos.row_dimensions[1].height = 22
 
     # Desplegables
-    dv_sino = DataValidation(type="list", formula1='"SI,NO"', allow_blank=False)
-    ws_datos.add_data_validation(dv_sino)
-    dv_sino.add("G2:G5000")
-    dv_sino.add("H2:H5000")
-
     dv_tipodoc = DataValidation(type="list", formula1='"CC,NIT,CE,PA,TI"', allow_blank=True)
     ws_datos.add_data_validation(dv_tipodoc)
-    dv_tipodoc.add("I2:I5000")
+    dv_tipodoc.add("C2:C5000")
 
     dv_persona = DataValidation(type="list", formula1='"NATURAL,JURIDICA"', allow_blank=True)
     ws_datos.add_data_validation(dv_persona)
-    dv_persona.add("J2:J5000")
+    dv_persona.add("E2:E5000")
+
+    dv_sino = DataValidation(type="list", formula1='"SI,NO"', allow_blank=False)
+    ws_datos.add_data_validation(dv_sino)
+    dv_sino.add("J2:J5000")
+    dv_sino.add("K2:K5000")
 
     # Datos de ejemplo
+    #          nombre                    cedula        tipodoc  dv  persona    tel          direccion               email                 cupo       cli   pro
     ejemplos = [
-        # nombre                  cedula         tel          direccion              email                   cupo        cli  pro  tipodoc  persona    zona
-        ["Distribuidora XYZ S.A.S", "9001234567", "6014445566", "Calle 10 # 5-20 Bogotá", "contacto@xyz.com",  5000000,  "NO", "SI", "NIT",   "JURIDICA",  "Norte"],
-        ["Juan Pérez García",        "10203040",   "3001234567", "Carrera 5 # 10-30",       "juan@gmail.com",   0,        "SI", "NO", "CC",    "NATURAL",   "Sur"],
-        ["María López",              "52100200",   "3109876543", "",                         "",                  1000000, "SI", "NO", "CC",    "NATURAL",   ""],
+        ["Distribuidora XYZ S.A.S", "9001234567",  "NIT",  "1", "JURIDICA",  "6014445566", "Calle 10 # 5-20 Bogotá", "contacto@xyz.com",  5000000,  "NO", "SI"],
+        ["Juan Pérez García",        "10203040",    "CC",   "",  "NATURAL",   "3001234567", "Carrera 5 # 10-30",      "juan@gmail.com",    0,        "SI", "NO"],
+        ["María López",              "52100200",    "CC",   "",  "NATURAL",   "3109876543", "",                        "",                  1000000,  "SI", "NO"],
     ]
 
     example_fill = PatternFill(start_color="EFF6FF", end_color="EFF6FF", fill_type="solid")

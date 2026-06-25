@@ -17,18 +17,17 @@ const RED     = '#EF4444';
 
 const UPLOAD_CONFIG = {
   clientes: {
-    headers: ['nombre', 'cedula', 'telefono', 'direccion', 'email', 'cupo_credito', 'es_cliente', 'es_proveedor', 'tipo_documento', 'tipo_persona', 'zona'],
+    headers: ['nombre', 'cedula', 'tipo_documento', 'dv', 'tipo_persona', 'telefono', 'direccion', 'email', 'cupo_credito', 'es_cliente', 'es_proveedor'],
     tips: [
       { col: 'nombre', desc: 'Razón social o nombre completo. Obligatorio.' },
-      { col: 'cedula', desc: 'NIT o documento sin puntos ni guiones (ej: 9001234567). Obligatorio y único.' },
-      { col: 'telefono', desc: 'Solo números, sin espacios ni guiones (ej: 3001234567).' },
-      { col: 'email', desc: 'Correo electrónico. Requerido para emitir Factura Electrónica (FE).' },
+      { col: 'cedula', desc: 'NIT o documento sin puntos ni guiones (ej: 9001234567). Sin dígito verificador. Obligatorio y único.' },
+      { col: 'tipo_documento', desc: 'CC · NIT · CE · PA · TI. Por defecto CC.' },
+      { col: 'dv', desc: 'Dígito verificador — SOLO para NIT. Déjalo vacío para CC, CE, PA, TI.' },
+      { col: 'tipo_persona', desc: 'NATURAL o JURIDICA. Determina el régimen tributario para Factura Electrónica.' },
+      { col: 'email', desc: '⚠ Requerido para emitir Factura Electrónica. Opcional si no usa FE.' },
       { col: 'cupo_credito', desc: 'Límite de crédito en COP. Solo números (ej: 500000). 0 si no aplica.' },
       { col: 'es_cliente', desc: 'SI si le vendes · NO si no.' },
-      { col: 'es_proveedor', desc: 'SI si le compras · NO si no.' },
-      { col: 'tipo_documento', desc: 'CC (Cédula) · NIT · CE (Cédula Extranjería) · PA (Pasaporte) · TI (Tarjeta Identidad). Por defecto: CC.' },
-      { col: 'tipo_persona', desc: 'NATURAL (persona natural) · JURIDICA (empresa/sociedad). Por defecto: NATURAL.' },
-      { col: 'zona', desc: 'Zona geográfica o de vendedor (ej: Norte, Sur). Opcional.' },
+      { col: 'es_proveedor', desc: 'SI si le compras · NO si no. Pueden ser ambos SI.' },
     ]
   },
   productos: {
