@@ -17,13 +17,18 @@ const RED     = '#EF4444';
 
 const UPLOAD_CONFIG = {
   clientes: {
-    headers: ['nombre', 'cedula', 'telefono', 'direccion', 'cupo_credito', 'es_cliente', 'es_proveedor'],
+    headers: ['nombre', 'cedula', 'telefono', 'direccion', 'email', 'cupo_credito', 'es_cliente', 'es_proveedor', 'tipo_documento', 'tipo_persona', 'zona'],
     tips: [
-      { col: 'nombre', desc: 'Razón social o nombre completo del tercero.' },
-      { col: 'cedula', desc: 'NIT o Documento de identidad. Debe ser único.' },
-      { col: 'cupo_credito', desc: 'Monto máximo de deuda permitida (solo números, ej: 500000).' },
-      { col: 'es_cliente', desc: 'SI si le vendes a este tercero, NO si no.' },
-      { col: 'es_proveedor', desc: 'SI si le compras a este tercero, NO si no.' }
+      { col: 'nombre', desc: 'Razón social o nombre completo. Obligatorio.' },
+      { col: 'cedula', desc: 'NIT o documento sin puntos ni guiones (ej: 9001234567). Obligatorio y único.' },
+      { col: 'telefono', desc: 'Solo números, sin espacios ni guiones (ej: 3001234567).' },
+      { col: 'email', desc: 'Correo electrónico. Requerido para emitir Factura Electrónica (FE).' },
+      { col: 'cupo_credito', desc: 'Límite de crédito en COP. Solo números (ej: 500000). 0 si no aplica.' },
+      { col: 'es_cliente', desc: 'SI si le vendes · NO si no.' },
+      { col: 'es_proveedor', desc: 'SI si le compras · NO si no.' },
+      { col: 'tipo_documento', desc: 'CC (Cédula) · NIT · CE (Cédula Extranjería) · PA (Pasaporte) · TI (Tarjeta Identidad). Por defecto: CC.' },
+      { col: 'tipo_persona', desc: 'NATURAL (persona natural) · JURIDICA (empresa/sociedad). Por defecto: NATURAL.' },
+      { col: 'zona', desc: 'Zona geográfica o de vendedor (ej: Norte, Sur). Opcional.' },
     ]
   },
   productos: {

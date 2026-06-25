@@ -186,53 +186,152 @@ def bulk_create_clientes(db: Session, empresa_id: int, file: IO, filename: str):
     try:
         import io as _io
         buf = _io.BytesIO(file.read())
-        dfs = pd.read_excel(buf, engine='openpyxl', sheet_name=None)
+        file_ext = (file.name.split('.')[-1] if hasattr(file, 'name') else 'xlsx').lower()
+        if file_ext == 'csv':
+            df = pd.read_csv(buf)
+            dfs = {"Sheet1": df}
+        else:
+            dfs = pd.read_excel(buf, engine='openpyxl', sheet_name=None)
         df = dfs.get("Plantilla Datos", list(dfs.values())[0])
         df.columns = [str(c).strip().lower().replace("\r", "").replace("\n", "") for c in df.columns]
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error leyendo Excel: {e}")
+        raise HTTPException(status_code=400, detail=f"Error leyendo archivo: {e}")
+
+    if 'nombre' not in df.columns:
+        raise HTTPException(status_code=400, detail="El archivo no tiene la columna 'NOMBRE'. Asegúrese de usar la pestaña 'Plantilla Datos'.")
+
+    # Mapeo tipo_documento texto → tipo_documento_id DIAN
+    _tipodoc_map = {
+        'CC': 13, 'CEDULA': 13, 'CÉDULA': 13,
+        'NIT': 31,
+        'CE': 22, 'CEDULA EXTRANJERIA': 22,
+        'PA': 41, 'PASAPORTE': 41,
+        'TI': 12, 'TARJETA IDENTIDAD': 12,
+        'RC': 11,
+    }
+    # Mapeo tipo_persona → tipo_organizacion_id y tipo_regimen_id
+    _persona_map = {
+        'NATURAL':  {'tipo_organizacion_id': 2, 'tipo_regimen_id': 49, 'responsabilidad_fiscal_codes': 'R-99-PN'},
+        'JURIDICA': {'tipo_organizacion_id': 1, 'tipo_regimen_id': 48, 'responsabilidad_fiscal_codes': 'O-13'},
+    }
 
     created_count = 0
     errors = []
-    existing_cedulas = {str(c.cedula) for c in db.query(models.Cliente).filter(models.Cliente.empresa_id == empresa_id).all() if c.cedula}
+    existing_cedulas = {
+        str(c.cedula)
+        for c in db.query(models.Cliente).filter(models.Cliente.empresa_id == empresa_id).all()
+        if c.cedula
+    }
     seen_cedulas = set()
+
+    def clean_phone(v):
+        """Limpia teléfono: elimina .0 de floats, espacios y guiones."""
+        s = str(v).strip()
+        if s.replace('.', '').replace('-', '').isdigit():
+            try:
+                return str(int(float(s)))
+            except Exception:
+                pass
+        return s.replace('-', '').replace(' ', '') or None
+
+    def clean_cedula(v):
+        """Limpia NIT/cédula: elimina .0 flotantes y guiones."""
+        s = str(v).strip()
+        # Quitar guión de dígito verificador (900123456-1 → 900123456)
+        if '-' in s:
+            s = s.split('-')[0].strip()
+        if s.replace('.', '').isdigit():
+            try:
+                return str(int(float(s)))
+            except Exception:
+                pass
+        return s or None
 
     for index, row in df.iterrows():
         try:
             nombre = str(row.get('nombre', '')).strip()
-            # Excel a veces guarda NIT/cédula como número (ej: 900123456.0) — limpiar el .0
-            _ced_raw = row.get("cedula")
-            if pd.notna(_ced_raw):
-                cedula = str(int(float(_ced_raw))) if str(_ced_raw).replace('.','').isdigit() else str(_ced_raw).strip()
-            else:
-                cedula = None
+            if nombre in ('', 'nan', 'NAN'):
+                nombre = ''
 
-            # Omitir filas vacías
-            if (not nombre or nombre == 'nan') and not cedula:
+            _ced_raw = row.get('cedula')
+            cedula = clean_cedula(_ced_raw) if pd.notna(_ced_raw) else None
+
+            # Saltar filas completamente vacías
+            if not nombre and not cedula:
+                continue
+
+            if not nombre:
+                errors.append(f"Fila {index + 2}: El nombre es obligatorio.")
                 continue
 
             if not cedula:
-                errors.append(f"Fila {index + 2}: Cliente '{nombre}' sin cédula/NIT.")
+                errors.append(f"Fila {index + 2}: '{nombre}' no tiene cédula/NIT. Es obligatorio.")
                 continue
 
-            if cedula in existing_cedulas or cedula in seen_cedulas:
-                errors.append(f"Fila {index + 2}: Cédula {cedula} ya existe o está duplicada.")
+            if cedula in existing_cedulas:
+                errors.append(f"Fila {index + 2}: Cédula/NIT {cedula} ya existe en el sistema (omitida).")
+                continue
+
+            if cedula in seen_cedulas:
+                errors.append(f"Fila {index + 2}: Cédula/NIT {cedula} duplicada en el archivo.")
                 continue
 
             seen_cedulas.add(cedula)
 
-            # Convertir el texto 'SI'/'NO' a booleano
-            es_cliente = str(row.get('es_cliente', 'SI')).strip().upper() == 'SI'
+            # ES_CLIENTE / ES_PROVEEDOR
+            es_cliente   = str(row.get('es_cliente',   'SI')).strip().upper() == 'SI'
             es_proveedor = str(row.get('es_proveedor', 'NO')).strip().upper() == 'SI'
+
+            # TIPO_DOCUMENTO → tipo_documento_id
+            raw_tipodoc = str(row.get('tipo_documento', 'CC')).strip().upper()
+            if raw_tipodoc in ('', 'NAN'):
+                raw_tipodoc = 'CC'
+            tipo_documento_id = _tipodoc_map.get(raw_tipodoc, 13)
+
+            # TIPO_PERSONA → tipo_organizacion_id, tipo_regimen_id
+            raw_persona = str(row.get('tipo_persona', 'NATURAL')).strip().upper()
+            if raw_persona in ('', 'NAN'):
+                raw_persona = 'NATURAL'
+            persona_cfg = _persona_map.get(raw_persona, _persona_map['NATURAL'])
+
+            # EMAIL
+            raw_email = str(row.get('email', '')).strip() if pd.notna(row.get('email')) else ''
+            if raw_email in ('nan', 'NAN', ''):
+                raw_email = None
+
+            # TELEFONO
+            raw_tel = row.get('telefono')
+            telefono = clean_phone(raw_tel) if pd.notna(raw_tel) else None
+
+            # DIRECCION
+            raw_dir = str(row.get('direccion', '')).strip() if pd.notna(row.get('direccion')) else ''
+            direccion = raw_dir if raw_dir not in ('nan', 'NAN', '') else None
+
+            # CUPO_CREDITO
+            raw_cupo = row.get('cupo_credito', 0)
+            try:
+                cupo = float(str(raw_cupo).replace('$', '').replace('.', '').replace(',', '.').strip()) if pd.notna(raw_cupo) else 0.0
+            except (ValueError, TypeError):
+                cupo = 0.0
+
+            # ZONA
+            raw_zona = str(row.get('zona', '')).strip() if pd.notna(row.get('zona')) else ''
+            zona = raw_zona if raw_zona not in ('nan', 'NAN', '') else None
 
             cliente_data = schemas.ClienteCreate(
                 nombre=nombre,
                 cedula=cedula,
-                telefono=(lambda v: str(int(float(v))) if str(v).replace('.','').isdigit() else str(v).strip())(row.get('telefono','')) if pd.notna(row.get('telefono')) else None,
-                direccion=str(row.get('direccion', '')) if pd.notna(row.get('direccion')) else None,
-                cupo_credito=float(row.get('cupo_credito', 0.0)) if pd.notna(row.get('cupo_credito')) else 0.0,
+                telefono=telefono,
+                direccion=direccion,
+                email=raw_email,
+                cupo_credito=cupo,
                 es_cliente=es_cliente,
-                es_proveedor=es_proveedor
+                es_proveedor=es_proveedor,
+                tipo_documento_id=tipo_documento_id,
+                tipo_organizacion_id=persona_cfg['tipo_organizacion_id'],
+                tipo_regimen_id=persona_cfg['tipo_regimen_id'],
+                responsabilidad_fiscal_codes=persona_cfg['responsabilidad_fiscal_codes'],
+                zona=zona,
             )
             create_cliente(db, empresa_id, cliente_data)
             created_count += 1
@@ -241,7 +340,10 @@ def bulk_create_clientes(db: Session, empresa_id: int, file: IO, filename: str):
 
     return {
         "success": created_count > 0,
-        "message": f"Carga finalizada. {created_count} terceros creados.",
+        "message": (
+            f"Carga finalizada. {created_count} tercero(s) creado(s)."
+            + (f" Se omitieron {len(errors)} fila(s) con errores." if errors else "")
+        ),
         "created_records": created_count,
         "errors": errors
     }
