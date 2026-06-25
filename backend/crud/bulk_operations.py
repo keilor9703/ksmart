@@ -50,7 +50,7 @@ def bulk_create_productos(db: Session, empresa_id: int, file: IO, filename: str)
 
     # 4. Forzar tipos de datos en las columnas numéricas
     # Limpiar formato de moneda que el usuario pudo haber escrito (ej: "$1.200,00" → 1200.0)
-    numeric_cols = ['precio', 'costo', 'stock_minimo', 'grupo_item']
+    numeric_cols = ['precio', 'costo', 'stock_minimo', 'stock_inicial']
     for col in numeric_cols:
         if col in df.columns:
             df[col] = (
@@ -76,13 +76,22 @@ def bulk_create_productos(db: Session, empresa_id: int, file: IO, filename: str)
     }
     seen_names = set()
 
+    # Mapeo de números 1-4 a los códigos reales de grupo (más robusto que IDs hardcodeados)
+    _num_to_code = {"1": "MP", "2": "PT", "3": "AF", "4": "INS", "5": "PLATO"}
+
     def map_group(val):
-        # pandas lee los dropdowns de Excel como float (ej: 1.0) — convertir a entero primero
+        raw = str(val).strip()
+        # pandas lee dropdowns de Excel como float (ej: 1.0) → limpiar
         try:
-            clean = str(int(float(str(val).strip())))
+            as_int = str(int(float(raw)))
+            # Si es un número 1-5, traducir a código de texto primero
+            if as_int in _num_to_code:
+                raw = _num_to_code[as_int]
+            else:
+                raw = as_int
         except (ValueError, TypeError):
-            clean = str(val).strip()
-        return resolve_grupo_by_name(db, empresa_id, clean)
+            pass
+        return resolve_grupo_by_name(db, empresa_id, raw)
 
     for index, row in df.iterrows():
         try:
@@ -115,14 +124,44 @@ def bulk_create_productos(db: Session, empresa_id: int, file: IO, filename: str)
             except (ValueError, TypeError):
                 es_servicio = False
 
+            # unidad_medida — normalizar a mayúsculas para que coincida con esPesable
+            raw_unidad = str(row.get('unidad_medida', 'UND')).strip().upper() if pd.notna(row.get('unidad_medida')) else 'UND'
+            if not raw_unidad or raw_unidad == 'NAN':
+                raw_unidad = 'UND'
+
+            # codigo_barras — debe ser único; si viene vacío, no asignar
+            raw_barcode = str(row.get('codigo_barras', '')).strip() if pd.notna(row.get('codigo_barras')) else ''
+            if raw_barcode in ('', 'nan', 'NAN', '0'):
+                raw_barcode = None
+            else:
+                # Verificar que no exista ya en la empresa
+                from models import Producto as ProdModel
+                dup = db.query(ProdModel).filter(
+                    ProdModel.empresa_id == empresa_id,
+                    ProdModel.codigo_barras == raw_barcode,
+                    ProdModel.vigente == True,
+                ).first()
+                if dup:
+                    errors.append(f"Fila {index + 2}: Código de barras '{raw_barcode}' ya existe en '{dup.nombre}'. Se omitió.")
+                    raw_barcode = None  # crea el producto sin barcode en vez de saltar la fila
+
+            raw_descripcion = str(row.get('descripcion', '')).strip() if pd.notna(row.get('descripcion')) else ''
+            if raw_descripcion in ('nan', 'NAN'):
+                raw_descripcion = ''
+
+            stock_inicial_val = float(row.get('stock_inicial', 0.0)) if 'stock_inicial' in df.columns else 0.0
+
             producto_data = schemas.ProductoCreate(
                 nombre=raw_name,
                 precio=float(row.get('precio', 0.0)),
                 costo=float(row.get('costo', 0.0)),
                 es_servicio=es_servicio,
-                unidad_medida=str(row.get('unidad_medida', 'UND')).strip() if pd.notna(row.get('unidad_medida')) else 'UND',
+                unidad_medida=raw_unidad,
                 stock_minimo=float(row.get('stock_minimo', 0.0)),
-                grupo_item=map_group(row.get('grupo_item', 'PT'))
+                grupo_item=map_group(row.get('grupo_item', 'PT')),
+                stock_inicial=stock_inicial_val,
+                codigo_barras=raw_barcode,
+                descripcion=raw_descripcion or None,
             )
             create_producto(db, empresa_id, producto_data)
             created_count += 1

@@ -210,57 +210,93 @@ async def get_producto_por_barcode(
 def get_productos_template(current_user: models.User = Depends(get_current_active_user)):
     wb = openpyxl.Workbook()
 
+    # ── Hoja 1: Instrucciones ──────────────────────────────────────────────────
     ws_inst = wb.active
     ws_inst.title = "Instrucciones"
     ws_inst.sheet_properties.tabColor = "8B5CF6"
-    ws_inst.cell(row=2, column=2, value="🛠 CÓMO USAR ESTA PLANTILLA").font = Font(size=14, bold=True, color="8B5CF6")
+
+    purple = Font(size=14, bold=True, color="8B5CF6")
+    ws_inst.cell(row=2, column=2, value="🛠  CÓMO USAR ESTA PLANTILLA DE PRODUCTOS").font = purple
+
     instrucciones = [
-        "1. Ve a la pestaña 'Plantilla Datos' para registrar tu inventario.",
-        "2. IMPORTANTE: No modifiques, renombres ni elimines la fila 1 (Cabeceras).",
-        "3. GRUPO_ITEM: Usa el desplegable (1=Materia Prima, 2=Prod. Terminado, 3=Activo Fijo, 4=Insumo).",
-        "4. ES_SERVICIO: Usa el desplegable (0 = Producto Físico, 1 = Servicio Intangible).",
-        "5. UNIDAD_MEDIDA: Usa el desplegable (UND, Kg, Lts, etc.).",
-        "6. COSTO: Si marcas el ítem como Servicio (1), el costo debe ser 0."
+        ("PASO 1", "Ve a la pestaña 'Plantilla Datos' e ingresa tus productos a partir de la fila 2."),
+        ("PASO 2", "NO modifiques, renombres ni elimines la fila 1 (cabeceras en morado)."),
+        ("PASO 3", "GRUPO_ITEM — usa el desplegable o escribe el código:  MP (Materia Prima),  PT (Prod. Terminado),  AF (Activo Fijo),  INS (Insumo)."),
+        ("PASO 4", "ES_SERVICIO — 0 = Producto Físico (controla inventario),  1 = Servicio/Intangible (sin inventario)."),
+        ("PASO 5", "UNIDAD_MEDIDA — usa el desplegable:  UND (unidades),  KGS (kilos),  GRS (gramos),  LTS (litros),  MTS (metros),  LBS (libras)."),
+        ("PASO 6", "STOCK_INICIAL — cantidad de unidades con que inicia el inventario del producto. Deja 0 si aún no hay existencias."),
+        ("PASO 7", "CODIGO_BARRAS — código EAN-13 / código interno. Déjalo vacío si no tiene; debe ser único por empresa."),
+        ("PASO 8", "DESCRIPCION — texto libre opcional (ingredientes, especificaciones, etc.)."),
+        ("PASO 9", "Cuando el archivo esté listo, guárdalo como .xlsx y súbelo desde el módulo de Productos → Carga Masiva."),
+        ("NOTA",   "Los productos ya existentes (mismo nombre) serán omitidos sin error. Las filas con nombre vacío también se saltan."),
     ]
-    for i, inst in enumerate(instrucciones, 4):
-        ws_inst.cell(row=i, column=2, value=inst).font = Font(size=11)
-    ws_inst.column_dimensions['B'].width = 80
+    ws_inst.cell(row=4, column=2, value="COLUMNA").font = Font(bold=True, size=11)
+    ws_inst.cell(row=4, column=3, value="DESCRIPCIÓN").font = Font(bold=True, size=11)
+    for i, (col_key, desc) in enumerate(instrucciones, 5):
+        ws_inst.cell(row=i, column=2, value=col_key).font = Font(bold=True, size=10, color="8B5CF6")
+        ws_inst.cell(row=i, column=3, value=desc).font = Font(size=10)
+    ws_inst.column_dimensions['B'].width = 16
+    ws_inst.column_dimensions['C'].width = 90
 
+    # ── Hoja 2: Plantilla Datos ────────────────────────────────────────────────
     ws_datos = wb.create_sheet(title="Plantilla Datos")
-    headers = ["nombre", "precio", "costo", "grupo_item", "unidad_medida", "es_servicio", "stock_minimo"]
-    header_fill = PatternFill(start_color="8B5CF6", end_color="8B5CF6", fill_type="solid")
-    header_font = Font(color="FFFFFF", bold=True)
 
-    for col_num, header in enumerate(headers, 1):
+    headers = [
+        "nombre",        # A — obligatorio
+        "precio",        # B
+        "costo",         # C
+        "grupo_item",    # D — dropdown MP/PT/AF/INS
+        "unidad_medida", # E — dropdown
+        "es_servicio",   # F — 0/1
+        "stock_minimo",  # G
+        "stock_inicial", # H — nuevo
+        "codigo_barras", # I — nuevo
+        "descripcion",   # J — nuevo
+    ]
+
+    col_widths = [28, 14, 14, 16, 16, 14, 14, 14, 20, 40]
+    header_fill = PatternFill(start_color="8B5CF6", end_color="8B5CF6", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True, size=11)
+
+    for col_num, (header, width) in enumerate(zip(headers, col_widths), 1):
         cell = ws_datos.cell(row=1, column=col_num, value=header.upper())
         cell.fill = header_fill
         cell.font = header_font
         cell.alignment = Alignment(horizontal="center", vertical="center")
-        ws_datos.column_dimensions[openpyxl.utils.get_column_letter(col_num)].width = 20
+        ws_datos.column_dimensions[openpyxl.utils.get_column_letter(col_num)].width = width
 
-    dv_grupo = DataValidation(type="list", formula1='"1,2,3,4"', allow_blank=True)
-    dv_grupo.error = 'Selecciona una opción válida de la lista'
+    ws_datos.row_dimensions[1].height = 22
+
+    # Validaciones desplegables
+    dv_grupo = DataValidation(type="list", formula1='"MP,PT,AF,INS"', allow_blank=True)
+    dv_grupo.error = 'Usa: MP, PT, AF o INS'
     ws_datos.add_data_validation(dv_grupo)
-    dv_grupo.add("D2:D1000")
+    dv_grupo.add("D2:D5000")
 
-    dv_unidad = DataValidation(type="list", formula1='"UND,Kg,MTS,Lts,Gr"', allow_blank=True)
+    dv_unidad = DataValidation(type="list", formula1='"UND,KGS,GRS,LTS,MTS,LBS"', allow_blank=True)
     ws_datos.add_data_validation(dv_unidad)
-    dv_unidad.add("E2:E1000")
+    dv_unidad.add("E2:E5000")
 
     dv_servicio = DataValidation(type="list", formula1='"0,1"', allow_blank=True)
     ws_datos.add_data_validation(dv_servicio)
-    dv_servicio.add("F2:F1000")
+    dv_servicio.add("F2:F5000")
 
+    # Datos de ejemplo (3 filas)
     ejemplos = [
-        ["Cacao Tostado", 5000, 3000, 1, "Kg", 0, 10],
-        ["Chocolatina 80g", 12000, 4500, 2, "UND", 0, 5],
-        ["Servicio Maquila", 2500, 0, 2, "UND", 1, 0]
+        # nombre              precio   costo   grupo  unidad  serv  stk_min  stk_ini  barcode          desc
+        ["Cacao Tostado",     5000,    3000,   "MP",  "KGS",  0,    10,      100,     "7790123456789", "Cacao tostado natural 1 Kg"],
+        ["Chocolatina 80g",   1200,    450,    "PT",  "UND",  0,    50,      200,     "7791234567890", "Chocolatina de leche 80 gramos"],
+        ["Servicio Maquila",  80000,   0,      "PT",  "UND",  1,    0,       0,       "",              "Servicio de maquila por lote"],
     ]
+
+    example_fill = PatternFill(start_color="F5F3FF", end_color="F5F3FF", fill_type="solid")
     for r_idx, row_data in enumerate(ejemplos, 2):
         for c_idx, value in enumerate(row_data, 1):
-            ws_datos.cell(row=r_idx, column=c_idx, value=value)
+            cell = ws_datos.cell(row=r_idx, column=c_idx, value=value)
+            cell.fill = example_fill
 
     ws_datos.freeze_panes = 'A2'
+
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)

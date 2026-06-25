@@ -27,11 +27,18 @@ const UPLOAD_CONFIG = {
     ]
   },
   productos: {
-    headers: ['nombre', 'precio', 'costo', 'grupo_item', 'unidad_medida', 'es_servicio', 'stock_minimo'],
+    headers: ['nombre', 'precio', 'costo', 'grupo_item', 'unidad_medida', 'es_servicio', 'stock_minimo', 'stock_inicial', 'codigo_barras', 'descripcion'],
     tips: [
-      { col: 'grupo_item', desc: '1=Materia Prima, 2=Prod. Terminado, 3=Activo, 4=Insumo.' },
-      { col: 'es_servicio', desc: '0=Físico (controla inventario), 1=Intangible (ej. Maquila).' },
-      { col: 'costo', desc: 'Valor de compra. Si es servicio (1), pon 0.' }
+      { col: 'nombre', desc: 'Nombre del producto. Obligatorio y único por empresa.' },
+      { col: 'precio', desc: 'Precio de venta al público (solo números, sin $).' },
+      { col: 'costo', desc: 'Costo de compra/producción. Si es servicio, pon 0.' },
+      { col: 'grupo_item', desc: 'MP = Materia Prima · PT = Prod. Terminado · AF = Activo Fijo · INS = Insumo.' },
+      { col: 'unidad_medida', desc: 'UND · KGS · GRS · LTS · MTS · LBS. Usa exactamente uno de estos valores.' },
+      { col: 'es_servicio', desc: '0 = Producto Físico (controla stock)  ·  1 = Servicio/Intangible (sin stock).' },
+      { col: 'stock_minimo', desc: 'Cantidad mínima de alerta. Deja 0 si no aplica.' },
+      { col: 'stock_inicial', desc: 'Unidades con las que inicia el inventario. Deja 0 si aún no hay existencias.' },
+      { col: 'codigo_barras', desc: 'Código EAN, UPC o interno. Debe ser único; déjalo vacío si no tiene.' },
+      { col: 'descripcion', desc: 'Texto libre opcional: ingredientes, especificaciones, etc.' },
     ]
   },
   movimientos: {
@@ -50,6 +57,7 @@ const BulkUpload = ({ uploadType, onUploadSuccess }) => {
   const [loading, setLoading]             = useState(false);
   const [status, setStatus]               = useState(null);
   const [message, setMessage]             = useState('');
+  const [rowErrors, setRowErrors]         = useState([]);
   const [validationError, setValidationError] = useState(null);
   const [dragging, setDragging]           = useState(false);
   const [showTips, setShowTips]           = useState(false);
@@ -59,7 +67,7 @@ const BulkUpload = ({ uploadType, onUploadSuccess }) => {
 
   const reset = () => {
     setFile(null); setStatus(null);
-    setMessage(''); setValidationError(null);
+    setMessage(''); setRowErrors([]); setValidationError(null);
     if (inputRef.current) inputRef.current.value = '';
   };
 
@@ -103,16 +111,26 @@ const BulkUpload = ({ uploadType, onUploadSuccess }) => {
 
   const handleUpload = async () => {
     if (!file || validationError) return;
-    setLoading(true); setStatus(null);
+    setLoading(true); setStatus(null); setRowErrors([]);
     try {
       const res = await uploadFile(uploadType, file);
-      setStatus('success');
-      setMessage(res.message || 'Datos sincronizados exitosamente.');
-      toast.success('Carga masiva completada');
-      onUploadSuccess?.();
+      const errs = Array.isArray(res.errors) ? res.errors : [];
+      setRowErrors(errs);
+      if (res.created_records > 0) {
+        setStatus('success');
+        setMessage(res.message || 'Datos sincronizados exitosamente.');
+        toast.success(`Carga masiva: ${res.created_records} registro(s) creado(s).`);
+        onUploadSuccess?.();
+      } else {
+        setStatus('error');
+        setMessage(res.message || 'No se crearon registros. Revisa los errores abajo.');
+        toast.error('No se crearon registros. Revisa los errores.');
+      }
     } catch (err) {
       setStatus('error');
-      setMessage(err.message || `Falló la importación de ${uploadType}`);
+      const detail = err?.response?.data?.detail || err.message || `Falló la importación de ${uploadType}`;
+      setMessage(detail);
+      toast.error(detail);
     } finally { setLoading(false); }
   };
 
@@ -252,14 +270,34 @@ const handleDownloadTemplate = async () => {
 
       {status && (
         <Box sx={{
-          display: 'flex', alignItems: 'center', gap: 1.5, p: 2, mb: 3, borderRadius: 2,
+          display: 'flex', alignItems: 'flex-start', gap: 1.5, p: 2, mb: rowErrors.length ? 1 : 3,
+          borderRadius: 2,
           bgcolor: status === 'success' ? `${GREEN}10` : `${RED}10`,
           border: `1px solid ${status === 'success' ? GREEN : RED}30`,
         }}>
-          {status === 'success' ? <CheckCircle sx={{ color: GREEN }} /> : <ErrorIcon sx={{ color: RED }} />}
+          {status === 'success' ? <CheckCircle sx={{ color: GREEN, mt: 0.2 }} /> : <ErrorIcon sx={{ color: RED, mt: 0.2 }} />}
           <Typography sx={{ fontSize: 13, fontWeight: 600, color: status === 'success' ? GREEN : RED }}>
             {message}
           </Typography>
+        </Box>
+      )}
+
+      {/* Errores por fila */}
+      {rowErrors.length > 0 && (
+        <Box sx={{
+          mb: 3, p: 2, borderRadius: 2,
+          bgcolor: `${RED}06`, border: `1px solid ${RED}25`,
+        }}>
+          <Typography sx={{ fontSize: 12, fontWeight: 700, color: RED, mb: 1 }}>
+            ⚠ {rowErrors.length} fila(s) con errores (el resto sí se creó):
+          </Typography>
+          <Box sx={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 0.4 }}>
+            {rowErrors.map((err, i) => (
+              <Typography key={i} sx={{ fontSize: 11.5, color: 'text.secondary', pl: 1, borderLeft: `2px solid ${RED}40` }}>
+                {err}
+              </Typography>
+            ))}
+          </Box>
         </Box>
       )}
 
