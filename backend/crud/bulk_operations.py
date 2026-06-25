@@ -12,15 +12,20 @@ from crud.grupos_producto import resolve_grupo_by_name
 
 def bulk_create_productos(db: Session, empresa_id: int, file: IO, filename: str):
     try:
+        import io as _io
         file_extension = filename.split('.')[-1].lower()
+
+        # Leer todo en memoria — SpooledTemporaryFile no soporta seekable()
+        raw = file.read()
+        buf = _io.BytesIO(raw)
 
         # 1. Leer TODAS las hojas del archivo para no atascarnos en las instrucciones
         if file_extension == 'xlsx':
-            dfs = pd.read_excel(file, engine='openpyxl', sheet_name=None)
+            dfs = pd.read_excel(buf, engine='openpyxl', sheet_name=None)
         elif file_extension == 'xls':
-            dfs = pd.read_excel(file, engine='xlrd', sheet_name=None)
+            dfs = pd.read_excel(buf, engine='xlrd', sheet_name=None)
         elif file_extension == 'csv':
-            df = pd.read_csv(file)
+            df = pd.read_csv(_io.BytesIO(raw))
             dfs = {"Sheet1": df}
         else:
             raise HTTPException(
@@ -179,7 +184,9 @@ def bulk_create_productos(db: Session, empresa_id: int, file: IO, filename: str)
 
 def bulk_create_clientes(db: Session, empresa_id: int, file: IO, filename: str):
     try:
-        dfs = pd.read_excel(file, engine='openpyxl', sheet_name=None)
+        import io as _io
+        buf = _io.BytesIO(file.read())
+        dfs = pd.read_excel(buf, engine='openpyxl', sheet_name=None)
         df = dfs.get("Plantilla Datos", list(dfs.values())[0])
         df.columns = [str(c).strip().lower().replace("\r", "").replace("\n", "") for c in df.columns]
     except Exception as e:
@@ -242,7 +249,9 @@ def bulk_create_clientes(db: Session, empresa_id: int, file: IO, filename: str):
 
 def bulk_create_movimientos(db: Session, empresa_id: int, file: IO, filename: str):
     try:
-        dfs = pd.read_excel(file, engine='openpyxl', sheet_name=None)
+        import io as _io
+        buf = _io.BytesIO(file.read())
+        dfs = pd.read_excel(buf, engine='openpyxl', sheet_name=None)
         df = dfs.get("Plantilla Datos", list(dfs.values())[0])
         df.columns = [str(c).strip().lower().replace("\r", "").replace("\n", "") for c in df.columns]
     except Exception as e:
