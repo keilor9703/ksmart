@@ -1,27 +1,30 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import {
-  Box, Paper, Typography, Button, Chip, CircularProgress, Stack, Avatar,
-  TextField, Stepper, Step, StepLabel, Grid, Divider, Tooltip, Fade, Alert,
+  Box, Paper, Typography, Button, Chip, CircularProgress,
+  Stack, Avatar, TextField, Stepper, Step, StepLabel,
+  Divider, Tooltip, Fade, Alert,
 } from '@mui/material';
 import {
   EventNote, Schedule, AccessTime, CheckCircle, ArrowBack, ArrowForward,
-  Person, Engineering, EventAvailable, Spa, AttachMoney, WhatsApp,
+  Engineering, EventAvailable, Spa, AttachMoney, WhatsApp,
 } from '@mui/icons-material';
 import {
   fetchAgendamientoPublico, fetchDisponibilidadPublica, crearCitaPublica,
+  apiClient,
 } from '../../api';
-import apiClient from '../../api';
 
 const TEAL = '#0D9488';
-const imgSrc = (slug, id, idx = 0) =>
-  `${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${id}/imagen?index=${idx}`;
 const TEAL_DARK = '#0F766E';
+const API_BASE = (apiClient && apiClient.defaults && apiClient.defaults.baseURL)
+  ? apiClient.defaults.baseURL
+  : 'https://api.appjeylor.com';
 
 const pad = n => String(n).padStart(2, '0');
-const toYMD = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const fmtHora = (iso) => new Date(iso).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: true });
-const fmtFecha = (iso) => new Date(iso).toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' });
+const toYMD = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const fmtHora = iso => new Date(iso).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: true });
+const fmtFecha = iso => new Date(iso).toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' });
+const imgSrc = (slug, id, idx = 0) => `${API_BASE}/catalogo/${slug}/productos/${id}/imagen?index=${idx}`;
 
 const PASOS = ['Servicio', 'Fecha y hora', 'Tus datos', 'Listo'];
 
@@ -32,7 +35,6 @@ export default function AgendarPublico() {
   const [error, setError]     = useState(null);
   const [step, setStep]       = useState(0);
 
-  // Selección
   const [servicio, setServicio] = useState(null);
   const [fecha, setFecha]       = useState(toYMD(new Date()));
   const [franjas, setFranjas]   = useState([]);
@@ -47,7 +49,11 @@ export default function AgendarPublico() {
   const [citaOk, setCitaOk]     = useState(null);
 
   useEffect(() => {
-    if (!slug) { setLoading(false); setError('Página no encontrada.'); return; }
+    if (!slug) {
+      setLoading(false);
+      setError('Página no encontrada.');
+      return;
+    }
     (async () => {
       try {
         const { data } = await fetchAgendamientoPublico(slug);
@@ -94,7 +100,6 @@ export default function AgendarPublico() {
       setCitaOk(data);
       setStep(3);
     } catch (e) {
-      // 409 = franja tomada mientras tanto
       alert(e?.response?.data?.detail || 'No se pudo agendar. Intenta con otro horario.');
       setStep(1);
       cargarFranjas();
@@ -103,23 +108,17 @@ export default function AgendarPublico() {
     }
   };
 
-  // ── Estados de carga / error ──
-  if (loading) {
-    return <Centered><CircularProgress sx={{ color: TEAL }} /></Centered>;
-  }
-  if (error) {
-    return (
-      <Centered>
-        <EventNote sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
-        <Typography sx={{ fontWeight: 700, color: 'text.secondary' }}>{error}</Typography>
-      </Centered>
-    );
-  }
+  if (loading) return <Centered><CircularProgress sx={{ color: TEAL }} /></Centered>;
+  if (error) return (
+    <Centered>
+      <EventNote sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
+      <Typography sx={{ fontWeight: 700, color: 'text.secondary' }}>{error}</Typography>
+    </Centered>
+  );
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#F0FDFA', py: { xs: 2, sm: 5 }, px: 1.5 }}>
       <Box sx={{ maxWidth: 560, mx: 'auto' }}>
-        {/* Encabezado de la empresa */}
         <Box sx={{ textAlign: 'center', mb: 3 }}>
           {info.logo_base64 ? (
             <Avatar src={info.logo_base64} sx={{ width: 64, height: 64, mx: 'auto', mb: 1, boxShadow: 2 }} />
@@ -133,7 +132,6 @@ export default function AgendarPublico() {
         </Box>
 
         <Paper elevation={0} sx={{ borderRadius: 4, border: '1px solid', borderColor: '#CCFBF1', overflow: 'hidden' }}>
-          {/* Stepper */}
           <Box sx={{ bgcolor: '#fff', px: 2, pt: 2.5 }}>
             <Stepper activeStep={step} alternativeLabel>
               {PASOS.map(p => (
@@ -147,14 +145,13 @@ export default function AgendarPublico() {
           </Box>
 
           <Box sx={{ p: { xs: 2, sm: 3 } }}>
-            {/* PASO 0 — Servicio */}
             {step === 0 && (
               <Fade in>
                 <Box>
                   <Typography sx={{ fontWeight: 700, mb: 1.5 }}>¿Qué servicio deseas?</Typography>
                   {info.servicios.length === 0 ? (
                     <Typography sx={{ color: 'text.secondary', textAlign: 'center', py: 3 }}>
-                      No hay servicios disponibles para agendar en este momento.
+                      No hay servicios disponibles en este momento.
                     </Typography>
                   ) : (
                     <Stack spacing={1.2}>
@@ -168,17 +165,10 @@ export default function AgendarPublico() {
                             '&:hover': { borderColor: TEAL },
                             overflow: 'hidden',
                           }}>
-                            {/* Imagen del servicio */}
                             {s.image_count > 0 && (
-                              <Box sx={{
-                                width: '100%', height: 140, overflow: 'hidden',
-                                position: 'relative', bgcolor: '#F8FAFC',
-                              }}>
-                                <img
-                                  src={imgSrc(slug, s.id, 0)}
-                                  alt={s.nombre}
-                                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                                />
+                              <Box sx={{ width: '100%', height: 140, overflow: 'hidden', position: 'relative', bgcolor: '#F8FAFC' }}>
+                                <img src={imgSrc(slug, s.id, 0)} alt={s.nombre}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                                 {sel && (
                                   <Box sx={{ position: 'absolute', top: 8, right: 8 }}>
                                     <CheckCircle sx={{ color: '#fff', fontSize: 28, filter: `drop-shadow(0 0 4px ${TEAL})` }} />
@@ -218,7 +208,6 @@ export default function AgendarPublico() {
               </Fade>
             )}
 
-            {/* PASO 1 — Fecha y hora */}
             {step === 1 && (
               <Fade in>
                 <Box>
@@ -231,7 +220,9 @@ export default function AgendarPublico() {
                     <AccessTime sx={{ fontSize: 17, color: TEAL }} /> Horarios disponibles
                   </Typography>
                   {loadingFranjas ? (
-                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress size={24} sx={{ color: TEAL }} /></Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+                      <CircularProgress size={24} sx={{ color: TEAL }} />
+                    </Box>
                   ) : franjas.length === 0 ? (
                     <Paper variant="outlined" sx={{ p: 2.5, textAlign: 'center', borderRadius: 2, borderStyle: 'dashed' }}>
                       <Typography sx={{ fontSize: 13.5, color: 'text.secondary' }}>
@@ -244,13 +235,12 @@ export default function AgendarPublico() {
                         const sel = slot && slot.inicio === f.inicio && slot.user_id === f.user_id;
                         return (
                           <Tooltip key={i} title={`Atiende: ${f.trabajador_nombre}`} arrow>
-                            <Chip label={fmtHora(f.inicio)} onClick={() => setSlot(f)}
-                              sx={{
-                                fontWeight: 700, cursor: 'pointer', px: 0.5, fontSize: 13.5,
-                                bgcolor: sel ? TEAL : '#fff', color: sel ? '#fff' : TEAL_DARK,
-                                border: `1.5px solid ${sel ? TEAL : `${TEAL}44`}`,
-                                '&:hover': { bgcolor: sel ? TEAL_DARK : `${TEAL}14` },
-                              }} />
+                            <Chip label={fmtHora(f.inicio)} onClick={() => setSlot(f)} sx={{
+                              fontWeight: 700, cursor: 'pointer', px: 0.5, fontSize: 13.5,
+                              bgcolor: sel ? TEAL : '#fff', color: sel ? '#fff' : TEAL_DARK,
+                              border: `1.5px solid ${sel ? TEAL : `${TEAL}44`}`,
+                              '&:hover': { bgcolor: sel ? TEAL_DARK : `${TEAL}14` },
+                            }} />
                           </Tooltip>
                         );
                       })}
@@ -260,7 +250,6 @@ export default function AgendarPublico() {
               </Fade>
             )}
 
-            {/* PASO 2 — Datos */}
             {step === 2 && (
               <Fade in>
                 <Box>
@@ -278,7 +267,6 @@ export default function AgendarPublico() {
                     <TextField fullWidth size="small" label="Notas (opcional)" multiline rows={2}
                       value={notas} onChange={e => setNotas(e.target.value)} />
                   </Stack>
-                  {/* Resumen */}
                   <Paper variant="outlined" sx={{ mt: 2, p: 1.8, borderRadius: 2, bgcolor: '#F0FDFA', borderColor: '#99F6E4' }}>
                     <ResumenRow icon={<EventAvailable sx={{ fontSize: 17, color: TEAL }} />} text={servicio?.nombre} />
                     <ResumenRow icon={<Schedule sx={{ fontSize: 17, color: TEAL }} />}
@@ -291,16 +279,15 @@ export default function AgendarPublico() {
                   </Paper>
                   {info.requiere_anticipo && servicio?.precio != null && (
                     <Alert severity="info" icon={<WhatsApp />} sx={{ mt: 1.5, borderRadius: 2, fontSize: 13 }}>
-                      Este servicio requiere un anticipo del <strong>{info.porcentaje_anticipo}%</strong>{' '}
+                      Anticipo requerido: <strong>{info.porcentaje_anticipo}%</strong>{' '}
                       (${Math.ceil(servicio.precio * info.porcentaje_anticipo / 100).toLocaleString('es-CO')} COP).
-                      Al confirmar te contactaremos para coordinar el pago.
+                      Te contactaremos para coordinar el pago.
                     </Alert>
                   )}
                 </Box>
               </Fade>
             )}
 
-            {/* PASO 3 — Confirmación */}
             {step === 3 && citaOk && (
               <Fade in>
                 <Box sx={{ textAlign: 'center', py: 2 }}>
@@ -321,20 +308,18 @@ export default function AgendarPublico() {
                         text={`Total: $${Number(servicio.precio).toLocaleString('es-CO')}`} bold />
                     )}
                   </Paper>
-
-                  {/* Instrucciones de pago */}
                   {info.requiere_anticipo && servicio?.precio != null ? (
                     <Paper variant="outlined" sx={{ mt: 2, p: 2, borderRadius: 3, borderColor: '#FDE68A', bgcolor: '#FFFBEB', textAlign: 'left' }}>
                       <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 0.5 }}>💳 Anticipo requerido</Typography>
                       <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1.5 }}>
-                        Para confirmar tu cita, envía el anticipo del <strong>{info.porcentaje_anticipo}%</strong>{' '}
-                        (<strong>${Math.ceil(servicio.precio * info.porcentaje_anticipo / 100).toLocaleString('es-CO')} COP</strong>).
-                        El saldo restante lo pagas al llegar.
+                        Envía el {info.porcentaje_anticipo}%{' '}
+                        (${Math.ceil(servicio.precio * info.porcentaje_anticipo / 100).toLocaleString('es-CO')} COP)
+                        para confirmar. El resto lo pagas al llegar.
                       </Typography>
                       {info.whatsapp && (
                         <Button fullWidth variant="contained" size="small" startIcon={<WhatsApp />}
                           href={`https://wa.me/${info.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(
-                            `Hola! Acabo de agendar una cita de *${citaOk.producto_nombre}* para el ${fmtFecha(citaOk.fecha_inicio)} · ${fmtHora(citaOk.fecha_inicio)}. ¿Cómo envío el anticipo?`
+                            `Hola! Acabo de agendar *${citaOk.producto_nombre}* para el ${fmtFecha(citaOk.fecha_inicio)} a las ${fmtHora(citaOk.fecha_inicio)}. ¿Cómo envío el anticipo?`
                           )}`}
                           target="_blank"
                           sx={{ bgcolor: '#25D366', '&:hover': { bgcolor: '#1ebe5d' }, color: '#fff', borderRadius: 2 }}>
@@ -344,10 +329,9 @@ export default function AgendarPublico() {
                     </Paper>
                   ) : (
                     <Alert severity="success" sx={{ mt: 2, borderRadius: 2, fontSize: 13 }}>
-                      El pago se realiza directamente en el local el día de tu cita. 💰
+                      El pago se realiza en el local el día de tu cita. 💰
                     </Alert>
                   )}
-
                   <Button sx={{ mt: 3, color: TEAL_DARK }} onClick={() => {
                     setStep(0); setServicio(null); setSlot(null); setCitaOk(null);
                     setNombre(''); setTelefono(''); setEmail(''); setNotas('');
@@ -359,7 +343,6 @@ export default function AgendarPublico() {
             )}
           </Box>
 
-          {/* Navegación */}
           {step < 3 && (
             <>
               <Divider />
@@ -374,8 +357,8 @@ export default function AgendarPublico() {
                     Continuar
                   </Button>
                 ) : (
-                  <Button variant="contained" disableElevation
-                    onClick={handleConfirmar} disabled={!nombre.trim() || saving}
+                  <Button variant="contained" disableElevation onClick={handleConfirmar}
+                    disabled={!nombre.trim() || saving}
                     startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <CheckCircle />}
                     sx={{ bgcolor: TEAL, '&:hover': { bgcolor: TEAL_DARK } }}>
                     Confirmar cita
@@ -404,8 +387,6 @@ const Centered = ({ children }) => (
 const ResumenRow = ({ icon, text, bold }) => (
   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.4 }}>
     {icon}
-    <Typography sx={{ fontSize: 13.5, fontWeight: bold ? 700 : 500, textTransform: text && text.includes(':') ? 'none' : 'capitalize' }}>
-      {text}
-    </Typography>
+    <Typography sx={{ fontSize: 13.5, fontWeight: bold ? 700 : 500 }}>{text}</Typography>
   </Box>
 );
