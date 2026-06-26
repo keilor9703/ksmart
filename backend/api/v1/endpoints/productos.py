@@ -223,12 +223,14 @@ def get_productos_template(current_user: models.User = Depends(get_current_activ
         ("PASO 2", "NO modifiques, renombres ni elimines la fila 1 (cabeceras en morado)."),
         ("PASO 3", "GRUPO_ITEM — usa el desplegable o escribe el código:  MP (Materia Prima),  PT (Prod. Terminado),  AF (Activo Fijo),  INS (Insumo)."),
         ("PASO 4", "ES_SERVICIO — 0 = Producto Físico (controla inventario),  1 = Servicio/Intangible (sin inventario)."),
-        ("PASO 5", "UNIDAD_MEDIDA — usa el desplegable:  UND (unidades),  KGS (kilos),  GRS (gramos),  LTS (litros),  MTS (metros),  LBS (libras)."),
-        ("PASO 6", "STOCK_INICIAL — cantidad de unidades con que inicia el inventario del producto. Deja 0 si aún no hay existencias."),
-        ("PASO 7", "CODIGO_BARRAS — código EAN-13 / código interno. Déjalo vacío si no tiene; debe ser único por empresa."),
-        ("PASO 8", "DESCRIPCION — texto libre opcional (ingredientes, especificaciones, etc.)."),
-        ("PASO 9", "Cuando el archivo esté listo, guárdalo como .xlsx y súbelo desde el módulo de Productos → Carga Masiva."),
+        ("PASO 5", "DURACION_MINUTOS — SOLO para servicios (ES_SERVICIO=1). Si pones la duración (ej: 30, 60), el servicio quedará habilitado para AGENDAMIENTO de citas. Déjalo vacío si el servicio no se agenda."),
+        ("PASO 6", "UNIDAD_MEDIDA — usa el desplegable:  UND (unidades),  KGS (kilos),  GRS (gramos),  LTS (litros),  MTS (metros),  LBS (libras)."),
+        ("PASO 7", "STOCK_INICIAL — cantidad de unidades con que inicia el inventario del producto. Deja 0 si aún no hay existencias."),
+        ("PASO 8", "CODIGO_BARRAS — código EAN-13 / código interno. Déjalo vacío si no tiene; debe ser único por empresa."),
+        ("PASO 9", "DESCRIPCION — texto libre opcional (ingredientes, especificaciones, etc.)."),
+        ("PASO 10", "Cuando el archivo esté listo, guárdalo como .xlsx y súbelo desde el módulo de Productos → Carga Masiva."),
         ("NOTA",   "Los productos ya existentes (mismo nombre) serán omitidos sin error. Las filas con nombre vacío también se saltan."),
+        ("NOTA 2", "Para agendar un servicio también debes asignarle trabajadores en: Agendamiento → Configurar."),
     ]
     ws_inst.cell(row=4, column=2, value="COLUMNA").font = Font(bold=True, size=11)
     ws_inst.cell(row=4, column=3, value="DESCRIPCIÓN").font = Font(bold=True, size=11)
@@ -242,19 +244,20 @@ def get_productos_template(current_user: models.User = Depends(get_current_activ
     ws_datos = wb.create_sheet(title="Plantilla Datos")
 
     headers = [
-        "nombre",        # A — obligatorio
-        "precio",        # B
-        "costo",         # C
-        "grupo_item",    # D — dropdown MP/PT/AF/INS
-        "unidad_medida", # E — dropdown
-        "es_servicio",   # F — 0/1
-        "stock_minimo",  # G
-        "stock_inicial", # H — nuevo
-        "codigo_barras", # I — nuevo
-        "descripcion",   # J — nuevo
+        "nombre",           # A — obligatorio
+        "precio",           # B
+        "costo",            # C
+        "grupo_item",       # D — dropdown MP/PT/AF/INS
+        "unidad_medida",    # E — dropdown
+        "es_servicio",      # F — 0/1
+        "duracion_minutos", # G — solo servicios agendables
+        "stock_minimo",     # H
+        "stock_inicial",    # I
+        "codigo_barras",    # J
+        "descripcion",      # K
     ]
 
-    col_widths = [28, 14, 14, 16, 16, 14, 14, 14, 20, 40]
+    col_widths = [28, 14, 14, 16, 16, 14, 18, 14, 14, 20, 40]
     header_fill = PatternFill(start_color="8B5CF6", end_color="8B5CF6", fill_type="solid")
     header_font = Font(color="FFFFFF", bold=True, size=11)
 
@@ -283,10 +286,10 @@ def get_productos_template(current_user: models.User = Depends(get_current_activ
 
     # Datos de ejemplo (3 filas)
     ejemplos = [
-        # nombre              precio   costo   grupo  unidad  serv  stk_min  stk_ini  barcode          desc
-        ["Cacao Tostado",     5000,    3000,   "MP",  "KGS",  0,    10,      100,     "7790123456789", "Cacao tostado natural 1 Kg"],
-        ["Chocolatina 80g",   1200,    450,    "PT",  "UND",  0,    50,      200,     "7791234567890", "Chocolatina de leche 80 gramos"],
-        ["Servicio Maquila",  80000,   0,      "PT",  "UND",  1,    0,       0,       "",              "Servicio de maquila por lote"],
+        # nombre              precio   costo   grupo  unidad  serv  dur   stk_min  stk_ini  barcode          desc
+        ["Cacao Tostado",     5000,    3000,   "MP",  "KGS",  0,    None, 10,      100,     "7790123456789", "Cacao tostado natural 1 Kg"],
+        ["Chocolatina 80g",   1200,    450,    "PT",  "UND",  0,    None, 50,      200,     "7791234567890", "Chocolatina de leche 80 gramos"],
+        ["Corte de Cabello",  25000,   0,      "PT",  "UND",  1,    30,   0,       0,       "",              "Servicio agendable de 30 min"],
     ]
 
     example_fill = PatternFill(start_color="F5F3FF", end_color="F5F3FF", fill_type="solid")
