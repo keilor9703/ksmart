@@ -126,7 +126,7 @@ export default function Agendamiento({ user }) {
       }
       // La URL pública usa el mismo dominio del catálogo virtual
       const catalogBase = process.env.REACT_APP_CATALOG_URL || 'https://catalogo.appjeylor.com';
-      const url = `${catalogBase}/${slug}/servicios`;
+      const url = `${catalogBase}/servicios/${slug}`;
       try {
         await navigator.clipboard.writeText(url);
         toast.success('¡Link copiado! Compártelo con tus clientes 📋');
