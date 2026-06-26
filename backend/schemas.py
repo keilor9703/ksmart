@@ -301,7 +301,11 @@ class ProductoBase(BaseModel):
     es_servicio: bool = False
     unidad_medida: Optional[str] = "UND"
     stock_minimo: float = 0.0
-    grupo_item: int = 2 
+    grupo_item: int = 2
+
+    # 👇 AGENDAMIENTO: si es un servicio, puede habilitarse para reservas de citas
+    agendable: bool = False
+    duracion_minutos: Optional[int] = None
     
     # 👇 NUEVO CAMPO: Se valida desde la API
     maneja_lotes: bool = False

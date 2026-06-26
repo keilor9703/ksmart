@@ -156,6 +156,19 @@ def bulk_create_productos(db: Session, empresa_id: int, file: IO, filename: str)
 
             stock_inicial_val = float(row.get('stock_inicial', 0.0)) if 'stock_inicial' in df.columns else 0.0
 
+            # AGENDAMIENTO: un servicio con duración queda habilitado para citas.
+            duracion_minutos = None
+            agendable = False
+            raw_dur = row.get('duracion_minutos')
+            if es_servicio and pd.notna(raw_dur):
+                try:
+                    dur = int(float(str(raw_dur)))
+                    if dur > 0:
+                        duracion_minutos = dur
+                        agendable = True
+                except (ValueError, TypeError):
+                    pass
+
             producto_data = schemas.ProductoCreate(
                 nombre=raw_name,
                 precio=float(row.get('precio', 0.0)),
@@ -167,6 +180,8 @@ def bulk_create_productos(db: Session, empresa_id: int, file: IO, filename: str)
                 stock_inicial=stock_inicial_val,
                 codigo_barras=raw_barcode,
                 descripcion=raw_descripcion or None,
+                agendable=agendable,
+                duracion_minutos=duracion_minutos,
             )
             create_producto(db, empresa_id, producto_data)
             created_count += 1
