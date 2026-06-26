@@ -3,7 +3,8 @@ import {
   Box, Paper, Typography, Button, Chip, IconButton, CircularProgress, Stack,
   Avatar, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, TextField,
   MenuItem, Grid, Divider, Menu, ListItemIcon, ListItemText, Autocomplete,
-  ToggleButtonGroup, ToggleButton, useMediaQuery, Fab, InputAdornment,
+  useMediaQuery, Fab, InputAdornment,
+  FormControlLabel, Checkbox,
 } from '@mui/material';
 import {
   EventNote, ChevronLeft, ChevronRight, Today, Add, Schedule, Person,
@@ -24,13 +25,21 @@ const TEAL_DARK = '#0F766E';
 const GREEN = '#16A34A';
 
 const ESTADOS = {
-  pendiente:  { label: 'Pendiente',  color: '#D97706', bg: '#FEF3C7' },
-  confirmada: { label: 'Confirmada', color: '#0D9488', bg: '#CCFBF1' },
-  en_curso:   { label: 'En curso',   color: '#2563EB', bg: '#DBEAFE' },
-  completada: { label: 'Completada', color: '#16A34A', bg: '#DCFCE7' },
-  cancelada:  { label: 'Cancelada',  color: '#DC2626', bg: '#FEE2E2' },
-  no_asistio: { label: 'No asistió', color: '#6B7280', bg: '#F3F4F6' },
+  pendiente:  { label: 'Pendiente',  color: '#D97706' },
+  confirmada: { label: 'Confirmada', color: '#0D9488' },
+  en_curso:   { label: 'En curso',   color: '#2563EB' },
+  completada: { label: 'Completada', color: '#16A34A' },
+  cancelada:  { label: 'Cancelada',  color: '#DC2626' },
+  no_asistio: { label: 'No asistió', color: '#6B7280' },
 };
+// Returns sx for a Chip that is dark-mode safe
+const estadoChipSx = (est) => ({
+  bgcolor: `${est.color}22`,
+  color: est.color,
+  fontWeight: 700,
+  fontSize: 11,
+  border: `1px solid ${est.color}44`,
+});
 
 const METODOS_PAGO = ['Efectivo', 'Tarjeta', 'Transferencia', 'Nequi', 'Daviplata', 'Otro'];
 
@@ -52,16 +61,18 @@ export default function Agendamiento({ user }) {
   const [editing, setEditing]     = useState(null);
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [menuCita, setMenuCita]   = useState(null);
-  const [scope, setScope]         = useState('todas');
   const [cobrarCitaObj, setCobrarCitaObj] = useState(null);
+  const [trabajadores, setTrabajadores] = useState([]);
+  const [filtroTrabajador, setFiltroTrabajador] = useState('');  // '' = todos
 
+  const esAdmin = user?.role?.name === 'Admin';
   const ymd = toYMD(fecha);
 
   const cargarCitas = useCallback(async () => {
     setLoading(true);
     try {
       const params = { desde: ymd, hasta: ymd };
-      if (scope === 'mias' && user?.id) params.user_id = user.id;
+      if (filtroTrabajador) params.user_id = filtroTrabajador;
       const { data } = await fetchCitas(params);
       setCitas(data || []);
     } catch {
@@ -69,9 +80,32 @@ export default function Agendamiento({ user }) {
     } finally {
       setLoading(false);
     }
-  }, [ymd, scope, user]);
+  }, [ymd, filtroTrabajador]);
 
   useEffect(() => { cargarCitas(); }, [cargarCitas]);
+
+  // El admin puede filtrar por trabajador; los trabajadores ya vienen
+  // limitados a sus propias citas desde el backend.
+  useEffect(() => {
+    if (!esAdmin) return;
+    (async () => {
+      try {
+        const { data } = await apiClient.get('/users/');
+        setTrabajadores((data || []).filter(u => u.is_active !== false));
+      } catch { /* silencioso */ }
+    })();
+  }, [esAdmin]);
+
+  // Tras crear/editar, salta a la fecha de la cita para que aparezca de inmediato.
+  const handleSaved = (saved) => {
+    setDialogOpen(false);
+    setCobrarCitaObj(null);
+    if (saved?.fecha_inicio) {
+      const d = new Date(saved.fecha_inicio);
+      if (toYMD(d) !== ymd) { setFecha(d); return; }  // el effect recarga
+    }
+    cargarCitas();
+  };
 
   const moverDia = (delta) => {
     const d = new Date(fecha);
@@ -210,14 +244,17 @@ export default function Agendamiento({ user }) {
           sx={{ width: 150 }} />
       </Paper>
 
-      {/* Filtro trabajador */}
-      {user?.id && (
-        <ToggleButtonGroup value={scope} exclusive size="small"
-          onChange={(e, v) => v && setScope(v)}
-          sx={{ mb: 2, '& .Mui-selected': { bgcolor: `${TEAL} !important`, color: '#fff !important' } }}>
-          <ToggleButton value="todas" sx={{ textTransform: 'none', px: 2 }}>Todas</ToggleButton>
-          <ToggleButton value="mias" sx={{ textTransform: 'none', px: 2 }}>Mis citas</ToggleButton>
-        </ToggleButtonGroup>
+      {/* Filtro por trabajador (solo admin) */}
+      {esAdmin && trabajadores.length > 0 && (
+        <TextField select size="small" label="Filtrar por trabajador"
+          value={filtroTrabajador} onChange={e => setFiltroTrabajador(e.target.value)}
+          sx={{ mb: 2, minWidth: 220 }}
+          InputProps={{ startAdornment: <InputAdornment position="start"><Engineering sx={{ fontSize: 18, color: TEAL }} /></InputAdornment> }}>
+          <MenuItem value="">Todos los trabajadores</MenuItem>
+          {trabajadores.map(t => (
+            <MenuItem key={t.id} value={t.id}>{t.nombre_completo || t.username}</MenuItem>
+          ))}
+        </TextField>
       )}
 
       {/* Stats */}
@@ -225,9 +262,9 @@ export default function Agendamiento({ user }) {
         <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
           <Chip label={`${stats.activos} activas`} sx={{ bgcolor: `${TEAL}1A`, color: TEAL_DARK, fontWeight: 700 }} />
           {stats.pendientes > 0 && <Chip size="small" label={`${stats.pendientes} pendientes`}
-            sx={{ bgcolor: ESTADOS.pendiente.bg, color: ESTADOS.pendiente.color, fontWeight: 600 }} />}
+            sx={estadoChipSx(ESTADOS.pendiente)} />}
           {stats.completadas > 0 && <Chip size="small" label={`${stats.completadas} completadas`}
-            sx={{ bgcolor: ESTADOS.completada.bg, color: ESTADOS.completada.color, fontWeight: 600 }} />}
+            sx={estadoChipSx(ESTADOS.completada)} />}
         </Stack>
       )}
 
@@ -305,8 +342,7 @@ export default function Agendamiento({ user }) {
                 </Box>
                 {/* Estado + botón cobrar + menú */}
                 <Stack direction="row" spacing={0.5} alignItems="center">
-                  <Chip label={est.label} size="small"
-                    sx={{ bgcolor: est.bg, color: est.color, fontWeight: 700, fontSize: 11 }} />
+                  <Chip label={est.label} size="small" sx={estadoChipSx(est)} />
                   {!cobrada && !cancelada && (
                     <Tooltip title="Cobrar / Registrar venta">
                       <Button size="small" variant="outlined" startIcon={<AttachMoney />}
@@ -366,27 +402,33 @@ export default function Agendamiento({ user }) {
             <ListItemText>Recordar por WhatsApp</ListItemText>
           </MenuItem>
         )}
-        <MenuItem onClick={() => { setEditing(menuCita); setDialogOpen(true); setMenuAnchor(null); }}>
-          <ListItemIcon><Schedule fontSize="small" /></ListItemIcon>
-          <ListItemText>Reprogramar / Editar</ListItemText>
-        </MenuItem>
-        {menuCita && !['cancelada', 'no_asistio', 'completada'].includes(menuCita.estado) && (
+        {menuCita && !menuCita.venta_id && !['completada', 'cancelada', 'no_asistio'].includes(menuCita.estado) && (
+          <MenuItem onClick={() => { setEditing(menuCita); setDialogOpen(true); setMenuAnchor(null); }}>
+            <ListItemIcon><Schedule fontSize="small" /></ListItemIcon>
+            <ListItemText>Reprogramar / Editar</ListItemText>
+          </MenuItem>
+        )}
+        {menuCita && ['pendiente', 'confirmada', 'en_curso'].includes(menuCita.estado) && !menuCita.venta_id && (
           <MenuItem onClick={() => handleEstado(menuCita, 'cancelada')}>
             <ListItemIcon><CancelIcon fontSize="small" sx={{ color: ESTADOS.cancelada.color }} /></ListItemIcon>
             <ListItemText>Cancelar cita</ListItemText>
           </MenuItem>
         )}
-        {menuCita && menuCita.estado !== 'no_asistio' && (
+        {menuCita && ['pendiente', 'confirmada', 'en_curso'].includes(menuCita.estado) && !menuCita.venta_id && (
           <MenuItem onClick={() => handleEstado(menuCita, 'no_asistio')}>
             <ListItemIcon><EventBusy fontSize="small" sx={{ color: ESTADOS.no_asistio.color }} /></ListItemIcon>
             <ListItemText>No asistió</ListItemText>
           </MenuItem>
         )}
-        <Divider />
-        <MenuItem onClick={() => handleDelete(menuCita)} sx={{ color: 'error.main' }}>
-          <ListItemIcon><Delete fontSize="small" sx={{ color: 'error.main' }} /></ListItemIcon>
-          <ListItemText>Eliminar</ListItemText>
-        </MenuItem>
+        {menuCita && !menuCita.venta_id && (
+          <>
+            <Divider />
+            <MenuItem onClick={() => handleDelete(menuCita)} sx={{ color: 'error.main' }}>
+              <ListItemIcon><Delete fontSize="small" sx={{ color: 'error.main' }} /></ListItemIcon>
+              <ListItemText>Eliminar</ListItemText>
+            </MenuItem>
+          </>
+        )}
       </Menu>
 
       {/* FAB */}
@@ -401,12 +443,12 @@ export default function Agendamiento({ user }) {
       {dialogOpen && (
         <CitaDialog open={dialogOpen} onClose={() => setDialogOpen(false)}
           editing={editing} fechaDefault={fecha}
-          onSaved={() => { setDialogOpen(false); cargarCitas(); }} />
+          onSaved={handleSaved} />
       )}
       {cobrarCitaObj && (
         <CobrarDialog open cita={cobrarCitaObj}
           onClose={() => setCobrarCitaObj(null)}
-          onSaved={() => { setCobrarCitaObj(null); cargarCitas(); }} />
+          onSaved={handleSaved} />
       )}
     </Box>
   );
@@ -416,15 +458,26 @@ export default function Agendamiento({ user }) {
 // Dialog de cobro → genera venta en el ERP
 // ════════════════════════════════════════════════════════════════════════════
 function CobrarDialog({ open, cita, onClose, onSaved }) {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
   const [metodo, setMetodo]       = useState('Efectivo');
   const [precio, setPrecio]       = useState(cita.producto_precio || '');
   const [solicita_fe, setSolicitaFe] = useState(false);
   const [saving, setSaving]       = useState(false);
 
   const total = parseFloat(precio) || 0;
+  // FE requiere cliente con cédula registrada en el sistema
+  const puedeEmitirFE = Boolean(cita.cliente_id);
+
+  const greenBg     = isDark ? 'rgba(16,185,129,0.12)' : '#F0FDF4';
+  const greenBorder = isDark ? 'rgba(134,239,172,0.3)'  : '#86EFAC';
 
   const handleCobrar = async () => {
     if (!total) { toast.error('Ingresa un precio válido.'); return; }
+    if (solicita_fe && !puedeEmitirFE) {
+      toast.error('Para emitir factura electrónica el cliente debe estar registrado en el sistema con su cédula.');
+      return;
+    }
     setSaving(true);
     try {
       await cobrarCita(cita.id, { metodo_pago: metodo, precio_unitario: total, solicita_fe });
@@ -445,7 +498,7 @@ function CobrarDialog({ open, cita, onClose, onSaved }) {
       </DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2} sx={{ mt: 0.5 }}>
-          <Box sx={{ p: 1.5, bgcolor: '#F0FDF4', borderRadius: 2, border: '1px solid #86EFAC' }}>
+          <Box sx={{ p: 1.5, bgcolor: greenBg, borderRadius: 2, border: `1px solid ${greenBorder}` }}>
             <Typography sx={{ fontWeight: 700, fontSize: 15 }}>{cita.producto_nombre}</Typography>
             <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
               Cliente: {cita.cliente_display || 'Sin cliente'} · Trabajador: {cita.trabajador_nombre}
@@ -458,15 +511,19 @@ function CobrarDialog({ open, cita, onClose, onSaved }) {
             value={metodo} onChange={e => setMetodo(e.target.value)}>
             {METODOS_PAGO.map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
           </TextField>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <input type="checkbox" id="fe-chk" checked={solicita_fe}
-              onChange={e => setSolicitaFe(e.target.checked)} />
-            <label htmlFor="fe-chk" style={{ fontSize: 13, cursor: 'pointer' }}>
-              Emitir Factura Electrónica (DIAN)
-            </label>
-          </Box>
+          <Tooltip title={!puedeEmitirFE ? 'Requiere cliente registrado con cédula en el sistema' : ''} arrow>
+            <FormControlLabel
+              control={
+                <Checkbox size="small" checked={solicita_fe}
+                  onChange={e => setSolicitaFe(e.target.checked)}
+                  disabled={!puedeEmitirFE}
+                  sx={{ color: GREEN, '&.Mui-checked': { color: GREEN } }} />
+              }
+              label={<Typography sx={{ fontSize: 13 }}>Emitir Factura Electrónica (DIAN)</Typography>}
+            />
+          </Tooltip>
           {total > 0 && (
-            <Paper sx={{ p: 1.5, bgcolor: '#F0FDF4', borderRadius: 2, textAlign: 'right' }}>
+            <Paper sx={{ p: 1.5, bgcolor: greenBg, border: `1px solid ${greenBorder}`, borderRadius: 2, textAlign: 'right' }}>
               <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Total a registrar</Typography>
               <Typography sx={{ fontSize: 22, fontWeight: 800, color: GREEN }}>
                 ${total.toLocaleString('es-CO')}
@@ -576,14 +633,15 @@ function CitaDialog({ open, onClose, editing, fechaDefault, onSaved }) {
       notas: notas.trim() || null,
     };
     try {
+      let saved;
       if (isEdit) {
-        await updateCita(editing.id, payload);
+        ({ data: saved } = await updateCita(editing.id, payload));
         toast.success('Cita actualizada.');
       } else {
-        await createCita(payload);
+        ({ data: saved } = await createCita(payload));
         toast.success('Cita agendada.');
       }
-      onSaved();
+      onSaved(saved);
     } catch (e) {
       toast.error(e?.response?.data?.detail || 'No se pudo guardar la cita.');
     } finally {

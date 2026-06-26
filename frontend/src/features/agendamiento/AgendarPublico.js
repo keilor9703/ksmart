@@ -3,12 +3,14 @@ import { useParams } from 'react-router-dom';
 import {
   Box, Paper, Typography, Button, Chip, CircularProgress,
   Stack, Avatar, TextField, Stepper, Step, StepLabel,
-  Divider, Tooltip, Fade, Alert,
+  Divider, Tooltip, Fade, Alert, Dialog, DialogTitle,
+  DialogContent, DialogActions, Link,
 } from '@mui/material';
 import {
   EventNote, Schedule, AccessTime, CheckCircle, ArrowBack, ArrowForward,
-  Engineering, EventAvailable, Spa, AttachMoney, WhatsApp,
+  Engineering, EventAvailable, Spa, AttachMoney, WhatsApp, Info,
 } from '@mui/icons-material';
+import { QRCodeCanvas } from 'qrcode.react';
 import {
   fetchAgendamientoPublico, fetchDisponibilidadPublica, crearCitaPublica,
   apiClient,
@@ -47,6 +49,7 @@ export default function AgendarPublico() {
   const [notas, setNotas]       = useState('');
   const [saving, setSaving]     = useState(false);
   const [citaOk, setCitaOk]     = useState(null);
+  const [terminosOpen, setTerminosOpen] = useState(false);
 
   useEffect(() => {
     if (!slug) {
@@ -316,6 +319,37 @@ export default function AgendarPublico() {
                         (${Math.ceil(servicio.precio * info.porcentaje_anticipo / 100).toLocaleString('es-CO')} COP)
                         para confirmar. El resto lo pagas al llegar.
                       </Typography>
+
+                      {/* QR / enlace de pago configurado en el módulo "Link de pago" */}
+                      {info.link_pago && (
+                        <Box sx={{ textAlign: 'center', mb: 1.5 }}>
+                          {info.link_pago.tipo === 'qr_imagen' && info.link_pago.qr_base64 ? (
+                            <Box component="img"
+                              src={`data:${info.link_pago.qr_mime_type || 'image/png'};base64,${info.link_pago.qr_base64}`}
+                              alt="QR de pago"
+                              sx={{ width: 200, height: 200, objectFit: 'contain', mx: 'auto',
+                                p: 1, bgcolor: '#fff', borderRadius: 2, border: '1px solid #FDE68A' }} />
+                          ) : info.link_pago.link_url ? (
+                            <Box sx={{ display: 'inline-block', p: 1.5, bgcolor: '#fff', borderRadius: 2, border: '1px solid #FDE68A' }}>
+                              <QRCodeCanvas value={info.link_pago.link_url} size={180} level="H" />
+                            </Box>
+                          ) : null}
+                          {info.link_pago.instrucciones && (
+                            <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 1 }}>
+                              {info.link_pago.instrucciones}
+                            </Typography>
+                          )}
+                          {info.link_pago.link_url && (
+                            <Button fullWidth variant="outlined" size="small" startIcon={<AttachMoney />}
+                              href={info.link_pago.link_url} target="_blank" rel="noopener noreferrer"
+                              sx={{ mt: 1, color: '#B45309', borderColor: '#FDE68A', borderRadius: 2,
+                                '&:hover': { borderColor: '#F59E0B', bgcolor: '#FFFBEB' } }}>
+                              Abrir enlace de pago
+                            </Button>
+                          )}
+                        </Box>
+                      )}
+
                       {info.whatsapp && (
                         <Button fullWidth variant="contained" size="small" startIcon={<WhatsApp />}
                           href={`https://wa.me/${info.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(
@@ -369,9 +403,73 @@ export default function AgendarPublico() {
           )}
         </Paper>
 
-        <Typography sx={{ textAlign: 'center', fontSize: 11.5, color: 'text.disabled', mt: 3 }}>
-          Agendamiento en línea · Ksmart360
-        </Typography>
+        {/* Promo banner Ksmart360 */}
+        <Paper elevation={0} sx={{
+          mt: 3, p: 2, borderRadius: 3, textAlign: 'center',
+          background: 'linear-gradient(135deg, #0D9488 0%, #0F766E 100%)',
+          color: '#fff',
+        }}>
+          <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 0.5 }}>
+            ¿Quieres este sistema de agendamiento para tu negocio?
+          </Typography>
+          <Typography sx={{ fontSize: 12.5, opacity: 0.9, mb: 1.5 }}>
+            Gestiona citas, ventas e inventario con Ksmart360 — fácil y económico.
+          </Typography>
+          <Button size="small" variant="outlined"
+            href="https://www.techstackcol.com/ksmart360?view=pymes"
+            target="_blank" rel="noopener noreferrer"
+            sx={{ color: '#fff', borderColor: 'rgba(255,255,255,0.6)', fontWeight: 700,
+              '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.1)' } }}>
+            Conocer Ksmart360 →
+          </Button>
+        </Paper>
+
+        {/* Footer */}
+        <Box sx={{ textAlign: 'center', mt: 2.5 }}>
+          <Typography sx={{ fontSize: 11.5, color: 'text.disabled' }}>
+            Operado con{' '}
+            <Link href="https://www.techstackcol.com/ksmart360?view=pymes"
+              target="_blank" rel="noopener noreferrer"
+              sx={{ color: TEAL, fontWeight: 700, textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}>
+              KSmart360
+            </Link>
+            {' '}·{' '}
+            <Link component="button" onClick={() => setTerminosOpen(true)}
+              sx={{ fontSize: 11.5, color: 'text.disabled', textDecoration: 'underline', cursor: 'pointer', background: 'none', border: 'none', p: 0 }}>
+              Términos y aviso legal
+            </Link>
+          </Typography>
+        </Box>
+
+        {/* Dialog términos y aviso legal */}
+        <Dialog open={terminosOpen} onClose={() => setTerminosOpen(false)} maxWidth="sm" fullWidth
+          PaperProps={{ sx: { borderRadius: 3 } }}>
+          <DialogTitle sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Info sx={{ color: TEAL }} /> Términos y Aviso Legal
+          </DialogTitle>
+          <DialogContent dividers>
+            <Stack spacing={1.2}>
+              {[
+                'Este portal de agendamiento es operado por el negocio indicado al inicio de la página. KSmart360 únicamente provee la plataforma tecnológica.',
+                'KSmart360 no es responsable de los servicios ofrecidos, sus precios, calidad ni disponibilidad. Toda reclamación debe dirigirse directamente al negocio.',
+                'Los datos personales que ingreses (nombre, teléfono, email) son tratados exclusivamente por el negocio para gestionar tu cita. KSmart360 no accede a esta información con fines propios.',
+                'La confirmación de la cita está sujeta a disponibilidad real del negocio. Una solicitud enviada no garantiza una cita confirmada hasta que el negocio lo comunique.',
+                'Los precios, políticas de anticipo y métodos de pago son definidos por el negocio. KSmart360 no intermedia en pagos ni garantiza reembolsos.',
+                'KSmart360 se reserva el derecho de suspender el servicio al negocio en caso de uso indebido de la plataforma.',
+                'Al utilizar este portal aceptas estos términos y los de uso de la plataforma KSmart360.',
+              ].map((t, i) => (
+                <Box key={i} sx={{ display: 'flex', gap: 1 }}>
+                  <Typography sx={{ fontSize: 12.5, color: TEAL, fontWeight: 700, minWidth: 20 }}>{i + 1}.</Typography>
+                  <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }}>{t}</Typography>
+                </Box>
+              ))}
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setTerminosOpen(false)} variant="contained" disableElevation
+              sx={{ bgcolor: TEAL, '&:hover': { bgcolor: TEAL_DARK } }}>Entendido</Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </Box>
   );

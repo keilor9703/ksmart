@@ -2881,6 +2881,15 @@ class ServicioPublico(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class LinkPagoPublico(BaseModel):
+    """Datos mínimos del link de pago expuestos al portal público (sin IDs internos)."""
+    tipo:          str
+    link_url:      Optional[str] = None
+    qr_base64:     Optional[str] = None
+    qr_mime_type:  Optional[str] = None
+    instrucciones: Optional[str] = None
+
+
 class AgendamientoPublicoInfo(BaseModel):
     empresa_nombre: str
     slug: str
@@ -2889,6 +2898,7 @@ class AgendamientoPublicoInfo(BaseModel):
     whatsapp: Optional[str] = None
     requiere_anticipo: bool = False
     porcentaje_anticipo: int = 50
+    link_pago: Optional[LinkPagoPublico] = None
 
 
 class CitaPublicaCreate(BaseModel):
