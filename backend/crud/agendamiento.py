@@ -498,23 +498,30 @@ def cobrar_cita(db: Session, empresa_id: int, cita_id: int, data) -> models.Cita
     # buscar o crear un Cliente para que el historial de ventas muestre el nombre real.
     cliente_id = cita.cliente_id
     if not cliente_id and cita.cliente_nombre:
+        # Buscar cliente existente SOLO si coinciden nombre Y (teléfono o email).
+        # Nunca vincular a un cliente diferente basándose solo en el teléfono.
         cliente_existente = None
+        nombre_cita = (cita.cliente_nombre or "").strip().lower()
         if cita.cliente_telefono:
-            cliente_existente = (
+            candidato = (
                 db.query(models.Cliente)
                 .filter(
                     models.Cliente.empresa_id == empresa_id,
                     models.Cliente.telefono == cita.cliente_telefono,
                 ).first()
             )
+            if candidato and (candidato.nombre or "").strip().lower() == nombre_cita:
+                cliente_existente = candidato
         if not cliente_existente and cita.cliente_email:
-            cliente_existente = (
+            candidato = (
                 db.query(models.Cliente)
                 .filter(
                     models.Cliente.empresa_id == empresa_id,
                     models.Cliente.email == cita.cliente_email,
                 ).first()
             )
+            if candidato and (candidato.nombre or "").strip().lower() == nombre_cita:
+                cliente_existente = candidato
         if not cliente_existente:
             nuevo = models.Cliente(
                 empresa_id=empresa_id,
