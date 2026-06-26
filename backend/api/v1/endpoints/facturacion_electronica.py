@@ -140,12 +140,6 @@ def emitir_fe(
             detail="Tu plan actual no incluye facturación electrónica. Actualiza tu suscripción."
         )
 
-    if not empresa.matias_api_key:
-        raise HTTPException(
-            status_code=400,
-            detail="La empresa no tiene configurada la API Key de Matias"
-        )
-
     # Cargar cliente (puede ser None — Consumidor Final)
     cliente = None
     if venta.cliente_id:
