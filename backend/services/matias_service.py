@@ -94,6 +94,21 @@ def _normalizar_telefono(telefono: Optional[str]) -> str:
     return solo_digitos[:15]
 
 
+def _normalizar_dni(dni: Optional[str]) -> str:
+    """
+    Matias exige que customer.dni sea alfanumérico (sin puntos, guiones ni espacios).
+    Quita el dígito verificador de NIT (900123456-1 → 900123456) y caracteres no válidos.
+    """
+    if not dni:
+        return ""
+    s = str(dni).strip()
+    # Quitar dígito verificador si viene como NIT con guion
+    if "-" in s:
+        s = s.split("-")[0]
+    # Conservar solo caracteres alfanuméricos
+    return "".join(c for c in s if c.isalnum())
+
+
 def build_invoice_payload(venta, empresa, cliente, detalles, tipo_documento: str = "fe") -> dict:
     """
     Construye el payload JSON para POST /invoice de Matias API.
@@ -129,10 +144,10 @@ def build_invoice_payload(venta, empresa, cliente, detalles, tipo_documento: str
         numero_int = 0
 
     # ── Cliente (receptor) ──────────────────────────────────────────────────
-    usar_consumidor_final = (
-        cliente is None
-        or not getattr(cliente, "cedula", None)
-    )
+    # Si la cédula queda vacía tras normalizar (solo tenía caracteres inválidos),
+    # se factura como consumidor final en lugar de enviar un dni inválido.
+    _dni_norm = _normalizar_dni(getattr(cliente, "cedula", None)) if cliente else ""
+    usar_consumidor_final = (cliente is None or not _dni_norm)
 
     if usar_consumidor_final:
         customer = {
@@ -165,7 +180,7 @@ def build_invoice_payload(venta, empresa, cliente, detalles, tipo_documento: str
             "tax_regime_id":          2,   # No responsable IVA (ID Matias)
             "tax_level_id":           5,   # No aplica (ID Matias)
             "company_name":           cliente.nombre or "",
-            "dni":                    cliente.cedula or "",
+            "dni":                    _normalizar_dni(cliente.cedula),
             "mobile":                 _normalizar_telefono(getattr(cliente, "telefono", None)),
             "email":                  getattr(cliente, "email", "") or "",
             "address":                getattr(cliente, "direccion", "") or "No registra",
@@ -372,7 +387,7 @@ def build_subscription_invoice_payload(registro_pago, empresa_cliente, plan, pla
             "tax_regime_id":          2,
             "tax_level_id":           5,
             "company_name":           empresa_cliente.nombre or "",
-            "dni":                    nit_cliente,
+            "dni":                    _normalizar_dni(nit_cliente),
             "mobile":                 _normalizar_telefono(None),
             "email":                  getattr(empresa_cliente, "correo_facturacion", "") or getattr(empresa_cliente, "email", "") or "",
             "address":                getattr(empresa_cliente, "ciudad", "") or "No registra",
