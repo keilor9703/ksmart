@@ -89,6 +89,10 @@ const CajaRestaurante        = lazy(() => import('./features/restaurante/CajaRes
 const ReporteRestaurante     = lazy(() => import('./features/restaurante/ReporteRestaurante'));
 const ReservasRestaurante    = lazy(() => import('./features/restaurante/ReservasRestaurante'));
 
+const Agendamiento       = lazy(() => import('./features/agendamiento/Agendamiento'));
+const AgendamientoConfig = lazy(() => import('./features/agendamiento/AgendamientoConfig'));
+const AgendarPublico     = lazy(() => import('./features/agendamiento/AgendarPublico'));
+
 // ─── Constantes de Layout ──────────────────────────────────────────────────────
 const SIDEBAR_FULL  = 240;
 const SIDEBAR_MINI  = 68;
@@ -425,6 +429,8 @@ const hasAccess = useCallback((path) => {
                     <Route path="/restaurante/caja"        element={<ProtectedRoute path="/restaurante/caja"        hasAccess={hasAccess}><CajaRestaurante       user={user} /></ProtectedRoute>} />
                     <Route path="/restaurante/reportes"    element={<ProtectedRoute path="/restaurante/reportes"    hasAccess={hasAccess}><ReporteRestaurante    /></ProtectedRoute>} />
                     <Route path="/restaurante/reservas"    element={<ProtectedRoute path="/restaurante/reservas"    hasAccess={hasAccess}><ReservasRestaurante   /></ProtectedRoute>} />
+                    <Route path="/agendamiento"            element={<ProtectedRoute path="/agendamiento"            hasAccess={hasAccess}><Agendamiento user={user} /></ProtectedRoute>} />
+                    <Route path="/agendamiento/config"     element={<ProtectedRoute path="/agendamiento/config"     hasAccess={hasAccess}><AgendamientoConfig /></ProtectedRoute>} />
                     {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (
                       <>
                         <Route path="/superadmin/empresas" element={<GestionEmpresas />} />
@@ -471,6 +477,7 @@ const hasAccess = useCallback((path) => {
                 <Route path="/terminos" element={<Terminos />} />
                 <Route path="/privacidad" element={<Privacidad />} />
                 <Route path="/habeas-data" element={<HabeasData />} />
+                <Route path="/:slug/agendar" element={<AgendarPublico />} />
                 <Route path="/:slug" element={<CatalogoVirtual />} />
                 <Route path="*" element={<Login onLogin={checkAuth} />} />
               </Routes>

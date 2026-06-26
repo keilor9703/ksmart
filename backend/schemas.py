@@ -2780,3 +2780,127 @@ class CierreContableCreate(BaseModel):
     periodo_inicio: datetime
     periodo_fin: datetime
     descripcion: Optional[str] = None
+
+
+# =========================
+# 📅 AGENDAMIENTO DE CITAS
+# =========================
+
+class TrabajadorMini(BaseModel):
+    id: int
+    nombre_completo: Optional[str] = None
+    username: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ServicioAgendableUpdate(BaseModel):
+    """Configura un producto como servicio agendable."""
+    agendable: bool = True
+    duracion_minutos: Optional[int] = 30
+    trabajador_ids: List[int] = []
+
+
+class ServicioAgendable(BaseModel):
+    id: int
+    nombre: str
+    agendable: bool = False
+    duracion_minutos: Optional[int] = None
+    precio: Optional[float] = None
+    trabajadores: List[TrabajadorMini] = []
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CitaBase(BaseModel):
+    producto_id: int
+    user_id: int
+    cliente_id: Optional[int] = None
+    fecha_inicio: datetime
+    cliente_nombre: Optional[str] = None
+    cliente_telefono: Optional[str] = None
+    cliente_email: Optional[str] = None
+    notas: Optional[str] = None
+
+
+class CitaCreate(CitaBase):
+    pass
+
+
+class CitaUpdate(BaseModel):
+    producto_id: Optional[int] = None
+    user_id: Optional[int] = None
+    cliente_id: Optional[int] = None
+    fecha_inicio: Optional[datetime] = None
+    estado: Optional[str] = None
+    cliente_nombre: Optional[str] = None
+    cliente_telefono: Optional[str] = None
+    cliente_email: Optional[str] = None
+    notas: Optional[str] = None
+
+
+class Cita(BaseModel):
+    id: int
+    producto_id: int
+    user_id: int
+    cliente_id: Optional[int] = None
+    fecha_inicio: datetime
+    fecha_fin: datetime
+    estado: str
+    cliente_nombre: Optional[str] = None
+    cliente_telefono: Optional[str] = None
+    cliente_email: Optional[str] = None
+    notas: Optional[str] = None
+    # Datos enriquecidos para la UI
+    producto_nombre: Optional[str] = None
+    trabajador_nombre: Optional[str] = None
+    cliente_display: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FranjaDisponible(BaseModel):
+    inicio: datetime
+    fin: datetime
+    user_id: int
+    trabajador_nombre: Optional[str] = None
+
+
+class DisponibilidadResponse(BaseModel):
+    fecha: date
+    producto_id: int
+    duracion_minutos: int
+    franjas: List[FranjaDisponible] = []
+
+
+# --- Portal público de agendamiento ---
+class ServicioPublico(BaseModel):
+    id: int
+    nombre: str
+    descripcion: Optional[str] = None
+    precio: Optional[float] = None
+    duracion_minutos: Optional[int] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AgendamientoPublicoInfo(BaseModel):
+    empresa_nombre: str
+    slug: str
+    logo_base64: Optional[str] = None
+    servicios: List[ServicioPublico] = []
+
+
+class CitaPublicaCreate(BaseModel):
+    producto_id: int
+    user_id: int
+    fecha_inicio: datetime
+    cliente_nombre: str
+    cliente_telefono: Optional[str] = None
+    cliente_email: Optional[str] = None
+    notas: Optional[str] = None
+
+
+class CitaPublicaResponse(BaseModel):
+    id: int
+    producto_nombre: Optional[str] = None
+    trabajador_nombre: Optional[str] = None
+    fecha_inicio: datetime
+    fecha_fin: datetime
+    estado: str
