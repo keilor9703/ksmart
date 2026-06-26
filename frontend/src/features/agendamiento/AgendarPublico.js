@@ -10,6 +10,7 @@ import {
   EventNote, Schedule, AccessTime, CheckCircle, ArrowBack, ArrowForward,
   Engineering, EventAvailable, Spa, AttachMoney, WhatsApp, Info,
 } from '@mui/icons-material';
+import { QRCodeCanvas } from 'qrcode.react';
 import {
   fetchAgendamientoPublico, fetchDisponibilidadPublica, crearCitaPublica,
   apiClient,
@@ -318,6 +319,37 @@ export default function AgendarPublico() {
                         (${Math.ceil(servicio.precio * info.porcentaje_anticipo / 100).toLocaleString('es-CO')} COP)
                         para confirmar. El resto lo pagas al llegar.
                       </Typography>
+
+                      {/* QR / enlace de pago configurado en el módulo "Link de pago" */}
+                      {info.link_pago && (
+                        <Box sx={{ textAlign: 'center', mb: 1.5 }}>
+                          {info.link_pago.tipo === 'qr_imagen' && info.link_pago.qr_base64 ? (
+                            <Box component="img"
+                              src={`data:${info.link_pago.qr_mime_type || 'image/png'};base64,${info.link_pago.qr_base64}`}
+                              alt="QR de pago"
+                              sx={{ width: 200, height: 200, objectFit: 'contain', mx: 'auto',
+                                p: 1, bgcolor: '#fff', borderRadius: 2, border: '1px solid #FDE68A' }} />
+                          ) : info.link_pago.link_url ? (
+                            <Box sx={{ display: 'inline-block', p: 1.5, bgcolor: '#fff', borderRadius: 2, border: '1px solid #FDE68A' }}>
+                              <QRCodeCanvas value={info.link_pago.link_url} size={180} level="H" />
+                            </Box>
+                          ) : null}
+                          {info.link_pago.instrucciones && (
+                            <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 1 }}>
+                              {info.link_pago.instrucciones}
+                            </Typography>
+                          )}
+                          {info.link_pago.link_url && (
+                            <Button fullWidth variant="outlined" size="small" startIcon={<AttachMoney />}
+                              href={info.link_pago.link_url} target="_blank" rel="noopener noreferrer"
+                              sx={{ mt: 1, color: '#B45309', borderColor: '#FDE68A', borderRadius: 2,
+                                '&:hover': { borderColor: '#F59E0B', bgcolor: '#FFFBEB' } }}>
+                              Abrir enlace de pago
+                            </Button>
+                          )}
+                        </Box>
+                      )}
+
                       {info.whatsapp && (
                         <Button fullWidth variant="contained" size="small" startIcon={<WhatsApp />}
                           href={`https://wa.me/${info.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(

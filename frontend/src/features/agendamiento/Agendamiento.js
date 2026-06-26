@@ -3,7 +3,7 @@ import {
   Box, Paper, Typography, Button, Chip, IconButton, CircularProgress, Stack,
   Avatar, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, TextField,
   MenuItem, Grid, Divider, Menu, ListItemIcon, ListItemText, Autocomplete,
-  ToggleButtonGroup, ToggleButton, useMediaQuery, Fab, InputAdornment,
+  useMediaQuery, Fab, InputAdornment,
   FormControlLabel, Checkbox,
 } from '@mui/material';
 import {
@@ -61,16 +61,18 @@ export default function Agendamiento({ user }) {
   const [editing, setEditing]     = useState(null);
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [menuCita, setMenuCita]   = useState(null);
-  const [scope, setScope]         = useState('todas');
   const [cobrarCitaObj, setCobrarCitaObj] = useState(null);
+  const [trabajadores, setTrabajadores] = useState([]);
+  const [filtroTrabajador, setFiltroTrabajador] = useState('');  // '' = todos
 
+  const esAdmin = user?.role?.name === 'Admin';
   const ymd = toYMD(fecha);
 
   const cargarCitas = useCallback(async () => {
     setLoading(true);
     try {
       const params = { desde: ymd, hasta: ymd };
-      if (scope === 'mias' && user?.id) params.user_id = user.id;
+      if (filtroTrabajador) params.user_id = filtroTrabajador;
       const { data } = await fetchCitas(params);
       setCitas(data || []);
     } catch {
@@ -78,9 +80,32 @@ export default function Agendamiento({ user }) {
     } finally {
       setLoading(false);
     }
-  }, [ymd, scope, user]);
+  }, [ymd, filtroTrabajador]);
 
   useEffect(() => { cargarCitas(); }, [cargarCitas]);
+
+  // El admin puede filtrar por trabajador; los trabajadores ya vienen
+  // limitados a sus propias citas desde el backend.
+  useEffect(() => {
+    if (!esAdmin) return;
+    (async () => {
+      try {
+        const { data } = await apiClient.get('/users/');
+        setTrabajadores((data || []).filter(u => u.is_active !== false));
+      } catch { /* silencioso */ }
+    })();
+  }, [esAdmin]);
+
+  // Tras crear/editar, salta a la fecha de la cita para que aparezca de inmediato.
+  const handleSaved = (saved) => {
+    setDialogOpen(false);
+    setCobrarCitaObj(null);
+    if (saved?.fecha_inicio) {
+      const d = new Date(saved.fecha_inicio);
+      if (toYMD(d) !== ymd) { setFecha(d); return; }  // el effect recarga
+    }
+    cargarCitas();
+  };
 
   const moverDia = (delta) => {
     const d = new Date(fecha);
@@ -133,9 +158,7 @@ export default function Agendamiento({ user }) {
         toast.info('Configura primero el enlace de tu negocio en Catálogo Virtual.');
         return;
       }
-      // La URL pública usa el mismo dominio del catálogo virtual
-      const catalogBase = process.env.REACT_APP_CATALOG_URL || 'https://catalogo.appjeylor.com';
-      const url = `${catalogBase}/${slug}/servicios`;
+      const url = `${window.location.origin}/${slug}/agendar`;
       try {
         await navigator.clipboard.writeText(url);
         toast.success('¡Link copiado! Compártelo con tus clientes 📋');
@@ -221,14 +244,17 @@ export default function Agendamiento({ user }) {
           sx={{ width: 150 }} />
       </Paper>
 
-      {/* Filtro trabajador */}
-      {user?.id && (
-        <ToggleButtonGroup value={scope} exclusive size="small"
-          onChange={(e, v) => v && setScope(v)}
-          sx={{ mb: 2, '& .Mui-selected': { bgcolor: `${TEAL} !important`, color: '#fff !important' } }}>
-          <ToggleButton value="todas" sx={{ textTransform: 'none', px: 2 }}>Todas</ToggleButton>
-          <ToggleButton value="mias" sx={{ textTransform: 'none', px: 2 }}>Mis citas</ToggleButton>
-        </ToggleButtonGroup>
+      {/* Filtro por trabajador (solo admin) */}
+      {esAdmin && trabajadores.length > 0 && (
+        <TextField select size="small" label="Filtrar por trabajador"
+          value={filtroTrabajador} onChange={e => setFiltroTrabajador(e.target.value)}
+          sx={{ mb: 2, minWidth: 220 }}
+          InputProps={{ startAdornment: <InputAdornment position="start"><Engineering sx={{ fontSize: 18, color: TEAL }} /></InputAdornment> }}>
+          <MenuItem value="">Todos los trabajadores</MenuItem>
+          {trabajadores.map(t => (
+            <MenuItem key={t.id} value={t.id}>{t.nombre_completo || t.username}</MenuItem>
+          ))}
+        </TextField>
       )}
 
       {/* Stats */}
@@ -417,12 +443,12 @@ export default function Agendamiento({ user }) {
       {dialogOpen && (
         <CitaDialog open={dialogOpen} onClose={() => setDialogOpen(false)}
           editing={editing} fechaDefault={fecha}
-          onSaved={() => { setDialogOpen(false); cargarCitas(); }} />
+          onSaved={handleSaved} />
       )}
       {cobrarCitaObj && (
         <CobrarDialog open cita={cobrarCitaObj}
           onClose={() => setCobrarCitaObj(null)}
-          onSaved={() => { setCobrarCitaObj(null); cargarCitas(); }} />
+          onSaved={handleSaved} />
       )}
     </Box>
   );
@@ -607,14 +633,15 @@ function CitaDialog({ open, onClose, editing, fechaDefault, onSaved }) {
       notas: notas.trim() || null,
     };
     try {
+      let saved;
       if (isEdit) {
-        await updateCita(editing.id, payload);
+        ({ data: saved } = await updateCita(editing.id, payload));
         toast.success('Cita actualizada.');
       } else {
-        await createCita(payload);
+        ({ data: saved } = await createCita(payload));
         toast.success('Cita agendada.');
       }
-      onSaved();
+      onSaved(saved);
     } catch (e) {
       toast.error(e?.response?.data?.detail || 'No se pudo guardar la cita.');
     } finally {

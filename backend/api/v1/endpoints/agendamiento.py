@@ -21,6 +21,26 @@ from api.deps import get_db, get_current_active_user
 router = APIRouter()
 
 
+def _es_admin(user: models.User) -> bool:
+    return bool(getattr(user, "role", None) and user.role.name == "Admin")
+
+
+def _assert_puede_gestionar(db: Session, current_user: models.User, cita_id: int):
+    """Un trabajador (no admin) solo puede gestionar sus propias citas."""
+    if _es_admin(current_user):
+        return
+    cita = (
+        db.query(models.Cita)
+        .filter(models.Cita.id == cita_id, models.Cita.empresa_id == current_user.empresa_id)
+        .first()
+    )
+    if cita and cita.user_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo puedes gestionar las citas asignadas a ti.",
+        )
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Configuración de horario y políticas
 # ──────────────────────────────────────────────────────────────────────────────
@@ -95,6 +115,9 @@ def listar_citas(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
+    # Un trabajador (no admin) solo ve las citas asignadas a él, sin importar el filtro.
+    if not _es_admin(current_user):
+        user_id = current_user.id
     return crud.get_citas(
         db, empresa_id=current_user.empresa_id,
         desde=desde, hasta=hasta, user_id=user_id, estado=estado,
@@ -132,6 +155,7 @@ def actualizar_cita(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
+    _assert_puede_gestionar(db, current_user, cita_id)
     try:
         cita = crud.update_cita(db, empresa_id=current_user.empresa_id, cita_id=cita_id, data=payload)
     except crud.AgendamientoError as e:
@@ -148,6 +172,7 @@ def cambiar_estado(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
+    _assert_puede_gestionar(db, current_user, cita_id)
     try:
         cita = crud.cambiar_estado_cita(db, empresa_id=current_user.empresa_id, cita_id=cita_id, estado=estado)
     except crud.AgendamientoError as e:
@@ -165,6 +190,7 @@ def cobrar_cita(
     current_user: models.User = Depends(get_current_active_user),
 ):
     """Convierte la cita en una Venta en el ERP y la marca como completada."""
+    _assert_puede_gestionar(db, current_user, cita_id)
     try:
         return crud.cobrar_cita(db, empresa_id=current_user.empresa_id, cita_id=cita_id, data=payload)
     except crud.AgendamientoError as e:
@@ -177,6 +203,7 @@ def eliminar_cita(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
+    _assert_puede_gestionar(db, current_user, cita_id)
     ok = crud.delete_cita(db, empresa_id=current_user.empresa_id, cita_id=cita_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Cita no encontrada")
@@ -219,6 +246,23 @@ def info_publica(slug: str, db: Session = Depends(get_db)):
         for s in servicios
     ]
 
+    # Link de pago activo para mostrar QR/enlace de anticipo en el portal público.
+    link_pago_out = None
+    if cfg.requiere_anticipo:
+        link = (
+            db.query(models.LinkPagoEmpresa)
+            .filter_by(empresa_id=empresa.id, is_active=True)
+            .first()
+        )
+        if link:
+            link_pago_out = schemas.LinkPagoPublico(
+                tipo=link.tipo,
+                link_url=link.link_url,
+                qr_base64=link.qr_base64,
+                qr_mime_type=link.qr_mime_type,
+                instrucciones=link.instrucciones,
+            )
+
     return schemas.AgendamientoPublicoInfo(
         empresa_nombre=empresa.nombre,
         slug=slug,
@@ -227,6 +271,7 @@ def info_publica(slug: str, db: Session = Depends(get_db)):
         whatsapp=cfg.whatsapp,
         requiere_anticipo=cfg.requiere_anticipo,
         porcentaje_anticipo=cfg.porcentaje_anticipo,
+        link_pago=link_pago_out,
     )
 
 
