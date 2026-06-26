@@ -3,23 +3,25 @@ import {
   Box, Paper, Typography, Button, Chip, IconButton, CircularProgress, Stack,
   Avatar, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, TextField,
   MenuItem, Grid, Divider, Menu, ListItemIcon, ListItemText, Autocomplete,
-  ToggleButtonGroup, ToggleButton, useMediaQuery, Fab,
+  ToggleButtonGroup, ToggleButton, useMediaQuery, Fab, InputAdornment,
 } from '@mui/material';
 import {
   EventNote, ChevronLeft, ChevronRight, Today, Add, Schedule, Person,
   Engineering, MoreVert, CheckCircle, PlayArrow, DoneAll, Cancel as CancelIcon,
-  Delete, EventBusy, Settings, AccessTime, Share, WhatsApp,
+  Delete, EventBusy, Settings, AccessTime, Share, WhatsApp, AttachMoney,
+  OpenInNew, Link,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useTheme } from '@mui/material/styles';
 import apiClient, {
   fetchServiciosAgendables, fetchDisponibilidad, fetchCitas,
-  createCita, updateCita, cambiarEstadoCita, deleteCita,
+  createCita, updateCita, cambiarEstadoCita, deleteCita, cobrarCita,
 } from '../../api';
 
 const TEAL = '#0D9488';
 const TEAL_DARK = '#0F766E';
+const GREEN = '#16A34A';
 
 const ESTADOS = {
   pendiente:  { label: 'Pendiente',  color: '#D97706', bg: '#FEF3C7' },
@@ -30,27 +32,28 @@ const ESTADOS = {
   no_asistio: { label: 'No asistió', color: '#6B7280', bg: '#F3F4F6' },
 };
 
-// ── Helpers de fecha (local) ───────────────────────────────────────────────
+const METODOS_PAGO = ['Efectivo', 'Tarjeta', 'Transferencia', 'Nequi', 'Daviplata', 'Otro'];
+
 const pad = n => String(n).padStart(2, '0');
 const toYMD = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const fmtHora = (iso) => new Date(iso).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: true });
 const fmtFechaLarga = (d) => d.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' });
-const initials = (name = '') =>
-  name.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join('') || '?';
+const fmtCOP = (n) => `$${Number(n || 0).toLocaleString('es-CO')}`;
 
 export default function Agendamiento({ user }) {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const [fecha, setFecha]       = useState(() => new Date());
-  const [citas, setCitas]       = useState([]);
-  const [loading, setLoading]   = useState(true);
+  const [fecha, setFecha]         = useState(() => new Date());
+  const [citas, setCitas]         = useState([]);
+  const [loading, setLoading]     = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing]   = useState(null);
+  const [editing, setEditing]     = useState(null);
   const [menuAnchor, setMenuAnchor] = useState(null);
-  const [menuCita, setMenuCita] = useState(null);
-  const [scope, setScope]       = useState('todas'); // 'todas' | 'mias'
+  const [menuCita, setMenuCita]   = useState(null);
+  const [scope, setScope]         = useState('todas');
+  const [cobrarCitaObj, setCobrarCitaObj] = useState(null);
 
   const ymd = toYMD(fecha);
 
@@ -61,7 +64,7 @@ export default function Agendamiento({ user }) {
       if (scope === 'mias' && user?.id) params.user_id = user.id;
       const { data } = await fetchCitas(params);
       setCitas(data || []);
-    } catch (e) {
+    } catch {
       toast.error('Error al cargar las citas.');
     } finally {
       setLoading(false);
@@ -76,50 +79,63 @@ export default function Agendamiento({ user }) {
     setFecha(d);
   };
 
-  const stats = useMemo(() => {
-    const activos = citas.filter(c => !['cancelada', 'no_asistio'].includes(c.estado));
-    return {
-      total: citas.length,
-      pendientes: citas.filter(c => c.estado === 'pendiente').length,
-      confirmadas: citas.filter(c => c.estado === 'confirmada').length,
-      completadas: citas.filter(c => c.estado === 'completada').length,
-      activos: activos.length,
-    };
-  }, [citas]);
+  const stats = useMemo(() => ({
+    activos:    citas.filter(c => !['cancelada', 'no_asistio'].includes(c.estado)).length,
+    pendientes: citas.filter(c => c.estado === 'pendiente').length,
+    completadas: citas.filter(c => c.estado === 'completada').length,
+  }), [citas]);
 
-  const compartirLink = async () => {
-    try {
-      const { data } = await apiClient.get('/catalogo/config');
-      const slug = data?.slug_catalogo;
-      if (!slug) {
-        toast.info('Configura primero el enlace de tu negocio en Catálogo Virtual para compartir tu página de citas.');
-        return;
-      }
-      const url = `${window.location.origin}/${slug}/agendar`;
-      try {
-        await navigator.clipboard.writeText(url);
-        toast.success('¡Link de agendamiento copiado! Compártelo con tus clientes.');
-      } catch {
-        window.prompt('Copia tu link público de agendamiento:', url);
-      }
-    } catch {
-      toast.error('No se pudo obtener el link público.');
-    }
-  };
-
-  const enviarRecordatorio = (cita) => {
+  // ── WhatsApp recordatorio mejorado ────────────────────────────────────────
+  const enviarRecordatorio = async (cita) => {
     setMenuAnchor(null);
     const tel = (cita.cliente_telefono || '').replace(/\D/g, '');
     if (!tel) {
       toast.info('Esta cita no tiene teléfono de cliente registrado.');
       return;
     }
-    const ffull = tel.length === 10 ? `57${tel}` : tel; // Colombia por defecto
+    // Obtener nombre del negocio
+    let negocio = 'nuestro negocio';
+    try {
+      const { data } = await apiClient.get('/users/me');
+      negocio = data?.empresa_nombre || negocio;
+    } catch {}
+
+    const numero = tel.length === 10 ? `57${tel}` : tel;
     const cuando = `${fmtFechaLarga(new Date(cita.fecha_inicio))} a las ${fmtHora(cita.fecha_inicio)}`;
-    const msg =
-      `Hola ${cita.cliente_display || ''}, te recordamos tu cita de *${cita.producto_nombre}* ` +
-      `el ${cuando}. ¡Te esperamos!`;
-    window.open(`https://wa.me/${ffull}?text=${encodeURIComponent(msg)}`, '_blank');
+    const msg = [
+      `👋 ¡Hola ${cita.cliente_display || ''}! Te escribe *${negocio}* 🗓️`,
+      ``,
+      `Te recordamos tu cita de *${cita.producto_nombre}* con *${cita.trabajador_nombre}*:`,
+      `📅 ${cuando}`,
+      ``,
+      `Por favor llega puntual 🙏. Si necesitas reagendar, no dudes en avisarnos.`,
+      ``,
+      `¡Te esperamos! ✨`,
+    ].join('\n');
+    window.open(`https://wa.me/${numero}?text=${encodeURIComponent(msg)}`, '_blank');
+  };
+
+  // ── Compartir link público ────────────────────────────────────────────────
+  const compartirLink = async () => {
+    try {
+      const { data } = await apiClient.get('/catalogo/config');
+      const slug = data?.slug_catalogo;
+      if (!slug) {
+        toast.info('Configura primero el enlace de tu negocio en Catálogo Virtual.');
+        return;
+      }
+      // La URL pública usa el mismo dominio base del catálogo
+      const baseUrl = process.env.REACT_APP_PUBLIC_URL || window.location.origin;
+      const url = `${baseUrl}/${slug}/agendar`;
+      try {
+        await navigator.clipboard.writeText(url);
+        toast.success('¡Link copiado! Compártelo con tus clientes 📋');
+      } catch {
+        window.prompt('Tu link público de agendamiento:', url);
+      }
+    } catch {
+      toast.error('No se pudo obtener el link público.');
+    }
   };
 
   const handleEstado = async (cita, estado) => {
@@ -140,7 +156,7 @@ export default function Agendamiento({ user }) {
       await deleteCita(cita.id);
       toast.success('Cita eliminada.');
       cargarCitas();
-    } catch (e) {
+    } catch {
       toast.error('No se pudo eliminar.');
     }
   };
@@ -150,32 +166,30 @@ export default function Agendamiento({ user }) {
 
   return (
     <Box sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 1000, mx: 'auto', pb: 10 }}>
-      {/* ── Header ── */}
+      {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5, flexWrap: 'wrap' }}>
         <Avatar sx={{ bgcolor: TEAL, width: 44, height: 44 }}><EventNote /></Avatar>
         <Box sx={{ flex: 1, minWidth: 160 }}>
           <Typography sx={{ fontWeight: 800, fontSize: { xs: 20, sm: 24 } }}>Agenda de Citas</Typography>
           <Typography sx={{ color: 'text.secondary', fontSize: 13 }}>
-            Gestiona las citas de tus servicios por trabajador.
+            Gestiona las citas de tus servicios.
           </Typography>
         </Box>
-        <Tooltip title="Copiar link público para que tus clientes agenden solos">
-          <Button onClick={compartirLink} startIcon={<Share />}
-            size="small" variant="contained" disableElevation
+        <Tooltip title="Copiar link público para clientes">
+          <Button onClick={compartirLink} startIcon={<Link />} size="small" variant="contained" disableElevation
             sx={{ bgcolor: TEAL, '&:hover': { bgcolor: TEAL_DARK } }}>
             Compartir
           </Button>
         </Tooltip>
         <Tooltip title="Configurar servicios y trabajadores">
           <Button onClick={() => navigate('/agendamiento/config')} startIcon={<Settings />}
-            size="small" variant="outlined"
-            sx={{ color: TEAL_DARK, borderColor: `${TEAL}66` }}>
+            size="small" variant="outlined" sx={{ color: TEAL_DARK, borderColor: `${TEAL}66` }}>
             Configurar
           </Button>
         </Tooltip>
       </Box>
 
-      {/* ── Navegación de fecha ── */}
+      {/* Navegación de fecha */}
       <Paper elevation={0} sx={{
         p: 1.5, borderRadius: 3, border: '1px solid', borderColor: 'divider',
         mb: 2, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap',
@@ -191,40 +205,35 @@ export default function Agendamiento({ user }) {
         </Box>
         <IconButton onClick={() => moverDia(1)} size="small"><ChevronRight /></IconButton>
         <Tooltip title="Ir a hoy">
-          <IconButton onClick={() => setFecha(new Date())} size="small" sx={{ color: TEAL }}>
-            <Today />
-          </IconButton>
+          <IconButton onClick={() => setFecha(new Date())} size="small" sx={{ color: TEAL }}><Today /></IconButton>
         </Tooltip>
-        <TextField
-          type="date" size="small" value={ymd}
+        <TextField type="date" size="small" value={ymd}
           onChange={e => { const [y, m, d] = e.target.value.split('-'); setFecha(new Date(+y, +m - 1, +d)); }}
-          sx={{ width: 150 }}
-        />
+          sx={{ width: 150 }} />
       </Paper>
 
-      {/* ── Filtro de alcance ── */}
+      {/* Filtro trabajador */}
       {user?.id && (
-        <ToggleButtonGroup
-          value={scope} exclusive size="small"
+        <ToggleButtonGroup value={scope} exclusive size="small"
           onChange={(e, v) => v && setScope(v)}
-          sx={{ mb: 2, '& .Mui-selected': { bgcolor: `${TEAL} !important`, color: '#fff !important' } }}
-        >
+          sx={{ mb: 2, '& .Mui-selected': { bgcolor: `${TEAL} !important`, color: '#fff !important' } }}>
           <ToggleButton value="todas" sx={{ textTransform: 'none', px: 2 }}>Todas</ToggleButton>
           <ToggleButton value="mias" sx={{ textTransform: 'none', px: 2 }}>Mis citas</ToggleButton>
         </ToggleButtonGroup>
       )}
 
-      {/* ── Stats ── */}
+      {/* Stats */}
       {!loading && citas.length > 0 && (
         <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
           <Chip label={`${stats.activos} activas`} sx={{ bgcolor: `${TEAL}1A`, color: TEAL_DARK, fontWeight: 700 }} />
-          {stats.pendientes > 0 && <Chip size="small" label={`${stats.pendientes} pendientes`} sx={{ bgcolor: ESTADOS.pendiente.bg, color: ESTADOS.pendiente.color, fontWeight: 600 }} />}
-          {stats.confirmadas > 0 && <Chip size="small" label={`${stats.confirmadas} confirmadas`} sx={{ bgcolor: ESTADOS.confirmada.bg, color: ESTADOS.confirmada.color, fontWeight: 600 }} />}
-          {stats.completadas > 0 && <Chip size="small" label={`${stats.completadas} completadas`} sx={{ bgcolor: ESTADOS.completada.bg, color: ESTADOS.completada.color, fontWeight: 600 }} />}
+          {stats.pendientes > 0 && <Chip size="small" label={`${stats.pendientes} pendientes`}
+            sx={{ bgcolor: ESTADOS.pendiente.bg, color: ESTADOS.pendiente.color, fontWeight: 600 }} />}
+          {stats.completadas > 0 && <Chip size="small" label={`${stats.completadas} completadas`}
+            sx={{ bgcolor: ESTADOS.completada.bg, color: ESTADOS.completada.color, fontWeight: 600 }} />}
         </Stack>
       )}
 
-      {/* ── Lista de citas ── */}
+      {/* Lista */}
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
           <CircularProgress sx={{ color: TEAL }} />
@@ -247,6 +256,7 @@ export default function Agendamiento({ user }) {
           {citasOrdenadas.map(cita => {
             const est = ESTADOS[cita.estado] || ESTADOS.pendiente;
             const cancelada = ['cancelada', 'no_asistio'].includes(cita.estado);
+            const cobrada = Boolean(cita.venta_id);
             return (
               <Paper key={cita.id} elevation={0} sx={{
                 p: { xs: 1.5, sm: 2 }, borderRadius: 3, border: '1px solid', borderColor: 'divider',
@@ -255,8 +265,8 @@ export default function Agendamiento({ user }) {
                 display: 'flex', alignItems: 'center', gap: { xs: 1.5, sm: 2 },
               }}>
                 {/* Hora */}
-                <Box sx={{ textAlign: 'center', minWidth: 64 }}>
-                  <Typography sx={{ fontWeight: 800, fontSize: 15, color: TEAL_DARK, lineHeight: 1.1 }}>
+                <Box sx={{ textAlign: 'center', minWidth: 62 }}>
+                  <Typography sx={{ fontWeight: 800, fontSize: 14.5, color: TEAL_DARK, lineHeight: 1.1 }}>
                     {fmtHora(cita.fecha_inicio)}
                   </Typography>
                   <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>
@@ -266,28 +276,56 @@ export default function Agendamiento({ user }) {
                 <Divider orientation="vertical" flexItem />
                 {/* Detalle */}
                 <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography sx={{ fontWeight: 700, fontSize: 15 }} noWrap>
-                    {cita.producto_nombre}
-                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flexWrap: 'wrap' }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: 14.5 }} noWrap>
+                      {cita.producto_nombre}
+                    </Typography>
+                    {cita.producto_precio != null && (
+                      <Typography sx={{ fontSize: 12, color: GREEN, fontWeight: 700 }}>
+                        {fmtCOP(cita.producto_precio)}
+                      </Typography>
+                    )}
+                    {cobrada && (
+                      <Chip size="small" label="Cobrada" icon={<AttachMoney sx={{ fontSize: 13 }} />}
+                        sx={{ bgcolor: '#DCFCE7', color: GREEN, fontWeight: 700, height: 20, fontSize: 11 }} />
+                    )}
+                  </Box>
                   <Stack direction="row" spacing={1.5} sx={{ mt: 0.3, flexWrap: 'wrap' }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
-                      <Person sx={{ fontSize: 15, color: 'text.disabled' }} />
-                      <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }} noWrap>
+                      <Person sx={{ fontSize: 14, color: 'text.disabled' }} />
+                      <Typography sx={{ fontSize: 12, color: 'text.secondary' }} noWrap>
                         {cita.cliente_display || 'Sin cliente'}
                       </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
-                      <Engineering sx={{ fontSize: 15, color: 'text.disabled' }} />
-                      <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }} noWrap>
+                      <Engineering sx={{ fontSize: 14, color: 'text.disabled' }} />
+                      <Typography sx={{ fontSize: 12, color: 'text.secondary' }} noWrap>
                         {cita.trabajador_nombre}
                       </Typography>
                     </Box>
                   </Stack>
                 </Box>
-                {/* Estado + menú */}
-                <Stack direction={isMobile ? 'column' : 'row'} spacing={0.5} alignItems="center">
+                {/* Estado + botón cobrar + menú */}
+                <Stack direction="row" spacing={0.5} alignItems="center">
                   <Chip label={est.label} size="small"
                     sx={{ bgcolor: est.bg, color: est.color, fontWeight: 700, fontSize: 11 }} />
+                  {!cobrada && !cancelada && (
+                    <Tooltip title="Cobrar / Registrar venta">
+                      <Button size="small" variant="outlined" startIcon={<AttachMoney />}
+                        onClick={() => setCobrarCitaObj(cita)}
+                        sx={{ fontSize: 11, py: 0.3, px: 1, color: GREEN, borderColor: GREEN,
+                          '&:hover': { bgcolor: '#DCFCE7', borderColor: GREEN }, display: { xs: 'none', sm: 'flex' } }}>
+                        Cobrar
+                      </Button>
+                    </Tooltip>
+                  )}
+                  {cobrada && (
+                    <Tooltip title="Ver venta generada">
+                      <IconButton size="small" onClick={() => window.open(`/ventas`, '_blank')}>
+                        <OpenInNew sx={{ fontSize: 16, color: GREEN }} />
+                      </IconButton>
+                    </Tooltip>
+                  )}
                   <IconButton size="small" onClick={(e) => { setMenuAnchor(e.currentTarget); setMenuCita(cita); }}>
                     <MoreVert />
                   </IconButton>
@@ -298,7 +336,7 @@ export default function Agendamiento({ user }) {
         </Stack>
       )}
 
-      {/* ── Menú de acciones por cita ── */}
+      {/* Menú de acciones */}
       <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
         {menuCita && menuCita.estado === 'pendiente' && (
           <MenuItem onClick={() => handleEstado(menuCita, 'confirmada')}>
@@ -318,6 +356,12 @@ export default function Agendamiento({ user }) {
             <ListItemText>Completar</ListItemText>
           </MenuItem>
         )}
+        {menuCita && !menuCita.venta_id && !['cancelada', 'no_asistio'].includes(menuCita.estado) && (
+          <MenuItem onClick={() => { setCobrarCitaObj(menuCita); setMenuAnchor(null); }}>
+            <ListItemIcon><AttachMoney fontSize="small" sx={{ color: GREEN }} /></ListItemIcon>
+            <ListItemText>Cobrar</ListItemText>
+          </MenuItem>
+        )}
         {menuCita && menuCita.cliente_telefono && (
           <MenuItem onClick={() => enviarRecordatorio(menuCita)}>
             <ListItemIcon><WhatsApp fontSize="small" sx={{ color: '#25D366' }} /></ListItemIcon>
@@ -334,7 +378,7 @@ export default function Agendamiento({ user }) {
             <ListItemText>Cancelar cita</ListItemText>
           </MenuItem>
         )}
-        {menuCita && menuCita.estado !== 'no_asistio' && menuCita.estado !== 'completada' && (
+        {menuCita && menuCita.estado !== 'no_asistio' && (
           <MenuItem onClick={() => handleEstado(menuCita, 'no_asistio')}>
             <ListItemIcon><EventBusy fontSize="small" sx={{ color: ESTADOS.no_asistio.color }} /></ListItemIcon>
             <ListItemText>No asistió</ListItemText>
@@ -347,7 +391,7 @@ export default function Agendamiento({ user }) {
         </MenuItem>
       </Menu>
 
-      {/* ── FAB nueva cita ── */}
+      {/* FAB */}
       <Fab variant={isMobile ? 'circular' : 'extended'}
         onClick={() => { setEditing(null); setDialogOpen(true); }}
         sx={{ position: 'fixed', bottom: 24, right: 24, bgcolor: TEAL, color: '#fff', '&:hover': { bgcolor: TEAL_DARK } }}>
@@ -355,16 +399,94 @@ export default function Agendamiento({ user }) {
         {!isMobile && 'Nueva cita'}
       </Fab>
 
+      {/* Diálogos */}
       {dialogOpen && (
-        <CitaDialog
-          open={dialogOpen}
-          onClose={() => setDialogOpen(false)}
-          editing={editing}
-          fechaDefault={fecha}
-          onSaved={() => { setDialogOpen(false); cargarCitas(); }}
-        />
+        <CitaDialog open={dialogOpen} onClose={() => setDialogOpen(false)}
+          editing={editing} fechaDefault={fecha}
+          onSaved={() => { setDialogOpen(false); cargarCitas(); }} />
+      )}
+      {cobrarCitaObj && (
+        <CobrarDialog open cita={cobrarCitaObj}
+          onClose={() => setCobrarCitaObj(null)}
+          onSaved={() => { setCobrarCitaObj(null); cargarCitas(); }} />
       )}
     </Box>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Dialog de cobro → genera venta en el ERP
+// ════════════════════════════════════════════════════════════════════════════
+function CobrarDialog({ open, cita, onClose, onSaved }) {
+  const [metodo, setMetodo]       = useState('Efectivo');
+  const [precio, setPrecio]       = useState(cita.producto_precio || '');
+  const [solicita_fe, setSolicitaFe] = useState(false);
+  const [saving, setSaving]       = useState(false);
+
+  const total = parseFloat(precio) || 0;
+
+  const handleCobrar = async () => {
+    if (!total) { toast.error('Ingresa un precio válido.'); return; }
+    setSaving(true);
+    try {
+      await cobrarCita(cita.id, { metodo_pago: metodo, precio_unitario: total, solicita_fe });
+      toast.success(`✅ Venta registrada por $${total.toLocaleString('es-CO')}`);
+      onSaved();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || 'No se pudo registrar la venta.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.2, fontWeight: 800 }}>
+        <Avatar sx={{ bgcolor: GREEN, width: 34, height: 34 }}><AttachMoney sx={{ fontSize: 20 }} /></Avatar>
+        Cobrar cita
+      </DialogTitle>
+      <DialogContent dividers>
+        <Stack spacing={2} sx={{ mt: 0.5 }}>
+          <Box sx={{ p: 1.5, bgcolor: '#F0FDF4', borderRadius: 2, border: '1px solid #86EFAC' }}>
+            <Typography sx={{ fontWeight: 700, fontSize: 15 }}>{cita.producto_nombre}</Typography>
+            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+              Cliente: {cita.cliente_display || 'Sin cliente'} · Trabajador: {cita.trabajador_nombre}
+            </Typography>
+          </Box>
+          <TextField fullWidth size="small" label="Precio / Total a cobrar"
+            type="number" value={precio} onChange={e => setPrecio(e.target.value)}
+            InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }} />
+          <TextField select fullWidth size="small" label="Método de pago"
+            value={metodo} onChange={e => setMetodo(e.target.value)}>
+            {METODOS_PAGO.map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+          </TextField>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <input type="checkbox" id="fe-chk" checked={solicita_fe}
+              onChange={e => setSolicitaFe(e.target.checked)} />
+            <label htmlFor="fe-chk" style={{ fontSize: 13, cursor: 'pointer' }}>
+              Emitir Factura Electrónica (DIAN)
+            </label>
+          </Box>
+          {total > 0 && (
+            <Paper sx={{ p: 1.5, bgcolor: '#F0FDF4', borderRadius: 2, textAlign: 'right' }}>
+              <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Total a registrar</Typography>
+              <Typography sx={{ fontSize: 22, fontWeight: 800, color: GREEN }}>
+                ${total.toLocaleString('es-CO')}
+              </Typography>
+            </Paper>
+          )}
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ p: 2 }}>
+        <Button onClick={onClose} color="inherit">Cancelar</Button>
+        <Button variant="contained" disableElevation onClick={handleCobrar}
+          disabled={saving || !total}
+          startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <CheckCircle />}
+          sx={{ bgcolor: GREEN, '&:hover': { bgcolor: '#15803D' } }}>
+          Registrar venta
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }
 
@@ -375,13 +497,15 @@ function CitaDialog({ open, onClose, editing, fechaDefault, onSaved }) {
   const isEdit = Boolean(editing);
   const [servicios, setServicios] = useState([]);
   const [clientes, setClientes]   = useState([]);
+  const [usuarios, setUsuarios]   = useState([]);
   const [loadingMeta, setLoadingMeta] = useState(true);
 
   const [productoId, setProductoId] = useState(editing?.producto_id || '');
-  const [fecha, setFecha] = useState(toYMD(editing ? new Date(editing.fecha_inicio) : fechaDefault));
-  const [franjas, setFranjas] = useState([]);
+  const [fecha, setFecha]   = useState(toYMD(editing ? new Date(editing.fecha_inicio) : fechaDefault));
+  const [franjas, setFranjas]     = useState([]);
   const [loadingFranjas, setLoadingFranjas] = useState(false);
-  const [slot, setSlot] = useState(null); // { inicio, user_id, trabajador_nombre }
+  const [slot, setSlot]           = useState(null);
+  const [trabajadorId, setTrabajadorId] = useState(editing?.user_id || null);
 
   const [clienteSel, setClienteSel] = useState(null);
   const [nombre, setNombre]   = useState(editing?.cliente_nombre || '');
@@ -394,14 +518,17 @@ function CitaDialog({ open, onClose, editing, fechaDefault, onSaved }) {
     (async () => {
       setLoadingMeta(true);
       try {
-        const [srvRes, cliRes] = await Promise.all([
+        const [srvRes, cliRes, usrRes] = await Promise.all([
           fetchServiciosAgendables(true),
           apiClient.get('/clientes/', { params: { limit: 500 } }),
+          apiClient.get('/users/'),
         ]);
         setServicios(srvRes.data || []);
-        setClientes((cliRes.data || []).filter(c => c.es_cliente !== false));
+        const clis = (cliRes.data || []).filter(c => c.es_cliente !== false);
+        setClientes(clis);
+        setUsuarios(usrRes.data.filter(u => u.is_active !== false));
         if (editing?.cliente_id) {
-          const c = (cliRes.data || []).find(x => x.id === editing.cliente_id);
+          const c = clis.find(x => x.id === editing.cliente_id);
           if (c) setClienteSel(c);
         }
       } catch {
@@ -412,11 +539,11 @@ function CitaDialog({ open, onClose, editing, fechaDefault, onSaved }) {
     })();
   }, [editing]);
 
-  // Cargar disponibilidad cuando hay servicio + fecha
   const cargarFranjas = useCallback(async () => {
     if (!productoId || !fecha) { setFranjas([]); return; }
     setLoadingFranjas(true);
     setSlot(null);
+    setTrabajadorId(null);
     try {
       const { data } = await fetchDisponibilidad(productoId, fecha);
       setFranjas(data.franjas || []);
@@ -429,20 +556,22 @@ function CitaDialog({ open, onClose, editing, fechaDefault, onSaved }) {
 
   useEffect(() => { cargarFranjas(); }, [cargarFranjas]);
 
+  // Trabajadores disponibles para el servicio seleccionado
   const servicioActual = servicios.find(s => s.id === productoId);
+  const trabajadoresServicio = servicioActual?.trabajadores || [];
 
   const handleGuardar = async () => {
     if (!productoId) return toast.error('Selecciona un servicio.');
-    if (!slot) return toast.error('Selecciona una franja horaria disponible.');
-    const nombreCli = clienteSel ? clienteSel.nombre : nombre;
-    if (!clienteSel && !nombre.trim()) return toast.error('Indica el cliente o su nombre.');
+    const uid = slot?.user_id || trabajadorId;
+    if (!uid) return toast.error('Selecciona un horario o un trabajador.');
+    if (!slot && !editing) return toast.error('Selecciona una franja horaria.');
 
     setSaving(true);
     const payload = {
       producto_id: productoId,
-      user_id: slot.user_id,
+      user_id: uid,
       cliente_id: clienteSel?.id || null,
-      fecha_inicio: slot.inicio,
+      fecha_inicio: slot?.inicio || editing?.fecha_inicio,
       cliente_nombre: clienteSel ? null : nombre.trim() || null,
       cliente_telefono: clienteSel ? null : telefono.trim() || null,
       cliente_email: clienteSel ? null : email.trim() || null,
@@ -454,7 +583,7 @@ function CitaDialog({ open, onClose, editing, fechaDefault, onSaved }) {
         toast.success('Cita actualizada.');
       } else {
         await createCita(payload);
-        toast.success('Cita agendada correctamente.');
+        toast.success('Cita agendada.');
       }
       onSaved();
     } catch (e) {
@@ -465,8 +594,7 @@ function CitaDialog({ open, onClose, editing, fechaDefault, onSaved }) {
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth
-      PaperProps={{ sx: { borderRadius: 3 } }}>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.2, fontWeight: 800 }}>
         <Avatar sx={{ bgcolor: TEAL, width: 34, height: 34 }}><EventNote sx={{ fontSize: 19 }} /></Avatar>
         {isEdit ? 'Editar cita' : 'Nueva cita'}
@@ -480,27 +608,25 @@ function CitaDialog({ open, onClose, editing, fechaDefault, onSaved }) {
           <Box sx={{ textAlign: 'center', py: 3 }}>
             <Typography sx={{ fontWeight: 700, mb: 1 }}>No hay servicios agendables</Typography>
             <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-              Habilita servicios y asígnales trabajadores en <b>Configurar</b>.
+              Habilita servicios en <b>Configurar</b>.
             </Typography>
           </Box>
         ) : (
           <Stack spacing={2.2} sx={{ mt: 0.5 }}>
-            {/* Servicio */}
             <TextField select fullWidth label="Servicio" value={productoId}
               onChange={e => setProductoId(e.target.value)} size="small">
               {servicios.map(s => (
                 <MenuItem key={s.id} value={s.id}>
                   {s.nombre} · {s.duracion_minutos || 30} min
+                  {s.precio != null ? ` · $${Number(s.precio).toLocaleString('es-CO')}` : ''}
                 </MenuItem>
               ))}
             </TextField>
-
-            {/* Fecha */}
             <TextField type="date" fullWidth label="Fecha" value={fecha}
               onChange={e => setFecha(e.target.value)} size="small"
               InputLabelProps={{ shrink: true }} />
 
-            {/* Franjas disponibles */}
+            {/* Horarios disponibles */}
             <Box>
               <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 1, display: 'flex', alignItems: 'center', gap: 0.6 }}>
                 <AccessTime sx={{ fontSize: 17, color: TEAL }} /> Horarios disponibles
@@ -508,56 +634,63 @@ function CitaDialog({ open, onClose, editing, fechaDefault, onSaved }) {
               {!productoId ? (
                 <Typography sx={{ fontSize: 13, color: 'text.disabled' }}>Selecciona un servicio primero.</Typography>
               ) : loadingFranjas ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}><CircularProgress size={22} sx={{ color: TEAL }} /></Box>
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                  <CircularProgress size={22} sx={{ color: TEAL }} />
+                </Box>
               ) : franjas.length === 0 ? (
                 <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', borderRadius: 2, borderStyle: 'dashed' }}>
                   <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-                    No hay horarios disponibles para esta fecha.
+                    No hay horarios disponibles. Prueba otra fecha.
                   </Typography>
                 </Paper>
               ) : (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, maxHeight: 180, overflowY: 'auto', p: 0.5 }}>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, maxHeight: 160, overflowY: 'auto', p: 0.5 }}>
                   {franjas.map((f, i) => {
                     const sel = slot && slot.inicio === f.inicio && slot.user_id === f.user_id;
                     return (
                       <Tooltip key={i} title={`Atiende: ${f.trabajador_nombre}`} arrow>
-                        <Chip
-                          label={fmtHora(f.inicio)}
-                          onClick={() => setSlot(f)}
+                        <Chip label={fmtHora(f.inicio)} onClick={() => { setSlot(f); setTrabajadorId(f.user_id); }}
                           sx={{
-                            fontWeight: 700, cursor: 'pointer', px: 0.5,
-                            bgcolor: sel ? TEAL : `${TEAL}12`,
-                            color: sel ? '#fff' : TEAL_DARK,
+                            fontWeight: 700, cursor: 'pointer',
+                            bgcolor: sel ? TEAL : `${TEAL}12`, color: sel ? '#fff' : TEAL_DARK,
                             border: `1px solid ${sel ? TEAL : `${TEAL}33`}`,
                             '&:hover': { bgcolor: sel ? TEAL_DARK : `${TEAL}22` },
-                          }}
-                        />
+                          }} />
                       </Tooltip>
                     );
                   })}
                 </Box>
               )}
-              {slot && (
-                <Typography sx={{ fontSize: 12.5, color: TEAL_DARK, mt: 1, fontWeight: 600 }}>
-                  ✓ {fmtHora(slot.inicio)} con {slot.trabajador_nombre}
-                </Typography>
-              )}
             </Box>
+
+            {/* Trabajador: editable siempre (admin puede asignar cualquiera del servicio) */}
+            {trabajadoresServicio.length > 0 && (
+              <TextField select fullWidth size="small" label="Trabajador asignado"
+                value={slot?.user_id || trabajadorId || ''}
+                onChange={e => setTrabajadorId(e.target.value)}
+                helperText="El admin puede cambiar el trabajador manualmente.">
+                {trabajadoresServicio.map(t => (
+                  <MenuItem key={t.id} value={t.id}>{t.nombre_completo || t.username}</MenuItem>
+                ))}
+              </TextField>
+            )}
+
+            {slot && (
+              <Typography sx={{ fontSize: 12.5, color: TEAL_DARK, fontWeight: 600 }}>
+                ✓ {fmtHora(slot.inicio)} — {slot.trabajador_nombre}
+              </Typography>
+            )}
 
             <Divider />
 
             {/* Cliente */}
-            <Autocomplete
-              options={clientes}
-              getOptionLabel={(o) => o.nombre || ''}
-              value={clienteSel}
-              onChange={(e, v) => setClienteSel(v)}
+            <Autocomplete options={clientes} getOptionLabel={(o) => o.nombre || ''}
+              value={clienteSel} onChange={(e, v) => setClienteSel(v)}
               isOptionEqualToValue={(o, v) => o.id === v.id}
               renderInput={(params) => (
                 <TextField {...params} label="Cliente registrado (opcional)" size="small"
                   placeholder="Buscar cliente…" />
-              )}
-            />
+              )} />
             {!clienteSel && (
               <Grid container spacing={1.5}>
                 <Grid item xs={12}>
@@ -574,7 +707,6 @@ function CitaDialog({ open, onClose, editing, fechaDefault, onSaved }) {
                 </Grid>
               </Grid>
             )}
-
             <TextField fullWidth size="small" label="Notas (opcional)" multiline rows={2}
               value={notas} onChange={e => setNotas(e.target.value)} />
           </Stack>

@@ -519,7 +519,10 @@ class Venta(Base, TenantMixin):
 
     # Origen del ingreso — identifica qué módulo generó esta venta
     origen          = Column(String(40), nullable=True, default="erp")
-    # Valores: 'erp' | 'lavadero' | 'parqueadero_suscripcion' | 'parqueadero_horas' | 'restaurante' | 'pedido_virtual'
+    # Valores: 'erp' | 'lavadero' | 'parqueadero_suscripcion' | 'parqueadero_horas' | 'restaurante' | 'pedido_virtual' | 'agendamiento'
+
+    # 📅 Agendamiento — cita que originó esta venta
+    cita_id         = Column(Integer, ForeignKey("citas.id"), nullable=True, index=True)
 
     # Facturación electrónica opcional por venta
     # True  → cliente pidió FE individual → se emite inmediatamente
@@ -1763,9 +1766,48 @@ class Cita(Base, TenantMixin):
     cliente_email    = Column(String(150), nullable=True)
 
     notas        = Column(Text, nullable=True)
+    # 💳 Anticipo / depósito
+    anticipo_monto    = Column(Float, nullable=True)       # monto pagado como seña
+    anticipo_pagado   = Column(Boolean, default=False)     # ya confirmado
+    anticipo_referencia = Column(String(100), nullable=True)  # ref. pago externo
+    # 🔗 Venta generada al cobrar la cita
+    venta_id     = Column(Integer, ForeignKey("ventas.id"), nullable=True, index=True)
+
     created_at   = Column(DateTime(timezone=True), default=utcnow)
     updated_at   = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     producto = relationship("Producto")
     cliente  = relationship("Cliente")
     usuario  = relationship("User")
+    venta    = relationship("Venta", foreign_keys=[venta_id])
+
+
+class AgendamientoConfig(Base, TenantMixin):
+    """
+    Configuración de horario y políticas de agendamiento por empresa.
+    Se crea automáticamente con valores por defecto la primera vez que se consulta.
+    """
+    __tablename__ = "agendamiento_config"
+    id = Column(Integer, primary_key=True)
+
+    # Horario laboral (hora entera, local Bogotá)
+    hora_apertura = Column(Integer, default=8)    # 08:00
+    hora_cierre   = Column(Integer, default=18)   # 18:00
+
+    # Días de la semana: 0=Lunes … 6=Domingo. Default: Lun-Sáb
+    dias_laborales    = Column(JSON, default=lambda: [0, 1, 2, 3, 4, 5])
+
+    # Fechas específicas de cierre: ["2025-12-25", "2026-01-01"]
+    dias_no_laborales = Column(JSON, default=lambda: [])
+
+    # Número de WhatsApp del negocio (para contacto de depósitos)
+    whatsapp = Column(String(40), nullable=True)
+
+    # Política de anticipo
+    requiere_anticipo      = Column(Boolean, default=False)
+    porcentaje_anticipo    = Column(Integer, default=50)  # % del precio total
+
+    # Plantilla de mensaje WhatsApp (si NULL se usa la plantilla por defecto)
+    mensaje_recordatorio   = Column(Text, nullable=True)
+
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

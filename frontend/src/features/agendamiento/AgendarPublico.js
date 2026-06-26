@@ -2,11 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Box, Paper, Typography, Button, Chip, CircularProgress, Stack, Avatar,
-  TextField, Stepper, Step, StepLabel, Grid, Divider, Tooltip, Fade,
+  TextField, Stepper, Step, StepLabel, Grid, Divider, Tooltip, Fade, Alert,
 } from '@mui/material';
 import {
   EventNote, Schedule, AccessTime, CheckCircle, ArrowBack, ArrowForward,
-  Person, Engineering, EventAvailable, Spa,
+  Person, Engineering, EventAvailable, Spa, AttachMoney, WhatsApp,
 } from '@mui/icons-material';
 import {
   fetchAgendamientoPublico, fetchDisponibilidadPublica, crearCitaPublica,
@@ -255,7 +255,18 @@ export default function AgendarPublico() {
                     <ResumenRow icon={<Schedule sx={{ fontSize: 17, color: TEAL }} />}
                       text={slot ? `${fmtFecha(slot.inicio)} · ${fmtHora(slot.inicio)}` : ''} />
                     <ResumenRow icon={<Engineering sx={{ fontSize: 17, color: TEAL }} />} text={slot?.trabajador_nombre} />
+                    {servicio?.precio != null && (
+                      <ResumenRow icon={<AttachMoney sx={{ fontSize: 17, color: TEAL }} />}
+                        text={`Total: $${Number(servicio.precio).toLocaleString('es-CO')}`} bold />
+                    )}
                   </Paper>
+                  {info.requiere_anticipo && servicio?.precio != null && (
+                    <Alert severity="info" icon={<WhatsApp />} sx={{ mt: 1.5, borderRadius: 2, fontSize: 13 }}>
+                      Este servicio requiere un anticipo del <strong>{info.porcentaje_anticipo}%</strong>{' '}
+                      (${Math.ceil(servicio.precio * info.porcentaje_anticipo / 100).toLocaleString('es-CO')} COP).
+                      Al confirmar te contactaremos para coordinar el pago.
+                    </Alert>
+                  )}
                 </Box>
               </Fade>
             )}
@@ -276,7 +287,38 @@ export default function AgendarPublico() {
                     <ResumenRow icon={<Schedule sx={{ fontSize: 18, color: TEAL }} />}
                       text={`${fmtFecha(citaOk.fecha_inicio)} · ${fmtHora(citaOk.fecha_inicio)}`} />
                     <ResumenRow icon={<Engineering sx={{ fontSize: 18, color: TEAL }} />} text={citaOk.trabajador_nombre} />
+                    {servicio?.precio != null && (
+                      <ResumenRow icon={<AttachMoney sx={{ fontSize: 18, color: TEAL }} />}
+                        text={`Total: $${Number(servicio.precio).toLocaleString('es-CO')}`} bold />
+                    )}
                   </Paper>
+
+                  {/* Instrucciones de pago */}
+                  {info.requiere_anticipo && servicio?.precio != null ? (
+                    <Paper variant="outlined" sx={{ mt: 2, p: 2, borderRadius: 3, borderColor: '#FDE68A', bgcolor: '#FFFBEB', textAlign: 'left' }}>
+                      <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 0.5 }}>💳 Anticipo requerido</Typography>
+                      <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1.5 }}>
+                        Para confirmar tu cita, envía el anticipo del <strong>{info.porcentaje_anticipo}%</strong>{' '}
+                        (<strong>${Math.ceil(servicio.precio * info.porcentaje_anticipo / 100).toLocaleString('es-CO')} COP</strong>).
+                        El saldo restante lo pagas al llegar.
+                      </Typography>
+                      {info.whatsapp && (
+                        <Button fullWidth variant="contained" size="small" startIcon={<WhatsApp />}
+                          href={`https://wa.me/${info.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(
+                            `Hola! Acabo de agendar una cita de *${citaOk.producto_nombre}* para el ${fmtFecha(citaOk.fecha_inicio)} · ${fmtHora(citaOk.fecha_inicio)}. ¿Cómo envío el anticipo?`
+                          )}`}
+                          target="_blank"
+                          sx={{ bgcolor: '#25D366', '&:hover': { bgcolor: '#1ebe5d' }, color: '#fff', borderRadius: 2 }}>
+                          Coordinar pago por WhatsApp
+                        </Button>
+                      )}
+                    </Paper>
+                  ) : (
+                    <Alert severity="success" sx={{ mt: 2, borderRadius: 2, fontSize: 13 }}>
+                      El pago se realiza directamente en el local el día de tu cita. 💰
+                    </Alert>
+                  )}
+
                   <Button sx={{ mt: 3, color: TEAL_DARK }} onClick={() => {
                     setStep(0); setServicio(null); setSlot(null); setCitaOk(null);
                     setNombre(''); setTelefono(''); setEmail(''); setNotas('');

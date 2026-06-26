@@ -220,6 +220,10 @@ export const cambiarEstadoCita = (id, estado) =>
   apiClient.patch(`/agendamiento/citas/${id}/estado`, null, { params: { estado } });
 export const deleteCita = (id) => apiClient.delete(`/agendamiento/citas/${id}`);
 
+// Configuración de agendamiento
+export const fetchAgendamientoConfig = () => apiClient.get('/agendamiento/config');
+export const updateAgendamientoConfig = (data) => apiClient.put('/agendamiento/config', data);
+
 // Portal público de agendamiento (sin login)
 export const fetchAgendamientoPublico = (slug) =>
   apiClient.get(`/agendamiento/publico/${slug}`);
@@ -227,5 +231,9 @@ export const fetchDisponibilidadPublica = (slug, productoId, fecha) =>
   apiClient.get(`/agendamiento/publico/${slug}/disponibilidad`, { params: { producto_id: productoId, fecha } });
 export const crearCitaPublica = (slug, data) =>
   apiClient.post(`/agendamiento/publico/${slug}/cita`, data);
+
+// Cobro de cita → genera venta en ERP
+export const cobrarCita = (citaId, data) =>
+  apiClient.post(`/agendamiento/citas/${citaId}/cobrar`, data);
 
 export default apiClient;

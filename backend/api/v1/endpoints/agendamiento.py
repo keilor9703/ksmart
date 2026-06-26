@@ -1,9 +1,11 @@
 """
 Endpoints del módulo de Agendamiento de Citas.
 
-- Configuración de servicios agendables y sus trabajadores (admin).
-- Consulta de disponibilidad (admin y portal cliente).
-- CRUD de citas.
+- Configuración: horario, días laborables, políticas de anticipo (admin).
+- Servicios agendables y asignación de trabajadores.
+- Disponibilidad (admin y portal público).
+- CRUD de citas + cobro que genera una Venta en el sistema ERP.
+- Portal público sin autenticación (/{slug}/agendar).
 """
 from typing import List, Optional
 from datetime import date
@@ -20,6 +22,26 @@ router = APIRouter()
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Configuración de horario y políticas
+# ──────────────────────────────────────────────────────────────────────────────
+@router.get("/config", response_model=schemas.AgendamientoConfigOut)
+def get_config(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    return crud.get_or_create_agendamiento_config(db, empresa_id=current_user.empresa_id)
+
+
+@router.put("/config", response_model=schemas.AgendamientoConfigOut)
+def update_config(
+    payload: schemas.AgendamientoConfigUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    return crud.update_agendamiento_config(db, empresa_id=current_user.empresa_id, data=payload)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Servicios agendables y trabajadores
 # ──────────────────────────────────────────────────────────────────────────────
 @router.get("/servicios", response_model=List[schemas.ServicioAgendable])
@@ -28,10 +50,6 @@ def listar_servicios_agendables(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
-    """
-    Lista los servicios. Por defecto todos los servicios (es_servicio=True) para
-    que el admin pueda habilitarlos; con solo_activos=True, sólo los agendables.
-    """
     return crud.get_servicios_agendables(db, empresa_id=current_user.empresa_id, solo_activos=solo_activos)
 
 
@@ -42,7 +60,6 @@ def configurar_servicio(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
-    """Habilita/deshabilita un servicio para agendamiento y asigna sus trabajadores."""
     prod = crud.configurar_servicio_agendable(
         db, empresa_id=current_user.empresa_id, producto_id=producto_id, data=payload
     )
@@ -61,16 +78,15 @@ def disponibilidad(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
-    """Franjas horarias libres para un servicio en una fecha dada."""
     return crud.calcular_disponibilidad(
         db, empresa_id=current_user.empresa_id, producto_id=producto_id, dia=fecha
     )
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Citas
+# CRUD de Citas
 # ──────────────────────────────────────────────────────────────────────────────
-@router.get("/citas", response_model=List[schemas.Cita])
+@router.get("/citas", response_model=List[schemas.CitaFull])
 def listar_citas(
     desde: Optional[date] = None,
     hasta: Optional[date] = None,
@@ -85,7 +101,7 @@ def listar_citas(
     )
 
 
-@router.get("/citas/{cita_id}", response_model=schemas.Cita)
+@router.get("/citas/{cita_id}", response_model=schemas.CitaFull)
 def obtener_cita(
     cita_id: int,
     db: Session = Depends(get_db),
@@ -97,7 +113,7 @@ def obtener_cita(
     return cita
 
 
-@router.post("/citas", response_model=schemas.Cita)
+@router.post("/citas", response_model=schemas.CitaFull)
 def crear_cita(
     payload: schemas.CitaCreate,
     db: Session = Depends(get_db),
@@ -109,7 +125,7 @@ def crear_cita(
         raise HTTPException(status_code=409, detail=str(e))
 
 
-@router.put("/citas/{cita_id}", response_model=schemas.Cita)
+@router.put("/citas/{cita_id}", response_model=schemas.CitaFull)
 def actualizar_cita(
     cita_id: int,
     payload: schemas.CitaUpdate,
@@ -125,7 +141,7 @@ def actualizar_cita(
     return cita
 
 
-@router.patch("/citas/{cita_id}/estado", response_model=schemas.Cita)
+@router.patch("/citas/{cita_id}/estado", response_model=schemas.CitaFull)
 def cambiar_estado(
     cita_id: int,
     estado: str = Query(...),
@@ -136,6 +152,20 @@ def cambiar_estado(
     if not cita:
         raise HTTPException(status_code=404, detail="Cita no encontrada")
     return cita
+
+
+@router.post("/citas/{cita_id}/cobrar", response_model=schemas.CitaFull)
+def cobrar_cita(
+    cita_id: int,
+    payload: schemas.CobrarCitaRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Convierte la cita en una Venta en el ERP y la marca como completada."""
+    try:
+        return crud.cobrar_cita(db, empresa_id=current_user.empresa_id, cita_id=cita_id, data=payload)
+    except crud.AgendamientoError as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 @router.delete("/citas/{cita_id}")
@@ -151,22 +181,24 @@ def eliminar_cita(
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 🌐 PORTAL PÚBLICO (sin autenticación) — el cliente agenda por su cuenta
+# 🌐 PORTAL PÚBLICO (sin autenticación)
 # ──────────────────────────────────────────────────────────────────────────────
 @router.get("/publico/{slug}", response_model=schemas.AgendamientoPublicoInfo)
 def info_publica(slug: str, db: Session = Depends(get_db)):
-    """Datos de la empresa y servicios agendables disponibles para el público."""
     empresa = crud.get_empresa_by_slug(db, slug=slug)
     if not empresa:
         raise HTTPException(status_code=404, detail="Página de agendamiento no encontrada")
     servicios = crud.get_servicios_agendables(db, empresa_id=empresa.id, solo_activos=True)
-    # Sólo exponer servicios que tengan trabajadores asignados
     servicios = [s for s in servicios if getattr(s, "trabajadores", None)]
+    cfg = crud.get_or_create_agendamiento_config(db, empresa_id=empresa.id)
     return schemas.AgendamientoPublicoInfo(
         empresa_nombre=empresa.nombre,
         slug=slug,
         logo_base64=getattr(empresa, "logo_base64", None),
         servicios=servicios,
+        whatsapp=cfg.whatsapp,
+        requiere_anticipo=cfg.requiere_anticipo,
+        porcentaje_anticipo=cfg.porcentaje_anticipo,
     )
 
 
