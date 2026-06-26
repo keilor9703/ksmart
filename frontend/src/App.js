@@ -477,8 +477,10 @@ const hasAccess = useCallback((path) => {
                 <Route path="/terminos" element={<Terminos />} />
                 <Route path="/privacidad" element={<Privacidad />} />
                 <Route path="/habeas-data" element={<HabeasData />} />
-                <Route path="/:slug/servicios" element={<AgendarPublico />} />
-                <Route path="/:slug" element={<CatalogoVirtual />} />
+                <Route path="/:slug">
+                  <Route path="servicios" element={<AgendarPublico />} />
+                  <Route index element={<CatalogoVirtual />} />
+                </Route>
                 <Route path="*" element={<Login onLogin={checkAuth} />} />
               </Routes>
               </Suspense>
