@@ -124,7 +124,7 @@ const HeroCard = ({ suscripcion, planActual, onRefresh, refreshing }) => {
       borderRadius: 4,
       border: `1px solid ${alpha(status.color, 0.3)}`,
       background: isDark
-        ? `linear-gradient(135deg, ${alpha(status.color, 0.08)} 0%, ${alpha('#0d1117', 0.9)} 100%)`
+        ? `linear-gradient(135deg, ${alpha(status.color, 0.08)} 0%, ${alpha('#0A0A0A', 0.9)} 100%)`
         : `linear-gradient(135deg, ${alpha(status.color, 0.05)} 0%, #fff 100%)`,
       overflow: 'hidden',
       position: 'relative',
@@ -368,7 +368,7 @@ const PlanesSection = ({ planes, planActualId, onSuccess }) => {
               fontWeight: periodoIdx === i ? 700 : 500,
               fontSize: 13,
               color: periodoIdx === i ? 'text.primary' : 'text.secondary',
-              bgcolor: periodoIdx === i ? (isDark ? '#1E293B' : '#fff') : 'transparent',
+              bgcolor: periodoIdx === i ? (isDark ? '#1F1F1F' : '#fff') : 'transparent',
               boxShadow: periodoIdx === i ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
               transition: 'all 0.15s',
               display: 'flex', alignItems: 'center', gap: 0.6,
@@ -508,7 +508,7 @@ const PlanCard = ({ planKey, plan, periodo, onSuccess, isCurrent }) => {
       {meta.featured && (
         <Box sx={{
           position: 'absolute', top: -13, left: '50%', transform: 'translateX(-50%)',
-          bgcolor: isDark ? color : '#1E293B',
+          bgcolor: isDark ? color : '#1F1F1F',
           color: '#fff', fontSize: 11, fontWeight: 800, px: 1.5, py: 0.4,
           borderRadius: 2, whiteSpace: 'nowrap', letterSpacing: 0.3,
         }}>
@@ -745,7 +745,7 @@ const PagoCard = ({ pago, onClick, isDark }) => {
           </Typography>
         </Box>
         <Box sx={{ textAlign: 'right' }}>
-          <Typography fontSize={15} fontWeight={900} color="#FF6020">{fmt(pago.monto)}</Typography>
+          <Typography fontSize={15} fontWeight={900} color="#6366F1">{fmt(pago.monto)}</Typography>
           <Chip icon={<CheckCircle sx={{ fontSize: '11px !important', color: '#059669 !important' }} />}
             label="Pagado" size="small" sx={{
               bgcolor: alpha('#059669', 0.1), color: '#059669',
@@ -867,7 +867,7 @@ const HistorialTable = ({ historial }) => {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Typography fontSize={13} fontWeight={800} color="#FF6020">{fmt(pago.monto)}</Typography>
+                      <Typography fontSize={13} fontWeight={800} color="#6366F1">{fmt(pago.monto)}</Typography>
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, color: 'text.secondary' }}>
@@ -1058,7 +1058,7 @@ const MiEmpresaTab = () => {
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-        <CircularProgress sx={{ color: '#FF6020' }} />
+        <CircularProgress sx={{ color: '#6366F1' }} />
       </Box>
     );
   }
@@ -1080,7 +1080,7 @@ const MiEmpresaTab = () => {
       {/* ── Logo ── */}
       <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${alpha(theme.palette.divider, 1)}`, mb: 2.5 }}>
         <Box sx={{ px: 2.5, py: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box sx={sectionIcon('#FF6020')}><Business sx={{ color: '#FF6020', fontSize: 18 }} /></Box>
+          <Box sx={sectionIcon('#6366F1')}><Business sx={{ color: '#6366F1', fontSize: 18 }} /></Box>
           <Typography fontWeight={700} fontSize={14}>Logo de la empresa</Typography>
         </Box>
         <Divider />
@@ -1105,8 +1105,8 @@ const MiEmpresaTab = () => {
               endIcon={<OpenInNew sx={{ fontSize: 14 }} />}
               sx={{
                 borderRadius: 2, fontSize: 12, textTransform: 'none',
-                borderColor: alpha('#FF6020', 0.5), color: '#FF6020',
-                '&:hover': { borderColor: '#FF6020', bgcolor: alpha('#FF6020', 0.06) },
+                borderColor: alpha('#6366F1', 0.5), color: '#6366F1',
+                '&:hover': { borderColor: '#6366F1', bgcolor: alpha('#6366F1', 0.06) },
               }}
             >
               Ir a Catálogo Virtual
@@ -1198,7 +1198,7 @@ const MiEmpresaTab = () => {
         <Button
           variant="contained" onClick={handleSaveInfo} disabled={savingInfo}
           startIcon={savingInfo ? <CircularProgress size={16} color="inherit" /> : <Save />}
-          sx={{ borderRadius: 2.5, bgcolor: '#FF6020', '&:hover': { bgcolor: '#e05519' }, fontWeight: 700, px: 3 }}
+          sx={{ borderRadius: 2.5, bgcolor: '#6366F1', '&:hover': { bgcolor: '#e05519' }, fontWeight: 700, px: 3 }}
         >
           {savingInfo ? 'Guardando…' : 'Guardar cambios'}
         </Button>
@@ -1442,7 +1442,7 @@ const PlataformaTab = () => {
         borderRadius: 4, mb: 3, overflow: 'hidden',
         border: `1px solid ${alpha('#C74634', 0.3)}`,
         background: isDark
-          ? `linear-gradient(135deg, ${alpha('#C74634', 0.1)} 0%, ${alpha('#0d1117', 0.9)} 100%)`
+          ? `linear-gradient(135deg, ${alpha('#C74634', 0.1)} 0%, ${alpha('#0A0A0A', 0.9)} 100%)`
           : `linear-gradient(135deg, ${alpha('#C74634', 0.06)} 0%, #fff 100%)`,
       }}>
         <Box sx={{ height: 4, background: 'linear-gradient(90deg, #C74634 0%, #f5a623 100%)' }} />
@@ -1620,8 +1620,8 @@ export default function MiSuscripcion({ user }) {
 
       {/* ── Header ── */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5 }}>
-        <Avatar sx={{ bgcolor: alpha('#FF6020', 0.12), width: 44, height: 44 }}>
-          <WorkspacePremium sx={{ color: '#FF6020', fontSize: 22 }} />
+        <Avatar sx={{ bgcolor: alpha('#6366F1', 0.12), width: 44, height: 44 }}>
+          <WorkspacePremium sx={{ color: '#6366F1', fontSize: 22 }} />
         </Avatar>
         <Box>
           <Typography variant="h6" fontWeight={900} lineHeight={1.1}>Mi Cuenta</Typography>
@@ -1638,8 +1638,8 @@ export default function MiSuscripcion({ user }) {
           mb: 3,
           borderBottom: `1px solid ${alpha(theme.palette.divider, 1)}`,
           '& .MuiTab-root': { textTransform: 'none', fontWeight: 700, fontSize: 13, minHeight: 44 },
-          '& .MuiTabs-indicator': { bgcolor: '#FF6020' },
-          '& .Mui-selected': { color: '#FF6020 !important' },
+          '& .MuiTabs-indicator': { bgcolor: '#6366F1' },
+          '& .Mui-selected': { color: '#6366F1 !important' },
         }}
       >
         <Tab label="Mi Empresa" />
@@ -1658,7 +1658,7 @@ export default function MiSuscripcion({ user }) {
 
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '40vh' }}>
-          <CircularProgress sx={{ color: '#FF6020' }} />
+          <CircularProgress sx={{ color: '#6366F1' }} />
         </Box>
       ) : <>
 
@@ -1675,7 +1675,7 @@ export default function MiSuscripcion({ user }) {
         <Card elevation={0} sx={{
           borderRadius: 3,
           border: `1px solid ${showRenewSection
-            ? alpha('#FF6020', 0.4)
+            ? alpha('#6366F1', 0.4)
             : alpha(theme.palette.divider, 1)}`,
           bgcolor: 'background.paper',
           mb: 3, overflow: 'hidden',
@@ -1691,8 +1691,8 @@ export default function MiSuscripcion({ user }) {
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <Box sx={{ width: 36, height: 36, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                bgcolor: alpha('#FF6020', isDark ? 0.15 : 0.08) }}>
-                <Payments sx={{ color: '#FF6020', fontSize: 18 }} />
+                bgcolor: alpha('#6366F1', isDark ? 0.15 : 0.08) }}>
+                <Payments sx={{ color: '#6366F1', fontSize: 18 }} />
               </Box>
               <Box>
                 <Typography fontWeight={700} fontSize={14}>

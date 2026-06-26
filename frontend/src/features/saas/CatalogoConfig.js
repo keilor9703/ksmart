@@ -24,12 +24,12 @@ const CatalogoConfig = () => {
   const [logo, setLogo] = useState(null);
   const [isCompressing, setIsCompressing] = useState(false);
   const [empresa, setEmpresa] = useState(null);
-  const [colorPrimario, setColorPrimario] = useState('#FF6020');
+  const [colorPrimario, setColorPrimario] = useState('#6366F1');
   const [descripcion, setDescripcion] = useState('');
   const [direccionRecogida, setDireccionRecogida] = useState('');
   const [isDragging, setIsDragging] = useState(false);
 
-  const COLOR_PRESETS = ['#FF6020', '#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444'];
+  const COLOR_PRESETS = ['#6366F1', '#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444'];
   const slugValid = slug.length === 0 || /^[a-z0-9-]+$/.test(slug);
 
   useEffect(() => {
@@ -44,7 +44,7 @@ const CatalogoConfig = () => {
       setSlug(emp.slug_catalogo || '');
       setWhatsapp(emp.whatsapp_pedidos || '');
       setLogo(emp.logo_base64 || null);
-      setColorPrimario(emp.color_primario || '#FF6020');
+      setColorPrimario(emp.color_primario || '#6366F1');
       setDescripcion(emp.descripcion || '');
       setDireccionRecogida(emp.ciudad || '');
     } catch (error) {

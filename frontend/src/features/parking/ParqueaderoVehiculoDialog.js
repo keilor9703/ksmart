@@ -17,7 +17,7 @@ import { ParqueaderoSuscripcionDialog } from './ParqueaderoSuscripcionDialog';
 import { BRAND_OPTIONS, getModelOptions } from './vehicleBrands';
 import { METODOS_PAGO_SIMPLE as METODOS_PAGO } from '../../utils/constants';
 
-const ACCENT = '#FF6020';
+const ACCENT = '#6366F1';
 
 
 

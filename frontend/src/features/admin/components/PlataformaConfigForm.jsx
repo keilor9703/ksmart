@@ -9,7 +9,7 @@ import {
 import { toast } from 'react-toastify';
 import apiClient from '../../../api';
 
-const ACCENT = '#FF6020';
+const ACCENT = '#6366F1';
 
 const SectionTitle = ({ icon, title, subtitle }) => (
   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, mb: 2 }}>

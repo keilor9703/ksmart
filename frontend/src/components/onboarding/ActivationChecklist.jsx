@@ -9,7 +9,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 
-const ACCENT = '#FF6020';
+const ACCENT = '#6366F1';
 const GREEN  = '#10B981';
 
 const STORAGE_KEY = 'ksmart_checklist_dismissed';

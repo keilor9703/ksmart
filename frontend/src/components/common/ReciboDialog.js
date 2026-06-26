@@ -151,12 +151,12 @@ th.r,td.r{text-align:right;}
 td{padding:8px 6px;border-bottom:1px solid #f2f2f2;font-size:13px;}
 .totals{max-width:260px;margin-left:auto;}
 .trow{display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;}
-.grand{font-size:20px;font-weight:700;color:#FF6020;}
+.grand{font-size:20px;font-weight:700;color:#6366F1;}
 .footer{text-align:center;margin-top:24px;padding-top:16px;border-top:1px dashed #ddd;color:#999;font-size:11px;}
 .badge{display:inline-block;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;}
 </style></head><body>
 <div class="header">
-  ${empresa?.logo_base64 ? `<img src="${empresa.logo_base64}" style="height:52px;margin-bottom:10px;display:block;margin:0 auto 10px;">` : `<div style="width:52px;height:52px;border-radius:12px;background:#FF602018;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;font-size:22px;">🏪</div>`}
+  ${empresa?.logo_base64 ? `<img src="${empresa.logo_base64}" style="height:52px;margin-bottom:10px;display:block;margin:0 auto 10px;">` : `<div style="width:52px;height:52px;border-radius:12px;background:#6366F118;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;font-size:22px;">🏪</div>`}
   <div class="co-name">${empresa?.nombre || 'Mi Negocio'}</div>
   ${empresa?.nit ? `<div class="nit">NIT: ${empresa.nit}</div>` : ''}
   <div class="doc-title">Comprobante de Venta</div>
@@ -297,7 +297,7 @@ const ThermalPreview = ({ venta, empresa, vendedor, dateStr, saldo }) => {
 
 // ─── A4 preview (JSX) ────────────────────────────────────────────────────────
 const A4Preview = ({ venta, empresa, vendedor, dateStr, saldo }) => {
-  const ACCENT = '#FF6020';
+  const ACCENT = '#6366F1';
   return (
     <Box sx={{ fontFamily: 'sans-serif', color: '#333' }}>
       {/* Header */}
@@ -451,13 +451,13 @@ const ReciboDialog = ({ open, onClose, venta, empresa, vendedor }) => {
       PaperProps={{ sx: { borderRadius: 3, maxHeight: '95vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' } }}
     >
       {/* ── Top bar ─────────────────────────────────── */}
-      <Box sx={{ height: 4, bgcolor: '#FF6020', flexShrink: 0 }} />
+      <Box sx={{ height: 4, bgcolor: '#6366F1', flexShrink: 0 }} />
 
       {/* ── Header ──────────────────────────────────── */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2.5, py: 1.5, flexShrink: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box sx={{ width: 36, height: 36, borderRadius: 1.5, bgcolor: '#FF602018', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Receipt sx={{ color: '#FF6020', fontSize: 20 }} />
+          <Box sx={{ width: 36, height: 36, borderRadius: 1.5, bgcolor: '#6366F118', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Receipt sx={{ color: '#6366F1', fontSize: 20 }} />
           </Box>
           <Box>
             <Typography sx={{ fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>
@@ -606,7 +606,7 @@ const ReciboDialog = ({ open, onClose, venta, empresa, vendedor }) => {
           onClick={handlePrint}
           sx={{
             flex: 1, fontWeight: 700, textTransform: 'none', borderRadius: 2,
-            bgcolor: '#FF6020', '&:hover': { bgcolor: '#e65520' },
+            bgcolor: '#6366F1', '&:hover': { bgcolor: '#e65520' },
           }}
         >
           Imprimir / PDF

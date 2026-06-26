@@ -411,7 +411,7 @@ const SaaSUpgradeManager = ({ user }) => {
                     <Box key={p.dias} onClick={() => setPeriodo(p)} sx={{
                       px: 2, py: 0.8, borderRadius: 1.5, cursor: 'pointer',
                       display: 'flex', alignItems: 'center', gap: 0.8,
-                      bgcolor: periodo.dias === p.dias ? (theme.palette.mode === 'dark' ? '#1E293B' : 'white') : 'transparent',
+                      bgcolor: periodo.dias === p.dias ? (theme.palette.mode === 'dark' ? '#1F1F1F' : 'white') : 'transparent',
                       boxShadow: periodo.dias === p.dias ? '0 1px 4px rgba(0,0,0,0.12)' : 'none',
                       transition: 'all 0.15s',
                     }}>

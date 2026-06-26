@@ -6,9 +6,9 @@ import {
 import { Search, KeyboardReturn } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 
-const SIDEBAR_BG     = '#0f172a';
+const SIDEBAR_BG     = '#0A0A0A';
 const SIDEBAR_ACTIVE = 'rgba(255,100,30,0.18)';
-const ACCENT         = '#FF6020';
+const ACCENT         = '#6366F1';
 
 /**
  * Búsqueda global activada con Ctrl+K / ⌘K.
@@ -100,7 +100,7 @@ export default function GlobalSearch({ modulosVisibles = [] }) {
           value={query}
           onChange={e => { setQuery(e.target.value); setCursor(0); }}
           onKeyDown={handleKeyDown}
-          sx={{ color: '#e2e8f0', fontSize: 15, fontFamily: "'Plus Jakarta Sans', sans-serif", '& input::placeholder': { color: '#475569' } }}
+          sx={{ color: '#e2e8f0', fontSize: 15, fontFamily: "'Geist', sans-serif", '& input::placeholder': { color: '#475569' } }}
         />
         <Chip
           label="Esc"
@@ -135,7 +135,7 @@ export default function GlobalSearch({ modulosVisibles = [] }) {
             <ListItemText
               primary={item.label}
               secondary={item.path}
-              primaryTypographyProps={{ fontSize: 13.5, fontWeight: 500, color: '#e2e8f0', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+              primaryTypographyProps={{ fontSize: 13.5, fontWeight: 500, color: '#e2e8f0', fontFamily: "'Geist', sans-serif" }}
               secondaryTypographyProps={{ fontSize: 11, color: '#475569' }}
             />
             {idx === cursor && (

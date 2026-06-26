@@ -18,7 +18,7 @@ import ScaleIcon from '@mui/icons-material/Scale';
 import StyleIcon from '@mui/icons-material/Style';
 import { toast } from 'react-toastify';
 
-const ACCENT = '#FF6020';
+const ACCENT = '#6366F1';
 const HAS_BARCODE_DETECTOR = typeof window !== 'undefined' && 'BarcodeDetector' in window;
 const HAS_CAMERA = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
 const BARCODE_FORMATS = ['ean_13', 'ean_8', 'code_128', 'qr_code', 'upc_e', 'code_39', 'itf'];
@@ -479,7 +479,7 @@ const CartPanel = ({
                             Método de pago
                         </Typography>
                         <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                            {[...METODOS_PAGO, ...(linkPagoConfig ? [{ value: 'Link de Pago', label: '📲 Link/QR', pagada: true, color: '#FF6020' }] : [])].map(opt => {
+                            {[...METODOS_PAGO, ...(linkPagoConfig ? [{ value: 'Link de Pago', label: '📲 Link/QR', pagada: true, color: '#6366F1' }] : [])].map(opt => {
                                 const isSelected = pagada
                                     ? (opt.pagada && metodoPago === opt.value)
                                     : !opt.pagada;
@@ -581,8 +581,8 @@ const CartPanel = ({
                         : <ShoppingCart sx={{ fontSize: 20 }} />
                     }
                     sx={{
-                        background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`,
-                        boxShadow: `0 3px 10px rgba(255,96,32,0.3)`,
+                        background: `linear-gradient(135deg, ${ACCENT}, #818CF8)`,
+                        boxShadow: `0 3px 10px rgba(99,102,241,0.3)`,
                         borderRadius: 2.5, fontWeight: 800, py: 1.5, fontSize: 16,
                         '&:disabled': { background: 'rgba(0,0,0,0.12)', boxShadow: 'none' },
                     }}
@@ -1055,7 +1055,7 @@ const TouchPOSMode = ({
                     sx={{
                         position: 'fixed', bottom: 24, right: 24, zIndex: 1200,
                         bgcolor: ACCENT, '&:hover': { bgcolor: '#e5541c' },
-                        boxShadow: '0 4px 18px rgba(255,96,32,0.45)',
+                        boxShadow: '0 4px 18px rgba(99,102,241,0.45)',
                         color: 'white',
                     }}
                 >

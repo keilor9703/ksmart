@@ -398,7 +398,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
                   </Box>
                   <Chip icon={est.icon} label={est.label} size="small"
                     sx={{ fontSize: 10, height: 22, fontWeight: 700, bgcolor: alpha(est.color, 0.1), color: est.color, '& .MuiChip-icon': { color: est.color } }} />
-                  <Typography fontSize={13} fontWeight={700} color="#FF6020" sx={{ flexShrink: 0, minWidth: 58, textAlign: 'right' }}>
+                  <Typography fontSize={13} fontWeight={700} color="#6366F1" sx={{ flexShrink: 0, minWidth: 58, textAlign: 'right' }}>
                     {fmt(item.subtotal)}
                   </Typography>
                   {item.estado === 'pendiente' && (
@@ -429,7 +429,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
             </Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
               <Typography fontWeight={800} fontSize={16}>Total</Typography>
-              <Typography fontWeight={900} fontSize={18} color="#FF6020">{fmt(comanda.total + propina)}</Typography>
+              <Typography fontWeight={900} fontSize={18} color="#6366F1">{fmt(comanda.total + propina)}</Typography>
             </Box>
 
             {/* Estado: en_cuenta (esperando pago en caja) */}
@@ -616,16 +616,16 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
                     sx={{
                       display: 'flex', alignItems: 'center', gap: 0.8,
                       px: 1, py: 0.7, borderRadius: 2, cursor: 'pointer', mb: 0.5,
-                      bgcolor: isDark ? alpha('#FF6020', 0.08) : alpha('#FF6020', 0.06),
-                      '&:hover': { bgcolor: alpha('#FF6020', 0.12) },
+                      bgcolor: isDark ? alpha('#6366F1', 0.08) : alpha('#6366F1', 0.06),
+                      '&:hover': { bgcolor: alpha('#6366F1', 0.12) },
                     }}
                   >
-                    <Typography fontSize={11} fontWeight={800} color="#FF6020" textTransform="uppercase"
+                    <Typography fontSize={11} fontWeight={800} color="#6366F1" textTransform="uppercase"
                       letterSpacing={0.8} sx={{ flex: 1 }}>
                       {categoria}
                     </Typography>
                     <Typography fontSize={10} color="text.disabled" sx={{ mr: 0.5 }}>{prods.length}</Typography>
-                    {open ? <ExpandLess sx={{ fontSize: 16, color: '#FF6020' }} /> : <ExpandMore sx={{ fontSize: 16, color: '#FF6020' }} />}
+                    {open ? <ExpandLess sx={{ fontSize: 16, color: '#6366F1' }} /> : <ExpandMore sx={{ fontSize: 16, color: '#6366F1' }} />}
                   </Box>
                   {/* Products in category */}
                   {open && (
@@ -639,7 +639,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
                             border: `1px solid ${alpha(theme.palette.divider, 1)}`,
                             bgcolor: isDark ? alpha('#fff', 0.025) : alpha('#000', 0.02),
                             transition: 'all 0.15s',
-                            '&:hover': { borderColor: '#FF6020', bgcolor: alpha('#FF6020', 0.04) },
+                            '&:hover': { borderColor: '#6366F1', bgcolor: alpha('#6366F1', 0.04) },
                             '&:active': { transform: 'scale(0.98)' },
                           }}>
                             {imgSrc ? (
@@ -647,8 +647,8 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
                                 <img src={imgSrc} alt={prod.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                               </Box>
                             ) : (
-                              <Box sx={{ width: 44, height: 44, borderRadius: 1.5, bgcolor: alpha('#FF6020', 0.12), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                <Typography sx={{ fontSize: 20, fontWeight: 800, color: '#FF6020', opacity: 0.7 }}>
+                              <Box sx={{ width: 44, height: 44, borderRadius: 1.5, bgcolor: alpha('#6366F1', 0.12), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <Typography sx={{ fontSize: 20, fontWeight: 800, color: '#6366F1', opacity: 0.7 }}>
                                   {(prod.nombre || '?')[0].toUpperCase()}
                                 </Typography>
                               </Box>
@@ -656,7 +656,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
                             <Box sx={{ flex: 1, minWidth: 0 }}>
                               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <Typography fontSize={13} fontWeight={600} sx={{ flex: 1, mr: 1 }}>{prod.nombre}</Typography>
-                                <Typography fontSize={13} fontWeight={700} color="#FF6020" sx={{ flexShrink: 0 }}>
+                                <Typography fontSize={13} fontWeight={700} color="#6366F1" sx={{ flexShrink: 0 }}>
                                   {fmt(prod.precio)}
                                 </Typography>
                               </Box>
@@ -807,7 +807,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
           <Chip label={fmt(comanda.total)} size="small"
-            sx={{ fontWeight: 900, bgcolor: alpha('#FF6020', 0.1), color: '#FF6020', fontSize: 12 }} />
+            sx={{ fontWeight: 900, bgcolor: alpha('#6366F1', 0.1), color: '#6366F1', fontSize: 12 }} />
           <Tooltip title="Imprimir comanda">
             <IconButton size="small" onClick={handleImprimirManual}><Print fontSize="small" /></IconButton>
           </Tooltip>
@@ -822,8 +822,8 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
             flexShrink: 0,
             borderBottom: `1px solid ${theme.palette.divider}`,
             '& .MuiTab-root': { textTransform: 'none', fontWeight: 600, fontSize: 13, minHeight: 44 },
-            '& .Mui-selected': { color: '#FF6020 !important' },
-            '& .MuiTabs-indicator': { bgcolor: '#FF6020' },
+            '& .Mui-selected': { color: '#6366F1 !important' },
+            '& .MuiTabs-indicator': { bgcolor: '#6366F1' },
           }}>
           <Tab label={`Pedido${itemsActivos.length > 0 ? ` (${itemsActivos.length})` : ''}`}
             icon={<Receipt sx={{ fontSize: 16 }} />} iconPosition="start" />
@@ -874,16 +874,16 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
                           sx={{
                             display: 'flex', alignItems: 'center', gap: 0.8,
                             px: 1, py: 0.6, borderRadius: 2, cursor: 'pointer', mb: 0.5,
-                            bgcolor: isDark ? alpha('#FF6020', 0.08) : alpha('#FF6020', 0.06),
-                            '&:hover': { bgcolor: alpha('#FF6020', 0.12) },
+                            bgcolor: isDark ? alpha('#6366F1', 0.08) : alpha('#6366F1', 0.06),
+                            '&:hover': { bgcolor: alpha('#6366F1', 0.12) },
                           }}
                         >
-                          <Typography fontSize={10} fontWeight={800} color="#FF6020" textTransform="uppercase"
+                          <Typography fontSize={10} fontWeight={800} color="#6366F1" textTransform="uppercase"
                             letterSpacing={0.8} sx={{ flex: 1 }}>
                             {categoria}
                           </Typography>
                           <Typography fontSize={9} color="text.disabled" sx={{ mr: 0.5 }}>{prods.length}</Typography>
-                          {open ? <ExpandLess sx={{ fontSize: 14, color: '#FF6020' }} /> : <ExpandMore sx={{ fontSize: 14, color: '#FF6020' }} />}
+                          {open ? <ExpandLess sx={{ fontSize: 14, color: '#6366F1' }} /> : <ExpandMore sx={{ fontSize: 14, color: '#6366F1' }} />}
                         </Box>
                         {/* Products */}
                         {open && (
@@ -899,7 +899,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
                                     border: `1px solid ${alpha(theme.palette.divider, 1)}`,
                                     bgcolor: isDark ? alpha('#fff', 0.025) : alpha('#000', 0.02),
                                     transition: 'all 0.15s',
-                                    '&:hover': { borderColor: '#FF6020', bgcolor: alpha('#FF6020', 0.04) },
+                                    '&:hover': { borderColor: '#6366F1', bgcolor: alpha('#6366F1', 0.04) },
                                     '&:active': { transform: 'scale(0.98)' },
                                   }}
                                 >
@@ -908,8 +908,8 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
                                       <img src={imgSrc} alt={prod.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                                     </Box>
                                   ) : (
-                                    <Box sx={{ width: 38, height: 38, borderRadius: 1.5, bgcolor: alpha('#FF6020', 0.12), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                      <Typography sx={{ fontSize: 17, fontWeight: 800, color: '#FF6020', opacity: 0.7 }}>
+                                    <Box sx={{ width: 38, height: 38, borderRadius: 1.5, bgcolor: alpha('#6366F1', 0.12), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                      <Typography sx={{ fontSize: 17, fontWeight: 800, color: '#6366F1', opacity: 0.7 }}>
                                         {(prod.nombre || '?')[0].toUpperCase()}
                                       </Typography>
                                     </Box>
@@ -917,7 +917,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
                                   <Box sx={{ flex: 1, minWidth: 0 }}>
                                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                       <Typography fontSize={12.5} fontWeight={600} sx={{ flex: 1, mr: 0.5 }}>{prod.nombre}</Typography>
-                                      <Typography fontSize={12} fontWeight={700} color="#FF6020" sx={{ flexShrink: 0 }}>
+                                      <Typography fontSize={12} fontWeight={700} color="#6366F1" sx={{ flexShrink: 0 }}>
                                         {fmt(prod.precio)}
                                       </Typography>
                                     </Box>
@@ -1143,7 +1143,7 @@ const MesaCard = ({ mesa, onClick }) => {
         <>
           <Typography fontSize={10} color="text.secondary">{tiempoAbierta}</Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 0.3 }}>
-            <Typography fontSize={11} fontWeight={800} color="#FF6020">
+            <Typography fontSize={11} fontWeight={800} color="#6366F1">
               {fmt(comanda.total)}
             </Typography>
             {esAutoservicio && (
@@ -1267,7 +1267,7 @@ export default function MapaMesas({ user }) {
 
   if (loading) return (
     <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-      <CircularProgress sx={{ color: '#FF6020' }} />
+      <CircularProgress sx={{ color: '#6366F1' }} />
     </Box>
   );
 
@@ -1329,9 +1329,9 @@ export default function MapaMesas({ user }) {
               onClick={() => setZonaFiltro(z)}
               sx={{
                 fontWeight: zonaFiltro === z ? 800 : 500, cursor: 'pointer',
-                bgcolor: zonaFiltro === z ? '#FF6020' : alpha(theme.palette.divider, 1),
+                bgcolor: zonaFiltro === z ? '#6366F1' : alpha(theme.palette.divider, 1),
                 color: zonaFiltro === z ? '#fff' : 'text.secondary',
-                '&:hover': { bgcolor: zonaFiltro === z ? '#E8531A' : alpha('#FF6020', 0.1) },
+                '&:hover': { bgcolor: zonaFiltro === z ? '#E8531A' : alpha('#6366F1', 0.1) },
               }} />
           ))}
         </Box>

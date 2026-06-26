@@ -54,11 +54,11 @@ const CatalogoVirtual = () => {
   const isDark = catMode === 'dark';
 
   // Semantic color tokens
-  const pageBg    = isDark ? '#0F172A' : '#F8FAFC';
-  const paperBg   = isDark ? '#1E293B' : '#ffffff';
+  const pageBg    = isDark ? '#0A0A0A' : '#F8FAFC';
+  const paperBg   = isDark ? '#1F1F1F' : '#ffffff';
   const subtleBg  = isDark ? '#1A2332' : '#F1F5F9';
   const subtleHov = isDark ? '#263045' : '#E2E8F0';
-  const textPri   = isDark ? '#F1F5F9' : '#1E293B';
+  const textPri   = isDark ? '#F1F5F9' : '#1F1F1F';
   const textSec   = isDark ? '#94A3B8' : '#64748B';
   const borderClr = isDark ? '#334155' : '#E2E8F0';
   const divClr    = isDark ? '#334155' : '#F1F5F9';
@@ -425,7 +425,7 @@ const CatalogoVirtual = () => {
     </Box>
   );
 
-  const accentColor = empresa.color_primario || '#FF6020';
+  const accentColor = empresa.color_primario || '#6366F1';
 
   return (
     <ThemeProvider theme={catTheme}>
@@ -518,7 +518,7 @@ const CatalogoVirtual = () => {
                 sx={{
                   fontSize: 9, color: '#94A3B8', textDecoration: 'none', whiteSpace: 'nowrap',
                   fontWeight: 700, letterSpacing: 0.2,
-                  '&:hover': { color: '#FF6020' }, transition: 'color 0.2s',
+                  '&:hover': { color: '#6366F1' }, transition: 'color 0.2s',
                   display: { xs: 'none', sm: 'block' },
                 }}
               >
@@ -960,12 +960,12 @@ const CatalogoVirtual = () => {
             p: '10px 14px', borderRadius: 2.5,
             background: isDark
               ? 'rgba(255,255,255,0.04)'
-              : 'linear-gradient(120deg, #1E293B 0%, #0F172A 100%)',
+              : 'linear-gradient(120deg, #1F1F1F 0%, #0A0A0A 100%)',
             border: isDark ? '1px solid rgba(255,255,255,0.06)' : 'none',
           }}>
             <Box sx={{
               width: 30, height: 30, borderRadius: 1.5, flexShrink: 0,
-              bgcolor: '#FF6020', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              bgcolor: '#6366F1', display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               <RocketLaunch sx={{ color: '#fff', fontSize: 15 }} />
             </Box>
@@ -984,10 +984,10 @@ const CatalogoVirtual = () => {
               size="small"
               endIcon={<ArrowForward sx={{ fontSize: 11 }} />}
               sx={{
-                bgcolor: '#FF6020', borderRadius: 2, fontWeight: 700,
+                bgcolor: '#6366F1', borderRadius: 2, fontWeight: 700,
                 fontSize: 11, textTransform: 'none', px: 1.5, py: 0.5,
                 minWidth: 'auto', flexShrink: 0, boxShadow: 'none',
-                '&:hover': { bgcolor: '#e65520', boxShadow: '0 4px 12px rgba(255,96,32,0.3)' },
+                '&:hover': { bgcolor: '#e65520', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' },
               }}
             >
               Gratis
@@ -1532,7 +1532,7 @@ const CatalogoVirtual = () => {
         </Dialog>
 
         {/* ── FOOTER ─────────────────────────────────────────────────── */}
-        <Box sx={{ mt: 4, borderTop: '1px solid', borderColor: divClr, px: 2, py: 3, textAlign: 'center', bgcolor: isDark ? '#0F172A' : '#FAFAFA' }}>
+        <Box sx={{ mt: 4, borderTop: '1px solid', borderColor: divClr, px: 2, py: 3, textAlign: 'center', bgcolor: isDark ? '#0A0A0A' : '#FAFAFA' }}>
           <Typography sx={{ fontSize: 12, color: textSec, mb: 0.5 }}>
             {empresa?.nombre} · Catálogo virtual operado con KSmart360
           </Typography>

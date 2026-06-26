@@ -15,7 +15,7 @@ import { METODOS_PAGO_SIMPLE } from '../../utils/constants';
 import { imprimirSalidaParqueadero } from '../../utils/printParqueadero';
 import LinkPagoModal from '../../components/common/LinkPagoModal';
 
-const ACCENT   = '#FF6020';
+const ACCENT   = '#6366F1';
 const WA_GREEN = '#25D366';
 const GREEN    = '#10B981';
 const RED      = '#EF4444';

@@ -44,7 +44,7 @@ export default function ModalHuella() {
       onClose={handleClose}
       PaperProps={{
         sx: {
-          background: 'linear-gradient(160deg, #0f172a 0%, #020617 100%)',
+          background: 'linear-gradient(160deg, #0A0A0A 0%, #020617 100%)',
           color: '#f1f5f9',
           borderRadius: 4,
           maxWidth: 400,

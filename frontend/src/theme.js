@@ -1,10 +1,15 @@
 import { createTheme } from '@mui/material/styles';
 
-const ACCENT = '#FF6020';
-const TRANS  = 'all 0.22s cubic-bezier(0.4,0,0.2,1)';
+// ─── Marca / acento ───────────────────────────────────────────────────────────
+// Índigo sobrio estilo Linear/Vercel. Plano, sin gradientes ni sombras de color.
+const ACCENT      = '#6366F1';  // indigo-500
+const ACCENT_HOVER = '#4F46E5'; // indigo-600
+const TRANS  = 'all 0.18s cubic-bezier(0.4,0,0.2,1)';
+
+const FONT = "'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 
 // ─── Radius tokens ────────────────────────────────────────────────────────────
-const R = { xs: 6, sm: 8, md: 12, lg: 16 };
+const R = { xs: 6, sm: 8, md: 10, lg: 14 };
 
 const getAppTheme = (mode) => {
   const dark = mode === 'dark';
@@ -12,26 +17,27 @@ const getAppTheme = (mode) => {
   return createTheme({
     palette: {
       mode,
-      primary:   { main: ACCENT, contrastText: '#fff' },
+      primary:   { main: ACCENT, dark: ACCENT_HOVER, contrastText: '#fff' },
       secondary: { main: '#10B981' },
       error:     { main: '#EF4444' },
       warning:   { main: '#F59E0B' },
       success:   { main: '#10B981' },
       info:      { main: '#3B82F6' },
       background: {
-        default: dark ? '#0d1117' : '#F4F6F9',
-        paper:   dark ? '#161b22' : '#FFFFFF',
+        // Neutros puros estilo Vercel: blanco/near-black, separación por borde.
+        default: dark ? '#0A0A0A' : '#FAFAFA',
+        paper:   dark ? '#161616' : '#FFFFFF',
       },
       text: {
-        primary:   dark ? '#f1f5f9' : '#111827',
-        secondary: dark ? '#94a3b8' : '#6B7280',
-        disabled:  dark ? '#475569' : '#9CA3AF',
+        primary:   dark ? '#EDEDED' : '#171717',
+        secondary: dark ? '#A1A1A1' : '#666666',
+        disabled:  dark ? '#5A5A5A' : '#A3A3A3',
       },
-      divider: dark ? 'rgba(255,255,255,0.07)' : '#E5E7EB',
+      divider: dark ? '#262626' : '#EAEAEA',
     },
 
     typography: {
-      fontFamily: "'Plus Jakarta Sans', 'Helvetica Neue', Arial, sans-serif",
+      fontFamily: FONT,
       fontSize: 14,
       h1: { fontWeight: 800, lineHeight: 1.2 },
       h2: { fontWeight: 800, lineHeight: 1.25 },
@@ -76,9 +82,7 @@ const getAppTheme = (mode) => {
           root: ({ theme }) => ({
             backgroundImage: 'none',
             border: `1px solid ${theme.palette.divider}`,
-            boxShadow: dark
-              ? '0 1px 4px rgba(0,0,0,0.45)'
-              : '0 1px 4px rgba(0,0,0,0.06)',
+            boxShadow: 'none',
             borderRadius: R.md,
           }),
         },
@@ -91,7 +95,7 @@ const getAppTheme = (mode) => {
           root: ({ theme }) => ({
             backgroundImage: 'none',
             border: `1px solid ${theme.palette.divider}`,
-            boxShadow: dark ? '0 2px 8px rgba(0,0,0,0.35)' : '0 2px 8px rgba(0,0,0,0.06)',
+            boxShadow: 'none',
             borderRadius: R.md,
           }),
         },
@@ -113,16 +117,16 @@ const getAppTheme = (mode) => {
           sizeSmall: { padding: '4px 12px', fontSize: 12.5, minHeight: 30 },
           sizeLarge: { padding: '10px 24px', fontSize: 15 },
           containedPrimary: {
-            background: `linear-gradient(135deg, ${ACCENT} 0%, #ff9a62 100%)`,
-            boxShadow: `0 4px 14px rgba(255,96,32,0.3)`,
+            backgroundColor: ACCENT,
+            boxShadow: 'none',
             '&:hover': {
-              background: `linear-gradient(135deg, #e5521a 0%, ${ACCENT} 100%)`,
-              boxShadow: `0 4px 18px rgba(255,96,32,0.4)`,
+              backgroundColor: ACCENT_HOVER,
+              boxShadow: 'none',
             },
           },
           outlinedPrimary: {
-            borderColor: `${ACCENT}60`,
-            '&:hover': { borderColor: ACCENT, backgroundColor: `${ACCENT}08` },
+            borderColor: `${ACCENT}55`,
+            '&:hover': { borderColor: ACCENT, backgroundColor: `${ACCENT}0F` },
           },
         },
       },
@@ -213,7 +217,7 @@ const getAppTheme = (mode) => {
         styleOverrides: {
           root: ({ theme }) => ({
             '& .MuiTableCell-root': {
-              backgroundColor: dark ? '#1e2a3a' : '#F8FAFC',
+              backgroundColor: dark ? '#1F1F1F' : '#FAFAFA',
               color: theme.palette.text.secondary,
               fontWeight: 700,
               fontSize: 11,
@@ -399,11 +403,11 @@ const getAppTheme = (mode) => {
           tooltip: {
             fontSize: 12,
             borderRadius: R.xs,
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontFamily: "'Geist', sans-serif",
             padding: '5px 10px',
-            backgroundColor: dark ? '#1e2a3a' : '#1f2937',
+            backgroundColor: dark ? '#1F1F1F' : '#171717',
           },
-          arrow: { color: dark ? '#1e2a3a' : '#1f2937' },
+          arrow: { color: dark ? '#1F1F1F' : '#171717' },
         },
       },
 

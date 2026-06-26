@@ -185,12 +185,12 @@ function PinDigit({ value, filled }) {
   return (
     <Box sx={{
       width: 44, height: 54, borderRadius: 2,
-      border: `2px solid ${filled ? '#FF6020' : theme.palette.divider}`,
+      border: `2px solid ${filled ? '#6366F1' : theme.palette.divider}`,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      bgcolor: filled ? 'rgba(255,96,32,0.08)' : 'background.default',
+      bgcolor: filled ? 'rgba(99,102,241,0.08)' : 'background.default',
       transition: 'all 0.15s ease',
     }}>
-      {filled && <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: '#FF6020' }} />}
+      {filled && <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: '#6366F1' }} />}
     </Box>
   );
 }
@@ -414,7 +414,7 @@ export default function SecurityDialog({ open, onClose, user }) {
       PaperProps={{ sx: { borderRadius: 3 } }}
     >
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, pr: 6 }}>
-        <Avatar sx={{ bgcolor: 'rgba(255,96,32,0.12)', color: '#FF6020', width: 36, height: 36 }}>
+        <Avatar sx={{ bgcolor: 'rgba(99,102,241,0.12)', color: '#6366F1', width: 36, height: 36 }}>
           <Security fontSize="small" />
         </Avatar>
         <Box>

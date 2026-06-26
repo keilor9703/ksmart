@@ -20,7 +20,7 @@ import { formatCurrency } from '../../utils/formatters';
 import CurrencyField from '../../components/common/CurrencyField';
 import { toast } from 'react-toastify';
 
-const ACCENT = '#FF6020';
+const ACCENT = '#6366F1';
 const GREEN  = '#10B981';
 const BLUE   = '#3B82F6';
 const RED    = '#EF4444';

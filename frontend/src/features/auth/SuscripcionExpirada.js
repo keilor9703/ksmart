@@ -114,7 +114,7 @@ export default function SuscripcionExpirada({ onActive }) {
   return (
     <Box sx={{ 
       minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', 
-      background: 'linear-gradient(160deg, #0f172a 0%, #020617 100%)', p: 2 
+      background: 'linear-gradient(160deg, #0A0A0A 0%, #020617 100%)', p: 2 
     }}>
       <Container maxWidth="md">
         <Paper sx={{ 

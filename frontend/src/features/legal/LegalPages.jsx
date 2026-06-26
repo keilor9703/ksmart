@@ -6,7 +6,7 @@ import GavelIcon from '@mui/icons-material/Gavel';
 import LockIcon from '@mui/icons-material/Lock';
 import FingerprintIcon from '@mui/icons-material/Fingerprint';
 
-const ACCENT = '#FF6020';
+const ACCENT = '#6366F1';
 
 // ─── Layout compartido ────────────────────────────────────────────────────────
 const LegalLayout = ({ title, icon: Icon, accentColor, children }) => {
