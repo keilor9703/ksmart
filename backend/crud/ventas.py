@@ -230,6 +230,7 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate, commi
     db_venta.observaciones  = getattr(venta, 'observaciones', None)
     db_venta.operador_id    = getattr(venta, 'operador_id', None)
     db_venta.placa_vehiculo = getattr(venta, 'placa_vehiculo', None)
+    db_venta.origen         = getattr(venta, 'origen', None) or 'erp'
 
 
 
