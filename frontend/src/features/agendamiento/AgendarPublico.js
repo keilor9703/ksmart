@@ -47,6 +47,7 @@ export default function AgendarPublico() {
   const [citaOk, setCitaOk]     = useState(null);
 
   useEffect(() => {
+    if (!slug) { setLoading(false); setError('Página no encontrada.'); return; }
     (async () => {
       try {
         const { data } = await fetchAgendamientoPublico(slug);
