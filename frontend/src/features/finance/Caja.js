@@ -21,7 +21,7 @@ import { formatCurrency } from '../../utils/formatters';
 import CurrencyField from '../../components/common/CurrencyField';
 import QuickCreateModal from '../../components/common/QuickCreateModal';
 
-const ACCENT  = '#FF6020';
+const ACCENT  = '#6366F1';
 const GREEN   = '#10B981';
 const RED     = '#EF4444';
 const BLUE    = '#3B82F6';
@@ -582,7 +582,7 @@ export default function Caja() {
             variant="contained" size="small" startIcon={<PointOfSale />}
             onClick={() => setOpenCierre(true)}
             disabled={!!corteHoy}
-            sx={{ borderRadius: 2, fontWeight: 700, background: corteHoy ? undefined : `linear-gradient(135deg, ${ACCENT}, #ff9a62)`, boxShadow: corteHoy ? 'none' : `0 4px 14px ${ACCENT}30` }}
+            sx={{ borderRadius: 2, fontWeight: 700, background: corteHoy ? undefined : `linear-gradient(135deg, ${ACCENT}, #818CF8)`, boxShadow: corteHoy ? 'none' : `0 4px 14px ${ACCENT}30` }}
           >
             {corteHoy ? 'Corte realizado' : 'Cerrar Caja'}
           </Button>
@@ -1018,7 +1018,7 @@ export default function Caja() {
         maxWidth="sm" fullWidth fullScreen={isMobile}
         PaperProps={{ sx: { borderRadius: isMobile ? 0 : 3.5, overflow: 'hidden' } }}
       >
-        <Box sx={{ height: 5, background: `linear-gradient(90deg, ${ACCENT}, #ff9a62)` }} />
+        <Box sx={{ height: 5, background: `linear-gradient(90deg, ${ACCENT}, #818CF8)` }} />
         <DialogTitle sx={{ pb: 1, pt: 2.5, pr: 6 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Avatar sx={{ bgcolor: `${ACCENT}15`, color: ACCENT }}><PointOfSale /></Avatar>
@@ -1124,7 +1124,7 @@ export default function Caja() {
           </Button>
           <Button onClick={handleCerrarCaja} disabled={submitting} variant="contained"
             startIcon={submitting ? <CircularProgress size={14} color="inherit" /> : <CheckCircle />}
-            sx={{ borderRadius: 2, fontWeight: 700, flex: isMobile ? 1 : 'none', background: `linear-gradient(135deg, ${ACCENT}, #ff9a62)`, boxShadow: `0 4px 14px ${ACCENT}30`, color: '#fff' }}
+            sx={{ borderRadius: 2, fontWeight: 700, flex: isMobile ? 1 : 'none', background: `linear-gradient(135deg, ${ACCENT}, #818CF8)`, boxShadow: `0 4px 14px ${ACCENT}30`, color: '#fff' }}
           >
             {submitting ? 'Cerrando…' : 'Confirmar Cierre'}
           </Button>

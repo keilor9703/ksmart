@@ -77,7 +77,7 @@ export default function FirstTimeSetup({ onComplete }) {
     <Box
       sx={{
         minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+        background: 'linear-gradient(135deg, #0A0A0A 0%, #1F1F1F 100%)',
         p: 2,
       }}
     >
@@ -85,11 +85,11 @@ export default function FirstTimeSetup({ onComplete }) {
         elevation={24}
         sx={{
           width: '100%', maxWidth: 520, borderRadius: 4, overflow: 'hidden',
-          background: '#1e293b', border: '1px solid rgba(255,255,255,0.08)',
+          background: '#1F1F1F', border: '1px solid rgba(255,255,255,0.08)',
         }}
       >
         {/* Header */}
-        <Box sx={{ background: 'linear-gradient(135deg, #F43F5E, #ff9a62)', p: 4, textAlign: 'center' }}>
+        <Box sx={{ background: 'linear-gradient(135deg, #F43F5E, #818CF8)', p: 4, textAlign: 'center' }}>
           <Typography variant="h5" sx={{ fontWeight: 800, color: '#fff', mb: 0.5 }}>
             Bienvenido a Ksmart360
           </Typography>
@@ -123,7 +123,7 @@ export default function FirstTimeSetup({ onComplete }) {
                   src={form.logo_base64}
                   sx={{
                     width: 72, height: 72, cursor: 'pointer', border: '2px dashed rgba(255,255,255,0.2)',
-                    background: '#0f172a', flexShrink: 0,
+                    background: '#0A0A0A', flexShrink: 0,
                   }}
                   onClick={() => fileRef.current?.click()}
                 >
@@ -269,7 +269,7 @@ export default function FirstTimeSetup({ onComplete }) {
                 endIcon={<ArrowForward />}
                 onClick={() => setActiveStep((s) => s + 1)}
                 disabled={!canNext()}
-                sx={{ background: 'linear-gradient(135deg, #F43F5E, #ff9a62)', fontWeight: 700, flex: 1, maxWidth: 200 }}
+                sx={{ background: 'linear-gradient(135deg, #F43F5E, #818CF8)', fontWeight: 700, flex: 1, maxWidth: 200 }}
               >
                 Siguiente
               </Button>

@@ -329,7 +329,7 @@ export default function GruposProductoManager({ onGruposChange }) {
                     onClick={() => setForm(f => ({ ...f, color: c }))}
                     sx={{
                       width: 28, height: 28, borderRadius: 1.5, bgcolor: c, cursor: 'pointer',
-                      border: form.color === c ? '3px solid #1e293b' : '2px solid transparent',
+                      border: form.color === c ? '3px solid #1F1F1F' : '2px solid transparent',
                       transition: 'transform 0.1s',
                       '&:hover': { transform: 'scale(1.15)' },
                     }}

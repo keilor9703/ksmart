@@ -11,7 +11,7 @@ import { formatCurrency } from '../../utils/formatters';
 import CurrencyField from '../../components/common/CurrencyField';
 import { METODOS_PAGO_SIMPLE as METODOS } from '../../utils/constants';
 
-const ACCENT = '#FF6020';
+const ACCENT = '#6366F1';
 const GREEN  = '#10B981';
 
 /**

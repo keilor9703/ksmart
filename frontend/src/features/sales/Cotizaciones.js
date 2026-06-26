@@ -95,7 +95,7 @@ const generatePrintHTML = (cot, { subtotalBruto, ivaAmount, total }) => {
   <title>${fmtCotNum(cot)}</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#1e293b;padding:40px;max-width:800px;margin:0 auto}
+    body{font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#1F1F1F;padding:40px;max-width:800px;margin:0 auto}
     .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;padding-bottom:20px;border-bottom:3px solid ${TEAL}}
     .company{font-size:22px;font-weight:800;color:${TEAL};margin-bottom:4px}
     .badge{background:${TEAL};color:white;padding:10px 18px;border-radius:10px;font-size:20px;font-weight:800;text-align:right}

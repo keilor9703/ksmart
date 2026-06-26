@@ -28,7 +28,7 @@ const HAS_CAMERA = typeof navigator !== 'undefined' && !!navigator?.mediaDevices
 const BARCODE_FORMATS = ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e'];
 
 // ── Paleta ────────────────────────────────────────────────────────────────────
-const ACCENT = '#FF6020';
+const ACCENT = '#6366F1';
 
 const formatPlaca = (raw) => {
   const clean = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -40,7 +40,7 @@ const SEMAFORO = {
   amarillo: { bg: '#F59E0B', light: '#F59E0B15', text: '#78350F', label: 'POR VENCER'  },
   rojo:     { bg: '#EF4444', light: '#EF444415', text: '#7F1D1D', label: 'VENCIDA'     },
   azul:     { bg: '#3B82F6', light: '#3B82F615', text: '#1E3A8A', label: 'NO REGISTRADA' },
-  gris:     { bg: '#64748B', light: '#64748B15', text: '#1E293B', label: 'DENTRO'      },
+  gris:     { bg: '#64748B', light: '#64748B15', text: '#1F1F1F', label: 'DENTRO'      },
 };
 
 export default function ParqueaderoBuscar() {
@@ -238,13 +238,13 @@ export default function ParqueaderoBuscar() {
         <Box sx={{ textAlign: 'center' }}>
           <Box sx={{
             width: 64, height: 64, borderRadius: '50%',
-            background: `linear-gradient(135deg, ${ACCENT} 0%, #ff9a62 100%)`,
+            background: `linear-gradient(135deg, ${ACCENT} 0%, #818CF8 100%)`,
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             mb: 1.5, boxShadow: `0 8px 24px ${ACCENT}40`,
           }}>
             <Search sx={{ fontSize: 32, color: 'white' }} />
           </Box>
-          <Typography sx={{ fontSize: 22, fontWeight: 800, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          <Typography sx={{ fontSize: 22, fontWeight: 800, fontFamily: "'Geist', sans-serif" }}>
             Buscar placa
           </Typography>
           <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>

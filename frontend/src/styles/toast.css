@@ -6,7 +6,7 @@
 
 /* ── 1. CSS variable overrides ─────────────────────────────────────── */
 :root {
-  --toastify-font-family:     'Plus Jakarta Sans', 'Helvetica Neue', Arial, sans-serif;
+  --toastify-font-family:     'Geist', 'Helvetica Neue', Arial, sans-serif;
   --toastify-toast-bd-radius: 16px;
   --toastify-toast-min-height: 52px;
   --toastify-toast-width:      344px;
@@ -99,7 +99,7 @@
   gap: 10px !important;
   padding: 13px 14px !important;
   margin: 0 !important;
-  font-family: 'Plus Jakarta Sans', 'Helvetica Neue', Arial, sans-serif !important;
+  font-family: 'Geist', 'Helvetica Neue', Arial, sans-serif !important;
 }
 
 .Toastify__toast-body > div:last-child {

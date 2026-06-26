@@ -10,7 +10,7 @@ import apiClient from '../../../api';
 import usePolling from '../../../hooks/usePolling';
 
 const JobCard = ({ job, getStatusChip }) => (
-    <Paper sx={{ p: 2, mb: 2, borderRadius: 3, boxShadow: '0 2px 10px rgba(0,0,0,0.04)', borderLeft: '4px solid #1E293B' }}>
+    <Paper sx={{ p: 2, mb: 2, borderRadius: 3, boxShadow: '0 2px 10px rgba(0,0,0,0.04)', borderLeft: '4px solid #1F1F1F' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
             <Box>
                 <Typography sx={{ fontWeight: 800, fontSize: 14, mb: 0.5 }}>{job.job_name}</Typography>
@@ -105,7 +105,7 @@ const JobsControl = () => {
             startIcon={running ? <CircularProgress size={20} color="inherit" /> : <PlayArrow />} 
             onClick={handleRunExpiration}
             disabled={running}
-            sx={{ bgcolor: '#1E293B', borderRadius: 2, fontWeight: 700 }}
+            sx={{ bgcolor: '#1F1F1F', borderRadius: 2, fontWeight: 700 }}
           >
               Ejecutar Expiración
           </Button>

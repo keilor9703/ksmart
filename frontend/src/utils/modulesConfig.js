@@ -64,7 +64,7 @@ import EventNote from '@mui/icons-material/EventNote';
 // ───────────────────────────────────────────────────────────────────────────
 export const MODULE_ICONS = {
   // Ventas y comercial (Tonos Naranjas y Ámbar)
-  '/ventas':              { icon: <ShoppingCart />,           color: '#FF6020', label: 'Ventas (POS)' },
+  '/ventas':              { icon: <ShoppingCart />,           color: '#6366F1', label: 'Ventas (POS)' },
   '/pedidos-virtuales':   { icon: <Storefront />,             color: '#F43F5E', label: 'Pedidos Virtuales' },
   '/cotizaciones':        { icon: <RequestQuote />,           color: '#E65100', label: 'Cotizaciones' },
 
@@ -98,7 +98,7 @@ export const MODULE_ICONS = {
   '/parqueadero/vehiculos':      { icon: <TwoWheeler />,      color: '#9C27B0', label: 'Vehículos' },
   '/parqueadero/suscripciones':  { icon: <Autorenew />,       color: '#FF4081', label: 'Suscripciones' },
   '/parqueadero/config':         { icon: <SettingsSuggest />, color: '#6B7280', label: 'Tarifas y cupo' },
-  '/parqueadero/cierre-fe':      { icon: <Receipt />,         color: '#FF6020', label: 'Cierre de Caja FE' },
+  '/parqueadero/cierre-fe':      { icon: <Receipt />,         color: '#6366F1', label: 'Cierre de Caja FE' },
 
   // Lavadero
   '/lavadero/ventas':   { icon: <LocalCarWash />,    color: '#0EA5E9', label: 'POS Lavadero' },
@@ -120,7 +120,7 @@ export const MODULE_ICONS = {
   '/contabilidad': { icon: <AutoAwesome />, color: '#6366F1', label: 'Contabilidad' },
 
   // Superadmin
-  '/superadmin/link-pago': { icon: <QrCode2 />, color: '#FF6020', label: 'Link de Pago POS' },
+  '/superadmin/link-pago': { icon: <QrCode2 />, color: '#6366F1', label: 'Link de Pago POS' },
 
 };
 

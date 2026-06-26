@@ -21,7 +21,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
-const ACCENT = '#FF6020';
+const ACCENT = '#6366F1';
 const GREEN  = '#10B981';
 const BLUE   = '#3B82F6';
 const YELLOW = '#F59E0B';

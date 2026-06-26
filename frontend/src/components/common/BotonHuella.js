@@ -123,7 +123,7 @@ export default function BotonHuella({
                 : `0 4px 12px rgba(0,0,0,0.25)`,
               transform: hovered ? 'scale(1.05)' : 'scale(1)',
               '&:hover': {
-                bgcolor: '#0d1117',
+                bgcolor: '#0A0A0A',
                 color: HUELLA_GREEN,
               },
               '&:disabled': {

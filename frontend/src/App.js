@@ -96,9 +96,9 @@ const AgendarPublico     = lazy(() => import('./features/agendamiento/AgendarPub
 // ─── Constantes de Layout ──────────────────────────────────────────────────────
 const SIDEBAR_FULL  = 240;
 const SIDEBAR_MINI  = 68;
-const ACCENT        = '#FF6020';
-const PAGE_BG_LIGHT = '#F4F6F9';
-const PAGE_BG_DARK  = '#0d1117';
+const ACCENT        = '#6366F1';
+const PAGE_BG_LIGHT = '#FAFAFA';
+const PAGE_BG_DARK  = '#0A0A0A';
 
 // ─── Fallback mientras se descarga el chunk de una pantalla lazy ────────────────
 const RouteFallback = () => (
@@ -112,7 +112,7 @@ const Home = () => (
   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 3 }}>
     <Box component="img" src="/logos/svg/ksmart-icon-rounded.svg" alt="Ksmart360" sx={{ width: 120, height: 120, borderRadius: 4, boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }} />
     <Box sx={{ textAlign: 'center' }}>
-      <Typography variant="h4" fontWeight={700} sx={{ fontFamily: "'Plus Jakarta Sans', sans-serif", mb: 1 }}>Bienvenido a Ksmart360</Typography>
+      <Typography variant="h4" fontWeight={700} sx={{ fontFamily: "'Geist', sans-serif", mb: 1 }}>Bienvenido a Ksmart360</Typography>
       <Typography variant="body1" color="text.secondary">La nueva forma de gestionar tu negocio de forma inteligente</Typography>
     </Box>
   </Box>
@@ -309,7 +309,7 @@ const hasAccess = useCallback((path) => {
             body: {
               width: '100%', minHeight: '100vh', overflowX: 'hidden',
               backgroundColor: theme.palette.background.default,
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontFamily: "'Geist', sans-serif",
             },
             '#root': { width: '100%', minHeight: '100vh', display: 'flex', flexDirection: 'column' },
             '*': { boxSizing: 'border-box' },
@@ -341,7 +341,7 @@ const hasAccess = useCallback((path) => {
                     position: 'fixed', top: 0, left: 0, zIndex: 1200,
                     height: '100vh', width: effectiveExpanded ? SIDEBAR_FULL : SIDEBAR_MINI,
                     transition: 'width 0.22s cubic-bezier(0.4,0,0.2,1)', overflow: 'hidden',
-                    boxShadow: effectiveExpanded ? '4px 0 24px rgba(0,0,0,0.18)' : 'none',
+                    boxShadow: 'none',
                   }}
                 >
                   <Sidebar

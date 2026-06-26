@@ -25,7 +25,7 @@ import DialogoDarBaja from '../inventory/DialogoDarBaja';
 import { BRAND_OPTIONS, getModelOptions } from './vehicleBrands';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
-const ACCENT = '#FF6020';
+const ACCENT = '#6366F1';
 
 export default function ParqueaderoVehiculos() {
   const [vehiculos, setVehiculos]     = useState([]);
@@ -144,7 +144,7 @@ export default function ParqueaderoVehiculos() {
         <Stack direction="row" alignItems="center" spacing={1.5}>
           <Box sx={{
             width: 44, height: 44, borderRadius: 2,
-            background: `linear-gradient(135deg, ${ACCENT} 0%, #ff9a62 100%)`,
+            background: `linear-gradient(135deg, ${ACCENT} 0%, #818CF8 100%)`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
             <DirectionsCar sx={{ color: 'white' }} />

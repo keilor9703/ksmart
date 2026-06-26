@@ -18,7 +18,7 @@ import {
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
 
-const ACCENT = '#FF6020';
+const ACCENT = '#6366F1';
 const WA_GREEN = '#25D366';
 
 // ─── Modalidades disponibles ────────────────────────────────────────────────

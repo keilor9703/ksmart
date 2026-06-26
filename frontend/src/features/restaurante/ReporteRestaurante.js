@@ -14,7 +14,7 @@ import {
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
 
-const ACCENT = '#FF6020';
+const ACCENT = '#6366F1';
 
 const fmt = (n) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n || 0);
 const fmtDate = (iso) => iso ? new Date(iso).toLocaleString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
@@ -298,7 +298,7 @@ export default function ReporteRestaurante() {
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2, flexWrap: 'wrap', gap: 1 }}>
         <Box>
-          <Typography variant="h5" sx={{ fontWeight: 800, fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Typography variant="h5" sx={{ fontWeight: 800, fontFamily: "'Geist', sans-serif", display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <BarChart sx={{ color: ACCENT, fontSize: 28 }} />
             Ventas — Restaurante
           </Typography>

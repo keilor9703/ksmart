@@ -27,7 +27,7 @@ import { toast } from 'react-toastify';
 import { formatCurrency } from '../../utils/formatters';
 import { METODOS_PAGO_SIMPLE as METODOS_PAGO } from '../../utils/constants';
 
-const ACCENT = '#FF6020';
+const ACCENT = '#6366F1';
 
 export default function DialogoDarBaja({ open, vehiculo, onClose, onSuccess }) {
   const [loading, setLoading]     = useState(true);

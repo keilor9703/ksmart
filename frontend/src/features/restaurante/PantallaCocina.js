@@ -127,7 +127,7 @@ const ComandaCard = ({ comanda, onAdvance, advancing }) => {
         px: 2, py: 1.2,
         background: urgente
           ? 'linear-gradient(90deg, #EF4444 0%, #DC2626 100%)'
-          : `linear-gradient(90deg, ${theme.palette.mode === 'dark' ? '#1e293b' : '#1e40af'} 0%, ${theme.palette.mode === 'dark' ? '#334155' : '#3b82f6'} 100%)`,
+          : `linear-gradient(90deg, ${theme.palette.mode === 'dark' ? '#1F1F1F' : '#1e40af'} 0%, ${theme.palette.mode === 'dark' ? '#334155' : '#3b82f6'} 100%)`,
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -294,12 +294,12 @@ const PantallaCocina = () => {
   return (
     <Box sx={{
       minHeight: '100vh',
-      bgcolor: theme.palette.mode === 'dark' ? '#0d1117' : '#f0f4f8',
+      bgcolor: theme.palette.mode === 'dark' ? '#0A0A0A' : '#f0f4f8',
       display: 'flex', flexDirection: 'column',
     }}>
       {/* TopBar cocina — responsive */}
       <Box sx={{
-        bgcolor: theme.palette.mode === 'dark' ? '#161b22' : '#1e293b',
+        bgcolor: theme.palette.mode === 'dark' ? '#161616' : '#1F1F1F',
         borderBottom: '1px solid rgba(255,255,255,0.08)',
         position: 'sticky', top: 0, zIndex: 100,
       }}>
@@ -310,11 +310,11 @@ const PantallaCocina = () => {
         }}>
           {/* Izquierda: icono + título */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-            <Restaurant sx={{ color: '#FF6020', fontSize: isMobile ? 22 : 26, flexShrink: 0 }} />
+            <Restaurant sx={{ color: '#6366F1', fontSize: isMobile ? 22 : 26, flexShrink: 0 }} />
             <Typography sx={{
               color: '#fff', fontWeight: 800,
               fontSize: isMobile ? 16 : 19,
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontFamily: "'Geist', sans-serif",
               whiteSpace: 'nowrap',
             }}>
               {isMobile ? 'Cocina' : 'Pantalla de Cocina'}
@@ -390,8 +390,8 @@ const PantallaCocina = () => {
                   textTransform: 'none', whiteSpace: 'nowrap',
                 },
                 '& .Mui-selected': {
-                  bgcolor: 'rgba(255,96,32,0.2) !important',
-                  color: '#FF6020 !important',
+                  bgcolor: 'rgba(99,102,241,0.2) !important',
+                  color: '#6366F1 !important',
                   fontWeight: 700,
                 },
               }}
@@ -412,7 +412,7 @@ const PantallaCocina = () => {
       <Box sx={{ flex: 1, p: 2 }}>
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', pt: 8 }}>
-            <CircularProgress sx={{ color: '#FF6020' }} />
+            <CircularProgress sx={{ color: '#6366F1' }} />
           </Box>
         ) : comandasFiltradas.length === 0 ? (
           <Box sx={{
@@ -454,7 +454,7 @@ const PantallaCocina = () => {
       {/* Footer */}
       <Box sx={{
         px: 2.5, py: 1,
-        bgcolor: theme.palette.mode === 'dark' ? '#161b22' : '#1e293b',
+        bgcolor: theme.palette.mode === 'dark' ? '#161616' : '#1F1F1F',
         borderTop: '1px solid rgba(255,255,255,0.08)',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>

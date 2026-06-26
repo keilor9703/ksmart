@@ -23,7 +23,7 @@ import { imprimirReciboLavadero } from '../../utils/printLavadero';
 import LinkPagoModal from '../../components/common/LinkPagoModal';
 import CurrencyField from '../../components/common/CurrencyField';
 
-const ACCENT  = '#FF6020';
+const ACCENT  = '#6366F1';
 const BLUE    = '#3B82F6';
 const AMBER   = '#F59E0B';
 const GREEN   = '#10B981';

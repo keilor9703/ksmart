@@ -13,7 +13,7 @@ import {
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
 
-const ACCENT = '#FF6020';
+const ACCENT = '#6366F1';
 
 // ─── TagInput (para áreas y zonas) ───────────────────────────────────────────
 
@@ -758,7 +758,7 @@ const RestauranteConfig = () => {
     <Box sx={{ maxWidth: 900, mx: 'auto', p: { xs: 1, md: 0 } }}>
       {/* Header */}
       <Box sx={{ mb: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 800, fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <Typography variant="h5" sx={{ fontWeight: 800, fontFamily: "'Geist', sans-serif", display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Settings sx={{ color: ACCENT, fontSize: 28 }} />
           Configuración del Restaurante
         </Typography>
@@ -772,7 +772,7 @@ const RestauranteConfig = () => {
         value={tab} onChange={(_, v) => setTab(v)}
         sx={{
           mb: 3, borderBottom: 1, borderColor: 'divider',
-          '& .MuiTab-root': { textTransform: 'none', fontWeight: 600, fontFamily: "'Plus Jakarta Sans', sans-serif" },
+          '& .MuiTab-root': { textTransform: 'none', fontWeight: 600, fontFamily: "'Geist', sans-serif" },
           '& .Mui-selected': { color: `${ACCENT} !important` },
           '& .MuiTabs-indicator': { bgcolor: ACCENT },
         }}

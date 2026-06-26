@@ -12,7 +12,7 @@ import { formatCurrency } from '../../utils/formatters';
 import CurrencyField from '../../components/common/CurrencyField';
 import { METODOS_PAGO_SIMPLE as METODOS_PAGO } from '../../utils/constants';
 
-const ACCENT = '#FF6020';
+const ACCENT = '#6366F1';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 3. CobrarVencidoDialog
@@ -28,7 +28,7 @@ export function ParqueaderoCobrarVencidoDialog({ open, onClose, resultado, onSuc
   const redBg = isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2';
   const redText = isDark ? '#FCA5A5' : '#991B1B';
   const greenBg = isDark ? 'rgba(16, 185, 129, 0.15)' : '#F0FDF4';
-  const darkBoxBg = isDark ? 'rgba(0, 0, 0, 0.4)' : '#1E293B';
+  const darkBoxBg = isDark ? 'rgba(0, 0, 0, 0.4)' : '#1F1F1F';
   const borderStyle = isDark ? '1px solid rgba(255,255,255,0.08)' : 'none';
 
   const [entroEnVencidos, setEntroEnVencidos] = useState('no');  // 'no' | 'si'

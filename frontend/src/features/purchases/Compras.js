@@ -20,7 +20,7 @@ import QuickCreateModal from '../../components/common/QuickCreateModal';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
-const ACCENT  = '#FF6020';
+const ACCENT  = '#6366F1';
 const GREEN   = '#10B981';
 const RED     = '#EF4444';
 const BLUE    = '#3B82F6';
@@ -95,7 +95,7 @@ const handlePrintOC = (compra) => {
   const total    = subtotal + ivaAmt;
 
   const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>${fmtOCNum(compra)}</title>
-  <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#1e293b;padding:40px;max-width:850px;margin:0 auto}
+  <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#1F1F1F;padding:40px;max-width:850px;margin:0 auto}
   .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;padding-bottom:20px;border-bottom:3px solid ${GREEN}}
   .company{font-size:22px;font-weight:800;color:${GREEN};margin-bottom:4px}
   .badge{background:${GREEN};color:white;padding:10px 18px;border-radius:10px;font-size:20px;font-weight:800;text-align:right}

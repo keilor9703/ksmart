@@ -31,7 +31,7 @@ import BotonWhatsApp from '../../components/common/BotonWhatsApp';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 import { METODOS_PAGO_SIMPLE as METODOS_PAGO } from '../../utils/constants';
 
-const ACCENT = '#FF6020';
+const ACCENT = '#6366F1';
 
 export default function ParqueaderoSuscripciones() {
   const [tab, setTab] = useState(0);
@@ -205,13 +205,13 @@ function SuscripcionesTab() {
         <Stack direction="row" alignItems="center" spacing={1.5}>
           <Box sx={{
             width: 44, height: 44, borderRadius: 2,
-            background: `linear-gradient(135deg, ${ACCENT} 0%, #ff9a62 100%)`,
+            background: `linear-gradient(135deg, ${ACCENT} 0%, #818CF8 100%)`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
             <EventRepeat sx={{ color: 'white' }} />
           </Box>
           <Box>
-            <Typography sx={{ fontSize: 20, fontWeight: 800, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            <Typography sx={{ fontSize: 20, fontWeight: 800, fontFamily: "'Geist', sans-serif" }}>
               Suscripciones
             </Typography>
             <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
