@@ -8,7 +8,7 @@ import useMediaQueryHook from '@mui/material/useMediaQuery';
 import { ToastContainer, toast, Slide } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import './styles/toast.css';
-import { Route, Routes, useNavigate, Navigate } from 'react-router-dom';
+import { Route, Routes, useNavigate, Navigate, Outlet } from 'react-router-dom';
 
 import apiClient from './api';
 import getAppTheme from './theme';
@@ -477,7 +477,7 @@ const hasAccess = useCallback((path) => {
                 <Route path="/terminos" element={<Terminos />} />
                 <Route path="/privacidad" element={<Privacidad />} />
                 <Route path="/habeas-data" element={<HabeasData />} />
-                <Route path="/:slug">
+                <Route path="/:slug" element={<Outlet />}>
                   <Route path="servicios" element={<AgendarPublico />} />
                   <Route index element={<CatalogoVirtual />} />
                 </Route>
