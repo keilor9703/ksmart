@@ -8,7 +8,7 @@ import {
 import {
   EventNote, ChevronLeft, ChevronRight, Today, Add, Schedule, Person,
   Engineering, MoreVert, CheckCircle, PlayArrow, DoneAll, Cancel as CancelIcon,
-  Delete, EventBusy, Settings, AccessTime, Share,
+  Delete, EventBusy, Settings, AccessTime, Share, WhatsApp,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -38,7 +38,7 @@ const fmtFechaLarga = (d) => d.toLocaleDateString('es-CO', { weekday: 'long', da
 const initials = (name = '') =>
   name.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join('') || '?';
 
-export default function Agendamiento() {
+export default function Agendamiento({ user }) {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -50,20 +50,23 @@ export default function Agendamiento() {
   const [editing, setEditing]   = useState(null);
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [menuCita, setMenuCita] = useState(null);
+  const [scope, setScope]       = useState('todas'); // 'todas' | 'mias'
 
   const ymd = toYMD(fecha);
 
   const cargarCitas = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await fetchCitas({ desde: ymd, hasta: ymd });
+      const params = { desde: ymd, hasta: ymd };
+      if (scope === 'mias' && user?.id) params.user_id = user.id;
+      const { data } = await fetchCitas(params);
       setCitas(data || []);
     } catch (e) {
       toast.error('Error al cargar las citas.');
     } finally {
       setLoading(false);
     }
-  }, [ymd]);
+  }, [ymd, scope, user]);
 
   useEffect(() => { cargarCitas(); }, [cargarCitas]);
 
@@ -102,6 +105,21 @@ export default function Agendamiento() {
     } catch {
       toast.error('No se pudo obtener el link público.');
     }
+  };
+
+  const enviarRecordatorio = (cita) => {
+    setMenuAnchor(null);
+    const tel = (cita.cliente_telefono || '').replace(/\D/g, '');
+    if (!tel) {
+      toast.info('Esta cita no tiene teléfono de cliente registrado.');
+      return;
+    }
+    const ffull = tel.length === 10 ? `57${tel}` : tel; // Colombia por defecto
+    const cuando = `${fmtFechaLarga(new Date(cita.fecha_inicio))} a las ${fmtHora(cita.fecha_inicio)}`;
+    const msg =
+      `Hola ${cita.cliente_display || ''}, te recordamos tu cita de *${cita.producto_nombre}* ` +
+      `el ${cuando}. ¡Te esperamos!`;
+    window.open(`https://wa.me/${ffull}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   const handleEstado = async (cita, estado) => {
@@ -183,6 +201,18 @@ export default function Agendamiento() {
           sx={{ width: 150 }}
         />
       </Paper>
+
+      {/* ── Filtro de alcance ── */}
+      {user?.id && (
+        <ToggleButtonGroup
+          value={scope} exclusive size="small"
+          onChange={(e, v) => v && setScope(v)}
+          sx={{ mb: 2, '& .Mui-selected': { bgcolor: `${TEAL} !important`, color: '#fff !important' } }}
+        >
+          <ToggleButton value="todas" sx={{ textTransform: 'none', px: 2 }}>Todas</ToggleButton>
+          <ToggleButton value="mias" sx={{ textTransform: 'none', px: 2 }}>Mis citas</ToggleButton>
+        </ToggleButtonGroup>
+      )}
 
       {/* ── Stats ── */}
       {!loading && citas.length > 0 && (
@@ -286,6 +316,12 @@ export default function Agendamiento() {
           <MenuItem onClick={() => handleEstado(menuCita, 'completada')}>
             <ListItemIcon><DoneAll fontSize="small" sx={{ color: ESTADOS.completada.color }} /></ListItemIcon>
             <ListItemText>Completar</ListItemText>
+          </MenuItem>
+        )}
+        {menuCita && menuCita.cliente_telefono && (
+          <MenuItem onClick={() => enviarRecordatorio(menuCita)}>
+            <ListItemIcon><WhatsApp fontSize="small" sx={{ color: '#25D366' }} /></ListItemIcon>
+            <ListItemText>Recordar por WhatsApp</ListItemText>
           </MenuItem>
         )}
         <MenuItem onClick={() => { setEditing(menuCita); setDialogOpen(true); setMenuAnchor(null); }}>
