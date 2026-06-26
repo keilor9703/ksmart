@@ -375,6 +375,16 @@ def update_cita(db: Session, empresa_id: int, cita_id: int, data) -> Optional[mo
     return _enriquecer_cita(db, cita)
 
 
+TRANSICIONES_VALIDAS = {
+    "pendiente":  {"confirmada", "en_curso", "completada", "cancelada", "no_asistio"},
+    "confirmada": {"en_curso", "completada", "cancelada", "no_asistio"},
+    "en_curso":   {"completada", "cancelada", "no_asistio"},
+    "completada": set(),   # terminal — cobrada o no, no se revierte
+    "cancelada":  set(),
+    "no_asistio": set(),
+}
+
+
 def cambiar_estado_cita(db: Session, empresa_id: int, cita_id: int, estado: str) -> Optional[models.Cita]:
     cita = (
         db.query(models.Cita)
@@ -383,6 +393,11 @@ def cambiar_estado_cita(db: Session, empresa_id: int, cita_id: int, estado: str)
     )
     if not cita:
         return None
+    permitidos = TRANSICIONES_VALIDAS.get(cita.estado, set())
+    if estado not in permitidos:
+        raise AgendamientoError(
+            f"No se puede pasar de '{cita.estado}' a '{estado}'."
+        )
     cita.estado = estado
     db.commit()
     db.refresh(cita)
@@ -433,8 +448,42 @@ def cobrar_cita(db: Session, empresa_id: int, cita_id: int, data) -> models.Cita
 
     precio = data.precio_unitario if data.precio_unitario is not None else (prod.precio or 0)
 
+    # Si la cita tiene datos de cliente inline pero sin cliente_id registrado,
+    # buscar o crear un Cliente para que el historial de ventas muestre el nombre real.
+    cliente_id = cita.cliente_id
+    if not cliente_id and cita.cliente_nombre:
+        cliente_existente = None
+        if cita.cliente_telefono:
+            cliente_existente = (
+                db.query(models.Cliente)
+                .filter(
+                    models.Cliente.empresa_id == empresa_id,
+                    models.Cliente.telefono == cita.cliente_telefono,
+                ).first()
+            )
+        if not cliente_existente and cita.cliente_email:
+            cliente_existente = (
+                db.query(models.Cliente)
+                .filter(
+                    models.Cliente.empresa_id == empresa_id,
+                    models.Cliente.email == cita.cliente_email,
+                ).first()
+            )
+        if not cliente_existente:
+            nuevo = models.Cliente(
+                empresa_id=empresa_id,
+                nombre=cita.cliente_nombre,
+                telefono=cita.cliente_telefono,
+                email=cita.cliente_email,
+            )
+            db.add(nuevo)
+            db.flush()
+            cliente_existente = nuevo
+        cliente_id = cliente_existente.id
+        cita.cliente_id = cliente_id
+
     venta_data = schemas.VentaCreate(
-        cliente_id=cita.cliente_id,
+        cliente_id=cliente_id,
         detalles=[schemas.DetalleVentaCreate(
             producto_id=prod.id,
             cantidad=1,

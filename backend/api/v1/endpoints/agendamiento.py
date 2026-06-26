@@ -148,7 +148,10 @@ def cambiar_estado(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
-    cita = crud.cambiar_estado_cita(db, empresa_id=current_user.empresa_id, cita_id=cita_id, estado=estado)
+    try:
+        cita = crud.cambiar_estado_cita(db, empresa_id=current_user.empresa_id, cita_id=cita_id, estado=estado)
+    except crud.AgendamientoError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     if not cita:
         raise HTTPException(status_code=404, detail="Cita no encontrada")
     return cita
