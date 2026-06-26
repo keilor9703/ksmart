@@ -8,7 +8,7 @@ import {
 import {
   EventNote, ChevronLeft, ChevronRight, Today, Add, Schedule, Person,
   Engineering, MoreVert, CheckCircle, PlayArrow, DoneAll, Cancel as CancelIcon,
-  Delete, EventBusy, Settings, AccessTime,
+  Delete, EventBusy, Settings, AccessTime, Share,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -84,6 +84,26 @@ export default function Agendamiento() {
     };
   }, [citas]);
 
+  const compartirLink = async () => {
+    try {
+      const { data } = await apiClient.get('/catalogo/config');
+      const slug = data?.slug_catalogo;
+      if (!slug) {
+        toast.info('Configura primero el enlace de tu negocio en Catálogo Virtual para compartir tu página de citas.');
+        return;
+      }
+      const url = `${window.location.origin}/${slug}/agendar`;
+      try {
+        await navigator.clipboard.writeText(url);
+        toast.success('¡Link de agendamiento copiado! Compártelo con tus clientes.');
+      } catch {
+        window.prompt('Copia tu link público de agendamiento:', url);
+      }
+    } catch {
+      toast.error('No se pudo obtener el link público.');
+    }
+  };
+
   const handleEstado = async (cita, estado) => {
     setMenuAnchor(null);
     try {
@@ -121,6 +141,13 @@ export default function Agendamiento() {
             Gestiona las citas de tus servicios por trabajador.
           </Typography>
         </Box>
+        <Tooltip title="Copiar link público para que tus clientes agenden solos">
+          <Button onClick={compartirLink} startIcon={<Share />}
+            size="small" variant="contained" disableElevation
+            sx={{ bgcolor: TEAL, '&:hover': { bgcolor: TEAL_DARK } }}>
+            Compartir
+          </Button>
+        </Tooltip>
         <Tooltip title="Configurar servicios y trabajadores">
           <Button onClick={() => navigate('/agendamiento/config')} startIcon={<Settings />}
             size="small" variant="outlined"

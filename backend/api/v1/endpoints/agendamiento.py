@@ -148,3 +148,62 @@ def eliminar_cita(
     if not ok:
         raise HTTPException(status_code=404, detail="Cita no encontrada")
     return {"message": "Cita eliminada correctamente"}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 🌐 PORTAL PÚBLICO (sin autenticación) — el cliente agenda por su cuenta
+# ──────────────────────────────────────────────────────────────────────────────
+@router.get("/publico/{slug}", response_model=schemas.AgendamientoPublicoInfo)
+def info_publica(slug: str, db: Session = Depends(get_db)):
+    """Datos de la empresa y servicios agendables disponibles para el público."""
+    empresa = crud.get_empresa_by_slug(db, slug=slug)
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Página de agendamiento no encontrada")
+    servicios = crud.get_servicios_agendables(db, empresa_id=empresa.id, solo_activos=True)
+    # Sólo exponer servicios que tengan trabajadores asignados
+    servicios = [s for s in servicios if getattr(s, "trabajadores", None)]
+    return schemas.AgendamientoPublicoInfo(
+        empresa_nombre=empresa.nombre,
+        slug=slug,
+        logo_base64=getattr(empresa, "logo_base64", None),
+        servicios=servicios,
+    )
+
+
+@router.get("/publico/{slug}/disponibilidad", response_model=schemas.DisponibilidadResponse)
+def disponibilidad_publica(
+    slug: str,
+    producto_id: int = Query(...),
+    fecha: date = Query(...),
+    db: Session = Depends(get_db),
+):
+    empresa = crud.get_empresa_by_slug(db, slug=slug)
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Página de agendamiento no encontrada")
+    return crud.calcular_disponibilidad(db, empresa_id=empresa.id, producto_id=producto_id, dia=fecha)
+
+
+@router.post("/publico/{slug}/cita", response_model=schemas.CitaPublicaResponse, status_code=201)
+def crear_cita_publica(
+    slug: str,
+    payload: schemas.CitaPublicaCreate,
+    db: Session = Depends(get_db),
+):
+    empresa = crud.get_empresa_by_slug(db, slug=slug)
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Página de agendamiento no encontrada")
+    data = schemas.CitaCreate(
+        producto_id=payload.producto_id,
+        user_id=payload.user_id,
+        cliente_id=None,
+        fecha_inicio=payload.fecha_inicio,
+        cliente_nombre=payload.cliente_nombre,
+        cliente_telefono=payload.cliente_telefono,
+        cliente_email=payload.cliente_email,
+        notas=payload.notas,
+    )
+    try:
+        cita = crud.create_cita(db, empresa_id=empresa.id, data=data)
+    except crud.AgendamientoError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    return cita

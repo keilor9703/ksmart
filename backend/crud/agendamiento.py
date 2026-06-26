@@ -253,6 +253,11 @@ class AgendamientoError(Exception):
     pass
 
 
+def get_empresa_by_slug(db: Session, slug: str):
+    """Resuelve una empresa por su slug público (reutiliza slug_catalogo)."""
+    return db.query(models.Empresa).filter(models.Empresa.slug_catalogo == slug).first()
+
+
 def create_cita(db: Session, empresa_id: int, data) -> models.Cita:
     prod = (
         db.query(models.Producto)

@@ -91,6 +91,7 @@ const ReservasRestaurante    = lazy(() => import('./features/restaurante/Reserva
 
 const Agendamiento       = lazy(() => import('./features/agendamiento/Agendamiento'));
 const AgendamientoConfig = lazy(() => import('./features/agendamiento/AgendamientoConfig'));
+const AgendarPublico     = lazy(() => import('./features/agendamiento/AgendarPublico'));
 
 // ─── Constantes de Layout ──────────────────────────────────────────────────────
 const SIDEBAR_FULL  = 240;
@@ -476,6 +477,7 @@ const hasAccess = useCallback((path) => {
                 <Route path="/terminos" element={<Terminos />} />
                 <Route path="/privacidad" element={<Privacidad />} />
                 <Route path="/habeas-data" element={<HabeasData />} />
+                <Route path="/:slug/agendar" element={<AgendarPublico />} />
                 <Route path="/:slug" element={<CatalogoVirtual />} />
                 <Route path="*" element={<Login onLogin={checkAuth} />} />
               </Routes>

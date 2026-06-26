@@ -2868,3 +2868,39 @@ class DisponibilidadResponse(BaseModel):
     producto_id: int
     duracion_minutos: int
     franjas: List[FranjaDisponible] = []
+
+
+# --- Portal público de agendamiento ---
+class ServicioPublico(BaseModel):
+    id: int
+    nombre: str
+    descripcion: Optional[str] = None
+    precio: Optional[float] = None
+    duracion_minutos: Optional[int] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AgendamientoPublicoInfo(BaseModel):
+    empresa_nombre: str
+    slug: str
+    logo_base64: Optional[str] = None
+    servicios: List[ServicioPublico] = []
+
+
+class CitaPublicaCreate(BaseModel):
+    producto_id: int
+    user_id: int
+    fecha_inicio: datetime
+    cliente_nombre: str
+    cliente_telefono: Optional[str] = None
+    cliente_email: Optional[str] = None
+    notas: Optional[str] = None
+
+
+class CitaPublicaResponse(BaseModel):
+    id: int
+    producto_nombre: Optional[str] = None
+    trabajador_nombre: Optional[str] = None
+    fecha_inicio: datetime
+    fecha_fin: datetime
+    estado: str
