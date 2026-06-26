@@ -11,8 +11,11 @@ import {
 import {
   fetchAgendamientoPublico, fetchDisponibilidadPublica, crearCitaPublica,
 } from '../../api';
+import apiClient from '../../api';
 
 const TEAL = '#0D9488';
+const imgSrc = (slug, id, idx = 0) =>
+  `${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${id}/imagen?index=${idx}`;
 const TEAL_DARK = '#0F766E';
 
 const pad = n => String(n).padStart(2, '0');
@@ -158,28 +161,53 @@ export default function AgendarPublico() {
                         const sel = servicio?.id === s.id;
                         return (
                           <Paper key={s.id} onClick={() => setServicio(s)} elevation={0} sx={{
-                            p: 2, borderRadius: 3, cursor: 'pointer', transition: 'all .15s',
+                            borderRadius: 3, cursor: 'pointer', transition: 'all .15s',
                             border: '2px solid', borderColor: sel ? TEAL : 'divider',
                             bgcolor: sel ? `${TEAL}0A` : '#fff',
                             '&:hover': { borderColor: TEAL },
-                            display: 'flex', alignItems: 'center', gap: 1.5,
+                            overflow: 'hidden',
                           }}>
-                            <Avatar sx={{ bgcolor: sel ? TEAL : `${TEAL}1A`, color: sel ? '#fff' : TEAL_DARK }}>
-                              <EventAvailable />
-                            </Avatar>
-                            <Box sx={{ flex: 1, minWidth: 0 }}>
-                              <Typography sx={{ fontWeight: 700 }} noWrap>{s.nombre}</Typography>
-                              <Stack direction="row" spacing={1} sx={{ mt: 0.3 }}>
-                                <Chip size="small" icon={<Schedule sx={{ fontSize: 14 }} />}
-                                  label={`${s.duracion_minutos || 30} min`}
-                                  sx={{ bgcolor: '#F1F5F9', height: 22, fontSize: 11.5 }} />
-                                {s.precio != null && (
-                                  <Chip size="small" label={`$${Number(s.precio).toLocaleString('es-CO')}`}
-                                    sx={{ bgcolor: '#ECFDF5', color: '#047857', height: 22, fontSize: 11.5, fontWeight: 700 }} />
+                            {/* Imagen del servicio */}
+                            {s.image_count > 0 && (
+                              <Box sx={{
+                                width: '100%', height: 140, overflow: 'hidden',
+                                position: 'relative', bgcolor: '#F8FAFC',
+                              }}>
+                                <img
+                                  src={imgSrc(slug, s.id, 0)}
+                                  alt={s.nombre}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                />
+                                {sel && (
+                                  <Box sx={{ position: 'absolute', top: 8, right: 8 }}>
+                                    <CheckCircle sx={{ color: '#fff', fontSize: 28, filter: `drop-shadow(0 0 4px ${TEAL})` }} />
+                                  </Box>
                                 )}
-                              </Stack>
+                              </Box>
+                            )}
+                            <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                              {s.image_count === 0 && (
+                                <Avatar sx={{ bgcolor: sel ? TEAL : `${TEAL}1A`, color: sel ? '#fff' : TEAL_DARK }}>
+                                  <EventAvailable />
+                                </Avatar>
+                              )}
+                              <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Typography sx={{ fontWeight: 700 }} noWrap>{s.nombre}</Typography>
+                                {s.descripcion && (
+                                  <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 0.5 }} noWrap>{s.descripcion}</Typography>
+                                )}
+                                <Stack direction="row" spacing={1} sx={{ mt: 0.3 }}>
+                                  <Chip size="small" icon={<Schedule sx={{ fontSize: 14 }} />}
+                                    label={`${s.duracion_minutos || 30} min`}
+                                    sx={{ bgcolor: '#F1F5F9', height: 22, fontSize: 11.5 }} />
+                                  {s.precio != null && (
+                                    <Chip size="small" label={`$${Number(s.precio).toLocaleString('es-CO')}`}
+                                      sx={{ bgcolor: '#ECFDF5', color: '#047857', height: 22, fontSize: 11.5, fontWeight: 700 }} />
+                                  )}
+                                </Stack>
+                              </Box>
+                              {s.image_count === 0 && sel && <CheckCircle sx={{ color: TEAL }} />}
                             </Box>
-                            {sel && <CheckCircle sx={{ color: TEAL }} />}
                           </Paper>
                         );
                       })}

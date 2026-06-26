@@ -124,9 +124,9 @@ export default function Agendamiento({ user }) {
         toast.info('Configura primero el enlace de tu negocio en Catálogo Virtual.');
         return;
       }
-      // La URL pública usa el mismo dominio base del catálogo
-      const baseUrl = process.env.REACT_APP_PUBLIC_URL || window.location.origin;
-      const url = `${baseUrl}/${slug}/agendar`;
+      // La URL pública usa el mismo dominio del catálogo virtual
+      const catalogBase = process.env.REACT_APP_CATALOG_URL || 'https://catalogo.appjeylor.com';
+      const url = `${catalogBase}/${slug}/servicios`;
       try {
         await navigator.clipboard.writeText(url);
         toast.success('¡Link copiado! Compártelo con tus clientes 📋');

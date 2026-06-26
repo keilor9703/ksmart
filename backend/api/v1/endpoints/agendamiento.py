@@ -191,11 +191,36 @@ def info_publica(slug: str, db: Session = Depends(get_db)):
     servicios = crud.get_servicios_agendables(db, empresa_id=empresa.id, solo_activos=True)
     servicios = [s for s in servicios if getattr(s, "trabajadores", None)]
     cfg = crud.get_or_create_agendamiento_config(db, empresa_id=empresa.id)
+
+    import json as _json
+    def _image_count(p):
+        imgs = getattr(p, "imagenes", None)
+        if not imgs:
+            return 0
+        if isinstance(imgs, list):
+            return len(imgs)
+        try:
+            return len(_json.loads(imgs))
+        except Exception:
+            return 0
+
+    servicios_out = [
+        schemas.ServicioPublico(
+            id=s.id,
+            nombre=s.nombre,
+            descripcion=getattr(s, "descripcion", None),
+            precio=getattr(s, "precio", None),
+            duracion_minutos=getattr(s, "duracion_minutos", None),
+            image_count=_image_count(s),
+        )
+        for s in servicios
+    ]
+
     return schemas.AgendamientoPublicoInfo(
         empresa_nombre=empresa.nombre,
         slug=slug,
         logo_base64=getattr(empresa, "logo_base64", None),
-        servicios=servicios,
+        servicios=servicios_out,
         whatsapp=cfg.whatsapp,
         requiere_anticipo=cfg.requiere_anticipo,
         porcentaje_anticipo=cfg.porcentaje_anticipo,
