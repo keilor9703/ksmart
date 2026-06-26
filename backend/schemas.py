@@ -2885,6 +2885,9 @@ class AgendamientoPublicoInfo(BaseModel):
     slug: str
     logo_base64: Optional[str] = None
     servicios: List[ServicioPublico] = []
+    whatsapp: Optional[str] = None
+    requiere_anticipo: bool = False
+    porcentaje_anticipo: int = 50
 
 
 class CitaPublicaCreate(BaseModel):
@@ -2904,3 +2907,57 @@ class CitaPublicaResponse(BaseModel):
     fecha_inicio: datetime
     fecha_fin: datetime
     estado: str
+
+
+# --- Configuración de agendamiento ---
+class AgendamientoConfigUpdate(BaseModel):
+    hora_apertura: Optional[int] = None
+    hora_cierre: Optional[int] = None
+    dias_laborales: Optional[List[int]] = None
+    dias_no_laborales: Optional[List[str]] = None
+    whatsapp: Optional[str] = None
+    requiere_anticipo: Optional[bool] = None
+    porcentaje_anticipo: Optional[int] = None
+    mensaje_recordatorio: Optional[str] = None
+
+
+class AgendamientoConfigOut(BaseModel):
+    hora_apertura: int = 8
+    hora_cierre: int = 18
+    dias_laborales: List[int] = [0, 1, 2, 3, 4, 5]
+    dias_no_laborales: List[str] = []
+    whatsapp: Optional[str] = None
+    requiere_anticipo: bool = False
+    porcentaje_anticipo: int = 50
+    mensaje_recordatorio: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- Cobro de cita ---
+class CobrarCitaRequest(BaseModel):
+    metodo_pago: str = "Efectivo"
+    precio_unitario: Optional[float] = None
+    solicita_fe: bool = False
+
+
+# --- Cita enriquecida (con precio y venta_id) ---
+class CitaFull(BaseModel):
+    id: int
+    producto_id: int
+    user_id: int
+    cliente_id: Optional[int] = None
+    fecha_inicio: datetime
+    fecha_fin: datetime
+    estado: str
+    cliente_nombre: Optional[str] = None
+    cliente_telefono: Optional[str] = None
+    cliente_email: Optional[str] = None
+    notas: Optional[str] = None
+    producto_nombre: Optional[str] = None
+    producto_precio: Optional[float] = None
+    trabajador_nombre: Optional[str] = None
+    cliente_display: Optional[str] = None
+    venta_id: Optional[int] = None
+    anticipo_monto: Optional[float] = None
+    anticipo_pagado: bool = False
+    model_config = ConfigDict(from_attributes=True)

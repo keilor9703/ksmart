@@ -195,8 +195,24 @@ def run_migrations():
             conn.execute(text("ALTER TABLE productos ADD COLUMN agendable BOOLEAN DEFAULT FALSE"))
             conn.commit()
 
-        # Pedidos virtuales tables
+        # 📅 Agendamiento — columnas en ventas (origen y cita_id)
+        v_cols = [c['name'] for c in inspector.get_columns('ventas')]
+        if 'cita_id' not in v_cols:
+            conn.execute(text("ALTER TABLE ventas ADD COLUMN cita_id INTEGER REFERENCES citas(id)"))
+            conn.commit()
+
+        # 📅 Agendamiento — columnas en citas (anticipo y venta_id)
         tables = inspector.get_table_names()
+        if 'citas' in tables:
+            c_cols = [c['name'] for c in inspector.get_columns('citas')]
+            if 'anticipo_monto' not in c_cols:
+                conn.execute(text("ALTER TABLE citas ADD COLUMN anticipo_monto FLOAT"))
+                conn.execute(text("ALTER TABLE citas ADD COLUMN anticipo_pagado BOOLEAN DEFAULT FALSE"))
+                conn.execute(text("ALTER TABLE citas ADD COLUMN anticipo_referencia VARCHAR(100)"))
+                conn.execute(text("ALTER TABLE citas ADD COLUMN venta_id INTEGER REFERENCES ventas(id)"))
+                conn.commit()
+
+        # Pedidos virtuales tables
         if 'pedidos_virtuales' not in tables:
             conn.execute(text("""
                 CREATE TABLE pedidos_virtuales (
