@@ -34,6 +34,18 @@ def _aware(dt: datetime) -> datetime:
     return dt
 
 
+def _limpiar_cedula(cedula) -> Optional[str]:
+    """Deja solo caracteres alfanuméricos (la FE exige dni sin puntos/guiones/espacios).
+    Quita el dígito verificador de NIT si viene con guion (900123456-1 → 900123456)."""
+    if not cedula:
+        return None
+    s = str(cedula).strip()
+    if "-" in s:
+        s = s.split("-")[0]
+    limpio = "".join(c for c in s if c.isalnum())
+    return limpio or None
+
+
 def _enriquecer_cita(db: Session, cita: models.Cita) -> models.Cita:
     prod = cita.producto
     trab = cita.usuario
@@ -514,21 +526,21 @@ def cobrar_cita(db: Session, empresa_id: int, cita_id: int, data) -> models.Cita
             db.flush()
             cliente_existente = nuevo
         # Si el operador proporcionó cédula/NIT para FE y el cliente aún no la tiene, actualizarla.
-        cedula_fe = getattr(data, 'cedula_fe', None)
+        cedula_fe = _limpiar_cedula(getattr(data, 'cedula_fe', None))
         if cedula_fe and not cliente_existente.cedula:
-            cliente_existente.cedula = cedula_fe.strip()
+            cliente_existente.cedula = cedula_fe
         cliente_id = cliente_existente.id
         cita.cliente_id = cliente_id
 
     # Si el cliente ya estaba registrado pero sin cédula y el operador la proporcionó, actualizarla.
-    cedula_fe = getattr(data, 'cedula_fe', None)
+    cedula_fe = _limpiar_cedula(getattr(data, 'cedula_fe', None))
     if cedula_fe and cita.cliente_id:
         cli = db.query(models.Cliente).filter(
             models.Cliente.id == cita.cliente_id,
             models.Cliente.empresa_id == empresa_id,
         ).first()
         if cli and not cli.cedula:
-            cli.cedula = cedula_fe.strip()
+            cli.cedula = cedula_fe
 
     venta_data = schemas.VentaCreate(
         cliente_id=cliente_id,
