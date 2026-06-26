@@ -64,7 +64,10 @@ def _get_overrides(db: Session, empresa_id: int) -> dict:
     return {r.grupo_id: r for r in rows}
 
 
-def get_grupos(db: Session, empresa_id: int):
+GRUPOS_SOLO_RESTAURANTE = {5}  # "Platos y Preparaciones" — solo visible para restaurantes
+
+
+def get_grupos(db: Session, empresa_id: int, tipo_negocio: str = "erp"):
     grupos = (
         db.query(models.GrupoProducto)
         .filter(
@@ -76,6 +79,8 @@ def get_grupos(db: Session, empresa_id: int):
         .order_by(models.GrupoProducto.orden, models.GrupoProducto.id)
         .all()
     )
+    if tipo_negocio != "restaurante":
+        grupos = [g for g in grupos if g.id not in GRUPOS_SOLO_RESTAURANTE]
     return _apply_empresa_overrides(grupos, _get_overrides(db, empresa_id))
 
 
