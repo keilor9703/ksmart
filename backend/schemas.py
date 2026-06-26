@@ -2949,6 +2949,7 @@ class CobrarCitaRequest(BaseModel):
     metodo_pago: str = "Efectivo"
     precio_unitario: Optional[float] = None
     solicita_fe: bool = False
+    cedula_fe: Optional[str] = None  # Cédula/NIT del cliente para FE cuando no está registrado
 
 
 # --- Cita enriquecida (con precio y venta_id) ---

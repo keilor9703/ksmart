@@ -127,11 +127,11 @@ export default function Agendamiento({ user }) {
       toast.info('Esta cita no tiene teléfono de cliente registrado.');
       return;
     }
-    // Obtener nombre del negocio
+    // Obtener nombre del negocio (User schema anida empresa como objeto)
     let negocio = 'nuestro negocio';
     try {
       const { data } = await apiClient.get('/users/me');
-      negocio = data?.empresa_nombre || negocio;
+      negocio = data?.empresa?.nombre || data?.empresa_nombre || negocio;
     } catch {}
 
     const numero = tel.length === 10 ? `57${tel}` : tel;
@@ -396,7 +396,9 @@ export default function Agendamiento({ user }) {
             <ListItemText>Cobrar</ListItemText>
           </MenuItem>
         )}
-        {menuCita && menuCita.cliente_telefono && (
+        {menuCita && menuCita.cliente_telefono
+          && !['completada', 'cancelada', 'no_asistio'].includes(menuCita.estado)
+          && !menuCita.venta_id && (
           <MenuItem onClick={() => enviarRecordatorio(menuCita)}>
             <ListItemIcon><WhatsApp fontSize="small" sx={{ color: '#25D366' }} /></ListItemIcon>
             <ListItemText>Recordar por WhatsApp</ListItemText>
@@ -463,24 +465,28 @@ function CobrarDialog({ open, cita, onClose, onSaved }) {
   const [metodo, setMetodo]       = useState('Efectivo');
   const [precio, setPrecio]       = useState(cita.producto_precio || '');
   const [solicita_fe, setSolicitaFe] = useState(false);
+  const [cedula_fe, setCedulaFe]  = useState('');
   const [saving, setSaving]       = useState(false);
 
   const total = parseFloat(precio) || 0;
-  // FE requiere cliente con cédula registrada en el sistema
-  const puedeEmitirFE = Boolean(cita.cliente_id);
-
   const greenBg     = isDark ? 'rgba(16,185,129,0.12)' : '#F0FDF4';
   const greenBorder = isDark ? 'rgba(134,239,172,0.3)'  : '#86EFAC';
 
+  // FE necesita cédula. Si el cliente no está registrado (o no tiene cédula), la pedimos.
+  // No bloqueamos el checkbox: permitimos siempre, y mostramos el campo cuando hace falta.
+  const necesitaCedula = solicita_fe && !cita.cliente_id;
+
   const handleCobrar = async () => {
     if (!total) { toast.error('Ingresa un precio válido.'); return; }
-    if (solicita_fe && !puedeEmitirFE) {
-      toast.error('Para emitir factura electrónica el cliente debe estar registrado en el sistema con su cédula.');
+    if (solicita_fe && necesitaCedula && !cedula_fe.trim()) {
+      toast.error('Ingresa el número de cédula o NIT del cliente para emitir la factura electrónica.');
       return;
     }
     setSaving(true);
     try {
-      await cobrarCita(cita.id, { metodo_pago: metodo, precio_unitario: total, solicita_fe });
+      const payload = { metodo_pago: metodo, precio_unitario: total, solicita_fe };
+      if (solicita_fe && cedula_fe.trim()) payload.cedula_fe = cedula_fe.trim();
+      await cobrarCita(cita.id, payload);
       toast.success(`✅ Venta registrada por $${total.toLocaleString('es-CO')}`);
       onSaved();
     } catch (e) {
@@ -511,17 +517,21 @@ function CobrarDialog({ open, cita, onClose, onSaved }) {
             value={metodo} onChange={e => setMetodo(e.target.value)}>
             {METODOS_PAGO.map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
           </TextField>
-          <Tooltip title={!puedeEmitirFE ? 'Requiere cliente registrado con cédula en el sistema' : ''} arrow>
-            <FormControlLabel
-              control={
-                <Checkbox size="small" checked={solicita_fe}
-                  onChange={e => setSolicitaFe(e.target.checked)}
-                  disabled={!puedeEmitirFE}
-                  sx={{ color: GREEN, '&.Mui-checked': { color: GREEN } }} />
-              }
-              label={<Typography sx={{ fontSize: 13 }}>Emitir Factura Electrónica (DIAN)</Typography>}
-            />
-          </Tooltip>
+          <FormControlLabel
+            control={
+              <Checkbox size="small" checked={solicita_fe}
+                onChange={e => { setSolicitaFe(e.target.checked); if (!e.target.checked) setCedulaFe(''); }}
+                sx={{ color: GREEN, '&.Mui-checked': { color: GREEN } }} />
+            }
+            label={<Typography sx={{ fontSize: 13 }}>Emitir Factura Electrónica (DIAN)</Typography>}
+          />
+          {necesitaCedula && (
+            <TextField fullWidth size="small"
+              label="Cédula o NIT del cliente (requerido para FE)"
+              value={cedula_fe} onChange={e => setCedulaFe(e.target.value)}
+              helperText="El cliente se registrará en el sistema con este documento."
+              autoFocus />
+          )}
           {total > 0 && (
             <Paper sx={{ p: 1.5, bgcolor: greenBg, border: `1px solid ${greenBorder}`, borderRadius: 2, textAlign: 'right' }}>
               <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Total a registrar</Typography>
@@ -535,7 +545,7 @@ function CobrarDialog({ open, cita, onClose, onSaved }) {
       <DialogActions sx={{ p: 2 }}>
         <Button onClick={onClose} color="inherit">Cancelar</Button>
         <Button variant="contained" disableElevation onClick={handleCobrar}
-          disabled={saving || !total}
+          disabled={saving || !total || (necesitaCedula && !cedula_fe.trim())}
           startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <CheckCircle />}
           sx={{ bgcolor: GREEN, '&:hover': { bgcolor: '#15803D' } }}>
           Registrar venta

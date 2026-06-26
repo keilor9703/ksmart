@@ -479,8 +479,22 @@ def cobrar_cita(db: Session, empresa_id: int, cita_id: int, data) -> models.Cita
             db.add(nuevo)
             db.flush()
             cliente_existente = nuevo
+        # Si el operador proporcionó cédula/NIT para FE y el cliente aún no la tiene, actualizarla.
+        cedula_fe = getattr(data, 'cedula_fe', None)
+        if cedula_fe and not cliente_existente.cedula:
+            cliente_existente.cedula = cedula_fe.strip()
         cliente_id = cliente_existente.id
         cita.cliente_id = cliente_id
+
+    # Si el cliente ya estaba registrado pero sin cédula y el operador la proporcionó, actualizarla.
+    cedula_fe = getattr(data, 'cedula_fe', None)
+    if cedula_fe and cita.cliente_id:
+        cli = db.query(models.Cliente).filter(
+            models.Cliente.id == cita.cliente_id,
+            models.Cliente.empresa_id == empresa_id,
+        ).first()
+        if cli and not cli.cedula:
+            cli.cedula = cedula_fe.strip()
 
     venta_data = schemas.VentaCreate(
         cliente_id=cliente_id,
