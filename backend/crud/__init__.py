@@ -200,3 +200,12 @@ from crud.contabilidad import (
     get_balance_general, get_resumen_iva, crear_asiento_manual,
 )
 from crud.contabilidad import listar_cierres, ejecutar_cierre_contable, periodo_esta_cerrado
+
+# Agendamiento de Citas
+from crud.agendamiento import (
+    AgendamientoError,
+    get_servicios_agendables, configurar_servicio_agendable,
+    calcular_disponibilidad,
+    get_citas, get_cita, create_cita, update_cita,
+    cambiar_estado_cita, delete_cita,
+)

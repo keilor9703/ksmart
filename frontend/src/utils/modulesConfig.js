@@ -54,6 +54,8 @@ import QrCode2 from '@mui/icons-material/QrCode2';
 import Settings from '@mui/icons-material/Settings';
 import AutoAwesome from '@mui/icons-material/AutoAwesome';
 import Receipt from '@mui/icons-material/Receipt';
+import EventAvailable from '@mui/icons-material/EventAvailable';
+import EventNote from '@mui/icons-material/EventNote';
 
 
 // ─── DICCIONARIO de iconos y colores por frontend_path ────────────────────
@@ -109,6 +111,10 @@ export const MODULE_ICONS = {
   '/restaurante/config':   { icon: <RoomService />,     color: '#8B5CF6', label: 'Config Restaurante' },
   '/restaurante/caja':     { icon: <PointOfSale />,     color: '#7C3AED', label: 'Caja Restaurante' },
   '/restaurante/reportes': { icon: <BarChart />,        color: '#F97316', label: 'Reportes Restaurante' },
+
+  // Agendamiento de citas (Tonos Teal/Esmeralda)
+  '/agendamiento':         { icon: <EventNote />,      color: '#0D9488', label: 'Agendamiento' },
+  '/agendamiento/config':  { icon: <EventAvailable />, color: '#0F766E', label: 'Config Agendamiento' },
 
   // Contabilidad
   '/contabilidad': { icon: <AutoAwesome />, color: '#6366F1', label: 'Contabilidad' },

@@ -202,4 +202,22 @@ export const fetchAuditLogs = (params = {}) => apiClient.get('/superadmin/audit-
 export const fetchTiposNegocio = () => apiClient.get('/superadmin/tipos-negocio');
 export const updateTipoNegocio = (tipo, data) => apiClient.put(`/superadmin/tipos-negocio/${tipo}`, data);
 
+// =========================
+// API AGENDAMIENTO DE CITAS
+// =========================
+export const fetchServiciosAgendables = (soloActivos = false) =>
+  apiClient.get('/agendamiento/servicios', { params: { solo_activos: soloActivos } });
+export const configurarServicioAgendable = (productoId, data) =>
+  apiClient.put(`/agendamiento/servicios/${productoId}`, data);
+export const fetchDisponibilidad = (productoId, fecha) =>
+  apiClient.get('/agendamiento/disponibilidad', { params: { producto_id: productoId, fecha } });
+export const fetchCitas = (params = {}) =>
+  apiClient.get('/agendamiento/citas', { params });
+export const fetchCita = (id) => apiClient.get(`/agendamiento/citas/${id}`);
+export const createCita = (data) => apiClient.post('/agendamiento/citas', data);
+export const updateCita = (id, data) => apiClient.put(`/agendamiento/citas/${id}`, data);
+export const cambiarEstadoCita = (id, estado) =>
+  apiClient.patch(`/agendamiento/citas/${id}/estado`, null, { params: { estado } });
+export const deleteCita = (id) => apiClient.delete(`/agendamiento/citas/${id}`);
+
 export default apiClient;

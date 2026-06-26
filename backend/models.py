@@ -344,6 +344,10 @@ class Producto(Base, TenantMixin):
 
     comision_pct = Column(Float, nullable=True)  # Per-service commission override; None = use global
 
+    # 📅 AGENDAMIENTO: duración estándar de la cita para este servicio (en minutos)
+    duracion_minutos = Column(Integer, nullable=True)  # None = no agendable / sin duración definida
+    agendable        = Column(Boolean, default=False, index=True)  # Habilita el servicio para citas
+
     # Ej: caja de 4 carnes → costo=$12.000, unidades_por_empaque=4 → costo real por unidad=$3.000
     unidades_por_empaque = Column(Float, default=1.0, nullable=False)
 
@@ -1703,3 +1707,65 @@ class PlataformaConfig(Base):
     resolucion_clave_tecnica  = Column(String(200), nullable=True)
 
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 📅 AGENDAMIENTO DE CITAS (módulo de valor agregado)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class EstadoCita(str, enum.Enum):
+    PENDIENTE   = "pendiente"
+    CONFIRMADA  = "confirmada"
+    EN_CURSO    = "en_curso"
+    COMPLETADA  = "completada"
+    CANCELADA   = "cancelada"
+    NO_ASISTIO  = "no_asistio"
+
+
+class ServicioTrabajador(Base, TenantMixin):
+    """
+    Relación muchos-a-muchos: qué usuarios (trabajadores) pueden atender qué
+    servicio (producto agendable). Si un servicio no tiene trabajadores
+    asignados, no se puede agendar.
+    """
+    __tablename__ = "servicio_trabajadores"
+    __table_args__ = (
+        UniqueConstraint('producto_id', 'user_id', name='uq_servicio_trabajador'),
+    )
+    id          = Column(Integer, primary_key=True, index=True)
+    producto_id = Column(Integer, ForeignKey("productos.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id     = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    activo      = Column(Boolean, default=True)
+
+    producto = relationship("Producto")
+    usuario  = relationship("User")
+
+
+class Cita(Base, TenantMixin):
+    """
+    Una cita agendada: un servicio, un cliente, un trabajador asignado y una
+    franja horaria. El sistema valida que el trabajador no tenga otra cita
+    solapada en ese rango.
+    """
+    __tablename__ = "citas"
+    id           = Column(Integer, primary_key=True, index=True)
+    producto_id  = Column(Integer, ForeignKey("productos.id"), nullable=False, index=True)
+    cliente_id   = Column(Integer, ForeignKey("clientes.id"), nullable=True, index=True)
+    user_id      = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)  # trabajador
+
+    fecha_inicio = Column(DateTime(timezone=True), nullable=False, index=True)
+    fecha_fin    = Column(DateTime(timezone=True), nullable=False)
+    estado       = Column(String(20), default=EstadoCita.PENDIENTE.value, index=True)
+
+    # Datos del cliente cuando agenda sin estar registrado (portal público)
+    cliente_nombre   = Column(String(150), nullable=True)
+    cliente_telefono = Column(String(40),  nullable=True)
+    cliente_email    = Column(String(150), nullable=True)
+
+    notas        = Column(Text, nullable=True)
+    created_at   = Column(DateTime(timezone=True), default=utcnow)
+    updated_at   = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    producto = relationship("Producto")
+    cliente  = relationship("Cliente")
+    usuario  = relationship("User")

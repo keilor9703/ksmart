@@ -142,6 +142,8 @@ def initialize_default_data(db: Session):
         {"name": "Config Restaurante",   "description": "Configuración de áreas y mesas.",                   "frontend_path": "/restaurante/config"},
         {"name": "Caja Restaurante",     "description": "Cobro de comandas y cierre de turno.",              "frontend_path": "/restaurante/caja"},
         {"name": "Reportes Restaurante", "description": "Reportes de ventas y desempeño del restaurante.",   "frontend_path": "/restaurante/reportes"},
+        {"name": "Agendamiento",         "description": "Agenda de citas de servicios por trabajador.",       "frontend_path": "/agendamiento"},
+        {"name": "Config Agendamiento",  "description": "Servicios agendables y asignación de trabajadores.", "frontend_path": "/agendamiento/config"},
     ]
 
     admin_role = crud.get_role_by_name(db, name="Admin", empresa_id=empresa_default.id)
@@ -183,6 +185,14 @@ def run_migrations():
         cols = [c['name'] for c in inspector.get_columns('productos')]
         if 'unidades_por_empaque' not in cols:
             conn.execute(text("ALTER TABLE productos ADD COLUMN unidades_por_empaque FLOAT NOT NULL DEFAULT 1.0"))
+            conn.commit()
+
+        # 📅 Agendamiento — columnas en productos (servicios agendables)
+        if 'duracion_minutos' not in cols:
+            conn.execute(text("ALTER TABLE productos ADD COLUMN duracion_minutos INTEGER"))
+            conn.commit()
+        if 'agendable' not in cols:
+            conn.execute(text("ALTER TABLE productos ADD COLUMN agendable BOOLEAN DEFAULT FALSE"))
             conn.commit()
 
         # Pedidos virtuales tables
