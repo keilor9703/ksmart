@@ -14,7 +14,8 @@ def list_grupos(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_active_user),
 ):
-    return crud_grupos.get_grupos(db, current_user.empresa_id)
+    tipo = getattr(current_user.empresa, "tipo_negocio", "erp") or "erp"
+    return crud_grupos.get_grupos(db, current_user.empresa_id, tipo_negocio=tipo)
 
 
 @router.post("/", response_model=schemas.GrupoProductoOut, status_code=201)
