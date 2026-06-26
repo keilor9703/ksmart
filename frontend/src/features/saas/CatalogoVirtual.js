@@ -135,7 +135,7 @@ const CatalogoVirtual = () => {
 
   // ── Effects ──────────────────────────────────────────────────────────
 
-  useEffect(() => { fetchData(); }, [slug]);
+  useEffect(() => { if (slug) fetchData(); }, [slug]);
 
   useEffect(() => {
     localStorage.setItem(`cart_${slug}`, JSON.stringify(cart));
