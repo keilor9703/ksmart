@@ -308,7 +308,7 @@ def crear_cita_publica(
         notas=payload.notas,
     )
     try:
-        cita = crud.create_cita(db, empresa_id=empresa.id, data=data)
+        cita = crud.create_cita(db, empresa_id=empresa.id, data=data, notificar=True)
     except crud.AgendamientoError as e:
         raise HTTPException(status_code=409, detail=str(e))
     return cita

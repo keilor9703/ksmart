@@ -19,6 +19,7 @@ import apiClient, {
   fetchServiciosAgendables, fetchDisponibilidad, fetchCitas,
   createCita, updateCita, cambiarEstadoCita, deleteCita, cobrarCita,
 } from '../../api';
+import usePolling from '../../hooks/usePolling';
 
 const TEAL = '#0D9488';
 const TEAL_DARK = '#0F766E';
@@ -82,7 +83,30 @@ export default function Agendamiento({ user }) {
     }
   }, [ymd, filtroTrabajador]);
 
+  // Refresco silencioso (sin spinner) para el polling: detecta citas nuevas y avisa.
+  const refrescarSilencioso = useCallback(async () => {
+    try {
+      const params = { desde: ymd, hasta: ymd };
+      if (filtroTrabajador) params.user_id = filtroTrabajador;
+      const { data } = await fetchCitas(params);
+      const nuevas = data || [];
+      setCitas(prev => {
+        const idsPrev = new Set(prev.map(c => c.id));
+        const agregadas = nuevas.filter(c => !idsPrev.has(c.id));
+        if (agregadas.length > 0 && prev.length > 0) {
+          toast.info(agregadas.length === 1
+            ? `📅 Nueva cita: ${agregadas[0].cliente_display || 'cliente'} · ${agregadas[0].producto_nombre}`
+            : `📅 ${agregadas.length} nuevas citas recibidas`);
+        }
+        return nuevas;
+      });
+    } catch { /* silencioso */ }
+  }, [ymd, filtroTrabajador]);
+
   useEffect(() => { cargarCitas(); }, [cargarCitas]);
+
+  // Auto-actualización cada 30s mientras el módulo está abierto y la pestaña visible.
+  usePolling(refrescarSilencioso, 30000);
 
   // El admin puede filtrar por trabajador; los trabajadores ya vienen
   // limitados a sus propias citas desde el backend.

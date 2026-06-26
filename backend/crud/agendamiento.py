@@ -281,7 +281,36 @@ def get_empresa_by_slug(db: Session, slug: str):
     return db.query(models.Empresa).filter(models.Empresa.slug_catalogo == slug).first()
 
 
-def create_cita(db: Session, empresa_id: int, data) -> models.Cita:
+def _notificar_nueva_cita(db: Session, empresa_id: int, cita: models.Cita):
+    """Notifica a admins y al trabajador asignado sobre una nueva reserva pública."""
+    prod = db.query(models.Producto).filter(models.Producto.id == cita.producto_id).first()
+    servicio_nombre = prod.nombre if prod else "Servicio"
+    when = cita.fecha_inicio.astimezone(BOGOTA_TZ) if cita.fecha_inicio else None
+    cuando = when.strftime("%d/%m %I:%M %p") if when else ""
+    mensaje = (
+        f"📅 Nueva cita de {cita.cliente_nombre or 'cliente'} "
+        f"— {servicio_nombre}" + (f" · {cuando}" if cuando else "") + " | Agendamiento"
+    )
+    # Destinatarios: admins de la empresa + el trabajador asignado.
+    usuarios = db.query(models.User).filter(
+        models.User.empresa_id == empresa_id,
+        models.User.is_active == True,
+    ).all()
+    destinatarios = [
+        u for u in usuarios
+        if (u.role and u.role.name == "Admin") or u.id == cita.user_id
+    ]
+    for u in destinatarios:
+        db.add(models.Notificacion(
+            usuario_id=u.id,
+            mensaje=mensaje,
+            empresa_id=empresa_id,
+            tipo="info",
+        ))
+    db.commit()
+
+
+def create_cita(db: Session, empresa_id: int, data, notificar: bool = False) -> models.Cita:
     prod = (
         db.query(models.Producto)
         .filter(models.Producto.id == data.producto_id, models.Producto.empresa_id == empresa_id)
@@ -323,6 +352,11 @@ def create_cita(db: Session, empresa_id: int, data) -> models.Cita:
     db.add(cita)
     db.commit()
     db.refresh(cita)
+    if notificar:
+        try:
+            _notificar_nueva_cita(db, empresa_id, cita)
+        except Exception:
+            db.rollback()  # una notificación fallida no debe tumbar la reserva
     return _enriquecer_cita(db, cita)
 
 
