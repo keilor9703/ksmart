@@ -2877,6 +2877,7 @@ class ServicioPublico(BaseModel):
     descripcion: Optional[str] = None
     precio: Optional[float] = None
     duracion_minutos: Optional[int] = None
+    image_count: int = 0
     model_config = ConfigDict(from_attributes=True)
 
 
