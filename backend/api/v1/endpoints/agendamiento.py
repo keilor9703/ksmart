@@ -182,17 +182,17 @@ def cambiar_estado(
     return cita
 
 
-@router.post("/citas/{cita_id}/cobrar", response_model=schemas.CitaFull)
-def cobrar_cita(
+@router.post("/citas/{cita_id}/preparar-cobro", response_model=schemas.CitaCobroPrep)
+def preparar_cobro_cita(
     cita_id: int,
-    payload: schemas.CobrarCitaRequest,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
-    """Convierte la cita en una Venta en el ERP y la marca como completada."""
+    """Prepara el cobro: garantiza el cliente y devuelve servicio + trabajador
+    para que el frontend redirija a Ventas (POS) con la venta precargada."""
     _assert_puede_gestionar(db, current_user, cita_id)
     try:
-        return crud.cobrar_cita(db, empresa_id=current_user.empresa_id, cita_id=cita_id, data=payload)
+        return crud.preparar_cobro_cita(db, empresa_id=current_user.empresa_id, cita_id=cita_id)
     except crud.AgendamientoError as e:
         raise HTTPException(status_code=409, detail=str(e))
 

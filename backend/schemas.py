@@ -490,6 +490,8 @@ class VentaBase(BaseModel):
     omitir_inventario: bool = False
     # FE individual: True = emitir FE ahora; False (default) = acumular para consolidado
     solicita_fe: bool = False
+    # Agendamiento: si la venta proviene de cobrar una cita, su id para vincularla.
+    cita_id: Optional[int] = None
 
 
 class VentaCreate(VentaBase):
@@ -2948,12 +2950,17 @@ class AgendamientoConfigOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# --- Cobro de cita ---
-class CobrarCitaRequest(BaseModel):
-    metodo_pago: str = "Efectivo"
-    precio_unitario: Optional[float] = None
-    solicita_fe: bool = False
-    cedula_fe: Optional[str] = None  # Cédula/NIT del cliente para FE cuando no está registrado
+# --- Preparación de cobro de cita ---
+# El cobro de citas ya NO se hace en el módulo de agendamiento: al oprimir
+# "Cobrar" el frontend pide esta preparación (que garantiza el cliente y reúne
+# servicio + trabajador) y redirige a Ventas (POS), donde se registra la venta.
+class CitaCobroPrep(BaseModel):
+    cita_id: int
+    precio: float
+    cliente: Cliente
+    producto: Producto
+    trabajador_id: int
+    trabajador_nombre: Optional[str] = None
 
 
 # --- Cita enriquecida (con precio y venta_id) ---

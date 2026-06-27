@@ -4,7 +4,6 @@ import {
   Avatar, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, TextField,
   MenuItem, Grid, Divider, Menu, ListItemIcon, ListItemText, Autocomplete,
   useMediaQuery, Fab, InputAdornment, ToggleButtonGroup, ToggleButton,
-  FormControlLabel, Checkbox,
 } from '@mui/material';
 import {
   EventNote, ChevronLeft, ChevronRight, Today, Add, Schedule, Person,
@@ -22,7 +21,7 @@ import 'react-big-calendar/lib/css/react-big-calendar.css';
 import './CalendarioAgenda.css';
 import apiClient, {
   fetchServiciosAgendables, fetchDisponibilidad, fetchCitas,
-  createCita, updateCita, cambiarEstadoCita, deleteCita, cobrarCita,
+  createCita, updateCita, cambiarEstadoCita, deleteCita, prepararCobroCita,
 } from '../../api';
 import usePolling from '../../hooks/usePolling';
 
@@ -49,8 +48,6 @@ const estadoChipSx = (est) => ({
   fontSize: 11,
   border: `1px solid ${est.color}44`,
 });
-
-const METODOS_PAGO = ['Efectivo', 'Tarjeta', 'Transferencia', 'Nequi', 'Daviplata', 'Otro'];
 
 const pad = n => String(n).padStart(2, '0');
 const toYMD = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -99,7 +96,6 @@ export default function Agendamiento({ user }) {
   const [editing, setEditing]       = useState(null);
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [menuCita, setMenuCita]     = useState(null);
-  const [cobrarCitaObj, setCobrarCitaObj] = useState(null);
   const [trabajadores, setTrabajadores]   = useState([]);
   const [filtroTrabajador, setFiltroTrabajador] = useState('');
   // Para nueva cita desde click en calendario
@@ -155,9 +151,28 @@ export default function Agendamiento({ user }) {
     })();
   }, [esAdmin]);
 
+  // Cobrar = preparar (garantiza cliente) y redirigir a Ventas (POS) con la venta
+  // precargada (servicio + cliente + trabajador como vendedor). La venta se
+  // registra allá; al guardarla con cita_id la cita queda completada.
+  const irACobrar = async (cita) => {
+    setMenuAnchor(null);
+    try {
+      const { data } = await prepararCobroCita(cita.id);
+      navigate('/ventas', { state: { fromCita: {
+        citaId: data.cita_id,
+        precio: data.precio,
+        cliente: data.cliente,
+        producto: data.producto,
+        trabajadorId: data.trabajador_id,
+        trabajadorNombre: data.trabajador_nombre,
+      } } });
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || 'No se pudo preparar el cobro.');
+    }
+  };
+
   const handleSaved = (saved) => {
     setDialogOpen(false);
-    setCobrarCitaObj(null);
     setNuevaCitaFecha(null);
     if (saved?.fecha_inicio) {
       const d = new Date(saved.fecha_inicio);
@@ -402,7 +417,7 @@ export default function Agendamiento({ user }) {
           <Stack spacing={1.2}>
             {citasOrdenadas.map(cita => <CitaCard key={cita.id} cita={cita}
               onMenu={(e, c) => { setMenuAnchor(e.currentTarget); setMenuCita(c); }}
-              onCobrar={setCobrarCitaObj} />)}
+              onCobrar={irACobrar} />)}
           </Stack>
         )
       ) : (
@@ -485,7 +500,7 @@ export default function Agendamiento({ user }) {
           </MenuItem>
         )}
         {menuCita && !menuCita.venta_id && !['cancelada', 'no_asistio'].includes(menuCita.estado) && (
-          <MenuItem onClick={() => { setCobrarCitaObj(menuCita); setMenuAnchor(null); }}>
+          <MenuItem onClick={() => irACobrar(menuCita)}>
             <ListItemIcon><AttachMoney fontSize="small" sx={{ color: GREEN }} /></ListItemIcon>
             <ListItemText>Cobrar</ListItemText>
           </MenuItem>
@@ -541,11 +556,6 @@ export default function Agendamiento({ user }) {
           editing={editing}
           fechaDefault={nuevaCitaFecha || fecha}
           horaDefault={nuevaCitaFecha}
-          onSaved={handleSaved} />
-      )}
-      {cobrarCitaObj && (
-        <CobrarDialog open cita={cobrarCitaObj}
-          onClose={() => setCobrarCitaObj(null)}
           onSaved={handleSaved} />
       )}
     </Box>
@@ -624,100 +634,6 @@ function CitaCard({ cita, onMenu, onCobrar }) {
         <IconButton size="small" onClick={(e) => onMenu(e, cita)}><MoreVert /></IconButton>
       </Stack>
     </Paper>
-  );
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-// Dialog de cobro
-// ════════════════════════════════════════════════════════════════════════════
-function CobrarDialog({ open, cita, onClose, onSaved }) {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
-  const [metodo, setMetodo]       = useState('Efectivo');
-  const [precio, setPrecio]       = useState(cita.producto_precio || '');
-  const [solicita_fe, setSolicitaFe] = useState(false);
-  const [cedula_fe, setCedulaFe]  = useState('');
-  const [saving, setSaving]       = useState(false);
-
-  const total = parseFloat(precio) || 0;
-  const greenBg     = isDark ? 'rgba(16,185,129,0.12)' : '#F0FDF4';
-  const greenBorder = isDark ? 'rgba(134,239,172,0.3)'  : '#86EFAC';
-  const necesitaCedula = solicita_fe && !cita.cliente_id;
-
-  const handleCobrar = async () => {
-    if (!total) { toast.error('Ingresa un precio válido.'); return; }
-    if (solicita_fe && necesitaCedula && !cedula_fe.trim()) {
-      toast.error('Ingresa el número de cédula o NIT del cliente para emitir la factura electrónica.');
-      return;
-    }
-    setSaving(true);
-    try {
-      const payload = { metodo_pago: metodo, precio_unitario: total, solicita_fe };
-      if (solicita_fe && cedula_fe.trim()) payload.cedula_fe = cedula_fe.trim();
-      await cobrarCita(cita.id, payload);
-      toast.success(`✅ Venta registrada por $${total.toLocaleString('es-CO')}`);
-      onSaved();
-    } catch (e) {
-      toast.error(e?.response?.data?.detail || 'No se pudo registrar la venta.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
-      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.2, fontWeight: 800 }}>
-        <Avatar sx={{ bgcolor: GREEN, width: 34, height: 34 }}><AttachMoney sx={{ fontSize: 20 }} /></Avatar>
-        Cobrar cita
-      </DialogTitle>
-      <DialogContent dividers>
-        <Stack spacing={2} sx={{ mt: 0.5 }}>
-          <Box sx={{ p: 1.5, bgcolor: greenBg, borderRadius: 2, border: `1px solid ${greenBorder}` }}>
-            <Typography sx={{ fontWeight: 700, fontSize: 15 }}>{cita.producto_nombre}</Typography>
-            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-              Cliente: {cita.cliente_display || 'Sin cliente'} · Trabajador: {cita.trabajador_nombre}
-            </Typography>
-          </Box>
-          <TextField fullWidth size="small" label="Precio / Total a cobrar"
-            type="number" value={precio} onChange={e => setPrecio(e.target.value)}
-            InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }} />
-          <TextField select fullWidth size="small" label="Método de pago"
-            value={metodo} onChange={e => setMetodo(e.target.value)}>
-            {METODOS_PAGO.map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
-          </TextField>
-          <FormControlLabel
-            control={<Checkbox size="small" checked={solicita_fe}
-              onChange={e => { setSolicitaFe(e.target.checked); if (!e.target.checked) setCedulaFe(''); }}
-              sx={{ color: GREEN, '&.Mui-checked': { color: GREEN } }} />}
-            label={<Typography sx={{ fontSize: 13 }}>Emitir Factura Electrónica (DIAN)</Typography>}
-          />
-          {necesitaCedula && (
-            <TextField fullWidth size="small"
-              label="Cédula o NIT del cliente (requerido para FE)"
-              value={cedula_fe} onChange={e => setCedulaFe(e.target.value)}
-              helperText="El cliente se registrará en el sistema con este documento."
-              autoFocus />
-          )}
-          {total > 0 && (
-            <Paper sx={{ p: 1.5, bgcolor: greenBg, border: `1px solid ${greenBorder}`, borderRadius: 2, textAlign: 'right' }}>
-              <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Total a registrar</Typography>
-              <Typography sx={{ fontSize: 22, fontWeight: 800, color: GREEN }}>
-                ${total.toLocaleString('es-CO')}
-              </Typography>
-            </Paper>
-          )}
-        </Stack>
-      </DialogContent>
-      <DialogActions sx={{ p: 2 }}>
-        <Button onClick={onClose} color="inherit">Cancelar</Button>
-        <Button variant="contained" disableElevation onClick={handleCobrar}
-          disabled={saving || !total || (necesitaCedula && !cedula_fe.trim())}
-          startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <CheckCircle />}
-          sx={{ bgcolor: GREEN, '&:hover': { bgcolor: '#15803D' } }}>
-          Registrar venta
-        </Button>
-      </DialogActions>
-    </Dialog>
   );
 }
 

@@ -232,8 +232,9 @@ export const fetchDisponibilidadPublica = (slug, productoId, fecha) =>
 export const crearCitaPublica = (slug, data) =>
   apiClient.post(`/agendamiento/publico/${slug}/cita`, data);
 
-// Cobro de cita → genera venta en ERP
-export const cobrarCita = (citaId, data) =>
-  apiClient.post(`/agendamiento/citas/${citaId}/cobrar`, data);
+// Preparar cobro de cita → garantiza el cliente y devuelve servicio + trabajador
+// para redirigir a Ventas (POS), donde se registra la venta.
+export const prepararCobroCita = (citaId) =>
+  apiClient.post(`/agendamiento/citas/${citaId}/preparar-cobro`);
 
 export default apiClient;

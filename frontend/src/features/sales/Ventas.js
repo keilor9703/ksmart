@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
 import { toast } from 'react-toastify';
@@ -440,6 +441,12 @@ const Ventas = ({ user }) => {
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+    const location = useLocation();
+
+    // Cobro proveniente de una cita del módulo de agendamiento.
+    const citaIdRef = useRef(null);          // id de la cita a vincular al guardar
+    const citaVendedorRef = useRef(null);    // id del trabajador (vendedor) de la cita
+    const fromCitaAppliedRef = useRef(false); // evita reaplicar al re-render
 
     // ── Data ──
     const [totalVentasHoy, setTotalVentasHoy] = useState(0);
@@ -531,6 +538,45 @@ const Ventas = ({ user }) => {
             redeem_rate: r.data.fidelizacion_redeem_rate ?? PUNTOS_REDEEM_RATE_DEFAULT,
         })).catch(() => {});
     }, []);
+
+    // ── Precarga desde una cita (cobro de agendamiento) ──
+    // El módulo de agendamiento redirige aquí con { state: { fromCita } }: cliente
+    // (ya garantizado), servicio como ítem y el trabajador como vendedor.
+    useEffect(() => {
+        const fc = location.state?.fromCita;
+        if (!fc || fromCitaAppliedRef.current) return;
+        fromCitaAppliedRef.current = true;
+
+        if (fc.cliente) {
+            setCliente(fc.cliente);
+            setIsMostrador(false);
+            setClientes(prev => prev.some(c => c.id === fc.cliente.id) ? prev : [...prev, fc.cliente]);
+        }
+        if (fc.producto) {
+            setSaleDetails([{
+                id: Date.now(), producto: fc.producto, cantidad: 1,
+                precioUnitario: fc.precio ?? fc.producto.precio ?? 0, descuentoPct: 0,
+            }]);
+        }
+        if (fc.trabajadorId) {
+            citaVendedorRef.current = fc.trabajadorId;  // garantiza operador_id = trabajador
+            const trab = { id: fc.trabajadorId, nombre_completo: fc.trabajadorNombre, username: fc.trabajadorNombre };
+            setEmpleados(prev => prev.some(e => e.id === fc.trabajadorId) ? prev : [...prev, trab]);
+            setAtendidoPor(prev => prev || trab);
+        }
+        citaIdRef.current = fc.citaId;
+        toast.info('Cobro de cita cargado. Agrega más productos si lo necesitas y registra la venta.');
+        // Limpia el state para que un refresh no reaplique la precarga.
+        window.history.replaceState({}, document.title);
+    }, [location.state]);
+
+    // Cuando lleguen los empleados reales, reemplaza el vendedor inyectado por el
+    // objeto completo del trabajador (para el Autocomplete), sin perder el id.
+    useEffect(() => {
+        if (!citaVendedorRef.current || !empleados.length) return;
+        const emp = empleados.find(e => e.id === citaVendedorRef.current);
+        if (emp) setAtendidoPor(prev => (prev && prev.id === emp.id) ? emp : (prev || emp));
+    }, [empleados]);
 
     const fetchVentas = (p = page, rpp = rowsPerPage, search = searchTerm, fi = fechaInicio, ff = fechaFin, ep = estadoPagoFiltro) => {
         const params = { page: p + 1, page_size: rpp };
@@ -1024,11 +1070,13 @@ useEffect(() => {
             })),
             pagada, metodo_pago: pagada ? metodoPago : null,
             iva_porcentaje: parseFloat(ivaPorcentajeGlobal),
-            operador_id: atendidoPor?.id ?? user?.id,
+            // El vendedor es el trabajador de la cita si la venta vino de un cobro de agendamiento.
+            operador_id: atendidoPor?.id ?? citaVendedorRef.current ?? user?.id,
             descuento_puntos: descuentoPuntosImporte,
             puntos_canjeados: puntosACanjear,
             omitir_inventario: omitirInventarioRef.current,
             solicita_fe: solicitaFe,
+            cita_id: citaIdRef.current || undefined,
         };
 
         const snapDetails = validDetails.map(d => ({
@@ -1045,6 +1093,9 @@ useEffect(() => {
                 : await apiClient.post('/ventas/', ventaData);
             const saved = res.data || {};
             toast.success(`Venta ${editingVenta ? 'actualizada' : 'registrada'} exitosamente`);
+            // La cita (si la hubo) quedó vinculada en el backend; limpiar para la próxima venta.
+            citaIdRef.current = null;
+            citaVendedorRef.current = null;
             fetchVentas(); fetchVentasSummary();
 
             const totalBruto = snapDetails.reduce((s, d) => s + d.precio_unitario * d.cantidad, 0);
