@@ -1239,6 +1239,55 @@ class RegistroSaaS(BaseModel):
 # =========================
 class BoldHashRequest(BaseModel):
     plan_name: str  # Ej: "premium_mensual" o "premium_anual"
+    codigo_promo: Optional[str] = None  # Código promocional opcional
+
+
+# ─── Códigos promocionales ──────────────────────────────────────────────────
+class CodigoPromocionalBase(BaseModel):
+    codigo: str
+    descripcion: Optional[str] = None
+    tipo: str = "porcentaje"  # 'porcentaje' | 'fijo'
+    valor: float
+    activo: bool = True
+    fecha_inicio: Optional[datetime] = None
+    fecha_fin: Optional[datetime] = None
+    max_usos: Optional[int] = None
+    un_uso_por_empresa: bool = True
+    planes_aplicables: Optional[List[int]] = None
+
+class CodigoPromocionalCreate(CodigoPromocionalBase):
+    pass
+
+class CodigoPromocionalUpdate(BaseModel):
+    descripcion: Optional[str] = None
+    tipo: Optional[str] = None
+    valor: Optional[float] = None
+    activo: Optional[bool] = None
+    fecha_inicio: Optional[datetime] = None
+    fecha_fin: Optional[datetime] = None
+    max_usos: Optional[int] = None
+    un_uso_por_empresa: Optional[bool] = None
+    planes_aplicables: Optional[List[int]] = None
+
+class CodigoPromocionalOut(CodigoPromocionalBase):
+    id: int
+    usos_actuales: int = 0
+    model_config = ConfigDict(from_attributes=True)
+
+class ValidarCodigoRequest(BaseModel):
+    codigo: str
+    plan_id: Optional[int] = None
+    plan_name: Optional[str] = None  # codigo_interno del plan (alternativa a plan_id)
+
+class ValidarCodigoResponse(BaseModel):
+    valido: bool
+    motivo: Optional[str] = None
+    codigo: Optional[str] = None
+    tipo: Optional[str] = None
+    valor: Optional[float] = None
+    descuento: float = 0.0
+    precio_original: float = 0.0
+    precio_final: float = 0.0
 
 class BoldHashResponse(BaseModel):
     order_id: str

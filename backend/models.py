@@ -810,12 +810,57 @@ class RegistroPago(Base):
     cufe_fe               = Column(String, nullable=True)
     pdf_url_fe            = Column(String, nullable=True)
 
+    # Código promocional aplicado (si lo hubo)
+    codigo_promo_id    = Column(Integer, ForeignKey("codigos_promocionales.id"), nullable=True)
+    descuento_aplicado = Column(Float, nullable=True, default=0.0)  # COP descontados
+
     empresa = relationship("Empresa")
     plan = relationship("PlanSuscripcion")
 
     __table_args__ = (
         UniqueConstraint('bold_tx_id', name='uq_registros_pagos_bold_tx_id'),
     )
+
+
+class CodigoPromocional(Base):
+    """Código promocional que aplica un descuento al precio de una suscripción."""
+    __tablename__ = "codigos_promocionales"
+
+    id = Column(Integer, primary_key=True, index=True)
+    codigo = Column(String(40), unique=True, index=True, nullable=False)  # siempre en mayúsculas
+    descripcion = Column(String(160), nullable=True)
+
+    tipo  = Column(String(12), nullable=False, default="porcentaje")  # 'porcentaje' | 'fijo'
+    valor = Column(Float, nullable=False)  # % (0-100) o COP fijo según tipo
+
+    activo = Column(Boolean, default=True, nullable=False)
+    fecha_inicio = Column(DateTime(timezone=True), nullable=True)
+    fecha_fin    = Column(DateTime(timezone=True), nullable=True)
+
+    max_usos      = Column(Integer, nullable=True)        # NULL = ilimitado
+    usos_actuales = Column(Integer, default=0, nullable=False)
+    un_uso_por_empresa = Column(Boolean, default=True, nullable=False)
+
+    # NULL/[] = aplica a todos los planes; lista de ids = restringido a esos planes
+    planes_aplicables = Column(JSON, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class IntentoPagoSuscripcion(Base):
+    """Intención de pago creada al generar el hash de Wompi. Permite que la
+    confirmación valide el monto esperado (con descuento) sin confiar en el
+    cliente: la referencia es única y guarda el monto firmado y el código."""
+    __tablename__ = "intentos_pago_suscripcion"
+
+    id = Column(Integer, primary_key=True, index=True)
+    reference = Column(String(80), unique=True, index=True, nullable=False)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False)
+    plan_id = Column(Integer, ForeignKey("planes_suscripcion.id"), nullable=False)
+    codigo_promo_id = Column(Integer, ForeignKey("codigos_promocionales.id"), nullable=True)
+    monto_esperado_centavos = Column(Integer, nullable=False)
+    descuento_aplicado = Column(Float, nullable=True, default=0.0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 

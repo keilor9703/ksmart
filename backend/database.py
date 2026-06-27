@@ -2292,6 +2292,21 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v107)
                 logger.info("V107 (franja de descanso en agendamiento_config) aplicada.")
 
+            migration_v108 = "v108_registros_pagos_codigo_promo"
+            if not _migration_already_applied(conn, migration_v108):
+                if not _column_exists(conn, "registros_pagos", "codigo_promo_id"):
+                    conn.execute(text(
+                        "ALTER TABLE registros_pagos ADD COLUMN codigo_promo_id INTEGER NULL"
+                    ))
+                    logger.info("V108: columna 'codigo_promo_id' añadida a registros_pagos")
+                if not _column_exists(conn, "registros_pagos", "descuento_aplicado"):
+                    conn.execute(text(
+                        "ALTER TABLE registros_pagos ADD COLUMN descuento_aplicado DOUBLE PRECISION NULL DEFAULT 0"
+                    ))
+                    logger.info("V108: columna 'descuento_aplicado' añadida a registros_pagos")
+                _mark_migration_applied(conn, migration_v108)
+                logger.info("V108 (código promocional en registros_pagos) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
