@@ -1,18 +1,50 @@
 import React, { useState } from 'react';
-import { Button, CircularProgress } from '@mui/material';
-import { Payments } from '@mui/icons-material';
+import { Button, CircularProgress, Box, TextField, Typography, InputAdornment } from '@mui/material';
+import { Payments, LocalOffer, CheckCircle, Close } from '@mui/icons-material';
 import { apiClient } from '../../api';
 import { toast } from 'react-toastify';
 
-const WompiButton = ({ planName, onSuccess }) => {
+const fmtCOP = (n) => `$${Number(n || 0).toLocaleString('es-CO')}`;
+
+const WompiButton = ({ planName, onSuccess, enablePromo = true }) => {
   const [loading, setLoading] = useState(false);
+  // Código promocional
+  const [codigo, setCodigo]       = useState('');
+  const [validando, setValidando] = useState(false);
+  const [promo, setPromo]         = useState(null);  // { codigo, descuento, precio_final }
+
+  const aplicarCodigo = async () => {
+    const code = codigo.trim();
+    if (!code) return;
+    setValidando(true);
+    try {
+      const { data } = await apiClient.post('/promociones/validar', {
+        codigo: code, plan_name: planName,
+      });
+      if (!data.valido) {
+        toast.error(data.motivo || 'Código no válido.');
+        setPromo(null);
+        return;
+      }
+      setPromo(data);
+      toast.success(`Código aplicado: ${fmtCOP(data.descuento)} de descuento.`);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || 'No se pudo validar el código.');
+      setPromo(null);
+    } finally {
+      setValidando(false);
+    }
+  };
+
+  const quitarCodigo = () => { setPromo(null); setCodigo(''); };
 
   const handlePayment = async () => {
     setLoading(true);
     try {
       // 1. Obtener hash de integridad y datos del plan desde el backend
       const { data } = await apiClient.post('/wompi/generar-hash', {
-        plan_name: planName
+        plan_name: planName,
+        codigo_promo: promo ? promo.codigo : undefined,
       });
 
       if (data.public_key === "pub_test_...") {
@@ -24,15 +56,12 @@ const WompiButton = ({ planName, onSuccess }) => {
       let safePublicKey = data.public_key.replace(/['"]/g, '');
 
       // 2. Configuración del widget — SIN redirectUrl para evitar recarga de página.
-      //    La recarga causaba que checkAuth() corriera antes de que el webhook de
-      //    Wompi llegara, dejando al usuario en la pantalla de plan expirado.
       const checkoutData = {
         currency: data.currency,
         amountInCents: parseInt(data.amount_in_cents),
         reference: data.reference,
         publicKey: safePublicKey,
         signature: { integrity: data.signature },
-        // redirectUrl eliminado intencionalmente
       };
 
       if (!window.WidgetCheckout) {
@@ -56,8 +85,6 @@ const WompiButton = ({ planName, onSuccess }) => {
             });
             toast.success("¡Suscripción activada! Bienvenido.");
           } catch (activationErr) {
-            // Si ya fue procesado por el webhook, el endpoint responde OK igual.
-            // Solo loguear si es un error real.
             const status = activationErr?.response?.status;
             if (status !== 200 && status !== 409) {
               console.warn("confirmar-pago-widget error:", activationErr?.response?.data);
@@ -79,33 +106,80 @@ const WompiButton = ({ planName, onSuccess }) => {
       } else {
         try { errorMsg = JSON.stringify(error); } catch(e) {}
       }
-      toast.error("No se pudo iniciar el pago.");
-      alert("🔎 DIAGNÓSTICO DE ERROR:\n" + errorMsg);
+      toast.error(errorMsg || "No se pudo iniciar el pago.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Button
-      variant="contained"
-      fullWidth
-      onClick={handlePayment}
-      disabled={loading}
-      startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <Payments />}
-      sx={{ 
-        bgcolor: '#F43F5E', 
-        borderRadius: 3, 
-        py: 1.8, 
-        fontWeight: 800,
-        fontSize: '0.95rem',
-        boxShadow: '0 4px 14px rgba(244, 63, 94, 0.4)',
-        '&:hover': { bgcolor: '#E11D48', boxShadow: '0 6px 20px rgba(244, 63, 94, 0.6)' },
-        textTransform: 'none'
-      }}
-    >
-      {loading ? 'Conectando...' : 'Pagar con Wompi / Nequi'}
-    </Button>
+    <Box>
+      {/* Código promocional */}
+      {enablePromo && (
+        <Box sx={{ mb: 1.5 }}>
+          {promo ? (
+            <Box sx={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              gap: 1, p: 1.2, borderRadius: 2, bgcolor: 'rgba(16,185,129,0.10)',
+              border: '1px solid rgba(16,185,129,0.35)',
+            }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, minWidth: 0 }}>
+                <CheckCircle sx={{ fontSize: 18, color: '#10B981' }} />
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#10B981' }} noWrap>
+                    {promo.codigo} aplicado
+                  </Typography>
+                  <Typography sx={{ fontSize: 11.5, color: 'text.secondary' }}>
+                    −{fmtCOP(promo.descuento)} · Total: {fmtCOP(promo.precio_final)}
+                  </Typography>
+                </Box>
+              </Box>
+              <Button size="small" onClick={quitarCodigo} startIcon={<Close sx={{ fontSize: 15 }} />}
+                sx={{ color: 'text.secondary', minWidth: 0, fontSize: 11.5 }}>
+                Quitar
+              </Button>
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <TextField
+                size="small" fullWidth placeholder="Código promocional"
+                value={codigo}
+                onChange={e => setCodigo(e.target.value.toUpperCase())}
+                onKeyDown={e => { if (e.key === 'Enter') aplicarCodigo(); }}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start"><LocalOffer sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment>,
+                }}
+              />
+              <Button variant="outlined" onClick={aplicarCodigo}
+                disabled={validando || !codigo.trim()}
+                sx={{ flexShrink: 0, borderRadius: 2 }}>
+                {validando ? <CircularProgress size={16} /> : 'Aplicar'}
+              </Button>
+            </Box>
+          )}
+        </Box>
+      )}
+
+      <Button
+        variant="contained"
+        fullWidth
+        onClick={handlePayment}
+        disabled={loading}
+        startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <Payments />}
+        sx={{
+          bgcolor: '#F43F5E',
+          borderRadius: 3,
+          py: 1.8,
+          fontWeight: 800,
+          fontSize: '0.95rem',
+          boxShadow: '0 4px 14px rgba(244, 63, 94, 0.4)',
+          '&:hover': { bgcolor: '#E11D48', boxShadow: '0 6px 20px rgba(244, 63, 94, 0.6)' },
+          textTransform: 'none'
+        }}
+      >
+        {loading ? 'Conectando...' : 'Pagar con Wompi / Nequi'}
+      </Button>
+    </Box>
   );
 };
 

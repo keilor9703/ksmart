@@ -29,6 +29,7 @@ import JobsControl from './components/JobsControl';
 import PlanFormDialog from './components/PlanFormDialog'; // ✅ Nuevo Componente Importado
 import PlataformaConfigForm from './components/PlataformaConfigForm';
 import FinanzasTab from './components/FinanzasTab';
+import CodigosPromoManager from './components/CodigosPromoManager';
 
 const ACCENT = '#F43F5E';
 const BLUE = '#3B82F6';
@@ -58,6 +59,7 @@ const TABS_CONFIG = [
   { label: 'Finanzas', icon: <ReceiptLong fontSize="small" />, fullLabel: 'Control de Pagos' },
   { label: 'Perfiles', icon: <Tune fontSize="small" />, fullLabel: 'Módulos por Tipo de Negocio' },
   { label: 'Mi Empresa', icon: <Storefront fontSize="small" />, fullLabel: 'Datos del Facturador (Plataforma)' },
+  { label: 'Promociones', icon: <LocalOffer fontSize="small" />, fullLabel: 'Códigos Promocionales' },
 ];
 
 const formatDateForInput = (dateString) => dateString ? new Date(dateString).toISOString().split('T')[0] : '';
@@ -429,6 +431,10 @@ export default function GestionSaaS() {
 
           <TabPanel value={tabValue} index={8}>
             <PlataformaConfigForm />
+          </TabPanel>
+
+          <TabPanel value={tabValue} index={9}>
+            <CodigosPromoManager planes={planesCatalog} />
           </TabPanel>
         </Box>
       </Box>

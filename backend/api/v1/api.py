@@ -8,7 +8,7 @@ from .endpoints import (
     compras, produccion, ordenes_trabajo, panel_operador, planes, saas,
     grupos_producto, lavadero, catalogo, pedidos_virtuales, impuestos,
     suscripcion, restaurante, puntos, empresa_config, setup, contabilidad,
-    facturacion_electronica, agendamiento,
+    facturacion_electronica, agendamiento, promociones,
 )
 
 api_router = APIRouter()
@@ -29,6 +29,7 @@ api_router.include_router(caja.router, prefix="/caja", tags=["caja"])
 api_router.include_router(devoluciones.router, prefix="/devoluciones", tags=["devoluciones"])
 api_router.include_router(notificaciones.router, prefix="/notificaciones", tags=["notificaciones"])
 api_router.include_router(wompi.router, prefix="/wompi", tags=["wompi"])
+api_router.include_router(promociones.router, prefix="/promociones", tags=["promociones"])
 api_router.include_router(prestamos.router, prefix="/prestamos", tags=["prestamos"])
 api_router.include_router(resoluciones.router, prefix="/resoluciones", tags=["resoluciones"])
 api_router.include_router(cotizaciones.router, prefix="/cotizaciones", tags=["cotizaciones"])

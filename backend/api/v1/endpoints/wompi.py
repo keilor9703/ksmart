@@ -88,12 +88,42 @@ def generar_hash_wompi(
     if not plan:
         raise HTTPException(status_code=400, detail="El plan no existe.")
 
-    monto_en_centavos = str(int(plan.precio * 100))
+    # Código promocional opcional: valida y aplica el descuento al monto firmado.
+    from crud import promociones as crud_promo
+    precio_final = float(plan.precio or 0)
+    descuento    = 0.0
+    codigo_obj   = None
+    if request_data.codigo_promo:
+        codigo_obj, descuento, motivo = crud_promo.validar_codigo(
+            db, request_data.codigo_promo, plan, current_user.empresa_id
+        )
+        if motivo:
+            raise HTTPException(status_code=400, detail=motivo)
+        precio_final = max(0.0, float(plan.precio or 0) - descuento)
+
+    monto_centavos_int = int(round(precio_final * 100))
+    monto_en_centavos = str(monto_centavos_int)
     divisa = "COP"
     timestamp = int(time.time())
     referencia = f"KSMART-{current_user.empresa_id}-{plan.id}-{timestamp}"
     cadena = f"{referencia}{monto_en_centavos}{divisa}{WOMPI_INTEGRITY_SECRET}"
     hash_integridad = hashlib.sha256(cadena.encode("utf-8")).hexdigest()
+
+    # Guarda la intención de pago: la confirmación validará contra este monto
+    # (con descuento) sin confiar en datos del cliente.
+    try:
+        db.add(models.IntentoPagoSuscripcion(
+            reference=referencia,
+            empresa_id=current_user.empresa_id,
+            plan_id=plan.id,
+            codigo_promo_id=codigo_obj.id if codigo_obj else None,
+            monto_esperado_centavos=monto_centavos_int,
+            descuento_aplicado=descuento,
+        ))
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.warning("No se pudo registrar la intención de pago: %s", exc)
 
     return {
         "reference":       referencia,
@@ -191,9 +221,18 @@ def confirmar_pago_widget(
     if not empresa or not plan:
         raise HTTPException(status_code=404, detail="Empresa o plan no encontrado.")
 
-    # 5. Validar que el monto pagado corresponde al plan (contra manipulación de precios)
+    # 4b. Recuperar la intención de pago (monto esperado con descuento + código)
+    intento = (
+        db.query(models.IntentoPagoSuscripcion)
+        .filter(models.IntentoPagoSuscripcion.reference == reference)
+        .first()
+    )
+    descuento_aplicado = float(intento.descuento_aplicado or 0) if intento else 0.0
+    codigo_promo_id    = intento.codigo_promo_id if intento else None
+
+    # 5. Validar que el monto pagado corresponde al esperado (con descuento si aplica)
     if tx is not None:
-        monto_esperado = int(plan.precio * 100)
+        monto_esperado = intento.monto_esperado_centavos if intento else int(plan.precio * 100)
         if amount_from_tx < monto_esperado:
             logger.warning(
                 f"confirmar-pago-widget: monto pagado {amount_from_tx} < esperado {monto_esperado} "
@@ -224,9 +263,18 @@ def confirmar_pago_widget(
         metodo_pago  = payment_method,
         bold_tx_id   = wompi_id,
         email_pagador= customer_email,
+        codigo_promo_id    = codigo_promo_id,
+        descuento_aplicado = descuento_aplicado,
         payload_auditoria = {"wompi_id": wompi_id, "verificado_api": tx is not None},
     )
     db.add(nuevo_pago)
+    # Incrementar el contador de usos del código promocional aplicado.
+    if codigo_promo_id:
+        cod = db.query(models.CodigoPromocional).filter(
+            models.CodigoPromocional.id == codigo_promo_id
+        ).first()
+        if cod:
+            cod.usos_actuales = (cod.usos_actuales or 0) + 1
     try:
         db.commit()
     except IntegrityError:
