@@ -158,14 +158,18 @@ export default function Agendamiento({ user }) {
     setMenuAnchor(null);
     try {
       const { data } = await prepararCobroCita(cita.id);
-      navigate('/ventas', { state: { fromCita: {
+      const fromCita = {
         citaId: data.cita_id,
         precio: data.precio,
         cliente: data.cliente,
         producto: data.producto,
         trabajadorId: data.trabajador_id,
         trabajadorNombre: data.trabajador_nombre,
-      } } });
+      };
+      // sessionStorage es robusto ante recargas/quirks de navegación; el state
+      // de React Router queda como respaldo.
+      try { sessionStorage.setItem('ksmart_cobro_cita', JSON.stringify(fromCita)); } catch {}
+      navigate('/ventas', { state: { fromCita } });
     } catch (e) {
       toast.error(e?.response?.data?.detail || 'No se pudo preparar el cobro.');
     }
