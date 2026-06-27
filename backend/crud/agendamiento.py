@@ -34,18 +34,6 @@ def _aware(dt: datetime) -> datetime:
     return dt
 
 
-def _limpiar_cedula(cedula) -> Optional[str]:
-    """Deja solo caracteres alfanuméricos (la FE exige dni sin puntos/guiones/espacios).
-    Quita el dígito verificador de NIT si viene con guion (900123456-1 → 900123456)."""
-    if not cedula:
-        return None
-    s = str(cedula).strip()
-    if "-" in s:
-        s = s.split("-")[0]
-    limpio = "".join(c for c in s if c.isalnum())
-    return limpio or None
-
-
 def _enriquecer_cita(db: Session, cita: models.Cita) -> models.Cita:
     prod = cita.producto
     trab = cita.usuario
@@ -464,17 +452,64 @@ def delete_cita(db: Session, empresa_id: int, cita_id: int) -> bool:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Cobro de cita → genera una Venta
+# Cobro de cita → se realiza en Ventas (POS)
+#
+# El cobro ya NO genera la venta aquí. El flujo es:
+#   1) preparar_cobro_cita: garantiza el cliente (lo crea/encuentra desde los
+#      datos inline si la cita no tenía cliente_id) y reúne servicio + trabajador.
+#   2) El frontend redirige a Ventas (POS) con esos datos precargados.
+#   3) Al guardar la venta en el POS con cita_id, vincular_cita_a_venta marca la
+#      cita como completada y le asigna venta_id.
 # ──────────────────────────────────────────────────────────────────────────────
-def cobrar_cita(db: Session, empresa_id: int, cita_id: int, data) -> models.Cita:
-    """
-    Convierte una cita en una Venta en el sistema de ventas.
-    - Crea el detalle de venta con el servicio como producto.
-    - Descuenta el anticipo si ya estaba pagado.
-    - Vincula venta_id a la cita y la marca como completada.
-    """
-    from crud.ventas import create_venta
+def _asegurar_cliente_de_cita(db: Session, empresa_id: int, cita: models.Cita) -> Optional[int]:
+    """Si la cita no tiene cliente_id pero sí datos inline, busca o crea el Cliente
+    (coincidiendo nombre Y teléfono/email) para que la venta quede a su nombre real.
+    Devuelve el cliente_id resultante (o el existente)."""
+    if cita.cliente_id:
+        return cita.cliente_id
+    if not cita.cliente_nombre:
+        return None
 
+    cliente_existente = None
+    nombre_cita = (cita.cliente_nombre or "").strip().lower()
+    if cita.cliente_telefono:
+        candidato = (
+            db.query(models.Cliente)
+            .filter(
+                models.Cliente.empresa_id == empresa_id,
+                models.Cliente.telefono == cita.cliente_telefono,
+            ).first()
+        )
+        if candidato and (candidato.nombre or "").strip().lower() == nombre_cita:
+            cliente_existente = candidato
+    if not cliente_existente and cita.cliente_email:
+        candidato = (
+            db.query(models.Cliente)
+            .filter(
+                models.Cliente.empresa_id == empresa_id,
+                models.Cliente.email == cita.cliente_email,
+            ).first()
+        )
+        if candidato and (candidato.nombre or "").strip().lower() == nombre_cita:
+            cliente_existente = candidato
+    if not cliente_existente:
+        cliente_existente = models.Cliente(
+            empresa_id=empresa_id,
+            nombre=cita.cliente_nombre,
+            telefono=cita.cliente_telefono,
+            email=cita.cliente_email,
+        )
+        db.add(cliente_existente)
+        db.flush()
+
+    cita.cliente_id = cliente_existente.id
+    db.commit()
+    return cliente_existente.id
+
+
+def preparar_cobro_cita(db: Session, empresa_id: int, cita_id: int) -> dict:
+    """Prepara los datos para cobrar la cita en Ventas (POS).
+    Garantiza el cliente y devuelve servicio, precio y trabajador."""
     cita = (
         db.query(models.Cita)
         .filter(models.Cita.id == cita_id, models.Cita.empresa_id == empresa_id)
@@ -492,85 +527,41 @@ def cobrar_cita(db: Session, empresa_id: int, cita_id: int, data) -> models.Cita
     if not prod:
         raise AgendamientoError("El servicio no existe.")
 
-    precio = data.precio_unitario if data.precio_unitario is not None else (prod.precio or 0)
+    cliente_id = _asegurar_cliente_de_cita(db, empresa_id, cita)
+    if not cliente_id:
+        raise AgendamientoError("La cita no tiene datos de cliente para cobrar.")
+    cliente = db.query(models.Cliente).filter(
+        models.Cliente.id == cliente_id,
+        models.Cliente.empresa_id == empresa_id,
+    ).first()
 
-    # Si la cita tiene datos de cliente inline pero sin cliente_id registrado,
-    # buscar o crear un Cliente para que el historial de ventas muestre el nombre real.
-    cliente_id = cita.cliente_id
-    if not cliente_id and cita.cliente_nombre:
-        # Buscar cliente existente SOLO si coinciden nombre Y (teléfono o email).
-        # Nunca vincular a un cliente diferente basándose solo en el teléfono.
-        cliente_existente = None
-        nombre_cita = (cita.cliente_nombre or "").strip().lower()
-        if cita.cliente_telefono:
-            candidato = (
-                db.query(models.Cliente)
-                .filter(
-                    models.Cliente.empresa_id == empresa_id,
-                    models.Cliente.telefono == cita.cliente_telefono,
-                ).first()
-            )
-            if candidato and (candidato.nombre or "").strip().lower() == nombre_cita:
-                cliente_existente = candidato
-        if not cliente_existente and cita.cliente_email:
-            candidato = (
-                db.query(models.Cliente)
-                .filter(
-                    models.Cliente.empresa_id == empresa_id,
-                    models.Cliente.email == cita.cliente_email,
-                ).first()
-            )
-            if candidato and (candidato.nombre or "").strip().lower() == nombre_cita:
-                cliente_existente = candidato
-        if not cliente_existente:
-            nuevo = models.Cliente(
-                empresa_id=empresa_id,
-                nombre=cita.cliente_nombre,
-                telefono=cita.cliente_telefono,
-                email=cita.cliente_email,
-            )
-            db.add(nuevo)
-            db.flush()
-            cliente_existente = nuevo
-        # Si el operador proporcionó cédula/NIT para FE y el cliente aún no la tiene, actualizarla.
-        cedula_fe = _limpiar_cedula(getattr(data, 'cedula_fe', None))
-        if cedula_fe and not cliente_existente.cedula:
-            cliente_existente.cedula = cedula_fe
-        cliente_id = cliente_existente.id
-        cita.cliente_id = cliente_id
+    trabajador = db.query(models.User).filter(models.User.id == cita.user_id).first()
+    trabajador_nombre = (trabajador.nombre_completo or trabajador.username) if trabajador else None
 
-    # Si el cliente ya estaba registrado pero sin cédula y el operador la proporcionó, actualizarla.
-    cedula_fe = _limpiar_cedula(getattr(data, 'cedula_fe', None))
-    if cedula_fe and cita.cliente_id:
-        cli = db.query(models.Cliente).filter(
-            models.Cliente.id == cita.cliente_id,
-            models.Cliente.empresa_id == empresa_id,
-        ).first()
-        if cli and not cli.cedula:
-            cli.cedula = cedula_fe
+    return {
+        "cita_id": cita.id,
+        "precio": float(prod.precio or 0),
+        "cliente": cliente,
+        "producto": prod,
+        "trabajador_id": cita.user_id,
+        "trabajador_nombre": trabajador_nombre,
+    }
 
-    venta_data = schemas.VentaCreate(
-        cliente_id=cliente_id,
-        detalles=[schemas.DetalleVentaCreate(
-            producto_id=prod.id,
-            cantidad=1,
-            precio_unitario=precio,
-            descuento_pct=0,
-        )],
-        pagada=True,
-        metodo_pago=data.metodo_pago or "Efectivo",
-        operador_id=cita.user_id,
-        omitir_inventario=True,   # servicios no tienen stock
-        solicita_fe=data.solicita_fe if hasattr(data, "solicita_fe") else False,
-        origen="agendamiento",
-        observaciones=f"Cita #{cita_id}" + (f" — {cita.notas}" if cita.notas else ""),
+
+def vincular_cita_a_venta(db: Session, empresa_id: int, cita_id: int, venta_id: int, commit: bool = True) -> models.Cita:
+    """Vincula una venta recién creada (desde el POS) a la cita y la completa."""
+    cita = (
+        db.query(models.Cita)
+        .filter(models.Cita.id == cita_id, models.Cita.empresa_id == empresa_id)
+        .first()
     )
-
-    venta = create_venta(db=db, empresa_id=empresa_id, venta=venta_data)
-
-    # Vincular
-    cita.venta_id = venta.id
+    if not cita:
+        raise AgendamientoError("Cita no encontrada.")
+    if cita.venta_id:
+        raise AgendamientoError("Esta cita ya fue cobrada.")
+    cita.venta_id = venta_id
     cita.estado   = models.EstadoCita.COMPLETADA.value
-    db.commit()
-    db.refresh(cita)
-    return _enriquecer_cita(db, cita)
+    if commit:
+        db.commit()
+        db.refresh(cita)
+    return cita

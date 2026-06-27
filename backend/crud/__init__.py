@@ -208,5 +208,6 @@ from crud.agendamiento import (
     get_servicios_agendables, configurar_servicio_agendable,
     calcular_disponibilidad, get_empresa_by_slug,
     get_citas, get_cita, create_cita, update_cita,
-    cambiar_estado_cita, delete_cita, cobrar_cita,
+    cambiar_estado_cita, delete_cita,
+    preparar_cobro_cita, vincular_cita_a_venta,
 )

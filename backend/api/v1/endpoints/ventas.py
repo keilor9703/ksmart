@@ -27,6 +27,19 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
     if not venta.detalles:
         raise HTTPException(status_code=400, detail="Debe proporcionar al menos un producto.")
 
+    # Si la venta proviene de cobrar una cita, validar de una vez que se pueda vincular
+    # (que exista, sea de la empresa y no esté ya cobrada) para fallar antes de crearla.
+    if venta.cita_id:
+        cita_chk = (
+            db.query(models.Cita)
+            .filter(models.Cita.id == venta.cita_id, models.Cita.empresa_id == empresa_id)
+            .first()
+        )
+        if not cita_chk:
+            raise HTTPException(status_code=404, detail="Cita no encontrada")
+        if cita_chk.venta_id:
+            raise HTTPException(status_code=409, detail="Esta cita ya fue cobrada.")
+
     productos_locked: dict[int, models.Producto] = {}
 
     if not omitir_inventario:
@@ -136,6 +149,17 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
         except (ValueError, HTTPException):
             db.rollback()
             raise
+
+    # Vincular la cita (si la venta proviene de cobrar un agendamiento) en la misma
+    # transacción: la cita queda completada y la venta marcada como originada allí.
+    if venta.cita_id:
+        try:
+            crud.vincular_cita_a_venta(db, empresa_id=empresa_id, cita_id=venta.cita_id,
+                                       venta_id=db_venta.id, commit=False)
+            db_venta.origen = "agendamiento"
+        except crud.AgendamientoError as e:
+            db.rollback()
+            raise HTTPException(status_code=409, detail=str(e))
 
     db.commit()
     db.refresh(db_venta)
