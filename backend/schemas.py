@@ -2930,6 +2930,8 @@ class CitaPublicaResponse(BaseModel):
 class AgendamientoConfigUpdate(BaseModel):
     hora_apertura: Optional[int] = None
     hora_cierre: Optional[int] = None
+    hora_descanso_inicio: Optional[int] = None
+    hora_descanso_fin: Optional[int] = None
     dias_laborales: Optional[List[int]] = None
     dias_no_laborales: Optional[List[str]] = None
     whatsapp: Optional[str] = None
@@ -2941,6 +2943,8 @@ class AgendamientoConfigUpdate(BaseModel):
 class AgendamientoConfigOut(BaseModel):
     hora_apertura: int = 8
     hora_cierre: int = 18
+    hora_descanso_inicio: Optional[int] = None
+    hora_descanso_fin: Optional[int] = None
     dias_laborales: List[int] = [0, 1, 2, 3, 4, 5]
     dias_no_laborales: List[str] = []
     whatsapp: Optional[str] = None

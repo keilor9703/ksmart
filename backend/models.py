@@ -1794,6 +1794,11 @@ class AgendamientoConfig(Base, TenantMixin):
     hora_apertura = Column(Integer, default=8)    # 08:00
     hora_cierre   = Column(Integer, default=18)   # 18:00
 
+    # Franja de descanso / almuerzo (hora entera). Si ambas están definidas y
+    # descanso_fin > descanso_inicio, no se ofrecen citas en ese rango.
+    hora_descanso_inicio = Column(Integer, nullable=True)  # ej. 12 → 12:00
+    hora_descanso_fin    = Column(Integer, nullable=True)  # ej. 13 → 13:00
+
     # Días de la semana: 0=Lunes … 6=Domingo. Default: Lun-Sáb
     dias_laborales    = Column(JSON, default=lambda: [0, 1, 2, 3, 4, 5])
 

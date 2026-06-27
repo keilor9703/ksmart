@@ -2277,6 +2277,21 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v106)
                 logger.info("V106 (contador de docs FE en empresas) aplicada.")
 
+            migration_v107 = "v107_agendamiento_descanso"
+            if not _migration_already_applied(conn, migration_v107):
+                if not _column_exists(conn, "agendamiento_config", "hora_descanso_inicio"):
+                    conn.execute(text(
+                        "ALTER TABLE agendamiento_config ADD COLUMN hora_descanso_inicio INTEGER NULL"
+                    ))
+                    logger.info("V107: columna 'hora_descanso_inicio' añadida a agendamiento_config")
+                if not _column_exists(conn, "agendamiento_config", "hora_descanso_fin"):
+                    conn.execute(text(
+                        "ALTER TABLE agendamiento_config ADD COLUMN hora_descanso_fin INTEGER NULL"
+                    ))
+                    logger.info("V107: columna 'hora_descanso_fin' añadida a agendamiento_config")
+                _mark_migration_applied(conn, migration_v107)
+                logger.info("V107 (franja de descanso en agendamiento_config) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
