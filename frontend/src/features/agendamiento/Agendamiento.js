@@ -300,70 +300,73 @@ export default function Agendamiento({ user }) {
           <Typography sx={{ color: 'text.secondary', fontSize: 13 }}>Gestiona las citas de tus servicios.</Typography>
         </Box>
         <Tooltip title="Copiar link público para clientes">
-          <Button onClick={compartirLink} startIcon={<Link />} size="small" variant="contained" disableElevation
-            sx={{ bgcolor: TEAL, '&:hover': { bgcolor: TEAL_DARK } }}>
-            Compartir
+          <Button onClick={compartirLink} startIcon={!isMobile ? <Link /> : null} size="small" variant="contained" disableElevation
+            sx={{ bgcolor: TEAL, '&:hover': { bgcolor: TEAL_DARK }, minWidth: { xs: 40, sm: 'auto' }, px: { xs: 1, sm: 2 } }}>
+            {isMobile ? <Link sx={{ fontSize: 18 }} /> : 'Compartir'}
           </Button>
         </Tooltip>
         <Tooltip title="Configurar servicios y trabajadores">
-          <Button onClick={() => navigate('/agendamiento/config')} startIcon={<Settings />}
-            size="small" variant="outlined" sx={{ color: TEAL_DARK, borderColor: `${TEAL}66` }}>
-            Configurar
+          <Button onClick={() => navigate('/agendamiento/config')} startIcon={!isMobile ? <Settings /> : null}
+            size="small" variant="outlined" sx={{ color: TEAL_DARK, borderColor: `${TEAL}66`, minWidth: { xs: 40, sm: 'auto' }, px: { xs: 1, sm: 2 } }}>
+            {isMobile ? <Settings sx={{ fontSize: 18 }} /> : 'Configurar'}
           </Button>
         </Tooltip>
       </Box>
 
       {/* Barra de controles: navegación + vistas + filtro */}
       <Paper elevation={0} sx={{
-        p: 1.5, borderRadius: 3, border: '1px solid', borderColor: 'divider',
-        mb: 2, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap',
+        p: { xs: 1.25, sm: 1.5 }, borderRadius: 3, border: '1px solid', borderColor: 'divider',
+        mb: 2, display: 'flex', alignItems: 'center', gap: { xs: 0.75, sm: 1 }, flexWrap: 'wrap',
       }}>
-        {/* Flechas + hoy */}
-        <IconButton onClick={() => moverPeriodo(-1)} size="small"><ChevronLeft /></IconButton>
-        <Box sx={{ flex: 1, textAlign: 'center', minWidth: 160 }}>
-          <Typography sx={{ fontWeight: 700, fontSize: 15, textTransform: 'capitalize', lineHeight: 1.2 }}>
-            {labelPeriodo}
-          </Typography>
-          {vista === 'day' && (
-            <Typography sx={{ fontSize: 12, color: esHoy ? TEAL : 'text.secondary', fontWeight: esHoy ? 700 : 400 }}>
-              {esHoy ? '● Hoy' : fecha.getFullYear()}
+        {/* Fila 1: navegación de período */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1, minWidth: { xs: '100%', sm: 200 } }}>
+          <IconButton onClick={() => moverPeriodo(-1)} size="small"><ChevronLeft /></IconButton>
+          <Box sx={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
+            <Typography sx={{ fontWeight: 700, fontSize: { xs: 14, sm: 15 }, textTransform: 'capitalize', lineHeight: 1.2 }} noWrap>
+              {labelPeriodo}
             </Typography>
+            {vista === 'day' && (
+              <Typography sx={{ fontSize: 12, color: esHoy ? TEAL : 'text.secondary', fontWeight: esHoy ? 700 : 400 }}>
+                {esHoy ? '● Hoy' : fecha.getFullYear()}
+              </Typography>
+            )}
+          </Box>
+          <IconButton onClick={() => moverPeriodo(1)} size="small"><ChevronRight /></IconButton>
+          <Tooltip title="Ir a hoy">
+            <IconButton onClick={() => setFecha(new Date())} size="small" sx={{ color: TEAL }}><Today /></IconButton>
+          </Tooltip>
+        </Box>
+
+        {/* Fila 2: vistas + filtros (full width en móvil) */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' }, justifyContent: { xs: 'space-between', sm: 'flex-end' } }}>
+          <ToggleButtonGroup value={vista} exclusive size="small"
+            onChange={(_, v) => { if (v) setVista(v); }}
+            sx={{ '& .MuiToggleButton-root': { px: { xs: 1, sm: 1.2 }, py: 0.6, fontSize: 12, border: `1px solid ${TEAL}44`,
+              '&.Mui-selected': { bgcolor: `${TEAL}20`, color: TEAL, fontWeight: 700 } } }}>
+            <ToggleButton value="day"><Tooltip title="Día"><ViewDay sx={{ fontSize: 18 }} /></Tooltip></ToggleButton>
+            <ToggleButton value="week"><Tooltip title="Semana"><ViewWeek sx={{ fontSize: 18 }} /></Tooltip></ToggleButton>
+            <ToggleButton value="month"><Tooltip title="Mes"><CalendarMonth sx={{ fontSize: 18 }} /></Tooltip></ToggleButton>
+            <ToggleButton value="agenda"><Tooltip title="Lista"><ViewAgenda sx={{ fontSize: 18 }} /></Tooltip></ToggleButton>
+          </ToggleButtonGroup>
+
+          {vista === 'day' && (
+            <TextField type="date" size="small" value={ymd}
+              onChange={e => { const [y, m, d] = e.target.value.split('-'); setFecha(new Date(+y, +m - 1, +d)); }}
+              sx={{ width: { xs: 140, sm: 150 } }} />
+          )}
+
+          {esAdmin && trabajadores.length > 0 && (
+            <TextField select size="small" label="Trabajador" value={filtroTrabajador}
+              onChange={e => setFiltroTrabajador(e.target.value)}
+              sx={{ minWidth: { xs: '100%', sm: 180 }, flex: { xs: '1 1 100%', sm: '0 0 auto' } }}
+              InputProps={{ startAdornment: <InputAdornment position="start"><Engineering sx={{ fontSize: 17, color: TEAL }} /></InputAdornment> }}>
+              <MenuItem value="">Todos</MenuItem>
+              {trabajadores.map(t => (
+                <MenuItem key={t.id} value={t.id}>{t.nombre_completo || t.username}</MenuItem>
+              ))}
+            </TextField>
           )}
         </Box>
-        <IconButton onClick={() => moverPeriodo(1)} size="small"><ChevronRight /></IconButton>
-        <Tooltip title="Ir a hoy">
-          <IconButton onClick={() => setFecha(new Date())} size="small" sx={{ color: TEAL }}><Today /></IconButton>
-        </Tooltip>
-
-        {/* Selector de vista */}
-        <ToggleButtonGroup value={vista} exclusive size="small"
-          onChange={(_, v) => { if (v) setVista(v); }}
-          sx={{ '& .MuiToggleButton-root': { px: 1.2, py: 0.6, fontSize: 12, border: `1px solid ${TEAL}44`,
-            '&.Mui-selected': { bgcolor: `${TEAL}20`, color: TEAL, fontWeight: 700 } } }}>
-          <ToggleButton value="day"><Tooltip title="Día"><ViewDay sx={{ fontSize: 18 }} /></Tooltip></ToggleButton>
-          <ToggleButton value="week"><Tooltip title="Semana"><ViewWeek sx={{ fontSize: 18 }} /></Tooltip></ToggleButton>
-          <ToggleButton value="month"><Tooltip title="Mes"><CalendarMonth sx={{ fontSize: 18 }} /></Tooltip></ToggleButton>
-          <ToggleButton value="agenda"><Tooltip title="Lista"><ViewAgenda sx={{ fontSize: 18 }} /></Tooltip></ToggleButton>
-        </ToggleButtonGroup>
-
-        {/* Selector de fecha (solo en vista día) */}
-        {vista === 'day' && (
-          <TextField type="date" size="small" value={ymd}
-            onChange={e => { const [y, m, d] = e.target.value.split('-'); setFecha(new Date(+y, +m - 1, +d)); }}
-            sx={{ width: 150 }} />
-        )}
-
-        {/* Filtro trabajador */}
-        {esAdmin && trabajadores.length > 0 && (
-          <TextField select size="small" label="Trabajador" value={filtroTrabajador}
-            onChange={e => setFiltroTrabajador(e.target.value)} sx={{ minWidth: 180 }}
-            InputProps={{ startAdornment: <InputAdornment position="start"><Engineering sx={{ fontSize: 17, color: TEAL }} /></InputAdornment> }}>
-            <MenuItem value="">Todos</MenuItem>
-            {trabajadores.map(t => (
-              <MenuItem key={t.id} value={t.id}>{t.nombre_completo || t.username}</MenuItem>
-            ))}
-          </TextField>
-        )}
       </Paper>
 
       {/* Stats */}
@@ -404,10 +407,17 @@ export default function Agendamiento({ user }) {
         )
       ) : (
         /* ── Vistas Semana / Mes / Agenda: react-big-calendar ── */
+        <Box sx={{
+          // En móvil, semana y mes hacen scroll horizontal para no cortar info.
+          overflowX: { xs: (vista === 'week' || vista === 'month') ? 'auto' : 'visible', sm: 'visible' },
+          WebkitOverflowScrolling: 'touch',
+          mx: { xs: -0.5, sm: 0 },
+        }}>
         <Box className={isDark ? 'dark-mode' : ''}
           sx={{
             height: vista === 'month' ? 680 : vista === 'agenda' ? 'auto' : 620,
             minHeight: vista === 'agenda' ? 300 : undefined,
+            minWidth: { xs: (vista === 'week' || vista === 'month') ? 680 : 'auto', sm: 'auto' },
             '& .rbc-calendar': {
               background: theme.palette.background.paper,
               color: theme.palette.text.primary,
@@ -450,6 +460,7 @@ export default function Agendamiento({ user }) {
             popup
             style={{ height: '100%' }}
           />
+        </Box>
         </Box>
       )}
 
@@ -552,49 +563,57 @@ function CitaCard({ cita, onMenu, onCobrar }) {
     <Paper elevation={0} sx={{
       p: { xs: 1.5, sm: 2 }, borderRadius: 3, border: '1px solid', borderColor: 'divider',
       borderLeft: `4px solid ${est.color}`, opacity: cancelada ? 0.6 : 1,
-      display: 'flex', alignItems: 'center', gap: { xs: 1.5, sm: 2 },
+      display: 'flex', alignItems: 'flex-start', gap: { xs: 1.25, sm: 2 },
     }}>
-      <Box sx={{ textAlign: 'center', minWidth: 62 }}>
-        <Typography sx={{ fontWeight: 800, fontSize: 14.5, color: TEAL_DARK, lineHeight: 1.1 }}>
+      {/* Hora */}
+      <Box sx={{ textAlign: 'center', minWidth: { xs: 50, sm: 62 }, flexShrink: 0, pt: 0.2 }}>
+        <Typography sx={{ fontWeight: 800, fontSize: { xs: 13.5, sm: 14.5 }, color: TEAL_DARK, lineHeight: 1.1 }}>
           {fmtHora(cita.fecha_inicio)}
         </Typography>
         <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>{fmtHora(cita.fecha_fin)}</Typography>
       </Box>
       <Divider orientation="vertical" flexItem />
+
+      {/* Detalle */}
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flexWrap: 'wrap' }}>
-          <Typography sx={{ fontWeight: 700, fontSize: 14.5 }} noWrap>{cita.producto_nombre}</Typography>
+          <Typography sx={{ fontWeight: 700, fontSize: { xs: 14, sm: 14.5 }, minWidth: 0, flexShrink: 1 }} noWrap>
+            {cita.producto_nombre}
+          </Typography>
           {cita.producto_precio != null && (
-            <Typography sx={{ fontSize: 12, color: GREEN, fontWeight: 700 }}>{fmtCOP(cita.producto_precio)}</Typography>
+            <Typography sx={{ fontSize: 12, color: GREEN, fontWeight: 700, flexShrink: 0 }}>{fmtCOP(cita.producto_precio)}</Typography>
           )}
+        </Box>
+        <Stack direction="row" spacing={1.5} sx={{ mt: 0.3, flexWrap: 'wrap', rowGap: 0.2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, minWidth: 0 }}>
+            <Person sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0 }} />
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }} noWrap>{cita.cliente_display || 'Sin cliente'}</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, minWidth: 0 }}>
+            <Engineering sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0 }} />
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }} noWrap>{cita.trabajador_nombre}</Typography>
+          </Box>
+        </Stack>
+        {/* Estado + cobrada: dentro del detalle, hacen wrap en móvil */}
+        <Stack direction="row" spacing={0.75} sx={{ mt: 0.75, flexWrap: 'wrap', rowGap: 0.5 }}>
+          <Chip label={est.label} size="small" sx={estadoChipSx(est)} />
           {cobrada && (
             <Chip size="small" label="Cobrada" icon={<AttachMoney sx={{ fontSize: 13 }} />}
               sx={{ bgcolor: '#DCFCE7', color: GREEN, fontWeight: 700, height: 20, fontSize: 11 }} />
           )}
-        </Box>
-        <Stack direction="row" spacing={1.5} sx={{ mt: 0.3, flexWrap: 'wrap' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
-            <Person sx={{ fontSize: 14, color: 'text.disabled' }} />
-            <Typography sx={{ fontSize: 12, color: 'text.secondary' }} noWrap>{cita.cliente_display || 'Sin cliente'}</Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
-            <Engineering sx={{ fontSize: 14, color: 'text.disabled' }} />
-            <Typography sx={{ fontSize: 12, color: 'text.secondary' }} noWrap>{cita.trabajador_nombre}</Typography>
-          </Box>
-        </Stack>
-      </Box>
-      <Stack direction="row" spacing={0.5} alignItems="center">
-        <Chip label={est.label} size="small" sx={estadoChipSx(est)} />
-        {!cobrada && !cancelada && (
-          <Tooltip title="Cobrar / Registrar venta">
-            <Button size="small" variant="outlined" startIcon={<AttachMoney />}
+          {!cobrada && !cancelada && (
+            <Button size="small" variant="outlined" startIcon={<AttachMoney sx={{ fontSize: 15 }} />}
               onClick={() => onCobrar(cita)}
-              sx={{ fontSize: 11, py: 0.3, px: 1, color: GREEN, borderColor: GREEN,
-                '&:hover': { bgcolor: '#DCFCE7', borderColor: GREEN }, display: { xs: 'none', sm: 'flex' } }}>
+              sx={{ fontSize: 11, py: 0.1, px: 1, minHeight: 24, color: GREEN, borderColor: `${GREEN}66`,
+                '&:hover': { bgcolor: '#DCFCE7', borderColor: GREEN } }}>
               Cobrar
             </Button>
-          </Tooltip>
-        )}
+          )}
+        </Stack>
+      </Box>
+
+      {/* Acciones a la derecha: solo ⋮ (+ ver venta si cobrada) */}
+      <Stack direction="row" spacing={0} alignItems="center" sx={{ flexShrink: 0 }}>
         {cobrada && (
           <Tooltip title="Ver venta generada">
             <IconButton size="small" onClick={() => window.open(`/ventas`, '_blank')}>
