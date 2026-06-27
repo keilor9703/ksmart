@@ -17,32 +17,31 @@ const PERIODOS = [
   { label: 'Anual', dias: 365, descuento: '-20%' },
 ];
 
-const FEATURES_STARTER = [
-  'Todos los módulos habilitados según tu tipo de negocio',
-  'Punto de venta clásico y touch',
-  'Inventario, compras y proveedores',
-  'Caja diaria, cotizaciones y órdenes de trabajo',
-  'Reportes, dashboard y exportación Excel/PDF',
-  'Contabilidad automática en partida doble',
-  'Catálogo virtual con pedidos por WhatsApp',
-  'Autenticación biométrica · Usuarios ilimitados',
-];
+// Familia de un plan = su código sin el sufijo de período. Robusto ante cualquier
+// nomenclatura (basico_mensual, comercio_anual, premium30, etc.).
+const familiaDe = (codigo = '') =>
+  codigo.toLowerCase()
+    .replace(/[_\- ]?(mensual|trimestral|semestral|anual|mes|meses|anio|anios|año|años|year|month|30|60|90|180|365)$/g, '')
+    .trim() || codigo.toLowerCase();
 
-const FEATURES_PRO_EXTRA = [
-  'Facturación electrónica DIAN (UBL 2.1)',
-  'CUFE y QR automático en cada factura',
-  'Gestión de resoluciones con alertas',
-  'Soporte prioritario',
-];
-
+// Agrupa planes por familia → { familia: { dias_duracion: plan } }
 const groupPlanes = (planes) => {
-  const g = { starter: {}, pro: {} };
+  const g = {};
   planes.forEach(p => {
-    const code = p.codigo_interno?.toLowerCase() || '';
-    if (code.startsWith('starter')) g.starter[p.dias_duracion] = p;
-    else if (code.startsWith('pro')) g.pro[p.dias_duracion] = p;
+    const fam = familiaDe(p.codigo_interno || p.nombre || '');
+    if (!g[fam]) g[fam] = {};
+    g[fam][p.dias_duracion] = p;
   });
   return g;
+};
+
+// Convierte el campo caracteristicas (texto) en lista de bullets.
+const parseFeatures = (plan) => {
+  const raw = plan?.caracteristicas || '';
+  return raw
+    .split(/\r?\n|·|;|\|/)
+    .map(s => s.replace(/^[-•✓✦*\s]+/, '').trim())
+    .filter(Boolean);
 };
 
 export default function SuscripcionExpirada({ onActive }) {
@@ -162,49 +161,57 @@ export default function SuscripcionExpirada({ onActive }) {
             <Typography sx={{ my: 4, color: '#fca5a5' }}>No hay planes de suscripción configurados.</Typography>
           ) : (() => {
             const groups = groupPlanes(planes);
-            const starterPlan = groups.starter[periodo.dias] || groups.starter[30];
-            const proPlan = groups.pro[periodo.dias] || groups.pro[30];
-            const renderCard = (plan, isPro) => {
-              if (!plan) return null;
-              const precioMes = periodo.dias === 30 ? plan.precio : Math.round(plan.precio / (periodo.dias / 30));
-              const features = isPro ? FEATURES_PRO_EXTRA : FEATURES_STARTER;
+            // Una tarjeta por familia; usa el plan del período elegido (o el mensual como respaldo).
+            const tarjetas = Object.keys(groups)
+              .map(fam => ({ fam, plan: groups[fam][periodo.dias] || groups[fam][30] || Object.values(groups[fam])[0] }))
+              .filter(t => t.plan)
+              .sort((a, b) => (a.plan.precio || 0) - (b.plan.precio || 0));
+
+            if (tarjetas.length === 0) {
+              return <Typography sx={{ my: 4, color: '#fca5a5' }}>No hay planes disponibles para este período.</Typography>;
+            }
+
+            const sm = tarjetas.length >= 3 ? 4 : 6;
+            const renderCard = ({ plan }) => {
+              const destacado = Boolean(plan.is_featured);
+              const meses = Math.max(1, Math.round((plan.dias_duracion || 30) / 30));
+              const precioMes = meses === 1 ? plan.precio : Math.round(plan.precio / meses);
+              const esLargo = (plan.dias_duracion || 30) > 30;
+              const features = parseFeatures(plan);
               return (
                 <Box sx={{
                   p: 3, borderRadius: 3, height: '100%', display: 'flex', flexDirection: 'column',
-                  bgcolor: isPro ? 'rgba(244,63,94,0.08)' : 'rgba(0,0,0,0.3)',
-                  border: '1px solid', borderColor: isPro ? 'rgba(244,63,94,0.4)' : 'rgba(255,255,255,0.08)',
+                  bgcolor: destacado ? 'rgba(244,63,94,0.08)' : 'rgba(0,0,0,0.3)',
+                  border: '1px solid', borderColor: destacado ? 'rgba(244,63,94,0.4)' : 'rgba(255,255,255,0.08)',
                 }}>
-                  {isPro && (
+                  {destacado && (
                     <Box sx={{ bgcolor: ACCENT, color: 'white', fontSize: 10, fontWeight: 900, py: 0.3, px: 1.5, borderRadius: 1, alignSelf: 'flex-start', mb: 1.5 }}>
                       ✦ MÁS ELEGIDO
                     </Box>
                   )}
-                  <Typography sx={{ fontSize: 16, fontWeight: 900, color: isPro ? ACCENT : '#f8fafc', mb: 0.5 }}>
+                  <Typography sx={{ fontSize: 16, fontWeight: 900, color: destacado ? ACCENT : '#f8fafc', mb: 0.5 }}>
                     {plan.nombre}
                   </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, mb: 0.5 }}>
                     <Typography sx={{ fontSize: 30, fontWeight: 900, color: '#f8fafc' }}>{formatCurrency(precioMes)}</Typography>
                     <Typography sx={{ fontSize: 12, color: '#94a3b8' }}>/mes</Typography>
                   </Box>
-                  {periodo.dias > 30 && (
+                  {esLargo && (
                     <Typography sx={{ fontSize: 11, color: GREEN, fontWeight: 600, mb: 1.5 }}>
-                      Total: {formatCurrency(plan.precio)} · Ahorras {periodo.descuento}
+                      Total: {formatCurrency(plan.precio)}{periodo.descuento ? ` · Ahorras ${periodo.descuento}` : ''}
                     </Typography>
                   )}
                   <Box sx={{ flex: 1, mb: 2.5, mt: 1 }}>
-                    {isPro && <Typography sx={{ fontSize: 11, color: '#94a3b8', mb: 1, fontWeight: 700, textTransform: 'uppercase' }}>Todo del Básico, más:</Typography>}
+                    <Box sx={{ display: 'flex', gap: 1, mb: 0.7, alignItems: 'flex-start' }}>
+                      <Typography sx={{ color: plan.incluye_fe ? GREEN : '#475569', fontSize: 12, mt: 0.1 }}>{plan.incluye_fe ? '✓' : '✕'}</Typography>
+                      <Typography sx={{ fontSize: 12.5, color: plan.incluye_fe ? '#cbd5e1' : '#475569' }}>Facturación electrónica DIAN</Typography>
+                    </Box>
                     {features.map((f, i) => (
                       <Box key={i} sx={{ display: 'flex', gap: 1, mb: 0.7, alignItems: 'flex-start' }}>
                         <Typography sx={{ color: GREEN, fontSize: 12, mt: 0.1 }}>✓</Typography>
                         <Typography sx={{ fontSize: 12.5, color: '#cbd5e1' }}>{f}</Typography>
                       </Box>
                     ))}
-                    {!isPro && (
-                      <Box sx={{ display: 'flex', gap: 1, mb: 0.7, alignItems: 'flex-start' }}>
-                        <Typography sx={{ color: '#475569', fontSize: 12, mt: 0.1 }}>✕</Typography>
-                        <Typography sx={{ fontSize: 12.5, color: '#475569' }}>Facturación electrónica DIAN</Typography>
-                      </Box>
-                    )}
                   </Box>
                   <WompiButton planName={plan.codigo_interno} onSuccess={async () => { if (onActive) await onActive(); navigate('/'); }} />
                 </Box>
@@ -212,8 +219,9 @@ export default function SuscripcionExpirada({ onActive }) {
             };
             return (
               <Grid container spacing={2.5} justifyContent="center" sx={{ mb: 3 }}>
-                <Grid item xs={12} sm={6}>{renderCard(starterPlan, false)}</Grid>
-                <Grid item xs={12} sm={6}>{renderCard(proPlan, true)}</Grid>
+                {tarjetas.map(t => (
+                  <Grid item xs={12} sm={sm} key={t.fam}>{renderCard(t)}</Grid>
+                ))}
               </Grid>
             );
           })()}
