@@ -16,8 +16,8 @@ import {
   fetchAgendamientoConfig, updateAgendamientoConfig,
 } from '../../api';
 
-const TEAL = '#0D9488';
-const TEAL_DARK = '#0F766E';
+const TEAL = '#6366F1';
+const TEAL_DARK = '#4F46E5';
 const DURACIONES = [15, 20, 30, 45, 60, 90, 120];
 
 const HORAS = Array.from({ length: 24 }, (_, i) => ({

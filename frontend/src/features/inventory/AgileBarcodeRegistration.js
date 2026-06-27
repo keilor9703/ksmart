@@ -637,7 +637,7 @@ const AgileBarcodeRegistration = ({ open, onClose, onProductoAdded }) => {
                             value={formData.numero_lote}
                             onChange={(e) => setFormData(prev => ({ ...prev, numero_lote: e.target.value }))}
                             inputRef={loteRef}
-                            InputProps={{ startAdornment: <InputAdornment position="start"><Science sx={{ color: '#a78bfa' }} /></InputAdornment> }}
+                            InputProps={{ startAdornment: <InputAdornment position="start"><Science sx={{ color: '#818CF8' }} /></InputAdornment> }}
                           />
                         </Grid>
                         <Grid item xs={12} md={6}>

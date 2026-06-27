@@ -457,7 +457,7 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
             </Button>
           )}
           <Button variant="contained" startIcon={<Add />} onClick={() => setOpen(true)} fullWidth={isMobile}
-            sx={{ background: `linear-gradient(135deg, ${accentColor}, #a78bfa)`, boxShadow: `0 4px 14px rgba(139,92,246,0.3)`, borderRadius: 2, fontWeight: 600 }}>
+            sx={{ background: `${accentColor}`, boxShadow: `none`, borderRadius: 2, fontWeight: 600 }}>
             Nueva Receta
           </Button>
         </Box>
@@ -631,7 +631,7 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
       {/* ══════════════════════════════════════════════════════════════════════ */}
       <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth fullScreen={isMobile}
         PaperProps={{ sx: { borderRadius: isMobile ? 0 : 3 } }}>
-        <Box sx={{ height: 4, background: `linear-gradient(90deg, ${accentColor}, #a78bfa)` }} />
+        <Box sx={{ height: 4, background: `linear-gradient(90deg, ${accentColor}, #818CF8)` }} />
         <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Box sx={{ width: 32, height: 32, borderRadius: 1.5, bgcolor: `${accentColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: accentColor }}>
@@ -987,7 +987,7 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
             Cancelar
           </Button>
           <Button onClick={handleSubmit} variant="contained" disabled={loading} fullWidth={isMobile}
-            sx={{ background: `linear-gradient(135deg, ${accentColor}, #a78bfa)`, boxShadow: `0 4px 14px rgba(139,92,246,0.3)`, borderRadius: 2, fontWeight: 600 }}>
+            sx={{ background: `${accentColor}`, boxShadow: `none`, borderRadius: 2, fontWeight: 600 }}>
             {loading ? 'Guardando…' : editingReceta ? 'Actualizar Receta' : 'Guardar Receta'}
           </Button>
         </DialogActions>

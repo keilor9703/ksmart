@@ -1083,7 +1083,7 @@ const ProductoForm = ({
               sx={{
                 background: esServicio
                   ? 'linear-gradient(135deg, #06B6D4, #22d3ee)'
-                  : `linear-gradient(135deg, ${accentColor}, #a78bfa)`,
+                  : `${accentColor}`,
                 boxShadow: esServicio ? '0 4px 14px rgba(6,182,212,0.3)' : `0 4px 14px ${alpha(accentColor, 0.3)}`,
                 borderRadius: 2, fontWeight: 700, px: 4,
               }}

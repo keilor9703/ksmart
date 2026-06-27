@@ -203,7 +203,7 @@ const ImageCropperDialog = ({
           variant="contained"
           disabled={processing || !croppedAreaPixels}
           sx={{
-            background: `linear-gradient(135deg, ${accentColor}, #a78bfa)`,
+            background: `${accentColor}`,
             fontWeight: 600,
             px: 3
           }}
