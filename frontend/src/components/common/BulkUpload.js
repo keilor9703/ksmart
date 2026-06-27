@@ -323,8 +323,8 @@ const handleDownloadTemplate = async () => {
           disabled={loading || !file || !!validationError}
           startIcon={loading ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <Upload />}
           sx={{
-            background: `linear-gradient(135deg, ${ACCENT}, #a78bfa)`,
-            boxShadow: `0 4px 14px rgba(139,92,246,0.3)`,
+            background: `${ACCENT}`,
+            boxShadow: `none`,
             borderRadius: 2, fontWeight: 600, px: 4,
             '&.Mui-disabled': { opacity: 0.6 },
           }}

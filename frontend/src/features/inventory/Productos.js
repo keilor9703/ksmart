@@ -97,7 +97,7 @@ const Productos = () => {
               <Button
                 variant="contained" startIcon={<Add />}
                 onClick={handleNewProducto}
-                sx={{ background: `linear-gradient(135deg, ${ACCENT}, #a78bfa)`, boxShadow: `0 4px 14px rgba(139,92,246,0.35)`, borderRadius: 2, fontWeight: 600, flexShrink: 0 }}
+                sx={{ background: `${ACCENT}`, boxShadow: `none`, borderRadius: 2, fontWeight: 600, flexShrink: 0 }}
               >
                 Nuevo Producto
               </Button>
