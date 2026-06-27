@@ -50,7 +50,8 @@ const SidebarItem = ({ item, expanded, onClick, onClose, active }) => {
       >
         <ListItemIcon sx={{
           minWidth: 0, mr: expanded ? 1.25 : 0,
-          color: active ? t.accent : t.iconIdle,
+          // Cada módulo conserva su color propio; gris solo como respaldo.
+          color: item.color || (active ? t.accent : t.iconIdle),
           transition: 'color 0.15s ease, margin 0.2s',
           '& .MuiSvgIcon-root': { fontSize: 19 },
         }}>
@@ -253,14 +254,14 @@ const Sidebar = ({ expanded, user, hasAccess, onClose, mobile, pinned, onPinTogg
       <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', py: 1.25, '&::-webkit-scrollbar': { width: 4 }, '&::-webkit-scrollbar-thumb': { background: theme.palette.divider, borderRadius: 4 } }}>
         {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (
           <>
-            <SidebarItem expanded={expanded} item={{ path: '/superadmin/empresas', label: 'Clientes SaaS', icon: <Business /> }} active={isActive('/superadmin/empresas')} onClose={mobile ? onClose : undefined} />
+            <SidebarItem expanded={expanded} item={{ path: '/superadmin/empresas', label: 'Clientes SaaS', icon: <Business />, color: '#F43F5E' }} active={isActive('/superadmin/empresas')} onClose={mobile ? onClose : undefined} />
             {expanded && <Divider sx={{ mx: 1.5, my: 1, borderColor: t.border }} />}
           </>
         )}
 
         {user?.role?.name === 'Admin' && (
           <>
-            <SidebarItem expanded={expanded} item={{ label: 'Administración', icon: <AdminPanelSettings /> }} onClick={() => setAdminOpen(o => !o)} active={false} />
+            <SidebarItem expanded={expanded} item={{ label: 'Administración', icon: <AdminPanelSettings />, color: '#8B5CF6' }} onClick={() => setAdminOpen(o => !o)} active={false} />
             <Collapse in={adminOpen && expanded} timeout="auto" unmountOnExit>
               <List disablePadding>
                 {ADMIN_MODULES.map(sub => (
