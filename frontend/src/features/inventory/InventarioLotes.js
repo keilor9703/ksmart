@@ -21,7 +21,7 @@ import { toast } from 'react-toastify';
 import CurrencyField from '../../components/common/CurrencyField';
 
 const PURPLE = '#8B5CF6';
-const ACCENT  = '#6366F1';
+const ACCENT  = '#0891B2';
 const GREEN   = '#10B981';
 const YELLOW  = '#F59E0B';
 const RED     = '#EF4444';

@@ -631,7 +631,7 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
       {/* ══════════════════════════════════════════════════════════════════════ */}
       <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth fullScreen={isMobile}
         PaperProps={{ sx: { borderRadius: isMobile ? 0 : 3 } }}>
-        <Box sx={{ height: 4, background: `linear-gradient(90deg, ${accentColor}, #818CF8)` }} />
+        <Box sx={{ height: 4, background: `linear-gradient(90deg, ${accentColor}, #22D3EE)` }} />
         <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Box sx={{ width: 32, height: 32, borderRadius: 1.5, bgcolor: `${accentColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: accentColor }}>

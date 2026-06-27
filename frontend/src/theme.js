@@ -1,9 +1,11 @@
 import { createTheme } from '@mui/material/styles';
 
 // ─── Marca / acento ───────────────────────────────────────────────────────────
-// Índigo sobrio estilo Linear/Vercel. Plano, sin gradientes ni sombras de color.
-const ACCENT      = '#6366F1';  // indigo-500
-const ACCENT_HOVER = '#4F46E5'; // indigo-600
+// Cian del logo "K" de Ksmart360. Tono accesible (cyan-600/700) para que el
+// texto y los botones sean legibles; el cian puro del logo (#1EC8E0) es muy
+// claro para texto sobre blanco. Plano, sin gradientes ni sombras de color.
+const ACCENT      = '#0891B2';  // cyan-600
+const ACCENT_HOVER = '#0E7490'; // cyan-700
 const TRANS  = 'all 0.18s cubic-bezier(0.4,0,0.2,1)';
 
 const FONT = "'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";

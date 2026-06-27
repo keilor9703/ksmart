@@ -8,7 +8,7 @@ import { Close, Receipt, AttachMoney, CreditCard, AccountBalance, AccessTime, Pr
 import { formatCurrency } from '../../utils/formatters';
 import ReciboDialog from '../../components/common/ReciboDialog';
 
-const ACCENT  = '#6366F1';
+const ACCENT  = '#0891B2';
 const GREEN   = '#10B981';
 const BLUE    = '#3B82F6';
 const YELLOW  = '#F59E0B';
@@ -193,7 +193,7 @@ const VentaDetailDialog = ({ open, handleClose, venta, empresa, vendedor }) => {
             variant="outlined"
             size="small"
             onClick={() => setReciboOpen(true)}
-            sx={{ borderRadius: 2, fontWeight: 600, textTransform: 'none', color: '#6366F1', borderColor: '#6366F1', '&:hover': { bgcolor: '#6366F110', borderColor: '#6366F1' } }}
+            sx={{ borderRadius: 2, fontWeight: 600, textTransform: 'none', color: '#0891B2', borderColor: '#0891B2', '&:hover': { bgcolor: '#0891B210', borderColor: '#0891B2' } }}
           >
             Imprimir / Compartir recibo
           </Button>

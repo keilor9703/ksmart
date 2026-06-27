@@ -31,7 +31,7 @@ import BotonWhatsApp from '../../components/common/BotonWhatsApp';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 import { METODOS_PAGO_SIMPLE as METODOS_PAGO } from '../../utils/constants';
 
-const ACCENT = '#6366F1';
+const ACCENT = '#0891B2';
 
 export default function ParqueaderoSuscripciones() {
   const [tab, setTab] = useState(0);
@@ -205,7 +205,7 @@ function SuscripcionesTab() {
         <Stack direction="row" alignItems="center" spacing={1.5}>
           <Box sx={{
             width: 44, height: 44, borderRadius: 2,
-            background: `linear-gradient(135deg, ${ACCENT} 0%, #818CF8 100%)`,
+            background: `linear-gradient(135deg, ${ACCENT} 0%, #22D3EE 100%)`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
             <EventRepeat sx={{ color: 'white' }} />
@@ -559,7 +559,7 @@ function HistorialFETab() {
                       label={v.origen === 'parqueadero_suscripcion' ? 'Suscripción' : 'Por horas'}
                       sx={{
                         fontSize: 10, fontWeight: 700, height: 18,
-                        bgcolor: v.origen === 'parqueadero_suscripcion' ? '#6366F120' : '#F59E0B20',
+                        bgcolor: v.origen === 'parqueadero_suscripcion' ? '#0891B220' : '#F59E0B20',
                         color:   v.origen === 'parqueadero_suscripcion' ? '#4338CA'   : '#92400E',
                       }}
                     />
@@ -604,7 +604,7 @@ function HistorialFETab() {
                             <IconButton size="small"
                               disabled={reintentando === v.venta_id}
                               onClick={() => reintentar(v.venta_id)}
-                              sx={{ color: '#6366F1' }}
+                              sx={{ color: '#0891B2' }}
                             >
                               {reintentando === v.venta_id
                                 ? <CircularProgress size={16} />

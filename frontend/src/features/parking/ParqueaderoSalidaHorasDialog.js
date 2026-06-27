@@ -15,7 +15,7 @@ import { METODOS_PAGO_SIMPLE } from '../../utils/constants';
 import { imprimirSalidaParqueadero } from '../../utils/printParqueadero';
 import LinkPagoModal from '../../components/common/LinkPagoModal';
 
-const ACCENT   = '#6366F1';
+const ACCENT   = '#0891B2';
 const WA_GREEN = '#25D366';
 const GREEN    = '#10B981';
 const RED      = '#EF4444';
@@ -387,7 +387,7 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
               />
 
               {solicitaFe && (
-                <Box sx={{ mt: 1, p: 1.5, bgcolor: 'rgba(99,102,241,0.06)', borderRadius: 2, border: '1px solid rgba(99,102,241,0.2)' }}>
+                <Box sx={{ mt: 1, p: 1.5, bgcolor: 'rgba(8,145,178,0.06)', borderRadius: 2, border: '1px solid rgba(8,145,178,0.2)' }}>
                   <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 1 }}>
                     Opcional — datos del cliente para la factura (si no los ingresa, se emite a Consumidor Final)
                   </Typography>

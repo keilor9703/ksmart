@@ -13,7 +13,7 @@ import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
-const ACCENT = '#6366F1';
+const ACCENT = '#0891B2';
 const GOLD   = '#F59E0B';
 const BLUE   = '#3B82F6';
 const GREEN  = '#10B981';

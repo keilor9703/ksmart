@@ -11,7 +11,7 @@ import {
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
 
-const ACCENT = '#6366F1';
+const ACCENT = '#0891B2';
 const fmt = (n) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n || 0);
 
 const KPI = ({ icon, label, value, color }) => (

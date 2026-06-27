@@ -678,7 +678,7 @@ const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange,
         <DialogTitle sx={{ pb: 0, pt: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <Avatar sx={{ bgcolor: alpha('#6366F1', 0.12), width: 42, height: 42, fontSize: 13, fontWeight: 900, color: '#6366F1' }}>
+              <Avatar sx={{ bgcolor: alpha('#0891B2', 0.12), width: 42, height: 42, fontSize: 13, fontWeight: 900, color: '#0891B2' }}>
                 #{pedido.id}
               </Avatar>
               <Box>
@@ -746,12 +746,12 @@ const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange,
                   <Typography fontSize={13} fontWeight={600}>{d.nombre_producto}</Typography>
                   <Typography fontSize={11} color="text.secondary">{fmt(d.precio_unitario)} × {d.cantidad} uds.</Typography>
                 </Box>
-                <Typography fontSize={13} fontWeight={700} color="#6366F1">{fmt(d.subtotal)}</Typography>
+                <Typography fontSize={13} fontWeight={700} color="#0891B2">{fmt(d.subtotal)}</Typography>
               </Box>
             ))}
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1.5, pt: 1.5, borderTop: `2px solid ${theme.palette.divider}` }}>
               <Typography fontWeight={700}>Total del pedido</Typography>
-              <Typography fontWeight={900} fontSize={17} color="#6366F1">{fmt(pedido.total)}</Typography>
+              <Typography fontWeight={900} fontSize={17} color="#0891B2">{fmt(pedido.total)}</Typography>
             </Box>
           </Box>
 
@@ -941,7 +941,7 @@ const PedidoCard = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConv
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.4 }}>
               {pedido.venta_id && <Chip label={`V#${pedido.venta_id}`} size="small" sx={{ fontSize: 9, height: 16, bgcolor: alpha('#059669', 0.1), color: '#059669', mr: 0.5 }} />}
-              <Typography fontSize={16} fontWeight={900} color="#6366F1">{fmt(pedido.total)}</Typography>
+              <Typography fontSize={16} fontWeight={900} color="#0891B2">{fmt(pedido.total)}</Typography>
             </Box>
           </Box>
 
@@ -1042,7 +1042,7 @@ const ListRow = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConvert
           <Typography fontSize={11} color="text.secondary">{pedido.detalles?.length || 0} ítems</Typography>
         </TableCell>
         <TableCell onClick={() => onDetail(pedido)} align="right">
-          <Typography fontSize={13} fontWeight={800} color="#6366F1">{fmt(pedido.total)}</Typography>
+          <Typography fontSize={13} fontWeight={800} color="#0891B2">{fmt(pedido.total)}</Typography>
         </TableCell>
         <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
           <Typography fontSize={11} color={isUrgente ? '#EF4444' : 'text.disabled'}>{timeAgo(pedido.fecha_creacion)}</Typography>

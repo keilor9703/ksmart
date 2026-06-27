@@ -20,7 +20,7 @@ import QuickCreateModal from '../../components/common/QuickCreateModal';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
-const ACCENT  = '#6366F1';
+const ACCENT  = '#0891B2';
 const GREEN   = '#10B981';
 const RED     = '#EF4444';
 const BLUE    = '#3B82F6';

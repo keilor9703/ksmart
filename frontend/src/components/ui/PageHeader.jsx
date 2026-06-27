@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 
-const PageHeader = ({ icon, title, subtitle, color = '#6366F1', actions }) => (
+const PageHeader = ({ icon, title, subtitle, color = '#0891B2', actions }) => (
   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
       {icon && (

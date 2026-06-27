@@ -39,7 +39,7 @@ const KpiCard = ({ label, value, icon, color, negative, sub }) => (
 
 const METODO_COLORS = {
   Efectivo: '#10B981', Transferencia: '#3B82F6', Tarjeta: '#8B5CF6',
-  Nequi: '#6366F1', Daviplata: '#F59E0B',
+  Nequi: '#0891B2', Daviplata: '#F59E0B',
 };
 const metodoColor = (m) => METODO_COLORS[m] || '#64748B';
 
@@ -50,7 +50,7 @@ const PRESETS = [
   { key: 'mes_ant', label: 'Mes anterior' },
 ];
 
-const ReporteCaja = ({ accentColor = '#6366F1' }) => {
+const ReporteCaja = ({ accentColor = '#0891B2' }) => {
 
   const [startDate, setStartDate] = useState(firstOfMonth());
   const [endDate, setEndDate] = useState(today());

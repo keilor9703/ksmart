@@ -24,7 +24,7 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, ChartTooltip, Le
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const COLOR_PRIMARY = '#6366F1';
+const COLOR_PRIMARY = '#0891B2';
 const GREEN  = '#10B981';
 const RED    = '#EF4444';
 const AMBER  = '#F59E0B';
@@ -373,7 +373,7 @@ export default function ReporteVendedores({ accentColor }) {
               variant="contained" onClick={handleConsultar}
               disabled={loading}
               startIcon={loading ? <CircularProgress size={14} color="inherit" /> : <BarChartIcon />}
-              sx={{ background: `linear-gradient(135deg, ${COLOR_PRIMARY}, #818CF8)`, borderRadius: 2, fontWeight: 700, whiteSpace: 'nowrap' }}
+              sx={{ background: `linear-gradient(135deg, ${COLOR_PRIMARY}, #22D3EE)`, borderRadius: 2, fontWeight: 700, whiteSpace: 'nowrap' }}
             >
               {loading ? 'Cargando…' : 'Consultar'}
             </Button>

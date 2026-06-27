@@ -310,7 +310,7 @@ const PantallaCocina = () => {
         }}>
           {/* Izquierda: icono + título */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-            <Restaurant sx={{ color: '#6366F1', fontSize: isMobile ? 22 : 26, flexShrink: 0 }} />
+            <Restaurant sx={{ color: '#0891B2', fontSize: isMobile ? 22 : 26, flexShrink: 0 }} />
             <Typography sx={{
               color: '#fff', fontWeight: 800,
               fontSize: isMobile ? 16 : 19,
@@ -390,8 +390,8 @@ const PantallaCocina = () => {
                   textTransform: 'none', whiteSpace: 'nowrap',
                 },
                 '& .Mui-selected': {
-                  bgcolor: 'rgba(99,102,241,0.2) !important',
-                  color: '#6366F1 !important',
+                  bgcolor: 'rgba(8,145,178,0.2) !important',
+                  color: '#0891B2 !important',
                   fontWeight: 700,
                 },
               }}
@@ -412,7 +412,7 @@ const PantallaCocina = () => {
       <Box sx={{ flex: 1, p: 2 }}>
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', pt: 8 }}>
-            <CircularProgress sx={{ color: '#6366F1' }} />
+            <CircularProgress sx={{ color: '#0891B2' }} />
           </Box>
         ) : comandasFiltradas.length === 0 ? (
           <Box sx={{

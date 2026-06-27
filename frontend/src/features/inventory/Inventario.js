@@ -368,8 +368,8 @@ export default function Inventario() {
               sx={{
                 borderRadius: 2, fontWeight: 600, fontSize: { xs: 10, md: 11 }, textTransform: 'none',
                 ...(vista === 'config'
-                  ? { bgcolor: '#6366F1', '&:hover': { bgcolor: '#4F46E5' }, boxShadow: 'none' }
-                  : { borderColor: '#6366F1', color: '#6366F1' }),
+                  ? { bgcolor: '#0891B2', '&:hover': { bgcolor: '#0E7490' }, boxShadow: 'none' }
+                  : { borderColor: '#0891B2', color: '#0891B2' }),
               }}
             >
               Categorías

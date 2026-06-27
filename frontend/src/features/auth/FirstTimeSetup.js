@@ -89,7 +89,7 @@ export default function FirstTimeSetup({ onComplete }) {
         }}
       >
         {/* Header */}
-        <Box sx={{ background: 'linear-gradient(135deg, #F43F5E, #818CF8)', p: 4, textAlign: 'center' }}>
+        <Box sx={{ background: 'linear-gradient(135deg, #F43F5E, #22D3EE)', p: 4, textAlign: 'center' }}>
           <Typography variant="h5" sx={{ fontWeight: 800, color: '#fff', mb: 0.5 }}>
             Bienvenido a Ksmart360
           </Typography>
@@ -269,7 +269,7 @@ export default function FirstTimeSetup({ onComplete }) {
                 endIcon={<ArrowForward />}
                 onClick={() => setActiveStep((s) => s + 1)}
                 disabled={!canNext()}
-                sx={{ background: 'linear-gradient(135deg, #F43F5E, #818CF8)', fontWeight: 700, flex: 1, maxWidth: 200 }}
+                sx={{ background: 'linear-gradient(135deg, #F43F5E, #22D3EE)', fontWeight: 700, flex: 1, maxWidth: 200 }}
               >
                 Siguiente
               </Button>

@@ -29,8 +29,8 @@ import usePolling from '../../hooks/usePolling';
 dayjs.locale('es');
 const localizer = dayjsLocalizer(dayjs);
 
-const TEAL = '#6366F1';
-const TEAL_DARK = '#4F46E5';
+const TEAL = '#0891B2';
+const TEAL_DARK = '#0E7490';
 const GREEN = '#16A34A';
 
 const ESTADOS = {

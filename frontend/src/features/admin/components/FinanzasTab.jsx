@@ -12,7 +12,7 @@ import { toast } from 'react-toastify';
 import apiClient from '../../../api';
 
 const GREEN  = '#059669';
-const ORANGE = '#6366F1';
+const ORANGE = '#0891B2';
 const RED    = '#dc2626';
 const BLUE   = '#2563eb';
 const GRAY   = '#94a3b8';

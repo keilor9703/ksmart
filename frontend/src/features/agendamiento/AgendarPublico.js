@@ -16,8 +16,8 @@ import {
   apiClient,
 } from '../../api';
 
-const TEAL = '#6366F1';
-const TEAL_DARK = '#4F46E5';
+const TEAL = '#0891B2';
+const TEAL_DARK = '#0E7490';
 const API_BASE = (apiClient && apiClient.defaults && apiClient.defaults.baseURL)
   ? apiClient.defaults.baseURL
   : 'https://api.appjeylor.com';

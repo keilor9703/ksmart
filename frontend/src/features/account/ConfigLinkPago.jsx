@@ -10,8 +10,8 @@ export default function ConfigLinkPago() {
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 860, mx: 'auto' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-        <Avatar sx={{ bgcolor: alpha('#6366F1', 0.12), width: 44, height: 44 }}>
-          <QrCode2 sx={{ color: '#6366F1', fontSize: 22 }} />
+        <Avatar sx={{ bgcolor: alpha('#0891B2', 0.12), width: 44, height: 44 }}>
+          <QrCode2 sx={{ color: '#0891B2', fontSize: 22 }} />
         </Avatar>
         <Box>
           <Typography variant="h6" fontWeight={900} lineHeight={1.1}>

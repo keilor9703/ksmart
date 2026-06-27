@@ -12,7 +12,7 @@ import {
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { MODULE_ICONS, ADMIN_MODULES, HIDDEN_FROM_SIDEBAR, getModuleConfig } from '../utils/modulesConfig';
 
-const ACCENT = '#6366F1';
+const ACCENT = '#0891B2';
 
 // Tokens dependientes del tema (look unificado estilo Vercel/Linear)
 const useSidebarTokens = () => {
@@ -22,7 +22,7 @@ const useSidebarTokens = () => {
     bg:         theme.palette.background.default,   // mismo fondo que el contenido
     border:     theme.palette.divider,
     hover:      dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
-    activeBg:   dark ? 'rgba(99,102,241,0.16)'  : 'rgba(99,102,241,0.10)',
+    activeBg:   dark ? 'rgba(8,145,178,0.16)'  : 'rgba(8,145,178,0.10)',
     iconIdle:   theme.palette.text.disabled,
     textIdle:   theme.palette.text.secondary,
     textActive: theme.palette.text.primary,
@@ -162,24 +162,24 @@ const UserMenu = ({ user, expanded, onClose: closeSidebar, onLogout }) => {
             </Typography>
 
             <MenuItem onClick={() => goTo('/mi-suscripcion')} sx={menuItemSx}>
-              <WorkspacePremium sx={{ fontSize: 17, color: t.iconIdle, mr: 1.5 }} />
+              <WorkspacePremium sx={{ fontSize: 17, color: '#F59E0B', mr: 1.5 }} />
               <Typography sx={menuTextSx}>Mi Suscripción</Typography>
             </MenuItem>
 
             {!isSuperAdmin && (
               <MenuItem onClick={() => goTo('/admin/catalogo')} sx={menuItemSx}>
-                <Storefront sx={{ fontSize: 17, color: t.iconIdle, mr: 1.5 }} />
+                <Storefront sx={{ fontSize: 17, color: '#10B981', mr: 1.5 }} />
                 <Typography sx={menuTextSx}>Catálogo Virtual</Typography>
               </MenuItem>
             )}
 
             <MenuItem onClick={() => goTo(isSuperAdmin ? '/superadmin/link-pago' : '/admin/link-pago')} sx={menuItemSx}>
-              <QrCode2 sx={{ fontSize: 17, color: t.iconIdle, mr: 1.5 }} />
+              <QrCode2 sx={{ fontSize: 17, color: '#3B82F6', mr: 1.5 }} />
               <Typography sx={menuTextSx}>Link de Pago POS</Typography>
             </MenuItem>
 
             <MenuItem onClick={() => goTo('/admin/facturacion-electronica')} sx={menuItemSx}>
-              <Receipt sx={{ fontSize: 17, color: t.iconIdle, mr: 1.5 }} />
+              <Receipt sx={{ fontSize: 17, color: '#8B5CF6', mr: 1.5 }} />
               <Typography sx={menuTextSx}>Facturación Electrónica</Typography>
             </MenuItem>
 

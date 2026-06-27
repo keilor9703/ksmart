@@ -33,7 +33,7 @@ import BasculaConfigDialog from '../../components/common/BasculaConfigDialog';
 import { esPesable, useBascula } from '../../hooks/useBascula';
 import VarianteSelectorDialog from '../../components/common/VarianteSelectorDialog';
 
-const ACCENT = '#6366F1';
+const ACCENT = '#0891B2';
 const HAS_BARCODE_DETECTOR = typeof window !== 'undefined' && 'BarcodeDetector' in window;
 const HAS_CAMERA = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
 const BARCODE_FORMATS = ['ean_13', 'ean_8', 'code_128', 'qr_code', 'upc_e', 'code_39', 'itf'];
@@ -46,7 +46,7 @@ const METODOS_PAGO = [
     { value: 'Tarjeta',       label: '💳 Tarjeta',        pagada: true,  color: '#8B5CF6' },
     { value: 'Cheque',        label: '📄 Cheque',         pagada: true,  color: '#6B7280' },
     { value: 'Por Cobrar',    label: '🕒 Por Cobrar',     pagada: false, color: '#EF4444' },
-    { value: 'Link de Pago',  label: '📲 Link/QR',        pagada: true,  color: '#6366F1', digital: true },
+    { value: 'Link de Pago',  label: '📲 Link/QR',        pagada: true,  color: '#0891B2', digital: true },
 ];
 
 const PUNTOS_REDEEM_RATE_DEFAULT = 100;
@@ -1189,7 +1189,7 @@ useEffect(() => {
                     <Button
                         variant="contained" startIcon={<ShoppingCart />}
                         onClick={() => { resetForm(); setTabValue(0); }}
-                        sx={{ background: `linear-gradient(135deg, ${ACCENT}, #818CF8)`, boxShadow: `0 4px 14px rgba(99,102,241,0.35)`, borderRadius: 2, fontWeight: 600 }}
+                        sx={{ background: `linear-gradient(135deg, ${ACCENT}, #22D3EE)`, boxShadow: `0 4px 14px rgba(8,145,178,0.35)`, borderRadius: 2, fontWeight: 600 }}
                     >
                         Nueva Venta
                     </Button>
@@ -1784,8 +1784,8 @@ useEffect(() => {
                                         onClick={handleSubmit}
                                         startIcon={savingVenta ? <CircularProgress size={18} sx={{ color: 'white' }} /> : (metodoPago === 'Link de Pago' ? <CreditCard /> : <ShoppingCart />)}
                                         sx={{
-                                            background: `linear-gradient(135deg, ${ACCENT}, #818CF8)`,
-                                            boxShadow: `0 4px 14px rgba(99,102,241,0.35)`,
+                                            background: `linear-gradient(135deg, ${ACCENT}, #22D3EE)`,
+                                            boxShadow: `0 4px 14px rgba(8,145,178,0.35)`,
                                             borderRadius: 3, fontWeight: 800, py: 2,
                                             fontSize: 16, whiteSpace: 'nowrap',
                                         }}

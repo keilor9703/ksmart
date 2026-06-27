@@ -15,7 +15,7 @@ import { formatCurrency } from '../../utils/formatters';
 import { METODOS_PAGO_SIMPLE as METODOS_PAGO } from '../../utils/constants';
 import { imprimirEntradaParqueadero } from '../../utils/printParqueadero';
 
-const ACCENT = '#6366F1';
+const ACCENT = '#0891B2';
 const WA_GREEN = '#25D366';
 
 export function ParqueaderoEntradaHorasDialog({
