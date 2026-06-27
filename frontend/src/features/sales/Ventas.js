@@ -446,6 +446,7 @@ const Ventas = ({ user }) => {
     // Cobro proveniente de una cita del módulo de agendamiento.
     const citaIdRef = useRef(null);          // id de la cita a vincular al guardar
     const citaVendedorRef = useRef(null);    // id del trabajador (vendedor) de la cita
+    const citaProductoRef = useRef(null);    // servicio inyectado (para preservarlo en refetch)
     const fromCitaAppliedRef = useRef(false); // evita reaplicar al re-render
 
     // ── Data ──
@@ -540,19 +541,32 @@ const Ventas = ({ user }) => {
     }, []);
 
     // ── Precarga desde una cita (cobro de agendamiento) ──
-    // El módulo de agendamiento redirige aquí con { state: { fromCita } }: cliente
-    // (ya garantizado), servicio como ítem y el trabajador como vendedor.
+    // El módulo de agendamiento redirige aquí guardando los datos en sessionStorage
+    // (robusto ante recargas/navegación) con el state de React Router como respaldo.
     useEffect(() => {
-        const fc = location.state?.fromCita;
-        if (!fc || fromCitaAppliedRef.current) return;
+        if (fromCitaAppliedRef.current) return;
+        let fc = null;
+        try {
+            const raw = sessionStorage.getItem('ksmart_cobro_cita');
+            if (raw) fc = JSON.parse(raw);
+        } catch { /* ignore */ }
+        if (!fc) fc = location.state?.fromCita || null;
+        if (!fc) return;
+
         fromCitaAppliedRef.current = true;
+        try { sessionStorage.removeItem('ksmart_cobro_cita'); } catch { /* ignore */ }
 
         if (fc.cliente) {
             setCliente(fc.cliente);
+            setClienteInput(fc.cliente.nombre || '');
             setIsMostrador(false);
             setClientes(prev => prev.some(c => c.id === fc.cliente.id) ? prev : [...prev, fc.cliente]);
         }
         if (fc.producto) {
+            // El servicio puede no estar en la lista POS (solo_pos); lo añadimos para
+            // que el Autocomplete del ítem lo muestre, y lo preservamos en refetch.
+            citaProductoRef.current = fc.producto;
+            setProductos(prev => prev.some(p => p.id === fc.producto.id) ? prev : [...prev, fc.producto]);
             setSaleDetails([{
                 id: Date.now(), producto: fc.producto, cantidad: 1,
                 precioUnitario: fc.precio ?? fc.producto.precio ?? 0, descuentoPct: 0,
@@ -568,7 +582,8 @@ const Ventas = ({ user }) => {
         toast.info('Cobro de cita cargado. Agrega más productos si lo necesitas y registra la venta.');
         // Limpia el state para que un refresh no reaplique la precarga.
         window.history.replaceState({}, document.title);
-    }, [location.state]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Cuando lleguen los empleados reales, reemplaza el vendedor inyectado por el
     // objeto completo del trabajador (para el Autocomplete), sin perder el id.
@@ -600,7 +615,13 @@ const Ventas = ({ user }) => {
             .then(r => setClientePuntos(r.data.puntos_disponibles || 0))
             .catch(() => setClientePuntos(0));
     }, []);
-    const fetchProductos     = () => apiClient.get('/productos/', { params: { solo_pos: true } }).then(r => setProductos([...r.data].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))).catch(console.error);
+    const fetchProductos     = () => apiClient.get('/productos/', { params: { solo_pos: true } }).then(r => {
+        let list = [...r.data];
+        // Preserva el servicio inyectado desde un cobro de cita (puede no ser solo_pos).
+        const cp = citaProductoRef.current;
+        if (cp && !list.some(p => p.id === cp.id)) list.push(cp);
+        setProductos(list.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')));
+    }).catch(console.error);
     const fetchGrupos        = () => apiClient.get('/grupos-producto/').then(r => setGrupos(r.data)).catch(console.error);
     const fetchVentasSummary = () => apiClient.get('/reportes/ventas_summary').then(r => setTotalVentasHoy(r.data.total_ventas_hoy)).catch(console.error);
 
