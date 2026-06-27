@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 
 const SIDEBAR_BG     = '#0A0A0A';
 const SIDEBAR_ACTIVE = 'rgba(255,100,30,0.18)';
-const ACCENT         = '#6366F1';
+const ACCENT         = '#0891B2';
 
 /**
  * Búsqueda global activada con Ctrl+K / ⌘K.

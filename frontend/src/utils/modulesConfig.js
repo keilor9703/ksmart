@@ -64,7 +64,7 @@ import EventNote from '@mui/icons-material/EventNote';
 // ───────────────────────────────────────────────────────────────────────────
 export const MODULE_ICONS = {
   // Ventas y comercial (Tonos Naranjas y Ámbar)
-  '/ventas':              { icon: <ShoppingCart />,           color: '#6366F1', label: 'Ventas (POS)' },
+  '/ventas':              { icon: <ShoppingCart />,           color: '#0891B2', label: 'Ventas (POS)' },
   '/pedidos-virtuales':   { icon: <Storefront />,             color: '#F43F5E', label: 'Pedidos Virtuales' },
   '/cotizaciones':        { icon: <RequestQuote />,           color: '#E65100', label: 'Cotizaciones' },
 
@@ -97,13 +97,13 @@ export const MODULE_ICONS = {
   '/parqueadero/buscar':         { icon: <ManageSearch />,    color: '#CDDC39', label: 'Buscar placa' },
   '/parqueadero/vehiculos':      { icon: <TwoWheeler />,      color: '#9C27B0', label: 'Vehículos' },
   '/parqueadero/suscripciones':  { icon: <Autorenew />,       color: '#FF4081', label: 'Suscripciones' },
-  '/parqueadero/config':         { icon: <SettingsSuggest />, color: '#6B7280', label: 'Tarifas y cupo' },
-  '/parqueadero/cierre-fe':      { icon: <Receipt />,         color: '#6366F1', label: 'Cierre de Caja FE' },
+  '/parqueadero/config':         { icon: <SettingsSuggest />, color: '#F59E0B', label: 'Tarifas y cupo' },
+  '/parqueadero/cierre-fe':      { icon: <Receipt />,         color: '#0891B2', label: 'Cierre de Caja FE' },
 
   // Lavadero
   '/lavadero/ventas':   { icon: <LocalCarWash />,    color: '#0EA5E9', label: 'POS Lavadero' },
   '/lavadero/reporte':  { icon: <DirectionsCar />,   color: '#0284C7', label: 'Reporte por trabajador' },
-  '/lavadero/config':   { icon: <SettingsSuggest />, color: '#6B7280', label: 'Config. Lavadero' },
+  '/lavadero/config':   { icon: <SettingsSuggest />, color: '#A855F7', label: 'Config. Lavadero' },
 
   // Restaurante
   '/restaurante':          { icon: <TableRestaurant />, color: '#F97316', label: 'Mapa de Mesas' },
@@ -117,10 +117,10 @@ export const MODULE_ICONS = {
   '/agendamiento/config':  { icon: <EventAvailable />, color: '#0F766E', label: 'Config Agendamiento' },
 
   // Contabilidad
-  '/contabilidad': { icon: <AutoAwesome />, color: '#6366F1', label: 'Contabilidad' },
+  '/contabilidad': { icon: <AutoAwesome />, color: '#0891B2', label: 'Contabilidad' },
 
   // Superadmin
-  '/superadmin/link-pago': { icon: <QrCode2 />, color: '#6366F1', label: 'Link de Pago POS' },
+  '/superadmin/link-pago': { icon: <QrCode2 />, color: '#0891B2', label: 'Link de Pago POS' },
 
 };
 
@@ -145,7 +145,7 @@ export const getModuleConfig = (frontendPath, backendName = null) => {
 // Estos no vienen del backend porque son del propio sistema, no de roles
 // ───────────────────────────────────────────────────────────────────────────
 export const ADMIN_MODULES = [
-  { path: '/admin/usuarios', label: 'Usuarios y Permisos', icon: null, color: '#a78bfa' },
+  { path: '/admin/usuarios', label: 'Usuarios y Permisos', icon: null, color: '#8B5CF6' },
 ];
 
 // ─── Paths que NUNCA deben aparecer en el sidebar ────────────────────────

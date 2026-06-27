@@ -23,7 +23,7 @@ import { imprimirReciboLavadero } from '../../utils/printLavadero';
 import LinkPagoModal from '../../components/common/LinkPagoModal';
 import CurrencyField from '../../components/common/CurrencyField';
 
-const ACCENT  = '#6366F1';
+const ACCENT  = '#0891B2';
 const BLUE    = '#3B82F6';
 const AMBER   = '#F59E0B';
 const GREEN   = '#10B981';
@@ -746,7 +746,7 @@ export default function LavaderoVentas({ user }) {
                                   <IconButton size="small"
                                     disabled={reintentando === h.venta_id}
                                     onClick={() => reintentarFE(h.venta_id)}
-                                    sx={{ color: '#6366F1' }}
+                                    sx={{ color: '#0891B2' }}
                                   >
                                     {reintentando === h.venta_id
                                       ? <CircularProgress size={14} />

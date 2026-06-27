@@ -173,7 +173,7 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
               )}
               <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                 <Typography fontSize={15} fontWeight={800}>TOTAL</Typography>
-                <Typography fontSize={17} fontWeight={900} color="#6366F1">{fmt(totalConPropina)}</Typography>
+                <Typography fontSize={17} fontWeight={900} color="#0891B2">{fmt(totalConPropina)}</Typography>
               </Box>
             </Box>
 
@@ -210,7 +210,7 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
                 {linkPagoConfig && (
                   <MenuItem value="Link de Pago">
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <QrCode2 sx={{ fontSize: 16, color: '#6366F1' }} />
+                      <QrCode2 sx={{ fontSize: 16, color: '#0891B2' }} />
                       Link de Pago / QR
                     </Box>
                   </MenuItem>
@@ -263,11 +263,11 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
             {metodo === 'Link de Pago' && linkPagoConfig && (
               <Box sx={{
                 p: 1.5, borderRadius: 2, textAlign: 'center',
-                bgcolor: alpha('#6366F1', 0.06),
-                border: `1.5px solid ${alpha('#6366F1', 0.25)}`,
+                bgcolor: alpha('#0891B2', 0.06),
+                border: `1.5px solid ${alpha('#0891B2', 0.25)}`,
               }}>
-                <QrCode2 sx={{ color: '#6366F1', fontSize: 28, mb: 0.5 }} />
-                <Typography fontSize={12} fontWeight={700} color="#6366F1">
+                <QrCode2 sx={{ color: '#0891B2', fontSize: 28, mb: 0.5 }} />
+                <Typography fontSize={12} fontWeight={700} color="#0891B2">
                   {linkPagoConfig.nombre}
                 </Typography>
                 <Typography fontSize={11} color="text.secondary" mt={0.3}>
@@ -287,7 +287,7 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
             onClick={() => metodo === 'Link de Pago' ? setLinkPagoOpen(true) : handlePagar()}
             sx={{
               borderRadius: 2, fontWeight: 800, fontSize: 14, py: 1.1, flex: 1,
-              bgcolor: metodo === 'Link de Pago' ? '#6366F1' : '#059669',
+              bgcolor: metodo === 'Link de Pago' ? '#0891B2' : '#059669',
               '&:hover': { bgcolor: metodo === 'Link de Pago' ? '#E8531A' : '#047857' },
             }}>
             {metodo === 'Link de Pago' ? 'Mostrar QR / Link' : `Confirmar pago ${fmt(totalConPropina)}`}
@@ -368,7 +368,7 @@ const ComandaCard = ({ comanda, onClick }) => {
         </Box>
         {/* Precio alineado a la derecha, nunca se corta */}
         <Typography
-          fontWeight={900} fontSize={18} color="#6366F1"
+          fontWeight={900} fontSize={18} color="#0891B2"
           sx={{ flexShrink: 0, textAlign: 'right', minWidth: 'max-content' }}
         >
           {fmt(comanda.total)}

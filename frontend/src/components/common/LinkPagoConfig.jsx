@@ -126,7 +126,7 @@ export default function LinkPagoConfig() {
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-        <CircularProgress size={28} sx={{ color: '#6366F1' }} />
+        <CircularProgress size={28} sx={{ color: '#0891B2' }} />
       </Box>
     );
   }
@@ -247,8 +247,8 @@ export default function LinkPagoConfig() {
               startIcon={saving ? <CircularProgress size={15} sx={{ color: 'white' }} /> : <Save />}
               sx={{
                 flex: 1, borderRadius: 2, fontWeight: 700,
-                background: 'linear-gradient(135deg, #6366F1, #818CF8)',
-                boxShadow: '0 4px 14px rgba(99,102,241,0.3)',
+                background: 'linear-gradient(135deg, #0891B2, #22D3EE)',
+                boxShadow: '0 4px 14px rgba(8,145,178,0.3)',
               }}
             >
               {saving ? 'Guardando…' : (config ? 'Actualizar' : 'Guardar')}
@@ -281,7 +281,7 @@ export default function LinkPagoConfig() {
             elevation={0}
             sx={{
               p: 2, borderRadius: 3, bgcolor: '#ffffff',
-              border: `1.5px solid ${alpha('#6366F1', 0.2)}`,
+              border: `1.5px solid ${alpha('#0891B2', 0.2)}`,
               display: 'flex', justifyContent: 'center', alignItems: 'center',
               width: 180, height: 180,
             }}

@@ -13,7 +13,7 @@ import SecurityDialog from '../components/common/SecurityDialog';
 
 const SIDEBAR_FULL = 240;
 const SIDEBAR_MINI = 68;
-const ACCENT       = '#6366F1';
+const ACCENT       = '#0891B2';
 
 const TopBar = ({ sidebarExpanded, isMobile, onMobileMenuOpen, mode, onThemeToggle, onLogout, user, anchorEl, openMenu, onMenuOpen, onMenuClose }) => {
   const [securityOpen, setSecurityOpen] = useState(false);
@@ -94,12 +94,12 @@ const TopBar = ({ sidebarExpanded, isMobile, onMobileMenuOpen, mode, onThemeTogg
                   border: `1px solid ${mode === 'dark' ? 'rgba(255,255,255,0.08)' : '#E5E7EB'}`,
                   transition: 'all 0.18s ease',
                   '&:hover': {
-                    backgroundColor: mode === 'dark' ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.06)',
-                    borderColor: 'rgba(99,102,241,0.35)',
+                    backgroundColor: mode === 'dark' ? 'rgba(8,145,178,0.1)' : 'rgba(8,145,178,0.06)',
+                    borderColor: 'rgba(8,145,178,0.35)',
                   },
                 }}
               >
-                <Avatar sx={{ width: 26, height: 26, background: `linear-gradient(135deg, ${ACCENT}, #818CF8)`, fontSize: 11, fontWeight: 700 }}>
+                <Avatar sx={{ width: 26, height: 26, background: `linear-gradient(135deg, ${ACCENT}, #22D3EE)`, fontSize: 11, fontWeight: 700 }}>
                   {user?.username?.[0]?.toUpperCase()}
                 </Avatar>
                 <Typography sx={{ fontSize: 13, fontWeight: 600, fontFamily: "'Geist', sans-serif", color: mode === 'dark' ? '#e2e8f0' : '#374151' }}>
@@ -115,7 +115,7 @@ const TopBar = ({ sidebarExpanded, isMobile, onMobileMenuOpen, mode, onThemeTogg
             <IconButton onClick={onMenuOpen} size="small"><MoreVertIcon /></IconButton>
             <Menu anchorEl={anchorEl} open={openMenu} onClose={onMenuClose} PaperProps={{ sx: { mt: 1, minWidth: 180, borderRadius: 2 } }}>
               <MenuItem onClick={() => { setSecurityOpen(true); onMenuClose(); }}>
-                <Security fontSize="small" sx={{ mr: 1.5, color: '#6366F1' }} /> Seguridad
+                <Security fontSize="small" sx={{ mr: 1.5, color: '#0891B2' }} /> Seguridad
               </MenuItem>
               <Divider />
               <MenuItem onClick={() => { onLogout(); onMenuClose(); }} sx={{ color: 'error.main' }}>

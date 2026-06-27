@@ -28,7 +28,7 @@ const HAS_CAMERA = typeof navigator !== 'undefined' && !!navigator?.mediaDevices
 const BARCODE_FORMATS = ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e'];
 
 // ── Paleta ────────────────────────────────────────────────────────────────────
-const ACCENT = '#6366F1';
+const ACCENT = '#0891B2';
 
 const formatPlaca = (raw) => {
   const clean = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -238,7 +238,7 @@ export default function ParqueaderoBuscar() {
         <Box sx={{ textAlign: 'center' }}>
           <Box sx={{
             width: 64, height: 64, borderRadius: '50%',
-            background: `linear-gradient(135deg, ${ACCENT} 0%, #818CF8 100%)`,
+            background: `linear-gradient(135deg, ${ACCENT} 0%, #22D3EE 100%)`,
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             mb: 1.5, boxShadow: `0 8px 24px ${ACCENT}40`,
           }}>

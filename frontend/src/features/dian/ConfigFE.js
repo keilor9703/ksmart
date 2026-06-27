@@ -23,7 +23,7 @@ const fmtCOP = (val) =>
 // ─── PlanCardFE — tarjeta de plan dentro del modal ─────────────────────────────
 function PlanCardFE({ plan, onSuccess }) {
   const theme = useTheme();
-  const ACCENT = '#6366F1';
+  const ACCENT = '#0891B2';
   const features = plan.caracteristicas?.split(',').map(f => f.trim()).filter(Boolean) || [];
   return (
     <Card elevation={0} sx={{

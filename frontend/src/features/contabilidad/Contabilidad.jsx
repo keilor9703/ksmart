@@ -788,10 +788,10 @@ function ResumenIVA({ fechaInicio, fechaFin }) {
           </Paper>
         </Grid>
         <Grid item xs={6} sm={2}>
-          <Paper sx={{ p: 2.5, border: '1px solid #6366F133', borderRadius: 2, position: 'relative', overflow: 'hidden' }}>
-            <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, bgcolor: '#6366F1' }} />
+          <Paper sx={{ p: 2.5, border: '1px solid #0891B233', borderRadius: 2, position: 'relative', overflow: 'hidden' }}>
+            <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, bgcolor: '#0891B2' }} />
             <Typography variant="caption" color="text.secondary" display="block" gutterBottom>IVA Descontable</Typography>
-            <Typography variant="h6" fontWeight={700} color="#6366F1">{fmt(data.iva_descontable)}</Typography>
+            <Typography variant="h6" fontWeight={700} color="#0891B2">{fmt(data.iva_descontable)}</Typography>
             <Typography variant="caption" color="text.disabled">IVA pagado en compras</Typography>
           </Paper>
         </Grid>
@@ -851,12 +851,12 @@ function ResumenIVA({ fechaInicio, fechaFin }) {
 
       {/* ICA estimado */}
       {icaEstimado > 0 && (
-        <Paper sx={{ p: 2, mb: 3, border: '1px solid', borderColor: '#6366F133', bgcolor: '#6366F108' }}>
+        <Paper sx={{ p: 2, mb: 3, border: '1px solid', borderColor: '#0891B233', bgcolor: '#0891B208' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <AccountBalance sx={{ color: '#6366F1', fontSize: 28 }} />
+            <AccountBalance sx={{ color: '#0891B2', fontSize: 28 }} />
             <Box>
-              <Typography variant="subtitle2" fontWeight={700} color="#6366F1">Estimado ICA — Industria y Comercio</Typography>
-              <Typography variant="h6" fontWeight={700} color="#6366F1">{fmt(icaEstimado)}</Typography>
+              <Typography variant="subtitle2" fontWeight={700} color="#0891B2">Estimado ICA — Industria y Comercio</Typography>
+              <Typography variant="h6" fontWeight={700} color="#0891B2">{fmt(icaEstimado)}</Typography>
               <Typography variant="caption" color="text.secondary">
                 Calculado sobre base gravable ventas ({fmt(baseGravableVentas)}) × tasa estimada 10‰ (1%). Verifica la tarifa vigente de tu municipio con tu contador — la tasa varía según actividad económica y localidad.
               </Typography>
@@ -1164,7 +1164,7 @@ export default function Contabilidad() {
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Box sx={{ p: { xs: 1, md: 3 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3, flexWrap: 'wrap' }}>
-          <AutoAwesome sx={{ color: '#6366F1', fontSize: 30, flexShrink: 0 }} />
+          <AutoAwesome sx={{ color: '#0891B2', fontSize: 30, flexShrink: 0 }} />
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant={isMobile ? 'h6' : 'h5'} fontWeight={700}>Contabilidad Automática</Typography>
             {!isMobile && (
@@ -1178,8 +1178,8 @@ export default function Contabilidad() {
               variant="outlined" size="small"
               startIcon={inicializando ? <CircularProgress size={14} /> : <AccountBalance />}
               onClick={handleInicializar} disabled={inicializando}
-              sx={{ borderColor: '#6366F1', color: '#6366F1', flexShrink: 0,
-                '&:hover': { borderColor: '#4F46E5', bgcolor: '#6366F111' } }}
+              sx={{ borderColor: '#0891B2', color: '#0891B2', flexShrink: 0,
+                '&:hover': { borderColor: '#0E7490', bgcolor: '#0891B211' } }}
             >
               {isMobile ? (inicializando ? '…' : 'Inicializar') : (inicializando ? 'Procesando…' : 'Inicializar contabilidad')}
             </Button>
@@ -1241,7 +1241,7 @@ export default function Contabilidad() {
         </Tabs>
 
         {isMobile && (
-          <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#6366F1', mb: 1.5 }}>
+          <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#0891B2', mb: 1.5 }}>
             {TABS[tab].label}
           </Typography>
         )}

@@ -13,10 +13,10 @@ import apiClient from '../../api';
 const COLOR_PRESETS = [
   '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6',
   '#EF4444', '#06B6D4', '#EC4899', '#F97316',
-  '#84CC16', '#6366F1', '#14B8A6', '#94a3b8',
+  '#84CC16', '#0891B2', '#14B8A6', '#94a3b8',
 ];
 
-const DEFAULT_FORM = { nombre: '', codigo: '', color: '#6366F1', orden: 99, requiere_cocina: false, visible_pos: true };
+const DEFAULT_FORM = { nombre: '', codigo: '', color: '#0891B2', orden: 99, requiere_cocina: false, visible_pos: true };
 
 // ── Card móvil por categoría ──────────────────────────────────────────────────
 const GrupoCard = ({ grupo, onEdit, onDelete, onConfig, esRestaurante }) => (
@@ -48,7 +48,7 @@ const GrupoCard = ({ grupo, onEdit, onDelete, onConfig, esRestaurante }) => (
           : <>
               <Tooltip title="Editar">
                 <IconButton size="small" onClick={() => onEdit(grupo)}
-                  sx={{ color: '#6366F1', bgcolor: '#EEF2FF', borderRadius: 1.5, width: 28, height: 28 }}>
+                  sx={{ color: '#0891B2', bgcolor: '#EEF2FF', borderRadius: 1.5, width: 28, height: 28 }}>
                   <Edit sx={{ fontSize: 14 }} />
                 </IconButton>
               </Tooltip>
@@ -272,7 +272,7 @@ export default function GruposProductoManager({ onGruposChange }) {
                           <>
                             <Tooltip title="Editar">
                               <IconButton size="small" onClick={() => openEdit(g)}
-                                sx={{ color: '#6366F1', '&:hover': { bgcolor: '#EEF2FF' } }}>
+                                sx={{ color: '#0891B2', '&:hover': { bgcolor: '#EEF2FF' } }}>
                                 <Edit fontSize="small" />
                               </IconButton>
                             </Tooltip>

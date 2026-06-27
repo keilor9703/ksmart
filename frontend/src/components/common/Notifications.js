@@ -10,7 +10,7 @@ import {
 import apiClient from '../../api';
 import usePolling from '../../hooks/usePolling';
 
-const ACCENT = '#6366F1';
+const ACCENT = '#0891B2';
 
 const TYPE_CONFIG = {
   warning: { icon: <Warning sx={{ fontSize: 16 }} />,          color: '#F59E0B', bg: '#FFFBEB' },

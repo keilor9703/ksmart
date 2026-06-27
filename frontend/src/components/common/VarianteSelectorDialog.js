@@ -14,7 +14,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import InventoryIcon from '@mui/icons-material/Inventory2';
 import { formatCurrency } from '../../utils/formatters';
 
-const ACCENT = '#6366F1';
+const ACCENT = '#0891B2';
 
 /**
  * @param {object}   producto        — objeto producto completo (con .variantes)

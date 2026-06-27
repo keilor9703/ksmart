@@ -22,7 +22,7 @@ import CurrencyField from '../../components/common/CurrencyField';
 import ParqueaderoMetodosPago from './ParqueaderoMetodosPago';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
-const ACCENT = '#6366F1';
+const ACCENT = '#0891B2';
 
 export default function ParqueaderoConfig() {
   const [config, setConfig]   = useState(null);
@@ -121,7 +121,7 @@ export default function ParqueaderoConfig() {
         <Stack direction="row" alignItems="center" spacing={1.5}>
           <Box sx={{
             width: 48, height: 48, borderRadius: 2,
-            background: `linear-gradient(135deg, ${ACCENT} 0%, #818CF8 100%)`,
+            background: `linear-gradient(135deg, ${ACCENT} 0%, #22D3EE 100%)`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
             <Settings sx={{ color: 'white' }} />
@@ -341,7 +341,7 @@ export default function ParqueaderoConfig() {
               <Switch
                 checked={config?.usar_tarifa_plena || false}
                 onChange={(e) => setConfig(prev => ({ ...prev, usar_tarifa_plena: e.target.checked }))}
-                sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#6366F1' }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#6366F1' } }}
+                sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#0891B2' }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#0891B2' } }}
               />
             }
             label={
@@ -358,11 +358,11 @@ export default function ParqueaderoConfig() {
 
       {/* ─── Tarifa plena ──────────────────────────────────────────────────── */}
       {config?.usar_tarifa_plena && (
-        <Paper sx={{ p: 3, mb: 2, borderRadius: 3, border: '2px solid', borderColor: '#6366F140' }}>
+        <Paper sx={{ p: 3, mb: 2, borderRadius: 3, border: '2px solid', borderColor: '#0891B240' }}>
           <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
             <Box sx={{
               width: 40, height: 40, borderRadius: 2,
-              bgcolor: '#6366F115', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              bgcolor: '#0891B215', display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               <Schedule sx={{ color: ACCENT }} />
             </Box>
@@ -399,7 +399,7 @@ export default function ParqueaderoConfig() {
 
           {/* Simulador */}
           {config?.tarifa_plena > 0 && config?.tarifa_minuto > 0 && (
-            <Box sx={{ mt: 2, p: 2, bgcolor: '#6366F108', borderRadius: 2, border: '1px solid #6366F125' }}>
+            <Box sx={{ mt: 2, p: 2, bgcolor: '#0891B208', borderRadius: 2, border: '1px solid #0891B225' }}>
               <Typography sx={{ fontSize: 12, fontWeight: 700, color: ACCENT, mb: 1, textTransform: 'uppercase' }}>
                 Simulador de cobro
               </Typography>
@@ -457,9 +457,9 @@ export default function ParqueaderoConfig() {
           {config?.usar_tarifa_plena ? (
             <>
               <Chip label={`Por minuto ${formatCurrency(config?.tarifa_minuto || 0)}/min`}
-                sx={{ bgcolor: '#6366F115', color: ACCENT, fontWeight: 700 }} />
+                sx={{ bgcolor: '#0891B215', color: ACCENT, fontWeight: 700 }} />
               <Chip label={`Plena c/${((config?.fraccion_minutos || 480) / 60).toFixed(1).replace('.0', '')}h ${formatCurrency(config?.tarifa_plena || 0)}`}
-                sx={{ bgcolor: '#6366F115', color: ACCENT, fontWeight: 700 }} />
+                sx={{ bgcolor: '#0891B215', color: ACCENT, fontWeight: 700 }} />
             </>
           ) : (
             <>

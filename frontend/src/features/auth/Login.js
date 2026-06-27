@@ -91,10 +91,10 @@ const fieldSx = {
     '& .MuiInputAdornment-root .MuiSvgIcon-root': { color: '#5b6b80', fontSize: 19, transition: 'color 0.2s ease' },
     '& .MuiOutlinedInput-root.Mui-focused .MuiInputAdornment-root .MuiSvgIcon-root': { color: '#22c55e' },
     '&.orange-field': {
-        '& .MuiInputLabel-root.Mui-focused': { color: '#6366F1' },
+        '& .MuiInputLabel-root.Mui-focused': { color: '#0891B2' },
         '& .MuiOutlinedInput-root.Mui-focused': { boxShadow: '0 0 0 4px rgba(249, 115, 22, 0.12)' },
-        '& .MuiOutlinedInput-root.Mui-focused fieldset': { borderColor: '#6366F1' },
-        '& .MuiOutlinedInput-root.Mui-focused .MuiInputAdornment-root .MuiSvgIcon-root': { color: '#6366F1' },
+        '& .MuiOutlinedInput-root.Mui-focused fieldset': { borderColor: '#0891B2' },
+        '& .MuiOutlinedInput-root.Mui-focused .MuiInputAdornment-root .MuiSvgIcon-root': { color: '#0891B2' },
     },
 };
 
@@ -126,7 +126,7 @@ const CAROUSEL_FEATURES = [
   {
     Icon: Storefront,
     tag: 'COMERCIO & ERP',
-    color: '#6366F1',
+    color: '#0891B2',
     title: 'Vende más inteligente',
     desc: 'POS moderno, inventario en tiempo real, compras, clientes y reportes financieros en un solo lugar.',
     stats: [{ label: 'Productos', val: '∞' }, { label: 'Clientes', val: '∞' }, { label: 'Reportes', val: '12+' }],
@@ -887,17 +887,17 @@ const Login = ({ onLogin }) => {
                                     <Chip
                                         size="small"
                                         label="1 · Negocio"
-                                        icon={regStep > 1 ? <CheckCircle sx={{ fontSize: 14, color: '#6366F1 !important' }} /> : null}
+                                        icon={regStep > 1 ? <CheckCircle sx={{ fontSize: 14, color: '#0891B2 !important' }} /> : null}
                                         sx={{
                                             fontWeight: 700, fontSize: 11, height: 24,
                                             bgcolor: regStep >= 1 ? 'rgba(249,115,22,0.15)' : 'rgba(148,163,184,0.1)',
-                                            color:   regStep >= 1 ? '#6366F1' : '#64748b',
+                                            color:   regStep >= 1 ? '#0891B2' : '#64748b',
                                             border: 'none',
                                         }}
                                     />
                                     <Box sx={{
                                         flex: 1, height: 2, borderRadius: 1,
-                                        bgcolor: regStep === 2 ? '#6366F1' : 'rgba(148,163,184,0.15)',
+                                        bgcolor: regStep === 2 ? '#0891B2' : 'rgba(148,163,184,0.15)',
                                         transition: 'all 0.3s',
                                     }} />
                                     <Chip
@@ -906,7 +906,7 @@ const Login = ({ onLogin }) => {
                                         sx={{
                                             fontWeight: 700, fontSize: 11, height: 24,
                                             bgcolor: regStep === 2 ? 'rgba(249,115,22,0.15)' : 'rgba(148,163,184,0.1)',
-                                            color:   regStep === 2 ? '#6366F1' : '#64748b',
+                                            color:   regStep === 2 ? '#0891B2' : '#64748b',
                                             border: 'none',
                                         }}
                                     />
@@ -917,7 +917,7 @@ const Login = ({ onLogin }) => {
                                     sx={{
                                         height: 3, borderRadius: 2,
                                         bgcolor: 'rgba(148,163,184,0.1)',
-                                        '& .MuiLinearProgress-bar': { bgcolor: '#6366F1' },
+                                        '& .MuiLinearProgress-bar': { bgcolor: '#0891B2' },
                                     }}
                                 />
                             </Box>
@@ -1111,7 +1111,7 @@ const Login = ({ onLogin }) => {
                                             }}
                                         >
                                             {[
-                                                { key: 'erp',         label: 'Comercio / ERP',  Icon: Storefront,      desc: 'Ventas, inventario y clientes',  color: '#6366F1' },
+                                                { key: 'erp',         label: 'Comercio / ERP',  Icon: Storefront,      desc: 'Ventas, inventario y clientes',  color: '#0891B2' },
                                                 { key: 'prestamos',   label: 'Cobranzas',        Icon: AttachMoney,     desc: 'Préstamos y rutas de cobro',     color: '#22c55e' },
                                                 { key: 'parqueadero', label: 'Parqueadero',      Icon: LocalParking,    desc: 'Suscripciones y accesos',        color: '#3b82f6' },
                                                 { key: 'lavadero',    label: 'Lavadero',         Icon: LocalCarWash,    desc: 'POS y productividad',            color: '#8b5cf6' },
@@ -1235,7 +1235,7 @@ const Login = ({ onLogin }) => {
                                                     <Grid item xs={6} sm={3} key={t.value}>
                                                         <Card sx={{
                                                             border: regData.tamano_negocio === t.value
-                                                                ? '2px solid #4F46E5'
+                                                                ? '2px solid #0E7490'
                                                                 : '2px solid rgba(148,163,184,0.1)',
                                                             bgcolor: regData.tamano_negocio === t.value
                                                                 ? 'rgba(234,88,12,0.1)'
@@ -1248,7 +1248,7 @@ const Login = ({ onLogin }) => {
                                                                 sx={{ p: 1.2, textAlign: 'center', color: '#f1f5f9' }}
                                                             >
                                                                 <Group sx={{
-                                                                    color: regData.tamano_negocio === t.value ? '#4F46E5' : '#64748b',
+                                                                    color: regData.tamano_negocio === t.value ? '#0E7490' : '#64748b',
                                                                     fontSize: 20,
                                                                 }} />
                                                                 <Typography sx={{ fontSize: 11, fontWeight: 700, mt: 0.2 }}>
@@ -1275,11 +1275,11 @@ const Login = ({ onLogin }) => {
                                                 letterSpacing: 0.2,
                                                 background: !canContinueStep1()
                                                     ? 'rgba(249,115,22,0.3)'
-                                                    : 'linear-gradient(90deg, #6366F1 0%, #4F46E5 100%)',
+                                                    : 'linear-gradient(90deg, #0891B2 0%, #0E7490 100%)',
                                                 boxShadow: !canContinueStep1() ? 'none' : '0 6px 20px rgba(249,115,22,0.22)',
                                                 transition: `all 0.22s ${SPRING}`,
                                                 '&:hover:not(:disabled)': {
-                                                    background: 'linear-gradient(90deg, #4F46E5 0%, #c2410c 100%)',
+                                                    background: 'linear-gradient(90deg, #0E7490 0%, #c2410c 100%)',
                                                     boxShadow: '0 8px 26px rgba(249,115,22,0.3)',
                                                 },
                                                 '&:active:not(:disabled)': { transform: 'scale(0.985)' },
@@ -1443,12 +1443,12 @@ const Login = ({ onLogin }) => {
                                                     <Checkbox 
                                                         checked={regData.acepta_terminos} 
                                                         onChange={updateReg('acepta_terminos')}
-                                                        sx={{ color: '#6366F1', '&.Mui-checked': { color: '#6366F1' } }}
+                                                        sx={{ color: '#0891B2', '&.Mui-checked': { color: '#0891B2' } }}
                                                     />
                                                 }
                                                 label={
                                                     <Typography variant="caption" sx={{ color: '#94a3b8' }}>
-                                                        Acepto los <Link to="/terminos" target="_blank" style={{ color: '#6366F1', fontWeight: 700 }}>Términos</Link>, la <Link to="/privacidad" target="_blank" style={{ color: '#6366F1', fontWeight: 700 }}>Privacidad</Link> y el <Link to="/habeas-data" target="_blank" style={{ color: '#6366F1', fontWeight: 700 }}>Tratamiento de Datos</Link>.
+                                                        Acepto los <Link to="/terminos" target="_blank" style={{ color: '#0891B2', fontWeight: 700 }}>Términos</Link>, la <Link to="/privacidad" target="_blank" style={{ color: '#0891B2', fontWeight: 700 }}>Privacidad</Link> y el <Link to="/habeas-data" target="_blank" style={{ color: '#0891B2', fontWeight: 700 }}>Tratamiento de Datos</Link>.
                                                     </Typography>
                                                 }
                                             />
@@ -1486,11 +1486,11 @@ const Login = ({ onLogin }) => {
                                                     flex: 1.4,
                                                     background: (loading || !canSubmitStep2())
                                                         ? 'rgba(249,115,22,0.3)'
-                                                        : 'linear-gradient(90deg, #6366F1 0%, #4F46E5 100%)',
+                                                        : 'linear-gradient(90deg, #0891B2 0%, #0E7490 100%)',
                                                     boxShadow: (loading || !canSubmitStep2()) ? 'none' : '0 6px 20px rgba(249,115,22,0.22)',
                                                     transition: `all 0.22s ${SPRING}`,
                                                     '&:hover:not(:disabled)': {
-                                                        background: 'linear-gradient(90deg, #4F46E5 0%, #c2410c 100%)',
+                                                        background: 'linear-gradient(90deg, #0E7490 0%, #c2410c 100%)',
                                                         boxShadow: '0 8px 26px rgba(249,115,22,0.3)',
                                                     },
                                                     '&:active:not(:disabled)': { transform: 'scale(0.985)' },
@@ -1506,7 +1506,7 @@ const Login = ({ onLogin }) => {
                                     ¿Ya tienes una cuenta?{' '}
                                     <span
                                         onClick={switchToLogin}
-                                        style={{ color: '#6366F1', fontWeight: 700, cursor: 'pointer' }}
+                                        style={{ color: '#0891B2', fontWeight: 700, cursor: 'pointer' }}
                                     >
                                         Inicia sesión aquí
                                     </span>
@@ -1554,7 +1554,7 @@ const Login = ({ onLogin }) => {
                                 value={recov.username}
                                 onChange={e => setRecov(s => ({ ...s, username: e.target.value, error: '' }))}
                                 sx={fieldSx}
-                                InputProps={{ startAdornment: <InputAdornment position="start"><Person sx={{ color: '#6366F1' }} /></InputAdornment> }}
+                                InputProps={{ startAdornment: <InputAdornment position="start"><Person sx={{ color: '#0891B2' }} /></InputAdornment> }}
                             />
                             <TextField fullWidth label="NIT de tu empresa"
                                 placeholder="Ej: 901123456-7"
@@ -1567,7 +1567,7 @@ const Login = ({ onLogin }) => {
                                 }}
                                 onKeyDown={e => e.key === 'Enter' && recovBuscar()}
                                 sx={fieldSx}
-                                InputProps={{ startAdornment: <InputAdornment position="start"><ManageAccounts sx={{ color: '#6366F1' }} /></InputAdornment> }}
+                                InputProps={{ startAdornment: <InputAdornment position="start"><ManageAccounts sx={{ color: '#0891B2' }} /></InputAdornment> }}
                             />
                         </Box>
                         {recov.error && (
@@ -1597,7 +1597,7 @@ const Login = ({ onLogin }) => {
                         {/* Pista enmascarada del nombre */}
                         {recov.hints.nombre_completo && (
                             <Box sx={{ mb: 2, p: 1.5, borderRadius: 2, bgcolor: 'rgba(249,115,22,0.06)', border: '1px solid rgba(249,115,22,0.2)' }}>
-                                <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#6366F1', mb: 0.5, textTransform: 'uppercase' }}>Pista</Typography>
+                                <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#0891B2', mb: 0.5, textTransform: 'uppercase' }}>Pista</Typography>
                                 <Chip size="small" label={`Nombre registrado: ${recov.hints.nombre_completo}`} sx={{ bgcolor: 'rgba(255,255,255,0.07)', color: '#cbd5e1', fontSize: 11 }} />
                             </Box>
                         )}
@@ -1608,7 +1608,7 @@ const Login = ({ onLogin }) => {
                             onChange={e => setRecov(s => ({ ...s, nombreCompleto: e.target.value, error: '' }))}
                             onKeyDown={e => e.key === 'Enter' && recovVerificar()}
                             sx={fieldSx}
-                            InputProps={{ startAdornment: <InputAdornment position="start"><Person sx={{ color: '#6366F1' }} /></InputAdornment> }}
+                            InputProps={{ startAdornment: <InputAdornment position="start"><Person sx={{ color: '#0891B2' }} /></InputAdornment> }}
                         />
                         {recov.error && (
                             <Typography sx={{ fontSize: 12, color: '#f87171', mt: 1.5, bgcolor: 'rgba(239,68,68,0.08)', p: 1.5, borderRadius: 2 }}>
@@ -1631,7 +1631,7 @@ const Login = ({ onLogin }) => {
                                 onChange={e => setRecov(s => ({ ...s, nuevaPassword: e.target.value, error: '' }))}
                                 sx={fieldSx}
                                 InputProps={{
-                                    startAdornment: <InputAdornment position="start"><Lock sx={{ color: '#6366F1' }} /></InputAdornment>,
+                                    startAdornment: <InputAdornment position="start"><Lock sx={{ color: '#0891B2' }} /></InputAdornment>,
                                     endAdornment: (
                                         <InputAdornment position="end">
                                             <IconButton size="small" tabIndex={-1} onClick={() => setShowRecovPwd(v => !v)} sx={{ color: '#64748b' }}>
@@ -1650,7 +1650,7 @@ const Login = ({ onLogin }) => {
                                 error={!!recov.confirmarPassword && recov.nuevaPassword !== recov.confirmarPassword}
                                 helperText={recov.confirmarPassword && recov.nuevaPassword !== recov.confirmarPassword ? 'Las contraseñas no coinciden' : ''}
                                 InputProps={{
-                                    startAdornment: <InputAdornment position="start"><Lock sx={{ color: '#6366F1' }} /></InputAdornment>,
+                                    startAdornment: <InputAdornment position="start"><Lock sx={{ color: '#0891B2' }} /></InputAdornment>,
                                     endAdornment: (
                                         <InputAdornment position="end">
                                             <IconButton size="small" tabIndex={-1} onClick={() => setShowRecovConfirm(v => !v)} sx={{ color: '#64748b' }}>
@@ -1686,7 +1686,7 @@ const Login = ({ onLogin }) => {
                     }
                     onClick={recov.step === 0 ? recovBuscar : recov.step === 1 ? recovVerificar : recovCambiar}
                     startIcon={recov.loading ? <CircularProgress size={16} color="inherit" /> : null}
-                    sx={{ background: 'linear-gradient(90deg, #6366F1, #4F46E5)', borderRadius: 2, fontWeight: 700, textTransform: 'none', '&:disabled': { opacity: 0.4 } }}
+                    sx={{ background: 'linear-gradient(90deg, #0891B2, #0E7490)', borderRadius: 2, fontWeight: 700, textTransform: 'none', '&:disabled': { opacity: 0.4 } }}
                 >
                     {recov.step === 0 && 'Buscar mi cuenta'}
                     {recov.step === 1 && 'Verificar identidad'}

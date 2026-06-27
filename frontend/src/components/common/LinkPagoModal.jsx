@@ -59,18 +59,18 @@ export default function LinkPagoModal({ open, onClose, onConfirm, linkConfig, cl
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           px: 2.5, py: 2,
           background: isDark
-            ? 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(99,102,241,0.04))'
-            : 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(255,150,50,0.04))',
-          borderBottom: `1px solid ${isDark ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.15)'}`,
+            ? 'linear-gradient(135deg, rgba(8,145,178,0.12), rgba(8,145,178,0.04))'
+            : 'linear-gradient(135deg, rgba(8,145,178,0.08), rgba(255,150,50,0.04))',
+          borderBottom: `1px solid ${isDark ? 'rgba(8,145,178,0.2)' : 'rgba(8,145,178,0.15)'}`,
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Box sx={{
             width: 36, height: 36, borderRadius: 2,
-            bgcolor: alpha('#6366F1', 0.15),
+            bgcolor: alpha('#0891B2', 0.15),
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <QrCode2 sx={{ color: '#6366F1', fontSize: 20 }} />
+            <QrCode2 sx={{ color: '#0891B2', fontSize: 20 }} />
           </Box>
           <Box>
             <Typography fontWeight={800} fontSize={15} lineHeight={1.1}>
@@ -95,8 +95,8 @@ export default function LinkPagoModal({ open, onClose, onConfirm, linkConfig, cl
           <Box sx={{
             p: 2.5, borderRadius: 3,
             bgcolor: '#ffffff',
-            border: `2px solid ${alpha('#6366F1', 0.25)}`,
-            boxShadow: `0 8px 32px ${alpha('#6366F1', 0.1)}`,
+            border: `2px solid ${alpha('#0891B2', 0.25)}`,
+            boxShadow: `0 8px 32px ${alpha('#0891B2', 0.1)}`,
             display: 'inline-flex',
           }}>
             {isQrImagen && (

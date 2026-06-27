@@ -12,7 +12,7 @@ import {
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
 
-const ACCENT = '#6366F1';
+const ACCENT = '#0891B2';
 
 const ESTADOS = ['pendiente', 'confirmada', 'cancelada', 'completada'];
 const ESTADO_COLORS = {

@@ -425,7 +425,7 @@ const CatalogoVirtual = () => {
     </Box>
   );
 
-  const accentColor = empresa.color_primario || '#6366F1';
+  const accentColor = empresa.color_primario || '#0891B2';
 
   return (
     <ThemeProvider theme={catTheme}>
@@ -518,7 +518,7 @@ const CatalogoVirtual = () => {
                 sx={{
                   fontSize: 9, color: '#94A3B8', textDecoration: 'none', whiteSpace: 'nowrap',
                   fontWeight: 700, letterSpacing: 0.2,
-                  '&:hover': { color: '#6366F1' }, transition: 'color 0.2s',
+                  '&:hover': { color: '#0891B2' }, transition: 'color 0.2s',
                   display: { xs: 'none', sm: 'block' },
                 }}
               >
@@ -653,7 +653,7 @@ const CatalogoVirtual = () => {
                     {(isNuevo || isOferta) && (
                       <Box sx={{ position: 'absolute', top: 3, left: 3, display: 'flex', flexDirection: 'column', gap: 0.4 }}>
                         {isNuevo && (
-                          <Box sx={{ bgcolor: '#6366f1', px: 0.8, py: 0.2, borderRadius: 1 }}>
+                          <Box sx={{ bgcolor: '#0891B2', px: 0.8, py: 0.2, borderRadius: 1 }}>
                             <Typography sx={{ fontSize: 8, fontWeight: 800, color: '#fff', letterSpacing: 0.3 }}>NUEVO</Typography>
                           </Box>
                         )}
@@ -965,7 +965,7 @@ const CatalogoVirtual = () => {
           }}>
             <Box sx={{
               width: 30, height: 30, borderRadius: 1.5, flexShrink: 0,
-              bgcolor: '#6366F1', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              bgcolor: '#0891B2', display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               <RocketLaunch sx={{ color: '#fff', fontSize: 15 }} />
             </Box>
@@ -984,10 +984,10 @@ const CatalogoVirtual = () => {
               size="small"
               endIcon={<ArrowForward sx={{ fontSize: 11 }} />}
               sx={{
-                bgcolor: '#6366F1', borderRadius: 2, fontWeight: 700,
+                bgcolor: '#0891B2', borderRadius: 2, fontWeight: 700,
                 fontSize: 11, textTransform: 'none', px: 1.5, py: 0.5,
                 minWidth: 'auto', flexShrink: 0, boxShadow: 'none',
-                '&:hover': { bgcolor: '#e65520', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' },
+                '&:hover': { bgcolor: '#e65520', boxShadow: '0 4px 12px rgba(8,145,178,0.3)' },
               }}
             >
               Gratis

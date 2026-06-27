@@ -25,7 +25,7 @@ import BotonWhatsApp from '../../components/common/BotonWhatsApp';   // ✨ NUEV
 import SaaSUpgradeManager from '../saas/components/SaaSUpgradeManager';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
-const ACCENT = '#6366F1';
+const ACCENT = '#0891B2';
 
 export default function ParqueaderoDashboard({ user }) {
   const [data, setData]       = useState(null);

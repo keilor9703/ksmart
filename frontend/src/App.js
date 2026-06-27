@@ -96,7 +96,7 @@ const AgendarPublico     = lazy(() => import('./features/agendamiento/AgendarPub
 // ─── Constantes de Layout ──────────────────────────────────────────────────────
 const SIDEBAR_FULL  = 240;
 const SIDEBAR_MINI  = 68;
-const ACCENT        = '#6366F1';
+const ACCENT        = '#0891B2';
 const PAGE_BG_LIGHT = '#FAFAFA';
 const PAGE_BG_DARK  = '#0A0A0A';
 
