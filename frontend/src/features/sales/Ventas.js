@@ -567,10 +567,14 @@ const Ventas = ({ user }) => {
             // que el Autocomplete del ítem lo muestre, y lo preservamos en refetch.
             citaProductoRef.current = fc.producto;
             setProductos(prev => prev.some(p => p.id === fc.producto.id) ? prev : [...prev, fc.producto]);
+            const newRowId = Date.now();
             setSaleDetails([{
-                id: Date.now(), producto: fc.producto, cantidad: 1,
+                id: newRowId, producto: fc.producto, cantidad: 1,
                 precioUnitario: fc.precio ?? fc.producto.precio ?? 0, descuentoPct: 0,
             }]);
+            // El Autocomplete del producto es controlado en inputValue: hay que
+            // setear el texto para que muestre el nombre del servicio.
+            setProductoInputs({ [newRowId]: fc.producto.nombre || '' });
         }
         if (fc.trabajadorId) {
             citaVendedorRef.current = fc.trabajadorId;  // garantiza operador_id = trabajador
