@@ -66,7 +66,17 @@ export default function AgendamientoConfig() {
         fetchAgendamientoConfig(),
       ]);
       setUsuarios(usrRes.data.filter(u => u.is_active !== false));
-      setConfig(cfgRes.data);
+      // Deriva si el descanso está activo (fin > inicio) y prepara valores por defecto.
+      const cfg = cfgRes.data;
+      const dIni = cfg.hora_descanso_inicio;
+      const dFin = cfg.hora_descanso_fin;
+      const activo = dIni != null && dFin != null && dFin > dIni;
+      setConfig({
+        ...cfg,
+        descanso_activo: activo,
+        hora_descanso_inicio: activo ? dIni : 12,
+        hora_descanso_fin:    activo ? dFin : 13,
+      });
       setServicios((srvRes.data || []).map(s => ({
         ...s,
         _agendable: s.agendable,
@@ -94,13 +104,25 @@ export default function AgendamientoConfig() {
       const { data } = await updateAgendamientoConfig({
         hora_apertura: config.hora_apertura,
         hora_cierre: config.hora_cierre,
+        // Descanso: si está desactivado, enviar inicio==fin para anularlo en el backend.
+        hora_descanso_inicio: config.descanso_activo ? config.hora_descanso_inicio : 0,
+        hora_descanso_fin: config.descanso_activo ? config.hora_descanso_fin : 0,
         dias_laborales: config.dias_laborales,
         dias_no_laborales: config.dias_no_laborales,
         whatsapp: config.whatsapp || null,
         requiere_anticipo: config.requiere_anticipo,
         porcentaje_anticipo: config.porcentaje_anticipo,
       });
-      setConfig(data);
+      {
+        const activo = data.hora_descanso_inicio != null && data.hora_descanso_fin != null
+          && data.hora_descanso_fin > data.hora_descanso_inicio;
+        setConfig({
+          ...data,
+          descanso_activo: activo,
+          hora_descanso_inicio: activo ? data.hora_descanso_inicio : 12,
+          hora_descanso_fin:    activo ? data.hora_descanso_fin : 13,
+        });
+      }
       toast.success('Horario y políticas actualizados.');
     } catch {
       toast.error('No se pudo guardar la configuración.');
@@ -208,6 +230,44 @@ export default function AgendamientoConfig() {
                 ))}
               </ToggleButtonGroup>
             </Grid>
+
+            {/* Descanso / almuerzo */}
+            <Grid item xs={12}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Switch checked={config.descanso_activo || false}
+                    onChange={e => patchConfig({ descanso_activo: e.target.checked })}
+                    sx={{ '& .Mui-checked': { color: TEAL }, '& .Mui-checked + .MuiSwitch-track': { bgcolor: `${TEAL} !important` } }} />
+                  <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+                    Cerrar por descanso / almuerzo
+                  </Typography>
+                </Box>
+                {config.descanso_activo && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <TextField select size="small" label="Desde" sx={{ minWidth: 110 }}
+                      value={config.hora_descanso_inicio ?? 12}
+                      onChange={e => patchConfig({ hora_descanso_inicio: Number(e.target.value) })}>
+                      {HORAS.filter(h => h.value >= (config.hora_apertura ?? 8) && h.value < (config.hora_cierre ?? 18)).map(h => (
+                        <MenuItem key={h.value} value={h.value}>{h.label}</MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField select size="small" label="Hasta" sx={{ minWidth: 110 }}
+                      value={config.hora_descanso_fin ?? 13}
+                      onChange={e => patchConfig({ hora_descanso_fin: Number(e.target.value) })}>
+                      {HORAS.filter(h => h.value > (config.hora_descanso_inicio ?? 12) && h.value <= (config.hora_cierre ?? 18)).map(h => (
+                        <MenuItem key={h.value} value={h.value}>{h.label}</MenuItem>
+                      ))}
+                    </TextField>
+                  </Box>
+                )}
+              </Box>
+              {config.descanso_activo && (
+                <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5 }}>
+                  No se ofrecerán citas en este rango horario.
+                </Typography>
+              )}
+            </Grid>
+
             <Grid item xs={12} sm={6}>
               <TextField fullWidth size="small" label="Número WhatsApp del negocio"
                 placeholder="3001234567" value={config.whatsapp || ''}

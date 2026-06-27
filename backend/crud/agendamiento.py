@@ -66,7 +66,8 @@ def get_or_create_agendamiento_config(db: Session, empresa_id: int) -> models.Ag
 
 def update_agendamiento_config(db: Session, empresa_id: int, data) -> models.AgendamientoConfig:
     cfg = get_or_create_agendamiento_config(db, empresa_id)
-    for field in ("hora_apertura", "hora_cierre", "dias_laborales", "dias_no_laborales",
+    for field in ("hora_apertura", "hora_cierre", "hora_descanso_inicio", "hora_descanso_fin",
+                  "dias_laborales", "dias_no_laborales",
                   "whatsapp", "requiere_anticipo", "porcentaje_anticipo", "mensaje_recordatorio"):
         v = getattr(data, field, None)
         if v is not None:
@@ -204,12 +205,23 @@ def calcular_disponibilidad(db: Session, empresa_id: int, producto_id: int, dia:
     t_apertura = datetime.combine(dia, time(apertura, 0), tzinfo=BOGOTA_TZ)
     t_cierre   = datetime.combine(dia, time(cierre,   0), tzinfo=BOGOTA_TZ)
 
+    # Franja de descanso / almuerzo: solo aplica si fin > inicio.
+    d_ini = cfg.hora_descanso_inicio
+    d_fin = cfg.hora_descanso_fin
+    descanso = None
+    if d_ini is not None and d_fin is not None and d_fin > d_ini:
+        descanso = (
+            datetime.combine(dia, time(d_ini, 0), tzinfo=BOGOTA_TZ),
+            datetime.combine(dia, time(d_fin, 0), tzinfo=BOGOTA_TZ),
+        )
+
     franjas = []
     paso    = timedelta(minutes=duracion)
     cursor  = t_apertura
     while cursor + paso <= t_cierre:
         fin = cursor + paso
-        if fin > ahora:
+        en_descanso = descanso is not None and _solapa(cursor, fin, descanso[0], descanso[1])
+        if fin > ahora and not en_descanso:
             for t in trabajadores:
                 libre = all(
                     not _solapa(cursor, fin, _aware(c.fecha_inicio), _aware(c.fecha_fin))
