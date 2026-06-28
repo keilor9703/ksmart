@@ -753,7 +753,9 @@ useEffect(() => {
             setProductoInputs(pInputs);
             setPagada(editingVenta.estado_pago === 'pagado');
             setMetodoPago(editingVenta.metodo_pago || 'Efectivo');
-        } else {
+        } else if (!citaIdRef.current) {
+            // No resetear si hay un cobro de cita precargado (se borraría el servicio
+            // y el cliente al refrescar la lista de clientes).
             resetForm();
         }
     }, [editingVenta, clientes]);
