@@ -1,11 +1,11 @@
 # Ksmart360 — ERP & SaaS Multi-Tenant para Empresas Colombianas
 
-> **La plataforma de gestión empresarial más completa para PYMEs colombianas.** Ventas POS, inventario FEFO con lotes, producción BOM, compras, órdenes de trabajo, préstamos con ruta de cobro, parqueadero, lavadero, restaurante, catálogo virtual y facturación electrónica DIAN — todo en un solo sistema, desde la nube, con infraestructura Oracle Cloud de nivel enterprise.
+> **La plataforma de gestión empresarial más completa para PYMEs colombianas.** Ventas POS, inventario FEFO con lotes, producción BOM, compras, órdenes de trabajo, préstamos con ruta de cobro, parqueadero, lavadero, restaurante, agendamiento de citas y servicios, catálogo virtual y facturación electrónica DIAN — todo en un solo sistema, desde la nube, con infraestructura Oracle Cloud de nivel enterprise.
 
 <div align="center">
 
 ![Estado](https://img.shields.io/badge/Estado-Producción-green)
-![Versión](https://img.shields.io/badge/Versión-2.2.0-blue)
+![Versión](https://img.shields.io/badge/Versión-2.3.0-blue)
 ![Colombia](https://img.shields.io/badge/Localización-Colombia-yellow)
 ![Multi--tenant](https://img.shields.io/badge/Arquitectura-Multi--Tenant-orange)
 
@@ -17,7 +17,9 @@
 
 **Ksmart360** es un ERP SaaS **multi-tenant** nativo en la nube, diseñado desde cero para pequeñas y medianas empresas colombianas. En lugar de comprar módulos por separado o pagar por costosos sistemas importados, una empresa accede desde el navegador a todo lo que necesita para operar: punto de venta, inventario, compras, cartera, producción, reportes y facturación electrónica DIAN.
 
-El sistema detecta automáticamente el perfil de negocio (Comercio ERP, Prestamista, Parqueadero, Lavadero, Restaurante) y habilita exactamente los módulos que esa industria necesita, sin configuración manual.
+El sistema detecta automáticamente el perfil de negocio (Comercio ERP, Prestamista, Parqueadero, Lavadero, Restaurante) y habilita exactamente los módulos que esa industria necesita, sin configuración manual. Los negocios de servicios (barberías, spas, talleres, consultorios) cuentan además con un módulo de **agendamiento de citas** con portal público de reservas.
+
+La interfaz sigue un lenguaje visual limpio y profesional (estilo Vercel/Linear): tipografía **Geist**, acento cian de marca, superficies neutras y separación por bordes, con soporte completo de modo claro/oscuro.
 
 ### Infraestructura Oracle Cloud — Nivel Enterprise
 
@@ -46,6 +48,7 @@ El backend de producción corre sobre **Oracle Cloud Free Tier Always-Free**, in
 | **Cotizaciones → Factura** | Preventas que se convierten en factura con un clic; sin re-digitación |
 | **Programa de fidelización** | Puntos canjeables por compra; configuración de tasa earn/redeem por empresa |
 | **Descuento por puntos** | El cajero aplica puntos del cliente directamente en la venta |
+| **Cobro de citas integrado** | Al cobrar una cita del módulo de Agendamiento, el POS abre con el servicio, el cliente y el trabajador (vendedor) precargados; se pueden agregar más productos antes de cerrar la venta |
 
 ### 📦 Inventario
 
@@ -121,6 +124,24 @@ El backend de producción corre sobre **Oracle Cloud Free Tier Always-Free**, in
 | **Caja de restaurante** | Panel de cobro de mesas por parte del cajero; múltiples métodos de pago |
 | **Impresión de comandas** | Impresión automática o manual de comandas en impresora P80 |
 
+### 📅 Agendamiento de Citas & Servicios
+
+Pensado para negocios de servicios (barberías, spas, talleres, consultorios, estéticas).
+
+| Funcionalidad | Detalle |
+|--------------|---------|
+| **Servicios agendables** | Cualquier producto/servicio con duración en minutos se vuelve agendable; se asignan los trabajadores que pueden atenderlo |
+| **Vistas de calendario** | Día (lista detallada), Semana, Mes y Agenda (lista) — estilo Outlook, con navegación por período |
+| **Disponibilidad inteligente** | Calcula franjas libres por trabajador según horario laboral, días hábiles, festivos y duración del servicio; evita solapamientos |
+| **Franja de descanso / almuerzo** | Rango horario configurable en el que no se ofrecen citas |
+| **Portal público de reservas** | Página `/{slug}/agendar` donde el cliente reserva en línea; con QR/enlace de pago de anticipo opcional |
+| **Política de anticipo** | Porcentaje de anticipo configurable, coordinado por WhatsApp |
+| **Estados de cita** | Máquina de estados (pendiente → confirmada → en curso → completada / cancelada / no asistió) con transiciones validadas en backend |
+| **Permisos por trabajador** | Cada trabajador ve y gestiona solo sus propias citas; el admin ve todas y filtra por trabajador |
+| **Recordatorios WhatsApp** | Mensaje prellenado con el nombre real del negocio para confirmar la cita |
+| **Notificaciones in-app** | Aviso a admins y al trabajador asignado cuando entra una reserva pública; auto-refresco de la agenda |
+| **Cobro vía POS** | El cobro redirige a Ventas (POS) con todo precargado; al guardar la venta la cita queda completada y vinculada |
+
 ### 🧾 Facturación Electrónica DIAN
 
 | Funcionalidad | Detalle |
@@ -152,6 +173,7 @@ El backend de producción corre sobre **Oracle Cloud Free Tier Always-Free**, in
 | **Panel SuperAdmin** | Gestión de todos los tenants: empresas, planes, módulos, suspensión |
 | **Impersonación** | El SuperAdmin puede entrar como cualquier empresa para soporte remoto |
 | **Planes de suscripción** | Trial 14 días → Premium mensual/anual → Vitalicio; activación automática vía Wompi |
+| **Códigos promocionales** | Descuentos (% o monto fijo) aplicables al pagar la suscripción; con vigencia, límite de usos, un uso por empresa y restricción por planes. El monto con descuento se firma en el servidor (anti-manipulación) |
 | **Módulos por tipo de negocio** | Perfiles configurables por el SuperAdmin sin tocar código |
 | **Audit log** | Registro de todas las acciones críticas del SuperAdmin con fecha y detalle |
 | **Anuncios globales** | Notificaciones push a todos los tenants desde el panel SuperAdmin |
@@ -177,7 +199,7 @@ El backend de producción corre sobre **Oracle Cloud Free Tier Always-Free**, in
 
 | Capa | Tecnología |
 |------|-----------|
-| **Frontend** | React 18 + Material UI v5 |
+| **Frontend** | React 18 + Material UI v7 + tipografía Geist |
 | **Backend** | FastAPI (Python 3.11) + Pydantic v2 |
 | **Base de datos** | PostgreSQL 17 (producción auto-hospedada) / SQLite (desarrollo) |
 | **ORM** | SQLAlchemy 2.x |
@@ -272,7 +294,7 @@ ksmart/
 │   ├── main.py                    # App FastAPI, CORS, routers, inicialización
 │   ├── models.py                  # 70+ modelos SQLAlchemy · TenantMixin
 │   ├── schemas.py                 # Schemas Pydantic v2 (request/response)
-│   ├── database.py                # Conexión + migraciones automáticas V1→V89
+│   ├── database.py                # Conexión + migraciones automáticas V1→V108
 │   ├── core/
 │   │   ├── config.py              # SECRET_KEY, algoritmos JWT, configuración
 │   │   ├── constants.py           # PlanType, AccessStatus, enums SaaS
@@ -283,6 +305,7 @@ ksmart/
 │   │   ├── inventario.py · perecederos.py · produccion.py
 │   │   ├── prestamos.py · parqueadero.py · lavadero.py
 │   │   ├── grupos_producto.py · puntos.py · biometria.py
+│   │   ├── agendamiento.py · promociones.py
 │   │   └── empresas.py · usuarios.py · reportes.py
 │   ├── services/
 │   │   ├── contabilidad.py        # Asientos automáticos PUC colombiano
@@ -294,9 +317,10 @@ ksmart/
 │       ├── inventario.py · produccion.py · cotizaciones.py
 │       ├── prestamos.py · ruta_cobro.py
 │       ├── parqueadero.py · lavadero.py · restaurante.py
+│       ├── agendamiento.py · promociones.py
 │       ├── reportes.py · caja.py · gastos.py
 │       ├── facturacion_electronica.py
-│       ├── suscripcion.py · wompi_webhooks.py
+│       ├── suscripcion.py · wompi.py
 │       ├── superadmin.py          # Panel SuperAdmin multi-tenant
 │       ├── setup.py               # Wizard de primer arranque
 │       └── catalogo_virtual.py    # Tienda pública por slug
@@ -317,6 +341,7 @@ ksmart/
         │   ├── parqueadero/       # Módulo completo de parqueadero
         │   ├── lavadero/          # POS lavadero + reportes
         │   ├── restaurante/       # Mesas, comandas, cocina, caja
+        │   ├── agendamiento/      # Citas, calendario, portal público de reservas
         │   ├── catalogo/          # Catálogo virtual público
         │   ├── ordenes_trabajo/   # Flujo Admin→Operador
         │   ├── facturacion/       # DIAN electrónica
@@ -517,7 +542,7 @@ REACT_APP_API_URL=https://api.tudominio.com
 
 Las migraciones se aplican automáticamente al iniciar el servidor. No se requiere Alembic ni comandos adicionales. El sistema lleva registro en la tabla `_schema_meta` y nunca aplica una migración dos veces.
 
-**Versión actual: V89** — incluye todas las tablas, columnas y grupos de producto predefinidos.
+**Versión actual: V108** — incluye todas las tablas, columnas y grupos de producto predefinidos, además de las novedades recientes: franja de descanso en agendamiento (V107) y códigos promocionales en suscripciones (V108).
 
 ---
 
@@ -543,6 +568,9 @@ Las migraciones se aplican automáticamente al iniciar el servidor. No se requie
 | Mapa de Mesas | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 | Pantalla Cocina KDS | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 | Fidelización de clientes | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
+| Agendamiento de Citas | ✅ | ⬜ | ⬜ | ✅ | ✅ |
+
+> El módulo de **Agendamiento** se habilita para cualquier negocio de servicios; el SuperAdmin puede activarlo en el perfil de cualquier empresa. La categoría de productos *"Platos y Preparaciones"* se crea por defecto únicamente para empresas tipo Restaurante.
 
 ---
 
@@ -567,6 +595,8 @@ Las migraciones se aplican automáticamente al iniciar el servidor. No se requie
 | `canceled` | — | Redirige a `/suscripcion-expirada` |
 
 La empresa propietaria del sistema (`id=1`) tiene `is_protected=true` y nunca expira.
+
+Al pagar la suscripción se puede aplicar un **código promocional** (descuento por porcentaje o monto fijo). El descuento se valida y se firma en el servidor antes de cobrar, manteniendo la protección anti-manipulación de precios del flujo de Wompi.
 
 ---
 
@@ -606,6 +636,25 @@ GET    /reportes/rentabilidad_productos      Margen bruto por producto
 GET    /reportes/iva_neto                    IVA generado − IVA descontable
 GET    /reportes/kardex                      Movimientos de inventario
 GET    /reportes/cuentas_por_cobrar          Aging de cartera
+
+# Agendamiento de citas
+GET    /agendamiento/config                  Config de horario/anticipo/descanso
+GET    /agendamiento/disponibilidad          Franjas libres por servicio y día
+GET    /agendamiento/citas                    Citas (admin: todas · trabajador: las suyas)
+POST   /agendamiento/citas                    Crear cita
+PATCH  /agendamiento/citas/{id}/estado       Cambiar estado (transición validada)
+POST   /agendamiento/citas/{id}/preparar-cobro  Prepara datos y redirige a POS
+GET    /agendamiento/publico/{slug}          Info pública del portal de reservas
+POST   /agendamiento/publico/{slug}/cita     Reserva pública del cliente
+
+# Códigos promocionales
+POST   /promociones/validar                  Previsualiza el descuento para un plan
+GET    /promociones/admin                    Listar códigos (SuperAdmin)
+POST   /promociones/admin                    Crear código (SuperAdmin)
+
+# Pagos de suscripción (Wompi)
+POST   /wompi/generar-hash                   Firma el monto (con código promo opcional)
+POST   /wompi/confirmar-pago-widget          Activa la suscripción tras el pago
 
 # SuperAdmin
 GET    /superadmin/empresas                  Todos los tenants
