@@ -35,6 +35,14 @@ def recursos_oracle():
     from services.host_metrics import get_recursos
     return get_recursos()
 
+
+@router.get("/logs")
+def ver_logs(since_id: int = 0, level: Optional[str] = None, q: Optional[str] = None, limit: int = 500):
+    """Logs del backend en vivo desde el buffer en memoria (sin SSH).
+    `since_id` permite refresco incremental (solo registros nuevos)."""
+    from services.log_buffer import get_logs
+    return get_logs(since_id=since_id, level=level, q=q, limit=limit)
+
 @router.post("/empresas", response_model=schemas.EmpresaOut)
 def registrar_nueva_empresa(
     data: schemas.EmpresaWithAdminCreate, 
