@@ -22,6 +22,37 @@ _GB = 1024 ** 3
 _TB = 1024 ** 4
 
 
+def _leer_cpu_times():
+    """Lee los tiempos agregados de CPU desde /proc/stat → (idle, total)."""
+    try:
+        with open("/proc/stat", "r") as f:
+            for linea in f:
+                if linea.startswith("cpu "):
+                    campos = [int(x) for x in linea.split()[1:]]
+                    idle = campos[3] + (campos[4] if len(campos) > 4 else 0)  # idle + iowait
+                    total = sum(campos)
+                    return idle, total
+    except Exception:
+        pass
+    return None, None
+
+
+def _cpu_uso_pct(intervalo=0.4):
+    """Utilización real de CPU (%) muestreando /proc/stat dos veces — como `top`."""
+    idle1, total1 = _leer_cpu_times()
+    if idle1 is None:
+        return None
+    time.sleep(intervalo)
+    idle2, total2 = _leer_cpu_times()
+    if idle2 is None:
+        return None
+    d_total = total2 - total1
+    d_idle = idle2 - idle1
+    if d_total <= 0:
+        return 0.0
+    return round(max(0.0, min(100.0, (1 - d_idle / d_total) * 100)), 1)
+
+
 def _leer_meminfo():
     """Devuelve (total_bytes, disponible_bytes) desde /proc/meminfo."""
     total = disponible = None
@@ -76,12 +107,14 @@ def get_recursos() -> dict:
     """Snapshot de uso de recursos del host vs límites Always Free."""
     cpu_count = os.cpu_count() or LIMITES["ocpu"]
 
-    # CPU: carga promedio (Unix). load/cpu_count ≈ utilización.
+    # CPU: utilización real instantánea muestreando /proc/stat (como `top`).
+    cpu_pct = _cpu_uso_pct()
     try:
         load1, load5, load15 = os.getloadavg()
     except (OSError, AttributeError):
         load1 = load5 = load15 = 0.0
-    cpu_pct = _pct(load1, cpu_count)
+    if cpu_pct is None:  # respaldo si no hay /proc/stat (no-Linux)
+        cpu_pct = _pct(load1, cpu_count)
 
     # RAM
     ram_total, ram_disp = _leer_meminfo()
