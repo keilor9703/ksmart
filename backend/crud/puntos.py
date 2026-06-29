@@ -5,6 +5,17 @@ import models
 DEFAULT_EARN_RATE   = 1000  # COP por punto ganado (1 punto cada $1.000)
 DEFAULT_REDEEM_RATE = 100   # COP de descuento por punto canjeado (1 punto = $100)
 
+# Nombres del cliente genérico (mostrador / consumidor final). No acumula puntos.
+_PATRONES_GENERICO = ("consumidor", "mostrador", "publico", "público", "anonimo", "anónimo")
+
+
+def es_cliente_generico(cliente) -> bool:
+    """True si el cliente es el genérico de mostrador/consumidor final."""
+    if not cliente:
+        return False
+    nombre = (getattr(cliente, "nombre", "") or "").lower()
+    return any(p in nombre for p in _PATRONES_GENERICO)
+
 # Keep old names for backwards compat with puntos.py endpoint
 EARN_RATE   = DEFAULT_EARN_RATE
 REDEEM_RATE = DEFAULT_REDEEM_RATE
@@ -36,6 +47,10 @@ def ganar_puntos_venta(
         models.Cliente.id == cliente_id,
     ).first()
     if not cliente:
+        return 0
+
+    # El cliente genérico (mostrador / consumidor final) no acumula puntos.
+    if es_cliente_generico(cliente):
         return 0
 
     cliente.puntos_fidelidad = (cliente.puntos_fidelidad or 0) + puntos
