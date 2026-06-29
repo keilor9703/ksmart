@@ -22,10 +22,6 @@ from core.limiter import limiter
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
 
-# Buffer en memoria para ver los logs en vivo desde el panel SuperAdmin.
-from services.log_buffer import install as _install_log_buffer
-_install_log_buffer(logging.INFO)
-
 # --- Database & Migrations ---
 models.Base.metadata.create_all(bind=engine)
 run_migrations()

@@ -9,7 +9,7 @@ import {
   Add, AdminPanelSettings, Autorenew, TrendingUp, Business, LocalOffer,
   History, Campaign, Engineering, ReceiptLong, Search, Edit, Payments,
   ExpandLess, ExpandMore, Warning, SupportAgent, DeleteForever, Tune,
-  ViewModule, Close, Storefront, Dns, Terminal,
+  ViewModule, Close, Storefront, Dns,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 
@@ -31,7 +31,6 @@ import PlataformaConfigForm from './components/PlataformaConfigForm';
 import FinanzasTab from './components/FinanzasTab';
 import CodigosPromoManager from './components/CodigosPromoManager';
 import RecursosOracleTab from './components/RecursosOracleTab';
-import LogsBackendTab from './components/LogsBackendTab';
 
 const ACCENT = '#F43F5E';
 const BLUE = '#3B82F6';
@@ -63,7 +62,6 @@ const TABS_CONFIG = [
   { label: 'Mi Empresa', icon: <Storefront fontSize="small" />, fullLabel: 'Datos del Facturador (Plataforma)' },
   { label: 'Promociones', icon: <LocalOffer fontSize="small" />, fullLabel: 'Códigos Promocionales' },
   { label: 'Recursos', icon: <Dns fontSize="small" />, fullLabel: 'Recursos Oracle Cloud' },
-  { label: 'Logs', icon: <Terminal fontSize="small" />, fullLabel: 'Logs del Backend en Vivo' },
 ];
 
 const formatDateForInput = (dateString) => dateString ? new Date(dateString).toISOString().split('T')[0] : '';
@@ -443,10 +441,6 @@ export default function GestionSaaS() {
 
           <TabPanel value={tabValue} index={10}>
             <RecursosOracleTab />
-          </TabPanel>
-
-          <TabPanel value={tabValue} index={11}>
-            <LogsBackendTab />
           </TabPanel>
         </Box>
       </Box>
