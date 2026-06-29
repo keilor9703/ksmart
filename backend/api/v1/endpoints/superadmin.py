@@ -28,6 +28,13 @@ from services import matias_service as _ms
 def listar_empresas(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     return crud_empresas.get_empresas(db, skip=skip, limit=limit)
 
+
+@router.get("/recursos-oracle")
+def recursos_oracle():
+    """Uso de recursos del host (VM Oracle Cloud) vs límites Always Free."""
+    from services.host_metrics import get_recursos
+    return get_recursos()
+
 @router.post("/empresas", response_model=schemas.EmpresaOut)
 def registrar_nueva_empresa(
     data: schemas.EmpresaWithAdminCreate, 

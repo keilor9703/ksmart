@@ -9,7 +9,7 @@ import {
   Add, AdminPanelSettings, Autorenew, TrendingUp, Business, LocalOffer,
   History, Campaign, Engineering, ReceiptLong, Search, Edit, Payments,
   ExpandLess, ExpandMore, Warning, SupportAgent, DeleteForever, Tune,
-  ViewModule, Close, Storefront,
+  ViewModule, Close, Storefront, Dns,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 
@@ -30,6 +30,7 @@ import PlanFormDialog from './components/PlanFormDialog'; // ✅ Nuevo Component
 import PlataformaConfigForm from './components/PlataformaConfigForm';
 import FinanzasTab from './components/FinanzasTab';
 import CodigosPromoManager from './components/CodigosPromoManager';
+import RecursosOracleTab from './components/RecursosOracleTab';
 
 const ACCENT = '#F43F5E';
 const BLUE = '#3B82F6';
@@ -60,6 +61,7 @@ const TABS_CONFIG = [
   { label: 'Perfiles', icon: <Tune fontSize="small" />, fullLabel: 'Módulos por Tipo de Negocio' },
   { label: 'Mi Empresa', icon: <Storefront fontSize="small" />, fullLabel: 'Datos del Facturador (Plataforma)' },
   { label: 'Promociones', icon: <LocalOffer fontSize="small" />, fullLabel: 'Códigos Promocionales' },
+  { label: 'Recursos', icon: <Dns fontSize="small" />, fullLabel: 'Recursos Oracle Cloud' },
 ];
 
 const formatDateForInput = (dateString) => dateString ? new Date(dateString).toISOString().split('T')[0] : '';
@@ -435,6 +437,10 @@ export default function GestionSaaS() {
 
           <TabPanel value={tabValue} index={9}>
             <CodigosPromoManager planes={planesCatalog} />
+          </TabPanel>
+
+          <TabPanel value={tabValue} index={10}>
+            <RecursosOracleTab />
           </TabPanel>
         </Box>
       </Box>
