@@ -3,7 +3,7 @@ import {
   Box, Paper, Typography, Button, IconButton, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Chip, Dialog, DialogTitle, DialogContent,
   DialogActions, TextField, MenuItem, Switch, FormControlLabel, Stack, Tooltip,
-  CircularProgress, InputAdornment, Autocomplete,
+  CircularProgress, InputAdornment, Autocomplete, useMediaQuery, useTheme,
 } from '@mui/material';
 import { Add, Edit, Delete, LocalOffer, ContentCopy } from '@mui/icons-material';
 import { apiClient } from '../../../api';
@@ -19,6 +19,8 @@ const emptyForm = {
 };
 
 export default function CodigosPromoManager({ planes = [] }) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [codigos, setCodigos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen]       = useState(false);
@@ -111,8 +113,6 @@ export default function CodigosPromoManager({ planes = [] }) {
     toast.success('Código copiado.');
   };
 
-  const planNombre = (id) => planes.find(p => p.id === id)?.nombre || `Plan ${id}`;
-
   return (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
@@ -132,6 +132,52 @@ export default function CodigosPromoManager({ planes = [] }) {
           <LocalOffer sx={{ fontSize: 44, color: 'text.disabled', mb: 1 }} />
           <Typography sx={{ fontWeight: 700, color: 'text.secondary' }}>Aún no hay códigos promocionales</Typography>
         </Paper>
+      ) : isMobile ? (
+        /* ── Móvil: cards ── */
+        <Stack spacing={1.5}>
+          {codigos.map(c => (
+            <Paper key={c.id} sx={{ p: 1.75, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
+                <Box sx={{ minWidth: 0 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Typography sx={{ fontWeight: 700, fontFamily: 'monospace', fontSize: 15 }} noWrap>{c.codigo}</Typography>
+                    <Tooltip title="Copiar"><IconButton size="small" onClick={() => copiar(c.codigo)}><ContentCopy sx={{ fontSize: 14 }} /></IconButton></Tooltip>
+                  </Box>
+                  {c.descripcion && <Typography sx={{ fontSize: 11.5, color: 'text.secondary' }}>{c.descripcion}</Typography>}
+                </Box>
+                <Chip size="small" label={c.tipo === 'porcentaje' ? `${c.valor}%` : fmtCOP(c.valor)}
+                  sx={{ flexShrink: 0, fontWeight: 700, bgcolor: 'rgba(16,185,129,0.12)', color: '#10B981' }} />
+              </Box>
+
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mt: 1.25 }}>
+                <Box>
+                  <Typography sx={{ fontSize: 10, color: 'text.disabled', textTransform: 'uppercase', fontWeight: 700 }}>Vigencia</Typography>
+                  <Typography sx={{ fontSize: 12.5 }}>
+                    {c.fecha_inicio || c.fecha_fin
+                      ? `${toInputDate(c.fecha_inicio) || '—'} → ${toInputDate(c.fecha_fin) || '—'}`
+                      : 'Sin límite'}
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography sx={{ fontSize: 10, color: 'text.disabled', textTransform: 'uppercase', fontWeight: 700 }}>Usos</Typography>
+                  <Typography sx={{ fontSize: 12.5 }}>{c.usos_actuales}{c.max_usos != null ? ` / ${c.max_usos}` : ''}</Typography>
+                </Box>
+              </Box>
+
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
+                <FormControlLabel
+                  control={<Switch size="small" checked={c.activo} onChange={() => toggleActivo(c)} />}
+                  label={<Typography sx={{ fontSize: 12.5 }}>{c.activo ? 'Activo' : 'Inactivo'}</Typography>}
+                  sx={{ m: 0 }}
+                />
+                <Box>
+                  <IconButton size="small" onClick={() => abrirEditar(c)}><Edit sx={{ fontSize: 18 }} /></IconButton>
+                  <IconButton size="small" onClick={() => eliminar(c)} sx={{ color: 'error.main' }}><Delete sx={{ fontSize: 18 }} /></IconButton>
+                </Box>
+              </Box>
+            </Paper>
+          ))}
+        </Stack>
       ) : (
         <TableContainer component={Paper} sx={{ borderRadius: 3 }}>
           <Table size="small">
