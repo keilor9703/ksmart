@@ -63,8 +63,8 @@ export default function RecursosOracleTab() {
   }, []);
 
   useEffect(() => { fetchRecursos(); }, [fetchRecursos]);
-  // Tiempo real: refresco silencioso cada 10s (se pausa si la pestaña está oculta).
-  usePolling(() => fetchRecursos(true), 10000);
+  // Tiempo real: refresco silencioso cada 5s (se pausa si la pestaña está oculta).
+  usePolling(() => fetchRecursos(true), 5000);
 
   if (loading) {
     return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>;
@@ -87,7 +87,7 @@ export default function RecursosOracleTab() {
         <Box>
           <Typography sx={{ fontWeight: 800, fontSize: 16 }}>Recursos del servidor — Oracle Cloud (Always Free)</Typography>
           <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-            Uso en tiempo real vs límites gratuitos · Uptime: {fmtUptime(uptime_segundos)} · Actualiza cada 10s
+            Uso en tiempo real vs límites gratuitos · Uptime: {fmtUptime(uptime_segundos)} · Actualiza cada 5s
           </Typography>
         </Box>
         <Tooltip title="Actualizar ahora">
