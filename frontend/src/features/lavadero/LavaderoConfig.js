@@ -4,6 +4,7 @@ import {
   FormControlLabel, CircularProgress, Divider, Stack,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   ToggleButton, ToggleButtonGroup, Tooltip, InputAdornment,
+  useMediaQuery, useTheme,
 } from '@mui/material';
 import {
   Settings, Percent, LocalCarWash, Print, Refresh, Save,
@@ -24,6 +25,8 @@ const SectionCard = ({ title, icon, children }) => (
 );
 
 export default function LavaderoConfig() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [config, setConfig]     = useState(null);
   const [servicios, setServicios] = useState([]);
   const [loading, setLoading]   = useState(true);
@@ -207,6 +210,47 @@ export default function LavaderoConfig() {
               <Typography sx={{ color: 'text.disabled', fontSize: 13 }}>
                 No hay servicios. Créalos en el módulo Productos marcando "Es servicio".
               </Typography>
+            ) : isMobile ? (
+              /* ── Móvil: cards ── */
+              <Stack spacing={1.25}>
+                {servicios.map(s => {
+                  const efectiva = s._comision !== '' ? parseFloat(s._comision) : (config.comision_pct_global ?? 30);
+                  return (
+                    <Paper key={s.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, mb: 1 }}>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography sx={{ fontWeight: 700, fontSize: 13.5 }}>{s.nombre}</Typography>
+                          <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }}>
+                            ${Number(s.precio || 0).toLocaleString('es-CO')}
+                          </Typography>
+                        </Box>
+                        <Typography sx={{ fontSize: 11.5, color: 'text.disabled', flexShrink: 0, mt: 0.3 }}>
+                          Efectiva: {efectiva}%
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                        <TextField
+                          size="small" type="number" fullWidth
+                          label="Comisión %"
+                          value={s._comision}
+                          onChange={e => setServicioComision(s.id, e.target.value)}
+                          placeholder={`${config.comision_pct_global ?? 30} (global)`}
+                          InputProps={{ endAdornment: <InputAdornment position="end"><Typography sx={{ fontSize: 12 }}>%</Typography></InputAdornment> }}
+                          inputProps={{ min: 0, max: 100, step: 0.5 }}
+                        />
+                        <Button
+                          size="small" variant="outlined"
+                          disabled={savingId === s.id}
+                          onClick={() => handleSaveComisionServicio(s)}
+                          sx={{ fontSize: 11, fontWeight: 700, textTransform: 'none', borderRadius: 1.5, minWidth: 76, flexShrink: 0 }}
+                        >
+                          {savingId === s.id ? <CircularProgress size={12} /> : 'Guardar'}
+                        </Button>
+                      </Box>
+                    </Paper>
+                  );
+                })}
+              </Stack>
             ) : (
               <TableContainer>
                 <Table size="small">
