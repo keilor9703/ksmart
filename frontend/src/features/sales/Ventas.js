@@ -10,6 +10,7 @@ import DevolucionDialog from './DevolucionDialog';
 import QuickCreateModal from '../../components/common/QuickCreateModal';
 import ReciboDialog from '../../components/common/ReciboDialog';
 import LinkPagoModal from '../../components/common/LinkPagoModal';
+import LiquidButton from '../../components/common/LiquidButton';
 import TouchPOSMode from './TouchPOSMode';
 import {
     Box, Paper, Typography, Grid, TextField, Button, IconButton,
@@ -1264,13 +1265,13 @@ useEffect(() => {
                             <FileDownload fontSize="small" />
                         </IconButton>
                     </Tooltip>
-                    <Button
-                        variant="contained" startIcon={<ShoppingCart />}
+                    <LiquidButton
+                        size="medium" startIcon={<ShoppingCart />}
                         onClick={() => { resetForm(); setTabValue(0); }}
-                        sx={{ background: `linear-gradient(135deg, ${ACCENT}, #22D3EE)`, boxShadow: `0 4px 14px rgba(8,145,178,0.35)`, borderRadius: 2, fontWeight: 600 }}
+                        color={ACCENT}
                     >
                         Nueva Venta
-                    </Button>
+                    </LiquidButton>
                 </Box>
             </Box>
 
@@ -1855,21 +1856,16 @@ useEffect(() => {
                                     <Typography sx={{ fontSize: 11, color: 'text.disabled', textAlign: 'center', mb: 0.4 }}>
                                         Ctrl + Enter
                                     </Typography>
-                                    <Button
+                                    <LiquidButton
                                         id="btn-registrar-venta"
-                                        type="submit" variant="contained" fullWidth
-                                        disabled={savingVenta}
+                                        type="submit" fullWidth
+                                        disabled={savingVenta} loading={savingVenta}
                                         onClick={handleSubmit}
-                                        startIcon={savingVenta ? <CircularProgress size={18} sx={{ color: 'white' }} /> : (metodoPago === 'Link de Pago' ? <CreditCard /> : <ShoppingCart />)}
-                                        sx={{
-                                            background: `linear-gradient(135deg, ${ACCENT}, #22D3EE)`,
-                                            boxShadow: `0 4px 14px rgba(8,145,178,0.35)`,
-                                            borderRadius: 3, fontWeight: 800, py: 2,
-                                            fontSize: 16, whiteSpace: 'nowrap',
-                                        }}
+                                        color={ACCENT}
+                                        startIcon={!savingVenta && (metodoPago === 'Link de Pago' ? <CreditCard /> : <ShoppingCart />)}
                                     >
                                         {savingVenta ? 'Guardando…' : (editingVenta ? 'Actualizar' : (metodoPago === 'Link de Pago' ? 'Cobrar con Link' : 'Registrar Venta'))}
-                                    </Button>
+                                    </LiquidButton>
                                 </Box>
                                 <Box sx={{ flexShrink: 0, textAlign: 'right' }}>
                                     <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.secondary', letterSpacing: 1.5, textTransform: 'uppercase' }}>
