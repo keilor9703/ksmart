@@ -1268,7 +1268,6 @@ useEffect(() => {
                     <LiquidButton
                         size="medium" startIcon={<ShoppingCart />}
                         onClick={() => { resetForm(); setTabValue(0); }}
-                        color={ACCENT}
                     >
                         Nueva Venta
                     </LiquidButton>
@@ -1861,7 +1860,6 @@ useEffect(() => {
                                         type="submit" fullWidth
                                         disabled={savingVenta} loading={savingVenta}
                                         onClick={handleSubmit}
-                                        color={ACCENT}
                                         startIcon={!savingVenta && (metodoPago === 'Link de Pago' ? <CreditCard /> : <ShoppingCart />)}
                                     >
                                         {savingVenta ? 'Guardando…' : (editingVenta ? 'Actualizar' : (metodoPago === 'Link de Pago' ? 'Cobrar con Link' : 'Registrar Venta'))}
