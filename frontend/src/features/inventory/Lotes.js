@@ -4,7 +4,7 @@ import {
   TableHead, TableRow, Chip, IconButton, Dialog, DialogTitle, DialogContent,
   DialogActions, TextField, MenuItem, Grid, Divider, useTheme, useMediaQuery,
   Tabs, Tab, Stack, Tooltip, Autocomplete, Alert, InputAdornment,
-  TableSortLabel, TablePagination
+  TableSortLabel, TablePagination, ToggleButton, ToggleButtonGroup,
 } from '@mui/material';
 import {
   Add, Cancel, PrecisionManufacturing, Assignment, CheckCircleOutline,
@@ -65,6 +65,10 @@ const Lotes = () => {
   const [loading, setLoading]         = useState(false);
 
   const [formData, setFormData]       = useState({ receta_id: '', cantidad_a_producir: '', cliente_id: '', observaciones: '', numero_lote_produccion: '' });
+  // ── Modo de cálculo de la orden: por cantidad esperada, o a partir de un insumo disponible
+  const [modoCalculo, setModoCalculo]   = useState('esperada'); // 'esperada' | 'insumo'
+  const [insumoBaseId, setInsumoBaseId] = useState('');
+  const [cantidadInsumoBase, setCantidadInsumoBase] = useState('');
   const [confirmData, setConfirmData] = useState({
     cantidad_real:     '',
     observaciones:     '',
@@ -199,6 +203,31 @@ const Lotes = () => {
     const suma = confirmados.reduce((s, l) => s + (l.cantidad_real || 0) / l.cantidad_a_producir * 100, 0);
     return suma / confirmados.length;
   }, [lotesHistorial]);
+
+  // ── Receta seleccionada en el modal de Lanzar Producción, con la tasa de
+  // consumo por unidad de cada insumo (cantidad * (1 + merma%)) ya calculada.
+  const recetaSeleccionada = useMemo(() => {
+    const r = recetas.find(x => x.id === parseInt(formData.receta_id));
+    if (!r) return null;
+    return {
+      ...r,
+      items: (r.items || []).map(it => ({
+        ...it,
+        tasaUnitaria: it.cantidad * (1 + (it.merma_pct || 0) / 100),
+      })),
+    };
+  }, [recetas, formData.receta_id]);
+
+  // ── Modo "por insumo a utilizar": calcula la cantidad esperada a partir de
+  // cuánto insumo va a usar el operador (el mismo cálculo que usa la
+  // simulación, pero de forma inversa).
+  useEffect(() => {
+    if (modoCalculo !== 'insumo' || !recetaSeleccionada || !insumoBaseId || !cantidadInsumoBase) return;
+    const item = recetaSeleccionada.items.find(i => i.insumo_id === parseInt(insumoBaseId));
+    if (!item || item.tasaUnitaria <= 0) return;
+    const cantidadCalculada = Number(cantidadInsumoBase) / item.tasaUnitaria;
+    setFormData(fd => ({ ...fd, cantidad_a_producir: cantidadCalculada > 0 ? cantidadCalculada.toFixed(2) : '' }));
+  }, [modoCalculo, insumoBaseId, cantidadInsumoBase, recetaSeleccionada]);
 
   // ── Simulation debounce
   useEffect(() => {
@@ -683,7 +712,7 @@ const Lotes = () => {
       </Paper>
 
       {/* ════ MODAL: Lanzar Producción ════ */}
-      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
         <Box sx={{ height: 4, bgcolor: ACCENT }} />
         <DialogTitle sx={{ fontWeight: 800, fontSize: 18 }}>Lanzar Orden de Producción</DialogTitle>
         <DialogContent dividers sx={{ p: { xs: 2, sm: 3 } }}>
@@ -692,27 +721,119 @@ const Lotes = () => {
               options={recetas}
               getOptionLabel={(option) => `${option.nombre} (Produce: ${option.producto_resultante?.nombre || ''})`}
               value={recetas.find(r => r.id === parseInt(formData.receta_id)) || null}
-              onChange={(e, newValue) => setFormData({ ...formData, receta_id: newValue ? newValue.id : '' })}
+              onChange={(e, newValue) => {
+                setFormData({ ...formData, receta_id: newValue ? newValue.id : '', cantidad_a_producir: '' });
+                setModoCalculo('esperada'); setInsumoBaseId(''); setCantidadInsumoBase('');
+              }}
+              // Popper/listbox con ancho propio (no atado al input): evita que se
+              // vea angosto y permite leer bien nombre + insumos de cada fórmula.
+              slotProps={{
+                popper: { style: { width: 'min(92vw, 460px)' } },
+                paper: { sx: { borderRadius: 2 } },
+              }}
               renderOption={(props, option) => (
-                <li {...props} style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0', display: 'block' }}>
-                  <Typography sx={{ fontWeight: 600, fontSize: 14 }}>{option.nombre}</Typography>
-                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Produce: {option.producto_resultante?.nombre}</Typography>
+                <li {...props} key={option.id} style={{ padding: '12px 16px', borderBottom: '1px solid rgba(127,127,127,0.15)', display: 'block' }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{option.nombre}</Typography>
+                  <Typography sx={{ fontSize: 12, color: ACCENT, fontWeight: 600 }}>
+                    Produce: {option.producto_resultante?.nombre} ({option.producto_resultante?.unidad_medida})
+                  </Typography>
+                  {option.items?.length > 0 && (
+                    <Typography sx={{ fontSize: 11.5, color: 'text.secondary', mt: 0.3 }}>
+                      Usa: {option.items.map(i => i.insumo?.nombre).filter(Boolean).join(', ')}
+                    </Typography>
+                  )}
                 </li>
               )}
               renderInput={(params) => (
-                <TextField {...params} label="Fórmula a Producir *" placeholder="Busca por nombre..." fullWidth />
+                <TextField {...params} label="Fórmula a Producir *" placeholder="Busca por nombre..." fullWidth
+                  helperText="Cada opción muestra qué producto genera y qué insumos consume" />
               )}
               noOptionsText="No hay recetas creadas"
             />
 
+            {/* ── Insumos de la receta seleccionada: stock disponible SIEMPRE visible ── */}
+            {recetaSeleccionada && (
+              <Box sx={{ p: 2, borderRadius: 2, bgcolor: `${ACCENT}0A`, border: '1px solid', borderColor: `${ACCENT}30` }}>
+                <Typography sx={{ fontSize: 11, fontWeight: 700, color: ACCENT, textTransform: 'uppercase', mb: 1 }}>
+                  Insumos de esta fórmula (stock disponible)
+                </Typography>
+                <Stack spacing={0.6}>
+                  {recetaSeleccionada.items.map(it => (
+                    <Box key={it.insumo_id} sx={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5 }}>
+                      <Typography sx={{ fontSize: 12.5 }}>
+                        {it.insumo?.nombre} <Typography component="span" sx={{ fontSize: 11, color: 'text.secondary' }}>
+                          ({it.tasaUnitaria} {it.insumo?.unidad_medida} / unidad)
+                        </Typography>
+                      </Typography>
+                      <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: ACCENT }}>
+                        Stock: {it.insumo?.stock_actual ?? 0} {it.insumo?.unidad_medida}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+            )}
+
             <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
               <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', mb: 1.5 }}>Configuración del Lote</Typography>
+
+              {/* ── Modo de cálculo: cantidad esperada vs. cantidad de insumo ── */}
+              {recetaSeleccionada && (
+                <ToggleButtonGroup
+                  exclusive size="small" value={modoCalculo}
+                  onChange={(e, val) => { if (val) { setModoCalculo(val); setInsumoBaseId(''); setCantidadInsumoBase(''); setFormData(fd => ({ ...fd, cantidad_a_producir: '' })); } }}
+                  sx={{ mb: 2, width: '100%', '& .MuiToggleButton-root': { flex: 1, fontSize: 12, textTransform: 'none', fontWeight: 600 } }}
+                >
+                  <ToggleButton value="esperada">Sé cuánto quiero producir</ToggleButton>
+                  <ToggleButton value="insumo">Sé cuánto insumo voy a usar</ToggleButton>
+                </ToggleButtonGroup>
+              )}
+
               <Grid container spacing={2}>
-                <Grid item xs={12}>
-                  <TextField fullWidth type="number" label="Cantidad Esperada *"
-                    value={formData.cantidad_a_producir}
-                    onChange={(e) => setFormData({ ...formData, cantidad_a_producir: e.target.value })} />
-                </Grid>
+                {modoCalculo === 'esperada' || !recetaSeleccionada ? (
+                  <Grid item xs={12}>
+                    <TextField fullWidth type="number" label="Cantidad Esperada *"
+                      value={formData.cantidad_a_producir}
+                      onChange={(e) => setFormData({ ...formData, cantidad_a_producir: e.target.value })}
+                      helperText={recetaSeleccionada ? `Se producirá en ${recetaSeleccionada.producto_resultante?.unidad_medida}` : ''} />
+                  </Grid>
+                ) : (
+                  <>
+                    <Grid item xs={12} sm={6}>
+                      <TextField select fullWidth label="Insumo a utilizar *"
+                        value={insumoBaseId}
+                        onChange={(e) => setInsumoBaseId(e.target.value)}
+                      >
+                        {recetaSeleccionada.items.map(it => (
+                          <MenuItem key={it.insumo_id} value={it.insumo_id}>
+                            {it.insumo?.nombre} — Stock: {it.insumo?.stock_actual ?? 0} {it.insumo?.unidad_medida}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField fullWidth type="number" label="Cantidad de insumo a usar *"
+                        value={cantidadInsumoBase}
+                        onChange={(e) => setCantidadInsumoBase(e.target.value)}
+                        InputProps={{ endAdornment: (
+                          <InputAdornment position="end">
+                            {recetaSeleccionada.items.find(i => i.insumo_id === parseInt(insumoBaseId))?.insumo?.unidad_medida || ''}
+                          </InputAdornment>
+                        ) }}
+                      />
+                    </Grid>
+                    {formData.cantidad_a_producir > 0 && (
+                      <Grid item xs={12}>
+                        <Box sx={{ p: 1.2, borderRadius: 2, bgcolor: `${ACCENT}12`, textAlign: 'center' }}>
+                          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Cantidad esperada calculada</Typography>
+                          <Typography sx={{ fontSize: 20, fontWeight: 800, color: ACCENT }}>
+                            {formData.cantidad_a_producir} {recetaSeleccionada.producto_resultante?.unidad_medida}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                    )}
+                  </>
+                )}
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
@@ -800,6 +921,7 @@ const Lotes = () => {
             await createLote({ ...formData, cliente_id: formData.cliente_id ? Number(formData.cliente_id) : null, receta_id: Number(formData.receta_id), cantidad_a_producir: Number(formData.cantidad_a_producir), numero_lote_produccion: formData.numero_lote_produccion || null });
             loadData(); setOpen(false);
             setFormData({ receta_id: '', cantidad_a_producir: '', cliente_id: '', observaciones: '', numero_lote_produccion: '' });
+            setModoCalculo('esperada'); setInsumoBaseId(''); setCantidadInsumoBase('');
             toast.success('Orden enviada a planta');
           }} sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#0891B2' }, fontWeight: 600 }}>
             Enviar a Planta
