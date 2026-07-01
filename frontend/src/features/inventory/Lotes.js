@@ -751,6 +751,23 @@ const Lotes = () => {
               noOptionsText="No hay recetas creadas"
             />
 
+            {/* ── Producto a producir: stock actual SIEMPRE visible ── */}
+            {recetaSeleccionada && (
+              <Box sx={{ p: 2, borderRadius: 2, bgcolor: '#10B9810A', border: '1px solid', borderColor: '#10B98130' }}>
+                <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#10B981', textTransform: 'uppercase', mb: 1 }}>
+                  Producto a producir (stock actual)
+                </Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+                    {recetaSeleccionada.producto_resultante?.nombre}
+                  </Typography>
+                  <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#10B981' }}>
+                    Stock: {recetaSeleccionada.producto_resultante?.stock_actual ?? 0} {recetaSeleccionada.producto_resultante?.unidad_medida}
+                  </Typography>
+                </Box>
+              </Box>
+            )}
+
             {/* ── Insumos de la receta seleccionada: stock disponible SIEMPRE visible ── */}
             {recetaSeleccionada && (
               <Box sx={{ p: 2, borderRadius: 2, bgcolor: `${ACCENT}0A`, border: '1px solid', borderColor: `${ACCENT}30` }}>
