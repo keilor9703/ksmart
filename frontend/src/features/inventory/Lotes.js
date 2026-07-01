@@ -226,7 +226,13 @@ const Lotes = () => {
     const item = recetaSeleccionada.items.find(i => i.insumo_id === parseInt(insumoBaseId));
     if (!item || item.tasaUnitaria <= 0) return;
     const cantidadCalculada = Number(cantidadInsumoBase) / item.tasaUnitaria;
-    setFormData(fd => ({ ...fd, cantidad_a_producir: cantidadCalculada > 0 ? cantidadCalculada.toFixed(2) : '' }));
+    // Redondeamos hacia ABAJO (truncar), no con toFixed (redondeo al más cercano).
+    // toFixed podía redondear hacia arriba (ej. 68.9655 → "68.97"), y al recalcular
+    // el consumo con esa cantidad redondeada (68.97 × tasa) se superaba ligeramente
+    // el stock ingresado, marcando "stock insuficiente" con un sobrante de solo
+    // centésimas — justo cuando el usuario usaba el 100% del stock disponible.
+    const cantidadSegura = Math.floor(cantidadCalculada * 100) / 100;
+    setFormData(fd => ({ ...fd, cantidad_a_producir: cantidadSegura > 0 ? String(cantidadSegura) : '' }));
   }, [modoCalculo, insumoBaseId, cantidadInsumoBase, recetaSeleccionada]);
 
   // ── Simulation debounce
