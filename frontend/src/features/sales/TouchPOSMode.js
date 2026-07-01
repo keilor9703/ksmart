@@ -29,7 +29,6 @@ const METODOS_PAGO = [
     { value: 'Nequi',         label: '💜 Nequi',          pagada: true,  color: '#7C3AED' },
     { value: 'Daviplata',     label: '🔵 Daviplata',      pagada: true,  color: '#2563EB' },
     { value: 'Tarjeta',       label: '💳 Tarjeta',        pagada: true,  color: '#8B5CF6' },
-    { value: 'Cheque',        label: '📄 Cheque',         pagada: true,  color: '#6B7280' },
     { value: 'Por Cobrar',    label: '🕒 Por Cobrar',     pagada: false, color: '#EF4444' },
 ];
 
@@ -370,8 +369,11 @@ const CartPanel = ({
 
             {/* ── Scrollable middle: cart items + options ── */}
             <Box sx={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-                {/* Cart items */}
-                <Box sx={{ px: 0.5, flex: 1 }}>
+                {/* Cart items — sin flex:1: ocupa solo su alto de contenido, así el
+                    bloque de opciones (IVA/método de pago/total) sube o baja de forma
+                    dinámica según cuántos productos haya en el carrito, en vez de dejar
+                    un espacio vacío fijo entre ambos. */}
+                <Box sx={{ px: 0.5 }}>
                     {validItems.length === 0 ? (
                         <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
                             <ShoppingCart sx={{ fontSize: 36, opacity: 0.18, mb: 0.8 }} />
