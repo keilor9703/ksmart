@@ -1815,8 +1815,11 @@ useEffect(() => {
                                 </Box>
                             )}
 
-                            {/* ── Total + Botón (fila fija al fondo, total arriba) ── */}
-                            <Box sx={{ mt: 'auto', pt: 1 }}>
+                            {/* ── Total + Botón (total arriba). Sin mt:'auto': ya no se ancla
+                                al fondo del panel dejando un vacío cuando no hay contenido
+                                intermedio (ej. método de pago distinto a Efectivo); ahora sube
+                                dinámicamente para quedar justo debajo del contenido anterior. ── */}
+                            <Box sx={{ mt: 2.5, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
                                 <Box sx={{ textAlign: 'center', mb: 1.5 }}>
                                     <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.secondary', letterSpacing: 1.5, textTransform: 'uppercase' }}>
                                         Total a cobrar
