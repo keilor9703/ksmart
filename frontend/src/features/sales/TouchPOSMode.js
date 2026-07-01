@@ -543,14 +543,15 @@ const CartPanel = ({
                         </Typography>
                     )}
                 </Box>
-            </Box>
 
-            {/* ── Sticky footer: total + submit ── */}
-            <Box sx={{
-                borderTop: '2px solid', borderColor: 'divider',
-                flexShrink: 0, px: 1.5, pt: 1, pb: 1.5,
-                bgcolor: isDark ? 'background.paper' : '#FFFBF9',
-            }}>
+                {/* ── Total + submit: dentro del mismo flujo scrollable (no fijo al
+                    fondo del panel), para que suba junto con las opciones de pago
+                    cuando el carrito tiene pocos ítems, en vez de dejar un vacío. ── */}
+                <Box sx={{
+                    borderTop: '2px solid', borderColor: 'divider',
+                    px: 1.5, pt: 1, pb: 1.5,
+                    bgcolor: isDark ? 'background.paper' : '#FFFBF9',
+                }}>
                 {/* Total (fila propia) */}
                 <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1, mb: 1 }}>
                     <Typography sx={{ fontSize: 11, color: 'text.secondary', letterSpacing: 1, textTransform: 'uppercase', fontWeight: 700, flexShrink: 0 }}>
@@ -602,6 +603,9 @@ const CartPanel = ({
                         </Typography>
                     )}
                 </Box>
+                {/* fin: total + botón */}
+            </Box>
+            {/* fin del contenedor scrollable (carrito + opciones + total/botón) */}
             </Box>
         </Box>
     );
