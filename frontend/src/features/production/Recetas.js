@@ -822,7 +822,10 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
               </Button>
             </Box>
             <Stack spacing={1.5}>
-              {formData.items.map((item, idx) => (
+              {formData.items.map((item, idx) => {
+                const insumoSel = insumos.find(p => p.id === parseInt(item.insumo_id));
+                const unidadSel = insumoSel?.unidad_medida;
+                return (
                 <Box key={idx} sx={{ p: 1.5, borderRadius: 2, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider' }}>
                   <Autocomplete
                     options={insumos}
@@ -889,13 +892,17 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
                   />
                   <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
                     <Box sx={{ flex: 1 }}>
-                      <TextField type="number" label="Cantidad (unidades individuales)" size="small" value={item.cantidad}
+                      <TextField type="number"
+                        label={unidadSel ? `Cantidad (en ${unidadSel})` : 'Cantidad (unidades individuales)'}
+                        size="small" value={item.cantidad}
                         onChange={e => handleItemChange(idx, 'cantidad', e.target.value)}
                         fullWidth InputProps={{ inputProps: { min: 0, step: 'any' } }}
                         helperText={
                           costoLiveItems[idx]?.unidadesEmp > 1
                             ? `Ingresa unidades individuales, no empaques`
-                            : undefined
+                            : unidadSel
+                              ? `Este insumo se mide en ${unidadSel}: ingresa la cantidad en esa unidad (no en "unidades" genéricas)`
+                              : undefined
                         }
                       />
                       {costoLiveItems[idx]?.cu > 0 && costoLiveItems[idx]?.qty > 0 && (
@@ -935,7 +942,8 @@ const Recetas = ({ accentColor = DEFAULT_ACCENT }) => {
                     </Tooltip>
                   </Box>
                 </Box>
-              ))}
+                );
+              })}
             </Stack>
           </Box>
 
