@@ -21,7 +21,7 @@ import {
 } from '@mui/material';
 import {
     Edit, Delete, Visibility, Search, ShoppingCart, TrendingUp,
-    Receipt, AttachMoney, AssignmentReturn, Add, QrCodeScanner,
+    Receipt, AssignmentReturn, Add, QrCodeScanner,
     Videocam, VideocamOff, LockOutlined, LockOpenOutlined,
     AddCircle, RemoveCircle, PersonOutline, HelpOutline,
     Keyboard, TouchApp, FileDownload, Stars, CreditCard, Close,
@@ -61,19 +61,6 @@ function TabPanel({ children, value, index }) {
         </div>
     );
 }
-
-// ─── KPI Card ─────────────────────────────────────────────────────────────────
-const KpiCard = ({ label, value, icon, color }) => (
-    <Paper sx={{ p: 2.5, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 2, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
-        <Box sx={{ width: 48, height: 48, borderRadius: 2, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: `${color}18`, color }}>
-            {icon}
-        </Box>
-        <Box>
-            <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 500, mb: 0.3 }}>{label}</Typography>
-            <Typography sx={{ fontSize: 18, fontWeight: 700, color: 'text.primary' }}>{value}</Typography>
-        </Box>
-    </Paper>
-);
 
 // ─── Badge de estado ──────────────────────────────────────────────────────────
 const getEstadoPagoChip = (estado) => {
@@ -1182,7 +1169,6 @@ useEffect(() => {
     // Filtros y paginación son server-side; ventas ya viene filtrado y paginado
     const filteredVentas  = ventas;
     const paginatedVentas = ventas;
-    const totalPendiente  = ventas.filter(v => v.estado_pago === 'pendiente').reduce((s, v) => s + (v.total - v.monto_pagado), 0);
 
     const exportCSV = () => {
         const headers = ['ID', 'Fecha', 'Cliente', 'Total', 'Pagado', 'Estado', 'Método'];
@@ -1265,27 +1251,13 @@ useEffect(() => {
                             <FileDownload fontSize="small" />
                         </IconButton>
                     </Tooltip>
-                    <LiquidButton
-                        size="medium" startIcon={<ShoppingCart />}
-                        onClick={() => { resetForm(); setTabValue(0); }}
-                    >
-                        Nueva Venta
-                    </LiquidButton>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, px: 1.5, py: 0.6, borderRadius: 2, bgcolor: `${ACCENT}0F` }}>
+                        <TrendingUp sx={{ fontSize: 16, color: ACCENT }} />
+                        <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Ventas hoy</Typography>
+                        <Typography sx={{ fontSize: 13, fontWeight: 700, color: ACCENT }}>{formatCurrency(totalVentasHoy)}</Typography>
+                    </Box>
                 </Box>
             </Box>
-
-            {/* ── KPIs ── */}
-            <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid item xs={12} sm={4}>
-                    <KpiCard label="Ventas hoy" value={formatCurrency(totalVentasHoy)} icon={<TrendingUp />} color={ACCENT} />
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                    <KpiCard label="Total registros" value={ventas.length} icon={<Receipt />} color="#3B82F6" />
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                    <KpiCard label="Cartera pendiente" value={formatCurrency(totalPendiente)} icon={<AttachMoney />} color="#EF4444" />
-                </Grid>
-            </Grid>
 
             {/* ── Tabs ── */}
             <Paper sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
@@ -1843,29 +1815,9 @@ useEffect(() => {
                                 </Box>
                             )}
 
-                            {/* ── Botón + Total (fila fija al fondo) ── */}
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 'auto', pt: 1 }}>
-                                <Box sx={{ flex: 1 }}>
-                                    {editingVenta && (
-                                        <Button onClick={resetForm} variant="outlined" fullWidth
-                                            sx={{ borderRadius: 2, fontWeight: 600, borderColor: 'divider', mb: 1 }}>
-                                            Cancelar edición
-                                        </Button>
-                                    )}
-                                    <Typography sx={{ fontSize: 11, color: 'text.disabled', textAlign: 'center', mb: 0.4 }}>
-                                        Ctrl + Enter
-                                    </Typography>
-                                    <LiquidButton
-                                        id="btn-registrar-venta"
-                                        type="submit" fullWidth
-                                        disabled={savingVenta} loading={savingVenta}
-                                        onClick={handleSubmit}
-                                        startIcon={!savingVenta && (metodoPago === 'Link de Pago' ? <CreditCard /> : <ShoppingCart />)}
-                                    >
-                                        {savingVenta ? 'Guardando…' : (editingVenta ? 'Actualizar' : (metodoPago === 'Link de Pago' ? 'Cobrar con Link' : 'Registrar Venta'))}
-                                    </LiquidButton>
-                                </Box>
-                                <Box sx={{ flexShrink: 0, textAlign: 'right' }}>
+                            {/* ── Total + Botón (fila fija al fondo, total arriba) ── */}
+                            <Box sx={{ mt: 'auto', pt: 1 }}>
+                                <Box sx={{ textAlign: 'center', mb: 1.5 }}>
                                     <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.secondary', letterSpacing: 1.5, textTransform: 'uppercase' }}>
                                         Total a cobrar
                                     </Typography>
@@ -1874,16 +1826,34 @@ useEffect(() => {
                                             <Typography sx={{ fontSize: 16, fontWeight: 900, color: 'text.disabled', lineHeight: 1, textDecoration: 'line-through' }}>
                                                 {formatCurrency(totalConIva)}
                                             </Typography>
-                                            <Typography sx={{ fontSize: { xs: 40, md: 48 }, fontWeight: 900, color: '#10B981', lineHeight: 1 }}>
+                                            <Typography sx={{ fontSize: { xs: 36, md: 44 }, fontWeight: 900, color: '#10B981', lineHeight: 1 }}>
                                                 {formatCurrency(totalFinal)}
                                             </Typography>
                                             <Chip icon={<Stars sx={{ fontSize: '14px !important' }} />} label={`-${formatCurrency(descuentoPuntosImporte)} pts`} size="small" sx={{ mt: 0.5, bgcolor: '#10B98115', color: '#10B981', fontWeight: 700, fontSize: 10 }} />
                                           </>
-                                        : <Typography sx={{ fontSize: { xs: 40, md: 48 }, fontWeight: 900, color: ACCENT, lineHeight: 1 }}>
+                                        : <Typography sx={{ fontSize: { xs: 36, md: 44 }, fontWeight: 900, color: ACCENT, lineHeight: 1 }}>
                                             {formatCurrency(totalFinal)}
                                           </Typography>
                                     }
                                 </Box>
+                                {editingVenta && (
+                                    <Button onClick={resetForm} variant="outlined" fullWidth
+                                        sx={{ borderRadius: 2, fontWeight: 600, borderColor: 'divider', mb: 1 }}>
+                                        Cancelar edición
+                                    </Button>
+                                )}
+                                <Typography sx={{ fontSize: 11, color: 'text.disabled', textAlign: 'center', mb: 0.4 }}>
+                                    Ctrl + Enter
+                                </Typography>
+                                <LiquidButton
+                                    id="btn-registrar-venta"
+                                    type="submit" fullWidth
+                                    disabled={savingVenta} loading={savingVenta}
+                                    onClick={handleSubmit}
+                                    startIcon={!savingVenta && (metodoPago === 'Link de Pago' ? <CreditCard /> : <ShoppingCart />)}
+                                >
+                                    {savingVenta ? 'Guardando…' : (editingVenta ? 'Actualizar' : (metodoPago === 'Link de Pago' ? 'Cobrar con Link' : 'Registrar Venta'))}
+                                </LiquidButton>
                             </Box>
                           </Box>{/* end RIGHT PANEL */}
                         </Box>
