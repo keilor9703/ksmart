@@ -789,20 +789,23 @@ const Lotes = () => {
                 </ToggleButtonGroup>
               )}
 
-              <Grid container spacing={2}>
+              {/* Flexbox en vez de <Grid>: evita ambigüedades de MUI Grid v2 con
+                  fragmentos condicionales y garantiza que cada campo ocupe todo
+                  el ancho disponible (100% en móvil, 50% en desktop cuando hay
+                  pareja de campos). */}
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {modoCalculo === 'esperada' || !recetaSeleccionada ? (
-                  <Grid item xs={12}>
-                    <TextField fullWidth type="number" label="Cantidad Esperada *"
-                      value={formData.cantidad_a_producir}
-                      onChange={(e) => setFormData({ ...formData, cantidad_a_producir: e.target.value })}
-                      helperText={recetaSeleccionada ? `Se producirá en ${recetaSeleccionada.producto_resultante?.unidad_medida}` : ''} />
-                  </Grid>
+                  <TextField fullWidth type="number" label="Cantidad Esperada *"
+                    value={formData.cantidad_a_producir}
+                    onChange={(e) => setFormData({ ...formData, cantidad_a_producir: e.target.value })}
+                    helperText={recetaSeleccionada ? `Se producirá en ${recetaSeleccionada.producto_resultante?.unidad_medida}` : ''} />
                 ) : (
                   <>
-                    <Grid item xs={12} sm={6}>
+                    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
                       <TextField select fullWidth label="Insumo a utilizar *"
                         value={insumoBaseId}
                         onChange={(e) => setInsumoBaseId(e.target.value)}
+                        sx={{ flex: 1 }}
                       >
                         {recetaSeleccionada.items.map(it => (
                           <MenuItem key={it.insumo_id} value={it.insumo_id}>
@@ -810,55 +813,48 @@ const Lotes = () => {
                           </MenuItem>
                         ))}
                       </TextField>
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
                       <TextField fullWidth type="number" label="Cantidad de insumo a usar *"
                         value={cantidadInsumoBase}
                         onChange={(e) => setCantidadInsumoBase(e.target.value)}
+                        sx={{ flex: 1 }}
                         InputProps={{ endAdornment: (
                           <InputAdornment position="end">
                             {recetaSeleccionada.items.find(i => i.insumo_id === parseInt(insumoBaseId))?.insumo?.unidad_medida || ''}
                           </InputAdornment>
                         ) }}
                       />
-                    </Grid>
+                    </Box>
                     {formData.cantidad_a_producir > 0 && (
-                      <Grid item xs={12}>
-                        <Box sx={{ p: 1.2, borderRadius: 2, bgcolor: `${ACCENT}12`, textAlign: 'center' }}>
-                          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Cantidad esperada calculada</Typography>
-                          <Typography sx={{ fontSize: 20, fontWeight: 800, color: ACCENT }}>
-                            {formData.cantidad_a_producir} {recetaSeleccionada.producto_resultante?.unidad_medida}
-                          </Typography>
-                        </Box>
-                      </Grid>
+                      <Box sx={{ p: 1.2, borderRadius: 2, bgcolor: `${ACCENT}12`, textAlign: 'center' }}>
+                        <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Cantidad esperada calculada</Typography>
+                        <Typography sx={{ fontSize: 20, fontWeight: 800, color: ACCENT }}>
+                          {formData.cantidad_a_producir} {recetaSeleccionada.producto_resultante?.unidad_medida}
+                        </Typography>
+                      </Box>
                     )}
                   </>
                 )}
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="N° Orden Producción (opcional)"
-                    value={formData.numero_lote_produccion}
-                    onChange={(e) => setFormData({ ...formData, numero_lote_produccion: e.target.value.toUpperCase() })}
-                    placeholder="Ej: OP-2026-001"
-                    helperText="Identificador interno del lote"
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField select fullWidth label="Destino (Cliente o Bodega)"
-                    value={formData.cliente_id}
-                    onChange={(e) => setFormData({ ...formData, cliente_id: e.target.value })}
-                    SelectProps={{ MenuProps: { PaperProps: { sx: { borderRadius: 2 } } } }}
-                  >
-                    <MenuItem value="" sx={{ py: 1.5 }}>🏢 Para mi Inventario</MenuItem>
-                    {clientes.map(c => (
-                      <MenuItem key={c.id} value={c.id} sx={{ py: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
-                        👤 Maquila: {c.nombre}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                </Grid>
-              </Grid>
+                <TextField
+                  fullWidth
+                  label="N° Orden Producción (opcional)"
+                  value={formData.numero_lote_produccion}
+                  onChange={(e) => setFormData({ ...formData, numero_lote_produccion: e.target.value.toUpperCase() })}
+                  placeholder="Ej: OP-2026-001"
+                  helperText="Identificador interno del lote"
+                />
+                <TextField select fullWidth label="Destino (Cliente o Bodega)"
+                  value={formData.cliente_id}
+                  onChange={(e) => setFormData({ ...formData, cliente_id: e.target.value })}
+                  SelectProps={{ MenuProps: { PaperProps: { sx: { borderRadius: 2 } } } }}
+                >
+                  <MenuItem value="" sx={{ py: 1.5 }}>🏢 Para mi Inventario</MenuItem>
+                  {clientes.map(c => (
+                    <MenuItem key={c.id} value={c.id} sx={{ py: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
+                      👤 Maquila: {c.nombre}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Box>
             </Box>
 
             {simulando ? (
