@@ -36,7 +36,7 @@ const shade = (hex, factor) => {
  */
 export default function LiquidButton({
   children, label, onClick, disabled, loading,
-  startIcon, fullWidth, type = 'button', color, id,
+  startIcon, endIcon, fullWidth, type = 'button', color, id,
   size = 'large', sx = {}, ...rest
 }) {
   const theme = useTheme();
@@ -147,6 +147,7 @@ export default function LiquidButton({
       <Box component="span" sx={{ whiteSpace: 'nowrap', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
         {children ?? label}
       </Box>
+      {!loading && endIcon}
 
       {ripples.map(r => (
         <Box key={r.id} sx={{

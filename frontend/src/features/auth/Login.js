@@ -18,6 +18,7 @@ import {
 import { Link } from 'react-router-dom';
 
 import BotonHuella from '../../components/common/BotonHuella';
+import LiquidButton from '../../components/common/LiquidButton';
 import { CIUDADES_COLOMBIA } from '../../utils/colombiaData';
 
 // ─── Sistema de diseño ───────────────────────────────────────────────────────
@@ -1018,33 +1019,14 @@ const Login = ({ onLogin }) => {
                                     </Typography>
                                 </Box>
 
-                                <Button
-                                    type="submit" fullWidth variant="contained"
-                                    disabled={loading}
-                                    sx={{
-                                        mt: 0.5, py: 1.7, borderRadius: 3,
-                                        fontWeight: 600, textTransform: 'none',
-                                        fontSize: { xs: 15, lg: 16 },
-                                        letterSpacing: 0.2,
-                                        background: loading
-                                            ? 'rgba(34,197,94,0.4)'
-                                            : 'linear-gradient(90deg, #22c55e 0%, #16a34a 100%)',
-                                        boxShadow: loading ? 'none' : '0 6px 20px rgba(34,197,94,0.22)',
-                                        transition: `all 0.22s ${SPRING}`,
-                                        '&:hover:not(:disabled)': {
-                                            background: 'linear-gradient(90deg, #16a34a 0%, #15803d 100%)',
-                                            boxShadow: '0 8px 26px rgba(34,197,94,0.3)',
-                                        },
-                                        '&:active:not(:disabled)': { transform: 'scale(0.985)' },
-                                    }}
+                                <LiquidButton
+                                    type="submit" fullWidth
+                                    disabled={loading} loading={loading}
+                                    color="#22C55E"
+                                    sx={{ mt: 0.5 }}
                                 >
-                                    {loading ? (
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                            <CircularProgress size={16} sx={{ color: 'rgba(255,255,255,0.85)' }} />
-                                            Ingresando…
-                                        </Box>
-                                    ) : 'Ingresar al sistema'}
-                                </Button>
+                                    {loading ? 'Ingresando…' : 'Ingresar al sistema'}
+                                </LiquidButton>
 
                                 <BotonHuella
                                     modo="login"
@@ -1264,29 +1246,15 @@ const Login = ({ onLogin }) => {
                                             </Grid>
                                         </Box>
 
-                                        <Button
-                                            type="submit" fullWidth variant="contained"
+                                        <LiquidButton
+                                            type="submit" fullWidth
                                             disabled={!canContinueStep1()}
-                                            endIcon={<ArrowForward />}
-                                            sx={{
-                                                mt: 0.5, py: 1.7, borderRadius: 3,
-                                                fontWeight: 600, textTransform: 'none',
-                                                fontSize: { xs: 15, lg: 16 },
-                                                letterSpacing: 0.2,
-                                                background: !canContinueStep1()
-                                                    ? 'rgba(249,115,22,0.3)'
-                                                    : 'linear-gradient(90deg, #0891B2 0%, #0E7490 100%)',
-                                                boxShadow: !canContinueStep1() ? 'none' : '0 6px 20px rgba(249,115,22,0.22)',
-                                                transition: `all 0.22s ${SPRING}`,
-                                                '&:hover:not(:disabled)': {
-                                                    background: 'linear-gradient(90deg, #0E7490 0%, #c2410c 100%)',
-                                                    boxShadow: '0 8px 26px rgba(249,115,22,0.3)',
-                                                },
-                                                '&:active:not(:disabled)': { transform: 'scale(0.985)' },
-                                            }}
+                                            endIcon={<ArrowForward sx={{ fontSize: 18 }} />}
+                                            color="#0891B2"
+                                            sx={{ mt: 0.5 }}
                                         >
                                             Continuar
-                                        </Button>
+                                        </LiquidButton>
                                     </>
                                 )}
 
@@ -1475,29 +1443,14 @@ const Login = ({ onLogin }) => {
                                             >
                                                 Atrás
                                             </Button>
-                                            <Button
-                                                type="submit" variant="contained"
-                                                disabled={loading || !canSubmitStep2()}
-                                                sx={{
-                                                    py: 1.7, borderRadius: 3,
-                                                    fontWeight: 600, textTransform: 'none',
-                                                    fontSize: { xs: 14, lg: 15 },
-                                                    letterSpacing: 0.2,
-                                                    flex: 1.4,
-                                                    background: (loading || !canSubmitStep2())
-                                                        ? 'rgba(249,115,22,0.3)'
-                                                        : 'linear-gradient(90deg, #0891B2 0%, #0E7490 100%)',
-                                                    boxShadow: (loading || !canSubmitStep2()) ? 'none' : '0 6px 20px rgba(249,115,22,0.22)',
-                                                    transition: `all 0.22s ${SPRING}`,
-                                                    '&:hover:not(:disabled)': {
-                                                        background: 'linear-gradient(90deg, #0E7490 0%, #c2410c 100%)',
-                                                        boxShadow: '0 8px 26px rgba(249,115,22,0.3)',
-                                                    },
-                                                    '&:active:not(:disabled)': { transform: 'scale(0.985)' },
-                                                }}
+                                            <LiquidButton
+                                                type="submit"
+                                                disabled={loading || !canSubmitStep2()} loading={loading}
+                                                color="#0891B2"
+                                                sx={{ flex: 1.4 }}
                                             >
                                                 {loading ? 'Configurando…' : 'Crear mi cuenta'}
-                                            </Button>
+                                            </LiquidButton>
                                         </Stack>
                                     </>
                                 )}
@@ -1677,21 +1630,21 @@ const Login = ({ onLogin }) => {
                 >
                     {recov.step === 0 ? 'Cancelar' : 'Atrás'}
                 </Button>
-                <Button
-                    variant="contained"
+                <LiquidButton
+                    size="medium"
                     disabled={recov.loading ||
                         (recov.step === 0 && (!recov.username.trim() || !recov.empresaNit.trim())) ||
                         (recov.step === 1 && !recov.nombreCompleto.trim()) ||
                         (recov.step === 2 && (!recov.nuevaPassword || recov.nuevaPassword !== recov.confirmarPassword))
                     }
+                    loading={recov.loading}
                     onClick={recov.step === 0 ? recovBuscar : recov.step === 1 ? recovVerificar : recovCambiar}
-                    startIcon={recov.loading ? <CircularProgress size={16} color="inherit" /> : null}
-                    sx={{ background: 'linear-gradient(90deg, #0891B2, #0E7490)', borderRadius: 2, fontWeight: 700, textTransform: 'none', '&:disabled': { opacity: 0.4 } }}
+                    color="#0891B2"
                 >
                     {recov.step === 0 && 'Buscar mi cuenta'}
                     {recov.step === 1 && 'Verificar identidad'}
                     {recov.step === 2 && 'Cambiar contraseña'}
-                </Button>
+                </LiquidButton>
             </DialogActions>
         </Dialog>
         </>
