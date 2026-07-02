@@ -313,6 +313,45 @@ def startup_event():
     finally:
         db.close()
 
+
+@app.on_event("startup")
+async def start_vencimientos_scheduler():
+    """Tarea de fondo: una vez al día genera las notificaciones de lotes
+    próximos a vencer para los admins de cada empresa (antes solo se podía
+    disparar manualmente desde superadmin). Deduplicado por fecha vía
+    saas_jobs_registry (execution_id único), a prueba de reinicios."""
+    import asyncio
+    from datetime import date as _date
+    from sqlalchemy import text as _text
+
+    async def _loop():
+        while True:
+            db = SessionLocal()
+            try:
+                hoy = _date.today().isoformat()
+                ya_corrio = db.execute(_text(
+                    "SELECT 1 FROM saas_jobs_registry "
+                    "WHERE job_name = 'AUTO_VENCIMIENTOS' AND execution_id = :e"
+                ), {"e": hoy}).fetchone()
+                if not ya_corrio:
+                    from crud.perecederos import notificar_vencimientos_proximos
+                    n = notificar_vencimientos_proximos(db)
+                    db.add(models.SaaSJobRegistry(
+                        job_name="AUTO_VENCIMIENTOS",
+                        execution_id=hoy,
+                        status="success",
+                        metrics={"notificaciones": n},
+                    ))
+                    db.commit()
+                    logger.info("AUTO_VENCIMIENTOS %s: %d notificaciones generadas", hoy, n)
+            except Exception:
+                logger.exception("Error en scheduler de vencimientos")
+            finally:
+                db.close()
+            await asyncio.sleep(6 * 3600)  # re-chequea cada 6h; corre 1 vez/día
+
+    asyncio.create_task(_loop())
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -181,7 +181,7 @@ const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRe
     const subtotalSinDesc = detail.cantidad * detail.precioUnitario;
     const descuentoMonto = subtotalSinDesc * ((detail.descuentoPct || 0) / 100);
     const subtotalFinal = subtotalSinDesc - descuentoMonto;
-    const stock = detail.producto?.stock_actual ?? null;
+    const stock = detail.producto?.stock_vigente ?? detail.producto?.stock_actual ?? null;
     const isService = detail.producto?.es_servicio;
     const stockBajo = !isService && stock !== null && stock <= (detail.producto?.stock_minimo ?? 0);
 
@@ -323,8 +323,8 @@ const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRe
                             <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
                                 <Typography sx={{ fontSize: 12, fontWeight: 700, color: ACCENT }}>{formatCurrency(option.precio)}</Typography>
                                 <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                                    <Typography sx={{ fontSize: 10, color: option.es_servicio ? '#3B82F6' : (option.stock_actual <= 0 ? '#EF4444' : 'text.secondary') }}>
-                                        {option.es_servicio ? 'Servicio' : `Stock: ${option.stock_actual ?? 0}`}
+                                    <Typography sx={{ fontSize: 10, color: option.es_servicio ? '#3B82F6' : ((option.stock_vigente ?? option.stock_actual) <= 0 ? '#EF4444' : 'text.secondary') }}>
+                                        {option.es_servicio ? 'Servicio' : `Stock: ${option.stock_vigente ?? option.stock_actual ?? 0}`}
                                     </Typography>
                                     {option.impuesto && (
                                         <Typography sx={{ fontSize: 10, fontWeight: 700, color: option.impuesto.porcentaje > 0 ? '#F43F5E' : '#10B981' }}>

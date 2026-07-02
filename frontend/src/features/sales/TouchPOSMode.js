@@ -38,9 +38,10 @@ const ProductCard = ({ producto, qtyInCart, onPress, groupColor }) => {
     const imgSrc = Array.isArray(producto.imagenes) && producto.imagenes.length > 0
         ? producto.imagenes[0] : null;
     const color = groupColor || '#9CA3AF';
+    const stockDisp = producto.stock_vigente ?? producto.stock_actual;
     const stockLow = !producto.es_servicio
-        && producto.stock_actual !== null
-        && producto.stock_actual <= (producto.stock_minimo || 0);
+        && stockDisp !== null
+        && stockDisp <= (producto.stock_minimo || 0);
 
     return (
         <Box
@@ -103,7 +104,7 @@ const ProductCard = ({ producto, qtyInCart, onPress, groupColor }) => {
                         bgcolor: 'rgba(245,158,11,0.88)', py: 0.25, textAlign: 'center',
                     }}>
                         <Typography sx={{ fontSize: 9, color: '#fff', fontWeight: 700 }}>
-                            ⚠ Stock: {producto.stock_actual}
+                            ⚠ Stock: {producto.stock_vigente ?? producto.stock_actual}
                         </Typography>
                     </Box>
                 )}

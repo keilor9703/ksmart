@@ -179,7 +179,39 @@ def get_productos(
     items = q.offset(skip).limit(limit).all()
     attach_impuestos_to_productos(db, empresa_id, items)
     attach_costo_produccion(db, empresa_id, items)
+    attach_stock_vigente(db, empresa_id, items)
     return items
+
+
+def attach_stock_vigente(db: Session, empresa_id: int, items: list):
+    """Para productos con lotes: stock realmente vendible (excluye la cantidad
+    atrapada en lotes vencidos). Los lotes vencidos suman a stock_actual pero
+    el FEFO no los consume — mostrar stock_actual en el POS confunde al
+    cajero ('hay 5' pero la venta falla). Una sola consulta agregada."""
+    from datetime import date as _date
+    from sqlalchemy import func as _func
+    ids_lotes = [p.id for p in items if getattr(p, "maneja_lotes", False) and not p.es_servicio]
+    vencido_por_prod = {}
+    if ids_lotes:
+        rows = (
+            db.query(
+                models.LoteExistencia.producto_id,
+                _func.coalesce(_func.sum(models.LoteExistencia.cantidad_actual), 0),
+            )
+            .filter(
+                models.LoteExistencia.empresa_id == empresa_id,
+                models.LoteExistencia.producto_id.in_(ids_lotes),
+                models.LoteExistencia.cantidad_actual > 0,
+                models.LoteExistencia.fecha_vencimiento != None,  # noqa: E711
+                models.LoteExistencia.fecha_vencimiento < _date.today(),
+            )
+            .group_by(models.LoteExistencia.producto_id)
+            .all()
+        )
+        vencido_por_prod = {pid: float(total) for pid, total in rows}
+    for p in items:
+        vencido = vencido_por_prod.get(p.id, 0.0)
+        p.stock_vigente = max(0.0, (p.stock_actual or 0) - vencido)
 
 def create_producto(db: Session, empresa_id: int, producto: schemas.ProductoCreate):
     # Extraer campos de inicialización de stock para que no rompan el constructor del Modelo
