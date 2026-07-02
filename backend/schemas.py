@@ -814,11 +814,11 @@ class RecetaBase(BaseModel):
     rendimiento_esperado: float = 1.0
     notas_tecnicas: Optional[str] = None
     precio_sugerido: Optional[float] = None
+    porciones: int = 1
 
 class RecetaCreate(RecetaBase):
     items: List[RecetaItemCreate]
     servicios: List[RecetaServicioBase] = []
-    porciones: int = 1
 
 class Receta(RecetaBase):
     id: int

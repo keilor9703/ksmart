@@ -622,6 +622,8 @@ class Receta(Base, TenantMixin):
 
     rendimiento_esperado = Column(Float, default=1.0, nullable=True)
     notas_tecnicas       = Column(Text, nullable=True)
+    porciones            = Column(Integer, default=1, nullable=True)
+    precio_sugerido      = Column(Float, nullable=True)
 
     producto_resultante = relationship("Producto", foreign_keys=[producto_id])
     items               = relationship("RecetaItem", back_populates="receta", cascade="all, delete-orphan")

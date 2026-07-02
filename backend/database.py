@@ -2307,6 +2307,21 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v108)
                 logger.info("V108 (código promocional en registros_pagos) aplicada.")
 
+            migration_v109 = "v109_recetas_porciones_precio_sugerido"
+            if not _migration_already_applied(conn, migration_v109):
+                if not _column_exists(conn, "recetas", "porciones"):
+                    conn.execute(text(
+                        "ALTER TABLE recetas ADD COLUMN porciones INTEGER NULL DEFAULT 1"
+                    ))
+                    logger.info("V109: columna 'porciones' añadida a recetas")
+                if not _column_exists(conn, "recetas", "precio_sugerido"):
+                    conn.execute(text(
+                        "ALTER TABLE recetas ADD COLUMN precio_sugerido DOUBLE PRECISION NULL"
+                    ))
+                    logger.info("V109: columna 'precio_sugerido' añadida a recetas")
+                _mark_migration_applied(conn, migration_v109)
+                logger.info("V109 (porciones/precio_sugerido en recetas) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
