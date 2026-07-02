@@ -88,6 +88,35 @@ def health():
         "version": "2.2.0",
     }
 
+@app.get("/health/version")
+def health_version():
+    """Diagnóstico de despliegue: commit desplegado y últimas migraciones aplicadas."""
+    from sqlalchemy import text
+    commit = None
+    try:
+        import subprocess
+        commit = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+        ).stdout.strip() or None
+    except Exception:
+        pass
+    info = {}
+    db = SessionLocal()
+    try:
+        keys = {r[0] for r in db.execute(text("SELECT key FROM _schema_meta")).fetchall()}
+        info = {
+            "migraciones_aplicadas": len(keys),
+            "v109_recetas": "v109_recetas_porciones_precio_sugerido" in keys,
+            "v110_consecutivos": "v110_consecutivos_por_empresa" in keys,
+        }
+    except Exception as e:
+        info = {"error": str(e)}
+    finally:
+        db.close()
+    return {"commit": commit, **info}
+
 # --- Startup Logic ---
 def initialize_default_data(db: Session):
     # Auto-healing for Master Company

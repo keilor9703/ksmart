@@ -156,6 +156,17 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
                         referencia=f"venta #{db_venta.id}",
                         usuario_id=current_user.id,
                     ), commit=False)
+
+                # Si la línea vendió una variante específica, descontar también
+                # su stock propio (el movimiento anterior descuenta el del padre).
+                if getattr(det, "variante_id", None):
+                    variante = db.query(models.ProductoVariante).filter(
+                        models.ProductoVariante.id == det.variante_id,
+                        models.ProductoVariante.producto_id == det.producto_id,
+                    ).first()
+                    if variante is not None and variante.stock_actual is not None:
+                        variante.stock_actual = max(0.0, (variante.stock_actual or 0) - det.cantidad)
+                        db.add(variante)
         except (ValueError, HTTPException):
             db.rollback()
             raise
