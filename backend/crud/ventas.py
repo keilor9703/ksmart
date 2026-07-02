@@ -207,6 +207,10 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate, commi
     db.add(db_venta)
     db.flush()
 
+    # Consecutivo visible por empresa (el PK es global a todos los tenants)
+    from crud.consecutivos import next_consecutivo
+    db_venta.numero_venta = next_consecutivo(db, empresa_id, "ultimo_numero_venta")
+
     for det in detalles_objs:
         det.venta_id = db_venta.id
         db.add(det)

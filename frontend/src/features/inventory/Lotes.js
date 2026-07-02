@@ -119,7 +119,9 @@ const Lotes = () => {
     setConfirmData({
       cantidad_real:     lote.cantidad_a_producir,
       observaciones:     '',
-      numero_lote:       '',
+      // Sugerir el código de lote interno de la orden como número de lote de
+      // trazabilidad; el usuario puede reemplazarlo por el del proveedor.
+      numero_lote:       lote.numero_lote_produccion || '',
       fecha_vencimiento: '',
       fecha_fabricacion: '',
     });
@@ -495,7 +497,7 @@ const Lotes = () => {
                         <Chip label="En Curso" size="small" sx={{ bgcolor: '#FEF3C7', color: '#D97706', fontWeight: 600, fontSize: 10 }} />
                       </Box>
                       <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 600 }}>
-                        ORDEN #{l.id}{l.numero_lote_produccion ? ` · ${l.numero_lote_produccion}` : ''} · {new Date(l.fecha_planificada).toLocaleDateString()}
+                        ORDEN #{l.numero_orden ?? l.id}{l.numero_lote_produccion ? ` · ${l.numero_lote_produccion}` : ""} · {new Date(l.fecha_planificada).toLocaleDateString()}
                       </Typography>
                       <Typography sx={{ fontWeight: 800, fontSize: 18, mt: 0.5, mb: 1 }}>
                         {l.receta.producto_resultante.nombre}
@@ -596,7 +598,7 @@ const Lotes = () => {
                       return (
                         <Paper key={l.id} sx={{ p: 2, mb: 2, borderRadius: 3, borderLeft: `4px solid ${isSuccess ? GREEN : RED}`, border: '1px solid', borderColor: 'divider' }}>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                            <Typography sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{l.id}</Typography>
+                            <Typography sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{l.numero_orden ?? l.id}</Typography>
                             <Chip label={l.estado} size="small" sx={{ bgcolor: isSuccess ? `${GREEN}15` : `${RED}15`, color: isSuccess ? GREEN : RED, fontWeight: 600, fontSize: 10, borderRadius: 1 }} />
                           </Box>
                           <Typography sx={{ fontWeight: 800, fontSize: 16 }}>{l.receta.producto_resultante.nombre}</Typography>
@@ -656,7 +658,7 @@ const Lotes = () => {
                             const merma = l.estado === 'Confirmado' ? l.cantidad_real - l.cantidad_a_producir : 0;
                             return (
                               <TableRow key={l.id} hover>
-                                <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{l.id}</TableCell>
+                                <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{l.numero_orden ?? l.id}</TableCell>
                                 <TableCell sx={{ fontSize: 12 }}>{l.fecha_confirmacion ? new Date(l.fecha_confirmacion).toLocaleDateString() : '—'}</TableCell>
                                 <TableCell sx={{ fontWeight: 700 }}>{l.receta.producto_resultante.nombre}</TableCell>
                                 <TableCell>
@@ -865,11 +867,11 @@ const Lotes = () => {
                 )}
                 <TextField
                   fullWidth
-                  label="N° Orden Producción (opcional)"
+                  label="Código de lote interno"
                   value={formData.numero_lote_produccion}
                   onChange={(e) => setFormData({ ...formData, numero_lote_produccion: e.target.value.toUpperCase() })}
-                  placeholder="Ej: OP-2026-001"
-                  helperText="Identificador interno del lote"
+                  placeholder="Ej: L-020726-01"
+                  helperText="Generado automáticamente (L-DDMMAA-##). Ajústalo solo si lo necesitas."
                 />
                 <TextField select fullWidth label="Destino (Cliente o Bodega)"
                   value={formData.cliente_id}
@@ -1089,19 +1091,20 @@ const Lotes = () => {
               </Divider>
 
               <Alert severity="info" sx={{ mb: 2.5, borderRadius: 2, fontSize: 13 }}>
-                Este producto es <strong>perecedero</strong>. Asigna el número de lote y la fecha de vencimiento
-                para que el sistema registre la entrada correctamente en el control FEFO.
+                Este producto es <strong>perecedero</strong>. El sistema sugiere el código de lote
+                interno de esta orden; consérvalo o reemplázalo (p. ej. por el lote del proveedor)
+                y asigna la fecha de vencimiento para el control FEFO.
               </Alert>
 
               <Grid container spacing={2}>
                 <Grid item xs={12}>
                   <TextField
                     fullWidth required
-                    label="Número de Lote de Producción *"
-                    placeholder="Ej: PROD-2026-001"
+                    label="Número de Lote *"
+                    placeholder="Ej: L-020726-01"
                     value={confirmData.numero_lote}
                     onChange={(e) => setConfirmData({ ...confirmData, numero_lote: e.target.value.toUpperCase() })}
-                    helperText="Identificador único para este lote producido"
+                    helperText="Sugerido: código interno de la orden. Puedes cambiarlo por el lote del proveedor."
                     InputProps={{
                       startAdornment: <InputAdornment position="start">🏷</InputAdornment>
                     }}

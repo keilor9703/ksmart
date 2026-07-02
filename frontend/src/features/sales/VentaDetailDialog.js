@@ -68,7 +68,7 @@ const VentaDetailDialog = ({ open, handleClose, venta, empresa, vendedor }) => {
           </Box>
           <Box>
             <Typography sx={{ fontWeight: 700, fontSize: 15 }}>
-              Venta #{venta.id}
+              Venta #{venta.numero_venta ?? venta.id}
             </Typography>
             <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
               {fecha.toLocaleString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}

@@ -84,7 +84,7 @@ const ClienteHistory = () => {
                                             aria-expanded="false" 
                                             aria-controls={`ventaCollapse${venta.id}`}
                                         >
-                                            Venta #{venta.id} - {venta.detalles.map(d => `${d.producto?.nombre} (x${d.cantidad})`).join(', ')} - {formatCurrency(venta.total)} - {getEstadoPagoBadge(venta.estado_pago)}
+                                            Venta #{venta.numero_venta ?? venta.id} - {venta.detalles.map(d => `${d.producto?.nombre} (x${d.cantidad})`).join(', ')} - {formatCurrency(venta.total)} - {getEstadoPagoBadge(venta.estado_pago)}
                                         </button>
                                     </h2>
                                     <div 

@@ -174,6 +174,9 @@ def convertir_cotizacion_a_venta(
     # ── 2. Crear movimientos de inventario ────────────────────────────────
     # Necesitamos que cotizacion.id sea conocido como venta primero
     cotizacion.tipo = "venta"
+    if not cotizacion.numero_venta:
+        from crud.consecutivos import next_consecutivo
+        cotizacion.numero_venta = next_consecutivo(db, empresa_id, "ultimo_numero_venta")
     db.flush()  # sincroniza el tipo antes de crear movimientos
 
     _ejecutar_movimientos_venta(db, empresa_id, cotizacion)

@@ -101,7 +101,7 @@ const DevolucionDialog = ({ open, onClose, venta, onSuccess }) => {
           <Box>
             <Typography sx={{ fontWeight: 700, fontSize: 15 }}>Registrar Devolución</Typography>
             <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-              Venta #{venta.id} · {venta.cliente?.nombre}
+              Venta #{venta.numero_venta ?? venta.id} · {venta.cliente?.nombre}
             </Typography>
           </Box>
         </Box>

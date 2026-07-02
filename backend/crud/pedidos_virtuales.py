@@ -253,7 +253,9 @@ def convertir_a_venta(
     total_con_iva = round(pedido.total * factor_iva, 2)
     iva_total = round(pedido.total * (iva_porcentaje / 100), 2)
 
+    from crud.consecutivos import next_consecutivo
     venta = models.Venta(
+        numero_venta    = next_consecutivo(db, empresa_id, "ultimo_numero_venta"),
         empresa_id      = empresa_id,
         cliente_id      = cliente.id,
         total           = total_con_iva,

@@ -28,7 +28,7 @@ function buildWhatsAppText(venta, empresa, vendedor) {
   let t = '';
   t += `*${empresa?.nombre || 'Mi Negocio'}*\n`;
   if (empresa?.nit) t += `NIT: ${empresa.nit}\n`;
-  t += `\n*COMPROBANTE DE VENTA #${venta.id}*\n`;
+  t += `\n*COMPROBANTE DE VENTA #${venta.numero_venta ?? venta.id}*\n`;
   t += `📅 ${dateStr}\n`;
   if (venta.cliente?.nombre) t += `👤 Cliente: ${venta.cliente.nombre}\n`;
   if (vendedor) t += `🧑‍💼 Vendedor: ${vendedor}\n`;
@@ -461,7 +461,7 @@ const ReciboDialog = ({ open, onClose, venta, empresa, vendedor }) => {
           </Box>
           <Box>
             <Typography sx={{ fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>
-              Comprobante de Venta #{venta.id}
+              Comprobante de Venta #{venta.numero_venta ?? venta.id}
             </Typography>
             <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
               Vista previa · Elige formato y acción

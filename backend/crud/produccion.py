@@ -198,12 +198,16 @@ def create_lote(db: Session, empresa_id: int, lote: schemas.LoteProduccionCreate
     if not numero_lote_produccion:
         numero_lote_produccion = get_next_numero_lote(db, empresa_id)
 
+    from crud.consecutivos import next_consecutivo
+    numero_orden = next_consecutivo(db, empresa_id, "ultimo_numero_lote")
+
     db_lote = models.LoteProduccion(
         receta_id=lote.receta_id,
         cantidad_a_producir=lote.cantidad_a_producir,
         cliente_id=cliente_id,
         observaciones=lote.observaciones,
         numero_lote_produccion=numero_lote_produccion,
+        numero_orden=numero_orden,
         estado="En produccion",
         empresa_id=empresa_id,
         fecha_planificada=datetime.now(timezone.utc)
@@ -471,16 +475,22 @@ def get_simulacion_receta(db: Session, empresa_id: int, receta_id: int, cantidad
 
 
 def get_next_numero_lote(db: Session, empresa_id: int) -> str:
-    """Genera el siguiente código de orden con patrón OP{YYYYMMDD}{seq}."""
+    """Genera el siguiente código de lote interno: L-DDMMAA-XX.
+
+    DDMMAA es la fecha de creación y XX el consecutivo de producción de ese
+    día para la empresa (L-020726-01, L-020726-02…). Es el identificador de
+    trazabilidad interna; el usuario puede además registrar el lote del
+    proveedor del insumo al confirmar, son conceptos distintos.
+    """
     from datetime import date
     hoy = date.today()
-    prefijo = f"OP{hoy.strftime('%Y%m%d')}"
+    prefijo = f"L-{hoy.strftime('%d%m%y')}-"
     # Contar lotes de la empresa con número que empiece por el prefijo de hoy
     count = db.query(models.LoteProduccion).filter(
         models.LoteProduccion.empresa_id == empresa_id,
         models.LoteProduccion.numero_lote_produccion.like(f"{prefijo}%"),
     ).count()
-    return f"{prefijo}{count + 1}"
+    return f"{prefijo}{count + 1:02d}"
 
 
 def get_analisis_receta(db: Session, empresa_id: int, receta_id: int, cantidad: float = 1.0):

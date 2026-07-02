@@ -2322,6 +2322,74 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v109)
                 logger.info("V109 (porciones/precio_sugerido en recetas) aplicada.")
 
+            # V110 — Consecutivos por empresa (ventas y lotes de producción) y
+            # reparación de los grupos globales predefinidos cuyo flag
+            # requiere_cocina pudo corromperse por overrides de una empresa
+            # persistidos accidentalmente en la fila compartida.
+            migration_v110 = "v110_consecutivos_por_empresa"
+            if not _migration_already_applied(conn, migration_v110):
+                if not _column_exists(conn, "empresas", "ultimo_numero_venta"):
+                    conn.execute(text(
+                        "ALTER TABLE empresas ADD COLUMN ultimo_numero_venta INTEGER NOT NULL DEFAULT 0"
+                    ))
+                    logger.info("V110: columna 'ultimo_numero_venta' añadida a empresas")
+                if not _column_exists(conn, "empresas", "ultimo_numero_lote"):
+                    conn.execute(text(
+                        "ALTER TABLE empresas ADD COLUMN ultimo_numero_lote INTEGER NOT NULL DEFAULT 0"
+                    ))
+                    logger.info("V110: columna 'ultimo_numero_lote' añadida a empresas")
+                if not _column_exists(conn, "ventas", "numero_venta"):
+                    conn.execute(text(
+                        "ALTER TABLE ventas ADD COLUMN numero_venta INTEGER NULL"
+                    ))
+                    logger.info("V110: columna 'numero_venta' añadida a ventas")
+                if not _column_exists(conn, "lotes_produccion", "numero_orden"):
+                    conn.execute(text(
+                        "ALTER TABLE lotes_produccion ADD COLUMN numero_orden INTEGER NULL"
+                    ))
+                    logger.info("V110: columna 'numero_orden' añadida a lotes_produccion")
+
+                # Backfill: numerar lo existente por empresa en orden cronológico (id)
+                conn.execute(text("""
+                    UPDATE ventas SET numero_venta = sub.rn
+                    FROM (
+                        SELECT id, ROW_NUMBER() OVER (PARTITION BY empresa_id ORDER BY id) AS rn
+                        FROM ventas
+                    ) AS sub
+                    WHERE ventas.id = sub.id AND ventas.numero_venta IS NULL
+                """))
+                conn.execute(text("""
+                    UPDATE lotes_produccion SET numero_orden = sub.rn
+                    FROM (
+                        SELECT id, ROW_NUMBER() OVER (PARTITION BY empresa_id ORDER BY id) AS rn
+                        FROM lotes_produccion
+                    ) AS sub
+                    WHERE lotes_produccion.id = sub.id AND lotes_produccion.numero_orden IS NULL
+                """))
+                # Inicializar los contadores donde quedó la numeración
+                conn.execute(text("""
+                    UPDATE empresas SET ultimo_numero_venta = COALESCE(
+                        (SELECT MAX(v.numero_venta) FROM ventas v WHERE v.empresa_id = empresas.id), 0)
+                """))
+                conn.execute(text("""
+                    UPDATE empresas SET ultimo_numero_lote = COALESCE(
+                        (SELECT MAX(l.numero_orden) FROM lotes_produccion l WHERE l.empresa_id = empresas.id), 0)
+                """))
+
+                # Reparar flags de los grupos globales predefinidos (empresa_id NULL):
+                # los valores canónicos viven en crud/grupos_producto.GRUPOS_PREDEFINIDOS.
+                conn.execute(text(
+                    "UPDATE grupos_producto SET requiere_cocina = FALSE "
+                    "WHERE empresa_id IS NULL AND id IN (1, 2, 3, 4, 6)"
+                ))
+                conn.execute(text(
+                    "UPDATE grupos_producto SET requiere_cocina = TRUE "
+                    "WHERE empresa_id IS NULL AND id = 5"
+                ))
+
+                _mark_migration_applied(conn, migration_v110)
+                logger.info("V110 (consecutivos por empresa + reparación grupos) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
