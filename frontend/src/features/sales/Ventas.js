@@ -1476,7 +1476,11 @@ useEffect(() => {
                                         InputProps={{
                                             startAdornment: <InputAdornment position="start"><QrCodeScanner sx={{ color: ACCENT, fontSize: 22 }} /></InputAdornment>,
                                             endAdornment: searchingBarcode ? <CircularProgress size={18} sx={{ color: ACCENT }} /> : null,
-                                            sx: { fontSize: 15, fontWeight: 600, borderRadius: 2 }
+                                            sx: { fontSize: 15, fontWeight: 600, borderRadius: 2 },
+                                            // Este campo es para escanear (lector físico o cámara), no para
+                                            // escribir a mano: inputMode="none" evita que el teclado virtual
+                                            // se despliegue en móvil cada vez que el cursor queda aquí.
+                                            inputProps: { inputMode: 'none' },
                                         }}
                                     />
                                     <Tooltip title={cameraActive ? 'Cerrar cámara' : 'Usar cámara del dispositivo'}>
