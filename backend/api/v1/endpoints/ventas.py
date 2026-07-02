@@ -129,7 +129,7 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
                                 empresa_id=empresa_id,
                                 producto_id=det.producto_id,
                                 cantidad_requerida=det.cantidad,
-                                referencia=f"Venta #{db_venta.id}",
+                                referencia=f"Venta #{db_venta.numero_venta or db_venta.id}",
                                 commit=False,
                             )
                         except ValueError as e:
@@ -143,7 +143,7 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
                             cantidad=det.cantidad,
                             costo_unitario=prod.costo or 0.0,
                             motivo="venta",
-                            referencia=f"venta #{db_venta.id}",
+                            referencia=f"venta #{db_venta.numero_venta or db_venta.id}",
                             usuario_id=current_user.id,
                         ), commit=False)
                 else:
@@ -153,7 +153,7 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
                         cantidad=det.cantidad,
                         costo_unitario=prod.costo or 0.0,
                         motivo="venta",
-                        referencia=f"venta #{db_venta.id}",
+                        referencia=f"venta #{db_venta.numero_venta or db_venta.id}",
                         usuario_id=current_user.id,
                     ), commit=False)
 

@@ -43,11 +43,14 @@ def get_ventas(
             models.DetalleVenta.nombre_libre.ilike(term),
             models.Producto.nombre.ilike(term),
         ]
-        # Support V0141 / V-0141 formats: extract numeric part and match by ID
+        # Support V0141 / V-0141 formats: match por consecutivo de la empresa
+        # (numero_venta) con fallback al ID global (registros históricos)
         m = re.match(r'^[Vv]-?0*(\d+)$', search_str.strip())
         if m:
             try:
-                conditions.append(models.Venta.id == int(m.group(1)))
+                n = int(m.group(1))
+                conditions.append(models.Venta.numero_venta == n)
+                conditions.append(models.Venta.id == n)
             except ValueError:
                 pass
         return or_(*conditions)
@@ -694,7 +697,7 @@ def _ejecutar_movimientos_venta(db: Session, empresa_id: int, db_venta: models.V
                     db, empresa_id=empresa_id,
                     producto_id=det.producto_id,
                     cantidad_requerida=det.cantidad,
-                    referencia=f"Venta #{db_venta.id}",
+                    referencia=f"Venta #{db_venta.numero_venta or db_venta.id}",
                     commit=False,
                 )
                 prod.stock_actual = (prod.stock_actual or 0) - det.cantidad
@@ -716,7 +719,7 @@ def _ejecutar_movimientos_venta(db: Session, empresa_id: int, db_venta: models.V
                 cantidad       = det.cantidad,
                 costo_unitario = prod.costo or 0.0,
                 motivo         = "venta",
-                referencia     = f"venta #{db_venta.id}",
+                referencia     = f"venta #{db_venta.numero_venta or db_venta.id}",
             ))
             # Descontar stock de variante para modelo sin lotes
             if det.variante_id:
