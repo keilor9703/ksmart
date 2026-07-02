@@ -11,7 +11,8 @@ from crud.productos import get_producto
 # INVENTARIO - MOVIMIENTOS, KARDEX, ALERTAS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def create_movement(db: Session, empresa_id: int, payload: schemas.InventoryMovementCreate, commit: bool = True):
+def create_movement(db: Session, empresa_id: int, payload: schemas.InventoryMovementCreate, commit: bool = True,
+                    descontar_lotes: bool = False):
     prod = get_producto(db, empresa_id, payload.producto_id)
     if not prod:
         raise ValueError("Producto no encontrado o no pertenece a esta empresa")
@@ -29,6 +30,24 @@ def create_movement(db: Session, empresa_id: int, payload: schemas.InventoryMove
         raise ValueError("Stock insuficiente")
 
     prod.stock_actual = new_stock
+
+    # Sincronizar lotes en salidas manuales de productos perecederos: sin esto
+    # el stock del producto baja pero los lotes quedan intactos y se
+    # desincronizan (stock_actual < suma de lotes). Best-effort FEFO: se
+    # descuenta de los lotes vigentes hasta donde alcancen; el remanente se
+    # asume stock fuera de lotes. Solo lo activa el endpoint de movimientos
+    # manuales — los flujos de venta/producción gestionan sus lotes aparte.
+    if descontar_lotes and delta < 0 and getattr(prod, "maneja_lotes", False):
+        from crud.perecederos import get_lotes_fefo
+        restante = abs(delta)
+        for lote in get_lotes_fefo(db, empresa_id, payload.producto_id):
+            if restante <= 0:
+                break
+            consumo = min(lote.cantidad_actual, restante)
+            lote.cantidad_actual -= consumo
+            restante -= consumo
+            db.add(lote)
+
     ahora_utc = datetime.now(timezone.utc)
 
     mov = models.InventoryMovement(
@@ -50,13 +69,21 @@ def create_movement(db: Session, empresa_id: int, payload: schemas.InventoryMove
         db.refresh(mov)
     return mov
 
-def list_movements(db: Session, empresa_id: int, producto_id: int = None, limit: int = 100):
+def list_movements(db: Session, empresa_id: int, producto_id: int = None, limit: int = 100,
+                   lote_id: int = None, numero_lote: str = None):
     q = db.query(models.InventoryMovement).filter(
         models.InventoryMovement.empresa_id == empresa_id
     ).order_by(models.InventoryMovement.created_at.desc())
 
     if producto_id:
         q = q.filter(models.InventoryMovement.producto_id == producto_id)
+    if lote_id or numero_lote:
+        conds = []
+        if lote_id:
+            conds.append(models.InventoryMovement.lote_id == lote_id)
+        if numero_lote:
+            conds.append(models.InventoryMovement.numero_lote == numero_lote)
+        q = q.filter(or_(*conds))
 
     return q.limit(limit).all()
 

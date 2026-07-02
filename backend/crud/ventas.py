@@ -670,92 +670,10 @@ def emitir_fe_venta(
         return None
 
 
-def get_lotes_fefo(
-    db: Session,
-    empresa_id: int,
-    producto_id: int,
-) -> list:
-    """
-    Retorna los lotes vigentes del producto ordenados por fecha de vencimiento ASC.
-    Incluye lotes sin fecha de vencimiento (NULL = sin caducidad).
-    Excluye lotes vencidos y sin stock.
-    """
-    from datetime import date as _date
-    from sqlalchemy import or_
-    hoy = _date.today()
-    return (
-        db.query(models.LoteExistencia)
-        .filter(
-            models.LoteExistencia.empresa_id      == empresa_id,
-            models.LoteExistencia.producto_id     == producto_id,
-            models.LoteExistencia.cantidad_actual >  0,
-            or_(
-                models.LoteExistencia.fecha_vencimiento == None,
-                models.LoteExistencia.fecha_vencimiento >= hoy,
-            ),
-        )
-        .order_by(
-            models.LoteExistencia.fecha_vencimiento.asc().nullslast()
-        )
-        .all()
-    )
-
-
-def consumir_stock_fefo(
-    db: Session,
-    empresa_id: int,
-    producto_id: int,
-    cantidad_requerida: float,
-    motivo: str = "venta",
-    referencia: str = "",
-    commit: bool = True,
-) -> list:
-    """
-    Descuenta stock aplicando FEFO.
-    Retorna lista de lotes afectados para trazabilidad en la factura.
-    Lanza ValueError si no hay stock suficiente en lotes vigentes.
-    """
-    lotes    = get_lotes_fefo(db, empresa_id, producto_id)
-    restante = cantidad_requerida
-    afectados = []
-
-    for lote in lotes:
-        if restante <= 0:
-            break
-
-        consumo = min(lote.cantidad_actual, restante)
-        lote.cantidad_actual -= consumo
-        restante             -= consumo
-
-        afectados.append({
-            "lote_id":           lote.id,
-            "numero_lote":       lote.numero_lote,
-            "fecha_vencimiento": lote.fecha_vencimiento.isoformat(),
-            "consumido":         consumo,
-        })
-
-        db.add(models.InventoryMovement(
-            empresa_id     = empresa_id,
-            producto_id    = producto_id,
-            tipo           = "salida",
-            cantidad       = consumo,
-            costo_unitario = lote.costo_unitario,
-            motivo         = motivo,
-            referencia     = referencia,
-            lote_id        = lote.id,
-            numero_lote    = lote.numero_lote,
-        ))
-
-    if restante > 0:
-        raise ValueError(
-            f"Stock insuficiente en lotes vigentes para '{referencia}'. "
-            f"Faltaron {restante:.2f} unidades."
-        )
-
-    if commit:
-        db.commit()
-
-    return afectados
+# get_lotes_fefo / consumir_stock_fefo viven en crud.perecederos (única
+# implementación FEFO). Se re-exportan aquí por compatibilidad con los
+# imports existentes (endpoints/ventas.py, crud/produccion.py).
+from crud.perecederos import get_lotes_fefo, consumir_stock_fefo  # noqa: F401,E402
 
 
 def _ejecutar_movimientos_venta(db: Session, empresa_id: int, db_venta: models.Venta):

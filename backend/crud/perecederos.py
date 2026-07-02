@@ -109,6 +109,10 @@ def crear_lote_existencia(
     # Actualizar stock_actual del producto sumando la cantidad ingresada
     producto.stock_actual = (producto.stock_actual or 0) + payload.cantidad_inicial
 
+    # Flush para que un lote recién creado tenga id y el movimiento quede
+    # ligado a él (trazabilidad por lote_id, no solo por texto)
+    db.flush()
+
     # Registrar en inventory_movements para el Kardex
     db.add(models.InventoryMovement(
         producto_id    = payload.producto_id,
@@ -119,6 +123,7 @@ def crear_lote_existencia(
         referencia     = payload.referencia_compra or f"Lote {payload.numero_lote}",
         observacion    = f"Vence: {payload.fecha_vencimiento} | Lote: {payload.numero_lote}",
         empresa_id     = empresa_id,
+        lote_id        = lote.id,
         numero_lote    = payload.numero_lote,
     ))
 
@@ -230,16 +235,20 @@ def get_lotes_fefo(
     Retorna los lotes vigentes del producto ordenados por fecha de vencimiento ASC.
     No incluye lotes ya vencidos ni sin stock.
     """
+    from sqlalchemy import or_
     hoy = date.today()
     return (
         db.query(models.LoteExistencia)
         .filter(
-            models.LoteExistencia.empresa_id        == empresa_id,
-            models.LoteExistencia.producto_id       == producto_id,
-            models.LoteExistencia.cantidad_actual   >  0,
-            models.LoteExistencia.fecha_vencimiento >= hoy,
+            models.LoteExistencia.empresa_id      == empresa_id,
+            models.LoteExistencia.producto_id     == producto_id,
+            models.LoteExistencia.cantidad_actual >  0,
+            or_(
+                models.LoteExistencia.fecha_vencimiento == None,  # noqa: E711 — sin caducidad
+                models.LoteExistencia.fecha_vencimiento >= hoy,
+            ),
         )
-        .order_by(models.LoteExistencia.fecha_vencimiento.asc())
+        .order_by(models.LoteExistencia.fecha_vencimiento.asc().nullslast())
         .all()
     )
 
@@ -273,7 +282,7 @@ def consumir_stock_fefo(
         afectados.append({
             "lote_id":           lote.id,
             "numero_lote":       lote.numero_lote,
-            "fecha_vencimiento": lote.fecha_vencimiento.isoformat(),
+            "fecha_vencimiento": lote.fecha_vencimiento.isoformat() if lote.fecha_vencimiento else None,
             "consumido":         consumo,
         })
 
@@ -321,11 +330,12 @@ def sugerencia_fefo(
             break
         consumo = min(lote.cantidad_actual, restante)
         restante -= consumo
+        fv = lote.fecha_vencimiento.date() if isinstance(lote.fecha_vencimiento, datetime) else lote.fecha_vencimiento
         plan.append({
             "lote_id":             lote.id,
             "numero_lote":         lote.numero_lote,
-            "fecha_vencimiento":   lote.fecha_vencimiento.isoformat(),
-            "dias_restantes":      (lote.fecha_vencimiento - date.today()).days,
+            "fecha_vencimiento":   fv.isoformat() if fv else None,
+            "dias_restantes":      (fv - date.today()).days if fv else None,
             "cantidad_disponible": lote.cantidad_actual,
             "a_consumir":          consumo,
             "costo_unitario":      lote.costo_unitario,
@@ -339,6 +349,99 @@ def sugerencia_fefo(
         "cantidad_requerida": cantidad_requerida,
         "faltante":          restante if not factible else 0,
         "lotes_sugeridos":   plan,
+    }
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# TRAZABILIDAD POR LOTE (recall / auditoría INVIMA)
+# ════════════════════════════════════════════════════════════════════════════
+
+def get_trazabilidad_lote(db: Session, empresa_id: int, lote_id: int) -> dict:
+    """
+    Libro completo de un lote: todos sus movimientos (entrada, salidas por
+    venta/producción, ajustes) y, para recall sanitario, las ventas y clientes
+    a los que se despachó ese lote.
+    """
+    import re
+    from sqlalchemy import or_, and_
+
+    lote = db.query(models.LoteExistencia).filter(
+        models.LoteExistencia.id         == lote_id,
+        models.LoteExistencia.empresa_id == empresa_id,
+    ).first()
+    if not lote:
+        raise HTTPException(404, "Lote no encontrado.")
+
+    # Movimientos ligados por lote_id, y también por numero_lote del mismo
+    # producto (cubre movimientos antiguos grabados solo con el texto)
+    movs = (
+        db.query(models.InventoryMovement)
+        .filter(
+            models.InventoryMovement.empresa_id == empresa_id,
+            or_(
+                models.InventoryMovement.lote_id == lote_id,
+                and_(
+                    models.InventoryMovement.producto_id == lote.producto_id,
+                    models.InventoryMovement.numero_lote == lote.numero_lote,
+                ),
+            ),
+        )
+        .order_by(models.InventoryMovement.created_at.asc(), models.InventoryMovement.id.asc())
+        .all()
+    )
+
+    # Resolver las ventas referenciadas ("venta #12", "Venta #12") -> cliente
+    venta_ids = set()
+    for m in movs:
+        match = re.search(r"venta\s*#(\d+)", m.referencia or "", re.IGNORECASE)
+        if match:
+            venta_ids.add(int(match.group(1)))
+
+    ventas_afectadas = []
+    if venta_ids:
+        ventas = (
+            db.query(models.Venta)
+            .filter(models.Venta.id.in_(venta_ids), models.Venta.empresa_id == empresa_id)
+            .all()
+        )
+        for v in ventas:
+            ventas_afectadas.append({
+                "venta_id":         v.id,
+                "numero_venta":     v.numero_venta,
+                "fecha":            v.fecha.isoformat() if v.fecha else None,
+                "cliente_id":       v.cliente_id,
+                "cliente_nombre":   v.cliente.nombre if v.cliente else "Consumidor final",
+                "cliente_telefono": getattr(v.cliente, "telefono", None) if v.cliente else None,
+                "total":            v.total,
+            })
+        ventas_afectadas.sort(key=lambda x: x["fecha"] or "")
+
+    def _tipo_str(m):
+        return m.tipo.value if hasattr(m.tipo, "value") else str(m.tipo)
+
+    consumido_ventas = sum(
+        m.cantidad for m in movs
+        if _tipo_str(m).lower().endswith("salida")
+        and re.search(r"venta", (m.referencia or "") + (m.motivo or ""), re.IGNORECASE)
+    )
+
+    return {
+        "lote": _enriquecer_lote(lote),
+        "movimientos": [
+            {
+                "id":             m.id,
+                "tipo":           _tipo_str(m),
+                "cantidad":       m.cantidad,
+                "costo_unitario": m.costo_unitario,
+                "motivo":         m.motivo,
+                "referencia":     m.referencia,
+                "observacion":    m.observacion,
+                "created_at":     m.created_at.isoformat() if m.created_at else None,
+            }
+            for m in movs
+        ],
+        "ventas_afectadas":          ventas_afectadas,
+        "total_consumido_en_ventas": consumido_ventas,
     }
 
 
