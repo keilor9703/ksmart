@@ -353,9 +353,26 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
 
     # ─── Propagación de costo en cascada: actualizar el costo del producto resultante
     # para que el siguiente lote que lo use como insumo tome el costo real de producción.
+    # Se usa PROMEDIO PONDERADO contra el stock remanente (no una sobrescritura directa):
+    # si aún queda stock del producto a su costo anterior, ese stock viejo no debe
+    # "heredar" contablemente el costo del lote nuevo. Esto es crítico en recetas
+    # auto-referenciadas (ej. un cultivo madre que se usa como insumo de sí mismo),
+    # donde una sobrescritura directa puede disparar el costo en cascada de un lote
+    # al siguiente sin relación con lo que realmente cuesta el stock disponible.
     if costo_unitario_final > 0 and receta.producto_resultante:
-        receta.producto_resultante.costo = costo_unitario_final
-        db.add(receta.producto_resultante)
+        prod_result = receta.producto_resultante
+        stock_final = prod_result.stock_actual or 0
+        # El stock_actual ya incluye la cantidad de este lote (se sumó arriba, en el
+        # paso 4); se resta para obtener el stock que había ANTES de este lote.
+        stock_previo = max(0.0, stock_final - cantidad_final)
+        costo_previo = prod_result.costo or 0.0
+        if stock_previo > 0 and costo_previo > 0:
+            prod_result.costo = (
+                (stock_previo * costo_previo) + (cantidad_final * costo_unitario_final)
+            ) / (stock_previo + cantidad_final)
+        else:
+            prod_result.costo = costo_unitario_final
+        db.add(prod_result)
     if confirm_data.observaciones:
         db_lote.observaciones = (db_lote.observaciones or "") + " | Cierre: " + confirm_data.observaciones
 
