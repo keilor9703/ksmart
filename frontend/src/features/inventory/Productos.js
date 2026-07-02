@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { Box, Typography, Tabs, Tab, Button } from '@mui/material';
-import { Inventory, ReceiptLong, Add, QrCodeScanner, Percent } from '@mui/icons-material';
+import { Inventory, ReceiptLong, Add, Percent } from '@mui/icons-material';
 import ProductoList from './ProductoList';
 import ProductoForm from './ProductoForm';
 import Recetas from '../production/Recetas';
 import TiposImpuesto from './TiposImpuesto';
-import AgileBarcodeRegistration from './AgileBarcodeRegistration';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 import SmartTooltip from '../../components/onboarding/SmartTooltip';
 
@@ -24,11 +23,10 @@ const Productos = () => {
   const [key, setKey]                       = useState(0);
   const [editingProducto, setEditingProducto] = useState(null);
   const [formOpen, setFormOpen]             = useState(false);
-  const [agileOpen, setAgileOpen]           = useState(false);
 
   const productSteps = [
     { title: 'Gestión de Ítems', description: 'Crea productos físicos o servicios intangibles con precios y costos.' },
-    { title: 'Modo Ágil', description: 'Usa el escáner de barras para registrar múltiples productos rápidamente.' },
+    { title: 'Registro con Cámara', description: 'En el formulario, activa la cámara para escanear el código de barras y llenar los campos automáticamente.' },
     { title: 'Recetas (BOM)', description: 'Define fórmulas de producción para productos compuestos.' },
     { title: 'Catálogo Virtual', description: 'Activa la visibilidad de tus productos para que aparezcan en tu tienda online.' }
   ];
@@ -66,7 +64,7 @@ const Productos = () => {
                   { q: '¿Qué son las "Unidades por empaque"?', a: 'Si compras una caja de 12 unidades, ingresa el costo de la caja completa y escribe 12 en este campo. El sistema calculará el costo por unidad automáticamente para las recetas.' },
                   { q: '¿Qué es el stock mínimo?', a: 'Es el umbral de alerta. Cuando el stock actual baje de ese número, el sistema generará una advertencia para que sepas que necesitas reabastecer.' },
                   { q: '¿Cuál es la diferencia entre producto y servicio?', a: 'Los productos físicos controlan stock (entradas y salidas). Los servicios son intangibles: no llevan inventario, solo precio y descripción.' },
-                  { q: '¿Cómo agrego el código de barras a un producto?', a: 'En el formulario, busca el campo "Código de barras" e ingresa el código manualmente o usa un lector USB para escanearlo directamente en el campo.' },
+                  { q: '¿Cómo agrego el código de barras a un producto?', a: 'En el formulario, busca el campo "Código de barras": puedes escribirlo, usar un lector USB, o pulsar el ícono de cámara para escanearlo y que el sistema llene los datos automáticamente.' },
                 ]}
               />
             </Box>
@@ -75,21 +73,7 @@ const Productos = () => {
         </Box>
         {tab === 0 && (
           <Box sx={{ display: 'flex', gap: 1.5 }}>
-            <SmartTooltip 
-              id="prod_agile_mode" 
-              title="Registro Veloz" 
-              description="Ideal para inventariar mucha mercancía usando solo el lector de barras."
-            >
-              <Button
-                variant="outlined" startIcon={<QrCodeScanner />}
-                onClick={() => setAgileOpen(true)}
-                sx={{ borderRadius: 2, fontWeight: 600, color: '#10B981', borderColor: '#10B981', '&:hover': { borderColor: '#059669', bgcolor: '#10B98108' } }}
-              >
-                Modo Ágil
-              </Button>
-            </SmartTooltip>
-            
-            <SmartTooltip 
+            <SmartTooltip
               id="prod_new_btn" 
               title="Nuevo Ítem" 
               description="Crea un producto desde cero con todos sus detalles técnicos."
@@ -105,13 +89,6 @@ const Productos = () => {
           </Box>
         )}
       </Box>
-
-      {/* ── MODO ÁGIL (MODAL FULLSCREEN) ── */}
-      <AgileBarcodeRegistration 
-        open={agileOpen} 
-        onClose={() => setAgileOpen(false)} 
-        onProductoAdded={handleRefresh} 
-      />
 
       {/* ── Tabs ── */}
       <Box sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', width: '100%' }}>
