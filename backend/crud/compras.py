@@ -128,6 +128,11 @@ def create_compra(db: Session, empresa_id: int, compra: schemas.CompraCreate):
     db.add(db_compra)
     db.flush()
 
+    # Consecutivo visible por empresa (el PK es global a todos los tenants)
+    from crud.consecutivos import next_consecutivo
+    db_compra.numero_compra = next_consecutivo(db, empresa_id, "ultimo_numero_compra")
+    ref_compra = f"Compra #{db_compra.numero_compra}"
+
     for idx, item in enumerate(compra.detalles):
         if item.producto_id is None and not item.nombre_libre:
             raise HTTPException(status_code=400, detail=f"El ítem #{idx+1} debe tener un producto o una descripción.")
@@ -179,7 +184,7 @@ def create_compra(db: Session, empresa_id: int, compra: schemas.CompraCreate):
                 cantidad=item.cantidad,
                 costo_unitario=item.precio_unitario,
                 motivo="Compra",
-                referencia=f"Compra #{db_compra.id}",
+                referencia=ref_compra,
                 observacion=f"Factura: {compra.referencia_factura or 'N/A'}"
             )
             create_movement(db, empresa_id, payload_mov)
@@ -238,7 +243,10 @@ def update_compra(db: Session, empresa_id: int, compra_id: int, data: schemas.Co
     for detalle in db_compra.detalles:
         # Buscar movimiento de inventario asociado
         mov = db.query(models.InventoryMovement).filter(
-            models.InventoryMovement.referencia == f"Compra #{db_compra.id}",
+            models.InventoryMovement.referencia.in_([
+                f"Compra #{db_compra.id}",
+                f"Compra #{db_compra.numero_compra}" if db_compra.numero_compra else f"Compra #{db_compra.id}",
+            ]),
             models.InventoryMovement.producto_id == detalle.producto_id
         ).first()
         
@@ -249,7 +257,7 @@ def update_compra(db: Session, empresa_id: int, compra_id: int, data: schemas.Co
                 tipo=schemas.MovementType.salida,
                 cantidad=detalle.cantidad,
                 motivo="Anulación por edición de compra",
-                referencia=f"Reversa Compra #{db_compra.id}"
+                referencia=f"Reversa Compra #{db_compra.numero_compra or db_compra.id}"
             )
             create_movement(db, empresa_id, reversa)
             db.delete(mov)
@@ -300,7 +308,7 @@ def update_compra(db: Session, empresa_id: int, compra_id: int, data: schemas.Co
                     cantidad=item.cantidad,
                     costo_unitario=item.precio_unitario,
                     motivo="Compra (Editada)",
-                    referencia=f"Compra #{db_compra.id}",
+                    referencia=f"Compra #{db_compra.numero_compra or db_compra.id}",
                     observacion=f"Factura: {db_compra.referencia_factura or 'N/A'}"
                 )
                 create_movement(db, empresa_id, payload_mov)
@@ -357,7 +365,7 @@ def delete_compra(db: Session, empresa_id: int, compra_id: int):
             tipo=schemas.MovementType.salida,
             cantidad=detalle.cantidad,
             motivo="Eliminación de compra",
-            referencia=f"Eliminación Compra #{db_compra.id}"
+            referencia=f"Eliminación Compra #{db_compra.numero_compra or db_compra.id}"
         )
         create_movement(db, empresa_id, reversa)
 

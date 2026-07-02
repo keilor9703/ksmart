@@ -94,8 +94,10 @@ class Empresa(Base):
     # Consecutivos visibles por empresa (V-0001, ORDEN #12…). Se incrementan con
     # UPDATE atómico (ver crud.consecutivos.next_consecutivo) para que cada
     # tenant tenga su propia numeración desde 1, independiente del PK global.
-    ultimo_numero_venta = Column(Integer, default=0, nullable=False, server_default="0")
-    ultimo_numero_lote  = Column(Integer, default=0, nullable=False, server_default="0")
+    ultimo_numero_venta      = Column(Integer, default=0, nullable=False, server_default="0")
+    ultimo_numero_lote       = Column(Integer, default=0, nullable=False, server_default="0")
+    ultimo_numero_movimiento = Column(Integer, default=0, nullable=False, server_default="0")
+    ultimo_numero_compra     = Column(Integer, default=0, nullable=False, server_default="0")
 
     # Configuración de ventas
     omitir_inventario     = Column(Boolean, default=False)
@@ -407,8 +409,36 @@ class InventoryMovement(Base, TenantMixin):
     numero_lote = Column(String(100), nullable=True)
     lote        = relationship("LoteExistencia", back_populates="movimientos")
 
+    # Consecutivo visible por empresa (#1, #2…); el PK 'id' es global a todos
+    # los tenants. Se asigna automáticamente vía event listener before_insert.
+    numero_movimiento = Column(Integer, nullable=True, index=True)
+
     producto = relationship("Producto", lazy="joined")
     usuario  = relationship("User", foreign_keys=[usuario_id])
+
+from sqlalchemy import event as _sa_event
+from sqlalchemy import text as _sa_text
+
+
+@_sa_event.listens_for(InventoryMovement, "before_insert")
+def _asignar_numero_movimiento(mapper, connection, target):
+    """Numera el movimiento con el consecutivo de SU empresa. Un event
+    listener cubre todos los puntos de creación (ventas, compras, producción,
+    lotes, devoluciones, ajustes…) sin tocar cada llamador. UPDATE atómico
+    sobre la fila de la empresa — sin carreras entre transacciones."""
+    if target.numero_movimiento is not None or not target.empresa_id:
+        return
+    row = connection.execute(
+        _sa_text(
+            "UPDATE empresas SET ultimo_numero_movimiento = "
+            "COALESCE(ultimo_numero_movimiento, 0) + 1 "
+            "WHERE id = :e RETURNING ultimo_numero_movimiento"
+        ),
+        {"e": target.empresa_id},
+    ).first()
+    if row:
+        target.numero_movimiento = int(row[0])
+
 
 class DetalleVenta(Base, TenantMixin):
     __tablename__ = "detalles_venta"
@@ -687,6 +717,8 @@ class LoteProduccion(Base, TenantMixin):
 class Compra(Base, TenantMixin):
     __tablename__ = "compras"
     id                  = Column(Integer, primary_key=True, index=True)
+    # Consecutivo visible por empresa (OC-2026-0001…); el PK es global
+    numero_compra       = Column(Integer, nullable=True, index=True)
     proveedor_id        = Column(Integer, ForeignKey("clientes.id"))
     total               = Column(Float)
     iva_total           = Column(Float, default=0.0)

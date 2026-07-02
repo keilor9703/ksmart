@@ -2390,6 +2390,54 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v110)
                 logger.info("V110 (consecutivos por empresa + reparación grupos) aplicada.")
 
+            # V111 — Consecutivos por empresa para movimientos de inventario y compras
+            migration_v111 = "v111_consecutivos_movimientos_compras"
+            if not _migration_already_applied(conn, migration_v111):
+                if not _column_exists(conn, "empresas", "ultimo_numero_movimiento"):
+                    conn.execute(text(
+                        "ALTER TABLE empresas ADD COLUMN ultimo_numero_movimiento INTEGER NOT NULL DEFAULT 0"
+                    ))
+                if not _column_exists(conn, "empresas", "ultimo_numero_compra"):
+                    conn.execute(text(
+                        "ALTER TABLE empresas ADD COLUMN ultimo_numero_compra INTEGER NOT NULL DEFAULT 0"
+                    ))
+                if not _column_exists(conn, "inventory_movements", "numero_movimiento"):
+                    conn.execute(text(
+                        "ALTER TABLE inventory_movements ADD COLUMN numero_movimiento INTEGER NULL"
+                    ))
+                if not _column_exists(conn, "compras", "numero_compra"):
+                    conn.execute(text(
+                        "ALTER TABLE compras ADD COLUMN numero_compra INTEGER NULL"
+                    ))
+
+                conn.execute(text("""
+                    UPDATE inventory_movements SET numero_movimiento = sub.rn
+                    FROM (
+                        SELECT id, ROW_NUMBER() OVER (PARTITION BY empresa_id ORDER BY id) AS rn
+                        FROM inventory_movements
+                    ) AS sub
+                    WHERE inventory_movements.id = sub.id AND inventory_movements.numero_movimiento IS NULL
+                """))
+                conn.execute(text("""
+                    UPDATE compras SET numero_compra = sub.rn
+                    FROM (
+                        SELECT id, ROW_NUMBER() OVER (PARTITION BY empresa_id ORDER BY id) AS rn
+                        FROM compras
+                    ) AS sub
+                    WHERE compras.id = sub.id AND compras.numero_compra IS NULL
+                """))
+                conn.execute(text("""
+                    UPDATE empresas SET ultimo_numero_movimiento = COALESCE(
+                        (SELECT MAX(m.numero_movimiento) FROM inventory_movements m WHERE m.empresa_id = empresas.id), 0)
+                """))
+                conn.execute(text("""
+                    UPDATE empresas SET ultimo_numero_compra = COALESCE(
+                        (SELECT MAX(c.numero_compra) FROM compras c WHERE c.empresa_id = empresas.id), 0)
+                """))
+
+                _mark_migration_applied(conn, migration_v111)
+                logger.info("V111 (consecutivos movimientos y compras) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
