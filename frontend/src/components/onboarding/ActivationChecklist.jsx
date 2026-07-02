@@ -106,11 +106,11 @@ export default function ActivationChecklist({ user, data, totalUltimos30 }) {
       path: esPrestamista ? '/prestamos' : '/ventas',
     },
     {
-      id: 'invite_user',
-      label: 'Invita a un colaborador',
-      desc: 'Agrega vendedores o cajeros a tu equipo.',
-      done: dismissed.includes('invite_user'),
-      path: '/usuarios',
+      id: 'setup_catalogo',
+      label: 'Configura tu catálogo virtual',
+      desc: 'Publica tus productos en tu tienda online y compártela con tus clientes.',
+      done: dismissed.includes('setup_catalogo') || !!user?.empresa?.slug_catalogo,
+      path: '/admin/catalogo',
       optional: true,
     },
     {
