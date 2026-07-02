@@ -110,8 +110,10 @@ def create_compra(db: Session, empresa_id: int, compra: schemas.CompraCreate):
         total_bruto += item.cantidad * item.precio_unitario
 
     iva_porc = compra.iva_porcentaje or 0.0
-    iva_total_calc = total_bruto * iva_porc / 100 if iva_porc > 0 else 0.0
-    total_final = total_bruto + iva_total_calc
+    # IVA incluido en el precio unitario (igual que en ventas): se extrae por
+    # retrocálculo, el total es la suma de cantidades por precios.
+    iva_total_calc = total_bruto * iva_porc / (100 + iva_porc) if iva_porc > 0 else 0.0
+    total_final = total_bruto
 
     db_compra = models.Compra(
         proveedor_id=compra.proveedor_id,
@@ -305,8 +307,9 @@ def update_compra(db: Session, empresa_id: int, compra_id: int, data: schemas.Co
                 prod.costo = item.precio_unitario
 
         iva_pct = db_compra.iva_porcentaje or 0.0
-        db_compra.iva_total = total_bruto * iva_pct / 100 if iva_pct > 0 else 0.0
-        db_compra.total = total_bruto + db_compra.iva_total
+        # IVA incluido: retrocálculo, el total no suma el IVA encima
+        db_compra.iva_total = total_bruto * iva_pct / (100 + iva_pct) if iva_pct > 0 else 0.0
+        db_compra.total = total_bruto
 
     # 4. Manejo Inteligente de Pago
     if data.pagada is True:

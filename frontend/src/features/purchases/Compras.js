@@ -90,9 +90,10 @@ const handlePrintOC = (compra) => {
     </tr>`;
   }).join('');
 
-  const subtotal = (compra.detalles || []).reduce((s, d) => s + d.cantidad * d.precio_unitario, 0);
-  const ivaAmt   = subtotal * (compra.iva_porcentaje || 0) / 100;
-  const total    = subtotal + ivaAmt;
+  const total    = (compra.detalles || []).reduce((s, d) => s + d.cantidad * d.precio_unitario, 0);
+  const ivaPct   = compra.iva_porcentaje || 0;
+  const ivaAmt   = ivaPct > 0 ? total * ivaPct / (100 + ivaPct) : 0;
+  const subtotal = total - ivaAmt;
 
   const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>${fmtOCNum(compra)}</title>
   <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#1F1F1F;padding:40px;max-width:850px;margin:0 auto}
@@ -129,7 +130,7 @@ const handlePrintOC = (compra) => {
   <table><thead><tr><th>Producto / Insumo</th><th style="text-align:center">Cant.</th><th style="text-align:right">Costo Unit.</th><th style="text-align:center">Lote / Vencimiento</th></tr></thead>
   <tbody>${rows}</tbody></table>
   <div class="totals-box">
-    <div class="total-row"><span>Subtotal</span><span>${subtotal.toLocaleString('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0})}</span></div>
+    <div class="total-row"><span>Base (sin IVA)</span><span>${subtotal.toLocaleString('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0})}</span></div>
     <div class="total-row"><span>IVA (${compra.iva_porcentaje || 0}%)</span><span>${ivaAmt.toLocaleString('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0})}</span></div>
     <div class="total-row total-final"><span>TOTAL</span><span>${total.toLocaleString('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0})}</span></div>
   </div>
@@ -275,9 +276,10 @@ const Compras = () => {
     setDetalles(p => p.map((d, i) => i === idx ? { ...d, [field]: val } : d));
 
   // ── Cálculos ───────────────────────────────────────────────────────────────
-  const calcSubtotal = () => detalles.reduce((acc, d) => acc + d.cantidad * d.precio_unitario, 0);
-  const calcIva      = () => calcSubtotal() * (parseFloat(ivaPorcentajeGlobal) || 0) / 100;
-  const calcTotal    = () => calcSubtotal() + calcIva();
+  // IVA incluido en el precio (igual que ventas): el total es cantidades × precios
+  const calcTotal    = () => detalles.reduce((acc, d) => acc + d.cantidad * d.precio_unitario, 0);
+  const calcIva      = () => { const p = parseFloat(ivaPorcentajeGlobal) || 0; return p > 0 ? calcTotal() * p / (100 + p) : 0; };
+  const calcSubtotal = () => calcTotal() - calcIva();
 
   const resetForm = () => {
     setProveedorSel(null); setProveedorInput(''); setRefFactura(''); setObservaciones('');
@@ -724,11 +726,11 @@ const Compras = () => {
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
               <Paper sx={{ p: 2, borderRadius: 2, bgcolor: `${GREEN}0D`, border: `1.5px dashed ${GREEN}60`, boxShadow: 'none', minWidth: 220 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                  <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Subtotal</Typography>
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Base (sin IVA)</Typography>
                   <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{formatCurrency(calcSubtotal())}</Typography>
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                  <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>IVA ({ivaPorcentajeGlobal || 0}%)</Typography>
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>IVA incluido ({ivaPorcentajeGlobal || 0}%)</Typography>
                   <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{formatCurrency(calcIva())}</Typography>
                 </Box>
                 <Divider sx={{ my: 0.5 }} />
