@@ -277,6 +277,11 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
     costo_insumos_acumulado = 0.0
     costo_maquila_acumulado = 0.0
 
+    # Referencia legible con el consecutivo POR EMPRESA (no el PK global)
+    ref_orden = f"Producción #{db_lote.numero_orden or db_lote.id}"
+    if getattr(db_lote, "numero_lote_produccion", None):
+        ref_orden += f" ({db_lote.numero_lote_produccion})"
+
     # ─── 2. CONSUMO DE INSUMOS (sin commits intermedios) ───
     for insumo, cantidad_requerida, item in insumos_plan:
         costo_insumos_acumulado += cantidad_requerida * (insumo.costo or 0.0)
@@ -284,7 +289,7 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
         if getattr(insumo, "maneja_lotes", False):
             consumir_stock_fefo(
                 db, empresa_id, insumo.id, cantidad_requerida,
-                motivo="Producción - Consumo", referencia=f"Lote #{db_lote.id}",
+                motivo="Producción - Consumo", referencia=ref_orden,
                 commit=False,
             )
             insumo.stock_actual = (insumo.stock_actual or 0) - cantidad_requerida
@@ -296,7 +301,7 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
                 cantidad=cantidad_requerida,
                 costo_unitario=insumo.costo or 0.0,
                 motivo="Producción - Consumo",
-                referencia=f"Lote #{db_lote.id}",
+                referencia=ref_orden,
                 observacion=f"Consumo para {cantidad_teorica} de {receta.producto_resultante.nombre}"
             )
             create_movement(db, empresa_id, mov_salida, commit=False)
@@ -330,7 +335,7 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
             fecha_fabricacion=confirm_data.fecha_fabricacion,
             cantidad_inicial=cantidad_final,
             costo_unitario=costo_unitario_final,
-            referencia_compra=f"Producción #{db_lote.id}",
+            referencia_compra=ref_orden,
             observaciones=confirm_data.observaciones
         )
         crear_lote_existencia(db, empresa_id, payload_lote, commit=False)
@@ -341,7 +346,7 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
             cantidad=cantidad_final,
             costo_unitario=costo_unitario_final,
             motivo="Producción - Finalizado",
-            referencia=f"Lote #{db_lote.id}",
+            referencia=ref_orden,
             observacion=f"Costo unit: {costo_unitario_final:.2f} (MP: {costo_insumos_acumulado:.2f} | Maquila: {costo_maquila_acumulado:.2f})"
         )
         create_movement(db, empresa_id, mov_entrada, commit=False)

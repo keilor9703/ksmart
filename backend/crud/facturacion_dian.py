@@ -84,7 +84,7 @@ def _ejecutar_movimientos_venta(db: Session, empresa_id: int, db_venta: models.V
                     db, empresa_id=empresa_id,
                     producto_id=det.producto_id,
                     cantidad_requerida=det.cantidad,
-                    referencia=f"Venta #{db_venta.id}",
+                    referencia=f"Venta #{db_venta.numero_venta or db_venta.id}",
                     commit=False,
                 )
                 prod.stock_actual = (prod.stock_actual or 0) - det.cantidad
@@ -98,7 +98,7 @@ def _ejecutar_movimientos_venta(db: Session, empresa_id: int, db_venta: models.V
                 cantidad       = det.cantidad,
                 costo_unitario = prod.costo or 0.0,
                 motivo         = "venta",
-                referencia     = f"venta #{db_venta.id}",
+                referencia     = f"venta #{db_venta.numero_venta or db_venta.id}",
             ))
 
 

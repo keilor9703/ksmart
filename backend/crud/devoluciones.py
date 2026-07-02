@@ -89,7 +89,11 @@ def crear_devolucion(db: Session, empresa_id: int, data: schemas.DevolucionCreat
                         models.InventoryMovement.empresa_id  == empresa_id,
                         models.InventoryMovement.producto_id == item.producto_id,
                         models.InventoryMovement.lote_id.isnot(None),
-                        models.InventoryMovement.referencia.ilike(f"%venta #{data.venta_id}%"),
+                        # Las referencias nuevas usan el consecutivo por empresa
+                        # (numero_venta) y las antiguas el PK global — aceptar ambas
+                        models.InventoryMovement.referencia.ilike(f"%venta #{venta.numero_venta}%")
+                        if venta.numero_venta
+                        else models.InventoryMovement.referencia.ilike(f"%venta #{data.venta_id}%"),
                     )
                     .order_by(models.InventoryMovement.id.desc())
                     .first()

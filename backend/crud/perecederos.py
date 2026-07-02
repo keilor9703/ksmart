@@ -399,9 +399,17 @@ def get_trazabilidad_lote(db: Session, empresa_id: int, lote_id: int) -> dict:
 
     ventas_afectadas = []
     if venta_ids:
+        # Las referencias nuevas guardan el consecutivo por empresa
+        # (numero_venta); las históricas, el PK global. Resolver por ambos.
         ventas = (
             db.query(models.Venta)
-            .filter(models.Venta.id.in_(venta_ids), models.Venta.empresa_id == empresa_id)
+            .filter(
+                models.Venta.empresa_id == empresa_id,
+                or_(
+                    models.Venta.numero_venta.in_(venta_ids),
+                    models.Venta.id.in_(venta_ids),
+                ),
+            )
             .all()
         )
         for v in ventas:
