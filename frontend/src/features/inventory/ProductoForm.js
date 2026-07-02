@@ -331,7 +331,7 @@ const ProductoForm = ({
       } else {
         setProductStatus('new');
         setCodigoBarras(code);
-        toast.info('Código no encontrado (buscado en 5 bases públicas). Completa los datos del nuevo producto.');
+        toast.info('Código no encontrado en catálogos públicos ni búsqueda web. Completa los datos del nuevo producto.');
         playBeep('error');
         nombreRef.current?.focus();
       }

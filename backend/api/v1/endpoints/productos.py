@@ -102,6 +102,48 @@ async def fetch_openfacts_siblings(client: httpx.AsyncClient, barcode: str):
             continue
     return None
 
+async def fetch_barcode_monster(client: httpx.AsyncClient, barcode: str):
+    """barcode.monster — catálogo crowdsourced gratuito, sin API key."""
+    try:
+        response = await client.get(f"https://barcode.monster/api/{barcode}", headers=_LOOKUP_HEADERS)
+        _barcode_logger.info("barcode.monster %s -> HTTP %s", barcode, response.status_code)
+        if response.status_code == 200:
+            data = response.json()
+            desc = (data.get("description") or "").replace("(from barcode.monster)", "").strip()
+            if data.get("status") == "active" and desc:
+                return {"nombre": desc, "descripcion": data.get("company", "") or ""}
+    except Exception as e:
+        _barcode_logger.warning("barcode.monster %s -> error: %s", barcode, e)
+    return None
+
+async def fetch_web_search(client: httpx.AsyncClient, barcode: str):
+    """Último recurso: buscar el EAN en la web (DuckDuckGo HTML, gratuito) y
+    tomar el título del primer resultado — el mismo truco que usan las apps
+    gratuitas de escaneo para productos locales que no están en los catálogos.
+    """
+    import re, html as _html
+    try:
+        response = await client.get(
+            "https://html.duckduckgo.com/html/",
+            params={"q": barcode},
+            headers={**_LOOKUP_HEADERS, "Accept": "text/html"},
+        )
+        _barcode_logger.info("websearch %s -> HTTP %s", barcode, response.status_code)
+        if response.status_code != 200:
+            return None
+        titles = re.findall(r'class="result__a"[^>]*>(.*?)</a>', response.text, re.S)
+        for raw in titles[:5]:
+            title = _html.unescape(re.sub(r"<[^>]+>", "", raw)).strip()
+            # Descartar títulos que son solo el código o demasiado genéricos
+            limpio = title.replace(barcode, "").strip(" -|–·:")
+            if len(limpio) >= 8:
+                # Quitar sufijo de sitio ("… - Locatel Colombia", "… | Éxito")
+                limpio = re.split(r"\s+[|·]\s+", limpio)[0].strip()
+                return {"nombre": limpio[:150], "descripcion": "Encontrado por búsqueda web — verifica el nombre"}
+    except Exception as e:
+        _barcode_logger.warning("websearch %s -> error: %s", barcode, e)
+    return None
+
 # ─── ENDPOINT PRINCIPAL ─────────────────────────────────────────────────────────
 
 @router.get("/sku-preview")
@@ -202,12 +244,16 @@ async def get_producto_por_barcode(
     if local_prod:
         return local_prod
 
-    # 2. BÚSQUEDA PARALELA EN APIs PÚBLICAS (no se comparten datos entre tenants)
+    # 2. BÚSQUEDA PARALELA EN APIs PÚBLICAS (no se comparten datos entre tenants).
+    # Los resultados se evalúan en orden de confiabilidad: catálogos
+    # estructurados primero, búsqueda web como último recurso.
     async with httpx.AsyncClient(timeout=6.0, follow_redirects=True) as client:
         results = await asyncio.gather(
             fetch_openfoodfacts(client, barcode),
-            fetch_upcitemdb(client, barcode),
             fetch_openfacts_siblings(client, barcode),
+            fetch_upcitemdb(client, barcode),
+            fetch_barcode_monster(client, barcode),
+            fetch_web_search(client, barcode),
             return_exceptions=True,
         )
         for resultado_api in results:
