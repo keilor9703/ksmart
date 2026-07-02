@@ -619,6 +619,14 @@ def cerrar_comanda(
 
     db.commit()
 
+    # Asiento contable de la venta del restaurante (idempotente)
+    try:
+        from services.contabilidad import registrar_asiento_venta
+        registrar_asiento_venta(db, venta)
+        db.commit()
+    except Exception:
+        pass
+
     # ── 5. Emisión FE automática (helper canónico — asigna número DIAN,
     #       emite vía Matías y registra IntentoFE). No bloquea el cobro. ───────
     numero_factura = None

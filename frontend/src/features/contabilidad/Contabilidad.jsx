@@ -451,7 +451,7 @@ function EstadoResultados({ fechaInicio, fechaFin }) {
               <SectionHeader label="GASTOS OPERACIONALES" color="#F97316" />
               <Row label="(-) Gastos de personal y nómina" cuenta="5105" value={data.gastos_personal || 0} indent={1} />
               <Row label="(-) Gastos generales y diversos" cuenta="5195" value={data.gastos_operacionales} indent={1} />
-              <Row label="(-) Gastos financieros" cuenta="5305" value={data.gastos_no_operacionales} indent={1} />
+              <Row label="(-) Gastos no operacionales" cuenta="5305" value={data.gastos_no_operacionales} indent={1} />
               <Row label="= TOTAL GASTOS" value={data.total_gastos} bold color="#F97316" bg="#F9731610" />
 
               <TableRow sx={{ bgcolor: esGanancia ? '#10B98118' : '#EF444418' }}>
@@ -731,6 +731,8 @@ function ResumenIVA({ fechaInicio, fechaFin }) {
   const aPagar = data.iva_a_pagar > 0;
   const ivaNeto = aPagar ? data.iva_a_pagar : data.iva_a_favor;
   // Estimado de ICA: 1% sobre base gravable ventas (base = iva_generado / 0.19)
+  // Estimación válida SOLO para ventas gravadas al 19% — excluye ventas
+  // exentas/excluidas o a otras tarifas; el aviso se muestra junto al valor.
   const baseGravableVentas = data.iva_generado > 0 ? Math.round(data.iva_generado / 0.19) : 0;
   const icaEstimado = Math.round(baseGravableVentas * 0.001);
 
@@ -833,7 +835,7 @@ function ResumenIVA({ fechaInicio, fechaFin }) {
               <TableRow><TableCell colSpan={2} sx={{ bgcolor: '#10B98112', color: '#10B981', fontWeight: 700, fontSize: 11, letterSpacing: 1 }}>VENTAS</TableCell></TableRow>
               <TableRow hover><TableCell sx={{ pl: 3 }}>Ventas brutas totales (inc. IVA)</TableCell><TableCell align="right" sx={{ color: '#10B981' }}>{fmt(baseGravableVentas + data.iva_generado)}</TableCell></TableRow>
               <TableRow hover><TableCell sx={{ pl: 3 }}>(-) IVA incluido en ventas</TableCell><TableCell align="right">{fmt(data.iva_generado)}</TableCell></TableRow>
-              <TableRow sx={{ bgcolor: '#10B98108' }}><TableCell sx={{ pl: 3, fontWeight: 700 }}>= Base gravable ventas</TableCell><TableCell align="right" sx={{ fontWeight: 700, color: '#10B981' }}>{fmt(baseGravableVentas)}</TableCell></TableRow>
+              <TableRow sx={{ bgcolor: '#10B98108' }}><TableCell sx={{ pl: 3, fontWeight: 700 }}>= Base gravable ventas (estimada, solo gravadas al 19%)</TableCell><TableCell align="right" sx={{ fontWeight: 700, color: '#10B981' }}>{fmt(baseGravableVentas)}</TableCell></TableRow>
               <TableRow sx={{ bgcolor: '#10B98108' }}><TableCell sx={{ pl: 3, fontWeight: 700 }}>IVA generado (≈19% s/ base gravable)</TableCell><TableCell align="right" sx={{ fontWeight: 700, color: '#10B981' }}>{fmt(data.iva_generado)}</TableCell></TableRow>
 
               <TableRow><TableCell colSpan={2} sx={{ bgcolor: '#3B82F612', color: '#3B82F6', fontWeight: 700, fontSize: 11, letterSpacing: 1 }}>COMPRAS</TableCell></TableRow>
@@ -1188,7 +1190,7 @@ export default function Contabilidad() {
 
         {initResult && !initResult.error && (
           <Alert severity="success" sx={{ mb: 2 }} onClose={() => setInitResult(null)}>
-            Inicialización completa — Asientos creados: <strong>Ventas {initResult.ventas}</strong> · <strong>Gastos {initResult.gastos}</strong> · <strong>Compras {initResult.compras}</strong> · <strong>Pagos proveedores {initResult.pagos_compra}</strong> · <strong>Cuotas préstamo {initResult.cuotas}</strong>. Total: <strong>{initResult.total}</strong>
+            Inicialización completa — Asientos <strong>NUEVOS</strong> creados (transacciones que aún no tenían asiento): <strong>Ventas {initResult.ventas}</strong> · <strong>Gastos {initResult.gastos}</strong> · <strong>Compras {initResult.compras}</strong> · <strong>Pagos proveedores {initResult.pagos_compra}</strong> · <strong>Cuotas préstamo {initResult.cuotas}</strong>. Total: <strong>{initResult.total}</strong>. Un valor en 0 significa que esas transacciones ya estaban contabilizadas.
           </Alert>
         )}
         {initResult?.error && (

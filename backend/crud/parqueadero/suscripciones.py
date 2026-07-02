@@ -381,6 +381,14 @@ def _emitir_fe_pago_suscripcion(
     db.commit()
     db.refresh(venta_parq)
 
+    # Asiento contable (idempotente)
+    try:
+        from services.contabilidad import registrar_asiento_venta
+        registrar_asiento_venta(db, venta_parq)
+        db.commit()
+    except Exception:
+        pass
+
     try:
         from crud import ventas as _crud_ventas
         cliente_fe = susc.vehiculo.cliente if (susc.vehiculo and susc.vehiculo.cliente) else None

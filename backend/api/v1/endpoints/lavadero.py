@@ -340,6 +340,14 @@ def cobrar_orden(
     db.commit()
     db.refresh(orden)
 
+    # Asiento contable de la venta del lavadero (idempotente)
+    try:
+        from services.contabilidad import registrar_asiento_venta
+        registrar_asiento_venta(db, venta)
+        db.commit()
+    except Exception:
+        pass
+
     # ── Facturación electrónica (helper canónico, compartido con POS/restaurante/parqueadero) ──
     try:
         from crud import ventas as _crud_ventas

@@ -194,6 +194,11 @@ def convertir_cotizacion_a_venta(
     db.commit()
     db.refresh(cotizacion)
 
+    if cotizacion.estado_pago == "pagado":
+        from services.contabilidad import registrar_asiento_venta
+        registrar_asiento_venta(db, cotizacion)
+        db.commit()
+
     # Notificar bajo stock
     check_and_notify_low_stock(
         db, empresa_id=empresa_id,

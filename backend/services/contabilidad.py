@@ -104,13 +104,12 @@ def _get_cuenta(db: Session, empresa_id: int, codigo: str) -> Optional[models.Cu
 
 
 def _siguiente_numero(db: Session, empresa_id: int) -> int:
-    ultimo = (
-        db.query(models.AsientoContable.numero)
-        .filter(models.AsientoContable.empresa_id == empresa_id)
-        .order_by(models.AsientoContable.numero.desc())
-        .first()
-    )
-    return (ultimo[0] + 1) if ultimo else 1
+    """Consecutivo del libro diario por empresa. UPDATE atómico sobre el
+    contador de la empresa: dos transacciones concurrentes nunca reciben el
+    mismo número (el SELECT max+1 anterior sí podía duplicar consecutivos,
+    inaceptable en un libro diario)."""
+    from crud.consecutivos import next_consecutivo
+    return next_consecutivo(db, empresa_id, "ultimo_numero_asiento")
 
 
 def _cuenta_caja(db: Session, empresa_id: int, metodo_pago: Optional[str]) -> str:
@@ -152,6 +151,19 @@ def registrar_asiento_venta(db: Session, venta: models.Venta) -> None:
         iva   = float(venta.iva_total or 0)
         base  = total - iva
 
+        # Costo de la mercancía vendida (para el asiento 6135/1430): suma de
+        # cantidad x costo de cada producto físico de la venta. Sin este
+        # asiento el estado de resultados no refleja utilidad bruta real.
+        costo_venta = 0.0
+        try:
+            for det in (venta.detalles or []):
+                p = getattr(det, "producto", None)
+                if p is not None and not getattr(p, "es_servicio", False):
+                    costo_venta += float(det.cantidad or 0) * float(p.costo or 0)
+        except Exception:
+            costo_venta = 0.0
+        costo_venta = round(costo_venta, 2)
+
         # Determinar cuenta de ingreso según origen
         origen = getattr(venta, "origen", "erp") or "erp"
         if origen in ("lavadero", "parqueadero_horas", "parqueadero_suscripcion"):
@@ -163,23 +175,28 @@ def registrar_asiento_venta(db: Session, venta: models.Venta) -> None:
         cuenta_caja    = _get_cuenta(db, empresa_id, codigo_caja)
         cuenta_ingreso = _get_cuenta(db, empresa_id, codigo_ingreso)
         cuenta_iva     = _get_cuenta(db, empresa_id, "2408") if iva > 0 else None
+        cuenta_costo   = _get_cuenta(db, empresa_id, "6135") if costo_venta > 0 else None
+        cuenta_inv     = _get_cuenta(db, empresa_id, "1430") if costo_venta > 0 else None
 
         if not cuenta_caja or not cuenta_ingreso:
             logger.warning("Contabilidad: cuentas no encontradas para empresa %s", empresa_id)
             return
 
+        num_visible = getattr(venta, "numero_venta", None) or venta.id
         desc_metodo = venta.metodo_pago or "Efectivo"
+        incluir_costo = bool(cuenta_costo and cuenta_inv and costo_venta > 0)
+        total_asiento = total + (costo_venta if incluir_costo else 0.0)
         numero = _siguiente_numero(db, empresa_id)
         asiento = models.AsientoContable(
             empresa_id=empresa_id,
             numero=numero,
             fecha=venta.fecha_pago or venta.fecha or datetime.now(timezone.utc),
-            descripcion=f"Venta #{venta.id} — {desc_metodo}",
+            descripcion=f"Venta #{num_visible} — {desc_metodo}",
             tipo_origen="venta",
             referencia_id=venta.id,
             referencia_tipo="Venta",
-            total_debitos=total,
-            total_creditos=total,
+            total_debitos=total_asiento,
+            total_creditos=total_asiento,
         )
         db.add(asiento)
         db.flush()
@@ -187,16 +204,29 @@ def registrar_asiento_venta(db: Session, venta: models.Venta) -> None:
         lineas = [
             models.LineaAsiento(empresa_id=empresa_id, asiento_id=asiento.id,
                 cuenta_contable_id=cuenta_caja.id,
-                descripcion=f"Recaudo venta #{venta.id}", debito=total, credito=0.0, orden=1),
+                descripcion=f"Recaudo venta #{num_visible}", debito=total, credito=0.0, orden=1),
             models.LineaAsiento(empresa_id=empresa_id, asiento_id=asiento.id,
                 cuenta_contable_id=cuenta_ingreso.id,
-                descripcion=f"Ingreso venta #{venta.id}", debito=0.0, credito=base, orden=2),
+                descripcion=f"Ingreso venta #{num_visible}", debito=0.0, credito=base, orden=2),
         ]
         if cuenta_iva and iva > 0:
             lineas.append(models.LineaAsiento(
                 empresa_id=empresa_id, asiento_id=asiento.id,
                 cuenta_contable_id=cuenta_iva.id,
-                descripcion=f"IVA venta #{venta.id}", debito=0.0, credito=iva, orden=3,
+                descripcion=f"IVA venta #{num_visible}", debito=0.0, credito=iva, orden=3,
+            ))
+        if incluir_costo:
+            lineas.append(models.LineaAsiento(
+                empresa_id=empresa_id, asiento_id=asiento.id,
+                cuenta_contable_id=cuenta_costo.id,
+                descripcion=f"Costo mercancía venta #{num_visible}",
+                debito=costo_venta, credito=0.0, orden=len(lineas) + 1,
+            ))
+            lineas.append(models.LineaAsiento(
+                empresa_id=empresa_id, asiento_id=asiento.id,
+                cuenta_contable_id=cuenta_inv.id,
+                descripcion=f"Salida inventario venta #{num_visible}",
+                debito=0.0, credito=costo_venta, orden=len(lineas) + 1,
             ))
         db.add_all(lineas)
         db.flush()
@@ -344,8 +374,18 @@ def registrar_asiento_compra(db: Session, compra, pago=None) -> None:
             if ya_existe:
                 return
 
+            # IVA descontable separado (1355): el inventario entra por la BASE
+            # y el IVA de la compra va al activo fiscal — sin esto la
+            # declaración de IVA no puede descontar compras y el inventario
+            # queda sobrevalorado.
+            iva_compra = float(getattr(compra, "iva_total", 0) or 0)
+            iva_compra = min(iva_compra, total)
+            base_compra = total - iva_compra
+
+            num_compra = getattr(compra, "numero_compra", None) or compra.id
             cuenta_inv = _get_cuenta(db, empresa_id, "1430")
             cuenta_cxp = _get_cuenta(db, empresa_id, "2205")
+            cuenta_iva_desc = _get_cuenta(db, empresa_id, "1355") if iva_compra > 0 else None
             if not cuenta_inv or not cuenta_cxp:
                 return
 
@@ -353,23 +393,69 @@ def registrar_asiento_compra(db: Session, compra, pago=None) -> None:
             asiento = models.AsientoContable(
                 empresa_id=empresa_id, numero=numero,
                 fecha=getattr(compra, "fecha", None) or datetime.now(timezone.utc),
-                descripcion=f"Compra #{compra.id} — {getattr(compra, 'referencia_factura', '') or 'Sin factura'}",
+                descripcion=f"Compra #{num_compra} — {getattr(compra, 'referencia_factura', '') or 'Sin factura'}",
                 tipo_origen="compra",
                 referencia_id=compra.id, referencia_tipo="Compra",
                 total_debitos=total, total_creditos=total,
             )
             db.add(asiento)
             db.flush()
-            db.add_all([
+            lineas = [
                 models.LineaAsiento(empresa_id=empresa_id, asiento_id=asiento.id,
                     cuenta_contable_id=cuenta_inv.id,
-                    descripcion=f"Entrada inventario compra #{compra.id}", debito=total, credito=0.0, orden=1),
-                models.LineaAsiento(empresa_id=empresa_id, asiento_id=asiento.id,
-                    cuenta_contable_id=cuenta_cxp.id,
-                    descripcion=f"Obligación con proveedor #{getattr(compra, 'cliente_id', '')}",
-                    debito=0.0, credito=total, orden=2),
-            ])
+                    descripcion=f"Entrada inventario compra #{num_compra}",
+                    debito=(base_compra if cuenta_iva_desc else total), credito=0.0, orden=1),
+            ]
+            if cuenta_iva_desc:
+                lineas.append(models.LineaAsiento(empresa_id=empresa_id, asiento_id=asiento.id,
+                    cuenta_contable_id=cuenta_iva_desc.id,
+                    descripcion=f"IVA descontable compra #{num_compra}",
+                    debito=iva_compra, credito=0.0, orden=2))
+            lineas.append(models.LineaAsiento(empresa_id=empresa_id, asiento_id=asiento.id,
+                cuenta_contable_id=cuenta_cxp.id,
+                descripcion=f"Obligación con proveedor #{getattr(compra, 'proveedor_id', '')}",
+                debito=0.0, credito=total, orden=len(lineas) + 1))
+            db.add_all(lineas)
             db.flush()
+
+            # Compra pagada de contado: cancelar la CxP inmediatamente contra
+            # caja/bancos. Sin este asiento la cuenta 2205 quedaba acreditada
+            # para siempre (proveedores inflados y caja sin la salida).
+            if getattr(compra, "estado_pago", None) == "pagado":
+                ya_pago = db.query(models.AsientoContable).filter(
+                    models.AsientoContable.empresa_id == empresa_id,
+                    models.AsientoContable.tipo_origen == "pago_compra_contado",
+                    models.AsientoContable.referencia_id == compra.id,
+                ).first()
+                # Solo si tampoco hay pagos registrados en PagoCompra
+                tiene_pagos = db.query(models.PagoCompra).filter(
+                    models.PagoCompra.compra_id == compra.id
+                ).first() is not None
+                if not ya_pago and not tiene_pagos:
+                    cuenta_caja = _get_cuenta(db, empresa_id, "1105")
+                    if cuenta_caja:
+                        numero_p = _siguiente_numero(db, empresa_id)
+                        asiento_p = models.AsientoContable(
+                            empresa_id=empresa_id, numero=numero_p,
+                            fecha=getattr(compra, "fecha", None) or datetime.now(timezone.utc),
+                            descripcion=f"Pago de contado compra #{num_compra}",
+                            tipo_origen="pago_compra_contado",
+                            referencia_id=compra.id, referencia_tipo="Compra",
+                            total_debitos=total, total_creditos=total,
+                        )
+                        db.add(asiento_p)
+                        db.flush()
+                        db.add_all([
+                            models.LineaAsiento(empresa_id=empresa_id, asiento_id=asiento_p.id,
+                                cuenta_contable_id=cuenta_cxp.id,
+                                descripcion=f"Cancelación CxP compra #{num_compra}",
+                                debito=total, credito=0.0, orden=1),
+                            models.LineaAsiento(empresa_id=empresa_id, asiento_id=asiento_p.id,
+                                cuenta_contable_id=cuenta_caja.id,
+                                descripcion="Salida de caja pago de contado",
+                                debito=0.0, credito=total, orden=2),
+                        ])
+                        db.flush()
     except Exception as exc:
         logger.exception("Error generando asiento para compra: %s", exc)
 
@@ -458,6 +544,112 @@ def registrar_asiento_cuota_prestamo(
         db.flush()
     except Exception as exc:
         logger.exception("Error generando asiento para cuota préstamo: %s", exc)
+
+
+# ─── ASIENTO POR DEVOLUCIÓN ───────────────────────────────────────────────────
+
+def registrar_asiento_devolucion(db: Session, devolucion, venta) -> None:
+    """
+    Reversa contable de una devolución de venta:
+      Débito  4135/4175  Ingresos (base devuelta)
+      Débito  2408       IVA generado (IVA proporcional devuelto)
+      Crédito 1105/1110  Caja/Bancos (total devuelto)
+    Y la reversa del costo (mercancía que vuelve al inventario):
+      Débito  1430  Inventario
+      Crédito 6135  Costo de ventas
+    """
+    try:
+        empresa_id = venta.empresa_id
+        inicializar_puc(db, empresa_id)
+
+        ya_existe = db.query(models.AsientoContable).filter(
+            models.AsientoContable.empresa_id == empresa_id,
+            models.AsientoContable.tipo_origen == "devolucion",
+            models.AsientoContable.referencia_id == devolucion.id,
+        ).first()
+        if ya_existe:
+            return
+
+        total_dev = float(getattr(devolucion, "monto_total", 0) or getattr(devolucion, "total", 0) or 0)
+        if total_dev <= 0:
+            return
+
+        # IVA proporcional según el porcentaje de la venta original
+        iva_pct = float(getattr(venta, "iva_porcentaje", 0) or 0)
+        iva_dev = round(total_dev * iva_pct / (100 + iva_pct), 2) if iva_pct > 0 else 0.0
+        base_dev = total_dev - iva_dev
+
+        # Costo de la mercancía devuelta (vuelve al inventario)
+        costo_dev = 0.0
+        try:
+            for it in (devolucion.items or []):
+                p = getattr(it, "producto", None)
+                if p is None:
+                    p = db.query(models.Producto).filter(
+                        models.Producto.id == it.producto_id,
+                        models.Producto.empresa_id == empresa_id,
+                    ).first()
+                if p is not None and not getattr(p, "es_servicio", False):
+                    costo_dev += float(it.cantidad or 0) * float(p.costo or 0)
+        except Exception:
+            costo_dev = 0.0
+        costo_dev = round(costo_dev, 2)
+
+        origen = getattr(venta, "origen", "erp") or "erp"
+        codigo_ingreso = "4175" if origen in ("lavadero", "parqueadero_horas", "parqueadero_suscripcion") else "4135"
+
+        cuenta_ingreso = _get_cuenta(db, empresa_id, codigo_ingreso)
+        cuenta_caja    = _get_cuenta(db, empresa_id, _cuenta_caja(db, empresa_id, venta.metodo_pago))
+        cuenta_iva     = _get_cuenta(db, empresa_id, "2408") if iva_dev > 0 else None
+        cuenta_inv     = _get_cuenta(db, empresa_id, "1430") if costo_dev > 0 else None
+        cuenta_costo   = _get_cuenta(db, empresa_id, "6135") if costo_dev > 0 else None
+        if not cuenta_ingreso or not cuenta_caja:
+            return
+
+        num_venta = getattr(venta, "numero_venta", None) or venta.id
+        incluir_costo = bool(cuenta_inv and cuenta_costo and costo_dev > 0)
+        total_asiento = total_dev + (costo_dev if incluir_costo else 0.0)
+
+        numero = _siguiente_numero(db, empresa_id)
+        asiento = models.AsientoContable(
+            empresa_id=empresa_id, numero=numero,
+            fecha=getattr(devolucion, "fecha", None) or datetime.now(timezone.utc),
+            descripcion=f"Devolución #{devolucion.id} de venta #{num_venta}",
+            tipo_origen="devolucion",
+            referencia_id=devolucion.id, referencia_tipo="Devolucion",
+            total_debitos=total_asiento, total_creditos=total_asiento,
+        )
+        db.add(asiento)
+        db.flush()
+
+        lineas = [
+            models.LineaAsiento(empresa_id=empresa_id, asiento_id=asiento.id,
+                cuenta_contable_id=cuenta_ingreso.id,
+                descripcion=f"Reversa ingreso venta #{num_venta}",
+                debito=base_dev, credito=0.0, orden=1),
+        ]
+        if cuenta_iva and iva_dev > 0:
+            lineas.append(models.LineaAsiento(empresa_id=empresa_id, asiento_id=asiento.id,
+                cuenta_contable_id=cuenta_iva.id,
+                descripcion=f"Reversa IVA venta #{num_venta}",
+                debito=iva_dev, credito=0.0, orden=len(lineas) + 1))
+        lineas.append(models.LineaAsiento(empresa_id=empresa_id, asiento_id=asiento.id,
+            cuenta_contable_id=cuenta_caja.id,
+            descripcion=f"Salida caja devolución #{devolucion.id}",
+            debito=0.0, credito=total_dev, orden=len(lineas) + 1))
+        if incluir_costo:
+            lineas.append(models.LineaAsiento(empresa_id=empresa_id, asiento_id=asiento.id,
+                cuenta_contable_id=cuenta_inv.id,
+                descripcion="Reingreso mercancía a inventario",
+                debito=costo_dev, credito=0.0, orden=len(lineas) + 1))
+            lineas.append(models.LineaAsiento(empresa_id=empresa_id, asiento_id=asiento.id,
+                cuenta_contable_id=cuenta_costo.id,
+                descripcion="Reversa costo de ventas",
+                debito=0.0, credito=costo_dev, orden=len(lineas) + 1))
+        db.add_all(lineas)
+        db.flush()
+    except Exception as exc:
+        logger.exception("Error generando asiento para devolución %s: %s", getattr(devolucion, "id", "?"), exc)
 
 
 # ─── BACKFILL HISTÓRICO ───────────────────────────────────────────────────────
