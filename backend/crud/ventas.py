@@ -214,6 +214,12 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate, commi
     for det in detalles_objs:
         det.venta_id = db_venta.id
         db.add(det)
+    # Flush explícito: la sesión usa autoflush=False, así que sin esto los
+    # detalles recién agregados NO aparecen al leer la relación db_venta.detalles
+    # (lazy-load consulta la BD y los pendientes no existen aún). El endpoint de
+    # ventas itera esa relación para descontar stock — sin flush, itera vacío y
+    # la venta se guarda sin descontar inventario ni crear movimientos.
+    db.flush()
 
     # Fase 2A+2C: Numeración DIAN + emisión del documento electrónico.
     # emitir_fe_venta decide automáticamente entre Factura Electrónica (cliente la
