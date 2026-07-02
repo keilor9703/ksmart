@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import apiClient from '../../api';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import apiClient, { getProductoByBarcode } from '../../api';
 import { toast } from 'react-toastify';
 import BulkUpload from '../../components/common/BulkUpload';
 import CurrencyField from '../../components/common/CurrencyField';
@@ -13,14 +13,15 @@ import {
   IconButton, ButtonGroup, Switch, FormControlLabel, Autocomplete,
   Tooltip, InputAdornment, MenuItem, Select, FormControl, InputLabel,
   Table, TableBody, TableCell, TableHead, TableRow,
-  Dialog, DialogTitle, DialogContent, DialogActions,
+  Dialog, DialogTitle, DialogContent, DialogActions, CircularProgress,
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 
 import {
   Inventory, ExpandMore, ExpandLess, Upload, Close, Category, Science,
   Storefront, AddPhotoAlternate, Delete, InfoOutlined, LocalOffer,
-  Tag, Add, Tune,
+  Tag, Add, Tune, QrCodeScanner, CameraAlt as CameraAltIcon,
+  CheckCircle, FiberNew, Sync,
 } from '@mui/icons-material';
 
 import { UNIDADES_MEDIDA } from '../../utils/constants';
@@ -29,6 +30,16 @@ const DEFAULT_ACCENT  = '#8B5CF6';
 const PRICE_COLOR     = '#F43F5E';
 const INVENTORY_COLOR = '#10B981';
 const CATALOG_COLOR   = '#F59E0B';
+
+const HAS_BARCODE_DETECTOR = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+const HAS_CAMERA = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
+const BARCODE_FORMATS = ['ean_13', 'ean_8', 'code_128', 'qr_code', 'upc_e', 'code_39', 'itf'];
+
+const STATUS_CONFIG = {
+  existing:  { color: '#3B82F6', icon: Sync,        label: 'Producto existente — se actualizará al guardar' },
+  suggested: { color: '#F59E0B', icon: FiberNew,     label: 'Encontrado en catálogo global — completa precio y stock' },
+  new:       { color: '#10B981', icon: CheckCircle,  label: 'Producto nuevo — completa los datos' },
+};
 
 // ─── Section Card — colapsable en móvil, siempre abierta en desktop ───────────
 const SectionCard = ({ icon, title, accent = DEFAULT_ACCENT, children, defaultOpen = true }) => {
@@ -177,6 +188,17 @@ const ProductoForm = ({
   // Reverse price calculator: type margin% to compute precio from costo
   const [marginInput,         setMarginInput]         = useState('');
 
+  // ── Agile barcode scan state ──
+  const [cameraActive,  setCameraActive]  = useState(false);
+  const [searchingCode, setSearchingCode] = useState(false);
+  const [productStatus, setProductStatus] = useState(null); // 'existing' | 'suggested' | 'new'
+  const videoRef        = useRef(null);
+  const streamRef        = useRef(null);
+  const rAFRef            = useRef(null);
+  const zxingControlsRef  = useRef(null);
+  const nombreRef         = useRef(null);
+  const precioRef         = useRef(null);
+
   // ── Variant state ──
   const [tieneVariantes,    setTieneVariantes]    = useState(false);
   const [variantes,         setVariantes]         = useState([]);
@@ -196,6 +218,8 @@ const ProductoForm = ({
   }, [forceOpen]);
 
   useEffect(() => {
+    setCameraActive(false);
+    setProductStatus(null);
     if (productoToEdit) {
       setNombre(productoToEdit.nombre);
       setSku(productoToEdit.sku || '');
@@ -246,7 +270,145 @@ const ProductoForm = ({
     setFechaVencimiento(''); setImagenes([]); setMostrarEnCatalogo(false);
     setDescripcion(''); setImpuestoId('');
     setTieneVariantes(false); setVariantes([]); setVarianteDialog(false); setVarianteEditing(null); setSkuPreview('');
+    setProductStatus(null);
   };
+
+  // ── Agile barcode scan: camera lifecycle ──
+  const cleanupCamera = useCallback(() => {
+    if (rAFRef.current) { cancelAnimationFrame(rAFRef.current); rAFRef.current = null; }
+    if (zxingControlsRef.current) { try { zxingControlsRef.current.stop(); } catch {} zxingControlsRef.current = null; }
+    if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+    if (videoRef.current) { videoRef.current.srcObject = null; }
+  }, []);
+
+  useEffect(() => () => cleanupCamera(), [cleanupCamera]);
+
+  const playBeep = (type = 'success') => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = type === 'success' ? 880 : 220;
+      osc.connect(gain); gain.connect(ctx.destination);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.12);
+      osc.onended = () => ctx.close();
+    } catch {}
+  };
+
+  const handleSearchBarcode = async (code) => {
+    if (!code) return;
+    setSearchingCode(true);
+    try {
+      const res = await getProductoByBarcode(code);
+      if (res.data && res.data.id > 0) {
+        const p = res.data;
+        setProductStatus('existing');
+        setNombre(p.nombre || '');
+        setSku(p.sku || '');
+        setCodigoBarras(code);
+        setPrecio(p.precio ?? '');
+        setCosto(p.costo ?? '');
+        setEsServicio(!!p.es_servicio);
+        setUnidadMedida(p.unidad_medida || 'UND');
+        setGrupoItem(p.grupo_item || 2);
+        setStockMinimo(p.stock_minimo != null ? String(p.stock_minimo) : '');
+        setManejaLotes(p.maneja_lotes || false);
+        setDescripcion(p.descripcion || '');
+        toast.info(`Producto existente: ${p.nombre}. Se actualizará al guardar.`);
+        playBeep('success');
+        precioRef.current?.focus();
+      } else if (res.data && res.data.nombre) {
+        setProductStatus('suggested');
+        setNombre(res.data.nombre || '');
+        setCodigoBarras(code);
+        setPrecio(''); setCosto(''); setStockMinimo('');
+        toast.info('Encontrado en catálogo global. Completa precio y stock.');
+        playBeep('success');
+        precioRef.current?.focus();
+      } else {
+        setProductStatus('new');
+        setCodigoBarras(code);
+        toast.info('Código no registrado. Completa los datos del nuevo producto.');
+        playBeep('error');
+        nombreRef.current?.focus();
+      }
+    } catch (err) {
+      setProductStatus('new');
+      setCodigoBarras(code);
+      toast.warning('No se pudo consultar el código. Completa los datos manualmente.');
+      nombreRef.current?.focus();
+    } finally {
+      setSearchingCode(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!cameraActive) { cleanupCamera(); return; }
+
+    const onBarcode = (code) => {
+      setCameraActive(false);
+      handleSearchBarcode(code);
+    };
+
+    let cancelled = false;
+
+    const start = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+
+        if (HAS_BARCODE_DETECTOR) {
+          const detector = new window.BarcodeDetector({ formats: BARCODE_FORMATS });
+          let lastCheck = 0;
+          const tick = async (ts) => {
+            if (cancelled) return;
+            if (ts - lastCheck > 100 && videoRef.current) {
+              lastCheck = ts;
+              try {
+                const codes = await detector.detect(videoRef.current);
+                if (codes.length > 0) { onBarcode(codes[0].rawValue); return; }
+              } catch {}
+            }
+            rAFRef.current = requestAnimationFrame(tick);
+          };
+          rAFRef.current = requestAnimationFrame(tick);
+        } else {
+          const { BrowserMultiFormatReader } = await import('@zxing/browser');
+          if (cancelled) return;
+          const reader = new BrowserMultiFormatReader();
+          const controls = await reader.decodeFromConstraints(
+            { video: { facingMode: 'environment' } },
+            videoRef.current,
+            (result) => { if (result && !cancelled) onBarcode(result.getText()); }
+          );
+          zxingControlsRef.current = controls;
+        }
+      } catch (err) {
+        if (err?.name === 'NotAllowedError') {
+          toast.error('Permiso de cámara denegado.');
+        } else if (err?.name === 'NotFoundError') {
+          toast.error('No se encontró una cámara disponible.');
+        } else {
+          toast.error('No se pudo iniciar la cámara.');
+        }
+        setCameraActive(false);
+      }
+    };
+    start();
+
+    return () => { cancelled = true; cleanupCamera(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cameraActive]);
+
+  const handleToggleCamera = () => setCameraActive(a => !a);
 
   const handleSaveVariante = async () => {
     if (!varianteForm.nombre) { toast.warning('El nombre de la variante es obligatorio'); return; }
@@ -326,7 +488,7 @@ const ProductoForm = ({
 
   const handleCropCancel = () => { setCropperOpen(false); setImageToCrop(null); setPendingFiles([]); };
   const removeImage = (index) => setImagenes(prev => prev.filter((_, i) => i !== index));
-  const handleClose = () => { resetFields(); setFormOpen(false); if (onClose) onClose(); };
+  const handleClose = () => { resetFields(); setCameraActive(false); setFormOpen(false); if (onClose) onClose(); };
 
   const buildPayload = () => ({
     nombre,
@@ -557,6 +719,7 @@ const ProductoForm = ({
                     label={esServicio ? 'Nombre del Servicio *' : 'Nombre del Producto *'}
                     value={nombre}
                     onChange={e => setNombre(e.target.value)}
+                    inputRef={nombreRef}
                     fullWidth required
                   />
 
@@ -627,11 +790,72 @@ const ProductoForm = ({
                           label="Código de Barras"
                           value={codigoBarras}
                           onChange={e => setCodigoBarras(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSearchBarcode(codigoBarras.trim()); } }}
                           fullWidth
-                          placeholder="Escanea o escribe…"
+                          placeholder="Escanea, escribe o usa la cámara…"
                           inputProps={{ style: { fontFamily: 'monospace' } }}
+                          InputProps={{
+                            startAdornment: <InputAdornment position="start"><QrCodeScanner fontSize="small" sx={{ color: 'text.secondary' }} /></InputAdornment>,
+                            endAdornment: (
+                              <InputAdornment position="end">
+                                {searchingCode
+                                  ? <CircularProgress size={18} />
+                                  : (
+                                    <SmartTooltip id="prod_scan_camera" title="Escanear con cámara" description="Activa la cámara para leer el código de barras automáticamente.">
+                                      <IconButton
+                                        size="small"
+                                        onClick={handleToggleCamera}
+                                        disabled={!HAS_CAMERA}
+                                        sx={{ color: cameraActive ? '#EF4444' : accentColor }}
+                                      >
+                                        <CameraAltIcon fontSize="small" />
+                                      </IconButton>
+                                    </SmartTooltip>
+                                  )}
+                              </InputAdornment>
+                            ),
+                          }}
                         />
                       </Grid>
+
+                      {cameraActive && (
+                        <Grid item xs={12}>
+                          <Box sx={{
+                            position: 'relative', width: '100%', maxWidth: 420, mx: 'auto',
+                            borderRadius: 2, overflow: 'hidden', bgcolor: '#000',
+                            aspectRatio: '4/3',
+                          }}>
+                            <video ref={videoRef} muted playsInline
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <Box sx={{
+                              position: 'absolute', inset: '18% 12%',
+                              border: '2px solid #10B981', borderRadius: 1.5,
+                              boxShadow: '0 0 0 2000px rgba(0,0,0,0.35)',
+                            }} />
+                            <Typography sx={{
+                              position: 'absolute', bottom: 8, left: 0, right: 0, textAlign: 'center',
+                              color: '#fff', fontSize: 11, fontWeight: 600, textShadow: '0 1px 3px rgba(0,0,0,0.8)',
+                            }}>
+                              Apunta la cámara al código de barras
+                            </Typography>
+                          </Box>
+                        </Grid>
+                      )}
+
+                      {productStatus && (
+                        <Grid item xs={12}>
+                          <Box sx={{
+                            display: 'flex', alignItems: 'center', gap: 1, p: 1.2, borderRadius: 2,
+                            bgcolor: alpha(STATUS_CONFIG[productStatus].color, 0.08),
+                            border: `1px solid ${alpha(STATUS_CONFIG[productStatus].color, 0.3)}`,
+                          }}>
+                            {React.createElement(STATUS_CONFIG[productStatus].icon, { sx: { fontSize: 18, color: STATUS_CONFIG[productStatus].color } })}
+                            <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: STATUS_CONFIG[productStatus].color }}>
+                              {STATUS_CONFIG[productStatus].label}
+                            </Typography>
+                          </Box>
+                        </Grid>
+                      )}
                     </Grid>
                   )}
                 </Box>
