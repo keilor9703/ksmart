@@ -18,6 +18,16 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
 
     omitir_inventario = venta.omitir_inventario
 
+    # Los platos de restaurante (requiere_cocina) no manejan stock propio: sus
+    # insumos se descuentan vía el flujo de cocina. Ese bypass SOLO aplica a
+    # empresas tipo restaurante; en cualquier otro negocio todo producto físico
+    # valida y descuenta inventario sin excepción.
+    empresa_obj = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
+    es_restaurante = (getattr(empresa_obj, "tipo_negocio", "") or "").lower() == "restaurante"
+
+    def _exento_de_stock(prod) -> bool:
+        return bool(prod.es_servicio or (es_restaurante and getattr(prod, "requiere_cocina", False)))
+
     db_cliente = None
     if venta.cliente_id is not None:
         db_cliente = crud.get_cliente(db, empresa_id=empresa_id, cliente_id=venta.cliente_id)
@@ -67,7 +77,7 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
             if d.producto_id is None:
                 continue
             prod = productos_locked[d.producto_id]
-            if not prod.es_servicio and not prod.requiere_cocina:
+            if not _exento_de_stock(prod):
                 if (prod.stock_actual or 0) < d.cantidad:
                     raise HTTPException(
                         status_code=400,
@@ -107,7 +117,7 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
                 prod = productos_locked.get(det.producto_id)
                 if not prod:
                     prod = crud.get_producto(db, empresa_id=empresa_id, producto_id=det.producto_id)
-                if not prod or getattr(prod, "es_servicio", False) or getattr(prod, "requiere_cocina", False):
+                if not prod or _exento_de_stock(prod):
                     continue
 
                 if getattr(prod, "maneja_lotes", False):

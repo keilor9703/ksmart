@@ -556,7 +556,9 @@ def cerrar_comanda(
     propina_obs = []
     if payload.propina: propina_obs.append(f"Propina tarjeta: ${payload.propina:.0f}")
     if payload.propina_efectivo: propina_obs.append(f"Propina efectivo: ${payload.propina_efectivo:.0f}")
+    from crud.consecutivos import next_consecutivo
     venta = models.Venta(
+        numero_venta=next_consecutivo(db, user.empresa_id, "ultimo_numero_venta"),
         empresa_id=user.empresa_id,
         operador_id=user.id,
         total=total_con_propina,

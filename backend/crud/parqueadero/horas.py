@@ -271,7 +271,9 @@ def registrar_salida_horas(
         from crud import ventas as _crud_ventas
         placa_str = acceso.placa or ''
         solicita_fe = getattr(payload, 'solicita_fe', False)
+        from crud.consecutivos import next_consecutivo
         venta_parq = _models.Venta(
+            numero_venta= next_consecutivo(db, empresa_id, "ultimo_numero_venta"),
             empresa_id  = empresa_id,
             total       = monto_final,
             monto_pagado= monto_final,

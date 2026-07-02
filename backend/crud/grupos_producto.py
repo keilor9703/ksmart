@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import set_committed_value
 from sqlalchemy import or_
 from typing import Optional
 import models, schemas
@@ -46,14 +47,21 @@ def seed_categorias_restaurante(db: Session, empresa_id: int):
 
 
 def _apply_empresa_overrides(grupos: list, overrides: dict) -> list:
-    """Aplica el overlay por-empresa sobre la lista de grupos."""
+    """Aplica el overlay por-empresa sobre la lista de grupos.
+
+    set_committed_value modifica el atributo SOLO en memoria sin marcar el
+    objeto como 'dirty': una asignación normal sobre estas filas (que son
+    globales, empresa_id NULL) haría que cualquier commit posterior de la
+    sesión persistiera el override de UNA empresa en la fila compartida por
+    TODAS, corrompiendo p.ej. requiere_cocina de los grupos predefinidos.
+    """
     for g in grupos:
         if g.id in overrides:
             ov = overrides[g.id]
             if ov.requiere_cocina is not None:
-                g.requiere_cocina = ov.requiere_cocina
+                set_committed_value(g, "requiere_cocina", ov.requiere_cocina)
             if ov.visible_pos is not None:
-                g.visible_pos = ov.visible_pos
+                set_committed_value(g, "visible_pos", ov.visible_pos)
     return grupos
 
 
@@ -99,12 +107,13 @@ def upsert_grupo_config(db: Session, empresa_id: int, grupo_id: int, data: schem
         cfg.visible_pos = data.visible_pos
     db.commit()
     db.refresh(cfg)
-    # Devolver el grupo con el override aplicado
+    # Devolver el grupo con el override aplicado (solo en memoria, ver
+    # _apply_empresa_overrides: nunca mutar la fila global compartida).
     grupo = db.query(models.GrupoProducto).filter(models.GrupoProducto.id == grupo_id).first()
     if cfg.requiere_cocina is not None:
-        grupo.requiere_cocina = cfg.requiere_cocina
+        set_committed_value(grupo, "requiere_cocina", cfg.requiere_cocina)
     if cfg.visible_pos is not None:
-        grupo.visible_pos = cfg.visible_pos
+        set_committed_value(grupo, "visible_pos", cfg.visible_pos)
     return grupo
 
 

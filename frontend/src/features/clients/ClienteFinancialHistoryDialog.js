@@ -148,7 +148,7 @@ const ClienteFinancialHistoryDialog = ({ open, handleClose, clienteId, clienteNo
                 <AccordionSummary expandIcon={<ExpandMore />} sx={{ px: 2, py: 0.5, borderRadius: '12px' }}>
                   <Grid container alignItems="center" spacing={1}>
                     <Grid item xs={12} sm={3}>
-                      <Typography sx={{ fontWeight: 800, fontSize: 14, color: 'text.primary' }}>Venta #{venta.id}</Typography>
+                      <Typography sx={{ fontWeight: 800, fontSize: 14, color: 'text.primary' }}>Venta #{venta.numero_venta ?? venta.id}</Typography>
                       <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{formatearFechaExacta(venta.fecha)}</Typography>
                     </Grid>
                     <Grid item xs={6} sm={4}>

@@ -124,7 +124,7 @@ const VentaCard = ({ venta, handleEdit, handleDelete, handleOpenDetails, handleO
                         bgcolor: `${ACCENT}14`, color: ACCENT,
                         px: 0.8, py: 0.2, borderRadius: 1, display: 'inline-block',
                     }}>
-                        V{String(venta.id).padStart(4, '0')}
+                        V{String(venta.numero_venta ?? venta.id).padStart(4, '0')}
                     </Typography>
                     <ChipFE estado={venta.estado_electronico} ventaId={venta.id} onReintentar={handleReintentarFE} />
                 </Box>
@@ -1115,7 +1115,8 @@ useEffect(() => {
 
             const totalBruto = snapDetails.reduce((s, d) => s + d.precio_unitario * d.cantidad, 0);
             setReciboVenta({
-                id: saved.id, fecha: saved.fecha || new Date().toISOString(),
+                id: saved.id, numero_venta: saved.numero_venta,
+                fecha: saved.fecha || new Date().toISOString(),
                 cliente: snapCliente, detalles: snapDetails,
                 total: saved.total ?? totalBruto, iva_porcentaje: parseFloat(ivaPorcentajeGlobal) || 0,
                 iva_total: saved.iva_total ?? 0,
@@ -2052,7 +2053,7 @@ useEffect(() => {
                                                             bgcolor: `${ACCENT}14`, color: ACCENT,
                                                             px: 0.8, py: 0.2, borderRadius: 1, display: 'inline-block',
                                                         }}>
-                                                            V{String(v.id).padStart(4, '0')}
+                                                            V{String(v.numero_venta ?? v.id).padStart(4, '0')}
                                                         </Typography>
                                                     </TableCell>
                                                     {/* Columna: Factura Electrónica */}

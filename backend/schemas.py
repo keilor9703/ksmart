@@ -509,6 +509,8 @@ class Venta(VentaBase):
     cliente: Optional[Cliente]
     detalles: List[DetalleVenta] = []
     pagos: List[Pago] = []
+    # Consecutivo visible por empresa (V-0001…)
+    numero_venta: Optional[int] = None
     # ← Nuevos campos Fase 2
     numero_factura: Optional[str] = None
     resolucion_id: Optional[int] = None
@@ -868,6 +870,8 @@ class LoteProduccion(LoteProduccionBase):
     cliente: Optional[Cliente] = None
     venta_id: Optional[int] = None
     numero_lote_produccion: Optional[str] = None
+    # Consecutivo visible por empresa (ORDEN #1, #2…)
+    numero_orden: Optional[int] = None
     costo_insumos: float = 0.0
     costo_maquila: float = 0.0
     model_config = ConfigDict(from_attributes=True)

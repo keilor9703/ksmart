@@ -362,7 +362,9 @@ def _emitir_fe_pago_suscripcion(
     registrar_pago_suscripcion() (abonos posteriores).
     """
     placa_susc = susc.vehiculo.placa if susc.vehiculo else ""
+    from crud.consecutivos import next_consecutivo
     venta_parq = models.Venta(
+        numero_venta   = next_consecutivo(db, empresa_id, "ultimo_numero_venta"),
         empresa_id     = empresa_id,
         total          = monto,
         monto_pagado   = monto,

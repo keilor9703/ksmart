@@ -5,6 +5,7 @@ from crud.common import (
     pwd_context, COL_TZ, BOGOTA_TZ, UTC_TZ,
     _is_postgres, get_utc_boundaries, verify_password, get_password_hash,
 )
+from crud.consecutivos import next_consecutivo
 
 from crud.modulos_roles import (
     get_modulo, get_modulo_by_name, get_modulo_by_frontend_path,

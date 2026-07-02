@@ -59,7 +59,7 @@ const VentaDetalleModal = ({ open, onClose, venta }) => {
             <ReceiptLong />
           </Box>
           <Box>
-            <Typography sx={{ fontWeight: 800, fontSize: 16 }}>Detalle de Venta #{venta.id}</Typography>
+            <Typography sx={{ fontWeight: 800, fontSize: 16 }}>Detalle de Venta #{venta.numero_venta ?? venta.id}</Typography>
             <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{formatearFechaExacta(venta.fecha)}</Typography>
           </Box>
         </Box>
@@ -146,7 +146,7 @@ const VentaCard = ({ venta, onPago, onPagoTotal, onView }) => (
     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
       <Box sx={{ minWidth: 0, flex: 1, mr: 1 }}>
         <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 600 }}>
-          {formatearFechaExacta(venta.fecha)} · #{venta.id}
+          {formatearFechaExacta(venta.fecha)} · #{venta.numero_venta ?? venta.id}
         </Typography>
         {venta.detalles?.map(d => (
           <Typography key={d.id} sx={{ fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

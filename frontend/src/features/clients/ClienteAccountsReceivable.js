@@ -96,7 +96,7 @@ const ClienteAccountsReceivable = () => {
             <Card sx={{ mb: 2 }}>
                 <CardContent>
                     <Typography variant="h6" color="text.primary">
-                        Venta #{venta.id} - {venta.cliente?.nombre || 'N/A'}
+                        Venta #{venta.numero_venta ?? venta.id} - {venta.cliente?.nombre || 'N/A'}
                     </Typography>
                     <Typography color="textSecondary">
                         {new Date(venta.fecha + 'Z').toLocaleString()}

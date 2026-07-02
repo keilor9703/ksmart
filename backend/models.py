@@ -91,6 +91,12 @@ class Empresa(Base):
     docs_electronicos_contador = Column(Integer, default=0, nullable=False, server_default="0")
     docs_electronicos_periodo  = Column(String(7), nullable=True)  # "YYYY-MM"
 
+    # Consecutivos visibles por empresa (V-0001, ORDEN #12…). Se incrementan con
+    # UPDATE atómico (ver crud.consecutivos.next_consecutivo) para que cada
+    # tenant tenga su propia numeración desde 1, independiente del PK global.
+    ultimo_numero_venta = Column(Integer, default=0, nullable=False, server_default="0")
+    ultimo_numero_lote  = Column(Integer, default=0, nullable=False, server_default="0")
+
     # Configuración de ventas
     omitir_inventario     = Column(Boolean, default=False)
 
@@ -490,6 +496,10 @@ class Venta(Base, TenantMixin):
     fecha_pago      = Column(DateTime(timezone=True), nullable=True)
     metodo_pago     = Column(String, nullable=True)
 
+    # Consecutivo visible por empresa (V-0001…); el PK 'id' es global a todos
+    # los tenants y no debe mostrarse al usuario como número de venta.
+    numero_venta    = Column(Integer, nullable=True, index=True)
+
         # Fase 2A — Numeración DIAN
     numero_factura  = Column(String(20), nullable=True, index=True)
     resolucion_id   = Column(Integer, ForeignKey("resoluciones_dian.id"), nullable=True)
@@ -665,6 +675,8 @@ class LoteProduccion(Base, TenantMixin):
     venta_id                 = Column(Integer, ForeignKey("ventas.id"), nullable=True)
     observaciones                = Column(Text, nullable=True)
     numero_lote_produccion       = Column(String(100), nullable=True)
+    # Consecutivo visible por empresa (ORDEN #1, #2…); el PK 'id' es global.
+    numero_orden                 = Column(Integer, nullable=True, index=True)
     costo_insumos                = Column(Float, default=0.0)
     costo_maquila                = Column(Float, default=0.0)
 

@@ -92,7 +92,7 @@ const PaymentDialog = ({ open, handleClose, venta, onPaymentSuccess, pagoToEdit 
               {isEditing ? 'Editar Pago' : 'Registrar Pago'}
             </Typography>
             <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-              Venta #{venta.id}
+              Venta #{venta.numero_venta ?? venta.id}
             </Typography>
           </Box>
         </Box>

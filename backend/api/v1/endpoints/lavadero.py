@@ -273,7 +273,9 @@ def cobrar_orden(
     total = max(0.0, bruto - descuento_pts)
 
     # Create Venta record (maintains compatibility with existing reports)
+    from crud.consecutivos import next_consecutivo
     venta = models.Venta(
+        numero_venta=next_consecutivo(db, current_user.empresa_id, "ultimo_numero_venta"),
         empresa_id=current_user.empresa_id,
         cliente_id=orden.cliente_id,
         total=total,
