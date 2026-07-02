@@ -418,6 +418,8 @@ class InventoryMovementOut(BaseModel):
     # historial por lote del módulo Perecederos quedaba vacío)
     lote_id: Optional[int] = None
     numero_lote: Optional[str] = None
+    # Consecutivo visible por empresa
+    numero_movimiento: Optional[int] = None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
@@ -764,6 +766,8 @@ class CompraUpdate(BaseModel):
 
 class Compra(CompraBase):
     id: int
+    # Consecutivo visible por empresa (OC-2026-0001…)
+    numero_compra: Optional[int] = None
     total: float
     iva_total: float
     iva_porcentaje: float

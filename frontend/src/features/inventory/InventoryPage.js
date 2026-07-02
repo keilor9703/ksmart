@@ -565,7 +565,7 @@ const MovementCard = ({ row }) => {
           <Typography sx={{ fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {row.producto?.nombre ?? `#${row.producto_id}`}
           </Typography>
-          <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>#{row.id} · {formatDate(row.created_at)}</Typography>
+          <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>#{row.numero_movimiento ?? row.id} · {formatDate(row.created_at)}</Typography>
         </Box>
         <Chip label={row.tipo} size="small"
           sx={{ bgcolor: `${color}18`, color, fontWeight: 700, fontSize: 10, borderRadius: 1.5, flexShrink: 0, ml: 1 }} />
@@ -784,7 +784,7 @@ const MovementsTable = ({ refreshKey }) => {
                 ? <TableRow><TableCell colSpan={7} sx={{ textAlign: 'center', py: 5, color: 'text.secondary' }}>Sin movimientos</TableCell></TableRow>
                 : paginated.map(r => (
                     <TableRow key={r.id} hover>
-                      <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{r.id}</TableCell>
+                      <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{r.numero_movimiento ?? r.id}</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>{r.producto?.nombre ?? `#${r.producto_id}`}</TableCell>
                       <TableCell>
                         <Chip label={r.tipo} size="small"

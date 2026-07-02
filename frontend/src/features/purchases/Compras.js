@@ -75,7 +75,7 @@ const SectionLabel = ({ children }) => (
 // ─── PDF Orden de Compra ──────────────────────────────────────────────────────
 const fmtOCNum = (c) => {
   const year = c.fecha ? new Date(c.fecha).getFullYear() : new Date().getFullYear();
-  return `OC-${year}-${String(c.id).padStart(4, '0')}`;
+  return `OC-${year}-${String(c.numero_compra ?? c.id).padStart(4, '0')}`;
 };
 
 const handlePrintOC = (compra) => {
