@@ -27,10 +27,22 @@ router = APIRouter()
 
 # ─── FUNCIONES DE BÚSQUEDA EN APIs EXTERNAS ─────────────────────────────────────
 
+import logging
+_barcode_logger = logging.getLogger("productos.barcode")
+
+# Open*Facts bloquea con 403 a clientes sin User-Agent identificable
+# (política anti-abuso). Identificarse es obligatorio para usar su API.
+_LOOKUP_HEADERS = {"User-Agent": "Ksmart360/1.0 (ERP Colombia; https://appjeylor.com)"}
+
+
 async def fetch_openfoodfacts(client: httpx.AsyncClient, barcode: str):
     """Busca en la base de datos de alimentos"""
     try:
-        response = await client.get(f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json")
+        response = await client.get(
+            f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json",
+            headers=_LOOKUP_HEADERS,
+        )
+        _barcode_logger.info("openfoodfacts %s -> HTTP %s", barcode, response.status_code)
         if response.status_code == 200:
             data = response.json()
             if data.get("status") == 1:
@@ -39,15 +51,19 @@ async def fetch_openfoodfacts(client: httpx.AsyncClient, barcode: str):
                     "nombre": p.get("product_name") or p.get("generic_name", ""),
                     "descripcion": p.get("brands", "")
                 }
-    except Exception:
-        pass
+    except Exception as e:
+        _barcode_logger.warning("openfoodfacts %s -> error: %s", barcode, e)
     return None
 
 async def fetch_upcitemdb(client: httpx.AsyncClient, barcode: str):
     """Busca en una de las bases de datos de retail más grandes (Electrónica, ropa, etc.)"""
     try:
-        # Nota: La API gratuita de UPCitemdb permite ~100 peticiones diarias
-        response = await client.get(f"https://api.upcitemdb.com/prod/trial/lookup?upc={barcode}")
+        # Nota: La API gratuita de UPCitemdb permite ~100 peticiones diarias por IP
+        response = await client.get(
+            f"https://api.upcitemdb.com/prod/trial/lookup?upc={barcode}",
+            headers=_LOOKUP_HEADERS,
+        )
+        _barcode_logger.info("upcitemdb %s -> HTTP %s", barcode, response.status_code)
         if response.status_code == 200:
             data = response.json()
             items = data.get("items", [])
@@ -57,28 +73,32 @@ async def fetch_upcitemdb(client: httpx.AsyncClient, barcode: str):
                     "nombre": item.get("title", ""),
                     "descripcion": item.get("brand", "") or item.get("description", "")
                 }
-    except Exception:
-        pass
+    except Exception as e:
+        _barcode_logger.warning("upcitemdb %s -> error: %s", barcode, e)
     return None
 
-async def fetch_openbeauty_and_pets(client: httpx.AsyncClient, barcode: str):
-    """Busca en bases de datos hermanas de OFF (Belleza y Mascotas)"""
+async def fetch_openfacts_siblings(client: httpx.AsyncClient, barcode: str):
+    """Bases hermanas de OFF: Belleza (cosméticos/aseo), Productos generales y Mascotas."""
     urls = [
         f"https://world.openbeautyfacts.org/api/v0/product/{barcode}.json",
-        f"https://world.openpetfoodfacts.org/api/v0/product/{barcode}.json"
+        f"https://world.openproductsfacts.org/api/v0/product/{barcode}.json",
+        f"https://world.openpetfoodfacts.org/api/v0/product/{barcode}.json",
     ]
     for url in urls:
         try:
-            response = await client.get(url)
+            response = await client.get(url, headers=_LOOKUP_HEADERS)
+            _barcode_logger.info("%s %s -> HTTP %s", url.split("/")[2], barcode, response.status_code)
             if response.status_code == 200:
                 data = response.json()
                 if data.get("status") == 1:
                     p = data.get("product", {})
-                    return {
-                        "nombre": p.get("product_name", ""),
-                        "descripcion": p.get("brands", "")
-                    }
-        except Exception:
+                    if p.get("product_name"):
+                        return {
+                            "nombre": p.get("product_name", ""),
+                            "descripcion": p.get("brands", "")
+                        }
+        except Exception as e:
+            _barcode_logger.warning("%s %s -> error: %s", url.split("/")[2], barcode, e)
             continue
     return None
 
@@ -183,11 +203,11 @@ async def get_producto_por_barcode(
         return local_prod
 
     # 2. BÚSQUEDA PARALELA EN APIs PÚBLICAS (no se comparten datos entre tenants)
-    async with httpx.AsyncClient(timeout=4.0) as client:
+    async with httpx.AsyncClient(timeout=6.0, follow_redirects=True) as client:
         results = await asyncio.gather(
             fetch_openfoodfacts(client, barcode),
             fetch_upcitemdb(client, barcode),
-            fetch_openbeauty_and_pets(client, barcode),
+            fetch_openfacts_siblings(client, barcode),
             return_exceptions=True,
         )
         for resultado_api in results:
