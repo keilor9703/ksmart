@@ -384,6 +384,9 @@ class Producto(ProductoBase):
     requiere_cocina: bool = False
     categoria: Optional[str] = None
     costo_produccion: Optional[float] = None  # Calculado del último lote de producción confirmado
+    # Stock vendible: stock_actual menos lo atrapado en lotes VENCIDOS.
+    # None para productos sin manejo de lotes (usar stock_actual).
+    stock_vigente: Optional[float] = None
     model_config = ConfigDict(from_attributes=True)
 
 class MovementType(str, Enum):
