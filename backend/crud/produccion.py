@@ -248,6 +248,12 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
     if cantidad_final is None or cantidad_final <= 0:
         raise ValueError("La cantidad realmente producida debe ser mayor a cero.")
 
+    # item.cantidad está definido "por lote" (el lote completo rinde `porciones`
+    # unidades del producto resultante, tal como se ve en el editor de Recetas:
+    # costo del lote ÷ porciones = costo por unidad). Hay que dividir por
+    # porciones para obtener la tasa real por unidad del producto resultante.
+    porciones = max(1, getattr(receta, 'porciones', 1) or 1)
+
     # ─── 1. PRE-VALIDACIÓN: verificar TODO el stock antes de consumir nada ───
     insumos_plan = []  # (insumo, cantidad_requerida_con_merma, item)
     for item in receta.items:
@@ -256,7 +262,7 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
             raise ValueError(f"Insumo {item.insumo_id} no encontrado")
         merma_pct = getattr(item, 'merma_pct', 0.0) or 0.0
         factor_merma = 1.0 + (merma_pct / 100.0)
-        cantidad_requerida = item.cantidad * cantidad_teorica * factor_merma
+        cantidad_requerida = (item.cantidad / porciones) * cantidad_teorica * factor_merma
         if (insumo.stock_actual or 0) < cantidad_requerida:
             raise ValueError(
                 f"Stock insuficiente para: {insumo.nombre}. "
@@ -378,6 +384,11 @@ def get_simulacion_receta(db: Session, empresa_id: int, receta_id: int, cantidad
     if not receta:
         return None
 
+    # item.cantidad está definido "por lote" (el lote completo rinde `porciones`
+    # unidades del producto resultante). Se divide por porciones para obtener
+    # la tasa real por unidad — mismo criterio que confirmar_lote_produccion.
+    porciones = max(1, getattr(receta, 'porciones', 1) or 1)
+
     faltantes = []
     detalle_insumos = []
     costo_total = 0.0
@@ -389,7 +400,7 @@ def get_simulacion_receta(db: Session, empresa_id: int, receta_id: int, cantidad
             continue
         merma_pct = getattr(item, 'merma_pct', 0.0) or 0.0
         factor = 1.0 + merma_pct / 100.0
-        qty_unitaria_con_merma = item.cantidad * factor  # consumo por 1 unidad pedida
+        qty_unitaria_con_merma = (item.cantidad / porciones) * factor  # consumo por 1 unidad pedida
         requerido = qty_unitaria_con_merma * cantidad
         disponible = float(insumo.stock_actual or 0)
         costo_total += requerido * float(insumo.costo or 0.0)
@@ -462,6 +473,9 @@ def get_analisis_receta(db: Session, empresa_id: int, receta_id: int, cantidad: 
         return None
 
     rendimiento = getattr(receta, 'rendimiento_esperado', 1.0) or 1.0
+    # item.cantidad está definido "por lote" (el lote completo rinde `porciones`
+    # unidades del producto resultante); se divide por porciones para la tasa real.
+    porciones = max(1, getattr(receta, 'porciones', 1) or 1)
     costo_insumos = 0.0
     costo_maquila = 0.0
     detalle_insumos = []
@@ -473,7 +487,7 @@ def get_analisis_receta(db: Session, empresa_id: int, receta_id: int, cantidad: 
             continue
         merma_pct = getattr(item, 'merma_pct', 0.0) or 0.0
         factor = 1.0 + merma_pct / 100.0
-        qty_neta = item.cantidad * cantidad
+        qty_neta = (item.cantidad / porciones) * cantidad
         qty_con_merma = qty_neta * factor
         costo_unit = insumo.costo or 0.0
         subtotal = qty_con_merma * costo_unit
