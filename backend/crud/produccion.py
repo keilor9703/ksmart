@@ -65,6 +65,8 @@ def create_receta(db: Session, empresa_id: int, receta: schemas.RecetaCreate):
         descripcion=receta.descripcion,
         rendimiento_esperado=getattr(receta, 'rendimiento_esperado', 1.0) or 1.0,
         notas_tecnicas=getattr(receta, 'notas_tecnicas', None),
+        porciones=getattr(receta, 'porciones', 1) or 1,
+        precio_sugerido=getattr(receta, 'precio_sugerido', None),
         empresa_id=empresa_id
     )
     db.add(db_receta)
@@ -118,6 +120,8 @@ def update_receta(db: Session, empresa_id: int, receta_id: int, receta: schemas.
     db_receta.descripcion = receta.descripcion
     db_receta.rendimiento_esperado = getattr(receta, 'rendimiento_esperado', 1.0) or 1.0
     db_receta.notas_tecnicas = getattr(receta, 'notas_tecnicas', None)
+    db_receta.porciones = getattr(receta, 'porciones', 1) or 1
+    db_receta.precio_sugerido = getattr(receta, 'precio_sugerido', None)
 
     db.query(models.RecetaItem).filter(models.RecetaItem.receta_id == receta_id).delete()
     for item in receta.items:
