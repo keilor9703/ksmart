@@ -411,6 +411,10 @@ class InventoryMovementOut(BaseModel):
     motivo: Optional[str] = None
     referencia: Optional[str] = None
     observacion: Optional[str] = None
+    # Trazabilidad por lote (el modelo siempre los tuvo; sin exponerlos el
+    # historial por lote del módulo Perecederos quedaba vacío)
+    lote_id: Optional[int] = None
+    numero_lote: Optional[str] = None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 

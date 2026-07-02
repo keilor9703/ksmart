@@ -76,6 +76,32 @@ def crear_devolucion(db: Session, empresa_id: int, data: schemas.DevolucionCreat
         prod = get_producto(db, empresa_id, item.producto_id)
         if prod and not prod.es_servicio:
             prod.stock_actual = (prod.stock_actual or 0) + item.cantidad
+
+            # Reponer el lote original si el producto maneja lotes: buscar la
+            # salida de esa venta ligada a un lote y devolver allí la cantidad
+            # (mantiene sincronizado el módulo de Perecederos y la trazabilidad
+            # del lote devuelto).
+            lote_repuesto = None
+            if getattr(prod, "maneja_lotes", False):
+                mov_salida = (
+                    db.query(models.InventoryMovement)
+                    .filter(
+                        models.InventoryMovement.empresa_id  == empresa_id,
+                        models.InventoryMovement.producto_id == item.producto_id,
+                        models.InventoryMovement.lote_id.isnot(None),
+                        models.InventoryMovement.referencia.ilike(f"%venta #{data.venta_id}%"),
+                    )
+                    .order_by(models.InventoryMovement.id.desc())
+                    .first()
+                )
+                if mov_salida:
+                    lote_repuesto = db.query(models.LoteExistencia).filter(
+                        models.LoteExistencia.id         == mov_salida.lote_id,
+                        models.LoteExistencia.empresa_id == empresa_id,
+                    ).first()
+                    if lote_repuesto:
+                        lote_repuesto.cantidad_actual += item.cantidad
+                        db.add(lote_repuesto)
             db.add(prod)
 
             mov = models.InventoryMovement(
@@ -86,7 +112,9 @@ def crear_devolucion(db: Session, empresa_id: int, data: schemas.DevolucionCreat
                 motivo="devolucion",
                 referencia=f"Dev #{dev.id} / Venta #{data.venta_id}",
                 observacion=f"Devolución: {data.motivo[:80]}",
-                empresa_id=empresa_id  # ✅
+                empresa_id=empresa_id,  # ✅
+                lote_id=lote_repuesto.id if lote_repuesto else None,
+                numero_lote=lote_repuesto.numero_lote if lote_repuesto else None,
             )
             db.add(mov)
 

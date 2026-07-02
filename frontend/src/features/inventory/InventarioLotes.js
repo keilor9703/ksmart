@@ -228,6 +228,7 @@ const InventarioLotes = () => {
   const [movimientos, setMovimientos] = useState([]);
   const [loadingMov, setLoadingMov] = useState(false);
   const [loteHistorial, setLoteHistorial] = useState(null); // lote seleccionado para historial
+  const [trazabilidad, setTrazabilidad] = useState(null);   // ventas afectadas por el lote (recall)
 
   const [filtroUrgencia, setFiltroUrgencia]   = useState('todos');
   const [busqueda, setBusqueda]               = useState('');
@@ -275,7 +276,7 @@ const InventarioLotes = () => {
   // Cargar movimientos cuando cambia loteHistorial o se entra al tab 2
   useEffect(() => {
     if (tab === 2 && loteHistorial) {
-      fetchMovimientos(loteHistorial.producto_id);
+      fetchMovimientos(loteHistorial);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, loteHistorial]);
@@ -319,13 +320,16 @@ const InventarioLotes = () => {
     }
   };
 
-  const fetchMovimientos = async (productoId) => {
+  const fetchMovimientos = async (lote) => {
     setLoadingMov(true);
     try {
-      const res = await apiClient.get(`/inventario/movimientos?producto_id=${productoId}&limit=200`);
-      setMovimientos(res.data);
-    } catch {
-      toast.error('Error al cargar historial');
+      const [resMov, resTraza] = await Promise.allSettled([
+        apiClient.get(`/inventario/movimientos?producto_id=${lote.producto_id}&lote_id=${lote.id}&numero_lote=${encodeURIComponent(lote.numero_lote)}&limit=200`),
+        apiClient.get(`/inventario/lotes/${lote.id}/trazabilidad`),
+      ]);
+      if (resMov.status === 'fulfilled') setMovimientos(resMov.value.data);
+      else toast.error('Error al cargar historial');
+      setTrazabilidad(resTraza.status === 'fulfilled' ? resTraza.value.data : null);
     } finally {
       setLoadingMov(false);
     }
@@ -479,14 +483,8 @@ const InventarioLotes = () => {
     [alertasFiltradas, alertasPage, alertasPP]
   );
 
-  // Movimientos filtrados por lote seleccionado
-  const movimientosFiltrados = useMemo(() => {
-    if (!loteHistorial) return movimientos;
-    return movimientos.filter(m =>
-      m.numero_lote === loteHistorial.numero_lote ||
-      m.referencia === loteHistorial.numero_lote
-    );
-  }, [movimientos, loteHistorial]);
+  // El servidor ya filtra por lote_id/numero_lote; se usa tal cual.
+  const movimientosFiltrados = movimientos;
 
   // ── KPI derived values ──
   const valorizacionTotal = lotes.reduce((s, l) => s + (l.cantidad_actual * l.costo_unitario), 0);
@@ -1015,7 +1013,7 @@ const InventarioLotes = () => {
                         const esSalida = m.tipo === 'salida' || (m.tipo === 'ajuste' && m.cantidad < 0);
                         return (
                           <TableRow key={m.id || i} hover>
-                            <TableCell sx={{ fontSize: 12 }}>{fmtDatetime(m.fecha)}</TableCell>
+                            <TableCell sx={{ fontSize: 12 }}>{fmtDatetime(m.created_at)}</TableCell>
                             <TableCell>
                               <Chip label={tcfg.label} size="small"
                                 sx={{ fontWeight: 700, fontSize: 10, bgcolor: tcfg.bg, color: tcfg.color, border: `1px solid ${tcfg.color}30` }}
@@ -1042,6 +1040,48 @@ const InventarioLotes = () => {
                 <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 1, px: 1 }}>
                   {movimientosFiltrados.length} movimiento(s) encontrado(s) para este lote
                 </Typography>
+
+                {/* ── Trazabilidad para recall: ventas que consumieron este lote ── */}
+                {trazabilidad?.ventas_afectadas?.length > 0 && (
+                  <Paper variant="outlined" sx={{ mt: 2, p: 2, borderRadius: 2, borderColor: `${RED}30` }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                      <Warning sx={{ color: RED, fontSize: 18 }} />
+                      <Typography sx={{ fontWeight: 800, fontSize: 14 }}>
+                        Trazabilidad de despacho — {trazabilidad.ventas_afectadas.length} venta(s) con este lote
+                      </Typography>
+                    </Box>
+                    <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1.5 }}>
+                      En caso de retiro sanitario (recall), estos son los clientes a contactar.
+                      Total despachado en ventas: <strong>{trazabilidad.total_consumido_en_ventas}</strong>
+                    </Typography>
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead sx={{ bgcolor: 'action.hover' }}>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 800 }}>VENTA</TableCell>
+                            <TableCell sx={{ fontWeight: 800 }}>FECHA</TableCell>
+                            <TableCell sx={{ fontWeight: 800 }}>CLIENTE</TableCell>
+                            <TableCell sx={{ fontWeight: 800 }}>TELÉFONO</TableCell>
+                            <TableCell sx={{ fontWeight: 800 }} align="right">TOTAL</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {trazabilidad.ventas_afectadas.map(v => (
+                            <TableRow key={v.venta_id} hover>
+                              <TableCell sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12 }}>
+                                V{String(v.numero_venta ?? v.venta_id).padStart(4, '0')}
+                              </TableCell>
+                              <TableCell sx={{ fontSize: 12 }}>{fmtDatetime(v.fecha)}</TableCell>
+                              <TableCell sx={{ fontSize: 12, fontWeight: 600 }}>{v.cliente_nombre}</TableCell>
+                              <TableCell sx={{ fontSize: 12 }}>{v.cliente_telefono || '—'}</TableCell>
+                              <TableCell sx={{ fontSize: 12 }} align="right">{formatCurrency(v.total)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Paper>
+                )}
               </>
             )}
           </Box>

@@ -121,18 +121,37 @@ def crear_movimiento(
 ):
     try:
         payload.usuario_id = current_user.id
-        return crud.create_movement(db, empresa_id=current_user.empresa_id, payload=payload)
+        # descontar_lotes: los movimientos manuales de salida sobre productos
+        # perecederos también descuentan de sus lotes (FEFO) para no
+        # desincronizar el módulo de Lotes.
+        return crud.create_movement(db, empresa_id=current_user.empresa_id, payload=payload,
+                                    descontar_lotes=True)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/movimientos", response_model=List[schemas.InventoryMovementOut])
 def listar_movimientos(
     producto_id: Optional[int] = None,
+    lote_id: Optional[int] = None,
+    numero_lote: Optional[str] = None,
     limit: int = 100,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    return crud.list_movements(db, empresa_id=current_user.empresa_id, producto_id=producto_id, limit=limit)
+    return crud.list_movements(db, empresa_id=current_user.empresa_id, producto_id=producto_id,
+                               limit=limit, lote_id=lote_id, numero_lote=numero_lote)
+
+
+@router.get("/lotes/{lote_id}/trazabilidad")
+def trazabilidad_lote(
+    lote_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """Libro completo del lote para auditorías y recall: movimientos
+    (entrada/salidas/ajustes) y las ventas/clientes a los que se despachó."""
+    from crud.perecederos import get_trazabilidad_lote
+    return get_trazabilidad_lote(db, empresa_id=current_user.empresa_id, lote_id=lote_id)
 
 @router.get("/alertas/bajo-stock", response_model=List[schemas.InventoryAlertOut])
 def alertas_bajo_stock(
