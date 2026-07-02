@@ -948,6 +948,10 @@ const TouchPOSMode = ({
                                 startAdornment: <InputAdornment position="start"><QrCodeScanner sx={{ color: ACCENT, fontSize: 18 }} /></InputAdornment>,
                                 endAdornment: searchingBarcode ? <CircularProgress size={16} sx={{ color: ACCENT }} /> : null,
                                 sx: { fontSize: 13, fontWeight: 600, borderRadius: 2 },
+                                // Campo para escanear (lector físico o cámara), no para escribir a
+                                // mano: inputMode="none" evita que el teclado virtual se despliegue
+                                // en móvil cada vez que el cursor queda aquí.
+                                inputProps: { inputMode: 'none' },
                             }}
                         />
                         <Tooltip title={cameraActive ? 'Cerrar cámara' : 'Usar cámara del dispositivo'}>
