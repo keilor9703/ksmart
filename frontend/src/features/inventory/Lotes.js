@@ -205,15 +205,21 @@ const Lotes = () => {
   }, [lotesHistorial]);
 
   // ── Receta seleccionada en el modal de Lanzar Producción, con la tasa de
-  // consumo por unidad de cada insumo (cantidad * (1 + merma%)) ya calculada.
+  // consumo por unidad de cada insumo ya calculada.
+  // it.cantidad está definido "por lote" (el lote completo, tal como se
+  // arma en el editor de Recetas, rinde `porciones` unidades del producto
+  // resultante) — hay que dividir por porciones para obtener la tasa real
+  // por unidad, igual que hace el backend en la simulación y en el consumo
+  // real de insumos al confirmar el lote.
   const recetaSeleccionada = useMemo(() => {
     const r = recetas.find(x => x.id === parseInt(formData.receta_id));
     if (!r) return null;
+    const porciones = Math.max(1, r.porciones || 1);
     return {
       ...r,
       items: (r.items || []).map(it => ({
         ...it,
-        tasaUnitaria: it.cantidad * (1 + (it.merma_pct || 0) / 100),
+        tasaUnitaria: (it.cantidad / porciones) * (1 + (it.merma_pct || 0) / 100),
       })),
     };
   }, [recetas, formData.receta_id]);
@@ -1032,8 +1038,12 @@ const Lotes = () => {
                 Análisis de Rentabilidad (estimado)
               </Typography>
               {(() => {
+                // it.cantidad es "por lote completo" (rinde `porciones` unidades) —
+                // se divide por porciones para la tasa real por unidad, igual que en
+                // la simulación y el consumo real de insumos del backend.
+                const porcionesReceta = Math.max(1, selectedLote?.receta?.porciones || 1);
                 const costoEstimado = (selectedLote?.receta?.items || []).reduce((s, it) => {
-                  return s + (it.cantidad || 0) * (it.insumo?.costo || 0);
+                  return s + ((it.cantidad || 0) / porcionesReceta) * (it.insumo?.costo || 0);
                 }, 0) * selectedLote?.cantidad_a_producir;
                 const cantReal = parseFloat(confirmData.cantidad_real) || 1;
                 const costoUnit = costoEstimado / cantReal;
