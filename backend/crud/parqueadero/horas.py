@@ -290,6 +290,14 @@ def registrar_salida_horas(
         db.commit()
         db.refresh(venta_parq)
 
+        # Asiento contable (idempotente)
+        try:
+            from services.contabilidad import registrar_asiento_venta
+            registrar_asiento_venta(db, venta_parq)
+            db.commit()
+        except Exception:
+            pass
+
         # Documento electrónico DIAN por acceso: FE si el cliente la pidió
         # (solicita_fe), Documento Equivalente POS (DEE) en caso contrario.
         # emitir_fe_venta decide el tipo y sólo emite si hay resolución del tipo

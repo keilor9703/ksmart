@@ -34,6 +34,12 @@ def create_pago(db: Session, empresa_id: int, pago: schemas.PagoCreate):
 
     db.commit()
     db.refresh(db_venta)
+
+    # Al quedar pagada la venta, generar su asiento (idempotente)
+    if db_venta.estado_pago == "pagado":
+        from services.contabilidad import registrar_asiento_venta
+        registrar_asiento_venta(db, db_venta)
+        db.commit()
     return db_pago
 
 def get_pago(db: Session, empresa_id: int, pago_id: int):

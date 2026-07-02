@@ -2438,6 +2438,35 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v111)
                 logger.info("V111 (consecutivos movimientos y compras) aplicada.")
 
+            # V112 — Contabilidad: contador atómico del libro diario e índice
+            # único (empresa, numero) para garantizar consecutivo sin duplicados
+            migration_v112 = "v112_contabilidad_numero_asiento"
+            if not _migration_already_applied(conn, migration_v112):
+                if not _column_exists(conn, "empresas", "ultimo_numero_asiento"):
+                    conn.execute(text(
+                        "ALTER TABLE empresas ADD COLUMN ultimo_numero_asiento INTEGER NOT NULL DEFAULT 0"
+                    ))
+                # Renumerar duplicados si el viejo max+1 llegó a repetir consecutivos
+                conn.execute(text("""
+                    UPDATE asientos_contables SET numero = sub.rn
+                    FROM (
+                        SELECT id, ROW_NUMBER() OVER (PARTITION BY empresa_id ORDER BY numero, id) AS rn
+                        FROM asientos_contables
+                    ) AS sub
+                    WHERE asientos_contables.id = sub.id AND asientos_contables.numero != sub.rn
+                """))
+                conn.execute(text("""
+                    UPDATE empresas SET ultimo_numero_asiento = COALESCE(
+                        (SELECT MAX(a.numero) FROM asientos_contables a WHERE a.empresa_id = empresas.id), 0)
+                """))
+                if not _index_exists(conn, "uq_asiento_empresa_numero"):
+                    conn.execute(text(
+                        "CREATE UNIQUE INDEX uq_asiento_empresa_numero "
+                        "ON asientos_contables (empresa_id, numero)"
+                    ))
+                _mark_migration_applied(conn, migration_v112)
+                logger.info("V112 (consecutivo libro diario + índice único) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

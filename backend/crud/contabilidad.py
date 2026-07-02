@@ -9,6 +9,25 @@ from sqlalchemy.orm import Session, joinedload
 import models
 import schemas
 from services.contabilidad import inicializar_puc, PUC_DEFAULT
+from crud.common import get_utc_boundaries
+
+
+def _rango_utc(fecha_inicio: Optional[datetime], fecha_fin: Optional[datetime]):
+    """Convierte fechas del período (día local de Colombia) a límites UTC.
+
+    Los asientos se almacenan con fecha UTC. Comparar directamente contra la
+    fecha local recibida excluía el último día del período y asignaba las
+    transacciones nocturnas (19:00–23:59 hora Colombia = día siguiente en UTC)
+    al mes equivocado — fatal para declaraciones de IVA.
+    """
+    utc_ini = utc_fin = None
+    if fecha_inicio is not None:
+        d = fecha_inicio.date() if isinstance(fecha_inicio, datetime) else fecha_inicio
+        utc_ini, _ = get_utc_boundaries(d)
+    if fecha_fin is not None:
+        d = fecha_fin.date() if isinstance(fecha_fin, datetime) else fecha_fin
+        _, utc_fin = get_utc_boundaries(d)
+    return utc_ini, utc_fin
 
 
 # ─── Cuentas contables ────────────────────────────────────────────────────────
@@ -46,6 +65,7 @@ def listar_asientos(
     )
     if tipo_origen:
         q = q.filter(models.AsientoContable.tipo_origen == tipo_origen)
+    fecha_inicio, fecha_fin = _rango_utc(fecha_inicio, fecha_fin)
     if fecha_inicio:
         q = q.filter(models.AsientoContable.fecha >= fecha_inicio)
     if fecha_fin:
@@ -93,6 +113,7 @@ def get_balance_comprobacion(
         .all()
     )
 
+    fecha_inicio, fecha_fin = _rango_utc(fecha_inicio, fecha_fin)
     result = []
     for cuenta in cuentas:
         q = db.query(
@@ -117,8 +138,13 @@ def get_balance_comprobacion(
         if total_d == 0 and total_c == 0:
             continue
 
-        saldo_d = max(0.0, total_d - total_c) if cuenta.naturaleza == "debito" else 0.0
-        saldo_c = max(0.0, total_c - total_d) if cuenta.naturaleza == "credito" else 0.0
+        # Saldo NETO en la columna que corresponda a su signo real (una cuenta
+        # puede cerrar contraria a su naturaleza — p.ej. sobregiro bancario o
+        # ingresos netos débito por devoluciones). El clamp anterior forzaba
+        # esos casos a 0 y descuadraba el balance de prueba.
+        neto = total_d - total_c
+        saldo_d = neto if neto > 0 else 0.0
+        saldo_c = -neto if neto < 0 else 0.0
 
         result.append(schemas.BalanceComprobacionItem(
             codigo=cuenta.codigo,
@@ -144,45 +170,61 @@ def get_estado_resultados(
     inicializar_puc(db, empresa_id)
     db.commit()
 
-    def _suma(codigos: List[str], es_debito_resta: bool = False) -> float:
-        cuentas_ids = [
-            c.id for c in db.query(models.CuentaContable).filter(
-                models.CuentaContable.empresa_id == empresa_id,
-                models.CuentaContable.codigo.in_(codigos),
-            ).all()
-        ]
-        if not cuentas_ids:
-            return 0.0
-        q = db.query(
-            func.coalesce(func.sum(models.LineaAsiento.debito), 0).label("d"),
-            func.coalesce(func.sum(models.LineaAsiento.credito), 0).label("c"),
-        ).join(
-            models.AsientoContable,
-            models.LineaAsiento.asiento_id == models.AsientoContable.id,
-        ).filter(
-            models.LineaAsiento.cuenta_contable_id.in_(cuentas_ids),
-            models.LineaAsiento.empresa_id == empresa_id,
-        )
-        if fecha_inicio:
-            q = q.filter(models.AsientoContable.fecha >= fecha_inicio)
-        if fecha_fin:
-            q = q.filter(models.AsientoContable.fecha <= fecha_fin)
-        row = q.one()
-        d, c = float(row.d), float(row.c)
-        # Cuentas de ingreso (naturaleza crédito): saldo = credito - debito
-        # Cuentas de gasto/costo (naturaleza débito): saldo = debito - credito
-        return (d - c) if es_debito_resta else (c - d)
+    fecha_inicio, fecha_fin = _rango_utc(fecha_inicio, fecha_fin)
 
-    ing_operacional = _suma(["4135"])
-    ing_servicios   = _suma(["4175"])
-    ing_financiero  = _suma(["4210"])
-    total_ingresos  = ing_operacional + ing_servicios + ing_financiero
-    costo_ventas    = _suma(["6135"], es_debito_resta=True)
+    # Saldos por CUENTA de resultado en una sola consulta agregada. El PyG se
+    # construye desde el TIPO de cuenta (ingreso/costo/gasto) — no desde una
+    # lista fija de códigos — para que ningún asiento quede por fuera del
+    # total y el estado de resultados concilie con el balance de prueba.
+    q = db.query(
+        models.CuentaContable.codigo,
+        models.CuentaContable.tipo,
+        models.CuentaContable.naturaleza,
+        func.coalesce(func.sum(models.LineaAsiento.debito), 0).label("d"),
+        func.coalesce(func.sum(models.LineaAsiento.credito), 0).label("c"),
+    ).join(
+        models.LineaAsiento,
+        models.LineaAsiento.cuenta_contable_id == models.CuentaContable.id,
+    ).join(
+        models.AsientoContable,
+        models.LineaAsiento.asiento_id == models.AsientoContable.id,
+    ).filter(
+        models.CuentaContable.empresa_id == empresa_id,
+        models.CuentaContable.tipo.in_(["ingreso", "costo", "gasto"]),
+        models.LineaAsiento.empresa_id == empresa_id,
+        models.AsientoContable.empresa_id == empresa_id,
+        models.AsientoContable.tipo_origen != "cierre",
+    )
+    if fecha_inicio:
+        q = q.filter(models.AsientoContable.fecha >= fecha_inicio)
+    if fecha_fin:
+        q = q.filter(models.AsientoContable.fecha <= fecha_fin)
+    rows = q.group_by(
+        models.CuentaContable.codigo,
+        models.CuentaContable.tipo,
+        models.CuentaContable.naturaleza,
+    ).all()
+
+    saldos = {}          # codigo -> saldo con su signo natural
+    total_ingresos = costo_ventas_total = total_gastos = 0.0
+    for codigo, tipo, naturaleza, d, c in rows:
+        saldo = (float(c) - float(d)) if naturaleza == "credito" else (float(d) - float(c))
+        saldos[codigo] = saldos.get(codigo, 0.0) + saldo
+        if tipo == "ingreso":
+            total_ingresos += saldo
+        elif tipo == "costo":
+            costo_ventas_total += saldo
+        elif tipo == "gasto":
+            total_gastos += saldo
+
+    ing_operacional = saldos.get("4135", 0.0)
+    ing_servicios   = saldos.get("4175", 0.0)
+    ing_financiero  = saldos.get("4210", 0.0)
+    costo_ventas    = costo_ventas_total
     utilidad_bruta  = total_ingresos - costo_ventas
-    gastos_personal = _suma(["5105"], es_debito_resta=True)
-    gastos_generales= _suma(["5195"], es_debito_resta=True)
-    gastos_no_oper  = _suma(["5305"], es_debito_resta=True)
-    total_gastos    = gastos_personal + gastos_generales + gastos_no_oper
+    gastos_personal = saldos.get("5105", 0.0)
+    gastos_generales= saldos.get("5195", 0.0)
+    gastos_no_oper  = saldos.get("5305", 0.0)
     utilidad_neta   = utilidad_bruta - total_gastos
 
     return schemas.EstadoResultados(
@@ -215,6 +257,8 @@ def get_balance_general(
     if fecha_corte is None:
         from datetime import timezone
         fecha_corte = datetime.now(timezone.utc)
+    else:
+        _, fecha_corte = _rango_utc(None, fecha_corte)
 
     cuentas = (
         db.query(models.CuentaContable)
@@ -269,9 +313,10 @@ def get_balance_general(
             secciones["patrimonio"].append(item)
             secciones["total_patrimonio"] += saldo
 
-    # Incorporar utilidad del período (ingresos - costos - gastos)
-    # como parte del patrimonio (Resultados del Ejercicio)
-    er = get_estado_resultados(db, empresa_id)
+    # Incorporar utilidad acumulada HASTA la fecha de corte (mismo corte que
+    # los saldos de activo/pasivo — antes se usaba la utilidad de toda la vida
+    # sin importar el corte y la ecuación contable no cerraba)
+    er = get_estado_resultados(db, empresa_id, fecha_fin=fecha_corte)
     if er.utilidad_neta != 0:
         secciones["patrimonio"].append({
             "codigo": "3605",
@@ -317,6 +362,8 @@ def get_resumen_iva(
         d, c = float(row.d), float(row.c)
         return (c - d) if cuenta.naturaleza == "credito" else (d - c)
 
+    fecha_inicio, fecha_fin = _rango_utc(fecha_inicio, fecha_fin)
+
     iva_generado     = _saldo_cuenta("2408")   # IVA cobrado en ventas
     iva_descontable  = _saldo_cuenta("1355")   # IVA pagado en compras
     iva_a_pagar      = max(0.0, iva_generado - iva_descontable)
@@ -346,9 +393,15 @@ def crear_asiento_manual(
     total_d = sum(float(l.get("debito", 0)) for l in lineas)
     total_c = sum(float(l.get("credito", 0)) for l in lineas)
 
+    from fastapi import HTTPException
     if abs(total_d - total_c) > 0.01:
-        from fastapi import HTTPException
         raise HTTPException(status_code=400, detail=f"El asiento no cuadra: débitos={total_d:.2f} ≠ créditos={total_c:.2f}")
+
+    # Un período cerrado es inmodificable: registrar en él invalidaría
+    # declaraciones ya presentadas.
+    if periodo_esta_cerrado(db, empresa_id, fecha):
+        raise HTTPException(status_code=400,
+            detail="La fecha pertenece a un período contable ya cerrado. Registra el asiento en el período vigente.")
 
     numero = _siguiente_numero(db, empresa_id)
     asiento = models.AsientoContable(

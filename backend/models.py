@@ -98,6 +98,7 @@ class Empresa(Base):
     ultimo_numero_lote       = Column(Integer, default=0, nullable=False, server_default="0")
     ultimo_numero_movimiento = Column(Integer, default=0, nullable=False, server_default="0")
     ultimo_numero_compra     = Column(Integer, default=0, nullable=False, server_default="0")
+    ultimo_numero_asiento    = Column(Integer, default=0, nullable=False, server_default="0")
 
     # Configuración de ventas
     omitir_inventario     = Column(Boolean, default=False)

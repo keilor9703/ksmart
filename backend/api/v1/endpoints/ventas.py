@@ -185,6 +185,14 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
     db.commit()
     db.refresh(db_venta)
 
+    # Asiento contable en tiempo real: create_venta se llamó con commit=False,
+    # así que su hook interno de contabilidad no corre — sin esta llamada las
+    # ventas del POS solo llegaban al libro diario con el backfill manual.
+    if db_venta.estado_pago == "pagado":
+        from services.contabilidad import registrar_asiento_venta
+        registrar_asiento_venta(db, db_venta)
+        db.commit()
+
     if not omitir_inventario:
         producto_ids = [det.producto_id for det in db_venta.detalles if det.producto_id]
         if producto_ids:

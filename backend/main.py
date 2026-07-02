@@ -348,6 +348,41 @@ async def start_vencimientos_scheduler():
                 logger.exception("Error en scheduler de vencimientos")
             finally:
                 db.close()
+            # Red de seguridad contable: backfill idempotente diario por
+            # empresa. Si algún flujo de venta/gasto/compra no generó su
+            # asiento en tiempo real, se crea aquí a más tardar al día
+            # siguiente — el libro diario nunca queda incompleto.
+            db2 = SessionLocal()
+            try:
+                hoy = _date.today().isoformat()
+                ya_conta = db2.execute(_text(
+                    "SELECT 1 FROM saas_jobs_registry "
+                    "WHERE job_name = 'AUTO_CONTABILIDAD' AND execution_id = :e"
+                ), {"e": hoy}).fetchone()
+                if not ya_conta:
+                    from services.contabilidad import backfill_contabilidad
+                    empresas = db2.query(models.Empresa).filter(models.Empresa.is_active == True).all()
+                    total_asientos = 0
+                    for emp in empresas:
+                        try:
+                            r = backfill_contabilidad(db2, emp.id)
+                            total_asientos += r.get("total", 0)
+                        except Exception:
+                            logger.exception("Backfill contable falló para empresa %s", emp.id)
+                            db2.rollback()
+                    db2.add(models.SaaSJobRegistry(
+                        job_name="AUTO_CONTABILIDAD",
+                        execution_id=hoy,
+                        status="success",
+                        metrics={"asientos_creados": total_asientos},
+                    ))
+                    db2.commit()
+                    logger.info("AUTO_CONTABILIDAD %s: %d asientos de respaldo creados", hoy, total_asientos)
+            except Exception:
+                logger.exception("Error en scheduler de contabilidad")
+            finally:
+                db2.close()
+
             await asyncio.sleep(6 * 3600)  # re-chequea cada 6h; corre 1 vez/día
 
     asyncio.create_task(_loop())
