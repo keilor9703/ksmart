@@ -1112,6 +1112,7 @@ useEffect(() => {
             citaIdRef.current = null;
             citaVendedorRef.current = null;
             fetchVentas(); fetchVentasSummary();
+            fetchProductos(); // refrescar stock visible tras el descuento de inventario
 
             const totalBruto = snapDetails.reduce((s, d) => s + d.precio_unitario * d.cantidad, 0);
             setReciboVenta({
