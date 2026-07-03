@@ -352,3 +352,167 @@ def exportar_libro_diario_pdf(
     story.append(t)
     doc.build(story)
     return buf.getvalue()
+
+
+# ─── REPORTE FISCAL PARA CONTADOR EXTERNO ─────────────────────────────────────
+
+def exportar_reporte_fiscal_excel(db, empresa_id: int, fecha_inicio=None, fecha_fin=None) -> bytes:
+    """Paquete de insumos del período para que un contador externo liquide
+    retención en la fuente, ICA e IVA: auxiliar de ventas (con NIT del
+    cliente y base gravable), auxiliar de compras (con NIT del proveedor),
+    gastos, y un resumen fiscal con la identificación tributaria de la
+    empresa (persona natural/jurídica, régimen)."""
+    import io
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill
+    import models
+    from crud.contabilidad import _rango_utc
+    from crud.common import BOGOTA_TZ
+
+    utc_ini, utc_fin = _rango_utc(fecha_inicio, fecha_fin)
+
+    empresa = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
+    tipo_persona = "Persona Jurídica" if (getattr(empresa, "tipo_organizacion_id", 1) or 1) == 1 else "Persona Natural"
+
+    def _local(dt):
+        if not dt:
+            return ""
+        try:
+            if dt.tzinfo is None:
+                from datetime import timezone as _tz
+                dt = dt.replace(tzinfo=_tz.utc)
+            return dt.astimezone(BOGOTA_TZ).strftime("%Y-%m-%d %H:%M")
+        except Exception:
+            return str(dt)
+
+    wb = openpyxl.Workbook()
+    header_fill = PatternFill(start_color="0F172A", end_color="0F172A", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True)
+
+    def _sheet(ws, headers, widths):
+        for i, (h, w) in enumerate(zip(headers, widths), 1):
+            cell = ws.cell(row=1, column=i, value=h)
+            cell.fill, cell.font = header_fill, header_font
+            ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
+        ws.freeze_panes = "A2"
+
+    # ── Hoja 1: Resumen fiscal ──
+    ws = wb.active
+    ws.title = "Resumen Fiscal"
+    ws.column_dimensions["A"].width = 42
+    ws.column_dimensions["B"].width = 30
+    info_rows = [
+        ("REPORTE FISCAL PARA CONTADOR", ""),
+        ("Empresa", empresa.nombre if empresa else ""),
+        ("NIT", getattr(empresa, "nit", "") or "—"),
+        ("Tipo de contribuyente", tipo_persona),
+        ("Responsabilidades fiscales (RUT)", getattr(empresa, "responsabilidad_fiscal_codes", "") or "—"),
+        ("Período", f"{fecha_inicio or 'inicio'} a {fecha_fin or 'hoy'}"),
+        ("", ""),
+    ]
+
+    # Totales del período (mismas consultas que los módulos, con corte UTC)
+    q_v = db.query(models.Venta).filter(
+        models.Venta.empresa_id == empresa_id,
+        models.Venta.tipo == "venta",
+        models.Venta.estado_pago.in_(["pagado", "parcial"]),
+    )
+    if utc_ini: q_v = q_v.filter(models.Venta.fecha >= utc_ini)
+    if utc_fin: q_v = q_v.filter(models.Venta.fecha <= utc_fin)
+    ventas = q_v.order_by(models.Venta.fecha).all()
+
+    q_c = db.query(models.Compra).filter(models.Compra.empresa_id == empresa_id)
+    if utc_ini: q_c = q_c.filter(models.Compra.fecha >= utc_ini)
+    if utc_fin: q_c = q_c.filter(models.Compra.fecha <= utc_fin)
+    compras = q_c.order_by(models.Compra.fecha).all()
+
+    q_g = db.query(models.Gasto).filter(models.Gasto.empresa_id == empresa_id)
+    if utc_ini: q_g = q_g.filter(models.Gasto.fecha >= utc_ini)
+    if utc_fin: q_g = q_g.filter(models.Gasto.fecha <= utc_fin)
+    gastos = q_g.order_by(models.Gasto.fecha).all()
+
+    tot_v  = sum(float(v.total or 0) for v in ventas)
+    iva_v  = sum(float(v.iva_total or 0) for v in ventas)
+    tot_c  = sum(float(c.total or 0) for c in compras)
+    iva_c  = sum(float(c.iva_total or 0) for c in compras)
+    tot_g  = sum(float(g.monto or 0) for g in gastos)
+
+    info_rows += [
+        ("INGRESOS DEL PERÍODO (ventas cobradas)", ""),
+        ("  Ventas brutas (IVA incluido)", round(tot_v, 2)),
+        ("  Base gravable ventas", round(tot_v - iva_v, 2)),
+        ("  IVA generado (2408)", round(iva_v, 2)),
+        ("", ""),
+        ("COMPRAS DEL PERÍODO", ""),
+        ("  Compras brutas (IVA incluido)", round(tot_c, 2)),
+        ("  Base compras", round(tot_c - iva_c, 2)),
+        ("  IVA descontable (1355)", round(iva_c, 2)),
+        ("", ""),
+        ("  Gastos del período", round(tot_g, 2)),
+        ("  IVA neto estimado (generado - descontable)", round(iva_v - iva_c, 2)),
+        ("", ""),
+        ("NOTAS PARA EL CONTADOR", ""),
+        ("  ICA", "La base son los ingresos brutos del período; aplique la tarifa por mil de la actividad y municipio."),
+        ("  Retención en la fuente", "Verifique bases mínimas en UVT y calidad de agente retenedor según el tipo de contribuyente indicado arriba."),
+        ("  Detalle por tercero", "Use las hojas Ventas, Compras y Gastos (incluyen NIT/cédula de cada tercero)."),
+    ]
+    for r, (a, b) in enumerate(info_rows, 1):
+        ca = ws.cell(row=r, column=1, value=a)
+        ws.cell(row=r, column=2, value=b)
+        if a and (a.isupper() or r == 1):
+            ca.font = Font(bold=True, size=11)
+
+    # ── Hoja 2: Ventas ──
+    ws_v = wb.create_sheet("Ventas")
+    _sheet(ws_v, ["FECHA (Colombia)", "N° VENTA", "FACTURA DIAN", "CLIENTE", "NIT / CÉDULA",
+                  "BASE", "IVA", "TOTAL", "MÉTODO PAGO", "ORIGEN"],
+           [18, 10, 16, 28, 16, 14, 12, 14, 14, 14])
+    for r, v in enumerate(ventas, 2):
+        base = float(v.total or 0) - float(v.iva_total or 0)
+        ws_v.cell(row=r, column=1, value=_local(v.fecha))
+        ws_v.cell(row=r, column=2, value=f"V{(v.numero_venta or v.id):04d}")
+        ws_v.cell(row=r, column=3, value=v.numero_factura or "")
+        ws_v.cell(row=r, column=4, value=v.cliente.nombre if v.cliente else "Consumidor final")
+        ws_v.cell(row=r, column=5, value=(v.cliente.cedula if v.cliente else "") or "")
+        ws_v.cell(row=r, column=6, value=round(base, 2))
+        ws_v.cell(row=r, column=7, value=round(float(v.iva_total or 0), 2))
+        ws_v.cell(row=r, column=8, value=round(float(v.total or 0), 2))
+        ws_v.cell(row=r, column=9, value=v.metodo_pago or "")
+        ws_v.cell(row=r, column=10, value=v.origen or "erp")
+
+    # ── Hoja 3: Compras ──
+    ws_c = wb.create_sheet("Compras")
+    _sheet(ws_c, ["FECHA (Colombia)", "N° COMPRA", "PROVEEDOR", "NIT / CÉDULA",
+                  "FACTURA PROV.", "BASE", "IVA", "TOTAL", "ESTADO PAGO"],
+           [18, 12, 28, 16, 16, 14, 12, 14, 14])
+    for r, c in enumerate(compras, 2):
+        base = float(c.total or 0) - float(c.iva_total or 0)
+        prov = getattr(c, "proveedor", None)
+        ws_c.cell(row=r, column=1, value=_local(c.fecha))
+        ws_c.cell(row=r, column=2, value=f"OC-{(c.numero_compra or c.id):04d}")
+        ws_c.cell(row=r, column=3, value=prov.nombre if prov else "")
+        ws_c.cell(row=r, column=4, value=(prov.cedula if prov else "") or "")
+        ws_c.cell(row=r, column=5, value=getattr(c, "referencia_factura", "") or "")
+        ws_c.cell(row=r, column=6, value=round(base, 2))
+        ws_c.cell(row=r, column=7, value=round(float(c.iva_total or 0), 2))
+        ws_c.cell(row=r, column=8, value=round(float(c.total or 0), 2))
+        ws_c.cell(row=r, column=9, value=c.estado_pago or "")
+
+    # ── Hoja 4: Gastos ──
+    ws_g = wb.create_sheet("Gastos")
+    _sheet(ws_g, ["FECHA (Colombia)", "TERCERO", "NIT / CÉDULA", "CONCEPTO", "CATEGORÍA", "MONTO", "MÉTODO PAGO"],
+           [18, 26, 16, 34, 16, 14, 14])
+    for r, g in enumerate(gastos, 2):
+        terc = getattr(g, "tercero", None)
+        ws_g.cell(row=r, column=1, value=_local(g.fecha))
+        ws_g.cell(row=r, column=2, value=terc.nombre if terc else "")
+        ws_g.cell(row=r, column=3, value=(terc.cedula if terc else "") or "")
+        ws_g.cell(row=r, column=4, value=g.concepto or "")
+        ws_g.cell(row=r, column=5, value=getattr(g, "categoria", "") or "")
+        ws_g.cell(row=r, column=6, value=round(float(g.monto or 0), 2))
+        ws_g.cell(row=r, column=7, value=getattr(g, "metodo_pago", "") or "")
+
+    out = io.BytesIO()
+    wb.save(out)
+    out.seek(0)
+    return out.getvalue()
