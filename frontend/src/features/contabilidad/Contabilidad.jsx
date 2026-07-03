@@ -59,6 +59,10 @@ function BotonesExportar({ tipo, fechaInicio, fechaFin, fechaCorte }) {
       { label: 'PDF', icon: <PictureAsPdf fontSize="small" />, color: '#EF4444',
         url: `${base}/balance-general.pdf?${qs([fc])}`, file: 'balance_general.pdf' },
     ],
+    'impuestos': [
+      { label: 'Reporte para Contador (Excel)', icon: <TableChart fontSize="small" />, color: '#0891B2',
+        url: `${base}/reporte-fiscal.xlsx?${qs([fi, ff])}`, file: 'reporte_fiscal_contador.xlsx' },
+    ],
   };
 
   const btns = opciones[tipo] || [];
@@ -1127,6 +1131,7 @@ const TABS = [
 // Botones de exportación por tab
 const EXPORT_BTNS = {
   0: 'diario', 1: 'estado-resultados', 2: 'balance-general', 3: 'balance-comprobacion',
+  4: 'impuestos',
 };
 
 // Calcula el bimestre actual (Colombia: ene-feb, mar-abr, may-jun, jul-ago, sep-oct, nov-dic)

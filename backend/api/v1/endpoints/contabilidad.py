@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 import crud
+import models
 import schemas
 from api.v1.endpoints.auth import get_current_active_user
 from database import SessionLocal
@@ -245,3 +246,23 @@ def exportar_balance_general_pdf(
     data = _exp(db, current_user.empresa_id, fecha_corte, _empresa_nombre(current_user))
     return Response(content=data, media_type="application/pdf",
         headers={"Content-Disposition": "attachment; filename=balance_general.pdf"})
+
+
+@router.get("/exportar/reporte-fiscal.xlsx")
+def exportar_reporte_fiscal(
+    fecha_inicio: Optional[datetime] = None,
+    fecha_fin: Optional[datetime] = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Insumos del período para el contador externo: auxiliares de ventas,
+    compras y gastos con NIT por tercero, y resumen fiscal (tipo de
+    contribuyente, bases, IVA) para liquidar retefuente/ICA/IVA."""
+    from fastapi.responses import Response
+    from services.exportacion_contable import exportar_reporte_fiscal_excel
+    contenido = exportar_reporte_fiscal_excel(db, current_user.empresa_id, fecha_inicio, fecha_fin)
+    return Response(
+        content=contenido,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="reporte_fiscal_contador.xlsx"'},
+    )
