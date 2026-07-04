@@ -256,6 +256,70 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate, commi
             db.commit()
     return db_venta
 
+def _revertir_stock_detalles(db: Session, empresa_id: int, venta: models.Venta, detalles: List[models.DetalleVenta], refer: str):
+    from datetime import datetime, timezone
+    for det in detalles:
+        if not det.producto_id:
+            continue
+        prod = get_producto(db, empresa_id, det.producto_id)
+        if not prod or prod.es_servicio:
+            continue
+
+        lote_id = None
+        numero_lote = None
+        # Restaurar lote original si maneja lotes
+        if getattr(prod, "maneja_lotes", False):
+            mov_salida = (
+                db.query(models.InventoryMovement)
+                .filter(
+                    models.InventoryMovement.empresa_id == empresa_id,
+                    models.InventoryMovement.producto_id == det.producto_id,
+                    models.InventoryMovement.lote_id.isnot(None),
+                    models.InventoryMovement.referencia.ilike(f"%venta #{venta.numero_venta}%")
+                    if venta.numero_venta
+                    else models.InventoryMovement.referencia.ilike(f"%venta #{venta.id}%"),
+                )
+                .order_by(models.InventoryMovement.id.desc())
+                .first()
+            )
+            if mov_salida:
+                lote_repuesto = db.query(models.LoteExistencia).filter(
+                    models.LoteExistencia.id == mov_salida.lote_id,
+                    models.LoteExistencia.empresa_id == empresa_id
+                ).first()
+                if lote_repuesto:
+                    lote_repuesto.cantidad_actual = (lote_repuesto.cantidad_actual or 0.0) + det.cantidad
+                    db.add(lote_repuesto)
+                    lote_id = lote_repuesto.id
+                    numero_lote = lote_repuesto.numero_lote
+
+        # Restaurar variante si aplica
+        if det.variante_id:
+            variante = db.query(models.ProductoVariante).filter(
+                models.ProductoVariante.id == det.variante_id,
+                models.ProductoVariante.producto_id == det.producto_id
+            ).first()
+            if variante and variante.stock_actual is not None:
+                variante.stock_actual = (variante.stock_actual or 0.0) + det.cantidad
+                db.add(variante)
+
+        prod.stock_actual = (prod.stock_actual or 0.0) + det.cantidad
+        db.add(prod)
+
+        mov = models.InventoryMovement(
+            producto_id=det.producto_id,
+            tipo="entrada",
+            cantidad=det.cantidad,
+            costo_unitario=prod.costo or 0.0,
+            motivo="reversa_venta",
+            referencia=refer,
+            observacion=f"Reversa por actualización de venta #{venta.id}",
+            empresa_id=empresa_id,
+            lote_id=lote_id,
+            numero_lote=numero_lote
+        )
+        db.add(mov)
+
 def update_venta(db: Session, empresa_id: int, venta_id: int, venta: schemas.VentaCreate):
     db_venta = db.query(models.Venta).filter(
         models.Venta.id == venta_id,
@@ -266,6 +330,9 @@ def update_venta(db: Session, empresa_id: int, venta_id: int, venta: schemas.Ven
 
     if venta.cliente_id is not None:
         db_venta.cliente_id = venta.cliente_id
+
+    # 1. Revertir stock de los detalles antiguos antes de eliminarlos
+    _revertir_stock_detalles(db, empresa_id, db_venta, db_venta.detalles, f"reversa_actualizacion venta #{db_venta.id}")
 
     db.query(models.DetalleVenta).filter(models.DetalleVenta.venta_id == venta_id).delete()
     db.flush()
@@ -280,19 +347,49 @@ def update_venta(db: Session, empresa_id: int, venta_id: int, venta: schemas.Ven
                 detail=f"Producto {detalle_data.producto_id} no encontrado"
             )
 
-        precio_unitario = detalle_data.precio_unitario if detalle_data.precio_unitario is not None else producto.precio
+        # Resolver variante si viene variante_id
+        variante_id     = getattr(detalle_data, 'variante_id', None)
+        nombre_variante = getattr(detalle_data, 'nombre_variante', None)
+        variante_obj    = None
+        if variante_id:
+            variante_obj = db.query(models.ProductoVariante).filter(
+                models.ProductoVariante.id == variante_id,
+                models.ProductoVariante.producto_id == detalle_data.producto_id,
+            ).first()
+            if not variante_obj:
+                raise HTTPException(status_code=404, detail=f"Variante {variante_id} no encontrada")
+
+        # Precio: variante > payload > producto padre
+        if detalle_data.precio_unitario is not None:
+            precio_unitario = detalle_data.precio_unitario
+        elif variante_obj and variante_obj.precio is not None:
+            precio_unitario = variante_obj.precio
+        else:
+            precio_unitario = producto.precio
+
         detalle_total = precio_unitario * detalle_data.cantidad
         total_venta += detalle_total
 
         db_detalle = models.DetalleVenta(
             venta_id=venta_id,
             producto_id=detalle_data.producto_id,
+            variante_id=variante_id,
+            nombre_variante=nombre_variante or (variante_obj.nombre if variante_obj else None),
             cantidad=detalle_data.cantidad,
-            precio_unitario=precio_unitario
+            precio_unitario=precio_unitario,
+            descuento_pct=getattr(detalle_data, 'descuento_pct', 0.0),
+            iva_porcentaje=getattr(detalle_data, 'iva_porcentaje', 0.0),
         )
+        # Asociar la relación producto explícitamente para que la FE tenga los datos sin lazy-load
+        db_detalle.producto = producto
         new_detalles.append(db_detalle)
 
     db.add_all(new_detalles)
+    db.flush()
+
+    # 2. Descontar stock e inventario de los nuevos detalles si no se omite
+    if not getattr(venta, "omitir_inventario", False):
+        _ejecutar_movimientos_venta(db, empresa_id, db_venta)
 
     iva_porc = float(getattr(venta, 'iva_porcentaje', 0) or db_venta.iva_porcentaje or 0)
     # IVA incluido
