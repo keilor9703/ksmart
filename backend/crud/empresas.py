@@ -250,18 +250,23 @@ _DELETE_STEPS = [
     "DELETE FROM movimientos_puntos WHERE cliente_id IN (SELECT id FROM clientes WHERE empresa_id=:eid)",
     # ventas: refs users.id (operador_id) y clientes.id → ANTES de users y clientes
     "DELETE FROM ventas WHERE empresa_id=:eid",
-    # clientes: después de ventas, prestamos, movimientos_puntos
-    "DELETE FROM clientes WHERE empresa_id=:eid",
-    # users: después de ventas (ventas.operador_id → users.id)
-    "DELETE FROM users WHERE empresa_id=:eid",
-    # roles: después de users (users.role_id → roles.id)
-    "DELETE FROM roles WHERE empresa_id=:eid",
-    # productos y sus hijos
+    # productos y sus hijos → ANTES de users y clientes:
+    #   inventory_movements.usuario_id → users.id
+    #   inventory_movements.lote_id    → lotes_existencias.id
+    #   inventory_movements.producto_id, lotes_existencias.producto_id → productos.id
+    # (deben eliminarse antes de users/clientes o violan la FK — era la causa
+    #  de los errores "saltado users/roles/clientes" al borrar una empresa)
     "DELETE FROM producto_impuestos WHERE empresa_id=:eid",
     "DELETE FROM inventory_movements WHERE empresa_id=:eid",
     "DELETE FROM lotes_existencias WHERE empresa_id=:eid",
     "DELETE FROM producto_variantes WHERE empresa_id=:eid",
     "DELETE FROM productos WHERE empresa_id=:eid",
+    # clientes: después de ventas, prestamos, movimientos_puntos, lotes_existencias
+    "DELETE FROM clientes WHERE empresa_id=:eid",
+    # users: después de ventas (operador_id) e inventory_movements (usuario_id)
+    "DELETE FROM users WHERE empresa_id=:eid",
+    # roles: después de users (users.role_id → roles.id)
+    "DELETE FROM roles WHERE empresa_id=:eid",
     "DELETE FROM tipos_impuesto WHERE empresa_id=:eid",
     "DELETE FROM empresa_grupo_config WHERE empresa_id=:eid",
     "DELETE FROM grupos_producto WHERE empresa_id=:eid",
