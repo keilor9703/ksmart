@@ -190,8 +190,14 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
     # ventas del POS solo llegaban al libro diario con el backfill manual.
     if db_venta.estado_pago == "pagado":
         from services.contabilidad import registrar_asiento_venta
-        registrar_asiento_venta(db, db_venta)
-        db.commit()
+        try:
+            registrar_asiento_venta(db, db_venta)
+            db.commit()
+        except Exception:
+            # La venta YA está commiteada: un fallo contable no debe romper la
+            # respuesta (el cajero reintentaría y duplicaría la venta). El
+            # backfill diario AUTO_CONTABILIDAD recupera el asiento faltante.
+            db.rollback()
 
     if not omitir_inventario:
         producto_ids = [det.producto_id for det in db_venta.detalles if det.producto_id]

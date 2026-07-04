@@ -196,8 +196,11 @@ def convertir_cotizacion_a_venta(
 
     if cotizacion.estado_pago == "pagado":
         from services.contabilidad import registrar_asiento_venta
-        registrar_asiento_venta(db, cotizacion)
-        db.commit()
+        try:
+            registrar_asiento_venta(db, cotizacion)
+            db.commit()
+        except Exception:
+            db.rollback()  # el backfill diario recupera el asiento
 
     # Notificar bajo stock
     check_and_notify_low_stock(
