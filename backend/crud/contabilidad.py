@@ -12,7 +12,7 @@ from services.contabilidad import inicializar_puc, PUC_DEFAULT
 from crud.common import get_utc_boundaries
 
 
-def _rango_utc(fecha_inicio: Optional[datetime], fecha_fin: Optional[datetime]):
+def _rango_utc(fecha_inicio: Optional[datetime], fecha_fin: Optional[datetime], db: Session = None):
     """Convierte fechas del período (día local de Colombia) a límites UTC.
 
     Los asientos se almacenan con fecha UTC. Comparar directamente contra la
@@ -23,10 +23,10 @@ def _rango_utc(fecha_inicio: Optional[datetime], fecha_fin: Optional[datetime]):
     utc_ini = utc_fin = None
     if fecha_inicio is not None:
         d = fecha_inicio.date() if isinstance(fecha_inicio, datetime) else fecha_inicio
-        utc_ini, _ = get_utc_boundaries(d)
+        utc_ini, _ = get_utc_boundaries(d, db)
     if fecha_fin is not None:
         d = fecha_fin.date() if isinstance(fecha_fin, datetime) else fecha_fin
-        _, utc_fin = get_utc_boundaries(d)
+        _, utc_fin = get_utc_boundaries(d, db)
     return utc_ini, utc_fin
 
 
@@ -65,7 +65,7 @@ def listar_asientos(
     )
     if tipo_origen:
         q = q.filter(models.AsientoContable.tipo_origen == tipo_origen)
-    fecha_inicio, fecha_fin = _rango_utc(fecha_inicio, fecha_fin)
+    fecha_inicio, fecha_fin = _rango_utc(fecha_inicio, fecha_fin, db)
     if fecha_inicio:
         q = q.filter(models.AsientoContable.fecha >= fecha_inicio)
     if fecha_fin:
@@ -113,7 +113,7 @@ def get_balance_comprobacion(
         .all()
     )
 
-    fecha_inicio, fecha_fin = _rango_utc(fecha_inicio, fecha_fin)
+    fecha_inicio, fecha_fin = _rango_utc(fecha_inicio, fecha_fin, db)
     result = []
     for cuenta in cuentas:
         q = db.query(
@@ -170,7 +170,7 @@ def get_estado_resultados(
     inicializar_puc(db, empresa_id)
     db.commit()
 
-    fecha_inicio, fecha_fin = _rango_utc(fecha_inicio, fecha_fin)
+    fecha_inicio, fecha_fin = _rango_utc(fecha_inicio, fecha_fin, db)
 
     # Saldos por CUENTA de resultado en una sola consulta agregada. El PyG se
     # construye desde el TIPO de cuenta (ingreso/costo/gasto) — no desde una
@@ -258,7 +258,7 @@ def get_balance_general(
         from datetime import timezone
         fecha_corte = datetime.now(timezone.utc)
     else:
-        _, fecha_corte = _rango_utc(None, fecha_corte)
+        _, fecha_corte = _rango_utc(None, fecha_corte, db)
 
     cuentas = (
         db.query(models.CuentaContable)
@@ -313,10 +313,23 @@ def get_balance_general(
             secciones["patrimonio"].append(item)
             secciones["total_patrimonio"] += saldo
 
-    # Incorporar utilidad acumulada HASTA la fecha de corte (mismo corte que
-    # los saldos de activo/pasivo — antes se usaba la utilidad de toda la vida
-    # sin importar el corte y la ecuación contable no cerraba)
-    er = get_estado_resultados(db, empresa_id, fecha_fin=fecha_corte)
+    # Incorporar utilidad del período ABIERTO hasta la fecha de corte. Los
+    # períodos ya cerrados trasladaron su utilidad a 3605 mediante el asiento
+    # de cierre (que SÍ está en los saldos de arriba): sumar aquí también la
+    # utilidad de esos períodos la contaría dos veces y descuadraría la
+    # ecuación contable. El PyG del período abierto arranca donde terminó el
+    # último cierre.
+    ultimo_cierre = (
+        db.query(models.CierreContable.periodo_fin)
+        .filter(models.CierreContable.empresa_id == empresa_id)
+        .order_by(models.CierreContable.periodo_fin.desc())
+        .first()
+    )
+    inicio_abierto = None
+    if ultimo_cierre and ultimo_cierre[0]:
+        from datetime import timedelta as _td
+        inicio_abierto = ultimo_cierre[0] + _td(days=1)
+    er = get_estado_resultados(db, empresa_id, fecha_inicio=inicio_abierto, fecha_fin=fecha_corte)
     if er.utilidad_neta != 0:
         secciones["patrimonio"].append({
             "codigo": "3605",
@@ -362,7 +375,7 @@ def get_resumen_iva(
         d, c = float(row.d), float(row.c)
         return (c - d) if cuenta.naturaleza == "credito" else (d - c)
 
-    fecha_inicio, fecha_fin = _rango_utc(fecha_inicio, fecha_fin)
+    fecha_inicio, fecha_fin = _rango_utc(fecha_inicio, fecha_fin, db)
 
     iva_generado     = _saldo_cuenta("2408")   # IVA cobrado en ventas
     iva_descontable  = _saldo_cuenta("1355")   # IVA pagado en compras

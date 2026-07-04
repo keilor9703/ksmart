@@ -346,7 +346,7 @@ def cobrar_orden(
         registrar_asiento_venta(db, venta)
         db.commit()
     except Exception:
-        pass
+        db.rollback()  # sesión envenenada rompería refresh/serialización posteriores
 
     # ── Facturación electrónica (helper canónico, compartido con POS/restaurante/parqueadero) ──
     try:

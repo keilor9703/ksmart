@@ -625,7 +625,7 @@ def cerrar_comanda(
         registrar_asiento_venta(db, venta)
         db.commit()
     except Exception:
-        pass
+        db.rollback()  # sesión envenenada rompería refresh/serialización posteriores
 
     # ── 5. Emisión FE automática (helper canónico — asigna número DIAN,
     #       emite vía Matías y registra IntentoFE). No bloquea el cobro. ───────

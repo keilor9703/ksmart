@@ -163,10 +163,15 @@ def crear_devolucion(db: Session, empresa_id: int, data: schemas.DevolucionCreat
     db.commit()
     db.refresh(dev)
 
-    # Asiento contable de reversa (ingresos, IVA, caja y costo)
-    from services.contabilidad import registrar_asiento_devolucion
-    registrar_asiento_devolucion(db, dev, venta)
-    db.commit()
+    # Asiento contable de reversa (ingresos, IVA, caja y costo). La devolución
+    # YA está commiteada: un fallo contable no debe romper la respuesta
+    # (reintento = devolución duplicada). El backfill diario recupera el asiento.
+    try:
+        from services.contabilidad import registrar_asiento_devolucion
+        registrar_asiento_devolucion(db, dev, venta)
+        db.commit()
+    except Exception:
+        db.rollback()
     return dev
 
 def get_devoluciones_by_venta(db: Session, empresa_id: int, venta_id: int) -> List[models.Devolucion]:

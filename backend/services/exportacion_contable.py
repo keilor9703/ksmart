@@ -431,8 +431,20 @@ def exportar_reporte_fiscal_excel(db, empresa_id: int, fecha_inicio=None, fecha_
     if utc_fin: q_g = q_g.filter(models.Gasto.fecha <= utc_fin)
     gastos = q_g.order_by(models.Gasto.fecha).all()
 
-    tot_v  = sum(float(v.total or 0) for v in ventas)
-    iva_v  = sum(float(v.iva_total or 0) for v in ventas)
+    # Base CAJA (coherente con el libro diario, que asienta al cobrar): las
+    # ventas parciales entran por lo efectivamente cobrado, con el IVA
+    # prorrateado en la misma proporción.
+    def _cobrado(v):
+        total = float(v.total or 0)
+        if v.estado_pago == "pagado" or total <= 0:
+            return total
+        return min(float(v.monto_pagado or 0), total)
+
+    tot_v  = sum(_cobrado(v) for v in ventas)
+    iva_v  = sum(
+        float(v.iva_total or 0) * (_cobrado(v) / float(v.total)) if float(v.total or 0) > 0 else 0.0
+        for v in ventas
+    )
     tot_c  = sum(float(c.total or 0) for c in compras)
     iva_c  = sum(float(c.iva_total or 0) for c in compras)
     tot_g  = sum(float(g.monto or 0) for g in gastos)

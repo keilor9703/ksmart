@@ -332,13 +332,15 @@ async def start_vencimientos_scheduler():
                 ya_corrio = db.execute(_text(
                     "SELECT 1 FROM saas_jobs_registry "
                     "WHERE job_name = 'AUTO_VENCIMIENTOS' AND execution_id = :e"
-                ), {"e": hoy}).fetchone()
+                ), {"e": f"AUTO_VENCIMIENTOS:{hoy}"}).fetchone()
                 if not ya_corrio:
                     from crud.perecederos import notificar_vencimientos_proximos
                     n = notificar_vencimientos_proximos(db)
                     db.add(models.SaaSJobRegistry(
                         job_name="AUTO_VENCIMIENTOS",
-                        execution_id=hoy,
+                        # Namespaced: execution_id tiene UNIQUE global; sin prefijo
+                        # chocaría con el job de contabilidad del mismo día
+                        execution_id=f"AUTO_VENCIMIENTOS:{hoy}",
                         status="success",
                         metrics={"notificaciones": n},
                     ))
@@ -358,11 +360,12 @@ async def start_vencimientos_scheduler():
                 ya_conta = db2.execute(_text(
                     "SELECT 1 FROM saas_jobs_registry "
                     "WHERE job_name = 'AUTO_CONTABILIDAD' AND execution_id = :e"
-                ), {"e": hoy}).fetchone()
+                ), {"e": f"AUTO_CONTABILIDAD:{hoy}"}).fetchone()
                 if not ya_conta:
                     from services.contabilidad import backfill_contabilidad
                     empresas = db2.query(models.Empresa).filter(models.Empresa.is_active == True).all()
                     total_asientos = 0
+                    fallos = 0
                     for emp in empresas:
                         try:
                             r = backfill_contabilidad(db2, emp.id)
@@ -370,11 +373,12 @@ async def start_vencimientos_scheduler():
                         except Exception:
                             logger.exception("Backfill contable falló para empresa %s", emp.id)
                             db2.rollback()
+                            fallos += 1
                     db2.add(models.SaaSJobRegistry(
                         job_name="AUTO_CONTABILIDAD",
-                        execution_id=hoy,
-                        status="success",
-                        metrics={"asientos_creados": total_asientos},
+                        execution_id=f"AUTO_CONTABILIDAD:{hoy}",
+                        status="success" if fallos == 0 else "partial",
+                        metrics={"asientos_creados": total_asientos, "empresas_con_error": fallos},
                     ))
                     db2.commit()
                     logger.info("AUTO_CONTABILIDAD %s: %d asientos de respaldo creados", hoy, total_asientos)
