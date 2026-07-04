@@ -605,6 +605,8 @@ const Login = ({ onLogin }) => {
             );
             setRegData(initialRegState);
             setRegStep(1);
+            // Marcar nuevo usuario para mostrar el overlay de bienvenida en el dashboard
+            localStorage.setItem('ksmart_show_welcome', 'true');
             // Mostrar pantalla de bienvenida 2.2s y luego entrar al sistema
             setRegSuccess(true);
             setTimeout(() => {
@@ -704,25 +706,127 @@ const Login = ({ onLogin }) => {
             display: 'flex', flexDirection: 'column',
             alignItems: 'center', justifyContent: 'center',
             fontFamily: APPLE_FONT,
-            background: 'radial-gradient(circle at 50% 38%, #131d33 0%, #0b1120 50%, #050810 100%)',
-            animation: `${fadeIn} 0.45s ${SPRING}`,
-            gap: 2,
+            background: 'radial-gradient(ellipse at 30% 20%, #0c1f3d 0%, #060c1a 40%, #020508 100%)',
+            animation: `${fadeIn} 0.5s ${SPRING}`,
+            overflow: 'hidden',
           }}>
+            {/* Ambient blobs */}
             <Box sx={{
-              width: 88, height: 88, borderRadius: '50%',
-              bgcolor: 'rgba(34,197,94,0.12)',
-              border: '2px solid rgba(34,197,94,0.4)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              animation: `${pulseRing} 1.2s ease infinite`,
+              position: 'absolute', top: '5%', left: '10%',
+              width: 500, height: 500, borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(34,197,94,0.12) 0%, transparent 65%)',
+              filter: 'blur(60px)', pointerEvents: 'none',
+              animation: `${auroraFloat} 8s ease-in-out infinite`,
+            }} />
+            <Box sx={{
+              position: 'absolute', bottom: '10%', right: '5%',
+              width: 380, height: 380, borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(8,145,178,0.14) 0%, transparent 65%)',
+              filter: 'blur(50px)', pointerEvents: 'none',
+              animation: `${auroraFloat} 12s ease-in-out infinite reverse`,
+            }} />
+
+            {/* Stars/particles */}
+            {[...Array(16)].map((_, i) => (
+              <Box key={i} sx={{
+                position: 'absolute',
+                width: i % 3 === 0 ? 3 : 2,
+                height: i % 3 === 0 ? 3 : 2,
+                borderRadius: '50%',
+                bgcolor: i % 2 === 0 ? 'rgba(34,197,94,0.7)' : 'rgba(30,200,224,0.7)',
+                top: `${10 + (i * 17) % 80}%`,
+                left: `${5 + (i * 23) % 90}%`,
+                animation: `${pulseRing} ${2.5 + (i % 4) * 0.8}s ease-in-out infinite`,
+                animationDelay: `${(i * 0.3) % 2}s`,
+              }} />
+            ))}
+
+            {/* Card */}
+            <Box sx={{
+              position: 'relative', zIndex: 2,
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              px: 4, py: 5, maxWidth: 420, width: '90%',
+              bgcolor: 'rgba(13,22,42,0.85)',
+              backdropFilter: 'blur(24px)',
+              borderRadius: 5,
+              border: '1px solid rgba(34,197,94,0.25)',
+              boxShadow: '0 40px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(34,197,94,0.12)',
+              animation: `${slideUp} 0.6s cubic-bezier(0.34,1.56,0.64,1) both`,
             }}>
-              <CheckCircle sx={{ fontSize: 50, color: '#22c55e' }} />
+              {/* Gradient top bar */}
+              <Box sx={{
+                position: 'absolute', top: 0, left: 0, right: 0, height: 4,
+                borderRadius: '20px 20px 0 0',
+                background: 'linear-gradient(90deg, #22c55e, #0891B2)',
+              }} />
+
+              {/* Logo + Check */}
+              <Box sx={{ position: 'relative', mb: 3 }}>
+                <Box sx={{
+                  width: 90, height: 90, borderRadius: '50%',
+                  background: 'radial-gradient(circle, rgba(34,197,94,0.2) 0%, rgba(34,197,94,0.04) 70%)',
+                  border: '2px solid rgba(34,197,94,0.4)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  animation: `${pulseRing} 2s ease-in-out infinite`,
+                }}>
+                  <CheckCircle sx={{ fontSize: 52, color: '#22c55e' }} />
+                </Box>
+                <Box sx={{
+                  position: 'absolute', bottom: -4, right: -4,
+                  width: 28, height: 28, borderRadius: '50%',
+                  bgcolor: '#0891B2',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  border: '2px solid rgba(13,22,42,0.9)',
+                }}>
+                  <img src="/logos/svg/ksmart-icon-rounded.svg" alt="" style={{ width: 18, height: 18, borderRadius: 4 }} />
+                </Box>
+              </Box>
+
+              <Typography sx={{
+                fontWeight: 900, fontSize: 28, color: '#f1f5f9',
+                letterSpacing: -0.8, lineHeight: 1.1, textAlign: 'center', mb: 1,
+              }}>
+                ¡Bienvenido a Ksmart360!
+              </Typography>
+              <Typography sx={{
+                fontSize: 14.5, color: '#64748b', textAlign: 'center',
+                lineHeight: 1.6, maxWidth: 320, mb: 3,
+              }}>
+                Tu espacio de trabajo inteligente está listo.
+                <br />
+                Tienes <Box component="span" sx={{ color: '#22c55e', fontWeight: 800 }}>14 días gratis</Box> para explorar todo.
+              </Typography>
+
+              {/* Mini feature list */}
+              <Box sx={{ width: '100%', mb: 3 }}>
+                {[
+                  { emoji: '✅', text: 'Cuenta creada exitosamente' },
+                  { emoji: '🔒', text: 'Sesión segura iniciada' },
+                  { emoji: '🚀', text: 'Entrando a tu panel...' },
+                ].map((item, i) => (
+                  <Box key={i} sx={{
+                    display: 'flex', alignItems: 'center', gap: 1.2,
+                    py: 0.9, px: 1.5, borderRadius: 2,
+                    bgcolor: i === 2 ? 'rgba(34,197,94,0.08)' : 'transparent',
+                    border: i === 2 ? '1px solid rgba(34,197,94,0.2)' : '1px solid transparent',
+                    transition: 'all 0.3s ease',
+                    animationDelay: `${i * 0.2}s`,
+                  }}>
+                    <Typography sx={{ fontSize: 15 }}>{item.emoji}</Typography>
+                    <Typography sx={{
+                      fontSize: 12.5, color: i === 2 ? '#22c55e' : '#94a3b8',
+                      fontWeight: i === 2 ? 700 : 500,
+                    }}>
+                      {item.text}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+
+              <Typography sx={{ fontSize: 11, color: '#334155', textAlign: 'center' }}>
+                Redirigiendo automáticamente…
+              </Typography>
             </Box>
-            <Typography sx={{ fontWeight: 900, fontSize: 26, color: '#f1f5f9', letterSpacing: -0.5 }}>
-              ¡Bienvenido a bordo!
-            </Typography>
-            <Typography sx={{ fontSize: 14, color: '#64748b', textAlign: 'center', maxWidth: 300 }}>
-              Tu espacio de trabajo está listo.<br />Redirigiendo al inicio de sesión…
-            </Typography>
           </Box>
         )}
         <Box sx={{
