@@ -154,6 +154,10 @@ def registrar_asiento_venta(db: Session, venta: models.Venta) -> None:
         # Costo de la mercancía vendida (para el asiento 6135/1430): suma de
         # cantidad x costo de cada producto físico de la venta. Sin este
         # asiento el estado de resultados no refleja utilidad bruta real.
+        # LIMITACIÓN: usa el costo ACTUAL del producto — para ventas en vivo es
+        # el costo del momento, pero el backfill de ventas históricas registra
+        # el COGS a costo de hoy (aproximación; el costo histórico no se
+        # almacena por venta).
         costo_venta = 0.0
         try:
             for det in (venta.detalles or []):
@@ -681,9 +685,14 @@ def backfill_contabilidad(db: Session, empresa_id: int) -> dict:
         .filter(models.AsientoContable.id == None)
         .all()
     )
-    for v in ventas_sin_asiento:
+    # Commit por lotes: cada asiento incrementa el contador en la fila de la
+    # empresa (lock de fila en Postgres); mantenerlo hasta el final bloquearía
+    # todas las ventas/compras concurrentes del tenant durante el backfill.
+    for i, v in enumerate(ventas_sin_asiento, 1):
         registrar_asiento_venta(db, v)
         resumen["ventas"] += 1
+        if i % 50 == 0:
+            db.commit()
     db.commit()
 
     # ── Gastos ────────────────────────────────────────────────────────────────

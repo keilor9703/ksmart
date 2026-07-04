@@ -387,7 +387,7 @@ def _emitir_fe_pago_suscripcion(
         registrar_asiento_venta(db, venta_parq)
         db.commit()
     except Exception:
-        pass
+        db.rollback()  # sesión envenenada rompería refresh/serialización posteriores
 
     try:
         from crud import ventas as _crud_ventas
