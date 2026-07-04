@@ -101,6 +101,20 @@ def _column_exists(conn, table, column):
             {"t": table, "c": column}
         ).fetchone() is not None
 
+
+def _add_column_safe(conn, table: str, column: str, typedef: str):
+    """ALTER TABLE … ADD COLUMN compatible con SQLite y PostgreSQL.
+    
+    PostgreSQL soporta ADD COLUMN IF NOT EXISTS de forma nativa.
+    SQLite no lo soporta: hay que verificar con PRAGMA table_info primero.
+    """
+    if IS_SQLITE:
+        if not _column_exists(conn, table, column):
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {typedef}"))
+    else:
+        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {typedef}"))
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # MIGRACIONES
 # ──────────────────────────────────────────────────────────────────────────────
@@ -1042,12 +1056,20 @@ def run_migrations():
             # V62 - Columnas faltantes en inventory_movements
             migration_v62 = "v62_inventory_movements_columns"
             if not _migration_already_applied(conn, migration_v62):
-                conn.execute(text("""
-                    ALTER TABLE inventory_movements
-                      ADD COLUMN IF NOT EXISTS usuario_id  INTEGER REFERENCES users(id),
-                      ADD COLUMN IF NOT EXISTS lote_id     INTEGER REFERENCES lotes_existencias(id),
-                      ADD COLUMN IF NOT EXISTS numero_lote VARCHAR(100)
-                """))
+                if IS_SQLITE:
+                    if not _column_exists(conn, "inventory_movements", "usuario_id"):
+                        conn.execute(text("ALTER TABLE inventory_movements ADD COLUMN usuario_id INTEGER REFERENCES users(id)"))
+                    if not _column_exists(conn, "inventory_movements", "lote_id"):
+                        conn.execute(text("ALTER TABLE inventory_movements ADD COLUMN lote_id INTEGER REFERENCES lotes_existencias(id)"))
+                    if not _column_exists(conn, "inventory_movements", "numero_lote"):
+                        conn.execute(text("ALTER TABLE inventory_movements ADD COLUMN numero_lote VARCHAR(100)"))
+                else:
+                    conn.execute(text("""
+                        ALTER TABLE inventory_movements
+                          ADD COLUMN IF NOT EXISTS usuario_id  INTEGER REFERENCES users(id),
+                          ADD COLUMN IF NOT EXISTS lote_id     INTEGER REFERENCES lotes_existencias(id),
+                          ADD COLUMN IF NOT EXISTS numero_lote VARCHAR(100)
+                    """))
                 _mark_migration_applied(conn, migration_v62)
                 logger.info("V62 (inventory_movements: usuario_id, lote_id, numero_lote) aplicada.")
 
@@ -1105,29 +1127,39 @@ def run_migrations():
             # V64 - Puntos de fidelización + plan is_featured
             migration_v64 = "v64_loyalty_points_plan_featured"
             if not _migration_already_applied(conn, migration_v64):
-                conn.execute(text("""
-                    ALTER TABLE clientes ADD COLUMN IF NOT EXISTS puntos_fidelidad INTEGER DEFAULT 0;
-                """))
-                conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS movimientos_puntos (
-                        id          SERIAL PRIMARY KEY,
-                        empresa_id  INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
-                        cliente_id  INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
-                        puntos      INTEGER NOT NULL,
-                        tipo        VARCHAR(20) NOT NULL,
-                        venta_id    INTEGER REFERENCES ventas(id) ON DELETE SET NULL,
-                        descripcion VARCHAR(255),
-                        created_at  TIMESTAMPTZ DEFAULT NOW()
-                    );
-                """))
+                _add_column_safe(conn, "clientes", "puntos_fidelidad", "INTEGER DEFAULT 0")
+                if not _table_exists(conn, "movimientos_puntos"):
+                    if IS_SQLITE:
+                        conn.execute(text("""
+                            CREATE TABLE movimientos_puntos (
+                                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                                empresa_id  INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+                                cliente_id  INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+                                puntos      INTEGER NOT NULL,
+                                tipo        VARCHAR(20) NOT NULL,
+                                venta_id    INTEGER REFERENCES ventas(id) ON DELETE SET NULL,
+                                descripcion VARCHAR(255),
+                                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            CREATE TABLE movimientos_puntos (
+                                id          SERIAL PRIMARY KEY,
+                                empresa_id  INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+                                cliente_id  INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+                                puntos      INTEGER NOT NULL,
+                                tipo        VARCHAR(20) NOT NULL,
+                                venta_id    INTEGER REFERENCES ventas(id) ON DELETE SET NULL,
+                                descripcion VARCHAR(255),
+                                created_at  TIMESTAMPTZ DEFAULT NOW()
+                            )
+                        """))
                 conn.execute(text("""
                     CREATE INDEX IF NOT EXISTS ix_movimientos_puntos_empresa_cliente
                         ON movimientos_puntos(empresa_id, cliente_id);
                 """))
-                conn.execute(text("""
-                    ALTER TABLE planes_suscripcion
-                        ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT FALSE;
-                """))
+                _add_column_safe(conn, "planes_suscripcion", "is_featured", "BOOLEAN DEFAULT 0" if IS_SQLITE else "BOOLEAN DEFAULT FALSE")
                 _mark_migration_applied(conn, migration_v64)
                 logger.info("V64 (puntos fidelización + plan is_featured) aplicada.")
 
@@ -1136,31 +1168,50 @@ def run_migrations():
             # ═══════════════════════════════════════════════════════════════
             migration_v65 = "v65_links_pago_empresa"
             if not _migration_already_applied(conn, migration_v65):
-                conn.execute(text("""
-                    DO $$
-                    BEGIN
-                      IF NOT EXISTS (
-                        SELECT 1 FROM pg_type WHERE typname = 'tipolinkpago'
-                      ) THEN
-                        CREATE TYPE tipolinkpago AS ENUM ('qr_imagen', 'url');
-                      END IF;
-                    END $$
-                """))
-                conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS links_pago_empresa (
-                        id            SERIAL PRIMARY KEY,
-                        empresa_id    INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
-                        nombre        VARCHAR(100) NOT NULL,
-                        tipo          tipolinkpago NOT NULL DEFAULT 'url',
-                        link_url      VARCHAR(500),
-                        qr_base64     TEXT,
-                        qr_mime_type  VARCHAR(40),
-                        instrucciones TEXT,
-                        is_active     BOOLEAN NOT NULL DEFAULT TRUE,
-                        created_at    TIMESTAMPTZ DEFAULT NOW(),
-                        updated_at    TIMESTAMPTZ DEFAULT NOW()
-                    );
-                """))
+                if not _table_exists(conn, "links_pago_empresa"):
+                    if IS_SQLITE:
+                        # SQLite no soporta tipos ENUM ni DO $$ blocks; se usa VARCHAR
+                        conn.execute(text("""
+                            CREATE TABLE links_pago_empresa (
+                                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                                empresa_id    INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+                                nombre        VARCHAR(100) NOT NULL,
+                                tipo          VARCHAR(20) NOT NULL DEFAULT 'url',
+                                link_url      VARCHAR(500),
+                                qr_base64     TEXT,
+                                qr_mime_type  VARCHAR(40),
+                                instrucciones TEXT,
+                                is_active     INTEGER NOT NULL DEFAULT 1,
+                                created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            )
+                        """))
+                    else:
+                        conn.execute(text("""
+                            DO $$
+                            BEGIN
+                              IF NOT EXISTS (
+                                SELECT 1 FROM pg_type WHERE typname = 'tipolinkpago'
+                              ) THEN
+                                CREATE TYPE tipolinkpago AS ENUM ('qr_imagen', 'url');
+                              END IF;
+                            END $$
+                        """))
+                        conn.execute(text("""
+                            CREATE TABLE IF NOT EXISTS links_pago_empresa (
+                                id            SERIAL PRIMARY KEY,
+                                empresa_id    INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+                                nombre        VARCHAR(100) NOT NULL,
+                                tipo          tipolinkpago NOT NULL DEFAULT 'url',
+                                link_url      VARCHAR(500),
+                                qr_base64     TEXT,
+                                qr_mime_type  VARCHAR(40),
+                                instrucciones TEXT,
+                                is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+                                created_at    TIMESTAMPTZ DEFAULT NOW(),
+                                updated_at    TIMESTAMPTZ DEFAULT NOW()
+                            );
+                        """))
                 conn.execute(text("""
                     CREATE INDEX IF NOT EXISTS ix_links_pago_empresa_empresa_id
                         ON links_pago_empresa(empresa_id);
@@ -1193,23 +1244,16 @@ def run_migrations():
             # ═══════════════════════════════════════════════════════════════
             migration_v67 = "v67_empresa_omitir_inventario"
             if not _migration_already_applied(conn, migration_v67):
-                conn.execute(text("""
-                    ALTER TABLE empresas ADD COLUMN IF NOT EXISTS omitir_inventario BOOLEAN DEFAULT FALSE;
-                """))
-                conn.execute(text("""
-                    ALTER TABLE detalles_venta ADD COLUMN IF NOT EXISTS nombre_libre VARCHAR(200);
-                """))
-                conn.execute(text("""
-                    ALTER TABLE detalles_venta ALTER COLUMN producto_id DROP NOT NULL;
-                """))
+                _add_column_safe(conn, "empresas", "omitir_inventario", "BOOLEAN DEFAULT 0" if IS_SQLITE else "BOOLEAN DEFAULT FALSE")
+                _add_column_safe(conn, "detalles_venta", "nombre_libre", "VARCHAR(200)")
+                if not IS_SQLITE:
+                    conn.execute(text("ALTER TABLE detalles_venta ALTER COLUMN producto_id DROP NOT NULL;"))
                 _mark_migration_applied(conn, migration_v67)
                 logger.info("V67 (empresas.omitir_inventario + detalles_venta.nombre_libre + producto_id nullable) aplicada.")
 
             migration_v68 = "v68_restaurante_config_imprimir_comanda_auto"
             if not _migration_already_applied(conn, migration_v68):
-                conn.execute(text("""
-                    ALTER TABLE restaurante_config ADD COLUMN IF NOT EXISTS imprimir_comanda_auto BOOLEAN DEFAULT FALSE;
-                """))
+                _add_column_safe(conn, "restaurante_config", "imprimir_comanda_auto", "BOOLEAN DEFAULT 0" if IS_SQLITE else "BOOLEAN DEFAULT FALSE")
                 _mark_migration_applied(conn, migration_v68)
                 logger.info("V68 (restaurante_config.imprimir_comanda_auto) aplicada.")
 
@@ -1310,6 +1354,8 @@ def run_migrations():
                     ("Bebidas Alcohólicas", "BAL", "#8B5CF6", 16, False, True),
                 ]
                 empresas_rest = conn.execute(text(
+                    "SELECT id FROM empresas WHERE CAST(modulos_habilitados AS TEXT) LIKE '%/restaurante%'"
+                    if IS_SQLITE else
                     "SELECT id FROM empresas WHERE modulos_habilitados::text LIKE '%/restaurante%'"
                 )).fetchall()
                 for (emp_id,) in empresas_rest:
@@ -1336,34 +1382,22 @@ def run_migrations():
             # V74 - restaurante_config.mesero_puede_cobrar_directo
             migration_v74 = "v74_restaurante_config_mesero_cobro_directo"
             if not _migration_already_applied(conn, migration_v74):
-                conn.execute(text("""
-                    ALTER TABLE restaurante_config
-                    ADD COLUMN IF NOT EXISTS mesero_puede_cobrar_directo BOOLEAN DEFAULT FALSE;
-                """))
+                _add_column_safe(conn, "restaurante_config", "mesero_puede_cobrar_directo", "BOOLEAN DEFAULT 0" if IS_SQLITE else "BOOLEAN DEFAULT FALSE")
                 _mark_migration_applied(conn, migration_v74)
                 logger.info("V74 (restaurante_config.mesero_puede_cobrar_directo) aplicada.")
 
             # V75 - restaurante_config.tipo_impresora
             migration_v75 = "v75_restaurante_config_tipo_impresora"
             if not _migration_already_applied(conn, migration_v75):
-                conn.execute(text("""
-                    ALTER TABLE restaurante_config
-                    ADD COLUMN IF NOT EXISTS tipo_impresora VARCHAR(10) DEFAULT 'p80';
-                """))
+                _add_column_safe(conn, "restaurante_config", "tipo_impresora", "VARCHAR(10) DEFAULT 'p80'")
                 _mark_migration_applied(conn, migration_v75)
                 logger.info("V75 (restaurante_config.tipo_impresora) aplicada.")
 
             # V76 - parqueadero_config: tipo_impresora_parq + preferir_impresion
             migration_v76 = "v76_parqueadero_config_print_settings"
             if not _migration_already_applied(conn, migration_v76):
-                conn.execute(text("""
-                    ALTER TABLE parqueadero_config
-                    ADD COLUMN IF NOT EXISTS tipo_impresora_parq VARCHAR(10) DEFAULT 'p80';
-                """))
-                conn.execute(text("""
-                    ALTER TABLE parqueadero_config
-                    ADD COLUMN IF NOT EXISTS preferir_impresion BOOLEAN DEFAULT FALSE;
-                """))
+                _add_column_safe(conn, "parqueadero_config", "tipo_impresora_parq", "VARCHAR(10) DEFAULT 'p80'")
+                _add_column_safe(conn, "parqueadero_config", "preferir_impresion", "BOOLEAN DEFAULT 0" if IS_SQLITE else "BOOLEAN DEFAULT FALSE")
                 _mark_migration_applied(conn, migration_v76)
                 logger.info("V76 (parqueadero_config print settings) aplicada.")
 
@@ -1910,18 +1944,21 @@ def run_migrations():
             # ── V90: planes privados por empresa ──────────────────────────────
             migration_v90 = "v90_planes_empresa_exclusivo"
             if not _migration_already_applied(conn, migration_v90):
-                conn.execute(text("""
-                    ALTER TABLE planes_suscripcion
-                    ADD COLUMN IF NOT EXISTS empresa_id_exclusivo INTEGER
-                    REFERENCES empresas(id) ON DELETE SET NULL
-                """))
+                if IS_SQLITE:
+                    _add_column_safe(conn, "planes_suscripcion", "empresa_id_exclusivo", "INTEGER REFERENCES empresas(id)")
+                else:
+                    conn.execute(text("""
+                        ALTER TABLE planes_suscripcion
+                        ADD COLUMN IF NOT EXISTS empresa_id_exclusivo INTEGER
+                        REFERENCES empresas(id) ON DELETE SET NULL
+                    """))
                 _mark_migration_applied(conn, migration_v90)
                 logger.info("V90 (planes privados por empresa) aplicada.")
 
             # ── V91: descripción pública de la empresa (catálogo virtual) ──────
             migration_v91 = "v91_empresa_descripcion_catalogo"
             if not _migration_already_applied(conn, migration_v91):
-                conn.execute(text("ALTER TABLE empresas ADD COLUMN IF NOT EXISTS descripcion TEXT"))
+                _add_column_safe(conn, "empresas", "descripcion", "TEXT")
                 _mark_migration_applied(conn, migration_v91)
                 logger.info("V91 (empresa.descripcion para catálogo) aplicada.")
 
@@ -1966,29 +2003,20 @@ def run_migrations():
             # ── V93: columna matias_sandbox_api_key en empresas ──────────────
             migration_v93 = "v93_matias_sandbox_api_key"
             if not _migration_already_applied(conn, migration_v93):
-                conn.execute(text(
-                    "ALTER TABLE empresas ADD COLUMN IF NOT EXISTS matias_sandbox_api_key TEXT NULL"
-                ))
+                _add_column_safe(conn, "empresas", "matias_sandbox_api_key", "TEXT")
                 _mark_migration_applied(conn, migration_v93)
                 logger.info("V93 (empresas.matias_sandbox_api_key) aplicada.")
 
             # ── V94: producción avanzada (merma_pct, rendimiento_esperado, costo breakdown) ──
             migration_v94 = "v94_produccion_avanzada"
             if not _migration_already_applied(conn, migration_v94):
-                sqls = [
-                    "ALTER TABLE receta_items ADD COLUMN IF NOT EXISTS merma_pct FLOAT DEFAULT 0.0",
-                    "ALTER TABLE receta_servicios ADD COLUMN IF NOT EXISTS cantidad FLOAT DEFAULT 1.0",
-                    "ALTER TABLE recetas ADD COLUMN IF NOT EXISTS rendimiento_esperado FLOAT DEFAULT 1.0",
-                    "ALTER TABLE recetas ADD COLUMN IF NOT EXISTS notas_tecnicas TEXT",
-                    "ALTER TABLE lotes_produccion ADD COLUMN IF NOT EXISTS numero_lote_produccion VARCHAR(100)",
-                    "ALTER TABLE lotes_produccion ADD COLUMN IF NOT EXISTS costo_insumos FLOAT DEFAULT 0.0",
-                    "ALTER TABLE lotes_produccion ADD COLUMN IF NOT EXISTS costo_maquila FLOAT DEFAULT 0.0",
-                ]
-                for sql in sqls:
-                    try:
-                        conn.execute(text(sql))
-                    except Exception:
-                        pass  # Column may already exist in SQLite
+                _add_column_safe(conn, "receta_items", "merma_pct", "FLOAT DEFAULT 0.0")
+                _add_column_safe(conn, "receta_servicios", "cantidad", "FLOAT DEFAULT 1.0")
+                _add_column_safe(conn, "recetas", "rendimiento_esperado", "FLOAT DEFAULT 1.0")
+                _add_column_safe(conn, "recetas", "notas_tecnicas", "TEXT")
+                _add_column_safe(conn, "lotes_produccion", "numero_lote_produccion", "VARCHAR(100)")
+                _add_column_safe(conn, "lotes_produccion", "costo_insumos", "FLOAT DEFAULT 0.0")
+                _add_column_safe(conn, "lotes_produccion", "costo_maquila", "FLOAT DEFAULT 0.0")
                 _mark_migration_applied(conn, migration_v94)
                 logger.info("V94 (producción avanzada) aplicada.")
 

@@ -1,7 +1,8 @@
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from database import Base, get_db
+from database import Base
+from api.deps import get_db
 from main import app
 
 # Base de datos de prueba en memoria
