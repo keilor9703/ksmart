@@ -433,6 +433,16 @@ def impersonate_company(
     if not target_user:
         raise HTTPException(status_code=404, detail="No se encontró un usuario para esta empresa.")
 
+    # Auditar: la suplantación da acceso total a los datos del tenant
+    # (financieros, clientes, contabilidad). Debe quedar registro de quién
+    # suplantó a quién y cuándo para trazabilidad y cumplimiento.
+    empresa = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
+    crud_empresas.log_saas_event(
+        db, current_admin.id, "IMPERSONATE", empresa_id,
+        {"empresa_nombre": empresa.nombre if empresa else None,
+         "target_username": target_user.username},
+    )
+
     access_token = create_access_token(
         data={
             "sub": target_user.username,
