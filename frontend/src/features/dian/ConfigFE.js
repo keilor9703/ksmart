@@ -134,10 +134,15 @@ export default function ConfigFE() {
   const fetchConfig = async () => {
     try {
       const r = await apiClient.get('/empresa/config-fe');
+      // El backend ya NO devuelve las API keys en texto plano (son secretos):
+      // solo confirma si cada una está configurada y una vista enmascarada
+      // (últimos 4 caracteres). Los campos empiezan vacíos — escribir algo
+      // en ellos significa "reemplazar la key existente"; dejarlos vacíos
+      // significa "no tocar la que ya está configurada".
       setConfig({
         ...r.data,
-        matias_api_key:         r.data.matias_api_key         || '',
-        matias_sandbox_api_key: r.data.matias_sandbox_api_key || '',
+        matias_api_key:         '',
+        matias_sandbox_api_key: '',
       });
     } catch { toast.error('Error cargando configuración FE'); }
     finally { setLoading(false); }
@@ -181,7 +186,21 @@ export default function ConfigFE() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await apiClient.put('/empresa/config-fe', config);
+      // Las keys viajan SOLO si el usuario escribió algo en el campo (vacío
+      // = "no tocar la que ya está configurada"). El backend nunca envió la
+      // key real de vuelta, así que no hay un valor "sin cambios" que reenviar.
+      const {
+        matias_api_key_configurada, matias_api_key_preview,
+        matias_sandbox_api_key_configurada, matias_sandbox_api_key_preview,
+        matias_api_key, matias_sandbox_api_key,
+        ...resto
+      } = config;
+      const payload = { ...resto };
+      if (matias_api_key) payload.matias_api_key = matias_api_key;
+      if (matias_sandbox_api_key) payload.matias_sandbox_api_key = matias_sandbox_api_key;
+
+      const r = await apiClient.put('/empresa/config-fe', payload);
+      setConfig(c => ({ ...c, ...r.data, matias_api_key: '', matias_sandbox_api_key: '' }));
       toast.success('Configuración FE guardada');
     } catch (e) {
       toast.error(e?.response?.data?.detail || 'Error guardando configuración');
@@ -483,7 +502,12 @@ export default function ConfigFE() {
               multiline={showSandboxKey}
               rows={showSandboxKey ? 4 : 1}
               sx={{ mb: 2 }}
-              helperText="Genera este token en el panel sandbox de Matias (es diferente al de producción)"
+              placeholder={config.matias_sandbox_api_key_configurada ? `Configurado: ${config.matias_sandbox_api_key_preview}` : 'Aún no configurado'}
+              helperText={
+                config.matias_sandbox_api_key_configurada
+                  ? 'Ya hay un token guardado (no se muestra por seguridad). Escribe uno nuevo solo si quieres reemplazarlo.'
+                  : 'Genera este token en el panel sandbox de Matias (es diferente al de producción)'
+              }
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
@@ -508,8 +532,13 @@ export default function ConfigFE() {
               type={showKey ? 'text' : 'password'}
               multiline={showKey}
               rows={showKey ? 4 : 1}
+              placeholder={config.matias_api_key_configurada ? `Configurado: ${config.matias_api_key_preview}` : 'Aún no configurado'}
+              helperText={
+                config.matias_api_key_configurada
+                  ? 'Ya hay un token guardado (no se muestra por seguridad). Escribe uno nuevo solo si quieres reemplazarlo.'
+                  : 'Token JWT obtenido en el panel de producción de Matias API'
+              }
               sx={{ mb: 2 }}
-              helperText="Token JWT obtenido en el panel de producción de Matias API"
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">

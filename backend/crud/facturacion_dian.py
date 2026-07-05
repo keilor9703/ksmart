@@ -8,61 +8,13 @@ from crud.productos import get_producto
 from crud.inventario import create_movement
 
 
-def _get_resolucion_activa(db: Session, empresa_id: int, tipo: str = "fe") -> Optional[models.ResolucionDian]:
-    """
-    Retorna la resolución activa de la empresa para el tipo indicado ('fe'|'pos').
-    Por defecto 'fe' (Factura Electrónica). Tolera legados con tipo NULL/'' como 'fe'.
-    """
-    from sqlalchemy import or_
-    q = db.query(models.ResolucionDian).filter(
-        models.ResolucionDian.empresa_id == empresa_id,
-        models.ResolucionDian.is_active  == True,
-    )
-    if tipo == "fe":
-        q = q.filter(or_(
-            models.ResolucionDian.tipo == "fe",
-            models.ResolucionDian.tipo.is_(None),
-            models.ResolucionDian.tipo == "",
-        ))
-    else:
-        q = q.filter(models.ResolucionDian.tipo == tipo)
-    return q.first()
-
-
-def _asignar_numero_factura(db: Session, empresa_id: int, venta: models.Venta) -> Optional[str]:
-    """
-    Incrementa el consecutivo de la resolución activa y asigna el numero_factura
-    a la venta. Retorna el número asignado o None si no hay resolución activa.
-    Llama ANTES de hacer db.commit().
-    """
-    resolucion = _get_resolucion_activa(db, empresa_id)
-    if not resolucion:
-        return None
-
-    siguiente = resolucion.numero_actual + 1
-
-    # Validación de rango
-    if siguiente > resolucion.numero_final:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"La resolución DIAN ha llegado al límite de numeración "
-                f"({resolucion.numero_final}). Configura una nueva resolución."
-            )
-        )
-
-    resolucion.numero_actual = siguiente
-    numero_str = f"{resolucion.prefijo}{siguiente}"
-    venta.numero_factura = numero_str
-    venta.resolucion_id  = resolucion.id
-
-    # 👇 NUEVO: Marcar como pendiente si la empresa tiene FE activa
-    empresa = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
-    if empresa and empresa.facturacion_electronica_activa:
-        venta.estado_electronico = "pendiente"
-
-    db.add(resolucion)
-    return numero_str
+# _get_resolucion_activa / _asignar_numero_factura vivían duplicadas aquí con
+# un read-modify-write en Python sobre numero_actual (sin lock): dos ventas
+# concurrentes de la misma empresa podían recibir el MISMO consecutivo DIAN,
+# lo cual la DIAN rechaza. Se unificó en crud.ventas con un UPDATE...RETURNING
+# atómico; este módulo reusa esa única implementación en vez de mantener una
+# segunda copia con el mismo bug (afecta la conversión de cotización a venta).
+from crud.ventas import _get_resolucion_activa, _asignar_numero_factura  # noqa: F401,E402
 
 
 def _ejecutar_movimientos_venta(db: Session, empresa_id: int, db_venta: models.Venta):
