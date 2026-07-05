@@ -34,11 +34,34 @@ import BasculaWidget from '../../components/common/BasculaWidget';
 import BasculaConfigDialog from '../../components/common/BasculaConfigDialog';
 import { esPesable, useBascula } from '../../hooks/useBascula';
 import VarianteSelectorDialog from '../../components/common/VarianteSelectorDialog';
+import { alpha } from '@mui/material/styles';
 
 const ACCENT = '#0891B2';
+const ACCENT2 = '#0EA5E9';
 const HAS_BARCODE_DETECTOR = typeof window !== 'undefined' && 'BarcodeDetector' in window;
 const HAS_CAMERA = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
 const BARCODE_FORMATS = ['ean_13', 'ean_8', 'code_128', 'qr_code', 'upc_e', 'code_39', 'itf'];
+
+// Helper para focus neon/glassmorphism en TextFields
+const getInputSx = (accentColor) => ({
+  '& .MuiOutlinedInput-root': {
+    borderRadius: 2.5,
+    transition: 'all 0.2s ease-in-out',
+    '&:hover .MuiOutlinedInput-notchedOutline': {
+      borderColor: alpha(accentColor, 0.6),
+    },
+    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+      borderColor: accentColor,
+      borderWidth: 2,
+    },
+    '&.Mui-focused': {
+      boxShadow: `0 0 0 3px ${alpha(accentColor, 0.15)}`,
+    },
+  },
+  '& .MuiInputLabel-root.Mui-focused': {
+    color: accentColor,
+  },
+});
 
 const METODOS_PAGO = [
     { value: 'Efectivo',      label: '💵 Efectivo',      pagada: true,  color: '#10B981' },
@@ -1198,82 +1221,160 @@ useEffect(() => {
     return (
         <Box sx={{ width: '100%', minWidth: 0 }}>
 
-            {/* ── Header ── */}
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                    <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT }}>
-                        <ShoppingCart />
+            {/* ── Header Hero Banner ── */}
+            <Paper
+                elevation={0}
+                sx={{
+                    p: { xs: 2.5, md: 4 },
+                    mb: 3,
+                    borderRadius: 4,
+                    position: 'relative',
+                    overflow: 'hidden',
+                    background: isDark
+                        ? `linear-gradient(135deg, ${alpha(ACCENT, 0.95)} 0%, #0F172A 100%)`
+                        : `linear-gradient(135deg, ${ACCENT} 0%, ${ACCENT2} 100%)`,
+                    color: '#fff',
+                    boxShadow: '0 8px 32px rgba(8, 145, 178, 0.15)',
+                    '&::before': {
+                        content: '""',
+                        position: 'absolute',
+                        top: -50,
+                        right: -50,
+                        width: 150,
+                        height: 150,
+                        borderRadius: '50%',
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        filter: 'blur(20px)',
+                    },
+                    '&::after': {
+                        content: '""',
+                        position: 'absolute',
+                        bottom: -30,
+                        left: '30%',
+                        width: 100,
+                        height: 100,
+                        borderRadius: '50%',
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        filter: 'blur(15px)',
+                    }
+                }}
+            >
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2, position: 'relative', zIndex: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Box sx={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: 3,
+                            bgcolor: 'rgba(255, 255, 255, 0.2)',
+                            backdropFilter: 'blur(8px)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            border: '1px solid rgba(255, 255, 255, 0.3)'
+                        }}>
+                            <ShoppingCart sx={{ color: '#fff', fontSize: 24 }} />
+                        </Box>
+                        <Box>
+                            <Typography sx={{ fontWeight: 800, fontSize: { xs: 20, md: 24 }, letterSpacing: -0.5 }}>POS & Ventas</Typography>
+                            <Typography sx={{ fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>Registra cobros y administra facturas electrónicas al instante</Typography>
+                        </Box>
                     </Box>
-                    <Box>
-                        <Typography sx={{ fontWeight: 700, fontSize: 20, lineHeight: 1.2 }}>Ventas</Typography>
-                        <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Gestión de ventas y cobros</Typography>
+                    <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+                        <HelpGuideTopBar
+                            moduleName="Ventas POS"
+                            moduleColor="#fff"
+                            steps={[
+                                { title: 'Selecciona el cliente', description: 'Busca por nombre, NIT o teléfono. Para ventas rápidas usa el botón "Mostrador".' },
+                                { title: 'Agrega productos', description: 'Escanea el código de barras o escribe el nombre. Usa los botones + / − para ajustar cantidades.' },
+                                { title: 'Aplica descuentos', description: 'Cada producto tiene un campo "Desc. %" donde puedes reducir su precio de forma individual.' },
+                                { title: 'Elige el método de pago', description: 'Selecciona Efectivo, Transferencia, Tarjeta o "Por Cobrar" para registrar ventas a crédito.' },
+                                { title: 'Registra la venta', description: 'Haz clic en "Registrar Venta" o presiona Ctrl + Enter para guardar. El sistema descuenta el stock automáticamente.' },
+                            ]}
+                        />
                     </Box>
-                    <HelpGuideTopBar
-                        moduleName="Ventas POS"
-                        moduleColor={ACCENT}
-                        steps={[
-                            { title: 'Selecciona el cliente', description: 'Busca por nombre, NIT o teléfono. Para ventas rápidas usa el botón "Mostrador".' },
-                            { title: 'Agrega productos', description: 'Escanea el código de barras o escribe el nombre. Usa los botones + / − para ajustar cantidades.' },
-                            { title: 'Aplica descuentos', description: 'Cada producto tiene un campo "Desc. %" donde puedes reducir su precio de forma individual.' },
-                            { title: 'Elige el método de pago', description: 'Selecciona Efectivo, Transferencia, Tarjeta o "Por Cobrar" para registrar ventas a crédito.' },
-                            { title: 'Registra la venta', description: 'Haz clic en "Registrar Venta" o presiona Ctrl + Enter para guardar. El sistema descuenta el stock automáticamente.' },
-                            { title: 'Atajos de teclado', description: 'Ctrl + Enter: registrar venta. Enter en el campo de código de barras: agregar producto al carrito. Estos atajos agilizan el proceso en caja.' },
-                        ]}
-                        faqItems={[
-                            { q: '¿Qué atajos de teclado están disponibles?', a: 'Ctrl + Enter (o Cmd + Enter en Mac): registra la venta sin usar el mouse. Enter en el campo de código de barras: agrega el producto al carrito inmediatamente. Estos atajos están activos siempre que estés en la pestaña de nueva venta.' },
-                            { q: '¿Cómo registro una venta a crédito?', a: 'Selecciona "Por Cobrar" como método de pago. La venta queda registrada como deuda del cliente y aparece en "Cartera pendiente". Puedes gestionarla desde el historial.' },
-                            { q: '¿Puedo aplicar un descuento en la venta?', a: 'Sí, cada producto en el carrito tiene un campo "Desc. %" donde puedes ingresar un porcentaje de descuento individual. El total se recalcula automáticamente.' },
-                            { q: '¿Qué pasa con el stock al registrar una venta?', a: 'El stock se descuenta automáticamente al registrar. Si un producto tiene stock bajo o insuficiente para la cantidad pedida, verás una alerta en el carrito.' },
-                            { q: '¿Cómo edito o anulo una venta ya registrada?', a: 'En la pestaña "Historial", usa el ícono de lápiz ✏️ para editar o el ícono de devolución para registrar una devolución parcial o total.' },
-                        ]}
-                    />
                 </Box>
+            </Paper>
+
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+                <Box />
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <ToggleButtonGroup
                         value={viewMode}
                         exclusive
                         onChange={handleViewModeChange}
                         size="small"
-                        sx={{ bgcolor: 'background.paper', borderRadius: 2 }}
+                        sx={{
+                            bgcolor: 'background.paper',
+                            borderRadius: 2.5,
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            p: 0.5,
+                            '& .MuiToggleButton-root': {
+                                border: 'none',
+                                borderRadius: 2,
+                                px: 2,
+                                py: 0.5,
+                                textTransform: 'none',
+                                fontWeight: 700,
+                                fontSize: 12.5,
+                                '&.Mui-selected': {
+                                    bgcolor: alpha(ACCENT, 0.1),
+                                    color: ACCENT,
+                                    '&:hover': { bgcolor: alpha(ACCENT, 0.15) }
+                                }
+                            }
+                        }}
                     >
-                        <ToggleButton value="classic" sx={{ textTransform: 'none', gap: 1, px: 2 }}>
+                        <ToggleButton value="classic" sx={{ gap: 1 }}>
                             <Keyboard fontSize="small" /> {!isMobile && 'Teclado'}
                         </ToggleButton>
-                        <ToggleButton value="touch" sx={{ textTransform: 'none', gap: 1, px: 2 }}>
+                        <ToggleButton value="touch" sx={{ gap: 1 }}>
                             <TouchApp fontSize="small" /> {!isMobile && 'Táctil'}
                         </ToggleButton>
                     </ToggleButtonGroup>
                     <Tooltip title="Configurar báscula digital (USB/Serial)">
-                        <IconButton onClick={() => setBasculaConfigOpen(true)} size="small" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
-                            <Scale fontSize="small" />
+                        <IconButton onClick={() => setBasculaConfigOpen(true)} size="small" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1, bgcolor: 'background.paper' }}>
+                            <Scale fontSize="small" sx={{ color: 'text.secondary' }} />
                         </IconButton>
                     </Tooltip>
                     <Tooltip title="Exportar historial filtrado a CSV">
-                        <IconButton onClick={exportCSV} size="small" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
-                            <FileDownload fontSize="small" />
+                        <IconButton onClick={exportCSV} size="small" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1, bgcolor: 'background.paper' }}>
+                            <FileDownload fontSize="small" sx={{ color: 'text.secondary' }} />
                         </IconButton>
                     </Tooltip>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, px: 1.5, py: 0.6, borderRadius: 2, bgcolor: `${ACCENT}0F` }}>
-                        <TrendingUp sx={{ fontSize: 16, color: ACCENT }} />
-                        <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Ventas hoy</Typography>
-                        <Typography sx={{ fontSize: 13, fontWeight: 700, color: ACCENT }}>{formatCurrency(totalVentasHoy)}</Typography>
+                    <Box sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        px: 2,
+                        py: 0.75,
+                        borderRadius: 2.5,
+                        bgcolor: alpha(ACCENT, 0.08),
+                        border: '1px solid',
+                        borderColor: alpha(ACCENT, 0.15),
+                        boxShadow: `0 2px 8px ${alpha(ACCENT, 0.05)}`
+                    }}>
+                        <TrendingUp sx={{ fontSize: 18, color: ACCENT }} />
+                        <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 600 }}>Hoy:</Typography>
+                        <Typography sx={{ fontSize: 14, fontWeight: 800, color: ACCENT }}>{formatCurrency(totalVentasHoy)}</Typography>
                     </Box>
                 </Box>
             </Box>
 
             {/* ── Tabs ── */}
-            <Paper sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+            <Paper sx={{ borderRadius: 4, border: '1px solid', borderColor: 'divider', boxShadow: isDark ? '0 12px 40px rgba(0,0,0,0.3)' : '0 8px 30px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
                 <Tabs
                     value={tabValue} onChange={(_, v) => setTabValue(v)}
                     sx={{
                         px: 2, borderBottom: '1px solid', borderColor: 'divider',
-                        '& .MuiTab-root': { fontWeight: 600, fontSize: 13.5, textTransform: 'none', minHeight: 52 },
+                        background: isDark ? 'rgba(255,255,255,0.01)' : 'rgba(0,0,0,0.01)',
+                        '& .MuiTab-root': { fontWeight: 700, fontSize: 14, textTransform: 'none', minHeight: 56 },
                         '& .MuiTabs-indicator': { backgroundColor: ACCENT, height: 3, borderRadius: 3 },
                         '& .Mui-selected': { color: `${ACCENT} !important` },
                     }}
                 >
-                    <Tab label={editingVenta ? '✏️ Editar Venta' : '➕ Registrar Venta'} />
-                    <Tab label={`📋 Historial (${ventas.length})`} />
+                    <Tab label={editingVenta ? '✏️ Editar Venta' : '➕ Nueva Venta POS'} />
+                    <Tab label={`📋 Historial de Ventas (${ventas.length})`} />
                 </Tabs>
 
                 {/* ════════════════════════════════════════
@@ -1396,9 +1497,10 @@ useEffect(() => {
                                         renderInput={(params) => (
                                             <TextField
                                                 {...params} label="Buscar cliente por nombre, NIT o teléfono" fullWidth
+                                                sx={getInputSx(ACCENT)}
                                                 InputProps={{
                                                     ...params.InputProps,
-                                                    endAdornment: (<>{params.InputProps.endAdornment}<Tooltip title="Crear nuevo cliente"><IconButton size="small" onClick={() => openQuickCreate('tercero', clienteInput)} sx={{ color: '#3B82F6', p: 0.5 }}><Add fontSize="small" /></IconButton></Tooltip></>),
+                                                    endAdornment: (<>{params.InputProps.endAdornment}<Tooltip title="Crear nuevo cliente"><IconButton size="small" onClick={() => openQuickCreate('tercero', clienteInput)} sx={{ color: ACCENT, p: 0.5 }}><Add fontSize="small" /></IconButton></Tooltip></>),
                                                 }}
                                             />
                                         )}
@@ -1435,6 +1537,7 @@ useEffect(() => {
                                   )}
                                   renderInput={params => (
                                     <TextField {...params} size="small" fullWidth
+                                      sx={getInputSx(ACCENT)}
                                       placeholder={`${user?.nombre_completo || user?.username} (por defecto)`}
                                       helperText="Deja vacío si el vendedor es quien inicia sesión"
                                     />
@@ -1475,6 +1578,7 @@ useEffect(() => {
                                         inputRef={barcodeFieldRef}
                                         autoComplete="off"
                                         disabled={searchingBarcode}
+                                        sx={getInputSx(ACCENT)}
                                         InputProps={{
                                             startAdornment: <InputAdornment position="start"><QrCodeScanner sx={{ color: ACCENT, fontSize: 22 }} /></InputAdornment>,
                                             endAdornment: searchingBarcode ? <CircularProgress size={18} sx={{ color: ACCENT }} /> : null,

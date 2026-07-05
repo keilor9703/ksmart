@@ -285,18 +285,40 @@ def build_invoice_payload(venta, empresa, cliente, detalles, tipo_documento: str
         "payable_amount":        f"{total_pagar:.2f}",
     }
 
-    # tax_totals nivel raíz (suma de todos los impuestos)
+    # tax_totals nivel raíz (suma de todos los impuestos agrupados por porcentaje)
+    tax_groups = {}
+    for det in detalles:
+        iva_pct = float(getattr(det, "iva_porcentaje", 0) or 0)
+        if iva_pct <= 0:
+            continue
+        
+        cantidad    = float(det.cantidad or 1)
+        precio_unit = float(det.precio_unitario or 0)
+        desc_pct    = float(getattr(det, "descuento_pct", 0) or 0)
+
+        precio_sin_iva = round(precio_unit / (1 + iva_pct / 100), 4)
+
+        subtotal_linea = round(precio_sin_iva * cantidad, 2)
+        if desc_pct > 0:
+            descuento_val  = round(subtotal_linea * desc_pct / 100, 2)
+            subtotal_linea = round(subtotal_linea - descuento_val, 2)
+
+        iva_linea = round(subtotal_linea * iva_pct / 100, 2)
+
+        if iva_pct not in tax_groups:
+            tax_groups[iva_pct] = {"taxable_amount": 0.0, "tax_amount": 0.0}
+
+        tax_groups[iva_pct]["taxable_amount"] += subtotal_linea
+        tax_groups[iva_pct]["tax_amount"] += iva_linea
+
     tax_totals_root = []
-    if iva_total_sum > 0:
-        iva_pct_general = float(getattr(venta, "iva_porcentaje", 0) or 0)
-        tax_totals_root = [
-            {
-                "tax_id":         "1",
-                "tax_amount":     iva_total_sum,
-                "taxable_amount": base_sum,
-                "percent":        int(iva_pct_general),
-            }
-        ]
+    for pct, vals in tax_groups.items():
+        tax_totals_root.append({
+            "tax_id":         "1",  # 1 = IVA
+            "tax_amount":     round(vals["tax_amount"], 2),
+            "taxable_amount": round(vals["taxable_amount"], 2),
+            "percent":        int(pct),
+        })
 
     # ── Pago ────────────────────────────────────────────────────────────────
     metodo_pago   = getattr(venta, "metodo_pago", None)

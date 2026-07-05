@@ -31,6 +31,27 @@ const PRICE_COLOR     = '#F43F5E';
 const INVENTORY_COLOR = '#10B981';
 const CATALOG_COLOR   = '#F59E0B';
 
+// ─── Helper: estilos premium para TextField (focus/hover con accent) ──────────
+const getInputSx = (accentColor) => ({
+  '& .MuiOutlinedInput-root': {
+    borderRadius: 2,
+    transition: 'box-shadow 0.2s',
+    '&:hover .MuiOutlinedInput-notchedOutline': {
+      borderColor: alpha(accentColor, 0.5),
+    },
+    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+      borderColor: accentColor,
+      borderWidth: 2,
+    },
+    '&.Mui-focused': {
+      boxShadow: `0 0 0 3px ${alpha(accentColor, 0.1)}`,
+    },
+  },
+  '& .MuiInputLabel-root.Mui-focused': {
+    color: accentColor,
+  },
+});
+
 const HAS_BARCODE_DETECTOR = typeof window !== 'undefined' && 'BarcodeDetector' in window;
 const HAS_CAMERA = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
 const BARCODE_FORMATS = ['ean_13', 'ean_8', 'code_128', 'qr_code', 'upc_e', 'code_39', 'itf'];
@@ -41,52 +62,74 @@ const STATUS_CONFIG = {
   new:       { color: '#10B981', icon: CheckCircle,  label: 'Producto nuevo — completa los datos' },
 };
 
-// ─── Section Card — colapsable en móvil, siempre abierta en desktop ───────────
+// ─── Section Card — colapsable, con borde izquierdo de color accent ───────────
 const SectionCard = ({ icon, title, accent = DEFAULT_ACCENT, children, defaultOpen = true }) => {
-  const isMobile = useMediaQuery('(max-width:899px)');
+  const theme  = useTheme();
+  const isDark = theme.palette.mode === 'dark';
   const [open, setOpen] = useState(defaultOpen);
-
-  const isOpen = open;
 
   return (
     <Box sx={{
       borderRadius: 3,
       border: '1px solid',
-      borderColor: 'divider',
+      borderColor: open ? alpha(accent, 0.25) : 'divider',
       bgcolor: 'background.paper',
       mb: 2.5,
       overflow: 'hidden',
-      boxShadow: '0 1px 8px rgba(0,0,0,0.05)',
+      boxShadow: open
+        ? `0 2px 16px ${alpha(accent, 0.1)}, 0 1px 4px rgba(0,0,0,0.04)`
+        : '0 1px 4px rgba(0,0,0,0.03)',
+      transition: 'box-shadow 0.2s, border-color 0.2s',
+      // Franja izquierda de color
+      borderLeft: `3px solid ${open ? accent : 'transparent'}`,
     }}>
       <Box
         onClick={() => setOpen(o => !o)}
         sx={{
           px: 2.5, py: 1.5,
-          display: 'flex', alignItems: 'center', gap: 1.2,
-          borderBottom: isOpen ? '1px solid' : 'none',
-          borderColor: 'divider',
-          bgcolor: alpha(accent, 0.05),
+          display: 'flex', alignItems: 'center', gap: 1.4,
+          borderBottom: open ? '1px solid' : 'none',
+          borderColor: alpha(accent, 0.15),
+          background: open
+            ? `linear-gradient(90deg, ${alpha(accent, isDark ? 0.1 : 0.06)} 0%, transparent 100%)`
+            : 'transparent',
           cursor: 'pointer',
           userSelect: 'none',
-          '&:hover': { bgcolor: alpha(accent, 0.09) },
-          transition: 'background-color 0.15s',
+          '&:hover': {
+            background: `linear-gradient(90deg, ${alpha(accent, isDark ? 0.14 : 0.09)} 0%, transparent 100%)`,
+          },
+          transition: 'background 0.2s',
         }}
       >
         <Box sx={{
-          width: 28, height: 28, borderRadius: 1.5,
-          bgcolor: alpha(accent, 0.14),
+          width: 32, height: 32, borderRadius: 2,
+          background: open
+            ? `linear-gradient(135deg, ${accent}, ${alpha(accent, 0.7)})`
+            : alpha(accent, 0.12),
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: accent, flexShrink: 0,
+          color: open ? '#fff' : accent,
+          flexShrink: 0,
+          boxShadow: open ? `0 3px 10px ${alpha(accent, 0.4)}` : 'none',
+          transition: 'all 0.2s',
         }}>
           {icon}
         </Box>
-        <Typography sx={{ fontWeight: 700, fontSize: 13.5, flex: 1 }}>{title}</Typography>
-        {open
-          ? <ExpandLess sx={{ color: accent, fontSize: 20 }} />
-          : <ExpandMore sx={{ color: 'text.secondary', fontSize: 20 }} />
-        }
+        <Typography sx={{ fontWeight: 700, fontSize: 13.5, flex: 1, color: open ? 'text.primary' : 'text.secondary' }}>
+          {title}
+        </Typography>
+        <Box sx={{
+          width: 22, height: 22, borderRadius: '50%',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          bgcolor: open ? alpha(accent, 0.12) : 'transparent',
+          transition: 'all 0.2s',
+        }}>
+          {open
+            ? <ExpandLess sx={{ color: accent, fontSize: 18 }} />
+            : <ExpandMore sx={{ color: 'text.secondary', fontSize: 18 }} />
+          }
+        </Box>
       </Box>
-      <Collapse in={isOpen}>
+      <Collapse in={open}>
         <Box sx={{ p: 2.5 }}>
           {children}
         </Box>
@@ -95,54 +138,96 @@ const SectionCard = ({ icon, title, accent = DEFAULT_ACCENT, children, defaultOp
   );
 };
 
-// ─── Collapsible Panel wrapper (unchanged) ────────────────────────────────────
-const Panel = ({ title, icon, chip, open, onToggle, forceOpen, onClose, children, accentColor }) => (
-  <Box sx={{
-    borderRadius: 3, border: '1px solid', borderColor: 'divider',
-    bgcolor: 'background.paper', mb: 2,
-    boxShadow: open ? '0 4px 24px rgba(0,0,0,0.08)' : '0 2px 8px rgba(0,0,0,0.04)',
-    transition: 'box-shadow 0.2s',
-  }}>
-    <Box
-      onClick={() => { if (!forceOpen) onToggle(); }}
-      sx={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        px: { xs: 1.5, md: 2.5 }, py: 1.5,
-        cursor: forceOpen ? 'default' : 'pointer',
-        '&:hover': { bgcolor: forceOpen ? 'transparent' : 'action.hover' },
-      }}
-    >
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, flex: 1 }}>
+// ─── Collapsible Panel wrapper premium ───────────────────────────────────────
+const Panel = ({ title, icon, chip, open, onToggle, forceOpen, onClose, children, accentColor }) => {
+  const theme  = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  return (
+    <Box sx={{
+      borderRadius: 3.5,
+      border: '1px solid',
+      borderColor: open ? alpha(accentColor, 0.3) : 'divider',
+      bgcolor: 'background.paper',
+      mb: 2,
+      overflow: 'hidden',
+      boxShadow: open
+        ? `0 0 0 1px ${alpha(accentColor, 0.08)}, 0 8px 32px rgba(0,0,0,${isDark ? 0.4 : 0.1})`
+        : `0 2px 8px rgba(0,0,0,${isDark ? 0.25 : 0.04})`,
+      transition: 'box-shadow 0.25s, border-color 0.25s',
+    }}>
+      {/* Franja superior gradiente cuando está abierto */}
+      {open && (
         <Box sx={{
-          width: 30, height: 30, borderRadius: 1.5, flexShrink: 0,
-          bgcolor: `${accentColor}18`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', color: accentColor,
-        }}>
-          {icon}
+          height: 3,
+          background: `linear-gradient(90deg, ${accentColor} 0%, ${alpha(accentColor, 0.4)} 60%, transparent 100%)`,
+        }} />
+      )}
+      <Box
+        onClick={() => { if (!forceOpen) onToggle(); }}
+        sx={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          px: { xs: 2, md: 2.5 }, py: 1.8,
+          cursor: forceOpen ? 'default' : 'pointer',
+          background: open
+            ? `linear-gradient(90deg, ${alpha(accentColor, isDark ? 0.08 : 0.04)} 0%, transparent 100%)`
+            : 'transparent',
+          '&:hover': {
+            background: forceOpen
+              ? 'transparent'
+              : `linear-gradient(90deg, ${alpha(accentColor, isDark ? 0.1 : 0.06)} 0%, transparent 100%)`,
+          },
+          transition: 'background 0.2s',
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, flex: 1 }}>
+          <Box sx={{
+            width: 36, height: 36, borderRadius: 2, flexShrink: 0,
+            background: open
+              ? `linear-gradient(135deg, ${accentColor}, ${alpha(accentColor, 0.75)})`
+              : alpha(accentColor, 0.12),
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: open ? '#fff' : accentColor,
+            boxShadow: open ? `0 4px 12px ${alpha(accentColor, 0.4)}` : 'none',
+            transition: 'all 0.25s',
+          }}>
+            {icon}
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontWeight: 700, fontSize: 15, lineHeight: 1.2 }}>{title}</Typography>
+            {chip && <Box sx={{ mt: 0.3 }}>{chip}</Box>}
+          </Box>
         </Box>
-        <Typography sx={{ fontWeight: 600, fontSize: 14 }}>{title}</Typography>
-        {chip && <Box sx={{ flexShrink: 0 }}>{chip}</Box>}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0, ml: 1 }}>
+          {open && onClose && (
+            <IconButton size="small" onClick={(e) => { e.stopPropagation(); onClose(); }}
+              sx={{ color: 'text.secondary', bgcolor: 'action.hover', borderRadius: 1.5 }}>
+              <Close fontSize="small" />
+            </IconButton>
+          )}
+          {!forceOpen && (
+            <Box sx={{
+              width: 26, height: 26, borderRadius: '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              bgcolor: open ? alpha(accentColor, 0.12) : 'action.hover',
+              transition: 'all 0.2s',
+            }}>
+              {open
+                ? <ExpandLess sx={{ color: accentColor, fontSize: 18 }} />
+                : <ExpandMore sx={{ color: 'text.secondary', fontSize: 18 }} />
+              }
+            </Box>
+          )}
+        </Box>
       </Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0, ml: 1 }}>
-        {open && onClose && (
-          <IconButton size="small" onClick={(e) => { e.stopPropagation(); onClose(); }} sx={{ color: 'text.secondary' }}>
-            <Close fontSize="small" />
-          </IconButton>
-        )}
-        {!forceOpen && (open
-          ? <ExpandLess sx={{ color: 'text.secondary', fontSize: 20 }} />
-          : <ExpandMore sx={{ color: 'text.secondary', fontSize: 20 }} />
-        )}
-      </Box>
+      <Collapse in={open}>
+        <Divider sx={{ opacity: 0.5 }} />
+        <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: isDark ? alpha(accentColor, 0.02) : alpha(accentColor, 0.01) }}>
+          {children}
+        </Box>
+      </Collapse>
     </Box>
-    <Collapse in={open}>
-      <Divider />
-      <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: 'background.default' }}>
-        {children}
-      </Box>
-    </Collapse>
-  </Box>
-);
+  );
+};
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 const ProductoForm = ({
@@ -672,35 +757,52 @@ const ProductoForm = ({
       >
         <Box component="form" onSubmit={handleSubmit}>
 
-          {/* ── Type selector ── */}
+          {/* ── Type selector — pill cards ── */}
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3.5 }}>
-            <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 1, mb: 1.5 }}>
+            <Typography sx={{ fontSize: 10.5, fontWeight: 700, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: 1.2, mb: 1.8 }}>
               ¿Qué tipo de ítem deseas crear?
             </Typography>
-            <ButtonGroup variant="outlined" sx={{ '& .MuiButton-root': { py: 1.2, px: { xs: 2.5, sm: 5 }, borderColor: 'divider' } }}>
-              <Button
-                onClick={() => setEsServicio(false)}
-                sx={{
-                  bgcolor: !esServicio ? alpha(accentColor, 0.1) : 'transparent',
-                  color: !esServicio ? accentColor : 'text.secondary',
-                  borderColor: !esServicio ? `${accentColor} !important` : 'divider',
-                  fontWeight: !esServicio ? 700 : 500,
-                }}
-              >
-                📦 Producto Físico
-              </Button>
-              <Button
-                onClick={() => setEsServicio(true)}
-                sx={{
-                  bgcolor: esServicio ? alpha('#06B6D4', 0.1) : 'transparent',
-                  color: esServicio ? '#06B6D4' : 'text.secondary',
-                  borderColor: esServicio ? '#06B6D4 !important' : 'divider',
-                  fontWeight: esServicio ? 700 : 500,
-                }}
-              >
-                ⚙️ Servicio Intangible
-              </Button>
-            </ButtonGroup>
+            <Box sx={{
+              display: 'flex', gap: 1.5,
+              p: 0.6, borderRadius: 3,
+              bgcolor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+              border: '1px solid',
+              borderColor: 'divider',
+            }}>
+              {[
+                { label: '📦 Producto Físico',    value: false, color: accentColor },
+                { label: '⚙️ Servicio Intangible', value: true,  color: '#06B6D4' },
+              ].map(({ label, value, color }) => {
+                const isActive = esServicio === value;
+                return (
+                  <Box
+                    key={String(value)}
+                    onClick={() => setEsServicio(value)}
+                    sx={{
+                      px: { xs: 2.5, sm: 4 }, py: 1.2,
+                      borderRadius: 2.5,
+                      cursor: 'pointer',
+                      fontWeight: isActive ? 700 : 500,
+                      fontSize: 13.5,
+                      userSelect: 'none',
+                      transition: 'all 0.2s',
+                      background: isActive
+                        ? `linear-gradient(135deg, ${color}, ${alpha(color, 0.75)})`
+                        : 'transparent',
+                      color: isActive ? '#fff' : 'text.secondary',
+                      boxShadow: isActive ? `0 4px 14px ${alpha(color, 0.45)}` : 'none',
+                      '&:hover': {
+                        background: isActive
+                          ? `linear-gradient(135deg, ${color}, ${alpha(color, 0.75)})`
+                          : isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                      },
+                    }}
+                  >
+                    {label}
+                  </Box>
+                );
+              })}
+            </Box>
           </Box>
 
           {/* ── 2-column grid ── */}
@@ -721,6 +823,7 @@ const ProductoForm = ({
                     onChange={e => setNombre(e.target.value)}
                     inputRef={nombreRef}
                     fullWidth required
+                    sx={getInputSx(accentColor)}
                   />
 
                   {/* Descripción — fila completa, 2 líneas de alto */}
@@ -733,6 +836,7 @@ const ProductoForm = ({
                       ? 'Ej: Servicio de instalación y configuración incluida…'
                       : 'Ej: Presentación de 500 g, sabor original, apto para veganos…'}
                     helperText="Opcional — aparece en el catálogo virtual y en cotizaciones"
+                    sx={getInputSx(accentColor)}
                   />
 
                   {!esServicio && (
@@ -782,6 +886,7 @@ const ProductoForm = ({
                           placeholder={productoToEdit ? '' : 'Se genera automáticamente'}
                           inputProps={{ style: { fontFamily: 'monospace', letterSpacing: 1 } }}
                           helperText={!sku && skuPreview ? `Se generará: ${skuPreview}` : 'Identificador único del ítem en tu inventario'}
+                          sx={getInputSx(accentColor)}
                         />
                       </Grid>
 
@@ -794,6 +899,7 @@ const ProductoForm = ({
                           fullWidth
                           placeholder="Escanea, escribe o usa la cámara…"
                           inputProps={{ style: { fontFamily: 'monospace' } }}
+                          sx={getInputSx(accentColor)}
                           InputProps={{
                             startAdornment: <InputAdornment position="start"><QrCodeScanner fontSize="small" sx={{ color: 'text.secondary' }} /></InputAdornment>,
                             endAdornment: (
@@ -1037,44 +1143,73 @@ const ProductoForm = ({
                       </Button>
                     </Box>
                     {variantes.length > 0 && (
-                      <Table size="small" sx={{ '& td,& th': { fontSize: 12 } }}>
-                        <TableHead>
-                          <TableRow sx={{ bgcolor: 'action.hover' }}>
-                            <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Nombre / Atributos</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Precio</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Stock</TableCell>
-                            <TableCell />
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {variantes.map(v => (
-                            <TableRow key={v.id} hover>
-                              <TableCell><Typography sx={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700 }}>{v.sku}</Typography></TableCell>
-                              <TableCell>
-                                <Typography sx={{ fontWeight: 600 }}>{v.nombre}</Typography>
-                                {v.atributos && Object.keys(v.atributos).length > 0 && (
-                                  <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.3 }}>
-                                    {Object.entries(v.atributos).map(([k, val]) => (
-                                      <Chip key={k} label={`${k}: ${val}`} size="small" sx={{ height: 18, fontSize: 10 }} />
-                                    ))}
-                                  </Box>
-                                )}
-                              </TableCell>
-                              <TableCell>{v.precio != null ? `$${v.precio.toLocaleString('es-CO')}` : '—'}</TableCell>
-                              <TableCell>{v.stock_actual}</TableCell>
-                              <TableCell align="right">
-                                <IconButton size="small" onClick={() => { setVarianteEditing(v); setVarianteForm({ nombre: v.nombre, sku: v.sku, atributos: v.atributos || {}, precio: v.precio ?? '', costo: v.costo ?? '', stock_inicial: '' }); setVarianteDialog(true); }}>
-                                  <ExpandMore fontSize="small" />
-                                </IconButton>
-                                <IconButton size="small" color="error" onClick={() => handleDeleteVariante(v.id)}>
-                                  <Delete fontSize="small" />
-                                </IconButton>
-                              </TableCell>
+                      <Box sx={{
+                        borderRadius: 2.5, border: '1px solid', borderColor: 'divider',
+                        overflow: 'hidden',
+                        boxShadow: isDark ? '0 2px 16px rgba(0,0,0,0.3)' : '0 2px 12px rgba(0,0,0,0.06)',
+                      }}>
+                        <Table size="small" sx={{ '& td,& th': { fontSize: 12 } }}>
+                          <TableHead>
+                            <TableRow sx={{
+                              background: isDark
+                                ? `linear-gradient(90deg, ${alpha(accentColor, 0.12)}, transparent)`
+                                : `linear-gradient(90deg, ${alpha(accentColor, 0.06)}, transparent)`,
+                            }}>
+                              <TableCell sx={{ fontWeight: 800, fontSize: 10.5, textTransform: 'uppercase', letterSpacing: 0.6, color: accentColor, py: 1.2 }}>SKU</TableCell>
+                              <TableCell sx={{ fontWeight: 800, fontSize: 10.5, textTransform: 'uppercase', letterSpacing: 0.6, color: 'text.secondary', py: 1.2 }}>Nombre / Atributos</TableCell>
+                              <TableCell sx={{ fontWeight: 800, fontSize: 10.5, textTransform: 'uppercase', letterSpacing: 0.6, color: 'text.secondary', py: 1.2 }}>Precio</TableCell>
+                              <TableCell sx={{ fontWeight: 800, fontSize: 10.5, textTransform: 'uppercase', letterSpacing: 0.6, color: 'text.secondary', py: 1.2 }}>Stock</TableCell>
+                              <TableCell />
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                          </TableHead>
+                          <TableBody>
+                            {variantes.map(v => (
+                              <TableRow key={v.id} hover sx={{
+                                transition: 'background-color 0.15s',
+                                '&:hover': { bgcolor: isDark ? `${alpha(accentColor, 0.08)}` : `${alpha(accentColor, 0.04)}` },
+                              }}>
+                                <TableCell>
+                                  <Typography sx={{
+                                    fontFamily: 'monospace', fontSize: 11, fontWeight: 700,
+                                    color: accentColor, bgcolor: alpha(accentColor, 0.1),
+                                    px: 0.8, py: 0.2, borderRadius: 1, display: 'inline-block'
+                                  }}>{v.sku}</Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Typography sx={{ fontWeight: 700, fontSize: 12.5 }}>{v.nombre}</Typography>
+                                  {v.atributos && Object.keys(v.atributos).length > 0 && (
+                                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.4 }}>
+                                      {Object.entries(v.atributos).map(([k, val]) => (
+                                        <Chip key={k} label={`${k}: ${val}`} size="small" sx={{
+                                          height: 18, fontSize: 10, fontWeight: 600,
+                                          bgcolor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+                                          borderRadius: 1,
+                                        }} />
+                                      ))}
+                                    </Box>
+                                  )}
+                                </TableCell>
+                                <TableCell sx={{ fontWeight: 700 }}>{v.precio != null ? `$${v.precio.toLocaleString('es-CO')}` : '—'}</TableCell>
+                                <TableCell sx={{ fontWeight: 600 }}>{v.stock_actual}</TableCell>
+                                <TableCell align="right">
+                                  <IconButton size="small"
+                                    onClick={() => { setVarianteEditing(v); setVarianteForm({ nombre: v.nombre, sku: v.sku, atributos: v.atributos || {}, precio: v.precio ?? '', costo: v.costo ?? '', stock_inicial: '' }); setVarianteDialog(true); }}
+                                    sx={{ color: accentColor, bgcolor: alpha(accentColor, 0.08), borderRadius: 1.5, mr: 0.5, '&:hover': { bgcolor: alpha(accentColor, 0.18) } }}
+                                  >
+                                    <ExpandMore fontSize="small" />
+                                  </IconButton>
+                                  <IconButton size="small" color="error"
+                                    onClick={() => handleDeleteVariante(v.id)}
+                                    sx={{ bgcolor: alpha('#EF4444', 0.08), borderRadius: 1.5, '&:hover': { bgcolor: alpha('#EF4444', 0.18) } }}
+                                  >
+                                    <Delete fontSize="small" />
+                                  </IconButton>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </Box>
                     )}
                   </Box>
                 )}
@@ -1094,6 +1229,7 @@ const ProductoForm = ({
                         fullWidth
                         placeholder="Ej: 10"
                         helperText="Te avisaremos cuando el stock baje de este número"
+                        sx={getInputSx(INVENTORY_COLOR)}
                       />
                     </Grid>
 
@@ -1288,31 +1424,79 @@ const ProductoForm = ({
           </Grid>
 
           {/* ── Action Buttons ── */}
-          <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'flex-end', mt: 1.5, pt: 2.5, borderTop: '1px solid', borderColor: 'divider', flexWrap: 'wrap' }}>
-            <Button onClick={handleClose} variant="outlined" disabled={isSaving}
-              sx={{ borderRadius: 2, fontWeight: 600, borderColor: 'divider', color: 'text.secondary', px: 3 }}>
+          <Box sx={{
+            display: 'flex', gap: 1.5, justifyContent: 'flex-end',
+            mt: 1.5, pt: 2.5,
+            borderTop: '1px solid', borderColor: 'divider',
+            flexWrap: 'wrap', alignItems: 'center',
+          }}>
+            <Button
+              onClick={handleClose}
+              variant="outlined"
+              disabled={isSaving}
+              sx={{
+                borderRadius: 2.5, fontWeight: 600,
+                borderColor: 'divider', color: 'text.secondary',
+                px: 3, py: 1,
+                '&:hover': { bgcolor: 'action.hover', borderColor: 'text.secondary' },
+              }}
+            >
               Cancelar
             </Button>
+
             {!isEditing && (
               <Button
                 variant="outlined"
                 disabled={isSaving || !nombre}
                 onClick={() => saveProducto(true)}
-                sx={{ borderRadius: 2, fontWeight: 600, borderColor: accentColor, color: accentColor, px: 2 }}
+                sx={{
+                  borderRadius: 2.5, fontWeight: 600,
+                  borderColor: alpha(accentColor, 0.5),
+                  color: accentColor, px: 2.5, py: 1,
+                  '&:hover': { borderColor: accentColor, bgcolor: alpha(accentColor, 0.06) },
+                }}
               >
                 Guardar y crear otro
               </Button>
             )}
-            <Button type="submit" variant="contained" disabled={isSaving || !nombre}
+
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={isSaving || !nombre}
               sx={{
-                background: esServicio
-                  ? 'linear-gradient(135deg, #06B6D4, #22d3ee)'
-                  : `${accentColor}`,
-                boxShadow: esServicio ? '0 4px 14px rgba(6,182,212,0.3)' : `0 4px 14px ${alpha(accentColor, 0.3)}`,
-                borderRadius: 2, fontWeight: 700, px: 4,
+                background: isSaving
+                  ? 'transparent'
+                  : esServicio
+                    ? 'linear-gradient(135deg, #06B6D4 0%, #0284C7 100%)'
+                    : `linear-gradient(135deg, ${accentColor} 0%, #4F46E5 100%)`,
+                boxShadow: esServicio
+                  ? '0 4px 16px rgba(6,182,212,0.4)'
+                  : `0 4px 16px ${alpha(accentColor, 0.45)}`,
+                borderRadius: 2.5, fontWeight: 700, px: 4, py: 1,
+                fontSize: 14,
+                letterSpacing: 0.3,
+                transition: 'all 0.2s',
+                '&:hover': {
+                  transform: 'translateY(-1px)',
+                  boxShadow: esServicio
+                    ? '0 8px 24px rgba(6,182,212,0.5)'
+                    : `0 8px 24px ${alpha(accentColor, 0.55)}`,
+                },
+                '&:disabled': {
+                  background: 'action.disabledBackground',
+                  boxShadow: 'none',
+                },
               }}
             >
-              {isSaving ? 'Guardando…' : (isEditing ? 'Actualizar Cambios' : `Guardar ${esServicio ? 'Servicio' : 'Producto'}`)}
+              {isSaving ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <CircularProgress size={16} sx={{ color: 'inherit' }} />
+                  Guardando…
+                </Box>
+              ) : (
+                isEditing ? '✓ Actualizar Cambios' : `Guardar ${esServicio ? 'Servicio' : 'Producto'}`
+              )}
             </Button>
           </Box>
 
@@ -1320,8 +1504,28 @@ const ProductoForm = ({
       </Panel>
 
       {/* ── Variant dialog ── */}
-      <Dialog open={varianteDialog} onClose={() => setVarianteDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 800 }}>{varianteEditing ? 'Editar variante' : 'Nueva variante'}</DialogTitle>
+      <Dialog
+        open={varianteDialog}
+        onClose={() => setVarianteDialog(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3.5, border: '1px solid', borderColor: 'divider', overflow: 'hidden' } }}
+      >
+        {/* Franja superior */}
+        <Box sx={{ height: 3, background: `linear-gradient(90deg, ${accentColor}, #4F46E5)` }} />
+        <DialogTitle sx={{
+          fontWeight: 800, fontSize: 17,
+          display: 'flex', alignItems: 'center', gap: 1.2,
+        }}>
+          <Box sx={{
+            width: 32, height: 32, borderRadius: 2,
+            background: `linear-gradient(135deg, ${accentColor}, #4F46E5)`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Tune sx={{ color: '#fff', fontSize: 16 }} />
+          </Box>
+          {varianteEditing ? 'Editar variante' : 'Nueva variante'}
+        </DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 0.5 }}>
             <Grid item xs={12}>
@@ -1374,10 +1578,27 @@ const ProductoForm = ({
             </Grid>
           </Grid>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setVarianteDialog(false)} sx={{ textTransform: 'none' }}>Cancelar</Button>
-          <Button variant="contained" onClick={handleSaveVariante} sx={{ textTransform: 'none', fontWeight: 700 }}>
-            {varianteEditing ? 'Guardar cambios' : 'Agregar variante'}
+        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+          <Button
+            onClick={() => setVarianteDialog(false)}
+            sx={{ textTransform: 'none', borderRadius: 2.5, fontWeight: 600, color: 'text.secondary' }}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveVariante}
+            disabled={!varianteForm.nombre}
+            sx={{
+              textTransform: 'none', fontWeight: 700, borderRadius: 2.5, px: 3, py: 1,
+              background: `linear-gradient(135deg, ${accentColor} 0%, #4F46E5 100%)`,
+              boxShadow: `0 4px 14px ${alpha(accentColor, 0.45)}`,
+              '&:hover': { transform: 'translateY(-1px)', boxShadow: `0 6px 20px ${alpha(accentColor, 0.55)}` },
+              '&:disabled': { background: 'rgba(0,0,0,0.12)', boxShadow: 'none' },
+              transition: 'all 0.2s',
+            }}
+          >
+            {varianteEditing ? '✓ Guardar cambios' : '+ Agregar variante'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1387,7 +1608,19 @@ const ProductoForm = ({
         <Panel
           title="Carga Masiva de Inventario"
           icon={<Upload fontSize="small" />}
-          chip={<Chip label="Excel / CSV" size="small" sx={{ bgcolor: alpha(accentColor, 0.1), color: accentColor, fontWeight: 600, fontSize: 11 }} />}
+          chip={
+            <Chip
+              label="Excel / CSV"
+              size="small"
+              sx={{
+                bgcolor: alpha(accentColor, 0.1),
+                color: accentColor,
+                fontWeight: 700,
+                fontSize: 10.5,
+                border: `1px solid ${alpha(accentColor, 0.25)}`,
+              }}
+            />
+          }
           open={bulkOpen}
           onToggle={() => setBulkOpen(o => !o)}
           accentColor={accentColor}

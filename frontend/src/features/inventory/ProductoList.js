@@ -15,35 +15,86 @@ import {
 import {
   Edit, Delete, Search, Download, Inventory,
   Warning, CheckCircle, Category, Settings, ContentCopy, SwapVert,
-  FilterList, Close,
+  FilterList, Close, TrendingUp, TrendingDown,
 } from '@mui/icons-material';
+import { alpha } from '@mui/material/styles';
 
-const DEFAULT_ACCENT = '#8B5CF6';
+const DEFAULT_ACCENT  = '#7C3AED';
+const ACCENT2         = '#4F46E5';
 
-// ─── KPI Card ─────────────────────────────────────────────────────────────────
-const KpiCard = ({ label, value, icon, color, sub }) => (
-  <Paper sx={{
-    p: 2, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 1.5,
-    boxShadow: '0 2px 8px rgba(0,0,0,0.06)', height: '100%',
-  }}>
-    <Box sx={{
-      width: 42, height: 42, borderRadius: 2, flexShrink: 0,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      bgcolor: `${color}18`, color,
+// ─── KPI Card premium ─────────────────────────────────────────────────────────
+const KpiCard = ({ label, value, icon, gradient, sub, trend }) => {
+  const theme  = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+
+  return (
+    <Paper elevation={0} sx={{
+      p: 2, borderRadius: 3,
+      height: '100%',
+      background: isDark
+        ? `linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)`
+        : `#fff`,
+      border: '1px solid',
+      borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+      boxShadow: isDark
+        ? '0 4px 24px rgba(0,0,0,0.3)'
+        : '0 2px 16px rgba(0,0,0,0.05)',
+      position: 'relative',
+      overflow: 'hidden',
+      transition: 'transform 0.2s, box-shadow 0.2s',
+      '&:hover': {
+        transform: 'translateY(-2px)',
+        boxShadow: isDark ? '0 8px 32px rgba(0,0,0,0.4)' : '0 8px 32px rgba(0,0,0,0.1)',
+      },
+      // decorative gradient blob
+      '&::after': {
+        content: '""', position: 'absolute',
+        width: 80, height: 80, borderRadius: '50%',
+        background: gradient,
+        opacity: 0.12,
+        top: -20, right: -20,
+      },
     }}>
-      {icon}
-    </Box>
-    <Box sx={{ minWidth: 0 }}>
-      <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 500 }}>{label}</Typography>
-      <Typography sx={{ fontSize: 17, fontWeight: 800, lineHeight: 1.2 }}>{value}</Typography>
-      {sub && <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>{sub}</Typography>}
-    </Box>
-  </Paper>
-);
+      <Box sx={{ position: 'relative', zIndex: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+          <Box sx={{
+            width: 40, height: 40, borderRadius: 2,
+            background: gradient,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: `0 4px 12px ${gradient.includes('124') ? 'rgba(124,58,237,0.35)' : 'rgba(16,185,129,0.35)'}`,
+          }}>
+            {React.cloneElement(icon, { sx: { color: '#fff', fontSize: 20 } })}
+          </Box>
+          {trend !== undefined && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
+              {trend >= 0
+                ? <TrendingUp sx={{ fontSize: 14, color: '#10B981' }} />
+                : <TrendingDown sx={{ fontSize: 14, color: '#EF4444' }} />}
+            </Box>
+          )}
+        </Box>
+        <Typography sx={{ fontSize: 10.5, color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.6, mb: 0.4 }}>
+          {label}
+        </Typography>
+        <Typography sx={{ fontSize: 22, fontWeight: 800, lineHeight: 1.1, letterSpacing: -0.5 }}>
+          {value}
+        </Typography>
+        {sub && (
+          <Typography sx={{ fontSize: 10.5, color: 'text.secondary', mt: 0.3, fontWeight: 400 }}>
+            {sub}
+          </Typography>
+        )}
+      </Box>
+    </Paper>
+  );
+};
 
 // ─── Card mobile ──────────────────────────────────────────────────────────────
 const ProductoCard = ({ producto, grupos, onEditProducto, handleDelete, accentColor }) => {
   const [showVariantes, setShowVariantes] = useState(false);
+  const theme  = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+
   const stockActual = producto.stock_actual ?? 0;
   const stockMinimo = producto.stock_minimo ?? 0;
   const isService   = !!producto.es_servicio;
@@ -52,25 +103,46 @@ const ProductoCard = ({ producto, grupos, onEditProducto, handleDelete, accentCo
   const group       = grupos.find(g => g.id === producto.grupo_item) || { codigo: '—', color: '#94a3b8' };
   const varCount    = producto.variantes?.length || 0;
 
+  const stockPct = stockMinimo > 0 ? Math.min(100, (stockActual / stockMinimo) * 100) : 100;
+  const barColor = isCritical ? '#EF4444' : isLow ? '#F59E0B' : '#10B981';
+
   return (
-    <Paper sx={{ p: 2.5, mb: 2, borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+    <Paper elevation={0} sx={{
+      p: 2.5, mb: 1.5, borderRadius: 3,
+      border: '1px solid',
+      borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+      background: isDark
+        ? 'rgba(255,255,255,0.03)'
+        : '#fff',
+      boxShadow: isCritical
+        ? '0 0 0 1.5px #EF4444, 0 4px 16px rgba(239,68,68,0.1)'
+        : isLow
+          ? '0 0 0 1.5px #F59E0B40, 0 4px 16px rgba(245,158,11,0.08)'
+          : '0 2px 12px rgba(0,0,0,0.04)',
+      transition: 'transform 0.15s',
+      '&:hover': { transform: 'translateY(-1px)' },
+    }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
         <Box sx={{ minWidth: 0, flex: 1, mr: 1 }}>
           <Typography sx={{ fontWeight: 700, fontSize: 15, lineHeight: 1.2 }}>{producto.nombre}</Typography>
           {producto.descripcion && (
-            <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.2, noWrap: false }}>
+            <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.3 }}>
               {producto.descripcion}
             </Typography>
           )}
-          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 0.5, flexWrap: 'wrap' }}>
+          <Box sx={{ display: 'flex', gap: 0.8, alignItems: 'center', mt: 0.8, flexWrap: 'wrap' }}>
             {producto.sku && (
-              <Typography sx={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: 'text.primary', bgcolor: 'action.hover', px: 0.8, py: 0.2, borderRadius: 1 }}>
+              <Typography sx={{
+                fontSize: 11, fontFamily: 'monospace', fontWeight: 700,
+                color: accentColor, bgcolor: `${accentColor}12`,
+                px: 0.8, py: 0.2, borderRadius: 1,
+              }}>
                 {producto.sku}
               </Typography>
             )}
             {producto.codigo_barras && (
               <Typography sx={{ fontSize: 10, color: 'text.disabled', fontFamily: 'monospace' }}>
-                {producto.codigo_barras}
+                ▐ {producto.codigo_barras}
               </Typography>
             )}
           </Box>
@@ -93,62 +165,76 @@ const ProductoCard = ({ producto, grupos, onEditProducto, handleDelete, accentCo
         </Box>
       </Box>
 
-      <Divider sx={{ my: 1.5 }} />
+      <Divider sx={{ my: 1.5, opacity: 0.5 }} />
 
       <Grid container spacing={1} sx={{ mb: 1.5 }}>
         {[
           { label: 'Precio',  val: formatCurrency(producto.precio) },
           { label: 'Costo',   val: formatCurrency(producto.costo) },
           { label: 'Unidad',  val: producto.unidad_medida },
-          ...(!isService ? [{ label: `Stock ${stockActual}/${stockMinimo}`, val: '' }] : []),
-        ].filter(i => i.label).map(({ label, val }) => (
+          ...(!isService ? [{ label: `${stockActual} / ${stockMinimo}`, val: '', isStock: true }] : []),
+        ].filter(i => i.label).map(({ label, val, isStock }) => (
           <Grid item xs={4} key={label}>
-            <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'action.hover', textAlign: 'center' }}>
-              <Typography sx={{ fontSize: 10, color: 'text.secondary', mb: 0.2 }}>{label}</Typography>
-              {val && <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{val}</Typography>}
+            <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', textAlign: 'center' }}>
+              <Typography sx={{ fontSize: 10, color: 'text.secondary', mb: 0.2, fontWeight: 500 }}>
+                {isStock ? 'Stock' : label}
+              </Typography>
+              {isStock
+                ? (
+                  <Box>
+                    <Typography sx={{ fontSize: 11, fontWeight: 700, color: barColor }}>{label}</Typography>
+                    <Box sx={{ height: 3, borderRadius: 2, bgcolor: 'action.hover', mt: 0.5, overflow: 'hidden' }}>
+                      <Box sx={{ height: '100%', width: `${stockPct}%`, bgcolor: barColor, borderRadius: 2, transition: 'width 0.4s' }} />
+                    </Box>
+                  </Box>
+                )
+                : val && <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{val}</Typography>
+              }
             </Box>
           </Grid>
         ))}
       </Grid>
 
       <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between', alignItems: 'center' }}>
-        {/* Variants chip */}
         {producto.tiene_variantes && varCount > 0 ? (
           <Chip
             label={`${varCount} variante${varCount > 1 ? 's' : ''}`}
             size="small"
             onClick={() => setShowVariantes(v => !v)}
-            sx={{ fontSize: 10, fontWeight: 600, cursor: 'pointer',
+            sx={{
+              fontSize: 10, fontWeight: 600, cursor: 'pointer',
               bgcolor: `${accentColor}15`, color: accentColor,
               border: `1px solid ${accentColor}30`,
             }}
           />
         ) : <Box />}
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <Box sx={{ display: 'flex', gap: 0.8 }}>
           <Tooltip title="Editar">
             <IconButton size="small" onClick={() => onEditProducto(producto)}
-              sx={{ color: accentColor, bgcolor: `${accentColor}12`, borderRadius: 1.5 }}>
+              sx={{ color: accentColor, bgcolor: `${accentColor}12`, borderRadius: 1.5, '&:hover': { bgcolor: `${accentColor}22` } }}>
               <Edit fontSize="small" />
             </IconButton>
           </Tooltip>
           <Tooltip title="Eliminar">
             <IconButton size="small" onClick={() => handleDelete(producto.id)}
-              sx={{ color: '#EF4444', bgcolor: '#FEF2F2', borderRadius: 1.5 }}>
+              sx={{ color: '#EF4444', bgcolor: '#FEF2F2', borderRadius: 1.5, '&:hover': { bgcolor: '#FEE2E2' } }}>
               <Delete fontSize="small" />
             </IconButton>
           </Tooltip>
         </Box>
       </Box>
 
-      {/* Variants expand */}
       <Collapse in={showVariantes}>
-        <Divider sx={{ my: 1.5 }} />
+        <Divider sx={{ my: 1.5, opacity: 0.5 }} />
         <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', mb: 1, textTransform: 'uppercase', letterSpacing: 0.8 }}>
           Variantes
         </Typography>
         {(producto.variantes || []).map(v => (
-          <Box key={v.id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            py: 0.6, px: 1, mb: 0.5, borderRadius: 1.5, bgcolor: 'action.hover' }}>
+          <Box key={v.id} sx={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            py: 0.6, px: 1, mb: 0.5, borderRadius: 1.5,
+            bgcolor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+          }}>
             <Box>
               <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{v.nombre}</Typography>
               <Typography sx={{ fontSize: 10, fontFamily: 'monospace', color: 'text.secondary' }}>{v.sku}</Typography>
@@ -180,12 +266,12 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
   const [page, setPage]               = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [expandedProducts, setExpandedProducts] = useState(new Set());
-  // Bulk selection
   const [selected, setSelected]           = useState(new Set());
   const [bulkPriceDialog, setBulkPriceDialog] = useState(false);
   const [bulkPct, setBulkPct]             = useState('');
 
   const theme    = useTheme();
+  const isDark   = theme.palette.mode === 'dark';
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const getGroup = (id) => grupos.find(g => g.id === id) || { codigo: '—', nombre: 'Sin Grupo', color: '#94a3b8' };
@@ -225,10 +311,7 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
       const prod = productos.find(p => p.id === id);
       if (!prod) continue;
       const newPrecio = Math.round(prod.precio * (1 + pct / 100));
-      try {
-        await apiClient.put(`/productos/${id}`, { ...prod, precio: newPrecio });
-        ok++;
-      } catch {}
+      try { await apiClient.put(`/productos/${id}`, { ...prod, precio: newPrecio }); ok++; } catch {}
     }
     toast.success(`${ok} productos actualizados`);
     setBulkPriceDialog(false);
@@ -264,39 +347,24 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
     } catch { toast.error('Error al descargar plantilla'); }
   };
 
-  // ── Sort handler ──────────────────────────────────────────────────────────
   const handleSort = (column) => {
-    if (column === sortBy) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(column);
-      setSortDir('asc');
-    }
+    if (column === sortBy) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortBy(column); setSortDir('asc'); }
     setPage(0);
   };
 
-  // ── Filtrado ─────────────────────────────────────────────────────────────
+  // ── Filtrado ────────────────────────────────────────────────────────────────
   const filteredProductos = useMemo(() => {
     let list = productos;
-
-    // Group filter
     if (filterGroup !== 'all') {
       if (filterGroup === 'servicio') list = list.filter(p => p.es_servicio);
       else list = list.filter(p => !p.es_servicio && String(p.grupo_item) === filterGroup);
     }
-
-    // Stock filter (applied after group filter) — consistent: bajo means stock_actual < stock_minimo
     if (filterStock !== 'all') {
-      if (filterStock === 'ok') {
-        list = list.filter(p => !p.es_servicio && (p.stock_actual ?? 0) >= (p.stock_minimo ?? 0));
-      } else if (filterStock === 'bajo') {
-        list = list.filter(p => !p.es_servicio && (p.stock_actual ?? 0) < (p.stock_minimo ?? 0) && (p.stock_actual ?? 0) > 0);
-      } else if (filterStock === 'sinStock') {
-        list = list.filter(p => !p.es_servicio && (p.stock_actual ?? 0) <= 0);
-      }
+      if (filterStock === 'ok')       list = list.filter(p => !p.es_servicio && (p.stock_actual ?? 0) >= (p.stock_minimo ?? 0));
+      else if (filterStock === 'bajo') list = list.filter(p => !p.es_servicio && (p.stock_actual ?? 0) < (p.stock_minimo ?? 0) && (p.stock_actual ?? 0) > 0);
+      else if (filterStock === 'sinStock') list = list.filter(p => !p.es_servicio && (p.stock_actual ?? 0) <= 0);
     }
-
-    // Search filter
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
       list = list.filter(p =>
@@ -306,84 +374,58 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
         (p.descripcion && p.descripcion.toLowerCase().includes(q))
       );
     }
-
     return list;
   }, [productos, searchTerm, filterGroup, filterStock]);
 
-  // ── Sorted + paginated ────────────────────────────────────────────────────
+  // ── Sorted + paginated ──────────────────────────────────────────────────────
   const paginatedProductos = useMemo(() => {
     const sorted = [...filteredProductos].sort((a, b) => {
       let aVal, bVal;
       if (sortBy === 'nombre') {
-        aVal = a.nombre || '';
-        bVal = b.nombre || '';
-        return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-      } else if (sortBy === 'precio') {
-        aVal = a.precio ?? 0;
-        bVal = b.precio ?? 0;
-      } else if (sortBy === 'costo') {
-        aVal = a.costo ?? 0;
-        bVal = b.costo ?? 0;
-      } else if (sortBy === 'stock') {
-        aVal = a.stock_actual ?? 0;
-        bVal = b.stock_actual ?? 0;
-      } else {
-        aVal = a.nombre || '';
-        bVal = b.nombre || '';
-        return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-      }
+        return sortDir === 'asc' ? (a.nombre || '').localeCompare(b.nombre || '') : (b.nombre || '').localeCompare(a.nombre || '');
+      } else if (sortBy === 'precio') { aVal = a.precio ?? 0; bVal = b.precio ?? 0; }
+      else if (sortBy === 'costo')    { aVal = a.costo ?? 0;  bVal = b.costo ?? 0;  }
+      else if (sortBy === 'stock')    { aVal = a.stock_actual ?? 0; bVal = b.stock_actual ?? 0; }
+      else { return sortDir === 'asc' ? (a.nombre || '').localeCompare(b.nombre || '') : (b.nombre || '').localeCompare(a.nombre || ''); }
       return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
     });
     return sorted.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   }, [filteredProductos, page, rowsPerPage, sortBy, sortDir]);
 
   // ── Stats ────────────────────────────────────────────────────────────────
-  const stockBajo        = productos.filter(p => !p.es_servicio && (p.stock_actual ?? 0) < (p.stock_minimo ?? 0)).length;
-  const servicios        = productos.filter(p => p.es_servicio).length;
-  const productosN       = productos.filter(p => !p.es_servicio).length;
-  const valorInventario  = productos
-    .filter(p => !p.es_servicio)
-    .reduce((sum, p) => sum + (p.stock_actual ?? 0) * (p.costo ?? 0), 0);
+  const stockBajo       = productos.filter(p => !p.es_servicio && (p.stock_actual ?? 0) < (p.stock_minimo ?? 0)).length;
+  const servicios       = productos.filter(p => p.es_servicio).length;
+  const productosN      = productos.filter(p => !p.es_servicio).length;
+  const valorInventario = productos.filter(p => !p.es_servicio).reduce((s, p) => s + (p.stock_actual ?? 0) * (p.costo ?? 0), 0);
 
-  // ── Filtros de grupo dinámicos con conteos ────────────────────────────────
+  // ── Filtros dinámicos ─────────────────────────────────────────────────────
   const groupFilters = [
-    { value: 'all',      label: `Todos (${productos.length})` },
+    { value: 'all', label: `Todos (${productos.length})` },
     ...grupos.map(g => ({
       value: String(g.id), label: g.nombre, color: g.color,
       count: productos.filter(p => !p.es_servicio && p.grupo_item === g.id).length,
     })),
-    { value: 'servicio', label: `Servicios (${productos.filter(p => p.es_servicio).length})` },
+    { value: 'servicio', label: `Servicios (${servicios})` },
   ];
 
   const stockFilters = [
-    { value: 'all',      label: `Todos (${productos.filter(p => !p.es_servicio).length})` },
-    { value: 'ok',       label: `✓ OK (${productos.filter(p => !p.es_servicio && (p.stock_actual ?? 0) >= (p.stock_minimo ?? 0)).length})` },
-    { value: 'bajo',     label: `⚠ Bajo (${productos.filter(p => !p.es_servicio && (p.stock_actual ?? 0) < (p.stock_minimo ?? 0) && (p.stock_actual ?? 0) > 0).length})` },
-    { value: 'sinStock', label: `⛔ Sin stock (${productos.filter(p => !p.es_servicio && (p.stock_actual ?? 0) <= 0).length})` },
+    { value: 'all',      label: `Todos`,       count: productos.filter(p => !p.es_servicio).length },
+    { value: 'ok',       label: `✓ OK`,        count: productos.filter(p => !p.es_servicio && (p.stock_actual ?? 0) >= (p.stock_minimo ?? 0)).length, color: '#10B981' },
+    { value: 'bajo',     label: `⚠ Bajo`,      count: productos.filter(p => !p.es_servicio && (p.stock_actual ?? 0) < (p.stock_minimo ?? 0) && (p.stock_actual ?? 0) > 0).length, color: '#F59E0B' },
+    { value: 'sinStock', label: `⛔ Sin stock`, count: productos.filter(p => !p.es_servicio && (p.stock_actual ?? 0) <= 0).length, color: '#EF4444' },
   ];
 
-  // Mobile sort options
   const mobileSortOptions = [
-    { value: 'nombre',  label: 'Nombre' },
-    { value: 'precio',  label: 'Precio' },
-    { value: 'costo',   label: 'Costo' },
-    { value: 'stock',   label: 'Stock' },
+    { value: 'nombre', label: 'Nombre' },
+    { value: 'precio', label: 'Precio' },
+    { value: 'costo',  label: 'Costo' },
+    { value: 'stock',  label: 'Stock' },
   ];
 
-  // ── Margen helper ─────────────────────────────────────────────────────────
-  const getMargen = (precio, costo) => {
-    const p = precio ?? 0;
-    const c = costo ?? 0;
-    return p > 0 ? ((p - c) / p) * 100 : 0;
-  };
+  const getMargen  = (precio, costo) => { const p = precio ?? 0; const c = costo ?? 0; return p > 0 ? ((p - c) / p) * 100 : 0; };
+  const margenColor = (m) => m >= 30 ? '#10B981' : m >= 10 ? '#F59E0B' : '#EF4444';
 
-  const margenColor = (m) => {
-    if (m >= 30) return '#10B981';
-    if (m >= 10) return '#F59E0B';
-    return '#EF4444';
-  };
-
-  // ── Bulk selection helpers ─────────────────────────────────────────────────
+  // ── Bulk selection ──────────────────────────────────────────────────────────
   const allVisibleIds = paginatedProductos.map(p => p.id);
   const allSelected   = allVisibleIds.length > 0 && allVisibleIds.every(id => selected.has(id));
   const someSelected  = allVisibleIds.some(id => selected.has(id)) && !allSelected;
@@ -393,66 +435,77 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
     else setSelected(prev => { const s = new Set(prev); allVisibleIds.forEach(id => s.add(id)); return s; });
   };
 
+  // ── KPI gradient map ────────────────────────────────────────────────────────
+  const KPI_GRADIENTS = {
+    productos: `linear-gradient(135deg, ${accentColor}, #4F46E5)`,
+    servicios: `linear-gradient(135deg, #06B6D4, #0284C7)`,
+    alerta:    `linear-gradient(135deg, #EF4444, #DC2626)`,
+    valor:     `linear-gradient(135deg, #10B981, #059669)`,
+  };
+
+  // ── Column header style ─────────────────────────────────────────────────────
+  const thStyle = {
+    fontWeight: 700, textTransform: 'uppercase', fontSize: 10.5,
+    letterSpacing: 0.7, color: 'text.secondary', whiteSpace: 'nowrap',
+    borderBottom: '2px solid', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+    bgcolor: isDark ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.018)',
+    py: 1.5, px: 1.5,
+  };
+
   return (
     <Box sx={{ width: '100%', maxWidth: '100%' }}>
-      {/* ── Loading / Error ── */}
-      {loading && <LinearProgress sx={{ mb: 1, borderRadius: 1 }} />}
-      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+      {loading && <LinearProgress sx={{ mb: 1.5, borderRadius: 1, '& .MuiLinearProgress-bar': { background: `linear-gradient(90deg, ${accentColor}, #4F46E5)` } }} />}
+      {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError(null)}>{error}</Alert>}
 
-      {/* ── KPI Cards ── */}
-      <Grid container spacing={1.5} sx={{ mb: 2 }}>
+      {/* ── KPI Cards ──────────────────────────────────────────────────────────── */}
+      <Grid container spacing={1.5} sx={{ mb: 3 }}>
         <Grid item xs={6} sm={3}>
-          <KpiCard
-            label="Productos"
-            value={productosN}
-            icon={<Inventory fontSize="small" />}
-            color={accentColor}
-          />
+          <KpiCard label="Productos" value={productosN} icon={<Inventory />} gradient={KPI_GRADIENTS.productos} sub={`${filteredProductos.length} filtrados`} />
         </Grid>
         <Grid item xs={6} sm={3}>
-          <KpiCard
-            label="Servicios"
-            value={servicios}
-            icon={<Settings fontSize="small" />}
-            color="#06B6D4"
-          />
+          <KpiCard label="Servicios" value={servicios} icon={<Settings />} gradient={KPI_GRADIENTS.servicios} />
         </Grid>
         <Grid item xs={6} sm={3}>
-          <KpiCard
-            label="Stock bajo"
-            value={stockBajo}
-            icon={<Warning fontSize="small" />}
-            color="#EF4444"
-          />
+          <KpiCard label="Stock bajo" value={stockBajo} icon={<Warning />} gradient={KPI_GRADIENTS.alerta} sub="requieren reposición" trend={-1} />
         </Grid>
         <Grid item xs={6} sm={3}>
-          <KpiCard
-            label="Valor inventario"
-            value={formatCurrency(valorInventario)}
-            icon={<CheckCircle fontSize="small" />}
-            color="#10B981"
-          />
+          <KpiCard label="Valor inventario" value={formatCurrency(valorInventario)} icon={<CheckCircle />} gradient={KPI_GRADIENTS.valor} trend={1} />
         </Grid>
       </Grid>
+      <Divider sx={{ mb: 3, opacity: 0.6 }} />
 
-      {/* ── Buscador ── */}
+      {/* ── Buscador ───────────────────────────────────────────────────────────── */}
       <TextField
         fullWidth
-        placeholder="Buscar por nombre, código de barras o descripción…"
+        placeholder="Buscar por nombre, SKU, código de barras o descripción…"
         value={searchTerm}
         onChange={e => { setSearchTerm(e.target.value); setPage(0); }}
-        sx={{ mb: 1.5 }}
+        sx={{
+          mb: 2,
+          '& .MuiOutlinedInput-root': {
+            borderRadius: 2.5,
+            bgcolor: isDark ? 'rgba(255,255,255,0.04)' : '#fff',
+            transition: 'box-shadow 0.2s',
+            '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor },
+            '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor, borderWidth: 2 },
+            '&.Mui-focused': { boxShadow: `0 0 0 3px ${alpha(accentColor, 0.12)}` },
+          },
+          '& .MuiInputLabel-root.Mui-focused': { color: accentColor },
+        }}
         InputProps={{
-          startAdornment: <InputAdornment position="start"><Search sx={{ color: 'text.secondary', fontSize: 20 }} /></InputAdornment>,
+          startAdornment: <InputAdornment position="start"><Search sx={{ color: accentColor, fontSize: 20 }} /></InputAdornment>,
           endAdornment: searchTerm
-            ? <InputAdornment position="end"><IconButton size="small" onClick={() => { setSearchTerm(''); setPage(0); }}><Close fontSize="small" /></IconButton></InputAdornment>
+            ? <InputAdornment position="end">
+                <IconButton size="small" onClick={() => { setSearchTerm(''); setPage(0); }}>
+                  <Close fontSize="small" />
+                </IconButton>
+              </InputAdornment>
             : null,
         }}
       />
 
-      {/* ── Toolbar: ordenar (mobile) + exportar ── */}
+      {/* ── Toolbar: ordenar (mobile) + exportar ───────────────────────────────── */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, flexWrap: 'nowrap' }}>
-        {/* Sort chips — solo en mobile, scrollables */}
         {isMobile && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flex: 1, overflow: 'hidden' }}>
             <SwapVert sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }} />
@@ -475,8 +528,7 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
           </Box>
         )}
 
-        {/* Exportar — icon-only en mobile, con texto en desktop */}
-        <Box sx={{ display: 'flex', gap: 0.8, ml: isMobile ? 0 : 0, flexShrink: 0 }}>
+        <Box sx={{ display: 'flex', gap: 0.8, ml: 'auto', flexShrink: 0 }}>
           <Tooltip title="Descargar plantilla Excel">
             {isMobile
               ? <IconButton size="small" onClick={handleTemplate} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
@@ -494,7 +546,7 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
                   <Download fontSize="small" />
                 </IconButton>
               : <Button variant="outlined" size="small" startIcon={<Download />} onClick={() => handleExport('xlsx')}
-                  sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12, borderColor: 'divider', color: 'text.secondary' }}>
+                  sx={{ borderRadius: 2, fontWeight: 600, fontSize: 12, borderColor: accentColor, color: accentColor }}>
                   Exportar
                 </Button>
             }
@@ -502,8 +554,8 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
         </Box>
       </Box>
 
-      {/* ── Filtros de categoría — scroll horizontal, sin wrap ── */}
-      <Box sx={{ mb: 1 }}>
+      {/* ── Filtros de categoría ────────────────────────────────────────────────── */}
+      <Box sx={{ mb: 1.5 }}>
         {isMobile && (
           <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: 0.6, mb: 0.5 }}>
             Categoría
@@ -524,17 +576,18 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
               onClick={() => { setFilterGroup(f.value); setFilterStock('all'); setPage(0); }}
               size="small"
               sx={{
-                fontWeight: 600, fontSize: 12, borderRadius: 1.5, cursor: 'pointer', flexShrink: 0,
+                fontWeight: 600, fontSize: 12, borderRadius: 2, cursor: 'pointer', flexShrink: 0,
+                transition: 'all 0.15s',
                 ...(filterGroup === f.value
-                  ? { bgcolor: f.color || accentColor, color: '#fff' }
-                  : { bgcolor: 'action.hover', color: 'text.secondary' }),
+                  ? { bgcolor: f.color || accentColor, color: '#fff', boxShadow: `0 2px 8px ${f.color || accentColor}60` }
+                  : { bgcolor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)', color: 'text.secondary', '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.09)' } }),
               }}
             />
           ))}
         </Box>
       </Box>
 
-      {/* ── Filtros de stock — scroll horizontal, ocultos para servicios ── */}
+      {/* ── Filtros de stock ────────────────────────────────────────────────────── */}
       {filterGroup !== 'servicio' && (
         <Box sx={{ mb: 2 }}>
           {isMobile && (
@@ -546,14 +599,15 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
             {stockFilters.map(f => (
               <Chip
                 key={f.value}
-                label={f.label}
+                label={`${f.label} ${f.count !== undefined ? `(${f.count})` : ''}`}
                 onClick={() => { setFilterStock(f.value); setPage(0); }}
                 size="small"
                 sx={{
-                  fontWeight: 600, fontSize: 12, borderRadius: 1.5, cursor: 'pointer', flexShrink: 0,
+                  fontWeight: 600, fontSize: 12, borderRadius: 2, cursor: 'pointer', flexShrink: 0,
+                  transition: 'all 0.15s',
                   ...(filterStock === f.value
-                    ? { bgcolor: accentColor, color: '#fff' }
-                    : { bgcolor: 'action.hover', color: 'text.secondary' }),
+                    ? { bgcolor: f.color || accentColor, color: '#fff', boxShadow: `0 2px 8px ${f.color || accentColor}55` }
+                    : { bgcolor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)', color: 'text.secondary' }),
                 }}
               />
             ))}
@@ -561,12 +615,17 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
         </Box>
       )}
 
-      {/* ── Bulk action bar ── */}
+      {/* ── Bulk action bar ─────────────────────────────────────────────────────── */}
       {selected.size > 0 && (
         <Box sx={{
-          display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5, px: 2, py: 1.5,
-          bgcolor: `${accentColor}12`, borderRadius: 2, border: `1px solid ${accentColor}30`, flexWrap: 'wrap',
+          display: 'flex', alignItems: 'center', gap: 1.5, mb: 2, px: 2, py: 1.5,
+          background: `linear-gradient(135deg, ${accentColor}18, ${ACCENT2}12)`,
+          borderRadius: 2.5, border: `1px solid ${accentColor}30`, flexWrap: 'wrap',
+          backdropFilter: 'blur(8px)',
         }}>
+          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: accentColor, flexShrink: 0,
+            boxShadow: `0 0 6px ${accentColor}`, animation: 'pulse 1.5s infinite',
+            '@keyframes pulse': { '0%, 100%': { opacity: 1 }, '50%': { opacity: 0.4 } } }} />
           <Typography sx={{ fontWeight: 700, fontSize: 13, color: accentColor }}>
             {selected.size} seleccionado{selected.size > 1 ? 's' : ''}
           </Typography>
@@ -576,20 +635,21 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
             Ajustar precios %
           </Button>
           <Button size="small" variant="outlined" color="error"
-            sx={{ borderRadius: 2, fontSize: 12 }}
+            sx={{ borderRadius: 2, fontSize: 12, ml: 'auto' }}
             onClick={() => setSelected(new Set())}>
             <Close fontSize="small" sx={{ mr: 0.5 }} /> Cancelar
           </Button>
         </Box>
       )}
 
-      {/* ── Lista ── */}
+      {/* ── Lista principal ──────────────────────────────────────────────────────── */}
       {isMobile ? (
         <Box>
           {paginatedProductos.length === 0
-            ? <Box sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
-                <Inventory sx={{ fontSize: 48, mb: 1, opacity: 0.3 }} />
-                <Typography>No se encontraron productos</Typography>
+            ? <Box sx={{ textAlign: 'center', py: 8, color: 'text.secondary' }}>
+                <Inventory sx={{ fontSize: 52, mb: 1.5, opacity: 0.2, color: accentColor }} />
+                <Typography sx={{ fontWeight: 600 }}>No se encontraron productos</Typography>
+                <Typography sx={{ fontSize: 12, mt: 0.5 }}>Prueba con otro filtro o búsqueda</Typography>
               </Box>
             : paginatedProductos.map(p => (
                 <ProductoCard key={p.id} producto={p} grupos={grupos} onEditProducto={onEditProducto}
@@ -598,72 +658,65 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
           }
         </Box>
       ) : (
-        <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+        <TableContainer sx={{
+          borderRadius: 3,
+          border: '1px solid',
+          borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)',
+          overflow: 'hidden',
+          boxShadow: isDark ? '0 4px 32px rgba(0,0,0,0.3)' : '0 2px 16px rgba(0,0,0,0.05)',
+        }}>
           <Table size="small">
             <TableHead>
-              <TableRow sx={{ bgcolor: 'action.hover' }}>
-                <TableCell padding="checkbox">
+              <TableRow>
+                <TableCell padding="checkbox" sx={{ ...thStyle, py: 1.5 }}>
                   <Checkbox
                     size="small"
                     checked={allSelected}
                     indeterminate={someSelected}
                     onChange={toggleAll}
+                    sx={{ color: accentColor, '&.Mui-checked': { color: accentColor } }}
                   />
                 </TableCell>
-                <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>SKU</TableCell>
-                <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>
-                  <TableSortLabel
-                    active={sortBy === 'nombre'}
-                    direction={sortBy === 'nombre' ? sortDir : 'asc'}
-                    onClick={() => handleSort('nombre')}
-                  >
-                    Nombre
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>Grupo</TableCell>
-                <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>Unidad</TableCell>
-                <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>
-                  <TableSortLabel
-                    active={sortBy === 'costo'}
-                    direction={sortBy === 'costo' ? sortDir : 'asc'}
-                    onClick={() => handleSort('costo')}
-                  >
-                    Costo
-                  </TableSortLabel>
-                </TableCell>
-                <Tooltip title="Costo unitario real calculado del último lote de producción confirmado (cascada de insumos y maquila)">
-                  <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>
-                    Costo Producción
+                {[
+                  { key: 'sku',              label: 'SKU / Barcode', sortable: false },
+                  { key: 'nombre',           label: 'Nombre',        sortable: true  },
+                  { key: 'grupo',            label: 'Grupo',         sortable: false },
+                  { key: 'unidad',           label: 'Unidad',        sortable: false },
+                  { key: 'costo',            label: 'Costo',         sortable: true  },
+                  { key: 'costo_produccion', label: 'C. Producción', sortable: false, tooltip: 'Costo real del último lote de producción confirmado' },
+                  { key: 'precio',           label: 'Precio',        sortable: true  },
+                  { key: 'margen',           label: 'Margen',        sortable: false },
+                  { key: 'stock',            label: 'Stock',         sortable: true  },
+                  { key: 'tipo',             label: 'Tipo',          sortable: false },
+                  { key: 'acciones',         label: '',              sortable: false },
+                ].map(col => (
+                  <TableCell key={col.key} sx={thStyle}>
+                    {col.tooltip
+                      ? <Tooltip title={col.tooltip}><span>{col.label}</span></Tooltip>
+                      : col.sortable
+                        ? <TableSortLabel
+                            active={sortBy === col.key}
+                            direction={sortBy === col.key ? sortDir : 'asc'}
+                            onClick={() => handleSort(col.key)}
+                            sx={{ '&.Mui-active': { color: accentColor }, '& .MuiTableSortLabel-icon': { color: `${accentColor} !important` } }}
+                          >
+                            {col.label}
+                          </TableSortLabel>
+                        : col.label
+                    }
                   </TableCell>
-                </Tooltip>
-                <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>
-                  <TableSortLabel
-                    active={sortBy === 'precio'}
-                    direction={sortBy === 'precio' ? sortDir : 'asc'}
-                    onClick={() => handleSort('precio')}
-                  >
-                    Precio
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>Margen</TableCell>
-                <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>
-                  <TableSortLabel
-                    active={sortBy === 'stock'}
-                    direction={sortBy === 'stock' ? sortDir : 'asc'}
-                    onClick={() => handleSort('stock')}
-                  >
-                    Stock
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>Tipo</TableCell>
-                <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: 11 }}>Acciones</TableCell>
+                ))}
               </TableRow>
             </TableHead>
             <TableBody>
               {paginatedProductos.length === 0
                 ? <TableRow>
-                    <TableCell colSpan={12} sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
-                      No se encontraron productos
+                    <TableCell colSpan={12} sx={{ textAlign: 'center', py: 8, color: 'text.secondary' }}>
+                      <Box>
+                        <Inventory sx={{ fontSize: 48, mb: 1.5, opacity: 0.2, color: accentColor }} />
+                        <Typography sx={{ fontWeight: 600 }}>No se encontraron productos</Typography>
+                        <Typography sx={{ fontSize: 12, mt: 0.5 }}>Prueba con otro filtro o búsqueda</Typography>
+                      </Box>
                     </TableCell>
                   </TableRow>
                 : paginatedProductos.map(producto => {
@@ -679,173 +732,213 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
 
                     return (
                       <Fragment key={producto.id}>
-                      <TableRow hover selected={selected.has(producto.id)}>
-                        <TableCell padding="checkbox">
-                          <Checkbox size="small" checked={selected.has(producto.id)} onChange={() => toggleSelect(producto.id)} />
-                        </TableCell>
-                        <TableCell sx={{ fontSize: 12, fontWeight: 700, fontFamily: 'monospace' }}>
-                          <Box>
-                            {producto.sku ? (
-                              <Typography sx={{
-                                display: 'inline-block',
-                                fontSize: 11, fontWeight: 700, fontFamily: 'monospace',
-                                color: 'text.primary', bgcolor: 'action.hover',
-                                px: 0.8, py: 0.2, borderRadius: 1,
-                              }}>
-                                {producto.sku}
-                              </Typography>
-                            ) : (
-                              <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>—</Typography>
-                            )}
-                            {producto.codigo_barras && (
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, mt: 0.4 }}>
-                                <Typography sx={{ fontSize: 9, color: 'text.disabled' }}>▐</Typography>
-                                <Typography sx={{ fontSize: 10, color: 'text.disabled', fontFamily: 'monospace' }}>
-                                  {producto.codigo_barras}
+                        <TableRow
+                          hover
+                          selected={selected.has(producto.id)}
+                          sx={{
+                            cursor: 'default',
+                            transition: 'background-color 0.15s',
+                            '&:hover': {
+                              bgcolor: isDark ? `${accentColor}10` : `${accentColor}07`,
+                              '& .row-actions': { opacity: 1 },
+                            },
+                            '&.Mui-selected': {
+                              bgcolor: isDark ? `${accentColor}18` : `${accentColor}0A`,
+                              '&:hover': { bgcolor: isDark ? `${accentColor}22` : `${accentColor}12` },
+                            },
+                            // Borde izquierdo de alerta de stock
+                            ...(isCritical
+                              ? { borderLeft: '3px solid #EF4444' }
+                              : isLow
+                                ? { borderLeft: '3px solid #F59E0B' }
+                                : {}
+                            ),
+                          }}
+                        >
+                          <TableCell padding="checkbox">
+                            <Checkbox size="small" checked={selected.has(producto.id)} onChange={() => toggleSelect(producto.id)}
+                              sx={{ color: accentColor, '&.Mui-checked': { color: accentColor } }} />
+                          </TableCell>
+
+                          {/* SKU */}
+                          <TableCell sx={{ fontSize: 12, py: 1.5, px: 1.5 }}>
+                            <Box>
+                              {producto.sku
+                                ? <Typography sx={{ display: 'inline-block', fontSize: 11, fontWeight: 700, fontFamily: 'monospace', color: accentColor, bgcolor: `${accentColor}12`, px: 0.8, py: 0.2, borderRadius: 1 }}>
+                                    {producto.sku}
+                                  </Typography>
+                                : <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>—</Typography>
+                              }
+                              {producto.codigo_barras && (
+                                <Typography sx={{ fontSize: 10, color: 'text.disabled', fontFamily: 'monospace', mt: 0.3 }}>
+                                  ▐ {producto.codigo_barras}
                                 </Typography>
-                              </Box>
-                            )}
-                            {producto.tiene_variantes && (
-                              <Chip
-                                label={`${varCount} vars`}
-                                size="small"
-                                onClick={() => setExpandedProducts(prev => {
-                                  const next = new Set(prev);
-                                  if (next.has(producto.id)) next.delete(producto.id);
-                                  else next.add(producto.id);
-                                  return next;
-                                })}
-                                sx={{ mt: 0.3, height: 16, fontSize: 9, fontWeight: 700, cursor: 'pointer', bgcolor: '#8B5CF618', color: '#8B5CF6', borderRadius: 0.5 }}
-                              />
-                            )}
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <Box sx={{ py: 0.5 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography sx={{ fontWeight: 700, fontSize: 13.5 }}>{producto.nombre}</Typography>
-                              {producto.maneja_lotes && (
-                                <Tooltip title="Maneja control por lotes">
-                                  <Chip label="LOTES" size="small" sx={{ height: 16, fontSize: 8, fontWeight: 900, bgcolor: '#F59E0B18', color: '#F59E0B', borderRadius: 0.5 }} />
-                                </Tooltip>
+                              )}
+                              {producto.tiene_variantes && (
+                                <Chip
+                                  label={`${varCount} vars`}
+                                  size="small"
+                                  onClick={() => setExpandedProducts(prev => {
+                                    const next = new Set(prev);
+                                    next.has(producto.id) ? next.delete(producto.id) : next.add(producto.id);
+                                    return next;
+                                  })}
+                                  sx={{ mt: 0.3, height: 16, fontSize: 9, fontWeight: 700, cursor: 'pointer', bgcolor: `${accentColor}18`, color: accentColor, borderRadius: 0.5 }}
+                                />
                               )}
                             </Box>
-                            {producto.descripcion && (
-                              <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1, mt: 0.3 }}>
-                                {producto.descripcion}
-                              </Typography>
-                            )}
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <Chip label={group.codigo} size="small"
-                            sx={{ bgcolor: `${group.color}18`, color: group.color, fontWeight: 700, fontSize: 10, borderRadius: 1 }} />
-                        </TableCell>
-                        <TableCell sx={{ fontSize: 12 }}>{producto.unidad_medida}</TableCell>
-                        <TableCell sx={{ fontSize: 12 }}>{formatCurrency(producto.costo)}</TableCell>
-                        <TableCell sx={{ fontSize: 12, fontWeight: 700, color: producto.costo_produccion != null ? '#06B6D4' : 'text.disabled' }}>
-                          {producto.costo_produccion != null ? formatCurrency(producto.costo_produccion) : '—'}
-                        </TableCell>
-                        <TableCell sx={{ fontWeight: 800, fontSize: 13 }}>{formatCurrency(producto.precio)}</TableCell>
-                        <TableCell>
-                          {isService ? (
-                            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>—</Typography>
-                          ) : (
-                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: margenColor(margen) }}>
-                              {margen.toFixed(1)}%
-                            </Typography>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {isService ? (
-                            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>—</Typography>
-                          ) : (
-                            <Tooltip title={isCritical ? 'Sin existencias' : (isLow ? 'Stock por debajo del mínimo' : 'Stock saludable')}>
-                              <Chip
-                                label={`${stockActual} / ${stockMinimo}`}
-                                size="small"
-                                color={isCritical || isLow ? 'error' : 'success'}
-                                variant={isCritical || isLow ? 'filled' : 'outlined'}
-                                sx={{ fontWeight: 600, fontSize: 11, borderRadius: 1.5 }}
-                              />
-                            </Tooltip>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={isService ? 'Servicio' : 'Producto'}
-                            size="small"
-                            sx={{
-                              fontSize: 10, fontWeight: 600, borderRadius: 1,
-                              bgcolor: isService ? 'rgba(100,116,139,0.1)' : `${accentColor}12`,
-                              color: isService ? '#64748b' : accentColor,
-                            }}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', gap: 0.5 }}>
-                            <Tooltip title="Editar">
-                              <IconButton size="small" onClick={() => onEditProducto(producto)}
-                                sx={{ color: accentColor, '&:hover': { bgcolor: `${accentColor}12` } }}>
-                                <Edit fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Duplicar producto">
-                              <IconButton size="small" onClick={() => handleDuplicate(producto.id)}
-                                sx={{ color: '#64748b', '&:hover': { bgcolor: 'action.hover' } }}>
-                                <ContentCopy fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Eliminar">
-                              <IconButton size="small" onClick={() => handleDelete(producto.id)}
-                                sx={{ color: '#EF4444', '&:hover': { bgcolor: '#FEF2F2' } }}>
-                                <Delete fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </Box>
-                        </TableCell>
-                      </TableRow>
-                      {producto.tiene_variantes && varCount > 0 && (
-                        <TableRow>
-                          <TableCell colSpan={12} sx={{ p: 0, border: 0 }}>
-                            <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                              <Box sx={{ px: 4, py: 1.5, bgcolor: 'action.hover' }}>
-                                <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', mb: 1, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                                  Variantes de {producto.nombre}
-                                </Typography>
-                                <Table size="small">
-                                  <TableHead>
-                                    <TableRow>
-                                      <TableCell sx={{ fontSize: 10, fontWeight: 700 }}>SKU</TableCell>
-                                      <TableCell sx={{ fontSize: 10, fontWeight: 700 }}>Nombre</TableCell>
-                                      <TableCell sx={{ fontSize: 10, fontWeight: 700 }}>Atributos</TableCell>
-                                      <TableCell sx={{ fontSize: 10, fontWeight: 700 }}>Precio</TableCell>
-                                      <TableCell sx={{ fontSize: 10, fontWeight: 700 }}>Stock</TableCell>
-                                    </TableRow>
-                                  </TableHead>
-                                  <TableBody>
-                                    {(producto.variantes || []).map(v => (
-                                      <TableRow key={v.id} hover>
-                                        <TableCell sx={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700 }}>{v.sku}</TableCell>
-                                        <TableCell sx={{ fontSize: 11 }}>{v.nombre}</TableCell>
-                                        <TableCell>
-                                          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                                            {v.atributos && Object.entries(v.atributos).map(([k, val]) => (
-                                              <Chip key={k} label={`${k}: ${val}`} size="small" sx={{ height: 16, fontSize: 9 }} />
-                                            ))}
-                                          </Box>
-                                        </TableCell>
-                                        <TableCell sx={{ fontSize: 11 }}>{v.precio != null ? `$${v.precio.toLocaleString('es-CO')}` : '—'}</TableCell>
-                                        <TableCell sx={{ fontSize: 11 }}>{v.stock_actual}</TableCell>
-                                      </TableRow>
-                                    ))}
-                                  </TableBody>
-                                </Table>
+                          </TableCell>
+
+                          {/* Nombre */}
+                          <TableCell sx={{ py: 1.5, px: 1.5 }}>
+                            <Box>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+                                <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{producto.nombre}</Typography>
+                                {producto.maneja_lotes && (
+                                  <Tooltip title="Maneja control por lotes">
+                                    <Chip label="LOTES" size="small" sx={{ height: 16, fontSize: 8, fontWeight: 900, bgcolor: '#F59E0B18', color: '#F59E0B', borderRadius: 0.5 }} />
+                                  </Tooltip>
+                                )}
                               </Box>
-                            </Collapse>
+                              {producto.descripcion && (
+                                <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1.2, mt: 0.2 }}>
+                                  {producto.descripcion}
+                                </Typography>
+                              )}
+                            </Box>
+                          </TableCell>
+
+                          {/* Grupo */}
+                          <TableCell sx={{ py: 1.5, px: 1.5 }}>
+                            <Chip label={group.codigo} size="small"
+                              sx={{ bgcolor: `${group.color}18`, color: group.color, fontWeight: 700, fontSize: 10, borderRadius: 1 }} />
+                          </TableCell>
+
+                          {/* Unidad */}
+                          <TableCell sx={{ fontSize: 12, py: 1.5, px: 1.5, color: 'text.secondary' }}>{producto.unidad_medida}</TableCell>
+
+                          {/* Costo */}
+                          <TableCell sx={{ fontSize: 12, py: 1.5, px: 1.5 }}>{formatCurrency(producto.costo)}</TableCell>
+
+                          {/* Costo Producción */}
+                          <TableCell sx={{ fontSize: 12, fontWeight: 700, color: producto.costo_produccion != null ? '#06B6D4' : 'text.disabled', py: 1.5, px: 1.5 }}>
+                            {producto.costo_produccion != null ? formatCurrency(producto.costo_produccion) : '—'}
+                          </TableCell>
+
+                          {/* Precio */}
+                          <TableCell sx={{ fontWeight: 800, fontSize: 13.5, py: 1.5, px: 1.5, color: accentColor }}>{formatCurrency(producto.precio)}</TableCell>
+
+                          {/* Margen */}
+                          <TableCell sx={{ py: 1.5, px: 1.5 }}>
+                            {isService
+                              ? <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>—</Typography>
+                              : <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <Box sx={{ width: 32, height: 4, borderRadius: 2, bgcolor: 'action.hover', overflow: 'hidden' }}>
+                                    <Box sx={{ height: '100%', width: `${Math.min(100, margen)}%`, bgcolor: margenColor(margen), borderRadius: 2 }} />
+                                  </Box>
+                                  <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: margenColor(margen) }}>
+                                    {margen.toFixed(1)}%
+                                  </Typography>
+                                </Box>
+                            }
+                          </TableCell>
+
+                          {/* Stock */}
+                          <TableCell sx={{ py: 1.5, px: 1.5 }}>
+                            {isService
+                              ? <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>—</Typography>
+                              : (
+                                <Tooltip title={isCritical ? 'Sin existencias' : isLow ? 'Stock por debajo del mínimo' : 'Stock saludable'}>
+                                  <Chip
+                                    label={`${stockActual} / ${stockMinimo}`}
+                                    size="small"
+                                    color={isCritical || isLow ? 'error' : 'success'}
+                                    variant={isCritical || isLow ? 'filled' : 'outlined'}
+                                    sx={{ fontWeight: 600, fontSize: 11, borderRadius: 1.5 }}
+                                  />
+                                </Tooltip>
+                              )
+                            }
+                          </TableCell>
+
+                          {/* Tipo */}
+                          <TableCell sx={{ py: 1.5, px: 1.5 }}>
+                            <Chip
+                              label={isService ? 'Servicio' : 'Producto'}
+                              size="small"
+                              sx={{
+                                fontSize: 10, fontWeight: 600, borderRadius: 1,
+                                bgcolor: isService ? 'rgba(100,116,139,0.1)' : `${accentColor}12`,
+                                color: isService ? '#64748b' : accentColor,
+                              }}
+                            />
+                          </TableCell>
+
+                          {/* Acciones */}
+                          <TableCell sx={{ py: 1.5, px: 1.5 }}>
+                            <Box className="row-actions" sx={{ display: 'flex', gap: 0.3, opacity: 0.6, transition: 'opacity 0.15s' }}>
+                              <Tooltip title="Editar">
+                                <IconButton size="small" onClick={() => onEditProducto(producto)}
+                                  sx={{ color: accentColor, '&:hover': { bgcolor: `${accentColor}12` } }}>
+                                  <Edit sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Duplicar">
+                                <IconButton size="small" onClick={() => handleDuplicate(producto.id)}
+                                  sx={{ color: '#64748b', '&:hover': { bgcolor: 'action.hover' } }}>
+                                  <ContentCopy sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Eliminar">
+                                <IconButton size="small" onClick={() => handleDelete(producto.id)}
+                                  sx={{ color: '#EF4444', '&:hover': { bgcolor: '#FEF2F2' } }}>
+                                  <Delete sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
                           </TableCell>
                         </TableRow>
-                      )}
+
+                        {/* ── Variantes expandidas ── */}
+                        {producto.tiene_variantes && varCount > 0 && (
+                          <TableRow>
+                            <TableCell colSpan={12} sx={{ p: 0, border: 0 }}>
+                              <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                                <Box sx={{ px: 4, py: 1.5, bgcolor: isDark ? `${accentColor}08` : `${accentColor}05`, borderTop: '1px solid', borderColor: 'divider' }}>
+                                  <Typography sx={{ fontSize: 11, fontWeight: 700, color: accentColor, mb: 1, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                    Variantes de {producto.nombre}
+                                  </Typography>
+                                  <Table size="small">
+                                    <TableHead>
+                                      <TableRow>
+                                        {['SKU', 'Nombre', 'Atributos', 'Precio', 'Stock'].map(h => (
+                                          <TableCell key={h} sx={{ fontSize: 10, fontWeight: 700, color: 'text.secondary', py: 0.8 }}>{h}</TableCell>
+                                        ))}
+                                      </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                      {(producto.variantes || []).map(v => (
+                                        <TableRow key={v.id} hover sx={{ '&:hover': { bgcolor: `${accentColor}08` } }}>
+                                          <TableCell sx={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: accentColor }}>{v.sku}</TableCell>
+                                          <TableCell sx={{ fontSize: 11 }}>{v.nombre}</TableCell>
+                                          <TableCell>
+                                            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                                              {v.atributos && Object.entries(v.atributos).map(([k, val]) => (
+                                                <Chip key={k} label={`${k}: ${val}`} size="small" sx={{ height: 16, fontSize: 9 }} />
+                                              ))}
+                                            </Box>
+                                          </TableCell>
+                                          <TableCell sx={{ fontSize: 11 }}>{v.precio != null ? formatCurrency(v.precio) : '—'}</TableCell>
+                                          <TableCell sx={{ fontSize: 11 }}>{v.stock_actual}</TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </Box>
+                              </Collapse>
+                            </TableCell>
+                          </TableRow>
+                        )}
                       </Fragment>
                     );
                   })
@@ -856,7 +949,7 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
       )}
 
       <TablePagination
-        rowsPerPageOptions={[5, 10, 25]}
+        rowsPerPageOptions={[5, 10, 25, 50]}
         component="div"
         count={filteredProductos.length}
         rowsPerPage={rowsPerPage}
@@ -865,8 +958,13 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
         onRowsPerPageChange={e => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
         labelRowsPerPage="Filas:"
         labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
+        sx={{
+          mt: 0.5,
+          '& .MuiTablePagination-selectIcon': { color: accentColor },
+        }}
       />
 
+      {/* ── Confirm Dialog ── */}
       <ConfirmationDialog
         open={showConfirmDialog}
         handleClose={() => setShowConfirmDialog(false)}
@@ -876,8 +974,20 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
       />
 
       {/* ── Bulk price dialog ── */}
-      <Dialog open={bulkPriceDialog} onClose={() => setBulkPriceDialog(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Ajustar precios en masa</DialogTitle>
+      <Dialog open={bulkPriceDialog} onClose={() => setBulkPriceDialog(false)} maxWidth="xs" fullWidth
+        PaperProps={{ sx: { borderRadius: 3.5, border: '1px solid', borderColor: 'divider', overflow: 'hidden' } }}>
+        {/* Franja superior */}
+        <Box sx={{ height: 3, background: `linear-gradient(90deg, ${accentColor}, ${ACCENT2})` }} />
+        <DialogTitle sx={{ fontWeight: 800, fontSize: 16, display: 'flex', alignItems: 'center', gap: 1.2 }}>
+          <Box sx={{
+            width: 32, height: 32, borderRadius: 2,
+            background: `linear-gradient(135deg, ${accentColor}, ${ACCENT2})`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <FilterList sx={{ color: '#fff', fontSize: 16 }} />
+          </Box>
+          Ajustar precios en masa
+        </DialogTitle>
         <DialogContent>
           <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 2 }}>
             Se aplicará el ajuste a <strong>{selected.size}</strong> producto(s) seleccionado(s).
@@ -891,12 +1001,37 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
             type="number"
             InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
             autoFocus
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 2,
+                transition: 'box-shadow 0.2s',
+                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: accentColor },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: accentColor, borderWidth: 2 },
+                '&.Mui-focused': { boxShadow: `0 0 0 3px ${alpha(accentColor, 0.1)}` },
+              },
+              '& .MuiInputLabel-root.Mui-focused': { color: accentColor },
+            }}
           />
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setBulkPriceDialog(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={handleBulkPriceApply} disabled={!bulkPct}>
-            Aplicar
+        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+          <Button onClick={() => setBulkPriceDialog(false)}
+            sx={{ borderRadius: 2.5, fontWeight: 600, color: 'text.secondary' }}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={handleBulkPriceApply}
+            disabled={!bulkPct}
+            sx={{
+              borderRadius: 2.5,
+              fontWeight: 700,
+              px: 3, py: 1,
+              background: `linear-gradient(135deg, ${accentColor}, ${ACCENT2})`,
+              boxShadow: `0 4px 14px ${alpha(accentColor, 0.45)}`,
+              '&:hover': { transform: 'translateY(-1px)', boxShadow: `0 6px 20px ${alpha(accentColor, 0.55)}` },
+              '&:disabled': { background: 'rgba(0,0,0,0.12)', boxShadow: 'none' },
+              transition: 'all 0.2s',
+            }}
+          >
+            Aplicar cambio
           </Button>
         </DialogActions>
       </Dialog>

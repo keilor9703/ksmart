@@ -93,7 +93,7 @@ const fieldSx = {
     '& .MuiOutlinedInput-root.Mui-focused .MuiInputAdornment-root .MuiSvgIcon-root': { color: '#22c55e' },
     '&.orange-field': {
         '& .MuiInputLabel-root.Mui-focused': { color: '#0891B2' },
-        '& .MuiOutlinedInput-root.Mui-focused': { boxShadow: '0 0 0 4px rgba(249, 115, 22, 0.12)' },
+        '& .MuiOutlinedInput-root.Mui-focused': { boxShadow: '0 0 0 4px rgba(8, 145, 178, 0.12)' },
         '& .MuiOutlinedInput-root.Mui-focused fieldset': { borderColor: '#0891B2' },
         '& .MuiOutlinedInput-root.Mui-focused .MuiInputAdornment-root .MuiSvgIcon-root': { color: '#0891B2' },
     },
@@ -185,8 +185,7 @@ const isPhone = (v) => /^[\d+\s()-]{7,20}$/.test(v);
 const isUsername = (v) => /^[a-zA-Z0-9._-]{3,30}$/.test(v);
 
 // ─── Feature Carousel ────────────────────────────────────────────────────────
-function FeatureCarousel() {
-  const [idx, setIdx] = React.useState(0);
+function FeatureCarousel({ idx, setIdx }) {
   const [visible, setVisible] = React.useState(true);
 
   React.useEffect(() => {
@@ -198,7 +197,7 @@ function FeatureCarousel() {
       }, 280);
     }, 4500);
     return () => clearInterval(t);
-  }, []);
+  }, [setIdx]);
 
   const f = CAROUSEL_FEATURES[idx];
 
@@ -389,11 +388,12 @@ const Login = ({ onLogin }) => {
     const [isLoginView, setIsLoginView]   = useState(true);
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading]           = useState(false);
-    const [, setLoginFailed]   = useState(false);
+    const [loginAttempts, setLoginAttempts] = useState(0);
     const [regStep, setRegStep]           = useState(1);
     const [regSuccess, setRegSuccess]     = useState(false);
-    const [rememberMe, setRememberMe]     = useState(false);
+    const [rememberMe, setRememberMe]     = useState(() => localStorage.getItem('remember_me') === 'true');
     const [forgotOpen, setForgotOpen]     = useState(false);
+    const [carouselIdx, setCarouselIdx]   = useState(0);
     const [recov, setRecov] = useState({
         step: 0, username: '', hints: {}, nombreCompleto: '',
         empresaNombre: '', empresaNit: '', recoveryToken: '',
@@ -515,6 +515,8 @@ const Login = ({ onLogin }) => {
     const handleAuthSuccess = (data, successMsg = 'Inicio de sesión exitoso') => {
         localStorage.setItem('token', data.access_token);
         localStorage.setItem('last_username', data.username || loginData.username);
+        localStorage.setItem('remember_me', rememberMe ? 'true' : 'false');
+        setLoginAttempts(0);
         onLogin();
         if (data.is_expired) {
             toast.warning('Tu acceso ha expirado. Redirigiendo a renovación...');
@@ -529,6 +531,7 @@ const Login = ({ onLogin }) => {
     const handleLoginSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
+        const usernameClean = loginData.username.trim().toLowerCase();
         try {
             const qp = [];
             if (rememberMe) qp.push('remember_me=true');
@@ -536,15 +539,16 @@ const Login = ({ onLogin }) => {
             const url = `/auth/token${qp.length ? '?' + qp.join('&') : ''}`;
             const response = await apiClient.post(
                 url,
-                new URLSearchParams({ username: loginData.username, password: loginData.password }),
+                new URLSearchParams({ username: usernameClean, password: loginData.password }),
                 { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
             );
             setShowLoginNitField(false);
             setLoginNit('');
-            handleAuthSuccess({ ...response.data, username: loginData.username }, 'Inicio de sesión exitoso');
+            handleAuthSuccess({ ...response.data, username: usernameClean }, 'Inicio de sesión exitoso');
         } catch (err) {
             const httpStatus = err.response?.status;
             const detail = err.response?.data?.detail;
+            setLoginAttempts(prev => prev + 1);
             if (httpStatus === 403) {
                 toast.error(detail || 'Cuenta suspendida por el administrador.');
             } else if (httpStatus === 409 && detail === 'EMPRESA_REQUERIDA') {
@@ -553,7 +557,6 @@ const Login = ({ onLogin }) => {
                 toast.info('Hay varias cuentas con ese usuario. Ingresa el NIT de tu empresa para continuar.');
             } else {
                 toast.error(detail || 'Usuario o contraseña incorrectos');
-                setLoginFailed(true);
             }
         } finally {
             setLoading(false);
@@ -602,6 +605,8 @@ const Login = ({ onLogin }) => {
             );
             setRegData(initialRegState);
             setRegStep(1);
+            // Marcar nuevo usuario para mostrar el overlay de bienvenida en el dashboard
+            localStorage.setItem('ksmart_show_welcome', 'true');
             // Mostrar pantalla de bienvenida 2.2s y luego entrar al sistema
             setRegSuccess(true);
             setTimeout(() => {
@@ -625,12 +630,14 @@ const Login = ({ onLogin }) => {
 
     // ── Recuperación de contraseña nativa (sin email) ─────────────────────────
     const recovBuscar = async () => {
-        if (!recov.username.trim() || !recov.empresaNit.trim()) return;
+        const usernameClean = recov.username.trim().toLowerCase();
+        const nitClean = recov.empresaNit.trim();
+        if (!usernameClean || !nitClean) return;
         setRecov(s => ({ ...s, loading: true, error: '' }));
         try {
             const { data } = await apiClient.post('/auth/recover/buscar', {
-                username: recov.username.trim(),
-                empresa_nit: recov.empresaNit.trim(),
+                username: usernameClean,
+                empresa_nit: nitClean,
             });
             setRecov(s => ({ ...s, step: 1, hints: data.hints, empresaNombre: data.empresa_nombre || '', loading: false }));
         } catch (err) {
@@ -639,11 +646,13 @@ const Login = ({ onLogin }) => {
     };
 
     const recovVerificar = async () => {
+        const usernameClean = recov.username.trim().toLowerCase();
+        const nitClean = recov.empresaNit.trim();
         setRecov(s => ({ ...s, loading: true, error: '' }));
         try {
             const { data } = await apiClient.post('/auth/recover/verificar', {
-                username: recov.username.trim(),
-                empresa_nit: recov.empresaNit.trim(),
+                username: usernameClean,
+                empresa_nit: nitClean,
                 nombre_completo: recov.nombreCompleto.trim(),
             });
             setRecov(s => ({ ...s, step: 2, recoveryToken: data.recovery_token, loading: false }));
@@ -669,7 +678,8 @@ const Login = ({ onLogin }) => {
             });
             // Auto-login con la nueva contraseña — pasar NIT para desambiguar si hay otro usuario con mismo nombre
             const params = new URLSearchParams();
-            params.append('username', cambioData.username || recov.username.trim());
+            const usernameClean = (cambioData.username || recov.username).trim().toLowerCase();
+            params.append('username', usernameClean);
             params.append('password', recov.nuevaPassword);
             const nitQ = recov.empresaNit.trim() ? `?empresa_nit=${encodeURIComponent(recov.empresaNit.trim())}` : '';
             const { data: tokenData } = await apiClient.post(`/auth/token${nitQ}`, params, {
@@ -696,25 +706,127 @@ const Login = ({ onLogin }) => {
             display: 'flex', flexDirection: 'column',
             alignItems: 'center', justifyContent: 'center',
             fontFamily: APPLE_FONT,
-            background: 'radial-gradient(circle at 50% 38%, #131d33 0%, #0b1120 50%, #050810 100%)',
-            animation: `${fadeIn} 0.45s ${SPRING}`,
-            gap: 2,
+            background: 'radial-gradient(ellipse at 30% 20%, #0c1f3d 0%, #060c1a 40%, #020508 100%)',
+            animation: `${fadeIn} 0.5s ${SPRING}`,
+            overflow: 'hidden',
           }}>
+            {/* Ambient blobs */}
             <Box sx={{
-              width: 88, height: 88, borderRadius: '50%',
-              bgcolor: 'rgba(34,197,94,0.12)',
-              border: '2px solid rgba(34,197,94,0.4)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              animation: `${pulseRing} 1.2s ease infinite`,
+              position: 'absolute', top: '5%', left: '10%',
+              width: 500, height: 500, borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(34,197,94,0.12) 0%, transparent 65%)',
+              filter: 'blur(60px)', pointerEvents: 'none',
+              animation: `${auroraFloat} 8s ease-in-out infinite`,
+            }} />
+            <Box sx={{
+              position: 'absolute', bottom: '10%', right: '5%',
+              width: 380, height: 380, borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(8,145,178,0.14) 0%, transparent 65%)',
+              filter: 'blur(50px)', pointerEvents: 'none',
+              animation: `${auroraFloat} 12s ease-in-out infinite reverse`,
+            }} />
+
+            {/* Stars/particles */}
+            {[...Array(16)].map((_, i) => (
+              <Box key={i} sx={{
+                position: 'absolute',
+                width: i % 3 === 0 ? 3 : 2,
+                height: i % 3 === 0 ? 3 : 2,
+                borderRadius: '50%',
+                bgcolor: i % 2 === 0 ? 'rgba(34,197,94,0.7)' : 'rgba(30,200,224,0.7)',
+                top: `${10 + (i * 17) % 80}%`,
+                left: `${5 + (i * 23) % 90}%`,
+                animation: `${pulseRing} ${2.5 + (i % 4) * 0.8}s ease-in-out infinite`,
+                animationDelay: `${(i * 0.3) % 2}s`,
+              }} />
+            ))}
+
+            {/* Card */}
+            <Box sx={{
+              position: 'relative', zIndex: 2,
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              px: 4, py: 5, maxWidth: 420, width: '90%',
+              bgcolor: 'rgba(13,22,42,0.85)',
+              backdropFilter: 'blur(24px)',
+              borderRadius: 5,
+              border: '1px solid rgba(34,197,94,0.25)',
+              boxShadow: '0 40px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(34,197,94,0.12)',
+              animation: `${slideUp} 0.6s cubic-bezier(0.34,1.56,0.64,1) both`,
             }}>
-              <CheckCircle sx={{ fontSize: 50, color: '#22c55e' }} />
+              {/* Gradient top bar */}
+              <Box sx={{
+                position: 'absolute', top: 0, left: 0, right: 0, height: 4,
+                borderRadius: '20px 20px 0 0',
+                background: 'linear-gradient(90deg, #22c55e, #0891B2)',
+              }} />
+
+              {/* Logo + Check */}
+              <Box sx={{ position: 'relative', mb: 3 }}>
+                <Box sx={{
+                  width: 90, height: 90, borderRadius: '50%',
+                  background: 'radial-gradient(circle, rgba(34,197,94,0.2) 0%, rgba(34,197,94,0.04) 70%)',
+                  border: '2px solid rgba(34,197,94,0.4)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  animation: `${pulseRing} 2s ease-in-out infinite`,
+                }}>
+                  <CheckCircle sx={{ fontSize: 52, color: '#22c55e' }} />
+                </Box>
+                <Box sx={{
+                  position: 'absolute', bottom: -4, right: -4,
+                  width: 28, height: 28, borderRadius: '50%',
+                  bgcolor: '#0891B2',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  border: '2px solid rgba(13,22,42,0.9)',
+                }}>
+                  <img src="/logos/svg/ksmart-icon-rounded.svg" alt="" style={{ width: 18, height: 18, borderRadius: 4 }} />
+                </Box>
+              </Box>
+
+              <Typography sx={{
+                fontWeight: 900, fontSize: 28, color: '#f1f5f9',
+                letterSpacing: -0.8, lineHeight: 1.1, textAlign: 'center', mb: 1,
+              }}>
+                ¡Bienvenido a Ksmart360!
+              </Typography>
+              <Typography sx={{
+                fontSize: 14.5, color: '#64748b', textAlign: 'center',
+                lineHeight: 1.6, maxWidth: 320, mb: 3,
+              }}>
+                Tu espacio de trabajo inteligente está listo.
+                <br />
+                Tienes <Box component="span" sx={{ color: '#22c55e', fontWeight: 800 }}>14 días gratis</Box> para explorar todo.
+              </Typography>
+
+              {/* Mini feature list */}
+              <Box sx={{ width: '100%', mb: 3 }}>
+                {[
+                  { emoji: '✅', text: 'Cuenta creada exitosamente' },
+                  { emoji: '🔒', text: 'Sesión segura iniciada' },
+                  { emoji: '🚀', text: 'Entrando a tu panel...' },
+                ].map((item, i) => (
+                  <Box key={i} sx={{
+                    display: 'flex', alignItems: 'center', gap: 1.2,
+                    py: 0.9, px: 1.5, borderRadius: 2,
+                    bgcolor: i === 2 ? 'rgba(34,197,94,0.08)' : 'transparent',
+                    border: i === 2 ? '1px solid rgba(34,197,94,0.2)' : '1px solid transparent',
+                    transition: 'all 0.3s ease',
+                    animationDelay: `${i * 0.2}s`,
+                  }}>
+                    <Typography sx={{ fontSize: 15 }}>{item.emoji}</Typography>
+                    <Typography sx={{
+                      fontSize: 12.5, color: i === 2 ? '#22c55e' : '#94a3b8',
+                      fontWeight: i === 2 ? 700 : 500,
+                    }}>
+                      {item.text}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+
+              <Typography sx={{ fontSize: 11, color: '#334155', textAlign: 'center' }}>
+                Redirigiendo automáticamente…
+              </Typography>
             </Box>
-            <Typography sx={{ fontWeight: 900, fontSize: 26, color: '#f1f5f9', letterSpacing: -0.5 }}>
-              ¡Bienvenido a bordo!
-            </Typography>
-            <Typography sx={{ fontSize: 14, color: '#64748b', textAlign: 'center', maxWidth: 300 }}>
-              Tu espacio de trabajo está listo.<br />Redirigiendo al inicio de sesión…
-            </Typography>
           </Box>
         )}
         <Box sx={{
@@ -739,17 +851,19 @@ const Login = ({ onLogin }) => {
                 position: 'relative',
                 alignItems: 'flex-end',
             }}>
-                {/* Overlay base + tinte de marca cyan en las esquinas para cohesión cromática */}
+                {/* Overlay base + tinte de marca dinámico según el feature del carrusel */}
                 <Box sx={{
                     position: 'absolute', inset: 0,
-                    background: 'linear-gradient(150deg, rgba(10,15,28,0.90) 0%, rgba(5,8,16,0.58) 52%, rgba(10,15,28,0.94) 100%)',
+                    background: 'linear-gradient(150deg, rgba(10,15,28,0.92) 0%, rgba(5,8,16,0.65) 52%, rgba(10,15,28,0.96) 100%)',
+                    transition: 'background 0.8s ease',
                 }} />
                 <Box sx={{
                     position: 'absolute', inset: 0, pointerEvents: 'none',
-                    background: 'radial-gradient(circle at 18% 88%, rgba(30,200,224,0.18) 0%, transparent 42%)',
+                    background: `radial-gradient(circle at 18% 88%, ${CAROUSEL_FEATURES[carouselIdx]?.color || '#1ec8e0'}22 0%, transparent 45%)`,
+                    transition: 'background 0.8s ease-in-out',
                 }} />
                 <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
-                    <FeatureCarousel />
+                    <FeatureCarousel idx={carouselIdx} setIdx={setCarouselIdx} />
                 </Box>
             </Box>
 
@@ -799,6 +913,22 @@ const Login = ({ onLogin }) => {
                     justifyContent: 'center',
                     py: { xs: 4, lg: 4 },
                 }}>
+                    <Box sx={{
+                        width: '100%',
+                        bgcolor: { xs: 'transparent', sm: 'rgba(15, 23, 42, 0.45)' },
+                        backdropFilter: { xs: 'none', sm: 'blur(24px)' },
+                        border: { xs: 'none', sm: '1px solid rgba(255, 255, 255, 0.08)' },
+                        borderRadius: { xs: 0, sm: 5 },
+                        p: { xs: 0, sm: 5 },
+                        boxShadow: {
+                            xs: 'none',
+                            sm: '0 20px 40px rgba(0,0,0,0.35), inset 0 1px 1px rgba(255,255,255,0.06)'
+                        },
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        transition: 'all 0.3s ease-in-out',
+                    }}>
 
                     {/* Mobile branding — only on xs/sm */}
                     <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1.5, mb: 3, alignSelf: 'flex-start' }}>
@@ -1027,6 +1157,36 @@ const Login = ({ onLogin }) => {
                                 >
                                     {loading ? 'Ingresando…' : 'Ingresar al sistema'}
                                 </LiquidButton>
+
+                                {loginAttempts >= 3 && (
+                                    <Box sx={{
+                                        mt: 1.5, p: 2,
+                                        width: '100%',
+                                        borderRadius: 2.5,
+                                        bgcolor: 'rgba(245, 158, 11, 0.08)',
+                                        border: '1px solid rgba(245, 158, 11, 0.25)',
+                                        animation: `${slideUp} 0.3s ease`,
+                                        boxSizing: 'border-box'
+                                    }}>
+                                        <Typography sx={{ fontSize: 12.5, color: '#f59e0b', fontWeight: 600, mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            ⚠️ ¿Problemas para ingresar?
+                                        </Typography>
+                                        <Typography sx={{ fontSize: 11.5, color: '#94a3b8', mb: 1, lineHeight: 1.4 }}>
+                                            Has fallado {loginAttempts} intentos de inicio de sesión. Asegúrate de verificar tu usuario o recupera tu contraseña.
+                                        </Typography>
+                                        <Button
+                                            size="small"
+                                            variant="text"
+                                            onClick={() => { resetRecov(); setForgotOpen(true); }}
+                                            sx={{
+                                                color: '#22c55e', fontSize: 11, fontWeight: 700, p: 0, textTransform: 'none',
+                                                '&:hover': { color: '#16a34a', bgcolor: 'transparent', textDecoration: 'underline' }
+                                            }}
+                                        >
+                                            Recuperar contraseña ahora
+                                        </Button>
+                                    </Box>
+                                )}
 
                                 <BotonHuella
                                     modo="login"
@@ -1345,22 +1505,51 @@ const Login = ({ onLogin }) => {
                                                 ),
                                             }}
                                         />
-                                        {/* Indicador de fuerza */}
+                                        {/* Indicador de fuerza y checklist */}
                                         {regData.password && (() => {
                                             const s = getPwdStrength(regData.password);
                                             if (!s) return null;
+                                            const pwd = regData.password;
+                                            const requirements = [
+                                                { label: '8+ caract.', met: pwd.length >= 8 },
+                                                { label: 'Mayúscula', met: /[A-Z]/.test(pwd) },
+                                                { label: 'Número', met: /[0-9]/.test(pwd) },
+                                                { label: 'Símbolo', met: /[^A-Za-z0-9]/.test(pwd) },
+                                            ];
                                             return (
-                                                <Box sx={{ mt: -1.5, px: 0.5 }}>
-                                                    <LinearProgress
-                                                        variant="determinate"
-                                                        value={(s.level / 5) * 100}
-                                                        sx={{
-                                                            height: 3, borderRadius: 2,
-                                                            bgcolor: 'rgba(255,255,255,0.08)',
-                                                            '& .MuiLinearProgress-bar': { bgcolor: s.color, transition: 'all 0.35s ease' },
-                                                        }}
-                                                    />
-                                                    <Typography sx={{ fontSize: 10, color: s.color, fontWeight: 700, mt: 0.4 }}>{s.label}</Typography>
+                                                <Box sx={{ mt: -1.5, px: 0.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                                    <Box>
+                                                        <LinearProgress
+                                                            variant="determinate"
+                                                            value={(s.level / 5) * 100}
+                                                            sx={{
+                                                                height: 4, borderRadius: 2,
+                                                                bgcolor: 'rgba(255,255,255,0.08)',
+                                                                '& .MuiLinearProgress-bar': { bgcolor: s.color, transition: 'all 0.35s ease' },
+                                                            }}
+                                                        />
+                                                        <Typography sx={{ fontSize: 10, color: s.color, fontWeight: 700, mt: 0.4 }}>
+                                                            Fortaleza: {s.label}
+                                                        </Typography>
+                                                    </Box>
+                                                    <Stack direction="row" spacing={0.8} flexWrap="wrap" sx={{ gap: '6px' }}>
+                                                        {requirements.map((req, idx) => (
+                                                            <Chip
+                                                                key={idx}
+                                                                size="small"
+                                                                label={req.label}
+                                                                sx={{
+                                                                    fontSize: 9.5,
+                                                                    height: 20,
+                                                                    bgcolor: req.met ? 'rgba(34, 197, 94, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                                                                    color: req.met ? '#22c55e' : '#64748b',
+                                                                    border: `1px solid ${req.met ? 'rgba(34, 197, 94, 0.25)' : 'rgba(255, 255, 255, 0.06)'}`,
+                                                                    transition: 'all 0.2s ease',
+                                                                    '& .MuiChip-label': { px: 1 }
+                                                                }}
+                                                            />
+                                                        ))}
+                                                    </Stack>
                                                 </Box>
                                             );
                                         })()}
@@ -1473,10 +1662,11 @@ const Login = ({ onLogin }) => {
                             </Box>
                         )}
                     </Box>
+                </Box> {/* Frosted glass container */}
 
-                    <Typography sx={{ mt: 4, color: '#475569', fontSize: 11.5, textAlign: 'center', fontWeight: 500, letterSpacing: 0.3 }}>
-                        Powered by Tech Stack Colombia S.A.S · 2026
-                    </Typography>
+                <Typography sx={{ mt: 4, color: '#475569', fontSize: 11.5, textAlign: 'center', fontWeight: 500, letterSpacing: 0.3 }}>
+                    Powered by Tech Stack Colombia S.A.S · 2026
+                </Typography>
                 </Box>   {/* content box */}
                 </Box>   {/* scroll area */}
             </Box>       {/* panel derecho */}
@@ -1486,7 +1676,19 @@ const Login = ({ onLogin }) => {
         <Dialog
             open={forgotOpen}
             onClose={() => setForgotOpen(false)}
-            PaperProps={{ sx: { bgcolor: '#1F1F1F', color: '#f1f5f9', borderRadius: 3, minWidth: 340, border: '1px solid rgba(255,255,255,0.08)' } }}
+            BackdropProps={{
+                sx: { backdropFilter: 'blur(8px)', backgroundColor: 'rgba(5, 8, 16, 0.7)' }
+            }}
+            PaperProps={{
+                component: 'form',
+                onSubmit: (e) => {
+                    e.preventDefault();
+                    if (recov.step === 0) recovBuscar();
+                    else if (recov.step === 1) recovVerificar();
+                    else if (recov.step === 2) recovCambiar();
+                },
+                sx: { bgcolor: '#1F1F1F', color: '#f1f5f9', borderRadius: 3, minWidth: 340, border: '1px solid rgba(255,255,255,0.08)' }
+            }}
         >
             <DialogTitle sx={{ fontWeight: 800, fontSize: 18, color: '#f1f5f9', pb: 0.5 }}>
                 Recuperar contraseña
@@ -1518,7 +1720,6 @@ const Login = ({ onLogin }) => {
                                     const clean = parts.length > 2 ? parts[0] + '-' + parts.slice(1).join('') : raw;
                                     setRecov(s => ({ ...s, empresaNit: clean, error: '' }));
                                 }}
-                                onKeyDown={e => e.key === 'Enter' && recovBuscar()}
                                 sx={fieldSx}
                                 InputProps={{ startAdornment: <InputAdornment position="start"><ManageAccounts sx={{ color: '#0891B2' }} /></InputAdornment> }}
                             />
@@ -1559,7 +1760,6 @@ const Login = ({ onLogin }) => {
                             placeholder="Escríbelo exactamente como lo registraste"
                             value={recov.nombreCompleto}
                             onChange={e => setRecov(s => ({ ...s, nombreCompleto: e.target.value, error: '' }))}
-                            onKeyDown={e => e.key === 'Enter' && recovVerificar()}
                             sx={fieldSx}
                             InputProps={{ startAdornment: <InputAdornment position="start"><Person sx={{ color: '#0891B2' }} /></InputAdornment> }}
                         />
@@ -1598,7 +1798,6 @@ const Login = ({ onLogin }) => {
                                 type={showRecovConfirm ? 'text' : 'password'}
                                 value={recov.confirmarPassword}
                                 onChange={e => setRecov(s => ({ ...s, confirmarPassword: e.target.value, error: '' }))}
-                                onKeyDown={e => e.key === 'Enter' && recovCambiar()}
                                 sx={fieldSx}
                                 error={!!recov.confirmarPassword && recov.nuevaPassword !== recov.confirmarPassword}
                                 helperText={recov.confirmarPassword && recov.nuevaPassword !== recov.confirmarPassword ? 'Las contraseñas no coinciden' : ''}
@@ -1624,6 +1823,7 @@ const Login = ({ onLogin }) => {
             </DialogContent>
             <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
                 <Button
+                    type="button"
                     onClick={() => { if (recov.step === 0) { setForgotOpen(false); resetRecov(); } else setRecov(s => ({ ...s, step: s.step - 1, error: '' })); }}
                     disabled={recov.loading}
                     sx={{ color: '#64748b', fontWeight: 600, textTransform: 'none' }}
@@ -1632,13 +1832,13 @@ const Login = ({ onLogin }) => {
                 </Button>
                 <LiquidButton
                     size="medium"
+                    type="submit"
                     disabled={recov.loading ||
                         (recov.step === 0 && (!recov.username.trim() || !recov.empresaNit.trim())) ||
                         (recov.step === 1 && !recov.nombreCompleto.trim()) ||
                         (recov.step === 2 && (!recov.nuevaPassword || recov.nuevaPassword !== recov.confirmarPassword))
                     }
                     loading={recov.loading}
-                    onClick={recov.step === 0 ? recovBuscar : recov.step === 1 ? recovVerificar : recovCambiar}
                     color="#0891B2"
                 >
                     {recov.step === 0 && 'Buscar mi cuenta'}
