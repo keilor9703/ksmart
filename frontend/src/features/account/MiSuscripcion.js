@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box, Typography, Card, Chip, Button, Avatar, Divider,
   CircularProgress, Stack, useTheme, alpha, LinearProgress,
@@ -16,6 +16,7 @@ import {
   Language, LocationOn, Groups, Visibility, VisibilityOff,
   OpenInNew, Email, Phone, Stars, Storage, Security,
   Cloud, Speed, Public, VerifiedUser, DataObject,
+  Description, TrendingUp, AllInclusive,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
@@ -57,8 +58,15 @@ const fmtDateFull = (iso) => {
   return new Date(iso).toLocaleString('es-CO', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
 
-const copyToClipboard = (text) =>
-  navigator.clipboard?.writeText(text).then(() => toast.success('Copiado'));
+const copyToClipboard = (text) => {
+  if (!navigator.clipboard) {
+    toast.error('Tu navegador no permite copiar automáticamente. Selecciona el texto manualmente.');
+    return;
+  }
+  navigator.clipboard.writeText(text)
+    .then(() => toast.success('Copiado'))
+    .catch(() => toast.error('No se pudo copiar al portapapeles'));
+};
 
 const PAISES_OPT = [
   { code: 'CO',   label: 'Colombia',       flag: '🇨🇴' },
@@ -259,6 +267,105 @@ const HeroCard = ({ suscripcion, planActual, onRefresh, refreshing }) => {
   );
 };
 
+// ─── FEUsageCard ──────────────────────────────────────────────────────────────
+// La Facturación Electrónica es el diferenciador pagado del sistema — antes
+// era completamente invisible en esta pantalla (el cliente solo se enteraba
+// de su límite cuando una venta se bloqueaba en el POS). Se muestra como un
+// medidor de consumo, no una barra de progreso genérica: la cifra grande y
+// el "de cuántos" es lo que un dueño de negocio necesita ver de un vistazo
+// antes de decidir si le conviene subir de plan.
+const FEUsageCard = ({ suscripcion, onUpgrade }) => {
+  const theme = useTheme();
+
+  if (!suscripcion?.facturacion_electronica_activa) return null;
+
+  const usados = suscripcion.docs_electronicos_usados ?? 0;
+  const limite = suscripcion.docs_electronicos_limite; // null = ilimitado
+  const ilimitado = limite === null || limite === undefined;
+  const pct = ilimitado ? 0 : Math.min(100, limite > 0 ? Math.round((usados / limite) * 100) : 100);
+
+  const nivel = ilimitado ? 'ok'
+    : pct >= 100 ? 'limite'
+    : pct >= 80  ? 'alerta'
+    : 'ok';
+
+  const color = nivel === 'limite' ? '#EF4444' : nivel === 'alerta' ? '#F59E0B' : '#0891B2';
+
+  return (
+    <Card elevation={0} sx={{
+      borderRadius: 3, mb: 3, overflow: 'hidden',
+      border: `1px solid ${alpha(color, 0.28)}`,
+      bgcolor: 'background.paper',
+    }}>
+      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { sm: 'center' }, gap: 2.5, p: { xs: 2.5, sm: 3 } }}>
+
+        {/* Medidor circular: la cifra es la protagonista, no un ícono decorativo */}
+        <Box sx={{ position: 'relative', width: 84, height: 84, flexShrink: 0 }}>
+          <Box sx={{
+            position: 'absolute', inset: 0, borderRadius: '50%',
+            background: ilimitado
+              ? `conic-gradient(${color} 100%, transparent 0)`
+              : `conic-gradient(${color} ${pct}%, ${alpha(color, 0.12)} 0)`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Box sx={{
+              width: 66, height: 66, borderRadius: '50%',
+              bgcolor: 'background.paper',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {ilimitado
+                ? <AllInclusive sx={{ color, fontSize: 22 }} />
+                : <Typography sx={{ fontWeight: 900, fontSize: 20, color, lineHeight: 1 }}>{pct}%</Typography>}
+            </Box>
+          </Box>
+        </Box>
+
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.3 }}>
+            <Description sx={{ fontSize: 15, color }} />
+            <Typography fontWeight={800} fontSize={13.5}>Facturación Electrónica</Typography>
+            <Chip
+              label={nivel === 'limite' ? 'Límite alcanzado' : nivel === 'alerta' ? 'Cerca del límite' : 'Al día'}
+              size="small"
+              sx={{ height: 18, fontSize: 9.5, fontWeight: 800, bgcolor: alpha(color, 0.12), color }}
+            />
+          </Box>
+          <Typography fontSize={13} color="text.secondary">
+            {ilimitado
+              ? <><strong style={{ color: theme.palette.text.primary }}>{usados.toLocaleString('es-CO')}</strong> documentos electrónicos emitidos este mes · plan con envío ilimitado</>
+              : <><strong style={{ color: theme.palette.text.primary }}>{usados.toLocaleString('es-CO')}</strong> de <strong style={{ color: theme.palette.text.primary }}>{limite.toLocaleString('es-CO')}</strong> documentos electrónicos usados este mes</>
+            }
+          </Typography>
+          {!ilimitado && (
+            <LinearProgress
+              variant="determinate" value={pct}
+              sx={{
+                mt: 1, height: 6, borderRadius: 3,
+                bgcolor: alpha(color, 0.12),
+                '& .MuiLinearProgress-bar': { bgcolor: color, borderRadius: 3 },
+              }}
+            />
+          )}
+        </Box>
+
+        {nivel !== 'ok' && onUpgrade && (
+          <Button
+            size="small" variant="contained" onClick={onUpgrade}
+            startIcon={<TrendingUp sx={{ fontSize: 16 }} />}
+            sx={{
+              bgcolor: color, fontWeight: 700, fontSize: 12.5, borderRadius: 2, px: 2,
+              flexShrink: 0, whiteSpace: 'nowrap',
+              '&:hover': { bgcolor: color, filter: 'brightness(0.92)' },
+            }}
+          >
+            Subir de plan
+          </Button>
+        )}
+      </Box>
+    </Card>
+  );
+};
+
 // ─── Constantes de planes ────────────────────────────────────────────────────
 
 const PLAN_PERIODOS = [
@@ -331,7 +438,7 @@ const PlanesSection = ({ planes, planActualId, onSuccess }) => {
   const isDark = theme.palette.mode === 'dark';
   const [periodoIdx, setPeriodoIdx] = useState(0);
   const periodo = PLAN_PERIODOS[periodoIdx];
-  const groups  = groupPlanesMS(planes);
+  const groups  = useMemo(() => groupPlanesMS(planes), [planes]);
   const planKeys = PLAN_ORDER_MS.filter(k => groups[k][30] || groups[k][periodo.dias]);
 
   // Tabla comparativa — filas: FE docs + precio
@@ -828,7 +935,9 @@ const PagoCard = ({ pago, onClick, isDark }) => {
 const HistorialTable = ({ historial }) => {
   const theme   = useTheme();
   const isDark  = theme.palette.mode === 'dark';
-  const isMobile = theme.breakpoints.values.md > window.innerWidth;
+  // El split móvil/escritorio ya se hace 100% vía sx={{ display: { xs, md } }}
+  // más abajo — este cálculo con window.innerWidth no era reactivo al resize
+  // y no se usaba en ninguna parte del render.
   const [detailPago, setDetailPago] = useState(null);
   const [showAll,    setShowAll]    = useState(false);
 
@@ -1457,6 +1566,31 @@ const MiEmpresaTab = () => {
 };
 
 // ─── PlataformaTab ────────────────────────────────────────────────────────────
+// StatChip/Feature viven a nivel de módulo (no dentro del render de
+// PlataformaTab): definirlos por render los recreaba como componentes NUEVOS
+// en cada re-render, forzando a React a desmontar y remontar cada instancia
+// en lugar de solo actualizar sus props.
+const StatChip = ({ label, value, color, isDark }) => (
+  <Box sx={{
+    flex: 1, minWidth: 120,
+    p: 2, borderRadius: 3, textAlign: 'center',
+    bgcolor: alpha(color, isDark ? 0.1 : 0.06),
+    border: `1px solid ${alpha(color, 0.2)}`,
+  }}>
+    <Typography fontWeight={900} fontSize={22} color={color}>{value}</Typography>
+    <Typography fontSize={11} color="text.secondary" fontWeight={600}>{label}</Typography>
+  </Box>
+);
+
+const Feature = ({ icon, title, desc }) => (
+  <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+    <Box sx={{ mt: 0.2, color: '#059669', flexShrink: 0 }}>{icon}</Box>
+    <Box>
+      <Typography fontSize={13} fontWeight={700}>{title}</Typography>
+      <Typography fontSize={12} color="text.secondary">{desc}</Typography>
+    </Box>
+  </Box>
+);
 
 const PlataformaTab = () => {
   const theme = useTheme();
@@ -1467,28 +1601,6 @@ const PlataformaTab = () => {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     bgcolor: alpha(color, isDark ? 0.15 : 0.08),
   });
-
-  const StatChip = ({ label, value, color }) => (
-    <Box sx={{
-      flex: 1, minWidth: 120,
-      p: 2, borderRadius: 3, textAlign: 'center',
-      bgcolor: alpha(color, isDark ? 0.1 : 0.06),
-      border: `1px solid ${alpha(color, 0.2)}`,
-    }}>
-      <Typography fontWeight={900} fontSize={22} color={color}>{value}</Typography>
-      <Typography fontSize={11} color="text.secondary" fontWeight={600}>{label}</Typography>
-    </Box>
-  );
-
-  const Feature = ({ icon, title, desc }) => (
-    <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
-      <Box sx={{ mt: 0.2, color: '#059669', flexShrink: 0 }}>{icon}</Box>
-      <Box>
-        <Typography fontSize={13} fontWeight={700}>{title}</Typography>
-        <Typography fontSize={12} color="text.secondary">{desc}</Typography>
-      </Box>
-    </Box>
-  );
 
   return (
     <Box sx={{ pt: 2 }}>
@@ -1530,10 +1642,10 @@ const PlataformaTab = () => {
 
           {/* Stats */}
           <Box sx={{ display: 'flex', gap: 2, mt: 3, flexWrap: 'wrap' }}>
-            <StatChip label="CPUs ARM" value="4" color="#C74634" />
-            <StatChip label="RAM (GB)" value="24" color="#2563EB" />
-            <StatChip label="Almacenamiento" value="96 GB" color="#059669" />
-            <StatChip label="Uptime" value="24/7" color="#7C3AED" />
+            <StatChip label="CPUs ARM" value="4" color="#C74634" isDark={isDark} />
+            <StatChip label="RAM (GB)" value="24" color="#2563EB" isDark={isDark} />
+            <StatChip label="Almacenamiento" value="96 GB" color="#059669" isDark={isDark} />
+            <StatChip label="Uptime" value="24/7" color="#7C3AED" isDark={isDark} />
           </Box>
         </Box>
       </Card>
@@ -1657,10 +1769,11 @@ export default function MiSuscripcion({ user }) {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const status = getStatusConfig(data?.suscripcion);
+  const status = useMemo(() => getStatusConfig(data?.suscripcion), [data?.suscripcion]);
 
-  // Determine the current plan from the most recent payment
-  const planActual = data?.historial_pagos?.[0]?.plan || null;
+  // El backend ya resuelve el plan actual (compra más reciente); null si la
+  // empresa está en trial o fue activada manualmente sin pago registrado.
+  const planActual = data?.plan_actual || null;
 
   const handleRenewSuccess = async () => {
     toast.success('¡Suscripción renovada!');
@@ -1670,6 +1783,10 @@ export default function MiSuscripcion({ user }) {
 
   const { suscripcion, historial_pagos = [], planes_disponibles = [] } = data || {};
   const showRenewSection = status.showRenew || showPlanes;
+  const totalPagado = useMemo(
+    () => historial_pagos.reduce((acc, p) => acc + (p.monto || 0), 0),
+    [historial_pagos]
+  );
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 900, mx: 'auto' }}>
@@ -1755,6 +1872,9 @@ export default function MiSuscripcion({ user }) {
         refreshing={refreshing}
       />
 
+      {/* ── Uso de Facturación Electrónica del mes ── */}
+      <FEUsageCard suscripcion={suscripcion} onUpgrade={() => setShowPlanes(true)} />
+
       {/* ── Renovar / Upgrade (si aplica) ── */}
       {planes_disponibles.length > 0 && (
         <Card elevation={0} sx={{
@@ -1832,7 +1952,7 @@ export default function MiSuscripcion({ user }) {
           </Box>
           {historial_pagos.length > 0 && (
             <Chip
-              label={`Total: ${fmt(historial_pagos.reduce((acc, p) => acc + (p.monto || 0), 0))}`}
+              label={`Total: ${fmt(totalPagado)}`}
               size="small"
               sx={{ fontWeight: 700, fontSize: 11, bgcolor: alpha('#059669', 0.1), color: '#059669' }}
             />

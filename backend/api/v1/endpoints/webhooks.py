@@ -1,10 +1,8 @@
 import hashlib
 import logging
 import os
-from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, Request, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
 
 import models
 from api.deps import get_db
@@ -82,37 +80,43 @@ async def webhook_wompi(request: Request, db: Session = Depends(get_db)):
                 logger.info(f"⚠️ Webhook ignorado: Pago {wompi_id} ya procesado.")
                 return {"status": "ok", "message": "Ya procesado"}
 
-            empresa = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
-            plan = db.query(models.PlanSuscripcion).filter(models.PlanSuscripcion.id == plan_id).first()
+            # Recuperar la intención de pago (monto esperado con descuento +
+            # código promocional) para que el webhook active EXACTAMENTE
+            # igual que la confirmación del widget — antes el webhook no
+            # conocía el código promo aplicado ni desactivaba FE al bajar de
+            # plan, así que cuál de los dos canales llegaba primero cambiaba
+            # el resultado de la misma compra.
+            intento = (
+                db.query(models.IntentoPagoSuscripcion)
+                .filter(models.IntentoPagoSuscripcion.reference == reference)
+                .first()
+            )
+            descuento_aplicado = float(intento.descuento_aplicado or 0) if intento else 0.0
+            codigo_promo_id = intento.codigo_promo_id if intento else None
+            monto_esperado = intento.monto_esperado_centavos if intento else None
 
-            if empresa and plan:
-                empresa.is_active = True
-                empresa.plan_type = "premium"
-
-                payment_source = data.get("payment_source_id")
-                if payment_source:
-                    empresa.wompi_payment_source_id = str(payment_source)
-
-                ahora = datetime.now(timezone.utc)
-                base = empresa.trial_ends_at if empresa.trial_ends_at and empresa.trial_ends_at > ahora else ahora
-                empresa.trial_ends_at = base + timedelta(days=plan.dias_duracion)
-
-                nuevo_pago = models.RegistroPago(
+            from crud.suscripcion_pagos import activar_suscripcion_pagada
+            try:
+                resultado = activar_suscripcion_pagada(
+                    db,
                     empresa_id=empresa_id,
                     plan_id=plan_id,
-                    monto=data.get("amount_in_cents") / 100,
-                    moneda=data.get("currency"),
+                    wompi_id=wompi_id,
+                    amount_in_cents=data.get("amount_in_cents") or 0,
+                    currency=data.get("currency"),
                     metodo_pago=data.get("payment_method_type"),
-                    bold_tx_id=data.get("id"),
                     email_pagador=data.get("customer_email"),
-                    payload_auditoria=payload
+                    payload_auditoria=payload,
+                    payment_source_id=data.get("payment_source_id"),
+                    monto_esperado_centavos=monto_esperado,
+                    descuento_aplicado=descuento_aplicado,
+                    codigo_promo_id=codigo_promo_id,
                 )
-                db.add(nuevo_pago)
-                try:
-                    db.commit()
+                if resultado.get("duplicado"):
+                    logger.info(f"⚠️ Webhook ignorado: pago {wompi_id} ya procesado.")
+                else:
                     logger.info(f"✅ Suscripción Wompi activada para empresa {empresa_id}")
-                except IntegrityError:
-                    db.rollback()
-                    logger.info(f"⚠️ Webhook duplicado ignorado: {wompi_id} ya procesado (unique constraint)")
+            except ValueError as e:
+                logger.error(f"⚠️ Webhook Wompi rechazado para empresa {empresa_id}: {e}")
 
     return {"status": "ok"}
