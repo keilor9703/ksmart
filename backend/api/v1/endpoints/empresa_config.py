@@ -249,14 +249,32 @@ def get_config_fe(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
-    """Devuelve la configuración de Facturación Electrónica de la empresa."""
+    """Devuelve la configuración de Facturación Electrónica de la empresa.
+
+    Las API keys de Matías NUNCA se devuelven en texto plano: son secretos que
+    autentican contra el proveedor de facturación electrónica, y reenviarlos
+    en cada GET (a la pestaña de red del navegador, logs, extensiones) es
+    superficie de exposición innecesaria. Se informa solo si cada una está
+    configurada y una vista enmascarada (últimos 4 caracteres) para que el
+    usuario confirme cuál tiene puesta sin volver a verla completa.
+    """
     empresa = db.query(models.Empresa).filter_by(id=current_user.empresa_id).first()
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada.")
+
+    def _mask(key: Optional[str]) -> Optional[str]:
+        if not key:
+            return None
+        return f"••••{key[-4:]}" if len(key) > 4 else "••••"
+
+    api_key         = getattr(empresa, "matias_api_key", None)
+    sandbox_api_key = getattr(empresa, "matias_sandbox_api_key", None)
     return {
         "facturacion_electronica_activa": getattr(empresa, "facturacion_electronica_activa", False) or False,
-        "matias_api_key":                 getattr(empresa, "matias_api_key", None),
-        "matias_sandbox_api_key":         getattr(empresa, "matias_sandbox_api_key", None),
+        "matias_api_key_configurada":         bool(api_key),
+        "matias_api_key_preview":             _mask(api_key),
+        "matias_sandbox_api_key_configurada": bool(sandbox_api_key),
+        "matias_sandbox_api_key_preview":     _mask(sandbox_api_key),
         "matias_test_mode":               getattr(empresa, "matias_test_mode", True) if getattr(empresa, "matias_test_mode", None) is not None else True,
     }
 
@@ -293,19 +311,34 @@ def update_config_fe(
                     detail="Tu plan actual no incluye facturación electrónica. Actualiza tu suscripción.",
                 )
         empresa.facturacion_electronica_activa = quiere_activar
-    if "matias_api_key" in payload:
-        key = payload["matias_api_key"]
-        empresa.matias_api_key = key.strip() if key else None
-    if "matias_sandbox_api_key" in payload:
-        key = payload["matias_sandbox_api_key"]
-        empresa.matias_sandbox_api_key = key.strip() if key else None
+    # Solo se actualiza la key si el usuario escribió un valor nuevo: el
+    # frontend ya no conoce la key real (el GET la enmascara), así que un
+    # campo vacío o ausente significa "no tocar la que ya está configurada".
+    # Se rechaza además cualquier valor que luzca como el placeholder
+    # enmascarado ("••••1234"), por si el frontend lo reenvía sin querer.
+    if payload.get("matias_api_key"):
+        key = payload["matias_api_key"].strip()
+        if key and not key.startswith("••••"):
+            empresa.matias_api_key = key
+    if payload.get("matias_sandbox_api_key"):
+        key = payload["matias_sandbox_api_key"].strip()
+        if key and not key.startswith("••••"):
+            empresa.matias_sandbox_api_key = key
     if "matias_test_mode" in payload:
         empresa.matias_test_mode = bool(payload["matias_test_mode"])
 
     db.commit()
+
+    def _mask(key: Optional[str]) -> Optional[str]:
+        if not key:
+            return None
+        return f"••••{key[-4:]}" if len(key) > 4 else "••••"
+
     return {
-        "facturacion_electronica_activa": empresa.facturacion_electronica_activa,
-        "matias_api_key":                 empresa.matias_api_key,
-        "matias_sandbox_api_key":         empresa.matias_sandbox_api_key,
-        "matias_test_mode":               empresa.matias_test_mode,
+        "facturacion_electronica_activa":     empresa.facturacion_electronica_activa,
+        "matias_api_key_configurada":         bool(empresa.matias_api_key),
+        "matias_api_key_preview":             _mask(empresa.matias_api_key),
+        "matias_sandbox_api_key_configurada": bool(empresa.matias_sandbox_api_key),
+        "matias_sandbox_api_key_preview":     _mask(empresa.matias_sandbox_api_key),
+        "matias_test_mode":                   empresa.matias_test_mode,
     }

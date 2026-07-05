@@ -2495,6 +2495,44 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v112)
                 logger.info("V112 (consecutivo libro diario + índice único) aplicada.")
 
+            # V114 — Índice único (empresa_id, numero_factura) en ventas.
+            # Defensa en profundidad para el bug de numeración DIAN concurrente
+            # (_asignar_numero_factura hacía un read-modify-write en Python sin
+            # lock, y podía asignar el MISMO consecutivo a dos ventas
+            # simultáneas — ya corregido con UPDATE...RETURNING atómico, pero
+            # una restricción a nivel de BD es la única garantía que no
+            # depende de que ningún código futuro vuelva a introducir el
+            # mismo error). No se auto-corrigen duplicados existentes: son
+            # documentos legales ya emitidos ante la DIAN con su propio CUFE,
+            # y mutarlos en silencio sería peor que dejarlos para revisión
+            # manual — si hay duplicados, se registra una alerta y el índice
+            # se reintenta en el próximo arranque una vez se resuelvan.
+            migration_v114 = "v114_indice_unico_numero_factura"
+            if not _migration_already_applied(conn, migration_v114):
+                duplicados = conn.execute(text("""
+                    SELECT empresa_id, numero_factura, COUNT(*) AS n
+                    FROM ventas
+                    WHERE numero_factura IS NOT NULL
+                    GROUP BY empresa_id, numero_factura
+                    HAVING COUNT(*) > 1
+                """)).fetchall()
+                if duplicados:
+                    logger.error(
+                        "V114: %d numero_factura duplicados detectados (empresa_id, numero) — "
+                        "requieren revisión manual antes de poder crear el índice único: %s",
+                        len(duplicados),
+                        [(d[0], d[1], d[2]) for d in duplicados][:20],
+                    )
+                else:
+                    if not _index_exists(conn, "uq_venta_empresa_numero_factura"):
+                        conn.execute(text(
+                            "CREATE UNIQUE INDEX uq_venta_empresa_numero_factura "
+                            "ON ventas (empresa_id, numero_factura) "
+                            "WHERE numero_factura IS NOT NULL"
+                        ))
+                    _mark_migration_applied(conn, migration_v114)
+                    logger.info("V114 (índice único numero_factura por empresa) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

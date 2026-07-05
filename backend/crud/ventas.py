@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session, joinedload, selectinload
-from sqlalchemy import func
+from sqlalchemy import func, text
 from typing import Optional, List
 from datetime import datetime, timezone, date
 from fastapi import HTTPException
@@ -511,34 +511,55 @@ def _asignar_numero_factura(db: Session, empresa_id: int, venta: models.Venta, t
     Incrementa el consecutivo de la resolución activa (del tipo indicado) y asigna
     el numero_factura a la venta. Retorna el número asignado o None si no hay
     resolución activa de ese tipo. Llama ANTES de hacer db.commit().
+
+    El incremento es un UPDATE...RETURNING atómico en BD, no un read-modify-write
+    en Python: dos ventas concurrentes de la misma empresa (POS + tablet de
+    mesero, por ejemplo) leían el mismo numero_actual y podían asignar el MISMO
+    consecutivo DIAN a dos facturas distintas — la DIAN rechaza consecutivos
+    duplicados, así que esa carrera era un problema legal, no solo técnico. La
+    validación de rango (numero_actual + 1 <= numero_final) va en el mismo
+    statement para que tampoco quede una ventana entre "leer el límite" y
+    "escribir el incremento".
     """
     resolucion = _get_resolucion_activa(db, empresa_id, tipo)
     if not resolucion:
         return None
 
-    siguiente = resolucion.numero_actual + 1
+    row = db.execute(
+        text(
+            "UPDATE resoluciones_dian "
+            "SET numero_actual = numero_actual + 1 "
+            "WHERE id = :id AND numero_actual + 1 <= numero_final "
+            "RETURNING numero_actual"
+        ),
+        {"id": resolucion.id},
+    ).first()
 
-    # Validación de rango
-    if siguiente > resolucion.numero_final:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"La resolución DIAN ha llegado al límite de numeración "
-                f"({resolucion.numero_final}). Configura una nueva resolución."
+    if row is None:
+        db.refresh(resolucion)
+        if resolucion.numero_actual >= resolucion.numero_final:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"La resolución DIAN ha llegado al límite de numeración "
+                    f"({resolucion.numero_final}). Configura una nueva resolución."
+                )
             )
-        )
+        # Carrera con otra transacción concurrente que agotó el rango justo
+        # ahora (caso extremadamente infrecuente): no hay número que asignar.
+        raise HTTPException(status_code=409, detail="No se pudo asignar el número DIAN, intenta de nuevo.")
 
-    resolucion.numero_actual = siguiente
+    siguiente = row[0]
     numero_str = f"{resolucion.prefijo}{siguiente}"
     venta.numero_factura = numero_str
     venta.resolucion_id  = resolucion.id
+    resolucion.numero_actual = siguiente  # sincroniza el objeto en memoria de la sesión
 
     # 👇 NUEVO: Marcar como pendiente si la empresa tiene FE activa
     empresa = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
     if empresa and empresa.facturacion_electronica_activa:
         venta.estado_electronico = "pendiente"
 
-    db.add(resolucion)
     return numero_str
 
 
@@ -722,6 +743,29 @@ def emitir_fe_venta(
             # (p.ej. empresa sin resolución POS configurada aún)
             return None
 
+    # Confirmar la venta (con su número DIAN ya asignado) en BD ANTES de la
+    # llamada de red a Matías. emitir_factura es un POST síncrono que puede
+    # tardar segundos — hacerlo con la transacción todavía abierta significaba
+    # que (a) cualquier lock adquirido antes (filas de producto, la fila de la
+    # resolución) seguía retenido durante toda la llamada HTTP, y (b) si Matías
+    # emitía el CUFE con éxito pero algo después en la MISMA transacción fallaba
+    # y hacía rollback, quedaba un documento válido en la DIAN sin ninguna fila
+    # correspondiente en el sistema (y el consecutivo quedaba libre para
+    # reutilizarse, con el CUFE anterior huérfano). Al comprometer aquí, un
+    # fallo de Matías solo puede dejar estado_electronico='fallido' —
+    # recuperable desde "Reintentar FE" — nunca perder la venta ni el número.
+    try:
+        db.commit()
+        db.refresh(venta)
+    except Exception:
+        db.rollback()
+        import logging as _logging
+        _logging.getLogger("crud.ventas").exception(
+            "No se pudo confirmar la venta %s antes de emitir FE — se omite la emisión esta vez.",
+            getattr(venta, "id", "?"),
+        )
+        return None
+
     try:
         from services import matias_service as _ms
         test_mode = empresa_fe.matias_test_mode
@@ -760,13 +804,19 @@ def emitir_fe_venta(
         # Solo los documentos efectivamente emitidos cuentan contra el límite.
         if resultado.get("estado") == "exitoso":
             _incrementar_contador_docs(db, empresa_id)
+        db.commit()
         return resultado
     except Exception:
         import logging as _logging
         _logging.getLogger("crud.ventas").exception(
             "Error al emitir FE para venta %s — se guarda sin FE.", getattr(venta, "id", "?")
         )
+        db.rollback()
         venta.estado_electronico = "fallido"
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
         return None
 
 
