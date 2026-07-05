@@ -5,7 +5,7 @@ import {
   Table, TableBody, TableRow, TableCell, TableHead, TableContainer,
   Collapse, IconButton, Tooltip, Dialog, DialogTitle,
   DialogContent, DialogActions, Tabs, Tab, TextField, MenuItem,
-  InputAdornment, Switch, FormControlLabel,
+  InputAdornment, Switch, FormControlLabel, Paper,
 } from '@mui/material';
 import {
   WorkspacePremium, CheckCircle, Warning, Cancel, Refresh,
@@ -20,6 +20,27 @@ import {
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
 import WompiButton from '../../components/common/WompiButton';
+
+// Helper para focus neon/glassmorphism en TextFields
+const getInputSx = (accentColor) => ({
+  '& .MuiOutlinedInput-root': {
+    borderRadius: 2.5,
+    transition: 'all 0.2s ease-in-out',
+    '&:hover .MuiOutlinedInput-notchedOutline': {
+      borderColor: alpha(accentColor, 0.6),
+    },
+    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+      borderColor: accentColor,
+      borderWidth: 2,
+    },
+    '&.Mui-focused': {
+      boxShadow: `0 0 0 3px ${alpha(accentColor, 0.15)}`,
+    },
+  },
+  '& .MuiInputLabel-root.Mui-focused': {
+    color: accentColor,
+  },
+});
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1130,18 +1151,21 @@ const MiEmpresaTab = () => {
             label="Nombre de la empresa" size="small" fullWidth
             value={form.empresa_nombre}
             onChange={e => setForm(f => ({ ...f, empresa_nombre: e.target.value }))}
+            sx={getInputSx('#0891B2')}
             InputProps={{ startAdornment: <InputAdornment position="start"><Business sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment> }}
           />
           <TextField
             label="Ciudad" size="small" fullWidth
             value={form.ciudad}
             onChange={e => setForm(f => ({ ...f, ciudad: e.target.value }))}
+            sx={getInputSx('#0891B2')}
             InputProps={{ startAdornment: <InputAdornment position="start"><LocationOn sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment> }}
           />
           <TextField
             select label="País" size="small" fullWidth
             value={form.pais}
             onChange={e => setForm(f => ({ ...f, pais: e.target.value }))}
+            sx={getInputSx('#0891B2')}
             InputProps={{ startAdornment: <InputAdornment position="start"><Language sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment> }}
           >
             {PAISES_OPT.map(p => (
@@ -1152,6 +1176,7 @@ const MiEmpresaTab = () => {
             select label="Tamaño del negocio" size="small" fullWidth
             value={form.tamano_negocio}
             onChange={e => setForm(f => ({ ...f, tamano_negocio: e.target.value }))}
+            sx={getInputSx('#0891B2')}
             InputProps={{ startAdornment: <InputAdornment position="start"><Groups sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment> }}
           >
             {TAMANOS_OPT.map(t => (
@@ -1176,18 +1201,21 @@ const MiEmpresaTab = () => {
             label="Nombre completo" size="small" fullWidth
             value={form.nombre_completo}
             onChange={e => setForm(f => ({ ...f, nombre_completo: e.target.value }))}
+            sx={getInputSx('#0891B2')}
             InputProps={{ startAdornment: <InputAdornment position="start"><Person sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment> }}
           />
           <TextField
             label="Correo electrónico" size="small" fullWidth type="email"
             value={form.email}
             onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+            sx={getInputSx('#0891B2')}
             InputProps={{ startAdornment: <InputAdornment position="start"><Email sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment> }}
           />
           <TextField
             label="Teléfono" size="small" fullWidth
             value={form.telefono}
             onChange={e => setForm(f => ({ ...f, telefono: e.target.value }))}
+            sx={getInputSx('#0891B2')}
             InputProps={{ startAdornment: <InputAdornment position="start"><Phone sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment> }}
           />
         </Box>
@@ -1198,7 +1226,15 @@ const MiEmpresaTab = () => {
         <Button
           variant="contained" onClick={handleSaveInfo} disabled={savingInfo}
           startIcon={savingInfo ? <CircularProgress size={16} color="inherit" /> : <Save />}
-          sx={{ borderRadius: 2.5, bgcolor: '#0891B2', '&:hover': { bgcolor: '#e05519' }, fontWeight: 700, px: 3 }}
+          sx={{
+            borderRadius: 2.5,
+            fontWeight: 700,
+            px: 4, py: 1,
+            background: 'linear-gradient(135deg, #0891B2 0%, #0EA5E9 100%)',
+            boxShadow: '0 4px 12px rgba(8, 145, 178, 0.25)',
+            '&:hover': { transform: 'translateY(-1px)', boxShadow: '0 6px 16px rgba(8, 145, 178, 0.35)' },
+            transition: 'all 0.2s',
+          }}
         >
           {savingInfo ? 'Guardando…' : 'Guardar cambios'}
         </Button>
@@ -1236,6 +1272,7 @@ const MiEmpresaTab = () => {
                 helperText={`1 punto cada $${Number(fidel.earn_rate).toLocaleString('es-CO')} COP`}
                 value={fidel.earn_rate}
                 onChange={e => setFidel(f => ({ ...f, earn_rate: e.target.value }))}
+                sx={getInputSx('#F59E0B')}
                 InputProps={{ inputProps: { min: 1 } }}
               />
               <TextField
@@ -1243,6 +1280,7 @@ const MiEmpresaTab = () => {
                 helperText={`1 punto = $${Number(fidel.redeem_rate).toLocaleString('es-CO')} de descuento`}
                 value={fidel.redeem_rate}
                 onChange={e => setFidel(f => ({ ...f, redeem_rate: e.target.value }))}
+                sx={getInputSx('#F59E0B')}
                 InputProps={{ inputProps: { min: 1 } }}
               />
             </Box>
@@ -1263,7 +1301,15 @@ const MiEmpresaTab = () => {
               <Button
                 variant="contained" onClick={handleSaveFidel} disabled={savingFidel}
                 startIcon={savingFidel ? <CircularProgress size={16} color="inherit" /> : <Save />}
-                sx={{ borderRadius: 2.5, bgcolor: '#F59E0B', '&:hover': { bgcolor: '#D97706' }, fontWeight: 700, px: 3 }}
+                sx={{
+                  borderRadius: 2.5,
+                  fontWeight: 700,
+                  px: 4, py: 1,
+                  background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+                  boxShadow: '0 4px 12px rgba(245, 158, 11, 0.25)',
+                  '&:hover': { transform: 'translateY(-1px)', boxShadow: '0 6px 16px rgba(245, 158, 11, 0.35)' },
+                  transition: 'all 0.2s',
+                }}
               >
                 {savingFidel ? 'Guardando…' : 'Guardar configuración'}
               </Button>
@@ -1317,6 +1363,7 @@ const MiEmpresaTab = () => {
                   type={showNewPwd ? 'text' : 'password'}
                   value={pwd.nueva_password}
                   onChange={e => setPwd(p => ({ ...p, nueva_password: e.target.value }))}
+                  sx={getInputSx('#7C3AED')}
                   InputProps={{
                     startAdornment: <InputAdornment position="start"><Lock sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment>,
                     endAdornment: (
@@ -1369,6 +1416,7 @@ const MiEmpresaTab = () => {
                   error={pwdMismatch}
                   helperText={pwdMismatch ? 'Las contraseñas no coinciden' : pwdMatch ? '✓ Contraseñas coinciden' : ''}
                   FormHelperTextProps={{ sx: { color: pwdMatch ? '#10B981' : undefined, fontWeight: 600 } }}
+                  sx={getInputSx('#7C3AED')}
                   InputProps={{
                     startAdornment: <InputAdornment position="start"><Lock sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment>,
                     endAdornment: (
@@ -1388,7 +1436,15 @@ const MiEmpresaTab = () => {
                 variant="contained" onClick={handleSavePwd}
                 disabled={savingPwd || !pwd.nueva_password || !pwd.confirmar_password || pwdMismatch}
                 startIcon={savingPwd ? <CircularProgress size={16} color="inherit" /> : <Save />}
-                sx={{ borderRadius: 2.5, bgcolor: '#7C3AED', '&:hover': { bgcolor: '#6d28d9' }, fontWeight: 700, px: 3 }}
+                sx={{
+                  borderRadius: 2.5,
+                  fontWeight: 700,
+                  px: 4, py: 1,
+                  background: 'linear-gradient(135deg, #7C3AED 0%, #6d28d9 100%)',
+                  boxShadow: '0 4px 12px rgba(124, 92, 237, 0.25)',
+                  '&:hover': { transform: 'translateY(-1px)', boxShadow: '0 6px 16px rgba(124, 92, 237, 0.35)' },
+                  transition: 'all 0.2s',
+                }}
               >
                 {savingPwd ? 'Guardando…' : 'Cambiar contraseña'}
               </Button>
@@ -1618,34 +1674,63 @@ export default function MiSuscripcion({ user }) {
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 900, mx: 'auto' }}>
 
-      {/* ── Header ── */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5 }}>
-        <Avatar sx={{ bgcolor: alpha('#0891B2', 0.12), width: 44, height: 44 }}>
-          <WorkspacePremium sx={{ color: '#0891B2', fontSize: 22 }} />
-        </Avatar>
-        <Box>
-          <Typography variant="h6" fontWeight={900} lineHeight={1.1}>Mi Cuenta</Typography>
-          <Typography fontSize={12} color="text.secondary">
-            {user?.empresa?.nombre || 'Empresa y suscripción'}
-          </Typography>
-        </Box>
-      </Box>
-
-      {/* ── Tabs ── */}
-      <Tabs
-        value={tab} onChange={(_, v) => setTab(v)}
+      {/* ── Header Hero Banner Premium ── */}
+      <Paper
+        elevation={0}
         sx={{
+          p: { xs: 2.5, md: 4 },
           mb: 3,
-          borderBottom: `1px solid ${alpha(theme.palette.divider, 1)}`,
-          '& .MuiTab-root': { textTransform: 'none', fontWeight: 700, fontSize: 13, minHeight: 44 },
-          '& .MuiTabs-indicator': { bgcolor: '#0891B2' },
-          '& .Mui-selected': { color: '#0891B2 !important' },
+          borderRadius: 4,
+          position: 'relative',
+          overflow: 'hidden',
+          background: isDark
+            ? `linear-gradient(135deg, ${alpha('#0891B2', 0.95)} 0%, #0F172A 100%)`
+            : `linear-gradient(135deg, #0891B2 0%, #0EA5E9 100%)`,
+          color: '#fff',
+          boxShadow: '0 8px 32px rgba(8, 145, 178, 0.15)',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: -50,
+            right: -50,
+            width: 150,
+            height: 150,
+            borderRadius: '50%',
+            background: 'rgba(255, 255, 255, 0.08)',
+            filter: 'blur(20px)',
+          }
         }}
       >
-        <Tab label="Mi Empresa" />
-        <Tab label="Suscripción" />
-        <Tab label="Plataforma" />
-      </Tabs>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, position: 'relative', zIndex: 1 }}>
+          <Avatar sx={{ bgcolor: 'rgba(255, 255, 255, 0.2)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255, 255, 255, 0.3)', width: 48, height: 48 }}>
+            <WorkspacePremium sx={{ color: '#fff', fontSize: 24 }} />
+          </Avatar>
+          <Box>
+            <Typography variant="h5" fontWeight={800} sx={{ letterSpacing: -0.5 }}>Mi Cuenta</Typography>
+            <Typography fontSize={13} color="rgba(255,255,255,0.85)">
+              {user?.empresa?.nombre || 'Administración de empresa y suscripción'}
+            </Typography>
+          </Box>
+        </Box>
+      </Paper>
+
+      {/* ── Tabs Modernizadas ── */}
+      <Paper sx={{ borderRadius: 4, border: '1px solid', borderColor: 'divider', boxShadow: isDark ? '0 12px 40px rgba(0,0,0,0.3)' : '0 8px 30px rgba(0,0,0,0.04)', overflow: 'hidden', mb: 3 }}>
+        <Tabs
+          value={tab} onChange={(_, v) => setTab(v)}
+          sx={{
+            px: 2,
+            background: isDark ? 'rgba(255,255,255,0.01)' : 'rgba(0,0,0,0.01)',
+            '& .MuiTab-root': { textTransform: 'none', fontWeight: 700, fontSize: 13.5, minHeight: 52 },
+            '& .MuiTabs-indicator': { bgcolor: '#0891B2', height: 3, borderRadius: 3 },
+            '& .Mui-selected': { color: '#0891B2 !important' },
+          }}
+        >
+          <Tab label="Mi Empresa" />
+          <Tab label="Suscripción" />
+          <Tab label="Plataforma" />
+        </Tabs>
+      </Paper>
 
       {/* ── Tab 0: Mi Empresa ── */}
       {tab === 0 && <MiEmpresaTab />}
