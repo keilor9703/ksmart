@@ -3,17 +3,16 @@ import hashlib
 import time
 import logging
 import requests as http_requests
-from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel
 from typing import Optional
+
+from sqlalchemy import or_
 
 import models
 import schemas
 from api.deps import get_db, get_current_user
-from services import matias_service as _ms
 
 router = APIRouter()
 logger = logging.getLogger("wompi")
@@ -81,9 +80,17 @@ def generar_hash_wompi(
         logger.error("WOMPI_INTEGRITY_SECRET no configurada — no se puede generar hash de pago")
         raise HTTPException(status_code=503, detail="Pasarela de pago no configurada. Contacte a soporte.")
 
+    # Un plan exclusivo (empresa_id_exclusivo) es una tarifa negociada para UNA
+    # sola empresa: sin este filtro, cualquier tenant que conociera el
+    # codigo_interno de otro (p.ej. filtrado antes en /mi-suscripcion) podría
+    # comprarlo a su precio negociado.
     plan = db.query(models.PlanSuscripcion).filter(
         models.PlanSuscripcion.codigo_interno == request_data.plan_name,
         models.PlanSuscripcion.is_active == True,
+        or_(
+            models.PlanSuscripcion.empresa_id_exclusivo.is_(None),
+            models.PlanSuscripcion.empresa_id_exclusivo == current_user.empresa_id,
+        ),
     ).first()
     if not plan:
         raise HTTPException(status_code=400, detail="El plan no existe.")
@@ -229,92 +236,40 @@ def confirmar_pago_widget(
     )
     descuento_aplicado = float(intento.descuento_aplicado or 0) if intento else 0.0
     codigo_promo_id    = intento.codigo_promo_id if intento else None
-
-    # 5. Validar que el monto pagado corresponde al esperado (con descuento si aplica)
-    if tx is not None:
-        monto_esperado = intento.monto_esperado_centavos if intento else int(plan.precio * 100)
-        if amount_from_tx < monto_esperado:
-            logger.warning(
-                f"confirmar-pago-widget: monto pagado {amount_from_tx} < esperado {monto_esperado} "
-                f"para plan {plan.codigo_interno} — RECHAZADO"
-            )
-            raise HTTPException(
-                status_code=400,
-                detail="El monto pagado no corresponde al plan seleccionado.",
-            )
-
-    # 6. Activar suscripción
-    empresa.is_active  = True
-    empresa.plan_type  = "premium"
-    ahora = datetime.now(timezone.utc)
-    base  = empresa.trial_ends_at if empresa.trial_ends_at and empresa.trial_ends_at > ahora else ahora
-    empresa.trial_ends_at = base + timedelta(days=plan.dias_duracion)
-
-    # 6a. Si el plan no incluye FE, desactivar facturación electrónica de la empresa
-    if getattr(plan, "incluye_fe", True) == False:
-        empresa.facturacion_electronica_activa = False
-        logger.info(f"Plan {plan.codigo_interno} no incluye FE — facturacion_electronica_activa desactivada para empresa {empresa_id_ref}")
-
-    nuevo_pago = models.RegistroPago(
-        empresa_id   = empresa_id_ref,
-        plan_id      = plan_id,
-        monto        = amount_from_tx / 100 if amount_from_tx else plan.precio,
-        moneda       = currency_from_tx,
-        metodo_pago  = payment_method,
-        bold_tx_id   = wompi_id,
-        email_pagador= customer_email,
-        codigo_promo_id    = codigo_promo_id,
-        descuento_aplicado = descuento_aplicado,
-        payload_auditoria = {"wompi_id": wompi_id, "verificado_api": tx is not None},
+    monto_esperado = (
+        (intento.monto_esperado_centavos if intento else int(plan.precio * 100))
+        if tx is not None else None
     )
-    db.add(nuevo_pago)
-    # Incrementar el contador de usos del código promocional aplicado.
-    if codigo_promo_id:
-        cod = db.query(models.CodigoPromocional).filter(
-            models.CodigoPromocional.id == codigo_promo_id
-        ).first()
-        if cod:
-            cod.usos_actuales = (cod.usos_actuales or 0) + 1
+
+    # 5-8: validar monto, activar suscripción, registrar pago, acreditar promo
+    # y emitir la factura de la suscripción — misma función que usa el
+    # webhook de Wompi, para que ambos canales de confirmación se comporten
+    # idénticamente sin importar cuál llegue primero.
+    from crud.suscripcion_pagos import activar_suscripcion_pagada
     try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        logger.info(f"confirmar-pago-widget: {wompi_id} duplicado ignorado (unique constraint)")
+        resultado = activar_suscripcion_pagada(
+            db,
+            empresa_id=empresa_id_ref,
+            plan_id=plan_id,
+            wompi_id=wompi_id,
+            amount_in_cents=amount_from_tx,
+            currency=currency_from_tx,
+            metodo_pago=payment_method,
+            email_pagador=customer_email,
+            payload_auditoria={"wompi_id": wompi_id, "verificado_api": tx is not None},
+            payment_source_id=None,
+            monto_esperado_centavos=monto_esperado,
+            descuento_aplicado=descuento_aplicado,
+            codigo_promo_id=codigo_promo_id,
+        )
+    except ValueError as e:
+        logger.warning(f"confirmar-pago-widget: {e} — RECHAZADO")
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if resultado.get("duplicado"):
+        logger.info(f"confirmar-pago-widget: {wompi_id} duplicado ignorado")
         return {"status": "ok", "mensaje": "Suscripción ya activa."}
 
     logger.info(f"✅ Suscripción activada vía widget (verificada con API Wompi): empresa {empresa_id_ref}")
-
-    # ── Facturación electrónica de la suscripción ────────────────────────────
-    # El dueño del sistema (PlataformaConfig) emite la FE al cliente que pagó,
-    # usando sus propias credenciales Matías. Independiente de las empresas clientes.
-    try:
-        plataforma = db.query(models.PlataformaConfig).filter_by(id=1).first()
-        if (
-            plataforma
-            and plataforma.facturacion_electronica_activa
-            and (plataforma.matias_api_key or plataforma.matias_sandbox_api_key)
-            and plataforma.resolucion_numero
-        ):
-            test_mode = plataforma.matias_test_mode if plataforma.matias_test_mode is not None else True
-            api_key   = plataforma.matias_sandbox_api_key if test_mode else plataforma.matias_api_key
-            if api_key:
-                resultado = _ms.emitir_factura_suscripcion(
-                    registro_pago   = nuevo_pago,
-                    empresa_cliente = empresa,
-                    plan            = plan,
-                    plataforma      = plataforma,
-                    api_key         = api_key,
-                    test_mode       = test_mode,
-                )
-                nuevo_pago.estado_fe             = resultado["estado"]
-                nuevo_pago.cufe_fe               = resultado.get("cufe_fe")
-                nuevo_pago.pdf_url_fe            = resultado.get("pdf_url_fe")
-                nuevo_pago.numero_factura_ksmart = resultado.get("numero_factura")
-                if resultado["estado"] == "exitoso":
-                    plataforma.resolucion_numero_actual = (plataforma.resolucion_numero_actual or 0) + 1
-                db.commit()
-                logger.info("FE suscripción empresa %s: %s", empresa_id_ref, resultado["estado"])
-    except Exception as _fe_exc:
-        logger.error("Error emitiendo FE de suscripción empresa %s: %s", empresa_id_ref, _fe_exc)
 
     return {"status": "ok", "mensaje": f"Suscripción activada por {plan.dias_duracion} días."}
