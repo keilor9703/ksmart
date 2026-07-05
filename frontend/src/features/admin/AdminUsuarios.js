@@ -726,13 +726,13 @@ export default function AdminUsuarios() {
       <ConfirmationDialog
         open={showConfirmUser}
         title={userToToggle?.is_active !== false ? '¿Suspender acceso?' : '¿Reactivar acceso?'}
-        body={userToToggle?.is_active !== false
+        message={userToToggle?.is_active !== false
           ? `El usuario ${userToToggle?.username} no podrá acceder al sistema hasta que sea reactivado.`
           : `El usuario ${userToToggle?.username} volverá a tener acceso normal a sus módulos.`
         }
-        color={userToToggle?.is_active !== false ? RED : GREEN}
-        onConfirm={confirmToggleUser}
-        onCancel={() => { setShowConfirmUser(false); setUserToToggle(null); }}
+        type={userToToggle?.is_active !== false ? 'delete' : 'success'}
+        handleConfirm={confirmToggleUser}
+        handleClose={() => { setShowConfirmUser(false); setUserToToggle(null); }}
       />
     </Box>
   );
