@@ -18,6 +18,19 @@ import {
 const ACCENT = '#3B82F6';
 const GREEN  = '#10B981';
 
+const SortHeader = ({ col, sortBy, sortDir, onSort, children }) => (
+  <TableCell sortDirection={sortBy === col ? sortDir : false}>
+    <TableSortLabel
+      active={sortBy === col}
+      direction={sortBy === col ? sortDir : 'asc'}
+      onClick={() => onSort(col)}
+      sx={{ fontWeight: 700, fontSize: 12 }}
+    >
+      {children}
+    </TableSortLabel>
+  </TableCell>
+);
+
 // ─── WhatsApp helper ──────────────────────────────────────────────────────────
 const openWhatsApp = (telefono) => {
   if (!telefono?.trim()) { toast.warning('Sin número de teléfono'); return; }
@@ -52,7 +65,7 @@ const ClienteCard = ({ cliente, onEditCliente, handleDelete, handleViewHistory, 
           <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{cliente.telefono || 'N/A'}</Typography>
           {cliente.telefono && (
             <Tooltip title="Abrir WhatsApp">
-              <IconButton size="small" onClick={() => openWhatsApp(cliente.telefono)} sx={{ p: 0.2, color: '#25D366' }}>
+              <IconButton size="small" aria-label="Abrir WhatsApp" onClick={() => openWhatsApp(cliente.telefono)} sx={{ p: 0.2, color: '#25D366' }}>
                 <WhatsApp sx={{ fontSize: 14 }} />
               </IconButton>
             </Tooltip>
@@ -81,25 +94,25 @@ const ClienteCard = ({ cliente, onEditCliente, handleDelete, handleViewHistory, 
 
     <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
       <Tooltip title="Ver en Google Maps">
-        <IconButton size="small" onClick={() => handleAbrirMapa(cliente.direccion)}
+        <IconButton size="small" aria-label="Ver en Google Maps" onClick={() => handleAbrirMapa(cliente.direccion)}
           sx={{ color: '#0ea5e9', bgcolor: 'rgba(14,165,233,0.1)', borderRadius: 1.5 }}>
           <LocationOn fontSize="small" />
         </IconButton>
       </Tooltip>
       <Tooltip title="Historial financiero">
-        <IconButton size="small" onClick={() => handleViewHistory(cliente)}
+        <IconButton size="small" aria-label="Ver historial financiero" onClick={() => handleViewHistory(cliente)}
           sx={{ color: '#8B5CF6', bgcolor: 'rgba(139,92,246,0.1)', borderRadius: 1.5 }}>
           <History fontSize="small" />
         </IconButton>
       </Tooltip>
       <Tooltip title="Editar">
-        <IconButton size="small" onClick={() => onEditCliente(cliente)}
+        <IconButton size="small" aria-label="Editar tercero" onClick={() => onEditCliente(cliente)}
           sx={{ color: ACCENT, bgcolor: `${ACCENT}12`, borderRadius: 1.5 }}>
           <Edit fontSize="small" />
         </IconButton>
       </Tooltip>
       <Tooltip title="Eliminar">
-        <IconButton size="small" onClick={() => handleDelete(cliente.id)}
+        <IconButton size="small" aria-label="Eliminar tercero" onClick={() => handleDelete(cliente.id)}
           sx={{ color: '#EF4444', bgcolor: '#FEF2F2', borderRadius: 1.5 }}>
           <Delete fontSize="small" />
         </IconButton>
@@ -214,8 +227,8 @@ const ClienteList = ({
     return list;
   }, [clientes, searchTerm, filterType]);
 
-  const paginatedClientes = useMemo(() => {
-    const copy = [...filteredClientes].sort((a, b) => {
+  const sortedClientes = useMemo(() => {
+    return [...filteredClientes].sort((a, b) => {
       if (sortBy === 'nombre') {
         const cmp = a.nombre.localeCompare(b.nombre);
         return sortDir === 'asc' ? cmp : -cmp;
@@ -230,23 +243,13 @@ const ClienteList = ({
       }
       return 0;
     });
-    return copy.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  }, [filteredClientes, sortBy, sortDir, page, rowsPerPage]);
+  }, [filteredClientes, sortBy, sortDir]);
+
+  const paginatedClientes = useMemo(() => {
+    return sortedClientes.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  }, [sortedClientes, page, rowsPerPage]);
 
   const label = filterType === 'proveedor' ? 'proveedores' : 'clientes';
-
-  const SortHeader = ({ col, children }) => (
-    <TableCell sortDirection={sortBy === col ? sortDir : false}>
-      <TableSortLabel
-        active={sortBy === col}
-        direction={sortBy === col ? sortDir : 'asc'}
-        onClick={() => handleSort(col)}
-        sx={{ fontWeight: 700, fontSize: 12 }}
-      >
-        {children}
-      </TableSortLabel>
-    </TableCell>
-  );
 
   return (
     <Box sx={{ width: '100%', maxWidth: '100%' }}>
@@ -276,7 +279,7 @@ const ClienteList = ({
         ))}
         <Box sx={{ ml: 'auto' }}>
           <Tooltip title={`Exportar ${label} a CSV`}>
-            <IconButton size="small" onClick={handleExportCSV} sx={{ color: GREEN, border: `1px solid ${GREEN}30`, borderRadius: 1.5 }}>
+            <IconButton size="small" aria-label={`Exportar ${label} a CSV`} onClick={handleExportCSV} sx={{ color: GREEN, border: `1px solid ${GREEN}30`, borderRadius: 1.5 }}>
               <FileDownload fontSize="small" />
             </IconButton>
           </Tooltip>
@@ -310,7 +313,9 @@ const ClienteList = ({
           {paginatedClientes.length === 0
             ? <Box sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
                 <Person sx={{ fontSize: 48, mb: 1, opacity: 0.3 }} />
-                <Typography>No se encontraron {label}</Typography>
+                <Typography>
+                  {clientes.length === 0 ? `Aún no tienes ${label} registrados` : `No se encontraron ${label}`}
+                </Typography>
               </Box>
             : paginatedClientes.map(c => (
                 <ClienteCard
@@ -330,12 +335,12 @@ const ClienteList = ({
           <Table size="small">
             <TableHead sx={{ bgcolor: 'action.hover' }}>
               <TableRow>
-                <SortHeader col="nombre">Nombre / Razón Social</SortHeader>
-                <SortHeader col="cedula">Cédula / NIT</SortHeader>
+                <SortHeader col="nombre" sortBy={sortBy} sortDir={sortDir} onSort={handleSort}>Nombre / Razón Social</SortHeader>
+                <SortHeader col="cedula" sortBy={sortBy} sortDir={sortDir} onSort={handleSort}>Cédula / NIT</SortHeader>
                 <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Teléfono</TableCell>
                 <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Email</TableCell>
                 <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Dirección</TableCell>
-                {filterType === 'cliente' && <SortHeader col="cupo_credito">Cupo Crédito</SortHeader>}
+                {filterType === 'cliente' && <SortHeader col="cupo_credito" sortBy={sortBy} sortDir={sortDir} onSort={handleSort}>Cupo Crédito</SortHeader>}
                 <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Tipo</TableCell>
                 <TableCell sx={{ fontWeight: 700, fontSize: 12 }} align="right">Acciones</TableCell>
               </TableRow>
@@ -345,7 +350,9 @@ const ClienteList = ({
                 ? <TableRow>
                     <TableCell colSpan={filterType === 'cliente' ? 8 : 7} sx={{ textAlign: 'center', py: 6 }}>
                       <Person sx={{ fontSize: 40, opacity: 0.2, display: 'block', mx: 'auto', mb: 1 }} />
-                      <Typography color="text.secondary" fontSize={13}>No se encontraron {label}</Typography>
+                      <Typography color="text.secondary" fontSize={13}>
+                        {clientes.length === 0 ? `Aún no tienes ${label} registrados` : `No se encontraron ${label}`}
+                      </Typography>
                     </TableCell>
                   </TableRow>
                 : paginatedClientes.map(c => (
@@ -357,7 +364,7 @@ const ClienteList = ({
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             {c.telefono}
                             <Tooltip title="Abrir WhatsApp">
-                              <IconButton size="small" onClick={() => openWhatsApp(c.telefono)} sx={{ p: 0.2, color: '#25D366' }}>
+                              <IconButton size="small" aria-label="Abrir WhatsApp" onClick={() => openWhatsApp(c.telefono)} sx={{ p: 0.2, color: '#25D366' }}>
                                 <WhatsApp sx={{ fontSize: 14 }} />
                               </IconButton>
                             </Tooltip>
@@ -389,25 +396,25 @@ const ClienteList = ({
                       <TableCell align="right">
                         <Box sx={{ display: 'flex', gap: 0.3, justifyContent: 'flex-end' }}>
                           <Tooltip title="Ver en Google Maps">
-                            <IconButton size="small" onClick={() => handleAbrirMapa(c.direccion)}
+                            <IconButton size="small" aria-label="Ver en Google Maps" onClick={() => handleAbrirMapa(c.direccion)}
                               sx={{ color: '#0ea5e9', '&:hover': { bgcolor: 'rgba(14,165,233,0.1)' } }}>
                               <LocationOn fontSize="small" />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Historial financiero">
-                            <IconButton size="small" onClick={() => handleViewHistory(c)}
+                            <IconButton size="small" aria-label="Ver historial financiero" onClick={() => handleViewHistory(c)}
                               sx={{ color: '#8B5CF6', '&:hover': { bgcolor: 'rgba(139,92,246,0.1)' } }}>
                               <History fontSize="small" />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Editar">
-                            <IconButton size="small" onClick={() => onEditCliente(c)}
+                            <IconButton size="small" aria-label="Editar tercero" onClick={() => onEditCliente(c)}
                               sx={{ color: accentColor, '&:hover': { bgcolor: `${accentColor}12` } }}>
                               <Edit fontSize="small" />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Eliminar">
-                            <IconButton size="small" onClick={() => handleDelete(c.id)}
+                            <IconButton size="small" aria-label="Eliminar tercero" onClick={() => handleDelete(c.id)}
                               sx={{ color: '#EF4444', '&:hover': { bgcolor: '#FEF2F2' } }}>
                               <Delete fontSize="small" />
                             </IconButton>

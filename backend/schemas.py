@@ -1008,6 +1008,12 @@ class ClienteCuentasPorCobrar(BaseModel):
     monto_pendiente: float
     ventas_pendientes: List[Venta] = []
 
+class ProveedorCuentasPorPagar(BaseModel):
+    proveedor_id: int
+    proveedor_nombre: str
+    monto_pendiente: float
+    compras_pendientes: List[Compra] = []
+
 class VentaHistoryItem(BaseModel):
     id: int
     detalles: List[DetalleVenta] = []

@@ -38,6 +38,10 @@ def get_rentabilidad_productos(start_date: Optional[date] = None, end_date: Opti
 def get_cuentas_por_cobrar(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
     return crud.get_cuentas_por_cobrar_por_cliente(db, empresa_id=current_user.empresa_id)
 
+@router.get("/cuentas_por_pagar", response_model=List[schemas.ProveedorCuentasPorPagar])
+def get_cuentas_por_pagar(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+    return crud.get_cuentas_por_pagar_por_proveedor(db, empresa_id=current_user.empresa_id)
+
 @router.get("/dashboard", response_model=schemas.DashboardData)
 def get_dashboard_report(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
     tipo_negocio = getattr(current_user.empresa, "tipo_negocio", "erp") or "erp"
