@@ -32,8 +32,45 @@ def _normalize_cedula(data: dict) -> dict:
         data['cedula'] = None
     return data
 
+_DV_WEIGHTS = [3, 7, 13, 17, 19, 23, 29, 37, 41, 43, 47, 53, 59, 67, 71]
+
+def calcular_dv(nit: str) -> Optional[str]:
+    """Calcula el dígito de verificación (DV) de un NIT colombiano según el
+    algoritmo módulo 11 de la DIAN."""
+    digits = ''.join(ch for ch in str(nit) if ch.isdigit())
+    if not digits:
+        return None
+    total = sum(int(d) * w for d, w in zip(reversed(digits), _DV_WEIGHTS))
+    remainder = total % 11
+    if remainder in (0, 1):
+        return str(remainder)
+    return str(11 - remainder)
+
+def _autocalcular_dv(data: dict) -> dict:
+    """Si es NIT (tipo_documento_id=31) y no se envió DV, lo calcula automáticamente."""
+    if data.get('tipo_documento_id') == 31 and not data.get('dv') and data.get('cedula'):
+        data['dv'] = calcular_dv(data['cedula'])
+    return data
+
+def _check_cedula_duplicada(db: Session, empresa_id: int, cedula: Optional[str], exclude_id: Optional[int] = None):
+    if not cedula:
+        return
+    query = db.query(models.Cliente).filter(
+        models.Cliente.empresa_id == empresa_id,
+        models.Cliente.cedula == cedula
+    )
+    if exclude_id is not None:
+        query = query.filter(models.Cliente.id != exclude_id)
+    existente = query.first()
+    if existente:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Ya existe un tercero con la cédula/NIT {cedula}: '{existente.nombre}'."
+        )
+
 def create_cliente(db: Session, empresa_id: int, cliente: schemas.ClienteCreate):
-    data = _normalize_cedula(cliente.dict())
+    data = _autocalcular_dv(_normalize_cedula(cliente.dict()))
+    _check_cedula_duplicada(db, empresa_id, data.get('cedula'))
     db_cliente = models.Cliente(**data, empresa_id=empresa_id)
     db.add(db_cliente)
     db.commit()
@@ -46,7 +83,9 @@ def update_cliente(db: Session, empresa_id: int, cliente_id: int, cliente: schem
         models.Cliente.empresa_id == empresa_id
     ).first()
     if db_cliente:
-        data = _normalize_cedula(cliente.dict(exclude_unset=True))
+        data = _autocalcular_dv(_normalize_cedula(cliente.dict(exclude_unset=True)))
+        if 'cedula' in data:
+            _check_cedula_duplicada(db, empresa_id, data.get('cedula'), exclude_id=cliente_id)
         for key, value in data.items():
             setattr(db_cliente, key, value)
         db.commit()
@@ -54,13 +93,21 @@ def update_cliente(db: Session, empresa_id: int, cliente_id: int, cliente: schem
     return db_cliente
 
 def delete_cliente(db: Session, empresa_id: int, cliente_id: int):
+    from sqlalchemy.exc import IntegrityError
     db_cliente = db.query(models.Cliente).filter(
         models.Cliente.id == cliente_id,
         models.Cliente.empresa_id == empresa_id
     ).first()
     if db_cliente:
         db.delete(db_cliente)
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail="No se puede eliminar este tercero porque tiene registros asociados. Desactívelo en lugar de eliminarlo."
+            )
     return db_cliente
 
 def get_cliente_history(db: Session, empresa_id: int, cliente_id: int):

@@ -36,6 +36,41 @@ def check_can_delete_cliente(db: Session, empresa_id: int, cliente_id: int) -> l
     if lotes:
         bloqueos.append(f"{lotes} lote{'s' if lotes > 1 else ''} de producción")
 
+    gastos = db.query(models.Gasto).filter(
+        models.Gasto.tercero_id == cliente_id,
+        models.Gasto.empresa_id == empresa_id  # ✅
+    ).count()
+    if gastos:
+        bloqueos.append(f"{gastos} gasto{'s' if gastos > 1 else ''} asociado{'s' if gastos > 1 else ''}")
+
+    prestamos = db.query(models.Prestamo).filter(
+        models.Prestamo.cliente_id == cliente_id,
+        models.Prestamo.empresa_id == empresa_id  # ✅
+    ).count()
+    if prestamos:
+        bloqueos.append(f"{prestamos} préstamo{'s' if prestamos > 1 else ''}")
+
+    lotes_existencia = db.query(models.LoteExistencia).filter(
+        models.LoteExistencia.proveedor_id == cliente_id,
+        models.LoteExistencia.empresa_id == empresa_id  # ✅
+    ).count()
+    if lotes_existencia:
+        bloqueos.append(f"{lotes_existencia} lote{'s' if lotes_existencia > 1 else ''} de inventario como proveedor")
+
+    lavadero = db.query(models.LavaderoOrden).filter(
+        models.LavaderoOrden.cliente_id == cliente_id,
+        models.LavaderoOrden.empresa_id == empresa_id  # ✅
+    ).count()
+    if lavadero:
+        bloqueos.append(f"{lavadero} orden{'es' if lavadero > 1 else ''} de lavadero")
+
+    citas = db.query(models.Cita).filter(
+        models.Cita.cliente_id == cliente_id,
+        models.Cita.empresa_id == empresa_id  # ✅
+    ).count()
+    if citas:
+        bloqueos.append(f"{citas} cita{'s' if citas > 1 else ''} agendada{'s' if citas > 1 else ''}")
+
     return bloqueos
 
 def check_can_delete_producto(db: Session, empresa_id: int, producto_id: int) -> list:

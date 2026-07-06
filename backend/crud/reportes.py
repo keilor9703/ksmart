@@ -93,6 +93,36 @@ def get_cuentas_por_cobrar_por_cliente(db: Session, empresa_id: int):
         ))
     return result
 
+def get_cuentas_por_pagar_por_proveedor(db: Session, empresa_id: int):
+    proveedores_con_pendientes = db.query(models.Cliente).join(
+        models.Compra, models.Compra.proveedor_id == models.Cliente.id
+    ).filter(
+        models.Cliente.empresa_id == empresa_id,
+        models.Compra.empresa_id == empresa_id,
+        (models.Compra.estado_pago == "pendiente") | (models.Compra.estado_pago == "parcial")
+    ).distinct().all()
+
+    result = []
+    for proveedor in proveedores_con_pendientes:
+        compras_pendientes_proveedor = db.query(models.Compra).options(
+            joinedload(models.Compra.detalles),
+            joinedload(models.Compra.pagos)
+        ).filter(
+            models.Compra.proveedor_id == proveedor.id,
+            models.Compra.empresa_id == empresa_id,
+            (models.Compra.estado_pago == "pendiente") | (models.Compra.estado_pago == "parcial")
+        ).all()
+
+        monto_pendiente_total = sum(compra.total - compra.monto_pagado for compra in compras_pendientes_proveedor)
+
+        result.append(schemas.ProveedorCuentasPorPagar(
+            proveedor_id=proveedor.id,
+            proveedor_nombre=proveedor.nombre,
+            monto_pendiente=monto_pendiente_total,
+            compras_pendientes=compras_pendientes_proveedor
+        ))
+    return result
+
 def get_productos_vendidos(db: Session, empresa_id: int, start_date: Optional[date] = None, end_date: Optional[date] = None):
     query = (
         db.query(
