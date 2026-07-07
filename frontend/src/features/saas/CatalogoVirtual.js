@@ -297,7 +297,10 @@ const CatalogoVirtual = () => {
   // si no, quedaría "pegada" la variante del producto anterior visto.
   useEffect(() => {
     if (selectedProduct?.tiene_variantes) {
-      const activas = (selectedProduct.variantes || []).filter(v => v.activo);
+      // El catálogo público ya solo envía variantes activas (filtradas en el
+      // backend) — a diferencia del schema interno de administración, este
+      // objeto nunca trae el campo `activo`.
+      const activas = selectedProduct.variantes || [];
       setDialogVariante(activas.find(v => v.stock > 0) || activas[0] || null);
     } else {
       setDialogVariante(null);
@@ -416,7 +419,9 @@ const CatalogoVirtual = () => {
           let precioVigente = actual.precio;
           let stockVigente = actual.stock;
           if (item.varianteId) {
-            const variante = (actual.variantes || []).find(v => v.id === item.varianteId && v.activo);
+            // El catálogo público ya solo lista variantes activas — si no
+            // aparece aquí es porque se desactivó o eliminó.
+            const variante = (actual.variantes || []).find(v => v.id === item.varianteId);
             if (!variante) { changed = true; continue; }
             precioVigente = variante.precio != null ? variante.precio : actual.precio;
             stockVigente = variante.stock;
@@ -1091,7 +1096,7 @@ const CatalogoVirtual = () => {
                       Elige una opción
                     </Typography>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                      {(selectedProduct.variantes || []).filter(v => v.activo).map(v => {
+                      {(selectedProduct.variantes || []).map(v => {
                         const elegida = dialogVariante?.id === v.id;
                         const sinStock = !esRestaurante && (v.stock ?? 0) <= 0;
                         return (
