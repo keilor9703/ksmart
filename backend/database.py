@@ -2547,6 +2547,17 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v115)
                 logger.info("V115 (variantes en movimientos y pedidos virtuales) aplicada.")
 
+            # V116 — Fase 2 de soporte de variantes: Compras (recepción de
+            # stock hacia una variante específica) y Producción (lote
+            # acreditado a una variante del producto resultante).
+            migration_v116 = "v116_variantes_compras_produccion"
+            if not _migration_already_applied(conn, migration_v116):
+                _add_column_safe(conn, "detalles_compra", "variante_id", "INTEGER")
+                _add_column_safe(conn, "detalles_compra", "nombre_variante", "VARCHAR(200)")
+                _add_column_safe(conn, "lotes_produccion", "variante_id", "INTEGER")
+                _mark_migration_applied(conn, migration_v116)
+                logger.info("V116 (variantes en compras y producción) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

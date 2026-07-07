@@ -42,6 +42,12 @@ def get_cuentas_por_cobrar(db: Session = Depends(get_db), current_user: models.U
 def get_cuentas_por_pagar(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
     return crud.get_cuentas_por_pagar_por_proveedor(db, empresa_id=current_user.empresa_id)
 
+@router.get("/ventas_por_variante/{producto_id}", response_model=List[schemas.VarianteVendida])
+def get_ventas_por_variante(producto_id: int, start_date: Optional[date] = None, end_date: Optional[date] = None,
+                            db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+    return crud.get_ventas_por_variante(db, empresa_id=current_user.empresa_id, producto_id=producto_id,
+                                         start_date=start_date, end_date=end_date)
+
 @router.get("/dashboard", response_model=schemas.DashboardData)
 def get_dashboard_report(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
     tipo_negocio = getattr(current_user.empresa, "tipo_negocio", "erp") or "erp"
