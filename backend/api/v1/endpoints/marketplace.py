@@ -79,3 +79,65 @@ def listar_categorias_marketplace(request: Request, db: Session = Depends(deps.g
         models.Empresa.categoria_marketplace.isnot(None),
     ).distinct().all()
     return sorted({r[0] for r in rows if r[0]})
+
+
+@router.get("/productos", response_model=List[schemas.MarketplaceProductoOut])
+@limiter.limit("60/minute")
+def buscar_productos_marketplace(
+    request: Request,
+    search: str,
+    categoria: Optional[str] = None,
+    limit: int = 30,
+    db: Session = Depends(deps.get_db),
+):
+    """Búsqueda de productos A TRAVÉS DE todas las tiendas opt-in del mall —
+    esto es lo que diferencia al directorio de simplemente enlistar marcas:
+    el cliente puede buscar "tenis" sin saber en qué tienda está.
+    Requiere `search` con al menos 2 caracteres para evitar escanear todo el
+    catálogo combinado en cada tecla."""
+    if not search or len(search.strip()) < 2:
+        return []
+    limit = max(1, min(limit, MARKETPLACE_MAX_LIMIT))
+
+    query = (
+        db.query(models.Producto, models.Empresa)
+        .join(models.Empresa, models.Producto.empresa_id == models.Empresa.id)
+        .filter(
+            models.Empresa.visible_marketplace == True,
+            models.Empresa.is_active == True,
+            models.Empresa.slug_catalogo.isnot(None),
+            models.Producto.mostrar_en_catalogo == True,
+            models.Producto.vigente == True,
+            models.Producto.nombre.ilike(f"%{search.strip()}%"),
+        )
+    )
+    if categoria:
+        query = query.filter(models.Empresa.categoria_marketplace == categoria)
+
+    filas = query.order_by(models.Producto.nombre.asc()).limit(limit).all()
+
+    resultado = []
+    for prod, emp in filas:
+        count = 0
+        if prod.imagenes:
+            if isinstance(prod.imagenes, list):
+                count = len(prod.imagenes)
+            elif isinstance(prod.imagenes, str):
+                import json
+                try:
+                    imgs = json.loads(prod.imagenes)
+                    count = len(imgs) if isinstance(imgs, list) else 0
+                except Exception:
+                    pass
+        cat = db.query(models.GrupoProducto).filter(models.GrupoProducto.id == prod.grupo_item).first()
+        resultado.append(schemas.MarketplaceProductoOut(
+            id=prod.id,
+            nombre=prod.nombre,
+            precio=prod.precio,
+            image_count=count,
+            categoria=cat.nombre if cat else None,
+            empresa_nombre=emp.nombre,
+            empresa_slug=emp.slug_catalogo,
+            empresa_color=emp.color_primario,
+        ))
+    return resultado

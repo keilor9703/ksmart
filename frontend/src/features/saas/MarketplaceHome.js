@@ -100,6 +100,55 @@ const StoreCard = React.memo(function StoreCard({ store, onOpen }) {
   );
 });
 
+// Resultado de la búsqueda cruzada — un producto encontrado en CUALQUIER
+// tienda del mall. Deja clarísimo a cuál tienda pertenece (el usuario nunca
+// "compra" aquí; hace clic y entra a esa tienda como si hubiera llegado
+// directo a su catálogo).
+const ProductResultCard = React.memo(function ProductResultCard({ producto, apiBaseURL, onOpen }) {
+  return (
+    <Box
+      onClick={() => onOpen(producto.empresa_slug)}
+      sx={{
+        borderRadius: 3, overflow: 'hidden', cursor: 'pointer',
+        bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider',
+        transition: 'transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease',
+        '@media (hover: hover)': {
+          '&:hover': { transform: 'translateY(-4px)', boxShadow: `0 14px 28px -12px ${producto.empresa_color}40` },
+        },
+      }}
+    >
+      <Box sx={{
+        aspectRatio: '1/1', bgcolor: 'action.hover',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+      }}>
+        {producto.image_count > 0 ? (
+          <Box component="img"
+            src={`${apiBaseURL}/catalogo/${producto.empresa_slug}/productos/${producto.id}/imagen?index=0`}
+            alt={producto.nombre}
+            loading="lazy"
+            sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        ) : (
+          <Inventory2 sx={{ fontSize: 32, color: 'text.disabled' }} />
+        )}
+      </Box>
+      <Box sx={{ p: 1.5 }}>
+        <Typography sx={{ fontSize: 12.5, fontWeight: 700, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: 32 }}>
+          {producto.nombre}
+        </Typography>
+        <Typography sx={{ fontSize: 14, fontWeight: 900, color: producto.empresa_color, mt: 0.4 }}>
+          ${new Intl.NumberFormat('es-CO').format(producto.precio)}
+        </Typography>
+        <Chip
+          label={producto.empresa_nombre}
+          size="small"
+          sx={{ mt: 0.6, height: 18, fontSize: 9.5, fontWeight: 700, bgcolor: `${producto.empresa_color}15`, color: producto.empresa_color, borderRadius: 1 }}
+        />
+      </Box>
+    </Box>
+  );
+});
+
 const CardSkeleton = () => (
   <Box sx={{ borderRadius: 4, p: 3, border: '1px solid', borderColor: 'divider' }}>
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
@@ -152,6 +201,12 @@ export default function MarketplaceHome() {
   const [search, setSearch] = useState('');
   const [categoria, setCategoria] = useState('Todas');
 
+  // Búsqueda cruzada de PRODUCTOS entre todas las tiendas — esto es lo que
+  // distingue al mall de una simple lista de marcas: buscar "tenis" encuentra
+  // resultados de cualquier tienda opt-in, sin que el usuario sepa cuál.
+  const [productos, setProductos] = useState([]);
+  const [loadingProductos, setLoadingProductos] = useState(false);
+
   const fetchStores = useCallback(async () => {
     try {
       setLoading(true);
@@ -174,6 +229,17 @@ export default function MarketplaceHome() {
     const t = setTimeout(() => setSearch(searchInput), 300);
     return () => clearTimeout(t);
   }, [searchInput]);
+
+  useEffect(() => {
+    if (!search || search.trim().length < 2) { setProductos([]); return; }
+    let cancelado = false;
+    setLoadingProductos(true);
+    apiClient.get('/marketplace/productos', { params: { search, categoria: categoria !== 'Todas' ? categoria : undefined } })
+      .then(r => { if (!cancelado) setProductos(r.data || []); })
+      .catch(() => { if (!cancelado) setProductos([]); })
+      .finally(() => { if (!cancelado) setLoadingProductos(false); });
+    return () => { cancelado = true; };
+  }, [search, categoria]);
 
   const filteredStores = useMemo(() => {
     let list = stores;
@@ -276,6 +342,35 @@ export default function MarketplaceHome() {
             )}
           </Box>
         </Box>
+
+        {/* ── RESULTADOS DE PRODUCTOS (búsqueda cruzada entre tiendas) ── */}
+        {search.trim().length >= 2 && (
+          <Box sx={{ maxWidth: 1200, mx: 'auto', px: 2, pt: { xs: 3, md: 4 } }}>
+            <Typography sx={{ fontWeight: 700, fontSize: 13, color: 'text.secondary', mb: 2, textTransform: 'uppercase', letterSpacing: 0.6 }}>
+              {loadingProductos ? 'Buscando productos…' : `Productos para "${search}" ${productos.length > 0 ? `(${productos.length})` : ''}`}
+            </Typography>
+            {!loadingProductos && productos.length === 0 ? (
+              <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 3 }}>
+                Ningún producto coincide — puede que la marca exista igual, revisa abajo.
+              </Typography>
+            ) : (
+              <Box sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' },
+                gap: 1.5, mb: { xs: 3, md: 4 },
+              }}>
+                {loadingProductos
+                  ? Array.from({ length: 5 }).map((_, i) => (
+                      <Skeleton key={i} variant="rounded" sx={{ aspectRatio: '3/4', borderRadius: 3 }} />
+                    ))
+                  : productos.map(p => (
+                      <ProductResultCard key={`${p.empresa_slug}-${p.id}`} producto={p} apiBaseURL={apiClient.defaults.baseURL} onOpen={openStore} />
+                    ))
+                }
+              </Box>
+            )}
+          </Box>
+        )}
 
         {/* ── GRID DE MARCAS ───────────────────────────────────────── */}
         <Box sx={{ maxWidth: 1200, mx: 'auto', px: 2, py: { xs: 4, md: 6 } }}>
