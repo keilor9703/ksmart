@@ -47,7 +47,7 @@ const safeSetItem = (key, value) => {
 const ProductCard = React.memo(function ProductCard({
   producto: p, imageUrl, isFavorite, isAgotado: agotado, isNuevo, isOferta,
   isFlashing, inCartQty, accentColor, textPri, textSec, divClr, showStock,
-  onOpen, onToggleFavorite, onAdd, onRemove,
+  onOpen, onToggleFavorite, onAdd, onRemove, onNeedsVariant,
 }) {
   // El stock solo tiene sentido para negocios que manejan inventario real
   // (no restaurantes, no servicios) — ver `esRestaurante`/`isAgotado` arriba.
@@ -182,9 +182,25 @@ const ProductCard = React.memo(function ProductCard({
             }}>
               <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.disabled' }}>Sin stock</Typography>
             </Box>
+          ) : p.tiene_variantes ? (
+            // Ambiguo mostrar +/- a nivel de producto cuando puede haber
+            // varias variantes distintas en el carrito a la vez — siempre
+            // se pasa por el selector de opciones.
+            <Box
+              onClick={() => onNeedsVariant(p)}
+              sx={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                bgcolor: 'transparent', border: `1.5px solid ${accentColor}`, borderRadius: 2, py: '7px',
+                cursor: 'pointer', gap: 0.6,
+                transition: 'background-color 0.15s ease',
+                '&:hover': { bgcolor: `${accentColor}12` },
+              }}
+            >
+              <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: accentColor }}>Ver opciones</Typography>
+            </Box>
           ) : inCartQty ? (
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: 'action.hover', borderRadius: 2, px: 0.75, py: 0.5 }}>
-              <IconButton size="small" onClick={() => onRemove(p.id)} sx={{ p: '4px', color: accentColor }}><Remove sx={{ fontSize: 16 }} /></IconButton>
+              <IconButton size="small" onClick={() => onRemove(String(p.id))} sx={{ p: '4px', color: accentColor }}><Remove sx={{ fontSize: 16 }} /></IconButton>
               <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{inCartQty}</Typography>
               <IconButton size="small" onClick={() => onAdd(p)} sx={{ p: '4px', color: accentColor }}><Add sx={{ fontSize: 16 }} /></IconButton>
             </Box>
@@ -275,6 +291,18 @@ const CatalogoVirtual = () => {
   // Detalle de Producto
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [currentImgIndex, setCurrentImgIndex] = useState(0);
+  const [dialogVariante, setDialogVariante] = useState(null);
+
+  // Resetear la variante elegida cada vez que se abre un producto distinto —
+  // si no, quedaría "pegada" la variante del producto anterior visto.
+  useEffect(() => {
+    if (selectedProduct?.tiene_variantes) {
+      const activas = (selectedProduct.variantes || []).filter(v => v.activo);
+      setDialogVariante(activas.find(v => v.stock > 0) || activas[0] || null);
+    } else {
+      setDialogVariante(null);
+    }
+  }, [selectedProduct?.id]);
 
   // Improvement #2: touch swipe refs
   const touchStartXRef = useRef(null);
@@ -380,13 +408,24 @@ const CatalogoVirtual = () => {
         const reconciliado = [];
         for (const item of prevCart) {
           const actual = vigentes.get(item.id);
-          if (!actual || (!actual.es_servicio && actual.stock <= 0)) {
-            changed = true;
-            continue;
+          if (!actual) { changed = true; continue; }
+
+          // Si el ítem es una variante, la validación de precio/stock es
+          // contra ESA variante (que puede haberse desactivado o agotado
+          // independientemente del resto del producto), no contra el padre.
+          let precioVigente = actual.precio;
+          let stockVigente = actual.stock;
+          if (item.varianteId) {
+            const variante = (actual.variantes || []).find(v => v.id === item.varianteId && v.activo);
+            if (!variante) { changed = true; continue; }
+            precioVigente = variante.precio != null ? variante.precio : actual.precio;
+            stockVigente = variante.stock;
           }
-          if (actual.precio !== item.precio || actual.nombre !== item.nombre) {
+          if (!actual.es_servicio && stockVigente <= 0) { changed = true; continue; }
+
+          if (precioVigente !== item.precio || actual.nombre !== item.nombre) {
             changed = true;
-            reconciliado.push({ ...item, ...actual, quantity: item.quantity });
+            reconciliado.push({ ...item, nombre: actual.nombre, image_count: actual.image_count, precio: precioVigente, stock: stockVigente });
           } else {
             reconciliado.push(item);
           }
@@ -442,17 +481,39 @@ const CatalogoVirtual = () => {
   // En restaurantes los productos se preparan en cocina (no manejan stock real),
   // por lo que nunca deben marcarse como agotados ni bloquear el pedido.
   const esRestaurante = empresa?.tipo_negocio === 'restaurante';
-  const isAgotado = (p) => !esRestaurante && !p.es_servicio && p.stock <= 0;
+  // `variante` opcional: para productos con variantes el stock/agotado real
+  // es el de la variante elegida, no el (obsoleto) del producto padre.
+  const isAgotado = (p, variante) => {
+    if (esRestaurante || p.es_servicio) return false;
+    if (variante) return (variante.stock ?? 0) <= 0;
+    if (p.tiene_variantes) return (p.variantes || []).every(v => (v.stock ?? 0) <= 0);
+    return p.stock <= 0;
+  };
+
+  // Los productos con variantes se identifican en el carrito por
+  // `producto.id:variante.id` — un mismo producto puede tener varias
+  // variantes distintas agregadas a la vez.
+  const cartKey = (productoId, varianteId) => varianteId ? `${productoId}:${varianteId}` : String(productoId);
 
   // ── Cart actions ──────────────────────────────────────────────────────
-  const addToCart = useCallback((producto) => {
-    if (isAgotado(producto)) return;
+  const addToCart = useCallback((producto, variante) => {
+    if (isAgotado(producto, variante)) return;
+    const key = cartKey(producto.id, variante?.id);
     setCart(prev => {
-      const existing = prev.find(item => item.id === producto.id);
+      const existing = prev.find(item => item.cartId === key);
       if (existing) {
-        return prev.map(item => item.id === producto.id ? { ...item, quantity: item.quantity + 1 } : item);
+        return prev.map(item => item.cartId === key ? { ...item, quantity: item.quantity + 1 } : item);
       }
-      return [...prev, { ...producto, quantity: 1 }];
+      const precio = variante?.precio != null ? variante.precio : producto.precio;
+      const stock = variante ? variante.stock : producto.stock;
+      return [...prev, {
+        ...producto,
+        precio, stock,
+        cartId: key,
+        varianteId: variante?.id || null,
+        nombreVariante: variante?.nombre || null,
+        quantity: 1,
+      }];
     });
     // Improvement #6: flash card border
     setFlashId(producto.id);
@@ -462,13 +523,14 @@ const CatalogoVirtual = () => {
     setTimeout(() => setAddedFlash(false), 1000);
   }, [esRestaurante]);
 
-  const removeFromCart = (id) => {
+  const removeFromCart = (key) => {
     setCart(prev => {
-      const existing = prev.find(item => item.id === id);
+      const existing = prev.find(item => item.cartId === key);
+      if (!existing) return prev;
       if (existing.quantity === 1) {
-        return prev.filter(item => item.id !== id);
+        return prev.filter(item => item.cartId !== key);
       }
-      return prev.map(item => item.id === id ? { ...item, quantity: item.quantity - 1 } : item);
+      return prev.map(item => item.cartId === key ? { ...item, quantity: item.quantity - 1 } : item);
     });
   };
 
@@ -531,6 +593,7 @@ const CatalogoVirtual = () => {
           producto_id:     item.id,
           cantidad:        item.quantity,
           precio_unitario: item.precio,
+          variante_id:     item.varianteId || undefined,
         })),
       };
       const res = await apiClient.post(`/catalogo/${slug}/pedido`, payload);
@@ -598,10 +661,11 @@ const CatalogoVirtual = () => {
         mesa_numero: mesaNumero.trim(),
         items: cart.map(item => ({
           producto_id:     item.id,
-          nombre_producto: item.nombre,
+          nombre_producto: item.nombreVariante ? `${item.nombre} (${item.nombreVariante})` : item.nombre,
           cantidad:        item.quantity,
           precio_unitario: item.precio,
           notas:           itemNotas[item.id] || null,
+          variante_id:     item.varianteId || undefined,
         })),
       });
       setConfirmedComanda(res.data);
@@ -847,7 +911,7 @@ const CatalogoVirtual = () => {
                 isNuevo={p.es_nuevo || newestIds.has(p.id)}
                 isOferta={Boolean(p.precio_antes && p.precio_antes > p.precio)}
                 isFlashing={flashId === p.id}
-                inCartQty={cart.find(item => item.id === p.id)?.quantity || 0}
+                inCartQty={cart.find(item => item.cartId === String(p.id))?.quantity || 0}
                 accentColor={accentColor}
                 textPri={textPri}
                 textSec={textSec}
@@ -857,6 +921,7 @@ const CatalogoVirtual = () => {
                 onToggleFavorite={toggleFavorito}
                 onAdd={addToCart}
                 onRemove={removeFromCart}
+                onNeedsVariant={(prod) => { setSelectedProduct(prod); setCurrentImgIndex(0); }}
               />
             ))}
           </Box>
@@ -1003,10 +1068,12 @@ const CatalogoVirtual = () => {
                   </Typography>
                 )}
                 <Typography variant="h4" sx={{ fontWeight: 800, color: accentColor, mb: 1 }}>
-                  ${new Intl.NumberFormat('es-CO').format(selectedProduct.precio)}
+                  ${new Intl.NumberFormat('es-CO').format(
+                    dialogVariante?.precio != null ? dialogVariante.precio : selectedProduct.precio
+                  )}
                 </Typography>
 
-                {!esRestaurante && !selectedProduct.es_servicio && !isAgotado(selectedProduct) && (
+                {!esRestaurante && !selectedProduct.es_servicio && !selectedProduct.tiene_variantes && !isAgotado(selectedProduct) && (
                   <Typography sx={{
                     fontSize: 12.5, fontWeight: 700, mb: 3,
                     color: selectedProduct.stock <= 5 ? '#F59E0B' : textSec,
@@ -1015,6 +1082,51 @@ const CatalogoVirtual = () => {
                       ? `¡Quedan solo ${selectedProduct.stock} unidades!`
                       : `${selectedProduct.stock} unidades disponibles`}
                   </Typography>
+                )}
+
+                {/* Selector de variantes (talla/color/etc.) ─────────────── */}
+                {selectedProduct.tiene_variantes && (
+                  <Box sx={{ mb: 3 }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      Elige una opción
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                      {(selectedProduct.variantes || []).filter(v => v.activo).map(v => {
+                        const elegida = dialogVariante?.id === v.id;
+                        const sinStock = !esRestaurante && (v.stock ?? 0) <= 0;
+                        return (
+                          <Box
+                            key={v.id}
+                            onClick={() => !sinStock && setDialogVariante(v)}
+                            sx={{
+                              px: 1.5, py: 0.9, borderRadius: 2.5, cursor: sinStock ? 'not-allowed' : 'pointer',
+                              border: '2px solid', borderColor: elegida ? accentColor : borderClr,
+                              bgcolor: elegida ? `${accentColor}10` : 'transparent',
+                              opacity: sinStock ? 0.45 : 1,
+                              transition: 'all 0.15s',
+                            }}
+                          >
+                            <Typography sx={{ fontSize: 13, fontWeight: 700, color: elegida ? accentColor : textPri }}>
+                              {v.nombre}
+                            </Typography>
+                            {sinStock && (
+                              <Typography sx={{ fontSize: 10, color: '#EF4444', fontWeight: 700 }}>Sin stock</Typography>
+                            )}
+                          </Box>
+                        );
+                      })}
+                    </Box>
+                    {!esRestaurante && dialogVariante && (
+                      <Typography sx={{
+                        fontSize: 12, fontWeight: 700, mt: 1,
+                        color: dialogVariante.stock <= 5 ? '#F59E0B' : textSec,
+                      }}>
+                        {dialogVariante.stock <= 5
+                          ? `¡Quedan solo ${dialogVariante.stock} unidades!`
+                          : `${dialogVariante.stock} unidades disponibles`}
+                      </Typography>
+                    )}
+                  </Box>
                 )}
 
                 {selectedProduct.descripcion && (
@@ -1027,14 +1139,21 @@ const CatalogoVirtual = () => {
 
               {/* Improvement #9: +/- in dialog when already in cart */}
               <DialogActions sx={{ p: 3, pt: 0 }}>
-                {isAgotado(selectedProduct) ? (
+                {selectedProduct.tiene_variantes && !dialogVariante ? (
+                  <Button fullWidth variant="outlined" size="large" disabled
+                    sx={{ borderRadius: 3, py: 1.5, fontWeight: 800 }}
+                  >
+                    Selecciona una opción
+                  </Button>
+                ) : isAgotado(selectedProduct, dialogVariante) ? (
                   <Button fullWidth variant="outlined" size="large" disabled
                     sx={{ borderRadius: 3, py: 1.5, fontWeight: 800 }}
                   >
                     Producto Agotado
                   </Button>
                 ) : (() => {
-                  const inCartItem = cart.find(item => item.id === selectedProduct.id);
+                  const key = cartKey(selectedProduct.id, dialogVariante?.id);
+                  const inCartItem = cart.find(item => item.cartId === key);
                   if (inCartItem) {
                     return (
                       <Box sx={{ width: '100%', display: 'flex', gap: 1.5, alignItems: 'center' }}>
@@ -1045,7 +1164,7 @@ const CatalogoVirtual = () => {
                         }}>
                           <IconButton
                             size="small"
-                            onClick={() => removeFromCart(selectedProduct.id)}
+                            onClick={() => removeFromCart(key)}
                             sx={{ bgcolor: paperBg, color: accentColor, '&:hover': { bgcolor: subtleHov } }}
                           >
                             <Remove />
@@ -1055,7 +1174,7 @@ const CatalogoVirtual = () => {
                           </Typography>
                           <IconButton
                             size="small"
-                            onClick={() => addToCart(selectedProduct)}
+                            onClick={() => addToCart(selectedProduct, dialogVariante)}
                             sx={{ bgcolor: paperBg, color: accentColor, '&:hover': { bgcolor: subtleHov } }}
                           >
                             <Add />
@@ -1076,7 +1195,7 @@ const CatalogoVirtual = () => {
                     <Button
                       fullWidth variant="contained" size="large"
                       startIcon={<ShoppingCart />}
-                      onClick={() => { addToCart(selectedProduct); setSelectedProduct(null); }}
+                      onClick={() => { addToCart(selectedProduct, dialogVariante); setSelectedProduct(null); }}
                       sx={{ bgcolor: accentColor, borderRadius: 3, py: 1.5, fontWeight: 800, '&:hover': { bgcolor: accentColor, opacity: 0.9 } }}
                     >
                       Agregar al Carrito
@@ -1205,7 +1324,7 @@ const CatalogoVirtual = () => {
 
             <List sx={{ flexGrow: 1, overflowY: 'auto' }}>
               {cart.map(item => (
-                <ListItem key={item.id} sx={{ px: 0, py: 1.5, flexDirection: 'column', alignItems: 'stretch' }}>
+                <ListItem key={item.cartId} sx={{ px: 0, py: 1.5, flexDirection: 'column', alignItems: 'stretch' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Avatar
                       variant="rounded"
@@ -1215,15 +1334,17 @@ const CatalogoVirtual = () => {
                       <ShoppingBag />
                     </Avatar>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography sx={{ fontWeight: 700, fontSize: 13, lineHeight: 1.3 }}>{item.nombre}</Typography>
+                      <Typography sx={{ fontWeight: 700, fontSize: 13, lineHeight: 1.3 }}>
+                        {item.nombre}{item.nombreVariante ? ` · ${item.nombreVariante}` : ''}
+                      </Typography>
                       <Typography sx={{ color: accentColor, fontWeight: 700, fontSize: 12 }}>
                         ${new Intl.NumberFormat('es-CO').format(item.precio)} c/u · Sub: ${new Intl.NumberFormat('es-CO').format(item.precio * item.quantity)}
                       </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: subtleBg, borderRadius: 2, p: 0.5, flexShrink: 0 }}>
-                      <IconButton size="small" onClick={() => removeFromCart(item.id)} sx={{ bgcolor: paperBg, color: accentColor, p: '3px' }}><Remove sx={{ fontSize: 14 }} /></IconButton>
+                      <IconButton size="small" onClick={() => removeFromCart(item.cartId)} sx={{ bgcolor: paperBg, color: accentColor, p: '3px' }}><Remove sx={{ fontSize: 14 }} /></IconButton>
                       <Typography sx={{ fontWeight: 700, fontSize: 13, minWidth: 16, textAlign: 'center' }}>{item.quantity}</Typography>
-                      <IconButton size="small" onClick={() => addToCart(item)} sx={{ bgcolor: paperBg, color: accentColor, p: '3px' }}><Add sx={{ fontSize: 14 }} /></IconButton>
+                      <IconButton size="small" onClick={() => addToCart(item, item.varianteId ? { id: item.varianteId, nombre: item.nombreVariante, precio: item.precio, stock: item.stock } : undefined)} sx={{ bgcolor: paperBg, color: accentColor, p: '3px' }}><Add sx={{ fontSize: 14 }} /></IconButton>
                     </Box>
                   </Box>
 
@@ -1371,10 +1492,10 @@ const CatalogoVirtual = () => {
                     Tu pedido
                   </Typography>
                   {cart.map(item => (
-                    <Box key={item.id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.6 }}>
+                    <Box key={item.cartId} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.6 }}>
                       <Box sx={{ flex: 1 }}>
                         <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
-                          {item.quantity}× {item.nombre}
+                          {item.quantity}× {item.nombre}{item.nombreVariante ? ` (${item.nombreVariante})` : ''}
                         </Typography>
                         {itemNotas[item.id] && (
                           <Typography sx={{ fontSize: 11, color: accentColor, fontStyle: 'italic' }}>

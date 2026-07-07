@@ -25,11 +25,32 @@ def create_movement(db: Session, empresa_id: int, payload: schemas.InventoryMove
     elif payload.tipo == schemas.MovementType.ajuste:
         delta = payload.cantidad
 
-    new_stock = (prod.stock_actual or 0) + delta
-    if new_stock < 0:
-        raise ValueError("Stock insuficiente")
+    # Movimiento dirigido a una variante específica: el stock que se mueve es
+    # el de la variante (igual que ya hace Ventas), no el del producto padre
+    # — evita que un ajuste manual "a ciegas" descuadre el stock por talla/color.
+    variante = None
+    nombre_variante = None
+    if payload.variante_id is not None:
+        variante = db.query(models.ProductoVariante).filter(
+            models.ProductoVariante.id == payload.variante_id,
+            models.ProductoVariante.producto_id == payload.producto_id,
+            models.ProductoVariante.empresa_id == empresa_id,
+        ).first()
+        if not variante:
+            raise ValueError("La variante indicada no existe o no pertenece a este producto")
+        nombre_variante = variante.nombre
 
-    prod.stock_actual = new_stock
+        new_stock = (variante.stock_actual or 0) + delta
+        if new_stock < 0:
+            raise ValueError(f"Stock insuficiente en la variante '{variante.nombre}'")
+        variante.stock_actual = new_stock
+        db.add(variante)
+    else:
+        new_stock = (prod.stock_actual or 0) + delta
+        if new_stock < 0:
+            raise ValueError("Stock insuficiente")
+        prod.stock_actual = new_stock
+        db.add(prod)
 
     # Sincronizar lotes en salidas manuales de productos perecederos: sin esto
     # el stock del producto baja pero los lotes quedan intactos y se
@@ -37,7 +58,8 @@ def create_movement(db: Session, empresa_id: int, payload: schemas.InventoryMove
     # descuenta de los lotes vigentes hasta donde alcancen; el remanente se
     # asume stock fuera de lotes. Solo lo activa el endpoint de movimientos
     # manuales — los flujos de venta/producción gestionan sus lotes aparte.
-    if descontar_lotes and delta < 0 and getattr(prod, "maneja_lotes", False):
+    # (No aplica a movimientos por variante: los lotes son por producto.)
+    if descontar_lotes and variante is None and delta < 0 and getattr(prod, "maneja_lotes", False):
         from crud.perecederos import get_lotes_fefo
         restante = abs(delta)
         for lote in get_lotes_fefo(db, empresa_id, payload.producto_id):
@@ -61,9 +83,10 @@ def create_movement(db: Session, empresa_id: int, payload: schemas.InventoryMove
         empresa_id=empresa_id,
         created_at=ahora_utc,
         usuario_id=payload.usuario_id,
+        variante_id=payload.variante_id,
+        nombre_variante=nombre_variante,
     )
     db.add(mov)
-    db.add(prod)
     if commit:
         db.commit()
         db.refresh(mov)

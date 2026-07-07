@@ -17,6 +17,23 @@ router = APIRouter()
 
 CATALOGO_MAX_LIMIT = 100
 
+
+def _mapear_variantes_publico(producto: models.Producto):
+    """Solo variantes activas — el cliente público no debe ver opciones
+    descontinuadas, aunque sigan existiendo en el sistema."""
+    if not producto.tiene_variantes:
+        return []
+    return [
+        schemas.CatalogoVarianteOut(
+            id=v.id,
+            nombre=v.nombre,
+            atributos=v.atributos or {},
+            precio=v.precio,
+            stock=v.stock_actual or 0.0,
+        )
+        for v in (producto.variantes or []) if v.activo
+    ]
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONFIGURACIÓN (PROTEGIDO)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -122,6 +139,8 @@ def get_public_catalogo(
             image_count=count,
             stock=p.stock_actual or 0.0,
             es_servicio=bool(p.es_servicio),
+            tiene_variantes=bool(p.tiene_variantes),
+            variantes=_mapear_variantes_publico(p),
         ))
 
     empresa_out = schemas.CatalogoEmpresaOut(
@@ -213,6 +232,8 @@ def get_catalogo_productos(
             image_count=count,
             stock=p.stock_actual or 0.0,
             es_servicio=bool(p.es_servicio),
+            tiene_variantes=bool(p.tiene_variantes),
+            variantes=_mapear_variantes_publico(p),
         ))
     
     return results
@@ -336,9 +357,23 @@ def create_pedido_restaurante_publico(
         ).first()
         if not prod:
             raise HTTPException(status_code=400, detail=f"Producto {it.producto_id} no encontrado en este menú.")
+
         # El precio SIEMPRE se recalcula desde la BD, nunca se confía en el
         # precio enviado por el cliente (evita manipulación de precios).
         precio_real = prod.precio
+        if prod.tiene_variantes:
+            if not it.variante_id:
+                raise HTTPException(status_code=400, detail=f"Debes seleccionar una opción para '{prod.nombre}'.")
+            variante = db.query(models.ProductoVariante).filter(
+                models.ProductoVariante.id == it.variante_id,
+                models.ProductoVariante.producto_id == prod.id,
+                models.ProductoVariante.empresa_id == db_empresa.id,
+                models.ProductoVariante.activo == True,
+            ).first()
+            if not variante:
+                raise HTTPException(status_code=400, detail=f"La opción seleccionada para '{prod.nombre}' ya no está disponible.")
+            if variante.precio is not None:
+                precio_real = variante.precio
 
         if prod and prod.grupo_item:
             ov = overrides.get(prod.grupo_item)
