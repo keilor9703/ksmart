@@ -255,7 +255,7 @@ export default function MarketplaceHome() {
 
   return (
     <ThemeProvider theme={theme}>
-      <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
+      <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', color: 'text.primary' }}>
 
         {/* ── HERO ─────────────────────────────────────────────────── */}
         <Box sx={{

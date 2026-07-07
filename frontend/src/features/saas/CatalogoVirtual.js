@@ -692,7 +692,7 @@ const CatalogoVirtual = () => {
   // ── Loading skeleton ──────────────────────────────────────────────────
   if (loading) return (
     <ThemeProvider theme={catTheme}>
-      <Box sx={{ bgcolor: pageBg, minHeight: '100vh' }}>
+      <Box sx={{ bgcolor: pageBg, color: textPri, minHeight: '100vh' }}>
         <Box sx={{ bgcolor: paperBg, px: 2, pt: 3, pb: 2, boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
             <Skeleton variant="rounded" width={50} height={50} sx={{ borderRadius: 2 }} />
@@ -723,7 +723,7 @@ const CatalogoVirtual = () => {
   );
 
   if (!empresa) return (
-    <Box sx={{ p: 5, textAlign: 'center' }}>
+    <Box sx={{ p: 5, textAlign: 'center', color: 'text.primary' }}>
       <Typography variant="h5">Catálogo no disponible</Typography>
     </Box>
   );
@@ -732,7 +732,7 @@ const CatalogoVirtual = () => {
 
   return (
     <ThemeProvider theme={catTheme}>
-      <Box sx={{ bgcolor: pageBg, minHeight: '100vh', pb: cartCount > 0 ? 14 : 10 }}>
+      <Box sx={{ bgcolor: pageBg, color: textPri, minHeight: '100vh', pb: cartCount > 0 ? 14 : 10 }}>
 
         {/* ── HEADER (Improvement #10: collapsible on scroll) ─────────── */}
         <Box sx={{
