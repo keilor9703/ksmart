@@ -25,6 +25,11 @@ import { toast } from 'react-toastify';
 // Inline SVG placeholder — no external dependency
 const PLACEHOLDER_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'%3E%3Crect width='400' height='400' fill='%23f1f5f9'/%3E%3Ctext x='50%25' y='50%25' font-size='48' text-anchor='middle' dominant-baseline='middle' fill='%2394a3b8'%3E%F0%9F%93%B7%3C/text%3E%3C/svg%3E";
 
+// Sin este tope, en monitores anchos el grid (columnas 1fr) reparte TODO el
+// ancho del viewport entre las columnas — con pocos productos cada tarjeta
+// termina ocupando 300-400px, gigante y desproporcionada frente al texto.
+const CONTENT_MAX_WIDTH = 1360;
+
 // localStorage keys are versioned (v1) so a future cart-shape change doesn't
 // crash on old stored data; writes are best-effort (private-browsing/quota
 // can throw synchronously and must never break the storefront).
@@ -51,28 +56,41 @@ const ProductCard = React.memo(function ProductCard({
   return (
     <Card
       sx={{
-        borderRadius: 2,
+        borderRadius: 3,
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
         boxShadow: isFlashing
           ? `0 0 0 3px #22c55e, 0 2px 12px rgba(34,197,94,0.25)`
-          : '0 1px 4px rgba(0,0,0,0.07)',
+          : '0 1px 3px rgba(0,0,0,0.06)',
         border: '1px solid',
         borderColor: isFlashing ? '#22c55e' : (agotado ? 'divider' : divClr),
         cursor: 'pointer',
         opacity: agotado ? 0.72 : 1,
         transform: isFlashing ? 'scale(1.08)' : 'scale(1)',
-        transition: 'transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease',
+        transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease, border-color 0.25s ease',
+        '@media (hover: hover)': {
+          '&:hover': {
+            transform: isFlashing ? 'scale(1.08)' : 'translateY(-6px)',
+            boxShadow: `0 16px 32px -12px ${accentColor}45, 0 4px 10px rgba(0,0,0,0.08)`,
+            borderColor: agotado ? 'divider' : accentColor,
+            '& .cvz-media': { transform: 'scale(1.09)' },
+          },
+        },
       }}
       onClick={() => onOpen(p)}
     >
-      <Box sx={{ position: 'relative' }}>
+      <Box sx={{ position: 'relative', overflow: 'hidden' }}>
         <CardMedia
           component="img"
           loading="lazy"
           decoding="async"
-          sx={{ aspectRatio: '1/1', objectFit: 'cover', filter: agotado ? 'grayscale(60%)' : 'none' }}
+          className="cvz-media"
+          sx={{
+            aspectRatio: '1/1', objectFit: 'cover',
+            filter: agotado ? 'grayscale(60%)' : 'none',
+            transition: 'transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)',
+          }}
           image={imageUrl}
           alt={p.nombre}
         />
@@ -80,26 +98,28 @@ const ProductCard = React.memo(function ProductCard({
           size="small"
           onClick={(e) => onToggleFavorite(p.id, e)}
           sx={{
-            position: 'absolute', top: 3, right: 3,
-            bgcolor: 'rgba(255,255,255,0.88)', width: 22, height: 22,
-            '&:hover': { bgcolor: '#fff' },
+            position: 'absolute', top: 8, right: 8,
+            bgcolor: 'rgba(255,255,255,0.92)', width: 30, height: 30,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            transition: 'transform 0.15s ease',
+            '&:hover': { bgcolor: '#fff', transform: 'scale(1.1)' },
           }}
         >
           {isFavorite
-            ? <Favorite sx={{ fontSize: 11, color: '#EF4444' }} />
-            : <FavoriteBorder sx={{ fontSize: 11, color: '#94A3B8' }} />}
+            ? <Favorite sx={{ fontSize: 15, color: '#EF4444' }} />
+            : <FavoriteBorder sx={{ fontSize: 15, color: '#94A3B8' }} />}
         </IconButton>
 
         {(isNuevo || isOferta) && (
-          <Box sx={{ position: 'absolute', top: 3, left: 3, display: 'flex', flexDirection: 'column', gap: 0.4 }}>
+          <Box sx={{ position: 'absolute', top: 8, left: 8, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
             {isNuevo && (
-              <Box sx={{ bgcolor: '#0891B2', px: 0.8, py: 0.2, borderRadius: 1 }}>
-                <Typography sx={{ fontSize: 8, fontWeight: 800, color: '#fff', letterSpacing: 0.3 }}>NUEVO</Typography>
+              <Box sx={{ bgcolor: '#0891B2', px: 1.1, py: 0.35, borderRadius: 1.5, boxShadow: '0 2px 6px rgba(0,0,0,0.2)' }}>
+                <Typography sx={{ fontSize: 10, fontWeight: 800, color: '#fff', letterSpacing: 0.4 }}>NUEVO</Typography>
               </Box>
             )}
             {isOferta && (
-              <Box sx={{ bgcolor: '#ef4444', px: 0.8, py: 0.2, borderRadius: 1 }}>
-                <Typography sx={{ fontSize: 8, fontWeight: 800, color: '#fff', letterSpacing: 0.3 }}>OFERTA</Typography>
+              <Box sx={{ bgcolor: '#ef4444', px: 1.1, py: 0.35, borderRadius: 1.5, boxShadow: '0 2px 6px rgba(0,0,0,0.2)' }}>
+                <Typography sx={{ fontSize: 10, fontWeight: 800, color: '#fff', letterSpacing: 0.4 }}>OFERTA</Typography>
               </Box>
             )}
           </Box>
@@ -108,47 +128,47 @@ const ProductCard = React.memo(function ProductCard({
         {agotado && (
           <Box sx={{
             position: 'absolute', bottom: 0, left: 0, right: 0,
-            bgcolor: 'rgba(0,0,0,0.62)', py: 0.4, textAlign: 'center',
+            bgcolor: 'rgba(0,0,0,0.65)', py: 0.75, textAlign: 'center',
           }}>
-            <Typography sx={{ fontSize: 9, fontWeight: 800, color: '#fff', letterSpacing: 0.5 }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#fff', letterSpacing: 0.6 }}>
               AGOTADO
             </Typography>
           </Box>
         )}
       </Box>
 
-      <CardContent sx={{ p: '6px 7px 7px !important', flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+      <CardContent sx={{ p: '12px 14px 14px !important', flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
         <Typography sx={{
-          fontWeight: 600,
-          fontSize: 12,
+          fontWeight: 700,
+          fontSize: 14,
           color: textPri,
           display: '-webkit-box',
           WebkitLineClamp: 2,
           WebkitBoxOrient: 'vertical',
           overflow: 'hidden',
-          lineHeight: 1.3,
-          mb: 0.5,
-          minHeight: 30,
+          lineHeight: 1.35,
+          mb: 0.75,
+          minHeight: 38,
         }}>
           {p.nombre}
         </Typography>
 
         {isOferta && (
-          <Typography sx={{ fontSize: 10, color: textSec, textDecoration: 'line-through', lineHeight: 1, mb: 0.2 }}>
+          <Typography sx={{ fontSize: 12, color: textSec, textDecoration: 'line-through', lineHeight: 1, mb: 0.3 }}>
             ${new Intl.NumberFormat('es-CO').format(p.precio_antes)}
           </Typography>
         )}
         <Typography sx={{
           fontWeight: 900,
-          fontSize: 14,
+          fontSize: 18,
           color: agotado ? 'text.disabled' : (isOferta ? '#ef4444' : accentColor),
-          mb: mostrarStock ? 0.1 : 0.75,
+          mb: mostrarStock ? 0.2 : 1,
         }}>
           ${new Intl.NumberFormat('es-CO').format(p.precio)}
         </Typography>
 
         {mostrarStock && (
-          <Typography sx={{ fontSize: 9.5, fontWeight: 700, color: stockBajo ? '#F59E0B' : textSec, mb: 0.65 }}>
+          <Typography sx={{ fontSize: 11, fontWeight: 700, color: stockBajo ? '#F59E0B' : textSec, mb: 1 }}>
             {stockBajo ? `¡Quedan ${p.stock}!` : `${p.stock} disponibles`}
           </Typography>
         )}
@@ -157,29 +177,31 @@ const ProductCard = React.memo(function ProductCard({
           {agotado ? (
             <Box sx={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              bgcolor: 'action.disabledBackground', borderRadius: 1.5, py: '4px',
+              bgcolor: 'action.disabledBackground', borderRadius: 2, py: '8px',
               cursor: 'not-allowed',
             }}>
-              <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.disabled' }}>Sin stock</Typography>
+              <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.disabled' }}>Sin stock</Typography>
             </Box>
           ) : inCartQty ? (
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: 'action.hover', borderRadius: 1.5, px: 0.5, py: 0.25 }}>
-              <IconButton size="small" onClick={() => onRemove(p.id)} sx={{ p: '2px', color: accentColor }}><Remove sx={{ fontSize: 14 }} /></IconButton>
-              <Typography sx={{ fontWeight: 700, fontSize: 12 }}>{inCartQty}</Typography>
-              <IconButton size="small" onClick={() => onAdd(p)} sx={{ p: '2px', color: accentColor }}><Add sx={{ fontSize: 14 }} /></IconButton>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: 'action.hover', borderRadius: 2, px: 0.75, py: 0.5 }}>
+              <IconButton size="small" onClick={() => onRemove(p.id)} sx={{ p: '4px', color: accentColor }}><Remove sx={{ fontSize: 16 }} /></IconButton>
+              <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{inCartQty}</Typography>
+              <IconButton size="small" onClick={() => onAdd(p)} sx={{ p: '4px', color: accentColor }}><Add sx={{ fontSize: 16 }} /></IconButton>
             </Box>
           ) : (
             <Box
               onClick={() => onAdd(p)}
               sx={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                bgcolor: accentColor, borderRadius: 1.5, py: '4px',
-                cursor: 'pointer', gap: 0.4,
-                '&:hover': { opacity: 0.88 },
+                bgcolor: accentColor, borderRadius: 2, py: '8px',
+                cursor: 'pointer', gap: 0.6,
+                transition: 'transform 0.15s ease, filter 0.15s ease',
+                '&:hover': { filter: 'brightness(1.08)' },
+                '&:active': { transform: 'scale(0.96)' },
               }}
             >
-              <Add sx={{ fontSize: 13, color: '#fff' }} />
-              <Typography sx={{ fontSize: 10, fontWeight: 700, color: '#fff' }}>Agregar</Typography>
+              <Add sx={{ fontSize: 15, color: '#fff' }} />
+              <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#fff' }}>Agregar</Typography>
             </Box>
           )}
         </Box>
@@ -634,7 +656,8 @@ const CatalogoVirtual = () => {
 
         {/* ── HEADER (Improvement #10: collapsible on scroll) ─────────── */}
         <Box sx={{
-          bgcolor: paperBg,
+          bgcolor: isDark ? 'rgba(15,15,15,0.85)' : 'rgba(255,255,255,0.85)',
+          backdropFilter: 'blur(10px)',
           px: 2,
           pt: headerCollapsed ? 1 : 3,
           pb: headerCollapsed ? 1 : 2,
@@ -644,6 +667,7 @@ const CatalogoVirtual = () => {
           zIndex: 100,
           transition: 'padding 0.3s ease',
         }}>
+        <Box sx={{ maxWidth: CONTENT_MAX_WIDTH, mx: 'auto' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: headerCollapsed ? 1 : 2 }}>
             {empresa.logo_base64 ? (
               <Avatar
@@ -760,9 +784,10 @@ const CatalogoVirtual = () => {
             ))}
           </Box>
         </Box>
+        </Box>
 
         {/* Products count + sort */}
-        <Box sx={{ px: 2, pt: 2, pb: 0.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+        <Box sx={{ maxWidth: CONTENT_MAX_WIDTH, mx: 'auto', px: 2, pt: 2, pb: 0.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
           <Typography sx={{ fontWeight: 600, color: textSec, fontSize: 13 }}>
             {filteredProductos.length} {filteredProductos.length === 1 ? 'producto' : 'productos'}
             {search ? ` para "${search}"` : ''}
@@ -787,7 +812,7 @@ const CatalogoVirtual = () => {
         </Box>
 
         {/* ── PRODUCTOS GRID (Improvement #1: 2 cols on xs) ───────────── */}
-        <Box sx={{ px: 1, pb: 2, pt: 1 }}>
+        <Box sx={{ maxWidth: CONTENT_MAX_WIDTH, mx: 'auto', px: 1, pb: 2, pt: 1 }}>
           <Box sx={{
             display: 'grid',
             gridTemplateColumns: {
@@ -795,8 +820,9 @@ const CatalogoVirtual = () => {
               sm: 'repeat(3, 1fr)',
               md: 'repeat(4, 1fr)',
               lg: 'repeat(5, 1fr)',
+              xl: 'repeat(6, 1fr)',
             },
-            gap: '6px',
+            gap: { xs: '10px', sm: '14px', md: '18px' },
           }}>
             {filteredProductos.map(p => (
               <ProductCard
@@ -1052,7 +1078,7 @@ const CatalogoVirtual = () => {
         </Dialog>
 
         {/* ── BANNER PROMOCIONAL — usa el accentColor del negocio para no chocar con su marca ── */}
-        <Box sx={{ px: 2, py: 1.5 }}>
+        <Box sx={{ maxWidth: CONTENT_MAX_WIDTH, mx: 'auto', px: 2, py: 1.5 }}>
           <Box sx={{
             display: 'flex', alignItems: 'center', gap: 1.5,
             p: '10px 14px', borderRadius: 2.5,
