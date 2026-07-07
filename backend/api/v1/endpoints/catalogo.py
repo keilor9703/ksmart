@@ -53,6 +53,8 @@ def get_catalogo_config(
         "logo_base64":      emp.logo_base64,
         "color_primario":   emp.color_primario,
         "descripcion":      emp.descripcion,
+        "visible_marketplace":   emp.visible_marketplace,
+        "categoria_marketplace": emp.categoria_marketplace,
     }
 
 
@@ -73,6 +75,9 @@ def update_catalogo_config(
         if existing:
             raise HTTPException(status_code=400, detail="El slug del catálogo ya está en uso por otra empresa.")
     
+    if payload.visible_marketplace and not payload.slug_catalogo:
+        raise HTTPException(status_code=400, detail="Debes configurar el slug del catálogo antes de aparecer en el Centro Comercial Virtual.")
+
     db_empresa.slug_catalogo = payload.slug_catalogo
     db_empresa.whatsapp_pedidos = payload.whatsapp_pedidos
     if payload.logo_base64 is not None:
@@ -83,6 +88,10 @@ def update_catalogo_config(
         db_empresa.ciudad = payload.direccion_recogida
     if payload.descripcion is not None:
         db_empresa.descripcion = payload.descripcion
+    if payload.visible_marketplace is not None:
+        db_empresa.visible_marketplace = payload.visible_marketplace
+    if payload.categoria_marketplace is not None:
+        db_empresa.categoria_marketplace = payload.categoria_marketplace or None
 
     db.commit()
     db.refresh(db_empresa)

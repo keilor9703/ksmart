@@ -2558,6 +2558,15 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v116)
                 logger.info("V116 (variantes en compras y producción) aplicada.")
 
+            # V117 — Centro Comercial Virtual: directorio público opt-in que
+            # agrupa el catálogo de varias empresas bajo un solo dominio.
+            migration_v117 = "v117_marketplace_empresas"
+            if not _migration_already_applied(conn, migration_v117):
+                _add_column_safe(conn, "empresas", "visible_marketplace", "BOOLEAN NOT NULL DEFAULT false")
+                _add_column_safe(conn, "empresas", "categoria_marketplace", "VARCHAR(60)")
+                _mark_migration_applied(conn, migration_v117)
+                logger.info("V117 (centro comercial virtual) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

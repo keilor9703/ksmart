@@ -7,7 +7,7 @@ import {
 import {
   Storefront, WhatsApp, Link, ContentCopy, OpenInNew,
   CloudUpload, Delete, CheckCircle, Info, Palette, GetApp,
-  CheckCircleOutline, Cancel, LocationOn
+  CheckCircleOutline, Cancel, LocationOn, Apartment,
 } from '@mui/icons-material';
 import { QRCodeCanvas } from 'qrcode.react';
 import apiClient from '../../api';
@@ -28,6 +28,14 @@ const CatalogoConfig = () => {
   const [descripcion, setDescripcion] = useState('');
   const [direccionRecogida, setDireccionRecogida] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [visibleMarketplace, setVisibleMarketplace] = useState(false);
+  const [categoriaMarketplace, setCategoriaMarketplace] = useState('');
+
+  const CATEGORIAS_MARKETPLACE = [
+    'Calzado', 'Ropa y Accesorios', 'Alimentos y Bebidas', 'Restaurantes',
+    'Belleza y Cuidado Personal', 'Hogar y Decoración', 'Tecnología',
+    'Salud', 'Automotriz', 'Deportes', 'Otros',
+  ];
 
   const COLOR_PRESETS = ['#0891B2', '#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444'];
   const slugValid = slug.length === 0 || /^[a-z0-9-]+$/.test(slug);
@@ -47,6 +55,8 @@ const CatalogoConfig = () => {
       setColorPrimario(emp.color_primario || '#0891B2');
       setDescripcion(emp.descripcion || '');
       setDireccionRecogida(emp.ciudad || '');
+      setVisibleMarketplace(Boolean(emp.visible_marketplace));
+      setCategoriaMarketplace(emp.categoria_marketplace || '');
     } catch (error) {
       toast.error("Error al cargar configuración");
     } finally {
@@ -86,6 +96,10 @@ const CatalogoConfig = () => {
       toast.error("El slug solo permite letras minúsculas, números y guiones");
       return;
     }
+    if (visibleMarketplace && !categoriaMarketplace) {
+      toast.warning("Elige una categoría para aparecer en el Centro Comercial Virtual");
+      return;
+    }
 
     try {
       setSaving(true);
@@ -96,6 +110,8 @@ const CatalogoConfig = () => {
         color_primario: colorPrimario,
         descripcion: descripcion.trim() || null,
         direccion_recogida: direccionRecogida.trim() || null,
+        visible_marketplace: visibleMarketplace,
+        categoria_marketplace: categoriaMarketplace || null,
       });
       toast.success("Configuración guardada exitosamente");
     } catch (error) {
@@ -363,6 +379,52 @@ const CatalogoConfig = () => {
                   inputProps={{ maxLength: 200 }}
                 />
               </Box>
+
+              {!esRestaurante && (
+                <Box sx={{
+                  p: 2.5, borderRadius: 3, border: '1.5px solid',
+                  borderColor: visibleMarketplace ? '#10B981' : 'divider',
+                  bgcolor: visibleMarketplace ? 'rgba(16,185,129,0.06)' : 'transparent',
+                  transition: 'all 0.2s',
+                }}>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2 }}>
+                    <Box sx={{ display: 'flex', gap: 1.5 }}>
+                      <Apartment sx={{ color: visibleMarketplace ? '#10B981' : 'text.secondary', fontSize: 22, mt: 0.2 }} />
+                      <Box>
+                        <Typography sx={{ fontWeight: 700, fontSize: 14 }}>
+                          Aparecer en el Centro Comercial Virtual
+                        </Typography>
+                        <Typography sx={{ fontSize: 12.5, color: 'text.secondary', mt: 0.3, maxWidth: 420 }}>
+                          Un directorio público (dominio aparte) donde varios negocios se agrupan por marca.
+                          Los clientes te descubren ahí y entran directo a tu tienda de siempre. Apagado por defecto.
+                        </Typography>
+                      </Box>
+                    </Box>
+                    <Switch
+                      checked={visibleMarketplace}
+                      onChange={(e) => setVisibleMarketplace(e.target.checked)}
+                      sx={{
+                        '& .MuiSwitch-switchBase.Mui-checked': { color: '#10B981' },
+                        '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#10B981' },
+                      }}
+                    />
+                  </Box>
+                  {visibleMarketplace && (
+                    <TextField
+                      select fullWidth size="small"
+                      label="Categoría de tu negocio *"
+                      value={categoriaMarketplace}
+                      onChange={(e) => setCategoriaMarketplace(e.target.value)}
+                      SelectProps={{ native: true }}
+                      sx={{ mt: 2 }}
+                      helperText="Así los clientes te encuentran filtrando por rubro en el directorio."
+                    >
+                      <option value="" disabled>Selecciona una categoría</option>
+                      {CATEGORIAS_MARKETPLACE.map(c => <option key={c} value={c}>{c}</option>)}
+                    </TextField>
+                  )}
+                </Box>
+              )}
 
               <Divider />
 

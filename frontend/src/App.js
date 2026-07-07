@@ -58,6 +58,7 @@ const ConfigLinkPago   = lazy(() => import('./features/account/ConfigLinkPago'))
 // Catálogo virtual
 const CatalogoConfig   = lazy(() => import('./features/saas/CatalogoConfig'));
 const CatalogoVirtual  = lazy(() => import('./features/saas/CatalogoVirtual'));
+const MarketplaceHome  = lazy(() => import('./features/saas/MarketplaceHome'));
 
 // Pantallas públicas
 const SuscripcionExpirada = lazy(() => import('./features/auth/SuscripcionExpirada'));
@@ -132,6 +133,13 @@ const ProtectedRoute = ({ path, hasAccess, children }) => {
     </Box>
   );
 };
+
+// Dominio del Centro Comercial Virtual (directorio público multi-empresa) —
+// mismo despliegue de frontend, distinto dominio apuntado en el DNS/Vercel.
+// La ruta pública /:slug ya es agnóstica de dominio, así que solo hace falta
+// decidir qué se muestra en la raíz "/" según el hostname.
+const MARKETPLACE_HOSTNAME = 'e-comerce.appjeylor.com';
+const isMarketplaceDomain = () => window.location.hostname === MARKETPLACE_HOSTNAME;
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -472,6 +480,7 @@ const hasAccess = useCallback((path) => {
             <Box sx={{ width: '100%', minHeight: '100vh' }}>
               <Suspense fallback={<RouteFallback />}>
               <Routes>
+                <Route path="/" element={isMarketplaceDomain() ? <MarketplaceHome /> : <Login onLogin={checkAuth} />} />
                 <Route path="/suscripcion-expirada" element={<SuscripcionExpirada onActive={checkAuth} />} />
                 <Route path="/login" element={<Login onLogin={checkAuth} />} />
                 <Route path="/terminos" element={<Terminos />} />
@@ -479,7 +488,7 @@ const hasAccess = useCallback((path) => {
                 <Route path="/habeas-data" element={<HabeasData />} />
                 <Route path="/:slug/agendar" element={<AgendarPublico />} />
                 <Route path="/:slug" element={<CatalogoVirtual />} />
-                <Route path="*" element={<Login onLogin={checkAuth} />} />
+                <Route path="*" element={isMarketplaceDomain() ? <Navigate to="/" replace /> : <Login onLogin={checkAuth} />} />
               </Routes>
               </Suspense>
             </Box>
