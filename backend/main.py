@@ -40,6 +40,7 @@ _base_origins = [
     "https://appjeylor.com",
     "https://api.appjeylor.com",
     "https://catalogo.appjeylor.com",
+    "https://e-comerce.appjeylor.com"
 ]
 _extra = [o.strip() for o in os.getenv("EXTRA_CORS_ORIGINS", "").split(",") if o.strip()]
 origins = _base_origins + _extra
