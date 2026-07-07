@@ -35,14 +35,13 @@ const StoreCard = React.memo(function StoreCard({ store, onOpen }) {
       onClick={() => onOpen(store.slug_catalogo)}
       sx={{
         borderRadius: 4,
-        p: 3,
+        overflow: 'hidden',
         cursor: 'pointer',
         bgcolor: 'background.paper',
         border: '1px solid',
         borderColor: 'divider',
         display: 'flex',
         flexDirection: 'column',
-        gap: 1.5,
         transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease, border-color 0.25s ease',
         '@media (hover: hover)': {
           '&:hover': {
@@ -53,29 +52,35 @@ const StoreCard = React.memo(function StoreCard({ store, onOpen }) {
         },
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <Avatar
-          src={store.logo_base64 || undefined}
-          variant="rounded"
-          sx={{ width: 56, height: 56, borderRadius: 3, bgcolor: `${brandColor}18`, color: brandColor, fontWeight: 800, fontSize: 20 }}
-        >
-          {!store.logo_base64 && <Storefront />}
-        </Avatar>
-        <Box sx={{ minWidth: 0, flex: 1 }}>
-          <Typography sx={{ fontWeight: 800, fontSize: 16, lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {store.nombre}
-          </Typography>
-          {store.categoria_marketplace && (
-            <Chip
-              label={store.categoria_marketplace}
-              size="small"
-              sx={{ mt: 0.4, height: 20, fontSize: 10.5, fontWeight: 700, bgcolor: `${brandColor}15`, color: brandColor, borderRadius: 1 }}
-            />
-          )}
-        </Box>
-      </Box>
+      {/* Franja de color de marca — le da al grid la identidad "por bloques"
+          que recomienda la skill de diseño para marketplaces, en vez de
+          tarjetas MUI genéricas todas del mismo blanco/negro. */}
+      <Box sx={{ height: 6, bgcolor: brandColor }} />
 
-      {store.descripcion && (
+      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 1.5, flex: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Avatar
+            src={store.logo_base64 || undefined}
+            variant="rounded"
+            sx={{ width: 56, height: 56, borderRadius: 3, bgcolor: `${brandColor}18`, color: brandColor, fontWeight: 800, fontSize: 20 }}
+          >
+            {!store.logo_base64 && <Storefront />}
+          </Avatar>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Typography sx={{ fontWeight: 800, fontSize: 16, lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {store.nombre}
+            </Typography>
+            {store.categoria_marketplace && (
+              <Chip
+                label={store.categoria_marketplace}
+                size="small"
+                sx={{ mt: 0.4, height: 20, fontSize: 10.5, fontWeight: 700, bgcolor: `${brandColor}15`, color: brandColor, borderRadius: 1 }}
+              />
+            )}
+          </Box>
+        </Box>
+
+        {store.descripcion && (
         <Typography sx={{
           fontSize: 13, color: 'text.secondary', lineHeight: 1.5,
           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
@@ -95,6 +100,7 @@ const StoreCard = React.memo(function StoreCard({ store, onOpen }) {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, color: brandColor, fontWeight: 700, fontSize: 12.5 }}>
           Visitar tienda <ArrowForward sx={{ fontSize: 14 }} />
         </Box>
+      </Box>
       </Box>
     </Box>
   );
@@ -251,6 +257,16 @@ export default function MarketplaceHome() {
     return list;
   }, [stores, search, categoria]);
 
+  const categoryCounts = useMemo(() => {
+    const counts = {};
+    stores.forEach(s => { if (s.categoria_marketplace) counts[s.categoria_marketplace] = (counts[s.categoria_marketplace] || 0) + 1; });
+    return counts;
+  }, [stores]);
+
+  // Prueba social: total de productos reales disponibles ahora mismo en el
+  // mall — un dato concreto pesa más que "confía en nosotros".
+  const totalProductosMall = useMemo(() => stores.reduce((sum, s) => sum + (s.total_productos || 0), 0), [stores]);
+
   const openStore = useCallback((slug) => navigate(`/${slug}`), [navigate]);
 
   return (
@@ -277,7 +293,7 @@ export default function MarketplaceHome() {
                 <Typography sx={{ fontWeight: 800, fontSize: 16 }}>Centro Comercial Virtual</Typography>
               </Box>
               <Tooltip title={isDark ? 'Modo claro' : 'Modo oscuro'}>
-                <IconButton onClick={toggleMode} size="small" sx={{
+                <IconButton onClick={toggleMode} size="small" aria-label={isDark ? 'Modo claro' : 'Modo oscuro'} sx={{
                   color: 'text.secondary', bgcolor: 'action.hover', '&:hover': { bgcolor: 'action.selected' },
                 }}>
                   {isDark ? <LightMode sx={{ fontSize: 18 }} /> : <DarkMode sx={{ fontSize: 18 }} />}
@@ -323,10 +339,11 @@ export default function MarketplaceHome() {
               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 3 }}>
                 {['Todas', ...categorias].map(cat => {
                   const active = categoria === cat;
+                  const count = cat === 'Todas' ? stores.length : (categoryCounts[cat] || 0);
                   return (
                     <Chip
                       key={cat}
-                      label={cat}
+                      label={`${cat} (${count})`}
                       onClick={() => setCategoria(cat)}
                       sx={{
                         fontWeight: 700, fontSize: 12.5, cursor: 'pointer',
@@ -342,6 +359,28 @@ export default function MarketplaceHome() {
             )}
           </Box>
         </Box>
+
+        {/* ── BARRA DE CONFIANZA — prueba social con datos reales, no promesas ── */}
+        {!loading && stores.length > 0 && (
+          <Box sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
+            <Box sx={{
+              maxWidth: 1200, mx: 'auto', px: 2, py: 2,
+              display: 'flex', flexWrap: 'wrap', gap: { xs: 2, sm: 4 },
+              justifyContent: { xs: 'space-between', sm: 'flex-start' },
+            }}>
+              {[
+                { val: stores.length, label: `marca${stores.length !== 1 ? 's' : ''} real${stores.length !== 1 ? 'es' : ''}` },
+                { val: totalProductosMall, label: `producto${totalProductosMall !== 1 ? 's' : ''} disponible${totalProductosMall !== 1 ? 's' : ''}` },
+                { val: categorias.length, label: `categoría${categorias.length !== 1 ? 's' : ''}` },
+              ].filter(s => s.val > 0).map(s => (
+                <Box key={s.label} sx={{ display: 'flex', alignItems: 'baseline', gap: 0.7 }}>
+                  <Typography sx={{ fontWeight: 900, fontSize: 20, color: ACCENT }}>{s.val}</Typography>
+                  <Typography sx={{ fontSize: 12.5, color: 'text.secondary', fontWeight: 600 }}>{s.label}</Typography>
+                </Box>
+              ))}
+            </Box>
+          </Box>
+        )}
 
         {/* ── RESULTADOS DE PRODUCTOS (búsqueda cruzada entre tiendas) ── */}
         {search.trim().length >= 2 && (
@@ -402,6 +441,39 @@ export default function MarketplaceHome() {
               </Typography>
             </Box>
           )}
+        </Box>
+
+        {/* ── RECLUTAMIENTO — este dominio es de Ksmart360, así que a
+             diferencia del catálogo de cada tienda (donde este banner sería
+             ruido), aquí SÍ tiene sentido: es el canal para sumar más marcas
+             al directorio. ── */}
+        <Box sx={{ maxWidth: 1200, mx: 'auto', px: 2, pb: { xs: 4, md: 6 } }}>
+          <Box sx={{
+            borderRadius: 4, p: { xs: 3, md: 4 },
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 2,
+            background: `linear-gradient(120deg, ${ACCENT} 0%, #7C3AED 100%)`,
+          }}>
+            <Box>
+              <Typography sx={{ fontWeight: 800, fontSize: { xs: 17, md: 19 }, color: '#fff' }}>
+                ¿Tienes un negocio? Súmate al Centro Comercial Virtual.
+              </Typography>
+              <Typography sx={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', mt: 0.5 }}>
+                Crea tu catálogo con Ksmart360 y actívalo aquí en un clic — gratis para empezar.
+              </Typography>
+            </Box>
+            <Box
+              component="a"
+              href="https://www.techstackcol.com/ksmart360?view=pymes"
+              target="_blank" rel="noopener noreferrer"
+              sx={{
+                bgcolor: '#fff', color: ACCENT, fontWeight: 800, fontSize: 13.5,
+                px: 3, py: 1.3, borderRadius: 3, textDecoration: 'none', flexShrink: 0,
+                transition: 'transform 0.15s ease', '&:hover': { transform: 'scale(1.04)' },
+              }}
+            >
+              Crear mi tienda gratis →
+            </Box>
+          </Box>
         </Box>
 
         {/* ── FOOTER ───────────────────────────────────────────────── */}
