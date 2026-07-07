@@ -2521,8 +2521,8 @@ class CatalogoPublicoOut(BaseModel):
 class CatalogoItemRestaurante(BaseModel):
     producto_id: int
     nombre_producto: str
-    cantidad: float = 1.0
-    precio_unitario: float
+    cantidad: float = Field(1.0, gt=0)
+    precio_unitario: float = Field(..., ge=0)
     notas: Optional[str] = None
 
 class PedidoRestaurantePublicoIn(BaseModel):

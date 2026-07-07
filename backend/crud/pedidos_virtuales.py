@@ -41,25 +41,35 @@ def create_pedido_publico(db: Session, slug: str, payload: schemas.PedidoVirtual
     detalles_data = []
 
     for item in payload.detalles:
-        # Buscar el producto validando que pertenezca a la empresa y esté vigente.
-        # No se requiere mostrar_en_catalogo==True porque el cliente pudo haber cargado
-        # el catálogo antes de que se hiciera un cambio, y rechazarlo sería una mala UX.
+        # El producto debe existir, pertenecer a la empresa, estar vigente y
+        # seguir visible en el catálogo — evita ordenar productos ocultos/
+        # descontinuados adivinando su ID.
         producto = db.query(models.Producto).filter(
             models.Producto.id == item.producto_id,
             models.Producto.empresa_id == empresa.id,
             models.Producto.vigente == True,
+            models.Producto.mostrar_en_catalogo == True,
         ).first()
         if not producto:
             raise ValueError(f"Producto {item.producto_id} no encontrado en esta tienda")
 
-        subtotal = round(item.cantidad * item.precio_unitario, 2)
+        if not producto.es_servicio and (producto.stock_actual or 0) < item.cantidad:
+            raise ValueError(
+                f"Stock insuficiente para '{producto.nombre}': "
+                f"disponible {producto.stock_actual or 0}, solicitado {item.cantidad}"
+            )
+
+        # El precio SIEMPRE se recalcula desde la BD — nunca se confía en el
+        # precio enviado por el cliente (evita manipulación de precios).
+        precio_real = producto.precio
+        subtotal = round(item.cantidad * precio_real, 2)
         total += subtotal
         detalles_data.append({
             "empresa_id":      empresa.id,
             "producto_id":     producto.id,
             "nombre_producto": producto.nombre,
             "cantidad":        item.cantidad,
-            "precio_unitario": item.precio_unitario,
+            "precio_unitario": precio_real,
             "subtotal":        subtotal,
         })
 
@@ -321,7 +331,7 @@ def _deducir_stock(db: Session, pedido: models.PedidoVirtual, empresa_id: int):
         prod = db.query(models.Producto).filter(
             models.Producto.id == det.producto_id,
             models.Producto.empresa_id == empresa_id,
-        ).first()
+        ).with_for_update().first()
         if not prod or getattr(prod, "es_servicio", False):
             continue
         if prod.stock_actual < det.cantidad:

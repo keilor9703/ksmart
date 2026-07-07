@@ -25,6 +25,169 @@ import { toast } from 'react-toastify';
 // Inline SVG placeholder — no external dependency
 const PLACEHOLDER_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'%3E%3Crect width='400' height='400' fill='%23f1f5f9'/%3E%3Ctext x='50%25' y='50%25' font-size='48' text-anchor='middle' dominant-baseline='middle' fill='%2394a3b8'%3E%F0%9F%93%B7%3C/text%3E%3C/svg%3E";
 
+// localStorage keys are versioned (v1) so a future cart-shape change doesn't
+// crash on old stored data; writes are best-effort (private-browsing/quota
+// can throw synchronously and must never break the storefront).
+const safeGetItem = (key) => {
+  try { return localStorage.getItem(key); } catch { return null; }
+};
+const safeSetItem = (key, value) => {
+  try { localStorage.setItem(key, value); } catch { /* quota/private-mode — ignore */ }
+};
+
+// ─── Product card (memoized) ─────────────────────────────────────────────
+// Extracted from the grid render body so cart/favorite changes on one card
+// don't force React to recreate & re-render every other card's component
+// tree and its inline sx objects.
+const ProductCard = React.memo(function ProductCard({
+  producto: p, imageUrl, isFavorite, isAgotado: agotado, isNuevo, isOferta,
+  isFlashing, inCartQty, accentColor, textPri, textSec, divClr, showStock,
+  onOpen, onToggleFavorite, onAdd, onRemove,
+}) {
+  // El stock solo tiene sentido para negocios que manejan inventario real
+  // (no restaurantes, no servicios) — ver `esRestaurante`/`isAgotado` arriba.
+  const mostrarStock = showStock && !agotado;
+  const stockBajo = mostrarStock && p.stock > 0 && p.stock <= 5;
+  return (
+    <Card
+      sx={{
+        borderRadius: 2,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        boxShadow: isFlashing
+          ? `0 0 0 3px #22c55e, 0 2px 12px rgba(34,197,94,0.25)`
+          : '0 1px 4px rgba(0,0,0,0.07)',
+        border: '1px solid',
+        borderColor: isFlashing ? '#22c55e' : (agotado ? 'divider' : divClr),
+        cursor: 'pointer',
+        opacity: agotado ? 0.72 : 1,
+        transform: isFlashing ? 'scale(1.08)' : 'scale(1)',
+        transition: 'transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease',
+      }}
+      onClick={() => onOpen(p)}
+    >
+      <Box sx={{ position: 'relative' }}>
+        <CardMedia
+          component="img"
+          loading="lazy"
+          decoding="async"
+          sx={{ aspectRatio: '1/1', objectFit: 'cover', filter: agotado ? 'grayscale(60%)' : 'none' }}
+          image={imageUrl}
+          alt={p.nombre}
+        />
+        <IconButton
+          size="small"
+          onClick={(e) => onToggleFavorite(p.id, e)}
+          sx={{
+            position: 'absolute', top: 3, right: 3,
+            bgcolor: 'rgba(255,255,255,0.88)', width: 22, height: 22,
+            '&:hover': { bgcolor: '#fff' },
+          }}
+        >
+          {isFavorite
+            ? <Favorite sx={{ fontSize: 11, color: '#EF4444' }} />
+            : <FavoriteBorder sx={{ fontSize: 11, color: '#94A3B8' }} />}
+        </IconButton>
+
+        {(isNuevo || isOferta) && (
+          <Box sx={{ position: 'absolute', top: 3, left: 3, display: 'flex', flexDirection: 'column', gap: 0.4 }}>
+            {isNuevo && (
+              <Box sx={{ bgcolor: '#0891B2', px: 0.8, py: 0.2, borderRadius: 1 }}>
+                <Typography sx={{ fontSize: 8, fontWeight: 800, color: '#fff', letterSpacing: 0.3 }}>NUEVO</Typography>
+              </Box>
+            )}
+            {isOferta && (
+              <Box sx={{ bgcolor: '#ef4444', px: 0.8, py: 0.2, borderRadius: 1 }}>
+                <Typography sx={{ fontSize: 8, fontWeight: 800, color: '#fff', letterSpacing: 0.3 }}>OFERTA</Typography>
+              </Box>
+            )}
+          </Box>
+        )}
+
+        {agotado && (
+          <Box sx={{
+            position: 'absolute', bottom: 0, left: 0, right: 0,
+            bgcolor: 'rgba(0,0,0,0.62)', py: 0.4, textAlign: 'center',
+          }}>
+            <Typography sx={{ fontSize: 9, fontWeight: 800, color: '#fff', letterSpacing: 0.5 }}>
+              AGOTADO
+            </Typography>
+          </Box>
+        )}
+      </Box>
+
+      <CardContent sx={{ p: '6px 7px 7px !important', flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+        <Typography sx={{
+          fontWeight: 600,
+          fontSize: 12,
+          color: textPri,
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+          lineHeight: 1.3,
+          mb: 0.5,
+          minHeight: 30,
+        }}>
+          {p.nombre}
+        </Typography>
+
+        {isOferta && (
+          <Typography sx={{ fontSize: 10, color: textSec, textDecoration: 'line-through', lineHeight: 1, mb: 0.2 }}>
+            ${new Intl.NumberFormat('es-CO').format(p.precio_antes)}
+          </Typography>
+        )}
+        <Typography sx={{
+          fontWeight: 900,
+          fontSize: 14,
+          color: agotado ? 'text.disabled' : (isOferta ? '#ef4444' : accentColor),
+          mb: mostrarStock ? 0.1 : 0.75,
+        }}>
+          ${new Intl.NumberFormat('es-CO').format(p.precio)}
+        </Typography>
+
+        {mostrarStock && (
+          <Typography sx={{ fontSize: 9.5, fontWeight: 700, color: stockBajo ? '#F59E0B' : textSec, mb: 0.65 }}>
+            {stockBajo ? `¡Quedan ${p.stock}!` : `${p.stock} disponibles`}
+          </Typography>
+        )}
+
+        <Box onClick={(e) => e.stopPropagation()}>
+          {agotado ? (
+            <Box sx={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              bgcolor: 'action.disabledBackground', borderRadius: 1.5, py: '4px',
+              cursor: 'not-allowed',
+            }}>
+              <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.disabled' }}>Sin stock</Typography>
+            </Box>
+          ) : inCartQty ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: 'action.hover', borderRadius: 1.5, px: 0.5, py: 0.25 }}>
+              <IconButton size="small" onClick={() => onRemove(p.id)} sx={{ p: '2px', color: accentColor }}><Remove sx={{ fontSize: 14 }} /></IconButton>
+              <Typography sx={{ fontWeight: 700, fontSize: 12 }}>{inCartQty}</Typography>
+              <IconButton size="small" onClick={() => onAdd(p)} sx={{ p: '2px', color: accentColor }}><Add sx={{ fontSize: 14 }} /></IconButton>
+            </Box>
+          ) : (
+            <Box
+              onClick={() => onAdd(p)}
+              sx={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                bgcolor: accentColor, borderRadius: 1.5, py: '4px',
+                cursor: 'pointer', gap: 0.4,
+                '&:hover': { opacity: 0.88 },
+              }}
+            >
+              <Add sx={{ fontSize: 13, color: '#fff' }} />
+              <Typography sx={{ fontSize: 10, fontWeight: 700, color: '#fff' }}>Agregar</Typography>
+            </Box>
+          )}
+        </Box>
+      </CardContent>
+    </Card>
+  );
+});
+
 const CatalogoVirtual = () => {
   const { slug } = useParams();
   const outerTheme = useTheme();
@@ -43,7 +206,7 @@ const CatalogoVirtual = () => {
 
   // ── Local theme mode — independent of system/app preference ──────────
   const [catMode, setCatMode] = useState(() =>
-    localStorage.getItem(`cat_theme_${slug}`) || 'light'
+    safeGetItem(`cat_theme_${slug}`) || 'light'
   );
   const catTheme = useMemo(() => createTheme({
     palette: { mode: catMode },
@@ -66,7 +229,7 @@ const CatalogoVirtual = () => {
   const toggleCatMode = () => {
     const next = catMode === 'light' ? 'dark' : 'light';
     setCatMode(next);
-    localStorage.setItem(`cat_theme_${slug}`, next);
+    safeSetItem(`cat_theme_${slug}`, next);
   };
 
   // ── Core state ────────────────────────────────────────────────────────
@@ -81,8 +244,8 @@ const CatalogoVirtual = () => {
 
   const [categoria, setCategoria] = useState('Todas');
   const [cart, setCart] = useState(() => {
-    const saved = localStorage.getItem(`cart_${slug}`);
-    return saved ? JSON.parse(saved) : [];
+    const saved = safeGetItem(`cart_${slug}`);
+    try { return saved ? JSON.parse(saved) : []; } catch { return []; }
   });
   const [cartOpen, setCartOpen] = useState(false);
   const [orderModalOpen, setOrderModalOpen] = useState(false);
@@ -97,10 +260,10 @@ const CatalogoVirtual = () => {
   // Formulario de Pedido (comercio)
   // Improvement #5: read from localStorage on mount
   const [nombre, setNombre] = useState(() => {
-    try { return localStorage.getItem(`cat_cliente_${slug}`) ? JSON.parse(localStorage.getItem(`cat_cliente_${slug}`)).nombre || '' : ''; } catch { return ''; }
+    try { const raw = safeGetItem(`cat_cliente_${slug}`); return raw ? JSON.parse(raw).nombre || '' : ''; } catch { return ''; }
   });
   const [celular, setCelular] = useState(() => {
-    try { return localStorage.getItem(`cat_cliente_${slug}`) ? JSON.parse(localStorage.getItem(`cat_cliente_${slug}`)).celular || '' : ''; } catch { return ''; }
+    try { const raw = safeGetItem(`cat_cliente_${slug}`); return raw ? JSON.parse(raw).celular || '' : ''; } catch { return ''; }
   });
   const [tipoEntrega, setTipoEntrega] = useState('domicilio');
   const [direccion, setDireccion] = useState('');
@@ -117,7 +280,7 @@ const CatalogoVirtual = () => {
 
   const [sortProductos, setSortProductos] = useState('');
   const [favoritos, setFavoritos] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(`favs_${slug}`) || '[]'); } catch { return []; }
+    try { return JSON.parse(safeGetItem(`favs_${slug}`) || '[]'); } catch { return []; }
   });
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [orderSent, setOrderSent] = useState(false);
@@ -138,11 +301,11 @@ const CatalogoVirtual = () => {
   useEffect(() => { if (slug) fetchData(); }, [slug]);
 
   useEffect(() => {
-    localStorage.setItem(`cart_${slug}`, JSON.stringify(cart));
+    safeSetItem(`cart_${slug}`, JSON.stringify(cart));
   }, [cart, slug]);
 
   useEffect(() => {
-    localStorage.setItem(`favs_${slug}`, JSON.stringify(favoritos));
+    safeSetItem(`favs_${slug}`, JSON.stringify(favoritos));
   }, [favoritos, slug]);
 
   // Improvement #3: debounce search 300ms
@@ -154,7 +317,7 @@ const CatalogoVirtual = () => {
   // Improvement #5: save customer data to localStorage
   useEffect(() => {
     if (nombre || celular) {
-      localStorage.setItem(`cat_cliente_${slug}`, JSON.stringify({ nombre, celular }));
+      safeSetItem(`cat_cliente_${slug}`, JSON.stringify({ nombre, celular }));
     }
   }, [nombre, celular, slug]);
 
@@ -178,6 +341,35 @@ const CatalogoVirtual = () => {
       setProductos(res.data.productos);
       setMesas(res.data.mesas || []);
       document.title = `${res.data.empresa.nombre} - ${res.data.empresa.tipo_negocio === 'restaurante' ? 'Menú Digital' : 'Catálogo Virtual'}`;
+
+      // Reconciliar el carrito guardado (puede tener días) contra el catálogo
+      // recién cargado: descartar productos que ya no están visibles/agotados
+      // y actualizar el precio si cambió, para no enviar un pedido con datos
+      // obsoletos (el backend igual recalcula el precio, pero el cliente debe
+      // ver el total real antes de confirmar).
+      setCart(prevCart => {
+        if (prevCart.length === 0) return prevCart;
+        const vigentes = new Map(res.data.productos.map(p => [p.id, p]));
+        let changed = false;
+        const reconciliado = [];
+        for (const item of prevCart) {
+          const actual = vigentes.get(item.id);
+          if (!actual || (!actual.es_servicio && actual.stock <= 0)) {
+            changed = true;
+            continue;
+          }
+          if (actual.precio !== item.precio || actual.nombre !== item.nombre) {
+            changed = true;
+            reconciliado.push({ ...item, ...actual, quantity: item.quantity });
+          } else {
+            reconciliado.push(item);
+          }
+        }
+        if (changed) {
+          toast.info('Actualizamos tu carrito: algunos precios o productos cambiaron desde tu última visita.');
+        }
+        return changed ? reconciliado : prevCart;
+      });
     } catch (error) {
       if (error.response?.status === 404) {
         toast.error("Catálogo no encontrado o inactivo.");
@@ -342,7 +534,16 @@ const CatalogoVirtual = () => {
     if (numeroPedido) message += `\n\n📋 *Pedido #${numeroPedido}* — guardado en el sistema.`;
     else message += `\n\n⚠️ _Pedido no guardado en sistema — confirmar manualmente._`;
 
-    window.open(`https://wa.me/${empresa.whatsapp_pedidos}?text=${encodeURIComponent(message)}`, '_blank');
+    const win = window.open(`https://wa.me/${empresa.whatsapp_pedidos}?text=${encodeURIComponent(message)}`, '_blank');
+    if (!win && !backendOk) {
+      // Ni el backend guardó el pedido ni WhatsApp abrió: no hay ningún
+      // registro de este pedido en ningún lado — no vaciar el carrito.
+      toast.error('No pudimos enviar tu pedido. Verifica tu conexión o habilita las ventanas emergentes e inténtalo de nuevo.', { autoClose: 8000 });
+      return;
+    }
+    if (!win) {
+      toast.warning('Tu navegador bloqueó la ventana de WhatsApp. Tu pedido ya quedó guardado en el sistema — el vendedor lo verá igual.', { autoClose: 8000 });
+    }
     setOrderSent(true);
     setTimeout(() => {
       setOrderSent(false);
@@ -597,166 +798,50 @@ const CatalogoVirtual = () => {
             },
             gap: '6px',
           }}>
-            {filteredProductos.map(p => {
-              const inCart = cart.find(item => item.id === p.id);
-              const agotado = isAgotado(p);
-              // Improvement #7: badge logic
-              const isNuevo = p.es_nuevo || newestIds.has(p.id);
-              const isOferta = p.precio_antes && p.precio_antes > p.precio;
-              // Improvement #6: flash card
-              const isFlashing = flashId === p.id;
-
-              return (
-                <Card
-                  key={p.id}
-                  sx={{
-                    borderRadius: 2,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden',
-                    boxShadow: isFlashing
-                      ? `0 0 0 3px #22c55e, 0 2px 12px rgba(34,197,94,0.25)`
-                      : '0 1px 4px rgba(0,0,0,0.07)',
-                    border: '1px solid',
-                    borderColor: isFlashing ? '#22c55e' : (agotado ? 'divider' : divClr),
-                    cursor: 'pointer',
-                    opacity: agotado ? 0.72 : 1,
-                    transform: isFlashing ? 'scale(1.08)' : 'scale(1)',
-                    transition: 'transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease',
-                  }}
-                  onClick={() => { setSelectedProduct(p); setCurrentImgIndex(0); }}
-                >
-                  <Box sx={{ position: 'relative' }}>
-                    <CardMedia
-                      component="img"
-                      sx={{ aspectRatio: '1/1', objectFit: 'cover', filter: agotado ? 'grayscale(60%)' : 'none' }}
-                      image={p.image_count > 0
-                        ? `${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${p.id}/imagen?index=0`
-                        : PLACEHOLDER_IMG}
-                      alt={p.nombre}
-                    />
-                    <IconButton
-                      size="small"
-                      onClick={(e) => toggleFavorito(p.id, e)}
-                      sx={{
-                        position: 'absolute', top: 3, right: 3,
-                        bgcolor: 'rgba(255,255,255,0.88)', width: 22, height: 22,
-                        '&:hover': { bgcolor: '#fff' },
-                      }}
-                    >
-                      {favoritos.includes(p.id)
-                        ? <Favorite sx={{ fontSize: 11, color: '#EF4444' }} />
-                        : <FavoriteBorder sx={{ fontSize: 11, color: '#94A3B8' }} />}
-                    </IconButton>
-
-                    {/* Improvement #7: Nuevo / Oferta badges */}
-                    {(isNuevo || isOferta) && (
-                      <Box sx={{ position: 'absolute', top: 3, left: 3, display: 'flex', flexDirection: 'column', gap: 0.4 }}>
-                        {isNuevo && (
-                          <Box sx={{ bgcolor: '#0891B2', px: 0.8, py: 0.2, borderRadius: 1 }}>
-                            <Typography sx={{ fontSize: 8, fontWeight: 800, color: '#fff', letterSpacing: 0.3 }}>NUEVO</Typography>
-                          </Box>
-                        )}
-                        {isOferta && (
-                          <Box sx={{ bgcolor: '#ef4444', px: 0.8, py: 0.2, borderRadius: 1 }}>
-                            <Typography sx={{ fontSize: 8, fontWeight: 800, color: '#fff', letterSpacing: 0.3 }}>OFERTA</Typography>
-                          </Box>
-                        )}
-                      </Box>
-                    )}
-
-                    {agotado && (
-                      <Box sx={{
-                        position: 'absolute', bottom: 0, left: 0, right: 0,
-                        bgcolor: 'rgba(0,0,0,0.62)', py: 0.4, textAlign: 'center',
-                      }}>
-                        <Typography sx={{ fontSize: 9, fontWeight: 800, color: '#fff', letterSpacing: 0.5 }}>
-                          AGOTADO
-                        </Typography>
-                      </Box>
-                    )}
-                  </Box>
-
-                  {/* Improvement #13: price hierarchy — name fontSize 12, price fontSize 14 bold */}
-                  <CardContent sx={{ p: '6px 7px 7px !important', flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                    <Typography sx={{
-                      fontWeight: 600,
-                      fontSize: 12,
-                      color: textPri,
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                      lineHeight: 1.3,
-                      mb: 0.5,
-                      minHeight: 30,
-                    }}>
-                      {p.nombre}
-                    </Typography>
-
-                    {/* Improvement #7: crossed-out original price if oferta */}
-                    {isOferta && (
-                      <Typography sx={{ fontSize: 10, color: textSec, textDecoration: 'line-through', lineHeight: 1, mb: 0.2 }}>
-                        ${new Intl.NumberFormat('es-CO').format(p.precio_antes)}
-                      </Typography>
-                    )}
-                    <Typography sx={{
-                      fontWeight: 900,
-                      fontSize: 14,
-                      color: agotado ? 'text.disabled' : (isOferta ? '#ef4444' : accentColor),
-                      mb: 0.75,
-                    }}>
-                      ${new Intl.NumberFormat('es-CO').format(p.precio)}
-                    </Typography>
-
-                    <Box onClick={(e) => e.stopPropagation()}>
-                      {agotado ? (
-                        <Box sx={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          bgcolor: 'action.disabledBackground', borderRadius: 1.5, py: '4px',
-                          cursor: 'not-allowed',
-                        }}>
-                          <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.disabled' }}>Sin stock</Typography>
-                        </Box>
-                      ) : inCart ? (
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: subtleBg, borderRadius: 1.5, px: 0.5, py: 0.25 }}>
-                          <IconButton size="small" onClick={() => removeFromCart(p.id)} sx={{ p: '2px', color: accentColor }}><Remove sx={{ fontSize: 14 }} /></IconButton>
-                          <Typography sx={{ fontWeight: 700, fontSize: 12 }}>{inCart.quantity}</Typography>
-                          <IconButton size="small" onClick={() => addToCart(p)} sx={{ p: '2px', color: accentColor }}><Add sx={{ fontSize: 14 }} /></IconButton>
-                        </Box>
-                      ) : (
-                        <Box
-                          onClick={() => addToCart(p)}
-                          sx={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            bgcolor: accentColor, borderRadius: 1.5, py: '4px',
-                            cursor: 'pointer', gap: 0.4,
-                            '&:hover': { opacity: 0.88 },
-                          }}
-                        >
-                          <Add sx={{ fontSize: 13, color: '#fff' }} />
-                          <Typography sx={{ fontSize: 10, fontWeight: 700, color: '#fff' }}>Agregar</Typography>
-                        </Box>
-                      )}
-                    </Box>
-                  </CardContent>
-                </Card>
-              );
-            })}
+            {filteredProductos.map(p => (
+              <ProductCard
+                key={p.id}
+                producto={p}
+                imageUrl={p.image_count > 0
+                  ? `${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${p.id}/imagen?index=0`
+                  : PLACEHOLDER_IMG}
+                isFavorite={favoritos.includes(p.id)}
+                isAgotado={isAgotado(p)}
+                isNuevo={p.es_nuevo || newestIds.has(p.id)}
+                isOferta={Boolean(p.precio_antes && p.precio_antes > p.precio)}
+                isFlashing={flashId === p.id}
+                inCartQty={cart.find(item => item.id === p.id)?.quantity || 0}
+                accentColor={accentColor}
+                textPri={textPri}
+                textSec={textSec}
+                divClr={divClr}
+                showStock={!esRestaurante && !p.es_servicio}
+                onOpen={(prod) => { setSelectedProduct(prod); setCurrentImgIndex(0); }}
+                onToggleFavorite={toggleFavorito}
+                onAdd={addToCart}
+                onRemove={removeFromCart}
+              />
+            ))}
           </Box>
 
           {filteredProductos.length === 0 && (
             <Box sx={{ textAlign: 'center', py: 8, px: 2 }}>
-              <Typography sx={{ fontSize: 56, mb: 2, lineHeight: 1 }}>🔍</Typography>
+              <Typography sx={{ fontSize: 56, mb: 2, lineHeight: 1 }}>
+                {productos.length === 0 ? '🏪' : '🔍'}
+              </Typography>
               <Typography sx={{ fontWeight: 800, fontSize: 18, color: textPri, mb: 1 }}>
-                {search
-                  ? `Sin resultados para "${search}"`
-                  : `Sin productos en ${categoria !== 'Todas' ? categoria : 'el catálogo'}`}
+                {productos.length === 0
+                  ? `${empresa?.nombre || 'Esta tienda'} aún no tiene productos publicados`
+                  : search
+                    ? `Sin resultados para "${search}"`
+                    : `Sin productos en ${categoria !== 'Todas' ? categoria : 'el catálogo'}`}
               </Typography>
               <Typography sx={{ color: textSec, mb: 3, fontSize: 14 }}>
-                Intenta con otro término o explora otra categoría
+                {productos.length === 0
+                  ? 'Vuelve pronto — el catálogo se está preparando.'
+                  : 'Intenta con otro término o explora otra categoría'}
               </Typography>
-              {(search || categoria !== 'Todas') && (
+              {productos.length > 0 && (search || categoria !== 'Todas') && (
                 <Button
                   variant="outlined"
                   onClick={() => { setSearchInput(''); setSearch(''); setCategoria('Todas'); setSortProductos(''); }}
@@ -860,6 +945,8 @@ const CatalogoVirtual = () => {
                         <img
                           src={`${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${selectedProduct.id}/imagen?index=${i}`}
                           alt={`${selectedProduct.nombre} ${i + 1}`}
+                          loading="lazy"
+                          decoding="async"
                           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                         />
                       </Box>
@@ -878,9 +965,20 @@ const CatalogoVirtual = () => {
                     ${new Intl.NumberFormat('es-CO').format(selectedProduct.precio_antes)}
                   </Typography>
                 )}
-                <Typography variant="h4" sx={{ fontWeight: 800, color: accentColor, mb: 3 }}>
+                <Typography variant="h4" sx={{ fontWeight: 800, color: accentColor, mb: 1 }}>
                   ${new Intl.NumberFormat('es-CO').format(selectedProduct.precio)}
                 </Typography>
+
+                {!esRestaurante && !selectedProduct.es_servicio && !isAgotado(selectedProduct) && (
+                  <Typography sx={{
+                    fontSize: 12.5, fontWeight: 700, mb: 3,
+                    color: selectedProduct.stock <= 5 ? '#F59E0B' : textSec,
+                  }}>
+                    {selectedProduct.stock <= 5
+                      ? `¡Quedan solo ${selectedProduct.stock} unidades!`
+                      : `${selectedProduct.stock} unidades disponibles`}
+                  </Typography>
+                )}
 
                 {selectedProduct.descripcion && (
                   <Box sx={{ mb: 3 }}>
@@ -953,7 +1051,7 @@ const CatalogoVirtual = () => {
           )}
         </Dialog>
 
-        {/* ── BANNER PROMOCIONAL ──────────────────────────────────────── */}
+        {/* ── BANNER PROMOCIONAL — usa el accentColor del negocio para no chocar con su marca ── */}
         <Box sx={{ px: 2, py: 1.5 }}>
           <Box sx={{
             display: 'flex', alignItems: 'center', gap: 1.5,
@@ -965,7 +1063,7 @@ const CatalogoVirtual = () => {
           }}>
             <Box sx={{
               width: 30, height: 30, borderRadius: 1.5, flexShrink: 0,
-              bgcolor: '#0891B2', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              bgcolor: accentColor, display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               <RocketLaunch sx={{ color: '#fff', fontSize: 15 }} />
             </Box>
@@ -984,10 +1082,10 @@ const CatalogoVirtual = () => {
               size="small"
               endIcon={<ArrowForward sx={{ fontSize: 11 }} />}
               sx={{
-                bgcolor: '#0891B2', borderRadius: 2, fontWeight: 700,
+                bgcolor: accentColor, borderRadius: 2, fontWeight: 700,
                 fontSize: 11, textTransform: 'none', px: 1.5, py: 0.5,
                 minWidth: 'auto', flexShrink: 0, boxShadow: 'none',
-                '&:hover': { bgcolor: '#e65520', boxShadow: '0 4px 12px rgba(8,145,178,0.3)' },
+                '&:hover': { bgcolor: accentColor, opacity: 0.85, boxShadow: `0 4px 12px ${accentColor}4D` },
               }}
             >
               Gratis
