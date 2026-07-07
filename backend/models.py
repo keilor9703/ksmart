@@ -44,6 +44,12 @@ class Empresa(Base):
     whatsapp_pedidos  = Column(String(20), nullable=True)
     logo_base64       = Column(Text, nullable=True) # WebP comprimido
 
+    # 👇 CENTRO COMERCIAL VIRTUAL — directorio público que agrupa el catálogo
+    # de varias empresas bajo un solo dominio. Opt-in explícito: nunca se
+    # expone una empresa sin que su dueño lo active manualmente.
+    visible_marketplace   = Column(Boolean, default=False, nullable=False, server_default="false")
+    categoria_marketplace = Column(String(60), nullable=True)
+
     # Opcional: relación inversa para acceder a sus usuarios
     usuarios = relationship("User", back_populates="empresa")
 

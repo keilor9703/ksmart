@@ -34,6 +34,10 @@ class EmpresaBase(BaseModel):
     ciudad: Optional[str] = None
     descripcion: Optional[str] = None
 
+    # 👇 CENTRO COMERCIAL VIRTUAL (directorio público multi-empresa)
+    visible_marketplace: bool = False
+    categoria_marketplace: Optional[str] = None
+
     # 🧾 CAMPOS FACTURACIÓN ELECTRÓNICA
     dv: Optional[str] = None
     tipo_organizacion_id: int = 1
@@ -2500,6 +2504,8 @@ class CatalogoConfigUpdate(BaseModel):
     color_primario: Optional[str] = None
     direccion_recogida: Optional[str] = None
     descripcion: Optional[str] = None
+    visible_marketplace: Optional[bool] = None
+    categoria_marketplace: Optional[str] = None
 
 class CatalogoEmpresaOut(BaseModel):
     nombre: str
@@ -2509,6 +2515,18 @@ class CatalogoEmpresaOut(BaseModel):
     color_primario: str
     direccion: Optional[str] = None
     tipo_negocio: str = "erp"
+
+class MarketplaceEmpresaOut(BaseModel):
+    nombre: str
+    slug_catalogo: str
+    logo_base64: Optional[str] = None
+    color_primario: str
+    descripcion: Optional[str] = None
+    categoria_marketplace: Optional[str] = None
+    tipo_negocio: str = "erp"
+    total_productos: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
     descripcion: Optional[str] = None
 
 class CatalogoMesaOut(BaseModel):

@@ -8,7 +8,7 @@ from .endpoints import (
     compras, produccion, ordenes_trabajo, panel_operador, planes, saas,
     grupos_producto, lavadero, catalogo, pedidos_virtuales, impuestos,
     suscripcion, restaurante, puntos, empresa_config, setup, contabilidad,
-    facturacion_electronica, agendamiento, promociones,
+    facturacion_electronica, agendamiento, promociones, marketplace,
 )
 
 api_router = APIRouter()
@@ -44,6 +44,7 @@ api_router.include_router(ordenes_trabajo.router, prefix="/ordenes-trabajo", tag
 api_router.include_router(panel_operador.router, prefix="/panel_operador", tags=["panel_operador"])
 api_router.include_router(lavadero.router, prefix="/lavadero", tags=["lavadero"])
 api_router.include_router(catalogo.router, prefix="/catalogo", tags=["catalogo"])
+api_router.include_router(marketplace.router, prefix="/marketplace", tags=["marketplace"])
 api_router.include_router(pedidos_virtuales.router, prefix="/pedidos-virtuales", tags=["pedidos-virtuales"])
 api_router.include_router(impuestos.router, prefix="/impuestos", tags=["impuestos"])
 api_router.include_router(suscripcion.router, prefix="/suscripcion", tags=["suscripcion"])
