@@ -2533,6 +2533,20 @@ def run_migrations():
                     _mark_migration_applied(conn, migration_v114)
                     logger.info("V114 (índice único numero_factura por empresa) aplicada.")
 
+            # V115 — Soporte de variantes en movimientos de inventario y
+            # pedidos virtuales. Sin esto, el ajuste manual de stock, las
+            # compras y el catálogo virtual solo pueden operar sobre el
+            # stock del producto padre, ignorando cuál variante (talla,
+            # color, etc.) corresponde.
+            migration_v115 = "v115_variantes_movimientos_pedidos"
+            if not _migration_already_applied(conn, migration_v115):
+                _add_column_safe(conn, "inventory_movements", "variante_id", "INTEGER")
+                _add_column_safe(conn, "inventory_movements", "nombre_variante", "VARCHAR(200)")
+                _add_column_safe(conn, "detalles_pedido_virtual", "variante_id", "INTEGER")
+                _add_column_safe(conn, "detalles_pedido_virtual", "nombre_variante", "VARCHAR(200)")
+                _mark_migration_applied(conn, migration_v115)
+                logger.info("V115 (variantes en movimientos y pedidos virtuales) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

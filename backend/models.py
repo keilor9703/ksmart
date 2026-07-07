@@ -410,6 +410,12 @@ class InventoryMovement(Base, TenantMixin):
     numero_lote = Column(String(100), nullable=True)
     lote        = relationship("LoteExistencia", back_populates="movimientos")
 
+    # Movimiento dirigido a una variante específica (talla/color/etc.) en vez
+    # del producto padre — nombre_variante es snapshot para no depender de un
+    # join si la variante se elimina luego.
+    variante_id     = Column(Integer, ForeignKey("producto_variantes.id"), nullable=True)
+    nombre_variante = Column(String(200), nullable=True)
+
     # Consecutivo visible por empresa (#1, #2…); el PK 'id' es global a todos
     # los tenants. Se asigna automáticamente vía event listener before_insert.
     numero_movimiento = Column(Integer, nullable=True, index=True)
@@ -1454,6 +1460,8 @@ class DetallePedidoVirtual(Base, TenantMixin):
     cantidad        = Column(Float, nullable=False)
     precio_unitario = Column(Float, nullable=False)
     subtotal        = Column(Float, nullable=False)
+    variante_id     = Column(Integer, ForeignKey("producto_variantes.id"), nullable=True)
+    nombre_variante = Column(String(200), nullable=True)   # snapshot, ej. "Talla M / Azul"
 
     pedido   = relationship("PedidoVirtual", back_populates="detalles")
     producto = relationship("Producto", lazy="joined")

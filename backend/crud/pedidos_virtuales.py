@@ -53,15 +53,35 @@ def create_pedido_publico(db: Session, slug: str, payload: schemas.PedidoVirtual
         if not producto:
             raise ValueError(f"Producto {item.producto_id} no encontrado en esta tienda")
 
-        if not producto.es_servicio and (producto.stock_actual or 0) < item.cantidad:
+        # Si el producto maneja variantes, la variante es obligatoria y el
+        # precio/stock a validar son los DE LA VARIANTE, no los del padre
+        # (que quedan obsoletos/inconsistentes en cuanto existen variantes).
+        variante = None
+        nombre_variante = None
+        if producto.tiene_variantes:
+            if not item.variante_id:
+                raise ValueError(f"Debes seleccionar una opción (talla/color/etc.) para '{producto.nombre}'")
+            variante = db.query(models.ProductoVariante).filter(
+                models.ProductoVariante.id == item.variante_id,
+                models.ProductoVariante.producto_id == producto.id,
+                models.ProductoVariante.empresa_id == empresa.id,
+                models.ProductoVariante.activo == True,
+            ).first()
+            if not variante:
+                raise ValueError(f"La opción seleccionada para '{producto.nombre}' ya no está disponible")
+            nombre_variante = variante.nombre
+
+        stock_disponible = (variante.stock_actual if variante else producto.stock_actual) or 0
+        if not producto.es_servicio and stock_disponible < item.cantidad:
+            nombre_mostrado = f"{producto.nombre} ({nombre_variante})" if nombre_variante else producto.nombre
             raise ValueError(
-                f"Stock insuficiente para '{producto.nombre}': "
-                f"disponible {producto.stock_actual or 0}, solicitado {item.cantidad}"
+                f"Stock insuficiente para '{nombre_mostrado}': "
+                f"disponible {stock_disponible}, solicitado {item.cantidad}"
             )
 
         # El precio SIEMPRE se recalcula desde la BD — nunca se confía en el
         # precio enviado por el cliente (evita manipulación de precios).
-        precio_real = producto.precio
+        precio_real = variante.precio if (variante and variante.precio is not None) else producto.precio
         subtotal = round(item.cantidad * precio_real, 2)
         total += subtotal
         detalles_data.append({
@@ -71,6 +91,8 @@ def create_pedido_publico(db: Session, slug: str, payload: schemas.PedidoVirtual
             "cantidad":        item.cantidad,
             "precio_unitario": precio_real,
             "subtotal":        subtotal,
+            "variante_id":     variante.id if variante else None,
+            "nombre_variante": nombre_variante,
         })
 
     pedido = models.PedidoVirtual(
@@ -298,6 +320,8 @@ def convertir_a_venta(
             precio_unitario = d.precio_unitario,
             descuento_pct   = 0.0,
             iva_porcentaje  = iva_porcentaje,
+            variante_id     = d.variante_id,
+            nombre_variante = d.nombre_variante,
         ))
 
     # Ensure stock is decremented (may not have been if skipped confirmation)
@@ -347,19 +371,38 @@ def _deducir_stock(db: Session, pedido: models.PedidoVirtual, empresa_id: int):
         ).with_for_update(of=models.Producto).first()
         if not prod or getattr(prod, "es_servicio", False):
             continue
-        if prod.stock_actual < det.cantidad:
-            raise ValueError(
-                f"Stock insuficiente para '{prod.nombre}': "
-                f"disponible {prod.stock_actual}, solicitado {det.cantidad}"
-            )
-        prod.stock_actual -= det.cantidad
+
+        if det.variante_id:
+            variante = db.query(models.ProductoVariante).filter(
+                models.ProductoVariante.id == det.variante_id,
+                models.ProductoVariante.empresa_id == empresa_id,
+            ).with_for_update().first()
+            if not variante:
+                continue
+            if (variante.stock_actual or 0) < det.cantidad:
+                raise ValueError(
+                    f"Stock insuficiente para '{prod.nombre} ({variante.nombre})': "
+                    f"disponible {variante.stock_actual}, solicitado {det.cantidad}"
+                )
+            variante.stock_actual -= det.cantidad
+            db.add(variante)
+        else:
+            if prod.stock_actual < det.cantidad:
+                raise ValueError(
+                    f"Stock insuficiente para '{prod.nombre}': "
+                    f"disponible {prod.stock_actual}, solicitado {det.cantidad}"
+                )
+            prod.stock_actual -= det.cantidad
+
         db.add(models.InventoryMovement(
-            empresa_id     = empresa_id,
-            producto_id    = prod.id,
-            tipo           = models.MovementType.SALIDA,
-            cantidad       = det.cantidad,
-            motivo         = "Pedido virtual",
-            referencia     = f"pedido_virtual #{pedido.id}",
+            empresa_id      = empresa_id,
+            producto_id     = prod.id,
+            tipo            = models.MovementType.SALIDA,
+            cantidad        = det.cantidad,
+            motivo          = "Pedido virtual",
+            referencia      = f"pedido_virtual #{pedido.id}",
+            variante_id     = det.variante_id,
+            nombre_variante = det.nombre_variante,
         ))
 
 
@@ -373,12 +416,25 @@ def _restaurar_stock(db: Session, pedido: models.PedidoVirtual, empresa_id: int)
         ).first()
         if not prod or getattr(prod, "es_servicio", False):
             continue
-        prod.stock_actual += det.cantidad
+
+        if det.variante_id:
+            variante = db.query(models.ProductoVariante).filter(
+                models.ProductoVariante.id == det.variante_id,
+                models.ProductoVariante.empresa_id == empresa_id,
+            ).first()
+            if variante:
+                variante.stock_actual = (variante.stock_actual or 0) + det.cantidad
+                db.add(variante)
+        else:
+            prod.stock_actual += det.cantidad
+
         db.add(models.InventoryMovement(
-            empresa_id     = empresa_id,
-            producto_id    = prod.id,
-            tipo           = models.MovementType.ENTRADA,
-            cantidad       = det.cantidad,
-            motivo         = "Reposición por cancelación de pedido virtual",
-            referencia     = f"pedido_virtual #{pedido.id}",
+            empresa_id      = empresa_id,
+            producto_id     = prod.id,
+            tipo            = models.MovementType.ENTRADA,
+            cantidad        = det.cantidad,
+            motivo          = "Reposición por cancelación de pedido virtual",
+            referencia      = f"pedido_virtual #{pedido.id}",
+            variante_id     = det.variante_id,
+            nombre_variante = det.nombre_variante,
         ))

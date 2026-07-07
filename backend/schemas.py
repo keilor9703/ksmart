@@ -403,6 +403,7 @@ class InventoryMovementCreate(BaseModel):
     referencia: Optional[str] = ""
     observacion: Optional[str] = ""
     usuario_id: Optional[int] = None
+    variante_id: Optional[int] = None
 
 class InventoryMovementOut(BaseModel):
     id: int
@@ -420,6 +421,8 @@ class InventoryMovementOut(BaseModel):
     numero_lote: Optional[str] = None
     # Consecutivo visible por empresa
     numero_movimiento: Optional[int] = None
+    variante_id: Optional[int] = None
+    nombre_variante: Optional[str] = None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
@@ -2498,6 +2501,15 @@ class CatalogoMesaOut(BaseModel):
     zona: Optional[str] = None
     estado: str = "libre"
 
+class CatalogoVarianteOut(BaseModel):
+    id: int
+    nombre: str
+    atributos: dict = {}
+    precio: Optional[float] = None
+    stock: float = 0.0
+
+    model_config = ConfigDict(from_attributes=True)
+
 class CatalogoProductoOut(BaseModel):
     id: int
     nombre: str
@@ -2507,6 +2519,8 @@ class CatalogoProductoOut(BaseModel):
     image_count: int = 0
     stock: float = 0.0
     es_servicio: bool = False
+    tiene_variantes: bool = False
+    variantes: List[CatalogoVarianteOut] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -2524,6 +2538,7 @@ class CatalogoItemRestaurante(BaseModel):
     cantidad: float = Field(1.0, gt=0)
     precio_unitario: float = Field(..., ge=0)
     notas: Optional[str] = None
+    variante_id: Optional[int] = None
 
 class PedidoRestaurantePublicoIn(BaseModel):
     mesa_numero: str
@@ -2544,6 +2559,7 @@ class DetallePedidoVirtualIn(BaseModel):
     producto_id: int
     cantidad: float = Field(..., gt=0)
     precio_unitario: float = Field(..., ge=0)
+    variante_id: Optional[int] = None
 
 class PedidoVirtualCreate(BaseModel):
     nombre_cliente:    str  = Field(..., min_length=2, max_length=200)
@@ -2566,6 +2582,8 @@ class DetallePedidoVirtualOut(BaseModel):
     cantidad:        float
     precio_unitario: float
     subtotal:        float
+    variante_id:     Optional[int] = None
+    nombre_variante: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class PedidoVirtualOut(BaseModel):
