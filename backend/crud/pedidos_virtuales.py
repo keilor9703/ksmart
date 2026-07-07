@@ -9,6 +9,7 @@ import models
 import schemas
 from crud import notificaciones as crud_notif
 from crud import pagos as crud_pagos
+from crud.common import empresa_suscripcion_activa
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ ALLOWED_TRANSITIONS = {
 
 def create_pedido_publico(db: Session, slug: str, payload: schemas.PedidoVirtualCreate):
     empresa = db.query(models.Empresa).filter(models.Empresa.slug_catalogo == slug).first()
-    if not empresa:
+    if not empresa or not empresa_suscripcion_activa(empresa):
         raise ValueError("Catálogo no encontrado")
 
     if not payload.detalles:

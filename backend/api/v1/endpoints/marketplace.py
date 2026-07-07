@@ -1,5 +1,7 @@
 import logging
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Request
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import models, schemas
@@ -11,6 +13,20 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 MARKETPLACE_MAX_LIMIT = 100
+
+
+def _suscripcion_activa_filter():
+    """Versión SQL de crud.common.empresa_suscripcion_activa, para usar en
+    listados (no en lookups de una sola empresa). Una empresa con el plan/
+    período de prueba vencido no debe seguir siendo descubrible en el
+    directorio público, aunque nadie haya entrado a desactivar el toggle."""
+    ahora = datetime.now(timezone.utc)
+    return or_(
+        models.Empresa.id == 1,
+        models.Empresa.is_protected == True,
+        models.Empresa.trial_ends_at.is_(None),
+        models.Empresa.trial_ends_at >= ahora,
+    )
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CENTRO COMERCIAL VIRTUAL (PÚBLICO, SIN AUTH)
@@ -44,6 +60,7 @@ def listar_empresas_marketplace(
         # visible_marketplace (bloqueado en PUT /catalogo/config), pero un
         # registro ya existente o un bug futuro no debe filtrar aquí igual.
         models.Empresa.tipo_negocio != "restaurante",
+        _suscripcion_activa_filter(),
     )
     if search:
         query = query.filter(models.Empresa.nombre.ilike(f"%{search}%"))
@@ -82,6 +99,7 @@ def listar_categorias_marketplace(request: Request, db: Session = Depends(deps.g
         models.Empresa.slug_catalogo.isnot(None),
         models.Empresa.categoria_marketplace.isnot(None),
         models.Empresa.tipo_negocio != "restaurante",
+        _suscripcion_activa_filter(),
     ).distinct().all()
     return sorted({r[0] for r in rows if r[0]})
 
@@ -112,6 +130,7 @@ def buscar_productos_marketplace(
             models.Empresa.is_active == True,
             models.Empresa.slug_catalogo.isnot(None),
             models.Empresa.tipo_negocio != "restaurante",
+            _suscripcion_activa_filter(),
             models.Producto.mostrar_en_catalogo == True,
             models.Producto.vigente == True,
             models.Producto.nombre.ilike(f"%{search.strip()}%"),
