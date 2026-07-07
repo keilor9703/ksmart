@@ -337,10 +337,14 @@ def _deducir_stock(db: Session, pedido: models.PedidoVirtual, empresa_id: int):
     for det in pedido.detalles:
         if not det.producto_id:
             continue
+        # `Producto.grupo` es lazy="joined" (siempre agrega un LEFT OUTER JOIN
+        # a grupos_producto). Postgres rechaza FOR UPDATE genérico sobre el
+        # lado nullable de un outer join («FeatureNotSupported»), así que hay
+        # que acotar el lock explícitamente a la tabla productos con `of=`.
         prod = db.query(models.Producto).filter(
             models.Producto.id == det.producto_id,
             models.Producto.empresa_id == empresa_id,
-        ).with_for_update().first()
+        ).with_for_update(of=models.Producto).first()
         if not prod or getattr(prod, "es_servicio", False):
             continue
         if prod.stock_actual < det.cantidad:
