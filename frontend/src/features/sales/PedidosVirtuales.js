@@ -655,20 +655,22 @@ const WADialog = ({ open, onClose, pedido }) => {
 
 // ─── DetailDialog ─────────────────────────────────────────────────────────────
 
+const DETAIL_ACTIONS = {
+  nuevo:          [{ estado: 'confirmado',     label: 'Confirmar',     color: '#059669', icon: <CheckCircle /> }],
+  confirmado:     [{ estado: 'en_preparacion', label: 'En preparación',color: '#D97706', icon: <Inventory2 /> }],
+  en_preparacion: [{ estado: 'enviado',        label: 'Listo/Enviado', color: '#7C3AED', icon: <LocalShipping /> }],
+  enviado: [], entregado: [], cancelado: [],
+};
+
 const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange, onEdit, onCancel, onConvertir, linkPagoConfig }) => {
   const theme = useTheme();
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [changingState, setChangingState] = useState(false);
   if (!pedido) return null;
 
   const isEntregado = pedido.estado === 'entregado';
   const isCancelado = pedido.estado === 'cancelado';
   const canConvertir = !pedido.venta_id && !isCancelado && ['confirmado', 'en_preparacion', 'enviado', 'entregado'].includes(pedido.estado);
-  const DETAIL_ACTIONS = {
-    nuevo:          [{ estado: 'confirmado',     label: 'Confirmar',     color: '#059669', icon: <CheckCircle /> }],
-    confirmado:     [{ estado: 'en_preparacion', label: 'En preparación',color: '#D97706', icon: <Inventory2 /> }],
-    en_preparacion: [{ estado: 'enviado',        label: 'Listo/Enviado', color: '#7C3AED', icon: <LocalShipping /> }],
-    enviado: [], entregado: [], cancelado: [],
-  };
 
   return (
     <>
@@ -787,8 +789,20 @@ const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange,
           )}
           <Box sx={{ flex: 1 }} />
           {(DETAIL_ACTIONS[pedido.estado] || []).map(a => (
-            <Button key={a.estado} size="small" variant="contained" startIcon={a.icon}
-              onClick={() => { onStateChange(a.estado, pedido); onClose(); }}
+            <Button key={a.estado} size="small" variant="contained" disabled={changingState}
+              startIcon={changingState ? <CircularProgress size={14} color="inherit" /> : a.icon}
+              onClick={async () => {
+                if (changingState) return;
+                setChangingState(true);
+                try {
+                  await onStateChange(a.estado, pedido);
+                  onClose();
+                } catch {
+                  // el toast de error ya lo muestra handleStateChange — dejamos el diálogo abierto
+                } finally {
+                  setChangingState(false);
+                }
+              }}
               endIcon={<ArrowForward sx={{ fontSize: 14 }} />}
               sx={{ bgcolor: a.color, '&:hover': { filter: 'brightness(0.9)' }, borderRadius: 2, fontWeight: 700 }}>
               {a.label}
@@ -812,10 +826,16 @@ const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange,
 
 // ─── PedidoCard ───────────────────────────────────────────────────────────────
 
-const PedidoCard = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConvertir, onWhatsApp, onEdit, onDetail, onComprobante, linkPagoConfig }) => {
+const PedidoCard = React.memo(function PedidoCard({ pedido, empresa, vendedor, onStateChange, onCancel, onConvertir, onWhatsApp, onEdit, onDetail, onComprobante, linkPagoConfig }) {
   const theme = useTheme();
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [justUpdated, setJustUpdated] = useState(false);
+  // Evita doble-clic en la acción principal (ej. "Confirmar" dos veces con
+  // conexión lenta) y resalta la tarjeta en rojo si la acción falla, ya que
+  // el toast solo puede pasar desapercibido para un empleado que ya siguió
+  // con el siguiente pedido.
+  const [changingState, setChangingState] = useState(false);
+  const [errorFlash, setErrorFlash] = useState(false);
   const meta = getEstadoMeta(pedido.estado);
   const isEntregado = pedido.estado === 'entregado';
   const isCancelado = pedido.estado === 'cancelado';
@@ -830,8 +850,8 @@ const PedidoCard = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConv
         elevation={0}
         sx={{
           borderRadius: 3,
-          border: `1px solid ${alpha(meta.color, isUrgente ? 0.5 : 0.15)}`,
-          borderLeft: `4px solid ${meta.color}`,
+          border: `1px solid ${errorFlash ? '#EF4444' : alpha(meta.color, isUrgente ? 0.5 : 0.15)}`,
+          borderLeft: `4px solid ${errorFlash ? '#EF4444' : meta.color}`,
           bgcolor: theme.palette.background.paper,
           transition: 'all 0.2s',
           position: 'relative',
@@ -846,6 +866,14 @@ const PedidoCard = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConv
           ...(justUpdated && {
             '@keyframes highlight': { '0%': { bgcolor: alpha(meta.color, 0.2) }, '100%': {} },
             animation: 'highlight 0.8s ease-out',
+          }),
+          ...(errorFlash && {
+            '@keyframes errorShake': {
+              '0%, 100%': { transform: 'translateX(0)' },
+              '25%': { transform: 'translateX(-4px)' },
+              '75%': { transform: 'translateX(4px)' },
+            },
+            animation: 'errorShake 0.3s ease-in-out 2',
           }),
           '&:hover': {
             borderColor: alpha(meta.color, 0.45),
@@ -975,8 +1003,21 @@ const PedidoCard = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConv
 
             {/* Primary action */}
             {quickAction && (
-              <Button size="small" variant="contained" startIcon={quickAction.icon}
-                onClick={() => quickAction.next === '_pay' ? setPaymentOpen(true) : onStateChange(quickAction.next, pedido)}
+              <Button size="small" variant="contained" disabled={changingState}
+                startIcon={changingState ? <CircularProgress size={14} color="inherit" /> : quickAction.icon}
+                onClick={async () => {
+                  if (changingState) return;
+                  if (quickAction.next === '_pay') { setPaymentOpen(true); return; }
+                  setChangingState(true);
+                  try {
+                    await onStateChange(quickAction.next, pedido);
+                  } catch {
+                    setErrorFlash(true);
+                    setTimeout(() => setErrorFlash(false), 900);
+                  } finally {
+                    setChangingState(false);
+                  }
+                }}
                 sx={{ bgcolor: quickAction.color, '&:hover': { filter: 'brightness(0.9)' }, borderRadius: 2, fontSize: 11, fontWeight: 700, flex: 2, py: 0.5 }}>
                 {quickAction.label}
               </Button>
@@ -1010,13 +1051,15 @@ const PedidoCard = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConv
         onSuccess={(updated) => { setPaymentOpen(false); onConvertir(updated); setJustUpdated(true); setTimeout(() => setJustUpdated(false), 1000); }} />
     </>
   );
-};
+});
 
 // ─── ListView row ─────────────────────────────────────────────────────────────
 
-const ListRow = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConvertir, onWhatsApp, onEdit, onDetail, onComprobante, linkPagoConfig }) => {
+const ListRow = React.memo(function ListRow({ pedido, empresa, vendedor, onStateChange, onCancel, onConvertir, onWhatsApp, onEdit, onDetail, onComprobante, linkPagoConfig }) {
   const theme = useTheme();
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [changingState, setChangingState] = useState(false);
+  const [errorFlash, setErrorFlash] = useState(false);
   const meta = getEstadoMeta(pedido.estado);
   const isEntregado = pedido.estado === 'entregado';
   const isCancelado = pedido.estado === 'cancelado';
@@ -1026,7 +1069,7 @@ const ListRow = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConvert
 
   return (
     <>
-      <TableRow hover sx={{ cursor: 'pointer', borderLeft: `3px solid ${meta.color}`, '& td': { py: 1.2, fontSize: 12 } }}>
+      <TableRow hover sx={{ cursor: 'pointer', borderLeft: `3px solid ${errorFlash ? '#EF4444' : meta.color}`, transition: 'border-color 0.2s', '& td': { py: 1.2, fontSize: 12 } }}>
         <TableCell onClick={() => onDetail(pedido)} sx={{ width: 60 }}>
           <Typography fontSize={11} color="text.disabled" fontWeight={700}>#{pedido.id}</Typography>
         </TableCell>
@@ -1062,10 +1105,22 @@ const ListRow = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConvert
               </Tooltip>
             )}
             {quickAction && (
-              <Button size="small" variant="contained"
-                onClick={() => quickAction.next === '_pay' ? setPaymentOpen(true) : onStateChange(quickAction.next, pedido)}
+              <Button size="small" variant="contained" disabled={changingState}
+                onClick={async () => {
+                  if (changingState) return;
+                  if (quickAction.next === '_pay') { setPaymentOpen(true); return; }
+                  setChangingState(true);
+                  try {
+                    await onStateChange(quickAction.next, pedido);
+                  } catch {
+                    setErrorFlash(true);
+                    setTimeout(() => setErrorFlash(false), 900);
+                  } finally {
+                    setChangingState(false);
+                  }
+                }}
                 sx={{ bgcolor: quickAction.color, '&:hover': { filter: 'brightness(0.9)' }, borderRadius: 1.5, fontSize: 10, fontWeight: 700, px: 1, py: 0.3, minWidth: 0 }}>
-                {quickAction.label}
+                {changingState ? <CircularProgress size={12} color="inherit" /> : quickAction.label}
               </Button>
             )}
             {!isEntregado && !isCancelado && (
@@ -1091,7 +1146,7 @@ const ListRow = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConvert
         onSuccess={(updated) => { setPaymentOpen(false); onConvertir(updated); }} />
     </>
   );
-};
+});
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -1116,30 +1171,40 @@ export default function PedidosVirtuales({ user }) {
   const [linkPagoConfig, setLinkPagoConfig] = useState(null);
   const [comprobantePedido, setComprobantePedido] = useState(null); // {venta, pedido}
 
-  const handleComprobante = async (pedido) => {
-    try {
-      const res = await apiClient.get(`/ventas/${pedido.venta_id}`);
-      setComprobantePedido({ venta: res.data, pedido });
-    } catch {
-      toast.error('No se pudo cargar el comprobante de venta');
-    }
-  };
-
   const empresa = user?.empresa || null;
   const vendedor = user ? (`${user.nombre_completo || ''}`.trim() || user.username || user.email) : '';
 
+  // Evita solicitudes GET solapadas cuando un tick del polling cae mientras
+  // otra petición (poll anterior o refresh manual) sigue en vuelo.
+  const fetchInFlightRef = useRef(false);
+  // null hasta que termine la primera carga — así no se notifican como
+  // "nuevos" los pedidos que ya existían al abrir la pantalla.
+  const seenNuevoIdsRef = useRef(null);
+
   const fetchAll = useCallback(async (silent = false) => {
+    if (silent && fetchInFlightRef.current) return;
+    fetchInFlightRef.current = true;
     if (!silent) setLoading(true); else setRefreshing(true);
     try {
       const [pRes, sRes] = await Promise.all([
         apiClient.get('/pedidos-virtuales/', { params: { estado: estadoFiltro !== 'todos' ? estadoFiltro : undefined, search: search || undefined, limit: 200 } }),
         apiClient.get('/pedidos-virtuales/stats'),
       ]);
+      const nuevoIdsNow = new Set(pRes.data.filter(p => p.estado === 'nuevo').map(p => p.id));
+      if (seenNuevoIdsRef.current !== null) {
+        const arrived = pRes.data.filter(p => p.estado === 'nuevo' && !seenNuevoIdsRef.current.has(p.id));
+        if (arrived.length === 1) {
+          toast.info(`🛎️ Nuevo pedido de ${arrived[0].nombre_cliente} — ${fmt(arrived[0].total)}`, { autoClose: 8000 });
+        } else if (arrived.length > 1) {
+          toast.info(`🛎️ ${arrived.length} pedidos nuevos recibidos`, { autoClose: 8000 });
+        }
+      }
+      seenNuevoIdsRef.current = nuevoIdsNow;
       setPedidos(pRes.data);
       setStats(sRes.data);
       setLastFetch(new Date());
     } catch { toast.error('Error al cargar pedidos'); }
-    finally { setLoading(false); setRefreshing(false); }
+    finally { setLoading(false); setRefreshing(false); fetchInFlightRef.current = false; }
   }, [estadoFiltro, search]);
 
   useEffect(() => {
@@ -1154,34 +1219,51 @@ export default function PedidosVirtuales({ user }) {
     apiClient.get('/empresa/link-pago').then(r => setLinkPagoConfig(r.data)).catch(() => {});
   }, []);
 
-  // Sort pedidos client-side
-  const sortedPedidos = [...pedidos].sort((a, b) => {
+  // Sort pedidos client-side — los "nuevo" (requieren acción) siempre flotan
+  // arriba sin importar el criterio elegido, para que nunca queden enterrados
+  // en una lista larga ordenada por "menor valor" o "más antiguo".
+  const sortedPedidos = React.useMemo(() => [...pedidos].sort((a, b) => {
+    const aNuevo = a.estado === 'nuevo' ? 0 : 1;
+    const bNuevo = b.estado === 'nuevo' ? 0 : 1;
+    if (aNuevo !== bNuevo) return aNuevo - bNuevo;
     if (sort === 'newest') return new Date(b.fecha_creacion) - new Date(a.fecha_creacion);
     if (sort === 'oldest') return new Date(a.fecha_creacion) - new Date(b.fecha_creacion);
     if (sort === 'highest') return (b.total || 0) - (a.total || 0);
     if (sort === 'lowest')  return (a.total || 0) - (b.total || 0);
     return 0;
-  });
+  }), [pedidos, sort]);
 
-  const handleStateChange = async (estado, pedido) => {
+  const handleStateChange = useCallback(async (estado, pedido) => {
     if (estado === '_wa') { setWaPedido(pedido); return; }
     try {
       const res = await apiClient.patch(`/pedidos-virtuales/${pedido.id}/estado`, { estado });
       setPedidos(prev => prev.map(p => p.id === pedido.id ? res.data : p));
       fetchAll(true);
       toast.success(`→ ${getEstadoMeta(estado).label}`);
-    } catch (err) { toast.error(err?.response?.data?.detail || 'Error al actualizar estado'); }
-  };
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Error al actualizar estado');
+      throw err; // el caller (tarjeta/fila) lo captura para resaltar el error visualmente
+    }
+  }, [fetchAll]);
 
-  const handleConvertir = (updated) => {
+  const handleConvertir = useCallback((updated) => {
     setPedidos(prev => prev.map(p => p.id === updated.id ? updated : p));
     fetchAll(true);
-  };
+  }, [fetchAll]);
 
-  const handleEditSuccess = (updated) => {
+  const handleEditSuccess = useCallback((updated) => {
     setPedidos(prev => prev.map(p => p.id === updated.id ? updated : p));
-    if (detailPedido?.id === updated.id) setDetailPedido(updated);
-  };
+    setDetailPedido(prev => (prev?.id === updated.id ? updated : prev));
+  }, []);
+
+  const handleComprobante = useCallback(async (pedido) => {
+    try {
+      const res = await apiClient.get(`/ventas/${pedido.venta_id}`);
+      setComprobantePedido({ venta: res.data, pedido });
+    } catch {
+      toast.error('No se pudo cargar el comprobante de venta');
+    }
+  }, []);
 
   const urgentCount = pedidos.filter(p => p.estado === 'nuevo' && minutesAgo(p.fecha_creacion) > 45).length;
 
