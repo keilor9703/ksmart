@@ -40,6 +40,10 @@ def listar_empresas_marketplace(
         models.Empresa.visible_marketplace == True,
         models.Empresa.is_active == True,
         models.Empresa.slug_catalogo.isnot(None),
+        # Defensa en profundidad: los restaurantes no deberían poder activar
+        # visible_marketplace (bloqueado en PUT /catalogo/config), pero un
+        # registro ya existente o un bug futuro no debe filtrar aquí igual.
+        models.Empresa.tipo_negocio != "restaurante",
     )
     if search:
         query = query.filter(models.Empresa.nombre.ilike(f"%{search}%"))
@@ -77,6 +81,7 @@ def listar_categorias_marketplace(request: Request, db: Session = Depends(deps.g
         models.Empresa.is_active == True,
         models.Empresa.slug_catalogo.isnot(None),
         models.Empresa.categoria_marketplace.isnot(None),
+        models.Empresa.tipo_negocio != "restaurante",
     ).distinct().all()
     return sorted({r[0] for r in rows if r[0]})
 
@@ -106,6 +111,7 @@ def buscar_productos_marketplace(
             models.Empresa.visible_marketplace == True,
             models.Empresa.is_active == True,
             models.Empresa.slug_catalogo.isnot(None),
+            models.Empresa.tipo_negocio != "restaurante",
             models.Producto.mostrar_en_catalogo == True,
             models.Producto.vigente == True,
             models.Producto.nombre.ilike(f"%{search.strip()}%"),

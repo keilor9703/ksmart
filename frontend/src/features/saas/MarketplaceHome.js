@@ -263,10 +263,6 @@ export default function MarketplaceHome() {
     return counts;
   }, [stores]);
 
-  // Prueba social: total de productos reales disponibles ahora mismo en el
-  // mall — un dato concreto pesa más que "confía en nosotros".
-  const totalProductosMall = useMemo(() => stores.reduce((sum, s) => sum + (s.total_productos || 0), 0), [stores]);
-
   const openStore = useCallback((slug) => navigate(`/${slug}`), [navigate]);
 
   return (
@@ -312,7 +308,7 @@ export default function MarketplaceHome() {
               Todos tus negocios de confianza, en un solo lugar.
             </Typography>
             <Typography sx={{ fontSize: { xs: 15, md: 18 }, color: 'text.secondary', mt: 2, maxWidth: 560 }}>
-              Descubre tiendas y restaurantes reales, cada uno con su propio catálogo y pedidos directos por WhatsApp.
+              Descubre tiendas reales, cada una con su propio catálogo y pedidos directos por WhatsApp.
             </Typography>
 
             <Box sx={{ display: 'flex', gap: 1.5, mt: 4, maxWidth: 640, flexWrap: 'wrap' }}>
@@ -359,28 +355,6 @@ export default function MarketplaceHome() {
             )}
           </Box>
         </Box>
-
-        {/* ── BARRA DE CONFIANZA — prueba social con datos reales, no promesas ── */}
-        {!loading && stores.length > 0 && (
-          <Box sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
-            <Box sx={{
-              maxWidth: 1200, mx: 'auto', px: 2, py: 2,
-              display: 'flex', flexWrap: 'wrap', gap: { xs: 2, sm: 4 },
-              justifyContent: { xs: 'space-between', sm: 'flex-start' },
-            }}>
-              {[
-                { val: stores.length, label: `marca${stores.length !== 1 ? 's' : ''} real${stores.length !== 1 ? 'es' : ''}` },
-                { val: totalProductosMall, label: `producto${totalProductosMall !== 1 ? 's' : ''} disponible${totalProductosMall !== 1 ? 's' : ''}` },
-                { val: categorias.length, label: `categoría${categorias.length !== 1 ? 's' : ''}` },
-              ].filter(s => s.val > 0).map(s => (
-                <Box key={s.label} sx={{ display: 'flex', alignItems: 'baseline', gap: 0.7 }}>
-                  <Typography sx={{ fontWeight: 900, fontSize: 20, color: ACCENT }}>{s.val}</Typography>
-                  <Typography sx={{ fontSize: 12.5, color: 'text.secondary', fontWeight: 600 }}>{s.label}</Typography>
-                </Box>
-              ))}
-            </Box>
-          </Box>
-        )}
 
         {/* ── RESULTADOS DE PRODUCTOS (búsqueda cruzada entre tiendas) ── */}
         {search.trim().length >= 2 && (

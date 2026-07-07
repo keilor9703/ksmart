@@ -77,6 +77,11 @@ def update_catalogo_config(
     
     if payload.visible_marketplace and not payload.slug_catalogo:
         raise HTTPException(status_code=400, detail="Debes configurar el slug del catálogo antes de aparecer en el Centro Comercial Virtual.")
+    # Por ahora el Centro Comercial Virtual solo admite comercio/retail — un
+    # restaurante no maneja stock ni cuentas por variante de la misma forma
+    # y su flujo de pedido (mesa/autoservicio) no encaja con el directorio.
+    if payload.visible_marketplace and (db_empresa.tipo_negocio or "erp") == "restaurante":
+        raise HTTPException(status_code=400, detail="Los restaurantes aún no pueden aparecer en el Centro Comercial Virtual.")
 
     db_empresa.slug_catalogo = payload.slug_catalogo
     db_empresa.whatsapp_pedidos = payload.whatsapp_pedidos
