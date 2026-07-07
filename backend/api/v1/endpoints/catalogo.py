@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import models, schemas
 from api import deps
 from crud import pedidos_virtuales as crud_pv
+from crud.common import empresa_suscripcion_activa
 from core.limiter import limiter
 import base64
 import json
@@ -115,7 +116,7 @@ def get_public_catalogo(
 ):
     """Obtiene la información básica de la empresa y sus productos públicos."""
     db_empresa = db.query(models.Empresa).filter(models.Empresa.slug_catalogo == slug).first()
-    if not db_empresa:
+    if not db_empresa or not empresa_suscripcion_activa(db_empresa):
         raise HTTPException(status_code=404, detail="Catálogo no encontrado.")
 
     # Obtener productos visibles (Paginación inicial de 50)
@@ -206,7 +207,7 @@ def get_catalogo_productos(
     """Listado paginado y filtrado de productos para el catálogo público."""
     limit = max(1, min(limit, CATALOGO_MAX_LIMIT))
     db_empresa = db.query(models.Empresa).filter(models.Empresa.slug_catalogo == slug).first()
-    if not db_empresa:
+    if not db_empresa or not empresa_suscripcion_activa(db_empresa):
         raise HTTPException(status_code=404, detail="Empresa no encontrada.")
 
     query = db.query(models.Producto).filter(
@@ -257,7 +258,7 @@ def get_catalogo_productos(
 def ping_catalogo(request: Request, slug: str, db: Session = Depends(deps.get_db)):
     """Endpoint de diagnóstico público. Verifica que el slug existe y que la API responde."""
     empresa = db.query(models.Empresa).filter(models.Empresa.slug_catalogo == slug).first()
-    if not empresa:
+    if not empresa or not empresa_suscripcion_activa(empresa):
         raise HTTPException(status_code=404, detail=f"No existe catálogo con slug '{slug}'")
     return {"ok": True, "empresa": empresa.nombre, "slug": slug}
 
@@ -300,7 +301,7 @@ def create_pedido_restaurante_publico(
     No requiere autenticación. Crea o reutiliza la comanda activa de la mesa.
     """
     db_empresa = db.query(models.Empresa).filter(models.Empresa.slug_catalogo == slug).first()
-    if not db_empresa:
+    if not db_empresa or not empresa_suscripcion_activa(db_empresa):
         raise HTTPException(status_code=404, detail="Catálogo no encontrado.")
     if db_empresa.tipo_negocio != "restaurante":
         raise HTTPException(status_code=400, detail="Este catálogo no es de un restaurante.")
@@ -473,7 +474,7 @@ def get_producto_imagen(
     """Sirve una imagen específica del producto como un stream binario con cache."""
     # PREVENCIÓN IDOR: Validar que el producto pertenezca a la empresa del slug
     db_empresa = db.query(models.Empresa).filter(models.Empresa.slug_catalogo == slug).first()
-    if not db_empresa:
+    if not db_empresa or not empresa_suscripcion_activa(db_empresa):
         raise HTTPException(status_code=404, detail="Catálogo no encontrado.")
 
     db_producto = db.query(models.Producto).filter(
