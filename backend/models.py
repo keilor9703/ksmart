@@ -716,6 +716,9 @@ class LoteProduccion(Base, TenantMixin):
     numero_orden                 = Column(Integer, nullable=True, index=True)
     costo_insumos                = Column(Float, default=0.0)
     costo_maquila                = Column(Float, default=0.0)
+    # Si el producto resultante de la receta maneja variantes, indica a cuál
+    # variante (talla/presentación/etc.) se le acredita el stock producido.
+    variante_id                  = Column(Integer, ForeignKey("producto_variantes.id"), nullable=True)
 
     receta          = relationship("Receta")
     cliente         = relationship("Cliente")
@@ -749,6 +752,8 @@ class DetalleCompra(Base, TenantMixin):
     cantidad        = Column(Float)
     precio_unitario = Column(Float)
     iva_porcentaje  = Column(Float, default=0.0)
+    variante_id     = Column(Integer, ForeignKey("producto_variantes.id"), nullable=True)
+    nombre_variante = Column(String(200), nullable=True)
 
     compra   = relationship("Compra", back_populates="detalles")
     producto = relationship("Producto", foreign_keys=[producto_id])

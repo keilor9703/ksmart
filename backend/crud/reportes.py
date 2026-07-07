@@ -163,6 +163,54 @@ def get_productos_vendidos(db: Session, empresa_id: int, start_date: Optional[da
         servicios=servicios_vendidos
     )
 
+def get_ventas_por_variante(db: Session, empresa_id: int, producto_id: int,
+                             start_date: Optional[date] = None, end_date: Optional[date] = None):
+    """Desglose de ventas por variante para un producto que las maneja — el
+    reporte agregado (get_productos_vendidos) las funde en una sola fila a
+    nivel de producto, lo cual no basta para saber cuál talla/color rota más."""
+    query = (
+        db.query(
+            models.DetalleVenta.variante_id.label("variante_id"),
+            models.DetalleVenta.nombre_variante.label("nombre_variante"),
+            func.sum(models.DetalleVenta.cantidad).label("total_quantity_sold"),
+            func.sum(models.DetalleVenta.cantidad * models.DetalleVenta.precio_unitario).label("total_revenue"),
+        )
+        .join(models.Venta, models.DetalleVenta.venta_id == models.Venta.id)
+        .filter(
+            models.DetalleVenta.producto_id == producto_id,
+            models.DetalleVenta.empresa_id == empresa_id,
+            models.Venta.empresa_id == empresa_id,
+            models.Venta.tipo == "venta",
+        )
+    )
+    if start_date:
+        utc_start, _ = get_utc_boundaries(start_date)
+        query = query.filter(models.Venta.fecha >= utc_start)
+    if end_date:
+        _, utc_end = get_utc_boundaries(end_date)
+        query = query.filter(models.Venta.fecha <= utc_end)
+
+    query = query.group_by(models.DetalleVenta.variante_id, models.DetalleVenta.nombre_variante) \
+                 .order_by(func.sum(models.DetalleVenta.cantidad).desc())
+
+    producto = db.query(models.Producto).filter(
+        models.Producto.id == producto_id,
+        models.Producto.empresa_id == empresa_id,
+    ).first()
+    nombre_producto = producto.nombre if producto else f"Producto {producto_id}"
+
+    return [
+        schemas.VarianteVendida(
+            product_id=producto_id,
+            product_name=nombre_producto,
+            variante_id=row.variante_id,
+            variante_name=row.nombre_variante or "Sin variante",
+            total_quantity_sold=float(row.total_quantity_sold or 0),
+            total_revenue=float(row.total_revenue or 0),
+        )
+        for row in query.all()
+    ]
+
 def get_clientes_compradores(db: Session, empresa_id: int, start_date: Optional[date] = None, end_date: Optional[date] = None):
     query = (
         db.query(

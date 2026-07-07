@@ -735,6 +735,7 @@ class DetalleCompraBase(BaseModel):
     numero_lote: Optional[str] = None
     fecha_vencimiento: Optional[date] = None
     fecha_fabricacion: Optional[date] = None
+    variante_id: Optional[int] = None
 
 
 class DetalleCompraCreate(DetalleCompraBase):
@@ -744,6 +745,7 @@ class DetalleCompra(DetalleCompraBase):
     id: int
     compra_id: int
     producto: Optional[Producto] = None
+    nombre_variante: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class CompraBase(BaseModel):
@@ -871,6 +873,9 @@ class LoteProduccionConfirm(BaseModel):
     numero_lote: Optional[str] = None
     fecha_vencimiento: Optional[date] = None
     fecha_fabricacion: Optional[date] = None
+    # Si el producto resultante maneja variantes, a cuál se le acredita el
+    # stock producido (obligatorio en ese caso).
+    variante_id: Optional[int] = None
 
 class LoteProduccion(LoteProduccionBase):
     id: int
@@ -888,6 +893,7 @@ class LoteProduccion(LoteProduccionBase):
     numero_orden: Optional[int] = None
     costo_insumos: float = 0.0
     costo_maquila: float = 0.0
+    variante_id: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
 # =========================
@@ -976,6 +982,8 @@ class InventarioItem(BaseModel):
     precio: float
     valor_costo: float
     valor_venta: float
+    variante_id: Optional[int] = None
+    nombre_variante: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class InventarioSnapshot(BaseModel):
@@ -1046,6 +1054,14 @@ class ProductoVendido(BaseModel):
 class ReporteProductosVendidos(BaseModel):
     productos: List[ProductoVendido]
     servicios: List[ProductoVendido]
+
+class VarianteVendida(BaseModel):
+    product_id: int
+    product_name: str
+    variante_id: Optional[int] = None
+    variante_name: str  # "Sin variante" para lo vendido antes de que el producto tuviera variantes
+    total_quantity_sold: float
+    total_revenue: float
 
 class ClienteComprador(BaseModel):
     client_id: int

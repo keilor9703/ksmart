@@ -111,16 +111,39 @@ def list_movements(db: Session, empresa_id: int, producto_id: int = None, limit:
     return q.limit(limit).all()
 
 def get_low_stock(db: Session, empresa_id: int):
-    return db.query(models.Producto).filter(
+    """Devuelve dicts (producto_id, nombre, stock_actual, stock_minimo) — no
+    filas de Producto directamente, porque un producto con variantes nunca
+    acumula stock propio (cada movimiento va a su variante); usar su
+    stock_actual/stock_minimo de padre generaría falsas alertas permanentes.
+    Para esos casos se evalúa cada variante activa por separado."""
+    prods = db.query(models.Producto).filter(
         models.Producto.empresa_id == empresa_id,
         models.Producto.vigente == True,
         models.Producto.stock_minimo.isnot(None),
         models.Producto.stock_minimo > 0,
-        or_(
-            models.Producto.stock_actual.is_(None),
-            models.Producto.stock_actual < models.Producto.stock_minimo,
-        ),
     ).all()
+
+    alertas = []
+    for p in prods:
+        if p.tiene_variantes:
+            for v in (p.variantes or []):
+                if not v.activo or not v.stock_minimo:
+                    continue
+                if (v.stock_actual or 0) < v.stock_minimo:
+                    alertas.append({
+                        "producto_id": p.id,
+                        "nombre": f"{p.nombre} — {v.nombre}",
+                        "stock_actual": v.stock_actual or 0,
+                        "stock_minimo": v.stock_minimo,
+                    })
+        elif (p.stock_actual or 0) < p.stock_minimo:
+            alertas.append({
+                "producto_id": p.id,
+                "nombre": p.nombre,
+                "stock_actual": p.stock_actual or 0,
+                "stock_minimo": p.stock_minimo,
+            })
+    return alertas
 
 def update_producto_stock_minimo(db: Session, empresa_id: int, producto_id: int, minimo: float):
     prod = get_producto(db, empresa_id, producto_id)
@@ -209,6 +232,39 @@ def get_inventario_actual(db: Session, empresa_id: int) -> schemas.InventarioSna
     total_costo = 0.0
     total_venta = 0.0
     for p in prods:
+        # Un producto con variantes no acumula su propio stock_actual (cada
+        # movimiento va a la variante correspondiente) — sin esto, su fila
+        # reportaría siempre stock/valor $0 pese a tener inventario real
+        # repartido en sus variantes.
+        if p.tiene_variantes:
+            for v in (p.variantes or []):
+                if not v.activo:
+                    continue
+                stock = float(v.stock_actual or 0.0)
+                costo = float(v.costo if v.costo is not None else (p.costo or 0.0))
+                precio = float(v.precio if v.precio is not None else (p.precio or 0.0))
+                valor_costo = stock * costo
+                valor_venta = stock * precio
+                total_costo += valor_costo
+                total_venta += valor_venta
+                items.append(
+                    schemas.InventarioItem(
+                        id=p.id,
+                        nombre=f"{p.nombre} — {v.nombre}",
+                        es_servicio=bool(p.es_servicio),
+                        unidad_medida=p.unidad_medida,
+                        stock_actual=stock,
+                        stock_minimo=float(v.stock_minimo or 0.0),
+                        costo=costo,
+                        precio=precio,
+                        valor_costo=valor_costo,
+                        valor_venta=valor_venta,
+                        variante_id=v.id,
+                        nombre_variante=v.nombre,
+                    )
+                )
+            continue
+
         stock = float(p.stock_actual or 0.0)
         costo = float(p.costo or 0.0)
         precio = float(p.precio or 0.0)
