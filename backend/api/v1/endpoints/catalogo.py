@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -7,12 +7,15 @@ from datetime import datetime, timezone
 import models, schemas
 from api import deps
 from crud import pedidos_virtuales as crud_pv
+from core.limiter import limiter
 import base64
 import json
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+CATALOGO_MAX_LIMIT = 100
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONFIGURACIÓN (PROTEGIDO)
@@ -73,7 +76,9 @@ def update_catalogo_config(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/{slug}", response_model=schemas.CatalogoPublicoOut)
+@limiter.limit("60/minute")
 def get_public_catalogo(
+    request: Request,
     slug: str,
     db: Session = Depends(deps.get_db)
 ):
@@ -155,7 +160,9 @@ def get_public_catalogo(
     )
 
 @router.get("/{slug}/productos", response_model=List[schemas.CatalogoProductoOut])
+@limiter.limit("60/minute")
 def get_catalogo_productos(
+    request: Request,
     slug: str,
     skip: int = 0,
     limit: int = 50,
@@ -164,6 +171,7 @@ def get_catalogo_productos(
     db: Session = Depends(deps.get_db)
 ):
     """Listado paginado y filtrado de productos para el catálogo público."""
+    limit = max(1, min(limit, CATALOGO_MAX_LIMIT))
     db_empresa = db.query(models.Empresa).filter(models.Empresa.slug_catalogo == slug).first()
     if not db_empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada.")
@@ -210,7 +218,8 @@ def get_catalogo_productos(
     return results
 
 @router.get("/{slug}/ping")
-def ping_catalogo(slug: str, db: Session = Depends(deps.get_db)):
+@limiter.limit("30/minute")
+def ping_catalogo(request: Request, slug: str, db: Session = Depends(deps.get_db)):
     """Endpoint de diagnóstico público. Verifica que el slug existe y que la API responde."""
     empresa = db.query(models.Empresa).filter(models.Empresa.slug_catalogo == slug).first()
     if not empresa:
@@ -219,7 +228,9 @@ def ping_catalogo(slug: str, db: Session = Depends(deps.get_db)):
 
 
 @router.post("/{slug}/pedido", response_model=schemas.PedidoVirtualCreatedOut, status_code=201)
+@limiter.limit("10/minute")
 def create_pedido_virtual_publico(
+    request: Request,
     slug: str,
     payload: schemas.PedidoVirtualCreate,
     db: Session = Depends(deps.get_db),
@@ -242,7 +253,9 @@ def create_pedido_virtual_publico(
 
 
 @router.post("/{slug}/pedido-restaurante", response_model=schemas.PedidoRestauranteCreatedOut, status_code=201)
+@limiter.limit("15/minute")
 def create_pedido_restaurante_publico(
+    request: Request,
     slug: str,
     payload: schemas.PedidoRestaurantePublicoIn,
     db: Session = Depends(deps.get_db),
@@ -319,7 +332,13 @@ def create_pedido_restaurante_publico(
             models.Producto.id == it.producto_id,
             models.Producto.empresa_id == db_empresa.id,
             models.Producto.vigente == True,
+            models.Producto.mostrar_en_catalogo == True,
         ).first()
+        if not prod:
+            raise HTTPException(status_code=400, detail=f"Producto {it.producto_id} no encontrado en este menú.")
+        # El precio SIEMPRE se recalcula desde la BD, nunca se confía en el
+        # precio enviado por el cliente (evita manipulación de precios).
+        precio_real = prod.precio
 
         if prod and prod.grupo_item:
             ov = overrides.get(prod.grupo_item)
@@ -338,8 +357,8 @@ def create_pedido_restaurante_publico(
             producto_id=it.producto_id,
             nombre_producto=it.nombre_producto,
             cantidad=it.cantidad,
-            precio_unitario=it.precio_unitario,
-            subtotal=round(it.cantidad * it.precio_unitario, 2),
+            precio_unitario=precio_real,
+            subtotal=round(it.cantidad * precio_real, 2),
             notas=it.notas,
             area_cocina=area or (areas[0] if areas else None),
             va_a_cocina=va_a_cocina,
@@ -394,7 +413,9 @@ def create_pedido_restaurante_publico(
 
 
 @router.get("/{slug}/productos/{producto_id}/imagen")
+@limiter.limit("120/minute")
 def get_producto_imagen(
+    request: Request,
     slug: str,
     producto_id: int,
     index: int = 0,
