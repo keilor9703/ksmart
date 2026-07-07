@@ -1289,7 +1289,7 @@ const Login = ({ onLogin }) => {
                                         <TextField
                                             fullWidth label="NIT o Cédula de Ciudadanía" required
                                             className="orange-field" sx={fieldSx}
-                                            placeholder="Ej: 901.123.456-7"
+                                            placeholder="Ej: 901123456-7"
                                             value={regData.nit}
                                             onChange={(e) => {
                                                 const raw = e.target.value.replace(/[^0-9-]/g, '');
