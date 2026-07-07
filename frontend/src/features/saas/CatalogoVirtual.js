@@ -293,6 +293,10 @@ const CatalogoVirtual = () => {
 
   // Improvement #12: checkout steps
   const [checkoutStep, setCheckoutStep] = useState(1);
+  // Errores de validación por campo — se activan solo tras un intento fallido
+  // de avanzar/enviar, para resaltar visiblemente qué falta diligenciar
+  // (el toast solo no bastaba: el usuario no sabía QUÉ campo corregir).
+  const [checkoutErrors, setCheckoutErrors] = useState({});
 
   // Restaurante — notas por ítem y número de mesa
   const [itemNotas, setItemNotas] = useState({});
@@ -500,13 +504,17 @@ const CatalogoVirtual = () => {
   // ── Flujo COMERCIO — WhatsApp ─────────────────────────────────────────
   const handleSendOrder = async () => {
     if (!nombre || !celular) {
-      toast.warning("Nombre y celular son obligatorios");
+      setCheckoutStep(1);
+      setCheckoutErrors({ nombre: !nombre, celular: !celular });
+      toast.warning("Falta diligenciar tu nombre y/o celular");
       return;
     }
     if (tipoEntrega === 'domicilio' && !direccion) {
+      setCheckoutErrors({ direccion: true });
       toast.warning("La dirección es obligatoria para domicilios");
       return;
     }
+    setCheckoutErrors({});
 
     const formatCurrency = (val) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(val);
 
@@ -573,15 +581,18 @@ const CatalogoVirtual = () => {
       setOrderModalOpen(false);
       setCartOpen(false);
       setCheckoutStep(1);
+      setCheckoutErrors({});
     }, 2500);
   };
 
   // ── Flujo RESTAURANTE — directo a cocina ─────────────────────────────
   const handleSendOrderRestaurante = async () => {
     if (!mesaNumero.trim()) {
-      toast.warning("Indica el número de tu mesa");
+      setCheckoutErrors({ mesa: true });
+      toast.warning("Indica el número de tu mesa para continuar");
       return;
     }
+    setCheckoutErrors({});
     try {
       const res = await apiClient.post(`/catalogo/${slug}/pedido-restaurante`, {
         mesa_numero: mesaNumero.trim(),
@@ -886,7 +897,7 @@ const CatalogoVirtual = () => {
           onClose={() => setSelectedProduct(null)}
           fullWidth
           maxWidth="sm"
-          PaperProps={{ sx: { borderRadius: isMobile ? '24px 24px 0 0' : 4, mt: isMobile ? 'auto' : 0, mb: isMobile ? 0 : 'auto' } }}
+          PaperProps={{ sx: isMobile ? { borderRadius: '24px 24px 0 0', mt: 'auto', mb: 0 } : { borderRadius: 4 } }}
           TransitionComponent={Zoom}
         >
           {selectedProduct && (
@@ -1279,7 +1290,7 @@ const CatalogoVirtual = () => {
               fullWidth
               size="large"
               endIcon={empresa?.tipo_negocio === 'restaurante' ? <TableRestaurant /> : <ArrowForward />}
-              onClick={() => { setOrderModalOpen(true); setCheckoutStep(1); }}
+              onClick={() => { setOrderModalOpen(true); setCheckoutStep(1); setCheckoutErrors({}); }}
               sx={{ bgcolor: accentColor, borderRadius: 3, py: 1.5, fontWeight: 700, '&:hover': { bgcolor: accentColor, opacity: 0.9 } }}
             >
               {empresa?.tipo_negocio === 'restaurante' ? 'Pedir a cocina' : 'Siguiente'}
@@ -1305,7 +1316,7 @@ const CatalogoVirtual = () => {
                 ? 'Enviar pedido a cocina'
                 : checkoutStep === 1 ? 'Tus datos' : 'Entrega'}
             </Box>
-            {!orderSent && <IconButton size="small" onClick={() => { setOrderModalOpen(false); setCheckoutStep(1); }}><Close fontSize="small" /></IconButton>}
+            {!orderSent && <IconButton size="small" onClick={() => { setOrderModalOpen(false); setCheckoutStep(1); setCheckoutErrors({}); }}><Close fontSize="small" /></IconButton>}
           </DialogTitle>
 
           <DialogContent dividers sx={{ position: 'relative', p: 0 }}>
@@ -1391,15 +1402,18 @@ const CatalogoVirtual = () => {
                     <TableRestaurant fontSize="small" sx={{ color: accentColor }} />
                     ¿En qué mesa estás? *
                   </Typography>
-                  <Typography sx={{ fontSize: 12, color: textSec, mb: 1.5 }}>
-                    Mira el número en la tarjeta de tu mesa.
+                  <Typography sx={{ fontSize: 12, color: checkoutErrors.mesa ? '#EF4444' : textSec, mb: 1.5, fontWeight: checkoutErrors.mesa ? 700 : 400 }}>
+                    {checkoutErrors.mesa ? '⚠ Debes indicar tu mesa para poder enviar el pedido' : 'Mira el número en la tarjeta de tu mesa.'}
                   </Typography>
                   {mesas.length > 0 ? (
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    <Box sx={{
+                      display: 'flex', flexWrap: 'wrap', gap: 1, p: checkoutErrors.mesa ? 1 : 0,
+                      borderRadius: 2, border: checkoutErrors.mesa ? '1.5px solid #EF4444' : 'none',
+                    }}>
                       {mesas.map(m => (
                         <Box
                           key={m.numero}
-                          onClick={() => setMesaNumero(m.numero)}
+                          onClick={() => { setMesaNumero(m.numero); setCheckoutErrors(prev => ({ ...prev, mesa: false })); }}
                           sx={{
                             width: 52, height: 52, borderRadius: 2.5,
                             border: `2.5px solid ${mesaNumero === m.numero ? accentColor : borderClr}`,
@@ -1424,8 +1438,9 @@ const CatalogoVirtual = () => {
                       fullWidth
                       placeholder="Ej: 5, A3, Barra-2"
                       value={mesaNumero}
-                      onChange={e => setMesaNumero(e.target.value)}
+                      onChange={e => { setMesaNumero(e.target.value); if (e.target.value.trim()) setCheckoutErrors(prev => ({ ...prev, mesa: false })); }}
                       size="small"
+                      error={Boolean(checkoutErrors.mesa)}
                       sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                     />
                   )}
@@ -1434,8 +1449,9 @@ const CatalogoVirtual = () => {
                       fullWidth
                       placeholder="O escribe el número de tu mesa"
                       value={mesaNumero}
-                      onChange={e => setMesaNumero(e.target.value)}
+                      onChange={e => { setMesaNumero(e.target.value); if (e.target.value.trim()) setCheckoutErrors(prev => ({ ...prev, mesa: false })); }}
                       size="small"
+                      error={Boolean(checkoutErrors.mesa)}
                       sx={{ mt: 1.5, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                     />
                   )}
@@ -1483,12 +1499,15 @@ const CatalogoVirtual = () => {
                         fullWidth
                         placeholder="¿Cómo te llamas?"
                         value={nombre}
-                        onChange={(e) => setNombre(e.target.value)}
+                        onChange={(e) => { setNombre(e.target.value); if (e.target.value) setCheckoutErrors(prev => ({ ...prev, nombre: false })); }}
                         required
+                        error={Boolean(checkoutErrors.nombre)}
+                        helperText={
+                          checkoutErrors.nombre ? 'Este campo es obligatorio'
+                          : nombre ? '✓ Datos guardados' : ' '
+                        }
+                        FormHelperTextProps={{ sx: { color: checkoutErrors.nombre ? undefined : '#22c55e', fontWeight: 600 } }}
                       />
-                      {nombre && (
-                        <Typography sx={{ fontSize: 10, color: '#22c55e', mt: 0.4, fontWeight: 600 }}>✓ Datos guardados</Typography>
-                      )}
                     </Box>
                     <Box>
                       <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1498,12 +1517,15 @@ const CatalogoVirtual = () => {
                         fullWidth
                         placeholder="Ej: 300 123 4567"
                         value={celular}
-                        onChange={(e) => setCelular(e.target.value.replace(/\D/g, ''))}
+                        onChange={(e) => { setCelular(e.target.value.replace(/\D/g, '')); if (e.target.value) setCheckoutErrors(prev => ({ ...prev, celular: false })); }}
                         required
+                        error={Boolean(checkoutErrors.celular)}
+                        helperText={
+                          checkoutErrors.celular ? 'Este campo es obligatorio'
+                          : celular ? '✓ Datos guardados' : ' '
+                        }
+                        FormHelperTextProps={{ sx: { color: checkoutErrors.celular ? undefined : '#22c55e', fontWeight: 600 } }}
                       />
-                      {celular && (
-                        <Typography sx={{ fontSize: 10, color: '#22c55e', mt: 0.4, fontWeight: 600 }}>✓ Datos guardados</Typography>
-                      )}
                     </Box>
                   </>
                 )}
@@ -1548,8 +1570,10 @@ const CatalogoVirtual = () => {
                           fullWidth
                           placeholder="Calle, Barrio, Apartamento..."
                           value={direccion}
-                          onChange={(e) => setDireccion(e.target.value)}
+                          onChange={(e) => { setDireccion(e.target.value); if (e.target.value) setCheckoutErrors(prev => ({ ...prev, direccion: false })); }}
                           required
+                          error={Boolean(checkoutErrors.direccion)}
+                          helperText={checkoutErrors.direccion ? 'La dirección es obligatoria para domicilios' : ' '}
                         />
                       </Box>
                     ) : (
@@ -1596,8 +1620,12 @@ const CatalogoVirtual = () => {
                   fullWidth variant="contained" size="large"
                   startIcon={<CheckCircle />}
                   onClick={handleSendOrderRestaurante}
-                  disabled={!mesaNumero.trim()}
-                  sx={{ bgcolor: accentColor, borderRadius: 3, py: 1.5, fontWeight: 800, '&:hover': { bgcolor: accentColor, opacity: 0.9 } }}
+                  sx={{
+                    bgcolor: mesaNumero.trim() ? accentColor : 'action.disabledBackground',
+                    color: mesaNumero.trim() ? '#fff' : 'text.disabled',
+                    borderRadius: 3, py: 1.5, fontWeight: 800,
+                    '&:hover': { bgcolor: mesaNumero.trim() ? accentColor : 'action.disabledBackground', opacity: 0.9 },
+                  }}
                 >
                   Enviar a cocina
                 </Button>
@@ -1610,9 +1638,11 @@ const CatalogoVirtual = () => {
                       endIcon={<ArrowForward />}
                       onClick={() => {
                         if (!nombre || !celular) {
-                          toast.warning("Nombre y celular son obligatorios");
+                          setCheckoutErrors({ nombre: !nombre, celular: !celular });
+                          toast.warning("Falta diligenciar tu nombre y/o celular");
                           return;
                         }
+                        setCheckoutErrors({});
                         setCheckoutStep(2);
                       }}
                       sx={{ bgcolor: accentColor, borderRadius: 3, py: 1.5, fontWeight: 800, '&:hover': { bgcolor: accentColor, opacity: 0.9 } }}
