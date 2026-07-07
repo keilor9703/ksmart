@@ -2527,7 +2527,16 @@ class MarketplaceEmpresaOut(BaseModel):
     total_productos: int = 0
 
     model_config = ConfigDict(from_attributes=True)
-    descripcion: Optional[str] = None
+
+class MarketplaceProductoOut(BaseModel):
+    id: int
+    nombre: str
+    precio: float
+    image_count: int = 0
+    categoria: Optional[str] = None
+    empresa_nombre: str
+    empresa_slug: str
+    empresa_color: str
 
 class CatalogoMesaOut(BaseModel):
     numero: str
