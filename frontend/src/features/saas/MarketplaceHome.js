@@ -19,12 +19,12 @@ const ACCENT = '#4F46E5'; // índigo — distinto del catálogo individual (cada
 // reales, tomadas de productos publicados por las propias empresas del mall
 // (ver /marketplace/productos/destacados), no emoji ni stock genérico.
 const FLOATING_BADGE_LAYOUT = [
-  { top: '8%',  left: '4%',  size: 64, delay: '0s',    duration: '6s' },
-  { top: '62%', left: '8%',  size: 54, delay: '1.2s',  duration: '7s' },
-  { top: '14%', left: '88%', size: 58, delay: '0.6s',  duration: '6.5s' },
-  { top: '46%', left: '92%', size: 60, delay: '1.8s',  duration: '5.5s' },
-  { top: '78%', left: '84%', size: 52, delay: '0.3s',  duration: '7.5s' },
-  { top: '80%', left: '20%', size: 56, delay: '2.1s',  duration: '6.2s' },
+  { top: '6%',  left: '2%',  size: 128, delay: '0s',    duration: '6s' },
+  { top: '60%', left: '3%',  size: 108, delay: '1.2s',  duration: '7s' },
+  { top: '10%', left: '84%', size: 118, delay: '0.6s',  duration: '6.5s' },
+  { top: '44%', left: '89%', size: 124, delay: '1.8s',  duration: '5.5s' },
+  { top: '78%', left: '80%', size: 104, delay: '0.3s',  duration: '7.5s' },
+  { top: '80%', left: '14%', size: 112, delay: '2.1s',  duration: '6.2s' },
 ];
 
 const safeGetItem = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
@@ -322,10 +322,10 @@ export default function MarketplaceHome() {
               return (
               <Box key={i} sx={{
                 position: 'absolute', top: b.top, left: b.left,
-                width: b.size, height: b.size, borderRadius: '28%',
+                width: b.size, height: b.size, borderRadius: '24%',
                 overflow: 'hidden',
-                border: '2px solid', borderColor: isDark ? 'rgba(255,255,255,0.15)' : '#fff',
-                boxShadow: `0 12px 24px -10px ${brandColor}66`,
+                border: '4px solid', borderColor: isDark ? 'rgba(255,255,255,0.12)' : '#fff',
+                boxShadow: `0 18px 36px -14px ${brandColor}70, 0 4px 10px rgba(0,0,0,0.08)`,
                 animation: `marketplaceFloat ${b.duration} ease-in-out ${b.delay} infinite`,
                 '@keyframes marketplaceFloat': {
                   '0%, 100%': { transform: 'translateY(0) rotate(-4deg)' },
