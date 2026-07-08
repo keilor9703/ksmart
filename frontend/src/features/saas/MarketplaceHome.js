@@ -15,6 +15,20 @@ import apiClient from '../../api';
 
 const ACCENT = '#4F46E5'; // índigo — distinto del catálogo individual (cada tienda tiene el suyo), identidad propia del mall
 
+// Insignias flotantes de categorías — representan la variedad de productos que
+// hay dentro del mall (pedido explícito del usuario: "zapatillas, belleza,
+// alimentos, relojes, celulares, tecnología"). Usamos emoji dentro de badges
+// redondeados en vez de imágenes externas hotlinkeadas (poco fiable en
+// producción) o iconos MUI (no cubren esta variedad de retail).
+const FLOATING_BADGES = [
+  { emoji: '👟', color: '#DC2626', top: '8%',  left: '4%',  size: 64, delay: '0s',    duration: '6s' },
+  { emoji: '💄', color: '#DB2777', top: '62%', left: '8%',  size: 54, delay: '1.2s',  duration: '7s' },
+  { emoji: '⌚', color: '#0891B2', top: '14%', left: '88%', size: 58, delay: '0.6s',  duration: '6.5s' },
+  { emoji: '📱', color: '#4F46E5', top: '46%', left: '92%', size: 60, delay: '1.8s',  duration: '5.5s' },
+  { emoji: '🍫', color: '#D97706', top: '78%', left: '84%', size: 52, delay: '0.3s',  duration: '7.5s' },
+  { emoji: '💻', color: '#059669', top: '80%', left: '20%', size: 56, delay: '2.1s',  duration: '6.2s' },
+];
+
 const safeGetItem = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
 const safeSetItem = (key, value) => { try { localStorage.setItem(key, value); } catch {} };
 
@@ -275,9 +289,46 @@ export default function MarketplaceHome() {
           background: isDark
             ? 'radial-gradient(1200px 500px at 20% -10%, rgba(79,70,229,0.35), transparent), radial-gradient(900px 400px at 100% 0%, rgba(219,39,119,0.18), transparent), #0A0A0F'
             : 'radial-gradient(1200px 500px at 20% -10%, rgba(79,70,229,0.14), transparent), radial-gradient(900px 400px at 100% 0%, rgba(219,39,119,0.08), transparent), #F7F7FB',
+          backgroundSize: '200% 200%',
+          animation: 'marketplaceHeroPan 18s ease-in-out infinite',
+          '@keyframes marketplaceHeroPan': {
+            '0%': { backgroundPosition: '0% 0%' },
+            '50%': { backgroundPosition: '100% 40%' },
+            '100%': { backgroundPosition: '0% 0%' },
+          },
+          '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
           px: 2, pt: { xs: 4, md: 7 }, pb: { xs: 5, md: 8 },
         }}>
-          <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
+          {/* Insignias de producto flotantes — variedad del mall + un poco de
+              vida/movimiento en el fondo, ocultas en mobile para no saturar
+              y en pantallas muy angostas donde se solaparían con el texto. */}
+          <Box aria-hidden="true" sx={{
+            display: { xs: 'none', md: 'block' },
+            position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
+          }}>
+            {FLOATING_BADGES.map((b, i) => (
+              <Box key={i} sx={{
+                position: 'absolute', top: b.top, left: b.left,
+                width: b.size, height: b.size, borderRadius: '28%',
+                bgcolor: isDark ? `${b.color}26` : `${b.color}1A`,
+                border: '1px solid', borderColor: `${b.color}40`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: b.size * 0.48,
+                backdropFilter: 'blur(2px)',
+                boxShadow: `0 12px 24px -10px ${b.color}55`,
+                animation: `marketplaceFloat ${b.duration} ease-in-out ${b.delay} infinite`,
+                '@keyframes marketplaceFloat': {
+                  '0%, 100%': { transform: 'translateY(0) rotate(-4deg)' },
+                  '50%': { transform: 'translateY(-16px) rotate(4deg)' },
+                },
+                '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
+              }}>
+                {b.emoji}
+              </Box>
+            ))}
+          </Box>
+
+          <Box sx={{ maxWidth: 1200, mx: 'auto', position: 'relative', zIndex: 1 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: { xs: 3, md: 5 } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
                 <Box sx={{
@@ -305,10 +356,10 @@ export default function MarketplaceHome() {
               WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
               maxWidth: 760,
             }}>
-              Todos tus negocios de confianza, en un solo lugar.
+              El comercio de tu barrio, ahora en un solo lugar.
             </Typography>
             <Typography sx={{ fontSize: { xs: 15, md: 18 }, color: 'text.secondary', mt: 2, maxWidth: 560 }}>
-              Descubre tiendas reales, cada una con su propio catálogo y pedidos directos por WhatsApp.
+              Tenis, belleza, tecnología, comida y mucho más — negocios colombianos reales, con su propio catálogo y pedidos directos por WhatsApp.
             </Typography>
 
             <Box sx={{ display: 'flex', gap: 1.5, mt: 4, maxWidth: 640, flexWrap: 'wrap' }}>
