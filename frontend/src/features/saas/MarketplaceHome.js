@@ -15,18 +15,6 @@ import apiClient from '../../api';
 
 const ACCENT = '#4F46E5'; // índigo — distinto del catálogo individual (cada tienda tiene el suyo), identidad propia del mall
 
-// Posiciones/tiempos para las insignias flotantes del hero — las FOTOS son
-// reales, tomadas de productos publicados por las propias empresas del mall
-// (ver /marketplace/productos/destacados), no emoji ni stock genérico.
-const FLOATING_BADGE_LAYOUT = [
-  { top: '6%',  left: '2%',  size: 128, delay: '0s',    duration: '6s' },
-  { top: '60%', left: '3%',  size: 108, delay: '1.2s',  duration: '7s' },
-  { top: '10%', left: '84%', size: 118, delay: '0.6s',  duration: '6.5s' },
-  { top: '44%', left: '89%', size: 124, delay: '1.8s',  duration: '5.5s' },
-  { top: '78%', left: '80%', size: 104, delay: '0.3s',  duration: '7.5s' },
-  { top: '80%', left: '14%', size: 112, delay: '2.1s',  duration: '6.2s' },
-];
-
 const safeGetItem = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
 const safeSetItem = (key, value) => { try { localStorage.setItem(key, value); } catch {} };
 
@@ -225,10 +213,6 @@ export default function MarketplaceHome() {
   const [productos, setProductos] = useState([]);
   const [loadingProductos, setLoadingProductos] = useState(false);
 
-  // Fotos reales de productos (no emoji/íconos) para las insignias flotantes
-  // del hero — muestran la variedad real de lo que hay dentro del mall.
-  const [featuredProducts, setFeaturedProducts] = useState([]);
-
   const fetchStores = useCallback(async () => {
     try {
       setLoading(true);
@@ -246,12 +230,6 @@ export default function MarketplaceHome() {
   }, []);
 
   useEffect(() => { fetchStores(); }, [fetchStores]);
-
-  useEffect(() => {
-    apiClient.get('/marketplace/productos/destacados', { params: { limit: FLOATING_BADGE_LAYOUT.length } })
-      .then(r => setFeaturedProducts(r.data || []))
-      .catch(() => setFeaturedProducts([]));
-  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput), 300);
@@ -307,43 +285,6 @@ export default function MarketplaceHome() {
           '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
           px: 2, pt: { xs: 4, md: 7 }, pb: { xs: 5, md: 8 },
         }}>
-          {/* Insignias de producto flotantes — FOTOS REALES de productos
-              publicados por las tiendas del mall (no emoji/íconos), muestran
-              la variedad real de lo que hay adentro. Ocultas en mobile para
-              no saturar el layout. */}
-          <Box aria-hidden="true" sx={{
-            display: { xs: 'none', md: 'block' },
-            position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
-          }}>
-            {FLOATING_BADGE_LAYOUT.map((b, i) => {
-              const p = featuredProducts[i];
-              if (!p) return null;
-              const brandColor = p.empresa_color || ACCENT;
-              return (
-              <Box key={i} sx={{
-                position: 'absolute', top: b.top, left: b.left,
-                width: b.size, height: b.size, borderRadius: '24%',
-                overflow: 'hidden',
-                border: '4px solid', borderColor: isDark ? 'rgba(255,255,255,0.12)' : '#fff',
-                boxShadow: `0 18px 36px -14px ${brandColor}70, 0 4px 10px rgba(0,0,0,0.08)`,
-                animation: `marketplaceFloat ${b.duration} ease-in-out ${b.delay} infinite`,
-                '@keyframes marketplaceFloat': {
-                  '0%, 100%': { transform: 'translateY(0) rotate(-4deg)' },
-                  '50%': { transform: 'translateY(-16px) rotate(4deg)' },
-                },
-                '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
-              }}>
-                <Box component="img"
-                  src={`${apiClient.defaults.baseURL}/catalogo/${p.empresa_slug}/productos/${p.id}/imagen?index=0`}
-                  alt={p.nombre}
-                  loading="lazy"
-                  sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              </Box>
-              );
-            })}
-          </Box>
-
           <Box sx={{ maxWidth: 1200, mx: 'auto', position: 'relative', zIndex: 1 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: { xs: 3, md: 5 } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
