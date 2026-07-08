@@ -115,6 +115,13 @@ def _add_column_safe(conn, table: str, column: str, typedef: str):
         conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {typedef}"))
 
 
+def _create_index_safe(conn, index_name: str, table: str, columns: list):
+    """CREATE INDEX IF NOT EXISTS — sintaxis soportada tanto por SQLite como
+    por PostgreSQL, a diferencia de ADD COLUMN."""
+    cols = ", ".join(columns)
+    conn.execute(text(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table} ({cols})"))
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # MIGRACIONES
 # ──────────────────────────────────────────────────────────────────────────────
@@ -2566,6 +2573,21 @@ def run_migrations():
                 _add_column_safe(conn, "empresas", "categoria_marketplace", "VARCHAR(60)")
                 _mark_migration_applied(conn, migration_v117)
                 logger.info("V117 (centro comercial virtual) aplicada.")
+
+            # V118 — Índices en ventas/detalles_venta/pagos. El historial de
+            # ventas siempre filtra por empresa_id + ordena por fecha desc, y
+            # las cargas de detalles/pagos por venta_id — sin estos índices,
+            # cada consulta hace un scan secuencial completo que empeora
+            # linealmente con el volumen de ventas (miles/millones de filas).
+            migration_v118 = "v118_indices_ventas"
+            if not _migration_already_applied(conn, migration_v118):
+                _create_index_safe(conn, "ix_ventas_empresa_fecha", "ventas", ["empresa_id", "fecha"])
+                _create_index_safe(conn, "ix_ventas_cliente_id", "ventas", ["cliente_id"])
+                _create_index_safe(conn, "ix_detalles_venta_venta_id", "detalles_venta", ["venta_id"])
+                _create_index_safe(conn, "ix_detalles_venta_producto_id", "detalles_venta", ["producto_id"])
+                _create_index_safe(conn, "ix_pagos_venta_id", "pagos", ["venta_id"])
+                _mark_migration_applied(conn, migration_v118)
+                logger.info("V118 (índices en ventas/detalles/pagos) aplicada.")
 
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)

@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 from typing import Optional, List
 from fastapi import HTTPException
 import models, schemas
@@ -119,8 +119,8 @@ def get_cliente_history(db: Session, empresa_id: int, cliente_id: int):
         return None
 
     ventas = db.query(models.Venta).options(
-        joinedload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
-        joinedload(models.Venta.pagos)
+        selectinload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
+        selectinload(models.Venta.pagos)
     ).filter(
         models.Venta.cliente_id == cliente_id,
         models.Venta.empresa_id == empresa_id

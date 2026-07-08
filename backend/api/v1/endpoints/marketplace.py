@@ -104,6 +104,65 @@ def listar_categorias_marketplace(request: Request, db: Session = Depends(deps.g
     return sorted({r[0] for r in rows if r[0]})
 
 
+@router.get("/productos/destacados", response_model=List[schemas.MarketplaceProductoOut])
+@limiter.limit("60/minute")
+def productos_destacados_marketplace(
+    request: Request,
+    limit: int = 8,
+    db: Session = Depends(deps.get_db),
+):
+    """Muestra de productos CON foto real, tomados de varias tiendas del mall —
+    usado por el landing para mostrar la variedad real de productos (fotos
+    reales, no íconos/emoji) sin depender de que el visitante ya haya
+    buscado algo."""
+    limit = max(1, min(limit, 20))
+
+    filas = (
+        db.query(models.Producto, models.Empresa)
+        .join(models.Empresa, models.Producto.empresa_id == models.Empresa.id)
+        .filter(
+            models.Empresa.visible_marketplace == True,
+            models.Empresa.is_active == True,
+            models.Empresa.slug_catalogo.isnot(None),
+            models.Empresa.tipo_negocio != "restaurante",
+            _suscripcion_activa_filter(),
+            models.Producto.mostrar_en_catalogo == True,
+            models.Producto.vigente == True,
+            models.Producto.imagenes.isnot(None),
+        )
+        .order_by(models.Producto.id.desc())
+        .limit(limit * 3)
+        .all()
+    )
+
+    resultado = []
+    for prod, emp in filas:
+        imgs = prod.imagenes
+        if isinstance(imgs, str):
+            import json
+            try:
+                imgs = json.loads(imgs)
+            except Exception:
+                imgs = None
+        count = len(imgs) if isinstance(imgs, list) else 0
+        if not count:
+            continue
+        cat = db.query(models.GrupoProducto).filter(models.GrupoProducto.id == prod.grupo_item).first()
+        resultado.append(schemas.MarketplaceProductoOut(
+            id=prod.id,
+            nombre=prod.nombre,
+            precio=prod.precio,
+            image_count=count,
+            categoria=cat.nombre if cat else None,
+            empresa_nombre=emp.nombre,
+            empresa_slug=emp.slug_catalogo,
+            empresa_color=emp.color_primario or "#4F46E5",
+        ))
+        if len(resultado) >= limit:
+            break
+    return resultado
+
+
 @router.get("/productos", response_model=List[schemas.MarketplaceProductoOut])
 @limiter.limit("60/minute")
 def buscar_productos_marketplace(

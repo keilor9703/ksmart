@@ -28,8 +28,14 @@ def get_ventas(
         db.query(models.Venta)
         .options(
             joinedload(models.Venta.cliente),
-            joinedload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
-            joinedload(models.Venta.pagos),
+            # selectinload (no joinedload) para las dos colecciones: dos
+            # joinedload de colecciones distintas en la misma query producen
+            # un producto cartesiano (N detalles × M pagos por venta), lo que
+            # multiplica las filas devueltas/parseadas incluso con pocas
+            # ventas. selectinload trae cada colección en su propia query
+            # (IN sobre los ids ya paginados), sin fan-out.
+            selectinload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
+            selectinload(models.Venta.pagos),
         )
         .filter(models.Venta.empresa_id == empresa_id, models.Venta.tipo == "venta")
     )
@@ -106,8 +112,8 @@ def get_venta(db: Session, empresa_id: int, venta_id: int):
         db.query(models.Venta)
         .options(
             joinedload(models.Venta.cliente),
-            joinedload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
-            joinedload(models.Venta.pagos),
+            selectinload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
+            selectinload(models.Venta.pagos),
         )
         .filter(
             models.Venta.id == venta_id,
