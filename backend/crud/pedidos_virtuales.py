@@ -139,6 +139,26 @@ def create_pedido_publico(db: Session, slug: str, payload: schemas.PedidoVirtual
     except Exception as e:
         logger.warning("No se pudo notificar pedido #%s: %s", pedido.id, e)
 
+    # WhatsApp automático al número de la empresa (vía número propio de
+    # Ksmart360, WhatsApp Business Platform) — distinto de la notificación
+    # in-app de arriba y del link wa.me manual que ya existía. Best-effort:
+    # si no está configurado (faltan credenciales) o falla, no debe afectar
+    # al pedido, que ya quedó guardado.
+    if empresa.whatsapp_pedidos:
+        try:
+            from services.whatsapp_business import enviar_notificacion_nuevo_pedido
+            fmt_total = f"${pedido.total:,.0f}".replace(",", ".")
+            detalle_entrega = "Entrega a domicilio" if pedido.tipo_entrega == "domicilio" else "Recoge en tienda"
+            enviar_notificacion_nuevo_pedido(
+                telefono_empresa=empresa.whatsapp_pedidos,
+                numero_pedido=numero_pedido,
+                nombre_cliente=pedido.nombre_cliente,
+                total_formateado=fmt_total,
+                detalle_entrega=detalle_entrega,
+            )
+        except Exception as e:
+            logger.warning("No se pudo enviar WhatsApp automático del pedido #%s: %s", pedido.id, e)
+
     return pedido
 
 
