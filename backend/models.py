@@ -5,7 +5,7 @@ from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from datetime import datetime, timezone
 import enum
 from sqlalchemy import JSON 
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import UniqueConstraint, Index
 
 from sqlalchemy import (
    Column, Integer, String, Text, BigInteger, DateTime, ForeignKey, Boolean,
@@ -456,8 +456,8 @@ def _asignar_numero_movimiento(mapper, connection, target):
 class DetalleVenta(Base, TenantMixin):
     __tablename__ = "detalles_venta"
     id               = Column(Integer, primary_key=True, index=True)
-    venta_id         = Column(Integer, ForeignKey("ventas.id"))
-    producto_id      = Column(Integer, ForeignKey("productos.id"), nullable=True)   # nullable: libre items have no product
+    venta_id         = Column(Integer, ForeignKey("ventas.id"), index=True)
+    producto_id      = Column(Integer, ForeignKey("productos.id"), nullable=True, index=True)   # nullable: libre items have no product
     variante_id      = Column(Integer, ForeignKey("producto_variantes.id"), nullable=True)
     nombre_libre     = Column(String(200), nullable=True)   # description for libre items
     nombre_variante  = Column(String(200), nullable=True)   # snapshot del nombre de variante al momento de vender
@@ -473,7 +473,7 @@ class DetalleVenta(Base, TenantMixin):
 class Pago(Base, TenantMixin):
     __tablename__ = "pagos"
     id           = Column(Integer, primary_key=True, index=True)
-    venta_id     = Column(Integer, ForeignKey("ventas.id"))
+    venta_id     = Column(Integer, ForeignKey("ventas.id"), index=True)
     monto        = Column(Float)
     fecha        = Column(DateTime(timezone=True), default=utcnow)
     metodo_pago  = Column(String, nullable=True)
@@ -527,13 +527,20 @@ class IntentoFE(Base):
 
 class Venta(Base, TenantMixin):
     __tablename__ = "ventas"
+    __table_args__ = (
+        # El historial de ventas siempre filtra por empresa_id y ordena por
+        # fecha desc — sin este índice compuesto, cada consulta hace un scan
+        # secuencial completo de la tabla que empeora linealmente con miles/
+        # millones de ventas.
+        Index("ix_ventas_empresa_fecha", "empresa_id", "fecha"),
+    )
     id              = Column(Integer, primary_key=True, index=True)
-    cliente_id      = Column(Integer, ForeignKey("clientes.id"))
+    cliente_id      = Column(Integer, ForeignKey("clientes.id"), index=True)
     total           = Column(Float)
     iva_total       = Column(Float, default=0.0)
     iva_porcentaje  = Column(Float, default=0.0)
     descuento_total = Column(Float, default=0.0)
-    fecha           = Column(DateTime(timezone=True), default=utcnow)
+    fecha           = Column(DateTime(timezone=True), default=utcnow, index=True)
     monto_pagado    = Column(Float, default=0.0)
     estado_pago     = Column(String, default="pendiente")
     fecha_pago      = Column(DateTime(timezone=True), nullable=True)

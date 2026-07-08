@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import func, text, cast, Date, case
 from typing import Optional, List
 from datetime import date, datetime, timedelta
@@ -74,8 +74,8 @@ def get_cuentas_por_cobrar_por_cliente(db: Session, empresa_id: int):
     result = []
     for cliente in clientes_con_pendientes:
         ventas_pendientes_cliente = db.query(models.Venta).options(
-            joinedload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
-            joinedload(models.Venta.pagos)
+            selectinload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
+            selectinload(models.Venta.pagos)
         ).filter(
             models.Venta.cliente_id == cliente.id,
             models.Venta.empresa_id == empresa_id,
