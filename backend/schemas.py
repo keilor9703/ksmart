@@ -2624,13 +2624,26 @@ class PedidoEstadoConsultaIn(BaseModel):
     celular_cliente: str = Field(..., min_length=7, max_length=30)
 
 class PedidoEstadoConsultaOut(BaseModel):
-    numero_pedido:  Optional[int]
-    estado:         str
-    total:          float
-    fecha_creacion: Optional[datetime]
-    tipo_entrega:   str
-    nombre_cliente: str
-    cantidad_items: int
+    numero_pedido:       Optional[int]
+    estado:              str
+    estado_label:        str
+    cancelado:           bool
+    # Etapas del flujo normal (sin contar "cancelado", que es una salida
+    # aparte) — para que el cliente vea "estás en el paso 2 de 5", no solo
+    # una palabra suelta.
+    etapas:              List[str]
+    etapas_labels:       List[str]
+    etapa_actual_index:  Optional[int] = None   # None si está cancelado
+    total_etapas:        int
+    total:               float
+    fecha_creacion:      Optional[datetime]
+    fecha_actualizacion: Optional[datetime]
+    tipo_entrega:        str
+    direccion_entrega:   Optional[str] = None
+    nombre_cliente:      str
+    cantidad_items:      int
+    empresa_nombre:      str
+    empresa_telefono:    Optional[str] = None
 
 class DetallePedidoVirtualOut(BaseModel):
     id:              int

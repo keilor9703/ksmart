@@ -28,6 +28,19 @@ ALLOWED_TRANSITIONS = {
     "cancelado":      [],
 }
 
+# Flujo normal (sin contar "cancelado", que es una salida aparte, no un
+# paso más) — usado tanto para validar transiciones como para mostrarle al
+# cliente en qué paso de N va su pedido en la consulta pública de estado.
+ETAPAS_FLUJO = ["nuevo", "confirmado", "en_preparacion", "enviado", "entregado"]
+ETAPAS_LABELS = {
+    "nuevo":          "Pedido recibido",
+    "confirmado":     "Confirmado por la tienda",
+    "en_preparacion": "En preparación",
+    "enviado":        "En camino / listo para recoger",
+    "entregado":      "Entregado",
+    "cancelado":      "Cancelado",
+}
+
 
 # ─── PUBLIC ──────────────────────────────────────────────────────────────────
 

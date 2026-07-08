@@ -10,7 +10,7 @@ import {
 } from '@mui/material';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import {
-  Search, ShoppingCart, Add, Remove, WhatsApp,
+  Search, ShoppingCart, Add, Remove,
   Storefront, LocationOn, Person, Phone, Close,
   ArrowForward, ShoppingBag, RocketLaunch, BarChart, Inventory2,
   Favorite, FavoriteBorder, KeyboardArrowUp, FilterList,
@@ -29,18 +29,6 @@ const PLACEHOLDER_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000
 // ancho del viewport entre las columnas — con pocos productos cada tarjeta
 // termina ocupando 300-400px, gigante y desproporcionada frente al texto.
 const CONTENT_MAX_WIDTH = 1360;
-
-// Espejo de models.EstadoPedidoVirtual — usado por la consulta pública de
-// estado de pedido (debe reflejar exactamente lo que ve el vendedor en
-// Pedidos Virtuales).
-const ESTADO_PEDIDO_LABEL = {
-  nuevo:          'Recibido',
-  confirmado:     'Confirmado',
-  en_preparacion: 'En preparación',
-  enviado:        'Enviado',
-  entregado:      'Entregado',
-  cancelado:      'Cancelado',
-};
 
 // localStorage keys are versioned (v1) so a future cart-shape change doesn't
 // crash on old stored data; writes are best-effort (private-browsing/quota
@@ -589,7 +577,7 @@ const CatalogoVirtual = () => {
     }
   };
 
-  // ── Flujo COMERCIO — WhatsApp ─────────────────────────────────────────
+  // ── Flujo COMERCIO — envío de pedido ──────────────────────────────────
   const handleSendOrder = async () => {
     if (!nombre || !celular) {
       setCheckoutStep(1);
@@ -1813,11 +1801,11 @@ const CatalogoVirtual = () => {
                     <>
                       <Button
                         fullWidth variant="contained" size="large"
-                        startIcon={<WhatsApp />}
+                        startIcon={<ShoppingBag />}
                         onClick={handleSendOrder}
-                        sx={{ bgcolor: '#25D366', borderRadius: 3, py: 1.5, fontWeight: 800, '&:hover': { bgcolor: '#128C7E' } }}
+                        sx={{ bgcolor: accentColor, borderRadius: 3, py: 1.5, fontWeight: 800, '&:hover': { bgcolor: accentColor, opacity: 0.9 } }}
                       >
-                        Enviar por WhatsApp
+                        Enviar pedido
                       </Button>
                       <Button
                         fullWidth variant="text" size="medium"
@@ -1898,7 +1886,7 @@ const CatalogoVirtual = () => {
                 },
                 {
                   titulo: '4. Proceso de Compra y Pedidos',
-                  texto: `Los pedidos realizados a través de este catálogo virtual se formalizan mediante el envío del resumen del carrito por WhatsApp al Vendedor. El pedido se considera confirmado únicamente cuando el Vendedor lo acepta de forma expresa. El Vendedor puede rechazar o modificar un pedido por razones de inventario, error en precios o condiciones de entrega. El comprador debe suministrar información veraz y completa para garantizar la entrega correcta del pedido. La confirmación del pedido no implica el cobro hasta que el Vendedor lo valide.`,
+                  texto: `Los pedidos realizados a través de este catálogo virtual quedan registrados en el sistema del Vendedor, quien recibe una notificación inmediata. El comprador puede consultar el estado de su pedido en cualquier momento con su número de pedido y celular. El pedido se considera confirmado únicamente cuando el Vendedor lo acepta de forma expresa. El Vendedor puede rechazar o modificar un pedido por razones de inventario, error en precios o condiciones de entrega. El comprador debe suministrar información veraz y completa para garantizar la entrega correcta del pedido. La confirmación del pedido no implica el cobro hasta que el Vendedor lo valide.`,
                 },
                 {
                   titulo: '5. Formas de Pago',
@@ -1987,17 +1975,52 @@ const CatalogoVirtual = () => {
             {trackError && <Alert severity="error" sx={{ borderRadius: 2, fontSize: 12.5 }}>{trackError}</Alert>}
             {trackResult && (
               <Box sx={{ p: 2, borderRadius: 3, bgcolor: `${accentColor}10`, border: `1px solid ${accentColor}40` }}>
-                <Typography sx={{ fontSize: 12, color: textSec }}>Pedido #{trackResult.numero_pedido}</Typography>
-                <Typography sx={{ fontWeight: 900, fontSize: 18, color: accentColor, mt: 0.3 }}>
-                  {ESTADO_PEDIDO_LABEL[trackResult.estado] || trackResult.estado}
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontSize: 12, color: textSec }}>Pedido #{trackResult.numero_pedido}</Typography>
+                  <Typography sx={{ fontSize: 12, color: textSec }}>
+                    {trackResult.cantidad_items} producto{trackResult.cantidad_items !== 1 ? 's' : ''} · {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(trackResult.total)}
+                  </Typography>
+                </Box>
+
+                <Typography sx={{ fontWeight: 900, fontSize: 18, color: trackResult.cancelado ? '#EF4444' : accentColor, mt: 0.8 }}>
+                  {trackResult.estado_label}
                 </Typography>
-                <Typography sx={{ fontSize: 12.5, color: textSec, mt: 1 }}>
-                  {trackResult.cantidad_items} producto{trackResult.cantidad_items !== 1 ? 's' : ''} · {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(trackResult.total)}
+
+                {/* Progreso — "estás en el paso X de N", no solo una palabra suelta */}
+                {!trackResult.cancelado && trackResult.etapa_actual_index != null && (
+                  <Box sx={{ mt: 1.5 }}>
+                    <Box sx={{ display: 'flex', gap: 0.6 }}>
+                      {trackResult.etapas.map((_, i) => (
+                        <Box key={i} sx={{
+                          flex: 1, height: 6, borderRadius: 3,
+                          bgcolor: i <= trackResult.etapa_actual_index ? accentColor : `${accentColor}20`,
+                        }} />
+                      ))}
+                    </Box>
+                    <Typography sx={{ fontSize: 11, color: textSec, mt: 0.6 }}>
+                      Paso {trackResult.etapa_actual_index + 1} de {trackResult.total_etapas}
+                      {trackResult.etapa_actual_index + 1 < trackResult.total_etapas &&
+                        ` · Sigue: ${trackResult.etapas_labels[trackResult.etapa_actual_index + 1]}`}
+                    </Typography>
+                  </Box>
+                )}
+
+                <Typography sx={{ fontSize: 11.5, color: textSec, mt: 1.5 }}>
+                  {trackResult.tipo_entrega === 'domicilio' ? `Entrega a domicilio${trackResult.direccion_entrega ? ` — ${trackResult.direccion_entrega}` : ''}` : 'Recoger en tienda'}
+                  {trackResult.fecha_creacion && ` · Pedido el ${new Date(trackResult.fecha_creacion).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}`}
                 </Typography>
-                <Typography sx={{ fontSize: 11.5, color: textSec, mt: 0.5 }}>
-                  {trackResult.tipo_entrega === 'domicilio' ? 'Entrega a domicilio' : 'Recoger en tienda'}
-                  {trackResult.fecha_creacion && ` · ${new Date(trackResult.fecha_creacion).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}`}
-                </Typography>
+
+                {trackResult.empresa_telefono && (
+                  <Button
+                    component="a"
+                    href={`tel:${trackResult.empresa_telefono}`}
+                    startIcon={<Phone sx={{ fontSize: 16 }} />}
+                    size="small"
+                    sx={{ mt: 1.5, textTransform: 'none', fontWeight: 700, color: accentColor }}
+                  >
+                    Llamar a {trackResult.empresa_nombre || 'la tienda'} · {trackResult.empresa_telefono}
+                  </Button>
+                )}
               </Box>
             )}
           </DialogContent>
