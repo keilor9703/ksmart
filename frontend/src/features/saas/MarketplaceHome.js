@@ -2,16 +2,25 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, TextField, InputAdornment, Chip, Avatar,
-  Skeleton, IconButton, Tooltip,
+  Skeleton, IconButton, Tooltip, Badge, Drawer, Divider, Button,
+  Dialog, DialogTitle, DialogContent, DialogActions, RadioGroup,
+  FormControlLabel, Radio, Alert, CircularProgress,
 } from '@mui/material';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import {
   Search, Storefront, ArrowForward, Inventory2,
-  Apps as AppsIcon,
+  Apps as AppsIcon, ShoppingCart, Add, Remove, Close, CheckCircle,
 } from '@mui/icons-material';
 import DarkMode from '@mui/icons-material/DarkMode';
 import LightMode from '@mui/icons-material/LightMode';
 import apiClient from '../../api';
+import { toast } from 'react-toastify';
+import {
+  getMarketplaceCart, subscribeMarketplaceCart, addToMarketplaceCart,
+  updateMarketplaceCartQty, removeFromMarketplaceCart,
+  groupMarketplaceCartByStore, marketplaceCartCount, submitMultiStoreOrder,
+  removeMarketplaceCartStores,
+} from '../../utils/marketplaceCart';
 
 const ACCENT = '#4F46E5'; // índigo — distinto del catálogo individual (cada tienda tiene el suyo), identidad propia del mall
 
@@ -110,11 +119,12 @@ const StoreCard = React.memo(function StoreCard({ store, onOpen }) {
 // tienda del mall. Deja clarísimo a cuál tienda pertenece (el usuario nunca
 // "compra" aquí; hace clic y entra a esa tienda como si hubiera llegado
 // directo a su catálogo).
-const ProductResultCard = React.memo(function ProductResultCard({ producto, apiBaseURL, onOpen }) {
+const ProductResultCard = React.memo(function ProductResultCard({ producto, apiBaseURL, onOpen, onQuickAdd }) {
   return (
     <Box
       onClick={() => onOpen(producto.empresa_slug)}
       sx={{
+        position: 'relative',
         borderRadius: 3, overflow: 'hidden', cursor: 'pointer',
         bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider',
         transition: 'transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease',
@@ -136,6 +146,31 @@ const ProductResultCard = React.memo(function ProductResultCard({ producto, apiB
           />
         ) : (
           <Inventory2 sx={{ fontSize: 32, color: 'text.disabled' }} />
+        )}
+
+        {/* Agregar al carrito multi-tienda directo desde la búsqueda — solo
+            si el producto NO tiene variantes: la búsqueda cruzada no trae
+            tallas/colores, así que un producto con variantes debe elegirse
+            dentro de su tienda (ver onOpen). */}
+        {onQuickAdd && (
+          <Tooltip title={producto.tiene_variantes ? 'Elige una opción en la tienda' : 'Agregar al carrito'}>
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (producto.tiene_variantes) { onOpen(producto.empresa_slug); return; }
+                onQuickAdd(producto);
+              }}
+              sx={{
+                position: 'absolute', top: 6, right: 6,
+                bgcolor: producto.empresa_color, color: '#fff',
+                width: 26, height: 26,
+                '&:hover': { bgcolor: producto.empresa_color, opacity: 0.85 },
+              }}
+            >
+              <Add sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
         )}
       </Box>
       <Box sx={{ p: 1.5 }}>
@@ -206,6 +241,70 @@ export default function MarketplaceHome() {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [categoria, setCategoria] = useState('Todas');
+
+  // ── Carrito multi-tienda (fase 2 del multicarrito) ──────────────────────
+  // Compartido con CatalogoVirtual.js vía localStorage (misma clave, mismo
+  // origen) — agregar aquí desde la búsqueda cruzada o dentro de una tienda
+  // termina en el mismo carrito.
+  const [cartItems, setCartItems] = useState(() => getMarketplaceCart());
+  const [cartOpen, setCartOpen] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutStep, setCheckoutStep] = useState(1); // 1: datos, 2: confirmar, 3: resultado
+  const [ckNombre, setCkNombre] = useState('');
+  const [ckCelular, setCkCelular] = useState('');
+  const [ckTipoEntrega, setCkTipoEntrega] = useState('tienda');
+  const [ckDireccion, setCkDireccion] = useState('');
+  const [ckComentarios, setCkComentarios] = useState('');
+  const [ckErrors, setCkErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+  const [checkoutResults, setCheckoutResults] = useState(null);
+
+  useEffect(() => subscribeMarketplaceCart(setCartItems), []);
+
+  const cartGroups = useMemo(() => groupMarketplaceCartByStore(cartItems), [cartItems]);
+  const cartCount = useMemo(() => marketplaceCartCount(cartItems), [cartItems]);
+  const cartTotal = useMemo(() => cartGroups.reduce((acc, g) => acc + g.total, 0), [cartGroups]);
+
+  const handleQuickAdd = useCallback((producto) => {
+    addToMarketplaceCart({
+      producto_id: producto.id,
+      nombre: producto.nombre,
+      precio: producto.precio,
+      empresa_slug: producto.empresa_slug,
+      empresa_nombre: producto.empresa_nombre,
+      empresa_color: producto.empresa_color,
+    });
+    toast.success(`${producto.nombre} agregado al carrito`);
+  }, []);
+
+  const handleCheckoutSubmit = async () => {
+    if (!ckNombre || !ckCelular) {
+      setCkErrors({ nombre: !ckNombre, celular: !ckCelular });
+      return;
+    }
+    if (ckTipoEntrega === 'domicilio' && !ckDireccion) {
+      setCkErrors({ direccion: true });
+      return;
+    }
+    setCkErrors({});
+    setSubmitting(true);
+    const resultados = await submitMultiStoreOrder(apiClient, cartGroups, {
+      nombre: ckNombre, celular: ckCelular, tipoEntrega: ckTipoEntrega,
+      direccion: ckDireccion, comentarios: ckComentarios,
+    });
+    setSubmitting(false);
+    setCheckoutResults(resultados);
+    setCheckoutStep(3);
+    const tiendasOk = resultados.filter(r => r.ok).map(r => r.empresa_slug);
+    if (tiendasOk.length) removeMarketplaceCartStores(tiendasOk);
+  };
+
+  const closeCheckout = () => {
+    setCheckoutOpen(false);
+    setCheckoutStep(1);
+    setCheckoutResults(null);
+    setCkErrors({});
+  };
 
   // Búsqueda cruzada de PRODUCTOS entre todas las tiendas — esto es lo que
   // distingue al mall de una simple lista de marcas: buscar "tenis" encuentra
@@ -296,13 +395,24 @@ export default function MarketplaceHome() {
                 </Box>
                 <Typography sx={{ fontWeight: 800, fontSize: 16 }}>Centro Comercial Virtual</Typography>
               </Box>
-              <Tooltip title={isDark ? 'Modo claro' : 'Modo oscuro'}>
-                <IconButton onClick={toggleMode} size="small" aria-label={isDark ? 'Modo claro' : 'Modo oscuro'} sx={{
-                  color: 'text.secondary', bgcolor: 'action.hover', '&:hover': { bgcolor: 'action.selected' },
-                }}>
-                  {isDark ? <LightMode sx={{ fontSize: 18 }} /> : <DarkMode sx={{ fontSize: 18 }} />}
-                </IconButton>
-              </Tooltip>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Tooltip title="Carrito">
+                  <IconButton onClick={() => setCartOpen(true)} size="small" aria-label="Carrito" sx={{
+                    color: 'text.secondary', bgcolor: 'action.hover', '&:hover': { bgcolor: 'action.selected' },
+                  }}>
+                    <Badge badgeContent={cartCount} color="error" sx={{ '& .MuiBadge-badge': { fontSize: 9, height: 15, minWidth: 15 } }}>
+                      <ShoppingCart sx={{ fontSize: 18 }} />
+                    </Badge>
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title={isDark ? 'Modo claro' : 'Modo oscuro'}>
+                  <IconButton onClick={toggleMode} size="small" aria-label={isDark ? 'Modo claro' : 'Modo oscuro'} sx={{
+                    color: 'text.secondary', bgcolor: 'action.hover', '&:hover': { bgcolor: 'action.selected' },
+                  }}>
+                    {isDark ? <LightMode sx={{ fontSize: 18 }} /> : <DarkMode sx={{ fontSize: 18 }} />}
+                  </IconButton>
+                </Tooltip>
+              </Box>
             </Box>
 
             <Typography sx={{
@@ -386,7 +496,7 @@ export default function MarketplaceHome() {
                       <Skeleton key={i} variant="rounded" sx={{ aspectRatio: '3/4', borderRadius: 3 }} />
                     ))
                   : productos.map(p => (
-                      <ProductResultCard key={`${p.empresa_slug}-${p.id}`} producto={p} apiBaseURL={apiClient.defaults.baseURL} onOpen={openStore} />
+                      <ProductResultCard key={`${p.empresa_slug}-${p.id}`} producto={p} apiBaseURL={apiClient.defaults.baseURL} onOpen={openStore} onQuickAdd={handleQuickAdd} />
                     ))
                 }
               </Box>
@@ -469,6 +579,175 @@ export default function MarketplaceHome() {
             </Box>
           </Typography>
         </Box>
+
+        {/* ── CARRITO MULTI-TIENDA ─────────────────────────────────── */}
+        <Drawer anchor="right" open={cartOpen} onClose={() => setCartOpen(false)}
+          PaperProps={{ sx: { width: { xs: '100%', sm: 400 }, bgcolor: 'background.default' } }}>
+          <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Typography sx={{ fontWeight: 800, fontSize: 17 }}>Tu carrito</Typography>
+              <IconButton size="small" onClick={() => setCartOpen(false)}><Close fontSize="small" /></IconButton>
+            </Box>
+
+            {cartGroups.length === 0 ? (
+              <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1.5, color: 'text.secondary' }}>
+                <ShoppingCart sx={{ fontSize: 40, opacity: 0.3 }} />
+                <Typography sx={{ fontSize: 13.5 }}>Tu carrito está vacío</Typography>
+                <Typography sx={{ fontSize: 12, textAlign: 'center', maxWidth: 260 }}>
+                  Agrega productos desde la búsqueda o entrando a cualquier tienda del Centro Comercial.
+                </Typography>
+              </Box>
+            ) : (
+              <Box sx={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+                {cartGroups.map(grupo => (
+                  <Box key={grupo.empresa_slug}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: grupo.empresa_color }} />
+                      <Typography sx={{ fontWeight: 800, fontSize: 13 }}>{grupo.empresa_nombre}</Typography>
+                    </Box>
+                    {grupo.items.map(item => (
+                      <Box key={item.cartId} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography sx={{ fontSize: 12.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {item.nombre}{item.nombre_variante ? ` (${item.nombre_variante})` : ''}
+                          </Typography>
+                          <Typography sx={{ fontSize: 11.5, color: 'text.secondary' }}>
+                            ${new Intl.NumberFormat('es-CO').format(item.precio)} c/u
+                          </Typography>
+                        </Box>
+                        <IconButton size="small" onClick={() => setCartItems(updateMarketplaceCartQty(item.cartId, item.cantidad - 1))}>
+                          <Remove sx={{ fontSize: 14 }} />
+                        </IconButton>
+                        <Typography sx={{ fontSize: 12.5, fontWeight: 700, minWidth: 16, textAlign: 'center' }}>{item.cantidad}</Typography>
+                        <IconButton size="small" onClick={() => setCartItems(updateMarketplaceCartQty(item.cartId, item.cantidad + 1))}>
+                          <Add sx={{ fontSize: 14 }} />
+                        </IconButton>
+                        <IconButton size="small" onClick={() => setCartItems(removeFromMarketplaceCart(item.cartId))}>
+                          <Close sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      </Box>
+                    ))}
+                    <Divider sx={{ mt: 1 }} />
+                  </Box>
+                ))}
+              </Box>
+            )}
+
+            {cartGroups.length > 0 && (
+              <Box sx={{ pt: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: 13.5 }}>Total ({cartGroups.length} tienda{cartGroups.length !== 1 ? 's' : ''})</Typography>
+                  <Typography sx={{ fontWeight: 900, fontSize: 15, color: ACCENT }}>
+                    ${new Intl.NumberFormat('es-CO').format(cartTotal)}
+                  </Typography>
+                </Box>
+                <Button
+                  fullWidth variant="contained" size="large"
+                  onClick={() => { setCartOpen(false); setCheckoutOpen(true); }}
+                  sx={{ bgcolor: ACCENT, borderRadius: 3, py: 1.3, fontWeight: 800, '&:hover': { bgcolor: ACCENT, opacity: 0.9 } }}
+                >
+                  Finalizar pedido
+                </Button>
+              </Box>
+            )}
+          </Box>
+        </Drawer>
+
+        {/* ── CHECKOUT MULTI-TIENDA ────────────────────────────────── */}
+        <Dialog open={checkoutOpen} onClose={checkoutStep === 3 ? closeCheckout : () => setCheckoutOpen(false)}
+          maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3, m: { xs: 1, sm: 3 } } }}>
+          <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
+            <Typography sx={{ fontWeight: 800, fontSize: 17 }}>
+              {checkoutStep === 3 ? 'Resultado de tu pedido' : 'Finalizar pedido'}
+            </Typography>
+            <IconButton size="small" onClick={checkoutStep === 3 ? closeCheckout : () => setCheckoutOpen(false)}><Close fontSize="small" /></IconButton>
+          </DialogTitle>
+          <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            {checkoutStep !== 3 && (
+              <Alert severity="info" sx={{ borderRadius: 2, fontSize: 12 }}>
+                Tu carrito tiene productos de {cartGroups.length} tienda{cartGroups.length !== 1 ? 's' : ''} distinta{cartGroups.length !== 1 ? 's' : ''}.
+                Cada una recibirá su propio pedido con su propio número.
+              </Alert>
+            )}
+
+            {checkoutStep === 1 && (
+              <>
+                <TextField label="Tu nombre" size="small" value={ckNombre} onChange={(e) => setCkNombre(e.target.value)} error={!!ckErrors.nombre} fullWidth />
+                <TextField label="Tu celular" size="small" value={ckCelular} onChange={(e) => setCkCelular(e.target.value)} error={!!ckErrors.celular} fullWidth />
+                <RadioGroup row value={ckTipoEntrega} onChange={(e) => setCkTipoEntrega(e.target.value)}>
+                  <FormControlLabel value="tienda" control={<Radio size="small" />} label="Recoger en tienda" />
+                  <FormControlLabel value="domicilio" control={<Radio size="small" />} label="Domicilio" />
+                </RadioGroup>
+                {ckTipoEntrega === 'domicilio' && (
+                  <TextField label="Dirección de entrega" size="small" value={ckDireccion} onChange={(e) => setCkDireccion(e.target.value)} error={!!ckErrors.direccion} fullWidth />
+                )}
+                <TextField label="Comentarios (opcional)" size="small" value={ckComentarios} onChange={(e) => setCkComentarios(e.target.value)} fullWidth multiline minRows={2} />
+              </>
+            )}
+
+            {checkoutStep === 2 && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                {cartGroups.map(grupo => (
+                  <Box key={grupo.empresa_slug} sx={{ p: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                    <Typography sx={{ fontWeight: 800, fontSize: 13 }}>{grupo.empresa_nombre}</Typography>
+                    <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                      {grupo.items.length} producto{grupo.items.length !== 1 ? 's' : ''} · ${new Intl.NumberFormat('es-CO').format(grupo.total)}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+            )}
+
+            {checkoutStep === 3 && checkoutResults && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                {checkoutResults.map(r => (
+                  <Box key={r.empresa_slug} sx={{
+                    p: 1.5, borderRadius: 2, border: '1px solid',
+                    borderColor: r.ok ? 'success.main' : 'error.main',
+                    bgcolor: r.ok ? 'rgba(5,150,105,0.08)' : 'rgba(239,68,68,0.08)',
+                  }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      {r.ok ? <CheckCircle sx={{ fontSize: 18, color: 'success.main' }} /> : null}
+                      <Typography sx={{ fontWeight: 800, fontSize: 13 }}>{r.empresa_nombre}</Typography>
+                    </Box>
+                    {r.ok ? (
+                      <Typography sx={{ fontSize: 12.5, mt: 0.3 }}>Pedido #{r.numero_pedido} registrado.</Typography>
+                    ) : (
+                      <Typography sx={{ fontSize: 12.5, mt: 0.3, color: 'error.main' }}>{r.error}</Typography>
+                    )}
+                  </Box>
+                ))}
+                <Typography sx={{ fontSize: 11.5, color: 'text.secondary', mt: 0.5 }}>
+                  Guarda el número de cada pedido — con él y tu celular puedes consultar el estado desde la tienda correspondiente.
+                </Typography>
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            {checkoutStep === 1 && (
+              <Button fullWidth variant="contained" onClick={() => {
+                if (!ckNombre || !ckCelular) { setCkErrors({ nombre: !ckNombre, celular: !ckCelular }); return; }
+                if (ckTipoEntrega === 'domicilio' && !ckDireccion) { setCkErrors({ direccion: true }); return; }
+                setCkErrors({});
+                setCheckoutStep(2);
+              }} sx={{ bgcolor: ACCENT, borderRadius: 2, fontWeight: 700, '&:hover': { bgcolor: ACCENT, opacity: 0.9 } }}>
+                Continuar
+              </Button>
+            )}
+            {checkoutStep === 2 && (
+              <Button fullWidth variant="contained" disabled={submitting} onClick={handleCheckoutSubmit}
+                sx={{ bgcolor: ACCENT, borderRadius: 2, fontWeight: 700, '&:hover': { bgcolor: ACCENT, opacity: 0.9 } }}>
+                {submitting ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : 'Confirmar pedido'}
+              </Button>
+            )}
+            {checkoutStep === 3 && (
+              <Button fullWidth variant="contained" onClick={closeCheckout}
+                sx={{ bgcolor: ACCENT, borderRadius: 2, fontWeight: 700, '&:hover': { bgcolor: ACCENT, opacity: 0.9 } }}>
+                Entendido
+              </Button>
+            )}
+          </DialogActions>
+        </Dialog>
       </Box>
     </ThemeProvider>
   );

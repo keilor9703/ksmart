@@ -12,6 +12,7 @@ import { Route, Routes, useNavigate, Navigate } from 'react-router-dom';
 
 import apiClient from './api';
 import getAppTheme from './theme';
+import { isMarketplaceDomain } from './utils/marketplaceCart';
 
 // ✅ IMPORTACIÓN DE COMPONENTES DE LAYOUT
 import Sidebar from './layout/Sidebar';
@@ -138,8 +139,8 @@ const ProtectedRoute = ({ path, hasAccess, children }) => {
 // mismo despliegue de frontend, distinto dominio apuntado en el DNS/Vercel.
 // La ruta pública /:slug ya es agnóstica de dominio, así que solo hace falta
 // decidir qué se muestra en la raíz "/" según el hostname.
-const MARKETPLACE_HOSTNAME = 'e-comerce.appjeylor.com';
-const isMarketplaceDomain = () => window.location.hostname === MARKETPLACE_HOSTNAME;
+// (isMarketplaceDomain vive en utils/marketplaceCart.js — CatalogoVirtual.js
+// también la necesita para saber si debe usar el carrito multi-tienda.)
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);

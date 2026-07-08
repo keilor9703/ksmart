@@ -2534,6 +2534,7 @@ class MarketplaceProductoOut(BaseModel):
     precio: float
     image_count: int = 0
     categoria: Optional[str] = None
+    tiene_variantes: bool = False
     empresa_nombre: str
     empresa_slug: str
     empresa_color: str
