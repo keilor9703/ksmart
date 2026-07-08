@@ -365,17 +365,18 @@ export default function MarketplaceHome() {
             </Box>
 
             <Typography sx={{
-              fontWeight: 900, lineHeight: 1.08,
+              fontWeight: 900, lineHeight: 1.22,
               fontSize: { xs: 34, sm: 46, md: 58 },
               letterSpacing: '-0.02em',
               background: `linear-gradient(135deg, ${isDark ? '#fff' : '#0A0A0F'} 40%, ${ACCENT} 100%)`,
               WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
               maxWidth: 760,
+              pb: 0.5,
             }}>
-              El comercio de tu barrio, ahora en un solo lugar.
+              Tus negocios de confianza, ahora en un solo lugar.
             </Typography>
             <Typography sx={{ fontSize: { xs: 15, md: 18 }, color: 'text.secondary', mt: 2, maxWidth: 560 }}>
-              Tenis, belleza, tecnología, comida y mucho más — negocios colombianos reales, con su propio catálogo y pedidos directos por WhatsApp.
+              Tenis, belleza, tecnología, comida y mucho más — negocios colombianos con su propio catálogo y pedidos directos por WhatsApp.
             </Typography>
 
             <Box sx={{ display: 'flex', gap: 1.5, mt: 4, maxWidth: 640, flexWrap: 'wrap' }}>
