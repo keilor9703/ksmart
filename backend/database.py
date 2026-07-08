@@ -2589,6 +2589,39 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v118)
                 logger.info("V118 (índices en ventas/detalles/pagos) aplicada.")
 
+            # V119 — Número de pedido consecutivo por empresa en Pedidos
+            # Virtuales (fase 1 de multicarrito): el cliente del catálogo
+            # virtual ahora recibe un número/código de su pedido en vez de
+            # ser redirigido automáticamente a WhatsApp, y puede usarlo para
+            # consultar el estado. Único por empresa (no global) a propósito:
+            # cuando exista el carrito multi-tienda, el mismo número podrá
+            # repetirse entre empresas distintas sin chocar.
+            migration_v119 = "v119_numero_pedido_virtual"
+            if not _migration_already_applied(conn, migration_v119):
+                _add_column_safe(conn, "empresas", "ultimo_numero_pedido", "INTEGER NOT NULL DEFAULT 0")
+                _add_column_safe(conn, "pedidos_virtuales", "numero_pedido", "INTEGER")
+
+                if not IS_SQLITE:
+                    conn.execute(text("""
+                        UPDATE pedidos_virtuales SET numero_pedido = sub.rn
+                        FROM (
+                            SELECT id, ROW_NUMBER() OVER (PARTITION BY empresa_id ORDER BY id) AS rn
+                            FROM pedidos_virtuales
+                        ) AS sub
+                        WHERE pedidos_virtuales.id = sub.id AND pedidos_virtuales.numero_pedido IS NULL
+                    """))
+                    conn.execute(text("""
+                        UPDATE empresas SET ultimo_numero_pedido = COALESCE(
+                            (SELECT MAX(p.numero_pedido) FROM pedidos_virtuales p WHERE p.empresa_id = empresas.id), 0)
+                    """))
+                    conn.execute(text(
+                        "CREATE UNIQUE INDEX IF NOT EXISTS uq_pedido_numero_empresa "
+                        "ON pedidos_virtuales (empresa_id, numero_pedido) WHERE numero_pedido IS NOT NULL"
+                    ))
+
+                _mark_migration_applied(conn, migration_v119)
+                logger.info("V119 (número de pedido consecutivo en pedidos virtuales) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

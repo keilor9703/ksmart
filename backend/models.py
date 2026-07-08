@@ -105,6 +105,7 @@ class Empresa(Base):
     ultimo_numero_movimiento = Column(Integer, default=0, nullable=False, server_default="0")
     ultimo_numero_compra     = Column(Integer, default=0, nullable=False, server_default="0")
     ultimo_numero_asiento    = Column(Integer, default=0, nullable=False, server_default="0")
+    ultimo_numero_pedido     = Column(Integer, default=0, nullable=False, server_default="0")
 
     # Configuración de ventas
     omitir_inventario     = Column(Boolean, default=False)
@@ -1448,8 +1449,18 @@ class EstadoPedidoVirtual(str, enum.Enum):
 
 class PedidoVirtual(Base, TenantMixin):
     __tablename__ = "pedidos_virtuales"
+    __table_args__ = (
+        # Único por empresa (no global) — a propósito: cuando el carrito
+        # multi-tienda (fase 2) exista, el mismo número de orden podrá
+        # repetirse entre empresas distintas sin chocar.
+        UniqueConstraint("empresa_id", "numero_pedido", name="uq_pedido_numero_empresa"),
+    )
 
     id               = Column(Integer, primary_key=True, index=True)
+    # Consecutivo visible/entregado al cliente (#1, #2…), único por empresa —
+    # ver crud.consecutivos.next_consecutivo. El PK 'id' es global y nunca
+    # debe mostrarse al cliente final.
+    numero_pedido    = Column(Integer, nullable=True)
     nombre_cliente   = Column(String(200), nullable=False)
     celular_cliente  = Column(String(30),  nullable=False)
     email_cliente    = Column(String(200), nullable=True)

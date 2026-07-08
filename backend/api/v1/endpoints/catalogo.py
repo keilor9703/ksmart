@@ -276,6 +276,7 @@ def create_pedido_virtual_publico(
         pedido = crud_pv.create_pedido_publico(db, slug, payload)
         return schemas.PedidoVirtualCreatedOut(
             id=pedido.id,
+            numero_pedido=pedido.numero_pedido,
             total=pedido.total,
             estado=pedido.estado.value if hasattr(pedido.estado, "value") else pedido.estado,
         )
@@ -286,6 +287,32 @@ def create_pedido_virtual_publico(
     except Exception as e:
         logger.exception("Error inesperado creando pedido para slug=%s: %s", slug, e)
         raise HTTPException(status_code=500, detail=f"Error interno al guardar el pedido: {type(e).__name__}: {e}")
+
+
+@router.get("/{slug}/pedido/estado", response_model=schemas.PedidoEstadoConsultaOut)
+@limiter.limit("20/minute")
+def consultar_estado_pedido_publico(
+    request: Request,
+    slug: str,
+    numero_pedido: int,
+    celular_cliente: str,
+    db: Session = Depends(deps.get_db),
+):
+    """Consulta pública del estado de un pedido — el cliente necesita su
+    número de pedido Y el celular con el que lo hizo (evita que cualquiera
+    enumere pedidos ajenos probando números consecutivos)."""
+    pedido = crud_pv.get_pedido_status_publico(db, slug, numero_pedido, celular_cliente)
+    if not pedido:
+        raise HTTPException(status_code=404, detail="No encontramos un pedido con esos datos.")
+    return schemas.PedidoEstadoConsultaOut(
+        numero_pedido=pedido.numero_pedido,
+        estado=pedido.estado.value if hasattr(pedido.estado, "value") else pedido.estado,
+        total=pedido.total,
+        fecha_creacion=pedido.fecha_creacion,
+        tipo_entrega=pedido.tipo_entrega,
+        nombre_cliente=pedido.nombre_cliente,
+        cantidad_items=len(pedido.detalles or []),
+    )
 
 
 @router.post("/{slug}/pedido-restaurante", response_model=schemas.PedidoRestauranteCreatedOut, status_code=201)

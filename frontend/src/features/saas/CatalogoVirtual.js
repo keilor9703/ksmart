@@ -14,7 +14,7 @@ import {
   Storefront, LocationOn, Person, Phone, Close,
   ArrowForward, ShoppingBag, RocketLaunch, BarChart, Inventory2,
   Favorite, FavoriteBorder, KeyboardArrowUp, FilterList,
-  TableRestaurant, CheckCircle, EditNote,
+  TableRestaurant, CheckCircle, EditNote, LocalShipping,
 } from '@mui/icons-material';
 import DarkMode from '@mui/icons-material/DarkMode';
 import LightMode from '@mui/icons-material/LightMode';
@@ -29,6 +29,18 @@ const PLACEHOLDER_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000
 // ancho del viewport entre las columnas — con pocos productos cada tarjeta
 // termina ocupando 300-400px, gigante y desproporcionada frente al texto.
 const CONTENT_MAX_WIDTH = 1360;
+
+// Espejo de models.EstadoPedidoVirtual — usado por la consulta pública de
+// estado de pedido (debe reflejar exactamente lo que ve el vendedor en
+// Pedidos Virtuales).
+const ESTADO_PEDIDO_LABEL = {
+  nuevo:          'Recibido',
+  confirmado:     'Confirmado',
+  en_preparacion: 'En preparación',
+  enviado:        'Enviado',
+  entregado:      'Entregado',
+  cancelado:      'Cancelado',
+};
 
 // localStorage keys are versioned (v1) so a future cart-shape change doesn't
 // crash on old stored data; writes are best-effort (private-browsing/quota
@@ -341,7 +353,16 @@ const CatalogoVirtual = () => {
   });
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [orderSent, setOrderSent] = useState(false);
+  const [confirmedPedido, setConfirmedPedido] = useState(null);
   const [terminosOpen, setTerminosOpen] = useState(false);
+
+  // Consulta pública de estado de pedido (número + celular)
+  const [trackOpen, setTrackOpen] = useState(false);
+  const [trackNumero, setTrackNumero] = useState('');
+  const [trackCelular, setTrackCelular] = useState('');
+  const [trackLoading, setTrackLoading] = useState(false);
+  const [trackResult, setTrackResult] = useState(null);
+  const [trackError, setTrackError] = useState('');
 
   // Improvement #6: add-to-cart flash animation
   const [flashId, setFlashId] = useState(null);
@@ -583,10 +604,6 @@ const CatalogoVirtual = () => {
     }
     setCheckoutErrors({});
 
-    const formatCurrency = (val) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(val);
-
-    let numeroPedido = null;
-    let backendOk = false;
     try {
       const payload = {
         nombre_cliente:    nombre,
@@ -602,55 +619,47 @@ const CatalogoVirtual = () => {
         })),
       };
       const res = await apiClient.post(`/catalogo/${slug}/pedido`, payload);
-      numeroPedido = res.data.id;
-      backendOk = true;
+      setConfirmedPedido(res.data);
     } catch (err) {
       const detail = err?.response?.data?.detail;
       const status = err?.response?.status;
-      const msg = typeof detail === 'string' ? detail : (typeof detail === 'object' ? JSON.stringify(detail) : 'No se pudo registrar el pedido en el sistema.');
+      const msg = typeof detail === 'string' ? detail : (typeof detail === 'object' ? JSON.stringify(detail) : 'No se pudo registrar el pedido.');
       console.error('[Catalogo] Error al guardar pedido:', status, detail, err);
-      toast.warning(`⚠️ ${msg} Tu pedido llegará por WhatsApp de todas formas.`, { autoClose: 10000 });
-    }
-
-    let message = `🛍️ *NUEVO PEDIDO - ${empresa.nombre}*`;
-    if (numeroPedido) message += ` #${numeroPedido}`;
-    message += `\n\n`;
-    message += `👤 *Cliente:* ${nombre}\n`;
-    message += `📱 *Celular:* ${celular}\n`;
-    message += `📦 *Entrega:* ${tipoEntrega === 'domicilio' ? 'A domicilio 🛵' : 'Recoger en tienda 🏪'}\n`;
-    if (tipoEntrega === 'domicilio') {
-      message += `📍 *Dirección:* ${direccion}\n`;
-    } else if (empresa.direccion) {
-      message += `📍 *Punto de recogida:* ${empresa.direccion}\n`;
-    }
-    if (comentarios) message += `💬 *Comentarios:* ${comentarios}\n`;
-    message += `\n*PRODUCTOS:*\n`;
-    cart.forEach(item => {
-      message += `• ${item.nombre} x${item.quantity} — ${formatCurrency(item.precio)} c/u = ${formatCurrency(item.precio * item.quantity)}\n`;
-    });
-    message += `\n💰 *TOTAL: ${formatCurrency(cartTotal)}*`;
-    if (numeroPedido) message += `\n\n📋 *Pedido #${numeroPedido}* — guardado en el sistema.`;
-    else message += `\n\n⚠️ _Pedido no guardado en sistema — confirmar manualmente._`;
-
-    const win = window.open(`https://wa.me/${empresa.whatsapp_pedidos}?text=${encodeURIComponent(message)}`, '_blank');
-    if (!win && !backendOk) {
-      // Ni el backend guardó el pedido ni WhatsApp abrió: no hay ningún
-      // registro de este pedido en ningún lado — no vaciar el carrito.
-      toast.error('No pudimos enviar tu pedido. Verifica tu conexión o habilita las ventanas emergentes e inténtalo de nuevo.', { autoClose: 8000 });
+      toast.error(`⚠️ ${msg}`, { autoClose: 10000 });
       return;
     }
-    if (!win) {
-      toast.warning('Tu navegador bloqueó la ventana de WhatsApp. Tu pedido ya quedó guardado en el sistema — el vendedor lo verá igual.', { autoClose: 8000 });
-    }
+
     setOrderSent(true);
     setTimeout(() => {
       setOrderSent(false);
+      setConfirmedPedido(null);
       setCart([]);
       setOrderModalOpen(false);
       setCartOpen(false);
       setCheckoutStep(1);
       setCheckoutErrors({});
-    }, 2500);
+    }, 4500);
+  };
+
+  // ── Consulta pública de estado de pedido ─────────────────────────────
+  const handleTrackSubmit = async () => {
+    if (!trackNumero || !trackCelular) {
+      setTrackError('Ingresa el número de pedido y el celular.');
+      return;
+    }
+    setTrackLoading(true);
+    setTrackError('');
+    setTrackResult(null);
+    try {
+      const res = await apiClient.get(`/catalogo/${slug}/pedido/estado`, {
+        params: { numero_pedido: trackNumero, celular_cliente: trackCelular },
+      });
+      setTrackResult(res.data);
+    } catch (err) {
+      setTrackError(err?.response?.data?.detail || 'No encontramos un pedido con esos datos.');
+    } finally {
+      setTrackLoading(false);
+    }
   };
 
   // ── Flujo RESTAURANTE — directo a cocina ─────────────────────────────
@@ -800,6 +809,21 @@ const CatalogoVirtual = () => {
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+              <Tooltip title="Rastrear pedido">
+                <IconButton
+                  onClick={() => { setTrackResult(null); setTrackError(''); setTrackOpen(true); }}
+                  size="small"
+                  sx={{
+                    color: textSec,
+                    bgcolor: subtleBg,
+                    '&:hover': { bgcolor: subtleHov },
+                    width: 30, height: 30,
+                  }}
+                >
+                  <LocalShipping sx={{ fontSize: 15 }} />
+                </IconButton>
+              </Tooltip>
+
               <Tooltip title={isDark ? 'Modo claro' : 'Modo oscuro'}>
                 <IconButton
                   onClick={toggleCatMode}
@@ -1480,8 +1504,16 @@ const CatalogoVirtual = () => {
                   <>
                     <Typography sx={{ fontSize: 64, lineHeight: 1 }}>🎉</Typography>
                     <Typography sx={{ fontWeight: 900, fontSize: 22, color: textPri }}>¡Pedido enviado!</Typography>
+                    {confirmedPedido?.numero_pedido && (
+                      <Box sx={{ p: 2, borderRadius: 3, bgcolor: `${accentColor}10`, border: `1px solid ${accentColor}40`, width: '100%', maxWidth: 280 }}>
+                        <Typography sx={{ fontSize: 13, color: textSec }}>Número de tu pedido</Typography>
+                        <Typography sx={{ fontWeight: 900, fontSize: 28, color: accentColor }}>
+                          #{confirmedPedido.numero_pedido}
+                        </Typography>
+                      </Box>
+                    )}
                     <Typography sx={{ color: textSec, fontSize: 14, maxWidth: 280 }}>
-                      Se abrió WhatsApp con tu pedido. El vendedor te contactará pronto.
+                      Guarda tu número de pedido — con él y tu celular puedes consultar el estado desde el botón "Rastrear pedido" en la parte superior. El vendedor te contactará pronto.
                     </Typography>
                   </>
                 )}
@@ -1927,6 +1959,57 @@ const CatalogoVirtual = () => {
             <Button onClick={() => setTerminosOpen(false)} variant="contained"
               sx={{ bgcolor: accentColor, borderRadius: 2, fontWeight: 700, textTransform: 'none', '&:hover': { bgcolor: accentColor, opacity: 0.88 } }}>
               Entendido
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* ── MODAL RASTREAR PEDIDO ───────────────────────────────────── */}
+        <Dialog open={trackOpen} onClose={() => setTrackOpen(false)} maxWidth="xs" fullWidth
+          PaperProps={{ sx: { borderRadius: 3, m: { xs: 1, sm: 3 } } }}>
+          <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
+            <Typography sx={{ fontWeight: 800, fontSize: 17 }}>Rastrear mi pedido</Typography>
+            <IconButton onClick={() => setTrackOpen(false)} size="small"><Close /></IconButton>
+          </DialogTitle>
+          <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <Typography sx={{ fontSize: 13, color: textSec }}>
+              Ingresa el número de tu pedido y el celular con el que lo hiciste.
+            </Typography>
+            <TextField
+              label="Número de pedido" placeholder="Ej: 12"
+              value={trackNumero} onChange={(e) => setTrackNumero(e.target.value.replace(/\D/g, ''))}
+              size="small" fullWidth
+            />
+            <TextField
+              label="Celular" placeholder="Ej: 300 123 4567"
+              value={trackCelular} onChange={(e) => setTrackCelular(e.target.value)}
+              size="small" fullWidth
+            />
+            {trackError && <Alert severity="error" sx={{ borderRadius: 2, fontSize: 12.5 }}>{trackError}</Alert>}
+            {trackResult && (
+              <Box sx={{ p: 2, borderRadius: 3, bgcolor: `${accentColor}10`, border: `1px solid ${accentColor}40` }}>
+                <Typography sx={{ fontSize: 12, color: textSec }}>Pedido #{trackResult.numero_pedido}</Typography>
+                <Typography sx={{ fontWeight: 900, fontSize: 18, color: accentColor, mt: 0.3 }}>
+                  {ESTADO_PEDIDO_LABEL[trackResult.estado] || trackResult.estado}
+                </Typography>
+                <Typography sx={{ fontSize: 12.5, color: textSec, mt: 1 }}>
+                  {trackResult.cantidad_items} producto{trackResult.cantidad_items !== 1 ? 's' : ''} · {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(trackResult.total)}
+                </Typography>
+                <Typography sx={{ fontSize: 11.5, color: textSec, mt: 0.5 }}>
+                  {trackResult.tipo_entrega === 'domicilio' ? 'Entrega a domicilio' : 'Recoger en tienda'}
+                  {trackResult.fecha_creacion && ` · ${new Date(trackResult.fecha_creacion).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}`}
+                </Typography>
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button
+              onClick={handleTrackSubmit}
+              disabled={trackLoading}
+              variant="contained"
+              fullWidth
+              sx={{ bgcolor: accentColor, borderRadius: 2, fontWeight: 700, textTransform: 'none', '&:hover': { bgcolor: accentColor, opacity: 0.88 } }}
+            >
+              {trackLoading ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : 'Consultar estado'}
             </Button>
           </DialogActions>
         </Dialog>

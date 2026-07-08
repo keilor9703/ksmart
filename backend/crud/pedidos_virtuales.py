@@ -10,6 +10,7 @@ import schemas
 from crud import notificaciones as crud_notif
 from crud import pagos as crud_pagos
 from crud.common import empresa_suscripcion_activa
+from crud.consecutivos import next_consecutivo
 
 logger = logging.getLogger(__name__)
 
@@ -96,8 +97,11 @@ def create_pedido_publico(db: Session, slug: str, payload: schemas.PedidoVirtual
             "nombre_variante": nombre_variante,
         })
 
+    numero_pedido = next_consecutivo(db, empresa.id, "ultimo_numero_pedido")
+
     pedido = models.PedidoVirtual(
         empresa_id        = empresa.id,
+        numero_pedido     = numero_pedido,
         nombre_cliente    = payload.nombre_cliente,
         celular_cliente   = payload.celular_cliente,
         email_cliente     = payload.email_cliente,
@@ -148,6 +152,30 @@ def _notificar_nuevo_pedido(db: Session, empresa_id: int, pedido: models.PedidoV
         )
         db.add(db_notif)
     db.commit()
+
+
+def _solo_digitos(s: str) -> str:
+    return "".join(ch for ch in (s or "") if ch.isdigit())
+
+
+def get_pedido_status_publico(
+    db: Session, slug: str, numero_pedido: int, celular_cliente: str
+) -> Optional[models.PedidoVirtual]:
+    """Consulta pública de estado — requiere el número de pedido Y el celular
+    con el que se hizo el pedido (evita que cualquiera enumere pedidos ajenos
+    probando números consecutivos)."""
+    empresa = db.query(models.Empresa).filter(models.Empresa.slug_catalogo == slug).first()
+    if not empresa or not empresa_suscripcion_activa(empresa):
+        return None
+    candidatos = db.query(models.PedidoVirtual).filter(
+        models.PedidoVirtual.empresa_id == empresa.id,
+        models.PedidoVirtual.numero_pedido == numero_pedido,
+    ).all()
+    celular_norm = _solo_digitos(celular_cliente)
+    for pedido in candidatos:
+        if _solo_digitos(pedido.celular_cliente) == celular_norm:
+            return pedido
+    return None
 
 
 # ─── PRIVATE ─────────────────────────────────────────────────────────────────
