@@ -27,6 +27,13 @@ import usePolling from '../../hooks/usePolling';
 
 // ─── Estado metadata ──────────────────────────────────────────────────────────
 
+// El paso "enviado" del flujo significa cosas distintas según cómo se
+// entrega el pedido: para domicilio es literalmente "va en camino"; para
+// recogida en tienda no existe envío — es "ya está listo, el cliente lo
+// recoge". Mostrar "Enviado"/ícono de camión en un pedido de recogida
+// confunde al staff (parece que hay que despachar algo) y al cliente.
+const esDomicilio = (tipoEntrega) => tipoEntrega === 'domicilio';
+
 const ESTADOS_META = [
   { value: 'todos',          label: 'Todos',          color: '#6b7280', icon: null },
   { value: 'nuevo',          label: 'Nuevo',          color: '#2563EB', icon: <Bolt sx={{ fontSize: 12 }} /> },
@@ -42,9 +49,22 @@ const ESTADO_FLOW = ['nuevo', 'confirmado', 'en_preparacion', 'enviado', 'entreg
 const QUICK_ACTIONS = {
   nuevo:          { label: 'Confirmar',         color: '#059669', icon: <CheckCircle sx={{ fontSize: 14 }} />, next: 'confirmado' },
   confirmado:     { label: 'En preparación',    color: '#D97706', icon: <Inventory2 sx={{ fontSize: 14 }} />,  next: 'en_preparacion' },
-  en_preparacion: { label: 'Listo / Enviado',   color: '#7C3AED', icon: <LocalShipping sx={{ fontSize: 14 }} />, next: 'enviado' },
+  en_preparacion: { label: 'Marcar enviado',    color: '#7C3AED', icon: <LocalShipping sx={{ fontSize: 14 }} />, next: 'enviado' },
   enviado:        { label: 'Entregar y Cobrar', color: '#059669', icon: <AttachMoney sx={{ fontSize: 14 }} />, next: '_pay' },
 };
+
+// Variantes de las mismas acciones/etiquetas para pedidos de recogida en
+// tienda (tipo_entrega !== 'domicilio') — mismo flujo de estados internos
+// (enviado sigue siendo el nombre del campo en BD), pero el texto/ícono
+// que ve el staff refleja "listo para recoger" en vez de "enviado".
+const QUICK_ACTIONS_TIENDA = {
+  ...QUICK_ACTIONS,
+  en_preparacion: { label: 'Listo para recoger', color: '#7C3AED', icon: <Storefront sx={{ fontSize: 14 }} />, next: 'enviado' },
+  enviado:        { label: 'Entregar y Cobrar',  color: '#059669', icon: <AttachMoney sx={{ fontSize: 14 }} />, next: '_pay' },
+};
+
+const getQuickAction = (estado, tipoEntrega) =>
+  (esDomicilio(tipoEntrega) ? QUICK_ACTIONS : QUICK_ACTIONS_TIENDA)[estado];
 
 const METODOS_PAGO = [
   { value: 'Efectivo',      label: 'Efectivo',      icon: <AttachMoney /> },
@@ -79,7 +99,13 @@ const timeAgo = (dateStr) => {
   return `hace ${Math.floor(diff / 1440)}d`;
 };
 
-const getEstadoMeta = (value) => ESTADOS_META.find(e => e.value === value) || ESTADOS_META[0];
+const getEstadoMeta = (value, tipoEntrega) => {
+  const meta = ESTADOS_META.find(e => e.value === value) || ESTADOS_META[0];
+  if (value === 'enviado' && !esDomicilio(tipoEntrega)) {
+    return { ...meta, label: 'Listo para recoger', icon: <Storefront sx={{ fontSize: 12 }} /> };
+  }
+  return meta;
+};
 
 const copyToClipboard = (text) => {
   navigator.clipboard?.writeText(text).then(() => toast.success('Copiado al portapapeles'));
@@ -87,9 +113,9 @@ const copyToClipboard = (text) => {
 
 // ─── EstadoChip ───────────────────────────────────────────────────────────────
 
-const EstadoChip = ({ estado, size = 'small' }) => {
+const EstadoChip = ({ estado, tipoEntrega, size = 'small' }) => {
   const theme = useTheme();
-  const meta = getEstadoMeta(estado);
+  const meta = getEstadoMeta(estado, tipoEntrega);
   return (
     <Chip
       icon={meta.icon}
@@ -109,7 +135,7 @@ const EstadoChip = ({ estado, size = 'small' }) => {
 
 // ─── StateTimeline ────────────────────────────────────────────────────────────
 
-const StateTimeline = ({ estado }) => {
+const StateTimeline = ({ estado, tipoEntrega }) => {
   const theme = useTheme();
   const isCancelado = estado === 'cancelado';
   const currentIdx = ESTADO_FLOW.indexOf(estado);
@@ -137,7 +163,7 @@ const StateTimeline = ({ estado }) => {
         }} />
       }>
         {ESTADO_FLOW.map((s, i) => {
-          const meta = getEstadoMeta(s);
+          const meta = getEstadoMeta(s, tipoEntrega);
           const completed = currentIdx > i;
           const active = currentIdx === i;
           return (
@@ -609,7 +635,7 @@ const WADialog = ({ open, onClose, pedido }) => {
 
   useEffect(() => {
     if (!pedido) return;
-    const estado = getEstadoMeta(pedido.estado)?.label || pedido.estado;
+    const estado = getEstadoMeta(pedido.estado, pedido.tipo_entrega)?.label || pedido.estado;
     setMsg(`Hola ${pedido.nombre_cliente} 👋\n\nTe escribimos sobre tu *Pedido #${pedido.numero_pedido ?? pedido.id}*.\n\nEstado actual: *${estado}*\n\n¿Tienes alguna pregunta? Estamos aquí para ayudarte.`);
   }, [pedido]);
 
@@ -658,9 +684,17 @@ const WADialog = ({ open, onClose, pedido }) => {
 const DETAIL_ACTIONS = {
   nuevo:          [{ estado: 'confirmado',     label: 'Confirmar',     color: '#059669', icon: <CheckCircle /> }],
   confirmado:     [{ estado: 'en_preparacion', label: 'En preparación',color: '#D97706', icon: <Inventory2 /> }],
-  en_preparacion: [{ estado: 'enviado',        label: 'Listo/Enviado', color: '#7C3AED', icon: <LocalShipping /> }],
+  en_preparacion: [{ estado: 'enviado',        label: 'Marcar enviado', color: '#7C3AED', icon: <LocalShipping /> }],
   enviado: [], entregado: [], cancelado: [],
 };
+
+const DETAIL_ACTIONS_TIENDA = {
+  ...DETAIL_ACTIONS,
+  en_preparacion: [{ estado: 'enviado', label: 'Listo para recoger', color: '#7C3AED', icon: <Storefront /> }],
+};
+
+const getDetailActions = (estado, tipoEntrega) =>
+  (esDomicilio(tipoEntrega) ? DETAIL_ACTIONS : DETAIL_ACTIONS_TIENDA)[estado] || [];
 
 const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange, onEdit, onCancel, onConvertir, linkPagoConfig }) => {
   const theme = useTheme();
@@ -676,7 +710,7 @@ const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange,
     <>
       <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 4, overflow: 'hidden' } }}>
         {/* Header with color strip */}
-        <Box sx={{ height: 4, bgcolor: getEstadoMeta(pedido.estado).color }} />
+        <Box sx={{ height: 4, bgcolor: getEstadoMeta(pedido.estado, pedido.tipo_entrega).color }} />
         <DialogTitle sx={{ pb: 0, pt: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -685,7 +719,7 @@ const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange,
               </Avatar>
               <Box>
                 <Typography fontWeight={800} fontSize={16}>{pedido.nombre_cliente}</Typography>
-                <EstadoChip estado={pedido.estado} />
+                <EstadoChip estado={pedido.estado} tipoEntrega={pedido.tipo_entrega} />
               </Box>
             </Box>
             <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -703,7 +737,7 @@ const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange,
 
         {/* State timeline */}
         <Box sx={{ px: 3, pt: 0.5, pb: 0 }}>
-          <StateTimeline estado={pedido.estado} />
+          <StateTimeline estado={pedido.estado} tipoEntrega={pedido.tipo_entrega} />
         </Box>
 
         <DialogContent sx={{ pt: 1.5 }}>
@@ -791,7 +825,7 @@ const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange,
             </Button>
           )}
           <Box sx={{ flex: 1 }} />
-          {(DETAIL_ACTIONS[pedido.estado] || []).map(a => (
+          {getDetailActions(pedido.estado, pedido.tipo_entrega).map(a => (
             <Button key={a.estado} size="small" variant="contained" disabled={changingState}
               startIcon={changingState ? <CircularProgress size={14} color="inherit" /> : a.icon}
               onClick={async () => {
@@ -839,13 +873,13 @@ const PedidoCard = React.memo(function PedidoCard({ pedido, empresa, vendedor, o
   // con el siguiente pedido.
   const [changingState, setChangingState] = useState(false);
   const [errorFlash, setErrorFlash] = useState(false);
-  const meta = getEstadoMeta(pedido.estado);
+  const meta = getEstadoMeta(pedido.estado, pedido.tipo_entrega);
   const isEntregado = pedido.estado === 'entregado';
   const isCancelado = pedido.estado === 'cancelado';
   const mins = minutesAgo(pedido.fecha_creacion);
   const isUrgente = pedido.estado === 'nuevo' && mins > 45;
   const isReciente = mins < 5;
-  const quickAction = QUICK_ACTIONS[pedido.estado];
+  const quickAction = getQuickAction(pedido.estado, pedido.tipo_entrega);
 
   return (
     <>
@@ -925,7 +959,7 @@ const PedidoCard = React.memo(function PedidoCard({ pedido, empresa, vendedor, o
                 {pedido.nombre_cliente}
               </Typography>
             </Box>
-            <EstadoChip estado={pedido.estado} />
+            <EstadoChip estado={pedido.estado} tipoEntrega={pedido.tipo_entrega} />
           </Box>
 
           {/* Contact + delivery */}
@@ -1063,12 +1097,12 @@ const ListRow = React.memo(function ListRow({ pedido, empresa, vendedor, onState
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [changingState, setChangingState] = useState(false);
   const [errorFlash, setErrorFlash] = useState(false);
-  const meta = getEstadoMeta(pedido.estado);
+  const meta = getEstadoMeta(pedido.estado, pedido.tipo_entrega);
   const isEntregado = pedido.estado === 'entregado';
   const isCancelado = pedido.estado === 'cancelado';
   const mins = minutesAgo(pedido.fecha_creacion);
   const isUrgente = pedido.estado === 'nuevo' && mins > 45;
-  const quickAction = QUICK_ACTIONS[pedido.estado];
+  const quickAction = getQuickAction(pedido.estado, pedido.tipo_entrega);
 
   return (
     <>
@@ -1081,7 +1115,7 @@ const ListRow = React.memo(function ListRow({ pedido, empresa, vendedor, onState
           <Typography fontSize={11} color="text.secondary">{pedido.celular_cliente}</Typography>
         </TableCell>
         <TableCell onClick={() => onDetail(pedido)}>
-          <EstadoChip estado={pedido.estado} />
+          <EstadoChip estado={pedido.estado} tipoEntrega={pedido.tipo_entrega} />
           {isUrgente && <Chip label="urgente" size="small" sx={{ ml: 0.5, fontSize: 9, height: 16, bgcolor: alpha('#EF4444', 0.1), color: '#EF4444', fontWeight: 700 }} />}
         </TableCell>
         <TableCell onClick={() => onDetail(pedido)} sx={{ display: { xs: 'none', md: 'table-cell' } }}>
@@ -1242,7 +1276,7 @@ export default function PedidosVirtuales({ user }) {
       const res = await apiClient.patch(`/pedidos-virtuales/${pedido.id}/estado`, { estado });
       setPedidos(prev => prev.map(p => p.id === pedido.id ? res.data : p));
       fetchAll(true);
-      toast.success(`→ ${getEstadoMeta(estado).label}`);
+      toast.success(`→ ${getEstadoMeta(estado, pedido.tipo_entrega).label}`);
     } catch (err) {
       toast.error(err?.response?.data?.detail || 'Error al actualizar estado');
       throw err; // el caller (tarjeta/fila) lo captura para resaltar el error visualmente
