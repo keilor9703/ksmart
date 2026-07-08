@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Grid, Card, CardContent, CardMedia, IconButton,
   Button, TextField, InputAdornment, Badge, Drawer, Divider,
@@ -21,6 +21,11 @@ import LightMode from '@mui/icons-material/LightMode';
 import MenuItem from '@mui/material/MenuItem';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
+import {
+  isMarketplaceDomain, getMarketplaceCart, subscribeMarketplaceCart,
+  addToMarketplaceCart, decrementMarketplaceCartItem, marketplaceCartCount,
+  buildMarketplaceCartId,
+} from '../../utils/marketplaceCart';
 
 // Inline SVG placeholder — no external dependency
 const PLACEHOLDER_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'%3E%3Crect width='400' height='400' fill='%23f1f5f9'/%3E%3Ctext x='50%25' y='50%25' font-size='48' text-anchor='middle' dominant-baseline='middle' fill='%2394a3b8'%3E%F0%9F%93%B7%3C/text%3E%3C/svg%3E";
@@ -228,8 +233,21 @@ const ProductCard = React.memo(function ProductCard({
 
 const CatalogoVirtual = () => {
   const { slug } = useParams();
+  const navigate = useNavigate();
   const outerTheme = useTheme();
   const isMobile = useMediaQuery(outerTheme.breakpoints.down('sm'));
+
+  // ── Fase 2 del multicarrito: dentro del dominio del mall, esta tienda
+  // también alimenta el carrito compartido (mkt_cart) — el pedido de ESTA
+  // tienda sigue funcionando exactamente igual (checkout single-store, sin
+  // cambios), pero además se refleja en el carrito multi-tienda para que
+  // el cliente pueda revisar/pagar todas las tiendas juntas desde el mall.
+  const marketplaceMode = useMemo(() => isMarketplaceDomain(), []);
+  const [mktCartCount, setMktCartCount] = useState(() => marketplaceMode ? marketplaceCartCount(getMarketplaceCart()) : 0);
+  useEffect(() => {
+    if (!marketplaceMode) return undefined;
+    return subscribeMarketplaceCart(items => setMktCartCount(marketplaceCartCount(items)));
+  }, [marketplaceMode]);
 
   // ── Inyectar fuente moderna (solo una vez por sesión) ─────────────────
   useEffect(() => {
@@ -529,13 +547,25 @@ const CatalogoVirtual = () => {
         quantity: 1,
       }];
     });
+    if (marketplaceMode) {
+      addToMarketplaceCart({
+        producto_id: producto.id,
+        nombre: producto.nombre,
+        precio: variante?.precio != null ? variante.precio : producto.precio,
+        variante_id: variante?.id || null,
+        nombre_variante: variante?.nombre || null,
+        empresa_slug: slug,
+        empresa_nombre: empresa?.nombre,
+        empresa_color: empresa?.color_primario || '#0891B2',
+      });
+    }
     // Improvement #6: flash card border
     setFlashId(producto.id);
     setTimeout(() => setFlashId(null), 600);
     // Improvement #14: "¡Agregado!" text
     setAddedFlash(true);
     setTimeout(() => setAddedFlash(false), 1000);
-  }, [esRestaurante]);
+  }, [esRestaurante, marketplaceMode, slug, empresa]);
 
   const removeFromCart = (key) => {
     setCart(prev => {
@@ -546,6 +576,10 @@ const CatalogoVirtual = () => {
       }
       return prev.map(item => item.cartId === key ? { ...item, quantity: item.quantity - 1 } : item);
     });
+    if (marketplaceMode) {
+      const [productoId, varianteId] = key.split(':');
+      decrementMarketplaceCartItem(buildMarketplaceCartId(slug, productoId, varianteId));
+    }
   };
 
   const toggleFavorito = (id, e) => {
@@ -797,6 +831,19 @@ const CatalogoVirtual = () => {
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+              {marketplaceMode && (
+                <Tooltip title="Carrito del Centro Comercial (todas las tiendas)">
+                  <IconButton
+                    onClick={() => navigate('/')}
+                    size="small"
+                    sx={{ color: textSec, bgcolor: subtleBg, '&:hover': { bgcolor: subtleHov }, width: 30, height: 30 }}
+                  >
+                    <Badge badgeContent={mktCartCount} color="error" sx={{ '& .MuiBadge-badge': { fontSize: 8, height: 14, minWidth: 14 } }}>
+                      <ShoppingCart sx={{ fontSize: 15 }} />
+                    </Badge>
+                  </IconButton>
+                </Tooltip>
+              )}
               <Tooltip title="Rastrear pedido">
                 <IconButton
                   onClick={() => { setTrackResult(null); setTrackError(''); setTrackOpen(true); }}

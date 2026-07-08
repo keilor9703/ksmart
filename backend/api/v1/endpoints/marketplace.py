@@ -220,6 +220,7 @@ def buscar_productos_marketplace(
             precio=prod.precio,
             image_count=count,
             categoria=cat.nombre if cat else None,
+            tiene_variantes=bool(prod.tiene_variantes),
             empresa_nombre=emp.nombre,
             empresa_slug=emp.slug_catalogo,
             empresa_color=emp.color_primario,
