@@ -304,14 +304,31 @@ def consultar_estado_pedido_publico(
     pedido = crud_pv.get_pedido_status_publico(db, slug, numero_pedido, celular_cliente)
     if not pedido:
         raise HTTPException(status_code=404, detail="No encontramos un pedido con esos datos.")
+
+    estado = pedido.estado.value if hasattr(pedido.estado, "value") else pedido.estado
+    cancelado = estado == "cancelado"
+    etapa_idx = None if cancelado else (
+        crud_pv.ETAPAS_FLUJO.index(estado) if estado in crud_pv.ETAPAS_FLUJO else None
+    )
+
     return schemas.PedidoEstadoConsultaOut(
         numero_pedido=pedido.numero_pedido,
-        estado=pedido.estado.value if hasattr(pedido.estado, "value") else pedido.estado,
+        estado=estado,
+        estado_label=crud_pv.ETAPAS_LABELS.get(estado, estado),
+        cancelado=cancelado,
+        etapas=crud_pv.ETAPAS_FLUJO,
+        etapas_labels=[crud_pv.ETAPAS_LABELS[e] for e in crud_pv.ETAPAS_FLUJO],
+        etapa_actual_index=etapa_idx,
+        total_etapas=len(crud_pv.ETAPAS_FLUJO),
         total=pedido.total,
         fecha_creacion=pedido.fecha_creacion,
+        fecha_actualizacion=pedido.fecha_actualizacion,
         tipo_entrega=pedido.tipo_entrega,
+        direccion_entrega=pedido.direccion_entrega,
         nombre_cliente=pedido.nombre_cliente,
         cantidad_items=len(pedido.detalles or []),
+        empresa_nombre=pedido.empresa.nombre if pedido.empresa else "",
+        empresa_telefono=pedido.empresa.whatsapp_pedidos if pedido.empresa else None,
     )
 
 
