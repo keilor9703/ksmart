@@ -324,7 +324,7 @@ const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, li
             </Avatar>
             <Box>
               <Typography fontWeight={800} fontSize={15}>Forma de pago</Typography>
-              <Typography fontSize={12} color="text.secondary">Pedido #{pedido?.id} · {fmt(totalConIva || pedido?.total || 0)}</Typography>
+              <Typography fontSize={12} color="text.secondary">Pedido #{pedido?.numero_pedido ?? pedido?.id} · {fmt(totalConIva || pedido?.total || 0)}</Typography>
             </Box>
           </Box>
         </DialogTitle>
@@ -446,7 +446,7 @@ const CancelDialog = ({ open, onClose, pedido, onSuccess }) => {
     setLoading(true);
     try {
       await apiClient.patch(`/pedidos-virtuales/${pedido.id}/estado`, { estado: 'cancelado', motivo_cancelacion: motivo });
-      const msg = `Hola ${pedido.nombre_cliente} 👋\n\nLamentamos informarte que tu *Pedido #${pedido.id}* ha sido *cancelado*.${motivo ? `\n\n📝 Motivo: ${motivo}` : ''}\n\n¿Tienes alguna pregunta? Estamos para ayudarte. 🙏`;
+      const msg = `Hola ${pedido.nombre_cliente} 👋\n\nLamentamos informarte que tu *Pedido #${pedido.numero_pedido ?? pedido.id}* ha sido *cancelado*.${motivo ? `\n\n📝 Motivo: ${motivo}` : ''}\n\n¿Tienes alguna pregunta? Estamos para ayudarte. 🙏`;
       const res = await apiClient.post(`/pedidos-virtuales/${pedido.id}/whatsapp`, { mensaje: msg });
       setWaUrl(res.data.url);
       setDone(true);
@@ -490,7 +490,7 @@ const CancelDialog = ({ open, onClose, pedido, onSuccess }) => {
               </Avatar>
               <Box>
                 <Typography fontWeight={800} fontSize={15}>Cancelar pedido</Typography>
-                <Typography fontSize={12} color="text.secondary">#{pedido?.id} · {pedido?.nombre_cliente}</Typography>
+                <Typography fontSize={12} color="text.secondary">#{pedido?.numero_pedido ?? pedido?.id} · {pedido?.nombre_cliente}</Typography>
               </Box>
             </Box>
           </DialogTitle>
@@ -555,7 +555,7 @@ const EditDialog = ({ open, onClose, pedido, onSuccess }) => {
               <Edit sx={{ color: '#7C3AED', fontSize: 20 }} />
             </Avatar>
             <Box>
-              <Typography fontWeight={800} fontSize={15}>Editar pedido #{pedido?.id}</Typography>
+              <Typography fontWeight={800} fontSize={15}>Editar pedido #{pedido?.numero_pedido ?? pedido?.id}</Typography>
               <Typography fontSize={12} color="text.secondary">Información de contacto y entrega</Typography>
             </Box>
           </Box>
@@ -610,7 +610,7 @@ const WADialog = ({ open, onClose, pedido }) => {
   useEffect(() => {
     if (!pedido) return;
     const estado = getEstadoMeta(pedido.estado)?.label || pedido.estado;
-    setMsg(`Hola ${pedido.nombre_cliente} 👋\n\nTe escribimos sobre tu *Pedido #${pedido.id}*.\n\nEstado actual: *${estado}*\n\n¿Tienes alguna pregunta? Estamos aquí para ayudarte.`);
+    setMsg(`Hola ${pedido.nombre_cliente} 👋\n\nTe escribimos sobre tu *Pedido #${pedido.numero_pedido ?? pedido.id}*.\n\nEstado actual: *${estado}*\n\n¿Tienes alguna pregunta? Estamos aquí para ayudarte.`);
   }, [pedido]);
 
   const handleSend = async () => {
@@ -681,7 +681,7 @@ const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange,
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <Avatar sx={{ bgcolor: alpha('#0891B2', 0.12), width: 42, height: 42, fontSize: 13, fontWeight: 900, color: '#0891B2' }}>
-                #{pedido.id}
+                #{pedido.numero_pedido ?? pedido.id}
               </Avatar>
               <Box>
                 <Typography fontWeight={800} fontSize={16}>{pedido.nombre_cliente}</Typography>
@@ -920,7 +920,7 @@ const PedidoCard = React.memo(function PedidoCard({ pedido, empresa, vendedor, o
           {/* Header row */}
           <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1.2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, minWidth: 0 }}>
-              <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.disabled', flexShrink: 0 }}>#{pedido.id}</Typography>
+              <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.disabled', flexShrink: 0 }}>#{pedido.numero_pedido ?? pedido.id}</Typography>
               <Typography fontWeight={700} fontSize={14} noWrap sx={{ maxWidth: { xs: 130, sm: 150 } }}>
                 {pedido.nombre_cliente}
               </Typography>
@@ -1074,7 +1074,7 @@ const ListRow = React.memo(function ListRow({ pedido, empresa, vendedor, onState
     <>
       <TableRow hover sx={{ cursor: 'pointer', borderLeft: `3px solid ${errorFlash ? '#EF4444' : meta.color}`, transition: 'border-color 0.2s', '& td': { py: 1.2, fontSize: 12 } }}>
         <TableCell onClick={() => onDetail(pedido)} sx={{ width: 60 }}>
-          <Typography fontSize={11} color="text.disabled" fontWeight={700}>#{pedido.id}</Typography>
+          <Typography fontSize={11} color="text.disabled" fontWeight={700}>#{pedido.numero_pedido ?? pedido.id}</Typography>
         </TableCell>
         <TableCell onClick={() => onDetail(pedido)} sx={{ minWidth: 130 }}>
           <Typography fontSize={13} fontWeight={700} noWrap sx={{ maxWidth: 160 }}>{pedido.nombre_cliente}</Typography>

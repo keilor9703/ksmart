@@ -2614,9 +2614,23 @@ class PedidoVirtualCreate(BaseModel):
     detalles:          List[DetallePedidoVirtualIn]
 
 class PedidoVirtualCreatedOut(BaseModel):
-    id:     int
-    total:  float
-    estado: str
+    id:            int
+    numero_pedido: Optional[int] = None
+    total:         float
+    estado:        str
+
+class PedidoEstadoConsultaIn(BaseModel):
+    numero_pedido:   int
+    celular_cliente: str = Field(..., min_length=7, max_length=30)
+
+class PedidoEstadoConsultaOut(BaseModel):
+    numero_pedido:  Optional[int]
+    estado:         str
+    total:          float
+    fecha_creacion: Optional[datetime]
+    tipo_entrega:   str
+    nombre_cliente: str
+    cantidad_items: int
 
 class DetallePedidoVirtualOut(BaseModel):
     id:              int
@@ -2631,6 +2645,7 @@ class DetallePedidoVirtualOut(BaseModel):
 
 class PedidoVirtualOut(BaseModel):
     id:               int
+    numero_pedido:    Optional[int] = None
     empresa_id:       int
     nombre_cliente:   str
     celular_cliente:  str
