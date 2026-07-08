@@ -285,7 +285,7 @@ const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, li
         id: res.data.venta_id,
         fecha: new Date().toISOString(),
         cliente: { nombre: pedido.nombre_cliente, telefono: pedido.celular_cliente },
-        detalles: (pedido.detalles || []).map(d => ({ producto: { nombre: d.nombre_producto }, cantidad: d.cantidad, precio_unitario: d.precio_unitario })),
+        detalles: (pedido.detalles || []).map(d => ({ producto: { nombre: d.nombre_variante ? `${d.nombre_producto} - ${d.nombre_variante}` : d.nombre_producto }, cantidad: d.cantidad, precio_unitario: d.precio_unitario })),
         total: totalConIva, iva_total: ivaTotal, iva_porcentaje: ivaPct,
         monto_pagado: totalConIva, estado_pago: 'pagado', metodo_pago: metodo,
       };
@@ -745,7 +745,10 @@ const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange,
             {(pedido.detalles || []).map((d, i) => (
               <Box key={i} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 0.9, borderBottom: i < pedido.detalles.length - 1 ? `1px solid ${theme.palette.divider}` : 'none' }}>
                 <Box>
-                  <Typography fontSize={13} fontWeight={600}>{d.nombre_producto}</Typography>
+                  <Typography fontSize={13} fontWeight={600}>
+                    {d.nombre_producto}
+                    {d.nombre_variante && <Typography component="span" fontSize={12} fontWeight={600} color="#0891B2"> · {d.nombre_variante}</Typography>}
+                  </Typography>
                   <Typography fontSize={11} color="text.secondary">{fmt(d.precio_unitario)} × {d.cantidad} uds.</Typography>
                 </Box>
                 <Typography fontSize={13} fontWeight={700} color="#0891B2">{fmt(d.subtotal)}</Typography>
@@ -947,7 +950,7 @@ const PedidoCard = React.memo(function PedidoCard({ pedido, empresa, vendedor, o
             {(pedido.detalles || []).slice(0, 2).map((d, i) => (
               <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography fontSize={11} color="text.secondary" noWrap sx={{ flex: 1 }}>
-                  <b style={{ color: 'inherit' }}>{d.cantidad}×</b> {d.nombre_producto}
+                  <b style={{ color: 'inherit' }}>{d.cantidad}×</b> {d.nombre_producto}{d.nombre_variante ? ` (${d.nombre_variante})` : ''}
                 </Typography>
                 <Typography fontSize={11} color="text.disabled" sx={{ ml: 0.5, flexShrink: 0 }}>{fmt(d.subtotal)}</Typography>
               </Box>
