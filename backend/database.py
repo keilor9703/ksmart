@@ -2622,6 +2622,14 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v119)
                 logger.info("V119 (número de pedido consecutivo en pedidos virtuales) aplicada.")
 
+            # V120 — Redes sociales del Catálogo Virtual (Instagram/Facebook).
+            migration_v120 = "v120_redes_sociales_catalogo"
+            if not _migration_already_applied(conn, migration_v120):
+                _add_column_safe(conn, "empresas", "instagram_url", "VARCHAR(300)")
+                _add_column_safe(conn, "empresas", "facebook_url", "VARCHAR(300)")
+                _mark_migration_applied(conn, migration_v120)
+                logger.info("V120 (redes sociales del catálogo virtual) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

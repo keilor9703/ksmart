@@ -33,6 +33,8 @@ class EmpresaBase(BaseModel):
     logo_base64: Optional[str] = None
     ciudad: Optional[str] = None
     descripcion: Optional[str] = None
+    instagram_url: Optional[str] = None
+    facebook_url: Optional[str] = None
 
     # 👇 CENTRO COMERCIAL VIRTUAL (directorio público multi-empresa)
     visible_marketplace: bool = False
@@ -2506,6 +2508,8 @@ class CatalogoConfigUpdate(BaseModel):
     descripcion: Optional[str] = None
     visible_marketplace: Optional[bool] = None
     categoria_marketplace: Optional[str] = None
+    instagram_url: Optional[str] = None
+    facebook_url: Optional[str] = None
 
 class CatalogoEmpresaOut(BaseModel):
     nombre: str
@@ -2515,6 +2519,9 @@ class CatalogoEmpresaOut(BaseModel):
     color_primario: str
     direccion: Optional[str] = None
     tipo_negocio: str = "erp"
+    descripcion: Optional[str] = None
+    instagram_url: Optional[str] = None
+    facebook_url: Optional[str] = None
 
 class MarketplaceEmpresaOut(BaseModel):
     nombre: str

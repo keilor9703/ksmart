@@ -15,6 +15,7 @@ import {
   ArrowForward, ShoppingBag, RocketLaunch, BarChart, Inventory2,
   Favorite, FavoriteBorder, KeyboardArrowUp, FilterList,
   TableRestaurant, CheckCircle, EditNote, LocalShipping,
+  Instagram, Facebook,
 } from '@mui/icons-material';
 import DarkMode from '@mui/icons-material/DarkMode';
 import LightMode from '@mui/icons-material/LightMode';
@@ -831,6 +832,28 @@ const CatalogoVirtual = () => {
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+              {!headerCollapsed && empresa?.instagram_url && (
+                <Tooltip title="Instagram">
+                  <IconButton
+                    component="a" href={empresa.instagram_url} target="_blank" rel="noopener noreferrer"
+                    size="small"
+                    sx={{ color: textSec, bgcolor: subtleBg, '&:hover': { color: '#E1306C', bgcolor: subtleHov }, width: 30, height: 30 }}
+                  >
+                    <Instagram sx={{ fontSize: 15 }} />
+                  </IconButton>
+                </Tooltip>
+              )}
+              {!headerCollapsed && empresa?.facebook_url && (
+                <Tooltip title="Facebook">
+                  <IconButton
+                    component="a" href={empresa.facebook_url} target="_blank" rel="noopener noreferrer"
+                    size="small"
+                    sx={{ color: textSec, bgcolor: subtleBg, '&:hover': { color: '#1877F2', bgcolor: subtleHov }, width: 30, height: 30 }}
+                  >
+                    <Facebook sx={{ fontSize: 15 }} />
+                  </IconButton>
+                </Tooltip>
+              )}
               {marketplaceMode && (
                 <Tooltip title="Carrito del Centro Comercial (todas las tiendas)">
                   <IconButton
@@ -1887,6 +1910,28 @@ const CatalogoVirtual = () => {
             Los productos, precios e información publicados son responsabilidad exclusiva de{' '}
             <strong style={{ color: isDark ? '#94A3B8' : '#94A3B8' }}>{empresa?.nombre}</strong>.
           </Typography>
+          {(empresa?.instagram_url || empresa?.facebook_url) && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, mt: 1.5 }}>
+              {empresa.instagram_url && (
+                <IconButton
+                  component="a" href={empresa.instagram_url} target="_blank" rel="noopener noreferrer"
+                  aria-label="Instagram" size="small"
+                  sx={{ color: textSec, bgcolor: subtleBg, '&:hover': { color: '#E1306C', bgcolor: subtleHov } }}
+                >
+                  <Instagram sx={{ fontSize: 18 }} />
+                </IconButton>
+              )}
+              {empresa.facebook_url && (
+                <IconButton
+                  component="a" href={empresa.facebook_url} target="_blank" rel="noopener noreferrer"
+                  aria-label="Facebook" size="small"
+                  sx={{ color: textSec, bgcolor: subtleBg, '&:hover': { color: '#1877F2', bgcolor: subtleHov } }}
+                >
+                  <Facebook sx={{ fontSize: 18 }} />
+                </IconButton>
+              )}
+            </Box>
+          )}
           <Button
             size="small"
             onClick={() => setTerminosOpen(true)}
