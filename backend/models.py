@@ -43,6 +43,8 @@ class Empresa(Base):
     slug_catalogo     = Column(String(100), unique=True, index=True, nullable=True)
     whatsapp_pedidos  = Column(String(20), nullable=True)
     logo_base64       = Column(Text, nullable=True) # WebP comprimido
+    instagram_url     = Column(String(300), nullable=True)
+    facebook_url      = Column(String(300), nullable=True)
 
     # 👇 CENTRO COMERCIAL VIRTUAL — directorio público que agrupa el catálogo
     # de varias empresas bajo un solo dominio. Opt-in explícito: nunca se

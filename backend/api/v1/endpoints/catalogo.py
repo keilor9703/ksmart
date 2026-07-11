@@ -56,6 +56,8 @@ def get_catalogo_config(
         "descripcion":      emp.descripcion,
         "visible_marketplace":   emp.visible_marketplace,
         "categoria_marketplace": emp.categoria_marketplace,
+        "instagram_url":    emp.instagram_url,
+        "facebook_url":     emp.facebook_url,
     }
 
 
@@ -98,6 +100,10 @@ def update_catalogo_config(
         db_empresa.visible_marketplace = payload.visible_marketplace
     if payload.categoria_marketplace is not None:
         db_empresa.categoria_marketplace = payload.categoria_marketplace or None
+    if payload.instagram_url is not None:
+        db_empresa.instagram_url = payload.instagram_url or None
+    if payload.facebook_url is not None:
+        db_empresa.facebook_url = payload.facebook_url or None
 
     db.commit()
     db.refresh(db_empresa)
@@ -167,6 +173,8 @@ def get_public_catalogo(
         direccion=db_empresa.ciudad,
         tipo_negocio=db_empresa.tipo_negocio or "erp",
         descripcion=db_empresa.descripcion,
+        instagram_url=db_empresa.instagram_url,
+        facebook_url=db_empresa.facebook_url,
     )
 
     # Para restaurantes, incluir lista de mesas activas

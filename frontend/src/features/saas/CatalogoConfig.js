@@ -8,6 +8,7 @@ import {
   Storefront, WhatsApp, Link, ContentCopy, OpenInNew,
   CloudUpload, Delete, CheckCircle, Info, Palette, GetApp,
   CheckCircleOutline, Cancel, LocationOn, Apartment,
+  Instagram, Facebook,
 } from '@mui/icons-material';
 import { QRCodeCanvas } from 'qrcode.react';
 import apiClient from '../../api';
@@ -30,6 +31,8 @@ const CatalogoConfig = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [visibleMarketplace, setVisibleMarketplace] = useState(false);
   const [categoriaMarketplace, setCategoriaMarketplace] = useState('');
+  const [instagramUrl, setInstagramUrl] = useState('');
+  const [facebookUrl, setFacebookUrl] = useState('');
 
   const CATEGORIAS_MARKETPLACE = [
     'Calzado', 'Ropa y Accesorios', 'Alimentos y Bebidas', 'Restaurantes',
@@ -57,6 +60,8 @@ const CatalogoConfig = () => {
       setDireccionRecogida(emp.ciudad || '');
       setVisibleMarketplace(Boolean(emp.visible_marketplace));
       setCategoriaMarketplace(emp.categoria_marketplace || '');
+      setInstagramUrl(emp.instagram_url || '');
+      setFacebookUrl(emp.facebook_url || '');
     } catch (error) {
       toast.error("Error al cargar configuración");
     } finally {
@@ -100,6 +105,15 @@ const CatalogoConfig = () => {
       toast.warning("Elige una categoría para aparecer en el Centro Comercial Virtual");
       return;
     }
+    const urlRegex = /^https?:\/\/.+/i;
+    if (instagramUrl.trim() && !urlRegex.test(instagramUrl.trim())) {
+      toast.warning("El link de Instagram debe empezar con https://");
+      return;
+    }
+    if (facebookUrl.trim() && !urlRegex.test(facebookUrl.trim())) {
+      toast.warning("El link de Facebook debe empezar con https://");
+      return;
+    }
 
     try {
       setSaving(true);
@@ -112,6 +126,8 @@ const CatalogoConfig = () => {
         direccion_recogida: direccionRecogida.trim() || null,
         visible_marketplace: visibleMarketplace,
         categoria_marketplace: categoriaMarketplace || null,
+        instagram_url: instagramUrl.trim() || null,
+        facebook_url: facebookUrl.trim() || null,
       });
       toast.success("Configuración guardada exitosamente");
     } catch (error) {
@@ -378,6 +394,47 @@ const CatalogoConfig = () => {
                   helperText={`${descripcion.length}/200 caracteres`}
                   inputProps={{ maxLength: 200 }}
                 />
+              </Box>
+
+              <Box>
+                <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1 }}>
+                  Redes Sociales (Opcional)
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      placeholder="https://instagram.com/tu_tienda"
+                      value={instagramUrl}
+                      onChange={(e) => setInstagramUrl(e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Instagram fontSize="small" sx={{ color: '#E1306C' }} />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      placeholder="https://facebook.com/tu_tienda"
+                      value={facebookUrl}
+                      onChange={(e) => setFacebookUrl(e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Facebook fontSize="small" sx={{ color: '#1877F2' }} />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Grid>
+                </Grid>
+                <Typography sx={{ fontSize: 11.5, color: 'text.secondary', mt: 0.5 }}>
+                  Se mostrarán como íconos en tu catálogo virtual, junto al logo y al final de la página.
+                </Typography>
               </Box>
 
               {!esRestaurante && (
