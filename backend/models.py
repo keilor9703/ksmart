@@ -1882,6 +1882,12 @@ class Cita(Base, TenantMixin):
     solapada en ese rango.
     """
     __tablename__ = "citas"
+    __table_args__ = (
+        # El calendario (admin y disponibilidad) siempre filtra por
+        # empresa_id + rango de fecha_inicio y ordena por fecha_inicio —
+        # mismo patrón que ix_ventas_empresa_fecha.
+        Index("ix_citas_empresa_fecha", "empresa_id", "fecha_inicio"),
+    )
     id           = Column(Integer, primary_key=True, index=True)
     producto_id  = Column(Integer, ForeignKey("productos.id"), nullable=False, index=True)
     cliente_id   = Column(Integer, ForeignKey("clientes.id"), nullable=True, index=True)

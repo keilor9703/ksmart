@@ -2630,6 +2630,16 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v120)
                 logger.info("V120 (redes sociales del catálogo virtual) aplicada.")
 
+            # V121 — Índice compuesto en citas (empresa_id, fecha_inicio),
+            # mismo patrón que ix_ventas_empresa_fecha: el calendario de
+            # Agendamiento (admin y disponibilidad) siempre filtra por
+            # empresa + rango de fecha y ordena por fecha_inicio.
+            migration_v121 = "v121_indice_citas_empresa_fecha"
+            if not _migration_already_applied(conn, migration_v121):
+                _create_index_safe(conn, "ix_citas_empresa_fecha", "citas", ["empresa_id", "fecha_inicio"])
+                _mark_migration_applied(conn, migration_v121)
+                logger.info("V121 (índice compuesto en citas) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

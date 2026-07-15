@@ -17,7 +17,8 @@ from datetime import datetime, timedelta, time, date
 from zoneinfo import ZoneInfo
 from typing import List, Optional
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer, joinedload
+from sqlalchemy import func
 
 import models, schemas
 
@@ -92,14 +93,37 @@ def _es_dia_laboral(cfg: models.AgendamientoConfig, dia: date) -> bool:
 # Servicios agendables y asignación de trabajadores
 # ──────────────────────────────────────────────────────────────────────────────
 def get_servicios_agendables(db: Session, empresa_id: int, solo_activos: bool = False) -> List[models.Producto]:
-    q = db.query(models.Producto).filter(models.Producto.empresa_id == empresa_id)
+    # `Producto.imagenes` guarda una lista de fotos en base64 — puede pesar
+    # varios cientos de KB por producto. El portal público (info_publica)
+    # solo necesita un CONTEO de imágenes, así que se difiere la columna
+    # (no se trae por la red) y el conteo se calcula en SQL con
+    # json_array_length, en vez de deserializar el blob completo en Python
+    # solo para hacer un len(). Esto es lo que hacía lenta la carga del
+    # portal: cada visita traía todas las fotos de todos los servicios.
+    q = (
+        db.query(
+            models.Producto,
+            func.coalesce(func.json_array_length(models.Producto.imagenes), 0),
+        )
+        .options(defer(models.Producto.imagenes))
+        .filter(models.Producto.empresa_id == empresa_id)
+    )
     if solo_activos:
         q = q.filter(models.Producto.agendable == True, models.Producto.vigente == True)
     else:
         q = q.filter(models.Producto.es_servicio == True)
-    productos = q.order_by(models.Producto.nombre).all()
+    rows = q.order_by(models.Producto.nombre).all()
+
+    productos = []
+    for prod, image_count in rows:
+        prod.image_count = image_count or 0
+        productos.append(prod)
+
+    # Trabajadores de TODOS los servicios en 2 queries (antes: 2 queries POR
+    # servicio, N+1 — con 10 servicios eran 20+ queries solo para esto).
+    trabajadores_por_producto = _trabajadores_de_servicios(db, empresa_id, [p.id for p in productos])
     for p in productos:
-        p.trabajadores = _trabajadores_de_servicio(db, empresa_id, p.id)
+        p.trabajadores = trabajadores_por_producto.get(p.id, [])
     return productos
 
 
@@ -116,6 +140,32 @@ def _trabajadores_de_servicio(db: Session, empresa_id: int, producto_id: int) ->
     if not ids:
         return []
     return db.query(models.User).filter(models.User.id.in_(ids)).all()
+
+
+def _trabajadores_de_servicios(db: Session, empresa_id: int, producto_ids: List[int]) -> dict:
+    """Versión en lote de _trabajadores_de_servicio — una sola consulta de
+    asignaciones y una sola de usuarios para TODOS los producto_ids, en vez
+    de 2 por servicio."""
+    if not producto_ids:
+        return {}
+    asignaciones = (
+        db.query(models.ServicioTrabajador)
+        .filter(
+            models.ServicioTrabajador.empresa_id == empresa_id,
+            models.ServicioTrabajador.producto_id.in_(producto_ids),
+            models.ServicioTrabajador.activo == True,
+        ).all()
+    )
+    user_ids = {a.user_id for a in asignaciones}
+    if not user_ids:
+        return {}
+    usuarios_por_id = {u.id: u for u in db.query(models.User).filter(models.User.id.in_(user_ids)).all()}
+    resultado = {}
+    for a in asignaciones:
+        u = usuarios_por_id.get(a.user_id)
+        if u:
+            resultado.setdefault(a.producto_id, []).append(u)
+    return resultado
 
 
 def configurar_servicio_agendable(db: Session, empresa_id: int, producto_id: int, data) -> Optional[models.Producto]:
@@ -264,7 +314,20 @@ def get_citas(
     desde: Optional[date] = None, hasta: Optional[date] = None,
     user_id: Optional[int] = None, estado: Optional[str] = None,
 ) -> List[models.Cita]:
-    q = db.query(models.Cita).filter(models.Cita.empresa_id == empresa_id)
+    # joinedload de las 3 relaciones — todas many-to-one (una sola fila por
+    # cita), así que a diferencia del caso de ventas.py no hay riesgo de
+    # fan-out cartesiano al combinarlas en una sola query. Antes cada
+    # relación se resolvía perezosamente por cita en _enriquecer_cita,
+    # multiplicando 1 query en hasta 1 + 3N.
+    q = (
+        db.query(models.Cita)
+        .options(
+            joinedload(models.Cita.producto),
+            joinedload(models.Cita.usuario),
+            joinedload(models.Cita.cliente),
+        )
+        .filter(models.Cita.empresa_id == empresa_id)
+    )
     if desde:
         q = q.filter(models.Cita.fecha_inicio >= datetime.combine(desde, time.min, tzinfo=BOGOTA_TZ))
     if hasta:
