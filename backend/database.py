@@ -2640,6 +2640,154 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v121)
                 logger.info("V121 (índice compuesto en citas) aplicada.")
 
+            # V122 — Taller de Mecánica: vehiculos, ordenes_taller,
+            # detalles_orden_taller. Nuevo tipo_negocio para talleres que
+            # reparan vehículos de clientes y/o compran-remanufactura-venden
+            # vehículos usados — ninguna tabla existente (Producción con
+            # receta fija, Órdenes de Trabajo sin costo) sirve para acumular
+            # un número abierto de gastos contra una unidad no fungible.
+            migration_v122 = "v122_taller_mecanica"
+            if not _migration_already_applied(conn, migration_v122):
+                if IS_SQLITE:
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS vehiculos_taller (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            empresa_id INTEGER NOT NULL,
+                            placa VARCHAR(20) NOT NULL,
+                            tipo VARCHAR(10) DEFAULT 'carro',
+                            marca VARCHAR(60) NULL,
+                            modelo VARCHAR(60) NULL,
+                            anio INTEGER NULL,
+                            color VARCHAR(40) NULL,
+                            kilometraje INTEGER NULL,
+                            origen VARCHAR(20) DEFAULT 'cliente',
+                            cliente_id INTEGER NULL REFERENCES clientes(id),
+                            foto_ingreso TEXT NULL,
+                            created_at DATETIME,
+                            UNIQUE(empresa_id, placa)
+                        )
+                    """))
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS ordenes_taller (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            empresa_id INTEGER NOT NULL,
+                            vehiculo_id INTEGER NOT NULL REFERENCES vehiculos_taller(id),
+                            tipo_orden VARCHAR(30) DEFAULT 'reparacion_cliente',
+                            mecanico_id INTEGER NULL REFERENCES users(id),
+                            estado VARCHAR(20) DEFAULT 'recibido',
+                            descripcion_problema TEXT NULL,
+                            diagnostico TEXT NULL,
+                            fecha_ingreso DATETIME,
+                            fecha_estimada_entrega DATETIME NULL,
+                            fecha_entrega_real DATETIME NULL,
+                            updated_at DATETIME,
+                            valor_cobrado REAL NULL,
+                            estado_pago VARCHAR(20) DEFAULT 'pendiente',
+                            precio_compra_vehiculo REAL NULL,
+                            precio_venta_sugerido REAL NULL,
+                            precio_venta_final REAL NULL,
+                            comprador_cliente_id INTEGER NULL REFERENCES clientes(id),
+                            venta_id INTEGER NULL REFERENCES ventas(id),
+                            notas_internas TEXT NULL
+                        )
+                    """))
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS detalles_orden_taller (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            empresa_id INTEGER NOT NULL,
+                            orden_id INTEGER NOT NULL REFERENCES ordenes_taller(id) ON DELETE CASCADE,
+                            tipo VARCHAR(20) DEFAULT 'repuesto',
+                            producto_id INTEGER NULL REFERENCES productos(id),
+                            descripcion VARCHAR(200) NOT NULL,
+                            cantidad REAL DEFAULT 1.0,
+                            costo_unitario REAL DEFAULT 0.0,
+                            subtotal REAL DEFAULT 0.0,
+                            fecha DATETIME
+                        )
+                    """))
+                else:
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS vehiculos_taller (
+                            id SERIAL PRIMARY KEY,
+                            empresa_id INTEGER NOT NULL,
+                            placa VARCHAR(20) NOT NULL,
+                            tipo VARCHAR(10) DEFAULT 'carro',
+                            marca VARCHAR(60) NULL,
+                            modelo VARCHAR(60) NULL,
+                            anio INTEGER NULL,
+                            color VARCHAR(40) NULL,
+                            kilometraje INTEGER NULL,
+                            origen VARCHAR(20) DEFAULT 'cliente',
+                            cliente_id INTEGER NULL REFERENCES clientes(id),
+                            foto_ingreso TEXT NULL,
+                            created_at TIMESTAMPTZ,
+                            UNIQUE(empresa_id, placa)
+                        )
+                    """))
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS ordenes_taller (
+                            id SERIAL PRIMARY KEY,
+                            empresa_id INTEGER NOT NULL,
+                            vehiculo_id INTEGER NOT NULL REFERENCES vehiculos_taller(id),
+                            tipo_orden VARCHAR(30) DEFAULT 'reparacion_cliente',
+                            mecanico_id INTEGER NULL REFERENCES users(id),
+                            estado VARCHAR(20) DEFAULT 'recibido',
+                            descripcion_problema TEXT NULL,
+                            diagnostico TEXT NULL,
+                            fecha_ingreso TIMESTAMPTZ,
+                            fecha_estimada_entrega TIMESTAMPTZ NULL,
+                            fecha_entrega_real TIMESTAMPTZ NULL,
+                            updated_at TIMESTAMPTZ,
+                            valor_cobrado FLOAT NULL,
+                            estado_pago VARCHAR(20) DEFAULT 'pendiente',
+                            precio_compra_vehiculo FLOAT NULL,
+                            precio_venta_sugerido FLOAT NULL,
+                            precio_venta_final FLOAT NULL,
+                            comprador_cliente_id INTEGER NULL REFERENCES clientes(id),
+                            venta_id INTEGER NULL REFERENCES ventas(id),
+                            notas_internas TEXT NULL
+                        )
+                    """))
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS detalles_orden_taller (
+                            id SERIAL PRIMARY KEY,
+                            empresa_id INTEGER NOT NULL,
+                            orden_id INTEGER NOT NULL REFERENCES ordenes_taller(id) ON DELETE CASCADE,
+                            tipo VARCHAR(20) DEFAULT 'repuesto',
+                            producto_id INTEGER NULL REFERENCES productos(id),
+                            descripcion VARCHAR(200) NOT NULL,
+                            cantidad FLOAT DEFAULT 1.0,
+                            costo_unitario FLOAT DEFAULT 0.0,
+                            subtotal FLOAT DEFAULT 0.0,
+                            fecha TIMESTAMPTZ
+                        )
+                    """))
+                _create_index_safe(conn, "ix_vehiculos_taller_empresa", "vehiculos_taller", ["empresa_id"])
+                _create_index_safe(conn, "ix_ordenes_taller_empresa_estado", "ordenes_taller", ["empresa_id", "estado"])
+                _create_index_safe(conn, "ix_ordenes_taller_vehiculo", "ordenes_taller", ["vehiculo_id"])
+                _create_index_safe(conn, "ix_detalles_orden_taller_orden", "detalles_orden_taller", ["orden_id"])
+
+                # Registrar el nuevo tipo_negocio en tipo_negocio_config (V78)
+                # para que aparezca como opción seleccionable en el panel SaaS.
+                taller_modulos_json = (
+                    '["/taller/ordenes","/taller/vehiculos","/clientes","/productos",'
+                    '"/inventario","/compras","/caja","/reportes","/admin/usuarios"]'
+                )
+                if IS_SQLITE:
+                    conn.execute(text("""
+                        INSERT OR IGNORE INTO tipo_negocio_config(tipo, label, modulos)
+                        VALUES(:tipo, :label, :modulos)
+                    """), {"tipo": "taller_mecanica", "label": "Taller de Mecánica", "modulos": taller_modulos_json})
+                else:
+                    conn.execute(text("""
+                        INSERT INTO tipo_negocio_config(tipo, label, modulos)
+                        VALUES(:tipo, :label, CAST(:modulos AS jsonb))
+                        ON CONFLICT(tipo) DO NOTHING
+                    """), {"tipo": "taller_mecanica", "label": "Taller de Mecánica", "modulos": taller_modulos_json})
+
+                _mark_migration_applied(conn, migration_v122)
+                logger.info("V122 (taller de mecánica) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

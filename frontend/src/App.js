@@ -95,6 +95,9 @@ const Agendamiento       = lazy(() => import('./features/agendamiento/Agendamien
 const AgendamientoConfig = lazy(() => import('./features/agendamiento/AgendamientoConfig'));
 const AgendarPublico     = lazy(() => import('./features/agendamiento/AgendarPublico'));
 
+const TallerOrdenes      = lazy(() => import('./features/taller/TallerOrdenes'));
+const TallerVehiculos    = lazy(() => import('./features/taller/TallerVehiculos'));
+
 // ─── Constantes de Layout ──────────────────────────────────────────────────────
 const SIDEBAR_FULL  = 240;
 const SIDEBAR_MINI  = 68;
@@ -440,6 +443,8 @@ const hasAccess = useCallback((path) => {
                     <Route path="/restaurante/reservas"    element={<ProtectedRoute path="/restaurante/reservas"    hasAccess={hasAccess}><ReservasRestaurante   /></ProtectedRoute>} />
                     <Route path="/agendamiento"            element={<ProtectedRoute path="/agendamiento"            hasAccess={hasAccess}><Agendamiento user={user} /></ProtectedRoute>} />
                     <Route path="/agendamiento/config"     element={<ProtectedRoute path="/agendamiento/config"     hasAccess={hasAccess}><AgendamientoConfig /></ProtectedRoute>} />
+                    <Route path="/taller/ordenes"          element={<ProtectedRoute path="/taller/ordenes"          hasAccess={hasAccess}><TallerOrdenes /></ProtectedRoute>} />
+                    <Route path="/taller/vehiculos"        element={<ProtectedRoute path="/taller/vehiculos"        hasAccess={hasAccess}><TallerVehiculos /></ProtectedRoute>} />
                     {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (
                       <>
                         <Route path="/superadmin/empresas" element={<GestionEmpresas />} />

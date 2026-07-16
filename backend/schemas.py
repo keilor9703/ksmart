@@ -3155,3 +3155,140 @@ class CitaFull(BaseModel):
     anticipo_monto: Optional[float] = None
     anticipo_pagado: bool = False
     model_config = ConfigDict(from_attributes=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TALLER DE MECÁNICA
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class VehiculoTallerCreate(BaseModel):
+    placa: str = Field(..., min_length=3, max_length=20)
+    tipo: str = "carro"  # moto | carro
+    marca: Optional[str] = None
+    modelo: Optional[str] = None
+    anio: Optional[int] = None
+    color: Optional[str] = None
+    kilometraje: Optional[int] = None
+    origen: str = "cliente"  # cliente | compra_reventa
+    cliente_id: Optional[int] = None
+    foto_ingreso: Optional[str] = None
+
+
+class VehiculoTallerUpdate(BaseModel):
+    marca: Optional[str] = None
+    modelo: Optional[str] = None
+    anio: Optional[int] = None
+    color: Optional[str] = None
+    kilometraje: Optional[int] = None
+    foto_ingreso: Optional[str] = None
+
+
+class VehiculoTallerOut(BaseModel):
+    id: int
+    placa: str
+    tipo: str
+    marca: Optional[str] = None
+    modelo: Optional[str] = None
+    anio: Optional[int] = None
+    color: Optional[str] = None
+    kilometraje: Optional[int] = None
+    origen: str
+    cliente_id: Optional[int] = None
+    cliente_nombre: Optional[str] = None
+    foto_ingreso: Optional[str] = None
+    created_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DetalleOrdenTallerCreate(BaseModel):
+    tipo: str = "repuesto"  # repuesto | mano_obra | servicio_externo
+    producto_id: Optional[int] = None
+    descripcion: str = Field(..., min_length=1, max_length=200)
+    cantidad: float = Field(1.0, gt=0)
+    costo_unitario: float = Field(..., ge=0)
+
+
+class DetalleOrdenTallerOut(BaseModel):
+    id: int
+    tipo: str
+    producto_id: Optional[int] = None
+    descripcion: str
+    cantidad: float
+    costo_unitario: float
+    subtotal: float
+    fecha: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OrdenTallerCreate(BaseModel):
+    vehiculo_id: Optional[int] = None       # si ya existe el vehículo
+    vehiculo: Optional[VehiculoTallerCreate] = None  # o crearlo junto con la orden
+    tipo_orden: str = "reparacion_cliente"  # reparacion_cliente | remanufactura_reventa
+    mecanico_id: Optional[int] = None
+    descripcion_problema: Optional[str] = None
+    fecha_estimada_entrega: Optional[datetime] = None
+    precio_compra_vehiculo: Optional[float] = None   # remanufactura_reventa
+
+
+class OrdenTallerUpdate(BaseModel):
+    mecanico_id: Optional[int] = None
+    diagnostico: Optional[str] = None
+    descripcion_problema: Optional[str] = None
+    fecha_estimada_entrega: Optional[datetime] = None
+    valor_cobrado: Optional[float] = None
+    precio_venta_sugerido: Optional[float] = None
+    notas_internas: Optional[str] = None
+
+
+class OrdenTallerEstadoUpdate(BaseModel):
+    estado: str
+    notificar_cliente: bool = True
+
+
+class OrdenTallerCerrarCliente(BaseModel):
+    """Cierre del flujo reparacion_cliente: cobra y entrega."""
+    valor_cobrado: float = Field(..., ge=0)
+    metodo_pago: Optional[str] = "Efectivo"
+
+
+class OrdenTallerCerrarReventa(BaseModel):
+    """Cierre del flujo remanufactura_reventa: vende el vehículo."""
+    precio_venta_final: float = Field(..., ge=0)
+    comprador_cliente_id: Optional[int] = None
+    metodo_pago: Optional[str] = "Efectivo"
+
+
+class OrdenTallerOut(BaseModel):
+    id: int
+    vehiculo_id: int
+    vehiculo: Optional[VehiculoTallerOut] = None
+    tipo_orden: str
+    mecanico_id: Optional[int] = None
+    mecanico_nombre: Optional[str] = None
+    estado: str
+    descripcion_problema: Optional[str] = None
+    diagnostico: Optional[str] = None
+    fecha_ingreso: Optional[datetime] = None
+    fecha_estimada_entrega: Optional[datetime] = None
+    fecha_entrega_real: Optional[datetime] = None
+    valor_cobrado: Optional[float] = None
+    estado_pago: str
+    precio_compra_vehiculo: Optional[float] = None
+    precio_venta_sugerido: Optional[float] = None
+    precio_venta_final: Optional[float] = None
+    venta_id: Optional[int] = None
+    notas_internas: Optional[str] = None
+    detalles: List[DetalleOrdenTallerOut] = []
+    costo_acumulado: float = 0.0
+    margen: Optional[float] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TallerStatsOut(BaseModel):
+    ordenes_activas: int = 0
+    vehiculos_en_reparacion: int = 0
+    vehiculos_en_reventa: int = 0
+    ingresos_servicios_mes: float = 0.0
+    invertido_reventa_mes: float = 0.0
+    vendido_reventa_mes: float = 0.0
+    margen_reventa_mes: float = 0.0

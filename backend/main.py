@@ -174,6 +174,8 @@ def initialize_default_data(db: Session):
         {"name": "Reportes Restaurante", "description": "Reportes de ventas y desempeño del restaurante.",   "frontend_path": "/restaurante/reportes"},
         {"name": "Agendamiento",         "description": "Agenda de citas de servicios por trabajador.",       "frontend_path": "/agendamiento"},
         {"name": "Config Agendamiento",  "description": "Servicios agendables y asignación de trabajadores.", "frontend_path": "/agendamiento/config"},
+        {"name": "Taller de Mecánica",   "description": "Órdenes de reparación y remanufactura/reventa de vehículos.", "frontend_path": "/taller/ordenes"},
+        {"name": "Vehículos del Taller", "description": "Vehículos registrados en el taller (clientes y reventa).",   "frontend_path": "/taller/vehiculos"},
     ]
 
     admin_role = crud.get_role_by_name(db, name="Admin", empresa_id=empresa_default.id)
