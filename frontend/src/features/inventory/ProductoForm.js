@@ -470,10 +470,28 @@ const ProductoForm = ({
 
     const start = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        // `facingMode: 'environment'` como string plano se trata como
+        // constraint EXACTA en algunos WebKit/iOS — si el navegador no
+        // encuentra una cámara que matchee exactamente, getUserMedia
+        // rechaza con OverconstrainedError y la cámara nunca abre (esto es
+        // lo que fallaba en iPhone). `{ ideal: 'environment' }` pide la
+        // trasera como preferencia, sin descartar el dispositivo si no
+        // puede garantizarla; y si aun así falla, se reintenta pidiendo
+        // cualquier cámara disponible en vez de rendirse.
+        let stream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } });
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        }
         if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
         streamRef.current = stream;
         if (videoRef.current) {
+          // Refuerzo además del atributo JSX playsInline — algunas
+          // versiones de Safari/iOS solo lo respetan si también se setea
+          // como atributo del DOM antes de asignar el stream.
+          videoRef.current.setAttribute('playsinline', 'true');
+          videoRef.current.setAttribute('webkit-playsinline', 'true');
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
         }
@@ -494,11 +512,16 @@ const ProductoForm = ({
           };
           rAFRef.current = requestAnimationFrame(tick);
         } else {
+          // BarcodeDetector no existe en Safari/iOS — este es el camino que
+          // SIEMPRE toma un iPhone. Se reutiliza el stream ya abierto arriba
+          // (con el fallback de constraints ya resuelto) en vez de dejar
+          // que zxing pida su propio stream con constraints que podrían
+          // volver a fallar igual que el getUserMedia original.
           const { BrowserMultiFormatReader } = await import('@zxing/browser');
           if (cancelled) return;
           const reader = new BrowserMultiFormatReader();
-          const controls = await reader.decodeFromConstraints(
-            { video: { facingMode: 'environment' } },
+          const controls = await reader.decodeFromStream(
+            stream,
             videoRef.current,
             (result) => { if (result && !cancelled) registerDetection(result.getText()); }
           );
@@ -887,7 +910,7 @@ const ProductoForm = ({
                       borderRadius: 2, overflow: 'hidden', bgcolor: '#000',
                       aspectRatio: '4/3',
                     }}>
-                      <video ref={videoRef} muted playsInline
+                      <video ref={videoRef} muted playsInline autoPlay
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       <Box sx={{
                         position: 'absolute', inset: '18% 12%',
