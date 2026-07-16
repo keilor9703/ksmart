@@ -275,6 +275,7 @@ const ProductoForm = ({
 
   // ── Agile barcode scan state ──
   const [cameraActive,  setCameraActive]  = useState(false);
+  const [scanConfirmCount, setScanConfirmCount] = useState(0);
   const [searchingCode, setSearchingCode] = useState(false);
   const [productStatus, setProductStatus] = useState(null); // 'existing' | 'suggested' | 'new'
   const videoRef        = useRef(null);
@@ -416,7 +417,7 @@ const ProductoForm = ({
       } else {
         setProductStatus('new');
         setCodigoBarras(code);
-        toast.info('Código no encontrado en catálogos públicos ni búsqueda web. Completa los datos del nuevo producto.');
+        toast.info('Código no encontrado en catálogos públicos. Completa los datos del nuevo producto.');
         playBeep('error');
         nombreRef.current?.focus();
       }
@@ -431,11 +432,38 @@ const ProductoForm = ({
   };
 
   useEffect(() => {
-    if (!cameraActive) { cleanupCamera(); return; }
+    if (!cameraActive) { cleanupCamera(); setScanConfirmCount(0); return; }
 
     const onBarcode = (code) => {
       setCameraActive(false);
+      setScanConfirmCount(0);
       handleSearchBarcode(code);
+    };
+
+    // El detector escanea ~10 veces/seg — aceptar la PRIMERA lectura cruda
+    // es lo que causaba capturar dígitos incorrectos: un frame borroso o a
+    // medio encuadre mientras el usuario todavía está acomodando la cámara
+    // se tomaba como definitivo. Ahora se exige que el mismo código se lea
+    // CONFIRM_READS veces seguidas antes de aceptarlo — en la práctica es
+    // una pequeña pausa (unos ~200-300ms sosteniendo el código quieto)
+    // que filtra lecturas parciales/erróneas sin sentirse lenta.
+    const CONFIRM_READS = 3;
+    let candidateCode = null;
+    let candidateCount = 0;
+    const registerDetection = (code) => {
+      if (!code) return false;
+      if (code === candidateCode) {
+        candidateCount += 1;
+      } else {
+        candidateCode = code;
+        candidateCount = 1;
+      }
+      setScanConfirmCount(candidateCount);
+      if (candidateCount >= CONFIRM_READS) {
+        onBarcode(candidateCode);
+        return true;
+      }
+      return false;
     };
 
     let cancelled = false;
@@ -459,7 +487,7 @@ const ProductoForm = ({
               lastCheck = ts;
               try {
                 const codes = await detector.detect(videoRef.current);
-                if (codes.length > 0) { onBarcode(codes[0].rawValue); return; }
+                if (codes.length > 0 && registerDetection(codes[0].rawValue)) return;
               } catch {}
             }
             rAFRef.current = requestAnimationFrame(tick);
@@ -472,7 +500,7 @@ const ProductoForm = ({
           const controls = await reader.decodeFromConstraints(
             { video: { facingMode: 'environment' } },
             videoRef.current,
-            (result) => { if (result && !cancelled) onBarcode(result.getText()); }
+            (result) => { if (result && !cancelled) registerDetection(result.getText()); }
           );
           zxingControlsRef.current = controls;
         }
@@ -870,7 +898,9 @@ const ProductoForm = ({
                         position: 'absolute', bottom: 8, left: 0, right: 0, textAlign: 'center',
                         color: '#fff', fontSize: 11, fontWeight: 600, textShadow: '0 1px 3px rgba(0,0,0,0.8)',
                       }}>
-                        Apunta la cámara al código de barras
+                        {scanConfirmCount > 0
+                          ? `Manteniendo lectura… ${scanConfirmCount}/3`
+                          : 'Apunta la cámara al código de barras y sostenla quieta'}
                       </Typography>
                     </Box>
                   </Grid>

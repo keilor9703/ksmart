@@ -116,33 +116,17 @@ async def fetch_barcode_monster(client: httpx.AsyncClient, barcode: str):
         _barcode_logger.warning("barcode.monster %s -> error: %s", barcode, e)
     return None
 
-async def fetch_web_search(client: httpx.AsyncClient, barcode: str):
-    """Último recurso: buscar el EAN en la web (DuckDuckGo HTML, gratuito) y
-    tomar el título del primer resultado — el mismo truco que usan las apps
-    gratuitas de escaneo para productos locales que no están en los catálogos.
-    """
-    import re, html as _html
-    try:
-        response = await client.get(
-            "https://html.duckduckgo.com/html/",
-            params={"q": barcode},
-            headers={**_LOOKUP_HEADERS, "Accept": "text/html"},
-        )
-        _barcode_logger.info("websearch %s -> HTTP %s", barcode, response.status_code)
-        if response.status_code != 200:
-            return None
-        titles = re.findall(r'class="result__a"[^>]*>(.*?)</a>', response.text, re.S)
-        for raw in titles[:5]:
-            title = _html.unescape(re.sub(r"<[^>]+>", "", raw)).strip()
-            # Descartar títulos que son solo el código o demasiado genéricos
-            limpio = title.replace(barcode, "").strip(" -|–·:")
-            if len(limpio) >= 8:
-                # Quitar sufijo de sitio ("… - Locatel Colombia", "… | Éxito")
-                limpio = re.split(r"\s+[|·]\s+", limpio)[0].strip()
-                return {"nombre": limpio[:150], "descripcion": "Encontrado por búsqueda web — verifica el nombre"}
-    except Exception as e:
-        _barcode_logger.warning("websearch %s -> error: %s", barcode, e)
-    return None
+# NOTA: existió un fetch_web_search() como último recurso — buscaba el EAN en
+# DuckDuckGo HTML y tomaba el título del primer resultado. Se quitó del
+# pipeline: es una búsqueda de texto libre, no una consulta por código de
+# barras real, así que cuando el producto no estaba en ningún catálogo
+# estructurado, con frecuencia devolvía el nombre de una página totalmente
+# no relacionada (un foro, un producto distinto que mencionaba el mismo
+# número, spam SEO) presentado con la misma confianza que un match real —
+# la causa raíz de "a veces encuentra productos completamente diferentes,
+# no asociados al código de barras". Sin catálogo estructurado que lo
+# reconozca, es más confiable dejar que el usuario complete los datos a
+# mano (flujo "producto nuevo") que arriesgar un nombre inventado.
 
 # ─── ENDPOINT PRINCIPAL ─────────────────────────────────────────────────────────
 
@@ -253,7 +237,6 @@ async def get_producto_por_barcode(
             fetch_openfacts_siblings(client, barcode),
             fetch_upcitemdb(client, barcode),
             fetch_barcode_monster(client, barcode),
-            fetch_web_search(client, barcode),
             return_exceptions=True,
         )
         for resultado_api in results:
