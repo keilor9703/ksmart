@@ -18,8 +18,10 @@ from zoneinfo import ZoneInfo
 from typing import List, Optional
 
 from sqlalchemy.orm import Session, defer, joinedload
-from sqlalchemy import func
+from sqlalchemy import func, cast
+from sqlalchemy.types import JSON as JSONType
 
+import json as _json
 import models, schemas
 
 BOGOTA_TZ = ZoneInfo("America/Bogota")
@@ -92,6 +94,17 @@ def _es_dia_laboral(cfg: models.AgendamientoConfig, dia: date) -> bool:
 # ──────────────────────────────────────────────────────────────────────────────
 # Servicios agendables y asignación de trabajadores
 # ──────────────────────────────────────────────────────────────────────────────
+def _python_image_count(imagenes) -> int:
+    if not imagenes:
+        return 0
+    if isinstance(imagenes, list):
+        return len(imagenes)
+    try:
+        return len(_json.loads(imagenes))
+    except Exception:
+        return 0
+
+
 def get_servicios_agendables(db: Session, empresa_id: int, solo_activos: bool = False) -> List[models.Producto]:
     # `Producto.imagenes` guarda una lista de fotos en base64 — puede pesar
     # varios cientos de KB por producto. El portal público (info_publica)
@@ -100,24 +113,41 @@ def get_servicios_agendables(db: Session, empresa_id: int, solo_activos: bool = 
     # json_array_length, en vez de deserializar el blob completo en Python
     # solo para hacer un len(). Esto es lo que hacía lenta la carga del
     # portal: cada visita traía todas las fotos de todos los servicios.
-    q = (
-        db.query(
-            models.Producto,
-            func.coalesce(func.json_array_length(models.Producto.imagenes), 0),
-        )
-        .options(defer(models.Producto.imagenes))
-        .filter(models.Producto.empresa_id == empresa_id)
-    )
+    #
+    # El cast(...) es obligatorio: en producción (Postgres) la columna
+    # `imagenes` quedó físicamente como TEXT desde una migración vieja
+    # (V44, anterior a declararla JSON en el modelo) — sin el cast,
+    # json_array_length(text) no matchea ninguna función de Postgres y
+    # revienta la consulta completa (500 en el portal público Y en el panel
+    # admin, porque ambos llaman esta misma función).
+    base = db.query(models.Producto).filter(models.Producto.empresa_id == empresa_id)
     if solo_activos:
-        q = q.filter(models.Producto.agendable == True, models.Producto.vigente == True)
+        base = base.filter(models.Producto.agendable == True, models.Producto.vigente == True)
     else:
-        q = q.filter(models.Producto.es_servicio == True)
-    rows = q.order_by(models.Producto.nombre).all()
+        base = base.filter(models.Producto.es_servicio == True)
+    base = base.order_by(models.Producto.nombre)
 
-    productos = []
-    for prod, image_count in rows:
-        prod.image_count = image_count or 0
-        productos.append(prod)
+    try:
+        rows = (
+            base.with_entities(
+                models.Producto,
+                func.coalesce(func.json_array_length(cast(models.Producto.imagenes, JSONType)), 0),
+            )
+            .options(defer(models.Producto.imagenes))
+            .all()
+        )
+        productos = []
+        for prod, image_count in rows:
+            prod.image_count = image_count or 0
+            productos.append(prod)
+    except Exception:
+        # Red de seguridad: si algún dato legado no es JSON válido (o el
+        # dialecto no soporta json_array_length), no se cae toda la
+        # página — se recurre al conteo en Python, más lento pero correcto.
+        db.rollback()
+        productos = base.all()
+        for p in productos:
+            p.image_count = _python_image_count(p.imagenes)
 
     # Trabajadores de TODOS los servicios en 2 queries (antes: 2 queries POR
     # servicio, N+1 — con 10 servicios eran 20+ queries solo para esto).
