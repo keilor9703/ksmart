@@ -805,6 +805,95 @@ const ProductoForm = ({
             </Box>
           </Box>
 
+          {/* § 0 — Escaneo Rápido: lo primero que ve el usuario al crear un
+              producto, ANTES de nombre/descripción — el flujo ágil es
+              escanear el código y dejar que se autocompleten nombre, SKU,
+              precio, etc. (ver handleSearchBarcode), no llenar el formulario
+              a mano y encontrarse con el escáner al final. Solo aplica a
+              productos físicos (los servicios no tienen código de barras). */}
+          {!esServicio && (
+            <SectionCard icon={<QrCodeScanner fontSize="small" />} title="Escaneo Rápido" accent="#10B981">
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={7}>
+                  <TextField
+                    label="Código de Barras"
+                    value={codigoBarras}
+                    onChange={e => setCodigoBarras(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSearchBarcode(codigoBarras.trim()); } }}
+                    autoFocus
+                    fullWidth
+                    placeholder="Escanea, escribe o usa la cámara…"
+                    inputProps={{ style: { fontFamily: 'monospace' } }}
+                    sx={getInputSx('#10B981')}
+                    InputProps={{
+                      startAdornment: <InputAdornment position="start"><QrCodeScanner fontSize="small" sx={{ color: 'text.secondary' }} /></InputAdornment>,
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          {searchingCode
+                            ? <CircularProgress size={18} />
+                            : (
+                              <SmartTooltip id="prod_scan_camera" title="Escanear con cámara" description="Activa la cámara para leer el código de barras automáticamente.">
+                                <IconButton
+                                  size="small"
+                                  onClick={handleToggleCamera}
+                                  disabled={!HAS_CAMERA}
+                                  sx={{ color: cameraActive ? '#EF4444' : '#10B981' }}
+                                >
+                                  <CameraAltIcon fontSize="small" />
+                                </IconButton>
+                              </SmartTooltip>
+                            )}
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                  <Typography sx={{ fontSize: 11.5, color: 'text.secondary', mt: 0.5 }}>
+                    Si el código ya existe, se autocompletan nombre, precio y demás datos.
+                  </Typography>
+                </Grid>
+
+                {cameraActive && (
+                  <Grid item xs={12} md={5}>
+                    <Box sx={{
+                      position: 'relative', width: '100%', maxWidth: 420, mx: 'auto',
+                      borderRadius: 2, overflow: 'hidden', bgcolor: '#000',
+                      aspectRatio: '4/3',
+                    }}>
+                      <video ref={videoRef} muted playsInline
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <Box sx={{
+                        position: 'absolute', inset: '18% 12%',
+                        border: '2px solid #10B981', borderRadius: 1.5,
+                        boxShadow: '0 0 0 2000px rgba(0,0,0,0.35)',
+                      }} />
+                      <Typography sx={{
+                        position: 'absolute', bottom: 8, left: 0, right: 0, textAlign: 'center',
+                        color: '#fff', fontSize: 11, fontWeight: 600, textShadow: '0 1px 3px rgba(0,0,0,0.8)',
+                      }}>
+                        Apunta la cámara al código de barras
+                      </Typography>
+                    </Box>
+                  </Grid>
+                )}
+
+                {productStatus && (
+                  <Grid item xs={12}>
+                    <Box sx={{
+                      display: 'flex', alignItems: 'center', gap: 1, p: 1.2, borderRadius: 2,
+                      bgcolor: alpha(STATUS_CONFIG[productStatus].color, 0.08),
+                      border: `1px solid ${alpha(STATUS_CONFIG[productStatus].color, 0.3)}`,
+                    }}>
+                      {React.createElement(STATUS_CONFIG[productStatus].icon, { sx: { fontSize: 18, color: STATUS_CONFIG[productStatus].color } })}
+                      <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: STATUS_CONFIG[productStatus].color }}>
+                        {STATUS_CONFIG[productStatus].label}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                )}
+              </Grid>
+            </SectionCard>
+          )}
+
           {/* ── 2-column grid ── */}
           <Grid container spacing={2.5} alignItems="flex-start">
 
@@ -876,8 +965,9 @@ const ProductoForm = ({
                         />
                       </Grid>
 
-                      {/* SKU + Código de Barras — fila compartida */}
-                      <Grid item xs={12} md={6}>
+                      {/* SKU — Código de Barras se movió a la sección de
+                          Escaneo Rápido, arriba de todo el formulario. */}
+                      <Grid item xs={12}>
                         <TextField
                           label="SKU / Código Interno"
                           value={sku}
@@ -889,79 +979,6 @@ const ProductoForm = ({
                           sx={getInputSx(accentColor)}
                         />
                       </Grid>
-
-                      <Grid item xs={12} md={6}>
-                        <TextField
-                          label="Código de Barras"
-                          value={codigoBarras}
-                          onChange={e => setCodigoBarras(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSearchBarcode(codigoBarras.trim()); } }}
-                          fullWidth
-                          placeholder="Escanea, escribe o usa la cámara…"
-                          inputProps={{ style: { fontFamily: 'monospace' } }}
-                          sx={getInputSx(accentColor)}
-                          InputProps={{
-                            startAdornment: <InputAdornment position="start"><QrCodeScanner fontSize="small" sx={{ color: 'text.secondary' }} /></InputAdornment>,
-                            endAdornment: (
-                              <InputAdornment position="end">
-                                {searchingCode
-                                  ? <CircularProgress size={18} />
-                                  : (
-                                    <SmartTooltip id="prod_scan_camera" title="Escanear con cámara" description="Activa la cámara para leer el código de barras automáticamente.">
-                                      <IconButton
-                                        size="small"
-                                        onClick={handleToggleCamera}
-                                        disabled={!HAS_CAMERA}
-                                        sx={{ color: cameraActive ? '#EF4444' : accentColor }}
-                                      >
-                                        <CameraAltIcon fontSize="small" />
-                                      </IconButton>
-                                    </SmartTooltip>
-                                  )}
-                              </InputAdornment>
-                            ),
-                          }}
-                        />
-                      </Grid>
-
-                      {cameraActive && (
-                        <Grid item xs={12}>
-                          <Box sx={{
-                            position: 'relative', width: '100%', maxWidth: 420, mx: 'auto',
-                            borderRadius: 2, overflow: 'hidden', bgcolor: '#000',
-                            aspectRatio: '4/3',
-                          }}>
-                            <video ref={videoRef} muted playsInline
-                              style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            <Box sx={{
-                              position: 'absolute', inset: '18% 12%',
-                              border: '2px solid #10B981', borderRadius: 1.5,
-                              boxShadow: '0 0 0 2000px rgba(0,0,0,0.35)',
-                            }} />
-                            <Typography sx={{
-                              position: 'absolute', bottom: 8, left: 0, right: 0, textAlign: 'center',
-                              color: '#fff', fontSize: 11, fontWeight: 600, textShadow: '0 1px 3px rgba(0,0,0,0.8)',
-                            }}>
-                              Apunta la cámara al código de barras
-                            </Typography>
-                          </Box>
-                        </Grid>
-                      )}
-
-                      {productStatus && (
-                        <Grid item xs={12}>
-                          <Box sx={{
-                            display: 'flex', alignItems: 'center', gap: 1, p: 1.2, borderRadius: 2,
-                            bgcolor: alpha(STATUS_CONFIG[productStatus].color, 0.08),
-                            border: `1px solid ${alpha(STATUS_CONFIG[productStatus].color, 0.3)}`,
-                          }}>
-                            {React.createElement(STATUS_CONFIG[productStatus].icon, { sx: { fontSize: 18, color: STATUS_CONFIG[productStatus].color } })}
-                            <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: STATUS_CONFIG[productStatus].color }}>
-                              {STATUS_CONFIG[productStatus].label}
-                            </Typography>
-                          </Box>
-                        </Grid>
-                      )}
                     </Grid>
                   )}
                 </Box>
