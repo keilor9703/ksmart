@@ -3,7 +3,7 @@ import {
   Box, Typography, Button, Chip, IconButton, CircularProgress, Grid,
   Card, Avatar, Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, MenuItem, Divider, Autocomplete, Tabs, Tab, Table, TableBody,
-  TableCell, TableHead, TableRow, Alert, InputAdornment, Tooltip, Badge,
+  TableCell, TableHead, TableRow, Alert, InputAdornment, Tooltip, Badge, Stack,
 } from '@mui/material';
 import {
   Build, DirectionsCar, TwoWheeler, Add, Close, AttachMoney, Engineering,
@@ -75,7 +75,7 @@ const ConfirmDialog = ({ open, onClose, onConfirm, title, message, confirmLabel 
 const NuevaOrdenDialog = ({ open, onClose, tipoOrden, clientes, onCreated }) => {
   const [placa, setPlaca] = useState('');
   const [tipo, setTipo] = useState('carro');
-  const [marca, setMarca] = useState(null);
+  const [marca, setMarca] = useState('');
   const [linea, setLinea] = useState('');
   const [anio, setAnio] = useState('');
   const [cliente, setCliente] = useState(null);
@@ -83,8 +83,10 @@ const NuevaOrdenDialog = ({ open, onClose, tipoOrden, clientes, onCreated }) => 
   const [precioCompra, setPrecioCompra] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  const modelOptions = useMemo(() => getModelOptions(marca), [marca]);
+
   const reset = () => {
-    setPlaca(''); setTipo('carro'); setMarca(null); setLinea(''); setAnio('');
+    setPlaca(''); setTipo('carro'); setMarca(''); setLinea(''); setAnio('');
     setCliente(null); setDescripcion(''); setPrecioCompra(null);
   };
 
@@ -130,41 +132,51 @@ const NuevaOrdenDialog = ({ open, onClose, tipoOrden, clientes, onCreated }) => 
         <IconButton size="small" onClick={onClose}><Close fontSize="small" /></IconButton>
       </DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-        <Grid container spacing={2}>
-          <Grid item xs={7}>
-            <TextField label="Placa *" fullWidth value={placa} onChange={(e) => setPlaca(e.target.value.toUpperCase())} />
-          </Grid>
-          <Grid item xs={5}>
-            <TextField select label="Tipo" fullWidth value={tipo} onChange={(e) => { setTipo(e.target.value); setMarca(null); setLinea(''); }}>
+        <Stack spacing={1.5}>
+          <TextField
+            fullWidth label="Placa *" value={placa}
+            onChange={(e) => setPlaca(e.target.value.toUpperCase().replace(/[\s-]/g, '').slice(0, 10))}
+            inputProps={{ style: { fontFamily: 'monospace', fontWeight: 700, letterSpacing: 2 } }}
+          />
+
+          <Stack direction="row" spacing={1.5}>
+            <TextField select label="Tipo" sx={{ flex: 1 }} value={tipo} onChange={(e) => { setTipo(e.target.value); setMarca(''); setLinea(''); }}>
               <MenuItem value="carro">Carro</MenuItem>
               <MenuItem value="moto">Moto</MenuItem>
             </TextField>
-          </Grid>
-          <Grid item xs={7}>
-            <Autocomplete
-              options={BRAND_OPTIONS}
-              value={marca}
-              onChange={(_, v) => { setMarca(v); setLinea(''); }}
-              renderInput={(params) => <TextField {...params} label="Marca" />}
-            />
-          </Grid>
-          <Grid item xs={5}>
             <TextField
-              label="Año" fullWidth type="number" value={anio}
+              label="Año" sx={{ flex: 1 }} type="number" value={anio}
               onChange={(e) => setAnio(e.target.value)}
               inputProps={{ min: 1970, max: new Date().getFullYear() + 1 }}
             />
-          </Grid>
-          <Grid item xs={12}>
+          </Stack>
+
+          <Stack direction="row" spacing={1.5}>
+            {/* Marca — mismo patrón que Parqueadero: freeSolo, filtra la Línea */}
             <Autocomplete
+              sx={{ flex: 1 }}
               freeSolo
-              options={getModelOptions(marca)}
+              options={BRAND_OPTIONS}
+              value={marca}
+              inputValue={marca}
+              onInputChange={(_, v) => setMarca(v)}
+              onChange={(_, v) => { setMarca(v || ''); setLinea(''); }}
+              renderInput={(params) => <TextField {...params} label="Marca" placeholder="Ej: Toyota, Yamaha…" />}
+            />
+            {/* Línea — filtrada por la marca elegida, igual que Parqueadero */}
+            <Autocomplete
+              sx={{ flex: 1 }}
+              freeSolo
+              options={modelOptions}
+              value={linea}
               inputValue={linea}
               onInputChange={(_, v) => setLinea(v)}
-              renderInput={(params) => <TextField {...params} label="Línea / Referencia (ej: Corolla, FZ 150)" />}
+              onChange={(_, v) => setLinea(v || '')}
+              noOptionsText={marca ? 'Sin líneas para esta marca' : 'Selecciona una marca primero'}
+              renderInput={(params) => <TextField {...params} label="Línea" placeholder="Ej: Corolla, FZ 150…" />}
             />
-          </Grid>
-        </Grid>
+          </Stack>
+        </Stack>
 
         {tipoOrden === 'reparacion_cliente' ? (
           <Autocomplete
@@ -595,8 +607,8 @@ const DetalleOrdenDialog = ({ open, onClose, orden, productos, onChanged }) => {
 const ColumnaEstado = ({ estado, ordenes, onSelect }) => {
   const meta = ESTADO_META[estado];
   return (
-    <Box sx={{ minWidth: 260, maxWidth: 280, flexShrink: 0 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.2, px: 0.5 }}>
+    <Box sx={{ minWidth: 0 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.2, px: 0.5, flexWrap: 'wrap' }}>
         <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: meta.color }} />
         <Typography sx={{ fontWeight: 800, fontSize: 13 }}>{meta.label}</Typography>
         <Badge badgeContent={ordenes.length} color="default" sx={{
@@ -737,7 +749,11 @@ const TallerOrdenes = () => {
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>
       ) : (
-        <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 1 }}>
+        <Box sx={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+          gap: 2,
+        }}>
           {[...columnas, 'cancelado'].map((estado) => (
             <ColumnaEstado key={estado} estado={estado} ordenes={ordenesPorEstado[estado] || []} onSelect={setSelectedOrden} />
           ))}
