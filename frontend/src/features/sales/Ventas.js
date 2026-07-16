@@ -165,7 +165,7 @@ const VentaCard = ({ venta, handleEdit, handleDelete, handleOpenDetails, handleO
         <Box sx={{ mb: 1.5 }}>
             {venta.detalles.map(d => (
                 <Typography key={d.id} sx={{ fontSize: 13, color: 'text.secondary', mb: 0.3 }}>
-                    • {d.producto?.nombre} × {d.cantidad}
+                    • {d.producto?.nombre || d.nombre_libre || 'Ítem'} × {d.cantidad}
                 </Typography>
             ))}
         </Box>
@@ -2142,10 +2142,10 @@ useEffect(() => {
                                                 const saldo = (v.total || 0) - (v.monto_pagado || 0);
                                                 const productosSummary = v.detalles?.length > 0
                                                     ? v.detalles.length === 1
-                                                        ? `${v.detalles[0].producto?.nombre || v.detalles[0].nombre_producto} ×${v.detalles[0].cantidad}`
-                                                        : `${v.detalles[0].producto?.nombre || v.detalles[0].nombre_producto} ×${v.detalles[0].cantidad} + ${v.detalles.length - 1} más`
+                                                        ? `${v.detalles[0].producto?.nombre || v.detalles[0].nombre_libre || 'Ítem'} ×${v.detalles[0].cantidad}`
+                                                        : `${v.detalles[0].producto?.nombre || v.detalles[0].nombre_libre || 'Ítem'} ×${v.detalles[0].cantidad} + ${v.detalles.length - 1} más`
                                                     : '—';
-                                                const productosTooltip = v.detalles?.map(d => `${d.producto?.nombre || d.nombre_producto} ×${d.cantidad}`).join('\n');
+                                                const productosTooltip = v.detalles?.map(d => `${d.producto?.nombre || d.nombre_libre || 'Ítem'} ×${d.cantidad}`).join('\n');
                                                 const fechaVenta = new Date(v.fecha + (v.fecha?.endsWith('Z') ? '' : 'Z'));
                                                 const fechaStr = fechaVenta.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
                                                 const horaStr  = fechaVenta.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
