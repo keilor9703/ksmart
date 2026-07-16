@@ -1,17 +1,28 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box, Typography, Button, Chip, IconButton, CircularProgress, Grid,
   Card, Avatar, Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, MenuItem, Divider, Autocomplete, Tabs, Tab, Table, TableBody,
-  TableCell, TableHead, TableRow, Alert,
+  TableCell, TableHead, TableRow, Alert, InputAdornment, Tooltip, Badge,
 } from '@mui/material';
 import {
   Build, DirectionsCar, TwoWheeler, Add, Close, AttachMoney, Engineering,
-  Cancel, ArrowForward, Delete, Sell,
+  Cancel, ArrowForward, Delete, Sell, Info, Warning, CheckCircle,
+  RadioButtonUnchecked, PlayCircleFilled, CalculateOutlined,
 } from '@mui/icons-material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
+import CurrencyField from '../../components/common/CurrencyField';
+import { BRAND_OPTIONS, getModelOptions } from '../parking/vehicleBrands';
+
+// Un solo lugar con el flujo de estados por tipo de orden — la Kanban y el
+// stepper del detalle se generan a partir de esto, así que agregar un paso
+// nuevo el día de mañana no implica tocar el layout en dos sitios distintos.
+const FLUJO_COLUMNAS = {
+  reparacion_cliente:     ['recibido', 'diagnostico', 'en_reparacion', 'listo', 'entregado'],
+  remanufactura_reventa:  ['recibido', 'diagnostico', 'en_reparacion', 'listo', 'vendido'],
+};
 
 const ESTADO_META = {
   recibido:      { label: 'Recibido',      color: '#2563EB' },
@@ -31,31 +42,50 @@ const NEXT_ESTADO = {
 
 const fmt = (v) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v || 0);
 
-const EstadoChip = ({ estado }) => {
+const EstadoChip = ({ estado, size = 'small' }) => {
   const meta = ESTADO_META[estado] || { label: estado, color: '#9CA3AF' };
   return (
     <Chip
       label={meta.label}
-      size="small"
-      sx={{ bgcolor: alpha(meta.color, 0.12), color: meta.color, fontWeight: 700, fontSize: 11 }}
+      size={size}
+      sx={{ bgcolor: alpha(meta.color, 0.12), color: meta.color, fontWeight: 700, fontSize: size === 'small' ? 11 : 12 }}
     />
   );
 };
+
+// ─── Diálogo de confirmación genérico (para "Cancelar orden") ─────────────
+const ConfirmDialog = ({ open, onClose, onConfirm, title, message, confirmLabel = 'Confirmar', loading }) => (
+  <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+    <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Warning sx={{ color: '#EF4444' }} /> {title}
+    </DialogTitle>
+    <DialogContent>
+      <Typography fontSize={13.5} color="text.secondary">{message}</Typography>
+    </DialogContent>
+    <DialogActions sx={{ px: 3, pb: 2 }}>
+      <Button onClick={onClose} sx={{ color: 'text.secondary' }}>Volver</Button>
+      <Button onClick={onConfirm} variant="contained" color="error" disabled={loading} sx={{ borderRadius: 2, fontWeight: 700 }}>
+        {loading ? <CircularProgress size={18} color="inherit" /> : confirmLabel}
+      </Button>
+    </DialogActions>
+  </Dialog>
+);
 
 // ─── Diálogo: nueva orden (vehículo + orden) ──────────────────────────────
 const NuevaOrdenDialog = ({ open, onClose, tipoOrden, clientes, onCreated }) => {
   const [placa, setPlaca] = useState('');
   const [tipo, setTipo] = useState('carro');
-  const [marca, setMarca] = useState('');
-  const [modelo, setModelo] = useState('');
+  const [marca, setMarca] = useState(null);
+  const [linea, setLinea] = useState('');
+  const [anio, setAnio] = useState('');
   const [cliente, setCliente] = useState(null);
   const [descripcion, setDescripcion] = useState('');
-  const [precioCompra, setPrecioCompra] = useState('');
+  const [precioCompra, setPrecioCompra] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const reset = () => {
-    setPlaca(''); setTipo('carro'); setMarca(''); setModelo('');
-    setCliente(null); setDescripcion(''); setPrecioCompra('');
+    setPlaca(''); setTipo('carro'); setMarca(null); setLinea(''); setAnio('');
+    setCliente(null); setDescripcion(''); setPrecioCompra(null);
   };
 
   const handleSave = async () => {
@@ -70,13 +100,14 @@ const NuevaOrdenDialog = ({ open, onClose, tipoOrden, clientes, onCreated }) => 
           placa: placa.trim().toUpperCase(),
           tipo,
           marca: marca || null,
-          modelo: modelo || null,
+          modelo: linea || null,
+          anio: anio ? Number(anio) : null,
           origen: tipoOrden === 'remanufactura_reventa' ? 'compra_reventa' : 'cliente',
           cliente_id: cliente?.id || null,
         },
         tipo_orden: tipoOrden,
         descripcion_problema: descripcion || null,
-        precio_compra_vehiculo: precioCompra ? Number(precioCompra) : null,
+        precio_compra_vehiculo: precioCompra || null,
       };
       const res = await apiClient.post('/taller/ordenes', payload);
       toast.success('Orden creada correctamente');
@@ -104,16 +135,34 @@ const NuevaOrdenDialog = ({ open, onClose, tipoOrden, clientes, onCreated }) => 
             <TextField label="Placa *" fullWidth value={placa} onChange={(e) => setPlaca(e.target.value.toUpperCase())} />
           </Grid>
           <Grid item xs={5}>
-            <TextField select label="Tipo" fullWidth value={tipo} onChange={(e) => setTipo(e.target.value)}>
+            <TextField select label="Tipo" fullWidth value={tipo} onChange={(e) => { setTipo(e.target.value); setMarca(null); setLinea(''); }}>
               <MenuItem value="carro">Carro</MenuItem>
               <MenuItem value="moto">Moto</MenuItem>
             </TextField>
           </Grid>
-          <Grid item xs={6}>
-            <TextField label="Marca" fullWidth value={marca} onChange={(e) => setMarca(e.target.value)} />
+          <Grid item xs={7}>
+            <Autocomplete
+              options={BRAND_OPTIONS}
+              value={marca}
+              onChange={(_, v) => { setMarca(v); setLinea(''); }}
+              renderInput={(params) => <TextField {...params} label="Marca" />}
+            />
           </Grid>
-          <Grid item xs={6}>
-            <TextField label="Modelo" fullWidth value={modelo} onChange={(e) => setModelo(e.target.value)} />
+          <Grid item xs={5}>
+            <TextField
+              label="Año" fullWidth type="number" value={anio}
+              onChange={(e) => setAnio(e.target.value)}
+              inputProps={{ min: 1970, max: new Date().getFullYear() + 1 }}
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <Autocomplete
+              freeSolo
+              options={getModelOptions(marca)}
+              inputValue={linea}
+              onInputChange={(_, v) => setLinea(v)}
+              renderInput={(params) => <TextField {...params} label="Línea / Referencia (ej: Corolla, FZ 150)" />}
+            />
           </Grid>
         </Grid>
 
@@ -126,10 +175,10 @@ const NuevaOrdenDialog = ({ open, onClose, tipoOrden, clientes, onCreated }) => 
             renderInput={(params) => <TextField {...params} label="Cliente (dueño del vehículo)" placeholder="Busca por nombre…" />}
           />
         ) : (
-          <TextField
-            label="Precio de compra del vehículo *" fullWidth type="number"
-            value={precioCompra} onChange={(e) => setPrecioCompra(e.target.value)}
-            InputProps={{ startAdornment: '$' }}
+          <CurrencyField
+            label="Precio de compra del vehículo *"
+            value={precioCompra}
+            onChange={setPrecioCompra}
           />
         )}
 
@@ -149,28 +198,138 @@ const NuevaOrdenDialog = ({ open, onClose, tipoOrden, clientes, onCreated }) => 
   );
 };
 
+// ─── Sub-diálogo de cierre: cobrar (cliente) o vender (reventa), con
+//     calculadora de margen bidireccional para la reventa ─────────────────
+const CerrarOrdenDialog = ({ open, onClose, orden, esReventa, onClosed }) => {
+  const costoBase = orden?.costo_acumulado || 0;
+  const [valor, setValor] = useState(null);
+  const [margenPct, setMargenPct] = useState('');
+  const [metodoPago, setMetodoPago] = useState('Efectivo');
+  const [closing, setClosing] = useState(false);
+
+  useEffect(() => {
+    if (!open || !orden) return;
+    const sugerido = esReventa ? orden.precio_venta_sugerido : null;
+    setValor(sugerido || null);
+    if (esReventa && sugerido && costoBase > 0) {
+      setMargenPct((((sugerido - costoBase) / costoBase) * 100).toFixed(1));
+    } else {
+      setMargenPct('');
+    }
+    setMetodoPago('Efectivo');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, orden?.id]);
+
+  if (!orden) return null;
+
+  const utilidad = valor != null ? valor - costoBase : null;
+
+  const handleMargenChange = (raw) => {
+    setMargenPct(raw);
+    const pct = Number(raw);
+    if (raw !== '' && !isNaN(pct) && costoBase > 0) {
+      setValor(Math.round(costoBase * (1 + pct / 100)));
+    }
+  };
+
+  const handleValorChange = (num) => {
+    setValor(num);
+    if (num != null && costoBase > 0) {
+      setMargenPct((((num - costoBase) / costoBase) * 100).toFixed(1));
+    }
+  };
+
+  const handleCerrar = async () => {
+    if (!valor) { toast.warning('Indica el valor'); return; }
+    setClosing(true);
+    try {
+      const url = esReventa ? `/taller/ordenes/${orden.id}/cerrar-reventa` : `/taller/ordenes/${orden.id}/cerrar-cliente`;
+      const payload = esReventa
+        ? { precio_venta_final: valor, metodo_pago: metodoPago }
+        : { valor_cobrado: valor, metodo_pago: metodoPago };
+      const res = await apiClient.post(url, payload);
+      toast.success(esReventa ? '¡Vehículo vendido!' : '¡Servicio cobrado y entregado!');
+      onClosed(res.data);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'No se pudo cerrar la orden');
+    } finally {
+      setClosing(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        {esReventa ? 'Vender vehículo' : 'Cobrar y entregar'}
+        <IconButton size="small" onClick={onClose}><Close fontSize="small" /></IconButton>
+      </DialogTitle>
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 1.2, borderRadius: 2, bgcolor: 'action.hover' }}>
+          <Typography fontSize={12.5} color="text.secondary">Costo acumulado</Typography>
+          <Typography fontWeight={800} fontSize={13}>{fmt(costoBase)}</Typography>
+        </Box>
+
+        {esReventa && (
+          <TextField
+            label="Margen de ganancia deseado"
+            type="number"
+            fullWidth
+            value={margenPct}
+            onChange={(e) => handleMargenChange(e.target.value)}
+            helperText="Calcula el precio de venta sugerido a partir del costo — o ajusta el precio abajo y el margen se recalcula solo."
+            InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+          />
+        )}
+
+        <CurrencyField
+          label={esReventa ? 'Precio de venta final' : 'Valor a cobrar'}
+          value={valor}
+          onChange={handleValorChange}
+        />
+
+        {valor != null && costoBase > 0 && (
+          <Alert severity={utilidad >= 0 ? 'success' : 'error'} icon={<CalculateOutlined />} sx={{ borderRadius: 2, fontSize: 12.5 }}>
+            Margen: <strong>{(((valor - costoBase) / costoBase) * 100).toFixed(1)}%</strong> · Utilidad: <strong>{fmt(utilidad)}</strong>
+          </Alert>
+        )}
+
+        <TextField select label="Método de pago" fullWidth value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)}>
+          {['Efectivo', 'Transferencia', 'Nequi', 'Daviplata', 'Tarjeta'].map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+        </TextField>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button fullWidth variant="contained" onClick={handleCerrar} disabled={closing}
+          sx={{ bgcolor: '#059669', '&:hover': { bgcolor: '#047857' }, borderRadius: 2, fontWeight: 700 }}>
+          {closing ? <CircularProgress size={20} color="inherit" /> : 'Confirmar'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
 // ─── Diálogo: detalle de la orden ──────────────────────────────────────────
-const DetalleOrdenDialog = ({ open, onClose, orden, productos, mecanicos, onChanged }) => {
+const DetalleOrdenDialog = ({ open, onClose, orden, productos, onChanged }) => {
   const theme = useTheme();
   const [tipoDetalle, setTipoDetalle] = useState('repuesto');
   const [producto, setProducto] = useState(null);
   const [descripcion, setDescripcion] = useState('');
   const [cantidad, setCantidad] = useState('1');
-  const [costoUnitario, setCostoUnitario] = useState('');
+  const [costoUnitario, setCostoUnitario] = useState(null);
   const [addingDetalle, setAddingDetalle] = useState(false);
   const [cerrarOpen, setCerrarOpen] = useState(false);
-  const [valorCierre, setValorCierre] = useState('');
-  const [metodoPago, setMetodoPago] = useState('Efectivo');
-  const [closing, setClosing] = useState(false);
+  const [cancelarOpen, setCancelarOpen] = useState(false);
+  const [cancelando, setCancelando] = useState(false);
 
   useEffect(() => {
     setTipoDetalle('repuesto'); setProducto(null); setDescripcion('');
-    setCantidad('1'); setCostoUnitario(''); setValorCierre('');
+    setCantidad('1'); setCostoUnitario(null);
   }, [orden?.id]);
 
   if (!orden) return null;
   const esReventa = orden.tipo_orden === 'remanufactura_reventa';
   const cerrada = ['entregado', 'vendido', 'cancelado'].includes(orden.estado);
+  const columnas = FLUJO_COLUMNAS[orden.tipo_orden] || FLUJO_COLUMNAS.reparacion_cliente;
+  const pasoActualIdx = columnas.indexOf(orden.estado);
 
   const handleAgregarDetalle = async () => {
     if (!descripcion.trim() || !costoUnitario) { toast.warning('Completa descripción y costo'); return; }
@@ -181,11 +340,11 @@ const DetalleOrdenDialog = ({ open, onClose, orden, productos, mecanicos, onChan
         producto_id: tipoDetalle === 'repuesto' ? (producto?.id || null) : null,
         descripcion: descripcion.trim(),
         cantidad: Number(cantidad) || 1,
-        costo_unitario: Number(costoUnitario),
+        costo_unitario: costoUnitario,
       });
       toast.success('Costo agregado');
       onChanged(res.data);
-      setProducto(null); setDescripcion(''); setCantidad('1'); setCostoUnitario('');
+      setProducto(null); setDescripcion(''); setCantidad('1'); setCostoUnitario(null);
     } catch (err) {
       toast.error(err?.response?.data?.detail || 'Error al agregar el costo');
     } finally {
@@ -213,203 +372,279 @@ const DetalleOrdenDialog = ({ open, onClose, orden, productos, mecanicos, onChan
     }
   };
 
-  const handleCerrar = async () => {
-    if (!valorCierre) { toast.warning('Indica el valor'); return; }
-    setClosing(true);
+  const handleConfirmarCancelar = async () => {
+    setCancelando(true);
     try {
-      const url = esReventa ? `/taller/ordenes/${orden.id}/cerrar-reventa` : `/taller/ordenes/${orden.id}/cerrar-cliente`;
-      const payload = esReventa
-        ? { precio_venta_final: Number(valorCierre), metodo_pago: metodoPago }
-        : { valor_cobrado: Number(valorCierre), metodo_pago: metodoPago };
-      const res = await apiClient.post(url, payload);
-      toast.success(esReventa ? '¡Vehículo vendido!' : '¡Servicio cobrado y entregado!');
+      const res = await apiClient.patch(`/taller/ordenes/${orden.id}/estado`, { estado: 'cancelado', notificar_cliente: false });
+      toast.success('Orden cancelada');
       onChanged(res.data);
-      setCerrarOpen(false);
+      setCancelarOpen(false);
     } catch (err) {
-      toast.error(err?.response?.data?.detail || 'No se pudo cerrar la orden');
+      toast.error(err?.response?.data?.detail || 'No se pudo cancelar');
     } finally {
-      setClosing(false);
+      setCancelando(false);
     }
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
-      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
-          <Avatar sx={{ bgcolor: alpha('#EA580C', 0.12), color: '#EA580C', width: 40, height: 40 }}>
-            {orden.vehiculo?.tipo === 'moto' ? <TwoWheeler /> : <DirectionsCar />}
-          </Avatar>
-          <Box>
-            <Typography fontWeight={800}>{orden.vehiculo?.placa}</Typography>
-            <Typography fontSize={12} color="text.secondary">
-              {orden.vehiculo?.marca} {orden.vehiculo?.modelo}
-            </Typography>
-          </Box>
-        </Box>
-        <IconButton size="small" onClick={onClose}><Close fontSize="small" /></IconButton>
-      </DialogTitle>
-      <DialogContent sx={{ pt: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          <EstadoChip estado={orden.estado} />
-          {!cerrada && NEXT_ESTADO[orden.estado] && (
-            <Button size="small" endIcon={<ArrowForward />} onClick={() => handleCambiarEstado(NEXT_ESTADO[orden.estado])}
-              sx={{ fontWeight: 700 }}>
-              Pasar a {ESTADO_META[NEXT_ESTADO[orden.estado]]?.label}
-            </Button>
-          )}
-        </Box>
-
-        {orden.descripcion_problema && (
-          <Alert severity="info" sx={{ borderRadius: 2, mb: 2, fontSize: 12.5 }}>{orden.descripcion_problema}</Alert>
-        )}
-
-        <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1 }}>
-          {esReventa ? 'Costos de remanufactura' : 'Repuestos y mano de obra'}
-        </Typography>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>Descripción</TableCell>
-              <TableCell align="right">Cant.</TableCell>
-              <TableCell align="right">Subtotal</TableCell>
-              <TableCell />
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {esReventa && orden.precio_compra_vehiculo && (
-              <TableRow>
-                <TableCell sx={{ fontStyle: 'italic', color: 'text.secondary' }}>Compra del vehículo</TableCell>
-                <TableCell align="right">—</TableCell>
-                <TableCell align="right">{fmt(orden.precio_compra_vehiculo)}</TableCell>
-                <TableCell />
-              </TableRow>
-            )}
-            {(orden.detalles || []).map((d) => (
-              <TableRow key={d.id}>
-                <TableCell sx={{ fontSize: 12.5 }}>{d.descripcion}</TableCell>
-                <TableCell align="right" sx={{ fontSize: 12.5 }}>{d.cantidad}</TableCell>
-                <TableCell align="right" sx={{ fontSize: 12.5, fontWeight: 700 }}>{fmt(d.subtotal)}</TableCell>
-                <TableCell align="right">
-                  {!cerrada && (
-                    <IconButton size="small" onClick={() => handleEliminarDetalle(d.id)}>
-                      <Delete sx={{ fontSize: 14 }} />
-                    </IconButton>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-            {!(orden.detalles || []).length && !orden.precio_compra_vehiculo && (
-              <TableRow><TableCell colSpan={4} sx={{ color: 'text.disabled', fontSize: 12 }}>Sin costos registrados aún</TableCell></TableRow>
-            )}
-          </TableBody>
-        </Table>
-
-        {!cerrada && (
-          <Box sx={{ mt: 1.5, p: 1.5, borderRadius: 2, bgcolor: alpha(theme.palette.text.primary, 0.03) }}>
-            <Grid container spacing={1} alignItems="center">
-              <Grid item xs={12} sm={3}>
-                <TextField select size="small" fullWidth label="Tipo" value={tipoDetalle} onChange={(e) => setTipoDetalle(e.target.value)}>
-                  <MenuItem value="repuesto">Repuesto</MenuItem>
-                  <MenuItem value="mano_obra">Mano de obra</MenuItem>
-                  <MenuItem value="servicio_externo">Servicio externo</MenuItem>
-                </TextField>
-              </Grid>
-              <Grid item xs={12} sm={5}>
-                {tipoDetalle === 'repuesto' ? (
-                  <Autocomplete
-                    size="small"
-                    options={productos}
-                    getOptionLabel={(o) => o.nombre}
-                    value={producto}
-                    onChange={(_, v) => { setProducto(v); setDescripcion(v?.nombre || ''); if (v?.costo) setCostoUnitario(String(v.costo)); }}
-                    renderInput={(params) => <TextField {...params} label="Repuesto" />}
-                  />
-                ) : (
-                  <TextField size="small" fullWidth label="Descripción" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
-                )}
-              </Grid>
-              <Grid item xs={4} sm={1.5}>
-                <TextField size="small" fullWidth label="Cant." type="number" value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
-              </Grid>
-              <Grid item xs={5} sm={2}>
-                <TextField size="small" fullWidth label="Costo c/u" type="number" value={costoUnitario} onChange={(e) => setCostoUnitario(e.target.value)} />
-              </Grid>
-              <Grid item xs={3} sm={0.5}>
-                <IconButton onClick={handleAgregarDetalle} disabled={addingDetalle} sx={{ color: '#EA580C' }}>
-                  <Add />
-                </IconButton>
-              </Grid>
-            </Grid>
-            {tipoDetalle === 'repuesto' && (
-              <Typography sx={{ fontSize: 10.5, color: 'text.secondary', mt: 0.5 }}>
-                Al agregar un repuesto de inventario se descuenta su stock automáticamente.
+    <>
+      <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+            <Avatar sx={{ bgcolor: alpha('#EA580C', 0.12), color: '#EA580C', width: 40, height: 40 }}>
+              {orden.vehiculo?.tipo === 'moto' ? <TwoWheeler /> : <DirectionsCar />}
+            </Avatar>
+            <Box>
+              <Typography fontWeight={800}>{orden.vehiculo?.placa}</Typography>
+              <Typography fontSize={12} color="text.secondary">
+                {[orden.vehiculo?.marca, orden.vehiculo?.modelo, orden.vehiculo?.anio].filter(Boolean).join(' · ')}
               </Typography>
+            </Box>
+          </Box>
+          <IconButton size="small" onClick={onClose}><Close fontSize="small" /></IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          {/* ── Progreso de la orden — deja clarísimo en qué paso va y cuál sigue ── */}
+          {!cerrada ? (
+            <Box sx={{ mb: 2.5 }}>
+              <Typography sx={{ fontWeight: 700, fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, mb: 1 }}>
+                Etapa actual
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1.5 }}>
+                {columnas.map((col, i) => (
+                  <React.Fragment key={col}>
+                    <Tooltip title={ESTADO_META[col].label}>
+                      <Box sx={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.4, flex: 1,
+                      }}>
+                        {i < pasoActualIdx
+                          ? <CheckCircle sx={{ fontSize: 20, color: ESTADO_META[col].color }} />
+                          : i === pasoActualIdx
+                            ? <PlayCircleFilled sx={{ fontSize: 20, color: ESTADO_META[col].color }} />
+                            : <RadioButtonUnchecked sx={{ fontSize: 20, color: 'text.disabled' }} />}
+                        <Typography sx={{ fontSize: 9.5, fontWeight: i === pasoActualIdx ? 800 : 500, color: i === pasoActualIdx ? ESTADO_META[col].color : 'text.secondary', textAlign: 'center' }}>
+                          {ESTADO_META[col].label}
+                        </Typography>
+                      </Box>
+                    </Tooltip>
+                    {i < columnas.length - 1 && (
+                      <Box sx={{ flex: 0.6, height: 2, bgcolor: i < pasoActualIdx ? ESTADO_META[col].color : 'divider', mb: 2 }} />
+                    )}
+                  </React.Fragment>
+                ))}
+              </Box>
+              {NEXT_ESTADO[orden.estado] && (
+                <Button
+                  fullWidth variant="outlined" endIcon={<ArrowForward />}
+                  onClick={() => handleCambiarEstado(NEXT_ESTADO[orden.estado])}
+                  sx={{ borderRadius: 2, fontWeight: 700, borderColor: '#EA580C', color: '#EA580C', '&:hover': { borderColor: '#C2410C', bgcolor: alpha('#EA580C', 0.06) } }}
+                >
+                  Marcar como "{ESTADO_META[NEXT_ESTADO[orden.estado]].label}"
+                </Button>
+              )}
+            </Box>
+          ) : (
+            <Box sx={{ mb: 2.5 }}><EstadoChip estado={orden.estado} size="medium" /></Box>
+          )}
+
+          {orden.descripcion_problema && (
+            <Alert severity="info" icon={<Info />} sx={{ borderRadius: 2, mb: 2, fontSize: 12.5 }}>{orden.descripcion_problema}</Alert>
+          )}
+
+          {/* ── Costos — sección propia y claramente separada del progreso ── */}
+          <Box sx={{ p: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+            <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1 }}>
+              {esReventa ? '💰 Costos de remanufactura' : '🔧 Repuestos y mano de obra'}
+            </Typography>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Descripción</TableCell>
+                  <TableCell align="right">Cant.</TableCell>
+                  <TableCell align="right">Subtotal</TableCell>
+                  <TableCell />
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {esReventa && orden.precio_compra_vehiculo && (
+                  <TableRow>
+                    <TableCell sx={{ fontStyle: 'italic', color: 'text.secondary' }}>Compra del vehículo</TableCell>
+                    <TableCell align="right">—</TableCell>
+                    <TableCell align="right">{fmt(orden.precio_compra_vehiculo)}</TableCell>
+                    <TableCell />
+                  </TableRow>
+                )}
+                {(orden.detalles || []).map((d) => (
+                  <TableRow key={d.id}>
+                    <TableCell sx={{ fontSize: 12.5 }}>{d.descripcion}</TableCell>
+                    <TableCell align="right" sx={{ fontSize: 12.5 }}>{d.cantidad}</TableCell>
+                    <TableCell align="right" sx={{ fontSize: 12.5, fontWeight: 700 }}>{fmt(d.subtotal)}</TableCell>
+                    <TableCell align="right">
+                      {!cerrada && (
+                        <IconButton size="small" onClick={() => handleEliminarDetalle(d.id)}>
+                          <Delete sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {!(orden.detalles || []).length && !orden.precio_compra_vehiculo && (
+                  <TableRow><TableCell colSpan={4} sx={{ color: 'text.disabled', fontSize: 12 }}>Sin costos registrados aún</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+
+            {!cerrada && (
+              <Box sx={{ mt: 1.5, p: 1.5, borderRadius: 2, bgcolor: alpha(theme.palette.text.primary, 0.03) }}>
+                <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', mb: 1 }}>Agregar costo</Typography>
+                <Grid container spacing={1} alignItems="center">
+                  <Grid item xs={12} sm={3}>
+                    <TextField select size="small" fullWidth label="Tipo" value={tipoDetalle} onChange={(e) => setTipoDetalle(e.target.value)}>
+                      <MenuItem value="repuesto">Repuesto</MenuItem>
+                      <MenuItem value="mano_obra">Mano de obra</MenuItem>
+                      <MenuItem value="servicio_externo">Servicio externo</MenuItem>
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} sm={5}>
+                    {tipoDetalle === 'repuesto' ? (
+                      <Autocomplete
+                        size="small"
+                        options={productos}
+                        getOptionLabel={(o) => o.nombre}
+                        value={producto}
+                        onChange={(_, v) => { setProducto(v); setDescripcion(v?.nombre || ''); if (v?.costo) setCostoUnitario(v.costo); }}
+                        renderInput={(params) => <TextField {...params} label="Repuesto" />}
+                      />
+                    ) : (
+                      <TextField size="small" fullWidth label="Descripción" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
+                    )}
+                  </Grid>
+                  <Grid item xs={4} sm={1.5}>
+                    <TextField size="small" fullWidth label="Cant." type="number" value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
+                  </Grid>
+                  <Grid item xs={5} sm={2}>
+                    <CurrencyField size="small" label="Costo c/u" value={costoUnitario} onChange={setCostoUnitario} />
+                  </Grid>
+                  <Grid item xs={3} sm={0.5}>
+                    <IconButton onClick={handleAgregarDetalle} disabled={addingDetalle} sx={{ color: '#EA580C' }}>
+                      <Add />
+                    </IconButton>
+                  </Grid>
+                </Grid>
+                {tipoDetalle === 'repuesto' && (
+                  <Typography sx={{ fontSize: 10.5, color: 'text.secondary', mt: 0.5 }}>
+                    Al agregar un repuesto de inventario se descuenta su stock automáticamente.
+                  </Typography>
+                )}
+              </Box>
             )}
           </Box>
-        )}
 
-        <Divider sx={{ my: 2 }} />
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-          <Typography fontWeight={700}>Costo acumulado</Typography>
-          <Typography fontWeight={900} color="#EA580C">{fmt(orden.costo_acumulado)}</Typography>
-        </Box>
-        {orden.margen != null && (
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography fontWeight={700}>{esReventa ? 'Margen (vendido)' : 'Margen (cobrado)'}</Typography>
-            <Typography fontWeight={900} color={orden.margen >= 0 ? '#059669' : '#EF4444'}>{fmt(orden.margen)}</Typography>
+          <Divider sx={{ my: 2 }} />
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+            <Typography fontWeight={700}>Costo acumulado</Typography>
+            <Typography fontWeight={900} color="#EA580C">{fmt(orden.costo_acumulado)}</Typography>
           </Box>
-        )}
+          {orden.margen != null && (
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography fontWeight={700}>{esReventa ? 'Margen (vendido)' : 'Margen (cobrado)'}</Typography>
+              <Typography fontWeight={900} color={orden.margen >= 0 ? '#059669' : '#EF4444'}>{fmt(orden.margen)}</Typography>
+            </Box>
+          )}
 
-        {orden.venta_id && (
-          <Alert severity="success" sx={{ borderRadius: 2, mt: 2, fontSize: 12 }}>
-            ✅ Venta #{orden.venta_id} registrada — visible en Caja y Reportes.
-          </Alert>
-        )}
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-        {orden.estado === 'listo' && !cerrada && (
-          <Button
-            fullWidth variant="contained" startIcon={esReventa ? <Sell /> : <AttachMoney />}
-            onClick={() => { setValorCierre(esReventa ? String(orden.precio_venta_sugerido || '') : ''); setCerrarOpen(true); }}
-            sx={{ bgcolor: '#059669', '&:hover': { bgcolor: '#047857' }, borderRadius: 2, fontWeight: 700 }}
-          >
-            {esReventa ? 'Vender vehículo' : 'Cobrar y entregar'}
-          </Button>
-        )}
-        {!cerrada && orden.estado !== 'cancelado' && (
-          <Button color="error" startIcon={<Cancel />} onClick={() => handleCambiarEstado('cancelado')}>
-            Cancelar
-          </Button>
-        )}
-      </DialogActions>
-
-      <Dialog open={cerrarOpen} onClose={() => setCerrarOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
-        <DialogTitle>{esReventa ? 'Vender vehículo' : 'Cobrar y entregar'}</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-          <TextField
-            label={esReventa ? 'Precio de venta final' : 'Valor a cobrar'} type="number" fullWidth
-            value={valorCierre} onChange={(e) => setValorCierre(e.target.value)}
-            InputProps={{ startAdornment: '$' }}
-          />
-          <TextField select label="Método de pago" fullWidth value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)}>
-            {['Efectivo', 'Transferencia', 'Nequi', 'Daviplata', 'Tarjeta'].map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
-          </TextField>
+          {orden.venta_id && (
+            <Alert severity="success" sx={{ borderRadius: 2, mt: 2, fontSize: 12 }}>
+              ✅ Venta #{orden.venta_id} registrada — visible en Caja y Reportes.
+            </Alert>
+          )}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button fullWidth variant="contained" onClick={handleCerrar} disabled={closing}
-            sx={{ bgcolor: '#059669', '&:hover': { bgcolor: '#047857' }, borderRadius: 2, fontWeight: 700 }}>
-            {closing ? <CircularProgress size={20} color="inherit" /> : 'Confirmar'}
-          </Button>
+          {orden.estado === 'listo' && !cerrada && (
+            <Button
+              fullWidth variant="contained" startIcon={esReventa ? <Sell /> : <AttachMoney />}
+              onClick={() => setCerrarOpen(true)}
+              sx={{ bgcolor: '#059669', '&:hover': { bgcolor: '#047857' }, borderRadius: 2, fontWeight: 700 }}
+            >
+              {esReventa ? 'Vender vehículo' : 'Cobrar y entregar'}
+            </Button>
+          )}
+          {!cerrada && orden.estado !== 'cancelado' && (
+            <Button color="error" startIcon={<Cancel />} onClick={() => setCancelarOpen(true)}>
+              Cancelar orden
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
-    </Dialog>
+
+      <CerrarOrdenDialog
+        open={cerrarOpen} onClose={() => setCerrarOpen(false)} orden={orden} esReventa={esReventa}
+        onClosed={(updated) => { onChanged(updated); setCerrarOpen(false); }}
+      />
+      <ConfirmDialog
+        open={cancelarOpen} onClose={() => setCancelarOpen(false)} onConfirm={handleConfirmarCancelar}
+        loading={cancelando}
+        title="¿Cancelar esta orden?"
+        message="Esta acción no se puede deshacer. El vehículo quedará marcado como cancelado y no podrás seguir agregando costos ni cerrarla."
+        confirmLabel="Sí, cancelar"
+      />
+    </>
+  );
+};
+
+// ─── Columna Kanban ─────────────────────────────────────────────────────────
+const ColumnaEstado = ({ estado, ordenes, onSelect }) => {
+  const meta = ESTADO_META[estado];
+  return (
+    <Box sx={{ minWidth: 260, maxWidth: 280, flexShrink: 0 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.2, px: 0.5 }}>
+        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: meta.color }} />
+        <Typography sx={{ fontWeight: 800, fontSize: 13 }}>{meta.label}</Typography>
+        <Badge badgeContent={ordenes.length} color="default" sx={{
+          '& .MuiBadge-badge': { position: 'static', transform: 'none', bgcolor: alpha(meta.color, 0.15), color: meta.color, fontWeight: 800, fontSize: 10.5 },
+        }} />
+      </Box>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.2, minHeight: 80 }}>
+        {ordenes.map((orden) => (
+          <Card
+            key={orden.id}
+            variant="outlined"
+            onClick={() => onSelect(orden)}
+            sx={{
+              p: 1.5, borderRadius: 2.5, cursor: 'pointer',
+              borderLeft: `4px solid ${meta.color}`,
+              transition: 'transform 0.15s', '&:hover': { transform: 'translateY(-2px)' },
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              {orden.vehiculo?.tipo === 'moto' ? <TwoWheeler sx={{ color: '#EA580C', fontSize: 18 }} /> : <DirectionsCar sx={{ color: '#EA580C', fontSize: 18 }} />}
+              <Typography fontWeight={800} fontSize={13.5}>{orden.vehiculo?.placa}</Typography>
+            </Box>
+            <Typography fontSize={11} color="text.secondary" sx={{ mt: 0.3 }}>
+              {[orden.vehiculo?.marca, orden.vehiculo?.modelo].filter(Boolean).join(' ') || '—'}
+            </Typography>
+            {orden.mecanico_nombre && (
+              <Typography sx={{ fontSize: 10.5, color: 'text.secondary', mt: 0.6, display: 'flex', alignItems: 'center', gap: 0.4 }}>
+                <Engineering sx={{ fontSize: 12 }} /> {orden.mecanico_nombre}
+              </Typography>
+            )}
+            <Divider sx={{ my: 0.8 }} />
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography fontSize={10.5} color="text.secondary">Costo</Typography>
+              <Typography fontWeight={800} fontSize={12}>{fmt(orden.costo_acumulado)}</Typography>
+            </Box>
+          </Card>
+        ))}
+        {!ordenes.length && (
+          <Typography sx={{ fontSize: 11.5, color: 'text.disabled', textAlign: 'center', py: 2 }}>Vacío</Typography>
+        )}
+      </Box>
+    </Box>
   );
 };
 
 // ─── Página principal ──────────────────────────────────────────────────────
 const TallerOrdenes = () => {
   const [tab, setTab] = useState('reparacion_cliente');
-  const [estadoFiltro, setEstadoFiltro] = useState('todos');
   const [ordenes, setOrdenes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
@@ -421,16 +656,14 @@ const TallerOrdenes = () => {
   const fetchOrdenes = useCallback(async () => {
     setLoading(true);
     try {
-      const params = { tipo_orden: tab };
-      if (estadoFiltro !== 'todos') params.estado = estadoFiltro;
-      const res = await apiClient.get('/taller/ordenes', { params });
+      const res = await apiClient.get('/taller/ordenes', { params: { tipo_orden: tab } });
       setOrdenes(res.data || []);
     } catch {
       toast.error('No se pudieron cargar las órdenes del taller');
     } finally {
       setLoading(false);
     }
-  }, [tab, estadoFiltro]);
+  }, [tab]);
 
   useEffect(() => { fetchOrdenes(); }, [fetchOrdenes]);
 
@@ -440,6 +673,9 @@ const TallerOrdenes = () => {
     apiClient.get('/productos/', { params: { limit: 500 } }).then((r) => setProductos(r.data || [])).catch(() => {});
   }, []);
 
+  // Actualiza la orden en el estado local — como la Kanban agrupa las
+  // tarjetas leyendo `orden.estado` de este mismo array, la tarjeta "se
+  // mueve" de columna sola apenas cambia el estado, sin recargar la página.
   const refreshOne = (updated) => {
     setSelectedOrden(updated);
     setOrdenes((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
@@ -447,6 +683,16 @@ const TallerOrdenes = () => {
   };
 
   const esReventaTab = tab === 'remanufactura_reventa';
+  const columnas = FLUJO_COLUMNAS[tab];
+
+  const ordenesPorEstado = useMemo(() => {
+    const map = {};
+    for (const col of [...columnas, 'cancelado']) map[col] = [];
+    for (const o of ordenes) {
+      if (map[o.estado]) map[o.estado].push(o);
+    }
+    return map;
+  }, [ordenes, columnas]);
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
@@ -483,72 +729,19 @@ const TallerOrdenes = () => {
         </Grid>
       )}
 
-      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 1 }}>
+      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
         <Tab value="reparacion_cliente" label="Reparación a cliente" />
         <Tab value="remanufactura_reventa" label="Remanufactura y reventa" />
       </Tabs>
 
-      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
-        {['todos', ...Object.keys(ESTADO_META)].map((e) => (
-          <Chip
-            key={e}
-            label={e === 'todos' ? 'Todos' : ESTADO_META[e].label}
-            onClick={() => setEstadoFiltro(e)}
-            sx={{
-              fontWeight: 700, cursor: 'pointer',
-              bgcolor: estadoFiltro === e ? '#EA580C' : 'action.hover',
-              color: estadoFiltro === e ? '#fff' : 'text.secondary',
-            }}
-          />
-        ))}
-      </Box>
-
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>
-      ) : ordenes.length === 0 ? (
-        <Box sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
-          <Build sx={{ fontSize: 40, opacity: 0.3, mb: 1 }} />
-          <Typography>No hay órdenes {estadoFiltro !== 'todos' ? `en estado "${ESTADO_META[estadoFiltro]?.label}"` : ''}</Typography>
-        </Box>
       ) : (
-        <Grid container spacing={2}>
-          {ordenes.map((orden) => (
-            <Grid item xs={12} sm={6} md={4} key={orden.id}>
-              <Card
-                variant="outlined"
-                onClick={() => setSelectedOrden(orden)}
-                sx={{
-                  p: 2, borderRadius: 3, cursor: 'pointer', height: '100%',
-                  borderLeft: `4px solid ${ESTADO_META[orden.estado]?.color || '#9CA3AF'}`,
-                  transition: 'transform 0.15s', '&:hover': { transform: 'translateY(-2px)' },
-                }}
-              >
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    {orden.vehiculo?.tipo === 'moto' ? <TwoWheeler sx={{ color: '#EA580C' }} /> : <DirectionsCar sx={{ color: '#EA580C' }} />}
-                    <Box>
-                      <Typography fontWeight={800}>{orden.vehiculo?.placa}</Typography>
-                      <Typography fontSize={11.5} color="text.secondary">
-                        {orden.vehiculo?.marca} {orden.vehiculo?.modelo}
-                      </Typography>
-                    </Box>
-                  </Box>
-                  <EstadoChip estado={orden.estado} />
-                </Box>
-                {orden.mecanico_nombre && (
-                  <Typography sx={{ fontSize: 11.5, color: 'text.secondary', mt: 1, display: 'flex', alignItems: 'center', gap: 0.4 }}>
-                    <Engineering sx={{ fontSize: 13 }} /> {orden.mecanico_nombre}
-                  </Typography>
-                )}
-                <Divider sx={{ my: 1.2 }} />
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography fontSize={11.5} color="text.secondary">Costo acumulado</Typography>
-                  <Typography fontWeight={800} fontSize={13}>{fmt(orden.costo_acumulado)}</Typography>
-                </Box>
-              </Card>
-            </Grid>
+        <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 1 }}>
+          {[...columnas, 'cancelado'].map((estado) => (
+            <ColumnaEstado key={estado} estado={estado} ordenes={ordenesPorEstado[estado] || []} onSelect={setSelectedOrden} />
           ))}
-        </Grid>
+        </Box>
       )}
 
       <NuevaOrdenDialog
@@ -557,7 +750,7 @@ const TallerOrdenes = () => {
       />
       <DetalleOrdenDialog
         open={!!selectedOrden} onClose={() => setSelectedOrden(null)}
-        orden={selectedOrden} productos={productos} mecanicos={[]}
+        orden={selectedOrden} productos={productos}
         onChanged={refreshOne}
       />
     </Box>
