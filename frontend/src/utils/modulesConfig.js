@@ -116,6 +116,10 @@ export const MODULE_ICONS = {
   '/agendamiento':         { icon: <EventNote />,      color: '#0D9488', label: 'Agendamiento' },
   '/agendamiento/config':  { icon: <EventAvailable />, color: '#0F766E', label: 'Config Agendamiento' },
 
+  // Taller de Mecánica (Tonos Naranja/Gris — herramientas)
+  '/taller/ordenes':   { icon: <Build />,        color: '#EA580C', label: 'Taller de Mecánica' },
+  '/taller/vehiculos': { icon: <DirectionsCar />, color: '#C2410C', label: 'Vehículos del Taller' },
+
   // Contabilidad
   '/contabilidad': { icon: <AutoAwesome />, color: '#0891B2', label: 'Contabilidad' },
 

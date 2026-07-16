@@ -1953,3 +1953,134 @@ class AgendamientoConfig(Base, TenantMixin):
     mensaje_recordatorio   = Column(Text, nullable=True)
 
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TALLER DE MECÁNICA — dos flujos sobre el mismo vehículo:
+#   1) reparacion_cliente: el cliente trae SU vehículo, se le cobra un servicio.
+#   2) remanufactura_reventa: el taller COMPRA un vehículo usado, le invierte en
+#      repuestos/pintura/mano de obra hasta dejarlo listo, y lo VENDE.
+# Ninguno de los módulos existentes (Producción con receta fija + costo
+# promediado, Órdenes de Trabajo sin campo de costo) sirve para acumular un
+# número abierto de gastos contra UNA unidad no fungible hasta su cierre —
+# de ahí este módulo dedicado, siguiendo el mismo precedente que Préstamos y
+# Parqueadero (tablas propias cuando la operación no encaja en el POS genérico).
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TipoVehiculo(str, enum.Enum):
+    MOTO = "moto"
+    CARRO = "carro"
+
+
+class OrigenVehiculo(str, enum.Enum):
+    CLIENTE = "cliente"                    # llegó a reparación, sigue siendo del cliente
+    COMPRA_REVENTA = "compra_reventa"       # el taller lo compró para remanufacturar y vender
+
+
+class TipoOrdenTaller(str, enum.Enum):
+    REPARACION_CLIENTE = "reparacion_cliente"
+    REMANUFACTURA_REVENTA = "remanufactura_reventa"
+
+
+class EstadoOrdenTaller(str, enum.Enum):
+    RECIBIDO      = "recibido"
+    DIAGNOSTICO   = "diagnostico"
+    EN_REPARACION = "en_reparacion"
+    LISTO         = "listo"          # listo para entregar (cliente) o para vender (reventa)
+    ENTREGADO     = "entregado"      # cierre de reparacion_cliente
+    VENDIDO       = "vendido"        # cierre de remanufactura_reventa
+    CANCELADO     = "cancelado"
+
+
+class TipoDetalleOrdenTaller(str, enum.Enum):
+    REPUESTO = "repuesto"
+    MANO_OBRA = "mano_obra"
+    SERVICIO_EXTERNO = "servicio_externo"   # maquila tercerizada: pintura, latonería, etc.
+
+
+class VehiculoTaller(Base, TenantMixin):
+    """Un vehículo físico del Taller de Mecánica — de un cliente (llega a
+    reparación) o comprado por el taller para remanufacturar y revender. No
+    es un SKU de inventario reutilizable: cada placa es una unidad única.
+
+    Nota: se llama VehiculoTaller (no Vehiculo) porque el módulo de
+    Parqueadero ya tiene un modelo `Vehiculo`/tabla `vehiculos` con un
+    propósito distinto (motos registradas en el parqueadero)."""
+    __tablename__ = "vehiculos_taller"
+    __table_args__ = (
+        UniqueConstraint("empresa_id", "placa", name="uq_vehiculo_taller_placa_empresa"),
+    )
+    id            = Column(Integer, primary_key=True, index=True)
+    placa         = Column(String(20), nullable=False, index=True)
+    tipo          = Column(String(10), default=TipoVehiculo.CARRO.value)
+    marca         = Column(String(60), nullable=True)
+    modelo        = Column(String(60), nullable=True)
+    anio          = Column(Integer, nullable=True)
+    color         = Column(String(40), nullable=True)
+    kilometraje   = Column(Integer, nullable=True)
+    origen        = Column(String(20), default=OrigenVehiculo.CLIENTE.value, index=True)
+    cliente_id    = Column(Integer, ForeignKey("clientes.id"), nullable=True)  # dueño, si es de un cliente
+    foto_ingreso  = Column(Text, nullable=True)  # WebP base64, evidencia del estado al entrar
+    created_at    = Column(DateTime(timezone=True), default=utcnow)
+
+    cliente = relationship("Cliente")
+    ordenes = relationship("OrdenTaller", back_populates="vehiculo", cascade="all, delete-orphan")
+
+
+class OrdenTaller(Base, TenantMixin):
+    """Una orden de trabajo sobre un VehiculoTaller — la reparación completa
+    (para cliente) o el proceso de remanufactura (para reventa). El costo NO
+    se define de antemano: se va acumulando vía DetalleOrdenTaller mientras
+    la orden esté abierta."""
+    __tablename__ = "ordenes_taller"
+    id                     = Column(Integer, primary_key=True, index=True)
+    vehiculo_id            = Column(Integer, ForeignKey("vehiculos_taller.id"), nullable=False, index=True)
+    tipo_orden             = Column(String(30), default=TipoOrdenTaller.REPARACION_CLIENTE.value, index=True)
+    mecanico_id            = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    estado                 = Column(String(20), default=EstadoOrdenTaller.RECIBIDO.value, index=True)
+
+    descripcion_problema   = Column(Text, nullable=True)   # motivo de ingreso / diagnóstico inicial
+    diagnostico            = Column(Text, nullable=True)   # hallazgo del mecánico
+
+    fecha_ingreso          = Column(DateTime(timezone=True), default=utcnow)
+    fecha_estimada_entrega = Column(DateTime(timezone=True), nullable=True)
+    fecha_entrega_real     = Column(DateTime(timezone=True), nullable=True)
+    updated_at             = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    # ── reparacion_cliente ──
+    valor_cobrado          = Column(Float, nullable=True)          # precio del servicio al cliente
+    estado_pago            = Column(String(20), default="pendiente")  # pendiente | pagado
+
+    # ── remanufactura_reventa ──
+    precio_compra_vehiculo = Column(Float, nullable=True)
+    precio_venta_sugerido  = Column(Float, nullable=True)
+    precio_venta_final     = Column(Float, nullable=True)
+    comprador_cliente_id   = Column(Integer, ForeignKey("clientes.id"), nullable=True)
+
+    venta_id               = Column(Integer, ForeignKey("ventas.id"), nullable=True)  # cierre (ambos flujos)
+    notas_internas         = Column(Text, nullable=True)
+
+    vehiculo   = relationship("VehiculoTaller", back_populates="ordenes")
+    mecanico   = relationship("User")
+    comprador  = relationship("Cliente", foreign_keys=[comprador_cliente_id])
+    venta      = relationship("Venta", foreign_keys=[venta_id])
+    detalles   = relationship("DetalleOrdenTaller", back_populates="orden", cascade="all, delete-orphan")
+
+
+class DetalleOrdenTaller(Base, TenantMixin):
+    """Una línea de costo/trabajo contra una OrdenTaller — se le pueden ir
+    agregando indefinidamente mientras la orden esté abierta. La suma de
+    subtotal (+ precio_compra_vehiculo si aplica) es el costo acumulado."""
+    __tablename__ = "detalles_orden_taller"
+    id              = Column(Integer, primary_key=True, index=True)
+    orden_id        = Column(Integer, ForeignKey("ordenes_taller.id"), nullable=False, index=True)
+    tipo            = Column(String(20), default=TipoDetalleOrdenTaller.REPUESTO.value)
+    producto_id     = Column(Integer, ForeignKey("productos.id"), nullable=True)  # si es un repuesto de inventario
+    descripcion     = Column(String(200), nullable=False)
+    cantidad        = Column(Float, default=1.0)
+    costo_unitario  = Column(Float, default=0.0)
+    subtotal        = Column(Float, default=0.0)
+    fecha           = Column(DateTime(timezone=True), default=utcnow)
+
+    orden    = relationship("OrdenTaller", back_populates="detalles")
+    producto = relationship("Producto")

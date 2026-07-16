@@ -56,4 +56,8 @@ PERFILES = {
         "/inventario", "/inventario/lotes", "/reportes-inventario",
         "/compras", "/caja", "/reportes", "/admin/usuarios",
     ],
+    "taller_mecanica": [
+        "/taller/ordenes", "/taller/vehiculos", "/clientes", "/productos",
+        "/inventario", "/compras", "/caja", "/reportes", "/admin/usuarios",
+    ],
 }
