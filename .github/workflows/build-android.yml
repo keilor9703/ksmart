@@ -1,0 +1,61 @@
+name: Build Android APK (Ksmart360)
+
+# Compila el proyecto Android (Capacitor) que envuelve la web de Ksmart360.
+# Se ejecuta en runners de GitHub porque el entorno de desarrollo remoto usado
+# por Claude Code tiene bloqueada la descarga del Android SDK (dl.google.com)
+# — GitHub Actions sí tiene salida a internet completa, así que aquí es donde
+# realmente se genera el .apk instalable.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/android/**"
+      - "frontend/src/**"
+      - "frontend/public/**"
+      - "frontend/package.json"
+      - "frontend/capacitor.config.ts"
+      - ".github/workflows/build-android.yml"
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Build web (React)
+        run: npm run build
+
+      - name: Sincronizar Capacitor con el proyecto Android
+        run: npx cap sync android
+
+      - name: Compilar APK debug
+        working-directory: frontend/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Subir APK como artefacto descargable
+        uses: actions/upload-artifact@v4
+        with:
+          name: ksmart360-debug-apk
+          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
