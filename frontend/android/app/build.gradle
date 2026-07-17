@@ -16,10 +16,29 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+
+    // Firma de release: se toma del keystore real (vía variables de entorno inyectadas
+    // por CI como secretos) si está disponible; si no, cae a un debug signing local
+    // para que `assembleRelease` siga funcionando en desarrollo sin el keystore real.
+    def releaseStorePath = System.getenv("KSMART_KEYSTORE_PATH")
+    def hasReleaseSigning = releaseStorePath != null && file(releaseStorePath).exists()
+
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile file(releaseStorePath)
+                storePassword System.getenv("KSMART_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("KSMART_KEY_ALIAS")
+                keyPassword System.getenv("KSMART_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
         }
     }
 }
