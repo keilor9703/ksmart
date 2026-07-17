@@ -24,6 +24,8 @@ jobs:
     defaults:
       run:
         working-directory: frontend
+    env:
+      HAS_RELEASE_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -61,12 +63,12 @@ jobs:
           retention-days: 30
 
       - name: Preparar keystore de release (desde secreto de GitHub)
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.HAS_RELEASE_KEYSTORE == 'true' }}
         working-directory: frontend/android
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > ksmart360-release.jks
 
       - name: Compilar Android App Bundle firmado (release, para Play Store)
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.HAS_RELEASE_KEYSTORE == 'true' }}
         working-directory: frontend/android
         env:
           KSMART_KEYSTORE_PATH: ksmart360-release.jks
@@ -76,7 +78,7 @@ jobs:
         run: ./gradlew bundleRelease --no-daemon
 
       - name: Subir AAB de release como artefacto descargable
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.HAS_RELEASE_KEYSTORE == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: ksmart360-release-aab
