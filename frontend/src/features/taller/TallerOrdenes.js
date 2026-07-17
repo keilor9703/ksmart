@@ -212,23 +212,39 @@ const NuevaOrdenDialog = ({ open, onClose, tipoOrden, clientes, onCreated }) => 
 
 // ─── Sub-diálogo de cierre: cobrar (cliente) o vender (reventa), con
 //     calculadora de margen bidireccional para la reventa ─────────────────
-const CerrarOrdenDialog = ({ open, onClose, orden, esReventa, onClosed }) => {
+const CerrarOrdenDialog = ({ open, onClose, orden, esReventa, clientes, onClosed }) => {
   const costoBase = orden?.costo_acumulado || 0;
+  // ── Servicio a cliente (flujo simple, sin cambios) ──
   const [valor, setValor] = useState(null);
-  const [margenPct, setMargenPct] = useState('');
   const [metodoPago, setMetodoPago] = useState('Efectivo');
+  // ── Venta de vehículo remanufacturado (pago mixto) ──
+  const [valorTotal, setValorTotal] = useState(null);
+  const [margenPct, setMargenPct] = useState('');
+  const [metodoPagoEfectivo, setMetodoPagoEfectivo] = useState('Efectivo');
+  const [tieneCredito, setTieneCredito] = useState(false);
+  const [montoCredito, setMontoCredito] = useState(null);
+  const [compradorCredito, setCompradorCredito] = useState(null);
+  const [tienePermuta, setTienePermuta] = useState(false);
+  const [permutaValor, setPermutaValor] = useState(null);
+  const [permutaPlaca, setPermutaPlaca] = useState('');
+  const [permutaTipo, setPermutaTipo] = useState('carro');
+  const [permutaMarca, setPermutaMarca] = useState('');
+  const [permutaLinea, setPermutaLinea] = useState('');
+  const [permutaAnio, setPermutaAnio] = useState('');
+  const [permutaColor, setPermutaColor] = useState('');
   const [closing, setClosing] = useState(false);
 
   useEffect(() => {
     if (!open || !orden) return;
-    const sugerido = esReventa ? orden.precio_venta_sugerido : null;
-    setValor(sugerido || null);
-    if (esReventa && sugerido && costoBase > 0) {
-      setMargenPct((((sugerido - costoBase) / costoBase) * 100).toFixed(1));
-    } else {
-      setMargenPct('');
-    }
+    setValor(null);
     setMetodoPago('Efectivo');
+    setValorTotal(orden.precio_venta_sugerido || null);
+    setMargenPct('');
+    setMetodoPagoEfectivo('Efectivo');
+    setTieneCredito(false); setMontoCredito(null); setCompradorCredito(null);
+    setTienePermuta(false); setPermutaValor(null);
+    setPermutaPlaca(''); setPermutaTipo('carro'); setPermutaMarca(''); setPermutaLinea('');
+    setPermutaAnio(''); setPermutaColor('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, orden?.id]);
 
@@ -240,27 +256,33 @@ const CerrarOrdenDialog = ({ open, onClose, orden, esReventa, onClosed }) => {
     setMargenPct(raw);
     const pct = Number(raw);
     if (raw !== '' && !isNaN(pct) && costoBase > 0) {
-      setValor(Math.round(costoBase * (1 + pct / 100)));
+      setValorTotal(Math.round(costoBase * (1 + pct / 100)));
     }
   };
 
-  const handleValorChange = (num) => {
-    setValor(num);
+  const handleValorTotalChange = (num) => {
+    setValorTotal(num);
     if (num != null && costoBase > 0) {
       setMargenPct((((num - costoBase) / costoBase) * 100).toFixed(1));
     }
   };
 
-  const handleCerrar = async () => {
+  // Efectivo = lo que sobra del total una vez descontado crédito y permuta —
+  // así el dueño solo reparte lo que NO es efectivo, y el resto se calcula solo.
+  const creditoNum = tieneCredito ? (montoCredito || 0) : 0;
+  const permutaNum = tienePermuta ? (permutaValor || 0) : 0;
+  const efectivoCalculado = valorTotal != null ? Math.max(0, valorTotal - creditoNum - permutaNum) : null;
+  const excedeTotal = valorTotal != null && (creditoNum + permutaNum) > valorTotal;
+  const utilidadReventa = valorTotal != null ? valorTotal - costoBase : null;
+
+  const permutaCompleta = !tienePermuta || (permutaPlaca && permutaMarca && permutaLinea && permutaAnio && permutaColor);
+
+  const handleCerrarCliente = async () => {
     if (!valor) { toast.warning('Indica el valor'); return; }
     setClosing(true);
     try {
-      const url = esReventa ? `/taller/ordenes/${orden.id}/cerrar-reventa` : `/taller/ordenes/${orden.id}/cerrar-cliente`;
-      const payload = esReventa
-        ? { precio_venta_final: valor, metodo_pago: metodoPago }
-        : { valor_cobrado: valor, metodo_pago: metodoPago };
-      const res = await apiClient.post(url, payload);
-      toast.success(esReventa ? '¡Vehículo vendido!' : '¡Servicio cobrado y entregado!');
+      const res = await apiClient.post(`/taller/ordenes/${orden.id}/cerrar-cliente`, { valor_cobrado: valor, metodo_pago: metodoPago });
+      toast.success('¡Servicio cobrado y entregado!');
       onClosed(res.data);
     } catch (err) {
       toast.error(err?.response?.data?.detail || 'No se pudo cerrar la orden');
@@ -269,10 +291,71 @@ const CerrarOrdenDialog = ({ open, onClose, orden, esReventa, onClosed }) => {
     }
   };
 
+  const handleCerrarReventa = async () => {
+    if (!valorTotal) { toast.warning('Indica el precio de venta'); return; }
+    if (excedeTotal) { toast.warning('El crédito + la permuta no pueden superar el precio de venta'); return; }
+    if (tieneCredito && !compradorCredito) { toast.warning('Indica el cliente comprador para la cuenta por cobrar'); return; }
+    if (tienePermuta && !permutaCompleta) { toast.warning('Completa los datos del vehículo recibido en permuta'); return; }
+    setClosing(true);
+    try {
+      const payload = {
+        monto_efectivo: efectivoCalculado || 0,
+        metodo_pago_efectivo: metodoPagoEfectivo,
+        monto_credito: creditoNum,
+        comprador_cliente_id: compradorCredito?.id || null,
+        permuta_valor: permutaNum,
+        permuta_vehiculo: tienePermuta ? {
+          placa: permutaPlaca.trim().toUpperCase(), tipo: permutaTipo,
+          marca: permutaMarca, modelo: permutaLinea, anio: permutaAnio ? Number(permutaAnio) : null,
+          color: permutaColor, origen: 'compra_reventa',
+        } : null,
+      };
+      const res = await apiClient.post(`/taller/ordenes/${orden.id}/cerrar-reventa`, payload);
+      toast.success('¡Vehículo vendido!');
+      onClosed(res.data);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'No se pudo cerrar la orden');
+    } finally {
+      setClosing(false);
+    }
+  };
+
+  if (!esReventa) {
+    return (
+      <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          Cobrar y entregar
+          <IconButton size="small" onClick={onClose}><Close fontSize="small" /></IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 1.2, borderRadius: 2, bgcolor: 'action.hover' }}>
+            <Typography fontSize={12.5} color="text.secondary">Costo acumulado</Typography>
+            <Typography fontWeight={800} fontSize={13}>{fmt(costoBase)}</Typography>
+          </Box>
+          <CurrencyField label="Valor a cobrar" value={valor} onChange={setValor} />
+          {valor != null && costoBase > 0 && (
+            <Alert severity={utilidad >= 0 ? 'success' : 'error'} icon={<CalculateOutlined />} sx={{ borderRadius: 2, fontSize: 12.5 }}>
+              Margen: <strong>{(((valor - costoBase) / costoBase) * 100).toFixed(1)}%</strong> · Utilidad: <strong>{fmt(utilidad)}</strong>
+            </Alert>
+          )}
+          <TextField select label="Método de pago" fullWidth value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)}>
+            {['Efectivo', 'Transferencia', 'Nequi', 'Daviplata', 'Tarjeta'].map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+          </TextField>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button fullWidth variant="contained" onClick={handleCerrarCliente} disabled={closing}
+            sx={{ bgcolor: '#059669', '&:hover': { bgcolor: '#047857' }, borderRadius: 2, fontWeight: 700 }}>
+            {closing ? <CircularProgress size={20} color="inherit" /> : 'Confirmar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        {esReventa ? 'Vender vehículo' : 'Cobrar y entregar'}
+        Vender vehículo
         <IconButton size="small" onClick={onClose}><Close fontSize="small" /></IconButton>
       </DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
@@ -281,38 +364,112 @@ const CerrarOrdenDialog = ({ open, onClose, orden, esReventa, onClosed }) => {
           <Typography fontWeight={800} fontSize={13}>{fmt(costoBase)}</Typography>
         </Box>
 
-        {esReventa && (
-          <TextField
-            label="Margen de ganancia deseado"
-            type="number"
-            fullWidth
-            value={margenPct}
-            onChange={(e) => handleMargenChange(e.target.value)}
-            helperText="Calcula el precio de venta sugerido a partir del costo — o ajusta el precio abajo y el margen se recalcula solo."
-            InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
-          />
-        )}
-
-        <CurrencyField
-          label={esReventa ? 'Precio de venta final' : 'Valor a cobrar'}
-          value={valor}
-          onChange={handleValorChange}
+        <TextField
+          label="Margen de ganancia deseado" type="number" fullWidth
+          value={margenPct} onChange={(e) => handleMargenChange(e.target.value)}
+          helperText="Calcula el precio de venta sugerido a partir del costo — o ajusta el precio abajo y el margen se recalcula solo."
+          InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
         />
-
-        {valor != null && costoBase > 0 && (
-          <Alert severity={utilidad >= 0 ? 'success' : 'error'} icon={<CalculateOutlined />} sx={{ borderRadius: 2, fontSize: 12.5 }}>
-            Margen: <strong>{(((valor - costoBase) / costoBase) * 100).toFixed(1)}%</strong> · Utilidad: <strong>{fmt(utilidad)}</strong>
+        <CurrencyField label="Precio de venta total" value={valorTotal} onChange={handleValorTotalChange} />
+        {valorTotal != null && costoBase > 0 && (
+          <Alert severity={utilidadReventa >= 0 ? 'success' : 'error'} icon={<CalculateOutlined />} sx={{ borderRadius: 2, fontSize: 12.5 }}>
+            Margen: <strong>{(((valorTotal - costoBase) / costoBase) * 100).toFixed(1)}%</strong> · Utilidad: <strong>{fmt(utilidadReventa)}</strong>
           </Alert>
         )}
 
-        <TextField select label="Método de pago" fullWidth value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)}>
-          {['Efectivo', 'Transferencia', 'Nequi', 'Daviplata', 'Tarjeta'].map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
-        </TextField>
+        <Divider />
+        <Typography sx={{ fontWeight: 700, fontSize: 12, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          ¿Cómo se paga?
+        </Typography>
+
+        {/* Crédito */}
+        <Box sx={{ p: 1.2, borderRadius: 2, border: '1px solid', borderColor: tieneCredito ? '#F59E0B' : 'divider' }}>
+          <Button
+            fullWidth size="small" onClick={() => setTieneCredito((v) => !v)}
+            sx={{ justifyContent: 'flex-start', textTransform: 'none', fontWeight: 700, color: tieneCredito ? '#F59E0B' : 'text.secondary' }}
+          >
+            {tieneCredito ? '☑' : '☐'}&nbsp; Parte queda a crédito (cuenta por cobrar)
+          </Button>
+          {tieneCredito && (
+            <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 1.2 }}>
+              <CurrencyField label="Monto a crédito" value={montoCredito} onChange={setMontoCredito} />
+              <Autocomplete
+                options={clientes || []}
+                getOptionLabel={(o) => `${o.nombre}${o.telefono ? ` · ${o.telefono}` : ''}`}
+                value={compradorCredito}
+                onChange={(_, v) => setCompradorCredito(v)}
+                renderInput={(params) => <TextField {...params} label="Cliente comprador *" placeholder="Busca por nombre…" />}
+              />
+            </Box>
+          )}
+        </Box>
+
+        {/* Permuta */}
+        <Box sx={{ p: 1.2, borderRadius: 2, border: '1px solid', borderColor: tienePermuta ? '#7C3AED' : 'divider' }}>
+          <Button
+            fullWidth size="small" onClick={() => setTienePermuta((v) => !v)}
+            sx={{ justifyContent: 'flex-start', textTransform: 'none', fontWeight: 700, color: tienePermuta ? '#7C3AED' : 'text.secondary' }}
+          >
+            {tienePermuta ? '☑' : '☐'}&nbsp; Recibo otro vehículo en permuta
+          </Button>
+          {tienePermuta && (
+            <Stack spacing={1.2} sx={{ mt: 1 }}>
+              <CurrencyField label="Valor asignado a la permuta" value={permutaValor} onChange={setPermutaValor} />
+              <TextField
+                fullWidth size="small" label="Placa del vehículo recibido *" value={permutaPlaca}
+                onChange={(e) => setPermutaPlaca(e.target.value.toUpperCase().replace(/[\s-]/g, '').slice(0, 10))}
+                inputProps={{ style: { fontFamily: 'monospace', fontWeight: 700, letterSpacing: 2 } }}
+              />
+              <Stack direction="row" spacing={1}>
+                <TextField select size="small" label="Tipo" sx={{ flex: 1 }} value={permutaTipo}
+                  onChange={(e) => { setPermutaTipo(e.target.value); setPermutaMarca(''); setPermutaLinea(''); }}>
+                  <MenuItem value="carro">Carro</MenuItem>
+                  <MenuItem value="moto">Moto</MenuItem>
+                </TextField>
+                <TextField size="small" label="Año *" sx={{ flex: 1 }} type="number" value={permutaAnio} onChange={(e) => setPermutaAnio(e.target.value)} />
+              </Stack>
+              <Stack direction="row" spacing={1}>
+                <Autocomplete
+                  size="small" sx={{ flex: 1 }} freeSolo options={BRAND_OPTIONS}
+                  value={permutaMarca} inputValue={permutaMarca}
+                  onInputChange={(_, v) => setPermutaMarca(v)}
+                  onChange={(_, v) => { setPermutaMarca(v || ''); setPermutaLinea(''); }}
+                  renderInput={(params) => <TextField {...params} label="Marca *" />}
+                />
+                <Autocomplete
+                  size="small" sx={{ flex: 1 }} freeSolo options={getModelOptions(permutaMarca)}
+                  value={permutaLinea} inputValue={permutaLinea}
+                  onInputChange={(_, v) => setPermutaLinea(v)}
+                  onChange={(_, v) => setPermutaLinea(v || '')}
+                  renderInput={(params) => <TextField {...params} label="Línea *" />}
+                />
+              </Stack>
+              <TextField size="small" fullWidth label="Color *" value={permutaColor} onChange={(e) => setPermutaColor(e.target.value)} />
+            </Stack>
+          )}
+        </Box>
+
+        {/* Efectivo — se calcula solo con lo que sobra */}
+        <Box sx={{
+          p: 1.2, borderRadius: 2, bgcolor: alpha('#059669', 0.08), border: '1px solid', borderColor: alpha('#059669', 0.3),
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        }}>
+          <Typography fontSize={12.5} fontWeight={700} color="text.secondary">Efectivo a recibir</Typography>
+          <Typography fontWeight={900} fontSize={15} color="#059669">{fmt(efectivoCalculado)}</Typography>
+        </Box>
+        {excedeTotal && (
+          <Alert severity="error" sx={{ borderRadius: 2, fontSize: 12 }}>El crédito + la permuta superan el precio de venta total.</Alert>
+        )}
+        {efectivoCalculado > 0 && (
+          <TextField select size="small" label="Método de pago del efectivo" fullWidth value={metodoPagoEfectivo} onChange={(e) => setMetodoPagoEfectivo(e.target.value)}>
+            {['Efectivo', 'Transferencia', 'Nequi', 'Daviplata', 'Tarjeta'].map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+          </TextField>
+        )}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button fullWidth variant="contained" onClick={handleCerrar} disabled={closing}
+        <Button fullWidth variant="contained" onClick={handleCerrarReventa} disabled={closing || excedeTotal}
           sx={{ bgcolor: '#059669', '&:hover': { bgcolor: '#047857' }, borderRadius: 2, fontWeight: 700 }}>
-          {closing ? <CircularProgress size={20} color="inherit" /> : 'Confirmar'}
+          {closing ? <CircularProgress size={20} color="inherit" /> : 'Confirmar venta'}
         </Button>
       </DialogActions>
     </Dialog>
@@ -320,7 +477,7 @@ const CerrarOrdenDialog = ({ open, onClose, orden, esReventa, onClosed }) => {
 };
 
 // ─── Diálogo: detalle de la orden ──────────────────────────────────────────
-const DetalleOrdenDialog = ({ open, onClose, orden, productos, onChanged }) => {
+const DetalleOrdenDialog = ({ open, onClose, orden, productos, clientes, onChanged }) => {
   const theme = useTheme();
   const [tipoDetalle, setTipoDetalle] = useState('repuesto');
   const [producto, setProducto] = useState(null);
@@ -589,7 +746,7 @@ const DetalleOrdenDialog = ({ open, onClose, orden, productos, onChanged }) => {
       </Dialog>
 
       <CerrarOrdenDialog
-        open={cerrarOpen} onClose={() => setCerrarOpen(false)} orden={orden} esReventa={esReventa}
+        open={cerrarOpen} onClose={() => setCerrarOpen(false)} orden={orden} esReventa={esReventa} clientes={clientes}
         onClosed={(updated) => { onChanged(updated); setCerrarOpen(false); }}
       />
       <ConfirmDialog
@@ -766,7 +923,7 @@ const TallerOrdenes = () => {
       />
       <DetalleOrdenDialog
         open={!!selectedOrden} onClose={() => setSelectedOrden(null)}
-        orden={selectedOrden} productos={productos}
+        orden={selectedOrden} productos={productos} clientes={clientes}
         onChanged={refreshOne}
       />
     </Box>

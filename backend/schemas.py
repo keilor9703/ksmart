@@ -3257,10 +3257,19 @@ class OrdenTallerCerrarCliente(BaseModel):
 
 
 class OrdenTallerCerrarReventa(BaseModel):
-    """Cierre del flujo remanufactura_reventa: vende el vehículo."""
-    precio_venta_final: float = Field(..., ge=0)
-    comprador_cliente_id: Optional[int] = None
-    metodo_pago: Optional[str] = "Efectivo"
+    """Cierre del flujo remanufactura_reventa: vende el vehículo.
+
+    El precio de venta se reparte entre hasta 3 formas de pago, que pueden
+    combinarse libremente (ej: parte efectivo + parte a crédito + un
+    vehículo recibido en permuta): monto_efectivo + monto_credito +
+    permuta_valor = precio total de la venta.
+    """
+    monto_efectivo: float = Field(0, ge=0)
+    metodo_pago_efectivo: Optional[str] = "Efectivo"
+    monto_credito: float = Field(0, ge=0)          # queda como cuenta por cobrar del comprador
+    comprador_cliente_id: Optional[int] = None      # obligatorio si monto_credito > 0
+    permuta_valor: float = Field(0, ge=0)           # valor asignado al vehículo recibido en permuta
+    permuta_vehiculo: Optional[VehiculoTallerCreate] = None  # obligatorio si permuta_valor > 0
 
 
 class OrdenTallerOut(BaseModel):

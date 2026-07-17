@@ -2788,6 +2788,15 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v122)
                 logger.info("V122 (taller de mecánica) aplicada.")
 
+            # V123 — Venta mixta (efectivo + crédito + permuta) al vender un
+            # vehículo remanufacturado. permuta_origen_orden_id traza qué
+            # orden de venta originó un vehículo recibido en permuta.
+            migration_v123 = "v123_taller_permuta"
+            if not _migration_already_applied(conn, migration_v123):
+                _add_column_safe(conn, "ordenes_taller", "permuta_origen_orden_id", "INTEGER")
+                _mark_migration_applied(conn, migration_v123)
+                logger.info("V123 (venta mixta y permuta en taller) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
