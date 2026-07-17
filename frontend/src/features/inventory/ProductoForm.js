@@ -21,7 +21,7 @@ import {
   Inventory, ExpandMore, ExpandLess, Upload, Close, Category, Science,
   Storefront, AddPhotoAlternate, Delete, InfoOutlined, LocalOffer,
   Tag, Add, Tune, QrCodeScanner, CameraAlt as CameraAltIcon,
-  CheckCircle, FiberNew, Sync,
+  CheckCircle, FiberNew, Sync, Warning,
 } from '@mui/icons-material';
 
 import { UNIDADES_MEDIDA } from '../../utils/constants';
@@ -57,9 +57,10 @@ const HAS_CAMERA = typeof navigator !== 'undefined' && !!navigator.mediaDevices?
 const BARCODE_FORMATS = ['ean_13', 'ean_8', 'code_128', 'qr_code', 'upc_e', 'code_39', 'itf'];
 
 const STATUS_CONFIG = {
-  existing:  { color: '#3B82F6', icon: Sync,        label: 'Producto existente — se actualizará al guardar' },
-  suggested: { color: '#F59E0B', icon: FiberNew,     label: 'Encontrado en catálogo global — completa precio y stock' },
-  new:       { color: '#10B981', icon: CheckCircle,  label: 'Producto nuevo — completa los datos' },
+  existing:    { color: '#3B82F6', icon: Sync,        label: 'Producto existente — se actualizará al guardar' },
+  suggested:   { color: '#F59E0B', icon: FiberNew,     label: 'Encontrado en catálogo global — completa precio y stock' },
+  unverified:  { color: '#EF4444', icon: Warning,      label: '⚠️ Sugerencia de búsqueda web SIN VERIFICAR — revisa el nombre antes de guardar' },
+  new:         { color: '#10B981', icon: CheckCircle,  label: 'Producto nuevo — completa los datos' },
 };
 
 // ─── Section Card — colapsable, con borde izquierdo de color accent ───────────
@@ -407,13 +408,18 @@ const ProductoForm = ({
         playBeep('success');
         precioRef.current?.focus();
       } else if (res.data && res.data.nombre) {
-        setProductStatus('suggested');
+        const esNoVerificado = res.data.fuente === 'web_no_verificado';
+        setProductStatus(esNoVerificado ? 'unverified' : 'suggested');
         setNombre(res.data.nombre || '');
         setCodigoBarras(code);
         setPrecio(''); setCosto(''); setStockMinimo('');
-        toast.info('Encontrado en catálogo global. Completa precio y stock.');
+        if (esNoVerificado) {
+          toast.warning('⚠️ Nombre sugerido por búsqueda web, SIN VERIFICAR — confirma que corresponde al producto antes de guardar.', { autoClose: 8000 });
+        } else {
+          toast.info('Encontrado en catálogo global. Completa precio y stock.');
+        }
         playBeep('success');
-        precioRef.current?.focus();
+        nombreRef.current?.focus();
       } else {
         setProductStatus('new');
         setCodigoBarras(code);

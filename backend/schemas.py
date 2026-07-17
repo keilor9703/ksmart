@@ -393,6 +393,11 @@ class Producto(ProductoBase):
     # Stock vendible: stock_actual menos lo atrapado en lotes VENCIDOS.
     # None para productos sin manejo de lotes (usar stock_actual).
     stock_vigente: Optional[float] = None
+    # Solo lo llena el lookup de código de barras cuando el resultado viene de
+    # la búsqueda web (último recurso, sin catálogo estructurado que lo
+    # respalde) — el frontend debe advertir claramente que no está verificado,
+    # a diferencia de un match real de OpenFoodFacts/UPCitemDB/etc.
+    fuente: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class MovementType(str, Enum):
