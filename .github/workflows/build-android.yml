@@ -53,9 +53,32 @@ jobs:
         working-directory: frontend/android
         run: ./gradlew assembleDebug --no-daemon
 
-      - name: Subir APK como artefacto descargable
+      - name: Subir APK debug como artefacto descargable
         uses: actions/upload-artifact@v4
         with:
           name: ksmart360-debug-apk
           path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      - name: Preparar keystore de release (desde secreto de GitHub)
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        working-directory: frontend/android
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > ksmart360-release.jks
+
+      - name: Compilar Android App Bundle firmado (release, para Play Store)
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        working-directory: frontend/android
+        env:
+          KSMART_KEYSTORE_PATH: ksmart360-release.jks
+          KSMART_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KSMART_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KSMART_KEY_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: ./gradlew bundleRelease --no-daemon
+
+      - name: Subir AAB de release como artefacto descargable
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ksmart360-release-aab
+          path: frontend/android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 30
