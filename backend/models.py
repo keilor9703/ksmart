@@ -2060,6 +2060,11 @@ class OrdenTaller(Base, TenantMixin):
     venta_id               = Column(Integer, ForeignKey("ventas.id"), nullable=True)  # cierre (ambos flujos)
     notas_internas         = Column(Text, nullable=True)
 
+    # Trazabilidad de permutas: si este vehículo/orden nació como parte de
+    # pago de OTRA venta (alguien entregó este vehículo a cambio), aquí queda
+    # el id de esa orden de origen — para poder rastrear la cadena completa.
+    permuta_origen_orden_id = Column(Integer, ForeignKey("ordenes_taller.id"), nullable=True)
+
     vehiculo   = relationship("VehiculoTaller", back_populates="ordenes")
     mecanico   = relationship("User")
     comprador  = relationship("Cliente", foreign_keys=[comprador_cliente_id])

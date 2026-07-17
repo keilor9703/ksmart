@@ -303,7 +303,7 @@ def cerrar_reparacion_cliente(
         db, empresa_id,
         cliente_id=orden.vehiculo.cliente_id if orden.vehiculo else None,
         total=data.valor_cobrado,
-        metodo_pago=data.metodo_pago,
+        pagos=[{"monto": data.valor_cobrado, "metodo_pago": data.metodo_pago}],
         descripcion=f"Servicio de taller — {orden.vehiculo.placa if orden.vehiculo else ''}",
     )
 
@@ -321,6 +321,13 @@ def cerrar_reparacion_cliente(
 def cerrar_reventa(
     db: Session, empresa_id: int, orden_id: int, data: schemas.OrdenTallerCerrarReventa,
 ) -> models.OrdenTaller:
+    """Vende el vehículo remanufacturado. El precio se reparte entre hasta 3
+    formas de pago que se pueden combinar libremente: efectivo, crédito
+    (queda como cuenta por cobrar del comprador) y permuta (el vehículo
+    recibido a cambio se registra como un VehiculoTaller/OrdenTaller nuevo,
+    con su propio ciclo de remanufactura — su costo inicial es el valor que
+    se le asignó en esta permuta, y su margen se calculará por separado el
+    día que también se venda)."""
     orden = db.query(models.OrdenTaller).filter(
         models.OrdenTaller.id == orden_id, models.OrdenTaller.empresa_id == empresa_id,
     ).first()
@@ -331,15 +338,41 @@ def cerrar_reventa(
     if orden.estado not in ("listo", "en_reparacion", "diagnostico"):
         raise TallerError(f"No se puede cerrar una orden en estado '{orden.estado}'.")
 
+    monto_efectivo = data.monto_efectivo or 0.0
+    monto_credito = data.monto_credito or 0.0
+    permuta_valor = data.permuta_valor or 0.0
+    total = round(monto_efectivo + monto_credito + permuta_valor, 2)
+
+    if total <= 0:
+        raise TallerError("Indica al menos una forma de pago (efectivo, crédito o permuta).")
+    if monto_credito > 0 and not data.comprador_cliente_id:
+        raise TallerError("Si parte de la venta queda a crédito, debes indicar el cliente comprador (para la cuenta por cobrar).")
+    if permuta_valor > 0:
+        pv = data.permuta_vehiculo
+        faltantes = [campo for campo, valor in (
+            ("placa", pv.placa if pv else None), ("marca", pv.marca if pv else None),
+            ("modelo/línea", pv.modelo if pv else None), ("anio", pv.anio if pv else None),
+            ("color", pv.color if pv else None),
+        ) if not valor]
+        if faltantes:
+            raise TallerError(f"Completa los datos del vehículo recibido en permuta: {', '.join(faltantes)}.")
+
+    pagos = []
+    if monto_efectivo > 0:
+        pagos.append({"monto": monto_efectivo, "metodo_pago": data.metodo_pago_efectivo or "Efectivo"})
+    if permuta_valor > 0:
+        pagos.append({"monto": permuta_valor, "metodo_pago": "Permuta"})
+
     venta = _crear_venta_taller(
         db, empresa_id,
         cliente_id=data.comprador_cliente_id,
-        total=data.precio_venta_final,
-        metodo_pago=data.metodo_pago,
+        total=total,
+        pagos=pagos,
+        monto_pagado=round(monto_efectivo + permuta_valor, 2),  # el crédito NO cuenta como pagado
         descripcion=f"Venta de vehículo remanufacturado — {orden.vehiculo.placa if orden.vehiculo else ''}",
     )
 
-    orden.precio_venta_final = data.precio_venta_final
+    orden.precio_venta_final = total
     orden.comprador_cliente_id = data.comprador_cliente_id
     orden.estado = models.EstadoOrdenTaller.VENDIDO.value
     orden.fecha_entrega_real = datetime.now(timezone.utc)
@@ -347,25 +380,62 @@ def cerrar_reventa(
     orden.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(orden)
+
+    # La permuta entra al taller como un vehículo nuevo, con su propia orden
+    # de remanufactura — nunca se mezcla su costo/margen con los de la venta
+    # que se está cerrando ahora.
+    if permuta_valor > 0 and data.permuta_vehiculo:
+        vehiculo_recibido = crear_vehiculo(db, empresa_id, data.permuta_vehiculo)
+        orden_permuta = models.OrdenTaller(
+            empresa_id=empresa_id,
+            vehiculo_id=vehiculo_recibido.id,
+            tipo_orden=models.TipoOrdenTaller.REMANUFACTURA_REVENTA.value,
+            estado=models.EstadoOrdenTaller.RECIBIDO.value,
+            precio_compra_vehiculo=permuta_valor,
+            permuta_origen_orden_id=orden.id,
+            notas_internas=f"Recibido en permuta al vender {orden.vehiculo.placa if orden.vehiculo else 'un vehículo'} (orden #{orden.id}).",
+        )
+        db.add(orden_permuta)
+        db.commit()
+
     return get_orden(db, empresa_id, orden_id)
 
 
-def _crear_venta_taller(db: Session, empresa_id: int, cliente_id, total: float, metodo_pago: str, descripcion: str) -> models.Venta:
+def _crear_venta_taller(
+    db: Session, empresa_id: int, cliente_id, total: float, pagos: list,
+    descripcion: str, monto_pagado: Optional[float] = None,
+) -> models.Venta:
     """Registra el cierre (cobro de servicio o venta de vehículo) como una
     Venta real del sistema — visible en Caja/Reportes/Financiero igual que
-    cualquier otra venta, sin duplicar esa lógica contable aquí."""
+    cualquier otra venta, sin duplicar esa lógica contable aquí.
+
+    `pagos`: lista de {"monto": float, "metodo_pago": str} — cada una genera
+    su propio registro de Pago (ej. una fila "Efectivo" y otra "Permuta").
+    `monto_pagado`: si es menor que `total`, la venta queda con
+    estado_pago="parcial" y el saldo restante es una cuenta por cobrar del
+    cliente — mismo mecanismo que ya usa el resto del sistema (Ventas),
+    nada nuevo que construir en Reportes/Cuentas por Cobrar."""
+    if monto_pagado is None:
+        monto_pagado = total
     numero_venta = next_consecutivo(db, empresa_id, "ultimo_numero_venta")
+    if monto_pagado >= total - 0.01:
+        estado_pago = "pagado"
+    elif monto_pagado > 0:
+        estado_pago = "parcial"
+    else:
+        estado_pago = "pendiente"
+
     venta = models.Venta(
         empresa_id=empresa_id,
         cliente_id=cliente_id,
         total=round(total, 2),
-        monto_pagado=round(total, 2),
-        estado_pago="pagado",
-        metodo_pago=metodo_pago,
+        monto_pagado=round(monto_pagado, 2),
+        estado_pago=estado_pago,
+        metodo_pago=(pagos[0]["metodo_pago"] if pagos else None),
         numero_venta=numero_venta,
         tipo="venta",
         fecha=datetime.now(timezone.utc),
-        fecha_pago=datetime.now(timezone.utc),
+        fecha_pago=datetime.now(timezone.utc) if estado_pago == "pagado" else None,
     )
     db.add(venta)
     db.flush()
@@ -378,7 +448,9 @@ def _crear_venta_taller(db: Session, empresa_id: int, cliente_id, total: float, 
         descuento_pct=0.0,
         iva_porcentaje=0.0,
     ))
-    db.add(models.Pago(empresa_id=empresa_id, venta_id=venta.id, monto=round(total, 2), metodo_pago=metodo_pago))
+    for p in pagos:
+        if p.get("monto", 0) > 0:
+            db.add(models.Pago(empresa_id=empresa_id, venta_id=venta.id, monto=round(p["monto"], 2), metodo_pago=p.get("metodo_pago") or "Efectivo"))
     db.commit()
     db.refresh(venta)
     return venta
