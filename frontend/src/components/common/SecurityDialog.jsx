@@ -38,7 +38,7 @@ function timeAgo(dateStr) {
 
 function TabBiometria() {
   const theme = useTheme();
-  const { isSupported, isPlatformAuthAvailable, listCredentials, deleteCredential } = useBiometricAuth();
+  const { isSupported, isPlatformAuthAvailable, listCredentials, deleteCredential, esAppNativa } = useBiometricAuth();
   const [credentials, setCredentials] = useState([]);
   const [loadingList, setLoadingList] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
@@ -81,8 +81,12 @@ function TabBiometria() {
   if (!isSupported || !isPlatformAuthAvailable) {
     return (
       <Alert severity="info" icon={<Info />} sx={{ mt: 2 }}>
-        Tu dispositivo o navegador actual no soporta autenticación biométrica (WebAuthn).
-        Intenta desde Chrome, Edge o Safari en un dispositivo con huella o Face ID.
+        {esAppNativa
+          ? 'El inicio de sesión con huella todavía no está disponible en la app instalada (Ksmart360 APK). ' +
+            'Por ahora puedes usarla abriendo www.appjeylor.com desde el navegador de tu celular (Chrome, ' +
+            'Safari), donde sí funciona si el dispositivo tiene huella o Face ID.'
+          : 'Tu dispositivo o navegador actual no soporta autenticación biométrica (WebAuthn). ' +
+            'Intenta desde Chrome, Edge o Safari en un dispositivo con huella o Face ID.'}
       </Alert>
     );
   }

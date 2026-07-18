@@ -19,6 +19,11 @@ const base = process.env.REACT_APP_API_URL || "https://api.appjeylor.com";
 export const apiClient = axios.create({
   baseURL: base,
   headers: { "Content-Type": "application/json" },
+  // Sin timeout, un request atascado (p.ej. la pila de red suspendida por el
+  // sistema mientras la app estaba en background/bloqueada) se queda colgado
+  // para siempre y ninguna pantalla puede recuperarse — ver interceptor de
+  // 401 más abajo para el otro extremo del mismo problema.
+  timeout: 20000,
 });
 
 // Interceptor para añadir el token de autenticación a las solicitudes
@@ -35,33 +40,32 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Interceptor de respuesta: silencia 401s de endpoints no-auth para evitar
-// que componentes montados momentáneamente muestren sus propios mensajes de error
-// cuando la sesión expira. El /users/me sigue propagando su error para que
-// checkAuth en App.js pueda mostrar "Sesión expirada" y redirigir.
-let _sessionExpired = false;
-
+// Interceptor de respuesta: ante un 401 de un endpoint no-auth (sesión
+// expirada mientras había pantallas montadas), antes se "silenciaba" con una
+// promesa que jamás se resolvía — para evitar que esos componentes mostraran
+// su propio toast de error. Pero eso dejaba el loading de esa pantalla
+// colgado para siempre, porque el await nunca terminaba. En la web esto se
+// disimulaba porque el usuario podía hacer scroll-to-refresh y recargar toda
+// la página; en la APK (WebView, sin ese gesto) el usuario quedaba atrapado
+// sin ninguna forma de salir. Ahora se rechaza normalmente (cada componente
+// sale de su loading vía catch/finally) y además se emite un evento global
+// para que App.js redirija a /login de inmediato, sin depender de que cada
+// pantalla individual maneje el error.
 apiClient.interceptors.response.use(
-  (response) => {
-    _sessionExpired = false;
-    return response;
-  },
+  (response) => response,
   (error) => {
     const url = error.config?.url || '';
     const status = error.response?.status;
 
     if (status === 401) {
-      if (url.includes('/users/me') || url.includes('/auth/token') || url.includes('/auth/pin')) {
-        // Estos endpoints deben propagar el error para que el componente los maneje
-        return Promise.reject(error);
+      const esAuthEndpoint =
+        url.includes('/users/me') || url.includes('/auth/token') || url.includes('/auth/pin');
+      const esEndpointPublico =
+        url.includes('/catalogo/') || url.includes('/planes-activos') || url.includes('/agendamiento/publico/');
+
+      if (!esAuthEndpoint && !esEndpointPublico) {
+        window.dispatchEvent(new CustomEvent('ksmart:sesion-expirada'));
       }
-      // Endpoints públicos deben propagar el error normalmente
-      if (url.includes('/catalogo/') || url.includes('/planes-activos') || url.includes('/agendamiento/publico/')) {
-        return Promise.reject(error);
-      }
-      // Cualquier otro 401 (componente montado con sesión expirada): silenciar
-      _sessionExpired = true;
-      return new Promise(() => {});
     }
 
     return Promise.reject(error);
