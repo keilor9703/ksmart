@@ -177,6 +177,34 @@ function App() {
     }).catch(() => checkAuth());
   }, []);
 
+  // Cuando cualquier request recibe un 401 con sesión ya iniciada (ver
+  // interceptor en api.js), forzar el cierre de sesión de inmediato en vez
+  // de esperar a que la pantalla actual maneje el error por su cuenta.
+  useEffect(() => {
+    const onSesionExpirada = () => handleLogout(true);
+    window.addEventListener('ksmart:sesion-expirada', onSesionExpirada);
+    return () => window.removeEventListener('ksmart:sesion-expirada', onSesionExpirada);
+  }, []);
+
+  // Revalidar la sesión cada vez que la app vuelve a primer plano (celular
+  // desbloqueado, o la APK reabierta tras estar en background). Sin esto, la
+  // app puede quedarse con datos/loading colgados de la sesión anterior sin
+  // ninguna forma de recuperarse — en la web el usuario podía forzar un
+  // reload con scroll-to-refresh, pero la APK (WebView) no tiene ese gesto.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && localStorage.getItem('token')) {
+        checkAuth();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, []);
+
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = (e) => {

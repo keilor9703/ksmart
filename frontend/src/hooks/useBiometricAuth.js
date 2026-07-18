@@ -7,7 +7,16 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { useState, useEffect, useCallback } from 'react';
+import { Capacitor } from '@capacitor/core';
 import apiClient from '../api';
+
+// Dentro del WebView empaquetado de la app Android (Capacitor), WebAuthn no
+// funciona hoy: requiere un origen HTTPS real asociado por Digital Asset
+// Links, y la app carga sus assets locales (https://localhost). No es un
+// problema del dispositivo/navegador del usuario — por eso NO usamos el
+// mensaje genérico "prueba desde Chrome/Edge/Safari" cuando corremos dentro
+// de la app nativa, para no confundir a alguien que sí tiene huella/Face ID.
+const ES_APP_NATIVA = Capacitor.isNativePlatform();
 
 // ─── Helpers de codificación base64url ←→ ArrayBuffer ──────────────────────
 function base64urlToBuffer(base64url) {
@@ -41,6 +50,14 @@ export default function useBiometricAuth() {
 
   // ── Detectar si el dispositivo soporta WebAuthn al montar ───────────────
   useEffect(() => {
+    if (ES_APP_NATIVA) {
+      // WebAuthn no está disponible dentro del WebView de la app instalada
+      // (ver nota arriba) — no tiene caso ni consultarlo.
+      setIsSupported(false);
+      setIsPlatformAuthAvailable(false);
+      return;
+    }
+
     const supported = !!(
       window.PublicKeyCredential &&
       typeof navigator.credentials?.create === 'function' &&
@@ -214,5 +231,6 @@ const deleteCredential = useCallback(async (id) => {
     listCredentials,
     deleteCredential,
     hasLocalCredential, // ✨ NUEVO: Exportamos la bandera
+    esAppNativa: ES_APP_NATIVA,
   };
 }
