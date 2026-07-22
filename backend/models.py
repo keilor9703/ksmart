@@ -283,6 +283,8 @@ class Cliente(Base, TenantMixin):
     longitud = Column(Float, nullable=True)
     puntos_fidelidad = Column(Integer, default=0)
 
+    fecha_nacimiento = Column(Date, nullable=True)
+
     ventas          = relationship("Venta", back_populates="cliente")
     ordenes_trabajo = relationship("OrdenTrabajo", back_populates="cliente")
     movimientos_puntos = relationship("MovimientoPuntos", back_populates="cliente", cascade="all, delete-orphan")

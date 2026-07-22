@@ -41,6 +41,7 @@ const ClienteForm = ({
   const [cedula, setCedula]         = useState('');
   const [telefono, setTelefono]     = useState('');
   const [direccion, setDireccion]   = useState('');
+  const [fechaNacimiento, setFechaNacimiento] = useState('');
   const [email, setEmail]           = useState('');
   const [tipoDocumento, setTipoDocumento] = useState(13);
   const [dv, setDv]                 = useState('');
@@ -73,6 +74,7 @@ const ClienteForm = ({
       setCedula(clienteToEdit.cedula || '');
       setTelefono(clienteToEdit.telefono || '');
       setDireccion(clienteToEdit.direccion || '');
+      setFechaNacimiento(clienteToEdit.fecha_nacimiento || '');
       setEmail(clienteToEdit.email || '');
       setTipoDocumento(clienteToEdit.tipo_documento_id || 13);
       setDv(clienteToEdit.dv || '');
@@ -90,7 +92,7 @@ const ClienteForm = ({
 
   const resetFields = () => {
     setNombre(''); setCedula(''); setTelefono('');
-    setDireccion(''); setEmail(''); setTipoDocumento(13);
+    setDireccion(''); setFechaNacimiento(''); setEmail(''); setTipoDocumento(13);
     setDv(''); setTipoOrganizacion(2); setTipoRegimen(49);
     setResponsabilidadFiscal('R-99-PN');
     setCupoCredito('');
@@ -120,6 +122,7 @@ const ClienteForm = ({
     }
     const data = {
       nombre, cedula, telefono, direccion, email,
+      fecha_nacimiento: fechaNacimiento || null,
       tipo_documento_id: tipoDocumento,
       dv,
       tipo_organizacion_id: tipoOrganizacion,
@@ -243,6 +246,17 @@ const ClienteForm = ({
                   value={direccion}
                   onChange={(e) => setDireccion(e.target.value)}
                   fullWidth size="small"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  label="Fecha de Cumpleaños"
+                  value={fechaNacimiento}
+                  onChange={(e) => setFechaNacimiento(e.target.value)}
+                  fullWidth size="small"
+                  type="date"
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ max: new Date().toLocaleDateString('en-CA') }}
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={4}>

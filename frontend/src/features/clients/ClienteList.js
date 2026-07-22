@@ -191,10 +191,10 @@ const ClienteList = ({
   // ─── CSV export ───────────────────────────────────────────────────────────
   const handleExportCSV = () => {
     const rows = [
-      ['ID', 'Nombre', 'Cédula/NIT', 'Teléfono', 'Email', 'Dirección', 'Cupo Crédito', 'Tipo'],
+      ['ID', 'Nombre', 'Cédula/NIT', 'Teléfono', 'Email', 'Dirección', 'Fecha de Cumpleaños', 'Cupo Crédito', 'Tipo'],
       ...filteredClientes.map(c => [
         c.id, c.nombre, c.cedula || '', c.telefono || '', c.email || '',
-        c.direccion || '', c.cupo_credito || 0,
+        c.direccion || '', c.fecha_nacimiento || '', c.cupo_credito || 0,
         [c.es_cliente && 'Cliente', c.es_proveedor && 'Proveedor'].filter(Boolean).join('+'),
       ]),
     ];
