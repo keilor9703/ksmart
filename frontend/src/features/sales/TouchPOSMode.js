@@ -227,7 +227,7 @@ const CartPanel = ({
     onSubmit, savingVenta, calculateSubtotal, cambioEfectivo,
     openQuickCreate, isDark, onClose,
     omitirInventario, setOmitirInventario,
-    linkPagoConfig,
+    metodosPagoConLinks,
     fidelizacionActiva, clientePuntos, puntosACanjear, setPuntosACanjear, redeemRate,
     solicitaFe, setSolicitaFe, feActiva,
 }) => {
@@ -482,7 +482,7 @@ const CartPanel = ({
                             Método de pago
                         </Typography>
                         <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                            {[...METODOS_PAGO, ...(linkPagoConfig ? [{ value: 'Link de Pago', label: '📲 Link/QR', pagada: true, color: '#0891B2' }] : [])].map(opt => {
+                            {(metodosPagoConLinks || METODOS_PAGO).map(opt => {
                                 const isSelected = pagada
                                     ? (opt.pagada && metodoPago === opt.value)
                                     : !opt.pagada;
@@ -692,7 +692,7 @@ const TouchPOSMode = ({
     onSubmit, savingVenta, calculateSubtotal, cambioEfectivo,
     openQuickCreate, isDark,
     omitirInventario, setOmitirInventario,
-    linkPagoConfig,
+    metodosPagoConLinks,
     fidelizacionActiva, clientePuntos, puntosACanjear, setPuntosACanjear, redeemRate,
     solicitaFe, setSolicitaFe, feActiva,
 }) => {
@@ -898,7 +898,7 @@ const TouchPOSMode = ({
         onSubmit, savingVenta, calculateSubtotal, cambioEfectivo,
         openQuickCreate, isDark,
         omitirInventario, setOmitirInventario,
-        linkPagoConfig,
+        metodosPagoConLinks,
         fidelizacionActiva, clientePuntos, puntosACanjear, setPuntosACanjear, redeemRate,
         solicitaFe, setSolicitaFe, feActiva,
     };

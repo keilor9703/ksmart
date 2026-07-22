@@ -209,6 +209,7 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate, commi
         monto_pagado=total_final if venta.pagada else 0,
         estado_pago="pagado" if venta.pagada else "pendiente",
         metodo_pago=venta.metodo_pago if venta.pagada else None,
+        link_pago_nombre=getattr(venta, 'link_pago_nombre', None) if venta.pagada else None,
         empresa_id=empresa_id,
         fecha=ahora_utc,  # Forzado explicito para no depender del default base
         solicita_fe=getattr(venta, 'solicita_fe', False),

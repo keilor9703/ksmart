@@ -9,9 +9,12 @@ router = APIRouter()
 
 
 def _get_link_activo(db: Session, empresa_id: int) -> Optional[models.LinkPagoEmpresa]:
+    """El primero activo — usado solo por consumidores de "un solo link"
+    (portal público de agendamiento), que no tienen selector de método de pago."""
     return (
         db.query(models.LinkPagoEmpresa)
         .filter_by(empresa_id=empresa_id, is_active=True)
+        .order_by(models.LinkPagoEmpresa.id.asc())
         .first()
     )
 
@@ -21,7 +24,9 @@ def get_link_pago(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
-    """Devuelve el link de pago activo de la empresa (o null si no tiene)."""
+    """Devuelve el primer link de pago activo de la empresa (o null si no tiene).
+    Se mantiene por compatibilidad con consumidores de "un solo link" (portal
+    público de agendamiento) — el checkout de Ventas usa /empresa/link-pago/activos."""
     link = _get_link_activo(db, current_user.empresa_id)
     if link is None:
         return None
@@ -31,12 +36,37 @@ def get_link_pago(
     return data
 
 
+@router.get("/empresa/link-pago/activos", response_model=List[schemas.LinkPagoOut])
+def list_links_pago_activos(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Lista TODOS los links de pago activos de la empresa — cada uno se
+    muestra como su propio método de pago al cobrar una venta (Nequi,
+    Bancolombia, etc. pueden coexistir)."""
+    links = (
+        db.query(models.LinkPagoEmpresa)
+        .filter_by(empresa_id=current_user.empresa_id, is_active=True)
+        .order_by(models.LinkPagoEmpresa.nombre.asc())
+        .all()
+    )
+    empresa = db.query(models.Empresa).filter(models.Empresa.id == current_user.empresa_id).first()
+    logo_base64 = getattr(empresa, "logo_base64", None)
+    result = []
+    for link in links:
+        data = schemas.LinkPagoOut.model_validate(link).model_dump()
+        data["logo_base64"] = logo_base64
+        result.append(data)
+    return result
+
+
 @router.get("/empresa/link-pago/todos", response_model=List[schemas.LinkPagoOut])
 def list_links_pago(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
-    """Lista todos los links de pago de la empresa."""
+    """Lista todos los links de pago de la empresa (activos e inactivos) — usado
+    en la pantalla de configuración para administrarlos."""
     return (
         db.query(models.LinkPagoEmpresa)
         .filter_by(empresa_id=current_user.empresa_id)
@@ -51,17 +81,13 @@ def create_link_pago(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
-    """Crea o actualiza el link de pago de la empresa. Solo uno puede estar activo."""
+    """Crea un nuevo link/QR de pago de la empresa. Una empresa puede tener
+    varios simultáneamente (Nequi, Bancolombia, Daviplata, etc.), cada uno
+    aparece como su propio método de pago al cobrar."""
     if payload.tipo == "url" and not payload.link_url:
         raise HTTPException(status_code=400, detail="Se requiere link_url para tipo 'url'.")
     if payload.tipo == "qr_imagen" and not payload.qr_base64:
         raise HTTPException(status_code=400, detail="Se requiere qr_base64 para tipo 'qr_imagen'.")
-
-    # Si viene activo, desactivar el anterior
-    if payload.is_active:
-        db.query(models.LinkPagoEmpresa).filter_by(
-            empresa_id=current_user.empresa_id, is_active=True
-        ).update({"is_active": False})
 
     link = models.LinkPagoEmpresa(
         empresa_id=current_user.empresa_id,
@@ -91,13 +117,6 @@ def update_link_pago(
     ).first()
     if not link:
         raise HTTPException(status_code=404, detail="Link de pago no encontrado.")
-
-    # Si se activa este, desactivar los demás
-    if payload.is_active and not link.is_active:
-        db.query(models.LinkPagoEmpresa).filter(
-            models.LinkPagoEmpresa.empresa_id == current_user.empresa_id,
-            models.LinkPagoEmpresa.id != link_id,
-        ).update({"is_active": False})
 
     for field, val in payload.model_dump(exclude_unset=True).items():
         setattr(link, field, val)

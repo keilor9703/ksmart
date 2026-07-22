@@ -499,6 +499,9 @@ class VentaBase(BaseModel):
     pagada: bool = True
     iva_porcentaje: float = 0.0
     metodo_pago: Optional[str] = None
+    # Cuando metodo_pago == "Link de Pago": cuál de los links/QR configurados
+    # (Nequi, Bancolombia, etc.) usó el cliente.
+    link_pago_nombre: Optional[str] = None
     # ← Nuevos campos Fase 2
     tipo: str = "venta"                          # 'venta' | 'cotizacion'
     valida_hasta: Optional[datetime] = None      # Solo cotizaciones

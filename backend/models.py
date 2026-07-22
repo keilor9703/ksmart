@@ -550,6 +550,12 @@ class Venta(Base, TenantMixin):
     estado_pago     = Column(String, default="pendiente")
     fecha_pago      = Column(DateTime(timezone=True), nullable=True)
     metodo_pago     = Column(String, nullable=True)
+    # Cuando metodo_pago == "Link de Pago", registra CUÁL de los links/QR
+    # configurados por la empresa (Nequi, Bancolombia, etc.) usó el cliente.
+    # No es una FK a LinkPagoEmpresa a propósito: si el link se edita/borra
+    # después, el histórico de la venta debe seguir mostrando el nombre tal
+    # como era al momento del cobro.
+    link_pago_nombre = Column(String(100), nullable=True)
 
     # Consecutivo visible por empresa (V-0001…); el PK 'id' es global a todos
     # los tenants y no debe mostrarse al usuario como número de venta.
