@@ -467,6 +467,10 @@ const Ventas = ({ user }) => {
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+    // El historial de ventas permite editar/eliminar una venta ya registrada —
+    // solo el Admin puede hacerlo (el backend también lo bloquea en
+    // PUT/DELETE /ventas/{id}, esto es solo para no mostrar la pestaña).
+    const isAdmin = user?.role?.name === 'Admin';
     const location = useLocation();
 
     // Cobro proveniente de una cita del módulo de agendamiento.
@@ -1390,7 +1394,7 @@ useEffect(() => {
                     }}
                 >
                     <Tab label={editingVenta ? '✏️ Editar Venta' : '➕ Nueva Venta POS'} />
-                    <Tab label={`📋 Historial de Ventas (${ventas.length})`} />
+                    {isAdmin && <Tab label={`📋 Historial de Ventas (${ventas.length})`} />}
                 </Tabs>
 
                 {/* ════════════════════════════════════════
@@ -2036,7 +2040,7 @@ useEffect(() => {
                 {/* ════════════════════════════════════════
                     TAB 1 — HISTORIAL
                 ════════════════════════════════════════ */}
-                <TabPanel value={tabValue} index={1}>
+                {isAdmin && <TabPanel value={tabValue} index={1}>
                     <Box sx={{ px: { xs: 2, md: 3 }, pb: 3 }}>
 
                         {/* ── Buscador principal ── */}
@@ -2249,7 +2253,7 @@ useEffect(() => {
                             labelRowsPerPage="Filas:" labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
                         />
                     </Box>
-                </TabPanel>
+                </TabPanel>}
             </Paper>
 
             {/* ── Dialogs ── */}

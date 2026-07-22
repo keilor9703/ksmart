@@ -279,6 +279,8 @@ def read_venta(venta_id: int, db: Session = Depends(get_db), current_user: model
 
 @router.put("/{venta_id}", response_model=schemas.Venta)
 def update_venta(venta_id: int, venta: schemas.VentaCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+    if current_user.role.name != "Admin":
+        raise HTTPException(status_code=403, detail="Solo un administrador puede editar una venta.")
     empresa_id = current_user.empresa_id
     if venta.cliente_id is not None and not crud.get_cliente(db, empresa_id=empresa_id, cliente_id=venta.cliente_id):
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
@@ -295,6 +297,8 @@ def update_venta(venta_id: int, venta: schemas.VentaCreate, db: Session = Depend
 
 @router.delete("/{venta_id}")
 def delete_venta(venta_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+    if current_user.role.name != "Admin":
+        raise HTTPException(status_code=403, detail="Solo un administrador puede eliminar una venta.")
     empresa_id = current_user.empresa_id
     db_venta = crud.get_venta(db, empresa_id=empresa_id, venta_id=venta_id)
     if db_venta is None:
