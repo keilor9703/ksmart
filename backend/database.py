@@ -2804,6 +2804,14 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v124)
                 logger.info("V124 (fecha_nacimiento en clientes) aplicada.")
 
+            # V125 — Múltiples links/QR de pago por empresa (antes solo uno
+            # activo). Registra en la venta cuál link específico se usó.
+            migration_v125 = "v125_ventas_link_pago_nombre"
+            if not _migration_already_applied(conn, migration_v125):
+                _add_column_safe(conn, "ventas", "link_pago_nombre", "VARCHAR(100)")
+                _mark_migration_applied(conn, migration_v125)
+                logger.info("V125 (link_pago_nombre en ventas) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

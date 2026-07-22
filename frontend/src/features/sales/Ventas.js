@@ -71,7 +71,22 @@ const METODOS_PAGO = [
     { value: 'Tarjeta',       label: '💳 Tarjeta',        pagada: true,  color: '#8B5CF6' },
     { value: 'Cheque',        label: '📄 Cheque',         pagada: true,  color: '#6B7280' },
     { value: 'Por Cobrar',    label: '🕒 Por Cobrar',     pagada: false, color: '#EF4444' },
-    { value: 'Link de Pago',  label: '📲 Link/QR',        pagada: true,  color: '#0891B2', digital: true },
+];
+
+// Cada link/QR de pago activo de la empresa (Nequi, Bancolombia, etc.)
+// aparece como su propia opción de método de pago, además de la lista fija
+// de arriba. El value se codifica como "link:{id}" para poder distinguirlo
+// y recuperar cuál link específico se usó al armar el payload de la venta.
+const buildMetodosPago = (linkPagosConfig) => [
+    ...METODOS_PAGO,
+    ...linkPagosConfig.map(l => ({
+        value: `link:${l.id}`,
+        label: `📲 ${l.nombre}`,
+        pagada: true,
+        color: '#0891B2',
+        digital: true,
+        linkData: l,
+    })),
 ];
 
 const PUNTOS_REDEEM_RATE_DEFAULT = 100;
@@ -496,10 +511,14 @@ const Ventas = ({ user }) => {
     // incluso cuando es llamado desde el callback de LinkPagoModal
     const omitirInventarioRef = useRef(false);
     omitirInventarioRef.current = omitirInventario;
-    // ── Link de Pago POS ──
-    const [linkPagoConfig, setLinkPagoConfig] = useState(null);
+    // ── Link de Pago POS (múltiples links activos: Nequi, Bancolombia, etc.) ──
+    const [linkPagosConfig, setLinkPagosConfig] = useState([]);
     const [linkPagoModalOpen, setLinkPagoModalOpen] = useState(false);
     const pendingVentaRef = useRef(null);
+    const metodosPagoConLinks = buildMetodosPago(linkPagosConfig);
+    const selectedLinkPago = metodoPago?.startsWith('link:')
+        ? linkPagosConfig.find(l => `link:${l.id}` === metodoPago)
+        : null;
 
     // ── Barcode / Camera ──
     const [barcodeInput, setBarcodeInput]     = useState('');
@@ -544,7 +563,7 @@ const Ventas = ({ user }) => {
     useEffect(() => {
         fetchVentas(); fetchClientes(); fetchProductos(); fetchVentasSummary(); fetchGrupos();
         apiClient.get('/admin/usuarios/').then(r => setEmpleados(r.data.filter(u => u.is_active))).catch(() => {});
-        apiClient.get('/empresa/link-pago').then(r => setLinkPagoConfig(r.data)).catch(() => {});
+        apiClient.get('/empresa/link-pago/activos').then(r => setLinkPagosConfig(r.data || [])).catch(() => {});
         apiClient.get('/empresa/config-ventas').then(r => setConfigFidelizacion({
             activa:      r.data.fidelizacion_activa     ?? true,
             redeem_rate: r.data.fidelizacion_redeem_rate ?? PUNTOS_REDEEM_RATE_DEFAULT,
@@ -1080,11 +1099,7 @@ useEffect(() => {
         const descuentoPuntosImporte = puntosACanjear * (configFidelizacion.redeem_rate || PUNTOS_REDEEM_RATE_DEFAULT);
 
         // ── Link de Pago — mostrar QR/URL al cliente antes de registrar ──
-        if (pagada && metodoPago === 'Link de Pago' && !pendingVentaRef.current) {
-            if (!linkPagoConfig) {
-                toast.error('No hay un link de pago configurado. Configúralo en Mi Suscripción.');
-                return;
-            }
+        if (pagada && selectedLinkPago && !pendingVentaRef.current) {
             const subtotal = calculateSubtotal();
             const totalBruto = subtotal; // IVA incluido: el precio ya tiene el IVA
             const totalFinal = Math.max(0, totalBruto - descuentoPuntosImporte);
@@ -1106,7 +1121,8 @@ useEffect(() => {
                 descuento_pct:   descuentoPct || 0,
                 iva_porcentaje:  0.0,
             })),
-            pagada, metodo_pago: pagada ? metodoPago : null,
+            pagada, metodo_pago: pagada ? (selectedLinkPago ? 'Link de Pago' : metodoPago) : null,
+            link_pago_nombre: pagada && selectedLinkPago ? selectedLinkPago.nombre : undefined,
             iva_porcentaje: parseFloat(ivaPorcentajeGlobal),
             // El vendedor es el trabajador de la cita si la venta vino de un cobro de agendamiento.
             operador_id: atendidoPor?.id ?? citaVendedorRef.current ?? user?.id,
@@ -1870,7 +1886,7 @@ useEffect(() => {
                                     </SmartTooltip>
                                 </Box>
                                 <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap' }}>
-                                    {METODOS_PAGO.filter(opt => opt.value !== 'Link de Pago' || !!linkPagoConfig).map(opt => {
+                                    {metodosPagoConLinks.map(opt => {
                                         const isSelected = pagada ? (opt.pagada && metodoPago === opt.value) : !opt.pagada;
                                         return (
                                             <Box key={opt.value} onClick={() => { setPagada(opt.pagada); if (opt.pagada) setMetodoPago(opt.value); }}
@@ -1963,9 +1979,9 @@ useEffect(() => {
                                     type="submit" fullWidth
                                     disabled={savingVenta} loading={savingVenta}
                                     onClick={handleSubmit}
-                                    startIcon={!savingVenta && (metodoPago === 'Link de Pago' ? <CreditCard /> : <ShoppingCart />)}
+                                    startIcon={!savingVenta && (selectedLinkPago ? <CreditCard /> : <ShoppingCart />)}
                                 >
-                                    {savingVenta ? 'Guardando…' : (editingVenta ? 'Actualizar' : (metodoPago === 'Link de Pago' ? 'Cobrar con Link' : 'Registrar Venta'))}
+                                    {savingVenta ? 'Guardando…' : (editingVenta ? 'Actualizar' : (selectedLinkPago ? 'Cobrar con Link' : 'Registrar Venta'))}
                                 </LiquidButton>
                             </Box>
                           </Box>{/* end RIGHT PANEL */}
@@ -2002,7 +2018,8 @@ useEffect(() => {
                                 isDark={isDark}
                                 omitirInventario={omitirInventario}
                                 setOmitirInventario={setOmitirInventario}
-                                linkPagoConfig={linkPagoConfig}
+                                linkPagosConfig={linkPagosConfig}
+                                metodosPagoConLinks={metodosPagoConLinks}
                                 fidelizacionActiva={configFidelizacion.activa}
                                 clientePuntos={clientePuntos}
                                 puntosACanjear={puntosACanjear}
@@ -2284,7 +2301,7 @@ useEffect(() => {
                 open={linkPagoModalOpen}
                 onClose={() => { setLinkPagoModalOpen(false); pendingVentaRef.current = null; }}
                 onConfirm={() => { setLinkPagoModalOpen(false); handleVentaSubmit(); }}
-                linkConfig={linkPagoConfig}
+                linkConfig={selectedLinkPago}
                 clienteTelefono={cliente?.telefono || ''}
             />
         </Box>
