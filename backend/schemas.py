@@ -198,6 +198,9 @@ class Role(RoleBase):
 class UserBase(BaseModel):
     username: str
     role_id: int
+    nombre_completo: Optional[str] = None
+    email: Optional[str] = None
+    telefono: Optional[str] = None
 
 class UserCreate(UserBase):
     password: str
