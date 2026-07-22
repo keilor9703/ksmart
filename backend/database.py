@@ -2812,6 +2812,18 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v125)
                 logger.info("V125 (link_pago_nombre en ventas) aplicada.")
 
+            # V126 — Asegura nombre_completo/email/telefono en users (ya
+            # estaban en el modelo, pero faltaban en los schemas de
+            # Pydantic — se perdían al crear/editar/leer un usuario del
+            # panel de administración).
+            migration_v126 = "v126_users_datos_contacto"
+            if not _migration_already_applied(conn, migration_v126):
+                _add_column_safe(conn, "users", "nombre_completo", "VARCHAR(120)")
+                _add_column_safe(conn, "users", "email", "VARCHAR(120)")
+                _add_column_safe(conn, "users", "telefono", "VARCHAR(30)")
+                _mark_migration_applied(conn, migration_v126)
+                logger.info("V126 (nombre_completo/email/telefono en users) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

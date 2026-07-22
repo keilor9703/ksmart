@@ -72,7 +72,10 @@ def create_user(db: Session, user: schemas.UserCreate, empresa_id: int):
         hashed_password=hashed_password,
         role_id=user.role_id,
         empresa_id=empresa_id,
-        is_active=True
+        is_active=True,
+        nombre_completo=user.nombre_completo,
+        email=user.email,
+        telefono=user.telefono,
     )
     db.add(db_user)
     db.commit()
