@@ -36,6 +36,7 @@ def get_clientes_template(current_user: models.User = Depends(get_current_active
         ("TIPO_PERSONA", "NATURAL (persona natural/independiente) · JURIDICA (empresa, S.A.S., LTDA, etc.). Afecta el régimen tributario para Factura Electrónica."),
         ("TELEFONO", "Solo números, sin espacios ni guiones (ej: 3001234567)."),
         ("DIRECCION", "Dirección fiscal del tercero. Opcional."),
+        ("FECHA_NACIMIENTO", "Fecha de cumpleaños, formato AAAA-MM-DD (ej: 1990-05-20). Opcional."),
         ("EMAIL", "⚠ Requerido para emitir Factura Electrónica (FE) a este cliente. Déjalo vacío si no emites FE."),
         ("CUPO_CREDITO", "Límite de crédito en COP. Solo números (ej: 500000). Deja 0 si no maneja crédito."),
         ("ES_CLIENTE", "SI → le vendes · NO → no le vendes."),
@@ -61,12 +62,13 @@ def get_clientes_template(current_user: models.User = Depends(get_current_active
         "tipo_persona",   # E — NATURAL/JURIDICA
         "telefono",       # F
         "direccion",      # G
-        "email",          # H — para FE
-        "cupo_credito",   # I
-        "es_cliente",     # J — SI/NO
-        "es_proveedor",   # K — SI/NO
+        "fecha_nacimiento", # H — AAAA-MM-DD
+        "email",          # I — para FE
+        "cupo_credito",   # J
+        "es_cliente",     # K — SI/NO
+        "es_proveedor",   # L — SI/NO
     ]
-    col_widths = [30, 18, 16, 8, 14, 16, 30, 30, 16, 14, 14]
+    col_widths = [30, 18, 16, 8, 14, 16, 30, 16, 30, 16, 14, 14]
 
     header_fill = PatternFill(start_color="3B82F6", end_color="3B82F6", fill_type="solid")
     header_font = Font(color="FFFFFF", bold=True, size=11)
@@ -91,15 +93,15 @@ def get_clientes_template(current_user: models.User = Depends(get_current_active
 
     dv_sino = DataValidation(type="list", formula1='"SI,NO"', allow_blank=False)
     ws_datos.add_data_validation(dv_sino)
-    dv_sino.add("J2:J5000")
     dv_sino.add("K2:K5000")
+    dv_sino.add("L2:L5000")
 
     # Datos de ejemplo
-    #          nombre                    cedula        tipodoc  dv  persona    tel          direccion               email                 cupo       cli   pro
+    #          nombre                    cedula        tipodoc  dv  persona    tel          direccion               fecha_nac     email                 cupo       cli   pro
     ejemplos = [
-        ["Distribuidora XYZ S.A.S", "9001234567",  "NIT",  "1", "JURIDICA",  "6014445566", "Calle 10 # 5-20 Bogotá", "contacto@xyz.com",  5000000,  "NO", "SI"],
-        ["Juan Pérez García",        "10203040",    "CC",   "",  "NATURAL",   "3001234567", "Carrera 5 # 10-30",      "juan@gmail.com",    0,        "SI", "NO"],
-        ["María López",              "52100200",    "CC",   "",  "NATURAL",   "3109876543", "",                        "",                  1000000,  "SI", "NO"],
+        ["Distribuidora XYZ S.A.S", "9001234567",  "NIT",  "1", "JURIDICA",  "6014445566", "Calle 10 # 5-20 Bogotá", "",           "contacto@xyz.com",  5000000,  "NO", "SI"],
+        ["Juan Pérez García",        "10203040",    "CC",   "",  "NATURAL",   "3001234567", "Carrera 5 # 10-30",      "1990-05-20", "juan@gmail.com",    0,        "SI", "NO"],
+        ["María López",              "52100200",    "CC",   "",  "NATURAL",   "3109876543", "",                        "",           "",                  1000000,  "SI", "NO"],
     ]
 
     example_fill = PatternFill(start_color="EFF6FF", end_color="EFF6FF", fill_type="solid")

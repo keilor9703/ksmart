@@ -326,6 +326,15 @@ def bulk_create_clientes(db: Session, empresa_id: int, file: IO, filename: str):
             raw_dir = str(row.get('direccion', '')).strip() if pd.notna(row.get('direccion')) else ''
             direccion = raw_dir if raw_dir not in ('nan', 'NAN', '') else None
 
+            # FECHA_NACIMIENTO (AAAA-MM-DD u otros formatos comunes; se ignora si no se puede parsear)
+            raw_fecha_nac = row.get('fecha_nacimiento')
+            fecha_nacimiento = None
+            if pd.notna(raw_fecha_nac) and str(raw_fecha_nac).strip() not in ('', 'nan', 'NAN'):
+                try:
+                    fecha_nacimiento = pd.to_datetime(raw_fecha_nac).date()
+                except Exception:
+                    errors.append(f"Fila {index + 2}: '{nombre}' tiene FECHA_NACIMIENTO '{raw_fecha_nac}' con formato inválido, se dejó vacía.")
+
             # CUPO_CREDITO
             raw_cupo = row.get('cupo_credito', 0)
             try:
@@ -344,6 +353,7 @@ def bulk_create_clientes(db: Session, empresa_id: int, file: IO, filename: str):
                 dv=raw_dv,
                 telefono=telefono,
                 direccion=direccion,
+                fecha_nacimiento=fecha_nacimiento,
                 email=raw_email,
                 cupo_credito=cupo,
                 es_cliente=es_cliente,

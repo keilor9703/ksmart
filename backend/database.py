@@ -2797,6 +2797,13 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v123)
                 logger.info("V123 (venta mixta y permuta en taller) aplicada.")
 
+            # V124 — Fecha de cumpleaños del cliente (marketing/fidelización).
+            migration_v124 = "v124_clientes_fecha_nacimiento"
+            if not _migration_already_applied(conn, migration_v124):
+                _add_column_safe(conn, "clientes", "fecha_nacimiento", "DATE")
+                _mark_migration_applied(conn, migration_v124)
+                logger.info("V124 (fecha_nacimiento en clientes) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

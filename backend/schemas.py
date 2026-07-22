@@ -247,6 +247,7 @@ class ClienteBase(BaseModel):
     departamento_code: Optional[str] = None
     ciudad_code: Optional[str] = None
     zona: Optional[str] = None
+    fecha_nacimiento: Optional[date] = None
 
 class ClienteCreate(ClienteBase):
     pass
