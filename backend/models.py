@@ -613,6 +613,30 @@ class Venta(Base, TenantMixin):
     orden_trabajo_asociada = relationship("OrdenTrabajo", back_populates="venta_asociada", uselist=False)
     operador               = relationship("User", foreign_keys=[operador_id])
 
+
+class VentaBorrador(Base, TenantMixin):
+    """
+    Venta "aparcada" en el POS: el vendedor guarda el carrito tal como está
+    (productos, cliente, método de pago, etc.) para atender a otro cliente en
+    fila, y lo retoma después. A propósito NO es una fila de Venta a medio
+    hacer — crear una Venta real dispara descuento de inventario, asiento
+    contable, puntos de fidelización y numeración/factura DIAN; nada de eso
+    debe ocurrir solo por guardar un borrador. `datos` guarda el snapshot
+    completo del carrito como JSON, opaco para el backend — el frontend es
+    quien sabe cómo reconstruir la pantalla a partir de él.
+    """
+    __tablename__ = "ventas_borrador"
+
+    id                  = Column(Integer, primary_key=True, index=True)
+    creado_por_id       = Column(Integer, ForeignKey("users.id"), nullable=True)
+    cliente_nombre      = Column(String(150), nullable=True)   # snapshot para listar sin parsear el JSON
+    total_aproximado    = Column(Float, default=0.0)           # snapshot idem
+    datos               = Column(JSON, nullable=False)         # carrito completo (saleDetails, cliente, metodoPago, etc.)
+    created_at          = Column(DateTime(timezone=True), default=utcnow)
+
+    creado_por = relationship("User", foreign_keys=[creado_por_id])
+
+
 class OrdenProducto(Base, TenantMixin):
     __tablename__ = "orden_productos"
     id               = Column(Integer, primary_key=True, index=True)

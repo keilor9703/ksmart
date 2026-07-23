@@ -32,6 +32,7 @@ from crud.productos import (
 from crud.ventas import (
     get_ventas, get_venta, create_venta, update_venta, delete_venta,
     _get_resolucion_activa, _asignar_numero_factura, _ejecutar_movimientos_venta,
+    create_venta_borrador, get_ventas_borrador, get_venta_borrador, delete_venta_borrador,
 )
 
 from crud.inventario import (

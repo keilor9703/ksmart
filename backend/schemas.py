@@ -561,6 +561,25 @@ class Venta(VentaBase):
     model_config = ConfigDict(from_attributes=True)
 
 # =========================
+# VENTAS — BORRADORES (POS)
+# =========================
+class VentaBorradorCreate(BaseModel):
+    cliente_nombre: Optional[str] = None
+    total_aproximado: float = 0.0
+    datos: dict   # snapshot completo del carrito, opaco para el backend
+
+class VentaBorradorOut(BaseModel):
+    id: int
+    cliente_nombre: Optional[str] = None
+    total_aproximado: float = 0.0
+    created_at: datetime
+    creado_por_id: Optional[int] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class VentaBorradorDetalle(VentaBorradorOut):
+    datos: dict
+
+# =========================
 # DEVOLUCIONES
 # =========================
 class DevolucionItemCreate(BaseModel):
