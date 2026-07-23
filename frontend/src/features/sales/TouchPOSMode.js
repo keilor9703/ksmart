@@ -8,7 +8,7 @@ import {
 import {
     Search, ShoppingCart, PersonOutline, AddCircle, RemoveCircle, Delete,
     ExpandMore, Add, CloseRounded, Inventory2, QrCodeScanner, Videocam, VideocamOff,
-    Stars,
+    Stars, Notes,
 } from '@mui/icons-material';
 import { formatCurrency } from '../../utils/formatters';
 import CurrencyField from '../../components/common/CurrencyField';
@@ -228,6 +228,7 @@ const CartPanel = ({
     metodosPagoConLinks,
     fidelizacionActiva, clientePuntos, puntosACanjear, setPuntosACanjear, redeemRate,
     solicitaFe, setSolicitaFe, feActiva,
+    onGuardarBorrador, guardandoBorrador, borradoresCount, onVerBorradores,
 }) => {
     const validItems = saleDetails.filter(d => d.producto && d.cantidad > 0);
     const subtotal = calculateSubtotal();
@@ -591,6 +592,33 @@ const CartPanel = ({
                 >
                     {savingVenta ? 'Guardando…' : 'Registrar Venta'}
                 </Button>
+
+                {/* Borradores: guardar el carrito y ver los guardados */}
+                {(onGuardarBorrador || borradoresCount > 0) && (
+                    <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                        {onGuardarBorrador && (
+                            <Button
+                                fullWidth
+                                variant="outlined"
+                                disabled={guardandoBorrador || validItems.length === 0}
+                                onClick={onGuardarBorrador}
+                                startIcon={guardandoBorrador ? <CircularProgress size={14} /> : <Notes />}
+                                sx={{ borderRadius: 2, fontWeight: 700, fontSize: 12.5, borderColor: '#F59E0B', color: '#B45309', py: 1 }}
+                            >
+                                Guardar borrador
+                            </Button>
+                        )}
+                        {borradoresCount > 0 && onVerBorradores && (
+                            <Button
+                                variant="text"
+                                onClick={onVerBorradores}
+                                sx={{ borderRadius: 2, fontWeight: 700, fontSize: 12.5, color: '#B45309', flexShrink: 0, whiteSpace: 'nowrap' }}
+                            >
+                                Borradores ({borradoresCount})
+                            </Button>
+                        )}
+                    </Box>
+                )}
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mt: 0.5 }}>
                     {!cliente && validItems.length > 0 ? (
                         <Typography sx={{ fontSize: 11, color: '#F59E0B', fontWeight: 600 }}>
@@ -693,6 +721,7 @@ const TouchPOSMode = ({
     metodosPagoConLinks,
     fidelizacionActiva, clientePuntos, puntosACanjear, setPuntosACanjear, redeemRate,
     solicitaFe, setSolicitaFe, feActiva,
+    onGuardarBorrador, guardandoBorrador, borradoresCount, onVerBorradores,
 }) => {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -899,6 +928,7 @@ const TouchPOSMode = ({
         metodosPagoConLinks,
         fidelizacionActiva, clientePuntos, puntosACanjear, setPuntosACanjear, redeemRate,
         solicitaFe, setSolicitaFe, feActiva,
+        onGuardarBorrador, guardandoBorrador, borradoresCount, onVerBorradores,
     };
 
     return (
