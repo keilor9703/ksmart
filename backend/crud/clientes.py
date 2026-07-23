@@ -26,6 +26,27 @@ def get_clientes(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
         models.Cliente.empresa_id == empresa_id
     ).offset(skip).limit(limit).all()
 
+
+def get_clientes_cumpleanos_hoy(db: Session, empresa_id: int):
+    """Clientes cuyo fecha_nacimiento (mes+día, sin importar el año) cae hoy."""
+    from datetime import date
+    from sqlalchemy import func, extract
+    from database import IS_SQLITE
+
+    hoy = date.today()
+    q = db.query(models.Cliente).filter(
+        models.Cliente.empresa_id == empresa_id,
+        models.Cliente.fecha_nacimiento.isnot(None),
+    )
+    if IS_SQLITE:
+        q = q.filter(func.strftime('%m-%d', models.Cliente.fecha_nacimiento) == hoy.strftime('%m-%d'))
+    else:
+        q = q.filter(
+            extract('month', models.Cliente.fecha_nacimiento) == hoy.month,
+            extract('day', models.Cliente.fecha_nacimiento) == hoy.day,
+        )
+    return q.order_by(models.Cliente.nombre.asc()).all()
+
 def _normalize_cedula(data: dict) -> dict:
     """Convierte cedula='' a None para evitar violación de índice único en BD legacy."""
     if 'cedula' in data and (data['cedula'] == '' or data['cedula'] is not None and str(data['cedula']).strip() == ''):

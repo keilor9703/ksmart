@@ -20,7 +20,7 @@ from crud.usuarios import (
 )
 
 from crud.clientes import (
-    get_cliente, get_cliente_deuda, get_clientes,
+    get_cliente, get_cliente_deuda, get_clientes, get_clientes_cumpleanos_hoy,
     create_cliente, update_cliente, delete_cliente, get_cliente_history,
 )
 
