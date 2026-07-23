@@ -217,9 +217,17 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
                 if venta.puntos_canjeados and venta.puntos_canjeados > 0:
                     canjear_puntos(db, empresa_id=empresa_id, cliente_id=db_venta.cliente_id,
                                    puntos_a_canjear=venta.puntos_canjeados, redeem_rate=redeem_rate)
-                ganar_puntos_venta(db, empresa_id=empresa_id, cliente_id=db_venta.cliente_id,
+                puntos_ganados = ganar_puntos_venta(db, empresa_id=empresa_id, cliente_id=db_venta.cliente_id,
                                    total_venta=float(db_venta.total or 0), venta_id=db_venta.id,
                                    earn_rate=earn_rate)
+                # Snapshot para el comprobante: puntos ganados en esta venta y
+                # saldo del cliente justo después (no se recalcula en reimpresiones).
+                db_venta.puntos_ganados = puntos_ganados
+                db.refresh(db_venta.cliente)
+                db_venta.saldo_puntos_cliente = db_venta.cliente.puntos_fidelidad
+                db.add(db_venta)
+                db.commit()
+                db.refresh(db_venta)
         except Exception:
             pass  # Points are non-critical; never block the sale
 

@@ -2832,6 +2832,16 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v127)
                 logger.info("V127 (texto_pago en links_pago_empresa) aplicada.")
 
+            # V128 — Snapshot de puntos de fidelización en la venta (ganados
+            # en esa venta + saldo total del cliente en ese momento), para
+            # mostrarlos en el comprobante.
+            migration_v128 = "v128_ventas_puntos_snapshot"
+            if not _migration_already_applied(conn, migration_v128):
+                _add_column_safe(conn, "ventas", "puntos_ganados", "INTEGER")
+                _add_column_safe(conn, "ventas", "saldo_puntos_cliente", "INTEGER")
+                _mark_migration_applied(conn, migration_v128)
+                logger.info("V128 (puntos_ganados/saldo_puntos_cliente en ventas) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
