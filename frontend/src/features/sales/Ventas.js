@@ -849,7 +849,7 @@ useEffect(() => {
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [tabValue, savingVenta, cameraActive]);
+    }, [tabValue, savingVenta, cameraActive, handleGuardarBorrador]);
 
     // ── Cámara: inicializar cuando cameraActive pasa a true ──
     const cleanupCamera = useCallback(() => {
