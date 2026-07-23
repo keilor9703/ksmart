@@ -1166,6 +1166,10 @@ useEffect(() => {
                 iva_total: saved.iva_total ?? 0,
                 monto_pagado: pagada ? (saved.total ?? totalBruto) : 0,
                 metodo_pago: ventaData.metodo_pago, estado_pago: pagada ? 'pagado' : 'pendiente',
+                puntos_ganados: saved.puntos_ganados ?? 0,
+                puntos_canjeados: puntosACanjear || 0,
+                descuento_puntos: descuentoPuntosImporte || 0,
+                saldo_puntos_cliente: saved.saldo_puntos_cliente ?? null,
             });
             setReciboOpen(true);
             resetForm();

@@ -10,6 +10,17 @@ import {
 } from '@mui/icons-material';
 import { formatCurrency } from '../../utils/formatters';
 
+// ─── Fidelización: helper para saber si hay algo que mostrar ──────────────────
+function getPuntosInfo(venta, empresa) {
+  const activa = empresa?.fidelizacion_activa !== false; // default true si no viene el campo
+  if (!activa) return null;
+  const ganados   = venta.puntos_ganados || 0;
+  const canjeados = venta.puntos_canjeados || 0;
+  const saldo     = venta.saldo_puntos_cliente;
+  if (!ganados && !canjeados && (saldo === null || saldo === undefined)) return null;
+  return { ganados, canjeados, descuento: venta.descuento_puntos || 0, saldo };
+}
+
 // ─── Paper size definitions ────────────────────────────────────────────────────
 const SIZES = {
   a4:  { id: 'a4',  label: 'A4',    cssSize: 'A4',       margin: '15mm', compact: false, previewWidth: '100%' },
@@ -46,6 +57,13 @@ function buildWhatsAppText(venta, empresa, vendedor) {
   t += `Método de pago: ${venta.metodo_pago || 'Efectivo'}\n`;
   const saldo = (venta.total || 0) - (venta.monto_pagado || venta.total || 0);
   if (saldo > 0) t += `⚠️ Saldo pendiente: ${formatCurrency(saldo)}\n`;
+  const puntosInfo = getPuntosInfo(venta, empresa);
+  if (puntosInfo) {
+    t += `${sep}\n`;
+    if (puntosInfo.ganados > 0) t += `⭐ Puntos ganados: +${puntosInfo.ganados}\n`;
+    if (puntosInfo.canjeados > 0) t += `⭐ Puntos canjeados: -${puntosInfo.canjeados} (-${formatCurrency(puntosInfo.descuento)})\n`;
+    if (puntosInfo.saldo !== null && puntosInfo.saldo !== undefined) t += `⭐ Saldo de puntos: ${puntosInfo.saldo}\n`;
+  }
   t += `\n_¡Gracias por su compra!_ 🙏\n`;
   if (empresa?.whatsapp_pedidos)
     t += `\n📞 wa.me/${empresa.whatsapp_pedidos.replace(/\D/g, '')}`;
@@ -60,6 +78,7 @@ function buildPrintHTML(venta, empresa, vendedor, size) {
     hour: '2-digit', minute: '2-digit',
   });
   const saldo = (venta.total || 0) - (venta.monto_pagado || venta.total || 0);
+  const puntosInfo = getPuntosInfo(venta, empresa);
   const { compact, cssSize, margin } = size;
   const fontFamily = compact ? "'Courier New', Courier, monospace" : "Arial, Helvetica, sans-serif";
 
@@ -118,6 +137,10 @@ ${vendedor ? `<div>Vendedor: ${vendedor}</div>` : ''}
   <tr><td colspan="3"><hr class="sep"></td></tr>
   <tr><td>Forma de pago</td><td></td><td class="r">${venta.metodo_pago || 'Efectivo'}</td></tr>
   ${saldo > 0 ? `<tr><td class="b">Saldo pendiente</td><td></td><td class="r b">${formatCurrency(saldo)}</td></tr>` : ''}
+  ${puntosInfo ? `<tr><td colspan="3"><hr class="sep"></td></tr>` : ''}
+  ${puntosInfo && puntosInfo.ganados > 0 ? `<tr><td>⭐ Puntos ganados</td><td></td><td class="r">+${puntosInfo.ganados}</td></tr>` : ''}
+  ${puntosInfo && puntosInfo.canjeados > 0 ? `<tr><td>⭐ Puntos canjeados</td><td></td><td class="r">-${puntosInfo.canjeados} (-${formatCurrency(puntosInfo.descuento)})</td></tr>` : ''}
+  ${puntosInfo && (puntosInfo.saldo !== null && puntosInfo.saldo !== undefined) ? `<tr><td class="b">⭐ Saldo de puntos</td><td></td><td class="r b">${puntosInfo.saldo}</td></tr>` : ''}
 </table>
 <hr class="sep">
 ${venta.cufe && venta.estado_electronico === 'exitoso' ? `
@@ -193,6 +216,12 @@ td{padding:8px 6px;border-bottom:1px solid #f2f2f2;font-size:13px;}
   <div class="trow"><span style="color:#777">Pagado · ${venta.metodo_pago || 'Efectivo'}</span><span style="color:#16a34a;font-weight:700;">${formatCurrency(venta.monto_pagado || venta.total)}</span></div>
   ${saldo > 0 ? `<div class="trow"><span style="color:#dc2626;font-weight:700;">Saldo pendiente</span><span style="color:#dc2626;font-weight:700;">${formatCurrency(saldo)}</span></div>` : ''}
 </div>
+${puntosInfo ? `
+<div class="totals" style="margin-top:10px;padding-top:10px;border-top:1px dashed #ddd;">
+  ${puntosInfo.ganados > 0 ? `<div class="trow"><span style="color:#777">⭐ Puntos ganados</span><span style="color:#16a34a;font-weight:700;">+${puntosInfo.ganados}</span></div>` : ''}
+  ${puntosInfo.canjeados > 0 ? `<div class="trow"><span style="color:#777">⭐ Puntos canjeados</span><span style="color:#dc2626;font-weight:700;">-${puntosInfo.canjeados} (-${formatCurrency(puntosInfo.descuento)})</span></div>` : ''}
+  ${(puntosInfo.saldo !== null && puntosInfo.saldo !== undefined) ? `<div class="trow"><span style="font-weight:700;color:#555">⭐ Saldo de puntos</span><span style="font-weight:700;color:#0891B2">${puntosInfo.saldo}</span></div>` : ''}
+</div>` : ''}
 
 <div class="footer">
   <div style="font-size:14px;margin-bottom:4px;">¡Gracias por su compra! 🙏</div>
@@ -210,6 +239,7 @@ td{padding:8px 6px;border-bottom:1px solid #f2f2f2;font-size:13px;}
 // ─── Thermal preview (JSX) ────────────────────────────────────────────────────
 const ThermalPreview = ({ venta, empresa, vendedor, dateStr, saldo }) => {
   const sep = <Box sx={{ borderTop: '1px dashed #555', my: 0.8 }} />;
+  const puntosInfo = getPuntosInfo(venta, empresa);
   return (
     <Box sx={{ fontFamily: "'Courier New', Courier, monospace", fontSize: 12, color: '#111', lineHeight: 1.6 }}>
       <Box sx={{ textAlign: 'center' }}>
@@ -273,6 +303,29 @@ const ThermalPreview = ({ venta, empresa, vendedor, dateStr, saldo }) => {
           <Typography sx={{ fontWeight: 700, color: '#dc2626', fontFamily: 'inherit', fontSize: 11 }}>{formatCurrency(saldo)}</Typography>
         </Box>
       )}
+      {puntosInfo && (
+        <>
+          {sep}
+          {puntosInfo.ganados > 0 && (
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography sx={{ fontFamily: 'inherit', fontSize: 11 }}>⭐ Puntos ganados</Typography>
+              <Typography sx={{ fontFamily: 'inherit', fontSize: 11, color: '#16a34a', fontWeight: 700 }}>+{puntosInfo.ganados}</Typography>
+            </Box>
+          )}
+          {puntosInfo.canjeados > 0 && (
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography sx={{ fontFamily: 'inherit', fontSize: 11 }}>⭐ Puntos canjeados</Typography>
+              <Typography sx={{ fontFamily: 'inherit', fontSize: 11, color: '#dc2626', fontWeight: 700 }}>-{puntosInfo.canjeados} (-{formatCurrency(puntosInfo.descuento)})</Typography>
+            </Box>
+          )}
+          {(puntosInfo.saldo !== null && puntosInfo.saldo !== undefined) && (
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography sx={{ fontFamily: 'inherit', fontSize: 11, fontWeight: 700 }}>⭐ Saldo de puntos</Typography>
+              <Typography sx={{ fontFamily: 'inherit', fontSize: 11, fontWeight: 700, color: '#0891B2' }}>{puntosInfo.saldo}</Typography>
+            </Box>
+          )}
+        </>
+      )}
       {sep}
       <Box sx={{ textAlign: 'center', mt: 0.5 }}>
         <Typography sx={{ fontFamily: 'inherit', fontSize: 11 }}>¡Gracias por su compra!</Typography>
@@ -298,6 +351,7 @@ const ThermalPreview = ({ venta, empresa, vendedor, dateStr, saldo }) => {
 // ─── A4 preview (JSX) ────────────────────────────────────────────────────────
 const A4Preview = ({ venta, empresa, vendedor, dateStr, saldo }) => {
   const ACCENT = '#0891B2';
+  const puntosInfo = getPuntosInfo(venta, empresa);
   return (
     <Box sx={{ fontFamily: 'sans-serif', color: '#333' }}>
       {/* Header */}
@@ -371,6 +425,28 @@ const A4Preview = ({ venta, empresa, vendedor, dateStr, saldo }) => {
           <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
             <Typography sx={{ fontSize: 12, fontWeight: 700, color: '#dc2626' }}>Saldo pendiente</Typography>
             <Typography sx={{ fontSize: 12, fontWeight: 700, color: '#dc2626' }}>{formatCurrency(saldo)}</Typography>
+          </Box>
+        )}
+        {puntosInfo && (
+          <Box sx={{ mt: 1, pt: 1, borderTop: '1px dashed #ddd' }}>
+            {puntosInfo.ganados > 0 && (
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.3 }}>
+                <Typography sx={{ fontSize: 11, color: '#777' }}>⭐ Puntos ganados</Typography>
+                <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#16a34a' }}>+{puntosInfo.ganados}</Typography>
+              </Box>
+            )}
+            {puntosInfo.canjeados > 0 && (
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.3 }}>
+                <Typography sx={{ fontSize: 11, color: '#777' }}>⭐ Puntos canjeados</Typography>
+                <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#dc2626' }}>-{puntosInfo.canjeados} (-{formatCurrency(puntosInfo.descuento)})</Typography>
+              </Box>
+            )}
+            {(puntosInfo.saldo !== null && puntosInfo.saldo !== undefined) && (
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography sx={{ fontSize: 12, fontWeight: 700, color: '#555' }}>⭐ Saldo de puntos</Typography>
+                <Typography sx={{ fontSize: 12, fontWeight: 700, color: ACCENT }}>{puntosInfo.saldo}</Typography>
+              </Box>
+            )}
           </Box>
         )}
       </Box>

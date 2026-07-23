@@ -557,6 +557,13 @@ class Venta(Base, TenantMixin):
     # como era al momento del cobro.
     link_pago_nombre = Column(String(100), nullable=True)
 
+    # Fidelización: puntos ganados en ESTA venta, y el saldo total del
+    # cliente justo después de aplicarla — se guardan como snapshot para que
+    # el comprobante (reimpreso después) siga mostrando lo que era en el
+    # momento de la venta, sin importar compras posteriores del cliente.
+    puntos_ganados        = Column(Integer, nullable=True, default=0)
+    saldo_puntos_cliente  = Column(Integer, nullable=True)
+
     # Consecutivo visible por empresa (V-0001…); el PK 'id' es global a todos
     # los tenants y no debe mostrarse al usuario como número de venta.
     numero_venta    = Column(Integer, nullable=True, index=True)

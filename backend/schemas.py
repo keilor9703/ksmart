@@ -541,6 +541,10 @@ class Venta(VentaBase):
     pagos: List[Pago] = []
     # Consecutivo visible por empresa (V-0001…)
     numero_venta: Optional[int] = None
+    # Fidelización: puntos ganados en esta venta y saldo del cliente justo
+    # después de aplicarla (snapshot al momento de la venta).
+    puntos_ganados: Optional[int] = 0
+    saldo_puntos_cliente: Optional[int] = None
     # ← Nuevos campos Fase 2
     numero_factura: Optional[str] = None
     resolucion_id: Optional[int] = None
