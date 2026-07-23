@@ -133,6 +133,14 @@ def upload_clientes(file: UploadFile = File(...), db: Session = Depends(get_db),
 def read_clientes(skip: int = 0, limit: int = 500, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
     return crud.get_clientes(db, empresa_id=current_user.empresa_id, skip=skip, limit=limit)
 
+@router.get("/cumpleanos-hoy", response_model=List[schemas.Cliente])
+def read_clientes_cumpleanos_hoy(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+    """Clientes que cumplen años hoy — para la cinta de cumpleaños del Dashboard.
+    Declarado antes de /{cliente_id} para que FastAPI no intente matchear esta
+    ruta contra ese parámetro (aunque "cumpleanos-hoy" no es un int válido, es
+    más seguro/explícito declarar rutas literales antes de las parametrizadas)."""
+    return crud.get_clientes_cumpleanos_hoy(db, empresa_id=current_user.empresa_id)
+
 @router.get("/{cliente_id}", response_model=schemas.Cliente)
 def read_cliente(cliente_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
     db_cliente = crud.get_cliente(db, empresa_id=current_user.empresa_id, cliente_id=cliente_id)

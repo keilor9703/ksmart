@@ -710,10 +710,85 @@ function QuickAccessGrid({ accesosRapidos }) {
   );
 }
 
+// ─── Cinta de cumpleaños ──────────────────────────────────────────────────────
+const marqueeScroll = keyframes`
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+`;
+
+const abrirWhatsAppCumpleanos = (cliente) => {
+  const telefono = cliente?.telefono;
+  if (!telefono?.trim()) return;
+  const digits = telefono.replace(/\D/g, '');
+  const full = digits.startsWith('57') ? digits : `57${digits}`;
+  const primerNombre = (cliente.nombre || '').trim().split(/\s+/)[0] || '';
+  const msg = `¡Feliz cumpleaños${primerNombre ? `, ${primerNombre}` : ''}! 🎉🎂 Todo el equipo te desea un día increíble. ¡Gracias por ser parte de nuestros clientes!`;
+  window.open(`https://wa.me/${full}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
+};
+
+function BirthdayRibbon({ clientes }) {
+  const theme = useTheme();
+  const dark = theme.palette.mode === 'dark';
+  if (!clientes || clientes.length === 0) return null;
+
+  // Se duplica la lista para que la animación haga loop continuo sin salto visible.
+  const items = [...clientes, ...clientes];
+
+  return (
+    <Paper
+      elevation={0}
+      sx={{
+        mb: 1.5, py: 0.8, px: 0,
+        borderRadius: 2.5,
+        border: '1px solid',
+        borderColor: dark ? 'rgba(236,72,153,0.25)' : 'rgba(236,72,153,0.2)',
+        background: dark
+          ? 'linear-gradient(90deg, rgba(236,72,153,0.10), rgba(139,92,246,0.08))'
+          : 'linear-gradient(90deg, #FDF2F8, #F5F3FF)',
+        overflow: 'hidden',
+        position: 'relative',
+      }}
+    >
+      <Box
+        sx={{
+          display: 'flex', alignItems: 'center', gap: 3,
+          width: 'max-content',
+          animation: `${marqueeScroll} ${Math.max(15, clientes.length * 6)}s linear infinite`,
+          '&:hover': { animationPlayState: 'paused' },
+        }}
+      >
+        {items.map((c, i) => (
+          <Box key={`${c.id}-${i}`} sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, whiteSpace: 'nowrap' }}>
+            <Typography sx={{ fontSize: 16, lineHeight: 1 }}>🎂</Typography>
+            <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: dark ? '#F9A8D4' : '#BE185D' }}>
+              ¡Hoy cumple años {c.nombre}!
+            </Typography>
+            {c.telefono && (
+              <IconButton
+                size="small"
+                onClick={() => abrirWhatsAppCumpleanos(c)}
+                sx={{
+                  width: 24, height: 24, bgcolor: '#25D36618', color: '#25D366',
+                  '&:hover': { bgcolor: '#25D36630' },
+                }}
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                  <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 0 0 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.13-2.9-7C17.19 3.03 14.7 2 12.04 2m0 1.67c2.2 0 4.26.86 5.82 2.42a8.2 8.2 0 0 1 2.41 5.82c0 4.53-3.7 8.23-8.24 8.23a8.2 8.2 0 0 1-4.19-1.15l-.3-.17-3.12.82.83-3.04-.2-.32a8.2 8.2 0 0 1-1.26-4.37c0-4.54 3.7-8.24 8.25-8.24m-4.52 4.71c-.16 0-.42.06-.64.3-.22.24-.85.83-.85 2.02s.87 2.35.99 2.51c.12.16 1.7 2.6 4.14 3.63.58.25 1.03.4 1.38.51.58.18 1.11.16 1.53.09.47-.07 1.44-.59 1.64-1.16.2-.57.2-1.05.14-1.16-.06-.1-.22-.16-.46-.28-.24-.12-1.44-.71-1.66-.79-.22-.08-.38-.12-.55.12-.16.24-.63.79-.77.95-.14.16-.28.18-.52.06-.24-.12-1.01-.37-1.93-1.19-.71-.63-1.19-1.42-1.33-1.66-.14-.24-.01-.37.11-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.55-1.32-.75-1.81-.2-.48-.4-.41-.55-.42-.14-.01-.3-.01-.46-.01"/>
+                </svg>
+              </IconButton>
+            )}
+          </Box>
+        ))}
+      </Box>
+    </Paper>
+  );
+}
+
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 const Dashboard = ({ user }) => {
   const [data, setData]           = useState(null);
   const [caja, setCaja]           = useState(null);
+  const [cumpleanos, setCumpleanos] = useState([]);
   const [loadingMain, setLoadingMain] = useState(true);
   const [loadingCaja, setLoadingCaja] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -731,12 +806,14 @@ const Dashboard = ({ user }) => {
     setLoadingMain(true);
     setLoadingCaja(true);
     try {
-      const [dashRes, cajaRes] = await Promise.allSettled([
+      const [dashRes, cajaRes, cumpleRes] = await Promise.allSettled([
         apiClient.get('/reportes/dashboard'),
         apiClient.get('/caja/corte/preview'),
+        apiClient.get('/clientes/cumpleanos-hoy'),
       ]);
       if (dashRes.status === 'fulfilled') setData(dashRes.value.data);
       if (cajaRes.status === 'fulfilled') setCaja(cajaRes.value.data);
+      if (cumpleRes.status === 'fulfilled') setCumpleanos(cumpleRes.value.data || []);
     } finally {
       setLoadingMain(false);
       setLoadingCaja(false);
@@ -1004,6 +1081,8 @@ const Dashboard = ({ user }) => {
           ))}
         </Box>
       )}
+
+      <BirthdayRibbon clientes={cumpleanos} />
 
       {/* ─────────────────────────────────────────────────────────────────
           KPI GRID
