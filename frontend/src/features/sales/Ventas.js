@@ -480,6 +480,9 @@ const Ventas = ({ user }) => {
     const citaVendedorRef = useRef(null);    // id del trabajador (vendedor) de la cita
     const citaProductoRef = useRef(null);    // servicio inyectado (para preservarlo en refetch)
     const fromCitaAppliedRef = useRef(false); // evita reaplicar al re-render
+    // Ref hacia handleGuardarBorrador (definida más abajo) para el atajo de
+    // teclado, sin depender del orden de declaración dentro del componente.
+    const handleGuardarBorradorRef = useRef(null);
 
     // ── Data ──
     const [totalVentasHoy, setTotalVentasHoy] = useState(0);
@@ -820,7 +823,7 @@ useEffect(() => {
             // Cmd/Ctrl+G → guardar el carrito actual como borrador
             if ((e.ctrlKey || e.metaKey) && (e.key === 'g' || e.key === 'G') && tabValue === 0 && !savingVenta) {
                 e.preventDefault();
-                handleGuardarBorrador();
+                handleGuardarBorradorRef.current?.();
                 return;
             }
 
@@ -846,7 +849,7 @@ useEffect(() => {
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [tabValue, savingVenta, cameraActive, handleGuardarBorrador]);
+    }, [tabValue, savingVenta, cameraActive]);
 
     // ── Cámara: inicializar cuando cameraActive pasa a true ──
     const cleanupCamera = useCallback(() => {
@@ -1245,6 +1248,7 @@ useEffect(() => {
             setGuardandoBorrador(false);
         }
     };
+    handleGuardarBorradorRef.current = handleGuardarBorrador;
 
     const handleRetomarBorrador = async (borradorId) => {
         setRetomandoBorradorId(borradorId);
