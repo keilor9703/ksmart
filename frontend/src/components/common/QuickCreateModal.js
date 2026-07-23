@@ -3,16 +3,28 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Box, Typography, TextField, Button, IconButton,
   CircularProgress, InputAdornment, Divider, Switch, FormControlLabel,
-  Autocomplete
+  Autocomplete, Collapse, Grid
 } from '@mui/material';
 import {
   Close, PersonAdd, Inventory2Outlined,
-  CheckCircle, Science, Add, Inventory2, MiscellaneousServices
+  CheckCircle, Science, Add, Inventory2, MiscellaneousServices,
+  ReceiptLong, ExpandMore, ExpandLess
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
 import { UNIDADES_MEDIDA } from '../../utils/constants';
 import CurrencyField from './CurrencyField';
+
+// Cálculo del dígito de verificación (DV) para NIT — mismo algoritmo que ClienteForm.
+const PESOS_DV = [71, 67, 59, 53, 47, 43, 41, 37, 29, 23, 19, 17, 13, 7, 3];
+const calcularDV = (nit) => {
+  const digits = String(nit || '').replace(/\D/g, '');
+  if (!digits || digits.length < 4) return '';
+  const padded = digits.padStart(15, '0');
+  const suma = padded.split('').reduce((acc, d, i) => acc + parseInt(d) * PESOS_DV[i], 0);
+  const residuo = suma % 11;
+  return String(residuo === 0 || residuo === 1 ? residuo : 11 - residuo);
+};
 
 // ─── Colores y configuración por tipo ─────────────────────────────────────────
 const TYPE_CONFIG = {
@@ -35,7 +47,10 @@ const TYPE_CONFIG = {
 };
 
 // ─── Formulario de Tercero ────────────────────────────────────────────────────
-const TerceroForm = ({ data, onChange, errors }) => (
+const TerceroForm = ({ data, onChange, errors }) => {
+  const [showDian, setShowDian] = useState(false);
+  const esNit = Number(data.tipo_documento_id) === 31;
+  return (
   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
     <TextField
       label="Nombre o razón social *"
@@ -51,6 +66,16 @@ const TerceroForm = ({ data, onChange, errors }) => (
       <TextField label="NIT / Cédula" value={data.cedula} onChange={e => onChange('cedula', e.target.value)} size="small" error={!!errors.cedula} helperText={errors.cedula || 'Único por tercero'} sx={{ flex: 1 }} />
       <TextField label="Teléfono" value={data.telefono} onChange={e => onChange('telefono', e.target.value)} size="small" sx={{ flex: 1 }} />
     </Box>
+    <Box sx={{ display: 'flex', gap: 1.5 }}>
+      <TextField label="Correo electrónico" type="email" value={data.email} onChange={e => onChange('email', e.target.value)} size="small" sx={{ flex: 1 }} placeholder="correo@ejemplo.com" helperText="Requerido para Factura Electrónica" />
+      <TextField
+        label="Fecha de cumpleaños" type="date"
+        value={data.fecha_nacimiento} onChange={e => onChange('fecha_nacimiento', e.target.value)}
+        size="small" sx={{ flex: 1 }}
+        InputLabelProps={{ shrink: true }}
+        inputProps={{ max: new Date().toLocaleDateString('en-CA') }}
+      />
+    </Box>
     <TextField label="Dirección" value={data.direccion} onChange={e => onChange('direccion', e.target.value)} size="small" fullWidth />
     <CurrencyField
       label="Cupo de crédito"
@@ -58,7 +83,7 @@ const TerceroForm = ({ data, onChange, errors }) => (
       onChange={val => onChange('cupo_credito', val)}
       helperText="Límite máximo de ventas a crédito. Deja en 0 si no aplica."
     />
-    
+
     <Box>
       <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', mb: 0.8 }}>Tipo de tercero</Typography>
       <Box sx={{ display: 'flex', gap: 1 }}>
@@ -83,8 +108,79 @@ const TerceroForm = ({ data, onChange, errors }) => (
         ))}
       </Box>
     </Box>
+
+    {/* ── Datos DIAN (colapsable) ── */}
+    <Box
+      onClick={() => setShowDian(v => !v)}
+      sx={{
+        display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer',
+        p: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'rgba(245,158,11,0.35)',
+        bgcolor: 'rgba(245,158,11,0.07)', transition: 'all 0.15s',
+        '&:hover': { borderColor: '#F59E0B' },
+      }}
+    >
+      <ReceiptLong sx={{ fontSize: 18, color: '#F59E0B' }} />
+      <Box sx={{ flex: 1 }}>
+        <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'text.primary' }}>Identidad Legal y Tributaria (DIAN)</Typography>
+        <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Requerido para emitir Factura Electrónica</Typography>
+      </Box>
+      <Typography sx={{ fontSize: 11, color: 'text.secondary', mr: 0.5 }}>{showDian ? 'Ocultar' : 'Ver campos'}</Typography>
+      {showDian ? <ExpandLess sx={{ color: 'text.secondary', fontSize: 18 }} /> : <ExpandMore sx={{ color: 'text.secondary', fontSize: 18 }} />}
+    </Box>
+
+    <Collapse in={showDian}>
+      <Grid container spacing={1.5} sx={{ pt: 0.5 }}>
+        <Grid item xs={12} sm={6}>
+          <TextField select label="Tipo de Documento" value={data.tipo_documento_id}
+            onChange={(e) => onChange('tipo_documento_id', Number(e.target.value))}
+            fullWidth size="small" SelectProps={{ native: true }}>
+            <option value={13}>Cédula de Ciudadanía</option>
+            <option value={31}>NIT</option>
+            <option value={11}>Registro Civil</option>
+            <option value={12}>Tarjeta de Identidad</option>
+            <option value={22}>Cédula de Extranjería</option>
+            <option value={41}>Pasaporte</option>
+            <option value={42}>Doc. extranjero</option>
+            <option value={50}>NIT otro país</option>
+            <option value={91}>NUIP</option>
+          </TextField>
+        </Grid>
+        <Grid item xs={6} sm={6}>
+          <TextField label="DV" value={data.dv}
+            onChange={(e) => onChange('dv', e.target.value)}
+            fullWidth size="small"
+            placeholder={esNit ? 'Auto' : 'Solo NIT'}
+            disabled={!esNit}
+            InputProps={{ readOnly: esNit }}
+            helperText={esNit && data.dv ? 'Calculado automáticamente' : ''}
+          />
+        </Grid>
+        <Grid item xs={6} sm={4}>
+          <TextField select label="Organización" value={data.tipo_organizacion_id}
+            onChange={(e) => onChange('tipo_organizacion_id', Number(e.target.value))}
+            fullWidth size="small" SelectProps={{ native: true }}>
+            <option value={1}>Jurídica</option>
+            <option value={2}>Natural</option>
+          </TextField>
+        </Grid>
+        <Grid item xs={6} sm={4}>
+          <TextField select label="Régimen Fiscal" value={data.tipo_regimen_id}
+            onChange={(e) => onChange('tipo_regimen_id', Number(e.target.value))}
+            fullWidth size="small" SelectProps={{ native: true }}>
+            <option value={48}>Responsable de IVA</option>
+            <option value={49}>No responsable de IVA</option>
+          </TextField>
+        </Grid>
+        <Grid item xs={12} sm={4}>
+          <TextField label="Responsabilidad Fiscal" value={data.responsabilidad_fiscal_codes}
+            onChange={(e) => onChange('responsabilidad_fiscal_codes', e.target.value)}
+            fullWidth size="small" placeholder="R-99-PN" />
+        </Grid>
+      </Grid>
+    </Collapse>
   </Box>
-);
+  );
+};
 
 // ─── Formulario de Producto ───────────────────────────────────────────────────
 const ProductoForm = ({ data, onChange, errors }) => {
@@ -315,10 +411,25 @@ const ProductoForm = ({ data, onChange, errors }) => {
 };
 
 // ─── Componente principal ──────────────────────────────────────────────────────
-const QuickCreateModal = ({ open, onClose, type, initialName = '', onCreated }) => {
-  const cfg = TYPE_CONFIG[type] || TYPE_CONFIG.tercero;
+// defaultTipo: 'cliente' | 'proveedor' — controla qué toggle viene marcado por
+// defecto. Ventas/POS lo abren como 'cliente'; Compras/Caja como 'proveedor'
+// (default si no se pasa, para no cambiar el comportamiento existente).
+const terceroInicial = (initialName, defaultTipo) => ({
+  nombre: initialName, cedula: '', telefono: '', direccion: '', email: '',
+  fecha_nacimiento: '', cupo_credito: 0,
+  es_cliente:   defaultTipo === 'cliente',
+  es_proveedor: defaultTipo !== 'cliente',
+  tipo_documento_id: 13, dv: '', tipo_organizacion_id: 2, tipo_regimen_id: 49,
+  responsabilidad_fiscal_codes: 'R-99-PN',
+});
 
-  const [terceroData, setTerceroData] = useState({ nombre: '', cedula: '', telefono: '', direccion: '', es_proveedor: true, es_cliente: false, cupo_credito: 0 });
+const QuickCreateModal = ({ open, onClose, type, initialName = '', onCreated, defaultTipo = 'proveedor' }) => {
+  const baseCfg = TYPE_CONFIG[type] || TYPE_CONFIG.tercero;
+  const cfg = (type === 'tercero' && defaultTipo === 'cliente')
+    ? { ...baseCfg, title: 'Crear nuevo cliente', btnLabel: 'Crear Cliente' }
+    : baseCfg;
+
+  const [terceroData, setTerceroData] = useState(() => terceroInicial('', defaultTipo));
   const [productoData, setProductoData] = useState({ nombre: '', costo: '', precio: '', unidad_medida: 'UND', grupo_item: 1, es_servicio: false, stock_minimo: 0, maneja_lotes: false, stock_inicial: 0, numero_lote: '', fecha_vencimiento: '', unidades_por_empaque: 1 });
   const [errors, setErrors]     = useState({});
   const [saving, setSaving]     = useState(false);
@@ -328,11 +439,23 @@ const QuickCreateModal = ({ open, onClose, type, initialName = '', onCreated }) 
     if (!open) return;
     setSavedItem(null); setErrors({});
     if (type === 'tercero') {
-      setTerceroData({ nombre: initialName, cedula: '', telefono: '', direccion: '', es_proveedor: true, es_cliente: false, cupo_credito: 0 });
+      setTerceroData(terceroInicial(initialName, defaultTipo));
     } else {
       setProductoData({ nombre: initialName, costo: '', precio: '', unidad_medida: 'UND', grupo_item: 1, es_servicio: false, stock_minimo: 0, maneja_lotes: false, stock_inicial: 0, numero_lote: '', fecha_vencimiento: '', unidades_por_empaque: 1 });
     }
-  }, [open, type, initialName]);
+  }, [open, type, initialName, defaultTipo]);
+
+  // Auto-calcular el DV cuando el tercero es NIT y cambia la cédula.
+  useEffect(() => {
+    if (type !== 'tercero') return;
+    if (Number(terceroData.tipo_documento_id) === 31) {
+      const dvCalc = calcularDV(terceroData.cedula);
+      setTerceroData(p => (p.dv === dvCalc ? p : { ...p, dv: dvCalc }));
+    } else if (terceroData.dv) {
+      setTerceroData(p => ({ ...p, dv: '' }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [terceroData.cedula, terceroData.tipo_documento_id, type]);
 
   const handleTerceroChange  = (k, v) => { setTerceroData(p => ({ ...p, [k]: v })); setErrors(e => ({ ...e, [k]: '' })); };
   const handleProductoChange = (k, v) => { setProductoData(p => ({ ...p, [k]: v })); setErrors(e => ({ ...e, [k]: '' })); };
@@ -348,7 +471,13 @@ const QuickCreateModal = ({ open, onClose, type, initialName = '', onCreated }) 
     try {
       let response;
       if (type === 'tercero') {
-        response = await apiClient.post('/clientes/', { ...terceroData, cupo_credito: parseFloat(terceroData.cupo_credito) || 0 });
+        response = await apiClient.post('/clientes/', {
+          ...terceroData,
+          cupo_credito: parseFloat(terceroData.cupo_credito) || 0,
+          email: terceroData.email?.trim() || null,
+          fecha_nacimiento: terceroData.fecha_nacimiento || null,
+          dv: terceroData.dv || null,
+        });
       } else {
         response = await apiClient.post('/productos/', {
           ...productoData,

@@ -364,6 +364,15 @@ const CartPanel = ({
                             <TextField {...params} placeholder="Buscar cliente…" />
                         )}
                     />
+                    <Tooltip title="Registrar nuevo cliente">
+                        <IconButton
+                            size="small"
+                            onClick={() => openQuickCreate('tercero', clienteInput)}
+                            sx={{ flexShrink: 0, bgcolor: '#3B82F618', color: '#3B82F6', '&:hover': { bgcolor: '#3B82F630' } }}
+                        >
+                            <Add fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
                 </Box>
             </Box>
 
