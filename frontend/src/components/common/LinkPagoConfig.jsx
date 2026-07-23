@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import {
   QrCode2, Link as LinkIcon, Delete, Save, Upload, CheckCircle,
-  WarningAmber, Edit, Add, Close,
+  WarningAmber, Edit, Add, Close, Notes,
 } from '@mui/icons-material';
 import { QRCodeCanvas } from 'qrcode.react';
 import { toast } from 'react-toastify';
@@ -15,8 +15,10 @@ import { compressImageToWebP } from '../../utils/imageOptimizer';
 
 const emptyForm = {
   nombre: '', tipo: 'url', linkUrl: '', qrBase64: '', qrMimeType: '',
-  instrucciones: '', isActive: true,
+  textoPago: '', instrucciones: '', isActive: true,
 };
+
+const TIPO_LABEL = { url: 'URL (QR generado)', qr_imagen: 'Imagen QR subida', texto: 'Datos bancarios (texto)' };
 
 export default function LinkPagoConfig() {
   const theme = useTheme();
@@ -64,6 +66,7 @@ export default function LinkPagoConfig() {
       linkUrl: link.link_url || '',
       qrBase64: link.qr_base64 || '',
       qrMimeType: link.qr_mime_type || '',
+      textoPago: link.texto_pago || '',
       instrucciones: link.instrucciones || '',
       isActive: link.is_active ?? true,
     });
@@ -93,6 +96,7 @@ export default function LinkPagoConfig() {
     if (!form.nombre.trim()) { toast.error('El nombre es obligatorio.'); return; }
     if (form.tipo === 'url' && !form.linkUrl.trim()) { toast.error('Ingresa la URL del link de pago.'); return; }
     if (form.tipo === 'qr_imagen' && !form.qrBase64) { toast.error('Sube la imagen del código QR.'); return; }
+    if (form.tipo === 'texto' && !form.textoPago.trim()) { toast.error('Escribe los datos bancarios.'); return; }
 
     setSaving(true);
     try {
@@ -102,6 +106,7 @@ export default function LinkPagoConfig() {
         link_url: form.tipo === 'url' ? form.linkUrl.trim() : null,
         qr_base64: form.tipo === 'qr_imagen' ? form.qrBase64 : null,
         qr_mime_type: form.tipo === 'qr_imagen' ? form.qrMimeType : null,
+        texto_pago: form.tipo === 'texto' ? form.textoPago.trim() : null,
         instrucciones: form.instrucciones.trim() || null,
         is_active: form.isActive,
       };
@@ -194,12 +199,12 @@ export default function LinkPagoConfig() {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 bgcolor: alpha('#0891B2', 0.1), color: '#0891B2',
               }}>
-                {link.tipo === 'url' ? <LinkIcon fontSize="small" /> : <QrCode2 fontSize="small" />}
+                {link.tipo === 'url' ? <LinkIcon fontSize="small" /> : link.tipo === 'texto' ? <Notes fontSize="small" /> : <QrCode2 fontSize="small" />}
               </Box>
               <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Typography fontSize={13} fontWeight={700} noWrap>{link.nombre}</Typography>
                 <Typography fontSize={11} color="text.secondary">
-                  {link.tipo === 'url' ? 'URL (QR generado)' : 'Imagen QR subida'}
+                  {TIPO_LABEL[link.tipo] || link.tipo}
                 </Typography>
               </Box>
               <FormControlLabel
@@ -273,6 +278,9 @@ export default function LinkPagoConfig() {
                   <ToggleButton value="qr_imagen" sx={{ flex: 1, fontSize: 12, fontWeight: 600 }}>
                     <QrCode2 fontSize="small" sx={{ mr: 0.5 }} /> QR imagen
                   </ToggleButton>
+                  <ToggleButton value="texto" sx={{ flex: 1, fontSize: 12, fontWeight: 600 }}>
+                    <Notes fontSize="small" sx={{ mr: 0.5 }} /> Texto
+                  </ToggleButton>
                 </ToggleButtonGroup>
               </Box>
 
@@ -314,6 +322,17 @@ export default function LinkPagoConfig() {
                     Cualquier tamaño — se optimiza automáticamente a WebP
                   </Typography>
                 </Box>
+              )}
+
+              {form.tipo === 'texto' && (
+                <TextField
+                  label="Datos bancarios"
+                  placeholder={'Cuenta de ahorros 48345873564378\nBBVA'}
+                  size="small" fullWidth multiline rows={4}
+                  value={form.textoPago}
+                  onChange={e => setForm(f => ({ ...f, textoPago: e.target.value }))}
+                  helperText="Este texto se muestra tal cual al cajero al seleccionar este método de pago"
+                />
               )}
 
               <TextField
@@ -363,7 +382,7 @@ export default function LinkPagoConfig() {
                   p: 2, borderRadius: 3, bgcolor: '#ffffff',
                   border: `1.5px solid ${alpha('#0891B2', 0.2)}`,
                   display: 'flex', justifyContent: 'center', alignItems: 'center',
-                  width: 180, height: 180,
+                  width: 180, height: 180, overflow: 'auto',
                 }}
               >
                 {form.tipo === 'url' && form.linkUrl && (
@@ -382,9 +401,14 @@ export default function LinkPagoConfig() {
                     style={{ width: 160, height: 160, objectFit: 'contain' }}
                   />
                 )}
-                {((form.tipo === 'url' && !form.linkUrl) || (form.tipo === 'qr_imagen' && !form.qrBase64)) && (
+                {form.tipo === 'texto' && form.textoPago && (
+                  <Typography sx={{ fontSize: 12.5, color: '#111827', whiteSpace: 'pre-line', textAlign: 'center' }}>
+                    {form.textoPago}
+                  </Typography>
+                )}
+                {((form.tipo === 'url' && !form.linkUrl) || (form.tipo === 'qr_imagen' && !form.qrBase64) || (form.tipo === 'texto' && !form.textoPago)) && (
                   <Box sx={{ textAlign: 'center', color: 'text.disabled' }}>
-                    <QrCode2 sx={{ fontSize: 48, mb: 0.5, opacity: 0.25 }} />
+                    {form.tipo === 'texto' ? <Notes sx={{ fontSize: 48, mb: 0.5, opacity: 0.25 }} /> : <QrCode2 sx={{ fontSize: 48, mb: 0.5, opacity: 0.25 }} />}
                     <Typography fontSize={11}>Sin vista previa</Typography>
                   </Box>
                 )}

@@ -88,6 +88,8 @@ def create_link_pago(
         raise HTTPException(status_code=400, detail="Se requiere link_url para tipo 'url'.")
     if payload.tipo == "qr_imagen" and not payload.qr_base64:
         raise HTTPException(status_code=400, detail="Se requiere qr_base64 para tipo 'qr_imagen'.")
+    if payload.tipo == "texto" and not payload.texto_pago:
+        raise HTTPException(status_code=400, detail="Se requiere texto_pago para tipo 'texto'.")
 
     link = models.LinkPagoEmpresa(
         empresa_id=current_user.empresa_id,
@@ -96,6 +98,7 @@ def create_link_pago(
         link_url=payload.link_url,
         qr_base64=payload.qr_base64,
         qr_mime_type=payload.qr_mime_type,
+        texto_pago=payload.texto_pago,
         instrucciones=payload.instrucciones,
         is_active=payload.is_active,
     )

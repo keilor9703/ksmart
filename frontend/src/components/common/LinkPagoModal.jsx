@@ -5,7 +5,7 @@ import {
   CircularProgress, Divider, alpha, useTheme,
 } from '@mui/material';
 import {
-  CheckCircle, Close, WhatsApp, QrCode2, OpenInNew,
+  CheckCircle, Close, WhatsApp, QrCode2, OpenInNew, Notes,
 } from '@mui/icons-material';
 import { QRCodeCanvas } from 'qrcode.react';
 
@@ -19,6 +19,7 @@ export default function LinkPagoModal({ open, onClose, onConfirm, linkConfig, cl
 
   const isQrImagen = linkConfig.tipo === 'qr_imagen';
   const isUrl      = linkConfig.tipo === 'url';
+  const isTexto    = linkConfig.tipo === 'texto';
 
   const handleWhatsApp = () => {
     const num = telefono.replace(/\D/g, '');
@@ -70,14 +71,14 @@ export default function LinkPagoModal({ open, onClose, onConfirm, linkConfig, cl
             bgcolor: alpha('#0891B2', 0.15),
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <QrCode2 sx={{ color: '#0891B2', fontSize: 20 }} />
+            {isTexto ? <Notes sx={{ color: '#0891B2', fontSize: 20 }} /> : <QrCode2 sx={{ color: '#0891B2', fontSize: 20 }} />}
           </Box>
           <Box>
             <Typography fontWeight={800} fontSize={15} lineHeight={1.1}>
               {linkConfig.nombre}
             </Typography>
             <Typography fontSize={11} color="text.secondary">
-              Muestra el código al cliente para pagar
+              {isTexto ? 'Datos bancarios para transferir' : 'Muestra el código al cliente para pagar'}
             </Typography>
           </Box>
         </Box>
@@ -87,38 +88,54 @@ export default function LinkPagoModal({ open, onClose, onConfirm, linkConfig, cl
       </DialogTitle>
 
       <DialogContent sx={{ px: 2.5, py: 3 }}>
-        {/* QR */}
+        {/* QR / Texto */}
         <Box sx={{
           display: 'flex', justifyContent: 'center', alignItems: 'center',
           mb: linkConfig.instrucciones ? 2 : 0,
         }}>
-          <Box sx={{
-            p: 2.5, borderRadius: 3,
-            bgcolor: '#ffffff',
-            border: `2px solid ${alpha('#0891B2', 0.25)}`,
-            boxShadow: `0 8px 32px ${alpha('#0891B2', 0.1)}`,
-            display: 'inline-flex',
-          }}>
-            {isQrImagen && (
-              <img
-                src={`data:${linkConfig.qr_mime_type};base64,${linkConfig.qr_base64}`}
-                alt="QR de pago"
-                style={{ width: 240, height: 240, objectFit: 'contain', display: 'block' }}
-              />
-            )}
-            {isUrl && (
-              <QRCodeCanvas
-                value={linkConfig.link_url}
-                size={240}
-                level="H"
-                fgColor="#111827"
-                bgColor="#ffffff"
-                {...(linkConfig.logo_base64 ? {
-                  imageSettings: { src: linkConfig.logo_base64, height: 68, width: 68, excavate: true }
-                } : {})}
-              />
-            )}
-          </Box>
+          {isTexto ? (
+            <Box sx={{
+              width: '100%', p: 2.5, borderRadius: 3,
+              bgcolor: '#ffffff',
+              border: `2px solid ${alpha('#0891B2', 0.25)}`,
+              boxShadow: `0 8px 32px ${alpha('#0891B2', 0.1)}`,
+            }}>
+              <Typography sx={{
+                fontSize: 15, fontWeight: 600, color: '#111827',
+                whiteSpace: 'pre-line', textAlign: 'center', lineHeight: 1.6,
+              }}>
+                {linkConfig.texto_pago}
+              </Typography>
+            </Box>
+          ) : (
+            <Box sx={{
+              p: 2.5, borderRadius: 3,
+              bgcolor: '#ffffff',
+              border: `2px solid ${alpha('#0891B2', 0.25)}`,
+              boxShadow: `0 8px 32px ${alpha('#0891B2', 0.1)}`,
+              display: 'inline-flex',
+            }}>
+              {isQrImagen && (
+                <img
+                  src={`data:${linkConfig.qr_mime_type};base64,${linkConfig.qr_base64}`}
+                  alt="QR de pago"
+                  style={{ width: 240, height: 240, objectFit: 'contain', display: 'block' }}
+                />
+              )}
+              {isUrl && (
+                <QRCodeCanvas
+                  value={linkConfig.link_url}
+                  size={240}
+                  level="H"
+                  fgColor="#111827"
+                  bgColor="#ffffff"
+                  {...(linkConfig.logo_base64 ? {
+                    imageSettings: { src: linkConfig.logo_base64, height: 68, width: 68, excavate: true }
+                  } : {})}
+                />
+              )}
+            </Box>
+          )}
         </Box>
 
         {/* Instrucciones */}
