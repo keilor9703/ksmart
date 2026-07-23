@@ -2827,10 +2827,11 @@ class ProductoImpuestoOut(BaseModel):
 
 class LinkPagoCreate(BaseModel):
     nombre:        str
-    tipo:          str  # "qr_imagen" | "url"
+    tipo:          str  # "qr_imagen" | "url" | "texto"
     link_url:      Optional[str] = None
     qr_base64:     Optional[str] = None
     qr_mime_type:  Optional[str] = None
+    texto_pago:    Optional[str] = None   # datos bancarios en texto libre (tipo="texto")
     instrucciones: Optional[str] = None
     is_active:     bool = True
 
@@ -2842,6 +2843,7 @@ class LinkPagoOut(BaseModel):
     link_url:      Optional[str] = None
     qr_base64:     Optional[str] = None
     qr_mime_type:  Optional[str] = None
+    texto_pago:    Optional[str] = None
     instrucciones: Optional[str] = None
     is_active:     bool
     model_config = ConfigDict(from_attributes=True)
@@ -3072,6 +3074,7 @@ class LinkPagoPublico(BaseModel):
     link_url:      Optional[str] = None
     qr_base64:     Optional[str] = None
     qr_mime_type:  Optional[str] = None
+    texto_pago:    Optional[str] = None
     instrucciones: Optional[str] = None
 
 

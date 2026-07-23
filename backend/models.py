@@ -1658,12 +1658,15 @@ class Reserva(Base):
 class TipoLinkPago(str, enum.Enum):
     QR_IMAGEN = "qr_imagen"   # imagen subida manualmente
     URL       = "url"         # URL → QR generado automáticamente en frontend
+    TEXTO     = "texto"       # datos bancarios en texto libre (cuenta, banco, etc.)
 
 
 class LinkPagoEmpresa(Base, TenantMixin):
     """
-    Un único link/QR de pago activo por empresa para usar en el POS.
-    Permite a cada negocio configurar su propia pasarela (Nequi, Bold, Bancolombia, etc.)
+    Uno o varios links/QR/datos de pago activos por empresa para usar en el POS.
+    Permite a cada negocio configurar sus propias pasarelas y cuentas (Nequi,
+    Bold, Bancolombia, cuenta bancaria en texto, etc.) — cada uno aparece como
+    su propio método de pago al cobrar una venta.
     """
     __tablename__ = "links_pago_empresa"
 
@@ -1673,6 +1676,7 @@ class LinkPagoEmpresa(Base, TenantMixin):
     link_url      = Column(String(500), nullable=True)           # URL si tipo=URL
     qr_base64     = Column(Text, nullable=True)                  # base64 si tipo=QR_IMAGEN
     qr_mime_type  = Column(String(40), nullable=True)            # "image/png"
+    texto_pago    = Column(Text, nullable=True)                  # datos bancarios si tipo=TEXTO
     instrucciones = Column(Text, nullable=True)                  # "Escanea y paga"
     is_active     = Column(Boolean, default=True)
     created_at    = Column(DateTime(timezone=True), default=utcnow)

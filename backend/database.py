@@ -2824,6 +2824,14 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v126)
                 logger.info("V126 (nombre_completo/email/telefono en users) aplicada.")
 
+            # V127 — Tipo "texto" para links de pago (datos bancarios en
+            # texto libre: cuenta, banco, etc.) además de URL y QR imagen.
+            migration_v127 = "v127_links_pago_texto"
+            if not _migration_already_applied(conn, migration_v127):
+                _add_column_safe(conn, "links_pago_empresa", "texto_pago", "TEXT")
+                _mark_migration_applied(conn, migration_v127)
+                logger.info("V127 (texto_pago en links_pago_empresa) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
