@@ -2842,6 +2842,22 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v128)
                 logger.info("V128 (puntos_ganados/saldo_puntos_cliente en ventas) aplicada.")
 
+            # V129 — Agregar el valor 'TEXTO' al enum nativo tipolinkpago de
+            # Postgres. La V127 agregó la columna texto_pago pero no el nuevo
+            # valor del enum, así que guardar un link tipo "texto" fallaba con
+            # "invalid input value for enum tipolinkpago". En SQLite no aplica
+            # (los enums se guardan como texto). ALTER TYPE ADD VALUE debe ir
+            # en una conexión autocommit aparte porque en algunas versiones de
+            # Postgres no puede correr dentro de la transacción de migraciones.
+            migration_v129 = "v129_tipolinkpago_texto"
+            if not _migration_already_applied(conn, migration_v129):
+                if not IS_SQLITE:
+                    with engine.connect() as _ac:
+                        _ac = _ac.execution_options(isolation_level="AUTOCOMMIT")
+                        _ac.execute(text("ALTER TYPE tipolinkpago ADD VALUE IF NOT EXISTS 'TEXTO'"))
+                _mark_migration_applied(conn, migration_v129)
+                logger.info("V129 (valor TEXTO en enum tipolinkpago) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
