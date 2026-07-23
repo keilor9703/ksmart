@@ -233,6 +233,15 @@ const CerrarOrdenDialog = ({ open, onClose, orden, esReventa, clientes, onClosed
   const [permutaAnio, setPermutaAnio] = useState('');
   const [permutaColor, setPermutaColor] = useState('');
   const [closing, setClosing] = useState(false);
+  const [linkPagosConfig, setLinkPagosConfig] = useState([]);
+
+  // Solo Efectivo viene fijo — el resto son los links de pago que la empresa
+  // configure en Mi Cuenta → Link de Pago.
+  const metodosPago = ['Efectivo', ...linkPagosConfig.map(l => `Link de Pago: ${l.nombre}`)];
+
+  useEffect(() => {
+    apiClient.get('/empresa/link-pago/activos').then(r => setLinkPagosConfig(r.data || [])).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!open || !orden) return;
@@ -339,7 +348,7 @@ const CerrarOrdenDialog = ({ open, onClose, orden, esReventa, clientes, onClosed
             </Alert>
           )}
           <TextField select label="Método de pago" fullWidth value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)}>
-            {['Efectivo', 'Transferencia', 'Nequi', 'Daviplata', 'Tarjeta'].map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+            {metodosPago.map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
           </TextField>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -462,7 +471,7 @@ const CerrarOrdenDialog = ({ open, onClose, orden, esReventa, clientes, onClosed
         )}
         {efectivoCalculado > 0 && (
           <TextField select size="small" label="Método de pago del efectivo" fullWidth value={metodoPagoEfectivo} onChange={(e) => setMetodoPagoEfectivo(e.target.value)}>
-            {['Efectivo', 'Transferencia', 'Nequi', 'Daviplata', 'Tarjeta'].map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+            {metodosPago.map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
           </TextField>
         )}
       </DialogContent>

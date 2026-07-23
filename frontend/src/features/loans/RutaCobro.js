@@ -187,8 +187,20 @@ const RutaCobro = () => {
   const [pdfLoading,       setPdfLoading]       = useState(false);
   const [cobrasHoy, setCobrasHoy] = useState([]);
   const [sortCuotas, setSortCuotas] = useState('mora');
+  const [linkPagosConfig, setLinkPagosConfig] = useState([]);
 
   const esAdmin = currentUser?.role?.name === 'Admin';
+
+  // Solo Efectivo viene fijo — el resto son los links de pago que la empresa
+  // configure en Mi Cuenta → Link de Pago.
+  const metodosPago = [
+    { value: 'Efectivo', label: '💵 Efectivo' },
+    ...linkPagosConfig.map(l => ({ value: `Link de Pago: ${l.nombre}`, label: `📲 ${l.nombre}` })),
+  ];
+
+  useEffect(() => {
+    apiClient.get('/empresa/link-pago/activos').then(r => setLinkPagosConfig(r.data || [])).catch(() => {});
+  }, []);
 
   // ── Carga de datos ────────────────────────────────────────────────────────
   const fetchInicial = useCallback(async () => {
@@ -893,12 +905,7 @@ const confirmarPago = async () => {
               Método de pago
             </Typography>
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              {[
-                { value: 'Efectivo',      label: '💵 Efectivo'      },
-                { value: 'Transferencia', label: '🏦 Transferencia' },
-                { value: 'Nequi',         label: '📱 Nequi'         },
-                { value: 'Tarjeta',       label: '💳 Tarjeta'       },
-              ].map(opt => {
+              {metodosPago.map(opt => {
                 const selected = pagoModal.metodoPago === opt.value;
                 return (
                   <Box

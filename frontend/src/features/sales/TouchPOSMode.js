@@ -23,12 +23,10 @@ const HAS_BARCODE_DETECTOR = typeof window !== 'undefined' && 'BarcodeDetector' 
 const HAS_CAMERA = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
 const BARCODE_FORMATS = ['ean_13', 'ean_8', 'code_128', 'qr_code', 'upc_e', 'code_39', 'itf'];
 
+// Fallback solo por si el padre (Ventas.js) no pasa metodosPagoConLinks —
+// en uso normal siempre viene con los links de pago configurados incluidos.
 const METODOS_PAGO = [
     { value: 'Efectivo',      label: '💵 Efectivo',      pagada: true,  color: '#10B981' },
-    { value: 'Transferencia', label: '🏦 Transferencia',  pagada: true,  color: '#3B82F6' },
-    { value: 'Nequi',         label: '💜 Nequi',          pagada: true,  color: '#7C3AED' },
-    { value: 'Daviplata',     label: '🔵 Daviplata',      pagada: true,  color: '#2563EB' },
-    { value: 'Tarjeta',       label: '💳 Tarjeta',        pagada: true,  color: '#8B5CF6' },
     { value: 'Por Cobrar',    label: '🕒 Por Cobrar',     pagada: false, color: '#EF4444' },
 ];
 

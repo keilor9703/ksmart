@@ -65,13 +65,11 @@ const getInputSx = (accentColor) => ({
   },
 });
 
+// Solo Efectivo viene fijo por defecto. Cualquier otro método (Nequi,
+// Transferencia, Bancolombia, etc.) debe ser configurado por la empresa en
+// Mi Cuenta → Link de Pago — no se asumen pasarelas que la empresa no usa.
 const METODOS_PAGO = [
     { value: 'Efectivo',      label: '💵 Efectivo',      pagada: true,  color: '#10B981' },
-    { value: 'Transferencia', label: '🏦 Transferencia',  pagada: true,  color: '#3B82F6' },
-    { value: 'Nequi',         label: '💜 Nequi',          pagada: true,  color: '#7C3AED' },
-    { value: 'Daviplata',     label: '🔵 Daviplata',      pagada: true,  color: '#2563EB' },
-    { value: 'Tarjeta',       label: '💳 Tarjeta',        pagada: true,  color: '#8B5CF6' },
-    { value: 'Cheque',        label: '📄 Cheque',         pagada: true,  color: '#6B7280' },
     { value: 'Por Cobrar',    label: '🕒 Por Cobrar',     pagada: false, color: '#EF4444' },
 ];
 
