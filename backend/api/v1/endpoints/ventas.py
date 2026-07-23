@@ -278,6 +278,29 @@ def read_ventas(
         "stats":     stats,
     }
 
+@router.get("/borradores", response_model=List[schemas.VentaBorradorOut])
+def list_ventas_borrador(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+    """Lista compartida de ventas aparcadas en el POS (cualquier vendedor de
+    la empresa puede ver/retomar el borrador de un compañero)."""
+    return crud.get_ventas_borrador(db, empresa_id=current_user.empresa_id)
+
+@router.post("/borradores", response_model=schemas.VentaBorradorOut)
+def create_venta_borrador(payload: schemas.VentaBorradorCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+    return crud.create_venta_borrador(db, empresa_id=current_user.empresa_id, creado_por_id=current_user.id, borrador=payload)
+
+@router.get("/borradores/{borrador_id}", response_model=schemas.VentaBorradorDetalle)
+def get_venta_borrador(borrador_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+    db_borrador = crud.get_venta_borrador(db, empresa_id=current_user.empresa_id, borrador_id=borrador_id)
+    if db_borrador is None:
+        raise HTTPException(status_code=404, detail="Borrador no encontrado")
+    return db_borrador
+
+@router.delete("/borradores/{borrador_id}", status_code=204)
+def delete_venta_borrador(borrador_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
+    ok = crud.delete_venta_borrador(db, empresa_id=current_user.empresa_id, borrador_id=borrador_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Borrador no encontrado")
+
 @router.get("/{venta_id}", response_model=schemas.Venta)
 def read_venta(venta_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
     db_venta = crud.get_venta(db, empresa_id=current_user.empresa_id, venta_id=venta_id)

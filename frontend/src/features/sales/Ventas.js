@@ -18,6 +18,8 @@ import {
     TableHead, TableRow, Chip, useMediaQuery, useTheme, Tabs, Tab,
     TablePagination, Divider, Tooltip, InputAdornment, CircularProgress,
     ToggleButton, ToggleButtonGroup, Switch, FormControlLabel,
+    Badge, Dialog, DialogTitle, DialogContent, DialogActions,
+    List, ListItem, ListItemText,
 } from '@mui/material';
 import {
     Edit, Delete, Visibility, Search, ShoppingCart, TrendingUp,
@@ -25,7 +27,7 @@ import {
     Videocam, VideocamOff, LockOutlined, LockOpenOutlined,
     AddCircle, RemoveCircle, PersonOutline, HelpOutline,
     Keyboard, TouchApp, FileDownload, Stars, CreditCard, Close,
-    PictureAsPdf, Scale,
+    PictureAsPdf, Scale, Notes, PlayCircleOutline,
 } from '@mui/icons-material';
 import { getProductoByBarcode } from '../../api';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
@@ -503,6 +505,12 @@ const Ventas = ({ user }) => {
     const [editingVenta, setEditingVenta] = useState(null);
     const [savingVenta, setSavingVenta]   = useState(false);
 
+    // ── Borradores de venta ("aparcar" el carrito para atender a otro cliente) ──
+    const [borradores, setBorradores]         = useState([]);
+    const [borradoresOpen, setBorradoresOpen] = useState(false);
+    const [guardandoBorrador, setGuardandoBorrador] = useState(false);
+    const [retomandoBorradorId, setRetomandoBorradorId] = useState(null);
+
     // ── Fidelización ──
     const [clientePuntos, setClientePuntos]   = useState(0);
     const [puntosACanjear, setPuntosACanjear] = useState(0);
@@ -564,8 +572,13 @@ const Ventas = ({ user }) => {
     const [ventasStats, setVentasStats]           = useState({ sum_total: 0, sum_pagado: 0, sum_pendiente: 0 });
 
     // ── Fetch inicial ──
+    const fetchBorradores = useCallback(() => {
+        apiClient.get('/ventas/borradores').then(r => setBorradores(r.data || [])).catch(() => {});
+    }, []);
+
     useEffect(() => {
         fetchVentas(); fetchClientes(); fetchProductos(); fetchVentasSummary(); fetchGrupos();
+        fetchBorradores();
         apiClient.get('/admin/usuarios/').then(r => setEmpleados(r.data.filter(u => u.is_active))).catch(() => {});
         apiClient.get('/empresa/link-pago/activos').then(r => setLinkPagosConfig(r.data || [])).catch(() => {});
         apiClient.get('/empresa/config-ventas').then(r => setConfigFidelizacion({
@@ -804,6 +817,13 @@ useEffect(() => {
                 return;
             }
 
+            // Cmd/Ctrl+G → guardar el carrito actual como borrador
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'g' || e.key === 'G') && tabValue === 0 && !savingVenta) {
+                e.preventDefault();
+                handleGuardarBorrador();
+                return;
+            }
+
             // Auto-focus al campo de búsqueda cuando:
             // - Estamos en el tab de venta (0) y la cámara no está activa
             // - La tecla es un carácter imprimible (letras, números)
@@ -826,7 +846,7 @@ useEffect(() => {
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [tabValue, savingVenta, cameraActive]);
+    }, [tabValue, savingVenta, cameraActive, handleGuardarBorrador]);
 
     // ── Cámara: inicializar cuando cameraActive pasa a true ──
     const cleanupCamera = useCallback(() => {
@@ -1195,6 +1215,79 @@ useEffect(() => {
         setTimeout(() => barcodeFieldRef.current?.focus(), 300);
     };
 
+    // ── Borradores de venta ──────────────────────────────────────────────
+    const handleGuardarBorrador = async () => {
+        if (editingVenta) { toast.warning('No puedes aparcar una venta que estás editando.'); return; }
+        const validDetails = saleDetails.filter(d => d.isLibre ? d.precioUnitario > 0 : (d.producto !== null && d.cantidad > 0));
+        if (validDetails.length === 0) { toast.warning('Agrega al menos un producto antes de guardar el borrador.'); return; }
+
+        const snapshot = {
+            saleDetails, cliente, isMostrador, clienteInput, atendidoPor,
+            metodoPago, pagada, ivaPorcentajeGlobal, valorRecibido, solicitaFe,
+            omitirInventario, puntosACanjear,
+            citaId: citaIdRef.current || null,
+        };
+        const clienteNombre = isMostrador ? 'Mostrador' : (cliente?.nombre || 'Sin cliente');
+
+        setGuardandoBorrador(true);
+        try {
+            await apiClient.post('/ventas/borradores', {
+                cliente_nombre: clienteNombre,
+                total_aproximado: calculateSubtotal(),
+                datos: snapshot,
+            });
+            toast.success('Venta guardada como borrador — puedes atender al siguiente cliente.');
+            resetForm();
+            fetchBorradores();
+        } catch (err) {
+            toast.error(err.response?.data?.detail || 'No se pudo guardar el borrador.');
+        } finally {
+            setGuardandoBorrador(false);
+        }
+    };
+
+    const handleRetomarBorrador = async (borradorId) => {
+        setRetomandoBorradorId(borradorId);
+        try {
+            const { data } = await apiClient.get(`/ventas/borradores/${borradorId}`);
+            const d = data.datos || {};
+            setSaleDetails(d.saleDetails?.length ? d.saleDetails : [{ id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0, descuentoPct: 0 }]);
+            setCliente(d.cliente ?? null);
+            setIsMostrador(!!d.isMostrador);
+            setClienteInput(d.clienteInput || '');
+            setAtendidoPor(d.atendidoPor ?? null);
+            setMetodoPago(d.metodoPago || 'Efectivo');
+            setPagada(d.pagada ?? true);
+            setIvaPorcentajeGlobal(d.ivaPorcentajeGlobal ?? 19);
+            setValorRecibido(d.valorRecibido || 0);
+            setSolicitaFe(!!d.solicitaFe);
+            setOmitirInventario(!!d.omitirInventario);
+            setPuntosACanjear(d.puntosACanjear || 0);
+            citaIdRef.current = d.citaId || null;
+            setEditingVenta(null);
+            setTabValue(0);
+            setBorradoresOpen(false);
+            await apiClient.delete(`/ventas/borradores/${borradorId}`);
+            fetchBorradores();
+            toast.success('Borrador retomado.');
+        } catch {
+            toast.error('No se pudo retomar el borrador.');
+        } finally {
+            setRetomandoBorradorId(null);
+        }
+    };
+
+    const handleDescartarBorrador = async (borradorId) => {
+        if (!window.confirm('¿Descartar este borrador? No se podrá recuperar.')) return;
+        try {
+            await apiClient.delete(`/ventas/borradores/${borradorId}`);
+            fetchBorradores();
+            toast.success('Borrador descartado.');
+        } catch {
+            toast.error('No se pudo descartar el borrador.');
+        }
+    };
+
     const handleDelete  = (id) => { setVentaToDelete(id); setShowDeleteDialog(true); };
     const confirmDelete = () => {
         apiClient.delete(`/ventas/${ventaToDelete}`)
@@ -1382,6 +1475,20 @@ useEffect(() => {
                         <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 600 }}>Hoy:</Typography>
                         <Typography sx={{ fontSize: 14, fontWeight: 800, color: ACCENT }}>{formatCurrency(totalVentasHoy)}</Typography>
                     </Box>
+                    {borradores.length > 0 && (
+                        <Button
+                            size="small"
+                            onClick={() => setBorradoresOpen(true)}
+                            startIcon={<Badge badgeContent={borradores.length} color="warning"><Notes sx={{ fontSize: 18 }} /></Badge>}
+                            sx={{
+                                ml: 1, borderRadius: 2.5, fontWeight: 700, fontSize: 12, textTransform: 'none',
+                                color: '#B45309', bgcolor: alpha('#F59E0B', 0.1),
+                                '&:hover': { bgcolor: alpha('#F59E0B', 0.18) },
+                            }}
+                        >
+                            Borradores
+                        </Button>
+                    )}
                 </Box>
             </Box>
 
@@ -1979,8 +2086,23 @@ useEffect(() => {
                                         Cancelar edición
                                     </Button>
                                 )}
+                                {!editingVenta && (
+                                    <Tooltip title="Guarda el carrito actual para atender a otro cliente y retomarlo después (Ctrl+G)">
+                                        <span>
+                                            <Button
+                                                onClick={handleGuardarBorrador}
+                                                variant="outlined" fullWidth
+                                                disabled={guardandoBorrador}
+                                                startIcon={guardandoBorrador ? <CircularProgress size={14} /> : <Notes />}
+                                                sx={{ borderRadius: 2, fontWeight: 600, borderColor: '#F59E0B', color: '#B45309', mb: 1 }}
+                                            >
+                                                Guardar como borrador
+                                            </Button>
+                                        </span>
+                                    </Tooltip>
+                                )}
                                 <Typography sx={{ fontSize: 11, color: 'text.disabled', textAlign: 'center', mb: 0.4 }}>
-                                    Ctrl + Enter
+                                    Ctrl + Enter · Ctrl + G borrador
                                 </Typography>
                                 <LiquidButton
                                     id="btn-registrar-venta"
@@ -2312,6 +2434,62 @@ useEffect(() => {
                 linkConfig={selectedLinkPago}
                 clienteTelefono={cliente?.telefono || ''}
             />
+
+            {/* ── Borradores de venta ── */}
+            <Dialog open={borradoresOpen} onClose={() => setBorradoresOpen(false)} maxWidth="xs" fullWidth
+                PaperProps={{ sx: { borderRadius: 3 } }}>
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, fontWeight: 800, fontSize: 16 }}>
+                    <Notes sx={{ color: '#F59E0B' }} /> Ventas en borrador
+                </DialogTitle>
+                <DialogContent dividers sx={{ p: 0 }}>
+                    {borradores.length === 0 ? (
+                        <Typography sx={{ p: 3, textAlign: 'center', color: 'text.secondary', fontSize: 13 }}>
+                            No hay borradores guardados.
+                        </Typography>
+                    ) : (
+                        <List disablePadding>
+                            {borradores.map(b => (
+                                <ListItem
+                                    key={b.id}
+                                    divider
+                                    secondaryAction={
+                                        <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                            <Tooltip title="Retomar esta venta">
+                                                <span>
+                                                    <IconButton
+                                                        edge="end" color="primary"
+                                                        disabled={retomandoBorradorId === b.id}
+                                                        onClick={() => handleRetomarBorrador(b.id)}
+                                                    >
+                                                        {retomandoBorradorId === b.id
+                                                            ? <CircularProgress size={18} />
+                                                            : <PlayCircleOutline />}
+                                                    </IconButton>
+                                                </span>
+                                            </Tooltip>
+                                            <Tooltip title="Descartar borrador">
+                                                <IconButton edge="end" color="error" onClick={() => handleDescartarBorrador(b.id)}>
+                                                    <Delete fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
+                                        </Box>
+                                    }
+                                >
+                                    <ListItemText
+                                        primary={b.cliente_nombre || 'Sin cliente'}
+                                        secondary={`${formatCurrency(b.total_aproximado || 0)} · ${new Date(b.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}`}
+                                        primaryTypographyProps={{ fontWeight: 700, fontSize: 14 }}
+                                        secondaryTypographyProps={{ fontSize: 12 }}
+                                    />
+                                </ListItem>
+                            ))}
+                        </List>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setBorradoresOpen(false)} sx={{ textTransform: 'none' }}>Cerrar</Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 };

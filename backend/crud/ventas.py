@@ -883,3 +883,49 @@ def _ejecutar_movimientos_venta(db: Session, empresa_id: int, db_venta: models.V
                 if variante:
                     variante.stock_actual = (variante.stock_actual or 0) - det.cantidad
                     db.add(variante)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# BORRADORES DE VENTA (POS) — "aparcar" un carrito para atender a otro cliente
+# ═══════════════════════════════════════════════════════════════════════════
+
+def create_venta_borrador(db: Session, empresa_id: int, creado_por_id: int, borrador: schemas.VentaBorradorCreate):
+    db_borrador = models.VentaBorrador(
+        empresa_id=empresa_id,
+        creado_por_id=creado_por_id,
+        cliente_nombre=borrador.cliente_nombre,
+        total_aproximado=borrador.total_aproximado,
+        datos=borrador.datos,
+    )
+    db.add(db_borrador)
+    db.commit()
+    db.refresh(db_borrador)
+    return db_borrador
+
+
+def get_ventas_borrador(db: Session, empresa_id: int):
+    """Lista compartida entre todos los vendedores de la empresa — cualquiera
+    puede retomar el borrador de un compañero (ej. si el cliente vuelve en
+    otro turno)."""
+    return (
+        db.query(models.VentaBorrador)
+        .filter(models.VentaBorrador.empresa_id == empresa_id)
+        .order_by(models.VentaBorrador.created_at.desc())
+        .all()
+    )
+
+
+def get_venta_borrador(db: Session, empresa_id: int, borrador_id: int):
+    return db.query(models.VentaBorrador).filter(
+        models.VentaBorrador.id == borrador_id,
+        models.VentaBorrador.empresa_id == empresa_id,
+    ).first()
+
+
+def delete_venta_borrador(db: Session, empresa_id: int, borrador_id: int) -> bool:
+    db_borrador = get_venta_borrador(db, empresa_id, borrador_id)
+    if not db_borrador:
+        return False
+    db.delete(db_borrador)
+    db.commit()
+    return True
