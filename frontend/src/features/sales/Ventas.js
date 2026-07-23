@@ -2407,6 +2407,7 @@ useEffect(() => {
                 open={quickCreate.open} onClose={closeQuickCreate}
                 type={quickCreate.type} initialName={quickCreate.initialName}
                 onCreated={handleQuickCreated}
+                defaultTipo="cliente"
             />
             <ReciboDialog
                 open={reciboOpen} onClose={() => setReciboOpen(false)}
