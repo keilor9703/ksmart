@@ -2144,6 +2144,10 @@ useEffect(() => {
                                 setIvaPorcentajeGlobal={setIvaPorcentajeGlobal}
                                 onSubmit={handleVentaSubmit}
                                 savingVenta={savingVenta}
+                                onGuardarBorrador={handleGuardarBorrador}
+                                guardandoBorrador={guardandoBorrador}
+                                borradoresCount={borradores.length}
+                                onVerBorradores={() => setBorradoresOpen(true)}
                                 calculateSubtotal={calculateSubtotal}
                                 cambioEfectivo={cambioEfectivo}
                                 openQuickCreate={openQuickCreate}
