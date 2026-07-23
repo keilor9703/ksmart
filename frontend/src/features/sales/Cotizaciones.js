@@ -315,6 +315,7 @@ const Cotizaciones = () => {
   const [convertirPagada, setConvertirPagada] = useState(true);
   const [convertirMetodo, setConvertirMetodo] = useState('Efectivo');
   const [convertirLoading, setConvertirLoading] = useState(false);
+  const [linkPagosConfig, setLinkPagosConfig] = useState([]);
 
   // Detail modal
   const [detailModal, setDetailModal] = useState({ open: false, cot: null });
@@ -336,6 +337,9 @@ const Cotizaciones = () => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
   useEffect(() => { fetchAll(); }, []);
+  useEffect(() => {
+    apiClient.get('/empresa/link-pago/activos').then(r => setLinkPagosConfig(r.data || [])).catch(() => {});
+  }, []);
 
   const fetchAll = async () => {
     try {
@@ -1100,10 +1104,9 @@ const Cotizaciones = () => {
 
               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2.5 }}>
                 {[
-                  { value: 'Efectivo',      label: '💵 Efectivo',     pagada: true },
-                  { value: 'Transferencia', label: '🏦 Transferencia', pagada: true },
-                  { value: 'Tarjeta',       label: '💳 Tarjeta',       pagada: true },
-                  { value: null,            label: '🕒 Por Cobrar',    pagada: false },
+                  { value: 'Efectivo', label: '💵 Efectivo',  pagada: true },
+                  ...linkPagosConfig.map(l => ({ value: `Link de Pago: ${l.nombre}`, label: `📲 ${l.nombre}`, pagada: true })),
+                  { value: null,       label: '🕒 Por Cobrar', pagada: false },
                 ].map(opt => {
                   const selected = opt.pagada ? (convertirPagada && convertirMetodo === opt.value) : !convertirPagada;
                   const color = opt.pagada ? GREEN : RED;

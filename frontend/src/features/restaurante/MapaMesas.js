@@ -157,7 +157,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
   const [metodo, setMetodo] = useState('Efectivo');
   const [solicitaFe, setSolicitaFe] = useState(false);
   const [tab, setTab] = useState(0); // 0=Pedido, 1=Menú (solo móvil)
-  const [linkPagoConfig, setLinkPagoConfig] = useState(null);
+  const [linkPagosConfig, setLinkPagosConfig] = useState([]);
   const [linkPagoModalOpen, setLinkPagoModalOpen] = useState(false);
   const pendingCerrarRef = useRef(false);
   const [omitirInventario, setOmitirInventario] = useState(false);
@@ -170,10 +170,13 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
   const totalBase = comanda?.total ?? 0;
   const totalConPropina = totalBase + (propina || 0);
   const montoRec = parseInt(recibido.replace(/\./g, ''), 10) || 0;
+  const selectedLinkPago = metodo?.startsWith('link:')
+    ? linkPagosConfig.find(l => `link:${l.id}` === metodo)
+    : null;
   const cambio   = metodo === 'Efectivo' ? Math.max(0, montoRec - totalConPropina) : 0;
   const faltante = metodo === 'Efectivo' && montoRec > 0 ? Math.max(0, totalConPropina - montoRec) : 0;
   const puedeConfirmarCobro =
-    metodo === 'Link de Pago' ||
+    !!selectedLinkPago ||
     metodo !== 'Efectivo' ||
     montoRec >= totalConPropina;
 
@@ -184,7 +187,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
   };
 
   useEffect(() => {
-    apiClient.get('/empresa/link-pago').then(r => setLinkPagoConfig(r.data)).catch(() => {});
+    apiClient.get('/empresa/link-pago/activos').then(r => setLinkPagosConfig(r.data || [])).catch(() => {});
   }, []);
 
   const itemsActivos = comanda?.items?.filter(i => i.estado !== 'cancelado') || [];
@@ -283,8 +286,9 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
   const doCerrarCuenta = async () => {
     setLoading(true);
     try {
+      const metodoPagoFinal = selectedLinkPago ? `Link de Pago: ${selectedLinkPago.nombre}` : metodo;
       const res = await apiClient.post(`/restaurante/comandas/${comanda.id}/cerrar`, {
-        metodo_pago: metodo, propina, omitir_inventario: omitirInventarioRef.current,
+        metodo_pago: metodoPagoFinal, propina, omitir_inventario: omitirInventarioRef.current,
         solicita_fe: solicitaFe,
       });
       const ventaSnap = {
@@ -295,7 +299,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
           producto: { nombre: d.nombre_producto }, cantidad: d.cantidad, precio_unitario: d.precio_unitario,
         })),
         total: res.data.total, iva_total: 0, iva_porcentaje: 0,
-        monto_pagado: res.data.total, estado_pago: 'pagado', metodo_pago: metodo,
+        monto_pagado: res.data.total, estado_pago: 'pagado', metodo_pago: metodoPagoFinal,
       };
       setReciboVenta(ventaSnap);
       setReciboOpen(true);
@@ -307,7 +311,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
   };
 
   const handleCerrarCuenta = () => {
-    if (metodo === 'Link de Pago') {
+    if (selectedLinkPago) {
       pendingCerrarRef.current = true;
       setLinkPagoModalOpen(true);
     } else {
@@ -485,12 +489,10 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
                 <FormControl size="small" fullWidth sx={{ mb: 1.5 }}>
                   <InputLabel>Método de pago</InputLabel>
                   <Select value={metodo} onChange={e => { setMetodo(e.target.value); setRecibido(''); }} label="Método de pago" sx={{ borderRadius: 2 }}>
-                    {['Efectivo', 'Tarjeta', 'Nequi', 'Transferencia', 'Daviplata'].map(m => (
-                      <MenuItem key={m} value={m}>{m}</MenuItem>
+                    <MenuItem value="Efectivo">Efectivo</MenuItem>
+                    {linkPagosConfig.map(l => (
+                      <MenuItem key={l.id} value={`link:${l.id}`}>{l.nombre}</MenuItem>
                     ))}
-                    {linkPagoConfig && (
-                      <MenuItem value="Link de Pago">Link de Pago / QR</MenuItem>
-                    )}
                   </Select>
                 </FormControl>
 
@@ -1055,11 +1057,11 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
       />
 
       {/* ── Link de Pago / QR modal ── */}
-      {linkPagoConfig && (
+      {selectedLinkPago && (
         <LinkPagoModal
           open={linkPagoModalOpen}
           onClose={() => { setLinkPagoModalOpen(false); pendingCerrarRef.current = false; }}
-          linkConfig={linkPagoConfig}
+          linkConfig={selectedLinkPago}
           onConfirm={() => {
             setLinkPagoModalOpen(false);
             pendingCerrarRef.current = false;

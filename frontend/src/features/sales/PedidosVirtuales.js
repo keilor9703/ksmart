@@ -66,12 +66,10 @@ const QUICK_ACTIONS_TIENDA = {
 const getQuickAction = (estado, tipoEntrega) =>
   (esDomicilio(tipoEntrega) ? QUICK_ACTIONS : QUICK_ACTIONS_TIENDA)[estado];
 
+// Solo Efectivo viene fijo — el resto de métodos son los links de pago
+// (linkPagosConfig) que la empresa configure en Mi Cuenta → Link de Pago.
 const METODOS_PAGO = [
-  { value: 'Efectivo',      label: 'Efectivo',      icon: <AttachMoney /> },
-  { value: 'Transferencia', label: 'Transferencia', icon: <AccountBalanceWallet /> },
-  { value: 'Nequi',         label: 'Nequi',         icon: <AccountBalanceWallet /> },
-  { value: 'Daviplata',     label: 'Daviplata',     icon: <AccountBalanceWallet /> },
-  { value: 'Tarjeta',       label: 'Tarjeta',       icon: <AttachMoney /> },
+  { value: 'Efectivo', label: 'Efectivo', icon: <AttachMoney /> },
 ];
 
 const SORT_OPTIONS = [
@@ -284,7 +282,7 @@ const CardSkeleton = () => (
 
 // ─── PaymentDialog ────────────────────────────────────────────────────────────
 
-const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, linkPagoConfig }) => {
+const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, linkPagosConfig }) => {
   const theme = useTheme();
   const [metodo, setMetodo] = useState('Efectivo');
   const [loading, setLoading] = useState(false);
@@ -294,6 +292,9 @@ const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, li
   const omitirInventarioRef = useRef(false);
   omitirInventarioRef.current = omitirInventario;
   const [linkPagoModalOpen, setLinkPagoModalOpen] = useState(false);
+  const selectedLinkPago = metodo?.startsWith('link:')
+    ? (linkPagosConfig || []).find(l => `link:${l.id}` === metodo)
+    : null;
 
   const totalConIva = pedido ? Math.round(pedido.total * (1 + ivaPct / 100)) : 0;
   const ivaTotal = pedido ? Math.round(pedido.total * (ivaPct / 100)) : 0;
@@ -302,8 +303,9 @@ const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, li
     if (!pedido) return;
     setLoading(true);
     try {
+      const metodoPagoFinal = selectedLinkPago ? `Link de Pago: ${selectedLinkPago.nombre}` : metodo;
       const res = await apiClient.post(`/pedidos-virtuales/${pedido.id}/convertir-venta`, {
-        metodo_pago: metodo,
+        metodo_pago: metodoPagoFinal,
         omitir_inventario: omitirInventarioRef.current,
         iva_porcentaje: ivaPct,
       });
@@ -313,7 +315,7 @@ const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, li
         cliente: { nombre: pedido.nombre_cliente, telefono: pedido.celular_cliente },
         detalles: (pedido.detalles || []).map(d => ({ producto: { nombre: d.nombre_variante ? `${d.nombre_producto} - ${d.nombre_variante}` : d.nombre_producto }, cantidad: d.cantidad, precio_unitario: d.precio_unitario })),
         total: totalConIva, iva_total: ivaTotal, iva_porcentaje: ivaPct,
-        monto_pagado: totalConIva, estado_pago: 'pagado', metodo_pago: metodo,
+        monto_pagado: totalConIva, estado_pago: 'pagado', metodo_pago: metodoPagoFinal,
       };
       setRecibo(ventaSnap);
       setOmitirInventario(false);
@@ -325,7 +327,7 @@ const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, li
   };
 
   const handleConfirm = () => {
-    if (metodo === 'Link de Pago') {
+    if (selectedLinkPago) {
       setLinkPagoModalOpen(true);
     } else {
       doConvertir();
@@ -334,9 +336,10 @@ const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, li
 
   const handleClose = () => { setRecibo(null); setOmitirInventario(false); onClose(); };
 
-  const metodosDisponibles = linkPagoConfig
-    ? [...METODOS_PAGO, { value: 'Link de Pago', label: 'Link de Pago / QR', icon: <Receipt /> }]
-    : METODOS_PAGO;
+  const metodosDisponibles = [
+    ...METODOS_PAGO,
+    ...(linkPagosConfig || []).map(l => ({ value: `link:${l.id}`, label: l.nombre, icon: <Receipt /> })),
+  ];
 
   if (recibo) return <ReciboDialog open={open} onClose={handleClose} venta={recibo} empresa={empresa} vendedor={vendedor} />;
 
@@ -446,11 +449,11 @@ const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, li
         </DialogActions>
       </Dialog>
 
-      {linkPagoConfig && (
+      {selectedLinkPago && (
         <LinkPagoModal
           open={linkPagoModalOpen}
           onClose={() => setLinkPagoModalOpen(false)}
-          linkConfig={linkPagoConfig}
+          linkConfig={selectedLinkPago}
           onConfirm={() => { setLinkPagoModalOpen(false); doConvertir(); }}
         />
       )}
@@ -696,7 +699,7 @@ const DETAIL_ACTIONS_TIENDA = {
 const getDetailActions = (estado, tipoEntrega) =>
   (esDomicilio(tipoEntrega) ? DETAIL_ACTIONS : DETAIL_ACTIONS_TIENDA)[estado] || [];
 
-const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange, onEdit, onCancel, onConvertir, linkPagoConfig }) => {
+const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange, onEdit, onCancel, onConvertir, linkPagosConfig }) => {
   const theme = useTheme();
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [changingState, setChangingState] = useState(false);
@@ -855,7 +858,7 @@ const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange,
       </Dialog>
 
       <PaymentDialog open={paymentOpen} onClose={() => setPaymentOpen(false)}
-        pedido={pedido} empresa={empresa} vendedor={vendedor} linkPagoConfig={linkPagoConfig}
+        pedido={pedido} empresa={empresa} vendedor={vendedor} linkPagosConfig={linkPagosConfig}
         onSuccess={(updated) => { setPaymentOpen(false); onConvertir(updated); onClose(); }} />
     </>
   );
@@ -863,7 +866,7 @@ const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange,
 
 // ─── PedidoCard ───────────────────────────────────────────────────────────────
 
-const PedidoCard = React.memo(function PedidoCard({ pedido, empresa, vendedor, onStateChange, onCancel, onConvertir, onWhatsApp, onEdit, onDetail, onComprobante, linkPagoConfig }) {
+const PedidoCard = React.memo(function PedidoCard({ pedido, empresa, vendedor, onStateChange, onCancel, onConvertir, onWhatsApp, onEdit, onDetail, onComprobante, linkPagosConfig }) {
   const theme = useTheme();
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [justUpdated, setJustUpdated] = useState(false);
@@ -1084,7 +1087,7 @@ const PedidoCard = React.memo(function PedidoCard({ pedido, empresa, vendedor, o
       </Card>
 
       <PaymentDialog open={paymentOpen} onClose={() => setPaymentOpen(false)}
-        pedido={pedido} empresa={empresa} vendedor={vendedor} linkPagoConfig={linkPagoConfig}
+        pedido={pedido} empresa={empresa} vendedor={vendedor} linkPagosConfig={linkPagosConfig}
         onSuccess={(updated) => { setPaymentOpen(false); onConvertir(updated); setJustUpdated(true); setTimeout(() => setJustUpdated(false), 1000); }} />
     </>
   );
@@ -1092,7 +1095,7 @@ const PedidoCard = React.memo(function PedidoCard({ pedido, empresa, vendedor, o
 
 // ─── ListView row ─────────────────────────────────────────────────────────────
 
-const ListRow = React.memo(function ListRow({ pedido, empresa, vendedor, onStateChange, onCancel, onConvertir, onWhatsApp, onEdit, onDetail, onComprobante, linkPagoConfig }) {
+const ListRow = React.memo(function ListRow({ pedido, empresa, vendedor, onStateChange, onCancel, onConvertir, onWhatsApp, onEdit, onDetail, onComprobante, linkPagosConfig }) {
   const theme = useTheme();
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [changingState, setChangingState] = useState(false);
@@ -1179,7 +1182,7 @@ const ListRow = React.memo(function ListRow({ pedido, empresa, vendedor, onState
       </TableRow>
 
       <PaymentDialog open={paymentOpen} onClose={() => setPaymentOpen(false)}
-        pedido={pedido} empresa={empresa} vendedor={vendedor} linkPagoConfig={linkPagoConfig}
+        pedido={pedido} empresa={empresa} vendedor={vendedor} linkPagosConfig={linkPagosConfig}
         onSuccess={(updated) => { setPaymentOpen(false); onConvertir(updated); }} />
     </>
   );
@@ -1205,7 +1208,7 @@ export default function PedidosVirtuales({ user }) {
   const [cancelPedido,   setCancelPedido]   = useState(null);
   const [editPedido,     setEditPedido]     = useState(null);
   const [waPedido,       setWaPedido]       = useState(null);
-  const [linkPagoConfig, setLinkPagoConfig] = useState(null);
+  const [linkPagosConfig, setLinkPagosConfig] = useState([]);
   const [comprobantePedido, setComprobantePedido] = useState(null); // {venta, pedido}
 
   const empresa = user?.empresa || null;
@@ -1253,7 +1256,7 @@ export default function PedidosVirtuales({ user }) {
   usePolling(() => fetchAll(true), 60_000);
 
   useEffect(() => {
-    apiClient.get('/empresa/link-pago').then(r => setLinkPagoConfig(r.data)).catch(() => {});
+    apiClient.get('/empresa/link-pago/activos').then(r => setLinkPagosConfig(r.data || [])).catch(() => {});
   }, []);
 
   // Sort pedidos client-side — los "nuevo" (requieren acción) siempre flotan
@@ -1417,7 +1420,7 @@ export default function PedidosVirtuales({ user }) {
             <PedidoCard key={p.id} pedido={p} empresa={empresa} vendedor={vendedor}
               onStateChange={handleStateChange} onCancel={setCancelPedido}
               onConvertir={handleConvertir} onWhatsApp={setWaPedido}
-              onEdit={setEditPedido} onDetail={setDetailPedido} onComprobante={handleComprobante} linkPagoConfig={linkPagoConfig} />
+              onEdit={setEditPedido} onDetail={setDetailPedido} onComprobante={handleComprobante} linkPagosConfig={linkPagosConfig} />
           ))}
         </Box>
       ) : (
@@ -1440,7 +1443,7 @@ export default function PedidosVirtuales({ user }) {
                   <ListRow key={p.id} pedido={p} empresa={empresa} vendedor={vendedor}
                     onStateChange={handleStateChange} onCancel={setCancelPedido}
                     onConvertir={handleConvertir} onWhatsApp={setWaPedido}
-                    onEdit={setEditPedido} onDetail={setDetailPedido} onComprobante={handleComprobante} linkPagoConfig={linkPagoConfig} />
+                    onEdit={setEditPedido} onDetail={setDetailPedido} onComprobante={handleComprobante} linkPagosConfig={linkPagosConfig} />
                 ))}
               </TableBody>
             </Table>
@@ -1453,7 +1456,7 @@ export default function PedidosVirtuales({ user }) {
         empresa={empresa} vendedor={vendedor} onStateChange={handleStateChange}
         onEdit={p => { setDetailPedido(null); setEditPedido(p); }}
         onCancel={p => { setDetailPedido(null); setCancelPedido(p); }}
-        onConvertir={handleConvertir} linkPagoConfig={linkPagoConfig} />
+        onConvertir={handleConvertir} linkPagosConfig={linkPagosConfig} />
 
       <CancelDialog open={!!cancelPedido} onClose={() => setCancelPedido(null)}
         pedido={cancelPedido} onSuccess={() => { fetchAll(true); setCancelPedido(null); }} />
