@@ -1515,9 +1515,9 @@ useEffect(() => {
                 ════════════════════════════════════════ */}
                 <TabPanel value={tabValue} index={0}>
                     {viewMode === 'classic' ? (
-                        <Box sx={{ display: 'flex', gap: 0, alignItems: 'stretch', minHeight: 0, flexDirection: { xs: 'column', md: 'row' } }}>
+                        <Box sx={{ display: 'flex', gap: 0, alignItems: 'stretch', minHeight: 0, flexDirection: { xs: 'column', lg: 'row' } }}>
                           {/* ── LEFT PANEL ── */}
-                          <Box sx={{ flex: 1, minWidth: 0, p: { xs: 2, md: 3 }, overflowY: 'auto', maxHeight: { md: 'calc(100vh - 220px)' } }}>
+                          <Box sx={{ flex: 1, minWidth: 0, p: { xs: 2, md: 3 }, overflowY: 'auto', maxHeight: { lg: 'calc(100vh - 220px)' } }}>
                             {/* ── 0. ¿Factura Electrónica? (primera pregunta al cliente) ── */}
                             {user?.empresa?.facturacion_electronica_activa && (
                                 <Paper elevation={0} sx={{
@@ -1871,14 +1871,14 @@ useEffect(() => {
                           </Box>{/* end LEFT PANEL */}
 
                           {/* ── vertical DIVIDER — desktop only ── */}
-                          <Box sx={{ display: { xs: 'none', md: 'block' }, width: '1px', bgcolor: 'divider', flexShrink: 0 }} />
+                          <Box sx={{ display: { xs: 'none', lg: 'block' }, width: '1px', bgcolor: 'divider', flexShrink: 0 }} />
 
                           {/* ── RIGHT PANEL ── */}
                           <Box sx={{
-                            width: { xs: '100%', md: 560 }, flexShrink: 0,
+                            width: { xs: '100%', lg: 560 }, flexShrink: 0,
                             p: { xs: 2, md: 3 },
                             display: 'flex', flexDirection: 'column', gap: 2,
-                            overflowY: 'auto', maxHeight: { md: 'calc(100vh - 220px)' },
+                            overflowY: 'auto', maxHeight: { lg: 'calc(100vh - 220px)' },
                             bgcolor: isDark ? 'background.paper' : '#FFFBF9',
                             borderLeft: { md: `1.5px solid ${ACCENT}20` },
                           }}>
