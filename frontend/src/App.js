@@ -28,6 +28,7 @@ import ModalHuella from './components/common/ModalHuella';
 import GlobalSearch from './components/common/GlobalSearch';
 import { MODULE_ICONS, getModuleConfig, ADMIN_MODULES, HIDDEN_FROM_SIDEBAR } from './utils/modulesConfig';
 import ReconectandoScreen from './components/common/ReconectandoScreen';
+import MobileUpdateChecker from './components/common/MobileUpdateChecker';
 import { startKeepAlive, stopKeepAlive } from './services/keepAlive';
 
 // ─── LAZY: cada pantalla en su propio chunk (code-splitting por ruta) ─────────
@@ -540,6 +541,7 @@ const hasAccess = useCallback((path) => {
           transition={Slide}
         />
         <SpeedInsights />
+        <MobileUpdateChecker />
       </ThemeProvider>
     </OnboardingProvider>
   );
