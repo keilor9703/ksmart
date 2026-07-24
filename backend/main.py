@@ -74,6 +74,28 @@ def read_root():
 def ping():
     return {"ping": "pong", "timestamp": datetime.now(timezone.utc)}
 
+
+@app.get("/app/version-movil")
+def app_version_movil():
+    """Versión mínima/recomendada de la app móvil (APK) publicada.
+
+    La app instalada compara su propia versión nativa contra esto al abrir y,
+    si está desactualizada, muestra un aviso para descargar la nueva. Se
+    controla por variables de entorno para poder anunciar una nueva versión
+    sin desplegar código:
+      APP_MOVIL_VERSION        Última versión disponible del APK (ej. "1.1.0").
+      APP_MOVIL_URL_DESCARGA   URL donde se descarga el APK nuevo.
+      APP_MOVIL_MENSAJE        Mensaje opcional a mostrar al usuario.
+      APP_MOVIL_OBLIGATORIA    "true" → el usuario no puede seguir sin actualizar.
+    Si no está configurada, devuelve "1.0" (la versión inicial) → no fuerza nada.
+    """
+    return {
+        "version":       os.getenv("APP_MOVIL_VERSION", "1.0"),
+        "url_descarga":  os.getenv("APP_MOVIL_URL_DESCARGA", "") or None,
+        "mensaje":       os.getenv("APP_MOVIL_MENSAJE", "") or None,
+        "obligatoria":   os.getenv("APP_MOVIL_OBLIGATORIA", "false").lower() == "true",
+    }
+
 @app.get("/health")
 def health():
     from sqlalchemy import text
