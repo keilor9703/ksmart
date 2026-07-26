@@ -497,6 +497,7 @@ const DetalleOrdenDialog = ({ open, onClose, orden, productos, clientes, onChang
   const [cerrarOpen, setCerrarOpen] = useState(false);
   const [cancelarOpen, setCancelarOpen] = useState(false);
   const [cancelando, setCancelando] = useState(false);
+  const [waListo, setWaListo] = useState(null); // { telefono, mensaje } al marcar vehículo listo
 
   useEffect(() => {
     setTipoDetalle('repuesto'); setProducto(null); setDescripcion('');
@@ -545,9 +546,32 @@ const DetalleOrdenDialog = ({ open, onClose, orden, productos, clientes, onChang
       const res = await apiClient.patch(`/taller/ordenes/${orden.id}/estado`, { estado: nuevoEstado, notificar_cliente: true });
       toast.success(`Estado actualizado a "${ESTADO_META[nuevoEstado]?.label || nuevoEstado}"`);
       onChanged(res.data);
+
+      // Al marcar el vehículo como listo, ofrecer avisar al cliente por
+      // WhatsApp (enlace wa.me — el mecánico toca "Enviar" en su WhatsApp).
+      if (nuevoEstado === 'listo') {
+        const v = res.data?.vehiculo || {};
+        const telefono = v.cliente_telefono;
+        if (telefono?.trim()) {
+          const valor = res.data?.valor_cobrado || res.data?.precio_venta_sugerido || 0;
+          const mensaje =
+            `🚗 Tu ${v.tipo || 'vehículo'} de placa ${v.placa} ya está listo para recoger.` +
+            (valor > 0 ? `\nValor a pagar: ${fmt(valor)}` : '') +
+            `\n\n¡Te esperamos!`;
+          setWaListo({ telefono, mensaje });
+        }
+      }
     } catch (err) {
       toast.error(err?.response?.data?.detail || 'No se pudo cambiar el estado');
     }
+  };
+
+  const enviarWaListo = () => {
+    if (!waListo) return;
+    const digits = (waListo.telefono || '').replace(/\D/g, '');
+    const full = digits.startsWith('57') ? digits : `57${digits}`;
+    window.open(`https://wa.me/${full}?text=${encodeURIComponent(waListo.mensaje)}`, '_blank');
+    setWaListo(null);
   };
 
   const handleConfirmarCancelar = async () => {
@@ -765,6 +789,30 @@ const DetalleOrdenDialog = ({ open, onClose, orden, productos, clientes, onChang
         message="Esta acción no se puede deshacer. El vehículo quedará marcado como cancelado y no podrás seguir agregando costos ni cerrarla."
         confirmLabel="Sí, cancelar"
       />
+
+      {/* Avisar al cliente por WhatsApp que el vehículo está listo (wa.me) */}
+      <Dialog open={!!waListo} onClose={() => setWaListo(null)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, fontWeight: 800 }}>
+          <CheckCircle sx={{ color: '#25D366' }} /> Vehículo marcado como listo
+        </DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: 13.5, color: 'text.secondary', mb: 1.5 }}>
+            ¿Quieres avisarle al cliente por WhatsApp que ya puede pasar a recogerlo?
+          </Typography>
+          {waListo && (
+            <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'rgba(37,211,102,0.08)', border: '1px solid rgba(37,211,102,0.3)', whiteSpace: 'pre-line', fontSize: 13 }}>
+              {waListo.mensaje}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+          <Button onClick={() => setWaListo(null)} sx={{ textTransform: 'none', color: 'text.secondary' }}>Ahora no</Button>
+          <Button variant="contained" onClick={enviarWaListo}
+            sx={{ borderRadius: 2, fontWeight: 700, textTransform: 'none', bgcolor: '#25D366', '&:hover': { bgcolor: '#1da851' } }}>
+            Enviar por WhatsApp
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 };

@@ -3233,6 +3233,7 @@ class VehiculoTallerOut(BaseModel):
     origen: str
     cliente_id: Optional[int] = None
     cliente_nombre: Optional[str] = None
+    cliente_telefono: Optional[str] = None
     foto_ingreso: Optional[str] = None
     created_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
