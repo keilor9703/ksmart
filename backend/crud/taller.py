@@ -105,6 +105,13 @@ def _enriquecer_orden(orden: models.OrdenTaller) -> models.OrdenTaller:
             # usados (la mano de obra ya suele estar reflejada en valor_cobrado).
             orden.margen = round(orden.valor_cobrado - orden.costo_acumulado, 2)
     orden.mecanico_nombre = (orden.mecanico.nombre_completo or orden.mecanico.username) if orden.mecanico else None
+    # Exponer datos del cliente (nombre/teléfono) en el vehículo para que el
+    # frontend pueda armar el enlace wa.me al cliente al marcar el vehículo
+    # como listo, sin depender de cargar la lista completa de clientes.
+    if orden.vehiculo is not None:
+        cli = orden.vehiculo.cliente
+        orden.vehiculo.cliente_nombre = cli.nombre if cli else None
+        orden.vehiculo.cliente_telefono = cli.telefono if cli else None
     return orden
 
 
@@ -275,11 +282,11 @@ def cambiar_estado(
     db.commit()
     db.refresh(orden)
 
-    if nuevo_estado == "listo" and notificar_cliente:
-        try:
-            _notificar_vehiculo_listo(orden)
-        except Exception as e:
-            logger.warning("No se pudo notificar vehículo listo (orden #%s): %s", orden.id, e)
+    # Nota: el aviso al cliente de "vehículo listo" se hace vía enlace wa.me
+    # desde el frontend (el mecánico toca "Enviar" en su WhatsApp) al marcar
+    # la orden como lista — ya no por la API de Meta. El parámetro
+    # notificar_cliente se conserva por compatibilidad pero no dispara nada
+    # aquí; la respuesta incluye el teléfono del cliente para armar el enlace.
 
     return _enriquecer_orden(orden)
 
@@ -464,21 +471,6 @@ def _notificar_nueva_orden(db: Session, empresa_id: int, orden: models.OrdenTall
     for u in usuarios:
         db.add(models.Notificacion(usuario_id=u.id, empresa_id=empresa_id, mensaje=mensaje, tipo="info"))
     db.commit()
-
-
-def _notificar_vehiculo_listo(orden: models.OrdenTaller):
-    vehiculo = orden.vehiculo
-    if not vehiculo or not vehiculo.cliente or not getattr(vehiculo.cliente, "telefono", None):
-        return
-    from services.whatsapp_business import enviar_notificacion_vehiculo_listo
-    valor = orden.valor_cobrado or orden.precio_venta_sugerido or 0
-    fmt_valor = f"${valor:,.0f}".replace(",", ".")
-    enviar_notificacion_vehiculo_listo(
-        telefono_cliente=vehiculo.cliente.telefono,
-        placa=vehiculo.placa,
-        tipo_vehiculo=vehiculo.tipo,
-        valor_formateado=fmt_valor,
-    )
 
 
 # ─── Estadísticas ────────────────────────────────────────────────────────────
