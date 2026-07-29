@@ -20,7 +20,7 @@ const TEAL = '#0891B2';
 const TEAL_DARK = '#0E7490';
 const API_BASE = (apiClient && apiClient.defaults && apiClient.defaults.baseURL)
   ? apiClient.defaults.baseURL
-  : 'https://api.appjeylor.com';
+  : 'https://api.ksmart360.com';
 
 const pad = n => String(n).padStart(2, '0');
 const toYMD = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;

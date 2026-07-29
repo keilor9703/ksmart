@@ -619,6 +619,6 @@ Si su plan vence, el sistema lo redirige a la pantalla de renovación. **Sus dat
 
 **Ksmart360 — Tecnología que trabaja por usted, no al revés.**
 
-Soporte y más información: [appjeylor.com](https://appjeylor.com)
+Soporte y más información: [ksmart360.com](https://ksmart360.com)
 
 *Junio 2026 — Versión 3.1.0*

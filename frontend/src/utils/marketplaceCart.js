@@ -9,7 +9,7 @@
  * momento de pagar. localStorage es por origen (hostname), así que este
  * carrito persiste sin importar si el cliente está en la portada del
  * mall o dentro de la página de una tienda específica — siempre que
- * ambas se sirvan desde el mismo dominio (e-comerce.appjeylor.com).
+ * ambas se sirvan desde el mismo dominio (e-comerce.ksmart360.com).
  *
  * El backend NO tiene (ni necesita) un endpoint multi-empresa: cada
  * tienda sigue validando/creando su propio PedidoVirtual vía
@@ -23,7 +23,7 @@
 const CART_KEY = 'mkt_cart';
 const CART_EVENT = 'mkt_cart_changed';
 
-export const MARKETPLACE_HOSTNAME = 'e-comerce.appjeylor.com';
+export const MARKETPLACE_HOSTNAME = 'e-comerce.ksmart360.com';
 export const isMarketplaceDomain = () => window.location.hostname === MARKETPLACE_HOSTNAME;
 
 const safeGet = () => {

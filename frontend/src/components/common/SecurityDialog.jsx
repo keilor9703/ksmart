@@ -83,7 +83,7 @@ function TabBiometria() {
       <Alert severity="info" icon={<Info />} sx={{ mt: 2 }}>
         {esAppNativa
           ? 'El inicio de sesión con huella todavía no está disponible en la app instalada (Ksmart360 APK). ' +
-            'Por ahora puedes usarla abriendo www.appjeylor.com desde el navegador de tu celular (Chrome, ' +
+            'Por ahora puedes usarla abriendo www.ksmart360.com desde el navegador de tu celular (Chrome, ' +
             'Safari), donde sí funciona si el dispositivo tiene huella o Face ID.'
           : 'Tu dispositivo o navegador actual no soporta autenticación biométrica (WebAuthn). ' +
             'Intenta desde Chrome, Edge o Safari en un dispositivo con huella o Face ID.'}

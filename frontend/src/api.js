@@ -14,7 +14,7 @@ import axios from 'axios';
 //   },
 // });
 
-const base = process.env.REACT_APP_API_URL || "https://api.appjeylor.com";
+const base = process.env.REACT_APP_API_URL || "https://api.ksmart360.com";
 
 export const apiClient = axios.create({
   baseURL: base,
