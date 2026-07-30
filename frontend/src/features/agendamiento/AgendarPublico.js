@@ -4,7 +4,7 @@ import {
   Box, Paper, Typography, Button, Chip, CircularProgress,
   Stack, Avatar, TextField, Stepper, Step, StepLabel,
   Divider, Tooltip, Fade, Alert, Dialog, DialogTitle,
-  DialogContent, DialogActions, Link,
+  DialogContent, DialogActions, Link, ThemeProvider, createTheme,
 } from '@mui/material';
 import {
   EventNote, Schedule, AccessTime, CheckCircle, ArrowBack, ArrowForward,
@@ -15,6 +15,15 @@ import {
   fetchAgendamientoPublico, fetchDisponibilidadPublica, crearCitaPublica,
   apiClient,
 } from '../../api';
+
+// Página pública (la ve el cliente final, sin login). Se fuerza SIEMPRE a
+// tema claro: antes heredaba el modo del dispositivo del visitante, y en modo
+// oscuro los textos (text.primary/secondary) se volvían claros sobre los
+// fondos blancos fijos de las tarjetas → texto invisible y franjas negras.
+const publicLightTheme = createTheme({
+  palette: { mode: 'light' },
+  typography: { fontFamily: '"Plus Jakarta Sans", sans-serif' },
+});
 
 const TEAL = '#0891B2';
 const TEAL_DARK = '#0E7490';
@@ -30,7 +39,16 @@ const imgSrc = (slug, id, idx = 0) => `${API_BASE}/catalogo/${slug}/productos/${
 
 const PASOS = ['Servicio', 'Fecha y hora', 'Tus datos', 'Listo'];
 
-export default function AgendarPublico() {
+export default function AgendarPublico(props) {
+  // Envoltura que fuerza el tema claro en toda la página pública.
+  return (
+    <ThemeProvider theme={publicLightTheme}>
+      <AgendarPublicoInner {...props} />
+    </ThemeProvider>
+  );
+}
+
+function AgendarPublicoInner() {
   const { slug } = useParams();
   const [info, setInfo]       = useState(null);
   const [loading, setLoading] = useState(true);
@@ -130,7 +148,7 @@ export default function AgendarPublico() {
               <Spa sx={{ fontSize: 32 }} />
             </Avatar>
           )}
-          <Typography sx={{ fontWeight: 800, fontSize: 22 }}>{info.empresa_nombre}</Typography>
+          <Typography sx={{ fontWeight: 800, fontSize: 22, color: '#0F172A' }}>{info.empresa_nombre}</Typography>
           <Typography sx={{ color: 'text.secondary', fontSize: 14 }}>Reserva tu cita en línea</Typography>
         </Box>
 
