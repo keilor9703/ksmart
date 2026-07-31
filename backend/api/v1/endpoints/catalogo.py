@@ -529,10 +529,15 @@ def get_producto_imagen(
     if not db_empresa or not empresa_suscripcion_activa(db_empresa):
         raise HTTPException(status_code=404, detail="Catálogo no encontrado.")
 
+    from sqlalchemy import or_
+    # Se sirve la imagen tanto para productos del catálogo como para servicios
+    # agendables: la página pública de agendamiento muestra las fotos de los
+    # servicios usando este mismo endpoint, y un servicio agendable puede tener
+    # imágenes sin estar marcado como "mostrar en catálogo" — antes eso daba 404.
     db_producto = db.query(models.Producto).filter(
         models.Producto.id == producto_id,
         models.Producto.empresa_id == db_empresa.id,
-        models.Producto.mostrar_en_catalogo == True,
+        or_(models.Producto.mostrar_en_catalogo == True, models.Producto.agendable == True),
         models.Producto.vigente == True,
     ).first()
 
