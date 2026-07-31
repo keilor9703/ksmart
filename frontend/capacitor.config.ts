@@ -10,7 +10,7 @@ const config: CapacitorConfig = {
   // NATIVOS (cáscara Android, plugins de hardware Sunmi a futuro) sí requieren
   // un APK nuevo — para eso está el chequeo de versión (MobileUpdateChecker).
   server: {
-    url: 'https://www.appjeylor.com',
+    url: 'https://www.ksmart360.com',
     cleartext: false,
   },
 };

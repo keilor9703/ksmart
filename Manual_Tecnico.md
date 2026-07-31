@@ -456,7 +456,7 @@ Orígenes permitidos:
 - `http://localhost:3000` (desarrollo)
 - `https://appksmp.vercel.app`
 - `https://ksmart360.vercel.app`
-- `https://appjeylor.com`
+- `https://ksmart360.com`
 
 ---
 
@@ -631,4 +631,4 @@ catalogo_virtual
 ---
 
 **Ksmart360 Engineering — Mayo 2026**  
-*Para soporte técnico: [appjeylor.com](https://appjeylor.com)*
+*Para soporte técnico: [ksmart360.com](https://ksmart360.com)*

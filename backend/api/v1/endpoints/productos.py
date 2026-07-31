@@ -32,7 +32,7 @@ _barcode_logger = logging.getLogger("productos.barcode")
 
 # Open*Facts bloquea con 403 a clientes sin User-Agent identificable
 # (política anti-abuso). Identificarse es obligatorio para usar su API.
-_LOOKUP_HEADERS = {"User-Agent": "Ksmart360/1.0 (ERP Colombia; https://appjeylor.com)"}
+_LOOKUP_HEADERS = {"User-Agent": "Ksmart360/1.0 (ERP Colombia; https://ksmart360.com)"}
 
 
 async def fetch_openfoodfacts(client: httpx.AsyncClient, barcode: str):

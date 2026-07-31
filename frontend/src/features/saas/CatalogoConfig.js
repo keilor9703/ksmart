@@ -139,7 +139,7 @@ const CatalogoConfig = () => {
   };
 
   const copyToClipboard = () => {
-    const url = `https://catalogo.appjeylor.com/${slug}`;
+    const url = `https://catalogo.ksmart360.com/${slug}`;
     navigator.clipboard.writeText(url);
     toast.info("Enlace copiado al portapapeles");
   };
@@ -166,7 +166,7 @@ const CatalogoConfig = () => {
 
   if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}><CircularProgress /></Box>;
 
-  const catalogUrl = `https://catalogo.appjeylor.com/${slug}`;
+  const catalogUrl = `https://catalogo.ksmart360.com/${slug}`;
 
   return (
     <Box sx={{ maxWidth: 900, mx: 'auto', p: { xs: 1, md: 3 } }}>

@@ -10,7 +10,7 @@ const CatalogoVirtual = lazy(() => import('./features/saas/CatalogoVirtual'));
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
-const isCatalogoDomain = window.location.hostname === 'catalogo.appjeylor.com';
+const isCatalogoDomain = window.location.hostname === 'catalogo.ksmart360.com';
 
 root.render(
   <React.StrictMode>

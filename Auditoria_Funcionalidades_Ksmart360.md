@@ -612,4 +612,4 @@ Activación inmediata al pago. Sin instalaciones. Funciona desde cualquier dispo
 **Ksmart360 — Tecnología que trabaja por usted, no al revés.**
 
 *Desarrollado por KSMP Systems para empresas colombianas.*  
-*[appjeylor.com](https://appjeylor.com) | Todos los derechos reservados © 2026*
+*[ksmart360.com](https://ksmart360.com) | Todos los derechos reservados © 2026*

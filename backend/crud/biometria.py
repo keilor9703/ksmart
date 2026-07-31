@@ -25,9 +25,9 @@ from webauthn.helpers.structs import (
 import models, schemas
 
 
-RP_ID = os.getenv("WEBAUTHN_RP_ID", "appjeylor.com")
+RP_ID = os.getenv("WEBAUTHN_RP_ID", "ksmart360.com")
 RP_NAME = os.getenv("WEBAUTHN_RP_NAME", "Ksmart360")
-ORIGIN_PROD = os.getenv("WEBAUTHN_ORIGIN", "https://appjeylor.com")
+ORIGIN_PROD = os.getenv("WEBAUTHN_ORIGIN", "https://ksmart360.com")
 
 ALLOWED_ORIGINS = [
     ORIGIN_PROD,
