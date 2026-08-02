@@ -18,6 +18,10 @@ on:
       - ".github/workflows/build-android.yml"
   workflow_dispatch: {}
 
+# Necesario para que el paso de publicar el Release pueda crear/editar releases.
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -61,6 +65,29 @@ jobs:
           name: ksmart360-debug-apk
           path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
+
+      # ── Publicar el APK como GitHub Release (URL pública fija por versión) ──
+      # Lee la versión de build.gradle, renombra el APK con esa versión y crea
+      # (o actualiza) un Release etiquetado v<versión>. Así queda una URL de
+      # descarga estable, ideal para el aviso de actualización de la app móvil:
+      #   https://github.com/keilor9703/ksmart/releases/download/v1.3.1/ksmart360-1.3.1.apk
+      - name: Obtener versión de la app
+        id: appver
+        working-directory: frontend/android
+        run: |
+          VERSION=$(grep -m1 'versionName' app/build.gradle | sed 's/.*"\(.*\)".*/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          cp app/build/outputs/apk/debug/app-debug.apk "ksmart360-$VERSION.apk"
+
+      - name: Publicar Release con el APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.appver.outputs.version }}
+          name: Ksmart360 v${{ steps.appver.outputs.version }}
+          body: |
+            APK de Ksmart360 versión ${{ steps.appver.outputs.version }}.
+            Descarga directa del `.apk` en los assets de abajo.
+          files: frontend/android/ksmart360-${{ steps.appver.outputs.version }}.apk
 
       - name: Preparar keystore de release (desde secreto de GitHub)
         if: ${{ env.HAS_RELEASE_KEYSTORE == 'true' }}
