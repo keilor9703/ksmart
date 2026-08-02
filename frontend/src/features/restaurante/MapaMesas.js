@@ -18,6 +18,7 @@ import {
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
+import CurrencyField from '../../components/common/CurrencyField';
 import { imprimirComanda, imprimirCuenta } from '../../utils/printComanda';
 import usePolling from '../../hooks/usePolling';
 import ReciboDialog from '../../components/common/ReciboDialog';
@@ -427,9 +428,9 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
             </Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
               <Typography fontSize={13} color="text.secondary">Propina</Typography>
-              <TextField size="small" type="number" value={propina}
-                onChange={e => setPropina(Math.max(0, +e.target.value))}
-                sx={{ width: 110, '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: 13 } }} />
+              <CurrencyField size="small" fullWidth={false} value={propina}
+                onChange={(num) => setPropina(Math.max(0, num || 0))}
+                sx={{ width: 140, '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: 13 } }} />
             </Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
               <Typography fontWeight={800} fontSize={16}>Total</Typography>
