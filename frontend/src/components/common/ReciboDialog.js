@@ -30,6 +30,8 @@ function buildSunmiLines(venta, empresa, vendedor) {
   const saldo = (venta.total || 0) - (venta.monto_pagado || venta.total || 0);
   const puntos = getPuntosInfo(venta, empresa);
 
+  // Logo de la empresa arriba del nombre (se imprime como imagen en la térmica).
+  if (empresa?.logo_base64) lines.push({ type: 'image', bitmap: empresa.logo_base64 });
   lines.push({ text: empresa?.nombre || 'Mi Negocio', align: 'center', size: 36, bold: true });
   if (empresa?.nit) lines.push({ text: `NIT: ${empresa.nit}`, align: 'center', size: 22 });
   lines.push({ type: 'feed' });
@@ -176,6 +178,7 @@ body{font-family:${fontFamily};font-size:12px;color:#000;margin:0;padding:0;}
 .big{font-size:15px;}.sep{border:none;border-top:1px dashed #000;margin:5px 0;}
 table{width:100%;border-collapse:collapse;}
 </style></head><body>
+${empresa?.logo_base64 ? `<div class="c"><img src="${empresa.logo_base64}" style="max-height:60px;max-width:70%;margin:0 auto 4px;display:block;" /></div>` : ''}
 <div class="c b big">${empresa?.nombre || 'Mi Negocio'}</div>
 ${empresa?.nit ? `<div class="c">NIT: ${empresa.nit}</div>` : ''}
 <br>

@@ -1,5 +1,9 @@
 package com.tstechstack.ksmart360;
 
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.util.Base64;
+
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -11,6 +15,7 @@ import com.sunmi.printerx.PrinterSdk;
 import com.sunmi.printerx.api.LineApi;
 import com.sunmi.printerx.enums.Align;
 import com.sunmi.printerx.style.BaseStyle;
+import com.sunmi.printerx.style.BitmapStyle;
 import com.sunmi.printerx.style.TextStyle;
 
 import org.json.JSONObject;
@@ -114,6 +119,32 @@ public class SunmiPrinterPlugin extends Plugin {
                     }
                     if ("feed".equals(type)) {
                         line.printText(" ", TextStyle.getStyle().setTextSize(24));
+                        continue;
+                    }
+                    if ("image".equals(type)) {
+                        // Logo de la empresa (base64). Aislado en su propio
+                        // try: si algo falla con la imagen, no debe tumbar el
+                        // resto del recibo.
+                        try {
+                            String b64 = o.optString("bitmap", "");
+                            int comma = b64.indexOf(',');
+                            if (comma >= 0) b64 = b64.substring(comma + 1); // quitar "data:image/...;base64,"
+                            if (!b64.isEmpty()) {
+                                byte[] bytes = Base64.decode(b64, Base64.DEFAULT);
+                                Bitmap bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+                                if (bmp != null) {
+                                    int maxW = o.optInt("maxWidth", 240); // ~ancho útil 58mm
+                                    if (bmp.getWidth() > maxW) {
+                                        int h = Math.round(bmp.getHeight() * (maxW / (float) bmp.getWidth()));
+                                        bmp = Bitmap.createScaledBitmap(bmp, maxW, Math.max(1, h), true);
+                                    }
+                                    line.initLine(BaseStyle.getStyle().setAlign(Align.CENTER));
+                                    line.printBitmap(bmp, BitmapStyle.getStyle());
+                                }
+                            }
+                        } catch (Exception imgEx) {
+                            // Logo opcional: se ignora si no se puede imprimir.
+                        }
                         continue;
                     }
 
