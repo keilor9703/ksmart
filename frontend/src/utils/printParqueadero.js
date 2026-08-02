@@ -6,7 +6,7 @@ const PRINTER_SIZES = {
 };
 
 // ─── Impresión en Sunmi (líneas estructuradas) ────────────────────────────────
-function buildEntradaLines(acceso, config) {
+function buildEntradaLines(acceso, config, qrDataUrl = null) {
   const parq = config?.nombre_parqueadero || 'Parqueadero';
   const fechaEntrada = acceso.fecha_entrada ? new Date(acceso.fecha_entrada) : new Date();
   const fechaStr = fechaEntrada.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -19,6 +19,11 @@ function buildEntradaLines(acceso, config) {
   lines.push({ text: 'COMPROBANTE DE ENTRADA', align: 'center', size: 24, bold: true });
   lines.push({ type: 'divider' });
   lines.push({ text: acceso.placa, align: 'center', size: 34, bold: true });
+  // QR para búsqueda rápida en la salida (se imprime como imagen en la térmica).
+  if (qrDataUrl) {
+    lines.push({ type: 'image', bitmap: qrDataUrl, maxWidth: 300 });
+    lines.push({ text: 'Escanear para busqueda rapida', align: 'center', size: 18 });
+  }
   lines.push({ type: 'divider' });
   if (acceso.nombre_ocasional) lines.push({ text: padLR('Cliente', acceso.nombre_ocasional), size: 22 });
   if (acceso.telefono) lines.push({ text: padLR('Tel', acceso.telefono), size: 22 });
@@ -101,10 +106,10 @@ function _fmt(n) {
 }
 
 export async function imprimirEntradaParqueadero(acceso, config, printerSize = 'p80', qrDataUrl = null) {
-  // En el dispositivo Sunmi imprimimos en la térmica integrada (sin QR).
+  // En el dispositivo Sunmi imprimimos en la térmica integrada (con QR como imagen).
   if (await sunmiDisponible()) {
     try {
-      await imprimirRecibo(buildEntradaLines(acceso, config));
+      await imprimirRecibo(buildEntradaLines(acceso, config, qrDataUrl));
       return;
     } catch (e) {
       console.warn('imprimirEntradaParqueadero: falló Sunmi, se usa HTML', e);
