@@ -44,4 +44,11 @@
          barras es una función opcional, no crítica para el resto del ERP). -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+
+    <!-- Necesario (target SDK >= 30) para poder invocar/consultar el módulo de
+         escaneo integrado de Sunmi desde el plugin SunmiScanner. -->
+    <queries>
+        <package android:name="com.sunmi.scanner" />
+        <package android:name="com.sunmi.sunmiqrcodescanner" />
+    </queries>
 </manifest>
