@@ -420,10 +420,20 @@ class InventoryMovementCreate(BaseModel):
     usuario_id: Optional[int] = None
     variante_id: Optional[int] = None
 
+# Producto liviano para embeber en listados (movimientos, etc.): solo lo que
+# la UI necesita mostrar. Evita arrastrar imagenes en base64 y variantes, que
+# hacían el historial de movimientos lentísimo y pesadísimo.
+class ProductoMini(BaseModel):
+    id: int
+    nombre: str
+    codigo_barras: Optional[str] = None
+    unidad_medida: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
 class InventoryMovementOut(BaseModel):
     id: int
     producto_id: int
-    producto: Optional[Producto] = None
+    producto: Optional[ProductoMini] = None
     tipo: MovementType
     cantidad: float
     costo_unitario: float
