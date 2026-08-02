@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, load_only
 from sqlalchemy import func, text, cast, Date, or_
 from typing import Optional, List
 from datetime import date, datetime, timezone
@@ -94,7 +94,17 @@ def create_movement(db: Session, empresa_id: int, payload: schemas.InventoryMove
 
 def list_movements(db: Session, empresa_id: int, producto_id: int = None, limit: int = 100,
                    lote_id: int = None, numero_lote: str = None):
-    q = db.query(models.InventoryMovement).filter(
+    # Cargamos el producto en la MISMA consulta (evita N+1) y solo las columnas
+    # que la UI necesita — sin la columna `imagenes` (base64), que hacía el
+    # historial de movimientos lentísimo y con payloads enormes.
+    q = db.query(models.InventoryMovement).options(
+        joinedload(models.InventoryMovement.producto).load_only(
+            models.Producto.id,
+            models.Producto.nombre,
+            models.Producto.codigo_barras,
+            models.Producto.unidad_medida,
+        )
+    ).filter(
         models.InventoryMovement.empresa_id == empresa_id
     ).order_by(models.InventoryMovement.created_at.desc())
 
