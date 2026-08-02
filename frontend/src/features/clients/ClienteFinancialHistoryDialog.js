@@ -58,7 +58,10 @@ const KpiMiniCard = ({ label, value, icon, color }) => (
 const ClienteFinancialHistoryDialog = ({ open, handleClose, clienteId, clienteNombre }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  
+  // Umbral más amplio (< md) para apilar las tablas de detalle: en celulares y
+  // tablets pequeñas las 4 columnas no caben y se cortaba la última.
+  const stackTablas = useMediaQuery(theme.breakpoints.down('md'));
+
   const [history, setHistory] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -169,6 +172,28 @@ const ClienteFinancialHistoryDialog = ({ open, handleClose, clienteId, clienteNo
                   <Box sx={{ p: 2 }}>
                     <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', mb: 1 }}>Productos Facturados</Typography>
                     {/* ✅ CORRECCIÓN MODO OSCURO: Usamos background.paper para las tablas */}
+                    {stackTablas ? (
+                      // En celular, la tabla de 4 columnas no cabe (se cortaba el
+                      // Subtotal). Se muestra como lista apilada: nombre + subtotal
+                      // arriba, y "cantidad × precio" debajo.
+                      <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper', overflow: 'hidden' }}>
+                        {venta.detalles?.map((detalle, i) => (
+                          <Box key={detalle.id} sx={{ p: 1.5, borderTop: i === 0 ? 'none' : '1px solid', borderColor: 'divider' }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1.5 }}>
+                              <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary', flex: 1, minWidth: 0 }}>
+                                {detalle.producto?.nombre || 'N/A'}
+                              </Typography>
+                              <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'text.primary', whiteSpace: 'nowrap' }}>
+                                {formatCurrency(detalle.precio_unitario * detalle.cantidad)}
+                              </Typography>
+                            </Box>
+                            <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.25 }}>
+                              {detalle.cantidad} × {formatCurrency(detalle.precio_unitario)}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Box>
+                    ) : (
                     <TableContainer component={Paper} sx={{ boxShadow: 'none', border: '1px solid', borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper' }}>
                       <Table size="small">
                         <TableHead>
@@ -191,6 +216,7 @@ const ClienteFinancialHistoryDialog = ({ open, handleClose, clienteId, clienteNo
                         </TableBody>
                       </Table>
                     </TableContainer>
+                    )}
                   </Box>
 
                   {/* Sección de Pagos (Solo si hay pagos) */}
@@ -199,6 +225,21 @@ const ClienteFinancialHistoryDialog = ({ open, handleClose, clienteId, clienteNo
                       <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', mb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
                         <Payment sx={{ fontSize: 14 }} /> Historial de Abonos
                       </Typography>
+                      {stackTablas ? (
+                        // Vista apilada en móvil: método + fecha a la izquierda,
+                        // monto a la derecha. Evita el corte de columnas.
+                        <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper', overflow: 'hidden' }}>
+                          {venta.pagos.map((pago, i) => (
+                            <Box key={pago.id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1.5, p: 1.5, borderTop: i === 0 ? 'none' : '1px solid', borderColor: 'divider' }}>
+                              <Box sx={{ minWidth: 0 }}>
+                                <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary' }}>{pago.metodo_pago || 'N/A'}</Typography>
+                                <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>#{pago.id} · {formatearFechaExacta(pago.fecha)}</Typography>
+                              </Box>
+                              <Typography sx={{ fontSize: 13, fontWeight: 700, color: GREEN, whiteSpace: 'nowrap' }}>+{formatCurrency(pago.monto)}</Typography>
+                            </Box>
+                          ))}
+                        </Box>
+                      ) : (
                       <TableContainer component={Paper} sx={{ boxShadow: 'none', border: '1px solid', borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper' }}>
                         <Table size="small">
                           <TableHead>
@@ -221,6 +262,7 @@ const ClienteFinancialHistoryDialog = ({ open, handleClose, clienteId, clienteNo
                           </TableBody>
                         </Table>
                       </TableContainer>
+                      )}
                     </Box>
                   )}
 
