@@ -13,6 +13,7 @@ import {
 import { formatCurrency } from '../../utils/formatters';
 import CurrencyField from '../../components/common/CurrencyField';
 import { getProductoByBarcode } from '../../api';
+import { sunmiScannerDisponible, escanearSunmi, onScanFisico } from '../../utils/sunmiScanner';
 import { esPesable } from '../../hooks/useBascula';
 import ScaleIcon from '@mui/icons-material/Scale';
 import StyleIcon from '@mui/icons-material/Style';
@@ -742,6 +743,8 @@ const TouchPOSMode = ({
     // ── Barcode / Camera ──
     const [barcodeInput, setBarcodeInput]         = useState('');
     const [cameraActive, setCameraActive]         = useState(false);
+    const [sunmiScanOk, setSunmiScanOk]           = useState(false);
+    const handleProcessBarcodeRef = useRef(null);
     const [searchingBarcode, setSearchingBarcode] = useState(false);
     const [scanFlash, setScanFlash]               = useState(false);
     const barcodeFieldRef  = useRef(null);
@@ -833,10 +836,24 @@ const TouchPOSMode = ({
         return () => { active = false; cleanupCamera(); };
     }, [cameraActive, cleanupCamera]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const handleToggleCamera = () => {
+    const handleToggleCamera = async () => {
+        if (sunmiScanOk) {
+            const code = await escanearSunmi();
+            if (code) handleProcessBarcode(code);
+            return;
+        }
         if (cameraActive) { cleanupCamera(); setCameraActive(false); setTimeout(() => barcodeFieldRef.current?.focus(), 100); }
         else setCameraActive(true);
     };
+
+    // Escáner Sunmi: detección + botón físico (modo táctil).
+    useEffect(() => {
+        sunmiScannerDisponible().then(setSunmiScanOk).catch(() => setSunmiScanOk(false));
+    }, []);
+    useEffect(() => {
+        if (!sunmiScanOk) return undefined;
+        return onScanFisico((code) => handleProcessBarcodeRef.current?.(code));
+    }, [sunmiScanOk]);
 
     const handleProcessBarcode = async (code) => {
         const barcode = code.trim();
@@ -872,6 +889,7 @@ const TouchPOSMode = ({
             setTimeout(() => barcodeFieldRef.current?.focus(), 100);
         }
     };
+    handleProcessBarcodeRef.current = handleProcessBarcode;
 
     const toggleGroup = (gid) =>
         setExpandedGroups(prev => ({ ...prev, [gid]: prev[gid] === false ? true : false }));

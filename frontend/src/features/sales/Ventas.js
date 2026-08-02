@@ -36,6 +36,7 @@ import BasculaWidget from '../../components/common/BasculaWidget';
 import BasculaConfigDialog from '../../components/common/BasculaConfigDialog';
 import { esPesable, useBascula } from '../../hooks/useBascula';
 import VarianteSelectorDialog from '../../components/common/VarianteSelectorDialog';
+import { sunmiScannerDisponible, escanearSunmi, onScanFisico } from '../../utils/sunmiScanner';
 import { alpha } from '@mui/material/styles';
 
 const ACCENT = '#0891B2';
@@ -536,6 +537,8 @@ const Ventas = ({ user }) => {
     // ── Barcode / Camera ──
     const [barcodeInput, setBarcodeInput]     = useState('');
     const [cameraActive, setCameraActive]     = useState(false);
+    const [sunmiScanOk, setSunmiScanOk]       = useState(false); // escáner nativo Sunmi disponible
+    const handleProcessBarcodeRef = useRef(null);                 // para el listener del botón físico
     const [searchingBarcode, setSearchingBarcode] = useState(false);
     const [scanFlash, setScanFlash]           = useState(false);
     const barcodeFieldRef  = useRef(null);
@@ -928,10 +931,31 @@ useEffect(() => {
         return () => { active = false; cleanupCamera(); };
     }, [cameraActive, cleanupCamera]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const handleToggleCamera = () => {
+    const handleToggleCamera = async () => {
+        // En un dispositivo Sunmi usamos el escáner nativo (la cámara del WebView
+        // no funciona al cargar la web remota). En un navegador/celular normal,
+        // se usa la cámara web como antes.
+        if (sunmiScanOk) {
+            const code = await escanearSunmi();
+            if (code) handleProcessBarcode(code);
+            return;
+        }
         if (cameraActive) { cleanupCamera(); setCameraActive(false); setTimeout(() => barcodeFieldRef.current?.focus(), 100); }
         else setCameraActive(true);
     };
+
+    // Detectar el escáner Sunmi al montar.
+    useEffect(() => {
+        sunmiScannerDisponible().then(setSunmiScanOk).catch(() => setSunmiScanOk(false));
+    }, []);
+
+    // Botón físico del escáner del V3 (modo broadcast): inyecta el código en la
+    // misma lógica que la búsqueda por código de barras. Solo en modo clásico —
+    // en modo táctil lo maneja TouchPOSMode para no procesarlo dos veces.
+    useEffect(() => {
+        if (!sunmiScanOk || viewMode !== 'classic') return undefined;
+        return onScanFisico((code) => handleProcessBarcodeRef.current?.(code));
+    }, [sunmiScanOk, viewMode]);
 
     // ── Barcode processing ──
     const playScanBeep = () => {
@@ -1005,6 +1029,7 @@ useEffect(() => {
             }
         }
     };
+    handleProcessBarcodeRef.current = handleProcessBarcode;
 
     // ── Mostrador ──
     const handleSetMostrador = () => {
