@@ -66,25 +66,36 @@ export default function MobileUpdateChecker() {
       open
       onClose={info.obligatoria ? undefined : () => setInfo(null)}
       maxWidth="xs" fullWidth
-      PaperProps={{ sx: { borderRadius: 3 } }}
+      PaperProps={{ sx: { borderRadius: 3, m: 2, width: 'calc(100% - 32px)', maxWidth: 400 } }}
     >
-      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 800 }}>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 800, fontSize: { xs: 17, sm: 20 }, pr: 2, pb: 1 }}>
         <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: '#0891B218', color: '#0891B2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <SystemUpdate />
         </Box>
-        Nueva versión disponible
+        <Box component="span" sx={{ minWidth: 0, lineHeight: 1.25 }}>Nueva versión disponible</Box>
       </DialogTitle>
-      <DialogContent>
-        <Typography sx={{ fontSize: 14, color: 'text.secondary' }}>
+      <DialogContent sx={{ px: { xs: 2.5, sm: 3 } }}>
+        <Typography sx={{ fontSize: 14, color: 'text.secondary', wordBreak: 'break-word' }}>
           {info.mensaje || 'Hay una versión más reciente de la app de Ksmart360. Actualízala para tener las últimas mejoras.'}
         </Typography>
-        <Typography sx={{ fontSize: 12, color: 'text.disabled', mt: 1 }}>
+        <Typography sx={{ fontSize: 12, color: 'text.disabled', mt: 1, wordBreak: 'break-word' }}>
           Tu versión: {info.actual} · Disponible: {info.version}
         </Typography>
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+      <DialogActions
+        sx={{
+          px: { xs: 2.5, sm: 3 }, pb: 2, pt: 0.5, gap: 1,
+          flexDirection: { xs: 'column-reverse', sm: 'row' },
+          alignItems: 'stretch',
+          '& > :not(:first-of-type)': { ml: { xs: 0, sm: 1 } },
+        }}
+      >
         {!info.obligatoria && (
-          <Button onClick={() => setInfo(null)} sx={{ textTransform: 'none', color: 'text.secondary' }}>
+          <Button
+            onClick={() => setInfo(null)}
+            fullWidth
+            sx={{ textTransform: 'none', color: 'text.secondary', width: { sm: 'auto' } }}
+          >
             Ahora no
           </Button>
         )}
@@ -93,7 +104,8 @@ export default function MobileUpdateChecker() {
           onClick={descargar}
           disabled={!info.url_descarga}
           startIcon={<SystemUpdate />}
-          sx={{ borderRadius: 2, fontWeight: 700, textTransform: 'none', bgcolor: '#0891B2', '&:hover': { bgcolor: '#0e7490' } }}
+          fullWidth
+          sx={{ borderRadius: 2, fontWeight: 700, textTransform: 'none', bgcolor: '#0891B2', '&:hover': { bgcolor: '#0e7490' }, width: { sm: 'auto' } }}
         >
           Descargar actualización
         </Button>
