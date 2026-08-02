@@ -62,16 +62,16 @@ const TerceroForm = ({ data, onChange, errors }) => {
       autoFocus
       placeholder="Ej: Distribuciones García S.A.S."
     />
-    <Box sx={{ display: 'flex', gap: 1.5 }}>
+    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5 }}>
       <TextField label="NIT / Cédula" value={data.cedula} onChange={e => onChange('cedula', e.target.value)} size="small" error={!!errors.cedula} helperText={errors.cedula || 'Único por tercero'} sx={{ flex: 1 }} />
       <TextField label="Teléfono" value={data.telefono} onChange={e => onChange('telefono', e.target.value)} size="small" sx={{ flex: 1 }} />
     </Box>
-    <Box sx={{ display: 'flex', gap: 1.5 }}>
+    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5 }}>
       <TextField label="Correo electrónico" type="email" value={data.email} onChange={e => onChange('email', e.target.value)} size="small" sx={{ flex: 1 }} placeholder="correo@ejemplo.com" helperText="Requerido para Factura Electrónica" />
       <TextField
         label="Fecha de cumpleaños" type="date"
         value={data.fecha_nacimiento} onChange={e => onChange('fecha_nacimiento', e.target.value)}
-        size="small" sx={{ flex: 1 }}
+        size="small" fullWidth sx={{ flex: 1 }}
         InputLabelProps={{ shrink: true }}
         inputProps={{ max: new Date().toLocaleDateString('en-CA') }}
       />

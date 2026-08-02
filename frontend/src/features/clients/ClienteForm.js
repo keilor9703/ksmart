@@ -248,7 +248,10 @@ const ClienteForm = ({
                   fullWidth size="small"
                 />
               </Grid>
-              <Grid item xs={12} sm={6} md={4}>
+              {/* El campo de fecha (type=date) necesita más ancho que un input
+                  normal: su etiqueta larga y el control nativo se ven diminutos a
+                  media columna en celular. Se deja a ancho completo hasta md. */}
+              <Grid item xs={12} sm={12} md={4}>
                 <TextField
                   label="Fecha de Cumpleaños"
                   value={fechaNacimiento}
