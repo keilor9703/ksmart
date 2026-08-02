@@ -5,6 +5,19 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 
 const SunmiPrinter = registerPlugin('SunmiPrinter');
 
+/**
+ * Arma un renglón "izquierda .... derecha" ocupando el ancho de una térmica
+ * (58mm ≈ 32 caracteres), para alinear precios/valores a la derecha. Reutilizable
+ * por los recibos de todos los módulos.
+ */
+export function padLR(left, right, width = 32) {
+  let l = String(left);
+  const r = String(right);
+  if (l.length + r.length >= width) l = l.slice(0, Math.max(0, width - r.length - 1));
+  const space = Math.max(1, width - l.length - r.length);
+  return l + ' '.repeat(space) + r;
+}
+
 /** True solo si estamos en la app nativa Y el dispositivo tiene impresora Sunmi. */
 export async function sunmiDisponible() {
   if (!Capacitor.isNativePlatform()) return false;

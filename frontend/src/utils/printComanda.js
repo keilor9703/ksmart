@@ -1,3 +1,69 @@
+import { sunmiDisponible, imprimirRecibo, padLR } from './sunmiPrinter';
+
+// ─── Impresión en Sunmi (líneas estructuradas) ────────────────────────────────
+function buildComandaLines({ mesa, comanda, items, empresaNombre = '', nombreMesero = '', titulo = 'COMANDA' }) {
+  const ahora = new Date();
+  const horaFmt = ahora.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  const fechaFmt = ahora.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: '2-digit' });
+  const lines = [];
+  if (empresaNombre) lines.push({ text: empresaNombre, align: 'center', size: 28 });
+  lines.push({ text: `** ${titulo} **`, align: 'center', size: 30, bold: true });
+  lines.push({ text: `Mesa ${mesa.numero}${mesa.nombre ? ` - ${mesa.nombre}` : ''}`, size: 26, bold: true });
+  lines.push({ text: `Comanda #${comanda.numero_comanda || '—'}`, size: 22 });
+  lines.push({ text: `${comanda.personas || 1} persona(s)  ${fechaFmt} ${horaFmt}`, size: 22 });
+  lines.push({ type: 'divider' });
+
+  const porArea = {};
+  items.forEach(it => { const a = it.area_cocina || 'Cocina general'; (porArea[a] = porArea[a] || []).push(it); });
+  const varias = Object.keys(porArea).length > 1;
+  Object.entries(porArea).forEach(([area, itemsArea]) => {
+    if (varias) lines.push({ text: area.toUpperCase(), size: 22, bold: true });
+    itemsArea.forEach(it => {
+      lines.push({ text: `${it.cantidad}x ${it.nombre_producto}`, size: 26, bold: true });
+      if (it.notas) lines.push({ text: `  > ${it.notas}`, size: 22 });
+    });
+  });
+  lines.push({ type: 'divider' });
+  if (nombreMesero) lines.push({ text: `Mesero/a: ${nombreMesero}`, align: 'center', size: 20 });
+  lines.push({ text: '— Ksmart360 —', align: 'center', size: 20 });
+  lines.push({ type: 'feed' });
+  return lines;
+}
+
+function buildCuentaLines({ mesa, comanda, items, empresaNombre = '', nombreMesero = '', propina = 0 }) {
+  const ahora = new Date();
+  const horaFmt = ahora.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  const fechaFmt = ahora.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: '2-digit' });
+  const fmt = (v) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v ?? 0);
+  const subtotal = items.reduce((s, i) => s + (i.subtotal ?? i.cantidad * i.precio_unitario), 0);
+  const total = subtotal + (propina || 0);
+  const lines = [];
+  if (empresaNombre) lines.push({ text: empresaNombre, align: 'center', size: 28 });
+  lines.push({ text: '** CUENTA **', align: 'center', size: 30, bold: true });
+  lines.push({ text: `Mesa ${mesa.numero}${mesa.nombre ? ` - ${mesa.nombre}` : ''}`, size: 24, bold: true });
+  lines.push({ text: `${comanda.personas || 1} persona(s)  ${fechaFmt} ${horaFmt}`, size: 22 });
+  if (nombreMesero) lines.push({ text: `Atendido por: ${nombreMesero}`, size: 22 });
+  lines.push({ text: `TICKET N. ${comanda.numero_comanda || '—'}`, align: 'center', size: 24, bold: true });
+  lines.push({ type: 'divider' });
+  items.forEach(it => {
+    const sub = it.subtotal ?? it.cantidad * it.precio_unitario;
+    lines.push({ text: `${it.cantidad}x ${it.nombre_producto}`, size: 22 });
+    lines.push({ text: padLR('', fmt(sub)), size: 22 });
+    if (it.notas) lines.push({ text: `  > ${it.notas}`, size: 20 });
+  });
+  lines.push({ type: 'divider' });
+  if (propina > 0) {
+    lines.push({ text: padLR('Subtotal', fmt(subtotal)), size: 22 });
+    lines.push({ text: padLR('Propina sugerida', fmt(propina)), size: 22 });
+  }
+  lines.push({ text: padLR('TOTAL', fmt(total)), size: 28, bold: true });
+  lines.push({ type: 'feed' });
+  lines.push({ text: 'Presente este ticket en la caja', align: 'center', size: 20 });
+  lines.push({ text: '— Ksmart360 —', align: 'center', size: 20 });
+  lines.push({ type: 'feed' });
+  return lines;
+}
+
 // ─── Tamaños de impresora soportados ──────────────────────────────────────────
 export const PRINTER_SIZES = {
   p80: {
@@ -28,7 +94,7 @@ export const PRINTER_SIZES = {
  * @param {string} [opts.titulo]       - 'COMANDA' | 'REIMPRESIÓN' etc.
  * @param {string} [opts.printerSize]  - 'p80' | 'p58' (default 'p80')
  */
-export function imprimirComanda({
+export async function imprimirComanda({
   mesa,
   comanda,
   items,
@@ -38,6 +104,16 @@ export function imprimirComanda({
   printerSize   = 'p80',
 }) {
   if (!items || items.length === 0) return;
+
+  // Si estamos en el dispositivo Sunmi, imprimimos en la térmica integrada.
+  if (await sunmiDisponible()) {
+    try {
+      await imprimirRecibo(buildComandaLines({ mesa, comanda, items, empresaNombre, nombreMesero, titulo }));
+      return;
+    } catch (e) {
+      console.warn('imprimirComanda: falló Sunmi, se usa HTML', e);
+    }
+  }
 
   const sz = PRINTER_SIZES[printerSize] ?? PRINTER_SIZES.p80;
 
@@ -140,7 +216,7 @@ export function imprimirComanda({
  *
  * @param {string} [opts.printerSize] - 'p80' | 'p58' (default 'p80')
  */
-export function imprimirCuenta({
+export async function imprimirCuenta({
   mesa,
   comanda,
   items,
@@ -150,6 +226,16 @@ export function imprimirCuenta({
   printerSize   = 'p80',
 }) {
   if (!items || items.length === 0) return;
+
+  // Si estamos en el dispositivo Sunmi, imprimimos en la térmica integrada.
+  if (await sunmiDisponible()) {
+    try {
+      await imprimirRecibo(buildCuentaLines({ mesa, comanda, items, empresaNombre, nombreMesero, propina }));
+      return;
+    } catch (e) {
+      console.warn('imprimirCuenta: falló Sunmi, se usa HTML', e);
+    }
+  }
 
   const sz = PRINTER_SIZES[printerSize] ?? PRINTER_SIZES.p80;
 

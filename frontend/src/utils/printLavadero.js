@@ -1,7 +1,46 @@
+import { sunmiDisponible, imprimirRecibo, padLR } from './sunmiPrinter';
+
 const PRINTER_SIZES = {
   p80: { width: '80mm', font: '10px', fontSm: '8px', fontLg: '16px' },
   p58: { width: '58mm', font: '9px',  fontSm: '7px', fontLg: '13px' },
 };
+
+// ─── Impresión en Sunmi (líneas estructuradas) ────────────────────────────────
+function buildLavaderoLines(orden, config) {
+  const nombre = config?.nombre_lavadero || 'Lavadero';
+  const fechaSalida = orden.fecha_salida ? new Date(orden.fecha_salida) : new Date();
+  const fechaStr = fechaSalida.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const horaStr  = fechaSalida.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  const lines = [];
+  lines.push({ text: nombre, align: 'center', size: 28, bold: true });
+  lines.push({ type: 'divider' });
+  lines.push({ text: 'RECIBO DE LAVADO', align: 'center', size: 24, bold: true });
+  lines.push({ type: 'divider' });
+  lines.push({ text: orden.placa, align: 'center', size: 34, bold: true });
+  if (orden.tipo_vehiculo) lines.push({ text: orden.tipo_vehiculo, align: 'center', size: 20 });
+  lines.push({ type: 'divider' });
+  if (orden.cliente_nombre) lines.push({ text: padLR('Cliente', orden.cliente_nombre), size: 22 });
+  if (orden.operador_nombre) lines.push({ text: padLR('Lavador', orden.operador_nombre), size: 22 });
+  lines.push({ text: padLR('Fecha', fechaStr), size: 22 });
+  lines.push({ text: padLR('Hora', horaStr), size: 22 });
+  lines.push({ type: 'divider' });
+  lines.push({ text: 'SERVICIOS:', size: 22, bold: true });
+  (orden.detalles || []).forEach(d => {
+    const nom = `${d.nombre_servicio}${d.cantidad > 1 ? ` x${d.cantidad}` : ''}`;
+    lines.push({ text: padLR(nom, `$${_fmt(d.precio_unitario * d.cantidad)}`), size: 22 });
+  });
+  lines.push({ type: 'divider' });
+  lines.push({ text: padLR('TOTAL', `$${_fmt(orden.total)}`), size: 28, bold: true });
+  lines.push({ text: padLR('Metodo pago', orden.metodo_pago || '—'), size: 22 });
+  if (orden.observaciones) {
+    lines.push({ type: 'divider' });
+    lines.push({ text: `Obs: ${orden.observaciones}`, size: 20 });
+  }
+  lines.push({ type: 'divider' });
+  lines.push({ text: '¡Gracias por su preferencia!', align: 'center', size: 22, bold: true });
+  lines.push({ type: 'feed' });
+  return lines;
+}
 
 function _printInIframe(html) {
   const win = window.open('about:blank', '_blank');
@@ -34,7 +73,17 @@ function _fmt(n) {
   return n != null ? Number(n).toLocaleString('es-CO') : '0';
 }
 
-export function imprimirReciboLavadero(orden, config, printerSize = 'p80') {
+export async function imprimirReciboLavadero(orden, config, printerSize = 'p80') {
+  // En el dispositivo Sunmi imprimimos en la térmica integrada.
+  if (await sunmiDisponible()) {
+    try {
+      await imprimirRecibo(buildLavaderoLines(orden, config));
+      return;
+    } catch (e) {
+      console.warn('imprimirReciboLavadero: falló Sunmi, se usa HTML', e);
+    }
+  }
+
   const sz = PRINTER_SIZES[printerSize] || PRINTER_SIZES.p80;
   const nombre = config?.nombre_lavadero || 'Lavadero';
 
