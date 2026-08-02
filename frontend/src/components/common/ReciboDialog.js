@@ -6,9 +6,68 @@ import {
 } from '@mui/material';
 import {
   Close, Print, WhatsApp, ExpandMore, ExpandLess,
-  Receipt, CheckCircleOutline, Store
+  Receipt, CheckCircleOutline, Store, PointOfSale,
 } from '@mui/icons-material';
+import { toast } from 'react-toastify';
 import { formatCurrency } from '../../utils/formatters';
+import { sunmiDisponible, imprimirRecibo } from '../../utils/sunmiPrinter';
+
+// Arma un renglón "etiqueta ......... valor" ocupando el ancho de una térmica
+// de 58mm (~32 caracteres), para alinear precios/totales a la derecha.
+function padLR(left, right, width = 32) {
+  let l = String(left);
+  const r = String(right);
+  if (l.length + r.length >= width) l = l.slice(0, Math.max(0, width - r.length - 1));
+  const space = Math.max(1, width - l.length - r.length);
+  return l + ' '.repeat(space) + r;
+}
+
+// Construye el recibo como líneas estructuradas para la impresora Sunmi.
+function buildSunmiLines(venta, empresa, vendedor) {
+  const lines = [];
+  const fecha = new Date(venta.fecha + (venta.fecha?.includes('Z') ? '' : 'Z'));
+  const dateStr = fecha.toLocaleString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const saldo = (venta.total || 0) - (venta.monto_pagado || venta.total || 0);
+  const puntos = getPuntosInfo(venta, empresa);
+
+  lines.push({ text: empresa?.nombre || 'Mi Negocio', align: 'center', size: 36, bold: true });
+  if (empresa?.nit) lines.push({ text: `NIT: ${empresa.nit}`, align: 'center', size: 22 });
+  lines.push({ type: 'feed' });
+  lines.push({ text: 'COMPROBANTE DE VENTA', align: 'center', size: 24, bold: true });
+  lines.push({ text: `No. ${venta.numero_venta ?? venta.id}   ${dateStr}`, align: 'center', size: 20 });
+  lines.push({ type: 'divider' });
+  lines.push({ text: `Cliente: ${venta.cliente?.nombre || 'Consumidor Final'}`, size: 22 });
+  if (venta.cliente?.cedula) lines.push({ text: `NIT/CC: ${venta.cliente.cedula}`, size: 22 });
+  if (vendedor) lines.push({ text: `Vendedor: ${vendedor}`, size: 22 });
+  lines.push({ type: 'divider' });
+
+  (venta.detalles || []).forEach(d => {
+    const nombre = d.producto?.nombre || d.nombre_libre || 'Producto';
+    const precio = d.precio_unitario || 0;
+    const sub = (d.cantidad || 0) * precio;
+    lines.push({ text: nombre, size: 22 });
+    lines.push({ text: padLR(`  ${d.cantidad} x ${formatCurrency(precio)}`, formatCurrency(sub)), size: 22 });
+  });
+
+  lines.push({ type: 'divider' });
+  if (venta.iva_porcentaje > 0) lines.push({ text: padLR(`IVA ${venta.iva_porcentaje}%`, formatCurrency(venta.iva_total || 0)), size: 22 });
+  lines.push({ text: padLR('TOTAL', formatCurrency(venta.total)), size: 30, bold: true });
+  lines.push({ text: padLR('Pago', venta.metodo_pago || 'Efectivo'), size: 22 });
+  if (saldo > 0) lines.push({ text: padLR('Saldo pendiente', formatCurrency(saldo)), size: 22, bold: true });
+
+  if (puntos) {
+    lines.push({ type: 'divider' });
+    if (puntos.ganados > 0) lines.push({ text: padLR('Puntos ganados', `+${puntos.ganados}`), size: 22 });
+    if (puntos.canjeados > 0) lines.push({ text: padLR('Puntos canjeados', `-${puntos.canjeados}`), size: 22 });
+    if (puntos.saldo !== null && puntos.saldo !== undefined) lines.push({ text: padLR('Saldo de puntos', String(puntos.saldo)), size: 22 });
+  }
+
+  lines.push({ type: 'feed' });
+  lines.push({ text: '¡Gracias por su compra!', align: 'center', size: 22 });
+  if (empresa?.whatsapp_pedidos) lines.push({ text: `WhatsApp: ${empresa.whatsapp_pedidos}`, align: 'center', size: 20 });
+  lines.push({ type: 'feed' });
+  return lines;
+}
 
 // ─── Fidelización: helper para saber si hay algo que mostrar ──────────────────
 function getPuntosInfo(venta, empresa) {
@@ -483,12 +542,16 @@ const ReciboDialog = ({ open, onClose, venta, empresa, vendedor }) => {
   const [paperSize, setPaperSize]     = useState('a4');
   const [waOpen, setWaOpen]           = useState(false);
   const [waNumber, setWaNumber]       = useState('');
+  const [sunmiOk, setSunmiOk]         = useState(false);
+  const [printingSunmi, setPrintingSunmi] = useState(false);
 
   const handleOpen = useCallback(() => {
     if (!open) return;
     // Pre-fill WhatsApp with client phone when dialog opens
     setWaNumber(venta?.cliente?.telefono || '');
     setWaOpen(false);
+    // Detectar impresora Sunmi (solo dentro de la app en un dispositivo Sunmi)
+    sunmiDisponible().then(setSunmiOk).catch(() => setSunmiOk(false));
   }, [open, venta]);
 
   // Reset WhatsApp panel when dialog opens
@@ -516,6 +579,17 @@ const ReciboDialog = ({ open, onClose, venta, empresa, vendedor }) => {
     if (!num) return;
     const text = buildWhatsAppText(venta, empresa, vendedor);
     window.open(`https://wa.me/${num}?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  const handleSunmiPrint = async () => {
+    setPrintingSunmi(true);
+    try {
+      await imprimirRecibo(buildSunmiLines(venta, empresa, vendedor));
+    } catch (e) {
+      toast.error('No se pudo imprimir en la impresora Sunmi: ' + (e?.message || e));
+    } finally {
+      setPrintingSunmi(false);
+    }
   };
 
   return (
@@ -660,6 +734,25 @@ const ReciboDialog = ({ open, onClose, venta, empresa, vendedor }) => {
       </Collapse>
 
       <Divider sx={{ flexShrink: 0 }} />
+
+      {/* ── Impresora Sunmi (solo en la app, en un dispositivo Sunmi) ── */}
+      {sunmiOk && (
+        <Box sx={{ px: 2.5, pt: 2, flexShrink: 0 }}>
+          <Button
+            fullWidth
+            variant="contained"
+            startIcon={<PointOfSale />}
+            onClick={handleSunmiPrint}
+            disabled={printingSunmi}
+            sx={{
+              fontWeight: 800, textTransform: 'none', borderRadius: 2, py: 1.3,
+              bgcolor: '#0F172A', '&:hover': { bgcolor: '#1E293B' },
+            }}
+          >
+            {printingSunmi ? 'Imprimiendo…' : '🖨️ Imprimir en impresora Sunmi'}
+          </Button>
+        </Box>
+      )}
 
       {/* ── Action buttons ──────────────────────────── */}
       <Box sx={{ px: 2.5, py: 2, display: 'flex', gap: 1.5, flexShrink: 0, flexWrap: 'wrap' }}>
