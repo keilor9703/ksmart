@@ -9,6 +9,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Capacitor } from '@capacitor/core';
 import apiClient from '../api';
+import {
+  nativoDisponible, registrarNativo, loginNativo, desactivarNativo,
+} from '../utils/biometricNativa';
 
 // Dentro del WebView empaquetado de la app Android (Capacitor), WebAuthn no
 // funciona hoy: requiere un origen HTTPS real asociado por Digital Asset
@@ -48,13 +51,15 @@ export default function useBiometricAuth() {
     () => localStorage.getItem('biometric_enabled') === 'true'
   );
 
-  // ── Detectar si el dispositivo soporta WebAuthn al montar ───────────────
+  // ── Detectar si el dispositivo soporta biometría al montar ──────────────
   useEffect(() => {
     if (ES_APP_NATIVA) {
-      // WebAuthn no está disponible dentro del WebView de la app instalada
-      // (ver nota arriba) — no tiene caso ni consultarlo.
-      setIsSupported(false);
-      setIsPlatformAuthAvailable(false);
+      // Dentro de la app instalada usamos biometría NATIVA (BiometricPrompt /
+      // Face ID) en vez de WebAuthn. Consultamos al plugin nativo.
+      nativoDisponible().then(ok => {
+        setIsSupported(ok);
+        setIsPlatformAuthAvailable(ok);
+      });
       return;
     }
 
@@ -82,6 +87,13 @@ export default function useBiometricAuth() {
     }
     setLoading(true);
     try {
+      // App instalada → biometría nativa (Keystore + BiometricPrompt).
+      if (ES_APP_NATIVA) {
+        const result = await registrarNativo(deviceName);
+        setHasLocalCredential(true);
+        return result;
+      }
+
       // Paso 1: pedir opciones al backend
       const { data: opts } = await apiClient.post('/auth/biometric/register/options');
 
@@ -144,6 +156,11 @@ export default function useBiometricAuth() {
     }
     setLoading(true);
     try {
+      // App instalada → login con biometría nativa.
+      if (ES_APP_NATIVA) {
+        return await loginNativo();
+      }
+
       // Paso 1: pedir opciones de autenticación
       const { data: opts } = await apiClient.post('/auth/biometric/login/options', {
         username,
@@ -196,6 +213,14 @@ export default function useBiometricAuth() {
   // GESTIÓN DE CREDENCIALES (perfil)
   // ─────────────────────────────────────────────────────────────────────────
   const listCredentials = useCallback(async () => {
+    // En la app nativa no hay lista WebAuthn en el backend: el token vive en el
+    // Keystore de ESTE dispositivo. Devolvemos una entrada sintética si está
+    // activada, para reutilizar la misma UI de gestión.
+    if (ES_APP_NATIVA) {
+      return localStorage.getItem('biometric_enabled') === 'true'
+        ? [{ id: 'native', device_name: 'Este dispositivo', user_agent: navigator.userAgent, last_used_at: null }]
+        : [];
+    }
     const { data } = await apiClient.get('/auth/biometric/credentials');
     return data;
   }, []);
@@ -209,6 +234,12 @@ export default function useBiometricAuth() {
 //   }, []);
 
 const deleteCredential = useCallback(async (id) => {
+  // App instalada → desactivar biometría nativa (backend + Keystore + flag).
+  if (ES_APP_NATIVA) {
+    await desactivarNativo();
+    setHasLocalCredential(false);
+    return;
+  }
   await apiClient.delete(`/auth/biometric/credentials/${id}`);
   // Si el usuario quedó sin credenciales, ocultar el botón en este navegador
   try {

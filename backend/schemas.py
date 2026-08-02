@@ -2772,6 +2772,18 @@ class PinVerifyRequest(BaseModel):
     username: str
     pin: str
 
+# ─── Biometría nativa (app instalada) ──────────────────────────────────────────
+class BiometricNativeRegisterRequest(BaseModel):
+    device_name: Optional[str] = None
+
+class BiometricNativeRegisterResponse(BaseModel):
+    token: str          # token_id.secreto — se guarda en el Keystore del dispositivo
+    username: str
+    device_name: Optional[str] = None
+
+class BiometricNativeLoginRequest(BaseModel):
+    token: str
+
 class PasswordResetRequest(BaseModel):
     email: EmailStr
 
