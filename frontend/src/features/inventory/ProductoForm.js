@@ -25,6 +25,7 @@ import {
 } from '@mui/icons-material';
 
 import { UNIDADES_MEDIDA } from '../../utils/constants';
+import { onScanFisico } from '../../utils/sunmiScanner';
 
 const DEFAULT_ACCENT  = '#8B5CF6';
 const PRICE_COLOR     = '#F43F5E';
@@ -285,6 +286,8 @@ const ProductoForm = ({
   const zxingControlsRef  = useRef(null);
   const nombreRef         = useRef(null);
   const precioRef         = useRef(null);
+  const codigoBarrasRef   = useRef(null);   // input del código de barras (para lectores)
+  const handleSearchBarcodeRef = useRef(null); // para el botón físico Sunmi
 
   // ── Variant state ──
   const [tieneVariantes,    setTieneVariantes]    = useState(false);
@@ -436,6 +439,26 @@ const ProductoForm = ({
       setSearchingCode(false);
     }
   };
+  handleSearchBarcodeRef.current = handleSearchBarcode;
+
+  // Lector de código de barras (USB / WiFi / integrado que "escribe" el código):
+  // mientras el formulario está abierto y la cámara apagada, si el usuario no
+  // está escribiendo en otro campo, redirige la digitación al campo de código
+  // para que el lector escriba ahí y el Enter final dispare la búsqueda. Igual
+  // que en Ventas. Además escucha el botón físico del escáner Sunmi.
+  useEffect(() => {
+    if (!formOpen || cameraActive) return undefined;
+    const onKey = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) return;
+      const active = document.activeElement;
+      const tag = active?.tagName?.toLowerCase();
+      const escribiendoEnOtro = tag === 'input' || tag === 'textarea' || tag === 'select' || active?.isContentEditable;
+      if (!escribiendoEnOtro && codigoBarrasRef.current) codigoBarrasRef.current.focus();
+    };
+    window.addEventListener('keydown', onKey);
+    const offSunmi = onScanFisico((code) => handleSearchBarcodeRef.current?.(code));
+    return () => { window.removeEventListener('keydown', onKey); offSunmi(); };
+  }, [formOpen, cameraActive]);
 
   useEffect(() => {
     if (!cameraActive) { cleanupCamera(); setScanConfirmCount(0); return; }
@@ -878,6 +901,7 @@ const ProductoForm = ({
                     onChange={e => setCodigoBarras(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSearchBarcode(codigoBarras.trim()); } }}
                     autoFocus
+                    inputRef={codigoBarrasRef}
                     fullWidth
                     placeholder="Escanea, escribe o usa la cámara…"
                     inputProps={{ style: { fontFamily: 'monospace' } }}
