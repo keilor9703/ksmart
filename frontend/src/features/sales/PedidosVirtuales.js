@@ -1113,8 +1113,8 @@ const ListRow = React.memo(function ListRow({ pedido, empresa, vendedor, onState
         <TableCell onClick={() => onDetail(pedido)} sx={{ width: 60 }}>
           <Typography fontSize={11} color="text.disabled" fontWeight={700}>#{pedido.numero_pedido ?? pedido.id}</Typography>
         </TableCell>
-        <TableCell onClick={() => onDetail(pedido)} sx={{ minWidth: 130 }}>
-          <Typography fontSize={13} fontWeight={700} noWrap sx={{ maxWidth: 160 }}>{pedido.nombre_cliente}</Typography>
+        <TableCell onClick={() => onDetail(pedido)} sx={{ minWidth: { xs: 100, sm: 130 } }}>
+          <Typography fontSize={13} fontWeight={700} noWrap sx={{ maxWidth: { xs: 110, sm: 160 } }}>{pedido.nombre_cliente}</Typography>
           <Typography fontSize={11} color="text.secondary">{pedido.celular_cliente}</Typography>
         </TableCell>
         <TableCell onClick={() => onDetail(pedido)}>
@@ -1130,7 +1130,7 @@ const ListRow = React.memo(function ListRow({ pedido, empresa, vendedor, onState
         <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
           <Typography fontSize={11} color={isUrgente ? '#EF4444' : 'text.disabled'}>{timeAgo(pedido.fecha_creacion)}</Typography>
         </TableCell>
-        <TableCell align="right" sx={{ width: 180 }}>
+        <TableCell align="right" sx={{ width: 180, display: { xs: 'none', sm: 'table-cell' } }}>
           <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
             <Tooltip title="WhatsApp">
               <IconButton size="small" onClick={() => onWhatsApp(pedido)} sx={{ color: '#25D366', p: 0.5 }}>
@@ -1435,7 +1435,7 @@ export default function PedidosVirtuales({ user }) {
                   <TableCell sx={{ fontWeight: 700, fontSize: 11, display: { xs: 'none', md: 'table-cell' } }}>Ítems</TableCell>
                   <TableCell sx={{ fontWeight: 700, fontSize: 11 }} align="right">Total</TableCell>
                   <TableCell sx={{ fontWeight: 700, fontSize: 11, display: { xs: 'none', sm: 'table-cell' } }}>Hace</TableCell>
-                  <TableCell sx={{ fontWeight: 700, fontSize: 11 }} align="right">Acciones</TableCell>
+                  <TableCell sx={{ fontWeight: 700, fontSize: 11, display: { xs: 'none', sm: 'table-cell' } }} align="right">Acciones</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
