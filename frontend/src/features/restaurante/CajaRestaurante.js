@@ -13,6 +13,7 @@ import {
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
+import CurrencyField from '../../components/common/CurrencyField';
 import LinkPagoModal from '../../components/common/LinkPagoModal.jsx';
 import usePolling from '../../hooks/usePolling';
 import ReciboDialog from '../../components/common/ReciboDialog';
@@ -185,24 +186,20 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
 
             {/* Propina */}
             <Box sx={{ display: 'flex', gap: 1.5 }}>
-              <TextField
+              <CurrencyField
                 label="Propina tarjeta"
-                type="number"
                 size="small"
                 fullWidth
-                value={propina || ''}
-                onChange={e => setPropina(Math.max(0, +e.target.value || 0))}
-                InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+                value={propina}
+                onChange={(num) => setPropina(Math.max(0, num || 0))}
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
-              <TextField
+              <CurrencyField
                 label="Propina efectivo"
-                type="number"
                 size="small"
                 fullWidth
-                value={propinaEfectivo || ''}
-                onChange={e => setPropinaEfectivo(Math.max(0, +e.target.value || 0))}
-                InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+                value={propinaEfectivo}
+                onChange={(num) => setPropinaEfectivo(Math.max(0, num || 0))}
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
             </Box>
