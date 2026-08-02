@@ -56,7 +56,10 @@ function buildCuentaLines({ mesa, comanda, items, empresaNombre = '', nombreMese
     lines.push({ text: padLR('Subtotal', fmt(subtotal)), size: 22 });
     lines.push({ text: padLR('Propina sugerida', fmt(propina)), size: 22 });
   }
-  lines.push({ text: padLR('TOTAL', fmt(total)), size: 28, bold: true });
+  // Tamaño 24 = ancho calibrado a 32 caracteres (igual que el separador). Con
+  // un tamaño mayor la línea "TOTAL .... $68.000" no cabe y la térmica la parte
+  // en dos renglones. Se mantiene en 24 para que el total quede en una sola línea.
+  lines.push({ text: padLR('TOTAL', fmt(total)), size: 24, bold: true });
   lines.push({ type: 'feed' });
   lines.push({ text: 'Presente este ticket en la caja', align: 'center', size: 20 });
   lines.push({ text: '— Ksmart360 —', align: 'center', size: 20 });
