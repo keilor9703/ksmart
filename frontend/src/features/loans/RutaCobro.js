@@ -96,7 +96,9 @@ const buildReciboLines = (cuota, montoPagado, saldoRestante) => {
   lines.push({ text: padLR('Cuota #', String(cuota.numero_cuota)), size: 22 });
   lines.push({ text: padLR('Vencimiento', getSafeDateString(cuota.fecha_vencimiento)), size: 22 });
   lines.push({ type: 'divider' });
-  lines.push({ text: padLR('VALOR RECIBIDO', formatCurrency(montoPagado)), size: 26, bold: true });
+  // Tamaño 24 = ancho calibrado a 32 caracteres; con un tamaño mayor la térmica
+  // parte la línea del valor en dos renglones.
+  lines.push({ text: padLR('VALOR RECIBIDO', formatCurrency(montoPagado)), size: 24, bold: true });
   lines.push({ text: padLR('Saldo restante', saldoFmt), size: 22 });
   lines.push({ type: 'divider' });
   lines.push({ text: 'Ksmart360 · Gracias por su pago', align: 'center', size: 20 });

@@ -30,7 +30,9 @@ function buildLavaderoLines(orden, config) {
     lines.push({ text: padLR(nom, `$${_fmt(d.precio_unitario * d.cantidad)}`), size: 22 });
   });
   lines.push({ type: 'divider' });
-  lines.push({ text: padLR('TOTAL', `$${_fmt(orden.total)}`), size: 28, bold: true });
+  // Tamaño 24 = ancho calibrado a 32 caracteres; con un tamaño mayor la térmica
+  // parte la línea del total en dos renglones.
+  lines.push({ text: padLR('TOTAL', `$${_fmt(orden.total)}`), size: 24, bold: true });
   lines.push({ text: padLR('Metodo pago', orden.metodo_pago || '—'), size: 22 });
   if (orden.observaciones) {
     lines.push({ type: 'divider' });
