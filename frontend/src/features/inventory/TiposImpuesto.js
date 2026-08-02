@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Button, IconButton, Dialog, DialogTitle, DialogContent,
   DialogActions, TextField, Switch, FormControlLabel, Table, TableBody,
-  TableCell, TableHead, TableRow, Chip, CircularProgress, Tooltip,
+  TableCell, TableHead, TableRow, Chip, CircularProgress, Tooltip, useMediaQuery,
 } from '@mui/material';
 import { Add, Edit, Delete, Percent } from '@mui/icons-material';
 import { useTheme } from '@mui/material/styles';
@@ -76,6 +76,7 @@ export default function TiposImpuesto() {
   };
 
   const isDark = theme.palette.mode === 'dark';
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   return (
     <Box>
@@ -107,6 +108,52 @@ export default function TiposImpuesto() {
           <Percent sx={{ fontSize: 40, mb: 1, opacity: 0.3 }} />
           <Typography>No hay tipos de impuesto configurados.</Typography>
           <Button sx={{ mt: 1, color: ACCENT }} onClick={openCreate}>Crear el primero</Button>
+        </Box>
+      ) : isMobile ? (
+        // En celular las 6 columnas no caben (se cortaban Estado y Acciones).
+        // Se muestra cada impuesto como tarjeta apilada.
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          {impuestos.map((imp) => (
+            <Box key={imp.id} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', p: 1.75, bgcolor: 'background.paper' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: 15 }}>{imp.nombre}</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.75, flexWrap: 'wrap' }}>
+                    <Chip label={imp.codigo} size="small" sx={{ fontWeight: 700, fontSize: 11, height: 20, bgcolor: alpha(ACCENT, 0.1), color: ACCENT }} />
+                    <Chip
+                      label={`${imp.porcentaje}%`}
+                      size="small"
+                      sx={{
+                        fontWeight: 700, fontSize: 12, height: 22,
+                        bgcolor: imp.porcentaje > 0 ? alpha('#F43F5E', 0.1) : alpha('#10B981', 0.1),
+                        color: imp.porcentaje > 0 ? '#F43F5E' : '#10B981',
+                      }}
+                    />
+                    <Chip
+                      label={imp.is_active ? 'Activo' : 'Inactivo'}
+                      size="small"
+                      sx={{
+                        fontSize: 10, height: 18,
+                        bgcolor: imp.is_active ? alpha('#10B981', 0.1) : alpha('#94a3b8', 0.1),
+                        color: imp.is_active ? '#10B981' : '#94a3b8',
+                      }}
+                    />
+                  </Box>
+                </Box>
+                <Box sx={{ display: 'flex', flexShrink: 0 }}>
+                  <IconButton size="small" onClick={() => openEdit(imp)} sx={{ color: 'text.secondary' }}>
+                    <Edit fontSize="small" />
+                  </IconButton>
+                  <IconButton size="small" onClick={() => setDeleteConfirm(imp)} sx={{ color: '#EF4444' }}>
+                    <Delete fontSize="small" />
+                  </IconButton>
+                </Box>
+              </Box>
+              {imp.descripcion && (
+                <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 1 }}>{imp.descripcion}</Typography>
+              )}
+            </Box>
+          ))}
         </Box>
       ) : (
         <Box sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
