@@ -71,7 +71,7 @@ public class SunmiPrinterPlugin extends Plugin {
         try {
             LineApi line = printer.lineApi();
             line.initLine(BaseStyle.getStyle().setAlign(Align.CENTER));
-            line.printText("KSMART360", TextStyle.getStyle().setTextSize(40).setEnableBold(true));
+            line.printText("KSMART360", TextStyle.getStyle().setTextSize(40));
             line.printText("Prueba de impresion", TextStyle.getStyle().setTextSize(24));
             line.initLine(BaseStyle.getStyle().setAlign(Align.LEFT));
             line.printText("--------------------------------", TextStyle.getStyle().setTextSize(24));
@@ -120,11 +120,10 @@ public class SunmiPrinterPlugin extends Plugin {
                     String text = o.optString("text", "");
                     String align = o.optString("align", "left");
                     int size = o.optInt("size", 24);
-                    boolean bold = o.optBoolean("bold", false);
 
                     line.initLine(BaseStyle.getStyle().setAlign(alignOf(align)));
                     line.printText(text.isEmpty() ? " " : text,
-                            TextStyle.getStyle().setTextSize(size).setEnableBold(bold));
+                            TextStyle.getStyle().setTextSize(size));
                 }
             }
             if (cut) {
