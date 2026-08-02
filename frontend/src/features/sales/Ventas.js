@@ -2128,6 +2128,16 @@ useEffect(() => {
                                         </span>
                                     </Tooltip>
                                 )}
+                                {borradores.length > 0 && (
+                                    <Button
+                                        onClick={() => setBorradoresOpen(true)}
+                                        variant="contained" fullWidth disableElevation
+                                        startIcon={<Badge badgeContent={borradores.length} color="error"><Notes /></Badge>}
+                                        sx={{ borderRadius: 2, fontWeight: 700, mb: 1, bgcolor: '#F59E0B', color: '#fff', '&:hover': { bgcolor: '#D97706' } }}
+                                    >
+                                        Retomar venta guardada
+                                    </Button>
+                                )}
                                 <Typography sx={{ fontSize: 11, color: 'text.disabled', textAlign: 'center', mb: 0.4 }}>
                                     Ctrl + Enter · Ctrl + G borrador
                                 </Typography>

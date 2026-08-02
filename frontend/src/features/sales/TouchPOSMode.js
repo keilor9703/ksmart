@@ -620,11 +620,12 @@ const CartPanel = ({
                         )}
                         {borradoresCount > 0 && onVerBorradores && (
                             <Button
-                                variant="text"
+                                variant="contained"
+                                disableElevation
                                 onClick={onVerBorradores}
-                                sx={{ borderRadius: 2, fontWeight: 700, fontSize: 12.5, color: '#B45309', flexShrink: 0, whiteSpace: 'nowrap' }}
+                                sx={{ borderRadius: 2, fontWeight: 700, fontSize: 12.5, flexShrink: 0, whiteSpace: 'nowrap', px: 2, py: 1, bgcolor: '#F59E0B', color: '#fff', '&:hover': { bgcolor: '#D97706' } }}
                             >
-                                Borradores ({borradoresCount})
+                                Retomar ({borradoresCount})
                             </Button>
                         )}
                     </Box>

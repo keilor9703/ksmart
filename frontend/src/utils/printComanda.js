@@ -295,11 +295,13 @@ export async function imprimirCuenta({
     margin: 5px 0; letter-spacing: 2px;
   }
   .item-row     { display: flex; gap: 4px; font-size: ${sz.fontBase}px; margin-bottom: 2px; line-height: 1.3; }
-  .item-qty     { min-width: ${sz.qtyWidth}px; }
-  .item-name    { flex: 1; word-break: break-word; }
-  .item-price   { text-align: right; min-width: ${sz.printerSize === 'p58' ? 60 : 72}px; }
+  .item-qty     { min-width: ${sz.qtyWidth}px; flex-shrink: 0; }
+  .item-name    { flex: 1 1 auto; min-width: 0; word-break: break-word; }
+  .item-price   { text-align: right; flex-shrink: 0; white-space: nowrap; padding-left: 4px; }
   .nota         { font-size: ${sz.fontNota}px; margin: 0 0 4px ${sz.qtyWidth + 2}px; font-style: italic; color: #333; }
-  .totals-row   { display: flex; justify-content: space-between; margin-top: 3px; }
+  .totals-row   { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; margin-top: 3px; }
+  .totals-row span:first-child  { flex: 1 1 auto; min-width: 0; }
+  .totals-row span:last-child   { flex: 0 0 auto; white-space: nowrap; text-align: right; }
   .totals-sub   { font-size: ${fontTotSub}px; }
   .totals-main  { font-size: ${fontTotMain}px; font-weight: bold; border-top: 1px solid #000; padding-top: 3px; margin-top: 3px; }
   .footer       { font-size: ${sz.fontFooter}px; text-align: center; color: #555; margin-top: 5px; }
