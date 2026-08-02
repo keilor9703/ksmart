@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import logging
+import secrets
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -334,6 +335,110 @@ def request_password_reset(request: Request, data: schemas.PasswordResetRequest,
         logger.info(f"Solicitud de reset de contraseña para: {data.email}")
         # TODO: enviar email con token de reset cuando se configure el servicio de correo
     return {"message": "Si el correo está registrado, recibirás las instrucciones."}
+
+
+# ─── Biometría NATIVA (app instalada — Android BiometricPrompt / Face ID) ──────
+# La huella/rostro se valida en el dispositivo con BiometricPrompt; el secreto
+# solo vive en el Keystore del teléfono. El backend nunca ve la biometría: solo
+# guarda el hash de un token aleatorio ligado a ese dispositivo.
+
+@router.post("/biometric-native/register", response_model=schemas.BiometricNativeRegisterResponse)
+def biometric_native_register(
+    data: schemas.BiometricNativeRegisterRequest,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """El usuario (ya autenticado) activa el acceso con biometría en ESTE
+    dispositivo. Genera un token que la app guarda en el Keystore, protegido
+    por la huella/rostro. Se devuelve una sola vez."""
+    token_id = secrets.token_urlsafe(16)
+    secret   = secrets.token_urlsafe(32)
+
+    reg = models.BiometricDeviceToken(
+        user_id     = current_user.id,
+        token_id    = token_id,
+        token_hash  = security.get_password_hash(secret),
+        device_name = (data.device_name or "").strip()[:120] or None,
+    )
+    db.add(reg)
+    db.commit()
+
+    return {
+        "token": f"{token_id}.{secret}",
+        "username": current_user.username,
+        "device_name": reg.device_name,
+    }
+
+
+@router.post("/biometric-native/login")
+@limiter.limit("10/minute")
+def biometric_native_login(
+    request: Request,
+    data: schemas.BiometricNativeLoginRequest,
+    db: Session = Depends(get_db),
+):
+    """La app, tras validar la huella localmente, envía el token del Keystore.
+    Aquí se verifica y se devuelve un JWT completo (igual que el login normal)."""
+    raw = (data.token or "").strip()
+    if "." not in raw:
+        raise HTTPException(401, "Token biométrico inválido.")
+    token_id, secret = raw.split(".", 1)
+
+    reg = db.query(models.BiometricDeviceToken).filter(
+        models.BiometricDeviceToken.token_id == token_id
+    ).first()
+    if not reg or not security.verify_password(secret, reg.token_hash):
+        raise HTTPException(401, "Biometría no reconocida. Inicia sesión con tu contraseña.")
+
+    user = reg.usuario
+    if not user or not user.is_active:
+        raise HTTPException(401, "Usuario no disponible.")
+    if not user.empresa_id or not user.empresa:
+        raise HTTPException(403, "El usuario no está vinculado a ninguna empresa válida.")
+
+    now = datetime.now(timezone.utc)
+    reg.last_used_at = now
+    db.commit()
+
+    is_expired = False
+    empresa = user.empresa
+    if empresa.trial_ends_at and user.empresa_id != 1:
+        fecha_limite = empresa.trial_ends_at
+        if fecha_limite.tzinfo is None:
+            fecha_limite = fecha_limite.replace(tzinfo=timezone.utc)
+        if now > fecha_limite:
+            is_expired = True
+
+    access_token = security.create_access_token(data={
+        "sub":        user.username,
+        "role":       user.role.name if user.role else "User",
+        "empresa_id": user.empresa_id,
+        "modules":    [m.frontend_path for m in sorted(user.role.modules, key=lambda m: m.orden or 99)] if user.role else [],
+    })
+
+    return {
+        "access_token":    access_token,
+        "token_type":      "bearer",
+        "user_id":         user.id,
+        "username":        user.username,
+        "empresa_id":      user.empresa_id,
+        "rol":             user.role.name if user.role else None,
+        "nombre_completo": user.nombre_completo,
+        "is_expired":      is_expired,
+    }
+
+
+@router.delete("/biometric-native", status_code=200)
+def biometric_native_disable(
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Desactiva el acceso con biometría nativa del usuario (borra sus tokens)."""
+    db.query(models.BiometricDeviceToken).filter(
+        models.BiometricDeviceToken.user_id == current_user.id
+    ).delete()
+    db.commit()
+    return {"message": "Biometría desactivada."}
 
 
 # ─── RECUPERACIÓN NATIVA SIN EMAIL ──────────────────────────────────────────

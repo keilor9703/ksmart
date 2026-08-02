@@ -1435,6 +1435,36 @@ class CredencialBiometrica(Base):
     usuario         = relationship("User", back_populates="credenciales_biometricas", lazy="joined")
 
 
+class BiometricDeviceToken(Base):
+    """
+    Token de acceso rápido ligado a un dispositivo, para el login con biometría
+    NATIVA de la app instalada (Android BiometricPrompt / Face ID). A diferencia
+    de WebAuthn (que no funciona dentro del WebView), aquí el dispositivo guarda
+    en su Keystore un secreto que solo se libera tras validar la huella/rostro.
+
+    El backend NUNCA ve la huella: solo guarda el HASH de un secreto aleatorio.
+    En el login, la app envía el token (token_id + secreto) y aquí se verifica.
+
+    No usa TenantMixin: es a nivel de usuario, igual que las credenciales
+    biométricas WebAuthn.
+    """
+    __tablename__ = "biometric_device_tokens"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    user_id      = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    # Identificador público del token (para localizarlo sin escanear toda la tabla)
+    token_id     = Column(String(64), nullable=False, unique=True, index=True)
+    # Hash del secreto (nunca se guarda el secreto en claro)
+    token_hash   = Column(String(255), nullable=False)
+
+    device_name  = Column(String(120), nullable=True)
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    created_at   = Column(DateTime(timezone=True), default=utcnow)
+
+    usuario      = relationship("User", lazy="joined")
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # MODIFICACIÓN AL MODELO USER — añadir relación inversa
 # Busca tu clase User en models.py y añade esta línea junto a las otras
