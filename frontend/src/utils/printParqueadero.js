@@ -1,7 +1,70 @@
+import { sunmiDisponible, imprimirRecibo, padLR } from './sunmiPrinter';
+
 const PRINTER_SIZES = {
   p80: { width: '80mm', font: '10px', fontSm: '8px', fontLg: '16px' },
   p58: { width: '58mm', font: '9px',  fontSm: '7px', fontLg: '13px' },
 };
+
+// ─── Impresión en Sunmi (líneas estructuradas) ────────────────────────────────
+function buildEntradaLines(acceso, config) {
+  const parq = config?.nombre_parqueadero || 'Parqueadero';
+  const fechaEntrada = acceso.fecha_entrada ? new Date(acceso.fecha_entrada) : new Date();
+  const fechaStr = fechaEntrada.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const horaStr = fechaEntrada.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  const lines = [];
+  lines.push({ text: parq, align: 'center', size: 28, bold: true });
+  if (config?.direccion) lines.push({ text: config.direccion, align: 'center', size: 20 });
+  if (config?.horario_apertura) lines.push({ text: `Horario: ${config.horario_apertura} - ${config.horario_cierre || ''}`, align: 'center', size: 20 });
+  lines.push({ type: 'divider' });
+  lines.push({ text: 'COMPROBANTE DE ENTRADA', align: 'center', size: 24, bold: true });
+  lines.push({ type: 'divider' });
+  lines.push({ text: acceso.placa, align: 'center', size: 34, bold: true });
+  lines.push({ type: 'divider' });
+  if (acceso.nombre_ocasional) lines.push({ text: padLR('Cliente', acceso.nombre_ocasional), size: 22 });
+  if (acceso.telefono) lines.push({ text: padLR('Tel', acceso.telefono), size: 22 });
+  lines.push({ text: padLR('Fecha entrada', fechaStr), size: 22 });
+  lines.push({ text: padLR('Hora entrada', horaStr), size: 22 });
+  if (config?.tarifa_minuto > 0) lines.push({ text: padLR('Tarifa', `$${_fmt(config.tarifa_minuto)}/min`), size: 22 });
+  if (config?.cobro_minimo_minutos > 0) lines.push({ text: padLR('Minimo cobro', `${config.cobro_minimo_minutos} min`), size: 22 });
+  lines.push({ type: 'divider' });
+  lines.push({ text: 'Conserve este comprobante', align: 'center', size: 20 });
+  lines.push({ text: '¡Gracias por su visita!', align: 'center', size: 22, bold: true });
+  lines.push({ type: 'feed' });
+  return lines;
+}
+
+function buildSalidaLines(acceso, minutos, monto, metodoPago, config) {
+  const parq = config?.nombre_parqueadero || 'Parqueadero';
+  const ahora = new Date();
+  const fechaStr = ahora.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const horaStr = ahora.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  const horas = Math.floor(minutos / 60);
+  const mins = minutos % 60;
+  const tiempoStr = horas > 0 ? `${horas}h ${mins}min` : `${minutos} min`;
+  const lines = [];
+  lines.push({ text: parq, align: 'center', size: 28, bold: true });
+  if (config?.direccion) lines.push({ text: config.direccion, align: 'center', size: 20 });
+  lines.push({ type: 'divider' });
+  lines.push({ text: 'COMPROBANTE DE SALIDA', align: 'center', size: 24, bold: true });
+  lines.push({ type: 'divider' });
+  lines.push({ text: acceso.placa, align: 'center', size: 34, bold: true });
+  lines.push({ type: 'divider' });
+  if (acceso.nombre_ocasional) lines.push({ text: padLR('Cliente', acceso.nombre_ocasional), size: 22 });
+  lines.push({ text: padLR('Fecha', fechaStr), size: 22 });
+  lines.push({ text: padLR('Hora salida', horaStr), size: 22 });
+  lines.push({ type: 'divider' });
+  lines.push({ text: padLR('Tiempo total', tiempoStr), size: 22 });
+  if (config?.tarifa_minuto > 0) lines.push({ text: padLR('Tarifa', `$${_fmt(config.tarifa_minuto)}/min`), size: 22 });
+  lines.push({ text: padLR('Metodo de pago', metodoPago), size: 22 });
+  lines.push({ type: 'divider' });
+  lines.push({ text: 'TOTAL PAGADO', align: 'center', size: 22, bold: true });
+  lines.push({ text: `$${_fmt(monto)}`, align: 'center', size: 34, bold: true });
+  lines.push({ type: 'divider' });
+  lines.push({ text: '¡Gracias por su visita!', align: 'center', size: 22, bold: true });
+  lines.push({ text: 'Vuelva pronto', align: 'center', size: 20 });
+  lines.push({ type: 'feed' });
+  return lines;
+}
 
 function _printInIframe(html) {
   // Open in a new tab so mobile browsers save the receipt, not the main page.
@@ -37,7 +100,17 @@ function _fmt(n) {
   return n != null ? Number(n).toLocaleString('es-CO') : '0';
 }
 
-export function imprimirEntradaParqueadero(acceso, config, printerSize = 'p80', qrDataUrl = null) {
+export async function imprimirEntradaParqueadero(acceso, config, printerSize = 'p80', qrDataUrl = null) {
+  // En el dispositivo Sunmi imprimimos en la térmica integrada (sin QR).
+  if (await sunmiDisponible()) {
+    try {
+      await imprimirRecibo(buildEntradaLines(acceso, config));
+      return;
+    } catch (e) {
+      console.warn('imprimirEntradaParqueadero: falló Sunmi, se usa HTML', e);
+    }
+  }
+
   const sz = PRINTER_SIZES[printerSize] || PRINTER_SIZES.p80;
   const parq = config?.nombre_parqueadero || 'Parqueadero';
   const dir = config?.direccion || '';
@@ -91,7 +164,17 @@ ${config?.cobro_minimo_minutos > 0 ? `<div class="row"><span>Mínimo cobro:</spa
   _printInIframe(html);
 }
 
-export function imprimirSalidaParqueadero(acceso, minutos, monto, metodoPago, config, printerSize = 'p80') {
+export async function imprimirSalidaParqueadero(acceso, minutos, monto, metodoPago, config, printerSize = 'p80') {
+  // En el dispositivo Sunmi imprimimos en la térmica integrada.
+  if (await sunmiDisponible()) {
+    try {
+      await imprimirRecibo(buildSalidaLines(acceso, minutos, monto, metodoPago, config));
+      return;
+    } catch (e) {
+      console.warn('imprimirSalidaParqueadero: falló Sunmi, se usa HTML', e);
+    }
+  }
+
   const sz = PRINTER_SIZES[printerSize] || PRINTER_SIZES.p80;
   const parq = config?.nombre_parqueadero || 'Parqueadero';
   const dir = config?.direccion || '';
