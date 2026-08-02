@@ -7,8 +7,8 @@ android {
         applicationId "com.tstechstack.ksmart360"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 5
-        versionName "1.3.1"
+        versionCode 6
+        versionName "1.3.2"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -32,13 +32,27 @@ android {
                 keyPassword System.getenv("KSMART_KEY_PASSWORD")
             }
         }
+        // Llave FIJA para el APK debug de distribución interna (sideload). Sin
+        // esto, cada build de CI usaría una debug.keystore generada al azar y
+        // Android rechazaría la actualización con "conflicto con un paquete"
+        // (firmas distintas). Al versionar esta llave, todos los builds quedan
+        // firmados igual y las actualizaciones se instalan encima sin problema.
+        ksmartDebug {
+            storeFile file('ksmart-debug.keystore')
+            storePassword 'ksmart2024'
+            keyAlias 'ksmart'
+            keyPassword 'ksmart2024'
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig signingConfigs.ksmartDebug
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
+            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.ksmartDebug
         }
     }
 }
