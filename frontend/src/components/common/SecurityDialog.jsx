@@ -13,6 +13,7 @@ import { toast } from 'react-toastify';
 import BotonHuella from './BotonHuella';
 import useBiometricAuth from '../../hooks/useBiometricAuth';
 import apiClient from '../../api';
+import { getPinInfo, setPinForUser, removePinForUser } from '../../utils/quickAccess';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -209,12 +210,12 @@ function TabPin({ user }) {
   const [checkingStatus, setCheckingStatus] = useState(true);
 
   useEffect(() => {
-    // Verificamos si el usuario tiene PIN configurado comprobando el localStorage
-    // (el backend no expone si tiene PIN para evitar enumerar información sensible)
-    const stored = localStorage.getItem('pin_configured') === 'true';
-    setHasPinSet(stored);
+    // El estado del PIN es POR USUARIO: en un equipo compartido, antes se leía
+    // una flag global y a un usuario sin PIN se le decía "PIN configurado".
+    // (El backend no expone si hay PIN para no filtrar información sensible.)
+    setHasPinSet(getPinInfo(user?.username).configured);
     setCheckingStatus(false);
-  }, []);
+  }, [user?.username]);
 
   const addDigit = (d) => {
     const target = step === 'confirm' ? confirm : pin;
@@ -245,9 +246,8 @@ function TabPin({ user }) {
     setLoading(true);
     try {
       await apiClient.post('/auth/pin/set', { pin });
-      localStorage.setItem('pin_configured', 'true');
-      localStorage.setItem('pin_length', String(pin.length));
-      localStorage.setItem('pin_username', user?.username || '');
+      // Se registra el PIN a nombre de ESTE usuario (no como flag global)
+      setPinForUser(user?.username, pin.length);
       setHasPinSet(true);
       setStep('menu');
       setPin('');
@@ -265,8 +265,7 @@ function TabPin({ user }) {
     setLoading(true);
     try {
       await apiClient.delete('/auth/pin');
-      localStorage.removeItem('pin_configured');
-      localStorage.removeItem('pin_length');
+      removePinForUser(user?.username);
       setHasPinSet(false);
       toast.success('PIN eliminado.');
     } catch {

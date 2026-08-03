@@ -12,6 +12,7 @@ import apiClient from '../api';
 import {
   nativoDisponible, registrarNativo, loginNativo, desactivarNativo,
 } from '../utils/biometricNativa';
+import { setBiometricUser, clearBiometricUser, getBiometricUser, normalizeUser } from '../utils/quickAccess';
 
 // Dentro del WebView empaquetado de la app Android (Capacitor), WebAuthn no
 // funciona hoy: requiere un origen HTTPS real asociado por Digital Asset
@@ -46,10 +47,16 @@ export default function useBiometricAuth() {
   const [isPlatformAuthAvailable, setIsPlatformAuthAvailable] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // ✨ NUEVO: Estado que lee si dejamos la marca en este navegador
-  const [hasLocalCredential, setHasLocalCredential] = useState(
-    () => localStorage.getItem('biometric_enabled') === 'true'
-  );
+  // ¿Hay credencial biométrica en este dispositivo Y pertenece al usuario
+  // actual? (last_username = usuario en sesión, o el último que entró). Sin
+  // el chequeo de dueño, a un usuario sin huella se le ocultaba la opción de
+  // registrarla solo porque OTRO la tenía en el mismo equipo.
+  const [hasLocalCredential, setHasLocalCredential] = useState(() => {
+    if (localStorage.getItem('biometric_enabled') !== 'true') return false;
+    const owner = getBiometricUser();
+    const actual = normalizeUser(localStorage.getItem('last_username'));
+    return !owner || !actual || owner === actual;
+  });
 
   // ── Detectar si el dispositivo soporta biometría al montar ──────────────
   useEffect(() => {
@@ -89,7 +96,7 @@ export default function useBiometricAuth() {
     try {
       // App instalada → biometría nativa (Keystore + BiometricPrompt).
       if (ES_APP_NATIVA) {
-        const result = await registrarNativo(deviceName);
+        const result = await registrarNativo(deviceName);  // registra al dueño
         setHasLocalCredential(true);
         return result;
       }
@@ -135,9 +142,12 @@ export default function useBiometricAuth() {
         device_name: deviceName,
       });
 
-      // ✨ NUEVO: Si el registro es exitoso, dejamos la marca en este navegador
+      // Si el registro es exitoso, marcamos este navegador Y a qué usuario
+      // pertenece la credencial (equipos compartidos: sin el dueño, el botón
+      // de huella aparecía para cualquiera e iniciaba sesión con otra cuenta).
       if (result.success) {
         localStorage.setItem('biometric_enabled', 'true');
+        setBiometricUser(localStorage.getItem('last_username'));
         setHasLocalCredential(true);
       }
 
@@ -217,13 +227,13 @@ export default function useBiometricAuth() {
     // Keystore de ESTE dispositivo. Devolvemos una entrada sintética si está
     // activada, para reutilizar la misma UI de gestión.
     if (ES_APP_NATIVA) {
-      return localStorage.getItem('biometric_enabled') === 'true'
+      return hasLocalCredential
         ? [{ id: 'native', device_name: 'Este dispositivo', user_agent: navigator.userAgent, last_used_at: null }]
         : [];
     }
     const { data } = await apiClient.get('/auth/biometric/credentials');
     return data;
-  }, []);
+  }, [hasLocalCredential]);
 
 //   const deleteCredential = useCallback(async (id) => {
 //     await apiClient.delete(`/auth/biometric/credentials/${id}`);
@@ -237,6 +247,7 @@ const deleteCredential = useCallback(async (id) => {
   // App instalada → desactivar biometría nativa (backend + Keystore + flag).
   if (ES_APP_NATIVA) {
     await desactivarNativo();
+    clearBiometricUser();
     setHasLocalCredential(false);
     return;
   }
@@ -246,6 +257,7 @@ const deleteCredential = useCallback(async (id) => {
     const restantes = await apiClient.get('/auth/biometric/credentials');
     if (restantes.data.length === 0) {
       localStorage.removeItem('biometric_enabled');
+      clearBiometricUser();
       setHasLocalCredential(false);
     }
   } catch {

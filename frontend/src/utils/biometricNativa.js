@@ -5,6 +5,7 @@
 import { Capacitor } from '@capacitor/core';
 import { NativeBiometric } from '@capgo/capacitor-native-biometric';
 import apiClient from '../api';
+import { setBiometricUser, clearBiometricUser } from './quickAccess';
 
 // "server" es la llave bajo la que el plugin guarda la credencial en el Keystore.
 const SERVER = 'ksmart360.biometric';
@@ -46,6 +47,9 @@ export async function registrarNativo(deviceName = null) {
   });
   localStorage.setItem('biometric_enabled', 'true');
   localStorage.setItem('biometric_native', 'true');
+  // El dueño de la credencial lo dicta el backend (evita ligarla a la cuenta
+  // equivocada en un dispositivo compartido).
+  setBiometricUser(data.username);
   return { success: true, message: '¡Biometría activada en este dispositivo!', device_name: data.device_name };
 }
 
@@ -69,4 +73,5 @@ export async function desactivarNativo() {
   try { await NativeBiometric.deleteCredentials({ server: SERVER }); } catch { /* ignore */ }
   localStorage.removeItem('biometric_enabled');
   localStorage.removeItem('biometric_native');
+  clearBiometricUser();
 }
