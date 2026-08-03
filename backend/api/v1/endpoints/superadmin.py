@@ -674,3 +674,73 @@ def update_plataforma_config(
     db.refresh(cfg)
     crud_empresas.log_saas_event(db, current_admin.id, "UPDATE_PLATAFORMA_CONFIG", None, {})
     return _serialize_plataforma(cfg)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# VERSIONES DE LA APP MÓVIL (APK)
+# El superadmin publica una versión nueva agregando un registro aquí (desde el
+# panel), sin tocar variables de entorno del servidor. La app instalada consulta
+# GET /app/version-movil (pública) que devuelve la última versión activa.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/app-versiones", response_model=List[schemas.AppVersionOut])
+def listar_app_versiones(db: Session = Depends(get_db)):
+    return (
+        db.query(models.AppVersion)
+        .order_by(models.AppVersion.version_code.desc(), models.AppVersion.id.desc())
+        .all()
+    )
+
+
+@router.post("/app-versiones", response_model=schemas.AppVersionOut, status_code=201)
+def crear_app_version(
+    data: schemas.AppVersionCreate,
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(get_current_superadmin_user),
+):
+    if not data.version.strip():
+        raise HTTPException(400, "La versión es obligatoria (ej. 1.4.0).")
+    nueva = models.AppVersion(
+        plataforma   = (data.plataforma or "android").strip().lower(),
+        version      = data.version.strip(),
+        version_code = data.version_code or 0,
+        url_descarga = (data.url_descarga or "").strip() or None,
+        mensaje      = (data.mensaje or "").strip() or None,
+        obligatoria  = bool(data.obligatoria),
+        is_active    = bool(data.is_active),
+    )
+    db.add(nueva)
+    db.commit()
+    db.refresh(nueva)
+    return nueva
+
+
+@router.patch("/app-versiones/{version_id}", response_model=schemas.AppVersionOut)
+def actualizar_app_version(
+    version_id: int,
+    data: schemas.AppVersionCreate,
+    db: Session = Depends(get_db),
+):
+    v = db.query(models.AppVersion).filter(models.AppVersion.id == version_id).first()
+    if not v:
+        raise HTTPException(404, "Versión no encontrada.")
+    v.plataforma   = (data.plataforma or v.plataforma).strip().lower()
+    v.version      = data.version.strip() or v.version
+    v.version_code = data.version_code or 0
+    v.url_descarga = (data.url_descarga or "").strip() or None
+    v.mensaje      = (data.mensaje or "").strip() or None
+    v.obligatoria  = bool(data.obligatoria)
+    v.is_active    = bool(data.is_active)
+    db.commit()
+    db.refresh(v)
+    return v
+
+
+@router.delete("/app-versiones/{version_id}", status_code=200)
+def eliminar_app_version(version_id: int, db: Session = Depends(get_db)):
+    v = db.query(models.AppVersion).filter(models.AppVersion.id == version_id).first()
+    if not v:
+        raise HTTPException(404, "Versión no encontrada.")
+    db.delete(v)
+    db.commit()
+    return {"message": "Versión eliminada."}

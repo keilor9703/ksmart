@@ -1465,6 +1465,27 @@ class BiometricDeviceToken(Base):
     usuario      = relationship("User", lazy="joined")
 
 
+class AppVersion(Base):
+    """
+    Versiones publicadas de la app móvil (APK). En vez de configurar variables
+    de entorno en el servidor para anunciar una nueva versión, el superadmin
+    agrega un registro aquí (desde el panel). La app instalada consulta la
+    última versión activa al abrir y, si es mayor que la instalada, muestra el
+    aviso de actualización.
+    """
+    __tablename__ = "app_versiones"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    plataforma   = Column(String(20), default="android", index=True)  # android | ios
+    version      = Column(String(20), nullable=False)   # semver visible, ej "1.4.0"
+    version_code = Column(Integer, nullable=False, default=0)  # para ordenar la "última"
+    url_descarga = Column(String(500), nullable=True)
+    mensaje      = Column(Text, nullable=True)
+    obligatoria  = Column(Boolean, default=False)
+    is_active    = Column(Boolean, default=True, index=True)
+    created_at   = Column(DateTime(timezone=True), default=utcnow)
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # MODIFICACIÓN AL MODELO USER — añadir relación inversa
 # Busca tu clase User en models.py y añade esta línea junto a las otras

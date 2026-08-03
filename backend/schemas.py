@@ -2784,6 +2784,28 @@ class BiometricNativeRegisterResponse(BaseModel):
 class BiometricNativeLoginRequest(BaseModel):
     token: str
 
+# ─── Versiones de la app móvil (gestionadas desde el panel) ────────────────────
+class AppVersionCreate(BaseModel):
+    version: str
+    version_code: int = 0
+    plataforma: str = "android"
+    url_descarga: Optional[str] = None
+    mensaje: Optional[str] = None
+    obligatoria: bool = False
+    is_active: bool = True
+
+class AppVersionOut(BaseModel):
+    id: int
+    plataforma: str
+    version: str
+    version_code: int
+    url_descarga: Optional[str] = None
+    mensaje: Optional[str] = None
+    obligatoria: bool
+    is_active: bool
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
 class PasswordResetRequest(BaseModel):
     email: EmailStr
 

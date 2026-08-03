@@ -75,20 +75,47 @@ def ping():
     return {"ping": "pong", "timestamp": datetime.now(timezone.utc)}
 
 
+def _get_db_main():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
 @app.get("/app/version-movil")
-def app_version_movil():
-    """Versión mínima/recomendada de la app móvil (APK) publicada.
+def app_version_movil(plataforma: str = "android", db: Session = Depends(_get_db_main)):
+    """Última versión publicada de la app móvil (APK).
 
     La app instalada compara su propia versión nativa contra esto al abrir y,
-    si está desactualizada, muestra un aviso para descargar la nueva. Se
-    controla por variables de entorno para poder anunciar una nueva versión
-    sin desplegar código:
-      APP_MOVIL_VERSION        Última versión disponible del APK (ej. "1.1.0").
-      APP_MOVIL_URL_DESCARGA   URL donde se descarga el APK nuevo.
-      APP_MOVIL_MENSAJE        Mensaje opcional a mostrar al usuario.
-      APP_MOVIL_OBLIGATORIA    "true" → el usuario no puede seguir sin actualizar.
-    Si no está configurada, devuelve "1.0" (la versión inicial) → no fuerza nada.
+    si está desactualizada, muestra un aviso para descargar la nueva.
+
+    Fuente: la tabla `app_versiones` (el superadmin publica versiones desde el
+    panel, sin tocar el servidor). Se devuelve la versión ACTIVA más reciente
+    (mayor version_code) de la plataforma. Si la tabla está vacía, cae a las
+    variables de entorno APP_MOVIL_* por compatibilidad.
     """
+    try:
+        ultima = (
+            db.query(models.AppVersion)
+            .filter(models.AppVersion.plataforma == plataforma,
+                    models.AppVersion.is_active == True)  # noqa: E712
+            .order_by(models.AppVersion.version_code.desc(),
+                      models.AppVersion.id.desc())
+            .first()
+        )
+    except Exception:
+        ultima = None
+
+    if ultima:
+        return {
+            "version":      ultima.version,
+            "url_descarga": ultima.url_descarga or None,
+            "mensaje":      ultima.mensaje or None,
+            "obligatoria":  bool(ultima.obligatoria),
+        }
+
+    # Fallback a variables de entorno (compatibilidad con el esquema anterior).
     return {
         "version":       os.getenv("APP_MOVIL_VERSION", "1.0"),
         "url_descarga":  os.getenv("APP_MOVIL_URL_DESCARGA", "") or None,
