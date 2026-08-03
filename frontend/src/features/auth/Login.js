@@ -310,7 +310,12 @@ function PinNumpad({ username, onSuccess, onCancel, onPinInvalido }) {
             onSuccess(data);
         } catch (err) {
             const status = err.response?.status;
-            const msg = err.response?.data?.detail || 'PIN incorrecto.';
+            let msg = err.response?.data?.detail || 'PIN incorrecto.';
+            // Mismo usuario y PIN en varias empresas: el PIN no puede
+            // desambiguar solo, se resuelve con la contraseña (que sí pide NIT).
+            if (status === 409 || msg === 'EMPRESA_REQUERIDA') {
+                msg = 'Hay varias empresas con este usuario. Ingresa con tu contraseña para elegir la tuya.';
+            }
             // 401 con "PIN no configurado" = el registro local quedó obsoleto
             // (p. ej. el PIN se eliminó desde otro dispositivo): se limpia y se
             // devuelve al usuario a la contraseña en vez de dejarlo atascado.
