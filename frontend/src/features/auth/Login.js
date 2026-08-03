@@ -20,6 +20,9 @@ import { Link } from 'react-router-dom';
 import BotonHuella from '../../components/common/BotonHuella';
 import LiquidButton from '../../components/common/LiquidButton';
 import { CIUDADES_COLOMBIA } from '../../utils/colombiaData';
+import {
+    getPinInfo, removePinForUser, getBiometricUser, biometricMatchesUser, normalizeUser,
+} from '../../utils/quickAccess';
 
 // ─── Sistema de diseño ───────────────────────────────────────────────────────
 // Stack tipográfico tipo Apple (SF Pro → Inter → system) para sensación premium.
@@ -283,8 +286,10 @@ function FeatureCarousel({ idx, setIdx }) {
 // ─── PIN Numpad (login rápido) ────────────────────────────────────────────────
 const PIN_GREEN = '#10B981';
 
-function PinNumpad({ username, onSuccess, onCancel }) {
-    const pinLength = parseInt(localStorage.getItem('pin_length') || '4', 10);
+function PinNumpad({ username, onSuccess, onCancel, onPinInvalido }) {
+    // La longitud es la del PIN de ESTE usuario (antes se leía una flag global
+    // y con equipos compartidos se pedían los dígitos del PIN de otra persona).
+    const pinLength = getPinInfo(username).length;
     const [pin, setPin] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -304,13 +309,21 @@ function PinNumpad({ username, onSuccess, onCancel }) {
             successFired.current = true;
             onSuccess(data);
         } catch (err) {
+            const status = err.response?.status;
             const msg = err.response?.data?.detail || 'PIN incorrecto.';
+            // 401 con "PIN no configurado" = el registro local quedó obsoleto
+            // (p. ej. el PIN se eliminó desde otro dispositivo): se limpia y se
+            // devuelve al usuario a la contraseña en vez de dejarlo atascado.
+            if (status === 401 && /no configurado|no encontrado/i.test(msg)) {
+                onPinInvalido?.();
+                return;
+            }
             setError(msg);
             setPin('');
         } finally {
             setLoading(false);
         }
-    }, [username, onSuccess]);
+    }, [username, onSuccess, onPinInvalido]);
 
     // Auto-submit al completar exactamente los dígitos configurados
     React.useEffect(() => {
@@ -379,6 +392,15 @@ function PinNumpad({ username, onSuccess, onCancel }) {
             <Button onClick={onCancel} sx={{ color: '#64748b', fontSize: 12, textTransform: 'none' }}>
                 Usar contraseña en su lugar
             </Button>
+            {/* Salida explícita para equipos compartidos: antes, si el PIN era de
+                otra persona, no había forma de cambiar de cuenta desde aquí. */}
+            <Button
+                onClick={() => onCancel({ limpiarUsuario: true })}
+                startIcon={<ManageAccounts sx={{ fontSize: 16 }} />}
+                sx={{ color: '#475569', fontSize: 11.5, textTransform: 'none', mt: -0.5 }}
+            >
+                Entrar con otro usuario
+            </Button>
         </Box>
     );
 }
@@ -408,17 +430,23 @@ const Login = ({ onLogin }) => {
     const [showRecovConfirm, setShowRecovConfirm]   = useState(false);
     const [showLoginNitField, setShowLoginNitField] = useState(false);
     const [loginNit, setLoginNit]                   = useState('');
-    const [pinMode, setPinMode]           = useState(() => {
-        // Mostrar PIN si el usuario tiene PIN configurado y hay username guardado
-        return localStorage.getItem('pin_configured') === 'true'
-            && !!localStorage.getItem('last_username');
-    });
+    // Arranca en modo PIN solo si el ÚLTIMO usuario de este dispositivo tiene
+    // PIN propio configurado (antes bastaba una flag global: a un usuario nuevo
+    // le aparecía el teclado del PIN de otra persona y nunca podía entrar).
+    const [pinMode, setPinMode]           = useState(() =>
+        getPinInfo(localStorage.getItem('last_username')).configured
+    );
     const navigate = useNavigate();
 
     const [loginData, setLoginData] = useState({
         username: localStorage.getItem('last_username') || '',
         password: ''
     });
+
+    // ¿El usuario escrito tiene accesos rápidos en ESTE dispositivo?
+    const pinDisponible = getPinInfo(loginData.username).configured;
+    const huellaOwner   = getBiometricUser();
+    const huellaCoincide = biometricMatchesUser(loginData.username);
 
     const initialRegState = {
         tipo_negocio:    '',
@@ -514,7 +542,9 @@ const Login = ({ onLogin }) => {
     // ─── Helper compartido para manejar la sesión post-login ─────────────────
     const handleAuthSuccess = (data, successMsg = 'Inicio de sesión exitoso') => {
         localStorage.setItem('token', data.access_token);
-        localStorage.setItem('last_username', data.username || loginData.username);
+        // Normalizado: es la misma clave con la que se consultan los accesos
+        // rápidos (PIN/huella) de este dispositivo.
+        localStorage.setItem('last_username', normalizeUser(data.username || loginData.username));
         localStorage.setItem('remember_me', rememberMe ? 'true' : 'false');
         setLoginAttempts(0);
         onLogin();
@@ -1057,12 +1087,24 @@ const Login = ({ onLogin }) => {
                         {isLoginView ? (
                             <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 2.5 }}>
 
-                                {/* ─── Modo PIN ─── */}
-                                {pinMode && loginData.username ? (
+                                {/* ─── Modo PIN (solo si ESE usuario tiene PIN aquí) ─── */}
+                                {pinMode && loginData.username && pinDisponible ? (
                                     <PinNumpad
                                         username={loginData.username}
                                         onSuccess={handlePinSuccess}
-                                        onCancel={() => setPinMode(false)}
+                                        onCancel={(opts) => {
+                                            setPinMode(false);
+                                            if (opts?.limpiarUsuario) {
+                                                setLoginData({ username: '', password: '' });
+                                            }
+                                        }}
+                                        onPinInvalido={() => {
+                                            // El PIN ya no existe en el servidor: se limpia el
+                                            // registro local y se pide contraseña.
+                                            removePinForUser(loginData.username);
+                                            setPinMode(false);
+                                            toast.info('El PIN de esta cuenta ya no está disponible. Ingresa con tu contraseña.');
+                                        }}
                                     />
                                 ) : (
                                 <Box
@@ -1188,15 +1230,28 @@ const Login = ({ onLogin }) => {
                                     </Box>
                                 )}
 
-                                <BotonHuella
-                                    modo="login"
-                                    username={loginData.username}
-                                    onSuccess={handleBiometricSuccess}
-                                    onCredentialLost={() => {/* simplemente oculta el botón sin reload */}}
-                                />
+                                {/* Huella: solo si la credencial de ESTE dispositivo pertenece
+                                    al usuario escrito. Antes aparecía siempre y, al tocarla,
+                                    iniciaba sesión con la cuenta de otra persona. */}
+                                {huellaCoincide && (
+                                    <>
+                                        <BotonHuella
+                                            modo="login"
+                                            username={loginData.username || huellaOwner}
+                                            onSuccess={handleBiometricSuccess}
+                                            onCredentialLost={() => {/* simplemente oculta el botón sin reload */}}
+                                        />
+                                        {/* Deja claro con qué cuenta se va a entrar */}
+                                        {huellaOwner && (
+                                            <Typography sx={{ fontSize: 11, color: '#475569', textAlign: 'center', mt: -1 }}>
+                                                Huella de <b style={{ color: '#64748b' }}>{huellaOwner}</b>
+                                            </Typography>
+                                        )}
+                                    </>
+                                )}
 
-                                {/* Acceso rápido por PIN */}
-                                {localStorage.getItem('pin_configured') === 'true' && loginData.username && (
+                                {/* Acceso rápido por PIN — solo para el usuario escrito */}
+                                {pinDisponible && (
                                     <>
                                         <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)', my: -0.5 }}>
                                             <Typography sx={{ fontSize: 11, color: '#475569', px: 1 }}>o</Typography>
