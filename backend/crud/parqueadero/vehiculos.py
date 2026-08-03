@@ -233,16 +233,17 @@ def dar_baja_vehiculo(
 
             for a in accesos_abiertos:
                 if payload.cobrar_acceso_abierto:
-                    # Cobrar y cerrar (lógica similar a registrar_salida_horas)
+                    # Cobrar y cerrar con el MISMO cálculo que la salida normal
+                    # (tarifa plena/minuto + mínimos). Antes se cobraba siempre
+                    # por minuto plano, ignorando la configuración.
+                    import math
+                    from crud.parqueadero.reportes import _calcular_monto_estimado
                     entrada = a.fecha_entrada
                     if entrada.tzinfo is None:
                         entrada = entrada.replace(tzinfo=timezone.utc)
                     delta = ahora - entrada
-                    minutos_reales = max(1, int(round(delta.total_seconds() / 60)))
-                    cobro_minimo = cfg.cobro_minimo_minutos or 0
-                    minutos_cobrar = max(minutos_reales, cobro_minimo) if cobro_minimo > 0 else minutos_reales
-                    tarifa_min = cfg.tarifa_minuto or 0
-                    monto = round(minutos_cobrar * tarifa_min, 0)
+                    minutos_reales = max(1, math.ceil(delta.total_seconds() / 60))
+                    minutos_cobrar, monto = _calcular_monto_estimado(cfg, minutos_reales)
 
                     a.fecha_salida     = ahora
                     a.minutos_cobrados = minutos_cobrar

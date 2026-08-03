@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Optional
 from datetime import datetime, timezone
+import math
 from fastapi import HTTPException
 import models, schemas
 from crud.common import BOGOTA_TZ
@@ -223,31 +224,21 @@ def registrar_salida_horas(
     delta = ahora - entrada
     # ------------------------------------------
 
-    minutos_reales = max(1, int(round(delta.total_seconds() / 60)))
+    # Minuto iniciado = minuto cobrado (ceil); round() regalaba hasta 30 s.
+    minutos_reales = max(1, math.ceil(delta.total_seconds() / 60))
 
-    cobro_minimo = cfg.cobro_minimo_minutos or 0
-
-    if cfg.usar_tarifa_plena:
-        # ── Modelo híbrido: por minuto + tarifa plena al completar el umbral ─
-        # Períodos completos (umbral) → tarifa_plena c/u
-        # Minutos restantes → min(resto × tarifa_minuto, tarifa_plena)
-        # Esto garantiza que el cobro nunca supere tarifa_plena dentro del período
-        minutos_cobrar = max(minutos_reales, cobro_minimo) if cobro_minimo > 0 else minutos_reales
-        umbral       = max(1, cfg.fraccion_minutos or 480)
-        tarifa_plena = cfg.tarifa_plena or 0.0
-        tarifa_min   = cfg.tarifa_minuto or 0.0
-
-        periodos = minutos_cobrar // umbral
-        resto    = minutos_cobrar % umbral
-        costo_resto = min(resto * tarifa_min, tarifa_plena)
-        monto_calc = round(periodos * tarifa_plena + costo_resto, 0)
-    else:
-        # ── Modelo por minuto (original) ────────────────────────────────────
-        minutos_cobrar = max(minutos_reales, cobro_minimo) if cobro_minimo > 0 else minutos_reales
-        tarifa_min     = cfg.tarifa_minuto or 0
-        monto_calc     = round(minutos_cobrar * tarifa_min, 0)
+    # Cálculo unificado (misma función que usa la búsqueda por placa y los
+    # estimados): tarifa plena o por minuto + cobro mínimo + tarifa mínima.
+    # Antes esta lógica estaba duplicada aquí y ya había divergido.
+    from crud.parqueadero.reportes import _calcular_monto_estimado
+    minutos_cobrar, monto_calc = _calcular_monto_estimado(cfg, minutos_reales)
 
     monto_final = payload.monto_manual if payload.monto_manual is not None else monto_calc
+    # Auditoría: si el operario cobró un monto manual distinto al calculado,
+    # queda registrado en las observaciones del acceso.
+    if payload.monto_manual is not None and payload.monto_manual != monto_calc:
+        acceso.observaciones = (acceso.observaciones or "") + \
+            f" | Monto manual: ${monto_final:,.0f} (calculado: ${monto_calc:,.0f})"
 
     # Compatibilidad con campo legacy horas_cobradas
     horas_compat = round(minutos_cobrar / 60, 2)

@@ -235,7 +235,7 @@ export function ParqueaderoVehiculoDialog({ open, onClose, placaSugerida, onSucc
         <Button
           variant="contained" onClick={handleCrearVehiculo} disabled={loading}
           startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <Save />}
-          sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700 }}
+          sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' }, fontWeight: 700 }}
         >
           Registrar vehículo y continuar
         </Button>

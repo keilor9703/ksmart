@@ -241,7 +241,7 @@ export function ParqueaderoEntradaHorasDialog({
                   <Button
                     variant="contained" size="small" onClick={handleGuardarTelefono}
                     disabled={savingPhone}
-                    sx={{ mt: 0.5, bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, whiteSpace: 'nowrap' }}
+                    sx={{ mt: 0.5, bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' }, whiteSpace: 'nowrap' }}
                   >
                     {savingPhone ? <CircularProgress size={14} color="inherit" /> : 'Guardar'}
                   </Button>
@@ -259,7 +259,7 @@ export function ParqueaderoEntradaHorasDialog({
                   fullWidth variant="contained" size="large"
                   startIcon={<Print />}
                   onClick={handleImprimir}
-                  sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700, py: 1.5 }}
+                  sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' }, fontWeight: 700, py: 1.5 }}
                 >
                   Imprimir comprobante de entrada
                 </Button>
@@ -354,7 +354,9 @@ export function ParqueaderoEntradaHorasDialog({
                   <Switch checked={sinTelefono}
                     onChange={(e) => {
                       setSinTelefono(e.target.checked);
-                      if (e.target.checked) setEnviarWA(false);
+                      // Al desmarcar se restaura el envío de WhatsApp (antes
+                      // quedaba apagado en silencio si el usuario volvía atrás).
+                      setEnviarWA(!e.target.checked);
                     }}
                   />
                 }
@@ -430,7 +432,7 @@ export function ParqueaderoEntradaHorasDialog({
               }
               sx={{
                 bgcolor: seEnviaraWA ? WA_GREEN : ACCENT,
-                '&:hover': { bgcolor: seEnviaraWA ? '#1ebe5d' : '#e6561c' },
+                '&:hover': { bgcolor: seEnviaraWA ? '#1ebe5d' : '#0e7490' },
                 fontWeight: 700,
               }}
             >

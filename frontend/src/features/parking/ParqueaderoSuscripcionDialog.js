@@ -143,7 +143,7 @@ export function ParqueaderoSuscripcionDialog({ open, onClose, vehiculo, onSucces
         />
 
         {/* Resumen */}
-        <Box sx={{ mt: 2, p: 2, bgcolor: '#F8FAFC', borderRadius: 2 }}>
+        <Box sx={{ mt: 2, p: 2, bgcolor: 'background.default', borderRadius: 2 }}>
           <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
             <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Total a cobrar</Typography>
             <Typography sx={{ fontSize: 14, fontWeight: 700 }}>{formatCurrency(montoFinal)}</Typography>
@@ -168,7 +168,7 @@ export function ParqueaderoSuscripcionDialog({ open, onClose, vehiculo, onSucces
         <Button
           variant="contained" onClick={handleGuardar} disabled={loading}
           startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <Save />}
-          sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700 }}
+          sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' }, fontWeight: 700 }}
         >
           Registrar
         </Button>
