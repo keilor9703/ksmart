@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   Box, Typography, Button, CircularProgress, Paper, Grid,
-  Tab, Tabs, Chip, useTheme, alpha, TextField, IconButton,
+  Tab, Tabs, Chip, useTheme, useMediaQuery, alpha, TextField, IconButton,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Tooltip, Stack,
 } from '@mui/material';
@@ -70,6 +70,8 @@ function ChipFE({ estado }) {
 
 // ─── Tab Historial ─────────────────────────────────────────────────────────────
 function HistorialTab() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const today = toIso(new Date());
   const [fechaIni, setFechaIni] = useState(today);
   const [fechaFin, setFechaFin] = useState(today);
@@ -164,6 +166,66 @@ function HistorialTab() {
           <History sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
           <Typography color="text.secondary">No hay ventas en el período seleccionado</Typography>
         </Paper>
+      ) : isMobile ? (
+        // En celular las 9 columnas no caben: cada venta se muestra como tarjeta.
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          {historial.map((c) => (
+            <Paper key={c.comanda_id} elevation={0} sx={{ p: 1.75, border: '1px solid rgba(0,0,0,0.08)', borderRadius: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, mb: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+                  <Chip label={`Mesa ${c.mesa}`} size="small" icon={<TableRestaurant sx={{ fontSize: '13px !important' }} />}
+                    sx={{ bgcolor: alpha(ACCENT, 0.1), color: ACCENT, fontWeight: 600 }} />
+                  <ChipFE estado={c.estado_fe} />
+                </Box>
+                <Typography sx={{ fontWeight: 800, fontSize: 15, whiteSpace: 'nowrap' }}>{fmt(c.total)}</Typography>
+              </Box>
+
+              <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{fmtDate(c.fecha_cierre)}</Typography>
+              <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                Mesero: {c.mesero || '—'} · {c.metodo_pago || '—'}
+              </Typography>
+
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.4, mt: 1 }}>
+                {c.items.slice(0, 4).map((it, i) => (
+                  <Chip key={i} label={`${it.cantidad}× ${it.nombre}`} size="small"
+                    sx={{ fontSize: 10, height: 20, bgcolor: 'rgba(0,0,0,0.06)' }} />
+                ))}
+                {c.items.length > 4 && <Chip label={`+${c.items.length - 4}`} size="small" sx={{ fontSize: 10, height: 20 }} />}
+              </Box>
+
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1.25, pt: 1, borderTop: '1px dashed rgba(0,0,0,0.1)' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
+                  {c.numero_factura ? (
+                    <>
+                      <Typography sx={{ fontSize: 12, color: 'text.secondary' }} noWrap>Fact: {c.numero_factura}</Typography>
+                      <Tooltip title="Copiar">
+                        <IconButton size="small" onClick={() => copy(c.numero_factura)}><ContentCopy sx={{ fontSize: 13 }} /></IconButton>
+                      </Tooltip>
+                    </>
+                  ) : <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>Sin factura</Typography>}
+                </Box>
+                <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
+                  {c.pdf_url && (
+                    <Tooltip title="Ver PDF">
+                      <IconButton size="small" component="a" href={c.pdf_url} target="_blank" sx={{ color: '#3B82F6' }}>
+                        <PictureAsPdf sx={{ fontSize: 16 }} />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                  {c.estado_fe !== 'exitoso' && c.venta_id && (
+                    <Tooltip title="Reintentar FE">
+                      <span>
+                        <IconButton size="small" onClick={() => reintentar(c.venta_id)} disabled={reintentando === c.venta_id} sx={{ color: '#F59E0B' }}>
+                          {reintentando === c.venta_id ? <CircularProgress size={14} /> : <Replay sx={{ fontSize: 16 }} />}
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  )}
+                </Box>
+              </Box>
+            </Paper>
+          ))}
+        </Box>
       ) : (
         <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid rgba(0,0,0,0.08)', borderRadius: 2 }}>
           <Table size="small">
