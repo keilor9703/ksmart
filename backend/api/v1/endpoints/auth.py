@@ -256,18 +256,40 @@ def verify_pin(
     db: Session = Depends(get_db),
 ):
     """Verifica el PIN y retorna un JWT completo (sin necesidad de contraseña)."""
-    # For PIN, find the specific user by username (unique within each empresa)
-    # If multiple companies share the username, pick the one with PIN set and active
-    candidates = db.query(models.User).filter(
-        (models.User.username == data.username) | (models.User.email == data.username)
-    ).all()
-    user = None
-    for c in candidates:
-        if c.is_active and c.pin_hash:
-            user = c
-            break
-    if not user or not user.is_active or not user.pin_hash:
+    # El username solo es único DENTRO de cada empresa (uq_user_username_empresa).
+    # Antes se tomaba el primer candidato con PIN, así que si "admin" existía en
+    # dos empresas y ambos tenían PIN, el admin de la segunda NUNCA podía entrar
+    # (siempre se validaba contra el hash de la primera) y, si los PIN coincidían,
+    # se entraba a la EMPRESA EQUIVOCADA. Se desambigua igual que el login por
+    # contraseña: se prueba el PIN contra todos los candidatos.
+    candidates = [
+        c for c in db.query(models.User).filter(
+            (models.User.username == data.username) | (models.User.email == data.username)
+        ).all()
+        if c.is_active and c.pin_hash
+    ]
+
+    # Filtro opcional por NIT de empresa (para el caso ambiguo)
+    nit = (getattr(data, 'empresa_nit', None) or '').strip()
+    if nit:
+        candidates = [c for c in candidates if c.empresa and (c.empresa.nit or '').strip() == nit]
+
+    if not candidates:
         raise HTTPException(401, "PIN no configurado o usuario no encontrado.")
+
+    if len(candidates) == 1:
+        user = candidates[0]
+    else:
+        matching = [c for c in candidates if security.verify_password(data.pin, c.pin_hash)]
+        if len(matching) == 1:
+            user = matching[0]
+        elif len(matching) > 1:
+            # Mismo usuario y mismo PIN en varias empresas: se exige el NIT.
+            raise HTTPException(409, "EMPRESA_REQUERIDA")
+        else:
+            # Ninguno coincide: no se penaliza a ningún usuario concreto (el
+            # rate limit de 5/min ya protege contra fuerza bruta).
+            raise HTTPException(401, "PIN incorrecto.")
 
     # Verificar bloqueo por intentos fallidos
     now = datetime.now(timezone.utc)

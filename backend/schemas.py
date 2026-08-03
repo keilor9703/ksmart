@@ -2771,6 +2771,8 @@ class PinSetRequest(BaseModel):
 class PinVerifyRequest(BaseModel):
     username: str
     pin: str
+    # Solo se usa cuando el mismo usuario+PIN existe en varias empresas
+    empresa_nit: Optional[str] = None
 
 # ─── Biometría nativa (app instalada) ──────────────────────────────────────────
 class BiometricNativeRegisterRequest(BaseModel):
