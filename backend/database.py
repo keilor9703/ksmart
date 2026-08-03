@@ -2858,6 +2858,52 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v129)
                 logger.info("V129 (valor TEXTO en enum tipolinkpago) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V130 — Candados de unicidad del parqueadero:
+            #   - vehiculos(empresa_id, placa) único
+            #   - parqueadero_config(empresa_id) único
+            # La validación solo en aplicación permitía duplicados con
+            # requests concurrentes. Antes de crear los índices se depuran
+            # duplicados existentes conservando el registro más antiguo (el
+            # de menor id), que es el que ya tiene el histórico asociado.
+            # ═══════════════════════════════════════════════════════════════
+            migration_v130 = "v130_unique_placa_y_config_parqueadero"
+            if not _migration_already_applied(conn, migration_v130):
+                # 1) Depurar vehículos duplicados (conservar el de menor id)
+                conn.execute(text("""
+                    DELETE FROM vehiculos WHERE id NOT IN (
+                        SELECT MIN(id) FROM vehiculos GROUP BY empresa_id, placa
+                    ) AND id NOT IN (
+                        SELECT DISTINCT vehiculo_id FROM suscripciones_parqueadero WHERE vehiculo_id IS NOT NULL
+                    ) AND id NOT IN (
+                        SELECT DISTINCT vehiculo_id FROM accesos_parqueadero WHERE vehiculo_id IS NOT NULL
+                    )
+                """))
+                # 2) Depurar configs duplicadas (conservar la de menor id)
+                conn.execute(text("""
+                    DELETE FROM parqueadero_config WHERE id NOT IN (
+                        SELECT MIN(id) FROM parqueadero_config GROUP BY empresa_id
+                    )
+                """))
+                # 3) Crear los índices únicos (si aún quedan duplicados con
+                #    histórico asociado, el índice de vehículos fallaría; en ese
+                #    caso se deja solo el de config y se reporta en logs).
+                try:
+                    conn.execute(text(
+                        "CREATE UNIQUE INDEX IF NOT EXISTS uq_vehiculo_empresa_placa "
+                        "ON vehiculos (empresa_id, placa)"
+                    ))
+                except Exception as _e_veh:
+                    logger.warning(
+                        "V130: no se pudo crear el índice único de placas (duplicados "
+                        "con histórico). Resolver manualmente. Detalle: %s", _e_veh)
+                conn.execute(text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_parq_config_empresa "
+                    "ON parqueadero_config (empresa_id)"
+                ))
+                _mark_migration_applied(conn, migration_v130)
+                logger.info("V130 (unicidad placa/config parqueadero) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

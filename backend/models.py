@@ -1123,6 +1123,10 @@ class ParqueaderoConfig(Base, TenantMixin):
     """
     __tablename__ = "parqueadero_config"
 
+    # Candado en BD: UNA config por empresa (get_or_create hace read-then-insert
+    # sin bloqueo y concurrentemente podía duplicarse).
+    __table_args__ = (UniqueConstraint("empresa_id", name="uq_parq_config_empresa"),)
+
     id                    = Column(Integer, primary_key=True, index=True)
     tarifa_mensual        = Column(Float, default=0.0)
     tarifa_quincenal      = Column(Float, default=0.0)
@@ -1157,6 +1161,11 @@ class Vehiculo(Base, TenantMixin):
     id              = Column(Integer, primary_key=True, index=True)
     placa           = Column(String(10), nullable=False, index=True)
     cliente_id      = Column(Integer, ForeignKey("clientes.id"), nullable=False)
+
+    # Candado en BD: una placa solo puede existir una vez por empresa. La
+    # validación en aplicación no protege contra requests concurrentes.
+    # (Índice creado por migración V130 para tablas existentes.)
+    __table_args__ = (UniqueConstraint("empresa_id", "placa", name="uq_vehiculo_empresa_placa"),)
     marca           = Column(String(60), nullable=True)   # Yamaha, Honda…
     modelo          = Column(String(60), nullable=True)   # XTZ 125, CB 110…
     color           = Column(String(40), nullable=True)

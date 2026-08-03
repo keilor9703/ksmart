@@ -21,6 +21,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 import { sunmiDisponible, imprimirRecibo as imprimirReciboSunmi, padLR } from '../../utils/sunmiPrinter';
+import { printHtml } from '../../utils/printHtml';
 
 const ACCENT = '#0891B2';
 const GREEN  = '#10B981';
@@ -161,11 +162,8 @@ const imprimirRecibo = async (cuota, montoPagado, saldoRestante) => {
     </body>
     </html>`;
 
-  const win = window.open('', '_blank', 'width=320,height=480');
-  win.document.write(html);
-  win.document.close();
-  win.focus();
-  setTimeout(() => { win.print(); win.close(); }, 400);
+  // printHtml: seguro dentro de la app instalada (window.open bloqueaba el WebView)
+  printHtml(html, 'width=320,height=480');
 };
 
 // ─── Descarga el PDF desde el backend ─────────────────────────────────────────

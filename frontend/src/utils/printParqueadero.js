@@ -1,4 +1,5 @@
 import { sunmiDisponible, imprimirRecibo, padLR } from './sunmiPrinter';
+import { printHtml } from './printHtml';
 
 const PRINTER_SIZES = {
   p80: { width: '80mm', font: '10px', fontSm: '8px', fontLg: '16px' },
@@ -71,34 +72,100 @@ function buildSalidaLines(acceso, minutos, monto, metodoPago, config) {
   return lines;
 }
 
-function _printInIframe(html) {
-  // Open in a new tab so mobile browsers save the receipt, not the main page.
-  const win = window.open('about:blank', '_blank');
-  if (win) {
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
-    // Some browsers fire onload; others need a timeout — handle both.
-    const doPrint = () => { try { win.focus(); win.print(); } catch (e) {} };
-    if (win.document.readyState === 'complete') {
-      setTimeout(doPrint, 250);
-    } else {
-      win.onload = () => setTimeout(doPrint, 100);
-      setTimeout(doPrint, 600); // safety fallback
+// Recibo de pago de suscripción / cobro de vencidos (mismo look del módulo).
+// datos: { placa, cliente, concepto, total, pagado, saldo, metodo_pago, vence }
+function buildSuscripcionLines(datos, config) {
+  const parq = config?.nombre_parqueadero || 'Parqueadero';
+  const ahora = new Date();
+  const fechaStr = ahora.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const horaStr = ahora.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  const lines = [];
+  lines.push({ text: parq, align: 'center', size: 28, bold: true });
+  if (config?.direccion) lines.push({ text: config.direccion, align: 'center', size: 20 });
+  lines.push({ type: 'divider' });
+  lines.push({ text: 'RECIBO DE PAGO', align: 'center', size: 24, bold: true });
+  lines.push({ type: 'divider' });
+  lines.push({ text: datos.placa || '—', align: 'center', size: 34, bold: true });
+  lines.push({ type: 'divider' });
+  if (datos.cliente) lines.push({ text: padLR('Cliente', datos.cliente), size: 22 });
+  lines.push({ text: padLR('Fecha', `${fechaStr} ${horaStr}`), size: 22 });
+  if (datos.concepto) lines.push({ text: padLR('Concepto', datos.concepto), size: 22 });
+  if (datos.vence) lines.push({ text: padLR('Vence', datos.vence), size: 22 });
+  lines.push({ text: padLR('Metodo de pago', datos.metodo_pago || 'Efectivo'), size: 22 });
+  lines.push({ type: 'divider' });
+  lines.push({ text: padLR('Total', `$${_fmt(datos.total)}`), size: 24, bold: true });
+  lines.push({ text: padLR('PAGADO', `$${_fmt(datos.pagado)}`), size: 24, bold: true });
+  if ((datos.saldo || 0) > 0) lines.push({ text: padLR('Saldo pendiente', `$${_fmt(datos.saldo)}`), size: 22, bold: true });
+  lines.push({ type: 'divider' });
+  lines.push({ text: '¡Gracias por su pago!', align: 'center', size: 22, bold: true });
+  lines.push({ type: 'feed' });
+  return lines;
+}
+
+export async function imprimirReciboSuscripcion(datos, config, printerSize = 'p80') {
+  // En el dispositivo Sunmi imprimimos en la térmica integrada.
+  if (await sunmiDisponible()) {
+    try {
+      await imprimirRecibo(buildSuscripcionLines(datos, config));
+      return;
+    } catch (e) {
+      console.warn('imprimirReciboSuscripcion: falló Sunmi, se usa HTML', e);
     }
-    return;
   }
-  // Popup blocked — fall back to hidden iframe
-  const iframe = document.createElement('iframe');
-  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;';
-  document.body.appendChild(iframe);
-  const doc = iframe.contentDocument || iframe.contentWindow.document;
-  doc.open(); doc.write(html); doc.close();
-  setTimeout(() => {
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
-    setTimeout(() => document.body.removeChild(iframe), 2000);
-  }, 400);
+
+  const sz = PRINTER_SIZES[printerSize] || PRINTER_SIZES.p80;
+  const parq = config?.nombre_parqueadero || 'Parqueadero';
+  const ahora = new Date();
+  const fechaStr = ahora.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const horaStr = ahora.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+
+  const html = `<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<style>
+  @page { width: ${sz.width}; margin: 4mm 3mm; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Courier New', monospace; font-size: ${sz.font}; width: ${sz.width}; margin: 0; padding: 0; color: #000; }
+  .c { text-align: center; }
+  .b { font-weight: bold; }
+  .sep { border-top: 1px dashed #000; margin: 4px 0; }
+  .placa { font-size: ${sz.fontLg}; font-weight: 900; letter-spacing: 3px; text-align: center; margin: 6px 0; }
+  .row { display: flex; justify-content: space-between; margin: 1px 0; }
+  .total-box { text-align: center; margin: 6px 0; padding: 4px; border: 2px solid #000; }
+  .total-num { font-size: ${sz.fontLg}; font-weight: 900; }
+  p { margin: 2px 0; }
+</style>
+</head><body>
+<p class="c b" style="font-size:${sz.fontLg};">${parq}</p>
+${config?.direccion ? `<p class="c" style="font-size:${sz.fontSm};">${config.direccion}</p>` : ''}
+<div class="sep"></div>
+<p class="c b">RECIBO DE PAGO</p>
+<div class="sep"></div>
+<div class="placa">${datos.placa || '—'}</div>
+<div class="sep"></div>
+${datos.cliente ? `<div class="row"><span>Cliente:</span><span>${datos.cliente}</span></div>` : ''}
+<div class="row"><span>Fecha:</span><span>${fechaStr} ${horaStr}</span></div>
+${datos.concepto ? `<div class="row"><span>Concepto:</span><span>${datos.concepto}</span></div>` : ''}
+${datos.vence ? `<div class="row"><span>Vence:</span><span>${datos.vence}</span></div>` : ''}
+<div class="row"><span>Método de pago:</span><span>${datos.metodo_pago || 'Efectivo'}</span></div>
+<div class="sep"></div>
+<div class="row b"><span>Total:</span><span>$${_fmt(datos.total)}</span></div>
+<div class="total-box">
+  <p class="b">PAGADO</p>
+  <div class="total-num">$${_fmt(datos.pagado)}</div>
+</div>
+${(datos.saldo || 0) > 0 ? `<div class="row b"><span>Saldo pendiente:</span><span>$${_fmt(datos.saldo)}</span></div>` : ''}
+<div class="sep"></div>
+<p class="c b">¡Gracias por su pago!</p>
+</body></html>`;
+
+  _printInIframe(html);
+}
+
+function _printInIframe(html) {
+  // Helper compartido: en la app nativa usa iframe (window.open bloqueaba el
+  // WebView); en navegador abre pestaña nueva con fallback a iframe.
+  printHtml(html);
 }
 
 function _fmt(n) {

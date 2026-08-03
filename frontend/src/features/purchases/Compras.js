@@ -14,6 +14,7 @@ import {
 } from '@mui/icons-material';
 import apiClient, { createCompra, addPagoCompra } from '../../api';
 import { formatCurrency } from '../../utils/formatters';
+import { printHtml } from '../../utils/printHtml';
 import { toast } from 'react-toastify';
 import CurrencyField from '../../components/common/CurrencyField';
 import QuickCreateModal from '../../components/common/QuickCreateModal';
@@ -137,9 +138,8 @@ const handlePrintOC = (compra) => {
   <div class="footer">Orden generada con Ksmart360 · ${new Date().toLocaleString('es-CO')}</div>
   </body></html>`;
 
-  const win = window.open('', '_blank', 'width=950,height=720');
-  win.document.write(html);
-  win.document.close();
+  // printHtml: seguro dentro de la app instalada (window.open bloqueaba el WebView)
+  printHtml(html, 'width=950,height=720');
 };
 
 // ─── Componente principal ──────────────────────────────────────────────────────

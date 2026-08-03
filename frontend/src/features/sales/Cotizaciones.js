@@ -15,6 +15,7 @@ import {
 } from '@mui/icons-material';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
+import { printHtml } from '../../utils/printHtml';
 import { toast } from 'react-toastify';
 import CurrencyField from '../../components/common/CurrencyField';
 import QuickCreateModal from '../../components/common/QuickCreateModal';
@@ -462,9 +463,8 @@ const Cotizaciones = () => {
   const handlePrint = (cot) => {
     const totales = totalesParaCot(cot);
     const html = generatePrintHTML(cot, totales);
-    const win = window.open('', '_blank', 'width=900,height=700');
-    win.document.write(html);
-    win.document.close();
+    // printHtml: seguro dentro de la app instalada (window.open bloqueaba el WebView)
+    printHtml(html, 'width=900,height=700');
   };
 
   // ── Submit ─────────────────────────────────────────────────────────────────
