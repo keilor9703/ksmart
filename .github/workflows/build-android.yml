@@ -30,6 +30,7 @@ jobs:
         working-directory: frontend
     env:
       HAS_RELEASE_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      HAS_DEPLOY: ${{ secrets.DEPLOY_SSH_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -88,6 +89,23 @@ jobs:
             APK de Ksmart360 versión ${{ steps.appver.outputs.version }}.
             Descarga directa del `.apk` en los assets de abajo.
           files: frontend/android/ksmart360-${{ steps.appver.outputs.version }}.apk
+
+      # ── Subir el APK al servidor propio (api.ksmart360.com) por SCP ──
+      # Descargas más confiables que el release de GitHub (sin redirección
+      # firmada que algunos navegadores móviles no finalizan). Solo corre si
+      # están configurados los secretos de despliegue. El servidor debe servir
+      # la carpeta destino por nginx (location /apks/).
+      - name: Subir APK al servidor propio
+        if: ${{ env.HAS_DEPLOY == 'true' }}
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_SSH_PORT || 22 }}
+          source: frontend/android/ksmart360-${{ steps.appver.outputs.version }}.apk
+          target: ${{ secrets.DEPLOY_APK_DIR || '/var/www/apks' }}
+          strip_components: 2
 
       - name: Preparar keystore de release (desde secreto de GitHub)
         if: ${{ env.HAS_RELEASE_KEYSTORE == 'true' }}
