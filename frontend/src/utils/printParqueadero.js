@@ -8,7 +8,7 @@ const PRINTER_SIZES = {
 // ─── Impresión en Sunmi (líneas estructuradas) ────────────────────────────────
 function buildEntradaLines(acceso, config, qrDataUrl = null) {
   const parq = config?.nombre_parqueadero || 'Parqueadero';
-  const fechaEntrada = acceso.fecha_entrada ? new Date(acceso.fecha_entrada) : new Date();
+  const fechaEntrada = acceso.fecha_entrada ? new Date(String(acceso.fecha_entrada).endsWith('Z') ? acceso.fecha_entrada : `${acceso.fecha_entrada}Z`) : new Date(); // backend guarda UTC
   const fechaStr = fechaEntrada.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const horaStr = fechaEntrada.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
   const lines = [];
@@ -120,7 +120,7 @@ export async function imprimirEntradaParqueadero(acceso, config, printerSize = '
   const parq = config?.nombre_parqueadero || 'Parqueadero';
   const dir = config?.direccion || '';
 
-  const fechaEntrada = acceso.fecha_entrada ? new Date(acceso.fecha_entrada) : new Date();
+  const fechaEntrada = acceso.fecha_entrada ? new Date(String(acceso.fecha_entrada).endsWith('Z') ? acceso.fecha_entrada : `${acceso.fecha_entrada}Z`) : new Date(); // backend guarda UTC
   const fechaStr = fechaEntrada.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const horaStr = fechaEntrada.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 

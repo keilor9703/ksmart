@@ -42,6 +42,8 @@ export function ParqueaderoCobrarVencidoDialog({ open, onClose, resultado, onSuc
   const [obs, setObs]                         = useState('');
   const [loading, setLoading]                 = useState(false);
 
+  // Reset SOLO al abrir el diálogo. Antes dependía de `resultado` (un objeto
+  // nuevo en cada refetch del padre) y borraba lo que el operario ya escribió.
   useEffect(() => {
     if (!open) return;
     apiClient.get('/parqueadero/config').then(({ data }) => setConfig(data));
@@ -53,7 +55,8 @@ export function ParqueaderoCobrarVencidoDialog({ open, onClose, resultado, onSuc
     setMontoPagado('');
     setMetodoPago('Efectivo');
     setObs('');
-  }, [open, resultado]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const tarifa = (t) => {
     if (!config) return 0;
@@ -63,7 +66,10 @@ export function ParqueaderoCobrarVencidoDialog({ open, onClose, resultado, onSuc
     return 0;
   };
 
-  const dias = Number(diasEntro || 0);
+  // Nunca cobrar más días de los realmente vencidos (el max del input no
+  // impide teclearlo a mano).
+  const maxDias = Number(resultado?.dias_vencido || 1);
+  const dias = Math.min(Math.max(Number(diasEntro || 0), 0), maxDias);
   const totalRetro = entroEnVencidos === 'no' ? 0 :
     (tipoRetro === 'diaria' ? tarifa('diaria') * dias : tarifa(tipoRetro));
   const totalNueva = (entroEnVencidos === 'no' || crearNueva) ? tarifa(tipoNueva) : 0;
@@ -98,6 +104,7 @@ export function ParqueaderoCobrarVencidoDialog({ open, onClose, resultado, onSuc
       }
       toast.success('Cobro registrado correctamente.');
       onSuccess?.();
+      onClose?.();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al registrar el cobro.');
     } finally {
