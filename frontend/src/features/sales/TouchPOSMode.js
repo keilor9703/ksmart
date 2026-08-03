@@ -11,6 +11,7 @@ import {
     Stars, Notes,
 } from '@mui/icons-material';
 import { formatCurrency } from '../../utils/formatters';
+import { sugerenciasEfectivo } from '../../utils/cashSuggestions';
 import CurrencyField from '../../components/common/CurrencyField';
 import { getProductoByBarcode } from '../../api';
 import { sunmiScannerDisponible, escanearSunmi, onScanFisico } from '../../utils/sunmiScanner';
@@ -528,6 +529,26 @@ const CartPanel = ({
                                 label="" size="small" fullWidth
                                 value={valorRecibido} onChange={setValorRecibido}
                             />
+                            {/* Un toque = billete con el que paga el cliente (evita teclear) */}
+                            {total > 0 && (
+                                <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.6 }}>
+                                    {sugerenciasEfectivo(total).map(s => (
+                                        <Chip
+                                            key={s.valor}
+                                            label={s.label}
+                                            size="small"
+                                            onClick={() => setValorRecibido(s.valor)}
+                                            sx={{
+                                                fontWeight: 700, fontSize: 11, height: 24, cursor: 'pointer',
+                                                bgcolor: valorRecibido === s.valor ? '#10B981' : 'rgba(16,185,129,0.08)',
+                                                color: valorRecibido === s.valor ? '#fff' : '#059669',
+                                                border: '1px solid rgba(16,185,129,0.35)',
+                                                '&:hover': { bgcolor: valorRecibido === s.valor ? '#059669' : 'rgba(16,185,129,0.16)' },
+                                            }}
+                                        />
+                                    ))}
+                                </Box>
+                            )}
                             {valorRecibido > 0 && (
                                 <Box sx={{
                                     mt: 0.5, px: 1.5, py: 0.5, borderRadius: 1.5, textAlign: 'center',

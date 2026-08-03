@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
+import { sugerenciasEfectivo } from '../../utils/cashSuggestions';
 import { toast } from 'react-toastify';
 import CurrencyField from '../../components/common/CurrencyField';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
@@ -2065,6 +2066,26 @@ useEffect(() => {
                                         Valor recibido
                                     </Typography>
                                     <CurrencyField label="" size="small" fullWidth value={valorRecibido} onChange={setValorRecibido} />
+                                    {/* Un toque = billete con el que paga el cliente (evita teclear) */}
+                                    {totalFinal > 0 && (
+                                        <Box sx={{ display: 'flex', gap: 0.6, flexWrap: 'wrap', mt: 0.8 }}>
+                                            {sugerenciasEfectivo(totalFinal).map(s => (
+                                                <Chip
+                                                    key={s.valor}
+                                                    label={s.label}
+                                                    size="small"
+                                                    onClick={() => setValorRecibido(s.valor)}
+                                                    sx={{
+                                                        fontWeight: 700, fontSize: 11, cursor: 'pointer',
+                                                        bgcolor: valorRecibido === s.valor ? '#10B981' : alpha('#10B981', 0.08),
+                                                        color: valorRecibido === s.valor ? '#fff' : '#059669',
+                                                        border: '1px solid', borderColor: alpha('#10B981', 0.35),
+                                                        '&:hover': { bgcolor: valorRecibido === s.valor ? '#059669' : alpha('#10B981', 0.16) },
+                                                    }}
+                                                />
+                                            ))}
+                                        </Box>
+                                    )}
                                     {valorRecibido > 0 && (
                                         <Box sx={{
                                             mt: 0.8, px: 2, py: 0.6, borderRadius: 2, textAlign: 'center',
@@ -2152,6 +2173,44 @@ useEffect(() => {
                                 </LiquidButton>
                             </Box>
                           </Box>{/* end RIGHT PANEL */}
+
+                          {/* ── Barra fija de cobro (solo móvil): total + registrar siempre
+                              visibles sin scrollear hasta el fondo del formulario. ── */}
+                          {isMobile && saleDetails.filter(d => d.producto || d.isLibre).length > 0 && (
+                            <>
+                              <Box sx={{ height: 76 }} />{/* espacio para que la barra no tape contenido */}
+                              <Box sx={{
+                                  position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 1100,
+                                  px: 1.5, pt: 1, pb: 'calc(10px + env(safe-area-inset-bottom))',
+                                  bgcolor: 'background.paper',
+                                  borderTop: '1px solid', borderColor: 'divider',
+                                  boxShadow: '0 -6px 24px rgba(0,0,0,0.12)',
+                                  display: 'flex', alignItems: 'center', gap: 1.5,
+                              }}>
+                                  <Box sx={{ minWidth: 0, flex: 1 }} onClick={() => document.getElementById('btn-registrar-venta')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
+                                      <Typography sx={{ fontSize: 10, color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6 }}>
+                                          {saleDetails.filter(d => d.producto || d.isLibre).length} ítem(s) · Total
+                                      </Typography>
+                                      <Typography sx={{ fontSize: 20, fontWeight: 900, color: ACCENT, lineHeight: 1.1 }} noWrap>
+                                          {formatCurrency(totalFinal)}
+                                      </Typography>
+                                  </Box>
+                                  <Button
+                                      variant="contained"
+                                      disabled={savingVenta}
+                                      onClick={handleSubmit}
+                                      startIcon={savingVenta ? <CircularProgress size={16} color="inherit" /> : <ShoppingCart />}
+                                      sx={{
+                                          borderRadius: 2.5, fontWeight: 800, textTransform: 'none', px: 2.5, py: 1.2,
+                                          bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' },
+                                          boxShadow: `0 6px 18px ${alpha(ACCENT, 0.35)}`, flexShrink: 0,
+                                      }}
+                                  >
+                                      {savingVenta ? 'Guardando…' : (editingVenta ? 'Actualizar' : 'Cobrar')}
+                                  </Button>
+                              </Box>
+                            </>
+                          )}
                         </Box>
                     ) : (
                         <Box sx={{ p: { xs: 1.5, md: 2 } }}>
