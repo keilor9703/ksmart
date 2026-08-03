@@ -1423,6 +1423,17 @@ export default function PedidosVirtuales({ user }) {
               onEdit={setEditPedido} onDetail={setDetailPedido} onComprobante={handleComprobante} linkPagosConfig={linkPagosConfig} />
           ))}
         </Box>
+      ) : isMobile ? (
+        // En celular la tabla no cabe: mostramos tarjetas (una por fila),
+        // igual que la vista de tarjetas pero en una sola columna.
+        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 1.5 }}>
+          {sortedPedidos.map(p => (
+            <PedidoCard key={p.id} pedido={p} empresa={empresa} vendedor={vendedor}
+              onStateChange={handleStateChange} onCancel={setCancelPedido}
+              onConvertir={handleConvertir} onWhatsApp={setWaPedido}
+              onEdit={setEditPedido} onDetail={setDetailPedido} onComprobante={handleComprobante} linkPagosConfig={linkPagosConfig} />
+          ))}
+        </Box>
       ) : (
         <Paper elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
           <TableContainer>
