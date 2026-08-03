@@ -1,4 +1,5 @@
 import { sunmiDisponible, imprimirRecibo, padLR } from './sunmiPrinter';
+import { printHtml } from './printHtml';
 
 const PRINTER_SIZES = {
   p80: { width: '80mm', font: '10px', fontSm: '8px', fontLg: '16px' },
@@ -45,30 +46,9 @@ function buildLavaderoLines(orden, config) {
 }
 
 function _printInIframe(html) {
-  const win = window.open('about:blank', '_blank');
-  if (win) {
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
-    const doPrint = () => { try { win.focus(); win.print(); } catch (e) {} };
-    if (win.document.readyState === 'complete') {
-      setTimeout(doPrint, 250);
-    } else {
-      win.onload = () => setTimeout(doPrint, 100);
-      setTimeout(doPrint, 600);
-    }
-    return;
-  }
-  const iframe = document.createElement('iframe');
-  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;';
-  document.body.appendChild(iframe);
-  const doc = iframe.contentDocument || iframe.contentWindow.document;
-  doc.open(); doc.write(html); doc.close();
-  setTimeout(() => {
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
-    setTimeout(() => document.body.removeChild(iframe), 2000);
-  }, 400);
+  // Helper compartido: en la app nativa usa iframe (window.open bloqueaba el
+  // WebView); en navegador abre pestaña nueva con fallback a iframe.
+  printHtml(html);
 }
 
 function _fmt(n) {

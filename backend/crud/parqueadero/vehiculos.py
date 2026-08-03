@@ -210,6 +210,7 @@ def dar_baja_vehiculo(
     accesos_cobrados = 0
     monto_cobrado_accesos = 0.0
     saldo_marcado_incobrable = 0.0
+    accesos_a_facturar = []  # (acceso, monto, minutos) — generan Venta tras el commit
 
     try:
         # 1. Cancelar suscripciones (si así lo pidió)
@@ -255,6 +256,7 @@ def dar_baja_vehiculo(
 
                     accesos_cobrados += 1
                     monto_cobrado_accesos += monto
+                    accesos_a_facturar.append((a, monto, minutos_cobrar))
                 else:
                     # Cerrar sin cobrar
                     a.fecha_salida     = ahora
@@ -272,6 +274,53 @@ def dar_baja_vehiculo(
 
         # 4. Commit todo de una vez
         db.commit()
+
+        # 5. Si entró dinero, cada acceso cobrado genera su Venta (con
+        #    consecutivo, asiento contable y documento DIAN), IGUAL que la
+        #    salida normal. Antes el dinero quedaba solo en el acceso y no
+        #    aparecía en ventas/contabilidad/FE.
+        if accesos_a_facturar:
+            import models as _models
+            from crud import ventas as _crud_ventas
+            from crud.consecutivos import next_consecutivo
+            metodo = payload.metodo_pago_acceso or "Efectivo"
+            for a, monto_v, minutos_v in accesos_a_facturar:
+                try:
+                    venta_parq = _models.Venta(
+                        numero_venta = next_consecutivo(db, empresa_id, "ultimo_numero_venta"),
+                        empresa_id   = empresa_id,
+                        total        = monto_v,
+                        monto_pagado = monto_v,
+                        estado_pago  = "pagado",
+                        metodo_pago  = metodo,
+                        origen       = "parqueadero_horas",
+                        tipo         = "venta",
+                        placa_vehiculo = a.placa or '',
+                        fecha_pago   = datetime.now(timezone.utc),
+                        solicita_fe  = False,
+                        observaciones = f"Acceso cobrado al dar de baja el vehículo | Placa: {a.placa} | {minutos_v} min",
+                    )
+                    db.add(venta_parq)
+                    db.commit()
+                    db.refresh(venta_parq)
+
+                    try:
+                        from services.contabilidad import registrar_asiento_venta
+                        registrar_asiento_venta(db, venta_parq)
+                        db.commit()
+                    except Exception:
+                        db.rollback()
+
+                    detalle = _crud_ventas._DetalleSintetico(
+                        descripcion=f"Parqueadero {minutos_v} min — Placa {a.placa} (baja de vehículo)",
+                        monto=float(monto_v),
+                    )
+                    _crud_ventas.emitir_fe_venta(db, empresa_id, venta_parq, [detalle], cliente=None)
+                    db.commit()
+                except Exception:
+                    # La baja ya quedó registrada; un fallo al facturar no debe
+                    # revertirla. El acceso conserva el monto para conciliación.
+                    db.rollback()
 
     except HTTPException:
         db.rollback()

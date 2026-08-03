@@ -11,6 +11,7 @@ import {
 import { toast } from 'react-toastify';
 import { formatCurrency } from '../../utils/formatters';
 import { sunmiDisponible, imprimirRecibo } from '../../utils/sunmiPrinter';
+import { printHtml } from '../../utils/printHtml';
 
 // Arma un renglón "etiqueta ......... valor" ocupando el ancho de una térmica
 // de 58mm (~32 caracteres), para alinear precios/totales a la derecha.
@@ -568,12 +569,10 @@ const ReciboDialog = ({ open, onClose, venta, empresa, vendedor }) => {
 
   const handlePrint = () => {
     const html = buildPrintHTML(venta, empresa, vendedor, size);
-    const w    = window.open('', '_blank', 'width=700,height=900');
-    if (!w) { alert('Permite las ventanas emergentes para imprimir.'); return; }
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => { w.print(); }, 350);
+    // printHtml: en la app nativa usa iframe oculto (window.open navegaba el
+    // WebView a una página en blanco y dejaba la app bloqueada); en navegador
+    // abre ventana nueva con fallback a iframe.
+    printHtml(html, 'width=700,height=900');
   };
 
   const handleWhatsApp = () => {
