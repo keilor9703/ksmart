@@ -22,6 +22,7 @@ def get_db() -> Generator:
         db.close()
 
 def get_current_user(
+    request: Request,
     db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
 ) -> models.User:
     credentials_exception = HTTPException(
@@ -38,7 +39,20 @@ def get_current_user(
     except JWTError:
         raise credentials_exception
 
-    user = crud.get_user_by_username(db, username=token_data.username)
+    # El payload queda disponible para las dependencias siguientes (p. ej. para
+    # saber si la sesión es de soporte/suplantación).
+    request.state.jwt_payload = payload
+
+    # ⚠️ El username SOLO es único dentro de cada empresa
+    # (uq_user_username_empresa). Resolverlo sin empresa_id devolvía el primer
+    # usuario con ese nombre de CUALQUIER empresa: con "admin" repetido en
+    # varios tenants, la sesión terminaba operando sobre los datos de otra
+    # empresa. El token ya trae empresa_id: se usa para acotar la búsqueda.
+    empresa_id = payload.get("empresa_id")
+    user = crud.get_user_by_username(db, username=token_data.username, empresa_id=empresa_id)
+    if user is None and empresa_id is not None:
+        # Compatibilidad con tokens antiguos emitidos sin empresa_id válido
+        user = crud.get_user_by_username(db, username=token_data.username)
     if user is None:
         raise credentials_exception
     return user
@@ -55,20 +69,31 @@ def get_current_active_user(
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada para este usuario")
 
+    # 👇 SESIÓN DE SOPORTE (suplantación desde el panel SuperAdmin)
+    # El token de /superadmin/impersonate trae is_impersonated=True, pero antes
+    # NADIE leía esa marca: la sesión de soporte se evaluaba como la de un
+    # usuario normal y, como soporte entra justamente a empresas con problemas
+    # (trial vencido, suspendidas), TODAS las peticiones respondían 403
+    # "Acceso denegado." Soporte debe poder entrar precisamente en ese caso.
+    # El token solo lo emite un SuperAdmin verificado y la suplantación queda
+    # auditada (evento IMPERSONATE) al momento de generarlo.
+    es_soporte = bool(getattr(request.state, "jwt_payload", {}).get("is_impersonated"))
+
     # 👇 EVALUACIÓN CENTRALIZADA DE ACCESO (Fase 2)
     can_login, access_mode, reason = TenantAccessService.evaluate_access(db, empresa.id)
-    
-    if not can_login:
+
+    if not can_login and not es_soporte:
         detail = "Acceso denegado."
         if reason == "TRIAL_EXPIRED": detail = "Suscripción expirada. Por favor contacte a soporte para renovar."
         if reason == "MANUAL_SUSPENSION": detail = "Cuenta suspendida temporalmente."
-        
+
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
 
-    # 👇 ENFORCEMENT DE MODO RESTRINGIDO (Read-Only)
-    if not TenantAccessService.is_mutation_allowed(access_mode, request.method):
+    # 👇 ENFORCEMENT DE MODO RESTRINGIDO (Read-Only) — no aplica a soporte,
+    # que necesita poder corregir la configuración del tenant.
+    if not es_soporte and not TenantAccessService.is_mutation_allowed(access_mode, request.method):
         raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED, 
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail="Modo lectura activo. Por favor renueve su suscripción para realizar cambios."
         )
 

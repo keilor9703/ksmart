@@ -427,9 +427,18 @@ def impersonate_company(
     db: Session = Depends(get_db),
     current_admin: models.User = Depends(get_current_superadmin_user)
 ):
-    target_user = db.query(models.User).filter(
-        models.User.empresa_id == empresa_id
-    ).first()
+    # Se prefiere un usuario ACTIVO y con rol Admin: antes se tomaba el primero
+    # de la empresa, que podía estar inactivo (la sesión moría con "Usuario
+    # inactivo") o ser un rol limitado (cajero), y entonces soporte entraba
+    # pero no veía casi ningún módulo.
+    candidatos = db.query(models.User).options(
+        joinedload(models.User.role)
+    ).filter(models.User.empresa_id == empresa_id).all()
+
+    activos = [u for u in candidatos if u.is_active]
+    admins = [u for u in activos if u.role and u.role.name == "Admin"]
+    target_user = (admins or activos or candidatos or [None])[0]
+
     if not target_user:
         raise HTTPException(status_code=404, detail="No se encontró un usuario para esta empresa.")
 
@@ -448,6 +457,12 @@ def impersonate_company(
             "sub": target_user.username,
             "empresa_id": target_user.empresa_id,
             "role": target_user.role.name if target_user.role else "Admin",
+            # Mismos módulos que en el login normal: sin esto el token de
+            # soporte quedaba sin "modules" y la app no sabía qué mostrar.
+            "modules": [
+                m.frontend_path
+                for m in sorted(target_user.role.modules, key=lambda m: m.orden or 99)
+            ] if target_user.role else [],
             "is_impersonated": True
         }
     )
