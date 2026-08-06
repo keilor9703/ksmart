@@ -38,9 +38,24 @@ const WompiButton = ({ planName, onSuccess, enablePromo = true }) => {
 
   const quitarCodigo = () => { setPromo(null); setCodigo(''); };
 
+  // Un código del 100% deja el total en $0 y Wompi rechaza cobrar cero
+  // ("El monto debe ser un número entero mayor a 0"): en ese caso la
+  // suscripción se activa directo en el backend, sin abrir la pasarela.
+  const esGratis = !!promo && Number(promo.precio_final) <= 0;
+
   const handlePayment = async () => {
     setLoading(true);
     try {
+      if (esGratis) {
+        await apiClient.post('/wompi/canjear-gratis', {
+          plan_name: planName,
+          codigo_promo: promo.codigo,
+        });
+        toast.success('¡Suscripción activada con tu código promocional!');
+        if (onSuccess) await onSuccess();
+        return;
+      }
+
       // 1. Obtener hash de integridad y datos del plan desde el backend
       const { data } = await apiClient.post('/wompi/generar-hash', {
         plan_name: planName,
@@ -165,19 +180,23 @@ const WompiButton = ({ planName, onSuccess, enablePromo = true }) => {
         fullWidth
         onClick={handlePayment}
         disabled={loading}
-        startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <Payments />}
+        startIcon={loading ? <CircularProgress size={20} color="inherit" /> : (esGratis ? <CheckCircle /> : <Payments />)}
         sx={{
-          bgcolor: '#F43F5E',
+          bgcolor: esGratis ? '#10B981' : '#F43F5E',
           borderRadius: 3,
           py: 1.8,
           fontWeight: 800,
           fontSize: '0.95rem',
-          boxShadow: '0 4px 14px rgba(244, 63, 94, 0.4)',
-          '&:hover': { bgcolor: '#E11D48', boxShadow: '0 6px 20px rgba(244, 63, 94, 0.6)' },
+          boxShadow: esGratis ? '0 4px 14px rgba(16,185,129,0.4)' : '0 4px 14px rgba(244, 63, 94, 0.4)',
+          '&:hover': esGratis
+            ? { bgcolor: '#059669', boxShadow: '0 6px 20px rgba(16,185,129,0.6)' }
+            : { bgcolor: '#E11D48', boxShadow: '0 6px 20px rgba(244, 63, 94, 0.6)' },
           textTransform: 'none'
         }}
       >
-        {loading ? 'Conectando...' : 'Pagar con Wompi / Nequi'}
+        {loading
+          ? (esGratis ? 'Activando…' : 'Conectando...')
+          : (esGratis ? 'Activar suscripción · $0' : 'Pagar con Wompi / Nequi')}
       </Button>
     </Box>
   );

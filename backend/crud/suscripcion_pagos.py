@@ -84,7 +84,10 @@ def activar_suscripcion_pagada(
     nuevo_pago = models.RegistroPago(
         empresa_id=empresa_id,
         plan_id=plan_id,
-        monto=amount_in_cents / 100 if amount_in_cents else plan.precio,
+        # `if amount_in_cents` trataba 0 como "sin dato" y registraba el precio
+        # completo del plan: con un código del 100% quedaba un ingreso ficticio.
+        # 0 es un monto válido (canje gratuito); solo None significa "sin dato".
+        monto=(amount_in_cents / 100) if amount_in_cents is not None else plan.precio,
         moneda=currency or "COP",
         metodo_pago=metodo_pago,
         bold_tx_id=wompi_id,
