@@ -141,6 +141,92 @@ def generar_hash_wompi(
     }
 
 
+@router.post("/canjear-gratis")
+def canjear_promo_gratis(
+    request_data: schemas.BoldHashRequest,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Activa la suscripción SIN pasar por la pasarela cuando un código
+    promocional deja el total en $0 (descuento del 100%).
+
+    Wompi rechaza cualquier cobro de $0 ("El monto debe ser un número entero
+    mayor a 0"), así que estos canjes no pueden pasar por el widget.
+
+    El descuento se recalcula aquí contra la BD: nunca se confía en el precio
+    que envía el cliente.
+    """
+    from datetime import datetime as _dt, timezone as _tz
+    from crud import promociones as crud_promo
+
+    plan = db.query(models.PlanSuscripcion).filter(
+        models.PlanSuscripcion.codigo_interno == request_data.plan_name,
+        models.PlanSuscripcion.is_active == True,  # noqa: E712
+        or_(
+            models.PlanSuscripcion.empresa_id_exclusivo.is_(None),
+            models.PlanSuscripcion.empresa_id_exclusivo == current_user.empresa_id,
+        ),
+    ).first()
+    if not plan:
+        raise HTTPException(status_code=400, detail="El plan no existe.")
+
+    if not request_data.codigo_promo:
+        raise HTTPException(status_code=400, detail="Se requiere un código promocional.")
+
+    codigo_obj, descuento, motivo = crud_promo.validar_codigo(
+        db, request_data.codigo_promo, plan, current_user.empresa_id
+    )
+    if motivo:
+        raise HTTPException(status_code=400, detail=motivo)
+
+    precio_final = max(0.0, float(plan.precio or 0) - float(descuento or 0))
+    if precio_final > 0:
+        # Con saldo pendiente el cobro debe ir por la pasarela.
+        raise HTTPException(
+            status_code=400,
+            detail="Este código no cubre el total del plan. Continúa con el pago normal.",
+        )
+
+    # Referencia idempotente por día: protege contra doble clic sin impedir
+    # una renovación legítima más adelante.
+    hoy = _dt.now(_tz.utc).strftime("%Y%m%d")
+    referencia = f"PROMO-{current_user.empresa_id}-{plan.id}-{codigo_obj.codigo}-{hoy}"
+
+    from crud.suscripcion_pagos import activar_suscripcion_pagada
+    try:
+        resultado = activar_suscripcion_pagada(
+            db,
+            empresa_id=current_user.empresa_id,
+            plan_id=plan.id,
+            wompi_id=referencia,
+            amount_in_cents=0,
+            currency="COP",
+            metodo_pago="Código promocional",
+            email_pagador=current_user.email,
+            payload_auditoria={
+                "canje_gratuito": True,
+                "codigo_promo": codigo_obj.codigo,
+                "usuario_id": current_user.id,
+            },
+            monto_esperado_centavos=0,
+            descuento_aplicado=float(descuento or 0),
+            codigo_promo_id=codigo_obj.id,
+        )
+    except ValueError as e:
+        logger.warning("canjear-gratis: %s — RECHAZADO", e)
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if resultado.get("duplicado"):
+        return {"status": "ok", "mensaje": "Suscripción ya activa."}
+
+    logger.info(
+        "✅ Suscripción activada con código 100%% (%s) — empresa %s",
+        codigo_obj.codigo, current_user.empresa_id,
+    )
+    return {"status": "ok", "mensaje": f"Suscripción activada por {plan.dias_duracion} días."}
+
+
 class ConfirmarPagoWidgetRequest(BaseModel):
     wompi_id: str   # Único campo que aceptamos del frontend
 
