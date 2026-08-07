@@ -118,6 +118,10 @@ class EmpresaMetricsOut(EmpresaOut):
     count_ventas: int = 0
     count_productos: int = 0
     dias_restantes: int = 0
+    # Contacto del dueño (usuario que registró la empresa)
+    owner_nombre: Optional[str] = None
+    owner_telefono: Optional[str] = None
+    owner_email: Optional[str] = None
 
 class SaaSAuditLogOut(BaseModel):
     id: int

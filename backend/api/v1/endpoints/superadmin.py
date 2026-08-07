@@ -132,12 +132,31 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     # Usuarios totales en todo el sistema
     total_usuarios = db.query(models.User).count()
 
+    # Altas de empresas HOY y en el MES en curso, en hora local (America/Bogota).
+    # created_at se guarda en UTC: los límites del día/mes local se convierten a
+    # UTC con get_utc_boundaries para no contar de más ni de menos por el UTC-5.
+    from crud.common import BOGOTA_TZ, get_utc_boundaries
+    hoy_local = datetime.now(BOGOTA_TZ).date()
+    inicio_dia, fin_dia = get_utc_boundaries(hoy_local)
+    inicio_mes, _ = get_utc_boundaries(hoy_local.replace(day=1))
+
+    nuevos_hoy = db.query(models.Empresa).filter(
+        models.Empresa.created_at >= inicio_dia,
+        models.Empresa.created_at <= fin_dia,
+    ).count()
+    nuevos_mes = db.query(models.Empresa).filter(
+        models.Empresa.created_at >= inicio_mes,
+        models.Empresa.created_at <= fin_dia,
+    ).count()
+
     return {
         "total_tenants": total_tenants,
         "activos": activos,
         "premium": premium,
         "total_recaudado": total_recaudado,
-        "total_usuarios": total_usuarios
+        "total_usuarios": total_usuarios,
+        "nuevos_hoy": nuevos_hoy,
+        "nuevos_mes": nuevos_mes,
     }
 
 @router.get("/audit-logs", response_model=List[schemas.SaaSAuditLogOut])

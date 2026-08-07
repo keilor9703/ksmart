@@ -49,13 +49,33 @@ def get_empresas(db: Session, skip: int = 0, limit: int = 100):
      .order_by(models.Empresa.id.asc())\
      .offset(skip).limit(limit)
 
+    filas = query.all()
+
+    # Datos de contacto del dueño (el usuario más antiguo de cada empresa, que
+    # es el que hizo el registro). Se resuelve en UNA consulta para las empresas
+    # de esta página — no una por empresa.
+    empresa_ids = [e.id for e, _, _, _ in filas]
+    dueños = {}
+    if empresa_ids:
+        usuarios = db.query(models.User).filter(
+            models.User.empresa_id.in_(empresa_ids)
+        ).order_by(models.User.empresa_id, models.User.id.asc()).all()
+        for u in usuarios:
+            if u.empresa_id not in dueños:   # el primero = el de menor id
+                dueños[u.empresa_id] = u
+
     results = []
     ahora = datetime.now(timezone.utc)
-    for empresa, c_u, c_v, c_p in query.all():
+    for empresa, c_u, c_v, c_p in filas:
         empresa_dict = empresa.__dict__.copy()
         empresa_dict["count_usuarios"] = c_u
         empresa_dict["count_ventas"] = c_v
         empresa_dict["count_productos"] = c_p
+
+        dueño = dueños.get(empresa.id)
+        empresa_dict["owner_nombre"]   = (dueño.nombre_completo or dueño.username) if dueño else None
+        empresa_dict["owner_telefono"] = dueño.telefono if dueño else None
+        empresa_dict["owner_email"]    = dueño.email if dueño else None
         
         # Calcular días restantes
         if empresa.trial_ends_at:
