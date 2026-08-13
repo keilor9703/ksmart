@@ -2658,7 +2658,11 @@ class PedidoRestauranteCreatedOut(BaseModel):
 class DetallePedidoVirtualIn(BaseModel):
     producto_id: int
     cantidad: float = Field(..., gt=0)
-    precio_unitario: float = Field(..., ge=0)
+    # Opcional y meramente informativo: el servidor SIEMPRE recalcula el precio
+    # desde la BD (ver crud.pedidos_virtuales.create_pedido_publico), así que
+    # exigirlo solo hacía fallar con 422 a integraciones legítimas —n8n, bots,
+    # aliados— por un dato que de todos modos se descarta.
+    precio_unitario: Optional[float] = Field(default=0, ge=0)
     variante_id: Optional[int] = None
 
 class PedidoVirtualCreate(BaseModel):
