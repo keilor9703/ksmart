@@ -90,10 +90,26 @@ def conectar(
         if data.get("error"):
             raise HTTPException(status_code=502, detail=data["error"])
 
+    # El webhook se (re)aplica SIEMPRE, no solo al crear la instancia: si esta
+    # ya existía de un intento anterior, quedaba sin webhook y los mensajes del
+    # cliente no llegaban a la automatización, sin ningún error visible.
+    wh = evo.configurar_webhook(empresa_id)
+    if wh.get("error"):
+        logger.warning(
+            "No se pudo configurar el webhook de %s: %s", instancia, wh["error"]
+        )
+
     qr = (data.get("qrcode") or {}).get("base64") or data.get("base64")
     codigo = (data.get("qrcode") or {}).get("code") or data.get("code")
 
-    return {"instancia": instancia, "qr_base64": qr, "codigo": codigo}
+    return {
+        "instancia": instancia,
+        "qr_base64": qr,
+        "codigo": codigo,
+        # Si esto es False, el número se conectará pero los pedidos NO
+        # llegarán: falta EVOLUTION_WEBHOOK_URL en el servidor.
+        "automatizacion_lista": not wh.get("error"),
+    }
 
 
 @router.delete("/desconectar")

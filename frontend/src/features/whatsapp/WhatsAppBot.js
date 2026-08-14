@@ -57,6 +57,12 @@ export default function WhatsAppBot() {
     setQr(null);
     try {
       const { data } = await apiClient.post('/whatsapp-bot/conectar');
+      // El número puede conectarse y aun así no recibir pedidos si el webhook
+      // de la automatización no quedó configurado: se avisa en vez de dejar
+      // que el cliente crea que todo quedó listo.
+      if (data.automatizacion_lista === false) {
+        toast.warning('El número se vinculará, pero la automatización no está lista. Contacta a soporte.');
+      }
       if (!data.qr_base64) {
         toast.info('No se recibió el código QR. Intenta de nuevo.');
       } else {
