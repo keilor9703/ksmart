@@ -11,6 +11,7 @@ from crud.common import empresa_suscripcion_activa
 from core.limiter import limiter
 import base64
 import json
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -154,6 +155,77 @@ def resolver_empresa_por_instancia(
         "facebook": empresa.facebook_url,
         "catalogo_url": f"https://catalogo.ksmart360.com/{empresa.slug_catalogo}",
     }
+
+
+# ─── Anti-duplicados de la automatización de WhatsApp ─────────────────────────
+#
+# Cuando un cliente escribe tres mensajes seguidos ("hola" / "quiero 2
+# chocolatinas" / "para la calle 45"), el webhook dispara TRES ejecuciones en
+# paralelo y el cliente recibe tres respuestas descoordinadas.
+#
+# La solución es que solo la ejecución del último mensaje siga adelante. Eso
+# exige un contador compartido entre ejecuciones, y el almacenamiento estático
+# de n8n no lo es. Aquí sí: un único proceso, un único diccionario.
+
+# {(instancia, destino): (marca, expira_en)}
+_ultimo_mensaje: dict = {}
+_DEBOUNCE_TTL = 300  # 5 min: más que suficiente para cualquier espera del flujo
+
+
+def _purgar_debounce(ahora: float):
+    """Evita que el diccionario crezca sin límite con clientes que ya no escriben."""
+    if len(_ultimo_mensaje) < 500:
+        return
+    for k in [k for k, v in _ultimo_mensaje.items() if v[1] < ahora]:
+        _ultimo_mensaje.pop(k, None)
+
+
+@router.post("/por-instancia/{instancia}/debounce")
+@limiter.limit("120/minute")
+def marcar_mensaje(
+    request: Request,
+    instancia: str,
+    payload: schemas.DebounceMarcarIn,
+):
+    """
+    Registra "este es el mensaje más reciente de este cliente" y devuelve una
+    marca. La automatización espera unos segundos y luego pregunta en
+    /debounce/es-ultimo si su marca sigue siendo la vigente.
+    """
+    ahora = time.time()
+    _purgar_debounce(ahora)
+
+    # La marca se deriva del reloj para que sea monótona incluso si dos mensajes
+    # entran en el mismo milisegundo (se desempata por el contador de longitud).
+    marca = int(ahora * 1000)
+    clave = (instancia, payload.destino)
+    anterior = _ultimo_mensaje.get(clave)
+    if anterior and anterior[0] >= marca:
+        marca = anterior[0] + 1
+
+    _ultimo_mensaje[clave] = (marca, ahora + _DEBOUNCE_TTL)
+    return {"marca": marca}
+
+
+@router.post("/por-instancia/{instancia}/debounce/es-ultimo")
+@limiter.limit("120/minute")
+def es_ultimo_mensaje(
+    request: Request,
+    instancia: str,
+    payload: schemas.DebounceVerificarIn,
+):
+    """
+    ¿Sigue siendo esta la ejecución del último mensaje del cliente?
+
+    Si mientras esperaba llegó otro mensaje, responde `false` y esa ejecución
+    se detiene: el cliente recibirá UNA sola respuesta, ya con todo el contexto.
+    """
+    clave = (instancia, payload.destino)
+    actual = _ultimo_mensaje.get(clave)
+    # Si no hay registro (reinicio del backend, TTL vencido) se deja pasar:
+    # ante la duda, es preferible responderle al cliente que dejarlo sin nada.
+    es_ultimo = actual is None or actual[0] == payload.marca
+    return {"es_ultimo": es_ultimo}
 
 
 @router.get("/{slug}", response_model=schemas.CatalogoPublicoOut)
