@@ -143,6 +143,15 @@ def resolver_empresa_por_instancia(
         "slug": empresa.slug_catalogo,
         "empresa": empresa.nombre,
         "instancia": instancia,
+        # Datos públicos del negocio: permiten que la automatización responda
+        # preguntas frecuentes (dónde quedan, a qué se dedican, redes) sin una
+        # consulta extra. Son los mismos que ya muestra el catálogo público.
+        "descripcion": empresa.descripcion,
+        "ciudad": empresa.ciudad,
+        "whatsapp": empresa.whatsapp_pedidos,
+        "instagram": empresa.instagram_url,
+        "facebook": empresa.facebook_url,
+        "catalogo_url": f"https://catalogo.ksmart360.com/{empresa.slug_catalogo}",
     }
 
 
