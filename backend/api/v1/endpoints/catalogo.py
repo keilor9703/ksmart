@@ -113,6 +113,39 @@ def update_catalogo_config(
 # CATÁLOGO PÚBLICO (SIN AUTH)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+@router.get("/por-instancia/{instancia}")
+@limiter.limit("60/minute")
+def resolver_empresa_por_instancia(
+    request: Request, instancia: str, db: Session = Depends(deps.get_db)
+):
+    """
+    Traduce una instancia de WhatsApp al catálogo de su empresa.
+
+    Es lo que permite que UNA sola automatización atienda a todas las
+    empresas: el mensaje entrante trae el nombre de la instancia, y con este
+    endpoint se resuelve a qué tienda pertenece antes de leer su catálogo.
+
+    Público a propósito (igual que el resto del catálogo) y devuelve solo
+    datos que ya son públicos: nombre de la tienda y su slug.
+    """
+    empresa = db.query(models.Empresa).filter(
+        models.Empresa.whatsapp_instancia == instancia
+    ).first()
+    if not empresa or not empresa.slug_catalogo:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No hay una tienda vinculada a la instancia '{instancia}'.",
+        )
+    if not empresa_suscripcion_activa(empresa):
+        raise HTTPException(status_code=403, detail="La suscripción de esta tienda no está activa.")
+
+    return {
+        "slug": empresa.slug_catalogo,
+        "empresa": empresa.nombre,
+        "instancia": instancia,
+    }
+
+
 @router.get("/{slug}", response_model=schemas.CatalogoPublicoOut)
 @limiter.limit("60/minute")
 def get_public_catalogo(

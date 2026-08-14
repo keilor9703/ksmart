@@ -42,6 +42,9 @@ class Empresa(Base):
     # 👇 NUEVOS CAMPOS CATÁLOGO VIRTUAL
     slug_catalogo     = Column(String(100), unique=True, index=True, nullable=True)
     whatsapp_pedidos  = Column(String(20), nullable=True)
+    # Instancia de WhatsApp (bot de pedidos). Es la llave con la que la
+    # automatización identifica de qué empresa viene cada mensaje entrante.
+    whatsapp_instancia = Column(String(100), unique=True, index=True, nullable=True)
     logo_base64       = Column(Text, nullable=True) # WebP comprimido
     instagram_url     = Column(String(300), nullable=True)
     facebook_url      = Column(String(300), nullable=True)
