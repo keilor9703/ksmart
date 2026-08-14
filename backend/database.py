@@ -2922,6 +2922,17 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v131)
                 logger.info("V131 (whatsapp_instancia en empresas) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V132 — Horario de atención de la empresa (texto libre). Lo usa
+            # el bot de WhatsApp para responder "¿a qué hora abren?" sin
+            # inventarse el dato.
+            # ═══════════════════════════════════════════════════════════════
+            migration_v132 = "v132_horario_atencion_empresas"
+            if not _migration_already_applied(conn, migration_v132):
+                _add_column_safe(conn, "empresas", "horario_atencion", "VARCHAR(200)")
+                _mark_migration_applied(conn, migration_v132)
+                logger.info("V132 (horario_atencion en empresas) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

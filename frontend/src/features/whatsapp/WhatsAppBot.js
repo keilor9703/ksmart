@@ -8,10 +8,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box, Paper, Typography, Button, CircularProgress, Chip, Stack, Alert,
-  Divider, useTheme, useMediaQuery,
+  Divider, TextField, useTheme, useMediaQuery,
 } from '@mui/material';
 import {
-  WhatsApp, QrCode2, CheckCircle, LinkOff, Refresh, AutoAwesome,
+  WhatsApp, QrCode2, CheckCircle, LinkOff, Refresh, AutoAwesome, Schedule, Save,
 } from '@mui/icons-material';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
@@ -27,6 +27,8 @@ export default function WhatsAppBot() {
   const [cargando, setCargando] = useState(true);
   const [qr, setQr]             = useState(null);
   const [conectando, setConectando] = useState(false);
+  const [horario, setHorario]   = useState('');
+  const [guardando, setGuardando] = useState(false);
   const pollRef = useRef(null);
 
   const consultarEstado = useCallback(async (silencioso = false) => {
@@ -49,8 +51,23 @@ export default function WhatsAppBot() {
 
   useEffect(() => {
     consultarEstado();
+    apiClient.get('/whatsapp-bot/config')
+      .then(({ data }) => setHorario(data.horario_atencion || ''))
+      .catch(() => {});
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [consultarEstado]);
+
+  const guardarHorario = async () => {
+    setGuardando(true);
+    try {
+      await apiClient.patch('/whatsapp-bot/config', { horario_atencion: horario });
+      toast.success('Horario guardado. El bot ya lo usará al responder.');
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'No se pudo guardar el horario.');
+    } finally {
+      setGuardando(false);
+    }
+  };
 
   const conectar = async () => {
     setConectando(true);
@@ -207,6 +224,35 @@ export default function WhatsAppBot() {
           </Alert>
         </Paper>
       )}
+
+      {/* Horario de atención */}
+      <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, mb: 3 }}>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+          <Schedule sx={{ color: GREEN, fontSize: 20 }} />
+          <Typography sx={{ fontWeight: 800, fontSize: 15 }}>Horario de atención</Typography>
+        </Stack>
+        <Typography sx={{ fontSize: 12.5, color: 'text.secondary', mb: 2 }}>
+          Cuando un cliente pregunte "¿a qué hora abren?", el bot responderá
+          exactamente esto. Si lo dejas vacío, dirá que no tiene el dato en vez
+          de inventarlo.
+        </Typography>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+          <TextField
+            fullWidth size="small"
+            placeholder="Ej: Lunes a sábado de 8:00 a.m. a 6:00 p.m."
+            value={horario}
+            onChange={(e) => setHorario(e.target.value)}
+            inputProps={{ maxLength: 200 }}
+          />
+          <Button
+            variant="outlined" onClick={guardarHorario} disabled={guardando}
+            startIcon={guardando ? <CircularProgress size={16} /> : <Save />}
+            sx={{ borderRadius: 2, fontWeight: 700, flexShrink: 0 }}
+          >
+            Guardar
+          </Button>
+        </Stack>
+      </Paper>
 
       {/* Cómo funciona */}
       <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>

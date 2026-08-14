@@ -8,7 +8,10 @@ la instancia de SU empresa (nunca puede tocar la de otro tenant).
 """
 
 import logging
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 import models
@@ -129,3 +132,43 @@ def desconectar(
     db.commit()
 
     return {"mensaje": "WhatsApp desvinculado correctamente."}
+
+
+# ─── Configuración que usa el bot al responder ────────────────────────────────
+
+class BotConfigIn(BaseModel):
+    horario_atencion: Optional[str] = None
+
+
+@router.get("/config")
+def get_config(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Datos que el bot cita al responder preguntas frecuentes."""
+    empresa = current_user.empresa
+    return {
+        "horario_atencion": empresa.horario_atencion,
+        "whatsapp_pedidos": empresa.whatsapp_pedidos,
+    }
+
+
+@router.patch("/config")
+def update_config(
+    payload: BotConfigIn,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_admin_user),
+):
+    """
+    Actualiza el horario que el bot le informa a los clientes.
+
+    Es texto libre a propósito: cada negocio expresa su horario distinto
+    (jornada continua, domingos, festivos) y el bot lo cita tal cual, sin
+    interpretarlo ni inventarlo.
+    """
+    empresa = current_user.empresa
+    if payload.horario_atencion is not None:
+        empresa.horario_atencion = payload.horario_atencion.strip()[:200] or None
+    db.add(empresa)
+    db.commit()
+    return {"horario_atencion": empresa.horario_atencion}
