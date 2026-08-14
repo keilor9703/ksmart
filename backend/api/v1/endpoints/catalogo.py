@@ -114,6 +114,30 @@ def update_catalogo_config(
 # CATÁLOGO PÚBLICO (SIN AUTH)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _normalizar_whatsapp(numero: Optional[str]) -> Optional[str]:
+    """
+    Deja el WhatsApp del negocio en el formato que exige Evolution: solo
+    dígitos, con indicativo de país.
+
+    El campo es de texto libre y cada empresa lo escribe distinto: '312 613
+    7615', '+57 312...', '(312) 613-7615'. Sin indicativo, Evolution responde
+    `exists: false` y el aviso al negocio nunca llega —sin que nadie se entere,
+    porque el cliente sí recibió su respuesta—.
+
+    Se asume Colombia (57) para los celulares de 10 dígitos que empiezan por 3,
+    que es el formato nacional. Cualquier otra longitud se devuelve tal cual:
+    es preferible fallar visiblemente que reescribir mal un número extranjero.
+    """
+    if not numero:
+        return None
+    digitos = "".join(c for c in numero if c.isdigit())
+    if not digitos:
+        return None
+    if len(digitos) == 10 and digitos.startswith("3"):
+        return "57" + digitos
+    return digitos
+
+
 @router.get("/por-instancia/{instancia}")
 @limiter.limit("60/minute")
 def resolver_empresa_por_instancia(
@@ -150,7 +174,9 @@ def resolver_empresa_por_instancia(
         "descripcion": empresa.descripcion,
         "ciudad": empresa.ciudad,
         "horario": empresa.horario_atencion,
-        "whatsapp": empresa.whatsapp_pedidos,
+        # Normalizado para que la automatización pueda escribirle al negocio
+        # sin depender de cómo lo haya tecleado cada empresa.
+        "whatsapp": _normalizar_whatsapp(empresa.whatsapp_pedidos),
         "instagram": empresa.instagram_url,
         "facebook": empresa.facebook_url,
         "catalogo_url": f"https://catalogo.ksmart360.com/{empresa.slug_catalogo}",
