@@ -37,6 +37,7 @@ import { startKeepAlive, stopKeepAlive } from './services/keepAlive';
 const Productos        = lazy(() => import('./features/inventory/Productos'));
 const Ventas           = lazy(() => import('./features/sales/Ventas'));
 const PedidosVirtuales = lazy(() => import('./features/sales/PedidosVirtuales'));
+const WhatsAppBot      = lazy(() => import('./features/whatsapp/WhatsAppBot'));
 const Reportes         = lazy(() => import('./features/reports/Reportes'));
 const OrdenesTrabajo   = lazy(() => import('./features/workOrders/OrdenesTrabajo'));
 const Recetas          = lazy(() => import('./features/production/Recetas'));
@@ -438,6 +439,7 @@ const hasAccess = useCallback((path) => {
                     } />
                     <Route path="/ventas"             element={<ProtectedRoute path="/ventas"             hasAccess={hasAccess}><Ventas user={user} /></ProtectedRoute>} />
                     <Route path="/pedidos-virtuales" element={<ProtectedRoute path="/pedidos-virtuales" hasAccess={hasAccess}><PedidosVirtuales user={user} /></ProtectedRoute>} />
+                    <Route path="/whatsapp-bot" element={<ProtectedRoute path="/whatsapp-bot" hasAccess={hasAccess}><WhatsAppBot user={user} /></ProtectedRoute>} />
                     <Route path="/cotizaciones"       element={<ProtectedRoute path="/cotizaciones"       hasAccess={hasAccess}><Cotizaciones /></ProtectedRoute>} />
                     <Route path="/admin/resoluciones" element={<Navigate to="/admin/facturacion-electronica" replace />} />
                     <Route path="/compras"            element={<ProtectedRoute path="/compras"            hasAccess={hasAccess}><Compras /></ProtectedRoute>} />

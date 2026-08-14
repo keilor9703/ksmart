@@ -1,0 +1,125 @@
+"""
+Servicio de integración con Evolution API (WhatsApp no oficial, autohospedado).
+
+Permite que cada empresa conecte SU propio número de WhatsApp desde Ksmart360
+—escaneando un QR— sin conocer ni manipular la infraestructura de Evolution.
+La clave maestra vive solo aquí, en el servidor: el navegador del cliente
+nunca la ve.
+
+Cada empresa tiene una "instancia" en Evolution, nombrada de forma
+determinística (`ksmart-<empresa_id>`), que es la que n8n usa para saber de
+qué negocio viene cada mensaje.
+
+Configuración por variables de entorno:
+  EVOLUTION_API_URL   Ej: https://evo.ksmart360.com
+  EVOLUTION_API_KEY   La AUTHENTICATION_API_KEY del servidor de Evolution.
+  EVOLUTION_WEBHOOK_URL  URL del webhook de n8n que recibe los mensajes.
+
+Si no están configuradas, el módulo responde "no disponible" en vez de fallar.
+"""
+
+import logging
+import os
+from typing import Optional
+
+import requests as http_requests
+
+logger = logging.getLogger("evolution")
+
+EVOLUTION_API_URL     = (os.getenv("EVOLUTION_API_URL", "") or "").rstrip("/")
+EVOLUTION_API_KEY     = os.getenv("EVOLUTION_API_KEY", "")
+EVOLUTION_WEBHOOK_URL = os.getenv("EVOLUTION_WEBHOOK_URL", "")
+
+TIMEOUT = 20
+
+
+def is_configured() -> bool:
+    """True si el servidor tiene Evolution configurado."""
+    return bool(EVOLUTION_API_URL and EVOLUTION_API_KEY)
+
+
+def nombre_instancia(empresa_id: int) -> str:
+    """Nombre determinístico de la instancia de una empresa."""
+    return f"ksmart-{empresa_id}"
+
+
+def _headers() -> dict:
+    return {"apikey": EVOLUTION_API_KEY, "Content-Type": "application/json"}
+
+
+def _request(metodo: str, ruta: str, payload: Optional[dict] = None) -> dict:
+    """Llama a Evolution y normaliza los errores de red a un dict con 'error'."""
+    url = f"{EVOLUTION_API_URL}{ruta}"
+    try:
+        resp = http_requests.request(
+            metodo, url, headers=_headers(), json=payload, timeout=TIMEOUT
+        )
+    except http_requests.exceptions.Timeout:
+        logger.warning("Evolution timeout en %s %s", metodo, ruta)
+        return {"error": "El servicio de WhatsApp no respondió a tiempo."}
+    except http_requests.exceptions.RequestException as e:
+        logger.error("Evolution error de red en %s %s: %s", metodo, ruta, e)
+        return {"error": "No se pudo contactar el servicio de WhatsApp."}
+
+    try:
+        data = resp.json()
+    except ValueError:
+        data = {}
+
+    if resp.status_code >= 400:
+        # 404 al consultar estado = la instancia no existe todavía (normal)
+        logger.info("Evolution %s en %s %s: %s", resp.status_code, metodo, ruta, str(data)[:200])
+        return {"error": data.get("message") or data.get("error") or f"HTTP {resp.status_code}",
+                "status_code": resp.status_code}
+
+    return data if isinstance(data, dict) else {"data": data}
+
+
+# ─── Operaciones ──────────────────────────────────────────────────────────────
+
+def crear_instancia(empresa_id: int) -> dict:
+    """
+    Crea la instancia de la empresa y devuelve el QR para vincular.
+    Si ya existe, Evolution responde error y se reintenta pidiendo el QR.
+    """
+    instancia = nombre_instancia(empresa_id)
+    payload = {
+        "instanceName": instancia,
+        "qrcode": True,
+        "integration": "WHATSAPP-BAILEYS",
+    }
+    if EVOLUTION_WEBHOOK_URL:
+        payload["webhook"] = {
+            "enabled": True,
+            "url": EVOLUTION_WEBHOOK_URL,
+            "byEvents": False,
+            "base64": False,
+            "events": ["MESSAGES_UPSERT"],
+        }
+    return _request("POST", "/instance/create", payload)
+
+
+def obtener_qr(empresa_id: int) -> dict:
+    """Pide un QR nuevo para una instancia que ya existe."""
+    return _request("GET", f"/instance/connect/{nombre_instancia(empresa_id)}")
+
+
+def estado_conexion(empresa_id: int) -> dict:
+    """Estado de la sesión: 'open' (conectada), 'connecting', 'close'."""
+    return _request("GET", f"/instance/connectionState/{nombre_instancia(empresa_id)}")
+
+
+def eliminar_instancia(empresa_id: int) -> dict:
+    """Desconecta y borra la instancia (el cliente tendrá que re-escanear)."""
+    instancia = nombre_instancia(empresa_id)
+    _request("DELETE", f"/instance/logout/{instancia}")   # cierra sesión
+    return _request("DELETE", f"/instance/delete/{instancia}")
+
+
+def enviar_texto(empresa_id: int, numero: str, texto: str) -> dict:
+    """Envía un mensaje de texto desde el WhatsApp de esa empresa."""
+    return _request(
+        "POST",
+        f"/message/sendText/{nombre_instancia(empresa_id)}",
+        {"number": numero, "text": texto},
+    )

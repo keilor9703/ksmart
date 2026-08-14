@@ -2904,6 +2904,24 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v130)
                 logger.info("V130 (unicidad placa/config parqueadero) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V131 — Columna whatsapp_instancia en empresas (bot de WhatsApp).
+            # Identifica de qué empresa viene cada mensaje entrante; es única
+            # porque una instancia de WhatsApp pertenece a un solo tenant.
+            # ═══════════════════════════════════════════════════════════════
+            migration_v131 = "v131_whatsapp_instancia_empresas"
+            if not _migration_already_applied(conn, migration_v131):
+                _add_column_safe(conn, "empresas", "whatsapp_instancia", "VARCHAR(100)")
+                try:
+                    conn.execute(text(
+                        "CREATE UNIQUE INDEX IF NOT EXISTS uq_empresa_whatsapp_instancia "
+                        "ON empresas (whatsapp_instancia)"
+                    ))
+                except Exception as _e_wa:
+                    logger.warning("V131: no se pudo crear el índice único: %s", _e_wa)
+                _mark_migration_applied(conn, migration_v131)
+                logger.info("V131 (whatsapp_instancia en empresas) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
