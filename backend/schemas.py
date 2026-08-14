@@ -2652,6 +2652,18 @@ class PedidoRestauranteCreatedOut(BaseModel):
 
 
 # =========================
+# ANTI-DUPLICADOS WHATSAPP
+# =========================
+
+class DebounceMarcarIn(BaseModel):
+    # Identificador del chat tal como llega de WhatsApp (jid completo).
+    destino: str = Field(..., min_length=3, max_length=100)
+
+class DebounceVerificarIn(DebounceMarcarIn):
+    marca: int
+
+
+# =========================
 # PEDIDOS TIENDA VIRTUAL
 # =========================
 
