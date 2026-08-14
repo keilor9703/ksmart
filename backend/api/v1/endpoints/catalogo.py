@@ -148,6 +148,7 @@ def resolver_empresa_por_instancia(
         # consulta extra. Son los mismos que ya muestra el catálogo público.
         "descripcion": empresa.descripcion,
         "ciudad": empresa.ciudad,
+        "horario": empresa.horario_atencion,
         "whatsapp": empresa.whatsapp_pedidos,
         "instagram": empresa.instagram_url,
         "facebook": empresa.facebook_url,

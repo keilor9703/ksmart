@@ -45,6 +45,10 @@ class Empresa(Base):
     # Instancia de WhatsApp (bot de pedidos). Es la llave con la que la
     # automatización identifica de qué empresa viene cada mensaje entrante.
     whatsapp_instancia = Column(String(100), unique=True, index=True, nullable=True)
+    # Horario en texto libre ("Lun-Sáb 8am-6pm"): el bot lo cita tal cual al
+    # responder. Texto y no campos estructurados porque cada negocio lo
+    # expresa distinto (jornada continua, domingos, festivos, almuerzo…).
+    horario_atencion   = Column(String(200), nullable=True)
     logo_base64       = Column(Text, nullable=True) # WebP comprimido
     instagram_url     = Column(String(300), nullable=True)
     facebook_url      = Column(String(300), nullable=True)
