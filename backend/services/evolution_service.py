@@ -104,6 +104,32 @@ def obtener_qr(empresa_id: int) -> dict:
     return _request("GET", f"/instance/connect/{nombre_instancia(empresa_id)}")
 
 
+def configurar_webhook(empresa_id: int) -> dict:
+    """
+    (Re)aplica el webhook a la instancia.
+
+    Se llama SIEMPRE al conectar, no solo al crear: una instancia creada antes
+    de configurar EVOLUTION_WEBHOOK_URL —o creada cuando la URL era otra— se
+    quedaba sin webhook y los mensajes del cliente no llegaban a ninguna parte,
+    sin ningún error visible.
+    """
+    if not EVOLUTION_WEBHOOK_URL:
+        return {"error": "EVOLUTION_WEBHOOK_URL no configurada"}
+    return _request(
+        "POST",
+        f"/webhook/set/{nombre_instancia(empresa_id)}",
+        {
+            "webhook": {
+                "enabled": True,
+                "url": EVOLUTION_WEBHOOK_URL,
+                "byEvents": False,
+                "base64": False,
+                "events": ["MESSAGES_UPSERT"],
+            }
+        },
+    )
+
+
 def estado_conexion(empresa_id: int) -> dict:
     """Estado de la sesión: 'open' (conectada), 'connecting', 'close'."""
     return _request("GET", f"/instance/connectionState/{nombre_instancia(empresa_id)}")
