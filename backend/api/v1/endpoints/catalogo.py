@@ -177,6 +177,14 @@ def resolver_empresa_por_instancia(
         # Normalizado para que la automatización pueda escribirle al negocio
         # sin depender de cómo lo haya tecleado cada empresa.
         "whatsapp": _normalizar_whatsapp(empresa.whatsapp_pedidos),
+        # Destino de los avisos ("un cliente pide hablar con alguien"). Cae al
+        # número de pedidos si no hay uno aparte, pero entonces el aviso llega
+        # al mismo WhatsApp que atiende el bot y en la práctica no se ve: por
+        # eso `alertas_utiles` avisa si esa configuración quedó a medias.
+        "whatsapp_alertas": _normalizar_whatsapp(
+            empresa.whatsapp_notificaciones or empresa.whatsapp_pedidos
+        ),
+        "alertas_utiles": bool(empresa.whatsapp_notificaciones),
         "instagram": empresa.instagram_url,
         "facebook": empresa.facebook_url,
         "catalogo_url": f"https://catalogo.ksmart360.com/{empresa.slug_catalogo}",

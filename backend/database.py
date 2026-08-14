@@ -2933,6 +2933,18 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v132)
                 logger.info("V132 (horario_atencion en empresas) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V133 — Número al que el bot avisa cuando un cliente pide hablar
+            # con una persona. Va aparte de whatsapp_pedidos porque en la
+            # mayoría de negocios ese ES el número que atiende el bot: el
+            # aviso terminaba en "Mensajes contigo mismo", donde nadie lo ve.
+            # ═══════════════════════════════════════════════════════════════
+            migration_v133 = "v133_whatsapp_notificaciones_empresas"
+            if not _migration_already_applied(conn, migration_v133):
+                _add_column_safe(conn, "empresas", "whatsapp_notificaciones", "VARCHAR(20)")
+                _mark_migration_applied(conn, migration_v133)
+                logger.info("V133 (whatsapp_notificaciones en empresas) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

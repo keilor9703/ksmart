@@ -138,6 +138,7 @@ def desconectar(
 
 class BotConfigIn(BaseModel):
     horario_atencion: Optional[str] = None
+    whatsapp_notificaciones: Optional[str] = None
 
 
 @router.get("/config")
@@ -150,6 +151,7 @@ def get_config(
     return {
         "horario_atencion": empresa.horario_atencion,
         "whatsapp_pedidos": empresa.whatsapp_pedidos,
+        "whatsapp_notificaciones": empresa.whatsapp_notificaciones,
     }
 
 
@@ -169,6 +171,13 @@ def update_config(
     empresa = current_user.empresa
     if payload.horario_atencion is not None:
         empresa.horario_atencion = payload.horario_atencion.strip()[:200] or None
+    if payload.whatsapp_notificaciones is not None:
+        empresa.whatsapp_notificaciones = (
+            payload.whatsapp_notificaciones.strip()[:20] or None
+        )
     db.add(empresa)
     db.commit()
-    return {"horario_atencion": empresa.horario_atencion}
+    return {
+        "horario_atencion": empresa.horario_atencion,
+        "whatsapp_notificaciones": empresa.whatsapp_notificaciones,
+    }

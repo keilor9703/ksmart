@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import {
   WhatsApp, QrCode2, CheckCircle, LinkOff, Refresh, AutoAwesome, Schedule, Save,
+  SupportAgent,
 } from '@mui/icons-material';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
@@ -28,6 +29,7 @@ export default function WhatsAppBot() {
   const [qr, setQr]             = useState(null);
   const [conectando, setConectando] = useState(false);
   const [horario, setHorario]   = useState('');
+  const [avisos, setAvisos]     = useState('');
   const [guardando, setGuardando] = useState(false);
   const pollRef = useRef(null);
 
@@ -52,18 +54,24 @@ export default function WhatsAppBot() {
   useEffect(() => {
     consultarEstado();
     apiClient.get('/whatsapp-bot/config')
-      .then(({ data }) => setHorario(data.horario_atencion || ''))
+      .then(({ data }) => {
+        setHorario(data.horario_atencion || '');
+        setAvisos(data.whatsapp_notificaciones || '');
+      })
       .catch(() => {});
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [consultarEstado]);
 
-  const guardarHorario = async () => {
+  const guardarConfig = async () => {
     setGuardando(true);
     try {
-      await apiClient.patch('/whatsapp-bot/config', { horario_atencion: horario });
-      toast.success('Horario guardado. El bot ya lo usará al responder.');
+      await apiClient.patch('/whatsapp-bot/config', {
+        horario_atencion: horario,
+        whatsapp_notificaciones: avisos,
+      });
+      toast.success('Guardado. El bot ya usará estos datos.');
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'No se pudo guardar el horario.');
+      toast.error(e.response?.data?.detail || 'No se pudo guardar la configuración.');
     } finally {
       setGuardando(false);
     }
@@ -244,8 +252,32 @@ export default function WhatsAppBot() {
             onChange={(e) => setHorario(e.target.value)}
             inputProps={{ maxLength: 200 }}
           />
+        </Stack>
+
+        <Divider sx={{ my: 2.5 }} />
+
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+          <SupportAgent sx={{ color: GREEN, fontSize: 20 }} />
+          <Typography sx={{ fontWeight: 800, fontSize: 15 }}>
+            WhatsApp para avisos
+          </Typography>
+        </Stack>
+        <Typography sx={{ fontSize: 12.5, color: 'text.secondary', mb: 2 }}>
+          Cuando un cliente pida hablar con una persona, te avisamos a este
+          número. Usa uno <b>distinto</b> al que conectaste arriba: si es el
+          mismo, el aviso llega al chat "Mensajes contigo mismo" y pasa
+          desapercibido.
+        </Typography>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+          <TextField
+            fullWidth size="small"
+            placeholder="Ej: 3001234567"
+            value={avisos}
+            onChange={(e) => setAvisos(e.target.value)}
+            inputProps={{ maxLength: 20, inputMode: 'tel' }}
+          />
           <Button
-            variant="outlined" onClick={guardarHorario} disabled={guardando}
+            variant="outlined" onClick={guardarConfig} disabled={guardando}
             startIcon={guardando ? <CircularProgress size={16} /> : <Save />}
             sx={{ borderRadius: 2, fontWeight: 700, flexShrink: 0 }}
           >
