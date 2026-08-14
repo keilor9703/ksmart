@@ -49,6 +49,12 @@ class Empresa(Base):
     # responder. Texto y no campos estructurados porque cada negocio lo
     # expresa distinto (jornada continua, domingos, festivos, almuerzo…).
     horario_atencion   = Column(String(200), nullable=True)
+    # WhatsApp personal de quien atiende: ahí llegan los avisos cuando un
+    # cliente pide hablar con una persona. Separado de whatsapp_pedidos
+    # porque en la mayoría de negocios ese es el número que atiende el bot,
+    # y un aviso al propio número cae en "Mensajes contigo mismo" —donde
+    # nadie lo ve, porque quien atiende ya está mirando esa bandeja—.
+    whatsapp_notificaciones = Column(String(20), nullable=True)
     logo_base64       = Column(Text, nullable=True) # WebP comprimido
     instagram_url     = Column(String(300), nullable=True)
     facebook_url      = Column(String(300), nullable=True)
