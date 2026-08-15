@@ -60,6 +60,14 @@ def estado(
         "conectado": estado_wa == "open",
         "estado": estado_wa,
         "instancia": instancia,
+        # Desde cuándo está caído, según el monitor de fondo. Permite mostrar
+        # "desconectado desde ayer" en vez de un simple punto rojo, que es la
+        # diferencia entre enterarse y darse cuenta.
+        "desconectado_desde": (
+            empresa.whatsapp_desconectado_desde.isoformat()
+            if estado_wa != "open" and empresa.whatsapp_desconectado_desde
+            else None
+        ),
     }
 
 
@@ -82,8 +90,12 @@ def conectar(
     # Registrar la instancia en la empresa (es la llave que usa la automatización)
     if empresa.whatsapp_instancia != instancia:
         empresa.whatsapp_instancia = instancia
-        db.add(empresa)
-        db.commit()
+    # Reconectar cierra el ciclo del aviso anterior: si vuelve a caerse, se
+    # notifica de nuevo desde cero en lugar de esperar el próximo re-aviso.
+    empresa.whatsapp_desconectado_desde = None
+    empresa.whatsapp_ultimo_aviso = None
+    db.add(empresa)
+    db.commit()
 
     data = evo.crear_instancia(empresa_id)
 
@@ -128,6 +140,11 @@ def desconectar(
 
     empresa = current_user.empresa
     empresa.whatsapp_instancia = None
+    # Se limpia la vigilancia: desvincular es una decisión del negocio, no una
+    # caída, y no tiene sentido avisarle de algo que acaba de hacer a propósito.
+    empresa.whatsapp_estado = None
+    empresa.whatsapp_desconectado_desde = None
+    empresa.whatsapp_ultimo_aviso = None
     db.add(empresa)
     db.commit()
 

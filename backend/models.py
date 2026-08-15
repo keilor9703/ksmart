@@ -55,6 +55,13 @@ class Empresa(Base):
     # y un aviso al propio número cae en "Mensajes contigo mismo" —donde
     # nadie lo ve, porque quien atiende ya está mirando esa bandeja—.
     whatsapp_notificaciones = Column(String(20), nullable=True)
+    # Vigilancia de la conexión. Una sesión de WhatsApp se cae sola —el celular
+    # sin datos, WhatsApp cerrando el dispositivo vinculado— y hasta ahora eso
+    # era invisible: los clientes escribían, el bot no contestaba, y el negocio
+    # se enteraba por el reclamo. Estos campos permiten detectarlo y avisar.
+    whatsapp_estado           = Column(String(20), nullable=True)  # open | close | ...
+    whatsapp_desconectado_desde = Column(DateTime(timezone=True), nullable=True)
+    whatsapp_ultimo_aviso     = Column(DateTime(timezone=True), nullable=True)
     logo_base64       = Column(Text, nullable=True) # WebP comprimido
     instagram_url     = Column(String(300), nullable=True)
     facebook_url      = Column(String(300), nullable=True)
