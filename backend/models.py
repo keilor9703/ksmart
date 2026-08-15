@@ -62,6 +62,10 @@ class Empresa(Base):
     whatsapp_estado           = Column(String(20), nullable=True)  # open | close | ...
     whatsapp_desconectado_desde = Column(DateTime(timezone=True), nullable=True)
     whatsapp_ultimo_aviso     = Column(DateTime(timezone=True), nullable=True)
+    # Avisarle al cliente por WhatsApp cuando su pedido cambia de estado.
+    # Apagado por defecto: cada mensaje saliente no solicitado suma al patrón
+    # que WhatsApp castiga, así que es una decisión consciente del negocio.
+    notificar_estado_pedido   = Column(Boolean, default=False)
     logo_base64       = Column(Text, nullable=True) # WebP comprimido
     instagram_url     = Column(String(300), nullable=True)
     facebook_url      = Column(String(300), nullable=True)

@@ -194,6 +194,7 @@ def reaplicar_webhooks(
 class BotConfigIn(BaseModel):
     horario_atencion: Optional[str] = None
     whatsapp_notificaciones: Optional[str] = None
+    notificar_estado_pedido: Optional[bool] = None
 
 
 @router.get("/config")
@@ -207,6 +208,7 @@ def get_config(
         "horario_atencion": empresa.horario_atencion,
         "whatsapp_pedidos": empresa.whatsapp_pedidos,
         "whatsapp_notificaciones": empresa.whatsapp_notificaciones,
+        "notificar_estado_pedido": bool(empresa.notificar_estado_pedido),
     }
 
 
@@ -230,9 +232,12 @@ def update_config(
         empresa.whatsapp_notificaciones = (
             payload.whatsapp_notificaciones.strip()[:20] or None
         )
+    if payload.notificar_estado_pedido is not None:
+        empresa.notificar_estado_pedido = payload.notificar_estado_pedido
     db.add(empresa)
     db.commit()
     return {
         "horario_atencion": empresa.horario_atencion,
         "whatsapp_notificaciones": empresa.whatsapp_notificaciones,
+        "notificar_estado_pedido": bool(empresa.notificar_estado_pedido),
     }

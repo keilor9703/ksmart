@@ -2958,6 +2958,18 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v134)
                 logger.info("V134 (vigilancia de conexión WhatsApp) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V136 — Aviso automático al cliente cuando su pedido cambia de
+            # estado. Apagado por defecto: es el negocio quien decide gastar
+            # mensajes salientes, que es lo que arriesga el número.
+            # ═══════════════════════════════════════════════════════════════
+            migration_v136 = "v136_notificar_estado_pedido"
+            if not _migration_already_applied(conn, migration_v136):
+                _add_column_safe(conn, "empresas", "notificar_estado_pedido",
+                                 "BOOLEAN DEFAULT FALSE")
+                _mark_migration_applied(conn, migration_v136)
+                logger.info("V136 (notificar estado de pedido) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
