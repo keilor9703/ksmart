@@ -15,7 +15,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 import models
-from api.deps import get_db, get_current_active_user, get_current_admin_user
+from api.deps import (get_db, get_current_active_user, get_current_admin_user,
+                      get_current_superadmin_user)
 from services import evolution_service as evo
 
 router = APIRouter()
@@ -149,6 +150,43 @@ def desconectar(
     db.commit()
 
     return {"mensaje": "WhatsApp desvinculado correctamente."}
+
+
+@router.post("/reaplicar-webhooks")
+def reaplicar_webhooks(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_superadmin_user),
+):
+    """
+    Re-aplica el webhook a TODAS las instancias vinculadas.
+
+    Necesario al mover la automatización de servidor (por ejemplo de n8n cloud
+    a uno propio): la URL del webhook cambia y, sin esto, cada empresa tendría
+    que volver a escanear su QR para que sus pedidos vuelvan a llegar. Con
+    veinte empresas eso no es viable, y además el fallo es silencioso: el
+    WhatsApp sigue conectado, simplemente nada llega.
+
+    Solo superadministrador: afecta a todos los tenants a la vez.
+    """
+    if not evo.is_configured():
+        _sin_configurar()
+
+    empresas = db.query(models.Empresa).filter(
+        models.Empresa.whatsapp_instancia.isnot(None)
+    ).all()
+
+    ok, fallidas = 0, []
+    for empresa in empresas:
+        r = evo.configurar_webhook(empresa.id)
+        if r.get("error"):
+            fallidas.append({"empresa_id": empresa.id, "nombre": empresa.nombre,
+                             "error": r["error"]})
+            logger.warning("Webhook no reaplicado en empresa %s: %s",
+                           empresa.id, r["error"])
+        else:
+            ok += 1
+
+    return {"total": len(empresas), "actualizadas": ok, "fallidas": fallidas}
 
 
 # ─── Configuración que usa el bot al responder ────────────────────────────────
