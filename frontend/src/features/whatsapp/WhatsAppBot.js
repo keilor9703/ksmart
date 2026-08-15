@@ -8,11 +8,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box, Paper, Typography, Button, CircularProgress, Chip, Stack, Alert,
-  Divider, TextField, useTheme, useMediaQuery,
+  Divider, TextField, useTheme, useMediaQuery, Switch, FormControlLabel,
 } from '@mui/material';
 import {
   WhatsApp, QrCode2, CheckCircle, LinkOff, Refresh, AutoAwesome, Schedule, Save,
-  SupportAgent,
+  SupportAgent, LocalShipping,
 } from '@mui/icons-material';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
@@ -43,6 +43,7 @@ export default function WhatsAppBot() {
   const [conectando, setConectando] = useState(false);
   const [horario, setHorario]   = useState('');
   const [avisos, setAvisos]     = useState('');
+  const [avisarEstado, setAvisarEstado] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const pollRef = useRef(null);
 
@@ -70,6 +71,7 @@ export default function WhatsAppBot() {
       .then(({ data }) => {
         setHorario(data.horario_atencion || '');
         setAvisos(data.whatsapp_notificaciones || '');
+        setAvisarEstado(!!data.notificar_estado_pedido);
       })
       .catch(() => {});
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
@@ -81,6 +83,7 @@ export default function WhatsAppBot() {
       await apiClient.patch('/whatsapp-bot/config', {
         horario_atencion: horario,
         whatsapp_notificaciones: avisos,
+        notificar_estado_pedido: avisarEstado,
       });
       toast.success('Guardado. El bot ya usará estos datos.');
     } catch (e) {
@@ -299,6 +302,39 @@ export default function WhatsAppBot() {
             onChange={(e) => setAvisos(e.target.value)}
             inputProps={{ maxLength: 20, inputMode: 'tel' }}
           />
+        </Stack>
+
+        <Divider sx={{ my: 2.5 }} />
+
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+          <LocalShipping sx={{ color: GREEN, fontSize: 20 }} />
+          <Typography sx={{ fontWeight: 800, fontSize: 15 }}>
+            Avisar al cliente el estado de su pedido
+          </Typography>
+        </Stack>
+        <Typography sx={{ fontSize: 12.5, color: 'text.secondary', mb: 1 }}>
+          Le escribimos al cliente cuando su pedido pasa a <b>Enviado</b> y
+          cuando queda <b>Entregado</b>. Solo esos dos: son los momentos en que
+          necesita estar pendiente, y escribirle de más desgasta la reputación
+          de tu número ante WhatsApp.
+        </Typography>
+        <FormControlLabel
+          sx={{ mb: 1 }}
+          control={
+            <Switch
+              checked={avisarEstado}
+              onChange={(e) => setAvisarEstado(e.target.checked)}
+              sx={{ '& .Mui-checked': { color: GREEN } }}
+            />
+          }
+          label={
+            <Typography sx={{ fontSize: 13.5 }}>
+              {avisarEstado ? 'Activado' : 'Desactivado'}
+            </Typography>
+          }
+        />
+
+        <Stack direction="row" justifyContent="flex-end">
           <Button
             variant="outlined" onClick={guardarConfig} disabled={guardando}
             startIcon={guardando ? <CircularProgress size={16} /> : <Save />}

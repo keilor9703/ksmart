@@ -244,6 +244,63 @@ def get_stats(db: Session, empresa_id: int) -> dict:
     return result
 
 
+
+
+# ─── Aviso al cliente por WhatsApp ────────────────────────────────────────────
+#
+# Solo dos estados generan aviso. "Confirmado" y "en preparación" no le sirven
+# de nada al cliente —no puede hacer nada con esa información— y cada mensaje
+# saliente no solicitado suma al patrón que WhatsApp castiga restringiendo el
+# número. Se avisa cuando el pedido sale y cuando llega: los dos momentos en
+# los que el cliente sí necesita estar pendiente.
+ESTADOS_QUE_AVISAN = {
+    "enviado":   "🛵 ¡Tu pedido *#{numero}* ya va en camino! Pronto lo recibes.",
+    "entregado": "✅ Tu pedido *#{numero}* fue entregado. ¡Gracias por tu compra!",
+}
+
+
+def _avisar_cambio_estado(db: Session, pedido: models.PedidoVirtual, nuevo_estado: str):
+    """
+    Le avisa al cliente por WhatsApp que su pedido cambió de estado.
+
+    Nunca interrumpe la gestión del pedido: si el WhatsApp de la empresa está
+    caído, si falta el número o si Evolution no responde, se registra y se
+    sigue. El estado del pedido ya quedó guardado — que el aviso falle no
+    puede hacer que el empleado crea que el cambio no se aplicó.
+    """
+    plantilla = ESTADOS_QUE_AVISAN.get(nuevo_estado)
+    if not plantilla:
+        return
+
+    try:
+        empresa = db.query(models.Empresa).filter(
+            models.Empresa.id == pedido.empresa_id
+        ).first()
+        if not empresa or not empresa.notificar_estado_pedido:
+            return
+        if not empresa.whatsapp_instancia:
+            return
+        if not pedido.celular_cliente:
+            return
+
+        from services import evolution_service as evo
+        if not evo.is_configured():
+            return
+
+        r = evo.enviar_texto(
+            empresa.id,
+            pedido.celular_cliente,
+            plantilla.format(numero=pedido.numero_pedido or pedido.id),
+        )
+        if r.get("error"):
+            logger.info(
+                "Aviso de estado no entregado (pedido %s, empresa %s): %s",
+                pedido.id, empresa.id, r["error"],
+            )
+    except Exception:
+        logger.exception("Fallo al avisar el cambio de estado del pedido %s", pedido.id)
+
+
 def update_estado(
     db: Session,
     pedido_id: int,
@@ -278,6 +335,9 @@ def update_estado(
 
     db.commit()
     db.refresh(pedido)
+
+    _avisar_cambio_estado(db, pedido, nuevo_estado)
+
     return pedido
 
 

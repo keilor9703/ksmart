@@ -142,10 +142,33 @@ def eliminar_instancia(empresa_id: int) -> dict:
     return _request("DELETE", f"/instance/delete/{instancia}")
 
 
+def normalizar_numero(numero: str) -> str:
+    """
+    Deja un número en el formato que exige Evolution: solo dígitos, con
+    indicativo de país.
+
+    Los números llegan como los escribió una persona —'312 613 7615',
+    '+57 312...', '(312) 613-7615'— y sin indicativo Evolution responde
+    `exists: false` sin enviar nada. Se asume Colombia (57) para los
+    celulares de 10 dígitos que empiezan por 3, que es el formato nacional;
+    cualquier otra longitud se deja tal cual, porque es preferible fallar
+    visiblemente que reescribir mal un número extranjero.
+    """
+    if not numero:
+        return ""
+    digitos = "".join(c for c in str(numero) if c.isdigit())
+    if len(digitos) == 10 and digitos.startswith("3"):
+        return "57" + digitos
+    return digitos
+
+
 def enviar_texto(empresa_id: int, numero: str, texto: str) -> dict:
     """Envía un mensaje de texto desde el WhatsApp de esa empresa."""
+    destino = numero if "@" in str(numero) else normalizar_numero(numero)
+    if not destino:
+        return {"error": "Número de destino vacío o inválido"}
     return _request(
         "POST",
         f"/message/sendText/{nombre_instancia(empresa_id)}",
-        {"number": numero, "text": texto},
+        {"number": destino, "text": texto},
     )
