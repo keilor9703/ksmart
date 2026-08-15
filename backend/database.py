@@ -2945,6 +2945,19 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v133)
                 logger.info("V133 (whatsapp_notificaciones en empresas) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V134 — Vigilancia de la conexión de WhatsApp. Permite detectar
+            # que la sesión de una empresa se cayó y avisarle, en vez de que
+            # se entere cuando un cliente reclame que nadie le respondió.
+            # ═══════════════════════════════════════════════════════════════
+            migration_v134 = "v134_vigilancia_whatsapp_empresas"
+            if not _migration_already_applied(conn, migration_v134):
+                _add_column_safe(conn, "empresas", "whatsapp_estado", "VARCHAR(20)")
+                _add_column_safe(conn, "empresas", "whatsapp_desconectado_desde", "TIMESTAMP WITH TIME ZONE")
+                _add_column_safe(conn, "empresas", "whatsapp_ultimo_aviso", "TIMESTAMP WITH TIME ZONE")
+                _mark_migration_applied(conn, migration_v134)
+                logger.info("V134 (vigilancia de conexión WhatsApp) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

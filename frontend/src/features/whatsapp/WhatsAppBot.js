@@ -20,6 +20,19 @@ import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
 const GREEN = '#25D366';
 
+// "ayer a las 3:20 p. m." comunica mucho más que una fecha ISO: el negocio
+// necesita dimensionar cuánto tiempo lleva sin responderle a sus clientes.
+function formatearDesde(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return 'hace un rato';
+  const horas = (Date.now() - d.getTime()) / 3600000;
+  const hora = d.toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
+  if (horas < 1) return 'hace menos de una hora';
+  if (horas < 24) return `hoy a las ${hora}`;
+  if (horas < 48) return `ayer a las ${hora}`;
+  return `el ${d.toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })}`;
+}
+
 export default function WhatsAppBot() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -206,6 +219,16 @@ export default function WhatsAppBot() {
             )}
           </Stack>
         </Stack>
+
+        {/* Caída detectada por el monitor: se dice desde cuándo y qué implica,
+            porque un punto rojo no comunica urgencia. */}
+        {!conectado && estado?.desconectado_desde && (
+          <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }}>
+            <b>Desconectado desde {formatearDesde(estado.desconectado_desde)}.</b>{' '}
+            Los clientes que te escriban no están recibiendo respuesta. Vuelve a
+            escanear el código QR para reactivarlo.
+          </Alert>
+        )}
       </Paper>
 
       {/* QR */}

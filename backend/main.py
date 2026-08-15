@@ -446,6 +446,38 @@ async def start_vencimientos_scheduler():
 
     asyncio.create_task(_loop())
 
+
+@app.on_event("startup")
+async def start_whatsapp_monitor():
+    """
+    Vigila las conexiones de WhatsApp de las empresas.
+
+    Una sesión caída es invisible: los clientes escriben, el bot no responde y
+    el negocio se entera por el reclamo. Cada 10 minutos se revisa el estado
+    real y, al detectar una caída, se notifica a los administradores de esa
+    empresa dentro de Ksmart360 (por WhatsApp no se puede: es el canal caído).
+    """
+    import asyncio
+
+    async def _loop():
+        # Espera inicial: al arrancar, Evolution puede no estar listo todavía.
+        await asyncio.sleep(120)
+        while True:
+            db = SessionLocal()
+            try:
+                from services.whatsapp_monitor import revisar_conexiones
+                r = revisar_conexiones(db)
+                if r["avisos"]:
+                    logger.info("Monitor WhatsApp: %s", r)
+            except Exception:
+                logger.exception("Error en el monitor de WhatsApp")
+                db.rollback()
+            finally:
+                db.close()
+            await asyncio.sleep(600)  # 10 minutos
+
+    asyncio.create_task(_loop())
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
