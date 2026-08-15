@@ -219,6 +219,7 @@ def initialize_default_data(db: Session):
         {"name": "Gestión Usuarios",     "description": "Administración de usuarios y roles.",               "frontend_path": "/admin/usuarios"},
         {"name": "Catálogo Virtual",     "description": "Tienda virtual con pedidos por WhatsApp.",          "frontend_path": "/admin/catalogo"},
         {"name": "Pedidos Virtuales",    "description": "Gestión de pedidos recibidos desde la tienda virtual.", "frontend_path": "/pedidos-virtuales"},
+        {"name": "Pedidos por WhatsApp","description": "Bot que recibe pedidos por WhatsApp y los pasa a Pedidos Virtuales.", "frontend_path": "/whatsapp-bot"},
         {"name": "Mapa de Mesas",        "description": "Gestión de mesas y comandas del restaurante.",      "frontend_path": "/restaurante"},
         {"name": "Pantalla Cocina",      "description": "Pantalla de órdenes para el área de cocina.",       "frontend_path": "/restaurante/cocina"},
         {"name": "Config Restaurante",   "description": "Configuración de áreas y mesas.",                   "frontend_path": "/restaurante/config"},
@@ -246,6 +247,8 @@ def initialize_default_data(db: Session):
 
     crud.set_modules_for_role(db, role_id=admin_role.id, module_ids=[m.id for m in created_modules], empresa_id=empresa_default.id)
 
+    _backfill_modulo_whatsapp(db)
+
     superadmin_username = os.getenv("SUPERADMIN_USERNAME", "admin")
     superadmin_password = os.getenv("SUPERADMIN_PASSWORD", "")
     if not superadmin_password:
@@ -259,6 +262,57 @@ def initialize_default_data(db: Session):
             schemas.UserCreate(username=superadmin_username, password=superadmin_password, role_id=admin_role.id),
             empresa_id=empresa_default.id
         )
+
+
+def _backfill_modulo_whatsapp(db: Session):
+    """
+    Da acceso al módulo "Pedidos por WhatsApp" a las empresas que ya lo tenían
+    habilitado desde Clientes SaaS.
+
+    El módulo se agregó al catálogo después de que la funcionalidad existiera,
+    así que habilitarlo a nivel SaaS no bastaba: al no existir la fila en
+    `modulos`, no aparecía en Administración → Roles y no había forma de
+    otorgarlo. Esto cierra ese hueco de una sola vez, sin que el dueño de cada
+    empresa tenga que volver a marcarlo.
+
+    Corre una sola vez (marcador en _schema_meta) y solo sobre empresas que ya
+    pidieron el módulo — nunca lo activa donde no se pidió.
+    """
+    from database import _migration_already_applied, _mark_migration_applied
+
+    marca = "v135_backfill_modulo_whatsapp"
+    try:
+        conn = db.connection()
+        if _migration_already_applied(conn, marca):
+            return
+
+        modulo = crud.get_modulo_by_frontend_path(db, frontend_path="/whatsapp-bot")
+        if not modulo:
+            return
+
+        empresas = db.query(models.Empresa).all()
+        tocadas = 0
+        for empresa in empresas:
+            habilitados = empresa.modulos_habilitados or []
+            if "/whatsapp-bot" not in habilitados:
+                continue
+            roles = db.query(models.Role).filter(
+                models.Role.empresa_id == empresa.id,
+                models.Role.name == "Admin",
+            ).all()
+            for rol in roles:
+                if modulo not in rol.modules:
+                    rol.modules.append(modulo)
+                    tocadas += 1
+
+        _mark_migration_applied(conn, marca)
+        db.commit()
+        if tocadas:
+            logger.info("V135: módulo WhatsApp otorgado a %d roles Admin.", tocadas)
+    except Exception:
+        logger.exception("No se pudo hacer el backfill del módulo de WhatsApp")
+        db.rollback()
+
 
 def run_migrations():
     """Aplica migraciones de columnas nuevas sin romper datos existentes."""
