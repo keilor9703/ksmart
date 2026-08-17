@@ -910,6 +910,15 @@ class LoteProduccionBase(BaseModel):
 class LoteProduccionCreate(LoteProduccionBase):
     numero_lote_produccion: Optional[str] = None
 
+class LoteProduccionUpdate(BaseModel):
+    # Todo opcional: PATCH parcial. Solo aplica mientras la orden sigue
+    # "En producción" — no se puede reasignar la receta (produciría otra
+    # cosa distinta a la que ya se planificó).
+    cantidad_a_producir: Optional[float] = None
+    cliente_id: Optional[int] = None
+    observaciones: Optional[str] = None
+    numero_lote_produccion: Optional[str] = None
+
 class LoteServicioPrecio(BaseModel):
     servicio_id: int
     precio: float

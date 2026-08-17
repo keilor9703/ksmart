@@ -7,6 +7,7 @@ from crud.common import BOGOTA_TZ
 from crud.clientes import get_cliente
 from crud.productos import get_producto
 from crud.inventario import create_movement
+from crud.perecederos import stock_disponible_real
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PRODUCCIÓN - RECETAS Y LOTES
@@ -217,6 +218,49 @@ def create_lote(db: Session, empresa_id: int, lote: schemas.LoteProduccionCreate
     db.refresh(db_lote)
     return db_lote
 
+def update_lote(db: Session, empresa_id: int, lote_id: int, payload: "schemas.LoteProduccionUpdate"):
+    """
+    Edita una orden de producción MIENTRAS SIGUE EN CURSO.
+
+    Solo se puede editar en estado "En produccion" — una vez confirmada o
+    cancelada, la orden ya generó movimientos de inventario/costo y editarla
+    dejaría esos movimientos desalineados con lo que muestra la orden.
+    """
+    db_lote = get_lote(db, empresa_id, lote_id)
+    if not db_lote:
+        raise ValueError("La orden de producción no existe.")
+    if db_lote.estado != "En produccion":
+        raise ValueError(
+            f"No se puede editar: la orden ya está '{db_lote.estado}', no 'En producción'."
+        )
+
+    if payload.cantidad_a_producir is not None:
+        if payload.cantidad_a_producir <= 0:
+            raise ValueError("La cantidad a producir debe ser mayor a cero.")
+        db_lote.cantidad_a_producir = payload.cantidad_a_producir
+
+    if payload.cliente_id is not None:
+        # 0 es la señal del frontend para "volver a Inventario Interno"
+        if payload.cliente_id == 0:
+            interno = get_or_create_cliente_interno(db, empresa_id)
+            db_lote.cliente_id = interno.id
+        else:
+            cliente = get_cliente(db, empresa_id, payload.cliente_id)
+            if not cliente:
+                raise ValueError("Cliente no encontrado o no pertenece a esta empresa")
+            db_lote.cliente_id = payload.cliente_id
+
+    if payload.observaciones is not None:
+        db_lote.observaciones = payload.observaciones
+
+    if payload.numero_lote_produccion is not None:
+        db_lote.numero_lote_produccion = payload.numero_lote_produccion or None
+
+    db.commit()
+    db.refresh(db_lote)
+    return db_lote
+
+
 def get_or_create_cliente_interno(db: Session, empresa_id: int) -> models.Cliente:
     interno = db.query(models.Cliente).filter(
         models.Cliente.cedula == "INTERNO",
@@ -284,10 +328,11 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
         merma_pct = getattr(item, 'merma_pct', 0.0) or 0.0
         factor_merma = 1.0 + (merma_pct / 100.0)
         cantidad_requerida = (item.cantidad / porciones) * cantidad_teorica * factor_merma
-        if (insumo.stock_actual or 0) < cantidad_requerida:
+        disponible_real = stock_disponible_real(db, empresa_id, insumo)
+        if disponible_real < cantidad_requerida:
             raise ValueError(
                 f"Stock insuficiente para: {insumo.nombre}. "
-                f"Req: {round(cantidad_requerida, 4)}, Disp: {insumo.stock_actual or 0}"
+                f"Req: {round(cantidad_requerida, 4)}, Disp: {round(disponible_real, 4)}"
             )
         insumos_plan.append((insumo, cantidad_requerida, item))
 
@@ -448,7 +493,7 @@ def get_simulacion_receta(db: Session, empresa_id: int, receta_id: int, cantidad
         factor = 1.0 + merma_pct / 100.0
         qty_unitaria_con_merma = (item.cantidad / porciones) * factor  # consumo por 1 unidad pedida
         requerido = qty_unitaria_con_merma * cantidad
-        disponible = float(insumo.stock_actual or 0)
+        disponible = stock_disponible_real(db, empresa_id, insumo)
         costo_total += requerido * float(insumo.costo or 0.0)
 
         # Cuántas unidades del lote se pueden producir con este insumo

@@ -172,6 +172,9 @@ export const confirmarLote = (id, payload) =>
 export const cancelarLote = (id) =>
   apiClient.put(`/produccion/lotes/${id}/cancelar`);
 
+export const editarLote = (id, payload) =>
+  apiClient.patch(`/produccion/lotes/${id}`, payload);
+
 // --- API COMPRAS (VIALMAR) ---
 
 export const fetchCompras = (params = {}) =>
