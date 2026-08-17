@@ -833,6 +833,14 @@ class DetalleCompra(Base, TenantMixin):
     iva_porcentaje  = Column(Float, default=0.0)
     variante_id     = Column(Integer, ForeignKey("producto_variantes.id"), nullable=True)
     nombre_variante = Column(String(200), nullable=True)
+    # Datos del lote de perecederos con el que ENTRÓ esta línea. Antes solo
+    # vivían de forma transitoria en el request (se usaban una vez para crear
+    # el LoteExistencia y se perdían) — al editar la compra, el formulario no
+    # tenía de dónde recuperarlos para pre-rellenar ni el backend cómo saber
+    # a qué lote ajustar. Ahora quedan en la propia línea de la compra.
+    numero_lote       = Column(String(100), nullable=True)
+    fecha_vencimiento = Column(Date, nullable=True)
+    fecha_fabricacion = Column(Date, nullable=True)
 
     compra   = relationship("Compra", back_populates="detalles")
     producto = relationship("Producto", foreign_keys=[producto_id])
