@@ -10,10 +10,13 @@ import {
   Add, Cancel, PrecisionManufacturing, Assignment, CheckCircleOutline,
   History, Inventory2, Search, FileDownload
 } from '@mui/icons-material';
-import { fetchLotes, createLote, confirmarLote, cancelarLote, fetchRecetas } from '../../api';
+import { fetchLotes, createLote, confirmarLote, cancelarLote, editarLote, fetchRecetas } from '../../api';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
 import { formatCurrency } from '../../utils/formatters';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import EditIcon from '@mui/icons-material/Edit';
+import SaveIcon from '@mui/icons-material/Save';
 
 const ACCENT  = '#06B6D4';
 const GREEN   = '#10B981';
@@ -82,6 +85,15 @@ const Lotes = () => {
 
   // ── Confirm-cancel dialog (replaces window.confirm)
   const [confirmCancelId, setConfirmCancelId] = useState(null);
+
+  // ── Modal "Ver Detalle" (receta, insumos requeridos vs. stock real, edición)
+  const [openDetalle, setOpenDetalle]   = useState(false);
+  const [detalleLote, setDetalleLote]   = useState(null);
+  const [detalleSim, setDetalleSim]     = useState(null);
+  const [detalleCargando, setDetalleCargando] = useState(false);
+  const [editandoDetalle, setEditandoDetalle] = useState(false);
+  const [editForm, setEditForm]         = useState({ cantidad_a_producir: '', cliente_id: '', observaciones: '', numero_lote_produccion: '' });
+  const [guardandoEdit, setGuardandoEdit] = useState(false);
 
   // ── Búsqueda en tab activo
   const [busquedaActivo, setBusquedaActivo] = useState('');
@@ -181,6 +193,71 @@ const Lotes = () => {
       toast.error('Error al cancelar la orden');
     } finally {
       setConfirmCancelId(null);
+    }
+  };
+
+  // ── "Ver Detalle": qué receta usa esta orden, qué insumos consume y con
+  // qué stock REAL cuenta cada uno (no el agregado que puede incluir lotes
+  // vencidos — ver stock_disponible_real en el backend). Reutiliza el mismo
+  // endpoint de simulación que ya usa el cierre, así que el número que ve el
+  // usuario aquí es exactamente el mismo que decide si puede finalizar.
+  const handleVerDetalle = async (lote) => {
+    setDetalleLote(lote);
+    setDetalleSim(null);
+    setEditandoDetalle(false);
+    setEditForm({
+      cantidad_a_producir:    String(lote.cantidad_a_producir ?? ''),
+      cliente_id:             lote.cliente?.cedula === 'INTERNO' ? '' : (lote.cliente_id ?? ''),
+      observaciones:          lote.observaciones || '',
+      numero_lote_produccion: lote.numero_lote_produccion || '',
+    });
+    setOpenDetalle(true);
+    setDetalleCargando(true);
+    try {
+      const res = await apiClient.get(
+        `/produccion/recetas/${lote.receta_id}/simular?cantidad=${lote.cantidad_a_producir}`
+      );
+      setDetalleSim(res.data);
+    } catch {
+      toast.error('No se pudo cargar el detalle de insumos.');
+    } finally {
+      setDetalleCargando(false);
+    }
+  };
+
+  // Recalcula el detalle cuando el usuario cambia la cantidad en modo edición,
+  // para que la comparación de insumos siga siendo la correcta ANTES de guardar.
+  const refrescarSimulacionEdit = async (cantidad) => {
+    if (!detalleLote || !cantidad || cantidad <= 0) return;
+    try {
+      const res = await apiClient.get(
+        `/produccion/recetas/${detalleLote.receta_id}/simular?cantidad=${cantidad}`
+      );
+      setDetalleSim(res.data);
+    } catch { /* deja el detalle anterior visible */ }
+  };
+
+  const handleGuardarEdicion = async () => {
+    if (!editForm.cantidad_a_producir || Number(editForm.cantidad_a_producir) <= 0) {
+      toast.warning('La cantidad a producir debe ser mayor a cero.');
+      return;
+    }
+    setGuardandoEdit(true);
+    try {
+      const { data: actualizado } = await editarLote(detalleLote.id, {
+        cantidad_a_producir: Number(editForm.cantidad_a_producir),
+        cliente_id: editForm.cliente_id === '' ? 0 : Number(editForm.cliente_id),
+        observaciones: editForm.observaciones,
+        numero_lote_produccion: editForm.numero_lote_produccion || null,
+      });
+      toast.success('Orden de producción actualizada.');
+      setDetalleLote(actualizado);
+      setEditandoDetalle(false);
+      loadData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'No se pudo guardar la edición.');
+    } finally {
+      setGuardandoEdit(false);
     }
   };
 
@@ -518,6 +595,11 @@ const Lotes = () => {
                         </Box>
                       </Box>
                       <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Tooltip title="Ver receta, insumos y stock disponible">
+                          <IconButton onClick={() => handleVerDetalle(l)} sx={{ color: ACCENT, bgcolor: `${ACCENT}12`, borderRadius: 2 }}>
+                            <VisibilityIcon />
+                          </IconButton>
+                        </Tooltip>
                         <Button fullWidth variant="contained" color="success" onClick={() => handleOpenConfirm(l)}
                           sx={{ fontWeight: 600, borderRadius: 2, bgcolor: GREEN, '&:hover': { bgcolor: '#059669' }, boxShadow: 'none' }}>
                           Finalizar Lote
@@ -1163,6 +1245,174 @@ const Lotes = () => {
           >
             {loading ? 'Procesando…' : (simulacionCierre && !simulacionCierre.factible) ? 'Stock insuficiente' : 'Finalizar e Ingresar a Inventario'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ════ MODAL: Ver Detalle / Editar Orden ════ */}
+      <Dialog
+        open={openDetalle}
+        onClose={() => setOpenDetalle(false)}
+        maxWidth="sm" fullWidth
+        fullScreen={isMobile}
+        PaperProps={{ sx: { borderRadius: isMobile ? 0 : 3 } }}
+      >
+        <Box sx={{ height: 4, bgcolor: ACCENT }} />
+        <DialogTitle sx={{ fontWeight: 800, fontSize: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          Detalle de la Orden
+          {detalleLote && !editandoDetalle && (
+            <Tooltip title="Editar orden">
+              <IconButton size="small" onClick={() => setEditandoDetalle(true)} sx={{ color: ACCENT }}>
+                <EditIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+        </DialogTitle>
+
+        <DialogContent dividers sx={{ p: { xs: 2, sm: 3 } }}>
+          {!detalleLote ? null : (
+            <Stack spacing={2.5}>
+              {/* ── Encabezado: orden, receta, producto resultante ── */}
+              <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
+                <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 600 }}>
+                  ORDEN #{detalleLote.numero_orden ?? detalleLote.id}
+                  {detalleLote.numero_lote_produccion ? ` · ${detalleLote.numero_lote_produccion}` : ''}
+                </Typography>
+                <Typography sx={{ fontWeight: 800, fontSize: 18, mt: 0.3 }}>
+                  {detalleLote.receta?.producto_resultante?.nombre}
+                </Typography>
+                <Typography sx={{ fontSize: 12.5, color: 'text.secondary', mt: 0.3 }}>
+                  Receta: <strong>{detalleLote.receta?.nombre}</strong>
+                </Typography>
+              </Box>
+
+              {/* ── Edición (solo si el usuario la activó) ── */}
+              {editandoDetalle ? (
+                <Box sx={{ p: 2, borderRadius: 2, bgcolor: `${ACCENT}0A`, border: '1px solid', borderColor: `${ACCENT}30` }}>
+                  <Typography sx={{ fontSize: 11, fontWeight: 700, color: ACCENT, textTransform: 'uppercase', mb: 1.5 }}>
+                    Editando orden en curso
+                  </Typography>
+                  <Stack spacing={2}>
+                    <TextField
+                      fullWidth type="number" label="Cantidad a Producir *"
+                      value={editForm.cantidad_a_producir}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditForm(f => ({ ...f, cantidad_a_producir: val }));
+                        refrescarSimulacionEdit(Number(val));
+                      }}
+                    />
+                    <TextField select fullWidth label="Destino (Cliente o Bodega)"
+                      value={editForm.cliente_id}
+                      onChange={(e) => setEditForm(f => ({ ...f, cliente_id: e.target.value }))}
+                    >
+                      <MenuItem value="">🏢 Para mi Inventario</MenuItem>
+                      {clientes.map(c => (
+                        <MenuItem key={c.id} value={c.id}>👤 Maquila: {c.nombre}</MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField
+                      fullWidth label="Código de lote interno"
+                      value={editForm.numero_lote_produccion}
+                      onChange={(e) => setEditForm(f => ({ ...f, numero_lote_produccion: e.target.value.toUpperCase() }))}
+                    />
+                    <TextField
+                      fullWidth multiline rows={2} label="Observaciones"
+                      value={editForm.observaciones}
+                      onChange={(e) => setEditForm(f => ({ ...f, observaciones: e.target.value }))}
+                    />
+                  </Stack>
+                  <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+                    <Button
+                      fullWidth variant="outlined"
+                      onClick={() => {
+                        setEditandoDetalle(false);
+                        setEditForm({
+                          cantidad_a_producir:    String(detalleLote.cantidad_a_producir ?? ''),
+                          cliente_id:             detalleLote.cliente?.cedula === 'INTERNO' ? '' : (detalleLote.cliente_id ?? ''),
+                          observaciones:          detalleLote.observaciones || '',
+                          numero_lote_produccion: detalleLote.numero_lote_produccion || '',
+                        });
+                        refrescarSimulacionEdit(detalleLote.cantidad_a_producir);
+                      }}
+                      sx={{ fontWeight: 600 }}
+                    >
+                      Descartar
+                    </Button>
+                    <Button
+                      fullWidth variant="contained" startIcon={<SaveIcon />}
+                      onClick={handleGuardarEdicion}
+                      disabled={guardandoEdit}
+                      sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#0891B2' }, fontWeight: 600 }}
+                    >
+                      {guardandoEdit ? 'Guardando…' : 'Guardar cambios'}
+                    </Button>
+                  </Stack>
+                </Box>
+              ) : (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 1.5, borderRadius: 2, bgcolor: 'background.default' }}>
+                  <Box>
+                    <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Cantidad Solicitada</Typography>
+                    <Typography sx={{ fontWeight: 700, fontSize: 16 }}>
+                      {detalleLote.cantidad_a_producir} {detalleLote.receta?.producto_resultante?.unidad_medida}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ textAlign: 'right' }}>
+                    <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Destino</Typography>
+                    <Typography sx={{ fontWeight: 600, fontSize: 13, color: ACCENT }}>
+                      {(!detalleLote.cliente || detalleLote.cliente.cedula === 'INTERNO') ? 'Inventario Interno' : `Maquila: ${detalleLote.cliente.nombre}`}
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
+
+              {/* ── Insumos: requerido vs. disponible REAL (excluye lotes vencidos) ── */}
+              <Box>
+                <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', mb: 1 }}>
+                  Insumos de la receta
+                </Typography>
+                {detalleCargando ? (
+                  <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }}>Consultando stock…</Typography>
+                ) : detalleSim?.detalle_insumos?.length > 0 ? (
+                  <Stack spacing={0.8}>
+                    {detalleSim.detalle_insumos.map(d => (
+                      <Box key={d.insumo_id} sx={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        p: 1, borderRadius: 1.5,
+                        bgcolor: d.suficiente ? 'background.default' : '#EF44440A',
+                        border: '1px solid', borderColor: d.suficiente ? 'divider' : '#EF444450',
+                      }}>
+                        <Typography sx={{ fontSize: 12.5, color: d.suficiente ? 'text.primary' : '#EF4444', fontWeight: d.suficiente ? 400 : 600 }}>
+                          {d.suficiente ? '✓' : '✗'} {d.nombre}
+                        </Typography>
+                        <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: d.suficiente ? ACCENT : '#EF4444' }}>
+                          {d.requerido} / {d.disponible} {d.unidad}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }}>Esta receta no tiene insumos registrados.</Typography>
+                )}
+                {detalleSim && !detalleSim.factible && (
+                  <Alert severity="warning" sx={{ mt: 1.5, borderRadius: 2, fontSize: 12.5 }}>
+                    Con el stock disponible ahora mismo no se puede finalizar esta orden completa.
+                    Máximo producible: <strong>{Math.floor(detalleSim.cantidad_maxima_producible || 0)}</strong> unidades.
+                  </Alert>
+                )}
+              </Box>
+
+              {detalleLote.observaciones && !editandoDetalle && (
+                <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'background.default' }}>
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 600 }}>Observaciones</Typography>
+                  <Typography sx={{ fontSize: 12.5 }}>{detalleLote.observaciones}</Typography>
+                </Box>
+              )}
+            </Stack>
+          )}
+        </DialogContent>
+
+        <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2 }}>
+          <Button onClick={() => setOpenDetalle(false)} sx={{ color: 'text.secondary', fontWeight: 600 }}>Cerrar</Button>
         </DialogActions>
       </Dialog>
 
