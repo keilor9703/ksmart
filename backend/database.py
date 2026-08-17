@@ -2970,6 +2970,22 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v136)
                 logger.info("V136 (notificar estado de pedido) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V137 — Datos del lote (número, fecha de vencimiento y de
+            # fabricación) en la propia línea de la compra. Antes solo se
+            # usaban una vez para crear el LoteExistencia y se perdían: al
+            # editar la compra, ni el formulario podía pre-rellenarlos ni el
+            # backend sabía a qué lote ajustar — la edición terminaba
+            # tratando un insumo perecedero como uno normal.
+            # ═══════════════════════════════════════════════════════════════
+            migration_v137 = "v137_detalle_compra_lote"
+            if not _migration_already_applied(conn, migration_v137):
+                _add_column_safe(conn, "detalles_compra", "numero_lote", "VARCHAR(100)")
+                _add_column_safe(conn, "detalles_compra", "fecha_vencimiento", "DATE")
+                _add_column_safe(conn, "detalles_compra", "fecha_fabricacion", "DATE")
+                _mark_migration_applied(conn, migration_v137)
+                logger.info("V137 (lote en detalle de compra) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise
