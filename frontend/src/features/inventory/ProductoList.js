@@ -22,6 +22,19 @@ import { alpha } from '@mui/material/styles';
 const DEFAULT_ACCENT  = '#7C3AED';
 const ACCENT2         = '#4F46E5';
 
+// Un producto con variantes no acumula su propio stock_actual (cada
+// movimiento de inventario va a la variante correspondiente) — leer
+// producto.stock_actual directo muestra un valor congelado desde antes de
+// que tuviera variantes. El stock real es la suma de sus variantes activas.
+const getStockTotal = (producto) => {
+  if (producto.tiene_variantes) {
+    return (producto.variantes || [])
+      .filter(v => v.activo !== false)
+      .reduce((sum, v) => sum + (v.stock_actual ?? 0), 0);
+  }
+  return producto.stock_actual ?? 0;
+};
+
 // ─── KPI Card premium ─────────────────────────────────────────────────────────
 const KpiCard = ({ label, value, icon, gradient, sub, trend }) => {
   const theme  = useTheme();
@@ -95,7 +108,7 @@ const ProductoCard = ({ producto, grupos, onEditProducto, handleDelete, accentCo
   const theme  = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
-  const stockActual = producto.stock_actual ?? 0;
+  const stockActual = getStockTotal(producto);
   const stockMinimo = producto.stock_minimo ?? 0;
   const isService   = !!producto.es_servicio;
   const isLow       = !isService && stockActual <= stockMinimo;
@@ -361,9 +374,9 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
       else list = list.filter(p => !p.es_servicio && String(p.grupo_item) === filterGroup);
     }
     if (filterStock !== 'all') {
-      if (filterStock === 'ok')       list = list.filter(p => !p.es_servicio && (p.stock_actual ?? 0) >= (p.stock_minimo ?? 0));
-      else if (filterStock === 'bajo') list = list.filter(p => !p.es_servicio && (p.stock_actual ?? 0) < (p.stock_minimo ?? 0) && (p.stock_actual ?? 0) > 0);
-      else if (filterStock === 'sinStock') list = list.filter(p => !p.es_servicio && (p.stock_actual ?? 0) <= 0);
+      if (filterStock === 'ok')       list = list.filter(p => !p.es_servicio && getStockTotal(p) >= (p.stock_minimo ?? 0));
+      else if (filterStock === 'bajo') list = list.filter(p => !p.es_servicio && getStockTotal(p) < (p.stock_minimo ?? 0) && getStockTotal(p) > 0);
+      else if (filterStock === 'sinStock') list = list.filter(p => !p.es_servicio && getStockTotal(p) <= 0);
     }
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
@@ -385,7 +398,7 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
         return sortDir === 'asc' ? (a.nombre || '').localeCompare(b.nombre || '') : (b.nombre || '').localeCompare(a.nombre || '');
       } else if (sortBy === 'precio') { aVal = a.precio ?? 0; bVal = b.precio ?? 0; }
       else if (sortBy === 'costo')    { aVal = a.costo ?? 0;  bVal = b.costo ?? 0;  }
-      else if (sortBy === 'stock')    { aVal = a.stock_actual ?? 0; bVal = b.stock_actual ?? 0; }
+      else if (sortBy === 'stock')    { aVal = getStockTotal(a); bVal = getStockTotal(b); }
       else { return sortDir === 'asc' ? (a.nombre || '').localeCompare(b.nombre || '') : (b.nombre || '').localeCompare(a.nombre || ''); }
       return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
     });
@@ -393,10 +406,16 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
   }, [filteredProductos, page, rowsPerPage, sortBy, sortDir]);
 
   // ── Stats ────────────────────────────────────────────────────────────────
-  const stockBajo       = productos.filter(p => !p.es_servicio && (p.stock_actual ?? 0) < (p.stock_minimo ?? 0)).length;
+  const stockBajo       = productos.filter(p => !p.es_servicio && getStockTotal(p) < (p.stock_minimo ?? 0)).length;
   const servicios       = productos.filter(p => p.es_servicio).length;
   const productosN      = productos.filter(p => !p.es_servicio).length;
-  const valorInventario = productos.filter(p => !p.es_servicio).reduce((s, p) => s + (p.stock_actual ?? 0) * (p.costo ?? 0), 0);
+  const valorInventario = productos.filter(p => !p.es_servicio).reduce((s, p) => {
+    if (p.tiene_variantes) {
+      return s + (p.variantes || []).filter(v => v.activo !== false)
+        .reduce((sv, v) => sv + (v.stock_actual ?? 0) * (v.costo ?? p.costo ?? 0), 0);
+    }
+    return s + (p.stock_actual ?? 0) * (p.costo ?? 0);
+  }, 0);
 
   // ── Filtros dinámicos ─────────────────────────────────────────────────────
   const groupFilters = [
@@ -410,9 +429,9 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
 
   const stockFilters = [
     { value: 'all',      label: `Todos`,       count: productos.filter(p => !p.es_servicio).length },
-    { value: 'ok',       label: `✓ OK`,        count: productos.filter(p => !p.es_servicio && (p.stock_actual ?? 0) >= (p.stock_minimo ?? 0)).length, color: '#10B981' },
-    { value: 'bajo',     label: `⚠ Bajo`,      count: productos.filter(p => !p.es_servicio && (p.stock_actual ?? 0) < (p.stock_minimo ?? 0) && (p.stock_actual ?? 0) > 0).length, color: '#F59E0B' },
-    { value: 'sinStock', label: `⛔ Sin stock`, count: productos.filter(p => !p.es_servicio && (p.stock_actual ?? 0) <= 0).length, color: '#EF4444' },
+    { value: 'ok',       label: `✓ OK`,        count: productos.filter(p => !p.es_servicio && getStockTotal(p) >= (p.stock_minimo ?? 0)).length, color: '#10B981' },
+    { value: 'bajo',     label: `⚠ Bajo`,      count: productos.filter(p => !p.es_servicio && getStockTotal(p) < (p.stock_minimo ?? 0) && getStockTotal(p) > 0).length, color: '#F59E0B' },
+    { value: 'sinStock', label: `⛔ Sin stock`, count: productos.filter(p => !p.es_servicio && getStockTotal(p) <= 0).length, color: '#EF4444' },
   ];
 
   const mobileSortOptions = [
@@ -720,7 +739,7 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
                     </TableCell>
                   </TableRow>
                 : paginatedProductos.map(producto => {
-                    const stockActual = producto.stock_actual ?? 0;
+                    const stockActual = getStockTotal(producto);
                     const stockMinimo = producto.stock_minimo ?? 0;
                     const isService   = !!producto.es_servicio;
                     const isLow       = !isService && stockActual <= stockMinimo;
