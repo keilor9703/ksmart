@@ -254,8 +254,8 @@ def get_stats(db: Session, empresa_id: int) -> dict:
 # número. Se avisa cuando el pedido sale y cuando llega: los dos momentos en
 # los que el cliente sí necesita estar pendiente.
 ESTADOS_QUE_AVISAN = {
-    "enviado":   "🛵 ¡Tu pedido *#{numero}* ya va en camino! Pronto lo recibes.",
-    "entregado": "✅ Tu pedido *#{numero}* fue entregado. ¡Gracias por tu compra!",
+    "enviado":   "🛵 ¡Tu pedido *#{numero}* ya va en camino! Pronto lo recibes.\n\n_Este es un mensaje automático, no es necesario que respondas._",
+    "entregado": "✅ Tu pedido *#{numero}* fue entregado. ¡Gracias por tu compra!\n\n_Este es un mensaje automático, no es necesario que respondas._",
 }
 
 
@@ -451,6 +451,7 @@ def convertir_a_venta(
     crud_pagos.create_pago(db, empresa_id, pago)
 
     db.refresh(pedido)
+    _avisar_cambio_estado(db, pedido, "entregado")
     return pedido
 
 
