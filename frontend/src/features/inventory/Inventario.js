@@ -21,6 +21,18 @@ const BLUE   = '#3B82F6';
 
 const TODOS_GRUPO = { id: 0, nombre: 'Todos', codigo: 'ALL', color: '#94a3b8' };
 
+// Un producto con variantes no acumula su propio stock_actual (cada
+// movimiento va a la variante correspondiente) — leer producto.stock_actual
+// directo muestra un valor congelado. El stock real es la suma de variantes.
+const getStockTotal = (producto) => {
+  if (producto.tiene_variantes) {
+    return (producto.variantes || [])
+      .filter(v => v.activo !== false)
+      .reduce((sum, v) => sum + (v.stock_actual ?? 0), 0);
+  }
+  return producto.stock_actual ?? 0;
+};
+
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
 const KpiCard = ({ label, value, icon, color, sub }) => (
   <Paper sx={{
@@ -62,7 +74,7 @@ const MiniKpi = ({ label, value, color }) => (
 
 // ─── Card mobile de stock ──────────────────────────────────────────────────────
 const StockCard = ({ producto, grupos }) => {
-  const stock  = producto.stock_actual ?? 0;
+  const stock  = getStockTotal(producto);
   const minimo = producto.stock_minimo ?? 0;
   const low    = stock < minimo;
   const grupo  = grupos.find(g => g.id === producto.grupo_item) || { codigo: '—', color: '#94a3b8' };
@@ -150,8 +162,8 @@ export default function Inventario() {
   const handleRefresh = () => { fetchStock(); fetchGrupos(); };
 
   const soloProductos  = productos.filter(p => !p.es_servicio);
-  const stockBajoCount = soloProductos.filter(p => (p.stock_actual ?? 0) < (p.stock_minimo ?? 0)).length;
-  const valorTotal     = soloProductos.reduce((s, p) => s + (p.stock_actual ?? 0) * p.costo, 0);
+  const stockBajoCount = soloProductos.filter(p => getStockTotal(p) < (p.stock_minimo ?? 0)).length;
+  const valorTotal     = soloProductos.reduce((s, p) => s + getStockTotal(p) * p.costo, 0);
 
   // Products belonging to the selected group (or all if Todos)
   const soloProductosFiltered = useMemo(() => {
@@ -169,8 +181,8 @@ export default function Inventario() {
 
   // Apply stock filter chip
   const filteredBase = useMemo(() => {
-    if (filterStock === 'bajo')     return soloProductosFiltered.filter(p => (p.stock_actual ?? 0) > 0 && (p.stock_actual ?? 0) < (p.stock_minimo ?? 0));
-    if (filterStock === 'sinStock') return soloProductosFiltered.filter(p => (p.stock_actual ?? 0) <= 0);
+    if (filterStock === 'bajo')     return soloProductosFiltered.filter(p => getStockTotal(p) > 0 && getStockTotal(p) < (p.stock_minimo ?? 0));
+    if (filterStock === 'sinStock') return soloProductosFiltered.filter(p => getStockTotal(p) <= 0);
     return soloProductosFiltered;
   }, [soloProductosFiltered, filterStock]);
 
@@ -182,10 +194,10 @@ export default function Inventario() {
         va = a.nombre; vb = b.nombre;
         return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
       }
-      if (sortCol === 'stock')  { va = a.stock_actual ?? 0; vb = b.stock_actual ?? 0; }
+      if (sortCol === 'stock')  { va = getStockTotal(a); vb = getStockTotal(b); }
       if (sortCol === 'minimo') { va = a.stock_minimo ?? 0; vb = b.stock_minimo ?? 0; }
       if (sortCol === 'costo')  { va = a.costo ?? 0;        vb = b.costo ?? 0; }
-      if (sortCol === 'valor')  { va = (a.stock_actual ?? 0) * a.costo; vb = (b.stock_actual ?? 0) * b.costo; }
+      if (sortCol === 'valor')  { va = getStockTotal(a) * a.costo; vb = getStockTotal(b) * b.costo; }
       return sortDir === 'asc' ? va - vb : vb - va;
     });
   }, [filteredBase, sortCol, sortDir]);
@@ -198,8 +210,8 @@ export default function Inventario() {
   const grupoItems = currentGrupo && currentGrupo.id !== 0
     ? soloProductos.filter(p => p.grupo_item === currentGrupo.id)
     : soloProductos;
-  const grupoValor = grupoItems.reduce((s, p) => s + (p.stock_actual ?? 0) * p.costo, 0);
-  const grupoBajo  = grupoItems.filter(p => (p.stock_actual ?? 0) < (p.stock_minimo ?? 0)).length;
+  const grupoValor = grupoItems.reduce((s, p) => s + getStockTotal(p) * p.costo, 0);
+  const grupoBajo  = grupoItems.filter(p => getStockTotal(p) < (p.stock_minimo ?? 0)).length;
 
   const handleGrupoChange = (_, newGrupo) => {
     setCurrentGrupo(newGrupo);
@@ -230,7 +242,7 @@ export default function Inventario() {
     const headers = ['ID', 'Nombre', 'Categoría', 'U.M.', 'Stock', 'Mínimo', 'Costo', 'Valorización', 'Estado'];
     const rows = filteredData.map(p => {
       const grupo = grupos.find(g => g.id === p.grupo_item) || { nombre: '—' };
-      const stock = p.stock_actual ?? 0;
+      const stock = getStockTotal(p);
       return [
         p.id, p.nombre, grupo.nombre, p.unidad_medida,
         stock, p.stock_minimo ?? 0, p.costo,
@@ -309,7 +321,7 @@ export default function Inventario() {
                 );
               }
               const bajos = soloProductos.filter(p => p.grupo_item === g.id)
-                .filter(p => (p.stock_actual ?? 0) < (p.stock_minimo ?? 0)).length;
+                .filter(p => getStockTotal(p) < (p.stock_minimo ?? 0)).length;
               return (
                 <Box component="li" {...props} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: '10px !important' }}>
                   <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: g.color, flexShrink: 0 }} />
@@ -418,8 +430,8 @@ export default function Inventario() {
               <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap', mb: 2 }}>
                 {[
                   { key: 'all',      label: 'Todos',      count: soloProductosFiltered.length },
-                  { key: 'bajo',     label: 'Stock bajo', count: soloProductosFiltered.filter(p => (p.stock_actual ?? 0) > 0 && (p.stock_actual ?? 0) < (p.stock_minimo ?? 0)).length },
-                  { key: 'sinStock', label: 'Sin stock',  count: soloProductosFiltered.filter(p => (p.stock_actual ?? 0) <= 0).length },
+                  { key: 'bajo',     label: 'Stock bajo', count: soloProductosFiltered.filter(p => getStockTotal(p) > 0 && getStockTotal(p) < (p.stock_minimo ?? 0)).length },
+                  { key: 'sinStock', label: 'Sin stock',  count: soloProductosFiltered.filter(p => getStockTotal(p) <= 0).length },
                 ].map(({ key, label, count }) => (
                   <Chip
                     key={key}
@@ -469,7 +481,7 @@ export default function Inventario() {
                             No hay productos en esta categoría
                           </TableCell></TableRow>
                         : paginatedData.map(p => {
-                            const stock  = p.stock_actual ?? 0;
+                            const stock  = getStockTotal(p);
                             const minimo = p.stock_minimo ?? 0;
                             const low    = stock < minimo;
                             const grupo  = grupos.find(g => g.id === p.grupo_item) || { codigo: '—', color: '#94a3b8' };
