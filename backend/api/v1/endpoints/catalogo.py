@@ -201,7 +201,7 @@ def resolver_empresa_por_instancia(
 # exige un contador compartido entre ejecuciones, y el almacenamiento estático
 # de n8n no lo es. Aquí sí: un único proceso, un único diccionario.
 
-# {(instancia, destino): (marca, expira_en)}
+# {(instancia, destino): (marca, expira_en, [mensajes_acumulados])}
 _ultimo_mensaje: dict = {}
 _DEBOUNCE_TTL = 300  # 5 min: más que suficiente para cualquier espera del flujo
 
@@ -237,7 +237,14 @@ def marcar_mensaje(
     if anterior and anterior[0] >= marca:
         marca = anterior[0] + 1
 
-    _ultimo_mensaje[clave] = (marca, ahora + _DEBOUNCE_TTL)
+    # Si dentro de la misma ventana de espera llegan varios mensajes seguidos
+    # ("quiero 2 chocolatinas" / "y una gaseosa"), se acumulan aquí: solo la
+    # ejecución del último los ve todos, las anteriores se descartan en
+    # es_ultimo_mensaje() sin haber usado su texto.
+    mensajes_previos = anterior[2] if anterior else []
+    mensajes = mensajes_previos + ([payload.mensaje] if payload.mensaje else [])
+
+    _ultimo_mensaje[clave] = (marca, ahora + _DEBOUNCE_TTL, mensajes)
     return {"marca": marca}
 
 
@@ -259,7 +266,12 @@ def es_ultimo_mensaje(
     # Si no hay registro (reinicio del backend, TTL vencido) se deja pasar:
     # ante la duda, es preferible responderle al cliente que dejarlo sin nada.
     es_ultimo = actual is None or actual[0] == payload.marca
-    return {"es_ultimo": es_ultimo}
+    mensaje_acumulado = "\n".join(actual[2]) if actual and actual[2] else None
+    if es_ultimo and actual:
+        # Ya se le entregó el texto acumulado al ganador: limpiar para que la
+        # próxima tanda de mensajes de este cliente empiece de cero.
+        _ultimo_mensaje.pop(clave, None)
+    return {"es_ultimo": es_ultimo, "mensaje_acumulado": mensaje_acumulado}
 
 
 @router.get("/{slug}", response_model=schemas.CatalogoPublicoOut)

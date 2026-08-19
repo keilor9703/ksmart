@@ -2667,8 +2667,10 @@ class PedidoRestauranteCreatedOut(BaseModel):
 class DebounceMarcarIn(BaseModel):
     # Identificador del chat tal como llega de WhatsApp (jid completo).
     destino: str = Field(..., min_length=3, max_length=100)
+    mensaje: Optional[str] = Field(None, max_length=4000)
 
-class DebounceVerificarIn(DebounceMarcarIn):
+class DebounceVerificarIn(BaseModel):
+    destino: str = Field(..., min_length=3, max_length=100)
     marca: int
 
 
