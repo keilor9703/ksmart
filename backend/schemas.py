@@ -374,6 +374,20 @@ class ProductoVarianteCreate(ProductoVarianteBase):
     sku: Optional[str] = None
     stock_inicial: float = 0.0
 
+class VariantesGenerarValorIn(BaseModel):
+    valor: str = Field(..., min_length=1, max_length=100)
+    stock_inicial: float = 0.0
+
+class VariantesGenerarIn(BaseModel):
+    # Nombre del atributo que varía, ej: "Talla", "Color".
+    atributo: str = Field(..., min_length=1, max_length=50)
+    valores: List[VariantesGenerarValorIn] = Field(..., min_length=1)
+    # Compartidos por todas las variantes generadas.
+    precio: Optional[float] = None
+    costo: Optional[float] = None
+    stock_minimo: float = 0.0
+    atributos_comunes: dict = {}
+
 class ProductoVarianteUpdate(BaseModel):
     nombre: Optional[str] = None
     atributos: Optional[dict] = None

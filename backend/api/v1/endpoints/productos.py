@@ -205,6 +205,22 @@ def crear_variante(
         raise HTTPException(status_code=404, detail=str(e))
 
 
+@router.post("/{producto_id}/variantes/generar", response_model=List[schemas.ProductoVarianteOut])
+def generar_variantes(
+    producto_id: int,
+    payload: schemas.VariantesGenerarIn,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Genera varias variantes en un solo paso a partir de un atributo
+    (ej. "Talla") y una lista de valores, compartiendo precio/costo/stock
+    mínimo — evita repetir el formulario completo por cada valor."""
+    try:
+        return crud.generar_variantes(db, empresa_id=current_user.empresa_id, producto_id=producto_id, payload=payload)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @router.get("/{producto_id}/variantes", response_model=List[schemas.ProductoVarianteOut])
 def listar_variantes(
     producto_id: int,

@@ -296,6 +296,9 @@ const ProductoForm = ({
   const [varianteEditing,   setVarianteEditing]   = useState(null);
   const [varianteForm,      setVarianteForm]      = useState({ nombre: '', sku: '', atributos: {}, precio: '', costo: '', stock_inicial: '' });
   const [skuPreview,        setSkuPreview]        = useState('');
+  const [generarDialog,     setGenerarDialog]     = useState(false);
+  const [generarForm,       setGenerarForm]       = useState({ atributo: '', valores: '', precio: '', costo: '', stock_minimo: '' });
+  const [generandoVariantes, setGenerandoVariantes] = useState(false);
 
   // ── Lifecycle (unchanged) ──
   useEffect(() => {
@@ -601,6 +604,31 @@ const ProductoForm = ({
       setVarianteForm({ nombre: '', sku: '', atributos: {}, precio: '', costo: '', stock_inicial: '' });
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al guardar la variante');
+    }
+  };
+
+  const handleGenerarVariantes = async () => {
+    if (!generarForm.atributo.trim()) { toast.warning('Escribe el nombre del atributo (ej: Talla)'); return; }
+    const valores = generarForm.valores.split(',').map(v => v.trim()).filter(Boolean);
+    if (!valores.length) { toast.warning('Escribe al menos un valor, separado por comas'); return; }
+    const payload = {
+      atributo: generarForm.atributo.trim(),
+      valores: valores.map(v => ({ valor: v, stock_inicial: 0 })),
+      precio: generarForm.precio ? parseFloat(generarForm.precio) : null,
+      costo: generarForm.costo ? parseFloat(generarForm.costo) : null,
+      stock_minimo: parseFloat(generarForm.stock_minimo) || 0,
+    };
+    setGenerandoVariantes(true);
+    try {
+      const res = await apiClient.post(`/productos/${productoToEdit.id}/variantes/generar`, payload);
+      setVariantes(prev => [...prev, ...res.data]);
+      toast.success(`${res.data.length} variantes generadas`);
+      setGenerarDialog(false);
+      setGenerarForm({ atributo: '', valores: '', precio: '', costo: '', stock_minimo: '' });
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al generar las variantes');
+    } finally {
+      setGenerandoVariantes(false);
     }
   };
 
@@ -1236,12 +1264,28 @@ const ProductoForm = ({
                       <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.secondary' }}>
                         {variantes.length} variante{variantes.length !== 1 ? 's' : ''} registrada{variantes.length !== 1 ? 's' : ''}
                       </Typography>
-                      <Button size="small" startIcon={<Add />} variant="outlined"
-                        onClick={() => { setVarianteEditing(null); setVarianteForm({ nombre: '', sku: '', atributos: {}, precio: '', costo: '', stock_inicial: '' }); setVarianteDialog(true); }}
-                        sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700 }}>
-                        Agregar variante
-                      </Button>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button size="small" startIcon={<Tune fontSize="small" />} variant="contained"
+                          onClick={() => { setGenerarForm({ atributo: '', valores: '', precio: '', costo: '', stock_minimo: '' }); setGenerarDialog(true); }}
+                          sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700 }}>
+                          Generar en lote
+                        </Button>
+                        <Button size="small" startIcon={<Add />} variant="outlined"
+                          onClick={() => { setVarianteEditing(null); setVarianteForm({ nombre: '', sku: '', atributos: {}, precio: '', costo: '', stock_inicial: '' }); setVarianteDialog(true); }}
+                          sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700 }}>
+                          Agregar variante
+                        </Button>
+                      </Box>
                     </Box>
+                    {variantes.length === 0 && (
+                      <Box sx={{ mb: 1.5, p: 1.5, bgcolor: alpha(accentColor, 0.06), borderRadius: 2 }}>
+                        <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                          💡 Si lo que varía es una sola característica (talla, color, presentación...),
+                          usa <b>"Generar en lote"</b>: escribe el atributo una vez (ej. "Talla") y todos
+                          sus valores (ej. "35, 36, 37, 38"), y se crean todas las variantes de una sola vez.
+                        </Typography>
+                      </Box>
+                    )}
                     {variantes.length > 0 && (
                       <Box sx={{
                         borderRadius: 2.5, border: '1px solid', borderColor: 'divider',
@@ -1699,6 +1743,60 @@ const ProductoForm = ({
             }}
           >
             {varianteEditing ? '✓ Guardar cambios' : '+ Agregar variante'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Generación en lote de variantes ── */}
+      <Dialog open={generarDialog} onClose={() => setGenerarDialog(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800 }}>Generar variantes en lote</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 0.5 }}>
+            <Grid item xs={12}>
+              <TextField fullWidth label="Atributo *" placeholder="Ej: Talla, Color, Presentación"
+                value={generarForm.atributo}
+                onChange={e => setGenerarForm(p => ({ ...p, atributo: e.target.value }))}
+                helperText="La característica que varía entre estas variantes"
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField fullWidth label="Valores *" placeholder="Ej: 35, 36, 37, 38, 39"
+                value={generarForm.valores}
+                onChange={e => setGenerarForm(p => ({ ...p, valores: e.target.value }))}
+                helperText="Sepáralos por comas — se crea una variante por cada valor"
+                multiline minRows={2}
+              />
+            </Grid>
+            <Grid item xs={6}>
+              <CurrencyField label="Precio (opcional)" value={generarForm.precio}
+                onChange={val => setGenerarForm(p => ({ ...p, precio: val }))} />
+            </Grid>
+            <Grid item xs={6}>
+              <CurrencyField label="Costo (opcional)" value={generarForm.costo}
+                onChange={val => setGenerarForm(p => ({ ...p, costo: val }))} />
+            </Grid>
+            <Grid item xs={12}>
+              <Typography sx={{ fontSize: 11.5, color: 'text.secondary' }}>
+                Todas las variantes se crean con stock inicial en 0 — ajusta el stock de cada una
+                después desde la tabla de variantes o desde una compra/ajuste de inventario.
+              </Typography>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+          <Button onClick={() => setGenerarDialog(false)}
+            sx={{ textTransform: 'none', borderRadius: 2.5, fontWeight: 600, color: 'text.secondary' }}>
+            Cancelar
+          </Button>
+          <Button variant="contained" onClick={handleGenerarVariantes}
+            disabled={generandoVariantes || !generarForm.atributo.trim() || !generarForm.valores.trim()}
+            sx={{
+              textTransform: 'none', fontWeight: 700, borderRadius: 2.5, px: 3, py: 1,
+              background: `linear-gradient(135deg, ${accentColor} 0%, #4F46E5 100%)`,
+              boxShadow: `0 4px 14px ${alpha(accentColor, 0.45)}`,
+              '&:disabled': { background: 'rgba(0,0,0,0.12)', boxShadow: 'none' },
+            }}>
+            {generandoVariantes ? 'Generando…' : '+ Generar variantes'}
           </Button>
         </DialogActions>
       </Dialog>
