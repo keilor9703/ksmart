@@ -195,6 +195,7 @@ class BotConfigIn(BaseModel):
     horario_atencion: Optional[str] = None
     whatsapp_notificaciones: Optional[str] = None
     notificar_estado_pedido: Optional[bool] = None
+    mensaje_bienvenida_bot: Optional[str] = None
 
 
 @router.get("/config")
@@ -209,6 +210,7 @@ def get_config(
         "whatsapp_pedidos": empresa.whatsapp_pedidos,
         "whatsapp_notificaciones": empresa.whatsapp_notificaciones,
         "notificar_estado_pedido": bool(empresa.notificar_estado_pedido),
+        "mensaje_bienvenida_bot": empresa.mensaje_bienvenida_bot,
     }
 
 
@@ -234,10 +236,13 @@ def update_config(
         )
     if payload.notificar_estado_pedido is not None:
         empresa.notificar_estado_pedido = payload.notificar_estado_pedido
+    if payload.mensaje_bienvenida_bot is not None:
+        empresa.mensaje_bienvenida_bot = payload.mensaje_bienvenida_bot.strip()[:300] or None
     db.add(empresa)
     db.commit()
     return {
         "horario_atencion": empresa.horario_atencion,
         "whatsapp_notificaciones": empresa.whatsapp_notificaciones,
         "notificar_estado_pedido": bool(empresa.notificar_estado_pedido),
+        "mensaje_bienvenida_bot": empresa.mensaje_bienvenida_bot,
     }

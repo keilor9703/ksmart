@@ -2986,6 +2986,17 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v137)
                 logger.info("V137 (lote en detalle de compra) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V138 — Saludo personalizado del bot de WhatsApp. Si la empresa
+            # lo deja vacío, la automatización sigue usando el saludo
+            # genérico por defecto — es opt-in, no rompe a nadie.
+            # ═══════════════════════════════════════════════════════════════
+            migration_v138 = "v138_mensaje_bienvenida_bot"
+            if not _migration_already_applied(conn, migration_v138):
+                _add_column_safe(conn, "empresas", "mensaje_bienvenida_bot", "VARCHAR(300)")
+                _mark_migration_applied(conn, migration_v138)
+                logger.info("V138 (saludo personalizado del bot) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

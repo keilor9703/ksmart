@@ -66,6 +66,10 @@ class Empresa(Base):
     # Apagado por defecto: cada mensaje saliente no solicitado suma al patrón
     # que WhatsApp castiga, así que es una decisión consciente del negocio.
     notificar_estado_pedido   = Column(Boolean, default=False)
+    # Saludo personalizado del bot en el primer mensaje de cada cliente.
+    # Vacío/NULL = usa el saludo genérico por defecto que ya trae la
+    # automatización; si la empresa lo llena, el bot lo usa tal cual.
+    mensaje_bienvenida_bot    = Column(String(300), nullable=True)
     logo_base64       = Column(Text, nullable=True) # WebP comprimido
     instagram_url     = Column(String(300), nullable=True)
     facebook_url      = Column(String(300), nullable=True)

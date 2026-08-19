@@ -43,6 +43,7 @@ export default function WhatsAppBot() {
   const [conectando, setConectando] = useState(false);
   const [horario, setHorario]   = useState('');
   const [avisos, setAvisos]     = useState('');
+  const [saludo, setSaludo]     = useState('');
   const [avisarEstado, setAvisarEstado] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const pollRef = useRef(null);
@@ -72,6 +73,7 @@ export default function WhatsAppBot() {
         setHorario(data.horario_atencion || '');
         setAvisos(data.whatsapp_notificaciones || '');
         setAvisarEstado(!!data.notificar_estado_pedido);
+        setSaludo(data.mensaje_bienvenida_bot || '');
       })
       .catch(() => {});
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
@@ -84,6 +86,7 @@ export default function WhatsAppBot() {
         horario_atencion: horario,
         whatsapp_notificaciones: avisos,
         notificar_estado_pedido: avisarEstado,
+        mensaje_bienvenida_bot: saludo,
       });
       toast.success('Guardado. El bot ya usará estos datos.');
     } catch (e) {
@@ -258,6 +261,28 @@ export default function WhatsAppBot() {
           </Alert>
         </Paper>
       )}
+
+      {/* Saludo de bienvenida */}
+      <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, mb: 3 }}>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+          <SupportAgent sx={{ color: GREEN, fontSize: 20 }} />
+          <Typography sx={{ fontWeight: 800, fontSize: 15 }}>Saludo de bienvenida</Typography>
+        </Stack>
+        <Typography sx={{ fontSize: 12.5, color: 'text.secondary', mb: 2 }}>
+          Así saluda el bot al primer mensaje de cada cliente nuevo. Si lo dejas
+          vacío, usa el saludo genérico por defecto.
+        </Typography>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+          <TextField
+            fullWidth size="small" multiline minRows={2}
+            placeholder="Ej: ¡Hola! Bienvenido a Vialmar Cacao 🍫 ¿En qué te puedo ayudar hoy?"
+            value={saludo}
+            onChange={(e) => setSaludo(e.target.value)}
+            inputProps={{ maxLength: 300 }}
+            helperText={`${saludo.length}/300`}
+          />
+        </Stack>
+      </Paper>
 
       {/* Horario de atención */}
       <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, mb: 3 }}>

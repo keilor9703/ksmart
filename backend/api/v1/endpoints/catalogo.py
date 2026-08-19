@@ -188,6 +188,9 @@ def resolver_empresa_por_instancia(
         "instagram": empresa.instagram_url,
         "facebook": empresa.facebook_url,
         "catalogo_url": f"https://catalogo.ksmart360.com/{empresa.slug_catalogo}",
+        # Saludo personalizado del bot: si la empresa no lo configuró, viene
+        # null y la automatización debe usar su saludo genérico por defecto.
+        "mensaje_bienvenida": empresa.mensaje_bienvenida_bot,
     }
 
 
