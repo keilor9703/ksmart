@@ -54,7 +54,18 @@ def sku_exists(db: Session, empresa_id: int, sku: str, exclude_id: int = None) -
     )
     if exclude_id:
         q = q.filter(models.Producto.id != exclude_id)
-    return q.first() is not None
+    if q.first() is not None:
+        return True
+    # El SKU de una variante vive en la misma "familia" de SKUs que los
+    # productos — sin este chequeo, _generate_smart_sku podía repetir un SKU
+    # que ya usaba OTRA variante (de este producto o de otro).
+    qv = db.query(models.ProductoVariante).filter(
+        models.ProductoVariante.empresa_id == empresa_id,
+        models.ProductoVariante.sku == sku,
+    )
+    if exclude_id:
+        qv = qv.filter(models.ProductoVariante.id != exclude_id)
+    return qv.first() is not None
 
 
 def attach_costo_produccion(db: Session, empresa_id: int, productos: list):
@@ -324,6 +335,10 @@ def generar_variantes(db: Session, empresa_id: int, producto_id: int, payload: s
             activo       = True,
         )
         db.add(variante)
+        # Flush ya mismo: si dos filas de este mismo lote generan el mismo SKU
+        # candidato (ej. dos valores que truncan igual), la siguiente iteración
+        # de _generate_smart_sku debe poder ver esta variante para detectarlo.
+        db.flush()
         creadas.append(variante)
 
     prod.tiene_variantes = True
