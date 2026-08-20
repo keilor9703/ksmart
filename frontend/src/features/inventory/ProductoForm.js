@@ -25,9 +25,9 @@ import {
 } from '@mui/icons-material';
 
 import { UNIDADES_MEDIDA } from '../../utils/constants';
+import { onScanFisico } from '../../utils/sunmiScanner';
 
 const ATRIBUTOS_SUGERIDOS = ['Talla', 'Color', 'Tamaño', 'Peso', 'Presentación', 'Material', 'Sabor'];
-import { onScanFisico } from '../../utils/sunmiScanner';
 
 const DEFAULT_ACCENT  = '#8B5CF6';
 const PRICE_COLOR     = '#F43F5E';
