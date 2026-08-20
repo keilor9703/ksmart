@@ -377,12 +377,17 @@ class ProductoVarianteCreate(ProductoVarianteBase):
 class VariantesGenerarValorIn(BaseModel):
     valor: str = Field(..., min_length=1, max_length=100)
     stock_inicial: float = 0.0
+    # Si vienen, mandan sobre el precio/costo compartido de la solicitud —
+    # permite que cada fila de la tabla (ej. cada talla) tenga su propio
+    # costo/precio cuando no todas cuestan igual.
+    precio: Optional[float] = None
+    costo: Optional[float] = None
 
 class VariantesGenerarIn(BaseModel):
     # Nombre del atributo que varía, ej: "Talla", "Color".
     atributo: str = Field(..., min_length=1, max_length=50)
     valores: List[VariantesGenerarValorIn] = Field(..., min_length=1)
-    # Compartidos por todas las variantes generadas.
+    # Usados como default para las filas que no traigan su propio precio/costo.
     precio: Optional[float] = None
     costo: Optional[float] = None
     stock_minimo: float = 0.0
