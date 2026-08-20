@@ -27,6 +27,7 @@ from crud.clientes import (
 from crud.productos import (
     get_producto, get_productos, create_producto, update_producto, delete_producto,
     sku_exists, create_variante, list_variantes, update_variante, delete_variante,
+    generar_variantes,
 )
 
 from crud.ventas import (
