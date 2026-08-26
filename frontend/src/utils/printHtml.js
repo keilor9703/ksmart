@@ -1,15 +1,47 @@
 // Impresión de comprobantes HTML segura para TODA la app.
 //
-// Problema que resuelve: dentro del WebView de la app instalada (Capacitor),
-// window.open('about:blank' | '') NO abre una pestaña nueva: navega el MISMO
-// WebView a una página en blanco sin barra de navegación → la app queda
-// "bloqueada" y solo se recupera cerrándola. En navegador normal sí funciona.
+// Problemas que resuelve:
+//  1. window.open('about:blank' | '') dentro del WebView de la app instalada
+//     (Capacitor) NO abre una pestaña nueva: navega el MISMO WebView a una
+//     página en blanco sin barra de navegación → la app queda "bloqueada" y
+//     solo se recupera cerrándola. En navegador normal sí funciona.
+//  2. window.print() (usado antes vía iframe oculto) simplemente NO HACE
+//     NADA dentro del WebView nativo de Android — a diferencia de un
+//     navegador de escritorio, el WebView no implementa la API de impresión.
+//     El botón parecía "no responder".
 //
 // Estrategia:
-//  - App nativa  → iframe oculto SIEMPRE (no navega, no bloquea).
+//  - App nativa  → se comparte el comprobante con el selector nativo de
+//                  Android (Share), que sí permite imprimir (si hay un
+//                  servicio de impresión instalado), enviarlo por WhatsApp,
+//                  guardarlo, etc. Si el share falla, cae a iframe+print
+//                  como último recurso (no navega, no bloquea, aunque en
+//                  muchos WebView no haga nada visible).
 //  - Navegador   → ventana nueva (mejor para guardar PDF en móvil) con
 //                  fallback a iframe si el popup es bloqueado.
 import { Capacitor } from '@capacitor/core';
+
+async function printViaShareNative(html) {
+  try {
+    const { Filesystem, Directory, Encoding } = await import('@capacitor/filesystem');
+    const { Share } = await import('@capacitor/share');
+    const fileName = `comprobante-${Date.now()}.html`;
+    const { uri } = await Filesystem.writeFile({
+      path: fileName,
+      data: html,
+      directory: Directory.Cache,
+      encoding: Encoding.UTF8,
+    });
+    await Share.share({
+      title: 'Comprobante de venta',
+      dialogTitle: 'Imprimir o compartir comprobante',
+      url: uri,
+    });
+  } catch (e) {
+    console.warn('printHtml: no se pudo compartir el comprobante, se intenta imprimir directo', e);
+    printViaIframe(html);
+  }
+}
 
 function printViaIframe(html) {
   const iframe = document.createElement('iframe');
@@ -52,7 +84,7 @@ function printViaWindow(html, features) {
  */
 export function printHtml(html, features) {
   if (Capacitor.isNativePlatform()) {
-    printViaIframe(html);
+    printViaShareNative(html);
     return;
   }
   printViaWindow(html, features);
