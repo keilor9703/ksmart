@@ -87,11 +87,13 @@ export default function Terceros() {
 
   useEffect(() => { fetchAll(); }, []);
 
-  const stats = useMemo(() => ({
-    totalClientes:   clientes.filter(c => c.es_cliente).length,
-    totalProveedores: clientes.filter(c => c.es_proveedor).length,
-    totalDuales:     clientes.filter(c => c.es_cliente && c.es_proveedor).length,
-  }), [clientes]);
+  const stats = useMemo(() => clientes.reduce((acc, c) => {
+    if (c.es_cliente) acc.totalClientes++;
+    if (c.es_proveedor) acc.totalProveedores++;
+    if (c.es_cliente && c.es_proveedor) acc.totalDuales++;
+    if (c.es_cliente && c.cupo_credito > 0) acc.totalConCredito++;
+    return acc;
+  }, { totalClientes: 0, totalProveedores: 0, totalDuales: 0, totalConCredito: 0 }), [clientes]);
 
   const handleEdit = (cliente) => {
     setClienteToEdit(cliente);
@@ -176,12 +178,12 @@ export default function Terceros() {
         </Box>
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Tooltip title="Actualizar datos">
-            <IconButton onClick={fetchAll} size="small" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+            <IconButton onClick={fetchAll} size="small" aria-label="Actualizar datos" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
               <Refresh fontSize="small" />
             </IconButton>
           </Tooltip>
           <Tooltip title="Exportar listado a CSV">
-            <IconButton onClick={exportCSV} size="small" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+            <IconButton onClick={exportCSV} size="small" aria-label="Exportar listado a CSV" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
               <FileDownload fontSize="small" />
             </IconButton>
           </Tooltip>
@@ -209,7 +211,7 @@ export default function Terceros() {
             icon={<People />}
             color={ACCENT}
             loading={loadingStats}
-            sub={`${clientes.filter(c => c.es_cliente && c.cupo_credito > 0).length} con crédito`}
+            sub={`${stats.totalConCredito} con crédito`}
           />
         </Grid>
         <Grid item xs={6} sm={3}>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, Paper, Button, CircularProgress, Chip, Divider,
-  Stack, TextField, useTheme, alpha, IconButton, Tooltip, Alert,
+  Stack, TextField, useTheme, useMediaQuery, alpha, IconButton, Tooltip, Alert,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Dialog, DialogTitle, DialogContent, DialogActions,
 } from '@mui/material';
@@ -15,9 +15,17 @@ import apiClient from '../../api';
 const ACCENT = '#0891B2';
 
 const fmt = (n) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n || 0);
-const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+// 'YYYY-MM-DD' se descompone como fecha LOCAL: new Date(iso) parsea medianoche
+// UTC y mostraba el día anterior en la confirmación del cierre.
+const fmtDate = (iso) => {
+  if (!iso) return '—';
+  const [y, m, d] = String(iso).split('T')[0].split('-').map(Number);
+  return new Date(y, (m || 1) - 1, d || 1).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+};
 const fmtDateTime = (iso) => iso ? new Date(iso).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
-const toIso = (d) => d.toISOString().split('T')[0];
+// Día local (en-CA = YYYY-MM-DD). toISOString() es UTC y a partir de las 7pm
+// en Colombia devolvía el día SIGUIENTE — el cierre se abría en un día vacío.
+const toIso = (d) => d.toLocaleDateString('en-CA');
 const copy = (t) => navigator.clipboard?.writeText(t).then(() => toast.success('Copiado'));
 
 function ChipFE({ estado }) {
@@ -28,6 +36,7 @@ function ChipFE({ estado }) {
 
 export default function ParqueaderoCierreFE({ user }) {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const feActiva = user?.empresa?.facturacion_electronica_activa;
 
   const [fecha, setFecha] = useState(toIso(new Date()));
@@ -155,7 +164,7 @@ export default function ParqueaderoCierreFE({ user }) {
               disabled={emitiendo}
               startIcon={emitiendo ? <CircularProgress size={18} color="inherit" /> : <Receipt />}
               onClick={() => setConfirmOpen(true)}
-              sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#E8531A' }, fontWeight: 800, borderRadius: 2.5, py: 1.2 }}
+              sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' }, fontWeight: 800, borderRadius: 2.5, py: 1.2 }}
             >
               Emitir FE consolidada del día
             </Button>
@@ -183,6 +192,34 @@ export default function ParqueaderoCierreFE({ user }) {
         <Paper elevation={0} sx={{ p: 4, textAlign: 'center', border: '1px dashed', borderColor: 'divider', borderRadius: 3 }}>
           <Typography color="text.secondary" fontSize={13}>Aún no has emitido cierres consolidados.</Typography>
         </Paper>
+      ) : isMobile ? (
+        // En celular la tabla no cabe: cada cierre se muestra como tarjeta.
+        <Stack spacing={1.5}>
+          {cierres.map(c => (
+            <Paper key={c.id} elevation={0} sx={{ p: 1.75, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontSize: 12.5, fontWeight: 600 }}>{fmtDateTime(c.fecha)}</Typography>
+                  <Box sx={{ mt: 0.5 }}><ChipFE estado={c.estado_fe} /></Box>
+                  {c.numero_factura && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                      <Typography sx={{ fontSize: 11.5, color: 'text.secondary' }} noWrap>Fact: {c.numero_factura}</Typography>
+                      <IconButton size="small" onClick={() => copy(c.numero_factura)}><ContentCopy sx={{ fontSize: 13 }} /></IconButton>
+                    </Box>
+                  )}
+                </Box>
+                <Stack alignItems="flex-end" spacing={0.5} sx={{ flexShrink: 0 }}>
+                  <Typography sx={{ fontWeight: 800, fontSize: 15 }}>{fmt(c.total)}</Typography>
+                  {c.pdf_url && (
+                    <IconButton size="small" component="a" href={c.pdf_url} target="_blank" sx={{ color: '#3B82F6' }}>
+                      <PictureAsPdf sx={{ fontSize: 18 }} />
+                    </IconButton>
+                  )}
+                </Stack>
+              </Stack>
+            </Paper>
+          ))}
+        </Stack>
       ) : (
         <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3 }}>
           <Table size="small">
@@ -243,7 +280,7 @@ export default function ParqueaderoCierreFE({ user }) {
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setConfirmOpen(false)} sx={{ borderRadius: 2 }}>Cancelar</Button>
           <Button variant="contained" onClick={ejecutarCierre}
-            sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#E8531A' }, fontWeight: 700, borderRadius: 2 }}>
+            sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' }, fontWeight: 700, borderRadius: 2 }}>
             Emitir factura
           </Button>
         </DialogActions>

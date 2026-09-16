@@ -140,6 +140,26 @@ def emitir_fe(
             detail="Tu plan actual no incluye facturación electrónica. Actualiza tu suscripción."
         )
 
+    # Límite mensual de documentos del plan: emitir_fe_venta (flujo automático
+    # del POS/restaurante/lavadero/parqueadero) SÍ lo valida, pero esta ruta
+    # manual de re-emisión no lo hacía — una empresa que ya agotó su cupo podía
+    # seguir emitiendo indefinidamente reintentando aquí, sin tope.
+    # Solo aplica cuando aún no está 'exitoso': re-emitir una ya exitosa no
+    # genera un documento nuevo ante la DIAN.
+    from crud.ventas import _max_docs_mes_plan, _docs_electronicos_mes_actual
+    if venta.estado_electronico != "exitoso":
+        limite = _max_docs_mes_plan(db, empresa_id)
+        if limite is not None and limite > 0:
+            usados = _docs_electronicos_mes_actual(db, empresa_id)
+            if usados >= limite:
+                raise HTTPException(
+                    status_code=403,
+                    detail=(
+                        f"Límite de {limite} documentos electrónicos mensuales alcanzado. "
+                        "Actualiza tu plan en Ksmart360."
+                    ),
+                )
+
     # Cargar cliente (puede ser None — Consumidor Final)
     cliente = None
     if venta.cliente_id:

@@ -4,10 +4,12 @@ import {
   FormControlLabel, CircularProgress, Divider, Stack,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   ToggleButton, ToggleButtonGroup, Tooltip, InputAdornment,
-  useMediaQuery, useTheme,
+  useMediaQuery, useTheme, Chip, IconButton, Dialog, DialogTitle,
+  DialogContent, DialogActions, Checkbox, FormGroup,
 } from '@mui/material';
 import {
   Settings, Percent, LocalCarWash, Print, Refresh, Save,
+  Storefront, Add, Edit, Delete, Groups, Tune,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
@@ -33,16 +35,30 @@ export default function LavaderoConfig() {
   const [saving, setSaving]     = useState(false);
   const [savingId, setSavingId] = useState(null);
 
+  /* ── Multi-sede (solo Lavadero) ─────────────────────────────────────────── */
+  const [sedes, setSedes]             = useState([]);
+  const [trabajadores, setTrabajadores] = useState([]);
+  const [nuevaSede, setNuevaSede]     = useState('');
+  const [creandoSede, setCreandoSede] = useState(false);
+  const [sedeAsignando, setSedeAsignando] = useState(null); // sede abierta en el diálogo
+  const [asignTrabajadorIds, setAsignTrabajadorIds] = useState([]);
+  const [asignProductoIds, setAsignProductoIds]     = useState([]);
+  const [guardandoAsignacion, setGuardandoAsignacion] = useState(false);
+
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [cfgRes, srvRes] = await Promise.all([
+      const [cfgRes, srvRes, sedesRes, trabRes] = await Promise.all([
         apiClient.get('/lavadero/config'),
         apiClient.get('/productos/', { params: { es_servicio: true, limit: 200 } }),
+        apiClient.get('/lavadero/sedes').catch(() => ({ data: [] })),
+        apiClient.get('/admin/usuarios/').catch(() => ({ data: [] })),
       ]);
       setConfig(cfgRes.data);
       const list = srvRes.data.results ?? srvRes.data;
       setServicios(list.filter(s => s.es_servicio).map(s => ({ ...s, _comision: s.comision_pct ?? '' })));
+      setSedes(sedesRes.data || []);
+      setTrabajadores(trabRes.data.results ?? trabRes.data ?? []);
     } catch {
       toast.error('Error al cargar la configuración.');
     } finally {
@@ -86,6 +102,75 @@ export default function LavaderoConfig() {
 
   const setServicioComision = (id, val) => {
     setServicios(prev => prev.map(s => s.id === id ? { ...s, _comision: val } : s));
+  };
+
+  /* ── Sedes ────────────────────────────────────────────────────────────── */
+  const handleCrearSede = async () => {
+    if (!nuevaSede.trim()) return;
+    setCreandoSede(true);
+    try {
+      const { data } = await apiClient.post('/lavadero/sedes', { nombre: nuevaSede.trim() });
+      setSedes(prev => [...prev, data].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+      setNuevaSede('');
+      toast.success(`Sede "${data.nombre}" creada.`);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al crear la sede.');
+    } finally {
+      setCreandoSede(false);
+    }
+  };
+
+  const handleToggleActivaSede = async (sede) => {
+    try {
+      const { data } = await apiClient.put(`/lavadero/sedes/${sede.id}`, { activa: !sede.activa });
+      setSedes(prev => prev.map(s => s.id === sede.id ? data : s));
+    } catch {
+      toast.error('Error al actualizar la sede.');
+    }
+  };
+
+  const handleEliminarSede = async (sede) => {
+    if (!window.confirm(`¿Eliminar la sede "${sede.nombre}"? Solo se puede si no tiene órdenes registradas.`)) return;
+    try {
+      await apiClient.delete(`/lavadero/sedes/${sede.id}`);
+      setSedes(prev => prev.filter(s => s.id !== sede.id));
+      toast.success('Sede eliminada.');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'No se pudo eliminar la sede.');
+    }
+  };
+
+  const handleAbrirAsignaciones = async (sede) => {
+    setSedeAsignando(sede);
+    try {
+      const { data } = await apiClient.get(`/lavadero/sedes/${sede.id}/asignaciones`);
+      setAsignTrabajadorIds(data.trabajador_ids || []);
+      setAsignProductoIds(data.producto_ids || []);
+    } catch {
+      toast.error('Error al cargar las asignaciones de la sede.');
+      setSedeAsignando(null);
+    }
+  };
+
+  const toggleEnLista = (lista, setLista, id) => {
+    setLista(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const handleGuardarAsignaciones = async () => {
+    if (!sedeAsignando) return;
+    setGuardandoAsignacion(true);
+    try {
+      await Promise.all([
+        apiClient.put(`/lavadero/sedes/${sedeAsignando.id}/trabajadores`, { user_ids: asignTrabajadorIds }),
+        apiClient.put(`/lavadero/sedes/${sedeAsignando.id}/servicios`, { producto_ids: asignProductoIds }),
+      ]);
+      toast.success(`Asignaciones de "${sedeAsignando.nombre}" guardadas.`);
+      setSedeAsignando(null);
+    } catch {
+      toast.error('Error al guardar las asignaciones.');
+    } finally {
+      setGuardandoAsignacion(false);
+    }
   };
 
   if (loading) {
@@ -149,6 +234,60 @@ export default function LavaderoConfig() {
             </Grid>
           </SectionCard>
 
+          {/* ─── Sedes (multi-sede) ─── */}
+          <SectionCard title="Sedes" icon={<Storefront />}>
+            <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 2 }}>
+              Si el negocio tiene varios lavaderos, créalos aquí. El POS mostrará un selector de sede
+              y solo aparecerán los trabajadores y servicios que le asignes a cada una. Sin sedes
+              configuradas, el módulo funciona igual que siempre (una sola ubicación).
+            </Typography>
+
+            <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+              <TextField
+                size="small" fullWidth placeholder="Nombre de la nueva sede (ej: Sede Norte)"
+                value={nuevaSede}
+                onChange={e => setNuevaSede(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleCrearSede()}
+              />
+              <Button
+                variant="contained" startIcon={creandoSede ? <CircularProgress size={14} color="inherit" /> : <Add />}
+                onClick={handleCrearSede} disabled={creandoSede || !nuevaSede.trim()}
+                sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' }, fontWeight: 700, borderRadius: 2, textTransform: 'none', whiteSpace: 'nowrap' }}
+              >
+                Agregar
+              </Button>
+            </Stack>
+
+            {sedes.length === 0 ? (
+              <Typography sx={{ color: 'text.disabled', fontSize: 13 }}>
+                No has creado ninguna sede todavía.
+              </Typography>
+            ) : (
+              <Stack spacing={1}>
+                {sedes.map(s => (
+                  <Paper key={s.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 1, opacity: s.activa ? 1 : 0.5 }}>
+                    <Storefront sx={{ fontSize: 18, color: ACCENT }} />
+                    <Typography sx={{ fontWeight: 700, fontSize: 14, flex: 1 }}>{s.nombre}</Typography>
+                    {!s.activa && <Chip label="Inactiva" size="small" sx={{ fontSize: 10, height: 20 }} />}
+                    <Tooltip title="Asignar trabajadores y servicios">
+                      <IconButton size="small" onClick={() => handleAbrirAsignaciones(s)} sx={{ color: ACCENT }}>
+                        <Tune fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title={s.activa ? 'Desactivar' : 'Activar'}>
+                      <Switch size="small" checked={s.activa} onChange={() => handleToggleActivaSede(s)} />
+                    </Tooltip>
+                    <Tooltip title="Eliminar">
+                      <IconButton size="small" color="error" onClick={() => handleEliminarSede(s)}>
+                        <Delete fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Paper>
+                ))}
+              </Stack>
+            )}
+          </SectionCard>
+
           {/* ─── Impresión ─── */}
           <SectionCard title="Impresión" icon={<Print />}>
             <Stack spacing={2}>
@@ -193,7 +332,7 @@ export default function LavaderoConfig() {
               startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
               onClick={handleSaveConfig}
               disabled={saving}
-              sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700, borderRadius: 2.5, textTransform: 'none', px: 3 }}
+              sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' }, fontWeight: 700, borderRadius: 2.5, textTransform: 'none', px: 3 }}
             >
               {saving ? 'Guardando…' : 'Guardar configuración'}
             </Button>
@@ -309,6 +448,75 @@ export default function LavaderoConfig() {
           </SectionCard>
         </>
       )}
+
+      {/* ─── Diálogo: asignar trabajadores y servicios a una sede ─── */}
+      <Dialog open={!!sedeAsignando} onClose={() => setSedeAsignando(null)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800 }}>
+          Asignaciones — {sedeAsignando?.nombre}
+        </DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 2 }}>
+            Los trabajadores y servicios que NO marques aquí siguen viéndose en todas las sedes
+            (solo se restringe lo que marques explícitamente).
+          </Typography>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+            <Groups sx={{ fontSize: 16, color: ACCENT }} />
+            <Typography sx={{ fontWeight: 700, fontSize: 13 }}>Trabajadores en esta sede</Typography>
+          </Box>
+          {trabajadores.length === 0 ? (
+            <Typography sx={{ fontSize: 12, color: 'text.disabled', mb: 2 }}>No hay trabajadores registrados.</Typography>
+          ) : (
+            <FormGroup sx={{ mb: 2, maxHeight: 160, overflowY: 'auto', border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1 }}>
+              {trabajadores.map(t => (
+                <FormControlLabel
+                  key={t.id}
+                  control={
+                    <Checkbox size="small" checked={asignTrabajadorIds.includes(t.id)}
+                      onChange={() => toggleEnLista(asignTrabajadorIds, setAsignTrabajadorIds, t.id)} />
+                  }
+                  label={<Typography sx={{ fontSize: 13 }}>{t.nombre_completo || t.username}</Typography>}
+                />
+              ))}
+            </FormGroup>
+          )}
+
+          <Divider sx={{ my: 1.5 }} />
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+            <LocalCarWash sx={{ fontSize: 16, color: ACCENT }} />
+            <Typography sx={{ fontWeight: 700, fontSize: 13 }}>Servicios que se ofrecen en esta sede</Typography>
+          </Box>
+          {servicios.length === 0 ? (
+            <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>No hay servicios creados.</Typography>
+          ) : (
+            <FormGroup sx={{ maxHeight: 200, overflowY: 'auto', border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1 }}>
+              {servicios.map(s => (
+                <FormControlLabel
+                  key={s.id}
+                  control={
+                    <Checkbox size="small" checked={asignProductoIds.includes(s.id)}
+                      onChange={() => toggleEnLista(asignProductoIds, setAsignProductoIds, s.id)} />
+                  }
+                  label={<Typography sx={{ fontSize: 13 }}>{s.nombre}</Typography>}
+                />
+              ))}
+            </FormGroup>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+          <Button onClick={() => setSedeAsignando(null)} sx={{ textTransform: 'none', fontWeight: 600 }}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained" onClick={handleGuardarAsignaciones} disabled={guardandoAsignacion}
+            startIcon={guardandoAsignacion ? <CircularProgress size={14} color="inherit" /> : <Save />}
+            sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' }, fontWeight: 700, borderRadius: 2, textTransform: 'none' }}
+          >
+            {guardandoAsignacion ? 'Guardando…' : 'Guardar asignaciones'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

@@ -7,6 +7,7 @@ from crud.common import BOGOTA_TZ
 from crud.clientes import get_cliente
 from crud.productos import get_producto
 from crud.inventario import create_movement
+from crud.perecederos import stock_disponible_real
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PRODUCCIÓN - RECETAS Y LOTES
@@ -217,6 +218,49 @@ def create_lote(db: Session, empresa_id: int, lote: schemas.LoteProduccionCreate
     db.refresh(db_lote)
     return db_lote
 
+def update_lote(db: Session, empresa_id: int, lote_id: int, payload: "schemas.LoteProduccionUpdate"):
+    """
+    Edita una orden de producción MIENTRAS SIGUE EN CURSO.
+
+    Solo se puede editar en estado "En produccion" — una vez confirmada o
+    cancelada, la orden ya generó movimientos de inventario/costo y editarla
+    dejaría esos movimientos desalineados con lo que muestra la orden.
+    """
+    db_lote = get_lote(db, empresa_id, lote_id)
+    if not db_lote:
+        raise ValueError("La orden de producción no existe.")
+    if db_lote.estado != "En produccion":
+        raise ValueError(
+            f"No se puede editar: la orden ya está '{db_lote.estado}', no 'En producción'."
+        )
+
+    if payload.cantidad_a_producir is not None:
+        if payload.cantidad_a_producir <= 0:
+            raise ValueError("La cantidad a producir debe ser mayor a cero.")
+        db_lote.cantidad_a_producir = payload.cantidad_a_producir
+
+    if payload.cliente_id is not None:
+        # 0 es la señal del frontend para "volver a Inventario Interno"
+        if payload.cliente_id == 0:
+            interno = get_or_create_cliente_interno(db, empresa_id)
+            db_lote.cliente_id = interno.id
+        else:
+            cliente = get_cliente(db, empresa_id, payload.cliente_id)
+            if not cliente:
+                raise ValueError("Cliente no encontrado o no pertenece a esta empresa")
+            db_lote.cliente_id = payload.cliente_id
+
+    if payload.observaciones is not None:
+        db_lote.observaciones = payload.observaciones
+
+    if payload.numero_lote_produccion is not None:
+        db_lote.numero_lote_produccion = payload.numero_lote_produccion or None
+
+    db.commit()
+    db.refresh(db_lote)
+    return db_lote
+
+
 def get_or_create_cliente_interno(db: Session, empresa_id: int) -> models.Cliente:
     interno = db.query(models.Cliente).filter(
         models.Cliente.cedula == "INTERNO",
@@ -252,6 +296,23 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
     if cantidad_final is None or cantidad_final <= 0:
         raise ValueError("La cantidad realmente producida debe ser mayor a cero.")
 
+    # Si el producto resultante maneja variantes, hay que saber a cuál se le
+    # acredita este lote ANTES de consumir insumos (evita descontar materia
+    # prima para luego fallar por falta de selección de variante).
+    variante_resultado = None
+    if receta.producto_resultante and receta.producto_resultante.tiene_variantes:
+        if getattr(receta.producto_resultante, "maneja_lotes", False):
+            raise ValueError("Este producto combina variantes y lotes perecederos — combinación no soportada actualmente.")
+        if not confirm_data.variante_id:
+            raise ValueError(f"'{receta.producto_resultante.nombre}' maneja variantes — indica a cuál se le acredita este lote.")
+        variante_resultado = db.query(models.ProductoVariante).filter(
+            models.ProductoVariante.id == confirm_data.variante_id,
+            models.ProductoVariante.producto_id == receta.producto_id,
+            models.ProductoVariante.empresa_id == empresa_id,
+        ).first()
+        if not variante_resultado:
+            raise ValueError("La variante indicada no existe para el producto resultante.")
+
     # item.cantidad está definido "por lote" (el lote completo rinde `porciones`
     # unidades del producto resultante, tal como se ve en el editor de Recetas:
     # costo del lote ÷ porciones = costo por unidad). Hay que dividir por
@@ -267,10 +328,11 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
         merma_pct = getattr(item, 'merma_pct', 0.0) or 0.0
         factor_merma = 1.0 + (merma_pct / 100.0)
         cantidad_requerida = (item.cantidad / porciones) * cantidad_teorica * factor_merma
-        if (insumo.stock_actual or 0) < cantidad_requerida:
+        disponible_real = stock_disponible_real(db, empresa_id, insumo)
+        if disponible_real < cantidad_requerida:
             raise ValueError(
                 f"Stock insuficiente para: {insumo.nombre}. "
-                f"Req: {round(cantidad_requerida, 4)}, Disp: {insumo.stock_actual or 0}"
+                f"Req: {round(cantidad_requerida, 4)}, Disp: {round(disponible_real, 4)}"
             )
         insumos_plan.append((insumo, cantidad_requerida, item))
 
@@ -342,6 +404,7 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
     else:
         mov_entrada = schemas.InventoryMovementCreate(
             producto_id=receta.producto_id,
+            variante_id=variante_resultado.id if variante_resultado else None,
             tipo=schemas.MovementType.entrada,
             cantidad=cantidad_final,
             costo_unitario=costo_unitario_final,
@@ -359,17 +422,19 @@ def confirmar_lote_produccion(db: Session, empresa_id: int, lote_id: int, confir
     db_lote.costo_maquila = costo_maquila_acumulado
     db_lote.costo_unitario_resultado = costo_unitario_final
     db_lote.fecha_confirmacion = datetime.now(timezone.utc)
+    db_lote.variante_id = variante_resultado.id if variante_resultado else None
 
-    # ─── Propagación de costo en cascada: actualizar el costo del producto resultante
-    # para que el siguiente lote que lo use como insumo tome el costo real de producción.
-    # Se usa PROMEDIO PONDERADO contra el stock remanente (no una sobrescritura directa):
-    # si aún queda stock del producto a su costo anterior, ese stock viejo no debe
-    # "heredar" contablemente el costo del lote nuevo. Esto es crítico en recetas
-    # auto-referenciadas (ej. un cultivo madre que se usa como insumo de sí mismo),
-    # donde una sobrescritura directa puede disparar el costo en cascada de un lote
-    # al siguiente sin relación con lo que realmente cuesta el stock disponible.
+    # ─── Propagación de costo en cascada: actualizar el costo del producto (o
+    # variante) resultante para que el siguiente lote que lo use como insumo
+    # tome el costo real de producción. Se usa PROMEDIO PONDERADO contra el
+    # stock remanente (no una sobrescritura directa): si aún queda stock al
+    # costo anterior, ese stock viejo no debe "heredar" contablemente el costo
+    # del lote nuevo. Esto es crítico en recetas auto-referenciadas (ej. un
+    # cultivo madre que se usa como insumo de sí mismo), donde una
+    # sobrescritura directa puede disparar el costo en cascada de un lote al
+    # siguiente sin relación con lo que realmente cuesta el stock disponible.
     if costo_unitario_final > 0 and receta.producto_resultante:
-        prod_result = receta.producto_resultante
+        prod_result = variante_resultado if variante_resultado else receta.producto_resultante
         stock_final = prod_result.stock_actual or 0
         # El stock_actual ya incluye la cantidad de este lote (se sumó arriba, en el
         # paso 4); se resta para obtener el stock que había ANTES de este lote.
@@ -428,7 +493,7 @@ def get_simulacion_receta(db: Session, empresa_id: int, receta_id: int, cantidad
         factor = 1.0 + merma_pct / 100.0
         qty_unitaria_con_merma = (item.cantidad / porciones) * factor  # consumo por 1 unidad pedida
         requerido = qty_unitaria_con_merma * cantidad
-        disponible = float(insumo.stock_actual or 0)
+        disponible = stock_disponible_real(db, empresa_id, insumo)
         costo_total += requerido * float(insumo.costo or 0.0)
 
         # Cuántas unidades del lote se pueden producir con este insumo

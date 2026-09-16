@@ -222,18 +222,6 @@ def info_publica(slug: str, db: Session = Depends(get_db)):
     servicios = [s for s in servicios if getattr(s, "trabajadores", None)]
     cfg = crud.get_or_create_agendamiento_config(db, empresa_id=empresa.id)
 
-    import json as _json
-    def _image_count(p):
-        imgs = getattr(p, "imagenes", None)
-        if not imgs:
-            return 0
-        if isinstance(imgs, list):
-            return len(imgs)
-        try:
-            return len(_json.loads(imgs))
-        except Exception:
-            return 0
-
     servicios_out = [
         schemas.ServicioPublico(
             id=s.id,
@@ -241,7 +229,7 @@ def info_publica(slug: str, db: Session = Depends(get_db)):
             descripcion=getattr(s, "descripcion", None),
             precio=getattr(s, "precio", None),
             duracion_minutos=getattr(s, "duracion_minutos", None),
-            image_count=_image_count(s),
+            image_count=getattr(s, "image_count", 0),
         )
         for s in servicios
     ]

@@ -7,7 +7,20 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { useState, useEffect, useCallback } from 'react';
+import { Capacitor } from '@capacitor/core';
 import apiClient from '../api';
+import {
+  nativoDisponible, registrarNativo, loginNativo, desactivarNativo,
+} from '../utils/biometricNativa';
+import { setBiometricUser, clearBiometricUser, getBiometricUser, normalizeUser } from '../utils/quickAccess';
+
+// Dentro del WebView empaquetado de la app Android (Capacitor), WebAuthn no
+// funciona hoy: requiere un origen HTTPS real asociado por Digital Asset
+// Links, y la app carga sus assets locales (https://localhost). No es un
+// problema del dispositivo/navegador del usuario — por eso NO usamos el
+// mensaje genérico "prueba desde Chrome/Edge/Safari" cuando corremos dentro
+// de la app nativa, para no confundir a alguien que sí tiene huella/Face ID.
+const ES_APP_NATIVA = Capacitor.isNativePlatform();
 
 // ─── Helpers de codificación base64url ←→ ArrayBuffer ──────────────────────
 function base64urlToBuffer(base64url) {
@@ -34,13 +47,29 @@ export default function useBiometricAuth() {
   const [isPlatformAuthAvailable, setIsPlatformAuthAvailable] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // ✨ NUEVO: Estado que lee si dejamos la marca en este navegador
-  const [hasLocalCredential, setHasLocalCredential] = useState(
-    () => localStorage.getItem('biometric_enabled') === 'true'
-  );
+  // ¿Hay credencial biométrica en este dispositivo Y pertenece al usuario
+  // actual? (last_username = usuario en sesión, o el último que entró). Sin
+  // el chequeo de dueño, a un usuario sin huella se le ocultaba la opción de
+  // registrarla solo porque OTRO la tenía en el mismo equipo.
+  const [hasLocalCredential, setHasLocalCredential] = useState(() => {
+    if (localStorage.getItem('biometric_enabled') !== 'true') return false;
+    const owner = getBiometricUser();
+    const actual = normalizeUser(localStorage.getItem('last_username'));
+    return !owner || !actual || owner === actual;
+  });
 
-  // ── Detectar si el dispositivo soporta WebAuthn al montar ───────────────
+  // ── Detectar si el dispositivo soporta biometría al montar ──────────────
   useEffect(() => {
+    if (ES_APP_NATIVA) {
+      // Dentro de la app instalada usamos biometría NATIVA (BiometricPrompt /
+      // Face ID) en vez de WebAuthn. Consultamos al plugin nativo.
+      nativoDisponible().then(ok => {
+        setIsSupported(ok);
+        setIsPlatformAuthAvailable(ok);
+      });
+      return;
+    }
+
     const supported = !!(
       window.PublicKeyCredential &&
       typeof navigator.credentials?.create === 'function' &&
@@ -65,6 +94,13 @@ export default function useBiometricAuth() {
     }
     setLoading(true);
     try {
+      // App instalada → biometría nativa (Keystore + BiometricPrompt).
+      if (ES_APP_NATIVA) {
+        const result = await registrarNativo(deviceName);  // registra al dueño
+        setHasLocalCredential(true);
+        return result;
+      }
+
       // Paso 1: pedir opciones al backend
       const { data: opts } = await apiClient.post('/auth/biometric/register/options');
 
@@ -106,9 +142,12 @@ export default function useBiometricAuth() {
         device_name: deviceName,
       });
 
-      // ✨ NUEVO: Si el registro es exitoso, dejamos la marca en este navegador
+      // Si el registro es exitoso, marcamos este navegador Y a qué usuario
+      // pertenece la credencial (equipos compartidos: sin el dueño, el botón
+      // de huella aparecía para cualquiera e iniciaba sesión con otra cuenta).
       if (result.success) {
         localStorage.setItem('biometric_enabled', 'true');
+        setBiometricUser(localStorage.getItem('last_username'));
         setHasLocalCredential(true);
       }
 
@@ -127,6 +166,11 @@ export default function useBiometricAuth() {
     }
     setLoading(true);
     try {
+      // App instalada → login con biometría nativa.
+      if (ES_APP_NATIVA) {
+        return await loginNativo();
+      }
+
       // Paso 1: pedir opciones de autenticación
       const { data: opts } = await apiClient.post('/auth/biometric/login/options', {
         username,
@@ -179,9 +223,17 @@ export default function useBiometricAuth() {
   // GESTIÓN DE CREDENCIALES (perfil)
   // ─────────────────────────────────────────────────────────────────────────
   const listCredentials = useCallback(async () => {
+    // En la app nativa no hay lista WebAuthn en el backend: el token vive en el
+    // Keystore de ESTE dispositivo. Devolvemos una entrada sintética si está
+    // activada, para reutilizar la misma UI de gestión.
+    if (ES_APP_NATIVA) {
+      return hasLocalCredential
+        ? [{ id: 'native', device_name: 'Este dispositivo', user_agent: navigator.userAgent, last_used_at: null }]
+        : [];
+    }
     const { data } = await apiClient.get('/auth/biometric/credentials');
     return data;
-  }, []);
+  }, [hasLocalCredential]);
 
 //   const deleteCredential = useCallback(async (id) => {
 //     await apiClient.delete(`/auth/biometric/credentials/${id}`);
@@ -192,12 +244,20 @@ export default function useBiometricAuth() {
 //   }, []);
 
 const deleteCredential = useCallback(async (id) => {
+  // App instalada → desactivar biometría nativa (backend + Keystore + flag).
+  if (ES_APP_NATIVA) {
+    await desactivarNativo();
+    clearBiometricUser();
+    setHasLocalCredential(false);
+    return;
+  }
   await apiClient.delete(`/auth/biometric/credentials/${id}`);
   // Si el usuario quedó sin credenciales, ocultar el botón en este navegador
   try {
     const restantes = await apiClient.get('/auth/biometric/credentials');
     if (restantes.data.length === 0) {
       localStorage.removeItem('biometric_enabled');
+      clearBiometricUser();
       setHasLocalCredential(false);
     }
   } catch {
@@ -214,5 +274,6 @@ const deleteCredential = useCallback(async (id) => {
     listCredentials,
     deleteCredential,
     hasLocalCredential, // ✨ NUEVO: Exportamos la bandera
+    esAppNativa: ES_APP_NATIVA,
   };
 }

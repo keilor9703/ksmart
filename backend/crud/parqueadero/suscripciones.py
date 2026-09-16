@@ -137,6 +137,25 @@ def create_suscripcion(
     fecha_inicio = payload.fecha_inicio or datetime.now(BOGOTA_TZ).date()
     fecha_vence  = _calcular_fecha_vencimiento(fecha_inicio, payload.tipo.value)
 
+    # Evitar suscripciones apiladas: si el vehículo ya tiene una vigente que se
+    # solapa con el período nuevo, se rechaza (doble cobro + conteos inflados).
+    solapada = db.query(models.SuscripcionParqueadero).filter(
+        models.SuscripcionParqueadero.empresa_id == empresa_id,
+        models.SuscripcionParqueadero.vehiculo_id == payload.vehiculo_id,
+        models.SuscripcionParqueadero.estado == "vigente",
+        models.SuscripcionParqueadero.fecha_vencimiento >= fecha_inicio,
+        models.SuscripcionParqueadero.fecha_inicio <= fecha_vence,
+    ).first()
+    if solapada:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Este vehículo ya tiene una suscripción vigente hasta el "
+                f"{solapada.fecha_vencimiento.strftime('%d/%m/%Y')}. "
+                f"Si quieres renovarla, inicia la nueva después de esa fecha."
+            ),
+        )
+
     monto_pagado = min(payload.monto_pagado or 0.0, monto_total)
 
     susc = models.SuscripcionParqueadero(

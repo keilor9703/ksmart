@@ -41,6 +41,7 @@ const ClienteForm = ({
   const [cedula, setCedula]         = useState('');
   const [telefono, setTelefono]     = useState('');
   const [direccion, setDireccion]   = useState('');
+  const [fechaNacimiento, setFechaNacimiento] = useState('');
   const [email, setEmail]           = useState('');
   const [tipoDocumento, setTipoDocumento] = useState(13);
   const [dv, setDv]                 = useState('');
@@ -61,6 +62,7 @@ const ClienteForm = ({
   useEffect(() => {
     if (Number(tipoDocumento) === 31 && cedula) {
       setDv(calcularDV(cedula));
+      setShowAdvanced(true);
     } else if (Number(tipoDocumento) !== 31) {
       setDv('');
     }
@@ -72,6 +74,7 @@ const ClienteForm = ({
       setCedula(clienteToEdit.cedula || '');
       setTelefono(clienteToEdit.telefono || '');
       setDireccion(clienteToEdit.direccion || '');
+      setFechaNacimiento(clienteToEdit.fecha_nacimiento || '');
       setEmail(clienteToEdit.email || '');
       setTipoDocumento(clienteToEdit.tipo_documento_id || 13);
       setDv(clienteToEdit.dv || '');
@@ -81,6 +84,7 @@ const ClienteForm = ({
       setCupoCredito(clienteToEdit.cupo_credito || '');
       setEsCliente(clienteToEdit.es_cliente ?? true);
       setEsProveedor(clienteToEdit.es_proveedor ?? false);
+      setShowAdvanced(Number(clienteToEdit.tipo_documento_id) === 31);
     } else {
       resetFields();
     }
@@ -88,7 +92,7 @@ const ClienteForm = ({
 
   const resetFields = () => {
     setNombre(''); setCedula(''); setTelefono('');
-    setDireccion(''); setEmail(''); setTipoDocumento(13);
+    setDireccion(''); setFechaNacimiento(''); setEmail(''); setTipoDocumento(13);
     setDv(''); setTipoOrganizacion(2); setTipoRegimen(49);
     setResponsabilidadFiscal('R-99-PN');
     setCupoCredito('');
@@ -112,8 +116,13 @@ const ClienteForm = ({
       toast.warning('El email no tiene un formato válido.');
       return;
     }
+    if (cupoCredito && parseFloat(cupoCredito) < 0) {
+      toast.warning('El cupo de crédito no puede ser negativo.');
+      return;
+    }
     const data = {
       nombre, cedula, telefono, direccion, email,
+      fecha_nacimiento: fechaNacimiento || null,
       tipo_documento_id: tipoDocumento,
       dv,
       tipo_organizacion_id: tipoOrganizacion,
@@ -136,8 +145,9 @@ const ClienteForm = ({
         onClienteAdded(res.data);
       }
       handleClose();
-    }).catch(() => {
-      toast.error(`Error al ${clienteToEdit ? 'actualizar' : 'agregar'} el tercero.`);
+    }).catch((err) => {
+      const detail = err.response?.data?.detail;
+      toast.error(detail || `Error al ${clienteToEdit ? 'actualizar' : 'agregar'} el tercero.`);
     });
   };
 
@@ -238,6 +248,20 @@ const ClienteForm = ({
                   fullWidth size="small"
                 />
               </Grid>
+              {/* El campo de fecha (type=date) necesita más ancho que un input
+                  normal: su etiqueta larga y el control nativo se ven diminutos a
+                  media columna en celular. Se deja a ancho completo hasta md. */}
+              <Grid item xs={12} sm={12} md={4}>
+                <TextField
+                  label="Fecha de Cumpleaños"
+                  value={fechaNacimiento}
+                  onChange={(e) => setFechaNacimiento(e.target.value)}
+                  fullWidth size="small"
+                  type="date"
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ max: new Date().toLocaleDateString('en-CA') }}
+                />
+              </Grid>
               <Grid item xs={12} sm={6} md={4}>
                 <CurrencyField
                   label="Cupo de Crédito"
@@ -278,15 +302,20 @@ const ClienteForm = ({
               onClick={() => setShowAdvanced(v => !v)}
               sx={{
                 display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer',
-                p: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'divider',
-                bgcolor: 'action.hover', mb: showAdvanced ? 0 : 0, transition: 'all 0.15s',
-                '&:hover': { borderColor: ACCENT },
+                p: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'rgba(245,158,11,0.35)',
+                bgcolor: 'rgba(245,158,11,0.07)', transition: 'all 0.15s',
+                '&:hover': { borderColor: '#F59E0B' },
               }}
             >
               <ReceiptLong sx={{ fontSize: 18, color: '#F59E0B' }} />
-              <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'text.primary', flex: 1 }}>
-                Datos para Facturación Electrónica (DIAN)
-              </Typography>
+              <Box sx={{ flex: 1 }}>
+                <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'text.primary' }}>
+                  Identidad Legal y Tributaria (DIAN)
+                </Typography>
+                <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                  Requerido para emitir Factura Electrónica
+                </Typography>
+              </Box>
               <Typography sx={{ fontSize: 11, color: 'text.secondary', mr: 0.5 }}>
                 {showAdvanced ? 'Ocultar' : 'Ver campos'}
               </Typography>
@@ -324,7 +353,7 @@ const ClienteForm = ({
                       placeholder={Number(tipoDocumento) === 31 ? 'Auto' : 'Solo NIT'}
                       disabled={Number(tipoDocumento) !== 31}
                       InputProps={{ readOnly: Number(tipoDocumento) === 31 }}
-                      helperText={Number(tipoDocumento) === 31 && dv ? `DV: ${dv}` : ''}
+                      helperText={Number(tipoDocumento) === 31 && dv ? 'Se calculó automáticamente' : ''}
                       sx={{ '& .MuiInputBase-input': { fontWeight: dv ? 700 : 400, color: dv ? '#10B981' : undefined } }}
                     />
                   </Grid>

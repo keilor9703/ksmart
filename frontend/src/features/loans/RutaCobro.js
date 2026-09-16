@@ -20,6 +20,8 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
+import { sunmiDisponible, imprimirRecibo as imprimirReciboSunmi, padLR } from '../../utils/sunmiPrinter';
+import { printHtml } from '../../utils/printHtml';
 
 const ACCENT = '#0891B2';
 const GREEN  = '#10B981';
@@ -76,8 +78,47 @@ const generarTextoRecibo = (cuota, montoPagado, saldoRestante) => {
   );
 };
 
+// ─── Arma las líneas del recibo para la térmica Sunmi ─────────────────────────
+const buildReciboLines = (cuota, montoPagado, saldoRestante) => {
+  const ahora    = new Date();
+  const fecha    = ahora.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const hora     = ahora.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  const saldo    = typeof saldoRestante === 'number' ? saldoRestante : (cuota.saldo_pendiente - montoPagado);
+  const saldoFmt = saldo > 0 ? formatCurrency(Math.max(0, saldo)) : 'SALDADA';
+  const lines = [];
+  lines.push({ text: 'KSMART360', align: 'center', size: 30, bold: true });
+  lines.push({ text: 'Sistema de Gestion de Cartera', align: 'center', size: 20 });
+  lines.push({ type: 'divider' });
+  lines.push({ text: padLR('Recibo N.', String(cuota.cuota_id)), size: 22 });
+  lines.push({ text: padLR('Fecha', `${fecha} ${hora}`), size: 22 });
+  lines.push({ type: 'divider' });
+  lines.push({ text: padLR('Cliente', cuota.cliente_nombre || ''), size: 22 });
+  lines.push({ text: padLR('Prestamo #', String(cuota.prestamo_id)), size: 22 });
+  lines.push({ text: padLR('Cuota #', String(cuota.numero_cuota)), size: 22 });
+  lines.push({ text: padLR('Vencimiento', getSafeDateString(cuota.fecha_vencimiento)), size: 22 });
+  lines.push({ type: 'divider' });
+  // Tamaño 24 = ancho calibrado a 32 caracteres; con un tamaño mayor la térmica
+  // parte la línea del valor en dos renglones.
+  lines.push({ text: padLR('VALOR RECIBIDO', formatCurrency(montoPagado)), size: 24, bold: true });
+  lines.push({ text: padLR('Saldo restante', saldoFmt), size: 22 });
+  lines.push({ type: 'divider' });
+  lines.push({ text: 'Ksmart360 · Gracias por su pago', align: 'center', size: 20 });
+  lines.push({ type: 'feed' });
+  return lines;
+};
+
 // ─── Imprime recibo en ventana del navegador ──────────────────────────────────
-const imprimirRecibo = (cuota, montoPagado, saldoRestante) => {
+const imprimirRecibo = async (cuota, montoPagado, saldoRestante) => {
+  // En el dispositivo Sunmi imprimimos en la térmica integrada.
+  if (await sunmiDisponible()) {
+    try {
+      await imprimirReciboSunmi(buildReciboLines(cuota, montoPagado, saldoRestante));
+      return;
+    } catch (e) {
+      console.warn('imprimirRecibo: falló Sunmi, se usa HTML', e);
+    }
+  }
+
   const ahora    = new Date();
   const fecha    = ahora.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const hora     = ahora.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
@@ -121,11 +162,8 @@ const imprimirRecibo = (cuota, montoPagado, saldoRestante) => {
     </body>
     </html>`;
 
-  const win = window.open('', '_blank', 'width=320,height=480');
-  win.document.write(html);
-  win.document.close();
-  win.focus();
-  setTimeout(() => { win.print(); win.close(); }, 400);
+  // printHtml: seguro dentro de la app instalada (window.open bloqueaba el WebView)
+  printHtml(html, 'width=320,height=480');
 };
 
 // ─── Descarga el PDF desde el backend ─────────────────────────────────────────
@@ -187,8 +225,20 @@ const RutaCobro = () => {
   const [pdfLoading,       setPdfLoading]       = useState(false);
   const [cobrasHoy, setCobrasHoy] = useState([]);
   const [sortCuotas, setSortCuotas] = useState('mora');
+  const [linkPagosConfig, setLinkPagosConfig] = useState([]);
 
   const esAdmin = currentUser?.role?.name === 'Admin';
+
+  // Solo Efectivo viene fijo — el resto son los links de pago que la empresa
+  // configure en Mi Cuenta → Link de Pago.
+  const metodosPago = [
+    { value: 'Efectivo', label: '💵 Efectivo' },
+    ...linkPagosConfig.map(l => ({ value: `Link de Pago: ${l.nombre}`, label: `📲 ${l.nombre}` })),
+  ];
+
+  useEffect(() => {
+    apiClient.get('/empresa/link-pago/activos').then(r => setLinkPagosConfig(r.data || [])).catch(() => {});
+  }, []);
 
   // ── Carga de datos ────────────────────────────────────────────────────────
   const fetchInicial = useCallback(async () => {
@@ -893,12 +943,7 @@ const confirmarPago = async () => {
               Método de pago
             </Typography>
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              {[
-                { value: 'Efectivo',      label: '💵 Efectivo'      },
-                { value: 'Transferencia', label: '🏦 Transferencia' },
-                { value: 'Nequi',         label: '📱 Nequi'         },
-                { value: 'Tarjeta',       label: '💳 Tarjeta'       },
-              ].map(opt => {
+              {metodosPago.map(opt => {
                 const selected = pagoModal.metodoPago === opt.value;
                 return (
                   <Box

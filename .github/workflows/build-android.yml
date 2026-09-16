@@ -1,0 +1,131 @@
+name: Build Android APK (Ksmart360)
+
+# Compila el proyecto Android (Capacitor) que envuelve la web de Ksmart360.
+# Se ejecuta en runners de GitHub porque el entorno de desarrollo remoto usado
+# por Claude Code tiene bloqueada la descarga del Android SDK (dl.google.com)
+# — GitHub Actions sí tiene salida a internet completa, así que aquí es donde
+# realmente se genera el .apk instalable.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/android/**"
+      - "frontend/src/**"
+      - "frontend/public/**"
+      - "frontend/package.json"
+      - "frontend/capacitor.config.ts"
+      - ".github/workflows/build-android.yml"
+  workflow_dispatch: {}
+
+# Necesario para que el paso de publicar el Release pueda crear/editar releases.
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      HAS_RELEASE_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      HAS_DEPLOY: ${{ secrets.DEPLOY_SSH_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Build web (React)
+        run: npm run build
+
+      - name: Sincronizar Capacitor con el proyecto Android
+        run: npx cap sync android
+
+      - name: Compilar APK debug
+        working-directory: frontend/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Subir APK debug como artefacto descargable
+        uses: actions/upload-artifact@v4
+        with:
+          name: ksmart360-debug-apk
+          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      # ── Publicar el APK como GitHub Release (URL pública fija por versión) ──
+      # Lee la versión de build.gradle, renombra el APK con esa versión y crea
+      # (o actualiza) un Release etiquetado v<versión>. Así queda una URL de
+      # descarga estable, ideal para el aviso de actualización de la app móvil:
+      #   https://github.com/keilor9703/ksmart/releases/download/v1.3.1/ksmart360-1.3.1.apk
+      - name: Obtener versión de la app
+        id: appver
+        working-directory: frontend/android
+        run: |
+          VERSION=$(grep -m1 'versionName' app/build.gradle | sed 's/.*"\(.*\)".*/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          cp app/build/outputs/apk/debug/app-debug.apk "ksmart360-$VERSION.apk"
+
+      - name: Publicar Release con el APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.appver.outputs.version }}
+          name: Ksmart360 v${{ steps.appver.outputs.version }}
+          body: |
+            APK de Ksmart360 versión ${{ steps.appver.outputs.version }}.
+            Descarga directa del `.apk` en los assets de abajo.
+          files: frontend/android/ksmart360-${{ steps.appver.outputs.version }}.apk
+
+      # ── Subir el APK al servidor propio (api.ksmart360.com) por SCP ──
+      # Descargas más confiables que el release de GitHub (sin redirección
+      # firmada que algunos navegadores móviles no finalizan). Solo corre si
+      # están configurados los secretos de despliegue. El servidor debe servir
+      # la carpeta destino por nginx (location /apks/).
+      - name: Subir APK al servidor propio
+        if: ${{ env.HAS_DEPLOY == 'true' }}
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_SSH_PORT || 22 }}
+          source: frontend/android/ksmart360-${{ steps.appver.outputs.version }}.apk
+          target: ${{ secrets.DEPLOY_APK_DIR || '/var/www/apks' }}
+          strip_components: 2
+
+      - name: Preparar keystore de release (desde secreto de GitHub)
+        if: ${{ env.HAS_RELEASE_KEYSTORE == 'true' }}
+        working-directory: frontend/android
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > ksmart360-release.jks
+
+      - name: Compilar Android App Bundle firmado (release, para Play Store)
+        if: ${{ env.HAS_RELEASE_KEYSTORE == 'true' }}
+        working-directory: frontend/android
+        env:
+          KSMART_KEYSTORE_PATH: ksmart360-release.jks
+          KSMART_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KSMART_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KSMART_KEY_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: ./gradlew bundleRelease --no-daemon
+
+      - name: Subir AAB de release como artefacto descargable
+        if: ${{ env.HAS_RELEASE_KEYSTORE == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ksmart360-release-aab
+          path: frontend/android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30

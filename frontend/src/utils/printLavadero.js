@@ -1,46 +1,102 @@
+import { sunmiDisponible, imprimirRecibo, padLR } from './sunmiPrinter';
+import { printHtml } from './printHtml';
+
 const PRINTER_SIZES = {
   p80: { width: '80mm', font: '10px', fontSm: '8px', fontLg: '16px' },
   p58: { width: '58mm', font: '9px',  fontSm: '7px', fontLg: '13px' },
 };
 
-function _printInIframe(html) {
-  const win = window.open('about:blank', '_blank');
-  if (win) {
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
-    const doPrint = () => { try { win.focus(); win.print(); } catch (e) {} };
-    if (win.document.readyState === 'complete') {
-      setTimeout(doPrint, 250);
-    } else {
-      win.onload = () => setTimeout(doPrint, 100);
-      setTimeout(doPrint, 600);
-    }
-    return;
-  }
-  const iframe = document.createElement('iframe');
-  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;';
-  document.body.appendChild(iframe);
-  const doc = iframe.contentDocument || iframe.contentWindow.document;
-  doc.open(); doc.write(html); doc.close();
-  setTimeout(() => {
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
-    setTimeout(() => document.body.removeChild(iframe), 2000);
-  }, 400);
-}
-
 function _fmt(n) {
   return n != null ? Number(n).toLocaleString('es-CO') : '0';
 }
 
-export function imprimirReciboLavadero(orden, config, printerSize = 'p80') {
+// El backend ya manda el detalle completo (subtotal, descuento, puntos), pero
+// órdenes cobradas antes de este cambio no lo traen — se recalcula lo posible
+// a partir de lo que sí hay, para no dejar el recibo roto en esos casos.
+function _datosFidelizacion(orden) {
+  const subtotal = orden.subtotal ?? orden.total ?? 0;
+  const descuento = orden.descuento_puntos || 0;
+  const puntosCanjeados = orden.puntos_canjeados || 0;
+  const puntosGanados = orden.puntos_ganados || 0;
+  const saldoPuntos = orden.saldo_puntos_cliente;
+  const hayFidelizacion = puntosCanjeados > 0 || puntosGanados > 0 || (saldoPuntos !== null && saldoPuntos !== undefined);
+  return { subtotal, descuento, puntosCanjeados, puntosGanados, saldoPuntos, hayFidelizacion };
+}
+
+// ─── Impresión en Sunmi (líneas estructuradas) ────────────────────────────────
+function buildLavaderoLines(orden, config) {
+  const nombre = config?.nombre_lavadero || 'Lavadero';
+  const fechaSalida = orden.fecha_salida ? new Date(orden.fecha_salida) : new Date();
+  const fechaStr = fechaSalida.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const horaStr  = fechaSalida.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  const { subtotal, descuento, puntosCanjeados, puntosGanados, saldoPuntos, hayFidelizacion } = _datosFidelizacion(orden);
+  const lines = [];
+  lines.push({ text: nombre, align: 'center', size: 28, bold: true });
+  lines.push({ type: 'divider' });
+  lines.push({ text: 'RECIBO DE LAVADO', align: 'center', size: 24, bold: true });
+  lines.push({ type: 'divider' });
+  lines.push({ text: orden.placa, align: 'center', size: 34, bold: true });
+  if (orden.tipo_vehiculo) lines.push({ text: orden.tipo_vehiculo, align: 'center', size: 20 });
+  lines.push({ type: 'divider' });
+  if (orden.cliente_nombre) lines.push({ text: padLR('Cliente', orden.cliente_nombre), size: 22 });
+  if (orden.operador_nombre) lines.push({ text: padLR('Lavador', orden.operador_nombre), size: 22 });
+  lines.push({ text: padLR('Fecha', fechaStr), size: 22 });
+  lines.push({ text: padLR('Hora', horaStr), size: 22 });
+  lines.push({ type: 'divider' });
+  lines.push({ text: 'SERVICIOS:', size: 22, bold: true });
+  (orden.detalles || []).forEach(d => {
+    const nom = `${d.nombre_servicio}${d.cantidad > 1 ? ` x${d.cantidad}` : ''}`;
+    lines.push({ text: padLR(nom, `$${_fmt(d.precio_unitario * d.cantidad)}`), size: 22 });
+  });
+  lines.push({ type: 'divider' });
+  if (descuento > 0) {
+    lines.push({ text: padLR('Subtotal', `$${_fmt(subtotal)}`), size: 22 });
+    lines.push({ text: padLR(`Descuento (${puntosCanjeados} pts)`, `-$${_fmt(descuento)}`), size: 22 });
+  }
+  // Tamaño 24 = ancho calibrado a 32 caracteres; con un tamaño mayor la térmica
+  // parte la línea del total en dos renglones.
+  lines.push({ text: padLR('TOTAL', `$${_fmt(orden.total)}`), size: 24, bold: true });
+  lines.push({ text: padLR('Metodo pago', orden.metodo_pago || '—'), size: 22 });
+  if (orden.observaciones) {
+    lines.push({ type: 'divider' });
+    lines.push({ text: `Obs: ${orden.observaciones}`, size: 20 });
+  }
+  if (hayFidelizacion) {
+    lines.push({ type: 'divider' });
+    if (puntosCanjeados > 0) lines.push({ text: padLR('Puntos canjeados', `-${puntosCanjeados}`), size: 22 });
+    if (puntosGanados > 0) lines.push({ text: padLR('Puntos ganados', `+${puntosGanados}`), size: 22 });
+    if (saldoPuntos !== null && saldoPuntos !== undefined) lines.push({ text: padLR('Saldo de puntos', String(saldoPuntos)), size: 22 });
+  }
+  lines.push({ type: 'divider' });
+  lines.push({ text: '¡Gracias por su preferencia!', align: 'center', size: 22, bold: true });
+  lines.push({ type: 'feed' });
+  return lines;
+}
+
+function _printInIframe(html) {
+  // Helper compartido: en la app nativa usa iframe (window.open bloqueaba el
+  // WebView); en navegador abre pestaña nueva con fallback a iframe.
+  printHtml(html);
+}
+
+export async function imprimirReciboLavadero(orden, config, printerSize = 'p80') {
+  // En el dispositivo Sunmi imprimimos en la térmica integrada.
+  if (await sunmiDisponible()) {
+    try {
+      await imprimirRecibo(buildLavaderoLines(orden, config));
+      return;
+    } catch (e) {
+      console.warn('imprimirReciboLavadero: falló Sunmi, se usa HTML', e);
+    }
+  }
+
   const sz = PRINTER_SIZES[printerSize] || PRINTER_SIZES.p80;
   const nombre = config?.nombre_lavadero || 'Lavadero';
 
   const fechaSalida = orden.fecha_salida ? new Date(orden.fecha_salida) : new Date();
   const fechaStr = fechaSalida.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const horaStr  = fechaSalida.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  const { subtotal, descuento, puntosCanjeados, puntosGanados, saldoPuntos, hayFidelizacion } = _datosFidelizacion(orden);
 
   const serviciosHtml = (orden.detalles || []).map(d =>
     `<div class="row"><span>${d.nombre_servicio}${d.cantidad > 1 ? ` x${d.cantidad}` : ''}</span><span>$${_fmt(d.precio_unitario * d.cantidad)}</span></div>`
@@ -76,9 +132,19 @@ ${orden.operador_nombre ? `<div class="row"><span>Lavador:</span><span>${orden.o
 <p class="b">SERVICIOS:</p>
 ${serviciosHtml}
 <div class="sep"></div>
+${descuento > 0 ? `
+<div class="row"><span>Subtotal:</span><span>$${_fmt(subtotal)}</span></div>
+<div class="row"><span>Descuento (${puntosCanjeados} pts):</span><span>-$${_fmt(descuento)}</span></div>
+` : ''}
 <div class="row b"><span>TOTAL:</span><span>$${_fmt(orden.total)}</span></div>
 <div class="row"><span>Método pago:</span><span>${orden.metodo_pago || '—'}</span></div>
 ${orden.observaciones ? `<div class="sep"></div><p style="font-size:${sz.fontSm};">Obs: ${orden.observaciones}</p>` : ''}
+${hayFidelizacion ? `
+<div class="sep"></div>
+${puntosCanjeados > 0 ? `<div class="row"><span>⭐ Puntos canjeados:</span><span>-${puntosCanjeados}</span></div>` : ''}
+${puntosGanados > 0 ? `<div class="row"><span>⭐ Puntos ganados:</span><span>+${puntosGanados}</span></div>` : ''}
+${(saldoPuntos !== null && saldoPuntos !== undefined) ? `<div class="row b"><span>⭐ Saldo de puntos:</span><span>${saldoPuntos}</span></div>` : ''}
+` : ''}
 <div class="sep"></div>
 <p class="c b">¡Gracias por su preferencia!</p>
 </body></html>`;

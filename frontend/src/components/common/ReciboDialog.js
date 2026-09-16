@@ -6,9 +6,82 @@ import {
 } from '@mui/material';
 import {
   Close, Print, WhatsApp, ExpandMore, ExpandLess,
-  Receipt, CheckCircleOutline, Store
+  Receipt, CheckCircleOutline, Store, PointOfSale,
 } from '@mui/icons-material';
+import { toast } from 'react-toastify';
 import { formatCurrency } from '../../utils/formatters';
+import { sunmiDisponible, imprimirRecibo } from '../../utils/sunmiPrinter';
+import { printHtml } from '../../utils/printHtml';
+
+// Arma un renglón "etiqueta ......... valor" ocupando el ancho de una térmica
+// de 58mm (~32 caracteres), para alinear precios/totales a la derecha.
+function padLR(left, right, width = 32) {
+  let l = String(left);
+  const r = String(right);
+  if (l.length + r.length >= width) l = l.slice(0, Math.max(0, width - r.length - 1));
+  const space = Math.max(1, width - l.length - r.length);
+  return l + ' '.repeat(space) + r;
+}
+
+// Construye el recibo como líneas estructuradas para la impresora Sunmi.
+function buildSunmiLines(venta, empresa, vendedor) {
+  const lines = [];
+  const fecha = new Date(venta.fecha + (venta.fecha?.includes('Z') ? '' : 'Z'));
+  const dateStr = fecha.toLocaleString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const saldo = (venta.total || 0) - (venta.monto_pagado || venta.total || 0);
+  const puntos = getPuntosInfo(venta, empresa);
+
+  // El recibo NO lleva logo de la empresa (por decisión del cliente): arranca
+  // directamente con el nombre del negocio.
+  lines.push({ text: empresa?.nombre || 'Mi Negocio', align: 'center', size: 36, bold: true });
+  if (empresa?.nit) lines.push({ text: `NIT: ${empresa.nit}`, align: 'center', size: 22 });
+  lines.push({ type: 'feed' });
+  lines.push({ text: 'COMPROBANTE DE VENTA', align: 'center', size: 24, bold: true });
+  lines.push({ text: `No. ${venta.numero_venta ?? venta.id}   ${dateStr}`, align: 'center', size: 20 });
+  lines.push({ type: 'divider' });
+  lines.push({ text: `Cliente: ${venta.cliente?.nombre || 'Consumidor Final'}`, size: 22 });
+  if (venta.cliente?.cedula) lines.push({ text: `NIT/CC: ${venta.cliente.cedula}`, size: 22 });
+  if (vendedor) lines.push({ text: `Vendedor: ${vendedor}`, size: 22 });
+  lines.push({ type: 'divider' });
+
+  (venta.detalles || []).forEach(d => {
+    const nombre = d.producto?.nombre || d.nombre_libre || 'Producto';
+    const precio = d.precio_unitario || 0;
+    const sub = (d.cantidad || 0) * precio;
+    lines.push({ text: nombre, size: 22 });
+    lines.push({ text: padLR(`  ${d.cantidad} x ${formatCurrency(precio)}`, formatCurrency(sub)), size: 22 });
+  });
+
+  lines.push({ type: 'divider' });
+  if (venta.iva_porcentaje > 0) lines.push({ text: padLR(`IVA ${venta.iva_porcentaje}%`, formatCurrency(venta.iva_total || 0)), size: 22 });
+  lines.push({ text: padLR('TOTAL', formatCurrency(venta.total)), size: 30, bold: true });
+  lines.push({ text: padLR('Pago', venta.metodo_pago || 'Efectivo'), size: 22 });
+  if (saldo > 0) lines.push({ text: padLR('Saldo pendiente', formatCurrency(saldo)), size: 22, bold: true });
+
+  if (puntos) {
+    lines.push({ type: 'divider' });
+    if (puntos.ganados > 0) lines.push({ text: padLR('Puntos ganados', `+${puntos.ganados}`), size: 22 });
+    if (puntos.canjeados > 0) lines.push({ text: padLR('Puntos canjeados', `-${puntos.canjeados}`), size: 22 });
+    if (puntos.saldo !== null && puntos.saldo !== undefined) lines.push({ text: padLR('Saldo de puntos', String(puntos.saldo)), size: 22 });
+  }
+
+  lines.push({ type: 'feed' });
+  lines.push({ text: '¡Gracias por su compra!', align: 'center', size: 22 });
+  if (empresa?.whatsapp_pedidos) lines.push({ text: `WhatsApp: ${empresa.whatsapp_pedidos}`, align: 'center', size: 20 });
+  lines.push({ type: 'feed' });
+  return lines;
+}
+
+// ─── Fidelización: helper para saber si hay algo que mostrar ──────────────────
+function getPuntosInfo(venta, empresa) {
+  const activa = empresa?.fidelizacion_activa !== false; // default true si no viene el campo
+  if (!activa) return null;
+  const ganados   = venta.puntos_ganados || 0;
+  const canjeados = venta.puntos_canjeados || 0;
+  const saldo     = venta.saldo_puntos_cliente;
+  if (!ganados && !canjeados && (saldo === null || saldo === undefined)) return null;
+  return { ganados, canjeados, descuento: venta.descuento_puntos || 0, saldo };
+}
 
 // ─── Paper size definitions ────────────────────────────────────────────────────
 const SIZES = {
@@ -46,6 +119,13 @@ function buildWhatsAppText(venta, empresa, vendedor) {
   t += `Método de pago: ${venta.metodo_pago || 'Efectivo'}\n`;
   const saldo = (venta.total || 0) - (venta.monto_pagado || venta.total || 0);
   if (saldo > 0) t += `⚠️ Saldo pendiente: ${formatCurrency(saldo)}\n`;
+  const puntosInfo = getPuntosInfo(venta, empresa);
+  if (puntosInfo) {
+    t += `${sep}\n`;
+    if (puntosInfo.ganados > 0) t += `⭐ Puntos ganados: +${puntosInfo.ganados}\n`;
+    if (puntosInfo.canjeados > 0) t += `⭐ Puntos canjeados: -${puntosInfo.canjeados} (-${formatCurrency(puntosInfo.descuento)})\n`;
+    if (puntosInfo.saldo !== null && puntosInfo.saldo !== undefined) t += `⭐ Saldo de puntos: ${puntosInfo.saldo}\n`;
+  }
   t += `\n_¡Gracias por su compra!_ 🙏\n`;
   if (empresa?.whatsapp_pedidos)
     t += `\n📞 wa.me/${empresa.whatsapp_pedidos.replace(/\D/g, '')}`;
@@ -60,6 +140,7 @@ function buildPrintHTML(venta, empresa, vendedor, size) {
     hour: '2-digit', minute: '2-digit',
   });
   const saldo = (venta.total || 0) - (venta.monto_pagado || venta.total || 0);
+  const puntosInfo = getPuntosInfo(venta, empresa);
   const { compact, cssSize, margin } = size;
   const fontFamily = compact ? "'Courier New', Courier, monospace" : "Arial, Helvetica, sans-serif";
 
@@ -118,6 +199,10 @@ ${vendedor ? `<div>Vendedor: ${vendedor}</div>` : ''}
   <tr><td colspan="3"><hr class="sep"></td></tr>
   <tr><td>Forma de pago</td><td></td><td class="r">${venta.metodo_pago || 'Efectivo'}</td></tr>
   ${saldo > 0 ? `<tr><td class="b">Saldo pendiente</td><td></td><td class="r b">${formatCurrency(saldo)}</td></tr>` : ''}
+  ${puntosInfo ? `<tr><td colspan="3"><hr class="sep"></td></tr>` : ''}
+  ${puntosInfo && puntosInfo.ganados > 0 ? `<tr><td>⭐ Puntos ganados</td><td></td><td class="r">+${puntosInfo.ganados}</td></tr>` : ''}
+  ${puntosInfo && puntosInfo.canjeados > 0 ? `<tr><td>⭐ Puntos canjeados</td><td></td><td class="r">-${puntosInfo.canjeados} (-${formatCurrency(puntosInfo.descuento)})</td></tr>` : ''}
+  ${puntosInfo && (puntosInfo.saldo !== null && puntosInfo.saldo !== undefined) ? `<tr><td class="b">⭐ Saldo de puntos</td><td></td><td class="r b">${puntosInfo.saldo}</td></tr>` : ''}
 </table>
 <hr class="sep">
 ${venta.cufe && venta.estado_electronico === 'exitoso' ? `
@@ -193,6 +278,12 @@ td{padding:8px 6px;border-bottom:1px solid #f2f2f2;font-size:13px;}
   <div class="trow"><span style="color:#777">Pagado · ${venta.metodo_pago || 'Efectivo'}</span><span style="color:#16a34a;font-weight:700;">${formatCurrency(venta.monto_pagado || venta.total)}</span></div>
   ${saldo > 0 ? `<div class="trow"><span style="color:#dc2626;font-weight:700;">Saldo pendiente</span><span style="color:#dc2626;font-weight:700;">${formatCurrency(saldo)}</span></div>` : ''}
 </div>
+${puntosInfo ? `
+<div class="totals" style="margin-top:10px;padding-top:10px;border-top:1px dashed #ddd;">
+  ${puntosInfo.ganados > 0 ? `<div class="trow"><span style="color:#777">⭐ Puntos ganados</span><span style="color:#16a34a;font-weight:700;">+${puntosInfo.ganados}</span></div>` : ''}
+  ${puntosInfo.canjeados > 0 ? `<div class="trow"><span style="color:#777">⭐ Puntos canjeados</span><span style="color:#dc2626;font-weight:700;">-${puntosInfo.canjeados} (-${formatCurrency(puntosInfo.descuento)})</span></div>` : ''}
+  ${(puntosInfo.saldo !== null && puntosInfo.saldo !== undefined) ? `<div class="trow"><span style="font-weight:700;color:#555">⭐ Saldo de puntos</span><span style="font-weight:700;color:#0891B2">${puntosInfo.saldo}</span></div>` : ''}
+</div>` : ''}
 
 <div class="footer">
   <div style="font-size:14px;margin-bottom:4px;">¡Gracias por su compra! 🙏</div>
@@ -210,6 +301,7 @@ td{padding:8px 6px;border-bottom:1px solid #f2f2f2;font-size:13px;}
 // ─── Thermal preview (JSX) ────────────────────────────────────────────────────
 const ThermalPreview = ({ venta, empresa, vendedor, dateStr, saldo }) => {
   const sep = <Box sx={{ borderTop: '1px dashed #555', my: 0.8 }} />;
+  const puntosInfo = getPuntosInfo(venta, empresa);
   return (
     <Box sx={{ fontFamily: "'Courier New', Courier, monospace", fontSize: 12, color: '#111', lineHeight: 1.6 }}>
       <Box sx={{ textAlign: 'center' }}>
@@ -273,6 +365,29 @@ const ThermalPreview = ({ venta, empresa, vendedor, dateStr, saldo }) => {
           <Typography sx={{ fontWeight: 700, color: '#dc2626', fontFamily: 'inherit', fontSize: 11 }}>{formatCurrency(saldo)}</Typography>
         </Box>
       )}
+      {puntosInfo && (
+        <>
+          {sep}
+          {puntosInfo.ganados > 0 && (
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography sx={{ fontFamily: 'inherit', fontSize: 11 }}>⭐ Puntos ganados</Typography>
+              <Typography sx={{ fontFamily: 'inherit', fontSize: 11, color: '#16a34a', fontWeight: 700 }}>+{puntosInfo.ganados}</Typography>
+            </Box>
+          )}
+          {puntosInfo.canjeados > 0 && (
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography sx={{ fontFamily: 'inherit', fontSize: 11 }}>⭐ Puntos canjeados</Typography>
+              <Typography sx={{ fontFamily: 'inherit', fontSize: 11, color: '#dc2626', fontWeight: 700 }}>-{puntosInfo.canjeados} (-{formatCurrency(puntosInfo.descuento)})</Typography>
+            </Box>
+          )}
+          {(puntosInfo.saldo !== null && puntosInfo.saldo !== undefined) && (
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography sx={{ fontFamily: 'inherit', fontSize: 11, fontWeight: 700 }}>⭐ Saldo de puntos</Typography>
+              <Typography sx={{ fontFamily: 'inherit', fontSize: 11, fontWeight: 700, color: '#0891B2' }}>{puntosInfo.saldo}</Typography>
+            </Box>
+          )}
+        </>
+      )}
       {sep}
       <Box sx={{ textAlign: 'center', mt: 0.5 }}>
         <Typography sx={{ fontFamily: 'inherit', fontSize: 11 }}>¡Gracias por su compra!</Typography>
@@ -298,6 +413,7 @@ const ThermalPreview = ({ venta, empresa, vendedor, dateStr, saldo }) => {
 // ─── A4 preview (JSX) ────────────────────────────────────────────────────────
 const A4Preview = ({ venta, empresa, vendedor, dateStr, saldo }) => {
   const ACCENT = '#0891B2';
+  const puntosInfo = getPuntosInfo(venta, empresa);
   return (
     <Box sx={{ fontFamily: 'sans-serif', color: '#333' }}>
       {/* Header */}
@@ -373,6 +489,28 @@ const A4Preview = ({ venta, empresa, vendedor, dateStr, saldo }) => {
             <Typography sx={{ fontSize: 12, fontWeight: 700, color: '#dc2626' }}>{formatCurrency(saldo)}</Typography>
           </Box>
         )}
+        {puntosInfo && (
+          <Box sx={{ mt: 1, pt: 1, borderTop: '1px dashed #ddd' }}>
+            {puntosInfo.ganados > 0 && (
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.3 }}>
+                <Typography sx={{ fontSize: 11, color: '#777' }}>⭐ Puntos ganados</Typography>
+                <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#16a34a' }}>+{puntosInfo.ganados}</Typography>
+              </Box>
+            )}
+            {puntosInfo.canjeados > 0 && (
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.3 }}>
+                <Typography sx={{ fontSize: 11, color: '#777' }}>⭐ Puntos canjeados</Typography>
+                <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#dc2626' }}>-{puntosInfo.canjeados} (-{formatCurrency(puntosInfo.descuento)})</Typography>
+              </Box>
+            )}
+            {(puntosInfo.saldo !== null && puntosInfo.saldo !== undefined) && (
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography sx={{ fontSize: 12, fontWeight: 700, color: '#555' }}>⭐ Saldo de puntos</Typography>
+                <Typography sx={{ fontSize: 12, fontWeight: 700, color: ACCENT }}>{puntosInfo.saldo}</Typography>
+              </Box>
+            )}
+          </Box>
+        )}
       </Box>
 
       {/* Footer */}
@@ -407,12 +545,16 @@ const ReciboDialog = ({ open, onClose, venta, empresa, vendedor }) => {
   const [paperSize, setPaperSize]     = useState('a4');
   const [waOpen, setWaOpen]           = useState(false);
   const [waNumber, setWaNumber]       = useState('');
+  const [sunmiOk, setSunmiOk]         = useState(false);
+  const [printingSunmi, setPrintingSunmi] = useState(false);
 
   const handleOpen = useCallback(() => {
     if (!open) return;
     // Pre-fill WhatsApp with client phone when dialog opens
     setWaNumber(venta?.cliente?.telefono || '');
     setWaOpen(false);
+    // Detectar impresora Sunmi (solo dentro de la app en un dispositivo Sunmi)
+    sunmiDisponible().then(setSunmiOk).catch(() => setSunmiOk(false));
   }, [open, venta]);
 
   // Reset WhatsApp panel when dialog opens
@@ -427,12 +569,10 @@ const ReciboDialog = ({ open, onClose, venta, empresa, vendedor }) => {
 
   const handlePrint = () => {
     const html = buildPrintHTML(venta, empresa, vendedor, size);
-    const w    = window.open('', '_blank', 'width=700,height=900');
-    if (!w) { alert('Permite las ventanas emergentes para imprimir.'); return; }
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => { w.print(); }, 350);
+    // printHtml: en la app nativa usa iframe oculto (window.open navegaba el
+    // WebView a una página en blanco y dejaba la app bloqueada); en navegador
+    // abre ventana nueva con fallback a iframe.
+    printHtml(html, 'width=700,height=900');
   };
 
   const handleWhatsApp = () => {
@@ -440,6 +580,17 @@ const ReciboDialog = ({ open, onClose, venta, empresa, vendedor }) => {
     if (!num) return;
     const text = buildWhatsAppText(venta, empresa, vendedor);
     window.open(`https://wa.me/${num}?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  const handleSunmiPrint = async () => {
+    setPrintingSunmi(true);
+    try {
+      await imprimirRecibo(buildSunmiLines(venta, empresa, vendedor));
+    } catch (e) {
+      toast.error('No se pudo imprimir en la impresora Sunmi: ' + (e?.message || e));
+    } finally {
+      setPrintingSunmi(false);
+    }
   };
 
   return (
@@ -584,6 +735,25 @@ const ReciboDialog = ({ open, onClose, venta, empresa, vendedor }) => {
       </Collapse>
 
       <Divider sx={{ flexShrink: 0 }} />
+
+      {/* ── Impresora Sunmi (solo en la app, en un dispositivo Sunmi) ── */}
+      {sunmiOk && (
+        <Box sx={{ px: 2.5, pt: 2, flexShrink: 0 }}>
+          <Button
+            fullWidth
+            variant="contained"
+            startIcon={<PointOfSale />}
+            onClick={handleSunmiPrint}
+            disabled={printingSunmi}
+            sx={{
+              fontWeight: 800, textTransform: 'none', borderRadius: 2, py: 1.3,
+              bgcolor: '#0F172A', '&:hover': { bgcolor: '#1E293B' },
+            }}
+          >
+            {printingSunmi ? 'Imprimiendo…' : '🖨️ Imprimir en impresora Sunmi'}
+          </Button>
+        </Box>
+      )}
 
       {/* ── Action buttons ──────────────────────────── */}
       <Box sx={{ px: 2.5, py: 2, display: 'flex', gap: 1.5, flexShrink: 0, flexWrap: 'wrap' }}>

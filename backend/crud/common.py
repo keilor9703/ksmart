@@ -28,6 +28,26 @@ def get_now_bogota():
     """Devuelve la fecha y hora actual en Bogotá"""
     return datetime.now(BOGOTA_TZ)
 
+
+def empresa_suscripcion_activa(empresa: "models.Empresa") -> bool:
+    """Misma regla usada en todo el sistema para 'is_plan_expired' (ver
+    schemas.EmpresaOut.check_expiration_out / auth.py) — replicada aquí para
+    poder usarla en los endpoints PÚBLICOS del catálogo/marketplace, que no
+    pasan por esos schemas. Una empresa con plan vencido no debe seguir
+    exponiendo su catálogo virtual ni su espacio en el Centro Comercial
+    Virtual a clientes finales, aunque el dueño no haya vuelto a entrar al
+    sistema para desactivarlo manualmente."""
+    if empresa is None:
+        return False
+    if empresa.id == 1 or getattr(empresa, "is_protected", False):
+        return True
+    trial_ends_at = getattr(empresa, "trial_ends_at", None)
+    if not trial_ends_at:
+        return True
+    if trial_ends_at.tzinfo is None:
+        trial_ends_at = trial_ends_at.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) <= trial_ends_at
+
 def get_now_utc():
     """Devuelve la fecha y hora actual en UTC"""
     return datetime.now(timezone.utc)

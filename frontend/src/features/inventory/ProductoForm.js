@@ -21,72 +21,119 @@ import {
   Inventory, ExpandMore, ExpandLess, Upload, Close, Category, Science,
   Storefront, AddPhotoAlternate, Delete, InfoOutlined, LocalOffer,
   Tag, Add, Tune, QrCodeScanner, CameraAlt as CameraAltIcon,
-  CheckCircle, FiberNew, Sync,
+  CheckCircle, FiberNew, Sync, Warning,
 } from '@mui/icons-material';
 
 import { UNIDADES_MEDIDA } from '../../utils/constants';
+import { onScanFisico } from '../../utils/sunmiScanner';
+
+const ATRIBUTOS_SUGERIDOS = ['Talla', 'Color', 'Tamaño', 'Peso', 'Presentación', 'Material', 'Sabor'];
 
 const DEFAULT_ACCENT  = '#8B5CF6';
 const PRICE_COLOR     = '#F43F5E';
 const INVENTORY_COLOR = '#10B981';
 const CATALOG_COLOR   = '#F59E0B';
 
+// ─── Helper: estilos premium para TextField (focus/hover con accent) ──────────
+const getInputSx = (accentColor) => ({
+  '& .MuiOutlinedInput-root': {
+    borderRadius: 2,
+    transition: 'box-shadow 0.2s',
+    '&:hover .MuiOutlinedInput-notchedOutline': {
+      borderColor: alpha(accentColor, 0.5),
+    },
+    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+      borderColor: accentColor,
+      borderWidth: 2,
+    },
+    '&.Mui-focused': {
+      boxShadow: `0 0 0 3px ${alpha(accentColor, 0.1)}`,
+    },
+  },
+  '& .MuiInputLabel-root.Mui-focused': {
+    color: accentColor,
+  },
+});
+
 const HAS_BARCODE_DETECTOR = typeof window !== 'undefined' && 'BarcodeDetector' in window;
 const HAS_CAMERA = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
 const BARCODE_FORMATS = ['ean_13', 'ean_8', 'code_128', 'qr_code', 'upc_e', 'code_39', 'itf'];
 
 const STATUS_CONFIG = {
-  existing:  { color: '#3B82F6', icon: Sync,        label: 'Producto existente — se actualizará al guardar' },
-  suggested: { color: '#F59E0B', icon: FiberNew,     label: 'Encontrado en catálogo global — completa precio y stock' },
-  new:       { color: '#10B981', icon: CheckCircle,  label: 'Producto nuevo — completa los datos' },
+  existing:    { color: '#3B82F6', icon: Sync,        label: 'Producto existente — se actualizará al guardar' },
+  suggested:   { color: '#F59E0B', icon: FiberNew,     label: 'Encontrado en catálogo global — completa precio y stock' },
+  unverified:  { color: '#EF4444', icon: Warning,      label: '⚠️ Sugerencia de búsqueda web SIN VERIFICAR — revisa el nombre antes de guardar' },
+  new:         { color: '#10B981', icon: CheckCircle,  label: 'Producto nuevo — completa los datos' },
 };
 
-// ─── Section Card — colapsable en móvil, siempre abierta en desktop ───────────
+// ─── Section Card — colapsable, con borde izquierdo de color accent ───────────
 const SectionCard = ({ icon, title, accent = DEFAULT_ACCENT, children, defaultOpen = true }) => {
-  const isMobile = useMediaQuery('(max-width:899px)');
+  const theme  = useTheme();
+  const isDark = theme.palette.mode === 'dark';
   const [open, setOpen] = useState(defaultOpen);
-
-  const isOpen = open;
 
   return (
     <Box sx={{
       borderRadius: 3,
       border: '1px solid',
-      borderColor: 'divider',
+      borderColor: open ? alpha(accent, 0.25) : 'divider',
       bgcolor: 'background.paper',
       mb: 2.5,
       overflow: 'hidden',
-      boxShadow: '0 1px 8px rgba(0,0,0,0.05)',
+      boxShadow: open
+        ? `0 2px 16px ${alpha(accent, 0.1)}, 0 1px 4px rgba(0,0,0,0.04)`
+        : '0 1px 4px rgba(0,0,0,0.03)',
+      transition: 'box-shadow 0.2s, border-color 0.2s',
+      // Franja izquierda de color
+      borderLeft: `3px solid ${open ? accent : 'transparent'}`,
     }}>
       <Box
         onClick={() => setOpen(o => !o)}
         sx={{
           px: 2.5, py: 1.5,
-          display: 'flex', alignItems: 'center', gap: 1.2,
-          borderBottom: isOpen ? '1px solid' : 'none',
-          borderColor: 'divider',
-          bgcolor: alpha(accent, 0.05),
+          display: 'flex', alignItems: 'center', gap: 1.4,
+          borderBottom: open ? '1px solid' : 'none',
+          borderColor: alpha(accent, 0.15),
+          background: open
+            ? `linear-gradient(90deg, ${alpha(accent, isDark ? 0.1 : 0.06)} 0%, transparent 100%)`
+            : 'transparent',
           cursor: 'pointer',
           userSelect: 'none',
-          '&:hover': { bgcolor: alpha(accent, 0.09) },
-          transition: 'background-color 0.15s',
+          '&:hover': {
+            background: `linear-gradient(90deg, ${alpha(accent, isDark ? 0.14 : 0.09)} 0%, transparent 100%)`,
+          },
+          transition: 'background 0.2s',
         }}
       >
         <Box sx={{
-          width: 28, height: 28, borderRadius: 1.5,
-          bgcolor: alpha(accent, 0.14),
+          width: 32, height: 32, borderRadius: 2,
+          background: open
+            ? `linear-gradient(135deg, ${accent}, ${alpha(accent, 0.7)})`
+            : alpha(accent, 0.12),
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: accent, flexShrink: 0,
+          color: open ? '#fff' : accent,
+          flexShrink: 0,
+          boxShadow: open ? `0 3px 10px ${alpha(accent, 0.4)}` : 'none',
+          transition: 'all 0.2s',
         }}>
           {icon}
         </Box>
-        <Typography sx={{ fontWeight: 700, fontSize: 13.5, flex: 1 }}>{title}</Typography>
-        {open
-          ? <ExpandLess sx={{ color: accent, fontSize: 20 }} />
-          : <ExpandMore sx={{ color: 'text.secondary', fontSize: 20 }} />
-        }
+        <Typography sx={{ fontWeight: 700, fontSize: 13.5, flex: 1, color: open ? 'text.primary' : 'text.secondary' }}>
+          {title}
+        </Typography>
+        <Box sx={{
+          width: 22, height: 22, borderRadius: '50%',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          bgcolor: open ? alpha(accent, 0.12) : 'transparent',
+          transition: 'all 0.2s',
+        }}>
+          {open
+            ? <ExpandLess sx={{ color: accent, fontSize: 18 }} />
+            : <ExpandMore sx={{ color: 'text.secondary', fontSize: 18 }} />
+          }
+        </Box>
       </Box>
-      <Collapse in={isOpen}>
+      <Collapse in={open}>
         <Box sx={{ p: 2.5 }}>
           {children}
         </Box>
@@ -95,54 +142,96 @@ const SectionCard = ({ icon, title, accent = DEFAULT_ACCENT, children, defaultOp
   );
 };
 
-// ─── Collapsible Panel wrapper (unchanged) ────────────────────────────────────
-const Panel = ({ title, icon, chip, open, onToggle, forceOpen, onClose, children, accentColor }) => (
-  <Box sx={{
-    borderRadius: 3, border: '1px solid', borderColor: 'divider',
-    bgcolor: 'background.paper', mb: 2,
-    boxShadow: open ? '0 4px 24px rgba(0,0,0,0.08)' : '0 2px 8px rgba(0,0,0,0.04)',
-    transition: 'box-shadow 0.2s',
-  }}>
-    <Box
-      onClick={() => { if (!forceOpen) onToggle(); }}
-      sx={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        px: { xs: 1.5, md: 2.5 }, py: 1.5,
-        cursor: forceOpen ? 'default' : 'pointer',
-        '&:hover': { bgcolor: forceOpen ? 'transparent' : 'action.hover' },
-      }}
-    >
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, flex: 1 }}>
+// ─── Collapsible Panel wrapper premium ───────────────────────────────────────
+const Panel = ({ title, icon, chip, open, onToggle, forceOpen, onClose, children, accentColor }) => {
+  const theme  = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  return (
+    <Box sx={{
+      borderRadius: 3.5,
+      border: '1px solid',
+      borderColor: open ? alpha(accentColor, 0.3) : 'divider',
+      bgcolor: 'background.paper',
+      mb: 2,
+      overflow: 'hidden',
+      boxShadow: open
+        ? `0 0 0 1px ${alpha(accentColor, 0.08)}, 0 8px 32px rgba(0,0,0,${isDark ? 0.4 : 0.1})`
+        : `0 2px 8px rgba(0,0,0,${isDark ? 0.25 : 0.04})`,
+      transition: 'box-shadow 0.25s, border-color 0.25s',
+    }}>
+      {/* Franja superior gradiente cuando está abierto */}
+      {open && (
         <Box sx={{
-          width: 30, height: 30, borderRadius: 1.5, flexShrink: 0,
-          bgcolor: `${accentColor}18`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', color: accentColor,
-        }}>
-          {icon}
+          height: 3,
+          background: `linear-gradient(90deg, ${accentColor} 0%, ${alpha(accentColor, 0.4)} 60%, transparent 100%)`,
+        }} />
+      )}
+      <Box
+        onClick={() => { if (!forceOpen) onToggle(); }}
+        sx={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          px: { xs: 2, md: 2.5 }, py: 1.8,
+          cursor: forceOpen ? 'default' : 'pointer',
+          background: open
+            ? `linear-gradient(90deg, ${alpha(accentColor, isDark ? 0.08 : 0.04)} 0%, transparent 100%)`
+            : 'transparent',
+          '&:hover': {
+            background: forceOpen
+              ? 'transparent'
+              : `linear-gradient(90deg, ${alpha(accentColor, isDark ? 0.1 : 0.06)} 0%, transparent 100%)`,
+          },
+          transition: 'background 0.2s',
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, flex: 1 }}>
+          <Box sx={{
+            width: 36, height: 36, borderRadius: 2, flexShrink: 0,
+            background: open
+              ? `linear-gradient(135deg, ${accentColor}, ${alpha(accentColor, 0.75)})`
+              : alpha(accentColor, 0.12),
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: open ? '#fff' : accentColor,
+            boxShadow: open ? `0 4px 12px ${alpha(accentColor, 0.4)}` : 'none',
+            transition: 'all 0.25s',
+          }}>
+            {icon}
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontWeight: 700, fontSize: 15, lineHeight: 1.2 }}>{title}</Typography>
+            {chip && <Box sx={{ mt: 0.3 }}>{chip}</Box>}
+          </Box>
         </Box>
-        <Typography sx={{ fontWeight: 600, fontSize: 14 }}>{title}</Typography>
-        {chip && <Box sx={{ flexShrink: 0 }}>{chip}</Box>}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0, ml: 1 }}>
+          {open && onClose && (
+            <IconButton size="small" onClick={(e) => { e.stopPropagation(); onClose(); }}
+              sx={{ color: 'text.secondary', bgcolor: 'action.hover', borderRadius: 1.5 }}>
+              <Close fontSize="small" />
+            </IconButton>
+          )}
+          {!forceOpen && (
+            <Box sx={{
+              width: 26, height: 26, borderRadius: '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              bgcolor: open ? alpha(accentColor, 0.12) : 'action.hover',
+              transition: 'all 0.2s',
+            }}>
+              {open
+                ? <ExpandLess sx={{ color: accentColor, fontSize: 18 }} />
+                : <ExpandMore sx={{ color: 'text.secondary', fontSize: 18 }} />
+              }
+            </Box>
+          )}
+        </Box>
       </Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0, ml: 1 }}>
-        {open && onClose && (
-          <IconButton size="small" onClick={(e) => { e.stopPropagation(); onClose(); }} sx={{ color: 'text.secondary' }}>
-            <Close fontSize="small" />
-          </IconButton>
-        )}
-        {!forceOpen && (open
-          ? <ExpandLess sx={{ color: 'text.secondary', fontSize: 20 }} />
-          : <ExpandMore sx={{ color: 'text.secondary', fontSize: 20 }} />
-        )}
-      </Box>
+      <Collapse in={open}>
+        <Divider sx={{ opacity: 0.5 }} />
+        <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: isDark ? alpha(accentColor, 0.02) : alpha(accentColor, 0.01) }}>
+          {children}
+        </Box>
+      </Collapse>
     </Box>
-    <Collapse in={open}>
-      <Divider />
-      <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: 'background.default' }}>
-        {children}
-      </Box>
-    </Collapse>
-  </Box>
-);
+  );
+};
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 const ProductoForm = ({
@@ -190,6 +279,7 @@ const ProductoForm = ({
 
   // ── Agile barcode scan state ──
   const [cameraActive,  setCameraActive]  = useState(false);
+  const [scanConfirmCount, setScanConfirmCount] = useState(0);
   const [searchingCode, setSearchingCode] = useState(false);
   const [productStatus, setProductStatus] = useState(null); // 'existing' | 'suggested' | 'new'
   const videoRef        = useRef(null);
@@ -198,6 +288,8 @@ const ProductoForm = ({
   const zxingControlsRef  = useRef(null);
   const nombreRef         = useRef(null);
   const precioRef         = useRef(null);
+  const codigoBarrasRef   = useRef(null);   // input del código de barras (para lectores)
+  const handleSearchBarcodeRef = useRef(null); // para el botón físico Sunmi
 
   // ── Variant state ──
   const [tieneVariantes,    setTieneVariantes]    = useState(false);
@@ -206,6 +298,9 @@ const ProductoForm = ({
   const [varianteEditing,   setVarianteEditing]   = useState(null);
   const [varianteForm,      setVarianteForm]      = useState({ nombre: '', sku: '', atributos: {}, precio: '', costo: '', stock_inicial: '' });
   const [skuPreview,        setSkuPreview]        = useState('');
+  const [nuevoAtributo,     setNuevoAtributo]     = useState('');
+  const [filasNuevaVariante, setFilasNuevaVariante] = useState([{ valor: '', costo: '', precio: '', stock: '' }]);
+  const [guardandoVariantes, setGuardandoVariantes] = useState(false);
 
   // ── Lifecycle (unchanged) ──
   useEffect(() => {
@@ -321,17 +416,22 @@ const ProductoForm = ({
         playBeep('success');
         precioRef.current?.focus();
       } else if (res.data && res.data.nombre) {
-        setProductStatus('suggested');
+        const esNoVerificado = res.data.fuente === 'web_no_verificado';
+        setProductStatus(esNoVerificado ? 'unverified' : 'suggested');
         setNombre(res.data.nombre || '');
         setCodigoBarras(code);
         setPrecio(''); setCosto(''); setStockMinimo('');
-        toast.info('Encontrado en catálogo global. Completa precio y stock.');
+        if (esNoVerificado) {
+          toast.warning('⚠️ Nombre sugerido por búsqueda web, SIN VERIFICAR — confirma que corresponde al producto antes de guardar.', { autoClose: 8000 });
+        } else {
+          toast.info('Encontrado en catálogo global. Completa precio y stock.');
+        }
         playBeep('success');
-        precioRef.current?.focus();
+        nombreRef.current?.focus();
       } else {
         setProductStatus('new');
         setCodigoBarras(code);
-        toast.info('Código no encontrado en catálogos públicos ni búsqueda web. Completa los datos del nuevo producto.');
+        toast.info('Código no encontrado en catálogos públicos. Completa los datos del nuevo producto.');
         playBeep('error');
         nombreRef.current?.focus();
       }
@@ -344,23 +444,88 @@ const ProductoForm = ({
       setSearchingCode(false);
     }
   };
+  handleSearchBarcodeRef.current = handleSearchBarcode;
+
+  // Lector de código de barras (USB / WiFi / integrado que "escribe" el código):
+  // mientras el formulario está abierto y la cámara apagada, si el usuario no
+  // está escribiendo en otro campo, redirige la digitación al campo de código
+  // para que el lector escriba ahí y el Enter final dispare la búsqueda. Igual
+  // que en Ventas. Además escucha el botón físico del escáner Sunmi.
+  useEffect(() => {
+    if (!formOpen || cameraActive) return undefined;
+    const onKey = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) return;
+      const active = document.activeElement;
+      const tag = active?.tagName?.toLowerCase();
+      const escribiendoEnOtro = tag === 'input' || tag === 'textarea' || tag === 'select' || active?.isContentEditable;
+      if (!escribiendoEnOtro && codigoBarrasRef.current) codigoBarrasRef.current.focus();
+    };
+    window.addEventListener('keydown', onKey);
+    const offSunmi = onScanFisico((code) => handleSearchBarcodeRef.current?.(code));
+    return () => { window.removeEventListener('keydown', onKey); offSunmi(); };
+  }, [formOpen, cameraActive]);
 
   useEffect(() => {
-    if (!cameraActive) { cleanupCamera(); return; }
+    if (!cameraActive) { cleanupCamera(); setScanConfirmCount(0); return; }
 
     const onBarcode = (code) => {
       setCameraActive(false);
+      setScanConfirmCount(0);
       handleSearchBarcode(code);
+    };
+
+    // El detector escanea ~10 veces/seg — aceptar la PRIMERA lectura cruda
+    // es lo que causaba capturar dígitos incorrectos: un frame borroso o a
+    // medio encuadre mientras el usuario todavía está acomodando la cámara
+    // se tomaba como definitivo. Ahora se exige que el mismo código se lea
+    // CONFIRM_READS veces seguidas antes de aceptarlo — en la práctica es
+    // una pequeña pausa (unos ~200-300ms sosteniendo el código quieto)
+    // que filtra lecturas parciales/erróneas sin sentirse lenta.
+    const CONFIRM_READS = 3;
+    let candidateCode = null;
+    let candidateCount = 0;
+    const registerDetection = (code) => {
+      if (!code) return false;
+      if (code === candidateCode) {
+        candidateCount += 1;
+      } else {
+        candidateCode = code;
+        candidateCount = 1;
+      }
+      setScanConfirmCount(candidateCount);
+      if (candidateCount >= CONFIRM_READS) {
+        onBarcode(candidateCode);
+        return true;
+      }
+      return false;
     };
 
     let cancelled = false;
 
     const start = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        // `facingMode: 'environment'` como string plano se trata como
+        // constraint EXACTA en algunos WebKit/iOS — si el navegador no
+        // encuentra una cámara que matchee exactamente, getUserMedia
+        // rechaza con OverconstrainedError y la cámara nunca abre (esto es
+        // lo que fallaba en iPhone). `{ ideal: 'environment' }` pide la
+        // trasera como preferencia, sin descartar el dispositivo si no
+        // puede garantizarla; y si aun así falla, se reintenta pidiendo
+        // cualquier cámara disponible en vez de rendirse.
+        let stream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } });
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        }
         if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
         streamRef.current = stream;
         if (videoRef.current) {
+          // Refuerzo además del atributo JSX playsInline — algunas
+          // versiones de Safari/iOS solo lo respetan si también se setea
+          // como atributo del DOM antes de asignar el stream.
+          videoRef.current.setAttribute('playsinline', 'true');
+          videoRef.current.setAttribute('webkit-playsinline', 'true');
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
         }
@@ -374,20 +539,25 @@ const ProductoForm = ({
               lastCheck = ts;
               try {
                 const codes = await detector.detect(videoRef.current);
-                if (codes.length > 0) { onBarcode(codes[0].rawValue); return; }
+                if (codes.length > 0 && registerDetection(codes[0].rawValue)) return;
               } catch {}
             }
             rAFRef.current = requestAnimationFrame(tick);
           };
           rAFRef.current = requestAnimationFrame(tick);
         } else {
+          // BarcodeDetector no existe en Safari/iOS — este es el camino que
+          // SIEMPRE toma un iPhone. Se reutiliza el stream ya abierto arriba
+          // (con el fallback de constraints ya resuelto) en vez de dejar
+          // que zxing pida su propio stream con constraints que podrían
+          // volver a fallar igual que el getUserMedia original.
           const { BrowserMultiFormatReader } = await import('@zxing/browser');
           if (cancelled) return;
           const reader = new BrowserMultiFormatReader();
-          const controls = await reader.decodeFromConstraints(
-            { video: { facingMode: 'environment' } },
+          const controls = await reader.decodeFromStream(
+            stream,
             videoRef.current,
-            (result) => { if (result && !cancelled) onBarcode(result.getText()); }
+            (result) => { if (result && !cancelled) registerDetection(result.getText()); }
           );
           zxingControlsRef.current = controls;
         }
@@ -436,6 +606,47 @@ const ProductoForm = ({
       setVarianteForm({ nombre: '', sku: '', atributos: {}, precio: '', costo: '', stock_inicial: '' });
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al guardar la variante');
+    }
+  };
+
+  const agregarFilaVariante = () => {
+    setFilasNuevaVariante(prev => [...prev, { valor: '', costo: '', precio: '', stock: '' }]);
+  };
+
+  const actualizarFilaVariante = (idx, campo, valor) => {
+    setFilasNuevaVariante(prev => prev.map((f, i) => i === idx ? { ...f, [campo]: valor } : f));
+  };
+
+  const eliminarFilaVariante = (idx) => {
+    setFilasNuevaVariante(prev => prev.length === 1 ? prev : prev.filter((_, i) => i !== idx));
+  };
+
+  const handleGuardarFilasVariante = async () => {
+    const atributo = nuevoAtributo.trim();
+    if (!atributo) { toast.warning('Elige o escribe qué característica varía (ej: Talla)'); return; }
+    const filas = filasNuevaVariante.filter(f => f.valor.trim());
+    if (!filas.length) { toast.warning(`Escribe al menos un valor de ${atributo}`); return; }
+
+    const payload = {
+      atributo,
+      valores: filas.map(f => ({
+        valor: f.valor.trim(),
+        stock_inicial: parseFloat(f.stock) || 0,
+        costo: f.costo ? parseFloat(f.costo) : null,
+        precio: f.precio ? parseFloat(f.precio) : null,
+      })),
+    };
+    setGuardandoVariantes(true);
+    try {
+      const res = await apiClient.post(`/productos/${productoToEdit.id}/variantes/generar`, payload);
+      setVariantes(prev => [...prev, ...res.data]);
+      toast.success(`${res.data.length} variante${res.data.length === 1 ? '' : 's'} agregada${res.data.length === 1 ? '' : 's'}`);
+      setNuevoAtributo('');
+      setFilasNuevaVariante([{ valor: '', costo: '', precio: '', stock: '' }]);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al guardar las variantes');
+    } finally {
+      setGuardandoVariantes(false);
     }
   };
 
@@ -672,36 +883,145 @@ const ProductoForm = ({
       >
         <Box component="form" onSubmit={handleSubmit}>
 
-          {/* ── Type selector ── */}
+          {/* ── Type selector — pill cards ── */}
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3.5 }}>
-            <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 1, mb: 1.5 }}>
+            <Typography sx={{ fontSize: 10.5, fontWeight: 700, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: 1.2, mb: 1.8 }}>
               ¿Qué tipo de ítem deseas crear?
             </Typography>
-            <ButtonGroup variant="outlined" sx={{ '& .MuiButton-root': { py: 1.2, px: { xs: 2.5, sm: 5 }, borderColor: 'divider' } }}>
-              <Button
-                onClick={() => setEsServicio(false)}
-                sx={{
-                  bgcolor: !esServicio ? alpha(accentColor, 0.1) : 'transparent',
-                  color: !esServicio ? accentColor : 'text.secondary',
-                  borderColor: !esServicio ? `${accentColor} !important` : 'divider',
-                  fontWeight: !esServicio ? 700 : 500,
-                }}
-              >
-                📦 Producto Físico
-              </Button>
-              <Button
-                onClick={() => setEsServicio(true)}
-                sx={{
-                  bgcolor: esServicio ? alpha('#06B6D4', 0.1) : 'transparent',
-                  color: esServicio ? '#06B6D4' : 'text.secondary',
-                  borderColor: esServicio ? '#06B6D4 !important' : 'divider',
-                  fontWeight: esServicio ? 700 : 500,
-                }}
-              >
-                ⚙️ Servicio Intangible
-              </Button>
-            </ButtonGroup>
+            <Box sx={{
+              display: 'flex', gap: 1.5,
+              p: 0.6, borderRadius: 3,
+              bgcolor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+              border: '1px solid',
+              borderColor: 'divider',
+            }}>
+              {[
+                { label: '📦 Producto Físico',    value: false, color: accentColor },
+                { label: '⚙️ Servicio Intangible', value: true,  color: '#06B6D4' },
+              ].map(({ label, value, color }) => {
+                const isActive = esServicio === value;
+                return (
+                  <Box
+                    key={String(value)}
+                    onClick={() => setEsServicio(value)}
+                    sx={{
+                      px: { xs: 2.5, sm: 4 }, py: 1.2,
+                      borderRadius: 2.5,
+                      cursor: 'pointer',
+                      fontWeight: isActive ? 700 : 500,
+                      fontSize: 13.5,
+                      userSelect: 'none',
+                      transition: 'all 0.2s',
+                      background: isActive
+                        ? `linear-gradient(135deg, ${color}, ${alpha(color, 0.75)})`
+                        : 'transparent',
+                      color: isActive ? '#fff' : 'text.secondary',
+                      boxShadow: isActive ? `0 4px 14px ${alpha(color, 0.45)}` : 'none',
+                      '&:hover': {
+                        background: isActive
+                          ? `linear-gradient(135deg, ${color}, ${alpha(color, 0.75)})`
+                          : isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                      },
+                    }}
+                  >
+                    {label}
+                  </Box>
+                );
+              })}
+            </Box>
           </Box>
+
+          {/* § 0 — Escaneo Rápido: lo primero que ve el usuario al crear un
+              producto, ANTES de nombre/descripción — el flujo ágil es
+              escanear el código y dejar que se autocompleten nombre, SKU,
+              precio, etc. (ver handleSearchBarcode), no llenar el formulario
+              a mano y encontrarse con el escáner al final. Solo aplica a
+              productos físicos (los servicios no tienen código de barras). */}
+          {!esServicio && (
+            <SectionCard icon={<QrCodeScanner fontSize="small" />} title="Escaneo Rápido" accent="#10B981">
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={7}>
+                  <TextField
+                    label="Código de Barras"
+                    value={codigoBarras}
+                    onChange={e => setCodigoBarras(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSearchBarcode(codigoBarras.trim()); } }}
+                    autoFocus
+                    inputRef={codigoBarrasRef}
+                    fullWidth
+                    placeholder="Escanea, escribe o usa la cámara…"
+                    inputProps={{ style: { fontFamily: 'monospace' } }}
+                    sx={getInputSx('#10B981')}
+                    InputProps={{
+                      startAdornment: <InputAdornment position="start"><QrCodeScanner fontSize="small" sx={{ color: 'text.secondary' }} /></InputAdornment>,
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          {searchingCode
+                            ? <CircularProgress size={18} />
+                            : (
+                              <SmartTooltip id="prod_scan_camera" title="Escanear con cámara" description="Activa la cámara para leer el código de barras automáticamente.">
+                                <IconButton
+                                  size="small"
+                                  onClick={handleToggleCamera}
+                                  disabled={!HAS_CAMERA}
+                                  sx={{ color: cameraActive ? '#EF4444' : '#10B981' }}
+                                >
+                                  <CameraAltIcon fontSize="small" />
+                                </IconButton>
+                              </SmartTooltip>
+                            )}
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                  <Typography sx={{ fontSize: 11.5, color: 'text.secondary', mt: 0.5 }}>
+                    Si el código ya existe, se autocompletan nombre, precio y demás datos.
+                  </Typography>
+                </Grid>
+
+                {cameraActive && (
+                  <Grid item xs={12} md={5}>
+                    <Box sx={{
+                      position: 'relative', width: '100%', maxWidth: 420, mx: 'auto',
+                      borderRadius: 2, overflow: 'hidden', bgcolor: '#000',
+                      aspectRatio: '4/3',
+                    }}>
+                      <video ref={videoRef} muted playsInline autoPlay
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <Box sx={{
+                        position: 'absolute', inset: '18% 12%',
+                        border: '2px solid #10B981', borderRadius: 1.5,
+                        boxShadow: '0 0 0 2000px rgba(0,0,0,0.35)',
+                      }} />
+                      <Typography sx={{
+                        position: 'absolute', bottom: 8, left: 0, right: 0, textAlign: 'center',
+                        color: '#fff', fontSize: 11, fontWeight: 600, textShadow: '0 1px 3px rgba(0,0,0,0.8)',
+                      }}>
+                        {scanConfirmCount > 0
+                          ? `Manteniendo lectura… ${scanConfirmCount}/3`
+                          : 'Apunta la cámara al código de barras y sostenla quieta'}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                )}
+
+                {productStatus && (
+                  <Grid item xs={12}>
+                    <Box sx={{
+                      display: 'flex', alignItems: 'center', gap: 1, p: 1.2, borderRadius: 2,
+                      bgcolor: alpha(STATUS_CONFIG[productStatus].color, 0.08),
+                      border: `1px solid ${alpha(STATUS_CONFIG[productStatus].color, 0.3)}`,
+                    }}>
+                      {React.createElement(STATUS_CONFIG[productStatus].icon, { sx: { fontSize: 18, color: STATUS_CONFIG[productStatus].color } })}
+                      <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: STATUS_CONFIG[productStatus].color }}>
+                        {STATUS_CONFIG[productStatus].label}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                )}
+              </Grid>
+            </SectionCard>
+          )}
 
           {/* ── 2-column grid ── */}
           <Grid container spacing={2.5} alignItems="flex-start">
@@ -721,6 +1041,7 @@ const ProductoForm = ({
                     onChange={e => setNombre(e.target.value)}
                     inputRef={nombreRef}
                     fullWidth required
+                    sx={getInputSx(accentColor)}
                   />
 
                   {/* Descripción — fila completa, 2 líneas de alto */}
@@ -733,6 +1054,7 @@ const ProductoForm = ({
                       ? 'Ej: Servicio de instalación y configuración incluida…'
                       : 'Ej: Presentación de 500 g, sabor original, apto para veganos…'}
                     helperText="Opcional — aparece en el catálogo virtual y en cotizaciones"
+                    sx={getInputSx(accentColor)}
                   />
 
                   {!esServicio && (
@@ -772,8 +1094,9 @@ const ProductoForm = ({
                         />
                       </Grid>
 
-                      {/* SKU + Código de Barras — fila compartida */}
-                      <Grid item xs={12} md={6}>
+                      {/* SKU — Código de Barras se movió a la sección de
+                          Escaneo Rápido, arriba de todo el formulario. */}
+                      <Grid item xs={12}>
                         <TextField
                           label="SKU / Código Interno"
                           value={sku}
@@ -782,80 +1105,9 @@ const ProductoForm = ({
                           placeholder={productoToEdit ? '' : 'Se genera automáticamente'}
                           inputProps={{ style: { fontFamily: 'monospace', letterSpacing: 1 } }}
                           helperText={!sku && skuPreview ? `Se generará: ${skuPreview}` : 'Identificador único del ítem en tu inventario'}
+                          sx={getInputSx(accentColor)}
                         />
                       </Grid>
-
-                      <Grid item xs={12} md={6}>
-                        <TextField
-                          label="Código de Barras"
-                          value={codigoBarras}
-                          onChange={e => setCodigoBarras(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSearchBarcode(codigoBarras.trim()); } }}
-                          fullWidth
-                          placeholder="Escanea, escribe o usa la cámara…"
-                          inputProps={{ style: { fontFamily: 'monospace' } }}
-                          InputProps={{
-                            startAdornment: <InputAdornment position="start"><QrCodeScanner fontSize="small" sx={{ color: 'text.secondary' }} /></InputAdornment>,
-                            endAdornment: (
-                              <InputAdornment position="end">
-                                {searchingCode
-                                  ? <CircularProgress size={18} />
-                                  : (
-                                    <SmartTooltip id="prod_scan_camera" title="Escanear con cámara" description="Activa la cámara para leer el código de barras automáticamente.">
-                                      <IconButton
-                                        size="small"
-                                        onClick={handleToggleCamera}
-                                        disabled={!HAS_CAMERA}
-                                        sx={{ color: cameraActive ? '#EF4444' : accentColor }}
-                                      >
-                                        <CameraAltIcon fontSize="small" />
-                                      </IconButton>
-                                    </SmartTooltip>
-                                  )}
-                              </InputAdornment>
-                            ),
-                          }}
-                        />
-                      </Grid>
-
-                      {cameraActive && (
-                        <Grid item xs={12}>
-                          <Box sx={{
-                            position: 'relative', width: '100%', maxWidth: 420, mx: 'auto',
-                            borderRadius: 2, overflow: 'hidden', bgcolor: '#000',
-                            aspectRatio: '4/3',
-                          }}>
-                            <video ref={videoRef} muted playsInline
-                              style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            <Box sx={{
-                              position: 'absolute', inset: '18% 12%',
-                              border: '2px solid #10B981', borderRadius: 1.5,
-                              boxShadow: '0 0 0 2000px rgba(0,0,0,0.35)',
-                            }} />
-                            <Typography sx={{
-                              position: 'absolute', bottom: 8, left: 0, right: 0, textAlign: 'center',
-                              color: '#fff', fontSize: 11, fontWeight: 600, textShadow: '0 1px 3px rgba(0,0,0,0.8)',
-                            }}>
-                              Apunta la cámara al código de barras
-                            </Typography>
-                          </Box>
-                        </Grid>
-                      )}
-
-                      {productStatus && (
-                        <Grid item xs={12}>
-                          <Box sx={{
-                            display: 'flex', alignItems: 'center', gap: 1, p: 1.2, borderRadius: 2,
-                            bgcolor: alpha(STATUS_CONFIG[productStatus].color, 0.08),
-                            border: `1px solid ${alpha(STATUS_CONFIG[productStatus].color, 0.3)}`,
-                          }}>
-                            {React.createElement(STATUS_CONFIG[productStatus].icon, { sx: { fontSize: 18, color: STATUS_CONFIG[productStatus].color } })}
-                            <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: STATUS_CONFIG[productStatus].color }}>
-                              {STATUS_CONFIG[productStatus].label}
-                            </Typography>
-                          </Box>
-                        </Grid>
-                      )}
                     </Grid>
                   )}
                 </Box>
@@ -1026,55 +1278,159 @@ const ProductoForm = ({
                 )}
                 {tieneVariantes && productoToEdit && (
                   <Box sx={{ mt: 2 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                      <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.secondary' }}>
-                        {variantes.length} variante{variantes.length !== 1 ? 's' : ''} registrada{variantes.length !== 1 ? 's' : ''}
-                      </Typography>
-                      <Button size="small" startIcon={<Add />} variant="outlined"
-                        onClick={() => { setVarianteEditing(null); setVarianteForm({ nombre: '', sku: '', atributos: {}, precio: '', costo: '', stock_inicial: '' }); setVarianteDialog(true); }}
-                        sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700 }}>
-                        Agregar variante
-                      </Button>
-                    </Box>
-                    {variantes.length > 0 && (
-                      <Table size="small" sx={{ '& td,& th': { fontSize: 12 } }}>
-                        <TableHead>
-                          <TableRow sx={{ bgcolor: 'action.hover' }}>
-                            <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Nombre / Atributos</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Precio</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Stock</TableCell>
-                            <TableCell />
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {variantes.map(v => (
-                            <TableRow key={v.id} hover>
-                              <TableCell><Typography sx={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700 }}>{v.sku}</Typography></TableCell>
-                              <TableCell>
-                                <Typography sx={{ fontWeight: 600 }}>{v.nombre}</Typography>
-                                {v.atributos && Object.keys(v.atributos).length > 0 && (
-                                  <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.3 }}>
-                                    {Object.entries(v.atributos).map(([k, val]) => (
-                                      <Chip key={k} label={`${k}: ${val}`} size="small" sx={{ height: 18, fontSize: 10 }} />
-                                    ))}
-                                  </Box>
-                                )}
-                              </TableCell>
-                              <TableCell>{v.precio != null ? `$${v.precio.toLocaleString('es-CO')}` : '—'}</TableCell>
-                              <TableCell>{v.stock_actual}</TableCell>
-                              <TableCell align="right">
-                                <IconButton size="small" onClick={() => { setVarianteEditing(v); setVarianteForm({ nombre: v.nombre, sku: v.sku, atributos: v.atributos || {}, precio: v.precio ?? '', costo: v.costo ?? '', stock_inicial: '' }); setVarianteDialog(true); }}>
-                                  <ExpandMore fontSize="small" />
-                                </IconButton>
-                                <IconButton size="small" color="error" onClick={() => handleDeleteVariante(v.id)}>
+                    {/* ── Constructor inline: elige el atributo, agrega filas de valores ── */}
+                    <Box sx={{
+                      p: 2, borderRadius: 2.5, mb: 3,
+                      bgcolor: isDark ? alpha(accentColor, 0.06) : alpha(accentColor, 0.04),
+                      border: '1px solid', borderColor: alpha(accentColor, 0.2),
+                    }}>
+                      <Autocomplete
+                        freeSolo
+                        options={ATRIBUTOS_SUGERIDOS}
+                        value={nuevoAtributo}
+                        onInputChange={(e, val) => setNuevoAtributo(val)}
+                        renderInput={(params) => (
+                          <TextField {...params} label="¿Qué característica varía?" size="small"
+                            placeholder="Ej: Talla, Color, Tamaño, Peso…" fullWidth />
+                        )}
+                      />
+
+                      {nuevoAtributo.trim() && (
+                        <Box sx={{ mt: 2 }}>
+                          <Box sx={{
+                            display: 'grid',
+                            gridTemplateColumns: { xs: '1fr 1fr', sm: '1.3fr 1fr 1fr 0.9fr auto' },
+                            gap: 1, mb: 0.8, px: 0.5,
+                          }}>
+                            <Typography sx={{ fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary' }}>
+                              {nuevoAtributo}
+                            </Typography>
+                            <Typography sx={{ fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', display: { xs: 'none', sm: 'block' } }}>Costo</Typography>
+                            <Typography sx={{ fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', display: { xs: 'none', sm: 'block' } }}>Precio</Typography>
+                            <Typography sx={{ fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary' }}>Stock</Typography>
+                            <Box />
+                          </Box>
+
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.8 }}>
+                            {filasNuevaVariante.map((fila, idx) => (
+                              <Box key={idx} sx={{
+                                display: 'grid',
+                                gridTemplateColumns: { xs: '1fr 1fr', sm: '1.3fr 1fr 1fr 0.9fr auto' },
+                                gap: 1, alignItems: 'center',
+                                p: 1, borderRadius: 2, bgcolor: 'background.paper',
+                                border: '1px solid', borderColor: 'divider',
+                              }}>
+                                <TextField size="small" placeholder={`Ej: ${nuevoAtributo === 'Talla' ? '38' : 'Rojo'}`}
+                                  value={fila.valor}
+                                  onChange={e => actualizarFilaVariante(idx, 'valor', e.target.value)}
+                                  autoFocus={idx === filasNuevaVariante.length - 1 && filasNuevaVariante.length > 1}
+                                />
+                                <CurrencyField size="small" placeholder="Opcional" value={fila.costo}
+                                  onChange={val => actualizarFilaVariante(idx, 'costo', val)} />
+                                <CurrencyField size="small" placeholder="Opcional" value={fila.precio}
+                                  onChange={val => actualizarFilaVariante(idx, 'precio', val)} />
+                                <TextField size="small" type="number" placeholder="0"
+                                  value={fila.stock}
+                                  onChange={e => actualizarFilaVariante(idx, 'stock', e.target.value)} />
+                                <IconButton size="small" color="error"
+                                  onClick={() => eliminarFilaVariante(idx)}
+                                  disabled={filasNuevaVariante.length === 1}
+                                  sx={{ justifySelf: 'end' }}>
                                   <Delete fontSize="small" />
                                 </IconButton>
-                              </TableCell>
+                              </Box>
+                            ))}
+                          </Box>
+
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1.5 }}>
+                            <Button size="small" startIcon={<Add />} onClick={agregarFilaVariante}
+                              sx={{ textTransform: 'none', fontWeight: 700, color: accentColor }}>
+                              Añadir fila
+                            </Button>
+                            <Button size="small" variant="contained" onClick={handleGuardarFilasVariante}
+                              disabled={guardandoVariantes || !filasNuevaVariante.some(f => f.valor.trim())}
+                              sx={{
+                                textTransform: 'none', fontWeight: 700, borderRadius: 2, px: 2.5,
+                                background: `linear-gradient(135deg, ${accentColor} 0%, #4F46E5 100%)`,
+                              }}>
+                              {guardandoVariantes ? 'Guardando…' : `Guardar ${filasNuevaVariante.filter(f => f.valor.trim()).length || ''} variante${filasNuevaVariante.filter(f => f.valor.trim()).length === 1 ? '' : 's'}`}
+                            </Button>
+                          </Box>
+                        </Box>
+                      )}
+                    </Box>
+
+                    <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.secondary', mb: 1.5 }}>
+                      {variantes.length} variante{variantes.length !== 1 ? 's' : ''} registrada{variantes.length !== 1 ? 's' : ''}
+                    </Typography>
+                    {variantes.length > 0 && (
+                      <Box sx={{
+                        borderRadius: 2.5, border: '1px solid', borderColor: 'divider',
+                        overflow: 'hidden',
+                        boxShadow: isDark ? '0 2px 16px rgba(0,0,0,0.3)' : '0 2px 12px rgba(0,0,0,0.06)',
+                      }}>
+                        <Table size="small" sx={{ '& td,& th': { fontSize: 12 } }}>
+                          <TableHead>
+                            <TableRow sx={{
+                              background: isDark
+                                ? `linear-gradient(90deg, ${alpha(accentColor, 0.12)}, transparent)`
+                                : `linear-gradient(90deg, ${alpha(accentColor, 0.06)}, transparent)`,
+                            }}>
+                              <TableCell sx={{ fontWeight: 800, fontSize: 10.5, textTransform: 'uppercase', letterSpacing: 0.6, color: accentColor, py: 1.2 }}>SKU</TableCell>
+                              <TableCell sx={{ fontWeight: 800, fontSize: 10.5, textTransform: 'uppercase', letterSpacing: 0.6, color: 'text.secondary', py: 1.2 }}>Nombre / Atributos</TableCell>
+                              <TableCell sx={{ fontWeight: 800, fontSize: 10.5, textTransform: 'uppercase', letterSpacing: 0.6, color: 'text.secondary', py: 1.2 }}>Precio</TableCell>
+                              <TableCell sx={{ fontWeight: 800, fontSize: 10.5, textTransform: 'uppercase', letterSpacing: 0.6, color: 'text.secondary', py: 1.2 }}>Stock</TableCell>
+                              <TableCell />
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                          </TableHead>
+                          <TableBody>
+                            {variantes.map(v => (
+                              <TableRow key={v.id} hover sx={{
+                                transition: 'background-color 0.15s',
+                                '&:hover': { bgcolor: isDark ? `${alpha(accentColor, 0.08)}` : `${alpha(accentColor, 0.04)}` },
+                              }}>
+                                <TableCell>
+                                  <Typography sx={{
+                                    fontFamily: 'monospace', fontSize: 11, fontWeight: 700,
+                                    color: accentColor, bgcolor: alpha(accentColor, 0.1),
+                                    px: 0.8, py: 0.2, borderRadius: 1, display: 'inline-block'
+                                  }}>{v.sku}</Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Typography sx={{ fontWeight: 700, fontSize: 12.5 }}>{v.nombre}</Typography>
+                                  {v.atributos && Object.keys(v.atributos).length > 0 && (
+                                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.4 }}>
+                                      {Object.entries(v.atributos).map(([k, val]) => (
+                                        <Chip key={k} label={`${k}: ${val}`} size="small" sx={{
+                                          height: 18, fontSize: 10, fontWeight: 600,
+                                          bgcolor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+                                          borderRadius: 1,
+                                        }} />
+                                      ))}
+                                    </Box>
+                                  )}
+                                </TableCell>
+                                <TableCell sx={{ fontWeight: 700 }}>{v.precio != null ? `$${v.precio.toLocaleString('es-CO')}` : '—'}</TableCell>
+                                <TableCell sx={{ fontWeight: 600 }}>{v.stock_actual}</TableCell>
+                                <TableCell align="right">
+                                  <IconButton size="small"
+                                    onClick={() => { setVarianteEditing(v); setVarianteForm({ nombre: v.nombre, sku: v.sku, atributos: v.atributos || {}, precio: v.precio ?? '', costo: v.costo ?? '', stock_inicial: '' }); setVarianteDialog(true); }}
+                                    sx={{ color: accentColor, bgcolor: alpha(accentColor, 0.08), borderRadius: 1.5, mr: 0.5, '&:hover': { bgcolor: alpha(accentColor, 0.18) } }}
+                                  >
+                                    <ExpandMore fontSize="small" />
+                                  </IconButton>
+                                  <IconButton size="small" color="error"
+                                    onClick={() => handleDeleteVariante(v.id)}
+                                    sx={{ bgcolor: alpha('#EF4444', 0.08), borderRadius: 1.5, '&:hover': { bgcolor: alpha('#EF4444', 0.18) } }}
+                                  >
+                                    <Delete fontSize="small" />
+                                  </IconButton>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </Box>
                     )}
                   </Box>
                 )}
@@ -1094,6 +1450,7 @@ const ProductoForm = ({
                         fullWidth
                         placeholder="Ej: 10"
                         helperText="Te avisaremos cuando el stock baje de este número"
+                        sx={getInputSx(INVENTORY_COLOR)}
                       />
                     </Grid>
 
@@ -1288,31 +1645,79 @@ const ProductoForm = ({
           </Grid>
 
           {/* ── Action Buttons ── */}
-          <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'flex-end', mt: 1.5, pt: 2.5, borderTop: '1px solid', borderColor: 'divider', flexWrap: 'wrap' }}>
-            <Button onClick={handleClose} variant="outlined" disabled={isSaving}
-              sx={{ borderRadius: 2, fontWeight: 600, borderColor: 'divider', color: 'text.secondary', px: 3 }}>
+          <Box sx={{
+            display: 'flex', gap: 1.5, justifyContent: 'flex-end',
+            mt: 1.5, pt: 2.5,
+            borderTop: '1px solid', borderColor: 'divider',
+            flexWrap: 'wrap', alignItems: 'center',
+          }}>
+            <Button
+              onClick={handleClose}
+              variant="outlined"
+              disabled={isSaving}
+              sx={{
+                borderRadius: 2.5, fontWeight: 600,
+                borderColor: 'divider', color: 'text.secondary',
+                px: 3, py: 1,
+                '&:hover': { bgcolor: 'action.hover', borderColor: 'text.secondary' },
+              }}
+            >
               Cancelar
             </Button>
+
             {!isEditing && (
               <Button
                 variant="outlined"
                 disabled={isSaving || !nombre}
                 onClick={() => saveProducto(true)}
-                sx={{ borderRadius: 2, fontWeight: 600, borderColor: accentColor, color: accentColor, px: 2 }}
+                sx={{
+                  borderRadius: 2.5, fontWeight: 600,
+                  borderColor: alpha(accentColor, 0.5),
+                  color: accentColor, px: 2.5, py: 1,
+                  '&:hover': { borderColor: accentColor, bgcolor: alpha(accentColor, 0.06) },
+                }}
               >
                 Guardar y crear otro
               </Button>
             )}
-            <Button type="submit" variant="contained" disabled={isSaving || !nombre}
+
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={isSaving || !nombre}
               sx={{
-                background: esServicio
-                  ? 'linear-gradient(135deg, #06B6D4, #22d3ee)'
-                  : `${accentColor}`,
-                boxShadow: esServicio ? '0 4px 14px rgba(6,182,212,0.3)' : `0 4px 14px ${alpha(accentColor, 0.3)}`,
-                borderRadius: 2, fontWeight: 700, px: 4,
+                background: isSaving
+                  ? 'transparent'
+                  : esServicio
+                    ? 'linear-gradient(135deg, #06B6D4 0%, #0284C7 100%)'
+                    : `linear-gradient(135deg, ${accentColor} 0%, #4F46E5 100%)`,
+                boxShadow: esServicio
+                  ? '0 4px 16px rgba(6,182,212,0.4)'
+                  : `0 4px 16px ${alpha(accentColor, 0.45)}`,
+                borderRadius: 2.5, fontWeight: 700, px: 4, py: 1,
+                fontSize: 14,
+                letterSpacing: 0.3,
+                transition: 'all 0.2s',
+                '&:hover': {
+                  transform: 'translateY(-1px)',
+                  boxShadow: esServicio
+                    ? '0 8px 24px rgba(6,182,212,0.5)'
+                    : `0 8px 24px ${alpha(accentColor, 0.55)}`,
+                },
+                '&:disabled': {
+                  background: 'action.disabledBackground',
+                  boxShadow: 'none',
+                },
               }}
             >
-              {isSaving ? 'Guardando…' : (isEditing ? 'Actualizar Cambios' : `Guardar ${esServicio ? 'Servicio' : 'Producto'}`)}
+              {isSaving ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <CircularProgress size={16} sx={{ color: 'inherit' }} />
+                  Guardando…
+                </Box>
+              ) : (
+                isEditing ? '✓ Actualizar Cambios' : `Guardar ${esServicio ? 'Servicio' : 'Producto'}`
+              )}
             </Button>
           </Box>
 
@@ -1320,8 +1725,28 @@ const ProductoForm = ({
       </Panel>
 
       {/* ── Variant dialog ── */}
-      <Dialog open={varianteDialog} onClose={() => setVarianteDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 800 }}>{varianteEditing ? 'Editar variante' : 'Nueva variante'}</DialogTitle>
+      <Dialog
+        open={varianteDialog}
+        onClose={() => setVarianteDialog(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3.5, border: '1px solid', borderColor: 'divider', overflow: 'hidden' } }}
+      >
+        {/* Franja superior */}
+        <Box sx={{ height: 3, background: `linear-gradient(90deg, ${accentColor}, #4F46E5)` }} />
+        <DialogTitle sx={{
+          fontWeight: 800, fontSize: 17,
+          display: 'flex', alignItems: 'center', gap: 1.2,
+        }}>
+          <Box sx={{
+            width: 32, height: 32, borderRadius: 2,
+            background: `linear-gradient(135deg, ${accentColor}, #4F46E5)`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Tune sx={{ color: '#fff', fontSize: 16 }} />
+          </Box>
+          {varianteEditing ? 'Editar variante' : 'Nueva variante'}
+        </DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 0.5 }}>
             <Grid item xs={12}>
@@ -1374,10 +1799,27 @@ const ProductoForm = ({
             </Grid>
           </Grid>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setVarianteDialog(false)} sx={{ textTransform: 'none' }}>Cancelar</Button>
-          <Button variant="contained" onClick={handleSaveVariante} sx={{ textTransform: 'none', fontWeight: 700 }}>
-            {varianteEditing ? 'Guardar cambios' : 'Agregar variante'}
+        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+          <Button
+            onClick={() => setVarianteDialog(false)}
+            sx={{ textTransform: 'none', borderRadius: 2.5, fontWeight: 600, color: 'text.secondary' }}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveVariante}
+            disabled={!varianteForm.nombre}
+            sx={{
+              textTransform: 'none', fontWeight: 700, borderRadius: 2.5, px: 3, py: 1,
+              background: `linear-gradient(135deg, ${accentColor} 0%, #4F46E5 100%)`,
+              boxShadow: `0 4px 14px ${alpha(accentColor, 0.45)}`,
+              '&:hover': { transform: 'translateY(-1px)', boxShadow: `0 6px 20px ${alpha(accentColor, 0.55)}` },
+              '&:disabled': { background: 'rgba(0,0,0,0.12)', boxShadow: 'none' },
+              transition: 'all 0.2s',
+            }}
+          >
+            {varianteEditing ? '✓ Guardar cambios' : '+ Agregar variante'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1387,7 +1829,19 @@ const ProductoForm = ({
         <Panel
           title="Carga Masiva de Inventario"
           icon={<Upload fontSize="small" />}
-          chip={<Chip label="Excel / CSV" size="small" sx={{ bgcolor: alpha(accentColor, 0.1), color: accentColor, fontWeight: 600, fontSize: 11 }} />}
+          chip={
+            <Chip
+              label="Excel / CSV"
+              size="small"
+              sx={{
+                bgcolor: alpha(accentColor, 0.1),
+                color: accentColor,
+                fontWeight: 700,
+                fontSize: 10.5,
+                border: `1px solid ${alpha(accentColor, 0.25)}`,
+              }}
+            />
+          }
           open={bulkOpen}
           onToggle={() => setBulkOpen(o => !o)}
           accentColor={accentColor}

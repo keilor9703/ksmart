@@ -308,7 +308,7 @@ export default function ParqueaderoBuscar() {
               sx={{
                 bgcolor: ACCENT, py: 1.5, fontSize: 15, fontWeight: 800, borderRadius: 2,
                 boxShadow: `0 6px 18px ${ACCENT}40`,
-                '&:hover': { bgcolor: '#e6561c' },
+                '&:hover': { bgcolor: '#0e7490' },
               }}
             >
               {loading ? 'Consultando...' : 'Consultar'}
@@ -460,17 +460,23 @@ function EditarTelefonoDialog({ open, onClose, acceso, onSuccess }) {
     try {
       await apiClient.patch(`/parqueadero/accesos/${acceso.id}`, { telefono: telefono.trim() });
 
-      const { data: waData } = await apiClient.post('/parqueadero/accesos/entrada', {
-        placa: acceso.placa,
-        nombre_ocasional: acceso.nombre_ocasional,
-        telefono: telefono.trim(),
-        enviar_whatsapp: true,
-      }).catch(() => ({ data: null }));
+      // Reenviar el comprobante del acceso EXISTENTE. (Antes se hacía un POST
+      // a /accesos/entrada que registraba una ENTRADA DUPLICADA para la placa.)
+      const { data: waData } = await apiClient
+        .post(`/parqueadero/accesos/${acceso.id}/whatsapp-comprobante`)
+        .catch(() => ({ data: null }));
+      if (waData?.wa_url) {
+        window.open(waData.wa_url, '_blank', 'noopener');
+        toast.success('Teléfono actualizado y WhatsApp enviado.');
+        onSuccess?.();
+        return;
+      }
 
-      // Generar mensaje manual si no hay wa_url del backend
+      // Fallback: mensaje manual si el backend no devolvió wa_url
       const tel = telefono.trim().replace(/\D/g, '');
       const nombre = (acceso.nombre_ocasional || 'cliente').split(' ')[0];
-      const horaEntrada = new Date(acceso.fecha_entrada).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+      const feRaw = String(acceso.fecha_entrada || '');
+      const horaEntrada = new Date(feRaw.endsWith('Z') ? feRaw : `${feRaw}Z`).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
       const msg =
         `Hola ${nombre} 👋\n\n` +
         `Tu vehículo *${acceso.placa}* ingresó al parqueadero a las *${horaEntrada}*.\n\n` +
@@ -502,7 +508,7 @@ function EditarTelefonoDialog({ open, onClose, acceso, onSuccess }) {
         <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 2 }}>
           Vehículo <strong>{acceso?.placa}</strong> — ingresado a las{' '}
           {acceso?.fecha_entrada
-            ? new Date(acceso.fecha_entrada).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
+            ? new Date(String(acceso.fecha_entrada).endsWith('Z') ? acceso.fecha_entrada : `${acceso.fecha_entrada}Z`).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
             : '—'}
         </Typography>
         <TextField
@@ -648,7 +654,7 @@ function ResultadoCard({
               <Button
                 fullWidth variant="contained" size="large"
                 onClick={onRegistrarSuscripcion}
-                sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700 }}
+                sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' }, fontWeight: 700 }}
               >
                 Registrar pago
               </Button>
@@ -678,7 +684,7 @@ function ResultadoCard({
               <Button
                 fullWidth variant="contained" size="large"
                 onClick={onRegistrarVehiculo}
-                sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700 }}
+                sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' }, fontWeight: 700 }}
               >
                 Registrar vehículo + pago
               </Button>

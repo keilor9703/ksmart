@@ -31,7 +31,7 @@ El backend de producción corre sobre **Oracle Cloud Free Tier Always-Free**, in
 - **Proxy inverso:** Nginx + Let's Encrypt SSL (HTTPS nativo)
 - **Process manager:** systemd (`ksmart.service`) — reinicio automático ante fallos
 - **CI/CD:** Webhook GitHub → deploy automático en cada push a `main`
-- **API pública:** `https://api.appjeylor.com`
+- **API pública:** `https://api.ksmart360.com`
 
 ---
 
@@ -229,7 +229,7 @@ Pensado para negocios de servicios (barberías, spas, talleres, consultorios, es
                       │ REST / JSON + JWT
 ┌─────────────────────▼───────────────────────────────────────────┐
 │         Nginx (Proxy inverso + SSL Let's Encrypt)               │
-│                    api.appjeylor.com                            │
+│                    api.ksmart360.com                            │
 └─────────────────────┬───────────────────────────────────────────┘
                       │ localhost:8000
 ┌─────────────────────▼───────────────────────────────────────────┐

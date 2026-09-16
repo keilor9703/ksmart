@@ -130,6 +130,8 @@ const MovementForm = ({ onCreated }) => {
     tipo: 'ajuste', cantidad: '', motivo: '', referencia: '', observacion: '', costo_unitario: '',
   });
 
+  const [varianteSel, setVarianteSel] = useState(null);
+
   const [lotesExistentes, setLotesExistentes]   = useState([]);
   const [modoLote, setModoLote]                 = useState('existente');
   const [loteSel, setLoteSel]                   = useState(null);
@@ -147,6 +149,7 @@ const MovementForm = ({ onCreated }) => {
 
   const handleProductoChange = async (prod) => {
     setProductoSel(prod);
+    setVarianteSel(null);
     setLoteSel(null); setLoteInput('');
     setCantidadLote(''); setMotivoLote('');
     setNuevoLote({ numero_lote: '', fecha_vencimiento: '', fecha_fabricacion: '',
@@ -174,6 +177,10 @@ const MovementForm = ({ onCreated }) => {
       toast.warning('Debes completar: Producto, Tipo y Cantidad (mayor a 0).');
       return;
     }
+    if (productoSel.tiene_variantes && !varianteSel) {
+      toast.warning('Este producto tiene variantes — selecciona a cuál le vas a ajustar el stock.');
+      return;
+    }
     setSaving(true);
     try {
       await createMovement({
@@ -181,9 +188,10 @@ const MovementForm = ({ onCreated }) => {
         cantidad: Number(form.cantidad),
         motivo: form.motivo || '', referencia: form.referencia || '', observacion: form.observacion || '',
         costo_unitario: form.tipo === 'entrada' && form.costo_unitario !== '' ? Number(form.costo_unitario) : 0,
+        variante_id: varianteSel?.id || undefined,
       });
       toast.success('Movimiento registrado exitosamente');
-      setProductoSel(null); setProductoInput('');
+      setProductoSel(null); setProductoInput(''); setVarianteSel(null);
       setForm({ tipo: 'ajuste', cantidad: '', motivo: '', referencia: '', observacion: '', costo_unitario: '' });
       setOpen(false);
       onCreated?.();
@@ -290,6 +298,36 @@ const MovementForm = ({ onCreated }) => {
           )}
           fullWidth
         />
+
+        {/* ── Selector de VARIANTE — el stock real a mover es el de la variante, no el del producto padre ── */}
+        {productoSel?.tiene_variantes && (
+          <Autocomplete
+            options={(productoSel.variantes || []).filter(v => v.activo)}
+            value={varianteSel}
+            onChange={(_, v) => setVarianteSel(v)}
+            getOptionLabel={opt => opt
+              ? `${opt.nombre} — Stock: ${opt.stock_actual ?? 0}${Object.keys(opt.atributos || {}).length ? ` (${Object.entries(opt.atributos).map(([k, val]) => `${k}: ${val}`).join(', ')})` : ''}`
+              : ''}
+            renderOption={(props, option) => (
+              <li {...props} key={option.id} style={{ padding: '10px 14px' }}>
+                <Box>
+                  <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{option.nombre}</Typography>
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                    Stock: {option.stock_actual ?? 0}
+                    {Object.keys(option.atributos || {}).length > 0 && (
+                      ` · ${Object.entries(option.atributos).map(([k, val]) => `${k}: ${val}`).join(', ')}`
+                    )}
+                  </Typography>
+                </Box>
+              </li>
+            )}
+            renderInput={params => (
+              <TextField {...params} label="Variante (talla/color/etc.) *" size="small" fullWidth
+                helperText="Este producto maneja variantes — el ajuste se aplica al stock de la variante elegida." />
+            )}
+            fullWidth
+          />
+        )}
 
         {/* ── Producto PERECEDERO ── */}
         {esPerecible && productoSel && (
@@ -518,7 +556,7 @@ const MovementForm = ({ onCreated }) => {
                     {form.tipo.toUpperCase()} de {form.cantidad} {productoSel.unidad_medida || 'und'}
                   </Typography>
                   <Typography sx={{ fontSize: 11, color: 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {productoSel.nombre} · Stock actual: {productoSel.stock_actual ?? 0}
+                    {productoSel.nombre}{varianteSel ? ` (${varianteSel.nombre})` : ''} · Stock actual: {varianteSel ? (varianteSel.stock_actual ?? 0) : (productoSel.stock_actual ?? 0)}
                   </Typography>
                 </Box>
               </Box>
@@ -564,6 +602,7 @@ const MovementCard = ({ row }) => {
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography sx={{ fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {row.producto?.nombre ?? `#${row.producto_id}`}
+            {row.nombre_variante && ` · ${row.nombre_variante}`}
           </Typography>
           <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>#{row.numero_movimiento ?? row.id} · {formatDate(row.created_at)}</Typography>
         </Box>
@@ -785,7 +824,13 @@ const MovementsTable = ({ refreshKey }) => {
                 : paginated.map(r => (
                     <TableRow key={r.id} hover>
                       <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: 12 }}>#{r.numero_movimiento ?? r.id}</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>{r.producto?.nombre ?? `#${r.producto_id}`}</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>
+                        {r.producto?.nombre ?? `#${r.producto_id}`}
+                        {r.nombre_variante && (
+                          <Chip label={r.nombre_variante} size="small"
+                            sx={{ ml: 0.5, height: 16, fontSize: 9, fontWeight: 700, bgcolor: '#EEF2FF', color: '#4F46E5', '& .MuiChip-label': { px: 0.6 } }} />
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Chip label={r.tipo} size="small"
                           sx={{ bgcolor: `${tipoColor(r.tipo)}18`, color: tipoColor(r.tipo), fontWeight: 700, fontSize: 10, borderRadius: 1.5 }} />

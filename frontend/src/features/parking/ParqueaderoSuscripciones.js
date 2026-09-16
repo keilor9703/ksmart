@@ -402,7 +402,9 @@ function SuscripcionesTab() {
 
 const fmt = (n) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n || 0);
 const fmtDatetime = (iso) => iso ? new Date(iso).toLocaleString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
-const toIso = (d) => d.toISOString().split('T')[0];
+// Día local (en-CA = YYYY-MM-DD). toISOString() es UTC: desde las 7pm hora
+// colombiana los rangos "Hoy"/"7 días" apuntaban al día siguiente.
+const toIso = (d) => d.toLocaleDateString('en-CA');
 const copy = (txt) => navigator.clipboard?.writeText(txt).then(() => {});
 
 const RANGOS = [
@@ -420,6 +422,8 @@ function ChipFE({ estado }) {
 }
 
 function HistorialFETab() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const today = toIso(new Date());
   const [fechaIni, setFechaIni] = useState(today);
   const [fechaFin, setFechaFin] = useState(today);
@@ -500,7 +504,7 @@ function HistorialFETab() {
           </Stack>
           <Button variant="contained" size="small" startIcon={<Refresh />}
             onClick={fetchHistorial} disabled={loading}
-            sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700, whiteSpace: 'nowrap' }}
+            sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' }, fontWeight: 700, whiteSpace: 'nowrap' }}
           >
             {loading ? <CircularProgress size={16} color="inherit" /> : 'Buscar'}
           </Button>
@@ -525,6 +529,51 @@ function HistorialFETab() {
             Cambia el rango de fechas o registra pagos de suscripciones.
           </Typography>
         </Paper>
+      ) : isMobile ? (
+        // En celular las 8 columnas no caben: cada venta se muestra como tarjeta.
+        <Stack spacing={1.5}>
+          {loading
+            ? [1, 2, 3].map(i => <Skeleton key={i} variant="rounded" height={96} />)
+            : historial.map(v => (
+              <Paper key={v.venta_id} sx={{ p: 1.75, borderRadius: 2, border: '1px solid', borderColor: 'divider' }} elevation={0}>
+                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
+                      <Typography sx={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 14, letterSpacing: 1 }}>{v.placa || '—'}</Typography>
+                      <Chip size="small"
+                        label={v.origen === 'parqueadero_suscripcion' ? 'Suscripción' : 'Por horas'}
+                        sx={{ fontSize: 10, fontWeight: 700, height: 18,
+                              bgcolor: v.origen === 'parqueadero_suscripcion' ? '#0891B220' : '#F59E0B20',
+                              color:   v.origen === 'parqueadero_suscripcion' ? '#4338CA'   : '#92400E' }} />
+                      <ChipFE estado={v.estado_fe} />
+                    </Stack>
+                    <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.5 }}>
+                      {fmtDatetime(v.fecha)} · {v.metodo_pago || '—'}
+                    </Typography>
+                    {v.numero_factura && (
+                      <Typography sx={{ fontSize: 11, color: 'text.secondary' }} noWrap>Fact: {v.numero_factura}</Typography>
+                    )}
+                  </Box>
+                  <Stack alignItems="flex-end" spacing={0.5} sx={{ flexShrink: 0 }}>
+                    <Typography sx={{ fontWeight: 800, fontSize: 15 }}>{fmt(v.total)}</Typography>
+                    <Stack direction="row">
+                      {v.pdf_url && (
+                        <IconButton size="small" onClick={() => window.open(v.pdf_url, '_blank')} sx={{ color: '#EF4444' }}>
+                          <PictureAsPdf fontSize="small" />
+                        </IconButton>
+                      )}
+                      {(v.estado_fe === 'fallido' || !v.estado_fe) && (
+                        <IconButton size="small" disabled={reintentando === v.venta_id}
+                          onClick={() => reintentar(v.venta_id)} sx={{ color: '#0891B2' }}>
+                          {reintentando === v.venta_id ? <CircularProgress size={16} /> : <Replay fontSize="small" />}
+                        </IconButton>
+                      )}
+                    </Stack>
+                  </Stack>
+                </Stack>
+              </Paper>
+            ))}
+        </Stack>
       ) : (
         <TableContainer component={Paper} sx={{ borderRadius: 3 }}>
           <Table size="small">

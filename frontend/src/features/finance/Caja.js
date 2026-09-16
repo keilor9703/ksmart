@@ -200,7 +200,7 @@ const CorteCard = ({ corte }) => {
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
         <Box>
           <Typography sx={{ fontWeight: 700, fontSize: 14 }}>
-            {new Date(corte.fecha + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'short', day: '2-digit', month: 'short' })}
+            {new Date(String(corte.fecha).split('T')[0] + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'short', day: '2-digit', month: 'short' })}
           </Typography>
           <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Corte #{corte.id}</Typography>
         </Box>

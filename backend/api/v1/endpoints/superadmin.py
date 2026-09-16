@@ -132,12 +132,31 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     # Usuarios totales en todo el sistema
     total_usuarios = db.query(models.User).count()
 
+    # Altas de empresas HOY y en el MES en curso, en hora local (America/Bogota).
+    # created_at se guarda en UTC: los límites del día/mes local se convierten a
+    # UTC con get_utc_boundaries para no contar de más ni de menos por el UTC-5.
+    from crud.common import BOGOTA_TZ, get_utc_boundaries
+    hoy_local = datetime.now(BOGOTA_TZ).date()
+    inicio_dia, fin_dia = get_utc_boundaries(hoy_local)
+    inicio_mes, _ = get_utc_boundaries(hoy_local.replace(day=1))
+
+    nuevos_hoy = db.query(models.Empresa).filter(
+        models.Empresa.created_at >= inicio_dia,
+        models.Empresa.created_at <= fin_dia,
+    ).count()
+    nuevos_mes = db.query(models.Empresa).filter(
+        models.Empresa.created_at >= inicio_mes,
+        models.Empresa.created_at <= fin_dia,
+    ).count()
+
     return {
         "total_tenants": total_tenants,
         "activos": activos,
         "premium": premium,
         "total_recaudado": total_recaudado,
-        "total_usuarios": total_usuarios
+        "total_usuarios": total_usuarios,
+        "nuevos_hoy": nuevos_hoy,
+        "nuevos_mes": nuevos_mes,
     }
 
 @router.get("/audit-logs", response_model=List[schemas.SaaSAuditLogOut])
@@ -427,17 +446,42 @@ def impersonate_company(
     db: Session = Depends(get_db),
     current_admin: models.User = Depends(get_current_superadmin_user)
 ):
-    target_user = db.query(models.User).filter(
-        models.User.empresa_id == empresa_id
-    ).first()
+    # Se prefiere un usuario ACTIVO y con rol Admin: antes se tomaba el primero
+    # de la empresa, que podía estar inactivo (la sesión moría con "Usuario
+    # inactivo") o ser un rol limitado (cajero), y entonces soporte entraba
+    # pero no veía casi ningún módulo.
+    candidatos = db.query(models.User).options(
+        joinedload(models.User.role)
+    ).filter(models.User.empresa_id == empresa_id).all()
+
+    activos = [u for u in candidatos if u.is_active]
+    admins = [u for u in activos if u.role and u.role.name == "Admin"]
+    target_user = (admins or activos or candidatos or [None])[0]
+
     if not target_user:
         raise HTTPException(status_code=404, detail="No se encontró un usuario para esta empresa.")
+
+    # Auditar: la suplantación da acceso total a los datos del tenant
+    # (financieros, clientes, contabilidad). Debe quedar registro de quién
+    # suplantó a quién y cuándo para trazabilidad y cumplimiento.
+    empresa = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
+    crud_empresas.log_saas_event(
+        db, current_admin.id, "IMPERSONATE", empresa_id,
+        {"empresa_nombre": empresa.nombre if empresa else None,
+         "target_username": target_user.username},
+    )
 
     access_token = create_access_token(
         data={
             "sub": target_user.username,
             "empresa_id": target_user.empresa_id,
             "role": target_user.role.name if target_user.role else "Admin",
+            # Mismos módulos que en el login normal: sin esto el token de
+            # soporte quedaba sin "modules" y la app no sabía qué mostrar.
+            "modules": [
+                m.frontend_path
+                for m in sorted(target_user.role.modules, key=lambda m: m.orden or 99)
+            ] if target_user.role else [],
             "is_impersonated": True
         }
     )
@@ -664,3 +708,73 @@ def update_plataforma_config(
     db.refresh(cfg)
     crud_empresas.log_saas_event(db, current_admin.id, "UPDATE_PLATAFORMA_CONFIG", None, {})
     return _serialize_plataforma(cfg)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# VERSIONES DE LA APP MÓVIL (APK)
+# El superadmin publica una versión nueva agregando un registro aquí (desde el
+# panel), sin tocar variables de entorno del servidor. La app instalada consulta
+# GET /app/version-movil (pública) que devuelve la última versión activa.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/app-versiones", response_model=List[schemas.AppVersionOut])
+def listar_app_versiones(db: Session = Depends(get_db)):
+    return (
+        db.query(models.AppVersion)
+        .order_by(models.AppVersion.version_code.desc(), models.AppVersion.id.desc())
+        .all()
+    )
+
+
+@router.post("/app-versiones", response_model=schemas.AppVersionOut, status_code=201)
+def crear_app_version(
+    data: schemas.AppVersionCreate,
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(get_current_superadmin_user),
+):
+    if not data.version.strip():
+        raise HTTPException(400, "La versión es obligatoria (ej. 1.4.0).")
+    nueva = models.AppVersion(
+        plataforma   = (data.plataforma or "android").strip().lower(),
+        version      = data.version.strip(),
+        version_code = data.version_code or 0,
+        url_descarga = (data.url_descarga or "").strip() or None,
+        mensaje      = (data.mensaje or "").strip() or None,
+        obligatoria  = bool(data.obligatoria),
+        is_active    = bool(data.is_active),
+    )
+    db.add(nueva)
+    db.commit()
+    db.refresh(nueva)
+    return nueva
+
+
+@router.patch("/app-versiones/{version_id}", response_model=schemas.AppVersionOut)
+def actualizar_app_version(
+    version_id: int,
+    data: schemas.AppVersionCreate,
+    db: Session = Depends(get_db),
+):
+    v = db.query(models.AppVersion).filter(models.AppVersion.id == version_id).first()
+    if not v:
+        raise HTTPException(404, "Versión no encontrada.")
+    v.plataforma   = (data.plataforma or v.plataforma).strip().lower()
+    v.version      = data.version.strip() or v.version
+    v.version_code = data.version_code or 0
+    v.url_descarga = (data.url_descarga or "").strip() or None
+    v.mensaje      = (data.mensaje or "").strip() or None
+    v.obligatoria  = bool(data.obligatoria)
+    v.is_active    = bool(data.is_active)
+    db.commit()
+    db.refresh(v)
+    return v
+
+
+@router.delete("/app-versiones/{version_id}", status_code=200)
+def eliminar_app_version(version_id: int, db: Session = Depends(get_db)):
+    v = db.query(models.AppVersion).filter(models.AppVersion.id == version_id).first()
+    if not v:
+        raise HTTPException(404, "Versión no encontrada.")
+    db.delete(v)
+    db.commit()
+    return {"message": "Versión eliminada."}

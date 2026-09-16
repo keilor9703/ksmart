@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
-import AlertaRolModulos from './AlertaRolModulos'; // ✨ IMPORTACIÓN AÑADIDA AQUÍ
+import AlertaRolModulos from './AlertaRolModulos';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 
 import {
@@ -15,82 +15,140 @@ import {
 import {
   Edit, Delete, PersonAdd, People, ExpandMore, ExpandLess,
   Close, AdminPanelSettings, Check, Security, Block, CheckCircle,
-  Search, FileDownload, Visibility, VisibilityOff, Email
+  Search, FileDownload, Visibility, VisibilityOff, Email,
+  VerifiedUser, GroupWork, SupervisedUserCircle, SettingsSuggest
 } from '@mui/icons-material';
+import { keyframes } from '@mui/system';
 
 const ACCENT = '#8B5CF6'; // Violeta — Admin
+const GREEN  = '#10B981';
+const BLUE   = '#3B82F6';
+const RED    = '#EF4444';
 
-// ─── Componente Auxiliar: Toggle de módulo ────────────────────────────────────
+const fadeInUp = keyframes`
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+`;
+
+const pulseSoft = keyframes`
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.04); opacity: 0.9; }
+`;
+
+const cardShimmer = keyframes`
+  0% { left: -100%; }
+  100% { left: 200%; }
+`;
+
+// ─── Componente Auxiliar: Toggle de módulo interactivo ───────────────────────
 const ModuleToggle = ({ module, checked, onChange }) => (
   <Box
     onClick={() => onChange(module.id)}
     sx={{
-      display: 'flex', alignItems: 'center', gap: 1,
-      px: 1.5, py: 1, borderRadius: 2, cursor: 'pointer',
-      border: '1px solid',
-      borderColor: checked ? ACCENT : 'divider',
-      bgcolor: checked ? `${ACCENT}10` : 'action.hover',
-      transition: 'all 0.15s ease',
-      '&:hover': { borderColor: ACCENT, bgcolor: `${ACCENT}08` },
+      display: 'flex', alignItems: 'center', gap: 1.5,
+      px: 2, py: 1.4, borderRadius: 3, cursor: 'pointer',
+      border: '1.5px solid',
+      borderColor: checked ? ACCENT : 'rgba(148, 163, 184, 0.15)',
+      bgcolor: checked ? `${ACCENT}0D` : 'background.paper',
+      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+      position: 'relative', overflow: 'hidden',
+      '&:hover': {
+        borderColor: ACCENT,
+        bgcolor: checked ? `${ACCENT}15` : 'action.hover',
+        transform: 'translateY(-2px)',
+        boxShadow: `0 6px 14px ${checked ? `${ACCENT}20` : 'rgba(0,0,0,0.04)'}`,
+      },
+      '&:active': { transform: 'scale(0.98)' }
     }}
   >
     <Box sx={{
-      width: 18, height: 18, borderRadius: 1, flexShrink: 0,
+      width: 20, height: 20, borderRadius: 1.5, flexShrink: 0,
       border: `2px solid ${checked ? ACCENT : '#94a3b8'}`,
       bgcolor: checked ? ACCENT : 'transparent',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      transition: 'all 0.15s',
+      transition: 'all 0.15s ease-in-out',
     }}>
-      {checked && <Check sx={{ fontSize: 12, color: '#fff' }} />}
+      {checked && <Check sx={{ fontSize: 13, color: '#fff', fontWeight: 900 }} />}
     </Box>
-    <Typography sx={{ fontSize: 12.5, fontWeight: checked ? 600 : 400, color: checked ? ACCENT : 'text.primary' }}>
-      {module.name}
-    </Typography>
+    <Box sx={{ minWidth: 0, flex: 1 }}>
+      <Typography sx={{ fontSize: 13, fontWeight: checked ? 700 : 500, color: checked ? ACCENT : 'text.primary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {module.name}
+      </Typography>
+      <Typography sx={{ fontSize: 10, color: 'text.secondary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {module.frontend_path}
+      </Typography>
+    </Box>
   </Box>
 );
 
 function TabPanel({ children, value, index }) {
   return (
     <div role="tabpanel" hidden={value !== index}>
-      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
+      {value === index && <Box sx={{ pt: 3, animation: `${fadeInUp} 0.4s ease both` }}>{children}</Box>}
     </div>
   );
 }
 
-// ─── Tarjeta de Usuario (Mobile) ──────────────────────────────────────────────
+// ─── Tarjeta de Usuario (Mobile Premium) ──────────────────────────────────────
 const UserCardMobile = ({ user, currentUser, onEdit, onToggle }) => (
-  <Paper sx={{ p: 2, mb: 2, borderRadius: 3, border: '1px solid', borderColor: 'divider', opacity: user.is_active !== false ? 1 : 0.6 }}>
+  <Paper sx={{
+    p: 2.2, mb: 2, borderRadius: 4,
+    border: '1px solid', borderColor: 'divider',
+    bgcolor: 'background.paper',
+    transition: 'all 0.2s',
+    '&:hover': { boxShadow: '0 4px 16px rgba(0,0,0,0.06)' },
+    opacity: user.is_active !== false ? 1 : 0.65
+  }}>
     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <Avatar sx={{ width: 36, height: 36, bgcolor: user.is_active !== false ? `${ACCENT}20` : '#cbd5e1', color: user.is_active !== false ? ACCENT : '#64748b', fontWeight: 800 }}>
+        <Avatar sx={{
+          width: 40, height: 40,
+          background: user.is_active !== false
+            ? `linear-gradient(135deg, ${ACCENT}, ${ACCENT}aa)`
+            : 'linear-gradient(135deg, #94a3b8, #cbd5e1)',
+          color: '#fff', fontWeight: 900,
+          boxShadow: user.is_active !== false ? `0 4px 12px ${ACCENT}35` : 'none'
+        }}>
           {user.username[0].toUpperCase()}
         </Avatar>
         <Box>
-          <Typography sx={{ fontWeight: 800, fontSize: 16 }}>{user.username}</Typography>
+          <Typography sx={{ fontWeight: 800, fontSize: 16, color: 'text.primary' }}>{user.username}</Typography>
           {user.nombre_completo && (
-            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{user.nombre_completo}</Typography>
+            <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 500 }}>{user.nombre_completo}</Typography>
           )}
           {user.email && (
-            <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>{user.email}</Typography>
+            <Typography sx={{ fontSize: 10, color: 'text.disabled', display: 'flex', alignItems: 'center', gap: 0.3 }}>
+              <Email sx={{ fontSize: 10 }} /> {user.email}
+            </Typography>
           )}
         </Box>
       </Box>
       <Chip
         label={user.is_active !== false ? 'Activo' : 'Suspendido'}
         size="small"
-        sx={{ bgcolor: user.is_active !== false ? '#ECFDF5' : '#FEF2F2', color: user.is_active !== false ? '#10B981' : '#EF4444', fontWeight: 800, fontSize: 10 }}
+        sx={{
+          bgcolor: user.is_active !== false ? 'success.shading' : 'error.shading',
+          color: user.is_active !== false ? 'success.main' : 'error.main',
+          fontWeight: 800, fontSize: 10, borderRadius: 2
+        }}
       />
     </Box>
-    <Divider sx={{ mb: 1.5, borderStyle: 'dashed' }} />
+    <Divider sx={{ mb: 1.8, borderStyle: 'dashed' }} />
     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <Chip label={user.role.name} size="small" sx={{ bgcolor: `${ACCENT}15`, color: ACCENT, fontWeight: 700, fontSize: 11 }} />
-      <Box>
-        <IconButton size="small" onClick={() => onEdit(user)} sx={{ color: ACCENT, bgcolor: `${ACCENT}10`, mr: 1 }}><Edit fontSize="small" /></IconButton>
+      <Chip label={user.role.name} size="small" sx={{ bgcolor: `${ACCENT}15`, color: ACCENT, fontWeight: 700, fontSize: 11, borderRadius: 2 }} />
+      <Box sx={{ display: 'flex', gap: 1 }}>
+        <IconButton size="small" onClick={() => onEdit(user)} sx={{ color: ACCENT, bgcolor: `${ACCENT}10`, '&:hover': { bgcolor: `${ACCENT}22` } }}>
+          <Edit fontSize="small" />
+        </IconButton>
         <IconButton
           size="small"
           disabled={currentUser?.id === user.id}
           onClick={() => onToggle(user)}
-          sx={{ color: user.is_active !== false ? '#EF4444' : '#10B981', bgcolor: user.is_active !== false ? '#FEF2F2' : '#ECFDF5' }}
+          sx={{
+            color: user.is_active !== false ? 'error.main' : 'success.main',
+            bgcolor: user.is_active !== false ? 'error.shading' : 'success.shading',
+            '&:hover': { bgcolor: user.is_active !== false ? 'error.shading2' : 'success.shading2' }
+          }}
         >
           {user.is_active !== false ? <Block fontSize="small" /> : <CheckCircle fontSize="small" />}
         </IconButton>
@@ -102,7 +160,11 @@ const UserCardMobile = ({ user, currentUser, onEdit, onToggle }) => (
 // ─── Componente Principal ──────────────────────────────────────────────────────
 export default function AdminUsuarios() {
   const theme = useTheme();
+  const GREEN  = '#10B981';
+  const BLUE   = '#3B82F6';
+  const RED    = '#EF4444';
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const dark = theme.palette.mode === 'dark';
   const [tab, setTab] = useState(0);
 
   const [users, setUsers] = useState([]);
@@ -124,7 +186,7 @@ export default function AdminUsuarios() {
   const [formRoleOpen, setFormRoleOpen] = useState(false);
 
   const [busqueda, setBusqueda]         = useState('');
-  const [filtroEstado, setFiltroEstado] = useState('todos'); // 'todos' | 'activos' | 'suspendidos'
+  const [filtroEstado, setFiltroEstado] = useState('todos');
   const [sortDir, setSortDir]           = useState('asc');
   const [showPwd, setShowPwd]           = useState(false);
 
@@ -204,13 +266,13 @@ export default function AdminUsuarios() {
   const handleEditRole = (role) => { setEditingRole(role); setRoleName(role.name); setSelectedModules(role.modules.map(m => m.id)); setFormRoleOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const handleModuleChange = (id) => setSelectedModules(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
-  const modulosFiltrados = React.useMemo(() => {
+  const modulosFiltrados = useMemo(() => {
     const habilitados = currentUser?.empresa?.modulos_habilitados;
     if (!habilitados || habilitados.length === 0) return modules;
     return modules.filter(m => habilitados.includes(m.frontend_path));
   }, [modules, currentUser]);
 
-  const usuariosFiltrados = React.useMemo(() => {
+  const usuariosFiltrados = useMemo(() => {
     let list = [...users];
     if (busqueda.trim()) {
       const q = busqueda.toLowerCase();
@@ -239,23 +301,32 @@ export default function AdminUsuarios() {
       ]),
     ];
     const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'usuarios.csv';
     a.click(); URL.revokeObjectURL(url);
   };
 
+  // Estadísticas rápidas para la sección superior
+  const stats = useMemo(() => {
+    const total = users.length;
+    const activos = users.filter(u => u.is_active !== false).length;
+    const suspendidos = total - activos;
+    const totalRoles = roles.length;
+    return { total, activos, suspendidos, totalRoles };
+  }, [users, roles]);
+
   return (
     <Box sx={{ width: '100%' }}>
       {/* ── Header ── */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, gap: 1.5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 3, gap: 1.5, flexWrap: 'wrap' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT }}>
-            <AdminPanelSettings />
+          <Box sx={{ width: 44, height: 44, borderRadius: 2.5, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT }}>
+            <AdminPanelSettings sx={{ fontSize: 24 }} />
           </Box>
           <Box>
-            <Typography sx={{ fontWeight: 800, fontSize: 20, lineHeight: 1.2 }}>Usuarios y Permisos</Typography>
-            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Control de acceso del personal</Typography>
+            <Typography sx={{ fontWeight: 900, fontSize: 21, lineHeight: 1.2, letterSpacing: -0.5 }}>Usuarios y Permisos</Typography>
+            <Typography sx={{ fontSize: 13, color: 'text.secondary', fontWeight: 500 }}>Control de acceso del personal de {currentUser?.empresa?.nombre || 'Mi Empresa'}</Typography>
           </Box>
           <HelpGuideTopBar
             moduleName="Usuarios y Permisos"
@@ -268,38 +339,63 @@ export default function AdminUsuarios() {
             ]}
             faqItems={[
               { q: '¿Cuál es la diferencia entre usuario y rol?', a: 'El usuario es la cuenta individual de cada empleado. El rol es un conjunto de permisos (qué módulos puede ver). Varios usuarios pueden tener el mismo rol.' },
-              { q: '¿Cómo desactivo a un usuario que ya no trabaja aquí?', a: 'En la lista de usuarios, usa el interruptor de activar/desactivar. El historial de ese usuario se conserva.' },
-              { q: '¿Qué módulos puede ver cada empleado?', a: 'Depende del rol asignado. En "Roles y Módulos" puedes ver y editar exactamente qué módulos tiene habilitados cada rol.' },
-              { q: '¿Cómo cambio la contraseña de un usuario?', a: 'Edita el usuario con el ícono de lápiz ✏️ y escribe la nueva contraseña en el campo correspondiente.' },
+              { q: '¿Cómo desactivo a un usuario?', a: 'En la lista de usuarios, usa el interruptor de activar/desactivar. El historial de ese usuario se conserva intacto.' },
             ]}
           />
         </Box>
       </Box>
 
+      {/* ── Mini Stats Section ── */}
+      <Grid container spacing={1.5} sx={{ mb: 3 }}>
+        {[
+          { label: 'Usuarios Totales', val: stats.total, color: ACCENT, icon: <People fontSize="small" /> },
+          { label: 'Usuarios Activos', val: stats.activos, color: GREEN, icon: <VerifiedUser fontSize="small" /> },
+          { label: 'Suspendidos', val: stats.suspendidos, color: RED, icon: <Block fontSize="small" /> },
+          { label: 'Roles Creados', val: stats.totalRoles, color: BLUE, icon: <Security fontSize="small" /> },
+        ].map((s, idx) => (
+          <Grid item xs={6} sm={3} key={idx}>
+            <Paper sx={{
+              p: 2, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 1.5,
+              border: '1px solid', borderColor: 'divider',
+              boxShadow: dark ? '0 2px 10px rgba(0,0,0,0.3)' : '0 2px 10px rgba(0,0,0,0.03)',
+              position: 'relative', overflow: 'hidden',
+              animation: `${fadeInUp} 0.5s ${idx * 0.05}s ease both`,
+            }}>
+              <Box sx={{ width: 34, height: 34, borderRadius: 2, bgcolor: `${s.color}15`, color: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {s.icon}
+              </Box>
+              <Box>
+                <Typography sx={{ fontSize: 10, color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.label}</Typography>
+                <Typography sx={{ fontSize: 18, fontWeight: 900, color: 'text.primary', mt: 0.2 }}>{s.val}</Typography>
+              </Box>
+            </Paper>
+          </Grid>
+        ))}
+      </Grid>
+
       {/* ── Contenedor Principal (Tabs) ── */}
-      <Paper sx={{ borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+      <Paper sx={{ borderRadius: 4, boxShadow: dark ? '0 4px 20px rgba(0,0,0,0.35)' : '0 4px 20px rgba(0,0,0,0.03)', overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
         <Tabs
           value={tab}
           onChange={(_, v) => setTab(v)}
           variant={isMobile ? 'fullWidth' : 'standard'}
           sx={{
             px: 2, borderBottom: '1px solid', borderColor: 'divider',
+            bgcolor: 'background.paper',
             '& .MuiTab-root': { fontWeight: 700, fontSize: 13, textTransform: 'none', minHeight: 52 },
             '& .MuiTabs-indicator': { backgroundColor: ACCENT, height: 3, borderRadius: 3 },
             '& .Mui-selected': { color: `${ACCENT} !important` },
           }}
         >
-          <Tab icon={<People sx={{ fontSize: 18, mr: 1 }} />} iconPosition="start"
-            label={`Usuarios (${users.length})`} />
-          <Tab icon={<Security sx={{ fontSize: 18, mr: 1 }} />} iconPosition="start"
-            label={`Roles (${roles.length})`} />
+          <Tab icon={<People sx={{ fontSize: 18, mr: 1 }} />} iconPosition="start" label={`Usuarios (${users.length})`} />
+          <Tab icon={<Security sx={{ fontSize: 18, mr: 1 }} />} iconPosition="start" label={`Roles y Módulos (${roles.length})`} />
         </Tabs>
 
         <Box sx={{ p: { xs: 2, md: 3 } }}>
 
           {/* ════ TAB 0: USUARIOS ════ */}
           <TabPanel value={tab} index={0}>
-            <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+            <Box sx={{ mb: 3, display: 'flex', gap: 1.2, flexWrap: 'wrap', alignItems: 'center' }}>
               <TextField
                 size="small"
                 placeholder="Buscar por usuario, nombre o email…"
@@ -312,39 +408,45 @@ export default function AdminUsuarios() {
                     </InputAdornment>
                   ),
                 }}
-                sx={{ flex: 1, minWidth: 220 }}
+                sx={{
+                  flex: 1, minWidth: 220,
+                  '& .MuiOutlinedInput-root': { borderRadius: 2.5 }
+                }}
               />
-              {[
-                { key: 'todos',       label: 'Todos' },
-                { key: 'activos',     label: 'Activos' },
-                { key: 'suspendidos', label: 'Suspendidos' },
-              ].map(f => (
-                <Chip
-                  key={f.key}
-                  label={f.label}
-                  size="small"
-                  onClick={() => setFiltroEstado(f.key)}
-                  sx={{
-                    cursor: 'pointer', fontWeight: 700,
-                    bgcolor: filtroEstado === f.key ? ACCENT : 'transparent',
-                    color:   filtroEstado === f.key ? '#fff' : 'text.secondary',
-                    border: '1px solid',
-                    borderColor: filtroEstado === f.key ? ACCENT : 'divider',
-                    '&:hover': { bgcolor: filtroEstado === f.key ? ACCENT : 'action.hover' },
-                  }}
-                />
-              ))}
+              <Stack direction="row" spacing={0.8} sx={{ flexWrap: 'wrap', gap: 0.8 }}>
+                {[
+                  { key: 'todos',       label: 'Todos' },
+                  { key: 'activos',     label: 'Activos' },
+                  { key: 'suspendidos', label: 'Suspendidos' },
+                ].map(f => (
+                  <Chip
+                    key={f.key}
+                    label={f.label}
+                    size="small"
+                    onClick={() => setFiltroEstado(f.key)}
+                    sx={{
+                      cursor: 'pointer', fontWeight: 700,
+                      bgcolor: filtroEstado === f.key ? `${ACCENT}15` : 'transparent',
+                      color:   filtroEstado === f.key ? ACCENT : 'text.secondary',
+                      border: '1px solid',
+                      borderColor: filtroEstado === f.key ? ACCENT : 'divider',
+                      '&:hover': { bgcolor: filtroEstado === f.key ? `${ACCENT}22` : 'action.hover' },
+                      borderRadius: 2
+                    }}
+                  />
+                ))}
+              </Stack>
               <Button
                 size="small" variant="outlined" startIcon={<FileDownload />}
                 onClick={handleExportCSV} disabled={!usuariosFiltrados.length}
-                sx={{ borderRadius: 2, fontWeight: 600, whiteSpace: 'nowrap' }}
+                sx={{ borderRadius: 2.5, fontWeight: 700, textTransform: 'none', px: 2, py: 0.8 }}
               >
-                CSV
+                Exportar CSV
               </Button>
               <Button
                 variant="contained" startIcon={<PersonAdd />}
                 onClick={() => { resetUserForm(); setFormUserOpen(true); }}
-                sx={{ bgcolor: ACCENT, borderRadius: 2, fontWeight: 700, boxShadow: `0 4px 14px ${ACCENT}40`, whiteSpace: 'nowrap' }}
+                sx={{ bgcolor: ACCENT, borderRadius: 2.5, fontWeight: 800, textTransform: 'none', boxShadow: `0 8px 18px ${ACCENT}25`, '&:hover': { bgcolor: ACCENT, filter: 'brightness(0.95)' } }}
               >
                 Nuevo Usuario
               </Button>
@@ -352,33 +454,37 @@ export default function AdminUsuarios() {
 
             {/* Formulario Usuarios */}
             <Collapse in={formUserOpen}>
-              <Paper sx={{ p: 3, mb: 3, borderRadius: 3, border: `1px solid ${ACCENT}50`, bgcolor: 'background.default', boxShadow: 'none' }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography sx={{ fontWeight: 800 }}>{editingUser ? 'Editar Usuario' : 'Crear Usuario'}</Typography>
-                  <IconButton size="small" onClick={resetUserForm}><Close fontSize="small" /></IconButton>
+              <Paper sx={{ p: 3, mb: 3.5, borderRadius: 4, border: `1px solid ${ACCENT}40`, bgcolor: 'action.hover', boxShadow: 'none' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2.5 }}>
+                  <Typography sx={{ fontWeight: 800, fontSize: 15, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <SupervisedUserCircle sx={{ color: ACCENT }} /> {editingUser ? 'Editar Usuario' : 'Crear Usuario'}
+                  </Typography>
+                  <IconButton size="small" onClick={resetUserForm} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}><Close fontSize="small" /></IconButton>
                 </Box>
                 <Box component="form" onSubmit={handleUserSubmit}>
                   <Grid container spacing={2}>
-                    <Grid size={{ xs: 12, sm: 3 }}>
+                    <Grid item xs={12} sm={3}>
                       <TextField
                         label="Nombre de usuario *"
                         value={username}
                         onChange={e => setUsername(e.target.value.replace(/\s/g, ''))}
                         fullWidth required size="small"
-                        helperText="Sin espacios. Es el usuario para iniciar sesión."
+                        placeholder="Ej: j.perez"
+                        helperText="Identificador único para iniciar sesión."
                         inputProps={{ pattern: '\\S+' }}
                       />
                     </Grid>
-                    <Grid size={{ xs: 12, sm: 3 }}>
+                    <Grid item xs={12} sm={3}>
                       <TextField
                         label="Nombre completo"
                         value={nombreCompleto}
                         onChange={e => setNombreCompleto(e.target.value)}
                         fullWidth size="small"
-                        helperText="Nombre real del trabajador (aparece en reportes)"
+                        placeholder="Ej: Juan Pérez"
+                        helperText="Nombre que aparecerá en facturas y reportes."
                       />
                     </Grid>
-                    <Grid size={{ xs: 12, sm: 3 }}>
+                    <Grid item xs={12} sm={3}>
                       <TextField
                         label="Contraseña"
                         type={showPwd ? 'text' : 'password'}
@@ -387,17 +493,7 @@ export default function AdminUsuarios() {
                         fullWidth
                         required={!editingUser}
                         size="small"
-                        helperText={editingUser ? 'Dejar en blanco para no cambiarla' : (
-                          password ? (() => {
-                            const len = password.length;
-                            const hasNum = /[0-9]/.test(password);
-                            const hasUp  = /[A-Z]/.test(password);
-                            if (len < 4) return '⚠ Muy débil';
-                            if (len < 6) return '🟡 Débil';
-                            if (len >= 6 && (hasNum || hasUp)) return '🟢 Buena';
-                            return '⚠ Débil';
-                          })() : 'Mínimo 6 caracteres'
-                        )}
+                        helperText={editingUser ? 'Dejar vacío si no deseas cambiarla.' : 'Mínimo 6 caracteres.'}
                         InputProps={{
                           endAdornment: (
                             <InputAdornment position="end">
@@ -409,7 +505,7 @@ export default function AdminUsuarios() {
                         }}
                       />
                     </Grid>
-                    <Grid size={{ xs: 12, sm: 3 }}>
+                    <Grid item xs={12} sm={3}>
                       <FormControl fullWidth required size="small">
                         <InputLabel>Rol</InputLabel>
                         <Select value={roleId} label="Rol" onChange={e => setRoleId(e.target.value)}>
@@ -418,17 +514,19 @@ export default function AdminUsuarios() {
                       </FormControl>
                     </Grid>
 
-                    {/* ✨ ALERTA ROL MODULOS AÑADIDA AQUÍ COMO UN GRID ITEM DE ANCHO COMPLETO ✨ */}
-                    <Grid size={12}>
+                    <Grid item xs={12}>
                       <AlertaRolModulos
                         rolSeleccionado={roles.find(r => r.id === roleId)}
                         empresaActual={currentUser?.empresa}
                       />
                     </Grid>
 
-                    <Grid size={12} sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
-                      <Button type="submit" variant="contained" sx={{ bgcolor: ACCENT, fontWeight: 700 }}>
-                        {editingUser ? 'Actualizar' : 'Guardar'}
+                    <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1.5, mt: 1 }}>
+                      <Button variant="outlined" onClick={resetUserForm} sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 2.5 }}>
+                        Cancelar
+                      </Button>
+                      <Button type="submit" variant="contained" sx={{ bgcolor: ACCENT, fontWeight: 800, textTransform: 'none', borderRadius: 2.5, px: 3, '&:hover': { bgcolor: ACCENT, filter: 'brightness(0.95)' } }}>
+                        {editingUser ? 'Guardar Cambios' : 'Crear Usuario'}
                       </Button>
                     </Grid>
                   </Grid>
@@ -436,7 +534,7 @@ export default function AdminUsuarios() {
               </Paper>
             </Collapse>
 
-            {/* Lista de Usuarios (Responsive) */}
+            {/* Lista de Usuarios */}
             {isMobile ? (
                <Stack spacing={0}>
                   {usuariosFiltrados.map(u => (
@@ -444,65 +542,63 @@ export default function AdminUsuarios() {
                   ))}
                </Stack>
             ) : (
-              <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+              <TableContainer sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
                 <Table size="small">
                   <TableHead>
                     <TableRow sx={{ bgcolor: 'action.hover' }}>
-                      <TableCell sx={{ fontWeight: 800 }}>#</TableCell>
-                      <TableCell sx={{ fontWeight: 800 }}>
-                        <TableSortLabel
-                          active
-                          direction={sortDir}
-                          onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
-                        >
-                          Usuario
-                        </TableSortLabel>
-                      </TableCell>
+                      <TableCell sx={{ fontWeight: 800, py: 1.5 }}>Usuario</TableCell>
+                      <TableCell sx={{ fontWeight: 800 }}>Nombre Completo</TableCell>
                       <TableCell sx={{ fontWeight: 800 }}>Rol</TableCell>
                       <TableCell sx={{ fontWeight: 800 }}>Estado</TableCell>
-                      <TableCell sx={{ fontWeight: 800 }}>Acciones</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 800, pr: 2 }}>Acciones</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {usuariosFiltrados.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5} sx={{ py: 5, textAlign: 'center' }}>
-                          <Box sx={{ color: 'text.disabled' }}>
-                            <People sx={{ fontSize: 40, mb: 1, opacity: 0.3 }} />
-                            <Typography sx={{ fontSize: 13 }}>
-                              {busqueda ? `Sin resultados para "${busqueda}"` : 'No hay usuarios registrados'}
-                            </Typography>
-                          </Box>
-                        </TableCell>
-                      </TableRow>
-                    ) : usuariosFiltrados.map(u => (
-                      <TableRow key={u.id} hover sx={{ opacity: u.is_active !== false ? 1 : 0.6 }}>
-                        <TableCell sx={{ color: 'text.secondary', fontSize: 12 }}>#{u.id}</TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                            <Avatar sx={{ width: 28, height: 28, bgcolor: u.is_active !== false ? `${ACCENT}20` : '#cbd5e1', color: u.is_active !== false ? ACCENT : '#64748b', fontSize: 12, fontWeight: 800 }}>
+                    {usuariosFiltrados.map(u => (
+                      <TableRow key={u.id} hover sx={{ '&:hover': { bgcolor: 'action.hover' }, opacity: u.is_active !== false ? 1 : 0.65 }}>
+                        <TableCell sx={{ py: 1.2 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+                            <Avatar sx={{
+                              width: 32, height: 32,
+                              background: u.is_active !== false
+                                ? `linear-gradient(135deg, ${ACCENT}, ${ACCENT}aa)`
+                                : '#cbd5e1',
+                              color: '#fff', fontSize: 13, fontWeight: 900
+                            }}>
                               {u.username[0].toUpperCase()}
                             </Avatar>
-                            <Box>
-                              <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{u.username}</Typography>
-                              {u.nombre_completo && <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1 }}>{u.nombre_completo}</Typography>}
-                              {u.email && <Typography sx={{ fontSize: 10, color: 'text.disabled', lineHeight: 1 }}>{u.email}</Typography>}
-                            </Box>
+                            <Typography sx={{ fontWeight: 700, fontSize: 13.5 }}>{u.username}</Typography>
                           </Box>
                         </TableCell>
-                        <TableCell><Chip label={u.role.name} size="small" sx={{ bgcolor: `${ACCENT}15`, color: ACCENT, fontWeight: 700, fontSize: 11, borderRadius: 1.5 }} /></TableCell>
+                        <TableCell sx={{ fontWeight: 500, fontSize: 13 }}>{u.nombre_completo || '-'}</TableCell>
+                        <TableCell><Chip label={u.role.name} size="small" sx={{ bgcolor: `${ACCENT}12`, color: ACCENT, fontWeight: 700, fontSize: 11, borderRadius: 2 }} /></TableCell>
                         <TableCell>
-                          <Chip label={u.is_active !== false ? 'Activo' : 'Suspendido'} size="small" sx={{ bgcolor: u.is_active !== false ? '#ECFDF5' : '#FEF2F2', color: u.is_active !== false ? '#10B981' : '#EF4444', fontWeight: 800, fontSize: 10, borderRadius: 1.5 }} />
+                          <Chip
+                            label={u.is_active !== false ? 'Activo' : 'Suspendido'}
+                            size="small"
+                            sx={{
+                              bgcolor: u.is_active !== false ? 'success.shading' : 'error.shading',
+                              color: u.is_active !== false ? 'success.main' : 'error.main',
+                              fontWeight: 800, fontSize: 10, borderRadius: 2
+                            }}
+                          />
                         </TableCell>
-                        <TableCell>
+                        <TableCell align="right" sx={{ pr: 2 }}>
                           <Tooltip title="Editar">
-                            <IconButton size="small" onClick={() => handleEditUser(u)} sx={{ color: ACCENT, mr: 1, bgcolor: `${ACCENT}10` }}><Edit fontSize="small" /></IconButton>
+                            <IconButton size="small" onClick={() => handleEditUser(u)} sx={{ color: ACCENT, mr: 0.5 }}>
+                              <Edit fontSize="small" />
+                            </IconButton>
                           </Tooltip>
-                          <Tooltip title={u.is_active !== false ? "Suspender acceso" : "Reactivar usuario"}>
+                          <Tooltip title={u.is_active !== false ? 'Suspender' : 'Reactivar'}>
                             <span>
-                                <IconButton size="small" disabled={currentUser?.id === u.id} onClick={() => handleToggleClick(u)} sx={{ color: u.is_active !== false ? '#EF4444' : '#10B981', bgcolor: u.is_active !== false ? '#FEF2F2' : '#ECFDF5' }}>
-                                    {u.is_active !== false ? <Block fontSize="small" /> : <CheckCircle fontSize="small" />}
-                                </IconButton>
+                              <IconButton
+                                size="small"
+                                disabled={currentUser?.id === u.id}
+                                onClick={() => handleToggleClick(u)}
+                                sx={{ color: u.is_active !== false ? 'error.main' : 'success.main' }}
+                              >
+                                {u.is_active !== false ? <Block fontSize="small" /> : <CheckCircle fontSize="small" />}
+                              </IconButton>
                             </span>
                           </Tooltip>
                         </TableCell>
@@ -514,39 +610,67 @@ export default function AdminUsuarios() {
             )}
           </TabPanel>
 
-          {/* ════ TAB 1: ROLES Y PERMISOS ════ */}
+          {/* ════ TAB 1: ROLES & MODULOS ════ */}
           <TabPanel value={tab} index={1}>
-            <Box sx={{ mb: 3, display: 'flex', justifyContent: 'flex-end' }}>
-              <Button variant="contained" startIcon={<AdminPanelSettings />} onClick={() => { resetRoleForm(); setFormRoleOpen(true); }}
-                sx={{ bgcolor: ACCENT, borderRadius: 2, fontWeight: 700, boxShadow: `0 4px 14px ${ACCENT}40` }}>
+            <Box sx={{ mb: 3.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+              <Box>
+                <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'text.primary' }}>Roles y Matriz de Permisos</Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500 }}>Configura qué módulos puede ver cada rol de tu empresa.</Typography>
+              </Box>
+              <Button
+                variant="contained" startIcon={<Security />}
+                onClick={() => { resetRoleForm(); setFormRoleOpen(true); }}
+                sx={{ bgcolor: ACCENT, borderRadius: 2.5, fontWeight: 800, textTransform: 'none', boxShadow: `0 8px 18px ${ACCENT}25`, '&:hover': { bgcolor: ACCENT, filter: 'brightness(0.95)' } }}
+              >
                 Nuevo Rol
               </Button>
             </Box>
 
             {/* Formulario Roles */}
             <Collapse in={formRoleOpen}>
-              <Paper sx={{ p: 3, mb: 3, borderRadius: 3, border: `1px solid ${ACCENT}50`, bgcolor: 'background.default', boxShadow: 'none' }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography sx={{ fontWeight: 800 }}>{editingRole ? 'Editar Permisos del Rol' : 'Crear Nuevo Rol'}</Typography>
-                  <IconButton size="small" onClick={resetRoleForm}><Close fontSize="small" /></IconButton>
+              <Paper sx={{ p: 3, mb: 3.5, borderRadius: 4, border: `1px solid ${ACCENT}40`, bgcolor: 'action.hover', boxShadow: 'none' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2.5 }}>
+                  <Typography sx={{ fontWeight: 800, fontSize: 15, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <SettingsSuggest sx={{ color: ACCENT }} /> {editingRole ? `Editar Permisos: ${roleName}` : 'Crear Nuevo Rol'}
+                  </Typography>
+                  <IconButton size="small" onClick={resetRoleForm} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}><Close fontSize="small" /></IconButton>
                 </Box>
                 <Box component="form" onSubmit={handleRoleSubmit}>
-                  <Grid container spacing={2}>
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                      <TextField label="Nombre del Rol" value={roleName} onChange={e => setRoleName(e.target.value)} fullWidth required disabled={!!editingRole} size="small" helperText={editingRole ? 'El nombre no se puede cambiar' : ''} />
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 8 }}>
-                      <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.secondary', mb: 1.5, textTransform: 'uppercase' }}>
-                        Seleccione los módulos a los que tendrá acceso
+                  <Grid container spacing={2.5}>
+                    {!editingRole && (
+                      <Grid item xs={12}>
+                        <TextField
+                          label="Nombre del Rol *"
+                          value={roleName}
+                          onChange={e => setRoleName(e.target.value)}
+                          fullWidth required size="small"
+                          placeholder="Ej: Supervisor, Cajero, Vendedor"
+                          helperText="Asigna un nombre claro basado en las funciones del cargo."
+                        />
+                      </Grid>
+                    )}
+
+                    <Grid item xs={12}>
+                      <Typography sx={{ fontSize: 12, fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8, mb: 1.5 }}>
+                        Selecciona los módulos autorizados para este rol:
                       </Typography>
-                      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 1.5 }}>
                         {modulosFiltrados.map(m => (
-                          <ModuleToggle key={m.id} module={m} checked={selectedModules.includes(m.id)} onChange={handleModuleChange} />
+                          <ModuleToggle
+                            key={m.id}
+                            module={m}
+                            checked={selectedModules.includes(m.id)}
+                            onChange={handleModuleChange}
+                          />
                         ))}
                       </Box>
                     </Grid>
-                    <Grid size={12} sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
-                      <Button type="submit" variant="contained" sx={{ bgcolor: ACCENT, fontWeight: 700 }}>
+
+                    <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1.5, mt: 1 }}>
+                      <Button variant="outlined" onClick={resetRoleForm} sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 2.5 }}>
+                        Cancelar
+                      </Button>
+                      <Button type="submit" variant="contained" sx={{ bgcolor: ACCENT, fontWeight: 800, textTransform: 'none', borderRadius: 2.5, px: 3, '&:hover': { bgcolor: ACCENT, filter: 'brightness(0.95)' } }}>
                         {editingRole ? 'Guardar Permisos' : 'Crear Rol'}
                       </Button>
                     </Grid>
@@ -555,92 +679,60 @@ export default function AdminUsuarios() {
               </Paper>
             </Collapse>
 
-            {/* Lista de Roles */}
-            {isMobile ? (
-                <Stack spacing={2}>
-                    {roles.length === 0 ? (
-                      <Box sx={{ py: 5, textAlign: 'center', color: 'text.disabled' }}>
-                        <Security sx={{ fontSize: 40, mb: 1, opacity: 0.3 }} />
-                        <Typography sx={{ fontSize: 13 }}>No hay roles configurados. Crea el primero.</Typography>
-                      </Box>
-                    ) : roles.map(r => (
-                        <Paper key={r.id} sx={{ p: 2, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                                <Box>
-                                  <Typography sx={{ fontWeight: 800, fontSize: 16 }}>{r.name}</Typography>
-                                  <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-                                    {users.filter(u => u.role?.id === r.id).length} usuario(s)
-                                  </Typography>
-                                </Box>
-                                <IconButton size="small" onClick={() => handleEditRole(r)} sx={{ color: ACCENT, bgcolor: `${ACCENT}10` }}><Edit fontSize="small" /></IconButton>
-                            </Box>
-                            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 1 }}>
-                                {r.modules.length === 0 ? <Typography sx={{ fontSize: 12, color: 'text.secondary', fontStyle: 'italic' }}>Sin accesos configurados</Typography> :
-                                r.modules.map(m => <Chip key={m.id} label={m.name} size="small" sx={{ bgcolor: `${ACCENT}10`, color: ACCENT, fontSize: 10, fontWeight: 700, borderRadius: 1 }} />)
-                                }
-                            </Box>
-                        </Paper>
-                    ))}
-                </Stack>
-            ) : (
-                <TableContainer sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                <Table size="small">
-                    <TableHead>
-                    <TableRow sx={{ bgcolor: 'action.hover' }}>
-                        {['Rol', 'Módulos con Acceso', 'Acciones'].map(h => <TableCell key={h} sx={{ fontWeight: 800 }}>{h}</TableCell>)}
-                    </TableRow>
-                    </TableHead>
-                    <TableBody>
-                    {roles.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={3} sx={{ py: 5, textAlign: 'center' }}>
-                          <Box sx={{ color: 'text.disabled' }}>
-                            <Security sx={{ fontSize: 40, mb: 1, opacity: 0.3 }} />
-                            <Typography sx={{ fontSize: 13 }}>No hay roles configurados. Crea el primero.</Typography>
-                          </Box>
-                        </TableCell>
-                      </TableRow>
-                    ) : roles.map(r => (
-                        <TableRow key={r.id} hover>
-                        <TableCell sx={{ fontWeight: 800, fontSize: 14 }}>
-                          <Box>
-                            <Typography sx={{ fontWeight: 800, fontSize: 14 }}>{r.name}</Typography>
-                            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-                              {users.filter(u => u.role?.id === r.id).length} usuario{users.filter(u => u.role?.id === r.id).length !== 1 ? 's' : ''}
-                            </Typography>
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                            {r.modules.length === 0 ? <Typography sx={{ fontSize: 12, color: 'text.secondary', fontStyle: 'italic' }}>Sin accesos configurados</Typography> :
-                                r.modules.map(m => <Chip key={m.id} label={m.name} size="small" sx={{ bgcolor: `${ACCENT}10`, color: ACCENT, fontSize: 10, fontWeight: 700, borderRadius: 1.5 }} />)
-                            }
-                            </Box>
-                        </TableCell>
-                        <TableCell>
-                            <Tooltip title="Editar Permisos">
-                                <IconButton size="small" onClick={() => handleEditRole(r)} sx={{ color: ACCENT, bgcolor: `${ACCENT}10` }}><Edit fontSize="small" /></IconButton>
-                            </Tooltip>
-                        </TableCell>
-                        </TableRow>
-                    ))}
-                    </TableBody>
-                </Table>
-                </TableContainer>
-            )}
+            {/* Listado de Roles */}
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 2 }}>
+              {roles.map(r => (
+                <Paper key={r.id} sx={{
+                  p: 2.5, borderRadius: 3.5, border: '1px solid', borderColor: 'divider',
+                  display: 'flex', flexDirection: 'column', gap: 1.5,
+                  transition: 'all 0.22s',
+                  '&:hover': {
+                    borderColor: ACCENT,
+                    boxShadow: dark ? '0 4px 18px rgba(0,0,0,0.3)' : '0 4px 18px rgba(0,0,0,0.04)',
+                    transform: 'translateY(-2px)'
+                  }
+                }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Security sx={{ color: ACCENT, fontSize: 18 }} />
+                      <Typography sx={{ fontWeight: 800, fontSize: 14.5 }}>{r.name}</Typography>
+                    </Box>
+                    <IconButton size="small" onClick={() => handleEditRole(r)} sx={{ color: ACCENT, bgcolor: `${ACCENT}10`, '&:hover': { bgcolor: `${ACCENT}22` } }}>
+                      <Edit fontSize="small" />
+                    </IconButton>
+                  </Box>
+                  <Divider sx={{ borderStyle: 'dashed' }} />
+                  <Box>
+                    <Typography sx={{ fontSize: 10.5, color: 'text.secondary', fontWeight: 700, mb: 1, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      Módulos habilitados ({r.modules.length})
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6 }}>
+                      {r.modules.length > 0 ? r.modules.map(m => (
+                        <Chip key={m.id} label={m.name} size="small" sx={{ fontSize: 9.5, fontWeight: 600, height: 18, bgcolor: 'action.hover', color: 'text.secondary', borderRadius: 1.5 }} />
+                      )) : (
+                        <Typography sx={{ fontSize: 11.5, color: 'text.disabled', fontStyle: 'italic' }}>Ninguno asignado. El rol no tendrá acceso al menú.</Typography>
+                      )}
+                    </Box>
+                  </Box>
+                </Paper>
+              ))}
+            </Box>
           </TabPanel>
+
         </Box>
       </Paper>
 
+      {/* Confirmation Dialogs */}
       <ConfirmationDialog
         open={showConfirmUser}
-        handleClose={() => setShowConfirmUser(false)}
-        handleConfirm={confirmToggleUser}
-        title={userToToggle?.is_active !== false ? "Suspender acceso" : "Reactivar acceso"}
+        title={userToToggle?.is_active !== false ? '¿Suspender acceso?' : '¿Reactivar acceso?'}
         message={userToToggle?.is_active !== false
-            ? `¿Estás seguro de suspender a ${userToToggle?.username}? Ya no podrá ingresar al sistema hasta que lo reactives.`
-            : `¿Deseas reactivar el acceso para ${userToToggle?.username}?`
+          ? `El usuario ${userToToggle?.username} no podrá acceder al sistema hasta que sea reactivado.`
+          : `El usuario ${userToToggle?.username} volverá a tener acceso normal a sus módulos.`
         }
+        type={userToToggle?.is_active !== false ? 'delete' : 'success'}
+        handleConfirm={confirmToggleUser}
+        handleClose={() => { setShowConfirmUser(false); setUserToToggle(null); }}
       />
     </Box>
   );

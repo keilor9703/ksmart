@@ -188,11 +188,55 @@ def get_devoluciones_by_venta(db: Session, empresa_id: int, venta_id: int) -> Li
     )
 
 def revertir_movimientos_venta(db: Session, empresa_id: int, venta: models.Venta):
-    """✅ INYECCIÓN DE EMPRESA_ID"""
+    """✅ INYECCIÓN DE EMPRESA_ID Y SOPORTE PARA LOTES/VARIANTES"""
     for det in venta.detalles:
+        if not det.producto_id:
+            continue
         prod = get_producto(db, empresa_id, det.producto_id)
         if not prod or prod.es_servicio:
             continue
+
+        lote_id = None
+        numero_lote = None
+        # Restaurar lote original si maneja lotes
+        if getattr(prod, "maneja_lotes", False):
+            mov_salida = (
+                db.query(models.InventoryMovement)
+                .filter(
+                    models.InventoryMovement.empresa_id == empresa_id,
+                    models.InventoryMovement.producto_id == det.producto_id,
+                    models.InventoryMovement.lote_id.isnot(None),
+                    models.InventoryMovement.referencia.ilike(f"%venta #{venta.numero_venta}%")
+                    if venta.numero_venta
+                    else models.InventoryMovement.referencia.ilike(f"%venta #{venta.id}%"),
+                )
+                .order_by(models.InventoryMovement.id.desc())
+                .first()
+            )
+            if mov_salida:
+                lote_repuesto = db.query(models.LoteExistencia).filter(
+                    models.LoteExistencia.id == mov_salida.lote_id,
+                    models.LoteExistencia.empresa_id == empresa_id
+                ).first()
+                if lote_repuesto:
+                    lote_repuesto.cantidad_actual = (lote_repuesto.cantidad_actual or 0.0) + det.cantidad
+                    db.add(lote_repuesto)
+                    lote_id = lote_repuesto.id
+                    numero_lote = lote_repuesto.numero_lote
+
+        # Restaurar variante si aplica
+        if det.variante_id:
+            variante = db.query(models.ProductoVariante).filter(
+                models.ProductoVariante.id == det.variante_id,
+                models.ProductoVariante.producto_id == det.producto_id
+            ).first()
+            if variante and variante.stock_actual is not None:
+                variante.stock_actual = (variante.stock_actual or 0.0) + det.cantidad
+                db.add(variante)
+
+        prod.stock_actual = (prod.stock_actual or 0.0) + det.cantidad
+        db.add(prod)
+
         mov = models.InventoryMovement(
             producto_id=det.producto_id,
             tipo="entrada",
@@ -201,9 +245,9 @@ def revertir_movimientos_venta(db: Session, empresa_id: int, venta: models.Venta
             motivo="reversa_venta",
             referencia=f"reversa venta #{venta.id}",
             observacion=f"Venta #{venta.id} eliminada el {datetime.now(timezone.utc).date()}",
-            empresa_id=empresa_id  # ✅
+            empresa_id=empresa_id,
+            lote_id=lote_id,
+            numero_lote=numero_lote
         )
         db.add(mov)
-        prod.stock_actual = (prod.stock_actual or 0) + det.cantidad
-        db.add(prod)
     db.commit()

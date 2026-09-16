@@ -142,7 +142,7 @@ export default function ParqueaderoDashboard({ user }) {
           <Button
             variant="contained" startIcon={<Search />}
             onClick={() => navigate('/parqueadero/buscar')}
-            sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700, textTransform: 'none', borderRadius: 2 }}
+            sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' }, fontWeight: 700, textTransform: 'none', borderRadius: 2 }}
           >
             {isMobile ? 'Buscar' : 'Buscar placa'}
           </Button>

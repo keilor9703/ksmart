@@ -253,6 +253,27 @@ def get_lotes_fefo(
     )
 
 
+def stock_disponible_real(db: Session, empresa_id: int, insumo: "models.Producto") -> float:
+    """
+    Cuánto de este insumo se puede consumir AHORA MISMO, de verdad.
+
+    Para insumos que manejan lotes perecederos, `insumo.stock_actual` es un
+    agregado que no excluye unidades ya vencidas — pero el consumo real
+    (FEFO, en `consumir_stock_fefo`) sí las excluye. Usar el agregado en una
+    simulación o pre-validación puede decir "stock suficiente" con unidades
+    que en la práctica son inconsumibles: el usuario ve luz verde y la
+    producción falla igual al confirmar, sin haber podido anticiparlo.
+
+    Toda pantalla o validación que le diga al usuario "sí alcanza" / "no
+    alcanza" debe usar esta función, nunca `insumo.stock_actual` a secas,
+    para un insumo con lotes.
+    """
+    if getattr(insumo, "maneja_lotes", False):
+        lotes = get_lotes_fefo(db, empresa_id, insumo.id)
+        return sum(l.cantidad_actual for l in lotes)
+    return float(insumo.stock_actual or 0)
+
+
 def consumir_stock_fefo(
     db: Session,
     empresa_id: int,
@@ -299,9 +320,18 @@ def consumir_stock_fefo(
         ))
 
     if restante > 0:
+        # El insumo, no la orden que lo consume, es lo que el usuario
+        # necesita saber para poder actuar. Antes este mensaje citaba
+        # `referencia` (p. ej. "Producción #15"), dejando al usuario sin
+        # forma de saber CUÁL insumo faltaba.
+        producto = db.query(models.Producto).filter(
+            models.Producto.id == producto_id,
+            models.Producto.empresa_id == empresa_id,
+        ).first()
+        nombre = producto.nombre if producto else f"producto #{producto_id}"
         raise ValueError(
-            f"Stock insuficiente en lotes vigentes para '{referencia}'. "
-            f"Faltaron {restante:.2f} unidades."
+            f"Stock insuficiente de '{nombre}' en lotes vigentes "
+            f"(orden: {referencia}). Faltaron {restante:.2f} unidades."
         )
 
     if commit:

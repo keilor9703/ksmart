@@ -306,6 +306,14 @@ export default function ParqueaderoConfig() {
               }}
             />
           </Grid>
+          <Grid item xs={12} md={4}>
+            <CurrencyField
+              fullWidth size="small" label="Tarifa mínima (piso de cobro)"
+              value={config?.tarifa_minima || 0}
+              onChange={val => setConfig(prev => ({ ...prev, tarifa_minima: val }))}
+              helperText="Nunca se cobra menos que este valor. 0 = desactivado"
+            />
+          </Grid>
         </Grid>
 
         {diferenciaHora && (
@@ -549,7 +557,7 @@ export default function ParqueaderoConfig() {
           disabled={saving}
           startIcon={saving ? <CircularProgress size={18} color="inherit" /> : <Save />}
           sx={{
-            bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' },
+            bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' },
             fontWeight: 800, px: 4, py: 1.5, borderRadius: 2,
             boxShadow: `0 6px 18px ${ACCENT}40`,
           }}

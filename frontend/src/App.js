@@ -12,6 +12,7 @@ import { Route, Routes, useNavigate, Navigate } from 'react-router-dom';
 
 import apiClient from './api';
 import getAppTheme from './theme';
+import { isMarketplaceDomain } from './utils/marketplaceCart';
 
 // ✅ IMPORTACIÓN DE COMPONENTES DE LAYOUT
 import Sidebar from './layout/Sidebar';
@@ -27,6 +28,7 @@ import ModalHuella from './components/common/ModalHuella';
 import GlobalSearch from './components/common/GlobalSearch';
 import { MODULE_ICONS, getModuleConfig, ADMIN_MODULES, HIDDEN_FROM_SIDEBAR } from './utils/modulesConfig';
 import ReconectandoScreen from './components/common/ReconectandoScreen';
+import MobileUpdateChecker from './components/common/MobileUpdateChecker';
 import { startKeepAlive, stopKeepAlive } from './services/keepAlive';
 
 // ─── LAZY: cada pantalla en su propio chunk (code-splitting por ruta) ─────────
@@ -35,6 +37,7 @@ import { startKeepAlive, stopKeepAlive } from './services/keepAlive';
 const Productos        = lazy(() => import('./features/inventory/Productos'));
 const Ventas           = lazy(() => import('./features/sales/Ventas'));
 const PedidosVirtuales = lazy(() => import('./features/sales/PedidosVirtuales'));
+const WhatsAppBot      = lazy(() => import('./features/whatsapp/WhatsAppBot'));
 const Reportes         = lazy(() => import('./features/reports/Reportes'));
 const OrdenesTrabajo   = lazy(() => import('./features/workOrders/OrdenesTrabajo'));
 const Recetas          = lazy(() => import('./features/production/Recetas'));
@@ -58,6 +61,7 @@ const ConfigLinkPago   = lazy(() => import('./features/account/ConfigLinkPago'))
 // Catálogo virtual
 const CatalogoConfig   = lazy(() => import('./features/saas/CatalogoConfig'));
 const CatalogoVirtual  = lazy(() => import('./features/saas/CatalogoVirtual'));
+const MarketplaceHome  = lazy(() => import('./features/saas/MarketplaceHome'));
 
 // Pantallas públicas
 const SuscripcionExpirada = lazy(() => import('./features/auth/SuscripcionExpirada'));
@@ -92,6 +96,9 @@ const ReservasRestaurante    = lazy(() => import('./features/restaurante/Reserva
 const Agendamiento       = lazy(() => import('./features/agendamiento/Agendamiento'));
 const AgendamientoConfig = lazy(() => import('./features/agendamiento/AgendamientoConfig'));
 const AgendarPublico     = lazy(() => import('./features/agendamiento/AgendarPublico'));
+
+const TallerOrdenes      = lazy(() => import('./features/taller/TallerOrdenes'));
+const TallerVehiculos    = lazy(() => import('./features/taller/TallerVehiculos'));
 
 // ─── Constantes de Layout ──────────────────────────────────────────────────────
 const SIDEBAR_FULL  = 240;
@@ -133,6 +140,13 @@ const ProtectedRoute = ({ path, hasAccess, children }) => {
   );
 };
 
+// Dominio del Centro Comercial Virtual (directorio público multi-empresa) —
+// mismo despliegue de frontend, distinto dominio apuntado en el DNS/Vercel.
+// La ruta pública /:slug ya es agnóstica de dominio, así que solo hace falta
+// decidir qué se muestra en la raíz "/" según el hostname.
+// (isMarketplaceDomain vive en utils/marketplaceCart.js — CatalogoVirtual.js
+// también la necesita para saber si debe usar el carrito multi-tienda.)
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser]       = useState(null);
@@ -163,6 +177,34 @@ function App() {
       if (!res.data.initialized) setNeedsSetup(true);
       else checkAuth();
     }).catch(() => checkAuth());
+  }, []);
+
+  // Cuando cualquier request recibe un 401 con sesión ya iniciada (ver
+  // interceptor en api.js), forzar el cierre de sesión de inmediato en vez
+  // de esperar a que la pantalla actual maneje el error por su cuenta.
+  useEffect(() => {
+    const onSesionExpirada = () => handleLogout(true);
+    window.addEventListener('ksmart:sesion-expirada', onSesionExpirada);
+    return () => window.removeEventListener('ksmart:sesion-expirada', onSesionExpirada);
+  }, []);
+
+  // Revalidar la sesión cada vez que la app vuelve a primer plano (celular
+  // desbloqueado, o la APK reabierta tras estar en background). Sin esto, la
+  // app puede quedarse con datos/loading colgados de la sesión anterior sin
+  // ninguna forma de recuperarse — en la web el usuario podía forzar un
+  // reload con scroll-to-refresh, pero la APK (WebView) no tiene ese gesto.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && localStorage.getItem('token')) {
+        checkAuth();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
   }, []);
 
   useEffect(() => {
@@ -397,6 +439,7 @@ const hasAccess = useCallback((path) => {
                     } />
                     <Route path="/ventas"             element={<ProtectedRoute path="/ventas"             hasAccess={hasAccess}><Ventas user={user} /></ProtectedRoute>} />
                     <Route path="/pedidos-virtuales" element={<ProtectedRoute path="/pedidos-virtuales" hasAccess={hasAccess}><PedidosVirtuales user={user} /></ProtectedRoute>} />
+                    <Route path="/whatsapp-bot" element={<ProtectedRoute path="/whatsapp-bot" hasAccess={hasAccess}><WhatsAppBot user={user} /></ProtectedRoute>} />
                     <Route path="/cotizaciones"       element={<ProtectedRoute path="/cotizaciones"       hasAccess={hasAccess}><Cotizaciones /></ProtectedRoute>} />
                     <Route path="/admin/resoluciones" element={<Navigate to="/admin/facturacion-electronica" replace />} />
                     <Route path="/compras"            element={<ProtectedRoute path="/compras"            hasAccess={hasAccess}><Compras /></ProtectedRoute>} />
@@ -431,6 +474,8 @@ const hasAccess = useCallback((path) => {
                     <Route path="/restaurante/reservas"    element={<ProtectedRoute path="/restaurante/reservas"    hasAccess={hasAccess}><ReservasRestaurante   /></ProtectedRoute>} />
                     <Route path="/agendamiento"            element={<ProtectedRoute path="/agendamiento"            hasAccess={hasAccess}><Agendamiento user={user} /></ProtectedRoute>} />
                     <Route path="/agendamiento/config"     element={<ProtectedRoute path="/agendamiento/config"     hasAccess={hasAccess}><AgendamientoConfig /></ProtectedRoute>} />
+                    <Route path="/taller/ordenes"          element={<ProtectedRoute path="/taller/ordenes"          hasAccess={hasAccess}><TallerOrdenes /></ProtectedRoute>} />
+                    <Route path="/taller/vehiculos"        element={<ProtectedRoute path="/taller/vehiculos"        hasAccess={hasAccess}><TallerVehiculos /></ProtectedRoute>} />
                     {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (
                       <>
                         <Route path="/superadmin/empresas" element={<GestionEmpresas />} />
@@ -472,6 +517,7 @@ const hasAccess = useCallback((path) => {
             <Box sx={{ width: '100%', minHeight: '100vh' }}>
               <Suspense fallback={<RouteFallback />}>
               <Routes>
+                <Route path="/" element={isMarketplaceDomain() ? <MarketplaceHome /> : <Login onLogin={checkAuth} />} />
                 <Route path="/suscripcion-expirada" element={<SuscripcionExpirada onActive={checkAuth} />} />
                 <Route path="/login" element={<Login onLogin={checkAuth} />} />
                 <Route path="/terminos" element={<Terminos />} />
@@ -479,7 +525,7 @@ const hasAccess = useCallback((path) => {
                 <Route path="/habeas-data" element={<HabeasData />} />
                 <Route path="/:slug/agendar" element={<AgendarPublico />} />
                 <Route path="/:slug" element={<CatalogoVirtual />} />
-                <Route path="*" element={<Login onLogin={checkAuth} />} />
+                <Route path="*" element={isMarketplaceDomain() ? <Navigate to="/" replace /> : <Login onLogin={checkAuth} />} />
               </Routes>
               </Suspense>
             </Box>
@@ -497,6 +543,7 @@ const hasAccess = useCallback((path) => {
           transition={Slide}
         />
         <SpeedInsights />
+        <MobileUpdateChecker />
       </ThemeProvider>
     </OnboardingProvider>
   );

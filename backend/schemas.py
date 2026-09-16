@@ -33,6 +33,12 @@ class EmpresaBase(BaseModel):
     logo_base64: Optional[str] = None
     ciudad: Optional[str] = None
     descripcion: Optional[str] = None
+    instagram_url: Optional[str] = None
+    facebook_url: Optional[str] = None
+
+    # 👇 CENTRO COMERCIAL VIRTUAL (directorio público multi-empresa)
+    visible_marketplace: bool = False
+    categoria_marketplace: Optional[str] = None
 
     # 🧾 CAMPOS FACTURACIÓN ELECTRÓNICA
     dv: Optional[str] = None
@@ -112,6 +118,10 @@ class EmpresaMetricsOut(EmpresaOut):
     count_ventas: int = 0
     count_productos: int = 0
     dias_restantes: int = 0
+    # Contacto del dueño (usuario que registró la empresa)
+    owner_nombre: Optional[str] = None
+    owner_telefono: Optional[str] = None
+    owner_email: Optional[str] = None
 
 class SaaSAuditLogOut(BaseModel):
     id: int
@@ -192,6 +202,9 @@ class Role(RoleBase):
 class UserBase(BaseModel):
     username: str
     role_id: int
+    nombre_completo: Optional[str] = None
+    email: Optional[str] = None
+    telefono: Optional[str] = None
 
 class UserCreate(UserBase):
     password: str
@@ -241,6 +254,7 @@ class ClienteBase(BaseModel):
     departamento_code: Optional[str] = None
     ciudad_code: Optional[str] = None
     zona: Optional[str] = None
+    fecha_nacimiento: Optional[date] = None
 
 class ClienteCreate(ClienteBase):
     pass
@@ -360,6 +374,25 @@ class ProductoVarianteCreate(ProductoVarianteBase):
     sku: Optional[str] = None
     stock_inicial: float = 0.0
 
+class VariantesGenerarValorIn(BaseModel):
+    valor: str = Field(..., min_length=1, max_length=100)
+    stock_inicial: float = 0.0
+    # Si vienen, mandan sobre el precio/costo compartido de la solicitud —
+    # permite que cada fila de la tabla (ej. cada talla) tenga su propio
+    # costo/precio cuando no todas cuestan igual.
+    precio: Optional[float] = None
+    costo: Optional[float] = None
+
+class VariantesGenerarIn(BaseModel):
+    # Nombre del atributo que varía, ej: "Talla", "Color".
+    atributo: str = Field(..., min_length=1, max_length=50)
+    valores: List[VariantesGenerarValorIn] = Field(..., min_length=1)
+    # Usados como default para las filas que no traigan su propio precio/costo.
+    precio: Optional[float] = None
+    costo: Optional[float] = None
+    stock_minimo: float = 0.0
+    atributos_comunes: dict = {}
+
 class ProductoVarianteUpdate(BaseModel):
     nombre: Optional[str] = None
     atributos: Optional[dict] = None
@@ -387,6 +420,11 @@ class Producto(ProductoBase):
     # Stock vendible: stock_actual menos lo atrapado en lotes VENCIDOS.
     # None para productos sin manejo de lotes (usar stock_actual).
     stock_vigente: Optional[float] = None
+    # Solo lo llena el lookup de código de barras cuando el resultado viene de
+    # la búsqueda web (último recurso, sin catálogo estructurado que lo
+    # respalde) — el frontend debe advertir claramente que no está verificado,
+    # a diferencia de un match real de OpenFoodFacts/UPCitemDB/etc.
+    fuente: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class MovementType(str, Enum):
@@ -403,11 +441,22 @@ class InventoryMovementCreate(BaseModel):
     referencia: Optional[str] = ""
     observacion: Optional[str] = ""
     usuario_id: Optional[int] = None
+    variante_id: Optional[int] = None
+
+# Producto liviano para embeber en listados (movimientos, etc.): solo lo que
+# la UI necesita mostrar. Evita arrastrar imagenes en base64 y variantes, que
+# hacían el historial de movimientos lentísimo y pesadísimo.
+class ProductoMini(BaseModel):
+    id: int
+    nombre: str
+    codigo_barras: Optional[str] = None
+    unidad_medida: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
 
 class InventoryMovementOut(BaseModel):
     id: int
     producto_id: int
-    producto: Optional[Producto] = None
+    producto: Optional[ProductoMini] = None
     tipo: MovementType
     cantidad: float
     costo_unitario: float
@@ -420,6 +469,8 @@ class InventoryMovementOut(BaseModel):
     numero_lote: Optional[str] = None
     # Consecutivo visible por empresa
     numero_movimiento: Optional[int] = None
+    variante_id: Optional[int] = None
+    nombre_variante: Optional[str] = None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
@@ -484,6 +535,9 @@ class VentaBase(BaseModel):
     pagada: bool = True
     iva_porcentaje: float = 0.0
     metodo_pago: Optional[str] = None
+    # Cuando metodo_pago == "Link de Pago": cuál de los links/QR configurados
+    # (Nequi, Bancolombia, etc.) usó el cliente.
+    link_pago_nombre: Optional[str] = None
     # ← Nuevos campos Fase 2
     tipo: str = "venta"                          # 'venta' | 'cotizacion'
     valida_hasta: Optional[datetime] = None      # Solo cotizaciones
@@ -520,6 +574,10 @@ class Venta(VentaBase):
     pagos: List[Pago] = []
     # Consecutivo visible por empresa (V-0001…)
     numero_venta: Optional[int] = None
+    # Fidelización: puntos ganados en esta venta y saldo del cliente justo
+    # después de aplicarla (snapshot al momento de la venta).
+    puntos_ganados: Optional[int] = 0
+    saldo_puntos_cliente: Optional[int] = None
     # ← Nuevos campos Fase 2
     numero_factura: Optional[str] = None
     resolucion_id: Optional[int] = None
@@ -534,6 +592,25 @@ class Venta(VentaBase):
     origen: Optional[str] = "erp"
 
     model_config = ConfigDict(from_attributes=True)
+
+# =========================
+# VENTAS — BORRADORES (POS)
+# =========================
+class VentaBorradorCreate(BaseModel):
+    cliente_nombre: Optional[str] = None
+    total_aproximado: float = 0.0
+    datos: dict   # snapshot completo del carrito, opaco para el backend
+
+class VentaBorradorOut(BaseModel):
+    id: int
+    cliente_nombre: Optional[str] = None
+    total_aproximado: float = 0.0
+    created_at: datetime
+    creado_por_id: Optional[int] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class VentaBorradorDetalle(VentaBorradorOut):
+    datos: dict
 
 # =========================
 # DEVOLUCIONES
@@ -732,6 +809,7 @@ class DetalleCompraBase(BaseModel):
     numero_lote: Optional[str] = None
     fecha_vencimiento: Optional[date] = None
     fecha_fabricacion: Optional[date] = None
+    variante_id: Optional[int] = None
 
 
 class DetalleCompraCreate(DetalleCompraBase):
@@ -741,6 +819,7 @@ class DetalleCompra(DetalleCompraBase):
     id: int
     compra_id: int
     producto: Optional[Producto] = None
+    nombre_variante: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class CompraBase(BaseModel):
@@ -850,6 +929,15 @@ class LoteProduccionBase(BaseModel):
 class LoteProduccionCreate(LoteProduccionBase):
     numero_lote_produccion: Optional[str] = None
 
+class LoteProduccionUpdate(BaseModel):
+    # Todo opcional: PATCH parcial. Solo aplica mientras la orden sigue
+    # "En producción" — no se puede reasignar la receta (produciría otra
+    # cosa distinta a la que ya se planificó).
+    cantidad_a_producir: Optional[float] = None
+    cliente_id: Optional[int] = None
+    observaciones: Optional[str] = None
+    numero_lote_produccion: Optional[str] = None
+
 class LoteServicioPrecio(BaseModel):
     servicio_id: int
     precio: float
@@ -868,6 +956,9 @@ class LoteProduccionConfirm(BaseModel):
     numero_lote: Optional[str] = None
     fecha_vencimiento: Optional[date] = None
     fecha_fabricacion: Optional[date] = None
+    # Si el producto resultante maneja variantes, a cuál se le acredita el
+    # stock producido (obligatorio en ese caso).
+    variante_id: Optional[int] = None
 
 class LoteProduccion(LoteProduccionBase):
     id: int
@@ -885,6 +976,7 @@ class LoteProduccion(LoteProduccionBase):
     numero_orden: Optional[int] = None
     costo_insumos: float = 0.0
     costo_maquila: float = 0.0
+    variante_id: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
 # =========================
@@ -973,6 +1065,8 @@ class InventarioItem(BaseModel):
     precio: float
     valor_costo: float
     valor_venta: float
+    variante_id: Optional[int] = None
+    nombre_variante: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class InventarioSnapshot(BaseModel):
@@ -1008,6 +1102,12 @@ class ClienteCuentasPorCobrar(BaseModel):
     monto_pendiente: float
     ventas_pendientes: List[Venta] = []
 
+class ProveedorCuentasPorPagar(BaseModel):
+    proveedor_id: int
+    proveedor_nombre: str
+    monto_pendiente: float
+    compras_pendientes: List[Compra] = []
+
 class VentaHistoryItem(BaseModel):
     id: int
     detalles: List[DetalleVenta] = []
@@ -1037,6 +1137,14 @@ class ProductoVendido(BaseModel):
 class ReporteProductosVendidos(BaseModel):
     productos: List[ProductoVendido]
     servicios: List[ProductoVendido]
+
+class VarianteVendida(BaseModel):
+    product_id: int
+    product_name: str
+    variante_id: Optional[int] = None
+    variante_name: str  # "Sin variante" para lo vendido antes de que el producto tuviera variantes
+    total_quantity_sold: float
+    total_revenue: float
 
 class ClienteComprador(BaseModel):
     client_id: int
@@ -2475,6 +2583,10 @@ class CatalogoConfigUpdate(BaseModel):
     color_primario: Optional[str] = None
     direccion_recogida: Optional[str] = None
     descripcion: Optional[str] = None
+    visible_marketplace: Optional[bool] = None
+    categoria_marketplace: Optional[str] = None
+    instagram_url: Optional[str] = None
+    facebook_url: Optional[str] = None
 
 class CatalogoEmpresaOut(BaseModel):
     nombre: str
@@ -2485,12 +2597,46 @@ class CatalogoEmpresaOut(BaseModel):
     direccion: Optional[str] = None
     tipo_negocio: str = "erp"
     descripcion: Optional[str] = None
+    instagram_url: Optional[str] = None
+    facebook_url: Optional[str] = None
+
+class MarketplaceEmpresaOut(BaseModel):
+    nombre: str
+    slug_catalogo: str
+    logo_base64: Optional[str] = None
+    color_primario: str
+    descripcion: Optional[str] = None
+    categoria_marketplace: Optional[str] = None
+    tipo_negocio: str = "erp"
+    total_productos: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
+
+class MarketplaceProductoOut(BaseModel):
+    id: int
+    nombre: str
+    precio: float
+    image_count: int = 0
+    categoria: Optional[str] = None
+    tiene_variantes: bool = False
+    empresa_nombre: str
+    empresa_slug: str
+    empresa_color: str
 
 class CatalogoMesaOut(BaseModel):
     numero: str
     nombre: Optional[str] = None
     zona: Optional[str] = None
     estado: str = "libre"
+
+class CatalogoVarianteOut(BaseModel):
+    id: int
+    nombre: str
+    atributos: dict = {}
+    precio: Optional[float] = None
+    stock: float = 0.0
+
+    model_config = ConfigDict(from_attributes=True)
 
 class CatalogoProductoOut(BaseModel):
     id: int
@@ -2501,6 +2647,8 @@ class CatalogoProductoOut(BaseModel):
     image_count: int = 0
     stock: float = 0.0
     es_servicio: bool = False
+    tiene_variantes: bool = False
+    variantes: List[CatalogoVarianteOut] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -2515,9 +2663,10 @@ class CatalogoPublicoOut(BaseModel):
 class CatalogoItemRestaurante(BaseModel):
     producto_id: int
     nombre_producto: str
-    cantidad: float = 1.0
-    precio_unitario: float
+    cantidad: float = Field(1.0, gt=0)
+    precio_unitario: float = Field(..., ge=0)
     notas: Optional[str] = None
+    variante_id: Optional[int] = None
 
 class PedidoRestaurantePublicoIn(BaseModel):
     mesa_numero: str
@@ -2531,13 +2680,32 @@ class PedidoRestauranteCreatedOut(BaseModel):
 
 
 # =========================
+# ANTI-DUPLICADOS WHATSAPP
+# =========================
+
+class DebounceMarcarIn(BaseModel):
+    # Identificador del chat tal como llega de WhatsApp (jid completo).
+    destino: str = Field(..., min_length=3, max_length=100)
+    mensaje: Optional[str] = Field(None, max_length=4000)
+
+class DebounceVerificarIn(BaseModel):
+    destino: str = Field(..., min_length=3, max_length=100)
+    marca: int
+
+
+# =========================
 # PEDIDOS TIENDA VIRTUAL
 # =========================
 
 class DetallePedidoVirtualIn(BaseModel):
     producto_id: int
     cantidad: float = Field(..., gt=0)
-    precio_unitario: float = Field(..., ge=0)
+    # Opcional y meramente informativo: el servidor SIEMPRE recalcula el precio
+    # desde la BD (ver crud.pedidos_virtuales.create_pedido_publico), así que
+    # exigirlo solo hacía fallar con 422 a integraciones legítimas —n8n, bots,
+    # aliados— por un dato que de todos modos se descarta.
+    precio_unitario: Optional[float] = Field(default=0, ge=0)
+    variante_id: Optional[int] = None
 
 class PedidoVirtualCreate(BaseModel):
     nombre_cliente:    str  = Field(..., min_length=2, max_length=200)
@@ -2549,9 +2717,36 @@ class PedidoVirtualCreate(BaseModel):
     detalles:          List[DetallePedidoVirtualIn]
 
 class PedidoVirtualCreatedOut(BaseModel):
-    id:     int
-    total:  float
-    estado: str
+    id:            int
+    numero_pedido: Optional[int] = None
+    total:         float
+    estado:        str
+
+class PedidoEstadoConsultaIn(BaseModel):
+    numero_pedido:   int
+    celular_cliente: str = Field(..., min_length=7, max_length=30)
+
+class PedidoEstadoConsultaOut(BaseModel):
+    numero_pedido:       Optional[int]
+    estado:              str
+    estado_label:        str
+    cancelado:           bool
+    # Etapas del flujo normal (sin contar "cancelado", que es una salida
+    # aparte) — para que el cliente vea "estás en el paso 2 de 5", no solo
+    # una palabra suelta.
+    etapas:              List[str]
+    etapas_labels:       List[str]
+    etapa_actual_index:  Optional[int] = None   # None si está cancelado
+    total_etapas:        int
+    total:               float
+    fecha_creacion:      Optional[datetime]
+    fecha_actualizacion: Optional[datetime]
+    tipo_entrega:        str
+    direccion_entrega:   Optional[str] = None
+    nombre_cliente:      str
+    cantidad_items:      int
+    empresa_nombre:      str
+    empresa_telefono:    Optional[str] = None
 
 class DetallePedidoVirtualOut(BaseModel):
     id:              int
@@ -2560,10 +2755,13 @@ class DetallePedidoVirtualOut(BaseModel):
     cantidad:        float
     precio_unitario: float
     subtotal:        float
+    variante_id:     Optional[int] = None
+    nombre_variante: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class PedidoVirtualOut(BaseModel):
     id:               int
+    numero_pedido:    Optional[int] = None
     empresa_id:       int
     nombre_cliente:   str
     celular_cliente:  str
@@ -2623,6 +2821,42 @@ class PinSetRequest(BaseModel):
 class PinVerifyRequest(BaseModel):
     username: str
     pin: str
+    # Solo se usa cuando el mismo usuario+PIN existe en varias empresas
+    empresa_nit: Optional[str] = None
+
+# ─── Biometría nativa (app instalada) ──────────────────────────────────────────
+class BiometricNativeRegisterRequest(BaseModel):
+    device_name: Optional[str] = None
+
+class BiometricNativeRegisterResponse(BaseModel):
+    token: str          # token_id.secreto — se guarda en el Keystore del dispositivo
+    username: str
+    device_name: Optional[str] = None
+
+class BiometricNativeLoginRequest(BaseModel):
+    token: str
+
+# ─── Versiones de la app móvil (gestionadas desde el panel) ────────────────────
+class AppVersionCreate(BaseModel):
+    version: str
+    version_code: int = 0
+    plataforma: str = "android"
+    url_descarga: Optional[str] = None
+    mensaje: Optional[str] = None
+    obligatoria: bool = False
+    is_active: bool = True
+
+class AppVersionOut(BaseModel):
+    id: int
+    plataforma: str
+    version: str
+    version_code: int
+    url_descarga: Optional[str] = None
+    mensaje: Optional[str] = None
+    obligatoria: bool
+    is_active: bool
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
 
 class PasswordResetRequest(BaseModel):
     email: EmailStr
@@ -2712,10 +2946,11 @@ class ProductoImpuestoOut(BaseModel):
 
 class LinkPagoCreate(BaseModel):
     nombre:        str
-    tipo:          str  # "qr_imagen" | "url"
+    tipo:          str  # "qr_imagen" | "url" | "texto"
     link_url:      Optional[str] = None
     qr_base64:     Optional[str] = None
     qr_mime_type:  Optional[str] = None
+    texto_pago:    Optional[str] = None   # datos bancarios en texto libre (tipo="texto")
     instrucciones: Optional[str] = None
     is_active:     bool = True
 
@@ -2727,6 +2962,7 @@ class LinkPagoOut(BaseModel):
     link_url:      Optional[str] = None
     qr_base64:     Optional[str] = None
     qr_mime_type:  Optional[str] = None
+    texto_pago:    Optional[str] = None
     instrucciones: Optional[str] = None
     is_active:     bool
     model_config = ConfigDict(from_attributes=True)
@@ -2957,6 +3193,7 @@ class LinkPagoPublico(BaseModel):
     link_url:      Optional[str] = None
     qr_base64:     Optional[str] = None
     qr_mime_type:  Optional[str] = None
+    texto_pago:    Optional[str] = None
     instrucciones: Optional[str] = None
 
 
@@ -3052,3 +3289,150 @@ class CitaFull(BaseModel):
     anticipo_monto: Optional[float] = None
     anticipo_pagado: bool = False
     model_config = ConfigDict(from_attributes=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TALLER DE MECÁNICA
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class VehiculoTallerCreate(BaseModel):
+    placa: str = Field(..., min_length=3, max_length=20)
+    tipo: str = "carro"  # moto | carro
+    marca: Optional[str] = None
+    modelo: Optional[str] = None
+    anio: Optional[int] = None
+    color: Optional[str] = None
+    kilometraje: Optional[int] = None
+    origen: str = "cliente"  # cliente | compra_reventa
+    cliente_id: Optional[int] = None
+    foto_ingreso: Optional[str] = None
+
+
+class VehiculoTallerUpdate(BaseModel):
+    marca: Optional[str] = None
+    modelo: Optional[str] = None
+    anio: Optional[int] = None
+    color: Optional[str] = None
+    kilometraje: Optional[int] = None
+    foto_ingreso: Optional[str] = None
+
+
+class VehiculoTallerOut(BaseModel):
+    id: int
+    placa: str
+    tipo: str
+    marca: Optional[str] = None
+    modelo: Optional[str] = None
+    anio: Optional[int] = None
+    color: Optional[str] = None
+    kilometraje: Optional[int] = None
+    origen: str
+    cliente_id: Optional[int] = None
+    cliente_nombre: Optional[str] = None
+    cliente_telefono: Optional[str] = None
+    foto_ingreso: Optional[str] = None
+    created_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DetalleOrdenTallerCreate(BaseModel):
+    tipo: str = "repuesto"  # repuesto | mano_obra | servicio_externo
+    producto_id: Optional[int] = None
+    descripcion: str = Field(..., min_length=1, max_length=200)
+    cantidad: float = Field(1.0, gt=0)
+    costo_unitario: float = Field(..., ge=0)
+
+
+class DetalleOrdenTallerOut(BaseModel):
+    id: int
+    tipo: str
+    producto_id: Optional[int] = None
+    descripcion: str
+    cantidad: float
+    costo_unitario: float
+    subtotal: float
+    fecha: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OrdenTallerCreate(BaseModel):
+    vehiculo_id: Optional[int] = None       # si ya existe el vehículo
+    vehiculo: Optional[VehiculoTallerCreate] = None  # o crearlo junto con la orden
+    tipo_orden: str = "reparacion_cliente"  # reparacion_cliente | remanufactura_reventa
+    mecanico_id: Optional[int] = None
+    descripcion_problema: Optional[str] = None
+    fecha_estimada_entrega: Optional[datetime] = None
+    precio_compra_vehiculo: Optional[float] = None   # remanufactura_reventa
+
+
+class OrdenTallerUpdate(BaseModel):
+    mecanico_id: Optional[int] = None
+    diagnostico: Optional[str] = None
+    descripcion_problema: Optional[str] = None
+    fecha_estimada_entrega: Optional[datetime] = None
+    valor_cobrado: Optional[float] = None
+    precio_venta_sugerido: Optional[float] = None
+    notas_internas: Optional[str] = None
+
+
+class OrdenTallerEstadoUpdate(BaseModel):
+    estado: str
+    notificar_cliente: bool = True
+
+
+class OrdenTallerCerrarCliente(BaseModel):
+    """Cierre del flujo reparacion_cliente: cobra y entrega."""
+    valor_cobrado: float = Field(..., ge=0)
+    metodo_pago: Optional[str] = "Efectivo"
+
+
+class OrdenTallerCerrarReventa(BaseModel):
+    """Cierre del flujo remanufactura_reventa: vende el vehículo.
+
+    El precio de venta se reparte entre hasta 3 formas de pago, que pueden
+    combinarse libremente (ej: parte efectivo + parte a crédito + un
+    vehículo recibido en permuta): monto_efectivo + monto_credito +
+    permuta_valor = precio total de la venta.
+    """
+    monto_efectivo: float = Field(0, ge=0)
+    metodo_pago_efectivo: Optional[str] = "Efectivo"
+    monto_credito: float = Field(0, ge=0)          # queda como cuenta por cobrar del comprador
+    comprador_cliente_id: Optional[int] = None      # obligatorio si monto_credito > 0
+    permuta_valor: float = Field(0, ge=0)           # valor asignado al vehículo recibido en permuta
+    permuta_vehiculo: Optional[VehiculoTallerCreate] = None  # obligatorio si permuta_valor > 0
+
+
+class OrdenTallerOut(BaseModel):
+    id: int
+    vehiculo_id: int
+    vehiculo: Optional[VehiculoTallerOut] = None
+    tipo_orden: str
+    mecanico_id: Optional[int] = None
+    mecanico_nombre: Optional[str] = None
+    estado: str
+    descripcion_problema: Optional[str] = None
+    diagnostico: Optional[str] = None
+    fecha_ingreso: Optional[datetime] = None
+    fecha_estimada_entrega: Optional[datetime] = None
+    fecha_entrega_real: Optional[datetime] = None
+    valor_cobrado: Optional[float] = None
+    estado_pago: str
+    precio_compra_vehiculo: Optional[float] = None
+    precio_venta_sugerido: Optional[float] = None
+    precio_venta_final: Optional[float] = None
+    venta_id: Optional[int] = None
+    notas_internas: Optional[str] = None
+    detalles: List[DetalleOrdenTallerOut] = []
+    costo_acumulado: float = 0.0
+    margen: Optional[float] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TallerStatsOut(BaseModel):
+    ordenes_activas: int = 0
+    vehiculos_en_reparacion: int = 0
+    vehiculos_en_reventa: int = 0
+    ingresos_servicios_mes: float = 0.0
+    invertido_reventa_mes: float = 0.0
+    vendido_reventa_mes: float = 0.0
+    margen_reventa_mes: float = 0.0

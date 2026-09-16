@@ -81,14 +81,6 @@ const getElapsed = (fechaEntrada) => {
 const getElapsedMinutes = (fechaEntrada) =>
   Math.floor((Date.now() - new Date(fechaEntrada).getTime()) / 60000);
 
-const getElapsedColor = (fechaEntrada) => {
-  const ms = Date.now() - new Date(fechaEntrada).getTime();
-  const mins = Math.floor(ms / 60000);
-  if (mins < 15) return GREEN;
-  if (mins < 30) return AMBER;
-  return RED;
-};
-
 // Aviso sonoro + vibración cuando un vehículo queda listo — para que el
 // encargado se entere sin tener que estar mirando la pantalla todo el rato.
 // Beep generado con Web Audio (sin archivo de audio que cargar).
@@ -220,22 +212,15 @@ function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar, onCancelar, 
     <Paper
       elevation={0}
       sx={{
-        display: 'flex',
         borderRadius: 2.5,
-        border: demorado ? `1.5px solid ${RED}60` : `1px solid ${alpha(estadoConfig.color, 0.2)}`,
-        bgcolor: 'background.paper', mb: 1.5, overflow: 'hidden',
-        position: 'relative',
-        transition: 'box-shadow 0.15s, border-color 0.15s, transform 0.15s',
-        '&:hover': { 
-          boxShadow: `0 4px 16px ${alpha(estadoConfig.color, 0.15)}`,
-          borderColor: alpha(estadoConfig.color, 0.4),
-          transform: 'translateY(-1px)' 
-        },
+        border: demorado ? `1.5px solid ${RED}60` : `1.5px solid ${estadoConfig.color}30`,
+        bgcolor: estadoConfig.bg, mb: 1.5, overflow: 'hidden',
+        transition: 'box-shadow 0.15s, transform 0.15s',
+        '&:hover': { boxShadow: `0 6px 18px ${estadoConfig.color}25`, transform: 'translateY(-1px)' },
       }}
     >
-      <Box sx={{ width: 4, flexShrink: 0, bgcolor: demorado ? RED : estadoConfig.color, borderRadius: '8px 0 0 8px' }} />
-      <Box sx={{ p: 1.8, flexGrow: 1, position: 'relative' }}>
-        <TipoIcon sx={{ position: 'absolute', top: 8, right: 8, fontSize: 48, opacity: 0.12, color: estadoConfig.color, pointerEvents: 'none' }} />
+      <Box sx={{ height: 3, bgcolor: demorado ? RED : estadoConfig.color }} />
+      <Box sx={{ p: 1.8 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.8 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
             {dragHandleProps && (
@@ -251,12 +236,15 @@ function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar, onCancelar, 
                 <DragIndicator sx={{ fontSize: 18 }} />
               </Box>
             )}
-            <Typography sx={{ fontSize: 22, fontWeight: 900, fontFamily: "'Courier New', monospace", letterSpacing: 4, color: 'text.primary' }}>
+            <Typography sx={{ fontSize: 20, fontWeight: 900, letterSpacing: 2, color: estadoConfig.color }}>
               {orden.placa}
             </Typography>
           </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
+            <TipoIcon sx={{ fontSize: 16 }} />
+            <Typography sx={{ fontSize: 11 }}>{orden.tipo_vehiculo || '—'}</Typography>
+          </Box>
         </Box>
-        <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 1, mt: -0.5 }}>{orden.tipo_vehiculo || '—'}</Typography>
 
         {demorado && (
           <Box sx={{
@@ -276,12 +264,7 @@ function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar, onCancelar, 
               key={i}
               label={d.cantidad > 1 ? `${d.nombre_servicio} x${d.cantidad}` : d.nombre_servicio}
               size="small"
-              sx={{ 
-                fontSize: 10, height: 20, 
-                bgcolor: alpha(estadoConfig.color, 0.08), 
-                color: estadoConfig.color, fontWeight: 600,
-                border: '1px solid', borderColor: alpha(estadoConfig.color, 0.2)
-              }}
+              sx={{ fontSize: 10, height: 20, bgcolor: `${estadoConfig.color}15`, color: estadoConfig.color, fontWeight: 600 }}
             />
           ))}
         </Box>
@@ -311,8 +294,8 @@ function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar, onCancelar, 
 
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 0.5 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
-            <AccessTime sx={{ fontSize: 12, color: getElapsedColor(orden.fecha_entrada) }} />
-            <Typography sx={{ fontSize: 11, fontWeight: 600, color: getElapsedColor(orden.fecha_entrada) }}>{getElapsed(orden.fecha_entrada)}</Typography>
+            <AccessTime sx={{ fontSize: 12, color: 'text.disabled' }} />
+            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{getElapsed(orden.fecha_entrada)}</Typography>
           </Box>
           <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{formatCurrency(orden.total || 0)}</Typography>
         </Box>
@@ -344,9 +327,7 @@ function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar, onCancelar, 
               startIcon={<estadoConfig.NextIcon sx={{ fontSize: 14 }} />}
               onClick={handleIniciarLavado}
               sx={{
-                bgcolor: estadoConfig.color, 
-                boxShadow: 'none',
-                '&:hover': { filter: 'brightness(0.88)', bgcolor: estadoConfig.color, boxShadow: 'none' },
+                bgcolor: estadoConfig.color, '&:hover': { filter: 'brightness(0.9)' },
                 fontWeight: 700, fontSize: 11, textTransform: 'none', borderRadius: 1.5, py: 0.8,
               }}
             >
@@ -359,9 +340,7 @@ function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar, onCancelar, 
               startIcon={<AttachMoney sx={{ fontSize: 14 }} />}
               onClick={() => onCobrar(orden)}
               sx={{
-                bgcolor: GREEN, 
-                boxShadow: 'none',
-                '&:hover': { filter: 'brightness(0.88)', bgcolor: GREEN, boxShadow: 'none' },
+                bgcolor: GREEN, '&:hover': { filter: 'brightness(0.9)' },
                 fontWeight: 700, fontSize: 11, textTransform: 'none', borderRadius: 1.5, py: 0.8,
               }}
             >
@@ -432,12 +411,10 @@ function ItemCard({ item, enCarrito, onAgregar, precio }) {
         p: 1.2, borderRadius: 2, cursor: 'pointer',
         border: '1.5px solid',
         borderColor: enCarrito ? ACCENT : 'divider',
-        bgcolor: enCarrito ? alpha(ACCENT, 0.08) : 'transparent',
+        bgcolor: enCarrito ? `${ACCENT}08` : 'transparent',
         transition: 'all 0.12s',
-        '&:hover': { borderColor: ACCENT, bgcolor: alpha(ACCENT, 0.05) },
+        '&:hover': { borderColor: ACCENT, bgcolor: `${ACCENT}05` },
         position: 'relative',
-        minHeight: 64,
-        display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
       }}
     >
       {enCarrito && (
@@ -447,7 +424,6 @@ function ItemCard({ item, enCarrito, onAgregar, precio }) {
           bgcolor: ACCENT, color: 'white',
           fontSize: 11, fontWeight: 900,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: `0 2px 6px ${alpha(ACCENT, 0.45)}`,
         }}>
           {enCarrito.cantidad}
         </Box>
@@ -981,8 +957,8 @@ export default function LavaderoVentas({ user }) {
       {/* ── Header ── */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5, flexWrap: 'wrap', gap: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box sx={{ width: 48, height: 48, borderRadius: '12px', bgcolor: alpha(ACCENT, 0.12), border: `1px solid ${alpha(ACCENT, 0.25)}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <LocalCarWash sx={{ color: ACCENT, fontSize: 28 }} />
+          <Box sx={{ width: 42, height: 42, borderRadius: 2, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <LocalCarWash sx={{ color: ACCENT, fontSize: 24 }} />
           </Box>
           <Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1008,31 +984,6 @@ export default function LavaderoVentas({ user }) {
           </Box>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 1, mr: 1 }}>
-            {ESTADOS_TABLERO.map(est => (
-              <Chip
-                key={est.key}
-                label={
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
-                    <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: est.color }} />
-                    <Typography component="span" sx={{ fontSize: 12, fontWeight: 700, color: est.color }}>
-                      {est.label}
-                    </Typography>
-                    <Typography component="span" sx={{ fontSize: 12, fontWeight: 900, color: est.color }}>
-                      {ordensPorEstado[est.key]?.length || 0}
-                    </Typography>
-                  </Box>
-                }
-                size="small"
-                sx={{
-                  bgcolor: alpha(est.color, 0.08),
-                  border: `1px solid ${alpha(est.color, 0.2)}`,
-                  height: 28,
-                  '& .MuiChip-label': { px: 1.2 },
-                }}
-              />
-            ))}
-          </Box>
           {sedes.length > 0 && (
             <FormControl size="small" sx={{ minWidth: 170 }}>
               <InputLabel id="lavadero-sede-label">Sede</InputLabel>
@@ -1365,7 +1316,7 @@ export default function LavaderoVentas({ user }) {
               onKeyDown={e => {
                 if (e.key === 'Enter') { e.preventDefault(); busquedaServRef.current?.focus(); }
               }}
-              inputProps={{ maxLength: 8, style: { textTransform: 'uppercase', fontSize: '28px', letterSpacing: '8px', fontFamily: "'Courier New', monospace", textAlign: 'center', fontWeight: 900 } }}
+              inputProps={{ maxLength: 8, style: { textTransform: 'uppercase', fontWeight: 800, letterSpacing: 4, fontSize: 18 } }}
               placeholder="ABC-123"
               sx={{ mb: 2 }}
             />
@@ -1389,15 +1340,15 @@ export default function LavaderoVentas({ user }) {
                   }}
                   sx={{
                     flexShrink: 0, cursor: 'pointer', userSelect: 'none',
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 0.8,
-                    width: 90, height: 80, borderRadius: '8px',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5,
+                    px: 1.8, py: 1.1, borderRadius: 2.5, minWidth: 84,
                     border: '1.5px solid', borderColor: selected ? ACCENT : 'divider',
                     bgcolor: selected ? alpha(ACCENT, 0.08) : 'transparent',
                     transition: 'border-color 0.12s, background-color 0.12s',
                     '&:hover': { borderColor: ACCENT },
                   }}
                 >
-                  <Icon sx={{ fontSize: 24, color: selected ? ACCENT : 'text.secondary' }} />
+                  <Icon sx={{ fontSize: 20, color: selected ? ACCENT : 'text.secondary' }} />
                   <Typography sx={{
                     fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap',
                     color: selected ? ACCENT : 'text.primary',
@@ -1565,34 +1516,61 @@ export default function LavaderoVentas({ user }) {
             </Paper>
           )}
 
-          {/* Trabajador y Cliente consolidados */}
-          <Paper sx={{ p: 2.5, borderRadius: 3, mb: 2, border: '1px solid', borderColor: 'divider' }}>
-            <Box sx={{ display: 'flex', gap: 1.5, flexDirection: { xs: 'column', sm: 'row' } }}>
-              {isAdmin && trabajadoresFiltrados.length > 0 && (
-                <Box sx={{ flex: 1 }}>
-                  <SectionLabel step={3}>Asignar lavador</SectionLabel>
-                  <Autocomplete
-                    size="small"
-                    options={trabajadoresFiltrados}
-                    getOptionLabel={t => t.nombre_completo || t.username || ''}
-                    value={operadorObj}
-                    onChange={(_, v) => { setOperadorObj(v); setOperadorId(v ? v.id : ''); }}
-                    renderInput={params => <TextField {...params} label="Lavador" placeholder="Seleccionar..." />}
-                  />
-                </Box>
-              )}
-              <Box sx={{ flex: 1 }}>
-                <SectionLabel step={isAdmin && trabajadoresFiltrados.length > 0 ? 4 : 3}>Cliente (opcional)</SectionLabel>
-                <Autocomplete
-                  size="small"
-                  options={clientes}
-                  getOptionLabel={c => c.nombre || ''}
-                  value={clienteObj}
-                  onChange={(_, v) => setClienteObj(v)}
-                  renderInput={params => <TextField {...params} label="Cliente" placeholder="Buscar..." />}
-                />
+          {/* Trabajador (solo admin) */}
+          {isAdmin && trabajadoresFiltrados.length > 0 && (
+            <Paper sx={{ p: 2.5, borderRadius: 3, mb: 2, border: '1px solid', borderColor: 'divider' }}>
+              <SectionLabel step={3}>Asignar lavador</SectionLabel>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                {trabajadoresFiltrados.map(t => {
+                  const nombre = t.nombre_completo || t.username;
+                  const selected = operadorObj?.id === t.id;
+                  return (
+                    <Box
+                      key={t.id}
+                      onClick={() => { setOperadorObj(t); setOperadorId(t.id); }}
+                      sx={{
+                        cursor: 'pointer', userSelect: 'none',
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5,
+                        px: 1.6, py: 1.1, borderRadius: 2.5, minWidth: 78,
+                        border: '1.5px solid', borderColor: selected ? BLUE : 'divider',
+                        bgcolor: selected ? alpha(BLUE, 0.08) : 'transparent',
+                        transition: 'border-color 0.12s, background-color 0.12s',
+                        '&:hover': { borderColor: BLUE },
+                      }}
+                    >
+                      <Box sx={{
+                        width: 30, height: 30, borderRadius: '50%',
+                        bgcolor: selected ? BLUE : alpha(BLUE, 0.15),
+                        color: selected ? 'white' : BLUE,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 13, fontWeight: 800,
+                      }}>
+                        {nombre?.[0]?.toUpperCase() || <Person sx={{ fontSize: 16 }} />}
+                      </Box>
+                      <Typography sx={{
+                        fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap',
+                        color: selected ? BLUE : 'text.primary',
+                      }}>
+                        {nombre}
+                      </Typography>
+                    </Box>
+                  );
+                })}
               </Box>
-            </Box>
+            </Paper>
+          )}
+
+          {/* Cliente (opcional) */}
+          <Paper sx={{ p: 2.5, borderRadius: 3, mb: 2, border: '1px solid', borderColor: 'divider' }}>
+            <SectionLabel step={4}>Cliente (opcional)</SectionLabel>
+            <Autocomplete
+              size="small"
+              options={clientes}
+              getOptionLabel={c => c.nombre || ''}
+              value={clienteObj}
+              onChange={(_, v) => setClienteObj(v)}
+              renderInput={params => <TextField {...params} label="Buscar cliente" placeholder="Consumidor final" />}
+            />
           </Paper>
 
           {/* Observaciones */}
@@ -1616,7 +1594,7 @@ export default function LavaderoVentas({ user }) {
             sx={{
               bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' },
               '&.Mui-disabled': { bgcolor: 'action.disabledBackground' },
-              fontWeight: 800, fontSize: 16, borderRadius: '12px', height: 52,
+              fontWeight: 800, fontSize: 15, borderRadius: 3,
               textTransform: 'none', py: 1.5,
             }}
           >
@@ -1757,7 +1735,7 @@ export default function LavaderoVentas({ user }) {
             <Grid container spacing={1.5} sx={{ display: { xs: 'none', md: 'flex' } }}>
               {ESTADOS_TABLERO.map(est => (
                 <Grid item md={4} key={est.key}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, p: 1.5, bgcolor: alpha(est.color, 0.06), borderRadius: '8px' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, pb: 1, borderBottom: `2px solid ${est.color}` }}>
                     <Typography sx={{ fontWeight: 700, fontSize: 12, color: est.color, textTransform: 'uppercase', letterSpacing: 0.6 }}>
                       {est.label}
                     </Typography>

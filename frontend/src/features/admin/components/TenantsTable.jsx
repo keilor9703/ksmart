@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import {
   ShoppingBag, Description, People, Info, SupportAgent, Settings, Shield, ShieldOutlined,
-  ViewModule
+  ViewModule, WhatsApp
 } from '@mui/icons-material';
 
 const ACCENT = '#F43F5E';
@@ -58,6 +58,24 @@ const TenantMobileCard = ({ emp, onOpenDrawer, onImpersonate, onOpenPlan, onOpen
             <Chip label={emp.id === 1 ? '∞' : `${emp.dias_restantes}d`} size="small" sx={{ fontWeight: 800, fontSize: 9, color: getStatusColor(emp.dias_restantes) }} />
         </Box>
 
+        {/* Dueño, teléfono y fecha de registro */}
+        <Box sx={{ mb: 1.5 }}>
+            <Typography sx={{ fontSize: 12.5, fontWeight: 600 }}>{emp.owner_nombre || 'Sin dueño registrado'}</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mt: 0.3 }}>
+                {emp.owner_telefono && (
+                    <Box component="a"
+                        href={`https://wa.me/${String(emp.owner_telefono).replace(/\D/g, '')}`}
+                        target="_blank" rel="noopener noreferrer"
+                        sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, textDecoration: 'none', color: GREEN, fontSize: 11.5, fontWeight: 600 }}>
+                        <WhatsApp sx={{ fontSize: 13 }} /> {emp.owner_telefono}
+                    </Box>
+                )}
+                <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                    Registro: {formatDateShort(emp.created_at)}
+                </Typography>
+            </Box>
+        </Box>
+
         <Divider sx={{ my: 1.5, opacity: 0.5 }} />
 
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -77,6 +95,8 @@ const TenantMobileCard = ({ emp, onOpenDrawer, onImpersonate, onOpenPlan, onOpen
 
 const COLUMNS = [
   { id: 'nombre', label: 'Inquilino', sortFn: (a, b) => a.nombre.localeCompare(b.nombre) },
+  { id: 'owner_nombre', label: 'Dueño / Contacto', sortFn: (a, b) => (a.owner_nombre || '').localeCompare(b.owner_nombre || '') },
+  { id: 'created_at', label: 'Registro', sortFn: (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0) },
   { id: 'plan_type', label: 'Plan / Estado', sortFn: (a, b) => a.plan_type.localeCompare(b.plan_type) },
   { id: 'last_activity_at', label: 'Actividad', sortFn: (a, b) => new Date(b.last_activity_at || 0) - new Date(a.last_activity_at || 0) },
   { id: 'count_ventas', label: 'Uso (V / P / U)', sortFn: (a, b) => b.count_ventas - a.count_ventas },
@@ -168,6 +188,37 @@ const TenantsTable = ({ empresas, onOpenDrawer, onImpersonate, onOpenPlan, onOpe
                           <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>ID: {emp.id} · NIT: {emp.nit || 'N/A'}</Typography>
                       </Box>
                   </Box>
+                </TableCell>
+                {/* Dueño: quién registró la empresa + su teléfono (con WhatsApp) */}
+                <TableCell>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 600, fontSize: 13 }} noWrap>
+                      {emp.owner_nombre || '—'}
+                    </Typography>
+                    {emp.owner_telefono ? (
+                      <Box
+                        component="a"
+                        href={`https://wa.me/${String(emp.owner_telefono).replace(/\D/g, '')}`}
+                        target="_blank" rel="noopener noreferrer"
+                        sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, textDecoration: 'none', color: GREEN, fontSize: 11.5, fontWeight: 600 }}
+                      >
+                        <WhatsApp sx={{ fontSize: 13 }} /> {emp.owner_telefono}
+                      </Box>
+                    ) : (
+                      <Typography sx={{ fontSize: 11.5, color: 'text.disabled' }}>Sin teléfono</Typography>
+                    )}
+                    {emp.owner_email && (
+                      <Typography sx={{ fontSize: 10.5, color: 'text.secondary' }} noWrap>{emp.owner_email}</Typography>
+                    )}
+                  </Box>
+                </TableCell>
+                {/* Fecha de registro de la empresa */}
+                <TableCell>
+                  <Tooltip title={formatDateFull(emp.created_at)}>
+                    <Typography sx={{ fontSize: 12, fontWeight: 600 }}>
+                      {formatDateShort(emp.created_at)}
+                    </Typography>
+                  </Tooltip>
                 </TableCell>
                 <TableCell>
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>

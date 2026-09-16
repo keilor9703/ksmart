@@ -146,6 +146,20 @@ def crear_lote(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.patch("/lotes/{lote_id}", response_model=schemas.LoteProduccion)
+def editar_lote(
+    lote_id: int,
+    payload: schemas.LoteProduccionUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Edita una orden de producción mientras sigue 'En producción'."""
+    try:
+        return crud.update_lote(db, empresa_id=current_user.empresa_id, lote_id=lote_id, payload=payload)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.post("/lotes/{lote_id}/confirmar", response_model=schemas.LoteProduccion)
 def confirmar_lote(
     lote_id: int,

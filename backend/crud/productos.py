@@ -54,7 +54,18 @@ def sku_exists(db: Session, empresa_id: int, sku: str, exclude_id: int = None) -
     )
     if exclude_id:
         q = q.filter(models.Producto.id != exclude_id)
-    return q.first() is not None
+    if q.first() is not None:
+        return True
+    # El SKU de una variante vive en la misma "familia" de SKUs que los
+    # productos — sin este chequeo, _generate_smart_sku podía repetir un SKU
+    # que ya usaba OTRA variante (de este producto o de otro).
+    qv = db.query(models.ProductoVariante).filter(
+        models.ProductoVariante.empresa_id == empresa_id,
+        models.ProductoVariante.sku == sku,
+    )
+    if exclude_id:
+        qv = qv.filter(models.ProductoVariante.id != exclude_id)
+    return qv.first() is not None
 
 
 def attach_costo_produccion(db: Session, empresa_id: int, productos: list):
@@ -296,6 +307,46 @@ def delete_producto(db: Session, empresa_id: int, producto_id: int):
         db_producto.vigente = False
         db.commit()
     return db_producto
+
+
+def generar_variantes(db: Session, empresa_id: int, producto_id: int, payload: schemas.VariantesGenerarIn):
+    """Crea varias variantes de una sola vez a partir de un atributo (ej.
+    "Talla") y una lista de valores (35, 36, 37...), compartiendo precio,
+    costo y demás atributos comunes — evita repetir un formulario completo
+    por cada valor cuando lo único que cambia es ese atributo."""
+    prod = get_producto(db, empresa_id, producto_id)
+    if not prod:
+        raise ValueError("Producto no encontrado")
+
+    creadas = []
+    for v in payload.valores:
+        attrs = {**payload.atributos_comunes, payload.atributo: v.valor}
+        var_sku = _generate_smart_sku(db, empresa_id, prod.grupo_item, prod.nombre, variante_attrs=attrs)
+        variante = models.ProductoVariante(
+            empresa_id   = empresa_id,
+            producto_id  = producto_id,
+            sku          = var_sku,
+            nombre       = f"{payload.atributo}: {v.valor}",
+            atributos    = attrs,
+            precio       = v.precio if v.precio is not None else payload.precio,
+            costo        = v.costo if v.costo is not None else payload.costo,
+            stock_minimo = payload.stock_minimo,
+            stock_actual = v.stock_inicial,
+            activo       = True,
+        )
+        db.add(variante)
+        # Flush ya mismo: si dos filas de este mismo lote generan el mismo SKU
+        # candidato (ej. dos valores que truncan igual), la siguiente iteración
+        # de _generate_smart_sku debe poder ver esta variante para detectarlo.
+        db.flush()
+        creadas.append(variante)
+
+    prod.tiene_variantes = True
+    db.add(prod)
+    db.commit()
+    for v in creadas:
+        db.refresh(v)
+    return creadas
 
 
 def create_variante(db: Session, empresa_id: int, producto_id: int, payload: schemas.ProductoVarianteCreate):

@@ -177,7 +177,7 @@ export default function ParqueaderoVehiculos() {
         <Button
           variant="contained" startIcon={<Add />}
           onClick={() => setDlgNuevo(true)}
-          sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700, borderRadius: 2 }}
+          sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' }, fontWeight: 700, borderRadius: 2 }}
         >
           Nuevo vehículo
         </Button>
@@ -204,7 +204,7 @@ export default function ParqueaderoVehiculos() {
             onClick={() => { setSoloActivos(!soloActivos); setPage(0); }}
             sx={{
               minWidth: 160, fontWeight: 700,
-              ...(soloActivos && { bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' } }),
+              ...(soloActivos && { bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' } }),
             }}
           >
             {soloActivos ? '✓ Solo activos' : 'Mostrar todos'}
@@ -244,16 +244,16 @@ export default function ParqueaderoVehiculos() {
             <Button
               variant="contained" startIcon={<Add />}
               onClick={() => setDlgNuevo(true)}
-              sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700 }}
+              sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' }, fontWeight: 700 }}
             >
               Registrar primer vehículo
             </Button>
           )}
         </Paper>
       ) : isMobile ? (
-        // ─── Vista móvil: cards ────────────────────────────────
+        // ─── Vista móvil: cards (respetando orden y paginación) ───────────
         <Stack spacing={1}>
-          {vehiculos.map(v => (
+          {vehiculosPaginados.map(v => (
             <VehiculoCard
               key={v.id} veh={v}
               onVer={() => navigate(`/parqueadero/buscar?placa=${v.placa}`)}
@@ -262,6 +262,18 @@ export default function ParqueaderoVehiculos() {
               onEliminar={() => setConfirmDel(v)}
             />
           ))}
+          <TablePagination
+            component="div"
+            count={vehiculosSorted.length}
+            page={page}
+            onPageChange={(_, p) => setPage(p)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+            rowsPerPageOptions={[10, 25, 50]}
+            labelRowsPerPage="Filas:"
+            labelDisplayedRows={({ from, to, count }) => `${from}-${to}/${count}`}
+            sx={{ '& .MuiTablePagination-toolbar': { flexWrap: 'wrap', pl: 0 } }}
+          />
         </Stack>
       ) : (
         // ─── Vista desktop: tabla ──────────────────────────────
@@ -606,7 +618,7 @@ function EditarVehiculoDialog({ open, onClose, veh, onSuccess }) {
         <Button onClick={onClose} disabled={loading}>Cancelar</Button>
         <Button variant="contained" onClick={handleGuardar} disabled={loading}
           startIcon={loading ? <CircularProgress size={16} color="inherit" /> : null}
-          sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700 }}>
+          sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' }, fontWeight: 700 }}>
           Guardar cambios
         </Button>
       </DialogActions>
@@ -706,7 +718,10 @@ function HistorialSuscripcionesDialog({ open, onClose, veh }) {
 
 function fechaCorta(fechaIso) {
   if (!fechaIso) return '—';
-  const d = new Date(fechaIso);
-  if (isNaN(d)) return fechaIso;
-  return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: '2-digit' });
+  // Descomponer 'YYYY-MM-DD' como fecha LOCAL. new Date('YYYY-MM-DD') parsea
+  // medianoche UTC y en Colombia mostraba el día anterior.
+  const [y, m, d] = String(fechaIso).split('T')[0].split('-').map(Number);
+  const fecha = new Date(y, (m || 1) - 1, d || 1);
+  if (isNaN(fecha)) return fechaIso;
+  return fecha.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: '2-digit' });
 }

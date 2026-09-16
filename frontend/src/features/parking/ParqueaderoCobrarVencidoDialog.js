@@ -5,12 +5,15 @@ import {
   Divider, MenuItem, InputAdornment, CircularProgress, IconButton,
   useTheme // ✨ NUEVO IMPORT
 } from '@mui/material';
-import { Close, Save } from '@mui/icons-material';
+import { Close, Save, QrCode2 } from '@mui/icons-material';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
 import { formatCurrency } from '../../utils/formatters';
 import CurrencyField from '../../components/common/CurrencyField';
 import { METODOS_PAGO_SIMPLE as METODOS_PAGO } from '../../utils/constants';
+import { imprimirReciboSuscripcion } from '../../utils/printParqueadero';
+import LinkPagoModal from '../../components/common/LinkPagoModal';
+import { Switch } from '@mui/material';
 
 const ACCENT = '#0891B2';
 
@@ -41,10 +44,19 @@ export function ParqueaderoCobrarVencidoDialog({ open, onClose, resultado, onSuc
   const [config, setConfig]                   = useState(null);
   const [obs, setObs]                         = useState('');
   const [loading, setLoading]                 = useState(false);
+  const [metodoLinkQR, setMetodoLinkQR]       = useState(null);   // pago con Link/QR
+  const [linkPagoModalOpen, setLinkPagoModalOpen] = useState(false);
+  const [imprimir, setImprimir]               = useState(false);  // imprimir comprobante
 
+  // Reset SOLO al abrir el diálogo. Antes dependía de `resultado` (un objeto
+  // nuevo en cada refetch del padre) y borraba lo que el operario ya escribió.
   useEffect(() => {
     if (!open) return;
-    apiClient.get('/parqueadero/config').then(({ data }) => setConfig(data));
+    apiClient.get('/parqueadero/config').then(({ data }) => {
+      setConfig(data);
+      setImprimir(!!data?.preferir_impresion);
+    });
+    apiClient.get('/empresa/link-pago').then(({ data }) => setMetodoLinkQR(data || null)).catch(() => {});
     setEntroEnVencidos('no');
     setDiasEntro(String(resultado?.dias_vencido || 1));
     setTipoRetro('mensual');
@@ -53,7 +65,8 @@ export function ParqueaderoCobrarVencidoDialog({ open, onClose, resultado, onSuc
     setMontoPagado('');
     setMetodoPago('Efectivo');
     setObs('');
-  }, [open, resultado]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const tarifa = (t) => {
     if (!config) return 0;
@@ -63,7 +76,10 @@ export function ParqueaderoCobrarVencidoDialog({ open, onClose, resultado, onSuc
     return 0;
   };
 
-  const dias = Number(diasEntro || 0);
+  // Nunca cobrar más días de los realmente vencidos (el max del input no
+  // impide teclearlo a mano).
+  const maxDias = Number(resultado?.dias_vencido || 1);
+  const dias = Math.min(Math.max(Number(diasEntro || 0), 0), maxDias);
   const totalRetro = entroEnVencidos === 'no' ? 0 :
     (tipoRetro === 'diaria' ? tarifa('diaria') * dias : tarifa(tipoRetro));
   const totalNueva = (entroEnVencidos === 'no' || crearNueva) ? tarifa(tipoNueva) : 0;
@@ -97,7 +113,20 @@ export function ParqueaderoCobrarVencidoDialog({ open, onClose, resultado, onSuc
         });
       }
       toast.success('Cobro registrado correctamente.');
+      // Comprobante impreso (Sunmi o navegador), homologado con la salida por horas
+      if (imprimir && pagaAhora > 0) {
+        imprimirReciboSuscripcion({
+          placa:       resultado?.placa || resultado?.vehiculo?.placa,
+          cliente:     resultado?.vehiculo?.cliente_nombre,
+          concepto:    entroEnVencidos === 'no' ? 'Renovación suscripción' : 'Días vencidos + renovación',
+          total,
+          pagado:      pagaAhora,
+          saldo:       Math.max(0, total - pagaAhora),
+          metodo_pago: metodoPago,
+        }, config, config?.tipo_impresora_parq || 'p80');
+      }
       onSuccess?.();
+      onClose?.();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al registrar el cobro.');
     } finally {
@@ -212,8 +241,14 @@ export function ParqueaderoCobrarVencidoDialog({ open, onClose, resultado, onSuc
           value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)}
           sx={{ mb: 2 }}
         >
-          {METODOS_PAGO.map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+          {(metodoLinkQR ? ['Efectivo', 'Link/QR', ...METODOS_PAGO.filter(m => m !== 'Efectivo')] : METODOS_PAGO)
+            .map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
         </TextField>
+
+        <FormControlLabel
+          control={<Switch checked={imprimir} onChange={(e) => setImprimir(e.target.checked)} size="small" />}
+          label={<Typography sx={{ fontSize: 13 }}>Imprimir comprobante</Typography>}
+        />
 
         <TextField
           fullWidth size="small" multiline rows={2}
@@ -247,13 +282,29 @@ export function ParqueaderoCobrarVencidoDialog({ open, onClose, resultado, onSuc
       <DialogActions sx={{ p: 2 }}>
         <Button onClick={onClose} disabled={loading}>Cancelar</Button>
         <Button
-          variant="contained" onClick={handleCobrar} disabled={loading || total <= 0}
-          startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <Save />}
+          variant="contained" disabled={loading || total <= 0}
+          onClick={() => {
+            if (metodoPago === 'Link/QR' && metodoLinkQR) setLinkPagoModalOpen(true);
+            else handleCobrar();
+          }}
+          startIcon={loading ? <CircularProgress size={16} color="inherit" /> : metodoPago === 'Link/QR' ? <QrCode2 /> : <Save />}
           sx={{ bgcolor: '#EF4444', '&:hover': { bgcolor: '#dc2626' }, fontWeight: 700 }}
         >
-          Confirmar cobro
+          {metodoPago === 'Link/QR' ? 'Mostrar QR / Link' : 'Confirmar cobro'}
         </Button>
       </DialogActions>
+
+      {/* Modal QR / Link de pago — homologado con la salida por horas */}
+      <LinkPagoModal
+        open={linkPagoModalOpen}
+        onClose={() => setLinkPagoModalOpen(false)}
+        onConfirm={async () => {
+          setLinkPagoModalOpen(false);
+          await handleCobrar();
+        }}
+        linkConfig={metodoLinkQR}
+        clienteTelefono={resultado?.vehiculo?.cliente_telefono || ''}
+      />
     </Dialog>
   );
 }

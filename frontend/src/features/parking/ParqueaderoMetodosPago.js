@@ -424,7 +424,7 @@ function MetodoCard({ modalidad, data, onChange }) {
             <Button size="small" onClick={cancelEdit} disabled={saving}>Cancelar</Button>
             <Button size="small" variant="contained" onClick={handleGuardar} disabled={saving}
               startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <Save />}
-              sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700 }}>
+              sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' }, fontWeight: 700 }}>
               Guardar
             </Button>
           </>
@@ -594,7 +594,7 @@ function PlantillaCard({ tipo, data, onChange }) {
               </Button>
               <Button size="small" variant="contained" onClick={handleGuardar} disabled={saving}
                 startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <Save />}
-                sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700 }}>
+                sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' }, fontWeight: 700 }}>
                 Guardar
               </Button>
             </Stack>

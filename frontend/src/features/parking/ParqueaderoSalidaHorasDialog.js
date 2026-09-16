@@ -61,9 +61,13 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
 
   const calcular = () => {
     if (!acceso?.fecha_entrada) return { minReales: 0, minCobrar: 0, monto: 0, detalle: '' };
-    const entrada = new Date(acceso.fecha_entrada);
+    // El backend guarda fecha_entrada en UTC (a veces sin la 'Z'): forzarla,
+    // igual que el dashboard. Sin esto el tiempo salía con 5h de desfase.
+    const fe = String(acceso.fecha_entrada);
+    const entrada = new Date(fe.endsWith('Z') ? fe : `${fe}Z`);
     const ahora = new Date();
-    const minReales = Math.max(1, Math.round((ahora - entrada) / 60000));
+    // Minuto iniciado = minuto cobrado (igual que el backend).
+    const minReales = Math.max(1, Math.ceil((ahora - entrada) / 60000));
     const cobroMin = config?.cobro_minimo_minutos || 0;
     const minCobrar = cobroMin > 0 ? Math.max(minReales, cobroMin) : minReales;
 
@@ -74,7 +78,7 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
       const periodos    = Math.floor(minCobrar / umbral);
       const resto       = minCobrar % umbral;
       const costoResto  = Math.min(resto * tarMin, tarPlena);
-      const monto       = Math.round(periodos * tarPlena + costoResto);
+      const monto       = Math.max(Math.round(periodos * tarPlena + costoResto), Math.round(config?.tarifa_minima || 0));
       const umbralH  = (umbral / 60).toFixed(1).replace('.0', '');
       const fmt = v => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v);
       let detalle;
@@ -88,9 +92,18 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
       return { minReales, minCobrar, monto, detalle };
     }
 
-    const monto = Math.round(minCobrar * (config?.tarifa_minuto || 0));
+    const monto = Math.max(Math.round(minCobrar * (config?.tarifa_minuto || 0)), Math.round(config?.tarifa_minima || 0));
     return { minReales, minCobrar, monto, detalle: `${minCobrar} min × ${formatCurrency(config?.tarifa_minuto || 0)}` };
   };
+
+  // Recalcular cada 30s mientras el diálogo esté abierto: si el operario lo
+  // deja abierto, el tiempo (y el monto) siguen corriendo como en el backend.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!open) return undefined;
+    const t = setInterval(() => setTick(x => x + 1), 30000);
+    return () => clearInterval(t);
+  }, [open]);
 
   const { minReales, minCobrar, monto, detalle } = calcular();
   const cobroFinal = montoManual === '' ? monto : Number(montoManual);
@@ -203,7 +216,7 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
               {preferirImpresion && (
                 <Button fullWidth variant="contained" size="large" startIcon={<Print />}
                   onClick={handleImprimir}
-                  sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700 }}
+                  sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' }, fontWeight: 700 }}
                 >
                   Imprimir comprobante de salida
                 </Button>
@@ -266,10 +279,12 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
                 Cobro
               </Typography>
               <Typography sx={{ fontSize: 28, fontWeight: 900, color: GREEN }}>
-                {formatCurrency(monto)}
+                {formatCurrency(cobroFinal)}
               </Typography>
               <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-                {detalle}
+                {montoManual !== '' && Number(montoManual) !== monto
+                  ? `Monto manual (calculado: ${formatCurrency(monto)})`
+                  : detalle}
               </Typography>
               {aplicaCobroMinimo && (
                 <Chip size="small"

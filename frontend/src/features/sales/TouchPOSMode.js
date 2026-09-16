@@ -8,11 +8,13 @@ import {
 import {
     Search, ShoppingCart, PersonOutline, AddCircle, RemoveCircle, Delete,
     ExpandMore, Add, CloseRounded, Inventory2, QrCodeScanner, Videocam, VideocamOff,
-    Stars,
+    Stars, Notes,
 } from '@mui/icons-material';
 import { formatCurrency } from '../../utils/formatters';
+import { sugerenciasEfectivo } from '../../utils/cashSuggestions';
 import CurrencyField from '../../components/common/CurrencyField';
 import { getProductoByBarcode } from '../../api';
+import { sunmiScannerDisponible, escanearSunmi, onScanFisico } from '../../utils/sunmiScanner';
 import { esPesable } from '../../hooks/useBascula';
 import ScaleIcon from '@mui/icons-material/Scale';
 import StyleIcon from '@mui/icons-material/Style';
@@ -23,12 +25,10 @@ const HAS_BARCODE_DETECTOR = typeof window !== 'undefined' && 'BarcodeDetector' 
 const HAS_CAMERA = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
 const BARCODE_FORMATS = ['ean_13', 'ean_8', 'code_128', 'qr_code', 'upc_e', 'code_39', 'itf'];
 
+// Fallback solo por si el padre (Ventas.js) no pasa metodosPagoConLinks —
+// en uso normal siempre viene con los links de pago configurados incluidos.
 const METODOS_PAGO = [
     { value: 'Efectivo',      label: '💵 Efectivo',      pagada: true,  color: '#10B981' },
-    { value: 'Transferencia', label: '🏦 Transferencia',  pagada: true,  color: '#3B82F6' },
-    { value: 'Nequi',         label: '💜 Nequi',          pagada: true,  color: '#7C3AED' },
-    { value: 'Daviplata',     label: '🔵 Daviplata',      pagada: true,  color: '#2563EB' },
-    { value: 'Tarjeta',       label: '💳 Tarjeta',        pagada: true,  color: '#8B5CF6' },
     { value: 'Por Cobrar',    label: '🕒 Por Cobrar',     pagada: false, color: '#EF4444' },
 ];
 
@@ -227,9 +227,10 @@ const CartPanel = ({
     onSubmit, savingVenta, calculateSubtotal, cambioEfectivo,
     openQuickCreate, isDark, onClose,
     omitirInventario, setOmitirInventario,
-    linkPagoConfig,
+    metodosPagoConLinks,
     fidelizacionActiva, clientePuntos, puntosACanjear, setPuntosACanjear, redeemRate,
     solicitaFe, setSolicitaFe, feActiva,
+    onGuardarBorrador, guardandoBorrador, borradoresCount, onVerBorradores,
 }) => {
     const validItems = saleDetails.filter(d => d.producto && d.cantidad > 0);
     const subtotal = calculateSubtotal();
@@ -365,6 +366,15 @@ const CartPanel = ({
                             <TextField {...params} placeholder="Buscar cliente…" />
                         )}
                     />
+                    <Tooltip title="Registrar nuevo cliente">
+                        <IconButton
+                            size="small"
+                            onClick={() => openQuickCreate('tercero', clienteInput)}
+                            sx={{ flexShrink: 0, bgcolor: '#3B82F618', color: '#3B82F6', '&:hover': { bgcolor: '#3B82F630' } }}
+                        >
+                            <Add fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
                 </Box>
             </Box>
 
@@ -482,7 +492,7 @@ const CartPanel = ({
                             Método de pago
                         </Typography>
                         <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                            {[...METODOS_PAGO, ...(linkPagoConfig ? [{ value: 'Link de Pago', label: '📲 Link/QR', pagada: true, color: '#0891B2' }] : [])].map(opt => {
+                            {(metodosPagoConLinks || METODOS_PAGO).map(opt => {
                                 const isSelected = pagada
                                     ? (opt.pagada && metodoPago === opt.value)
                                     : !opt.pagada;
@@ -519,6 +529,26 @@ const CartPanel = ({
                                 label="" size="small" fullWidth
                                 value={valorRecibido} onChange={setValorRecibido}
                             />
+                            {/* Un toque = billete con el que paga el cliente (evita teclear) */}
+                            {total > 0 && (
+                                <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.6 }}>
+                                    {sugerenciasEfectivo(total).map(s => (
+                                        <Chip
+                                            key={s.valor}
+                                            label={s.label}
+                                            size="small"
+                                            onClick={() => setValorRecibido(s.valor)}
+                                            sx={{
+                                                fontWeight: 700, fontSize: 11, height: 24, cursor: 'pointer',
+                                                bgcolor: valorRecibido === s.valor ? '#10B981' : 'rgba(16,185,129,0.08)',
+                                                color: valorRecibido === s.valor ? '#fff' : '#059669',
+                                                border: '1px solid rgba(16,185,129,0.35)',
+                                                '&:hover': { bgcolor: valorRecibido === s.valor ? '#059669' : 'rgba(16,185,129,0.16)' },
+                                            }}
+                                        />
+                                    ))}
+                                </Box>
+                            )}
                             {valorRecibido > 0 && (
                                 <Box sx={{
                                     mt: 0.5, px: 1.5, py: 0.5, borderRadius: 1.5, textAlign: 'center',
@@ -593,6 +623,34 @@ const CartPanel = ({
                 >
                     {savingVenta ? 'Guardando…' : 'Registrar Venta'}
                 </Button>
+
+                {/* Borradores: guardar el carrito y ver los guardados */}
+                {(onGuardarBorrador || borradoresCount > 0) && (
+                    <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                        {onGuardarBorrador && (
+                            <Button
+                                fullWidth
+                                variant="outlined"
+                                disabled={guardandoBorrador || validItems.length === 0}
+                                onClick={onGuardarBorrador}
+                                startIcon={guardandoBorrador ? <CircularProgress size={14} /> : <Notes />}
+                                sx={{ borderRadius: 2, fontWeight: 700, fontSize: 12.5, borderColor: '#F59E0B', color: '#B45309', py: 1 }}
+                            >
+                                Guardar borrador
+                            </Button>
+                        )}
+                        {borradoresCount > 0 && onVerBorradores && (
+                            <Button
+                                variant="contained"
+                                disableElevation
+                                onClick={onVerBorradores}
+                                sx={{ borderRadius: 2, fontWeight: 700, fontSize: 12.5, flexShrink: 0, whiteSpace: 'nowrap', px: 2, py: 1, bgcolor: '#F59E0B', color: '#fff', '&:hover': { bgcolor: '#D97706' } }}
+                            >
+                                Retomar ({borradoresCount})
+                            </Button>
+                        )}
+                    </Box>
+                )}
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mt: 0.5 }}>
                     {!cliente && validItems.length > 0 ? (
                         <Typography sx={{ fontSize: 11, color: '#F59E0B', fontWeight: 600 }}>
@@ -692,9 +750,10 @@ const TouchPOSMode = ({
     onSubmit, savingVenta, calculateSubtotal, cambioEfectivo,
     openQuickCreate, isDark,
     omitirInventario, setOmitirInventario,
-    linkPagoConfig,
+    metodosPagoConLinks,
     fidelizacionActiva, clientePuntos, puntosACanjear, setPuntosACanjear, redeemRate,
     solicitaFe, setSolicitaFe, feActiva,
+    onGuardarBorrador, guardandoBorrador, borradoresCount, onVerBorradores,
 }) => {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -706,6 +765,8 @@ const TouchPOSMode = ({
     // ── Barcode / Camera ──
     const [barcodeInput, setBarcodeInput]         = useState('');
     const [cameraActive, setCameraActive]         = useState(false);
+    const [sunmiScanOk, setSunmiScanOk]           = useState(false);
+    const handleProcessBarcodeRef = useRef(null);
     const [searchingBarcode, setSearchingBarcode] = useState(false);
     const [scanFlash, setScanFlash]               = useState(false);
     const barcodeFieldRef  = useRef(null);
@@ -797,10 +858,24 @@ const TouchPOSMode = ({
         return () => { active = false; cleanupCamera(); };
     }, [cameraActive, cleanupCamera]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const handleToggleCamera = () => {
+    const handleToggleCamera = async () => {
+        if (sunmiScanOk) {
+            const code = await escanearSunmi();
+            if (code) handleProcessBarcode(code);
+            return;
+        }
         if (cameraActive) { cleanupCamera(); setCameraActive(false); setTimeout(() => barcodeFieldRef.current?.focus(), 100); }
         else setCameraActive(true);
     };
+
+    // Escáner Sunmi: detección + botón físico (modo táctil).
+    useEffect(() => {
+        sunmiScannerDisponible().then(setSunmiScanOk).catch(() => setSunmiScanOk(false));
+    }, []);
+    useEffect(() => {
+        if (!sunmiScanOk) return undefined;
+        return onScanFisico((code) => handleProcessBarcodeRef.current?.(code));
+    }, [sunmiScanOk]);
 
     const handleProcessBarcode = async (code) => {
         const barcode = code.trim();
@@ -836,6 +911,7 @@ const TouchPOSMode = ({
             setTimeout(() => barcodeFieldRef.current?.focus(), 100);
         }
     };
+    handleProcessBarcodeRef.current = handleProcessBarcode;
 
     const toggleGroup = (gid) =>
         setExpandedGroups(prev => ({ ...prev, [gid]: prev[gid] === false ? true : false }));
@@ -898,9 +974,10 @@ const TouchPOSMode = ({
         onSubmit, savingVenta, calculateSubtotal, cambioEfectivo,
         openQuickCreate, isDark,
         omitirInventario, setOmitirInventario,
-        linkPagoConfig,
+        metodosPagoConLinks,
         fidelizacionActiva, clientePuntos, puntosACanjear, setPuntosACanjear, redeemRate,
         solicitaFe, setSolicitaFe, feActiva,
+        onGuardarBorrador, guardandoBorrador, borradoresCount, onVerBorradores,
     };
 
     return (

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from 'react-toastify';
 import apiClient, { 
   fetchPlanesAdmin, 
@@ -145,26 +145,31 @@ export const useSaaSData = () => {
     }
   };
 
-  // Lógica de filtrado derivada (evita re-renders innecesarios por estado duplicado)
-  const filteredEmpresas = empresas.filter(emp => {
-    const matchBusqueda = emp.nombre.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         (emp.nit && emp.nit.includes(searchTerm)) ||
-                         emp.id.toString() === searchTerm;
-    
-    const dias = emp.dias_restantes;
-    let matchFiltro = true;
-    if (filterState === 'premium') matchFiltro = emp.plan_type === 'premium';
-    if (filterState === 'trial') matchFiltro = emp.plan_type !== 'premium' && dias > 0;
-    if (filterState === 'expired') matchFiltro = emp.plan_type !== 'premium' && dias <= 0;
-    if (filterState === 'inactive') {
-        if (!emp.last_activity_at) matchFiltro = true;
-        else {
-            const hours = (new Date() - new Date(emp.last_activity_at)) / (1000 * 60 * 60);
-            matchFiltro = hours > 168; // +7 días
-        }
-    }
-    return matchBusqueda && matchFiltro;
-  });
+  // Filtrado derivado, memoizado: sin useMemo se recalcula sobre toda la lista
+  // de tenants en cada render (abrir un drawer, tipear en otro campo…). Solo
+  // depende de empresas/searchTerm/filterState.
+  const filteredEmpresas = useMemo(() => {
+    const q = searchTerm.toLowerCase();
+    return empresas.filter(emp => {
+      const matchBusqueda = emp.nombre.toLowerCase().includes(q) ||
+                           (emp.nit && emp.nit.includes(searchTerm)) ||
+                           emp.id.toString() === searchTerm;
+
+      const dias = emp.dias_restantes;
+      let matchFiltro = true;
+      if (filterState === 'premium') matchFiltro = emp.plan_type === 'premium';
+      if (filterState === 'trial') matchFiltro = emp.plan_type !== 'premium' && dias > 0;
+      if (filterState === 'expired') matchFiltro = emp.plan_type !== 'premium' && dias <= 0;
+      if (filterState === 'inactive') {
+          if (!emp.last_activity_at) matchFiltro = true;
+          else {
+              const hours = (new Date() - new Date(emp.last_activity_at)) / (1000 * 60 * 60);
+              matchFiltro = hours > 168; // +7 días
+          }
+      }
+      return matchBusqueda && matchFiltro;
+    });
+  }, [empresas, searchTerm, filterState]);
 
   return {
     loading,

@@ -9,9 +9,12 @@ router = APIRouter()
 
 
 def _get_link_activo(db: Session, empresa_id: int) -> Optional[models.LinkPagoEmpresa]:
+    """El primero activo — usado solo por consumidores de "un solo link"
+    (portal público de agendamiento), que no tienen selector de método de pago."""
     return (
         db.query(models.LinkPagoEmpresa)
         .filter_by(empresa_id=empresa_id, is_active=True)
+        .order_by(models.LinkPagoEmpresa.id.asc())
         .first()
     )
 
@@ -21,7 +24,9 @@ def get_link_pago(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
-    """Devuelve el link de pago activo de la empresa (o null si no tiene)."""
+    """Devuelve el primer link de pago activo de la empresa (o null si no tiene).
+    Se mantiene por compatibilidad con consumidores de "un solo link" (portal
+    público de agendamiento) — el checkout de Ventas usa /empresa/link-pago/activos."""
     link = _get_link_activo(db, current_user.empresa_id)
     if link is None:
         return None
@@ -31,12 +36,37 @@ def get_link_pago(
     return data
 
 
+@router.get("/empresa/link-pago/activos", response_model=List[schemas.LinkPagoOut])
+def list_links_pago_activos(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Lista TODOS los links de pago activos de la empresa — cada uno se
+    muestra como su propio método de pago al cobrar una venta (Nequi,
+    Bancolombia, etc. pueden coexistir)."""
+    links = (
+        db.query(models.LinkPagoEmpresa)
+        .filter_by(empresa_id=current_user.empresa_id, is_active=True)
+        .order_by(models.LinkPagoEmpresa.nombre.asc())
+        .all()
+    )
+    empresa = db.query(models.Empresa).filter(models.Empresa.id == current_user.empresa_id).first()
+    logo_base64 = getattr(empresa, "logo_base64", None)
+    result = []
+    for link in links:
+        data = schemas.LinkPagoOut.model_validate(link).model_dump()
+        data["logo_base64"] = logo_base64
+        result.append(data)
+    return result
+
+
 @router.get("/empresa/link-pago/todos", response_model=List[schemas.LinkPagoOut])
 def list_links_pago(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
-    """Lista todos los links de pago de la empresa."""
+    """Lista todos los links de pago de la empresa (activos e inactivos) — usado
+    en la pantalla de configuración para administrarlos."""
     return (
         db.query(models.LinkPagoEmpresa)
         .filter_by(empresa_id=current_user.empresa_id)
@@ -51,17 +81,15 @@ def create_link_pago(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
-    """Crea o actualiza el link de pago de la empresa. Solo uno puede estar activo."""
+    """Crea un nuevo link/QR de pago de la empresa. Una empresa puede tener
+    varios simultáneamente (Nequi, Bancolombia, Daviplata, etc.), cada uno
+    aparece como su propio método de pago al cobrar."""
     if payload.tipo == "url" and not payload.link_url:
         raise HTTPException(status_code=400, detail="Se requiere link_url para tipo 'url'.")
     if payload.tipo == "qr_imagen" and not payload.qr_base64:
         raise HTTPException(status_code=400, detail="Se requiere qr_base64 para tipo 'qr_imagen'.")
-
-    # Si viene activo, desactivar el anterior
-    if payload.is_active:
-        db.query(models.LinkPagoEmpresa).filter_by(
-            empresa_id=current_user.empresa_id, is_active=True
-        ).update({"is_active": False})
+    if payload.tipo == "texto" and not payload.texto_pago:
+        raise HTTPException(status_code=400, detail="Se requiere texto_pago para tipo 'texto'.")
 
     link = models.LinkPagoEmpresa(
         empresa_id=current_user.empresa_id,
@@ -70,6 +98,7 @@ def create_link_pago(
         link_url=payload.link_url,
         qr_base64=payload.qr_base64,
         qr_mime_type=payload.qr_mime_type,
+        texto_pago=payload.texto_pago,
         instrucciones=payload.instrucciones,
         is_active=payload.is_active,
     )
@@ -91,13 +120,6 @@ def update_link_pago(
     ).first()
     if not link:
         raise HTTPException(status_code=404, detail="Link de pago no encontrado.")
-
-    # Si se activa este, desactivar los demás
-    if payload.is_active and not link.is_active:
-        db.query(models.LinkPagoEmpresa).filter(
-            models.LinkPagoEmpresa.empresa_id == current_user.empresa_id,
-            models.LinkPagoEmpresa.id != link_id,
-        ).update({"is_active": False})
 
     for field, val in payload.model_dump(exclude_unset=True).items():
         setattr(link, field, val)
@@ -249,14 +271,32 @@ def get_config_fe(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
-    """Devuelve la configuración de Facturación Electrónica de la empresa."""
+    """Devuelve la configuración de Facturación Electrónica de la empresa.
+
+    Las API keys de Matías NUNCA se devuelven en texto plano: son secretos que
+    autentican contra el proveedor de facturación electrónica, y reenviarlos
+    en cada GET (a la pestaña de red del navegador, logs, extensiones) es
+    superficie de exposición innecesaria. Se informa solo si cada una está
+    configurada y una vista enmascarada (últimos 4 caracteres) para que el
+    usuario confirme cuál tiene puesta sin volver a verla completa.
+    """
     empresa = db.query(models.Empresa).filter_by(id=current_user.empresa_id).first()
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada.")
+
+    def _mask(key: Optional[str]) -> Optional[str]:
+        if not key:
+            return None
+        return f"••••{key[-4:]}" if len(key) > 4 else "••••"
+
+    api_key         = getattr(empresa, "matias_api_key", None)
+    sandbox_api_key = getattr(empresa, "matias_sandbox_api_key", None)
     return {
         "facturacion_electronica_activa": getattr(empresa, "facturacion_electronica_activa", False) or False,
-        "matias_api_key":                 getattr(empresa, "matias_api_key", None),
-        "matias_sandbox_api_key":         getattr(empresa, "matias_sandbox_api_key", None),
+        "matias_api_key_configurada":         bool(api_key),
+        "matias_api_key_preview":             _mask(api_key),
+        "matias_sandbox_api_key_configurada": bool(sandbox_api_key),
+        "matias_sandbox_api_key_preview":     _mask(sandbox_api_key),
         "matias_test_mode":               getattr(empresa, "matias_test_mode", True) if getattr(empresa, "matias_test_mode", None) is not None else True,
     }
 
@@ -293,19 +333,34 @@ def update_config_fe(
                     detail="Tu plan actual no incluye facturación electrónica. Actualiza tu suscripción.",
                 )
         empresa.facturacion_electronica_activa = quiere_activar
-    if "matias_api_key" in payload:
-        key = payload["matias_api_key"]
-        empresa.matias_api_key = key.strip() if key else None
-    if "matias_sandbox_api_key" in payload:
-        key = payload["matias_sandbox_api_key"]
-        empresa.matias_sandbox_api_key = key.strip() if key else None
+    # Solo se actualiza la key si el usuario escribió un valor nuevo: el
+    # frontend ya no conoce la key real (el GET la enmascara), así que un
+    # campo vacío o ausente significa "no tocar la que ya está configurada".
+    # Se rechaza además cualquier valor que luzca como el placeholder
+    # enmascarado ("••••1234"), por si el frontend lo reenvía sin querer.
+    if payload.get("matias_api_key"):
+        key = payload["matias_api_key"].strip()
+        if key and not key.startswith("••••"):
+            empresa.matias_api_key = key
+    if payload.get("matias_sandbox_api_key"):
+        key = payload["matias_sandbox_api_key"].strip()
+        if key and not key.startswith("••••"):
+            empresa.matias_sandbox_api_key = key
     if "matias_test_mode" in payload:
         empresa.matias_test_mode = bool(payload["matias_test_mode"])
 
     db.commit()
+
+    def _mask(key: Optional[str]) -> Optional[str]:
+        if not key:
+            return None
+        return f"••••{key[-4:]}" if len(key) > 4 else "••••"
+
     return {
-        "facturacion_electronica_activa": empresa.facturacion_electronica_activa,
-        "matias_api_key":                 empresa.matias_api_key,
-        "matias_sandbox_api_key":         empresa.matias_sandbox_api_key,
-        "matias_test_mode":               empresa.matias_test_mode,
+        "facturacion_electronica_activa":     empresa.facturacion_electronica_activa,
+        "matias_api_key_configurada":         bool(empresa.matias_api_key),
+        "matias_api_key_preview":             _mask(empresa.matias_api_key),
+        "matias_sandbox_api_key_configurada": bool(empresa.matias_sandbox_api_key),
+        "matias_sandbox_api_key_preview":     _mask(empresa.matias_sandbox_api_key),
+        "matias_test_mode":                   empresa.matias_test_mode,
     }

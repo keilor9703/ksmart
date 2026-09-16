@@ -6688,15 +6688,15 @@ import schemas
 # Estos valores se leen de variables de entorno para que funcionen tanto en
 # localhost como en producción sin cambiar código.
 #
-# WEBAUTHN_RP_ID       = "appjeylor.com"  (sin https://, sin path)
+# WEBAUTHN_RP_ID       = "ksmart360.com"  (sin https://, sin path)
 # WEBAUTHN_RP_NAME     = "Ksmart360"
-# WEBAUTHN_ORIGIN      = "https://appjeylor.com"  (con https://)
+# WEBAUTHN_ORIGIN      = "https://ksmart360.com"  (con https://)
 #
 # Para localhost agregamos múltiples orígenes válidos.
 
-RP_ID = os.getenv("WEBAUTHN_RP_ID", "appjeylor.com")
+RP_ID = os.getenv("WEBAUTHN_RP_ID", "ksmart360.com")
 RP_NAME = os.getenv("WEBAUTHN_RP_NAME", "Ksmart360")
-ORIGIN_PROD = os.getenv("WEBAUTHN_ORIGIN", "https://appjeylor.com")
+ORIGIN_PROD = os.getenv("WEBAUTHN_ORIGIN", "https://ksmart360.com")
 
 # Lista de orígenes aceptados (para soportar localhost en desarrollo)
 ALLOWED_ORIGINS = [

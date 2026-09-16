@@ -5,12 +5,25 @@ import {
 } from '@mui/material';
 import {
   CheckCircle, RadioButtonUnchecked, ExpandMore, ExpandLess,
-  ArrowForward, RocketLaunch,
+  ArrowForward, RocketLaunch, EmojiEvents,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import { keyframes } from '@mui/system';
 
 const ACCENT = '#0891B2';
 const GREEN  = '#10B981';
+const YELLOW = '#F59E0B';
+
+const confettiBurst = keyframes`
+  0%   { opacity: 0; transform: scale(0.5) rotate(0deg); }
+  50%  { opacity: 1; transform: scale(1.15) rotate(6deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+`;
+
+const pulseGreen = keyframes`
+  0%,100% { box-shadow: 0 0 0 0 ${GREEN}40; }
+  50%     { box-shadow: 0 0 0 8px ${GREEN}00; }
+`;
 
 const STORAGE_KEY = 'ksmart_checklist_dismissed';
 
@@ -23,35 +36,62 @@ function dismiss(id) {
   if (!cur.includes(id)) localStorage.setItem(STORAGE_KEY, JSON.stringify([...cur, id]));
 }
 
+// Per-step metadata: color, estimated time
+const STEP_META = {
+  account_created: { color: GREEN,  time: null,    emoji: '✅' },
+  add_product:     { color: ACCENT, time: '~3 min', emoji: '📦' },
+  first_sale:      { color: YELLOW, time: '~2 min', emoji: '💰' },
+  setup_catalogo:  { color: '#8B5CF6', time: '~10 min', emoji: '🛍️' },
+  activate_plan:   { color: '#EF4444', time: null,  emoji: '⭐' },
+};
+
 const CheckRow = ({ step, onDismiss }) => {
   const navigate = useNavigate();
+  const meta = STEP_META[step.id] || { color: ACCENT, time: null, emoji: '•' };
+
   return (
     <Box
       sx={{
-        display: 'flex', alignItems: 'center', gap: 1.5, py: 0.75, px: 1,
-        borderRadius: 2, cursor: step.path ? 'pointer' : 'default',
+        display: 'flex', alignItems: 'center', gap: 1.5,
+        py: 0.85, px: 1.25, borderRadius: 2,
+        cursor: step.path && !step.done ? 'pointer' : 'default',
         transition: 'background 0.15s',
         '&:hover': step.path && !step.done ? { bgcolor: 'action.hover' } : {},
       }}
       onClick={() => step.path && !step.done && navigate(step.path)}
     >
+      {/* Step icon */}
       <Box sx={{ color: step.done ? GREEN : 'text.disabled', flexShrink: 0, display: 'flex' }}>
-        {step.done ? <CheckCircle sx={{ fontSize: 18 }} /> : <RadioButtonUnchecked sx={{ fontSize: 18 }} />}
+        {step.done
+          ? <CheckCircle sx={{ fontSize: 19 }} />
+          : <RadioButtonUnchecked sx={{ fontSize: 19 }} />}
       </Box>
+
+      {/* Emoji + text */}
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography sx={{
-          fontSize: 12.5, fontWeight: step.done ? 500 : 700,
-          color: step.done ? 'text.disabled' : 'text.primary',
-          textDecoration: step.done ? 'line-through' : 'none',
-        }}>
-          {step.label}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+          <Typography sx={{ fontSize: 13 }}>{meta.emoji}</Typography>
+          <Typography sx={{
+            fontSize: 12.5, fontWeight: step.done ? 500 : 700,
+            color: step.done ? 'text.disabled' : 'text.primary',
+            textDecoration: step.done ? 'line-through' : 'none',
+          }}>
+            {step.label}
+          </Typography>
+        </Box>
         {!step.done && (
-          <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{step.desc}</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mt: 0.15 }}>
+            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{step.desc}</Typography>
+            {meta.time && (
+              <Typography sx={{ fontSize: 10, color: meta.color, fontWeight: 600 }}>{meta.time}</Typography>
+            )}
+          </Box>
         )}
       </Box>
+
+      {/* CTAs */}
       {!step.done && step.cta && (
-        <Chip label="Activar" size="small" sx={{ bgcolor: `${ACCENT}18`, color: ACCENT, fontWeight: 700, fontSize: 10 }} />
+        <Chip label="Activar" size="small" sx={{ bgcolor: `${meta.color}18`, color: meta.color, fontWeight: 700, fontSize: 10 }} />
       )}
       {!step.done && step.path && !step.cta && (
         <ArrowForward sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0 }} />
@@ -68,7 +108,7 @@ const CheckRow = ({ step, onDismiss }) => {
 };
 
 export default function ActivationChecklist({ user, data, totalUltimos30 }) {
-  const [open, setOpen]     = useState(true);
+  const [open, setOpen]         = useState(true);
   const [dismissed, setDismissed] = useState(getDismissed);
 
   const esPrestamista = useMemo(() => {
@@ -108,7 +148,7 @@ export default function ActivationChecklist({ user, data, totalUltimos30 }) {
     {
       id: 'setup_catalogo',
       label: 'Configura tu catálogo virtual',
-      desc: 'Publica tus productos en tu tienda online y compártela con tus clientes.',
+      desc: 'Publica tus productos y compárte la tienda con tus clientes.',
       done: dismissed.includes('setup_catalogo') || !!user?.empresa?.slug_catalogo,
       path: '/admin/catalogo',
       optional: true,
@@ -125,33 +165,47 @@ export default function ActivationChecklist({ user, data, totalUltimos30 }) {
 
   const doneCount = steps.filter(s => s.done).length;
   const pct       = Math.round((doneCount / steps.length) * 100);
+  const allDone   = pct === 100;
 
   return (
-    <Paper
-      sx={{
-        mb: 2.5, borderRadius: 3, border: '1px solid', borderColor: `${ACCENT}28`,
-        bgcolor: 'background.paper', overflow: 'hidden',
-      }}
-    >
+    <Paper sx={{
+      mb: 2.5, borderRadius: 3, overflow: 'hidden',
+      border: '1px solid',
+      borderColor: allDone ? `${GREEN}40` : `${ACCENT}28`,
+      bgcolor: 'background.paper',
+      boxShadow: allDone ? `0 0 0 0 transparent` : 'none',
+      animation: allDone ? `${pulseGreen} 2s ease 3` : 'none',
+      transition: 'border-color 0.5s ease',
+    }}>
       {/* Header */}
       <Box
         onClick={() => setOpen(o => !o)}
         sx={{
           display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.25,
-          cursor: 'pointer', bgcolor: `${ACCENT}08`,
-          borderBottom: open ? '1px solid' : 'none', borderColor: `${ACCENT}18`,
+          cursor: 'pointer',
+          bgcolor: allDone ? `${GREEN}08` : `${ACCENT}08`,
+          borderBottom: open ? '1px solid' : 'none',
+          borderColor: allDone ? `${GREEN}18` : `${ACCENT}18`,
+          transition: 'background 0.3s ease',
         }}
       >
-        <RocketLaunch sx={{ color: ACCENT, fontSize: 18 }} />
+        {allDone
+          ? <EmojiEvents sx={{ color: GREEN, fontSize: 19, animation: `${confettiBurst} 0.6s ease both` }} />
+          : <RocketLaunch sx={{ color: ACCENT, fontSize: 18 }} />}
+
         <Box sx={{ flex: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: 'text.primary' }}>
-              Configura tu cuenta
+            <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: allDone ? GREEN : 'text.primary' }}>
+              {allDone ? '¡Perfil completo!' : 'Configura tu cuenta'}
             </Typography>
             <Chip
               label={`${doneCount}/${steps.length}`}
               size="small"
-              sx={{ height: 18, fontSize: 10, fontWeight: 700, bgcolor: pct === 100 ? `${GREEN}18` : `${ACCENT}18`, color: pct === 100 ? GREEN : ACCENT }}
+              sx={{
+                height: 18, fontSize: 10, fontWeight: 700,
+                bgcolor: allDone ? `${GREEN}18` : `${ACCENT}18`,
+                color: allDone ? GREEN : ACCENT,
+              }}
             />
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
@@ -159,12 +213,18 @@ export default function ActivationChecklist({ user, data, totalUltimos30 }) {
               variant="determinate"
               value={pct}
               sx={{
-                flex: 1, height: 4, borderRadius: 2,
-                bgcolor: `${ACCENT}15`,
-                '& .MuiLinearProgress-bar': { bgcolor: pct === 100 ? GREEN : ACCENT, borderRadius: 2 },
+                flex: 1, height: 5, borderRadius: 2.5,
+                bgcolor: allDone ? `${GREEN}15` : `${ACCENT}15`,
+                '& .MuiLinearProgress-bar': {
+                  bgcolor: allDone ? GREEN : ACCENT,
+                  borderRadius: 2.5,
+                  transition: 'width 0.7s cubic-bezier(0.4,0,0.2,1)',
+                },
               }}
             />
-            <Typography sx={{ fontSize: 10, color: 'text.secondary', flexShrink: 0 }}>{pct}%</Typography>
+            <Typography sx={{ fontSize: 10, color: allDone ? GREEN : 'text.secondary', flexShrink: 0, fontWeight: 600 }}>
+              {pct}%
+            </Typography>
           </Box>
         </Box>
         <IconButton size="small" sx={{ color: 'text.disabled' }}>
@@ -178,6 +238,13 @@ export default function ActivationChecklist({ user, data, totalUltimos30 }) {
           {steps.map(step => (
             <CheckRow key={step.id} step={step} onDismiss={handleDismiss} />
           ))}
+          {allDone && (
+            <Box sx={{ textAlign: 'center', py: 1.5, mt: 0.5, borderTop: '1px solid', borderColor: 'divider' }}>
+              <Typography sx={{ fontSize: 12, color: GREEN, fontWeight: 700 }}>
+                🎉 ¡Excelente! Tu cuenta está completamente configurada.
+              </Typography>
+            </Box>
+          )}
         </Box>
       </Collapse>
     </Paper>

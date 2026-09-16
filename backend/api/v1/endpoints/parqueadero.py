@@ -7,6 +7,7 @@ import crud
 import models
 import schemas
 from api.deps import get_db, get_current_active_user, get_current_admin_user
+from crud.common import BOGOTA_TZ, get_utc_boundaries
 
 router = APIRouter()
 
@@ -173,11 +174,14 @@ def historial_fe_suscripciones(
 ):
     """Ventas de suscripción/horas con su estado de FE, para historial y reintento."""
     from sqlalchemy import and_, or_
-    hoy = datetime.now(timezone.utc).date()
+    # Rango en días LOCALES (Bogotá), como el resto de reportes del módulo.
+    # Antes se construía como día UTC puro y las ventas de 7pm-12am caían en
+    # el día siguiente del filtro.
+    hoy = datetime.now(BOGOTA_TZ).date()
     fi = fecha_inicio or hoy
     ff = fecha_fin or hoy
-    inicio_utc = datetime(fi.year, fi.month, fi.day, 0, 0, 0, tzinfo=timezone.utc)
-    fin_utc    = datetime(ff.year, ff.month, ff.day, 23, 59, 59, tzinfo=timezone.utc)
+    inicio_utc, _ = get_utc_boundaries(fi)
+    _, fin_utc    = get_utc_boundaries(ff)
 
     ventas = (
         db.query(models.Venta)
@@ -379,7 +383,7 @@ def preview_cierre_fe(
     current_user: models.User = Depends(get_current_active_user),
 ):
     """Resumen de accesos por horas pendientes de facturar para el día."""
-    dia = fecha or datetime.now(timezone.utc).date()
+    dia = fecha or datetime.now(BOGOTA_TZ).date()  # "hoy" en hora local, no UTC
     return crud.preview_cierre_fe(db, empresa_id=current_user.empresa_id, dia=dia)
 
 
@@ -390,7 +394,7 @@ def ejecutar_cierre_fe(
     current_user: models.User = Depends(get_current_active_user),
 ):
     """Emite la FE consolidada del día a Consumidor Final (modelo POS DIAN)."""
-    dia = fecha or datetime.now(timezone.utc).date()
+    dia = fecha or datetime.now(BOGOTA_TZ).date()  # "hoy" en hora local, no UTC
     return crud.ejecutar_cierre_fe(db, empresa_id=current_user.empresa_id, dia=dia)
 
 

@@ -31,6 +31,13 @@ def _calcular_monto_estimado(cfg, minutos_reales: int) -> tuple[int, int]:
     else:
         monto = round(minutos_cobrar * (cfg.tarifa_minuto or 0))
 
+    # Piso de cobro configurable ("tarifa mínima"): si el admin definió un
+    # valor mínimo por servicio, nunca se cobra menos que eso. Antes el campo
+    # existía en la config pero no se aplicaba en ningún cálculo.
+    tarifa_minima = getattr(cfg, 'tarifa_minima', 0) or 0
+    if tarifa_minima > 0:
+        monto = max(monto, round(tarifa_minima))
+
     return minutos_cobrar, monto
 
 
@@ -67,7 +74,7 @@ def buscar_por_placa(db: Session, empresa_id: int, placa: str) -> dict:
             entrada = entrada.replace(tzinfo=timezone.utc)
 
         delta = ahora_utc - entrada
-        minutos_reales = max(1, int(round(delta.total_seconds() / 60)))
+        minutos_reales = max(1, math.ceil(delta.total_seconds() / 60))
 
         minutos_cobrar, monto_estim = _calcular_monto_estimado(cfg, minutos_reales)
         horas_display = round(minutos_cobrar / 60, 2)
@@ -220,7 +227,7 @@ def get_baja_info(db: Session, empresa_id: int, vehiculo_id: int) -> dict:
         if entrada.tzinfo is None:
             entrada = entrada.replace(tzinfo=timezone.utc)
         delta = ahora_utc - entrada
-        minutos_reales = max(1, int(round(delta.total_seconds() / 60)))
+        minutos_reales = max(1, math.ceil(delta.total_seconds() / 60))
         _, monto_estim = _calcular_monto_estimado(cfg, minutos_reales)
 
         accesos_data.append({

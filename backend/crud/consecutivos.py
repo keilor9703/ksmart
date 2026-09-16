@@ -10,7 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 # Whitelist: nunca interpolar nombres de columna que vengan de afuera.
-_CAMPOS_VALIDOS = {"ultimo_numero_venta", "ultimo_numero_lote", "ultimo_numero_movimiento", "ultimo_numero_compra", "ultimo_numero_asiento"}
+_CAMPOS_VALIDOS = {"ultimo_numero_venta", "ultimo_numero_lote", "ultimo_numero_movimiento", "ultimo_numero_compra", "ultimo_numero_asiento", "ultimo_numero_pedido"}
 
 
 def next_consecutivo(db: Session, empresa_id: int, campo: str) -> int:

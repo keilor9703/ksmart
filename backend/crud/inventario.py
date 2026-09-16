@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, load_only
 from sqlalchemy import func, text, cast, Date, or_
 from typing import Optional, List
 from datetime import date, datetime, timezone
@@ -25,11 +25,32 @@ def create_movement(db: Session, empresa_id: int, payload: schemas.InventoryMove
     elif payload.tipo == schemas.MovementType.ajuste:
         delta = payload.cantidad
 
-    new_stock = (prod.stock_actual or 0) + delta
-    if new_stock < 0:
-        raise ValueError("Stock insuficiente")
+    # Movimiento dirigido a una variante específica: el stock que se mueve es
+    # el de la variante (igual que ya hace Ventas), no el del producto padre
+    # — evita que un ajuste manual "a ciegas" descuadre el stock por talla/color.
+    variante = None
+    nombre_variante = None
+    if payload.variante_id is not None:
+        variante = db.query(models.ProductoVariante).filter(
+            models.ProductoVariante.id == payload.variante_id,
+            models.ProductoVariante.producto_id == payload.producto_id,
+            models.ProductoVariante.empresa_id == empresa_id,
+        ).first()
+        if not variante:
+            raise ValueError("La variante indicada no existe o no pertenece a este producto")
+        nombre_variante = variante.nombre
 
-    prod.stock_actual = new_stock
+        new_stock = (variante.stock_actual or 0) + delta
+        if new_stock < 0:
+            raise ValueError(f"Stock insuficiente en la variante '{variante.nombre}'")
+        variante.stock_actual = new_stock
+        db.add(variante)
+    else:
+        new_stock = (prod.stock_actual or 0) + delta
+        if new_stock < 0:
+            raise ValueError("Stock insuficiente")
+        prod.stock_actual = new_stock
+        db.add(prod)
 
     # Sincronizar lotes en salidas manuales de productos perecederos: sin esto
     # el stock del producto baja pero los lotes quedan intactos y se
@@ -37,7 +58,8 @@ def create_movement(db: Session, empresa_id: int, payload: schemas.InventoryMove
     # descuenta de los lotes vigentes hasta donde alcancen; el remanente se
     # asume stock fuera de lotes. Solo lo activa el endpoint de movimientos
     # manuales — los flujos de venta/producción gestionan sus lotes aparte.
-    if descontar_lotes and delta < 0 and getattr(prod, "maneja_lotes", False):
+    # (No aplica a movimientos por variante: los lotes son por producto.)
+    if descontar_lotes and variante is None and delta < 0 and getattr(prod, "maneja_lotes", False):
         from crud.perecederos import get_lotes_fefo
         restante = abs(delta)
         for lote in get_lotes_fefo(db, empresa_id, payload.producto_id):
@@ -61,9 +83,10 @@ def create_movement(db: Session, empresa_id: int, payload: schemas.InventoryMove
         empresa_id=empresa_id,
         created_at=ahora_utc,
         usuario_id=payload.usuario_id,
+        variante_id=payload.variante_id,
+        nombre_variante=nombre_variante,
     )
     db.add(mov)
-    db.add(prod)
     if commit:
         db.commit()
         db.refresh(mov)
@@ -71,7 +94,17 @@ def create_movement(db: Session, empresa_id: int, payload: schemas.InventoryMove
 
 def list_movements(db: Session, empresa_id: int, producto_id: int = None, limit: int = 100,
                    lote_id: int = None, numero_lote: str = None):
-    q = db.query(models.InventoryMovement).filter(
+    # Cargamos el producto en la MISMA consulta (evita N+1) y solo las columnas
+    # que la UI necesita — sin la columna `imagenes` (base64), que hacía el
+    # historial de movimientos lentísimo y con payloads enormes.
+    q = db.query(models.InventoryMovement).options(
+        joinedload(models.InventoryMovement.producto).load_only(
+            models.Producto.id,
+            models.Producto.nombre,
+            models.Producto.codigo_barras,
+            models.Producto.unidad_medida,
+        )
+    ).filter(
         models.InventoryMovement.empresa_id == empresa_id
     ).order_by(models.InventoryMovement.created_at.desc())
 
@@ -88,16 +121,39 @@ def list_movements(db: Session, empresa_id: int, producto_id: int = None, limit:
     return q.limit(limit).all()
 
 def get_low_stock(db: Session, empresa_id: int):
-    return db.query(models.Producto).filter(
+    """Devuelve dicts (producto_id, nombre, stock_actual, stock_minimo) — no
+    filas de Producto directamente, porque un producto con variantes nunca
+    acumula stock propio (cada movimiento va a su variante); usar su
+    stock_actual/stock_minimo de padre generaría falsas alertas permanentes.
+    Para esos casos se evalúa cada variante activa por separado."""
+    prods = db.query(models.Producto).filter(
         models.Producto.empresa_id == empresa_id,
         models.Producto.vigente == True,
         models.Producto.stock_minimo.isnot(None),
         models.Producto.stock_minimo > 0,
-        or_(
-            models.Producto.stock_actual.is_(None),
-            models.Producto.stock_actual < models.Producto.stock_minimo,
-        ),
     ).all()
+
+    alertas = []
+    for p in prods:
+        if p.tiene_variantes:
+            for v in (p.variantes or []):
+                if not v.activo or not v.stock_minimo:
+                    continue
+                if (v.stock_actual or 0) < v.stock_minimo:
+                    alertas.append({
+                        "producto_id": p.id,
+                        "nombre": f"{p.nombre} — {v.nombre}",
+                        "stock_actual": v.stock_actual or 0,
+                        "stock_minimo": v.stock_minimo,
+                    })
+        elif (p.stock_actual or 0) < p.stock_minimo:
+            alertas.append({
+                "producto_id": p.id,
+                "nombre": p.nombre,
+                "stock_actual": p.stock_actual or 0,
+                "stock_minimo": p.stock_minimo,
+            })
+    return alertas
 
 def update_producto_stock_minimo(db: Session, empresa_id: int, producto_id: int, minimo: float):
     prod = get_producto(db, empresa_id, producto_id)
@@ -186,6 +242,39 @@ def get_inventario_actual(db: Session, empresa_id: int) -> schemas.InventarioSna
     total_costo = 0.0
     total_venta = 0.0
     for p in prods:
+        # Un producto con variantes no acumula su propio stock_actual (cada
+        # movimiento va a la variante correspondiente) — sin esto, su fila
+        # reportaría siempre stock/valor $0 pese a tener inventario real
+        # repartido en sus variantes.
+        if p.tiene_variantes:
+            for v in (p.variantes or []):
+                if not v.activo:
+                    continue
+                stock = float(v.stock_actual or 0.0)
+                costo = float(v.costo if v.costo is not None else (p.costo or 0.0))
+                precio = float(v.precio if v.precio is not None else (p.precio or 0.0))
+                valor_costo = stock * costo
+                valor_venta = stock * precio
+                total_costo += valor_costo
+                total_venta += valor_venta
+                items.append(
+                    schemas.InventarioItem(
+                        id=p.id,
+                        nombre=f"{p.nombre} — {v.nombre}",
+                        es_servicio=bool(p.es_servicio),
+                        unidad_medida=p.unidad_medida,
+                        stock_actual=stock,
+                        stock_minimo=float(v.stock_minimo or 0.0),
+                        costo=costo,
+                        precio=precio,
+                        valor_costo=valor_costo,
+                        valor_venta=valor_venta,
+                        variante_id=v.id,
+                        nombre_variante=v.nombre,
+                    )
+                )
+            continue
+
         stock = float(p.stock_actual or 0.0)
         costo = float(p.costo or 0.0)
         precio = float(p.precio or 0.0)
