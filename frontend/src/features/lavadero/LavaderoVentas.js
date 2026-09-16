@@ -13,8 +13,9 @@ import {
   Refresh, AccessTime, AttachMoney, CheckCircle, PlayArrow,
   Done, Close, Person, WhatsApp, Print, Storefront, QrCode2, Stars,
   History, PictureAsPdf, ContentCopy, Search, Replay, Undo,
-  WarningAmber, Cancel, TrendingUp, Bolt,
+  WarningAmber, Cancel, TrendingUp, Bolt, DragIndicator,
 } from '@mui/icons-material';
+import { DndContext, useDraggable, useDroppable, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
@@ -77,6 +78,29 @@ const getElapsed = (fechaEntrada) => {
 const getElapsedMinutes = (fechaEntrada) =>
   Math.floor((Date.now() - new Date(fechaEntrada).getTime()) / 60000);
 
+// Aviso sonoro + vibración cuando un vehículo queda listo — para que el
+// encargado se entere sin tener que estar mirando la pantalla todo el rato.
+// Beep generado con Web Audio (sin archivo de audio que cargar).
+const avisarVehiculoListo = () => {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new Ctx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.setValueAtTime(1046, ctx.currentTime + 0.12);
+    gain.gain.setValueAtTime(0.16, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.3);
+    setTimeout(() => ctx.close(), 500);
+  } catch { /* navegadores sin Web Audio: se ignora, no es crítico */ }
+  if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
+};
+
 
 // Un servicio de lavado puede costar distinto según el vehículo (moto, carro,
 // SUV…). Eso se modela como UN producto-servicio con VARIANTES — la misma
@@ -103,8 +127,34 @@ const SectionLabel = ({ children }) => (
   </Typography>
 );
 
+/* ── Arrastrar y soltar entre columnas del tablero ────────────────────────── */
+function DraggableOrdenCard({ id, children }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `orden-${id}` });
+  const style = {
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    zIndex: isDragging ? 50 : 'auto',
+    opacity: isDragging ? 0.9 : 1,
+    position: 'relative',
+  };
+  return <div ref={setNodeRef} style={style}>{children({ listeners, attributes })}</div>;
+}
+
+function DroppableColumn({ id, children }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `col-${id}` });
+  return (
+    <Box ref={setNodeRef} sx={{
+      minHeight: 80, borderRadius: 2, transition: 'background-color 0.15s',
+      bgcolor: isOver ? alpha(ACCENT, 0.06) : 'transparent',
+      outline: isOver ? `2px dashed ${alpha(ACCENT, 0.4)}` : 'none',
+      p: isOver ? 0.5 : 0,
+    }}>
+      {children}
+    </Box>
+  );
+}
+
 /* ── Tarjeta de orden en el tablero ─────────────────────────────────────── */
-function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar, onCancelar, trabajadores }) {
+function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar, onCancelar, trabajadores, dragHandleProps }) {
   const TipoIcon = iconoParaVehiculo(orden.tipo_vehiculo || '');
   const [cambiandoLavador, setCambiandoLavador] = useState(false);
   const [nuevoLavadorObj, setNuevoLavadorObj] = useState(null);
@@ -148,9 +198,24 @@ function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar, onCancelar, 
       <Box sx={{ height: 3, bgcolor: demorado ? RED : estadoConfig.color }} />
       <Box sx={{ p: 1.8 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.8 }}>
-          <Typography sx={{ fontSize: 20, fontWeight: 900, letterSpacing: 2, color: estadoConfig.color }}>
-            {orden.placa}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+            {dragHandleProps && (
+              <Box
+                {...dragHandleProps.listeners}
+                {...dragHandleProps.attributes}
+                sx={{
+                  display: { xs: 'none', md: 'flex' },
+                  cursor: 'grab', color: 'text.disabled', touchAction: 'none',
+                  '&:active': { cursor: 'grabbing' },
+                }}
+              >
+                <DragIndicator sx={{ fontSize: 18 }} />
+              </Box>
+            )}
+            <Typography sx={{ fontSize: 20, fontWeight: 900, letterSpacing: 2, color: estadoConfig.color }}>
+              {orden.placa}
+            </Typography>
+          </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
             <TipoIcon sx={{ fontSize: 16 }} />
             <Typography sx={{ fontSize: 11 }}>{orden.tipo_vehiculo || '—'}</Typography>
@@ -415,6 +480,7 @@ export default function LavaderoVentas({ user }) {
   const [boardFilter,  setBoardFilter]  = useState('recibido');
   const [boardSearch,  setBoardSearch]  = useState('');
   const [resumenHoy,   setResumenHoy]   = useState(null);
+  const [vehiculosFrecuentes, setVehiculosFrecuentes] = useState([]);
 
   /* ── Config & cobrar ──────────────────────────────────────────────────── */
   const [config,        setConfig]        = useState(null);
@@ -491,9 +557,17 @@ export default function LavaderoVentas({ user }) {
   }, [metodoPago, montoRecibido, cobrarOrden, puntosACanjear, configFidel.redeem_rate]);
 
   /* ── Fetchers ─────────────────────────────────────────────────────────── */
+  const prevOrdenesRef = useRef([]);
+
   const fetchOrdenes = useCallback(async () => {
     try {
       const { data } = await apiClient.get('/lavadero/ordenes', { params: { activas: true } });
+      // Aviso sonoro cuando un vehículo QUEDA listo (pasa a "terminado") —
+      // así el encargado se entera aunque no esté mirando la pantalla.
+      const prevMap = new Map(prevOrdenesRef.current.map(o => [o.id, o.estado]));
+      const recienTerminados = data.filter(o => o.estado === 'terminado' && prevMap.get(o.id) && prevMap.get(o.id) !== 'terminado');
+      if (recienTerminados.length > 0) avisarVehiculoListo();
+      prevOrdenesRef.current = data;
       setOrdenes(data);
     } catch { /* silent */ } finally { setLoadingBoard(false); }
   }, []);
@@ -504,6 +578,13 @@ export default function LavaderoVentas({ user }) {
       const { data } = await apiClient.get('/lavadero/reporte', { params: { fecha_inicio: hoy, fecha_fin: hoy } });
       setResumenHoy(data.resumen || null);
     } catch { /* silent — el header KPI es informativo, no crítico */ }
+  }, []);
+
+  const fetchVehiculosFrecuentes = useCallback(async () => {
+    try {
+      const { data } = await apiClient.get('/lavadero/vehiculos-frecuentes');
+      setVehiculosFrecuentes(data || []);
+    } catch { /* silent */ }
   }, []);
 
   const fetchItems = useCallback(async () => {
@@ -542,6 +623,7 @@ export default function LavaderoVentas({ user }) {
   useEffect(() => {
     fetchOrdenes();
     fetchResumenHoy();
+    fetchVehiculosFrecuentes();
     fetchItems();
     fetchTrabajadores();
     fetchClientes();
@@ -551,7 +633,7 @@ export default function LavaderoVentas({ user }) {
       activa:      data.fidelizacion_activa     ?? true,
       redeem_rate: data.fidelizacion_redeem_rate ?? 100,
     })).catch(() => {});
-  }, [fetchOrdenes, fetchResumenHoy, fetchItems, fetchTrabajadores, fetchClientes, fetchConfig]);
+  }, [fetchOrdenes, fetchResumenHoy, fetchVehiculosFrecuentes, fetchItems, fetchTrabajadores, fetchClientes, fetchConfig]);
 
   // Fetch puntos cuando se selecciona una orden para cobrar
   useEffect(() => {
@@ -665,6 +747,7 @@ export default function LavaderoVentas({ user }) {
       toast.success('¡Vehículo registrado! Aparece en el tablero.');
       resetForm();
       fetchOrdenes();
+      fetchVehiculosFrecuentes();
       if (window.innerWidth < 900) setMobileView('tablero');
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al registrar la entrada.');
@@ -698,6 +781,19 @@ export default function LavaderoVentas({ user }) {
     } finally {
       fetchOrdenes();
     }
+  };
+
+  /* ── Arrastrar y soltar en el tablero ─────────────────────────────────── */
+  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over) return;
+    const ordenId = Number(String(active.id).replace('orden-', ''));
+    const nuevoEstado = String(over.id).replace('col-', '');
+    const orden = ordenes.find(o => o.id === ordenId);
+    if (!orden || orden.estado === nuevoEstado) return;
+    handleEstadoChange(ordenId, nuevoEstado);
   };
 
   /* ── Cobrar ───────────────────────────────────────────────────────────── */
@@ -1118,6 +1214,38 @@ export default function LavaderoVentas({ user }) {
                 );
               })}
             </Box>
+
+            {vehiculosFrecuentes.length > 0 && (
+              <Box sx={{ mt: 2, pt: 1.5, borderTop: '1px dashed', borderColor: 'divider' }}>
+                <Typography sx={{ fontSize: 10.5, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6, mb: 0.8 }}>
+                  Vehículos frecuentes
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap' }}>
+                  {vehiculosFrecuentes.map(v => (
+                    <Chip
+                      key={v.placa}
+                      label={`${v.placa}${v.cliente_nombre ? ` · ${v.cliente_nombre}` : ''}`}
+                      size="small"
+                      onClick={() => {
+                        setPlaca(formatPlaca(v.placa));
+                        if (v.tipo_vehiculo && opcionesVehiculo.includes(v.tipo_vehiculo)) {
+                          setTipoVehiculo(v.tipo_vehiculo);
+                        }
+                        if (v.cliente_id) {
+                          const c = clientes.find(cl => cl.id === v.cliente_id);
+                          if (c) setClienteObj(c);
+                        }
+                      }}
+                      sx={{
+                        cursor: 'pointer', fontWeight: 600, fontSize: 11,
+                        fontFamily: 'monospace', bgcolor: alpha(ACCENT, 0.08), color: ACCENT,
+                        '&:hover': { bgcolor: alpha(ACCENT, 0.16) },
+                      }}
+                    />
+                  ))}
+                </Box>
+              </Box>
+            )}
           </Paper>
 
           {/* Servicios */}
@@ -1349,7 +1477,8 @@ export default function LavaderoVentas({ user }) {
               </ToggleButtonGroup>
             </Box>
 
-            {/* Desktop: 3 columnas */}
+            {/* Desktop: 3 columnas, con arrastrar y soltar entre estados */}
+            <DndContext sensors={dndSensors} onDragEnd={handleDragEnd}>
             <Grid container spacing={1.5} sx={{ display: { xs: 'none', md: 'flex' } }}>
               {ESTADOS_TABLERO.map(est => (
                 <Grid item md={4} key={est.key}>
@@ -1363,7 +1492,7 @@ export default function LavaderoVentas({ user }) {
                       sx={{ height: 20, fontSize: 11, fontWeight: 700, bgcolor: `${est.color}18`, color: est.color }}
                     />
                   </Box>
-                  <Box sx={{ minHeight: 80 }}>
+                  <DroppableColumn id={est.key}>
                     {(ordensPorEstado[est.key] || []).length === 0 ? (
                       <Box sx={{ py: 4, textAlign: 'center', opacity: 0.5 }}>
                         <LocalCarWash sx={{ fontSize: 26, color: est.color, mb: 0.5 }} />
@@ -1371,22 +1500,27 @@ export default function LavaderoVentas({ user }) {
                       </Box>
                     ) : (
                       (ordensPorEstado[est.key] || []).map(o => (
-                        <OrdenCard
-                          key={o.id}
-                          orden={o}
-                          estadoConfig={est}
-                          trabajadores={trabajadores}
-                          onEstadoChange={handleEstadoChange}
-                          onCobrar={ord => { setCobrarOrden(ord); setMetodoPago('Efectivo'); setMontoRecibido(0); }}
-                          onCancelar={handleCancelarOrden}
-                          tick={tick}
-                        />
+                        <DraggableOrdenCard key={o.id} id={o.id}>
+                          {(dragHandleProps) => (
+                            <OrdenCard
+                              orden={o}
+                              estadoConfig={est}
+                              trabajadores={trabajadores}
+                              onEstadoChange={handleEstadoChange}
+                              onCobrar={ord => { setCobrarOrden(ord); setMetodoPago('Efectivo'); setMontoRecibido(0); }}
+                              onCancelar={handleCancelarOrden}
+                              dragHandleProps={dragHandleProps}
+                              tick={tick}
+                            />
+                          )}
+                        </DraggableOrdenCard>
                       ))
                     )}
-                  </Box>
+                  </DroppableColumn>
                 </Grid>
               ))}
             </Grid>
+            </DndContext>
 
             {/* Mobile: columna filtrada */}
             <Box sx={{ display: { xs: 'block', md: 'none' } }}>

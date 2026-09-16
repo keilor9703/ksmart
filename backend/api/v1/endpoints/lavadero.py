@@ -230,6 +230,42 @@ def listar_ordenes(
     return [_orden_to_dict(o) for o in ordenes]
 
 
+@router.get("/vehiculos-frecuentes")
+def vehiculos_frecuentes(
+    limit: int = Query(8, ge=1, le=20),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Placas que más veces han pasado por el lavadero — para registrar de
+    un clic sin volver a escribir todo. Solo cuenta placas con 2+ visitas."""
+    conteo = (
+        db.query(
+            models.LavaderoOrden.placa,
+            func.count(models.LavaderoOrden.id).label("veces"),
+            func.max(models.LavaderoOrden.id).label("ultima_id"),
+        )
+        .filter(models.LavaderoOrden.empresa_id == current_user.empresa_id)
+        .group_by(models.LavaderoOrden.placa)
+        .having(func.count(models.LavaderoOrden.id) >= 2)
+        .order_by(func.count(models.LavaderoOrden.id).desc())
+        .limit(limit)
+        .all()
+    )
+    resultado = []
+    for r in conteo:
+        ultima = db.query(models.LavaderoOrden).options(
+            joinedload(models.LavaderoOrden.cliente)
+        ).filter_by(id=r.ultima_id).first()
+        resultado.append({
+            "placa": r.placa,
+            "veces": r.veces,
+            "tipo_vehiculo": ultima.tipo_vehiculo if ultima else None,
+            "cliente_id": ultima.cliente_id if ultima else None,
+            "cliente_nombre": ultima.cliente.nombre if ultima and ultima.cliente else None,
+        })
+    return resultado
+
+
 @router.patch("/ordenes/{orden_id}")
 def actualizar_estado(
     orden_id: int,
