@@ -104,6 +104,12 @@ const avisarVehiculoListo = () => {
 };
 
 
+// Normaliza un nombre de vehículo para comparar/agrupar sin que tildes,
+// mayúsculas o espacios de más generen duplicados falsos — "Automovil" y
+// "Automóvil", creados en dos servicios distintos, deben ser lo mismo.
+const normalizarVehiculo = (s) =>
+  String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+
 // Un servicio de lavado puede costar distinto según el vehículo (moto, carro,
 // SUV…). Eso se modela como UN producto-servicio con VARIANTES — la misma
 // herramienta de variantes por atributo que ya existe en Productos — donde
@@ -116,8 +122,9 @@ const resolverServicioParaVehiculo = (servicio, tipoVehiculo) => {
   if (!servicio.tiene_variantes || variantes.length === 0) {
     return { disponible: true, precio: parseFloat(servicio.precio_venta ?? servicio.precio ?? 0) };
   }
+  const objetivo = normalizarVehiculo(tipoVehiculo);
   const match = variantes.find(v =>
-    Object.values(v.atributos || {}).some(val => String(val).toLowerCase() === String(tipoVehiculo).toLowerCase())
+    Object.values(v.atributos || {}).some(val => normalizarVehiculo(val) === objetivo)
   );
   if (!match) return { disponible: false, precio: 0 };
   return { disponible: true, precio: parseFloat(match.precio ?? servicio.precio_venta ?? servicio.precio ?? 0) };
@@ -700,11 +707,15 @@ export default function LavaderoVentas({ user }) {
   // atributo (Vehículo, Presentación, etc.) — no de una lista fija, así cada
   // lavadero usa las suyas (Automóvil, Moto, Camioneta Grande, Taxi…).
   const opcionesVehiculo = useMemo(() => {
-    const set = new Set();
+    const map = new Map(); // clave normalizada -> etiqueta a mostrar (la primera que aparezca)
     servicios.forEach(s => (s.variantes || []).forEach(v => {
-      Object.values(v.atributos || {}).forEach(val => { if (val) set.add(String(val)); });
+      Object.values(v.atributos || {}).forEach(val => {
+        if (!val) return;
+        const clave = normalizarVehiculo(val);
+        if (!map.has(clave)) map.set(clave, String(val));
+      });
     }));
-    return set.size > 0 ? Array.from(set) : TIPOS_VEHICULO.map(t => t.label);
+    return map.size > 0 ? Array.from(map.values()) : TIPOS_VEHICULO.map(t => t.label);
   }, [servicios]);
 
   // Si el vehículo seleccionado ya no existe entre las opciones reales
@@ -1202,14 +1213,17 @@ export default function LavaderoVentas({ user }) {
               placeholder="ABC-123"
               sx={{ mb: 2 }}
             />
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Box sx={{
+              display: 'flex', gap: 1, overflowX: 'auto', pb: 0.8,
+              '&::-webkit-scrollbar': { height: 5 },
+              '&::-webkit-scrollbar-thumb': { bgcolor: 'divider', borderRadius: 3 },
+            }}>
               {opcionesVehiculo.map(label => {
                 const Icon = iconoParaVehiculo(label);
+                const selected = tipoVehiculo === label;
                 return (
-                <Chip
+                <Box
                   key={label}
-                  icon={<Icon sx={{ fontSize: 16 }} />}
-                  label={label}
                   onClick={() => {
                     if (label !== tipoVehiculo && carrito.length > 0) {
                       setCarrito([]);
@@ -1218,13 +1232,23 @@ export default function LavaderoVentas({ user }) {
                     setTipoVehiculo(label);
                   }}
                   sx={{
-                    cursor: 'pointer', fontWeight: 600, fontSize: 12,
-                    bgcolor: tipoVehiculo === label ? ACCENT : 'action.hover',
-                    color:   tipoVehiculo === label ? 'white' : 'text.primary',
-                    '&:hover': { filter: 'brightness(0.95)' },
-                    '& .MuiChip-icon': { color: tipoVehiculo === label ? 'rgba(255,255,255,0.9)' : 'text.secondary' },
+                    flexShrink: 0, cursor: 'pointer', userSelect: 'none',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5,
+                    px: 1.8, py: 1.1, borderRadius: 2.5, minWidth: 84,
+                    border: '1.5px solid', borderColor: selected ? ACCENT : 'divider',
+                    bgcolor: selected ? alpha(ACCENT, 0.08) : 'transparent',
+                    transition: 'border-color 0.12s, background-color 0.12s',
+                    '&:hover': { borderColor: ACCENT },
                   }}
-                />
+                >
+                  <Icon sx={{ fontSize: 20, color: selected ? ACCENT : 'text.secondary' }} />
+                  <Typography sx={{
+                    fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap',
+                    color: selected ? ACCENT : 'text.primary',
+                  }}>
+                    {label}
+                  </Typography>
+                </Box>
                 );
               })}
             </Box>
