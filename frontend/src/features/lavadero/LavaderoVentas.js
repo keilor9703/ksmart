@@ -37,6 +37,17 @@ const TIPOS_VEHICULO = [
   { label: 'Otro',          icon: DriveEta       },
 ];
 
+// Icono aproximado para una categoría de vehículo con nombre libre (ej.
+// "Camioneta Grande", "Motocicletas") — busca una palabra en común con los
+// íconos conocidos; si no hay coincidencia, usa un carro genérico.
+const iconoParaVehiculo = (label) => {
+  const l = String(label).toLowerCase();
+  if (l.includes('moto')) return TwoWheeler;
+  if (l.includes('camion') || l.includes('suv')) return LocalShipping;
+  if (l.includes('carro') || l.includes('auto') || l.includes('taxi')) return DirectionsCar;
+  return DriveEta;
+};
+
 const ESTADOS_TABLERO = [
   { key: 'recibido',  label: 'Recibido',  color: BLUE,  bg: '#EFF6FF', nextKey: 'lavando',   nextLabel: 'Iniciar lavado',    NextIcon: PlayArrow, prevKey: null,        prevLabel: null },
   { key: 'lavando',   label: 'Lavando',   color: AMBER, bg: '#FFFBEB', nextKey: 'terminado', nextLabel: 'Marcar terminado',  NextIcon: Done,      prevKey: 'recibido',  prevLabel: 'Regresar a Recibido' },
@@ -94,7 +105,7 @@ const SectionLabel = ({ children }) => (
 
 /* ── Tarjeta de orden en el tablero ─────────────────────────────────────── */
 function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar, onCancelar, trabajadores }) {
-  const TipoIcon = TIPOS_VEHICULO.find(t => t.label === orden.tipo_vehiculo)?.icon ?? DirectionsCar;
+  const TipoIcon = iconoParaVehiculo(orden.tipo_vehiculo || '');
   const [cambiandoLavador, setCambiandoLavador] = useState(false);
   const [nuevoLavadorObj, setNuevoLavadorObj] = useState(null);
   const [confirmandoCambio, setConfirmandoCambio] = useState(false);
@@ -536,6 +547,28 @@ export default function LavaderoVentas({ user }) {
 
   // Solo se muestran los servicios que aplican al tipo de vehículo elegido:
   // sin variantes (aplican a cualquiera) o con una variante para ese vehículo.
+  // Categorías de vehículo reales del negocio: se toman de los valores que
+  // ya existen en las variantes de los servicios (cualquier atributo cuyo
+  // nombre contenga "vehículo"), no de una lista fija — cada lavadero define
+  // las suyas (Automóvil, Moto, Camioneta Grande, Taxi…).
+  const opcionesVehiculo = useMemo(() => {
+    const set = new Set();
+    servicios.forEach(s => (s.variantes || []).forEach(v => {
+      Object.entries(v.atributos || {}).forEach(([k, val]) => {
+        if (String(k).toLowerCase().includes('vehic') && val) set.add(String(val));
+      });
+    }));
+    return set.size > 0 ? Array.from(set) : TIPOS_VEHICULO.map(t => t.label);
+  }, [servicios]);
+
+  // Si el vehículo seleccionado ya no existe entre las opciones reales
+  // (ej. al cargar los servicios por primera vez), cae al primero disponible.
+  useEffect(() => {
+    if (opcionesVehiculo.length > 0 && !opcionesVehiculo.includes(tipoVehiculo)) {
+      setTipoVehiculo(opcionesVehiculo[0]);
+    }
+  }, [opcionesVehiculo]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const serviciosFiltrados = useMemo(() => {
     let list = servicios.filter(s => resolverServicioParaVehiculo(s, tipoVehiculo).disponible);
     if (busquedaServ.trim()) {
@@ -979,7 +1012,9 @@ export default function LavaderoVentas({ user }) {
               sx={{ mb: 2 }}
             />
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              {TIPOS_VEHICULO.map(({ label, icon: Icon }) => (
+              {opcionesVehiculo.map(label => {
+                const Icon = iconoParaVehiculo(label);
+                return (
                 <Chip
                   key={label}
                   icon={<Icon sx={{ fontSize: 16 }} />}
@@ -999,7 +1034,8 @@ export default function LavaderoVentas({ user }) {
                     '& .MuiChip-icon': { color: tipoVehiculo === label ? 'rgba(255,255,255,0.9)' : 'text.secondary' },
                   }}
                 />
-              ))}
+                );
+              })}
             </Box>
           </Paper>
 
