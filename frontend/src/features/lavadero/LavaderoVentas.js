@@ -1413,14 +1413,43 @@ export default function LavaderoVentas({ user }) {
           {isAdmin && trabajadores.length > 0 && (
             <Paper sx={{ p: 2.5, borderRadius: 3, mb: 2, border: '1px solid', borderColor: 'divider' }}>
               <SectionLabel step={3}>Asignar lavador</SectionLabel>
-              <Autocomplete
-                size="small"
-                options={trabajadores}
-                getOptionLabel={t => t.nombre_completo || t.username}
-                value={operadorObj}
-                onChange={(_, v) => { setOperadorObj(v); setOperadorId(v?.id ?? null); }}
-                renderInput={params => <TextField {...params} label="Lavador" placeholder="Seleccionar…" />}
-              />
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                {trabajadores.map(t => {
+                  const nombre = t.nombre_completo || t.username;
+                  const selected = operadorObj?.id === t.id;
+                  return (
+                    <Box
+                      key={t.id}
+                      onClick={() => { setOperadorObj(t); setOperadorId(t.id); }}
+                      sx={{
+                        cursor: 'pointer', userSelect: 'none',
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5,
+                        px: 1.6, py: 1.1, borderRadius: 2.5, minWidth: 78,
+                        border: '1.5px solid', borderColor: selected ? BLUE : 'divider',
+                        bgcolor: selected ? alpha(BLUE, 0.08) : 'transparent',
+                        transition: 'border-color 0.12s, background-color 0.12s',
+                        '&:hover': { borderColor: BLUE },
+                      }}
+                    >
+                      <Box sx={{
+                        width: 30, height: 30, borderRadius: '50%',
+                        bgcolor: selected ? BLUE : alpha(BLUE, 0.15),
+                        color: selected ? 'white' : BLUE,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 13, fontWeight: 800,
+                      }}>
+                        {nombre?.[0]?.toUpperCase() || <Person sx={{ fontSize: 16 }} />}
+                      </Box>
+                      <Typography sx={{
+                        fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap',
+                        color: selected ? BLUE : 'text.primary',
+                      }}>
+                        {nombre}
+                      </Typography>
+                    </Box>
+                  );
+                })}
+              </Box>
             </Paper>
           )}
 
