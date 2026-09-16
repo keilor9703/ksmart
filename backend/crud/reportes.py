@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, text, cast, Date, case
 from typing import Optional, List
 from datetime import date, datetime, timedelta
@@ -74,8 +74,8 @@ def get_cuentas_por_cobrar_por_cliente(db: Session, empresa_id: int):
     result = []
     for cliente in clientes_con_pendientes:
         ventas_pendientes_cliente = db.query(models.Venta).options(
-            selectinload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
-            selectinload(models.Venta.pagos)
+            joinedload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
+            joinedload(models.Venta.pagos)
         ).filter(
             models.Venta.cliente_id == cliente.id,
             models.Venta.empresa_id == empresa_id,
@@ -90,36 +90,6 @@ def get_cuentas_por_cobrar_por_cliente(db: Session, empresa_id: int):
             cliente_nombre=cliente.nombre,
             monto_pendiente=monto_pendiente_total,
             ventas_pendientes=ventas_pendientes_cliente
-        ))
-    return result
-
-def get_cuentas_por_pagar_por_proveedor(db: Session, empresa_id: int):
-    proveedores_con_pendientes = db.query(models.Cliente).join(
-        models.Compra, models.Compra.proveedor_id == models.Cliente.id
-    ).filter(
-        models.Cliente.empresa_id == empresa_id,
-        models.Compra.empresa_id == empresa_id,
-        (models.Compra.estado_pago == "pendiente") | (models.Compra.estado_pago == "parcial")
-    ).distinct().all()
-
-    result = []
-    for proveedor in proveedores_con_pendientes:
-        compras_pendientes_proveedor = db.query(models.Compra).options(
-            joinedload(models.Compra.detalles),
-            joinedload(models.Compra.pagos)
-        ).filter(
-            models.Compra.proveedor_id == proveedor.id,
-            models.Compra.empresa_id == empresa_id,
-            (models.Compra.estado_pago == "pendiente") | (models.Compra.estado_pago == "parcial")
-        ).all()
-
-        monto_pendiente_total = sum(compra.total - compra.monto_pagado for compra in compras_pendientes_proveedor)
-
-        result.append(schemas.ProveedorCuentasPorPagar(
-            proveedor_id=proveedor.id,
-            proveedor_nombre=proveedor.nombre,
-            monto_pendiente=monto_pendiente_total,
-            compras_pendientes=compras_pendientes_proveedor
         ))
     return result
 
@@ -162,54 +132,6 @@ def get_productos_vendidos(db: Session, empresa_id: int, start_date: Optional[da
         productos=productos_vendidos,
         servicios=servicios_vendidos
     )
-
-def get_ventas_por_variante(db: Session, empresa_id: int, producto_id: int,
-                             start_date: Optional[date] = None, end_date: Optional[date] = None):
-    """Desglose de ventas por variante para un producto que las maneja — el
-    reporte agregado (get_productos_vendidos) las funde en una sola fila a
-    nivel de producto, lo cual no basta para saber cuál talla/color rota más."""
-    query = (
-        db.query(
-            models.DetalleVenta.variante_id.label("variante_id"),
-            models.DetalleVenta.nombre_variante.label("nombre_variante"),
-            func.sum(models.DetalleVenta.cantidad).label("total_quantity_sold"),
-            func.sum(models.DetalleVenta.cantidad * models.DetalleVenta.precio_unitario).label("total_revenue"),
-        )
-        .join(models.Venta, models.DetalleVenta.venta_id == models.Venta.id)
-        .filter(
-            models.DetalleVenta.producto_id == producto_id,
-            models.DetalleVenta.empresa_id == empresa_id,
-            models.Venta.empresa_id == empresa_id,
-            models.Venta.tipo == "venta",
-        )
-    )
-    if start_date:
-        utc_start, _ = get_utc_boundaries(start_date)
-        query = query.filter(models.Venta.fecha >= utc_start)
-    if end_date:
-        _, utc_end = get_utc_boundaries(end_date)
-        query = query.filter(models.Venta.fecha <= utc_end)
-
-    query = query.group_by(models.DetalleVenta.variante_id, models.DetalleVenta.nombre_variante) \
-                 .order_by(func.sum(models.DetalleVenta.cantidad).desc())
-
-    producto = db.query(models.Producto).filter(
-        models.Producto.id == producto_id,
-        models.Producto.empresa_id == empresa_id,
-    ).first()
-    nombre_producto = producto.nombre if producto else f"Producto {producto_id}"
-
-    return [
-        schemas.VarianteVendida(
-            product_id=producto_id,
-            product_name=nombre_producto,
-            variante_id=row.variante_id,
-            variante_name=row.nombre_variante or "Sin variante",
-            total_quantity_sold=float(row.total_quantity_sold or 0),
-            total_revenue=float(row.total_revenue or 0),
-        )
-        for row in query.all()
-    ]
 
 def get_clientes_compradores(db: Session, empresa_id: int, start_date: Optional[date] = None, end_date: Optional[date] = None):
     query = (

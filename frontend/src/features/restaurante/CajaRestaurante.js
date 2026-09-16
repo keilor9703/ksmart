@@ -13,7 +13,6 @@ import {
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
-import CurrencyField from '../../components/common/CurrencyField';
 import LinkPagoModal from '../../components/common/LinkPagoModal.jsx';
 import usePolling from '../../hooks/usePolling';
 import ReciboDialog from '../../components/common/ReciboDialog';
@@ -31,9 +30,7 @@ const timeAgo = (iso) => {
   return `${Math.floor(diff / 60)}h ${diff % 60 > 0 ? `${diff % 60}min` : ''}`.trim();
 };
 
-// Solo Efectivo viene fijo — el resto son los links de pago que la empresa
-// configure en Mi Cuenta → Link de Pago.
-const METODOS = ['Efectivo'];
+const METODOS = ['Efectivo', 'Tarjeta', 'Nequi', 'Transferencia', 'Daviplata', 'Bold'];
 
 // ─── PagarDialog ──────────────────────────────────────────────────────────────
 
@@ -47,14 +44,11 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
   const [loading, setLoading] = useState(false);
   const [reciboVenta, setReciboVenta] = useState(null);
   const [reciboOpen, setReciboOpen] = useState(false);
-  const [linkPagosConfig, setLinkPagosConfig] = useState([]);
+  const [linkPagoConfig, setLinkPagoConfig] = useState(null);
   const [linkPagoOpen, setLinkPagoOpen] = useState(false);
-  const selectedLinkPago = metodo?.startsWith('link:')
-    ? linkPagosConfig.find(l => `link:${l.id}` === metodo)
-    : null;
 
   useEffect(() => {
-    apiClient.get('/empresa/link-pago/activos').then(r => setLinkPagosConfig(r.data || [])).catch(() => {});
+    apiClient.get('/empresa/link-pago').then(r => setLinkPagoConfig(r.data)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -70,7 +64,7 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
   const faltante = metodo === 'Efectivo' && montoRec > 0 ? Math.max(0, totalConPropina - montoRec) : 0;
 
   const puedeConfirmar =
-    !!selectedLinkPago ||
+    metodo === 'Link de Pago' ||
     metodo !== 'Efectivo' ||
     montoRec >= totalConPropina;
 
@@ -83,9 +77,8 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
   const handlePagar = async () => {
     setLoading(true);
     try {
-      const metodoPagoFinal = selectedLinkPago ? `Link de Pago: ${selectedLinkPago.nombre}` : metodo;
       const res = await apiClient.post(`/restaurante/comandas/${comanda.id}/cerrar`, {
-        metodo_pago: metodoPagoFinal,
+        metodo_pago: metodo,
         propina,
         propina_efectivo: propinaEfectivo,
         omitir_inventario: false,
@@ -105,7 +98,7 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
         iva_total: 0, iva_porcentaje: 0,
         monto_pagado: res.data.total,
         estado_pago: 'pagado',
-        metodo_pago: metodoPagoFinal,
+        metodo_pago: metodo,
       };
       setReciboVenta(ventaSnap);
       setReciboOpen(true);
@@ -186,20 +179,24 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
 
             {/* Propina */}
             <Box sx={{ display: 'flex', gap: 1.5 }}>
-              <CurrencyField
+              <TextField
                 label="Propina tarjeta"
+                type="number"
                 size="small"
                 fullWidth
-                value={propina}
-                onChange={(num) => setPropina(Math.max(0, num || 0))}
+                value={propina || ''}
+                onChange={e => setPropina(Math.max(0, +e.target.value || 0))}
+                InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
-              <CurrencyField
+              <TextField
                 label="Propina efectivo"
+                type="number"
                 size="small"
                 fullWidth
-                value={propinaEfectivo}
-                onChange={(num) => setPropinaEfectivo(Math.max(0, num || 0))}
+                value={propinaEfectivo || ''}
+                onChange={e => setPropinaEfectivo(Math.max(0, +e.target.value || 0))}
+                InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
             </Box>
@@ -210,14 +207,14 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
               <Select value={metodo} onChange={e => setMetodo(e.target.value)} label="Método de pago"
                 sx={{ borderRadius: 2 }}>
                 {METODOS.map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
-                {linkPagosConfig.map(l => (
-                  <MenuItem key={l.id} value={`link:${l.id}`}>
+                {linkPagoConfig && (
+                  <MenuItem value="Link de Pago">
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <QrCode2 sx={{ fontSize: 16, color: '#0891B2' }} />
-                      {l.nombre}
+                      Link de Pago / QR
                     </Box>
                   </MenuItem>
-                ))}
+                )}
               </Select>
             </FormControl>
 
@@ -263,7 +260,7 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
             )}
 
             {/* Link/QR: indicador visual */}
-            {selectedLinkPago && (
+            {metodo === 'Link de Pago' && linkPagoConfig && (
               <Box sx={{
                 p: 1.5, borderRadius: 2, textAlign: 'center',
                 bgcolor: alpha('#0891B2', 0.06),
@@ -271,7 +268,7 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
               }}>
                 <QrCode2 sx={{ color: '#0891B2', fontSize: 28, mb: 0.5 }} />
                 <Typography fontSize={12} fontWeight={700} color="#0891B2">
-                  {selectedLinkPago.nombre}
+                  {linkPagoConfig.nombre}
                 </Typography>
                 <Typography fontSize={11} color="text.secondary" mt={0.3}>
                   Al confirmar se mostrará el QR / link al cliente
@@ -287,23 +284,23 @@ const PagarDialog = ({ open, comanda, empresa, onClose, onPagado }) => {
             variant="contained"
             disabled={loading || !puedeConfirmar}
             startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <CheckCircle />}
-            onClick={() => selectedLinkPago ? setLinkPagoOpen(true) : handlePagar()}
+            onClick={() => metodo === 'Link de Pago' ? setLinkPagoOpen(true) : handlePagar()}
             sx={{
               borderRadius: 2, fontWeight: 800, fontSize: 14, py: 1.1, flex: 1,
-              bgcolor: selectedLinkPago ? '#0891B2' : '#059669',
-              '&:hover': { bgcolor: selectedLinkPago ? '#E8531A' : '#047857' },
+              bgcolor: metodo === 'Link de Pago' ? '#0891B2' : '#059669',
+              '&:hover': { bgcolor: metodo === 'Link de Pago' ? '#E8531A' : '#047857' },
             }}>
-            {selectedLinkPago ? 'Mostrar QR / Link' : `Confirmar pago ${fmt(totalConPropina)}`}
+            {metodo === 'Link de Pago' ? 'Mostrar QR / Link' : `Confirmar pago ${fmt(totalConPropina)}`}
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Link de Pago modal */}
-      {selectedLinkPago && (
+      {linkPagoConfig && (
         <LinkPagoModal
           open={linkPagoOpen}
           onClose={() => setLinkPagoOpen(false)}
-          linkConfig={selectedLinkPago}
+          linkConfig={linkPagoConfig}
           onConfirm={async () => {
             setLinkPagoOpen(false);
             await handlePagar();

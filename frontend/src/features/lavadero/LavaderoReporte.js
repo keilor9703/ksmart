@@ -3,18 +3,15 @@ import {
   Box, Paper, Typography, Grid, TextField, Button, Stack,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   CircularProgress, Avatar, Chip, Tooltip, LinearProgress,
-  Select, MenuItem, FormControl, InputLabel,
 } from '@mui/material';
 import {
   DirectionsCar, BarChart, AttachMoney, LocalCarWash,
   EmojiEvents, FileDownload, CalendarToday, Refresh, Percent,
-  Timer, Warning, ExpandMore, ExpandLess, Storefront,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
-import { alpha } from '@mui/material/styles';
 
 const ACCENT = '#0891B2';
 const GOLD   = '#F59E0B';
@@ -93,14 +90,6 @@ export default function LavaderoReporte({ user }) {
   const [activeRange, setActiveRange] = useState('Este mes');
   const [reportData,  setReportData]  = useState(null);
   const [loading,     setLoading]     = useState(false);
-  const [tiemposData, setTiemposData] = useState(null);
-  const [detalleAbierto, setDetalleAbierto] = useState(false);
-  const [sedes,   setSedes]   = useState([]);
-  const [sedeId,  setSedeId]  = useState('');
-
-  useEffect(() => {
-    apiClient.get('/lavadero/sedes').then(({ data }) => setSedes(data || [])).catch(() => {});
-  }, []);
 
   const fetchReporte = useCallback(async (inicio, fin) => {
     const start = inicio ?? fechaInicio;
@@ -108,14 +97,10 @@ export default function LavaderoReporte({ user }) {
     if (!start || !end) { toast.warning('Selecciona un rango de fechas.'); return; }
     setLoading(true);
     try {
-      const params = { fecha_inicio: start, fecha_fin: end };
-      if (sedeId) params.sede_id = sedeId;
-      const [{ data }, tiemposRes] = await Promise.all([
-        apiClient.get('/lavadero/reporte', { params }),
-        apiClient.get('/lavadero/reporte-tiempos', { params }).catch(() => null),
-      ]);
+      const { data } = await apiClient.get('/lavadero/reporte', {
+        params: { fecha_inicio: start, fecha_fin: end },
+      });
       setReportData(data);
-      setTiemposData(tiemposRes?.data ?? null);
       const trabajadores = data.trabajadores ?? [];
       if (!trabajadores.length) toast.info('No hay datos para el período seleccionado.');
     } catch (err) {
@@ -123,17 +108,10 @@ export default function LavaderoReporte({ user }) {
     } finally {
       setLoading(false);
     }
-  }, [fechaInicio, fechaFin, sedeId]);
+  }, [fechaInicio, fechaFin]);
 
   /* auto-fetch este mes al montar */
   useEffect(() => { fetchReporte(ranges[3].start, ranges[3].end); }, []); // eslint-disable-line
-
-  /* re-generar al cambiar de sede (si ya había un reporte cargado) */
-  const isFirstSedeRender = React.useRef(true);
-  useEffect(() => {
-    if (isFirstSedeRender.current) { isFirstSedeRender.current = false; return; }
-    fetchReporte();
-  }, [sedeId]); // eslint-disable-line
 
   const applyRange = (r) => {
     setFechaInicio(r.start);
@@ -212,7 +190,7 @@ export default function LavaderoReporte({ user }) {
                 bgcolor: activeRange === r.label ? ACCENT : 'action.hover',
                 color: activeRange === r.label ? 'white' : 'text.primary',
                 '& .MuiChip-icon': { color: activeRange === r.label ? 'rgba(255,255,255,0.8)' : 'text.disabled' },
-                '&:hover': { bgcolor: activeRange === r.label ? '#0e7490' : 'action.selected' },
+                '&:hover': { bgcolor: activeRange === r.label ? '#e6561c' : 'action.selected' },
                 transition: 'all 0.15s',
               }}
             />
@@ -234,30 +212,13 @@ export default function LavaderoReporte({ user }) {
             InputLabelProps={{ shrink: true }}
             size="small" sx={{ flex: 1 }}
           />
-          {sedes.length > 0 && (
-            <FormControl size="small" sx={{ flex: 1, minWidth: 160 }}>
-              <InputLabel id="reporte-sede-label">Sede</InputLabel>
-              <Select
-                labelId="reporte-sede-label"
-                label="Sede"
-                value={sedeId}
-                onChange={e => setSedeId(e.target.value)}
-                startAdornment={<Storefront sx={{ fontSize: 16, color: 'text.secondary', mr: 0.8 }} />}
-              >
-                <MenuItem value="">Todas las sedes</MenuItem>
-                {sedes.map(s => (
-                  <MenuItem key={s.id} value={String(s.id)}>{s.nombre}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          )}
           <Button
             variant="contained"
             onClick={() => { setActiveRange(''); fetchReporte(); }}
             disabled={loading}
             startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <Refresh />}
             sx={{
-              bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' },
+              bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' },
               fontWeight: 700, borderRadius: 2.5,
               textTransform: 'none', whiteSpace: 'nowrap', minWidth: 160,
             }}
@@ -477,99 +438,6 @@ export default function LavaderoReporte({ user }) {
                 </TableBody>
               </Table>
             </TableContainer>
-          )}
-
-          {/* ── Tiempos de lavada ── */}
-          {tiemposData && tiemposData.num_lavados_con_tiempo > 0 && (
-            <Box sx={{ mt: 3.5 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                <Timer sx={{ color: ACCENT, fontSize: 20 }} />
-                <Typography sx={{ fontWeight: 800, fontSize: 15 }}>Tiempos de lavada</Typography>
-                <Chip
-                  label={`Prom. general: ${tiemposData.promedio_general_minutos} min`}
-                  size="small"
-                  sx={{ fontWeight: 700, fontSize: 11, bgcolor: alpha(ACCENT, 0.1), color: ACCENT }}
-                />
-              </Box>
-              <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 2 }}>
-                Tiempo real entre "Lavando" y "Terminado" por trabajador. Solo cuenta lavadas registradas
-                con esta versión — las anteriores no tienen este dato.
-              </Typography>
-
-              <TableContainer component={Paper} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', mb: 2 }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow sx={{ bgcolor: 'action.hover' }}>
-                      {['Trabajador', 'Lavadas', 'Prom.', 'Más rápida', 'Más lenta'].map(h => (
-                        <TableCell key={h} sx={{ fontWeight: 700, fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                          {h}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {tiemposData.trabajadores.map(t => (
-                      <TableRow key={t.operador_id ?? t.nombre} hover sx={{ '&:last-child td': { border: 0 } }}>
-                        <TableCell sx={{ fontWeight: 700, fontSize: 13 }}>{t.nombre}</TableCell>
-                        <TableCell sx={{ fontSize: 13 }}>{t.num_lavados}</TableCell>
-                        <TableCell sx={{ fontWeight: 700, fontSize: 13, color: ACCENT }}>{t.promedio_minutos} min</TableCell>
-                        <TableCell sx={{ fontSize: 13, color: GREEN }}>{t.minimo_minutos} min</TableCell>
-                        <TableCell sx={{ fontSize: 13, color: t.maximo_minutos > tiemposData.promedio_general_minutos * 1.5 ? '#EF4444' : 'text.secondary' }}>
-                          {t.maximo_minutos} min
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-
-              <Button
-                size="small" onClick={() => setDetalleAbierto(v => !v)}
-                endIcon={detalleAbierto ? <ExpandLess /> : <ExpandMore />}
-                sx={{ textTransform: 'none', fontWeight: 700, color: ACCENT, mb: 1 }}
-              >
-                {detalleAbierto ? 'Ocultar detalle por lavada' : `Ver detalle de las ${tiemposData.detalle.length} lavadas (de más lenta a más rápida)`}
-              </Button>
-
-              {detalleAbierto && (
-                <TableContainer component={Paper} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', maxHeight: 420 }}>
-                  <Table size="small" stickyHeader>
-                    <TableHead>
-                      <TableRow>
-                        {['Placa', 'Vehículo', 'Trabajador', 'Duración', 'Terminó'].map(h => (
-                          <TableCell key={h} sx={{ fontWeight: 700, fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, bgcolor: 'action.hover' }}>
-                            {h}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {tiemposData.detalle.map(d => {
-                        const lenta = d.minutos > tiemposData.promedio_general_minutos * 1.5;
-                        return (
-                          <TableRow key={d.orden_id} hover sx={{ '&:last-child td': { border: 0 } }}>
-                            <TableCell sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12 }}>{d.placa}</TableCell>
-                            <TableCell sx={{ fontSize: 12 }}>{d.tipo_vehiculo || '—'}</TableCell>
-                            <TableCell sx={{ fontSize: 12 }}>{d.operador_nombre}</TableCell>
-                            <TableCell>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                {lenta && <Warning sx={{ fontSize: 14, color: '#EF4444' }} />}
-                                <Typography sx={{ fontSize: 13, fontWeight: 700, color: lenta ? '#EF4444' : 'text.primary' }}>
-                                  {d.minutos} min
-                                </Typography>
-                              </Box>
-                            </TableCell>
-                            <TableCell sx={{ fontSize: 11, color: 'text.secondary' }}>
-                              {new Date(d.fecha_fin_lavado).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              )}
-            </Box>
           )}
         </>
       )}

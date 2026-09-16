@@ -13,7 +13,6 @@ import { toast } from 'react-toastify';
 import BotonHuella from './BotonHuella';
 import useBiometricAuth from '../../hooks/useBiometricAuth';
 import apiClient from '../../api';
-import { getPinInfo, setPinForUser, removePinForUser } from '../../utils/quickAccess';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -39,7 +38,7 @@ function timeAgo(dateStr) {
 
 function TabBiometria() {
   const theme = useTheme();
-  const { isSupported, isPlatformAuthAvailable, listCredentials, deleteCredential, esAppNativa } = useBiometricAuth();
+  const { isSupported, isPlatformAuthAvailable, listCredentials, deleteCredential } = useBiometricAuth();
   const [credentials, setCredentials] = useState([]);
   const [loadingList, setLoadingList] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
@@ -82,12 +81,8 @@ function TabBiometria() {
   if (!isSupported || !isPlatformAuthAvailable) {
     return (
       <Alert severity="info" icon={<Info />} sx={{ mt: 2 }}>
-        {esAppNativa
-          ? 'El inicio de sesión con huella todavía no está disponible en la app instalada (Ksmart360 APK). ' +
-            'Por ahora puedes usarla abriendo www.ksmart360.com desde el navegador de tu celular (Chrome, ' +
-            'Safari), donde sí funciona si el dispositivo tiene huella o Face ID.'
-          : 'Tu dispositivo o navegador actual no soporta autenticación biométrica (WebAuthn). ' +
-            'Intenta desde Chrome, Edge o Safari en un dispositivo con huella o Face ID.'}
+        Tu dispositivo o navegador actual no soporta autenticación biométrica (WebAuthn).
+        Intenta desde Chrome, Edge o Safari en un dispositivo con huella o Face ID.
       </Alert>
     );
   }
@@ -210,12 +205,12 @@ function TabPin({ user }) {
   const [checkingStatus, setCheckingStatus] = useState(true);
 
   useEffect(() => {
-    // El estado del PIN es POR USUARIO: en un equipo compartido, antes se leía
-    // una flag global y a un usuario sin PIN se le decía "PIN configurado".
-    // (El backend no expone si hay PIN para no filtrar información sensible.)
-    setHasPinSet(getPinInfo(user?.username).configured);
+    // Verificamos si el usuario tiene PIN configurado comprobando el localStorage
+    // (el backend no expone si tiene PIN para evitar enumerar información sensible)
+    const stored = localStorage.getItem('pin_configured') === 'true';
+    setHasPinSet(stored);
     setCheckingStatus(false);
-  }, [user?.username]);
+  }, []);
 
   const addDigit = (d) => {
     const target = step === 'confirm' ? confirm : pin;
@@ -246,8 +241,9 @@ function TabPin({ user }) {
     setLoading(true);
     try {
       await apiClient.post('/auth/pin/set', { pin });
-      // Se registra el PIN a nombre de ESTE usuario (no como flag global)
-      setPinForUser(user?.username, pin.length);
+      localStorage.setItem('pin_configured', 'true');
+      localStorage.setItem('pin_length', String(pin.length));
+      localStorage.setItem('pin_username', user?.username || '');
       setHasPinSet(true);
       setStep('menu');
       setPin('');
@@ -265,7 +261,8 @@ function TabPin({ user }) {
     setLoading(true);
     try {
       await apiClient.delete('/auth/pin');
-      removePinForUser(user?.username);
+      localStorage.removeItem('pin_configured');
+      localStorage.removeItem('pin_length');
       setHasPinSet(false);
       toast.success('PIN eliminado.');
     } catch {

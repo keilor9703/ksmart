@@ -4,9 +4,8 @@ import {
   TableRow, TableCell, TableBody, Chip, Button, Stack, useTheme, useMediaQuery, Divider
 } from '@mui/material';
 import { 
-  Payments, Business, WorkspacePremium, People,
-  ShoppingBag, WarningAmber, CheckCircle, AccessTime,
-  PersonAdd, CalendarMonth
+  Payments, Business, WorkspacePremium, People, 
+  ShoppingBag, WarningAmber, CheckCircle, AccessTime
 } from '@mui/icons-material';
 
 const GREEN = '#10B981';
@@ -85,27 +84,6 @@ const SaaSOverview = ({ stats, empresas, onViewTenants, onOpenTenant }) => {
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
               <KPICard isMobile={isMobile} title="Total Usuarios" value={stats.total_usuarios} icon={<People />} color={PURPLE} subtitle="Carga total" />
-          </Grid>
-          {/* Altas de empresas: hoy y en el mes en curso (hora Colombia) */}
-          <Grid item xs={12} sm={6} md={3}>
-              <KPICard
-                isMobile={isMobile}
-                title="Registros hoy"
-                value={stats.nuevos_hoy ?? 0}
-                icon={<PersonAdd />}
-                color={GREEN}
-                subtitle="Empresas nuevas"
-              />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-              <KPICard
-                isMobile={isMobile}
-                title="Registros del mes"
-                value={stats.nuevos_mes ?? 0}
-                icon={<CalendarMonth />}
-                color={BLUE}
-                subtitle={new Date().toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })}
-              />
           </Grid>
       </Grid>
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
   Box, Typography, Grid, Card, CardContent, CardMedia, IconButton,
   Button, TextField, InputAdornment, Badge, Drawer, Divider,
@@ -10,245 +10,25 @@ import {
 } from '@mui/material';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import {
-  Search, ShoppingCart, Add, Remove,
+  Search, ShoppingCart, Add, Remove, WhatsApp,
   Storefront, LocationOn, Person, Phone, Close,
   ArrowForward, ShoppingBag, RocketLaunch, BarChart, Inventory2,
   Favorite, FavoriteBorder, KeyboardArrowUp, FilterList,
-  TableRestaurant, CheckCircle, EditNote, LocalShipping,
-  Instagram, Facebook,
+  TableRestaurant, CheckCircle, EditNote,
 } from '@mui/icons-material';
 import DarkMode from '@mui/icons-material/DarkMode';
 import LightMode from '@mui/icons-material/LightMode';
 import MenuItem from '@mui/material/MenuItem';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
-import {
-  isMarketplaceDomain, getMarketplaceCart, subscribeMarketplaceCart,
-  addToMarketplaceCart, decrementMarketplaceCartItem, marketplaceCartCount,
-  buildMarketplaceCartId,
-} from '../../utils/marketplaceCart';
 
 // Inline SVG placeholder — no external dependency
 const PLACEHOLDER_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'%3E%3Crect width='400' height='400' fill='%23f1f5f9'/%3E%3Ctext x='50%25' y='50%25' font-size='48' text-anchor='middle' dominant-baseline='middle' fill='%2394a3b8'%3E%F0%9F%93%B7%3C/text%3E%3C/svg%3E";
 
-// Sin este tope, en monitores anchos el grid (columnas 1fr) reparte TODO el
-// ancho del viewport entre las columnas — con pocos productos cada tarjeta
-// termina ocupando 300-400px, gigante y desproporcionada frente al texto.
-const CONTENT_MAX_WIDTH = 1360;
-
-// localStorage keys are versioned (v1) so a future cart-shape change doesn't
-// crash on old stored data; writes are best-effort (private-browsing/quota
-// can throw synchronously and must never break the storefront).
-const safeGetItem = (key) => {
-  try { return localStorage.getItem(key); } catch { return null; }
-};
-const safeSetItem = (key, value) => {
-  try { localStorage.setItem(key, value); } catch { /* quota/private-mode — ignore */ }
-};
-
-// ─── Product card (memoized) ─────────────────────────────────────────────
-// Extracted from the grid render body so cart/favorite changes on one card
-// don't force React to recreate & re-render every other card's component
-// tree and its inline sx objects.
-const ProductCard = React.memo(function ProductCard({
-  producto: p, imageUrl, isFavorite, isAgotado: agotado, isNuevo, isOferta,
-  isFlashing, inCartQty, accentColor, textPri, textSec, divClr, showStock,
-  onOpen, onToggleFavorite, onAdd, onRemove, onNeedsVariant,
-}) {
-  // El stock solo tiene sentido para negocios que manejan inventario real
-  // (no restaurantes, no servicios) — ver `esRestaurante`/`isAgotado` arriba.
-  const mostrarStock = showStock && !agotado;
-  const stockBajo = mostrarStock && p.stock > 0 && p.stock <= 5;
-  return (
-    <Card
-      sx={{
-        borderRadius: 3,
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        boxShadow: isFlashing
-          ? `0 0 0 3px #22c55e, 0 2px 12px rgba(34,197,94,0.25)`
-          : '0 1px 3px rgba(0,0,0,0.06)',
-        border: '1px solid',
-        borderColor: isFlashing ? '#22c55e' : (agotado ? 'divider' : divClr),
-        cursor: 'pointer',
-        opacity: agotado ? 0.72 : 1,
-        transform: isFlashing ? 'scale(1.08)' : 'scale(1)',
-        transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease, border-color 0.25s ease',
-        '@media (hover: hover)': {
-          '&:hover': {
-            transform: isFlashing ? 'scale(1.08)' : 'translateY(-6px)',
-            boxShadow: `0 16px 32px -12px ${accentColor}45, 0 4px 10px rgba(0,0,0,0.08)`,
-            borderColor: agotado ? 'divider' : accentColor,
-            '& .cvz-media': { transform: 'scale(1.09)' },
-          },
-        },
-      }}
-      onClick={() => onOpen(p)}
-    >
-      <Box sx={{ position: 'relative', overflow: 'hidden' }}>
-        <CardMedia
-          component="img"
-          loading="lazy"
-          decoding="async"
-          className="cvz-media"
-          sx={{
-            aspectRatio: '1/1', objectFit: 'cover',
-            filter: agotado ? 'grayscale(60%)' : 'none',
-            transition: 'transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)',
-          }}
-          image={imageUrl}
-          alt={p.nombre}
-        />
-        <IconButton
-          size="small"
-          onClick={(e) => onToggleFavorite(p.id, e)}
-          sx={{
-            position: 'absolute', top: 8, right: 8,
-            bgcolor: 'rgba(255,255,255,0.92)', width: 30, height: 30,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-            transition: 'transform 0.15s ease',
-            '&:hover': { bgcolor: '#fff', transform: 'scale(1.1)' },
-          }}
-        >
-          {isFavorite
-            ? <Favorite sx={{ fontSize: 15, color: '#EF4444' }} />
-            : <FavoriteBorder sx={{ fontSize: 15, color: '#94A3B8' }} />}
-        </IconButton>
-
-        {(isNuevo || isOferta) && (
-          <Box sx={{ position: 'absolute', top: 8, left: 8, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            {isNuevo && (
-              <Box sx={{ bgcolor: '#0891B2', px: 1.1, py: 0.35, borderRadius: 1.5, boxShadow: '0 2px 6px rgba(0,0,0,0.2)' }}>
-                <Typography sx={{ fontSize: 10, fontWeight: 800, color: '#fff', letterSpacing: 0.4 }}>NUEVO</Typography>
-              </Box>
-            )}
-            {isOferta && (
-              <Box sx={{ bgcolor: '#ef4444', px: 1.1, py: 0.35, borderRadius: 1.5, boxShadow: '0 2px 6px rgba(0,0,0,0.2)' }}>
-                <Typography sx={{ fontSize: 10, fontWeight: 800, color: '#fff', letterSpacing: 0.4 }}>OFERTA</Typography>
-              </Box>
-            )}
-          </Box>
-        )}
-
-        {agotado && (
-          <Box sx={{
-            position: 'absolute', bottom: 0, left: 0, right: 0,
-            bgcolor: 'rgba(0,0,0,0.65)', py: 0.75, textAlign: 'center',
-          }}>
-            <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#fff', letterSpacing: 0.6 }}>
-              AGOTADO
-            </Typography>
-          </Box>
-        )}
-      </Box>
-
-      <CardContent sx={{ p: '12px 14px 14px !important', flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-        <Typography sx={{
-          fontWeight: 700,
-          fontSize: 14,
-          color: textPri,
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical',
-          overflow: 'hidden',
-          lineHeight: 1.35,
-          mb: 0.75,
-          minHeight: 38,
-        }}>
-          {p.nombre}
-        </Typography>
-
-        {isOferta && (
-          <Typography sx={{ fontSize: 12, color: textSec, textDecoration: 'line-through', lineHeight: 1, mb: 0.3 }}>
-            ${new Intl.NumberFormat('es-CO').format(p.precio_antes)}
-          </Typography>
-        )}
-        <Typography sx={{
-          fontWeight: 900,
-          fontSize: 18,
-          color: agotado ? 'text.disabled' : (isOferta ? '#ef4444' : accentColor),
-          mb: mostrarStock ? 0.2 : 1,
-        }}>
-          ${new Intl.NumberFormat('es-CO').format(p.precio)}
-        </Typography>
-
-        {mostrarStock && (
-          <Typography sx={{ fontSize: 11, fontWeight: 700, color: stockBajo ? '#F59E0B' : textSec, mb: 1 }}>
-            {stockBajo ? `¡Quedan ${p.stock}!` : `${p.stock} disponibles`}
-          </Typography>
-        )}
-
-        <Box onClick={(e) => e.stopPropagation()}>
-          {agotado ? (
-            <Box sx={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              bgcolor: 'action.disabledBackground', borderRadius: 2, py: '8px',
-              cursor: 'not-allowed',
-            }}>
-              <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.disabled' }}>Sin stock</Typography>
-            </Box>
-          ) : p.tiene_variantes ? (
-            // Ambiguo mostrar +/- a nivel de producto cuando puede haber
-            // varias variantes distintas en el carrito a la vez — siempre
-            // se pasa por el selector de opciones.
-            <Box
-              onClick={() => onNeedsVariant(p)}
-              sx={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                bgcolor: 'transparent', border: `1.5px solid ${accentColor}`, borderRadius: 2, py: '7px',
-                cursor: 'pointer', gap: 0.6,
-                transition: 'background-color 0.15s ease',
-                '&:hover': { bgcolor: `${accentColor}12` },
-              }}
-            >
-              <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: accentColor }}>Ver opciones</Typography>
-            </Box>
-          ) : inCartQty ? (
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: 'action.hover', borderRadius: 2, px: 0.75, py: 0.5 }}>
-              <IconButton size="small" onClick={() => onRemove(String(p.id))} sx={{ p: '4px', color: accentColor }}><Remove sx={{ fontSize: 16 }} /></IconButton>
-              <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{inCartQty}</Typography>
-              <IconButton size="small" onClick={() => onAdd(p)} sx={{ p: '4px', color: accentColor }}><Add sx={{ fontSize: 16 }} /></IconButton>
-            </Box>
-          ) : (
-            <Box
-              onClick={() => onAdd(p)}
-              sx={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                bgcolor: accentColor, borderRadius: 2, py: '8px',
-                cursor: 'pointer', gap: 0.6,
-                transition: 'transform 0.15s ease, filter 0.15s ease',
-                '&:hover': { filter: 'brightness(1.08)' },
-                '&:active': { transform: 'scale(0.96)' },
-              }}
-            >
-              <Add sx={{ fontSize: 15, color: '#fff' }} />
-              <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#fff' }}>Agregar</Typography>
-            </Box>
-          )}
-        </Box>
-      </CardContent>
-    </Card>
-  );
-});
-
 const CatalogoVirtual = () => {
   const { slug } = useParams();
-  const navigate = useNavigate();
   const outerTheme = useTheme();
   const isMobile = useMediaQuery(outerTheme.breakpoints.down('sm'));
-
-  // ── Fase 2 del multicarrito: dentro del dominio del mall, esta tienda
-  // también alimenta el carrito compartido (mkt_cart) — el pedido de ESTA
-  // tienda sigue funcionando exactamente igual (checkout single-store, sin
-  // cambios), pero además se refleja en el carrito multi-tienda para que
-  // el cliente pueda revisar/pagar todas las tiendas juntas desde el mall.
-  const marketplaceMode = useMemo(() => isMarketplaceDomain(), []);
-  const [mktCartCount, setMktCartCount] = useState(() => marketplaceMode ? marketplaceCartCount(getMarketplaceCart()) : 0);
-  useEffect(() => {
-    if (!marketplaceMode) return undefined;
-    return subscribeMarketplaceCart(items => setMktCartCount(marketplaceCartCount(items)));
-  }, [marketplaceMode]);
 
   // ── Inyectar fuente moderna (solo una vez por sesión) ─────────────────
   useEffect(() => {
@@ -263,7 +43,7 @@ const CatalogoVirtual = () => {
 
   // ── Local theme mode — independent of system/app preference ──────────
   const [catMode, setCatMode] = useState(() =>
-    safeGetItem(`cat_theme_${slug}`) || 'light'
+    localStorage.getItem(`cat_theme_${slug}`) || 'light'
   );
   const catTheme = useMemo(() => createTheme({
     palette: { mode: catMode },
@@ -286,7 +66,7 @@ const CatalogoVirtual = () => {
   const toggleCatMode = () => {
     const next = catMode === 'light' ? 'dark' : 'light';
     setCatMode(next);
-    safeSetItem(`cat_theme_${slug}`, next);
+    localStorage.setItem(`cat_theme_${slug}`, next);
   };
 
   // ── Core state ────────────────────────────────────────────────────────
@@ -301,8 +81,8 @@ const CatalogoVirtual = () => {
 
   const [categoria, setCategoria] = useState('Todas');
   const [cart, setCart] = useState(() => {
-    const saved = safeGetItem(`cart_${slug}`);
-    try { return saved ? JSON.parse(saved) : []; } catch { return []; }
+    const saved = localStorage.getItem(`cart_${slug}`);
+    return saved ? JSON.parse(saved) : [];
   });
   const [cartOpen, setCartOpen] = useState(false);
   const [orderModalOpen, setOrderModalOpen] = useState(false);
@@ -310,21 +90,6 @@ const CatalogoVirtual = () => {
   // Detalle de Producto
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [currentImgIndex, setCurrentImgIndex] = useState(0);
-  const [dialogVariante, setDialogVariante] = useState(null);
-
-  // Resetear la variante elegida cada vez que se abre un producto distinto —
-  // si no, quedaría "pegada" la variante del producto anterior visto.
-  useEffect(() => {
-    if (selectedProduct?.tiene_variantes) {
-      // El catálogo público ya solo envía variantes activas (filtradas en el
-      // backend) — a diferencia del schema interno de administración, este
-      // objeto nunca trae el campo `activo`.
-      const activas = selectedProduct.variantes || [];
-      setDialogVariante(activas.find(v => v.stock > 0) || activas[0] || null);
-    } else {
-      setDialogVariante(null);
-    }
-  }, [selectedProduct?.id]);
 
   // Improvement #2: touch swipe refs
   const touchStartXRef = useRef(null);
@@ -332,10 +97,10 @@ const CatalogoVirtual = () => {
   // Formulario de Pedido (comercio)
   // Improvement #5: read from localStorage on mount
   const [nombre, setNombre] = useState(() => {
-    try { const raw = safeGetItem(`cat_cliente_${slug}`); return raw ? JSON.parse(raw).nombre || '' : ''; } catch { return ''; }
+    try { return localStorage.getItem(`cat_cliente_${slug}`) ? JSON.parse(localStorage.getItem(`cat_cliente_${slug}`)).nombre || '' : ''; } catch { return ''; }
   });
   const [celular, setCelular] = useState(() => {
-    try { const raw = safeGetItem(`cat_cliente_${slug}`); return raw ? JSON.parse(raw).celular || '' : ''; } catch { return ''; }
+    try { return localStorage.getItem(`cat_cliente_${slug}`) ? JSON.parse(localStorage.getItem(`cat_cliente_${slug}`)).celular || '' : ''; } catch { return ''; }
   });
   const [tipoEntrega, setTipoEntrega] = useState('domicilio');
   const [direccion, setDireccion] = useState('');
@@ -343,10 +108,6 @@ const CatalogoVirtual = () => {
 
   // Improvement #12: checkout steps
   const [checkoutStep, setCheckoutStep] = useState(1);
-  // Errores de validación por campo — se activan solo tras un intento fallido
-  // de avanzar/enviar, para resaltar visiblemente qué falta diligenciar
-  // (el toast solo no bastaba: el usuario no sabía QUÉ campo corregir).
-  const [checkoutErrors, setCheckoutErrors] = useState({});
 
   // Restaurante — notas por ítem y número de mesa
   const [itemNotas, setItemNotas] = useState({});
@@ -356,20 +117,11 @@ const CatalogoVirtual = () => {
 
   const [sortProductos, setSortProductos] = useState('');
   const [favoritos, setFavoritos] = useState(() => {
-    try { return JSON.parse(safeGetItem(`favs_${slug}`) || '[]'); } catch { return []; }
+    try { return JSON.parse(localStorage.getItem(`favs_${slug}`) || '[]'); } catch { return []; }
   });
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [orderSent, setOrderSent] = useState(false);
-  const [confirmedPedido, setConfirmedPedido] = useState(null);
   const [terminosOpen, setTerminosOpen] = useState(false);
-
-  // Consulta pública de estado de pedido (número + celular)
-  const [trackOpen, setTrackOpen] = useState(false);
-  const [trackNumero, setTrackNumero] = useState('');
-  const [trackCelular, setTrackCelular] = useState('');
-  const [trackLoading, setTrackLoading] = useState(false);
-  const [trackResult, setTrackResult] = useState(null);
-  const [trackError, setTrackError] = useState('');
 
   // Improvement #6: add-to-cart flash animation
   const [flashId, setFlashId] = useState(null);
@@ -386,11 +138,11 @@ const CatalogoVirtual = () => {
   useEffect(() => { if (slug) fetchData(); }, [slug]);
 
   useEffect(() => {
-    safeSetItem(`cart_${slug}`, JSON.stringify(cart));
+    localStorage.setItem(`cart_${slug}`, JSON.stringify(cart));
   }, [cart, slug]);
 
   useEffect(() => {
-    safeSetItem(`favs_${slug}`, JSON.stringify(favoritos));
+    localStorage.setItem(`favs_${slug}`, JSON.stringify(favoritos));
   }, [favoritos, slug]);
 
   // Improvement #3: debounce search 300ms
@@ -402,7 +154,7 @@ const CatalogoVirtual = () => {
   // Improvement #5: save customer data to localStorage
   useEffect(() => {
     if (nombre || celular) {
-      safeSetItem(`cat_cliente_${slug}`, JSON.stringify({ nombre, celular }));
+      localStorage.setItem(`cat_cliente_${slug}`, JSON.stringify({ nombre, celular }));
     }
   }, [nombre, celular, slug]);
 
@@ -426,48 +178,6 @@ const CatalogoVirtual = () => {
       setProductos(res.data.productos);
       setMesas(res.data.mesas || []);
       document.title = `${res.data.empresa.nombre} - ${res.data.empresa.tipo_negocio === 'restaurante' ? 'Menú Digital' : 'Catálogo Virtual'}`;
-
-      // Reconciliar el carrito guardado (puede tener días) contra el catálogo
-      // recién cargado: descartar productos que ya no están visibles/agotados
-      // y actualizar el precio si cambió, para no enviar un pedido con datos
-      // obsoletos (el backend igual recalcula el precio, pero el cliente debe
-      // ver el total real antes de confirmar).
-      setCart(prevCart => {
-        if (prevCart.length === 0) return prevCart;
-        const vigentes = new Map(res.data.productos.map(p => [p.id, p]));
-        let changed = false;
-        const reconciliado = [];
-        for (const item of prevCart) {
-          const actual = vigentes.get(item.id);
-          if (!actual) { changed = true; continue; }
-
-          // Si el ítem es una variante, la validación de precio/stock es
-          // contra ESA variante (que puede haberse desactivado o agotado
-          // independientemente del resto del producto), no contra el padre.
-          let precioVigente = actual.precio;
-          let stockVigente = actual.stock;
-          if (item.varianteId) {
-            // El catálogo público ya solo lista variantes activas — si no
-            // aparece aquí es porque se desactivó o eliminó.
-            const variante = (actual.variantes || []).find(v => v.id === item.varianteId);
-            if (!variante) { changed = true; continue; }
-            precioVigente = variante.precio != null ? variante.precio : actual.precio;
-            stockVigente = variante.stock;
-          }
-          if (!actual.es_servicio && stockVigente <= 0) { changed = true; continue; }
-
-          if (precioVigente !== item.precio || actual.nombre !== item.nombre) {
-            changed = true;
-            reconciliado.push({ ...item, nombre: actual.nombre, image_count: actual.image_count, precio: precioVigente, stock: stockVigente });
-          } else {
-            reconciliado.push(item);
-          }
-        }
-        if (changed) {
-          toast.info('Actualizamos tu carrito: algunos precios o productos cambiaron desde tu última visita.');
-        }
-        return changed ? reconciliado : prevCart;
-      });
     } catch (error) {
       if (error.response?.status === 404) {
         toast.error("Catálogo no encontrado o inactivo.");
@@ -514,73 +224,34 @@ const CatalogoVirtual = () => {
   // En restaurantes los productos se preparan en cocina (no manejan stock real),
   // por lo que nunca deben marcarse como agotados ni bloquear el pedido.
   const esRestaurante = empresa?.tipo_negocio === 'restaurante';
-  // `variante` opcional: para productos con variantes el stock/agotado real
-  // es el de la variante elegida, no el (obsoleto) del producto padre.
-  const isAgotado = (p, variante) => {
-    if (esRestaurante || p.es_servicio) return false;
-    if (variante) return (variante.stock ?? 0) <= 0;
-    if (p.tiene_variantes) return (p.variantes || []).every(v => (v.stock ?? 0) <= 0);
-    return p.stock <= 0;
-  };
-
-  // Los productos con variantes se identifican en el carrito por
-  // `producto.id:variante.id` — un mismo producto puede tener varias
-  // variantes distintas agregadas a la vez.
-  const cartKey = (productoId, varianteId) => varianteId ? `${productoId}:${varianteId}` : String(productoId);
+  const isAgotado = (p) => !esRestaurante && !p.es_servicio && p.stock <= 0;
 
   // ── Cart actions ──────────────────────────────────────────────────────
-  const addToCart = useCallback((producto, variante) => {
-    if (isAgotado(producto, variante)) return;
-    const key = cartKey(producto.id, variante?.id);
+  const addToCart = useCallback((producto) => {
+    if (isAgotado(producto)) return;
     setCart(prev => {
-      const existing = prev.find(item => item.cartId === key);
+      const existing = prev.find(item => item.id === producto.id);
       if (existing) {
-        return prev.map(item => item.cartId === key ? { ...item, quantity: item.quantity + 1 } : item);
+        return prev.map(item => item.id === producto.id ? { ...item, quantity: item.quantity + 1 } : item);
       }
-      const precio = variante?.precio != null ? variante.precio : producto.precio;
-      const stock = variante ? variante.stock : producto.stock;
-      return [...prev, {
-        ...producto,
-        precio, stock,
-        cartId: key,
-        varianteId: variante?.id || null,
-        nombreVariante: variante?.nombre || null,
-        quantity: 1,
-      }];
+      return [...prev, { ...producto, quantity: 1 }];
     });
-    if (marketplaceMode) {
-      addToMarketplaceCart({
-        producto_id: producto.id,
-        nombre: producto.nombre,
-        precio: variante?.precio != null ? variante.precio : producto.precio,
-        variante_id: variante?.id || null,
-        nombre_variante: variante?.nombre || null,
-        empresa_slug: slug,
-        empresa_nombre: empresa?.nombre,
-        empresa_color: empresa?.color_primario || '#0891B2',
-      });
-    }
     // Improvement #6: flash card border
     setFlashId(producto.id);
     setTimeout(() => setFlashId(null), 600);
     // Improvement #14: "¡Agregado!" text
     setAddedFlash(true);
     setTimeout(() => setAddedFlash(false), 1000);
-  }, [esRestaurante, marketplaceMode, slug, empresa]);
+  }, [esRestaurante]);
 
-  const removeFromCart = (key) => {
+  const removeFromCart = (id) => {
     setCart(prev => {
-      const existing = prev.find(item => item.cartId === key);
-      if (!existing) return prev;
+      const existing = prev.find(item => item.id === id);
       if (existing.quantity === 1) {
-        return prev.filter(item => item.cartId !== key);
+        return prev.filter(item => item.id !== id);
       }
-      return prev.map(item => item.cartId === key ? { ...item, quantity: item.quantity - 1 } : item);
+      return prev.map(item => item.id === id ? { ...item, quantity: item.quantity - 1 } : item);
     });
-    if (marketplaceMode) {
-      const [productoId, varianteId] = key.split(':');
-      decrementMarketplaceCartItem(buildMarketplaceCartId(slug, productoId, varianteId));
-    }
   };
 
   const toggleFavorito = (id, e) => {
@@ -612,21 +283,21 @@ const CatalogoVirtual = () => {
     }
   };
 
-  // ── Flujo COMERCIO — envío de pedido ──────────────────────────────────
+  // ── Flujo COMERCIO — WhatsApp ─────────────────────────────────────────
   const handleSendOrder = async () => {
     if (!nombre || !celular) {
-      setCheckoutStep(1);
-      setCheckoutErrors({ nombre: !nombre, celular: !celular });
-      toast.warning("Falta diligenciar tu nombre y/o celular");
+      toast.warning("Nombre y celular son obligatorios");
       return;
     }
     if (tipoEntrega === 'domicilio' && !direccion) {
-      setCheckoutErrors({ direccion: true });
       toast.warning("La dirección es obligatoria para domicilios");
       return;
     }
-    setCheckoutErrors({});
 
+    const formatCurrency = (val) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(val);
+
+    let numeroPedido = null;
+    let backendOk = false;
     try {
       const payload = {
         nombre_cliente:    nombre,
@@ -638,71 +309,65 @@ const CatalogoVirtual = () => {
           producto_id:     item.id,
           cantidad:        item.quantity,
           precio_unitario: item.precio,
-          variante_id:     item.varianteId || undefined,
         })),
       };
       const res = await apiClient.post(`/catalogo/${slug}/pedido`, payload);
-      setConfirmedPedido(res.data);
+      numeroPedido = res.data.id;
+      backendOk = true;
     } catch (err) {
       const detail = err?.response?.data?.detail;
       const status = err?.response?.status;
-      const msg = typeof detail === 'string' ? detail : (typeof detail === 'object' ? JSON.stringify(detail) : 'No se pudo registrar el pedido.');
+      const msg = typeof detail === 'string' ? detail : (typeof detail === 'object' ? JSON.stringify(detail) : 'No se pudo registrar el pedido en el sistema.');
       console.error('[Catalogo] Error al guardar pedido:', status, detail, err);
-      toast.error(`⚠️ ${msg}`, { autoClose: 10000 });
-      return;
+      toast.warning(`⚠️ ${msg} Tu pedido llegará por WhatsApp de todas formas.`, { autoClose: 10000 });
     }
 
+    let message = `🛍️ *NUEVO PEDIDO - ${empresa.nombre}*`;
+    if (numeroPedido) message += ` #${numeroPedido}`;
+    message += `\n\n`;
+    message += `👤 *Cliente:* ${nombre}\n`;
+    message += `📱 *Celular:* ${celular}\n`;
+    message += `📦 *Entrega:* ${tipoEntrega === 'domicilio' ? 'A domicilio 🛵' : 'Recoger en tienda 🏪'}\n`;
+    if (tipoEntrega === 'domicilio') {
+      message += `📍 *Dirección:* ${direccion}\n`;
+    } else if (empresa.direccion) {
+      message += `📍 *Punto de recogida:* ${empresa.direccion}\n`;
+    }
+    if (comentarios) message += `💬 *Comentarios:* ${comentarios}\n`;
+    message += `\n*PRODUCTOS:*\n`;
+    cart.forEach(item => {
+      message += `• ${item.nombre} x${item.quantity} — ${formatCurrency(item.precio)} c/u = ${formatCurrency(item.precio * item.quantity)}\n`;
+    });
+    message += `\n💰 *TOTAL: ${formatCurrency(cartTotal)}*`;
+    if (numeroPedido) message += `\n\n📋 *Pedido #${numeroPedido}* — guardado en el sistema.`;
+    else message += `\n\n⚠️ _Pedido no guardado en sistema — confirmar manualmente._`;
+
+    window.open(`https://wa.me/${empresa.whatsapp_pedidos}?text=${encodeURIComponent(message)}`, '_blank');
     setOrderSent(true);
     setTimeout(() => {
       setOrderSent(false);
-      setConfirmedPedido(null);
       setCart([]);
       setOrderModalOpen(false);
       setCartOpen(false);
       setCheckoutStep(1);
-      setCheckoutErrors({});
-    }, 4500);
-  };
-
-  // ── Consulta pública de estado de pedido ─────────────────────────────
-  const handleTrackSubmit = async () => {
-    if (!trackNumero || !trackCelular) {
-      setTrackError('Ingresa el número de pedido y el celular.');
-      return;
-    }
-    setTrackLoading(true);
-    setTrackError('');
-    setTrackResult(null);
-    try {
-      const res = await apiClient.get(`/catalogo/${slug}/pedido/estado`, {
-        params: { numero_pedido: trackNumero, celular_cliente: trackCelular },
-      });
-      setTrackResult(res.data);
-    } catch (err) {
-      setTrackError(err?.response?.data?.detail || 'No encontramos un pedido con esos datos.');
-    } finally {
-      setTrackLoading(false);
-    }
+    }, 2500);
   };
 
   // ── Flujo RESTAURANTE — directo a cocina ─────────────────────────────
   const handleSendOrderRestaurante = async () => {
     if (!mesaNumero.trim()) {
-      setCheckoutErrors({ mesa: true });
-      toast.warning("Indica el número de tu mesa para continuar");
+      toast.warning("Indica el número de tu mesa");
       return;
     }
-    setCheckoutErrors({});
     try {
       const res = await apiClient.post(`/catalogo/${slug}/pedido-restaurante`, {
         mesa_numero: mesaNumero.trim(),
         items: cart.map(item => ({
           producto_id:     item.id,
-          nombre_producto: item.nombreVariante ? `${item.nombre} (${item.nombreVariante})` : item.nombre,
+          nombre_producto: item.nombre,
           cantidad:        item.quantity,
           precio_unitario: item.precio,
           notas:           itemNotas[item.id] || null,
-          variante_id:     item.varianteId || undefined,
         })),
       });
       setConfirmedComanda(res.data);
@@ -724,7 +389,7 @@ const CatalogoVirtual = () => {
   // ── Loading skeleton ──────────────────────────────────────────────────
   if (loading) return (
     <ThemeProvider theme={catTheme}>
-      <Box sx={{ bgcolor: pageBg, color: textPri, minHeight: '100vh' }}>
+      <Box sx={{ bgcolor: pageBg, minHeight: '100vh' }}>
         <Box sx={{ bgcolor: paperBg, px: 2, pt: 3, pb: 2, boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
             <Skeleton variant="rounded" width={50} height={50} sx={{ borderRadius: 2 }} />
@@ -755,7 +420,7 @@ const CatalogoVirtual = () => {
   );
 
   if (!empresa) return (
-    <Box sx={{ p: 5, textAlign: 'center', color: 'text.primary' }}>
+    <Box sx={{ p: 5, textAlign: 'center' }}>
       <Typography variant="h5">Catálogo no disponible</Typography>
     </Box>
   );
@@ -764,12 +429,11 @@ const CatalogoVirtual = () => {
 
   return (
     <ThemeProvider theme={catTheme}>
-      <Box sx={{ bgcolor: pageBg, color: textPri, minHeight: '100vh', pb: cartCount > 0 ? 14 : 10 }}>
+      <Box sx={{ bgcolor: pageBg, minHeight: '100vh', pb: cartCount > 0 ? 14 : 10 }}>
 
         {/* ── HEADER (Improvement #10: collapsible on scroll) ─────────── */}
         <Box sx={{
-          bgcolor: isDark ? 'rgba(15,15,15,0.85)' : 'rgba(255,255,255,0.85)',
-          backdropFilter: 'blur(10px)',
+          bgcolor: paperBg,
           px: 2,
           pt: headerCollapsed ? 1 : 3,
           pb: headerCollapsed ? 1 : 2,
@@ -779,7 +443,6 @@ const CatalogoVirtual = () => {
           zIndex: 100,
           transition: 'padding 0.3s ease',
         }}>
-        <Box sx={{ maxWidth: CONTENT_MAX_WIDTH, mx: 'auto' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: headerCollapsed ? 1 : 2 }}>
             {empresa.logo_base64 ? (
               <Avatar
@@ -832,56 +495,6 @@ const CatalogoVirtual = () => {
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
-              {!headerCollapsed && empresa?.instagram_url && (
-                <Tooltip title="Instagram">
-                  <IconButton
-                    component="a" href={empresa.instagram_url} target="_blank" rel="noopener noreferrer"
-                    size="small"
-                    sx={{ color: textSec, bgcolor: subtleBg, '&:hover': { color: '#E1306C', bgcolor: subtleHov }, width: 30, height: 30 }}
-                  >
-                    <Instagram sx={{ fontSize: 15 }} />
-                  </IconButton>
-                </Tooltip>
-              )}
-              {!headerCollapsed && empresa?.facebook_url && (
-                <Tooltip title="Facebook">
-                  <IconButton
-                    component="a" href={empresa.facebook_url} target="_blank" rel="noopener noreferrer"
-                    size="small"
-                    sx={{ color: textSec, bgcolor: subtleBg, '&:hover': { color: '#1877F2', bgcolor: subtleHov }, width: 30, height: 30 }}
-                  >
-                    <Facebook sx={{ fontSize: 15 }} />
-                  </IconButton>
-                </Tooltip>
-              )}
-              {marketplaceMode && (
-                <Tooltip title="Carrito del Centro Comercial (todas las tiendas)">
-                  <IconButton
-                    onClick={() => navigate('/')}
-                    size="small"
-                    sx={{ color: textSec, bgcolor: subtleBg, '&:hover': { bgcolor: subtleHov }, width: 30, height: 30 }}
-                  >
-                    <Badge badgeContent={mktCartCount} color="error" sx={{ '& .MuiBadge-badge': { fontSize: 8, height: 14, minWidth: 14 } }}>
-                      <ShoppingCart sx={{ fontSize: 15 }} />
-                    </Badge>
-                  </IconButton>
-                </Tooltip>
-              )}
-              <Tooltip title="Rastrear pedido">
-                <IconButton
-                  onClick={() => { setTrackResult(null); setTrackError(''); setTrackOpen(true); }}
-                  size="small"
-                  sx={{
-                    color: textSec,
-                    bgcolor: subtleBg,
-                    '&:hover': { bgcolor: subtleHov },
-                    width: 30, height: 30,
-                  }}
-                >
-                  <LocalShipping sx={{ fontSize: 15 }} />
-                </IconButton>
-              </Tooltip>
-
               <Tooltip title={isDark ? 'Modo claro' : 'Modo oscuro'}>
                 <IconButton
                   onClick={toggleCatMode}
@@ -946,10 +559,9 @@ const CatalogoVirtual = () => {
             ))}
           </Box>
         </Box>
-        </Box>
 
         {/* Products count + sort */}
-        <Box sx={{ maxWidth: CONTENT_MAX_WIDTH, mx: 'auto', px: 2, pt: 2, pb: 0.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+        <Box sx={{ px: 2, pt: 2, pb: 0.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
           <Typography sx={{ fontWeight: 600, color: textSec, fontSize: 13 }}>
             {filteredProductos.length} {filteredProductos.length === 1 ? 'producto' : 'productos'}
             {search ? ` para "${search}"` : ''}
@@ -974,7 +586,7 @@ const CatalogoVirtual = () => {
         </Box>
 
         {/* ── PRODUCTOS GRID (Improvement #1: 2 cols on xs) ───────────── */}
-        <Box sx={{ maxWidth: CONTENT_MAX_WIDTH, mx: 'auto', px: 1, pb: 2, pt: 1 }}>
+        <Box sx={{ px: 1, pb: 2, pt: 1 }}>
           <Box sx={{
             display: 'grid',
             gridTemplateColumns: {
@@ -982,55 +594,169 @@ const CatalogoVirtual = () => {
               sm: 'repeat(3, 1fr)',
               md: 'repeat(4, 1fr)',
               lg: 'repeat(5, 1fr)',
-              xl: 'repeat(6, 1fr)',
             },
-            gap: { xs: '10px', sm: '14px', md: '18px' },
+            gap: '6px',
           }}>
-            {filteredProductos.map(p => (
-              <ProductCard
-                key={p.id}
-                producto={p}
-                imageUrl={p.image_count > 0
-                  ? `${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${p.id}/imagen?index=0`
-                  : PLACEHOLDER_IMG}
-                isFavorite={favoritos.includes(p.id)}
-                isAgotado={isAgotado(p)}
-                isNuevo={p.es_nuevo || newestIds.has(p.id)}
-                isOferta={Boolean(p.precio_antes && p.precio_antes > p.precio)}
-                isFlashing={flashId === p.id}
-                inCartQty={cart.find(item => item.cartId === String(p.id))?.quantity || 0}
-                accentColor={accentColor}
-                textPri={textPri}
-                textSec={textSec}
-                divClr={divClr}
-                showStock={!esRestaurante && !p.es_servicio}
-                onOpen={(prod) => { setSelectedProduct(prod); setCurrentImgIndex(0); }}
-                onToggleFavorite={toggleFavorito}
-                onAdd={addToCart}
-                onRemove={removeFromCart}
-                onNeedsVariant={(prod) => { setSelectedProduct(prod); setCurrentImgIndex(0); }}
-              />
-            ))}
+            {filteredProductos.map(p => {
+              const inCart = cart.find(item => item.id === p.id);
+              const agotado = isAgotado(p);
+              // Improvement #7: badge logic
+              const isNuevo = p.es_nuevo || newestIds.has(p.id);
+              const isOferta = p.precio_antes && p.precio_antes > p.precio;
+              // Improvement #6: flash card
+              const isFlashing = flashId === p.id;
+
+              return (
+                <Card
+                  key={p.id}
+                  sx={{
+                    borderRadius: 2,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                    boxShadow: isFlashing
+                      ? `0 0 0 3px #22c55e, 0 2px 12px rgba(34,197,94,0.25)`
+                      : '0 1px 4px rgba(0,0,0,0.07)',
+                    border: '1px solid',
+                    borderColor: isFlashing ? '#22c55e' : (agotado ? 'divider' : divClr),
+                    cursor: 'pointer',
+                    opacity: agotado ? 0.72 : 1,
+                    transform: isFlashing ? 'scale(1.08)' : 'scale(1)',
+                    transition: 'transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease',
+                  }}
+                  onClick={() => { setSelectedProduct(p); setCurrentImgIndex(0); }}
+                >
+                  <Box sx={{ position: 'relative' }}>
+                    <CardMedia
+                      component="img"
+                      sx={{ aspectRatio: '1/1', objectFit: 'cover', filter: agotado ? 'grayscale(60%)' : 'none' }}
+                      image={p.image_count > 0
+                        ? `${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${p.id}/imagen?index=0`
+                        : PLACEHOLDER_IMG}
+                      alt={p.nombre}
+                    />
+                    <IconButton
+                      size="small"
+                      onClick={(e) => toggleFavorito(p.id, e)}
+                      sx={{
+                        position: 'absolute', top: 3, right: 3,
+                        bgcolor: 'rgba(255,255,255,0.88)', width: 22, height: 22,
+                        '&:hover': { bgcolor: '#fff' },
+                      }}
+                    >
+                      {favoritos.includes(p.id)
+                        ? <Favorite sx={{ fontSize: 11, color: '#EF4444' }} />
+                        : <FavoriteBorder sx={{ fontSize: 11, color: '#94A3B8' }} />}
+                    </IconButton>
+
+                    {/* Improvement #7: Nuevo / Oferta badges */}
+                    {(isNuevo || isOferta) && (
+                      <Box sx={{ position: 'absolute', top: 3, left: 3, display: 'flex', flexDirection: 'column', gap: 0.4 }}>
+                        {isNuevo && (
+                          <Box sx={{ bgcolor: '#0891B2', px: 0.8, py: 0.2, borderRadius: 1 }}>
+                            <Typography sx={{ fontSize: 8, fontWeight: 800, color: '#fff', letterSpacing: 0.3 }}>NUEVO</Typography>
+                          </Box>
+                        )}
+                        {isOferta && (
+                          <Box sx={{ bgcolor: '#ef4444', px: 0.8, py: 0.2, borderRadius: 1 }}>
+                            <Typography sx={{ fontSize: 8, fontWeight: 800, color: '#fff', letterSpacing: 0.3 }}>OFERTA</Typography>
+                          </Box>
+                        )}
+                      </Box>
+                    )}
+
+                    {agotado && (
+                      <Box sx={{
+                        position: 'absolute', bottom: 0, left: 0, right: 0,
+                        bgcolor: 'rgba(0,0,0,0.62)', py: 0.4, textAlign: 'center',
+                      }}>
+                        <Typography sx={{ fontSize: 9, fontWeight: 800, color: '#fff', letterSpacing: 0.5 }}>
+                          AGOTADO
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+
+                  {/* Improvement #13: price hierarchy — name fontSize 12, price fontSize 14 bold */}
+                  <CardContent sx={{ p: '6px 7px 7px !important', flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                    <Typography sx={{
+                      fontWeight: 600,
+                      fontSize: 12,
+                      color: textPri,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      lineHeight: 1.3,
+                      mb: 0.5,
+                      minHeight: 30,
+                    }}>
+                      {p.nombre}
+                    </Typography>
+
+                    {/* Improvement #7: crossed-out original price if oferta */}
+                    {isOferta && (
+                      <Typography sx={{ fontSize: 10, color: textSec, textDecoration: 'line-through', lineHeight: 1, mb: 0.2 }}>
+                        ${new Intl.NumberFormat('es-CO').format(p.precio_antes)}
+                      </Typography>
+                    )}
+                    <Typography sx={{
+                      fontWeight: 900,
+                      fontSize: 14,
+                      color: agotado ? 'text.disabled' : (isOferta ? '#ef4444' : accentColor),
+                      mb: 0.75,
+                    }}>
+                      ${new Intl.NumberFormat('es-CO').format(p.precio)}
+                    </Typography>
+
+                    <Box onClick={(e) => e.stopPropagation()}>
+                      {agotado ? (
+                        <Box sx={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          bgcolor: 'action.disabledBackground', borderRadius: 1.5, py: '4px',
+                          cursor: 'not-allowed',
+                        }}>
+                          <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.disabled' }}>Sin stock</Typography>
+                        </Box>
+                      ) : inCart ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: subtleBg, borderRadius: 1.5, px: 0.5, py: 0.25 }}>
+                          <IconButton size="small" onClick={() => removeFromCart(p.id)} sx={{ p: '2px', color: accentColor }}><Remove sx={{ fontSize: 14 }} /></IconButton>
+                          <Typography sx={{ fontWeight: 700, fontSize: 12 }}>{inCart.quantity}</Typography>
+                          <IconButton size="small" onClick={() => addToCart(p)} sx={{ p: '2px', color: accentColor }}><Add sx={{ fontSize: 14 }} /></IconButton>
+                        </Box>
+                      ) : (
+                        <Box
+                          onClick={() => addToCart(p)}
+                          sx={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            bgcolor: accentColor, borderRadius: 1.5, py: '4px',
+                            cursor: 'pointer', gap: 0.4,
+                            '&:hover': { opacity: 0.88 },
+                          }}
+                        >
+                          <Add sx={{ fontSize: 13, color: '#fff' }} />
+                          <Typography sx={{ fontSize: 10, fontWeight: 700, color: '#fff' }}>Agregar</Typography>
+                        </Box>
+                      )}
+                    </Box>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </Box>
 
           {filteredProductos.length === 0 && (
             <Box sx={{ textAlign: 'center', py: 8, px: 2 }}>
-              <Typography sx={{ fontSize: 56, mb: 2, lineHeight: 1 }}>
-                {productos.length === 0 ? '🏪' : '🔍'}
-              </Typography>
+              <Typography sx={{ fontSize: 56, mb: 2, lineHeight: 1 }}>🔍</Typography>
               <Typography sx={{ fontWeight: 800, fontSize: 18, color: textPri, mb: 1 }}>
-                {productos.length === 0
-                  ? `${empresa?.nombre || 'Esta tienda'} aún no tiene productos publicados`
-                  : search
-                    ? `Sin resultados para "${search}"`
-                    : `Sin productos en ${categoria !== 'Todas' ? categoria : 'el catálogo'}`}
+                {search
+                  ? `Sin resultados para "${search}"`
+                  : `Sin productos en ${categoria !== 'Todas' ? categoria : 'el catálogo'}`}
               </Typography>
               <Typography sx={{ color: textSec, mb: 3, fontSize: 14 }}>
-                {productos.length === 0
-                  ? 'Vuelve pronto — el catálogo se está preparando.'
-                  : 'Intenta con otro término o explora otra categoría'}
+                Intenta con otro término o explora otra categoría
               </Typography>
-              {productos.length > 0 && (search || categoria !== 'Todas') && (
+              {(search || categoria !== 'Todas') && (
                 <Button
                   variant="outlined"
                   onClick={() => { setSearchInput(''); setSearch(''); setCategoria('Todas'); setSortProductos(''); }}
@@ -1049,7 +775,7 @@ const CatalogoVirtual = () => {
           onClose={() => setSelectedProduct(null)}
           fullWidth
           maxWidth="sm"
-          PaperProps={{ sx: isMobile ? { borderRadius: '24px 24px 0 0', mt: 'auto', mb: 0 } : { borderRadius: 4 } }}
+          PaperProps={{ sx: { borderRadius: isMobile ? '24px 24px 0 0' : 4, mt: isMobile ? 'auto' : 0, mb: isMobile ? 0 : 'auto' } }}
           TransitionComponent={Zoom}
         >
           {selectedProduct && (
@@ -1134,8 +860,6 @@ const CatalogoVirtual = () => {
                         <img
                           src={`${apiClient.defaults.baseURL}/catalogo/${slug}/productos/${selectedProduct.id}/imagen?index=${i}`}
                           alt={`${selectedProduct.nombre} ${i + 1}`}
-                          loading="lazy"
-                          decoding="async"
                           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                         />
                       </Box>
@@ -1154,67 +878,9 @@ const CatalogoVirtual = () => {
                     ${new Intl.NumberFormat('es-CO').format(selectedProduct.precio_antes)}
                   </Typography>
                 )}
-                <Typography variant="h4" sx={{ fontWeight: 800, color: accentColor, mb: 1 }}>
-                  ${new Intl.NumberFormat('es-CO').format(
-                    dialogVariante?.precio != null ? dialogVariante.precio : selectedProduct.precio
-                  )}
+                <Typography variant="h4" sx={{ fontWeight: 800, color: accentColor, mb: 3 }}>
+                  ${new Intl.NumberFormat('es-CO').format(selectedProduct.precio)}
                 </Typography>
-
-                {!esRestaurante && !selectedProduct.es_servicio && !selectedProduct.tiene_variantes && !isAgotado(selectedProduct) && (
-                  <Typography sx={{
-                    fontSize: 12.5, fontWeight: 700, mb: 3,
-                    color: selectedProduct.stock <= 5 ? '#F59E0B' : textSec,
-                  }}>
-                    {selectedProduct.stock <= 5
-                      ? `¡Quedan solo ${selectedProduct.stock} unidades!`
-                      : `${selectedProduct.stock} unidades disponibles`}
-                  </Typography>
-                )}
-
-                {/* Selector de variantes (talla/color/etc.) ─────────────── */}
-                {selectedProduct.tiene_variantes && (
-                  <Box sx={{ mb: 3 }}>
-                    <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                      Elige una opción
-                    </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                      {(selectedProduct.variantes || []).map(v => {
-                        const elegida = dialogVariante?.id === v.id;
-                        const sinStock = !esRestaurante && (v.stock ?? 0) <= 0;
-                        return (
-                          <Box
-                            key={v.id}
-                            onClick={() => !sinStock && setDialogVariante(v)}
-                            sx={{
-                              px: 1.5, py: 0.9, borderRadius: 2.5, cursor: sinStock ? 'not-allowed' : 'pointer',
-                              border: '2px solid', borderColor: elegida ? accentColor : borderClr,
-                              bgcolor: elegida ? `${accentColor}10` : 'transparent',
-                              opacity: sinStock ? 0.45 : 1,
-                              transition: 'all 0.15s',
-                            }}
-                          >
-                            <Typography sx={{ fontSize: 13, fontWeight: 700, color: elegida ? accentColor : textPri }}>
-                              {v.nombre}
-                            </Typography>
-                            {sinStock && (
-                              <Typography sx={{ fontSize: 10, color: '#EF4444', fontWeight: 700 }}>Sin stock</Typography>
-                            )}
-                          </Box>
-                        );
-                      })}
-                    </Box>
-                    {!esRestaurante && dialogVariante && (
-                      <Typography sx={{
-                        fontSize: 12, fontWeight: 700, mt: 1,
-                        color: dialogVariante.stock <= 5 ? '#F59E0B' : textSec,
-                      }}>
-                        {dialogVariante.stock <= 5
-                          ? `¡Quedan solo ${dialogVariante.stock} unidades!`
-                          : `${dialogVariante.stock} unidades disponibles`}
-                      </Typography>
-                    )}
-                  </Box>
-                )}
 
                 {selectedProduct.descripcion && (
                   <Box sx={{ mb: 3 }}>
@@ -1226,21 +892,14 @@ const CatalogoVirtual = () => {
 
               {/* Improvement #9: +/- in dialog when already in cart */}
               <DialogActions sx={{ p: 3, pt: 0 }}>
-                {selectedProduct.tiene_variantes && !dialogVariante ? (
-                  <Button fullWidth variant="outlined" size="large" disabled
-                    sx={{ borderRadius: 3, py: 1.5, fontWeight: 800 }}
-                  >
-                    Selecciona una opción
-                  </Button>
-                ) : isAgotado(selectedProduct, dialogVariante) ? (
+                {isAgotado(selectedProduct) ? (
                   <Button fullWidth variant="outlined" size="large" disabled
                     sx={{ borderRadius: 3, py: 1.5, fontWeight: 800 }}
                   >
                     Producto Agotado
                   </Button>
                 ) : (() => {
-                  const key = cartKey(selectedProduct.id, dialogVariante?.id);
-                  const inCartItem = cart.find(item => item.cartId === key);
+                  const inCartItem = cart.find(item => item.id === selectedProduct.id);
                   if (inCartItem) {
                     return (
                       <Box sx={{ width: '100%', display: 'flex', gap: 1.5, alignItems: 'center' }}>
@@ -1251,7 +910,7 @@ const CatalogoVirtual = () => {
                         }}>
                           <IconButton
                             size="small"
-                            onClick={() => removeFromCart(key)}
+                            onClick={() => removeFromCart(selectedProduct.id)}
                             sx={{ bgcolor: paperBg, color: accentColor, '&:hover': { bgcolor: subtleHov } }}
                           >
                             <Remove />
@@ -1261,7 +920,7 @@ const CatalogoVirtual = () => {
                           </Typography>
                           <IconButton
                             size="small"
-                            onClick={() => addToCart(selectedProduct, dialogVariante)}
+                            onClick={() => addToCart(selectedProduct)}
                             sx={{ bgcolor: paperBg, color: accentColor, '&:hover': { bgcolor: subtleHov } }}
                           >
                             <Add />
@@ -1282,7 +941,7 @@ const CatalogoVirtual = () => {
                     <Button
                       fullWidth variant="contained" size="large"
                       startIcon={<ShoppingCart />}
-                      onClick={() => { addToCart(selectedProduct, dialogVariante); setSelectedProduct(null); }}
+                      onClick={() => { addToCart(selectedProduct); setSelectedProduct(null); }}
                       sx={{ bgcolor: accentColor, borderRadius: 3, py: 1.5, fontWeight: 800, '&:hover': { bgcolor: accentColor, opacity: 0.9 } }}
                     >
                       Agregar al Carrito
@@ -1294,8 +953,8 @@ const CatalogoVirtual = () => {
           )}
         </Dialog>
 
-        {/* ── BANNER PROMOCIONAL — usa el accentColor del negocio para no chocar con su marca ── */}
-        <Box sx={{ maxWidth: CONTENT_MAX_WIDTH, mx: 'auto', px: 2, py: 1.5 }}>
+        {/* ── BANNER PROMOCIONAL ──────────────────────────────────────── */}
+        <Box sx={{ px: 2, py: 1.5 }}>
           <Box sx={{
             display: 'flex', alignItems: 'center', gap: 1.5,
             p: '10px 14px', borderRadius: 2.5,
@@ -1306,7 +965,7 @@ const CatalogoVirtual = () => {
           }}>
             <Box sx={{
               width: 30, height: 30, borderRadius: 1.5, flexShrink: 0,
-              bgcolor: accentColor, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              bgcolor: '#0891B2', display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               <RocketLaunch sx={{ color: '#fff', fontSize: 15 }} />
             </Box>
@@ -1325,10 +984,10 @@ const CatalogoVirtual = () => {
               size="small"
               endIcon={<ArrowForward sx={{ fontSize: 11 }} />}
               sx={{
-                bgcolor: accentColor, borderRadius: 2, fontWeight: 700,
+                bgcolor: '#0891B2', borderRadius: 2, fontWeight: 700,
                 fontSize: 11, textTransform: 'none', px: 1.5, py: 0.5,
                 minWidth: 'auto', flexShrink: 0, boxShadow: 'none',
-                '&:hover': { bgcolor: accentColor, opacity: 0.85, boxShadow: `0 4px 12px ${accentColor}4D` },
+                '&:hover': { bgcolor: '#e65520', boxShadow: '0 4px 12px rgba(8,145,178,0.3)' },
               }}
             >
               Gratis
@@ -1411,7 +1070,7 @@ const CatalogoVirtual = () => {
 
             <List sx={{ flexGrow: 1, overflowY: 'auto' }}>
               {cart.map(item => (
-                <ListItem key={item.cartId} sx={{ px: 0, py: 1.5, flexDirection: 'column', alignItems: 'stretch' }}>
+                <ListItem key={item.id} sx={{ px: 0, py: 1.5, flexDirection: 'column', alignItems: 'stretch' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Avatar
                       variant="rounded"
@@ -1421,17 +1080,15 @@ const CatalogoVirtual = () => {
                       <ShoppingBag />
                     </Avatar>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography sx={{ fontWeight: 700, fontSize: 13, lineHeight: 1.3 }}>
-                        {item.nombre}{item.nombreVariante ? ` · ${item.nombreVariante}` : ''}
-                      </Typography>
+                      <Typography sx={{ fontWeight: 700, fontSize: 13, lineHeight: 1.3 }}>{item.nombre}</Typography>
                       <Typography sx={{ color: accentColor, fontWeight: 700, fontSize: 12 }}>
                         ${new Intl.NumberFormat('es-CO').format(item.precio)} c/u · Sub: ${new Intl.NumberFormat('es-CO').format(item.precio * item.quantity)}
                       </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: subtleBg, borderRadius: 2, p: 0.5, flexShrink: 0 }}>
-                      <IconButton size="small" onClick={() => removeFromCart(item.cartId)} sx={{ bgcolor: paperBg, color: accentColor, p: '3px' }}><Remove sx={{ fontSize: 14 }} /></IconButton>
+                      <IconButton size="small" onClick={() => removeFromCart(item.id)} sx={{ bgcolor: paperBg, color: accentColor, p: '3px' }}><Remove sx={{ fontSize: 14 }} /></IconButton>
                       <Typography sx={{ fontWeight: 700, fontSize: 13, minWidth: 16, textAlign: 'center' }}>{item.quantity}</Typography>
-                      <IconButton size="small" onClick={() => addToCart(item, item.varianteId ? { id: item.varianteId, nombre: item.nombreVariante, precio: item.precio, stock: item.stock } : undefined)} sx={{ bgcolor: paperBg, color: accentColor, p: '3px' }}><Add sx={{ fontSize: 14 }} /></IconButton>
+                      <IconButton size="small" onClick={() => addToCart(item)} sx={{ bgcolor: paperBg, color: accentColor, p: '3px' }}><Add sx={{ fontSize: 14 }} /></IconButton>
                     </Box>
                   </Box>
 
@@ -1498,7 +1155,7 @@ const CatalogoVirtual = () => {
               fullWidth
               size="large"
               endIcon={empresa?.tipo_negocio === 'restaurante' ? <TableRestaurant /> : <ArrowForward />}
-              onClick={() => { setOrderModalOpen(true); setCheckoutStep(1); setCheckoutErrors({}); }}
+              onClick={() => { setOrderModalOpen(true); setCheckoutStep(1); }}
               sx={{ bgcolor: accentColor, borderRadius: 3, py: 1.5, fontWeight: 700, '&:hover': { bgcolor: accentColor, opacity: 0.9 } }}
             >
               {empresa?.tipo_negocio === 'restaurante' ? 'Pedir a cocina' : 'Siguiente'}
@@ -1524,7 +1181,7 @@ const CatalogoVirtual = () => {
                 ? 'Enviar pedido a cocina'
                 : checkoutStep === 1 ? 'Tus datos' : 'Entrega'}
             </Box>
-            {!orderSent && <IconButton size="small" onClick={() => { setOrderModalOpen(false); setCheckoutStep(1); setCheckoutErrors({}); }}><Close fontSize="small" /></IconButton>}
+            {!orderSent && <IconButton size="small" onClick={() => { setOrderModalOpen(false); setCheckoutStep(1); }}><Close fontSize="small" /></IconButton>}
           </DialogTitle>
 
           <DialogContent dividers sx={{ position: 'relative', p: 0 }}>
@@ -1562,16 +1219,8 @@ const CatalogoVirtual = () => {
                   <>
                     <Typography sx={{ fontSize: 64, lineHeight: 1 }}>🎉</Typography>
                     <Typography sx={{ fontWeight: 900, fontSize: 22, color: textPri }}>¡Pedido enviado!</Typography>
-                    {confirmedPedido?.numero_pedido && (
-                      <Box sx={{ p: 2, borderRadius: 3, bgcolor: `${accentColor}10`, border: `1px solid ${accentColor}40`, width: '100%', maxWidth: 280 }}>
-                        <Typography sx={{ fontSize: 13, color: textSec }}>Número de tu pedido</Typography>
-                        <Typography sx={{ fontWeight: 900, fontSize: 28, color: accentColor }}>
-                          #{confirmedPedido.numero_pedido}
-                        </Typography>
-                      </Box>
-                    )}
                     <Typography sx={{ color: textSec, fontSize: 14, maxWidth: 280 }}>
-                      Guarda tu número de pedido — con él y tu celular puedes consultar el estado desde el botón "Rastrear pedido" en la parte superior. El vendedor te contactará pronto.
+                      Se abrió WhatsApp con tu pedido. El vendedor te contactará pronto.
                     </Typography>
                   </>
                 )}
@@ -1587,10 +1236,10 @@ const CatalogoVirtual = () => {
                     Tu pedido
                   </Typography>
                   {cart.map(item => (
-                    <Box key={item.cartId} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.6 }}>
+                    <Box key={item.id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.6 }}>
                       <Box sx={{ flex: 1 }}>
                         <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
-                          {item.quantity}× {item.nombre}{item.nombreVariante ? ` (${item.nombreVariante})` : ''}
+                          {item.quantity}× {item.nombre}
                         </Typography>
                         {itemNotas[item.id] && (
                           <Typography sx={{ fontSize: 11, color: accentColor, fontStyle: 'italic' }}>
@@ -1618,18 +1267,15 @@ const CatalogoVirtual = () => {
                     <TableRestaurant fontSize="small" sx={{ color: accentColor }} />
                     ¿En qué mesa estás? *
                   </Typography>
-                  <Typography sx={{ fontSize: 12, color: checkoutErrors.mesa ? '#EF4444' : textSec, mb: 1.5, fontWeight: checkoutErrors.mesa ? 700 : 400 }}>
-                    {checkoutErrors.mesa ? '⚠ Debes indicar tu mesa para poder enviar el pedido' : 'Mira el número en la tarjeta de tu mesa.'}
+                  <Typography sx={{ fontSize: 12, color: textSec, mb: 1.5 }}>
+                    Mira el número en la tarjeta de tu mesa.
                   </Typography>
                   {mesas.length > 0 ? (
-                    <Box sx={{
-                      display: 'flex', flexWrap: 'wrap', gap: 1, p: checkoutErrors.mesa ? 1 : 0,
-                      borderRadius: 2, border: checkoutErrors.mesa ? '1.5px solid #EF4444' : 'none',
-                    }}>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                       {mesas.map(m => (
                         <Box
                           key={m.numero}
-                          onClick={() => { setMesaNumero(m.numero); setCheckoutErrors(prev => ({ ...prev, mesa: false })); }}
+                          onClick={() => setMesaNumero(m.numero)}
                           sx={{
                             width: 52, height: 52, borderRadius: 2.5,
                             border: `2.5px solid ${mesaNumero === m.numero ? accentColor : borderClr}`,
@@ -1654,9 +1300,8 @@ const CatalogoVirtual = () => {
                       fullWidth
                       placeholder="Ej: 5, A3, Barra-2"
                       value={mesaNumero}
-                      onChange={e => { setMesaNumero(e.target.value); if (e.target.value.trim()) setCheckoutErrors(prev => ({ ...prev, mesa: false })); }}
+                      onChange={e => setMesaNumero(e.target.value)}
                       size="small"
-                      error={Boolean(checkoutErrors.mesa)}
                       sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                     />
                   )}
@@ -1665,9 +1310,8 @@ const CatalogoVirtual = () => {
                       fullWidth
                       placeholder="O escribe el número de tu mesa"
                       value={mesaNumero}
-                      onChange={e => { setMesaNumero(e.target.value); if (e.target.value.trim()) setCheckoutErrors(prev => ({ ...prev, mesa: false })); }}
+                      onChange={e => setMesaNumero(e.target.value)}
                       size="small"
-                      error={Boolean(checkoutErrors.mesa)}
                       sx={{ mt: 1.5, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                     />
                   )}
@@ -1715,15 +1359,12 @@ const CatalogoVirtual = () => {
                         fullWidth
                         placeholder="¿Cómo te llamas?"
                         value={nombre}
-                        onChange={(e) => { setNombre(e.target.value); if (e.target.value) setCheckoutErrors(prev => ({ ...prev, nombre: false })); }}
+                        onChange={(e) => setNombre(e.target.value)}
                         required
-                        error={Boolean(checkoutErrors.nombre)}
-                        helperText={
-                          checkoutErrors.nombre ? 'Este campo es obligatorio'
-                          : nombre ? '✓ Datos guardados' : ' '
-                        }
-                        FormHelperTextProps={{ sx: { color: checkoutErrors.nombre ? undefined : '#22c55e', fontWeight: 600 } }}
                       />
+                      {nombre && (
+                        <Typography sx={{ fontSize: 10, color: '#22c55e', mt: 0.4, fontWeight: 600 }}>✓ Datos guardados</Typography>
+                      )}
                     </Box>
                     <Box>
                       <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1733,15 +1374,12 @@ const CatalogoVirtual = () => {
                         fullWidth
                         placeholder="Ej: 300 123 4567"
                         value={celular}
-                        onChange={(e) => { setCelular(e.target.value.replace(/\D/g, '')); if (e.target.value) setCheckoutErrors(prev => ({ ...prev, celular: false })); }}
+                        onChange={(e) => setCelular(e.target.value.replace(/\D/g, ''))}
                         required
-                        error={Boolean(checkoutErrors.celular)}
-                        helperText={
-                          checkoutErrors.celular ? 'Este campo es obligatorio'
-                          : celular ? '✓ Datos guardados' : ' '
-                        }
-                        FormHelperTextProps={{ sx: { color: checkoutErrors.celular ? undefined : '#22c55e', fontWeight: 600 } }}
                       />
+                      {celular && (
+                        <Typography sx={{ fontSize: 10, color: '#22c55e', mt: 0.4, fontWeight: 600 }}>✓ Datos guardados</Typography>
+                      )}
                     </Box>
                   </>
                 )}
@@ -1786,10 +1424,8 @@ const CatalogoVirtual = () => {
                           fullWidth
                           placeholder="Calle, Barrio, Apartamento..."
                           value={direccion}
-                          onChange={(e) => { setDireccion(e.target.value); if (e.target.value) setCheckoutErrors(prev => ({ ...prev, direccion: false })); }}
+                          onChange={(e) => setDireccion(e.target.value)}
                           required
-                          error={Boolean(checkoutErrors.direccion)}
-                          helperText={checkoutErrors.direccion ? 'La dirección es obligatoria para domicilios' : ' '}
                         />
                       </Box>
                     ) : (
@@ -1836,12 +1472,8 @@ const CatalogoVirtual = () => {
                   fullWidth variant="contained" size="large"
                   startIcon={<CheckCircle />}
                   onClick={handleSendOrderRestaurante}
-                  sx={{
-                    bgcolor: mesaNumero.trim() ? accentColor : 'action.disabledBackground',
-                    color: mesaNumero.trim() ? '#fff' : 'text.disabled',
-                    borderRadius: 3, py: 1.5, fontWeight: 800,
-                    '&:hover': { bgcolor: mesaNumero.trim() ? accentColor : 'action.disabledBackground', opacity: 0.9 },
-                  }}
+                  disabled={!mesaNumero.trim()}
+                  sx={{ bgcolor: accentColor, borderRadius: 3, py: 1.5, fontWeight: 800, '&:hover': { bgcolor: accentColor, opacity: 0.9 } }}
                 >
                   Enviar a cocina
                 </Button>
@@ -1854,11 +1486,9 @@ const CatalogoVirtual = () => {
                       endIcon={<ArrowForward />}
                       onClick={() => {
                         if (!nombre || !celular) {
-                          setCheckoutErrors({ nombre: !nombre, celular: !celular });
-                          toast.warning("Falta diligenciar tu nombre y/o celular");
+                          toast.warning("Nombre y celular son obligatorios");
                           return;
                         }
-                        setCheckoutErrors({});
                         setCheckoutStep(2);
                       }}
                       sx={{ bgcolor: accentColor, borderRadius: 3, py: 1.5, fontWeight: 800, '&:hover': { bgcolor: accentColor, opacity: 0.9 } }}
@@ -1871,11 +1501,11 @@ const CatalogoVirtual = () => {
                     <>
                       <Button
                         fullWidth variant="contained" size="large"
-                        startIcon={<ShoppingBag />}
+                        startIcon={<WhatsApp />}
                         onClick={handleSendOrder}
-                        sx={{ bgcolor: accentColor, borderRadius: 3, py: 1.5, fontWeight: 800, '&:hover': { bgcolor: accentColor, opacity: 0.9 } }}
+                        sx={{ bgcolor: '#25D366', borderRadius: 3, py: 1.5, fontWeight: 800, '&:hover': { bgcolor: '#128C7E' } }}
                       >
-                        Enviar pedido
+                        Enviar por WhatsApp
                       </Button>
                       <Button
                         fullWidth variant="text" size="medium"
@@ -1910,28 +1540,6 @@ const CatalogoVirtual = () => {
             Los productos, precios e información publicados son responsabilidad exclusiva de{' '}
             <strong style={{ color: isDark ? '#94A3B8' : '#94A3B8' }}>{empresa?.nombre}</strong>.
           </Typography>
-          {(empresa?.instagram_url || empresa?.facebook_url) && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, mt: 1.5 }}>
-              {empresa.instagram_url && (
-                <IconButton
-                  component="a" href={empresa.instagram_url} target="_blank" rel="noopener noreferrer"
-                  aria-label="Instagram" size="small"
-                  sx={{ color: textSec, bgcolor: subtleBg, '&:hover': { color: '#E1306C', bgcolor: subtleHov } }}
-                >
-                  <Instagram sx={{ fontSize: 18 }} />
-                </IconButton>
-              )}
-              {empresa.facebook_url && (
-                <IconButton
-                  component="a" href={empresa.facebook_url} target="_blank" rel="noopener noreferrer"
-                  aria-label="Facebook" size="small"
-                  sx={{ color: textSec, bgcolor: subtleBg, '&:hover': { color: '#1877F2', bgcolor: subtleHov } }}
-                >
-                  <Facebook sx={{ fontSize: 18 }} />
-                </IconButton>
-              )}
-            </Box>
-          )}
           <Button
             size="small"
             onClick={() => setTerminosOpen(true)}
@@ -1978,7 +1586,7 @@ const CatalogoVirtual = () => {
                 },
                 {
                   titulo: '4. Proceso de Compra y Pedidos',
-                  texto: `Los pedidos realizados a través de este catálogo virtual quedan registrados en el sistema del Vendedor, quien recibe una notificación inmediata. El comprador puede consultar el estado de su pedido en cualquier momento con su número de pedido y celular. El pedido se considera confirmado únicamente cuando el Vendedor lo acepta de forma expresa. El Vendedor puede rechazar o modificar un pedido por razones de inventario, error en precios o condiciones de entrega. El comprador debe suministrar información veraz y completa para garantizar la entrega correcta del pedido. La confirmación del pedido no implica el cobro hasta que el Vendedor lo valide.`,
+                  texto: `Los pedidos realizados a través de este catálogo virtual se formalizan mediante el envío del resumen del carrito por WhatsApp al Vendedor. El pedido se considera confirmado únicamente cuando el Vendedor lo acepta de forma expresa. El Vendedor puede rechazar o modificar un pedido por razones de inventario, error en precios o condiciones de entrega. El comprador debe suministrar información veraz y completa para garantizar la entrega correcta del pedido. La confirmación del pedido no implica el cobro hasta que el Vendedor lo valide.`,
                 },
                 {
                   titulo: '5. Formas de Pago',
@@ -2039,92 +1647,6 @@ const CatalogoVirtual = () => {
             <Button onClick={() => setTerminosOpen(false)} variant="contained"
               sx={{ bgcolor: accentColor, borderRadius: 2, fontWeight: 700, textTransform: 'none', '&:hover': { bgcolor: accentColor, opacity: 0.88 } }}>
               Entendido
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* ── MODAL RASTREAR PEDIDO ───────────────────────────────────── */}
-        <Dialog open={trackOpen} onClose={() => setTrackOpen(false)} maxWidth="xs" fullWidth
-          PaperProps={{ sx: { borderRadius: 3, m: { xs: 1, sm: 3 } } }}>
-          <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
-            <Typography sx={{ fontWeight: 800, fontSize: 17 }}>Rastrear mi pedido</Typography>
-            <IconButton onClick={() => setTrackOpen(false)} size="small"><Close /></IconButton>
-          </DialogTitle>
-          <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            <Typography sx={{ fontSize: 13, color: textSec }}>
-              Ingresa el número de tu pedido y el celular con el que lo hiciste.
-            </Typography>
-            <TextField
-              label="Número de pedido" placeholder="Ej: 12"
-              value={trackNumero} onChange={(e) => setTrackNumero(e.target.value.replace(/\D/g, ''))}
-              size="small" fullWidth
-            />
-            <TextField
-              label="Celular" placeholder="Ej: 300 123 4567"
-              value={trackCelular} onChange={(e) => setTrackCelular(e.target.value)}
-              size="small" fullWidth
-            />
-            {trackError && <Alert severity="error" sx={{ borderRadius: 2, fontSize: 12.5 }}>{trackError}</Alert>}
-            {trackResult && (
-              <Box sx={{ p: 2, borderRadius: 3, bgcolor: `${accentColor}10`, border: `1px solid ${accentColor}40` }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Typography sx={{ fontSize: 12, color: textSec }}>Pedido #{trackResult.numero_pedido}</Typography>
-                  <Typography sx={{ fontSize: 12, color: textSec }}>
-                    {trackResult.cantidad_items} producto{trackResult.cantidad_items !== 1 ? 's' : ''} · {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(trackResult.total)}
-                  </Typography>
-                </Box>
-
-                <Typography sx={{ fontWeight: 900, fontSize: 18, color: trackResult.cancelado ? '#EF4444' : accentColor, mt: 0.8 }}>
-                  {trackResult.estado_label}
-                </Typography>
-
-                {/* Progreso — "estás en el paso X de N", no solo una palabra suelta */}
-                {!trackResult.cancelado && trackResult.etapa_actual_index != null && (
-                  <Box sx={{ mt: 1.5 }}>
-                    <Box sx={{ display: 'flex', gap: 0.6 }}>
-                      {trackResult.etapas.map((_, i) => (
-                        <Box key={i} sx={{
-                          flex: 1, height: 6, borderRadius: 3,
-                          bgcolor: i <= trackResult.etapa_actual_index ? accentColor : `${accentColor}20`,
-                        }} />
-                      ))}
-                    </Box>
-                    <Typography sx={{ fontSize: 11, color: textSec, mt: 0.6 }}>
-                      Paso {trackResult.etapa_actual_index + 1} de {trackResult.total_etapas}
-                      {trackResult.etapa_actual_index + 1 < trackResult.total_etapas &&
-                        ` · Sigue: ${trackResult.etapas_labels[trackResult.etapa_actual_index + 1]}`}
-                    </Typography>
-                  </Box>
-                )}
-
-                <Typography sx={{ fontSize: 11.5, color: textSec, mt: 1.5 }}>
-                  {trackResult.tipo_entrega === 'domicilio' ? `Entrega a domicilio${trackResult.direccion_entrega ? ` — ${trackResult.direccion_entrega}` : ''}` : 'Recoger en tienda'}
-                  {trackResult.fecha_creacion && ` · Pedido el ${new Date(trackResult.fecha_creacion).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}`}
-                </Typography>
-
-                {trackResult.empresa_telefono && (
-                  <Button
-                    component="a"
-                    href={`tel:${trackResult.empresa_telefono}`}
-                    startIcon={<Phone sx={{ fontSize: 16 }} />}
-                    size="small"
-                    sx={{ mt: 1.5, textTransform: 'none', fontWeight: 700, color: accentColor }}
-                  >
-                    Llamar a {trackResult.empresa_nombre || 'la tienda'} · {trackResult.empresa_telefono}
-                  </Button>
-                )}
-              </Box>
-            )}
-          </DialogContent>
-          <DialogActions sx={{ px: 3, pb: 2 }}>
-            <Button
-              onClick={handleTrackSubmit}
-              disabled={trackLoading}
-              variant="contained"
-              fullWidth
-              sx={{ bgcolor: accentColor, borderRadius: 2, fontWeight: 700, textTransform: 'none', '&:hover': { bgcolor: accentColor, opacity: 0.88 } }}
-            >
-              {trackLoading ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : 'Consultar estado'}
             </Button>
           </DialogActions>
         </Dialog>

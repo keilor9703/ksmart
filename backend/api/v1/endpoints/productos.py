@@ -32,7 +32,7 @@ _barcode_logger = logging.getLogger("productos.barcode")
 
 # Open*Facts bloquea con 403 a clientes sin User-Agent identificable
 # (política anti-abuso). Identificarse es obligatorio para usar su API.
-_LOOKUP_HEADERS = {"User-Agent": "Ksmart360/1.0 (ERP Colombia; https://ksmart360.com)"}
+_LOOKUP_HEADERS = {"User-Agent": "Ksmart360/1.0 (ERP Colombia; https://appjeylor.com)"}
 
 
 async def fetch_openfoodfacts(client: httpx.AsyncClient, barcode: str):
@@ -120,14 +120,6 @@ async def fetch_web_search(client: httpx.AsyncClient, barcode: str):
     """Último recurso: buscar el EAN en la web (DuckDuckGo HTML, gratuito) y
     tomar el título del primer resultado — el mismo truco que usan las apps
     gratuitas de escaneo para productos locales que no están en los catálogos.
-
-    ⚠️ A diferencia de los fetch_* de arriba, esto NO es una consulta por
-    código de barras a una base de datos real — es una búsqueda de texto
-    libre que puede devolver el nombre de una página totalmente no
-    relacionada (un foro, un producto distinto que menciona el mismo número,
-    spam SEO). Por eso el resultado se marca con fuente="web_no_verificado"
-    en vez de tratarse como un match real — el frontend debe advertir
-    claramente al usuario que revise/confirme el nombre antes de guardar.
     """
     import re, html as _html
     try:
@@ -147,11 +139,7 @@ async def fetch_web_search(client: httpx.AsyncClient, barcode: str):
             if len(limpio) >= 8:
                 # Quitar sufijo de sitio ("… - Locatel Colombia", "… | Éxito")
                 limpio = re.split(r"\s+[|·]\s+", limpio)[0].strip()
-                return {
-                    "nombre": limpio[:150],
-                    "descripcion": "Encontrado por búsqueda web — no verificado, revisa el nombre",
-                    "fuente": "web_no_verificado",
-                }
+                return {"nombre": limpio[:150], "descripcion": "Encontrado por búsqueda web — verifica el nombre"}
     except Exception as e:
         _barcode_logger.warning("websearch %s -> error: %s", barcode, e)
     return None
@@ -201,22 +189,6 @@ def crear_variante(
 ):
     try:
         return crud.create_variante(db, empresa_id=current_user.empresa_id, producto_id=producto_id, payload=payload)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-
-@router.post("/{producto_id}/variantes/generar", response_model=List[schemas.ProductoVarianteOut])
-def generar_variantes(
-    producto_id: int,
-    payload: schemas.VariantesGenerarIn,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user),
-):
-    """Genera varias variantes en un solo paso a partir de un atributo
-    (ej. "Talla") y una lista de valores, compartiendo precio/costo/stock
-    mínimo — evita repetir el formulario completo por cada valor."""
-    try:
-        return crud.generar_variantes(db, empresa_id=current_user.empresa_id, producto_id=producto_id, payload=payload)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -274,16 +246,17 @@ async def get_producto_por_barcode(
 
     # 2. BÚSQUEDA PARALELA EN APIs PÚBLICAS (no se comparten datos entre tenants).
     # Los resultados se evalúan en orden de confiabilidad: catálogos
-    # estructurados primero, búsqueda web (sin verificar) como último recurso.
+    # estructurados primero, búsqueda web como último recurso.
     async with httpx.AsyncClient(timeout=6.0, follow_redirects=True) as client:
-        resultados_catalogo = await asyncio.gather(
+        results = await asyncio.gather(
             fetch_openfoodfacts(client, barcode),
             fetch_openfacts_siblings(client, barcode),
             fetch_upcitemdb(client, barcode),
             fetch_barcode_monster(client, barcode),
+            fetch_web_search(client, barcode),
             return_exceptions=True,
         )
-        for resultado_api in resultados_catalogo:
+        for resultado_api in results:
             if resultado_api and not isinstance(resultado_api, Exception) and resultado_api.get("nombre"):
                 return {
                     "id": 0,
@@ -294,26 +267,8 @@ async def get_producto_por_barcode(
                     "precio": 0.0,
                     "costo": 0.0,
                     "descripcion": resultado_api.get("descripcion", ""),
-                    "empresa_id": current_user.empresa_id,
-                    "fuente": "catalogo",
+                    "empresa_id": current_user.empresa_id
                 }
-
-        # Ningún catálogo estructurado lo reconoció — último recurso, marcado
-        # explícitamente como no verificado (ver docstring de fetch_web_search).
-        resultado_web = await fetch_web_search(client, barcode)
-        if resultado_web and resultado_web.get("nombre"):
-            return {
-                "id": 0,
-                "nombre": resultado_web["nombre"],
-                "codigo_barras": barcode,
-                "unidad_medida": "UND",
-                "grupo_item": 2,
-                "precio": 0.0,
-                "costo": 0.0,
-                "descripcion": resultado_web.get("descripcion", ""),
-                "empresa_id": current_user.empresa_id,
-                "fuente": resultado_web.get("fuente", "web_no_verificado"),
-            }
 
     return None
 

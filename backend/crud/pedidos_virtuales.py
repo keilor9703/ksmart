@@ -9,8 +9,6 @@ import models
 import schemas
 from crud import notificaciones as crud_notif
 from crud import pagos as crud_pagos
-from crud.common import empresa_suscripcion_activa
-from crud.consecutivos import next_consecutivo
 
 logger = logging.getLogger(__name__)
 
@@ -28,25 +26,12 @@ ALLOWED_TRANSITIONS = {
     "cancelado":      [],
 }
 
-# Flujo normal (sin contar "cancelado", que es una salida aparte, no un
-# paso más) — usado tanto para validar transiciones como para mostrarle al
-# cliente en qué paso de N va su pedido en la consulta pública de estado.
-ETAPAS_FLUJO = ["nuevo", "confirmado", "en_preparacion", "enviado", "entregado"]
-ETAPAS_LABELS = {
-    "nuevo":          "Pedido recibido",
-    "confirmado":     "Confirmado por la tienda",
-    "en_preparacion": "En preparación",
-    "enviado":        "En camino / listo para recoger",
-    "entregado":      "Entregado",
-    "cancelado":      "Cancelado",
-}
-
 
 # ─── PUBLIC ──────────────────────────────────────────────────────────────────
 
 def create_pedido_publico(db: Session, slug: str, payload: schemas.PedidoVirtualCreate):
     empresa = db.query(models.Empresa).filter(models.Empresa.slug_catalogo == slug).first()
-    if not empresa or not empresa_suscripcion_activa(empresa):
+    if not empresa:
         raise ValueError("Catálogo no encontrado")
 
     if not payload.detalles:
@@ -56,65 +41,30 @@ def create_pedido_publico(db: Session, slug: str, payload: schemas.PedidoVirtual
     detalles_data = []
 
     for item in payload.detalles:
-        # El producto debe existir, pertenecer a la empresa, estar vigente y
-        # seguir visible en el catálogo — evita ordenar productos ocultos/
-        # descontinuados adivinando su ID.
+        # Buscar el producto validando que pertenezca a la empresa y esté vigente.
+        # No se requiere mostrar_en_catalogo==True porque el cliente pudo haber cargado
+        # el catálogo antes de que se hiciera un cambio, y rechazarlo sería una mala UX.
         producto = db.query(models.Producto).filter(
             models.Producto.id == item.producto_id,
             models.Producto.empresa_id == empresa.id,
             models.Producto.vigente == True,
-            models.Producto.mostrar_en_catalogo == True,
         ).first()
         if not producto:
             raise ValueError(f"Producto {item.producto_id} no encontrado en esta tienda")
 
-        # Si el producto maneja variantes, la variante es obligatoria y el
-        # precio/stock a validar son los DE LA VARIANTE, no los del padre
-        # (que quedan obsoletos/inconsistentes en cuanto existen variantes).
-        variante = None
-        nombre_variante = None
-        if producto.tiene_variantes:
-            if not item.variante_id:
-                raise ValueError(f"Debes seleccionar una opción (talla/color/etc.) para '{producto.nombre}'")
-            variante = db.query(models.ProductoVariante).filter(
-                models.ProductoVariante.id == item.variante_id,
-                models.ProductoVariante.producto_id == producto.id,
-                models.ProductoVariante.empresa_id == empresa.id,
-                models.ProductoVariante.activo == True,
-            ).first()
-            if not variante:
-                raise ValueError(f"La opción seleccionada para '{producto.nombre}' ya no está disponible")
-            nombre_variante = variante.nombre
-
-        stock_disponible = (variante.stock_actual if variante else producto.stock_actual) or 0
-        if not producto.es_servicio and stock_disponible < item.cantidad:
-            nombre_mostrado = f"{producto.nombre} ({nombre_variante})" if nombre_variante else producto.nombre
-            raise ValueError(
-                f"Stock insuficiente para '{nombre_mostrado}': "
-                f"disponible {stock_disponible}, solicitado {item.cantidad}"
-            )
-
-        # El precio SIEMPRE se recalcula desde la BD — nunca se confía en el
-        # precio enviado por el cliente (evita manipulación de precios).
-        precio_real = variante.precio if (variante and variante.precio is not None) else producto.precio
-        subtotal = round(item.cantidad * precio_real, 2)
+        subtotal = round(item.cantidad * item.precio_unitario, 2)
         total += subtotal
         detalles_data.append({
             "empresa_id":      empresa.id,
             "producto_id":     producto.id,
             "nombre_producto": producto.nombre,
             "cantidad":        item.cantidad,
-            "precio_unitario": precio_real,
+            "precio_unitario": item.precio_unitario,
             "subtotal":        subtotal,
-            "variante_id":     variante.id if variante else None,
-            "nombre_variante": nombre_variante,
         })
-
-    numero_pedido = next_consecutivo(db, empresa.id, "ultimo_numero_pedido")
 
     pedido = models.PedidoVirtual(
         empresa_id        = empresa.id,
-        numero_pedido     = numero_pedido,
         nombre_cliente    = payload.nombre_cliente,
         celular_cliente   = payload.celular_cliente,
         email_cliente     = payload.email_cliente,
@@ -133,11 +83,7 @@ def create_pedido_publico(db: Session, slug: str, payload: schemas.PedidoVirtual
     db.commit()
     db.refresh(pedido)
 
-    # Notificar al dueño DENTRO del sistema (campanita + toast en la pantalla
-    # de Pedidos Virtuales). Es la vía que reemplaza el WhatsApp automático de
-    # Meta: el dueño ve el pedido nuevo en el ERP sin depender de la API de
-    # Meta (que además cobra por mensaje). Aislado del commit principal para
-    # que un fallo no revierta el pedido.
+    # Notificar — aislado del commit principal para que un fallo no revierta el pedido
     try:
         _notificar_nuevo_pedido(db, empresa.id, pedido)
     except Exception as e:
@@ -171,30 +117,6 @@ def _notificar_nuevo_pedido(db: Session, empresa_id: int, pedido: models.PedidoV
     db.commit()
 
 
-def _solo_digitos(s: str) -> str:
-    return "".join(ch for ch in (s or "") if ch.isdigit())
-
-
-def get_pedido_status_publico(
-    db: Session, slug: str, numero_pedido: int, celular_cliente: str
-) -> Optional[models.PedidoVirtual]:
-    """Consulta pública de estado — requiere el número de pedido Y el celular
-    con el que se hizo el pedido (evita que cualquiera enumere pedidos ajenos
-    probando números consecutivos)."""
-    empresa = db.query(models.Empresa).filter(models.Empresa.slug_catalogo == slug).first()
-    if not empresa or not empresa_suscripcion_activa(empresa):
-        return None
-    candidatos = db.query(models.PedidoVirtual).filter(
-        models.PedidoVirtual.empresa_id == empresa.id,
-        models.PedidoVirtual.numero_pedido == numero_pedido,
-    ).all()
-    celular_norm = _solo_digitos(celular_cliente)
-    for pedido in candidatos:
-        if _solo_digitos(pedido.celular_cliente) == celular_norm:
-            return pedido
-    return None
-
-
 # ─── PRIVATE ─────────────────────────────────────────────────────────────────
 
 def get_pedidos(
@@ -219,14 +141,11 @@ def get_pedidos(
     return q.order_by(models.PedidoVirtual.fecha_creacion.desc()).offset(skip).limit(limit).all()
 
 
-def get_pedido(db: Session, pedido_id: int, empresa_id: int, for_update: bool = False) -> Optional[models.PedidoVirtual]:
-    q = db.query(models.PedidoVirtual).filter(
+def get_pedido(db: Session, pedido_id: int, empresa_id: int) -> Optional[models.PedidoVirtual]:
+    return db.query(models.PedidoVirtual).filter(
         models.PedidoVirtual.id == pedido_id,
         models.PedidoVirtual.empresa_id == empresa_id,
-    )
-    if for_update:
-        q = q.with_for_update()
-    return q.first()
+    ).first()
 
 
 def get_stats(db: Session, empresa_id: int) -> dict:
@@ -244,63 +163,6 @@ def get_stats(db: Session, empresa_id: int) -> dict:
     return result
 
 
-
-
-# ─── Aviso al cliente por WhatsApp ────────────────────────────────────────────
-#
-# Solo dos estados generan aviso. "Confirmado" y "en preparación" no le sirven
-# de nada al cliente —no puede hacer nada con esa información— y cada mensaje
-# saliente no solicitado suma al patrón que WhatsApp castiga restringiendo el
-# número. Se avisa cuando el pedido sale y cuando llega: los dos momentos en
-# los que el cliente sí necesita estar pendiente.
-ESTADOS_QUE_AVISAN = {
-    "enviado":   "🛵 ¡Tu pedido *#{numero}* ya va en camino! Pronto lo recibes.\n\n_Este es un mensaje automático, no es necesario que respondas._",
-    "entregado": "✅ Tu pedido *#{numero}* fue entregado. ¡Gracias por tu compra!\n\n_Este es un mensaje automático, no es necesario que respondas._",
-}
-
-
-def _avisar_cambio_estado(db: Session, pedido: models.PedidoVirtual, nuevo_estado: str):
-    """
-    Le avisa al cliente por WhatsApp que su pedido cambió de estado.
-
-    Nunca interrumpe la gestión del pedido: si el WhatsApp de la empresa está
-    caído, si falta el número o si Evolution no responde, se registra y se
-    sigue. El estado del pedido ya quedó guardado — que el aviso falle no
-    puede hacer que el empleado crea que el cambio no se aplicó.
-    """
-    plantilla = ESTADOS_QUE_AVISAN.get(nuevo_estado)
-    if not plantilla:
-        return
-
-    try:
-        empresa = db.query(models.Empresa).filter(
-            models.Empresa.id == pedido.empresa_id
-        ).first()
-        if not empresa or not empresa.notificar_estado_pedido:
-            return
-        if not empresa.whatsapp_instancia:
-            return
-        if not pedido.celular_cliente:
-            return
-
-        from services import evolution_service as evo
-        if not evo.is_configured():
-            return
-
-        r = evo.enviar_texto(
-            empresa.id,
-            pedido.celular_cliente,
-            plantilla.format(numero=pedido.numero_pedido or pedido.id),
-        )
-        if r.get("error"):
-            logger.info(
-                "Aviso de estado no entregado (pedido %s, empresa %s): %s",
-                pedido.id, empresa.id, r["error"],
-            )
-    except Exception:
-        logger.exception("Fallo al avisar el cambio de estado del pedido %s", pedido.id)
-
-
 def update_estado(
     db: Session,
     pedido_id: int,
@@ -308,9 +170,7 @@ def update_estado(
     nuevo_estado: str,
     notas: Optional[str] = None,
 ) -> models.PedidoVirtual:
-    # Row lock: dos PATCH /estado concurrentes (doble clic, dos empleados)
-    # transicionando nuevo→confirmado no deben poder deducir el stock dos veces.
-    pedido = get_pedido(db, pedido_id, empresa_id, for_update=True)
+    pedido = get_pedido(db, pedido_id, empresa_id)
     if not pedido:
         raise ValueError("Pedido no encontrado")
 
@@ -335,9 +195,6 @@ def update_estado(
 
     db.commit()
     db.refresh(pedido)
-
-    _avisar_cambio_estado(db, pedido, nuevo_estado)
-
     return pedido
 
 
@@ -367,9 +224,7 @@ def convertir_a_venta(
     omitir_inventario: bool = False,
     iva_porcentaje: float = 0.0,
 ) -> models.PedidoVirtual:
-    # Row lock: dos solicitudes de conversión concurrentes (doble clic, dos
-    # empleados) no deben poder crear dos ventas/pagos para el mismo pedido.
-    pedido = get_pedido(db, pedido_id, empresa_id, for_update=True)
+    pedido = get_pedido(db, pedido_id, empresa_id)
     if not pedido:
         raise ValueError("Pedido no encontrado")
 
@@ -378,8 +233,6 @@ def convertir_a_venta(
         raise ValueError("No se puede convertir un pedido cancelado")
     if pedido.venta_id:
         raise ValueError("Este pedido ya tiene una venta asociada")
-    if pedido.total <= 0 or all(d.producto_id is None for d in pedido.detalles):
-        raise ValueError("El pedido no tiene productos válidos para convertir en venta")
 
     # Find or auto-create client by phone
     cliente = db.query(models.Cliente).filter(
@@ -426,8 +279,6 @@ def convertir_a_venta(
             precio_unitario = d.precio_unitario,
             descuento_pct   = 0.0,
             iva_porcentaje  = iva_porcentaje,
-            variante_id     = d.variante_id,
-            nombre_variante = d.nombre_variante,
         ))
 
     # Ensure stock is decremented (may not have been if skipped confirmation)
@@ -451,7 +302,6 @@ def convertir_a_venta(
     crud_pagos.create_pago(db, empresa_id, pago)
 
     db.refresh(pedido)
-    _avisar_cambio_estado(db, pedido, "entregado")
     return pedido
 
 
@@ -468,48 +318,25 @@ def _deducir_stock(db: Session, pedido: models.PedidoVirtual, empresa_id: int):
     for det in pedido.detalles:
         if not det.producto_id:
             continue
-        # `Producto.grupo` es lazy="joined" (siempre agrega un LEFT OUTER JOIN
-        # a grupos_producto). Postgres rechaza FOR UPDATE genérico sobre el
-        # lado nullable de un outer join («FeatureNotSupported»), así que hay
-        # que acotar el lock explícitamente a la tabla productos con `of=`.
         prod = db.query(models.Producto).filter(
             models.Producto.id == det.producto_id,
             models.Producto.empresa_id == empresa_id,
-        ).with_for_update(of=models.Producto).first()
+        ).first()
         if not prod or getattr(prod, "es_servicio", False):
             continue
-
-        if det.variante_id:
-            variante = db.query(models.ProductoVariante).filter(
-                models.ProductoVariante.id == det.variante_id,
-                models.ProductoVariante.empresa_id == empresa_id,
-            ).with_for_update().first()
-            if not variante:
-                continue
-            if (variante.stock_actual or 0) < det.cantidad:
-                raise ValueError(
-                    f"Stock insuficiente para '{prod.nombre} ({variante.nombre})': "
-                    f"disponible {variante.stock_actual}, solicitado {det.cantidad}"
-                )
-            variante.stock_actual -= det.cantidad
-            db.add(variante)
-        else:
-            if prod.stock_actual < det.cantidad:
-                raise ValueError(
-                    f"Stock insuficiente para '{prod.nombre}': "
-                    f"disponible {prod.stock_actual}, solicitado {det.cantidad}"
-                )
-            prod.stock_actual -= det.cantidad
-
+        if prod.stock_actual < det.cantidad:
+            raise ValueError(
+                f"Stock insuficiente para '{prod.nombre}': "
+                f"disponible {prod.stock_actual}, solicitado {det.cantidad}"
+            )
+        prod.stock_actual -= det.cantidad
         db.add(models.InventoryMovement(
-            empresa_id      = empresa_id,
-            producto_id     = prod.id,
-            tipo            = models.MovementType.SALIDA,
-            cantidad        = det.cantidad,
-            motivo          = "Pedido virtual",
-            referencia      = f"pedido_virtual #{pedido.id}",
-            variante_id     = det.variante_id,
-            nombre_variante = det.nombre_variante,
+            empresa_id     = empresa_id,
+            producto_id    = prod.id,
+            tipo           = models.MovementType.SALIDA,
+            cantidad       = det.cantidad,
+            motivo         = "Pedido virtual",
+            referencia     = f"pedido_virtual #{pedido.id}",
         ))
 
 
@@ -523,25 +350,12 @@ def _restaurar_stock(db: Session, pedido: models.PedidoVirtual, empresa_id: int)
         ).first()
         if not prod or getattr(prod, "es_servicio", False):
             continue
-
-        if det.variante_id:
-            variante = db.query(models.ProductoVariante).filter(
-                models.ProductoVariante.id == det.variante_id,
-                models.ProductoVariante.empresa_id == empresa_id,
-            ).first()
-            if variante:
-                variante.stock_actual = (variante.stock_actual or 0) + det.cantidad
-                db.add(variante)
-        else:
-            prod.stock_actual += det.cantidad
-
+        prod.stock_actual += det.cantidad
         db.add(models.InventoryMovement(
-            empresa_id      = empresa_id,
-            producto_id     = prod.id,
-            tipo            = models.MovementType.ENTRADA,
-            cantidad        = det.cantidad,
-            motivo          = "Reposición por cancelación de pedido virtual",
-            referencia      = f"pedido_virtual #{pedido.id}",
-            variante_id     = det.variante_id,
-            nombre_variante = det.nombre_variante,
+            empresa_id     = empresa_id,
+            producto_id    = prod.id,
+            tipo           = models.MovementType.ENTRADA,
+            cantidad       = det.cantidad,
+            motivo         = "Reposición por cancelación de pedido virtual",
+            referencia     = f"pedido_virtual #{pedido.id}",
         ))

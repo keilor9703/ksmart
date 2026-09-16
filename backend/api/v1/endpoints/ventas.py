@@ -217,17 +217,9 @@ def create_venta(venta: schemas.VentaCreate, db: Session = Depends(get_db), curr
                 if venta.puntos_canjeados and venta.puntos_canjeados > 0:
                     canjear_puntos(db, empresa_id=empresa_id, cliente_id=db_venta.cliente_id,
                                    puntos_a_canjear=venta.puntos_canjeados, redeem_rate=redeem_rate)
-                puntos_ganados = ganar_puntos_venta(db, empresa_id=empresa_id, cliente_id=db_venta.cliente_id,
+                ganar_puntos_venta(db, empresa_id=empresa_id, cliente_id=db_venta.cliente_id,
                                    total_venta=float(db_venta.total or 0), venta_id=db_venta.id,
                                    earn_rate=earn_rate)
-                # Snapshot para el comprobante: puntos ganados en esta venta y
-                # saldo del cliente justo después (no se recalcula en reimpresiones).
-                db_venta.puntos_ganados = puntos_ganados
-                db.refresh(db_venta.cliente)
-                db_venta.saldo_puntos_cliente = db_venta.cliente.puntos_fidelidad
-                db.add(db_venta)
-                db.commit()
-                db.refresh(db_venta)
         except Exception:
             pass  # Points are non-critical; never block the sale
 
@@ -278,29 +270,6 @@ def read_ventas(
         "stats":     stats,
     }
 
-@router.get("/borradores", response_model=List[schemas.VentaBorradorOut])
-def list_ventas_borrador(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
-    """Lista compartida de ventas aparcadas en el POS (cualquier vendedor de
-    la empresa puede ver/retomar el borrador de un compañero)."""
-    return crud.get_ventas_borrador(db, empresa_id=current_user.empresa_id)
-
-@router.post("/borradores", response_model=schemas.VentaBorradorOut)
-def create_venta_borrador(payload: schemas.VentaBorradorCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
-    return crud.create_venta_borrador(db, empresa_id=current_user.empresa_id, creado_por_id=current_user.id, borrador=payload)
-
-@router.get("/borradores/{borrador_id}", response_model=schemas.VentaBorradorDetalle)
-def get_venta_borrador(borrador_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
-    db_borrador = crud.get_venta_borrador(db, empresa_id=current_user.empresa_id, borrador_id=borrador_id)
-    if db_borrador is None:
-        raise HTTPException(status_code=404, detail="Borrador no encontrado")
-    return db_borrador
-
-@router.delete("/borradores/{borrador_id}", status_code=204)
-def delete_venta_borrador(borrador_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
-    ok = crud.delete_venta_borrador(db, empresa_id=current_user.empresa_id, borrador_id=borrador_id)
-    if not ok:
-        raise HTTPException(status_code=404, detail="Borrador no encontrado")
-
 @router.get("/{venta_id}", response_model=schemas.Venta)
 def read_venta(venta_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
     db_venta = crud.get_venta(db, empresa_id=current_user.empresa_id, venta_id=venta_id)
@@ -310,8 +279,6 @@ def read_venta(venta_id: int, db: Session = Depends(get_db), current_user: model
 
 @router.put("/{venta_id}", response_model=schemas.Venta)
 def update_venta(venta_id: int, venta: schemas.VentaCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
-    if current_user.role.name != "Admin":
-        raise HTTPException(status_code=403, detail="Solo un administrador puede editar una venta.")
     empresa_id = current_user.empresa_id
     if venta.cliente_id is not None and not crud.get_cliente(db, empresa_id=empresa_id, cliente_id=venta.cliente_id):
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
@@ -328,8 +295,6 @@ def update_venta(venta_id: int, venta: schemas.VentaCreate, db: Session = Depend
 
 @router.delete("/{venta_id}")
 def delete_venta(venta_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
-    if current_user.role.name != "Admin":
-        raise HTTPException(status_code=403, detail="Solo un administrador puede eliminar una venta.")
     empresa_id = current_user.empresa_id
     db_venta = crud.get_venta(db, empresa_id=empresa_id, venta_id=venta_id)
     if db_venta is None:

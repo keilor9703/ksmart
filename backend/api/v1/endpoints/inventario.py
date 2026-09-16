@@ -158,8 +158,11 @@ def alertas_bajo_stock(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    alertas = crud.get_low_stock(db, empresa_id=current_user.empresa_id)
-    return [schemas.InventoryAlertOut(**a) for a in alertas]
+    prods = crud.get_low_stock(db, empresa_id=current_user.empresa_id)
+    return [
+        schemas.InventoryAlertOut(producto_id=p.id, nombre=p.nombre, stock_actual=p.stock_actual or 0, stock_minimo=p.stock_minimo or 0)
+        for p in prods
+    ]
 
 @router.post("/movimientos/upload", response_model=schemas.BulkLoadResponse)
 def upload_movimientos(file: UploadFile = File(...), db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):

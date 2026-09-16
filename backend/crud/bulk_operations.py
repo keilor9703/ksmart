@@ -5,7 +5,7 @@ from fastapi import HTTPException
 import models, schemas, pandas as pd
 from crud.common import BOGOTA_TZ
 from crud.productos import get_producto, create_producto
-from crud.clientes import create_cliente, calcular_dv
+from crud.clientes import create_cliente
 from crud.inventario import create_movement
 from crud.grupos_producto import resolve_grupo_by_name
 
@@ -232,21 +232,8 @@ def bulk_create_clientes(db: Session, empresa_id: int, file: IO, filename: str):
 
     created_count = 0
     errors = []
-    def clean_cedula(v):
-        """Limpia NIT/cédula: elimina .0 flotantes y guiones."""
-        s = str(v).strip()
-        # Quitar guión de dígito verificador (900123456-1 → 900123456)
-        if '-' in s:
-            s = s.split('-')[0].strip()
-        if s.replace('.', '').isdigit():
-            try:
-                return str(int(float(s)))
-            except Exception:
-                pass
-        return s or None
-
     existing_cedulas = {
-        clean_cedula(c.cedula)
+        str(c.cedula)
         for c in db.query(models.Cliente).filter(models.Cliente.empresa_id == empresa_id).all()
         if c.cedula
     }
@@ -261,6 +248,19 @@ def bulk_create_clientes(db: Session, empresa_id: int, file: IO, filename: str):
             except Exception:
                 pass
         return s.replace('-', '').replace(' ', '') or None
+
+    def clean_cedula(v):
+        """Limpia NIT/cédula: elimina .0 flotantes y guiones."""
+        s = str(v).strip()
+        # Quitar guión de dígito verificador (900123456-1 → 900123456)
+        if '-' in s:
+            s = s.split('-')[0].strip()
+        if s.replace('.', '').isdigit():
+            try:
+                return str(int(float(s)))
+            except Exception:
+                pass
+        return s or None
 
     for index, row in df.iterrows():
         try:
@@ -301,16 +301,12 @@ def bulk_create_clientes(db: Session, empresa_id: int, file: IO, filename: str):
             raw_tipodoc = str(row.get('tipo_documento', 'CC')).strip().upper()
             if raw_tipodoc in ('', 'NAN'):
                 raw_tipodoc = 'CC'
-            if raw_tipodoc not in _tipodoc_map:
-                errors.append(f"Fila {index + 2}: '{nombre}' tiene TIPO_DOCUMENTO '{raw_tipodoc}' no reconocido, se usó Cédula (CC) por defecto.")
             tipo_documento_id = _tipodoc_map.get(raw_tipodoc, 13)
 
             # TIPO_PERSONA → tipo_organizacion_id, tipo_regimen_id
             raw_persona = str(row.get('tipo_persona', 'NATURAL')).strip().upper()
             if raw_persona in ('', 'NAN'):
                 raw_persona = 'NATURAL'
-            if raw_persona not in _persona_map:
-                errors.append(f"Fila {index + 2}: '{nombre}' tiene TIPO_PERSONA '{raw_persona}' no reconocido, se usó NATURAL por defecto.")
             persona_cfg = _persona_map.get(raw_persona, _persona_map['NATURAL'])
 
             # EMAIL
@@ -325,15 +321,6 @@ def bulk_create_clientes(db: Session, empresa_id: int, file: IO, filename: str):
             # DIRECCION
             raw_dir = str(row.get('direccion', '')).strip() if pd.notna(row.get('direccion')) else ''
             direccion = raw_dir if raw_dir not in ('nan', 'NAN', '') else None
-
-            # FECHA_NACIMIENTO (AAAA-MM-DD u otros formatos comunes; se ignora si no se puede parsear)
-            raw_fecha_nac = row.get('fecha_nacimiento')
-            fecha_nacimiento = None
-            if pd.notna(raw_fecha_nac) and str(raw_fecha_nac).strip() not in ('', 'nan', 'NAN'):
-                try:
-                    fecha_nacimiento = pd.to_datetime(raw_fecha_nac).date()
-                except Exception:
-                    errors.append(f"Fila {index + 2}: '{nombre}' tiene FECHA_NACIMIENTO '{raw_fecha_nac}' con formato inválido, se dejó vacía.")
 
             # CUPO_CREDITO
             raw_cupo = row.get('cupo_credito', 0)
@@ -353,7 +340,6 @@ def bulk_create_clientes(db: Session, empresa_id: int, file: IO, filename: str):
                 dv=raw_dv,
                 telefono=telefono,
                 direccion=direccion,
-                fecha_nacimiento=fecha_nacimiento,
                 email=raw_email,
                 cupo_credito=cupo,
                 es_cliente=es_cliente,

@@ -27,13 +27,6 @@ import usePolling from '../../hooks/usePolling';
 
 // ─── Estado metadata ──────────────────────────────────────────────────────────
 
-// El paso "enviado" del flujo significa cosas distintas según cómo se
-// entrega el pedido: para domicilio es literalmente "va en camino"; para
-// recogida en tienda no existe envío — es "ya está listo, el cliente lo
-// recoge". Mostrar "Enviado"/ícono de camión en un pedido de recogida
-// confunde al staff (parece que hay que despachar algo) y al cliente.
-const esDomicilio = (tipoEntrega) => tipoEntrega === 'domicilio';
-
 const ESTADOS_META = [
   { value: 'todos',          label: 'Todos',          color: '#6b7280', icon: null },
   { value: 'nuevo',          label: 'Nuevo',          color: '#2563EB', icon: <Bolt sx={{ fontSize: 12 }} /> },
@@ -49,27 +42,16 @@ const ESTADO_FLOW = ['nuevo', 'confirmado', 'en_preparacion', 'enviado', 'entreg
 const QUICK_ACTIONS = {
   nuevo:          { label: 'Confirmar',         color: '#059669', icon: <CheckCircle sx={{ fontSize: 14 }} />, next: 'confirmado' },
   confirmado:     { label: 'En preparación',    color: '#D97706', icon: <Inventory2 sx={{ fontSize: 14 }} />,  next: 'en_preparacion' },
-  en_preparacion: { label: 'Marcar enviado',    color: '#7C3AED', icon: <LocalShipping sx={{ fontSize: 14 }} />, next: 'enviado' },
+  en_preparacion: { label: 'Listo / Enviado',   color: '#7C3AED', icon: <LocalShipping sx={{ fontSize: 14 }} />, next: 'enviado' },
   enviado:        { label: 'Entregar y Cobrar', color: '#059669', icon: <AttachMoney sx={{ fontSize: 14 }} />, next: '_pay' },
 };
 
-// Variantes de las mismas acciones/etiquetas para pedidos de recogida en
-// tienda (tipo_entrega !== 'domicilio') — mismo flujo de estados internos
-// (enviado sigue siendo el nombre del campo en BD), pero el texto/ícono
-// que ve el staff refleja "listo para recoger" en vez de "enviado".
-const QUICK_ACTIONS_TIENDA = {
-  ...QUICK_ACTIONS,
-  en_preparacion: { label: 'Listo para recoger', color: '#7C3AED', icon: <Storefront sx={{ fontSize: 14 }} />, next: 'enviado' },
-  enviado:        { label: 'Entregar y Cobrar',  color: '#059669', icon: <AttachMoney sx={{ fontSize: 14 }} />, next: '_pay' },
-};
-
-const getQuickAction = (estado, tipoEntrega) =>
-  (esDomicilio(tipoEntrega) ? QUICK_ACTIONS : QUICK_ACTIONS_TIENDA)[estado];
-
-// Solo Efectivo viene fijo — el resto de métodos son los links de pago
-// (linkPagosConfig) que la empresa configure en Mi Cuenta → Link de Pago.
 const METODOS_PAGO = [
-  { value: 'Efectivo', label: 'Efectivo', icon: <AttachMoney /> },
+  { value: 'Efectivo',      label: 'Efectivo',      icon: <AttachMoney /> },
+  { value: 'Transferencia', label: 'Transferencia', icon: <AccountBalanceWallet /> },
+  { value: 'Nequi',         label: 'Nequi',         icon: <AccountBalanceWallet /> },
+  { value: 'Daviplata',     label: 'Daviplata',     icon: <AccountBalanceWallet /> },
+  { value: 'Tarjeta',       label: 'Tarjeta',       icon: <AttachMoney /> },
 ];
 
 const SORT_OPTIONS = [
@@ -97,13 +79,7 @@ const timeAgo = (dateStr) => {
   return `hace ${Math.floor(diff / 1440)}d`;
 };
 
-const getEstadoMeta = (value, tipoEntrega) => {
-  const meta = ESTADOS_META.find(e => e.value === value) || ESTADOS_META[0];
-  if (value === 'enviado' && !esDomicilio(tipoEntrega)) {
-    return { ...meta, label: 'Listo para recoger', icon: <Storefront sx={{ fontSize: 12 }} /> };
-  }
-  return meta;
-};
+const getEstadoMeta = (value) => ESTADOS_META.find(e => e.value === value) || ESTADOS_META[0];
 
 const copyToClipboard = (text) => {
   navigator.clipboard?.writeText(text).then(() => toast.success('Copiado al portapapeles'));
@@ -111,9 +87,9 @@ const copyToClipboard = (text) => {
 
 // ─── EstadoChip ───────────────────────────────────────────────────────────────
 
-const EstadoChip = ({ estado, tipoEntrega, size = 'small' }) => {
+const EstadoChip = ({ estado, size = 'small' }) => {
   const theme = useTheme();
-  const meta = getEstadoMeta(estado, tipoEntrega);
+  const meta = getEstadoMeta(estado);
   return (
     <Chip
       icon={meta.icon}
@@ -133,7 +109,7 @@ const EstadoChip = ({ estado, tipoEntrega, size = 'small' }) => {
 
 // ─── StateTimeline ────────────────────────────────────────────────────────────
 
-const StateTimeline = ({ estado, tipoEntrega }) => {
+const StateTimeline = ({ estado }) => {
   const theme = useTheme();
   const isCancelado = estado === 'cancelado';
   const currentIdx = ESTADO_FLOW.indexOf(estado);
@@ -161,7 +137,7 @@ const StateTimeline = ({ estado, tipoEntrega }) => {
         }} />
       }>
         {ESTADO_FLOW.map((s, i) => {
-          const meta = getEstadoMeta(s, tipoEntrega);
+          const meta = getEstadoMeta(s);
           const completed = currentIdx > i;
           const active = currentIdx === i;
           return (
@@ -282,7 +258,7 @@ const CardSkeleton = () => (
 
 // ─── PaymentDialog ────────────────────────────────────────────────────────────
 
-const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, linkPagosConfig }) => {
+const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, linkPagoConfig }) => {
   const theme = useTheme();
   const [metodo, setMetodo] = useState('Efectivo');
   const [loading, setLoading] = useState(false);
@@ -292,9 +268,6 @@ const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, li
   const omitirInventarioRef = useRef(false);
   omitirInventarioRef.current = omitirInventario;
   const [linkPagoModalOpen, setLinkPagoModalOpen] = useState(false);
-  const selectedLinkPago = metodo?.startsWith('link:')
-    ? (linkPagosConfig || []).find(l => `link:${l.id}` === metodo)
-    : null;
 
   const totalConIva = pedido ? Math.round(pedido.total * (1 + ivaPct / 100)) : 0;
   const ivaTotal = pedido ? Math.round(pedido.total * (ivaPct / 100)) : 0;
@@ -303,9 +276,8 @@ const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, li
     if (!pedido) return;
     setLoading(true);
     try {
-      const metodoPagoFinal = selectedLinkPago ? `Link de Pago: ${selectedLinkPago.nombre}` : metodo;
       const res = await apiClient.post(`/pedidos-virtuales/${pedido.id}/convertir-venta`, {
-        metodo_pago: metodoPagoFinal,
+        metodo_pago: metodo,
         omitir_inventario: omitirInventarioRef.current,
         iva_porcentaje: ivaPct,
       });
@@ -313,9 +285,9 @@ const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, li
         id: res.data.venta_id,
         fecha: new Date().toISOString(),
         cliente: { nombre: pedido.nombre_cliente, telefono: pedido.celular_cliente },
-        detalles: (pedido.detalles || []).map(d => ({ producto: { nombre: d.nombre_variante ? `${d.nombre_producto} - ${d.nombre_variante}` : d.nombre_producto }, cantidad: d.cantidad, precio_unitario: d.precio_unitario })),
+        detalles: (pedido.detalles || []).map(d => ({ producto: { nombre: d.nombre_producto }, cantidad: d.cantidad, precio_unitario: d.precio_unitario })),
         total: totalConIva, iva_total: ivaTotal, iva_porcentaje: ivaPct,
-        monto_pagado: totalConIva, estado_pago: 'pagado', metodo_pago: metodoPagoFinal,
+        monto_pagado: totalConIva, estado_pago: 'pagado', metodo_pago: metodo,
       };
       setRecibo(ventaSnap);
       setOmitirInventario(false);
@@ -327,7 +299,7 @@ const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, li
   };
 
   const handleConfirm = () => {
-    if (selectedLinkPago) {
+    if (metodo === 'Link de Pago') {
       setLinkPagoModalOpen(true);
     } else {
       doConvertir();
@@ -336,10 +308,9 @@ const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, li
 
   const handleClose = () => { setRecibo(null); setOmitirInventario(false); onClose(); };
 
-  const metodosDisponibles = [
-    ...METODOS_PAGO,
-    ...(linkPagosConfig || []).map(l => ({ value: `link:${l.id}`, label: l.nombre, icon: <Receipt /> })),
-  ];
+  const metodosDisponibles = linkPagoConfig
+    ? [...METODOS_PAGO, { value: 'Link de Pago', label: 'Link de Pago / QR', icon: <Receipt /> }]
+    : METODOS_PAGO;
 
   if (recibo) return <ReciboDialog open={open} onClose={handleClose} venta={recibo} empresa={empresa} vendedor={vendedor} />;
 
@@ -353,7 +324,7 @@ const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, li
             </Avatar>
             <Box>
               <Typography fontWeight={800} fontSize={15}>Forma de pago</Typography>
-              <Typography fontSize={12} color="text.secondary">Pedido #{pedido?.numero_pedido ?? pedido?.id} · {fmt(totalConIva || pedido?.total || 0)}</Typography>
+              <Typography fontSize={12} color="text.secondary">Pedido #{pedido?.id} · {fmt(totalConIva || pedido?.total || 0)}</Typography>
             </Box>
           </Box>
         </DialogTitle>
@@ -449,11 +420,11 @@ const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, li
         </DialogActions>
       </Dialog>
 
-      {selectedLinkPago && (
+      {linkPagoConfig && (
         <LinkPagoModal
           open={linkPagoModalOpen}
           onClose={() => setLinkPagoModalOpen(false)}
-          linkConfig={selectedLinkPago}
+          linkConfig={linkPagoConfig}
           onConfirm={() => { setLinkPagoModalOpen(false); doConvertir(); }}
         />
       )}
@@ -475,7 +446,7 @@ const CancelDialog = ({ open, onClose, pedido, onSuccess }) => {
     setLoading(true);
     try {
       await apiClient.patch(`/pedidos-virtuales/${pedido.id}/estado`, { estado: 'cancelado', motivo_cancelacion: motivo });
-      const msg = `Hola ${pedido.nombre_cliente} 👋\n\nLamentamos informarte que tu *Pedido #${pedido.numero_pedido ?? pedido.id}* ha sido *cancelado*.${motivo ? `\n\n📝 Motivo: ${motivo}` : ''}\n\n¿Tienes alguna pregunta? Estamos para ayudarte. 🙏`;
+      const msg = `Hola ${pedido.nombre_cliente} 👋\n\nLamentamos informarte que tu *Pedido #${pedido.id}* ha sido *cancelado*.${motivo ? `\n\n📝 Motivo: ${motivo}` : ''}\n\n¿Tienes alguna pregunta? Estamos para ayudarte. 🙏`;
       const res = await apiClient.post(`/pedidos-virtuales/${pedido.id}/whatsapp`, { mensaje: msg });
       setWaUrl(res.data.url);
       setDone(true);
@@ -519,7 +490,7 @@ const CancelDialog = ({ open, onClose, pedido, onSuccess }) => {
               </Avatar>
               <Box>
                 <Typography fontWeight={800} fontSize={15}>Cancelar pedido</Typography>
-                <Typography fontSize={12} color="text.secondary">#{pedido?.numero_pedido ?? pedido?.id} · {pedido?.nombre_cliente}</Typography>
+                <Typography fontSize={12} color="text.secondary">#{pedido?.id} · {pedido?.nombre_cliente}</Typography>
               </Box>
             </Box>
           </DialogTitle>
@@ -584,7 +555,7 @@ const EditDialog = ({ open, onClose, pedido, onSuccess }) => {
               <Edit sx={{ color: '#7C3AED', fontSize: 20 }} />
             </Avatar>
             <Box>
-              <Typography fontWeight={800} fontSize={15}>Editar pedido #{pedido?.numero_pedido ?? pedido?.id}</Typography>
+              <Typography fontWeight={800} fontSize={15}>Editar pedido #{pedido?.id}</Typography>
               <Typography fontSize={12} color="text.secondary">Información de contacto y entrega</Typography>
             </Box>
           </Box>
@@ -638,8 +609,8 @@ const WADialog = ({ open, onClose, pedido }) => {
 
   useEffect(() => {
     if (!pedido) return;
-    const estado = getEstadoMeta(pedido.estado, pedido.tipo_entrega)?.label || pedido.estado;
-    setMsg(`Hola ${pedido.nombre_cliente} 👋\n\nTe escribimos sobre tu *Pedido #${pedido.numero_pedido ?? pedido.id}*.\n\nEstado actual: *${estado}*\n\n¿Tienes alguna pregunta? Estamos aquí para ayudarte.`);
+    const estado = getEstadoMeta(pedido.estado)?.label || pedido.estado;
+    setMsg(`Hola ${pedido.nombre_cliente} 👋\n\nTe escribimos sobre tu *Pedido #${pedido.id}*.\n\nEstado actual: *${estado}*\n\n¿Tienes alguna pregunta? Estamos aquí para ayudarte.`);
   }, [pedido]);
 
   const handleSend = async () => {
@@ -684,45 +655,35 @@ const WADialog = ({ open, onClose, pedido }) => {
 
 // ─── DetailDialog ─────────────────────────────────────────────────────────────
 
-const DETAIL_ACTIONS = {
-  nuevo:          [{ estado: 'confirmado',     label: 'Confirmar',     color: '#059669', icon: <CheckCircle /> }],
-  confirmado:     [{ estado: 'en_preparacion', label: 'En preparación',color: '#D97706', icon: <Inventory2 /> }],
-  en_preparacion: [{ estado: 'enviado',        label: 'Marcar enviado', color: '#7C3AED', icon: <LocalShipping /> }],
-  enviado: [], entregado: [], cancelado: [],
-};
-
-const DETAIL_ACTIONS_TIENDA = {
-  ...DETAIL_ACTIONS,
-  en_preparacion: [{ estado: 'enviado', label: 'Listo para recoger', color: '#7C3AED', icon: <Storefront /> }],
-};
-
-const getDetailActions = (estado, tipoEntrega) =>
-  (esDomicilio(tipoEntrega) ? DETAIL_ACTIONS : DETAIL_ACTIONS_TIENDA)[estado] || [];
-
-const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange, onEdit, onCancel, onConvertir, linkPagosConfig }) => {
+const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange, onEdit, onCancel, onConvertir, linkPagoConfig }) => {
   const theme = useTheme();
   const [paymentOpen, setPaymentOpen] = useState(false);
-  const [changingState, setChangingState] = useState(false);
   if (!pedido) return null;
 
   const isEntregado = pedido.estado === 'entregado';
   const isCancelado = pedido.estado === 'cancelado';
   const canConvertir = !pedido.venta_id && !isCancelado && ['confirmado', 'en_preparacion', 'enviado', 'entregado'].includes(pedido.estado);
+  const DETAIL_ACTIONS = {
+    nuevo:          [{ estado: 'confirmado',     label: 'Confirmar',     color: '#059669', icon: <CheckCircle /> }],
+    confirmado:     [{ estado: 'en_preparacion', label: 'En preparación',color: '#D97706', icon: <Inventory2 /> }],
+    en_preparacion: [{ estado: 'enviado',        label: 'Listo/Enviado', color: '#7C3AED', icon: <LocalShipping /> }],
+    enviado: [], entregado: [], cancelado: [],
+  };
 
   return (
     <>
       <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 4, overflow: 'hidden' } }}>
         {/* Header with color strip */}
-        <Box sx={{ height: 4, bgcolor: getEstadoMeta(pedido.estado, pedido.tipo_entrega).color }} />
+        <Box sx={{ height: 4, bgcolor: getEstadoMeta(pedido.estado).color }} />
         <DialogTitle sx={{ pb: 0, pt: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <Avatar sx={{ bgcolor: alpha('#0891B2', 0.12), width: 42, height: 42, fontSize: 13, fontWeight: 900, color: '#0891B2' }}>
-                #{pedido.numero_pedido ?? pedido.id}
+                #{pedido.id}
               </Avatar>
               <Box>
                 <Typography fontWeight={800} fontSize={16}>{pedido.nombre_cliente}</Typography>
-                <EstadoChip estado={pedido.estado} tipoEntrega={pedido.tipo_entrega} />
+                <EstadoChip estado={pedido.estado} />
               </Box>
             </Box>
             <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -740,7 +701,7 @@ const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange,
 
         {/* State timeline */}
         <Box sx={{ px: 3, pt: 0.5, pb: 0 }}>
-          <StateTimeline estado={pedido.estado} tipoEntrega={pedido.tipo_entrega} />
+          <StateTimeline estado={pedido.estado} />
         </Box>
 
         <DialogContent sx={{ pt: 1.5 }}>
@@ -782,10 +743,7 @@ const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange,
             {(pedido.detalles || []).map((d, i) => (
               <Box key={i} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 0.9, borderBottom: i < pedido.detalles.length - 1 ? `1px solid ${theme.palette.divider}` : 'none' }}>
                 <Box>
-                  <Typography fontSize={13} fontWeight={600}>
-                    {d.nombre_producto}
-                    {d.nombre_variante && <Typography component="span" fontSize={12} fontWeight={600} color="#0891B2"> · {d.nombre_variante}</Typography>}
-                  </Typography>
+                  <Typography fontSize={13} fontWeight={600}>{d.nombre_producto}</Typography>
                   <Typography fontSize={11} color="text.secondary">{fmt(d.precio_unitario)} × {d.cantidad} uds.</Typography>
                 </Box>
                 <Typography fontSize={13} fontWeight={700} color="#0891B2">{fmt(d.subtotal)}</Typography>
@@ -828,21 +786,9 @@ const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange,
             </Button>
           )}
           <Box sx={{ flex: 1 }} />
-          {getDetailActions(pedido.estado, pedido.tipo_entrega).map(a => (
-            <Button key={a.estado} size="small" variant="contained" disabled={changingState}
-              startIcon={changingState ? <CircularProgress size={14} color="inherit" /> : a.icon}
-              onClick={async () => {
-                if (changingState) return;
-                setChangingState(true);
-                try {
-                  await onStateChange(a.estado, pedido);
-                  onClose();
-                } catch {
-                  // el toast de error ya lo muestra handleStateChange — dejamos el diálogo abierto
-                } finally {
-                  setChangingState(false);
-                }
-              }}
+          {(DETAIL_ACTIONS[pedido.estado] || []).map(a => (
+            <Button key={a.estado} size="small" variant="contained" startIcon={a.icon}
+              onClick={() => { onStateChange(a.estado, pedido); onClose(); }}
               endIcon={<ArrowForward sx={{ fontSize: 14 }} />}
               sx={{ bgcolor: a.color, '&:hover': { filter: 'brightness(0.9)' }, borderRadius: 2, fontWeight: 700 }}>
               {a.label}
@@ -858,7 +804,7 @@ const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange,
       </Dialog>
 
       <PaymentDialog open={paymentOpen} onClose={() => setPaymentOpen(false)}
-        pedido={pedido} empresa={empresa} vendedor={vendedor} linkPagosConfig={linkPagosConfig}
+        pedido={pedido} empresa={empresa} vendedor={vendedor} linkPagoConfig={linkPagoConfig}
         onSuccess={(updated) => { setPaymentOpen(false); onConvertir(updated); onClose(); }} />
     </>
   );
@@ -866,23 +812,17 @@ const DetailDialog = ({ open, onClose, pedido, empresa, vendedor, onStateChange,
 
 // ─── PedidoCard ───────────────────────────────────────────────────────────────
 
-const PedidoCard = React.memo(function PedidoCard({ pedido, empresa, vendedor, onStateChange, onCancel, onConvertir, onWhatsApp, onEdit, onDetail, onComprobante, linkPagosConfig }) {
+const PedidoCard = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConvertir, onWhatsApp, onEdit, onDetail, onComprobante, linkPagoConfig }) => {
   const theme = useTheme();
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [justUpdated, setJustUpdated] = useState(false);
-  // Evita doble-clic en la acción principal (ej. "Confirmar" dos veces con
-  // conexión lenta) y resalta la tarjeta en rojo si la acción falla, ya que
-  // el toast solo puede pasar desapercibido para un empleado que ya siguió
-  // con el siguiente pedido.
-  const [changingState, setChangingState] = useState(false);
-  const [errorFlash, setErrorFlash] = useState(false);
-  const meta = getEstadoMeta(pedido.estado, pedido.tipo_entrega);
+  const meta = getEstadoMeta(pedido.estado);
   const isEntregado = pedido.estado === 'entregado';
   const isCancelado = pedido.estado === 'cancelado';
   const mins = minutesAgo(pedido.fecha_creacion);
   const isUrgente = pedido.estado === 'nuevo' && mins > 45;
   const isReciente = mins < 5;
-  const quickAction = getQuickAction(pedido.estado, pedido.tipo_entrega);
+  const quickAction = QUICK_ACTIONS[pedido.estado];
 
   return (
     <>
@@ -890,8 +830,8 @@ const PedidoCard = React.memo(function PedidoCard({ pedido, empresa, vendedor, o
         elevation={0}
         sx={{
           borderRadius: 3,
-          border: `1px solid ${errorFlash ? '#EF4444' : alpha(meta.color, isUrgente ? 0.5 : 0.15)}`,
-          borderLeft: `4px solid ${errorFlash ? '#EF4444' : meta.color}`,
+          border: `1px solid ${alpha(meta.color, isUrgente ? 0.5 : 0.15)}`,
+          borderLeft: `4px solid ${meta.color}`,
           bgcolor: theme.palette.background.paper,
           transition: 'all 0.2s',
           position: 'relative',
@@ -906,14 +846,6 @@ const PedidoCard = React.memo(function PedidoCard({ pedido, empresa, vendedor, o
           ...(justUpdated && {
             '@keyframes highlight': { '0%': { bgcolor: alpha(meta.color, 0.2) }, '100%': {} },
             animation: 'highlight 0.8s ease-out',
-          }),
-          ...(errorFlash && {
-            '@keyframes errorShake': {
-              '0%, 100%': { transform: 'translateX(0)' },
-              '25%': { transform: 'translateX(-4px)' },
-              '75%': { transform: 'translateX(4px)' },
-            },
-            animation: 'errorShake 0.3s ease-in-out 2',
           }),
           '&:hover': {
             borderColor: alpha(meta.color, 0.45),
@@ -957,12 +889,12 @@ const PedidoCard = React.memo(function PedidoCard({ pedido, empresa, vendedor, o
           {/* Header row */}
           <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1.2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, minWidth: 0 }}>
-              <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.disabled', flexShrink: 0 }}>#{pedido.numero_pedido ?? pedido.id}</Typography>
+              <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.disabled', flexShrink: 0 }}>#{pedido.id}</Typography>
               <Typography fontWeight={700} fontSize={14} noWrap sx={{ maxWidth: { xs: 130, sm: 150 } }}>
                 {pedido.nombre_cliente}
               </Typography>
             </Box>
-            <EstadoChip estado={pedido.estado} tipoEntrega={pedido.tipo_entrega} />
+            <EstadoChip estado={pedido.estado} />
           </Box>
 
           {/* Contact + delivery */}
@@ -987,7 +919,7 @@ const PedidoCard = React.memo(function PedidoCard({ pedido, empresa, vendedor, o
             {(pedido.detalles || []).slice(0, 2).map((d, i) => (
               <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography fontSize={11} color="text.secondary" noWrap sx={{ flex: 1 }}>
-                  <b style={{ color: 'inherit' }}>{d.cantidad}×</b> {d.nombre_producto}{d.nombre_variante ? ` (${d.nombre_variante})` : ''}
+                  <b style={{ color: 'inherit' }}>{d.cantidad}×</b> {d.nombre_producto}
                 </Typography>
                 <Typography fontSize={11} color="text.disabled" sx={{ ml: 0.5, flexShrink: 0 }}>{fmt(d.subtotal)}</Typography>
               </Box>
@@ -1043,21 +975,8 @@ const PedidoCard = React.memo(function PedidoCard({ pedido, empresa, vendedor, o
 
             {/* Primary action */}
             {quickAction && (
-              <Button size="small" variant="contained" disabled={changingState}
-                startIcon={changingState ? <CircularProgress size={14} color="inherit" /> : quickAction.icon}
-                onClick={async () => {
-                  if (changingState) return;
-                  if (quickAction.next === '_pay') { setPaymentOpen(true); return; }
-                  setChangingState(true);
-                  try {
-                    await onStateChange(quickAction.next, pedido);
-                  } catch {
-                    setErrorFlash(true);
-                    setTimeout(() => setErrorFlash(false), 900);
-                  } finally {
-                    setChangingState(false);
-                  }
-                }}
+              <Button size="small" variant="contained" startIcon={quickAction.icon}
+                onClick={() => quickAction.next === '_pay' ? setPaymentOpen(true) : onStateChange(quickAction.next, pedido)}
                 sx={{ bgcolor: quickAction.color, '&:hover': { filter: 'brightness(0.9)' }, borderRadius: 2, fontSize: 11, fontWeight: 700, flex: 2, py: 0.5 }}>
                 {quickAction.label}
               </Button>
@@ -1087,38 +1006,36 @@ const PedidoCard = React.memo(function PedidoCard({ pedido, empresa, vendedor, o
       </Card>
 
       <PaymentDialog open={paymentOpen} onClose={() => setPaymentOpen(false)}
-        pedido={pedido} empresa={empresa} vendedor={vendedor} linkPagosConfig={linkPagosConfig}
+        pedido={pedido} empresa={empresa} vendedor={vendedor} linkPagoConfig={linkPagoConfig}
         onSuccess={(updated) => { setPaymentOpen(false); onConvertir(updated); setJustUpdated(true); setTimeout(() => setJustUpdated(false), 1000); }} />
     </>
   );
-});
+};
 
 // ─── ListView row ─────────────────────────────────────────────────────────────
 
-const ListRow = React.memo(function ListRow({ pedido, empresa, vendedor, onStateChange, onCancel, onConvertir, onWhatsApp, onEdit, onDetail, onComprobante, linkPagosConfig }) {
+const ListRow = ({ pedido, empresa, vendedor, onStateChange, onCancel, onConvertir, onWhatsApp, onEdit, onDetail, onComprobante, linkPagoConfig }) => {
   const theme = useTheme();
   const [paymentOpen, setPaymentOpen] = useState(false);
-  const [changingState, setChangingState] = useState(false);
-  const [errorFlash, setErrorFlash] = useState(false);
-  const meta = getEstadoMeta(pedido.estado, pedido.tipo_entrega);
+  const meta = getEstadoMeta(pedido.estado);
   const isEntregado = pedido.estado === 'entregado';
   const isCancelado = pedido.estado === 'cancelado';
   const mins = minutesAgo(pedido.fecha_creacion);
   const isUrgente = pedido.estado === 'nuevo' && mins > 45;
-  const quickAction = getQuickAction(pedido.estado, pedido.tipo_entrega);
+  const quickAction = QUICK_ACTIONS[pedido.estado];
 
   return (
     <>
-      <TableRow hover sx={{ cursor: 'pointer', borderLeft: `3px solid ${errorFlash ? '#EF4444' : meta.color}`, transition: 'border-color 0.2s', '& td': { py: 1.2, fontSize: 12 } }}>
+      <TableRow hover sx={{ cursor: 'pointer', borderLeft: `3px solid ${meta.color}`, '& td': { py: 1.2, fontSize: 12 } }}>
         <TableCell onClick={() => onDetail(pedido)} sx={{ width: 60 }}>
-          <Typography fontSize={11} color="text.disabled" fontWeight={700}>#{pedido.numero_pedido ?? pedido.id}</Typography>
+          <Typography fontSize={11} color="text.disabled" fontWeight={700}>#{pedido.id}</Typography>
         </TableCell>
-        <TableCell onClick={() => onDetail(pedido)} sx={{ minWidth: { xs: 100, sm: 130 } }}>
-          <Typography fontSize={13} fontWeight={700} noWrap sx={{ maxWidth: { xs: 110, sm: 160 } }}>{pedido.nombre_cliente}</Typography>
+        <TableCell onClick={() => onDetail(pedido)} sx={{ minWidth: 130 }}>
+          <Typography fontSize={13} fontWeight={700} noWrap sx={{ maxWidth: 160 }}>{pedido.nombre_cliente}</Typography>
           <Typography fontSize={11} color="text.secondary">{pedido.celular_cliente}</Typography>
         </TableCell>
         <TableCell onClick={() => onDetail(pedido)}>
-          <EstadoChip estado={pedido.estado} tipoEntrega={pedido.tipo_entrega} />
+          <EstadoChip estado={pedido.estado} />
           {isUrgente && <Chip label="urgente" size="small" sx={{ ml: 0.5, fontSize: 9, height: 16, bgcolor: alpha('#EF4444', 0.1), color: '#EF4444', fontWeight: 700 }} />}
         </TableCell>
         <TableCell onClick={() => onDetail(pedido)} sx={{ display: { xs: 'none', md: 'table-cell' } }}>
@@ -1130,7 +1047,7 @@ const ListRow = React.memo(function ListRow({ pedido, empresa, vendedor, onState
         <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
           <Typography fontSize={11} color={isUrgente ? '#EF4444' : 'text.disabled'}>{timeAgo(pedido.fecha_creacion)}</Typography>
         </TableCell>
-        <TableCell align="right" sx={{ width: 180, display: { xs: 'none', sm: 'table-cell' } }}>
+        <TableCell align="right" sx={{ width: 180 }}>
           <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
             <Tooltip title="WhatsApp">
               <IconButton size="small" onClick={() => onWhatsApp(pedido)} sx={{ color: '#25D366', p: 0.5 }}>
@@ -1145,22 +1062,10 @@ const ListRow = React.memo(function ListRow({ pedido, empresa, vendedor, onState
               </Tooltip>
             )}
             {quickAction && (
-              <Button size="small" variant="contained" disabled={changingState}
-                onClick={async () => {
-                  if (changingState) return;
-                  if (quickAction.next === '_pay') { setPaymentOpen(true); return; }
-                  setChangingState(true);
-                  try {
-                    await onStateChange(quickAction.next, pedido);
-                  } catch {
-                    setErrorFlash(true);
-                    setTimeout(() => setErrorFlash(false), 900);
-                  } finally {
-                    setChangingState(false);
-                  }
-                }}
+              <Button size="small" variant="contained"
+                onClick={() => quickAction.next === '_pay' ? setPaymentOpen(true) : onStateChange(quickAction.next, pedido)}
                 sx={{ bgcolor: quickAction.color, '&:hover': { filter: 'brightness(0.9)' }, borderRadius: 1.5, fontSize: 10, fontWeight: 700, px: 1, py: 0.3, minWidth: 0 }}>
-                {changingState ? <CircularProgress size={12} color="inherit" /> : quickAction.label}
+                {quickAction.label}
               </Button>
             )}
             {!isEntregado && !isCancelado && (
@@ -1182,11 +1087,11 @@ const ListRow = React.memo(function ListRow({ pedido, empresa, vendedor, onState
       </TableRow>
 
       <PaymentDialog open={paymentOpen} onClose={() => setPaymentOpen(false)}
-        pedido={pedido} empresa={empresa} vendedor={vendedor} linkPagosConfig={linkPagosConfig}
+        pedido={pedido} empresa={empresa} vendedor={vendedor} linkPagoConfig={linkPagoConfig}
         onSuccess={(updated) => { setPaymentOpen(false); onConvertir(updated); }} />
     </>
   );
-});
+};
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -1208,43 +1113,33 @@ export default function PedidosVirtuales({ user }) {
   const [cancelPedido,   setCancelPedido]   = useState(null);
   const [editPedido,     setEditPedido]     = useState(null);
   const [waPedido,       setWaPedido]       = useState(null);
-  const [linkPagosConfig, setLinkPagosConfig] = useState([]);
+  const [linkPagoConfig, setLinkPagoConfig] = useState(null);
   const [comprobantePedido, setComprobantePedido] = useState(null); // {venta, pedido}
+
+  const handleComprobante = async (pedido) => {
+    try {
+      const res = await apiClient.get(`/ventas/${pedido.venta_id}`);
+      setComprobantePedido({ venta: res.data, pedido });
+    } catch {
+      toast.error('No se pudo cargar el comprobante de venta');
+    }
+  };
 
   const empresa = user?.empresa || null;
   const vendedor = user ? (`${user.nombre_completo || ''}`.trim() || user.username || user.email) : '';
 
-  // Evita solicitudes GET solapadas cuando un tick del polling cae mientras
-  // otra petición (poll anterior o refresh manual) sigue en vuelo.
-  const fetchInFlightRef = useRef(false);
-  // null hasta que termine la primera carga — así no se notifican como
-  // "nuevos" los pedidos que ya existían al abrir la pantalla.
-  const seenNuevoIdsRef = useRef(null);
-
   const fetchAll = useCallback(async (silent = false) => {
-    if (silent && fetchInFlightRef.current) return;
-    fetchInFlightRef.current = true;
     if (!silent) setLoading(true); else setRefreshing(true);
     try {
       const [pRes, sRes] = await Promise.all([
         apiClient.get('/pedidos-virtuales/', { params: { estado: estadoFiltro !== 'todos' ? estadoFiltro : undefined, search: search || undefined, limit: 200 } }),
         apiClient.get('/pedidos-virtuales/stats'),
       ]);
-      const nuevoIdsNow = new Set(pRes.data.filter(p => p.estado === 'nuevo').map(p => p.id));
-      if (seenNuevoIdsRef.current !== null) {
-        const arrived = pRes.data.filter(p => p.estado === 'nuevo' && !seenNuevoIdsRef.current.has(p.id));
-        if (arrived.length === 1) {
-          toast.info(`🛎️ Nuevo pedido de ${arrived[0].nombre_cliente} — ${fmt(arrived[0].total)}`, { autoClose: 8000 });
-        } else if (arrived.length > 1) {
-          toast.info(`🛎️ ${arrived.length} pedidos nuevos recibidos`, { autoClose: 8000 });
-        }
-      }
-      seenNuevoIdsRef.current = nuevoIdsNow;
       setPedidos(pRes.data);
       setStats(sRes.data);
       setLastFetch(new Date());
     } catch { toast.error('Error al cargar pedidos'); }
-    finally { setLoading(false); setRefreshing(false); fetchInFlightRef.current = false; }
+    finally { setLoading(false); setRefreshing(false); }
   }, [estadoFiltro, search]);
 
   useEffect(() => {
@@ -1256,54 +1151,37 @@ export default function PedidosVirtuales({ user }) {
   usePolling(() => fetchAll(true), 60_000);
 
   useEffect(() => {
-    apiClient.get('/empresa/link-pago/activos').then(r => setLinkPagosConfig(r.data || [])).catch(() => {});
+    apiClient.get('/empresa/link-pago').then(r => setLinkPagoConfig(r.data)).catch(() => {});
   }, []);
 
-  // Sort pedidos client-side — los "nuevo" (requieren acción) siempre flotan
-  // arriba sin importar el criterio elegido, para que nunca queden enterrados
-  // en una lista larga ordenada por "menor valor" o "más antiguo".
-  const sortedPedidos = React.useMemo(() => [...pedidos].sort((a, b) => {
-    const aNuevo = a.estado === 'nuevo' ? 0 : 1;
-    const bNuevo = b.estado === 'nuevo' ? 0 : 1;
-    if (aNuevo !== bNuevo) return aNuevo - bNuevo;
+  // Sort pedidos client-side
+  const sortedPedidos = [...pedidos].sort((a, b) => {
     if (sort === 'newest') return new Date(b.fecha_creacion) - new Date(a.fecha_creacion);
     if (sort === 'oldest') return new Date(a.fecha_creacion) - new Date(b.fecha_creacion);
     if (sort === 'highest') return (b.total || 0) - (a.total || 0);
     if (sort === 'lowest')  return (a.total || 0) - (b.total || 0);
     return 0;
-  }), [pedidos, sort]);
+  });
 
-  const handleStateChange = useCallback(async (estado, pedido) => {
+  const handleStateChange = async (estado, pedido) => {
     if (estado === '_wa') { setWaPedido(pedido); return; }
     try {
       const res = await apiClient.patch(`/pedidos-virtuales/${pedido.id}/estado`, { estado });
       setPedidos(prev => prev.map(p => p.id === pedido.id ? res.data : p));
       fetchAll(true);
-      toast.success(`→ ${getEstadoMeta(estado, pedido.tipo_entrega).label}`);
-    } catch (err) {
-      toast.error(err?.response?.data?.detail || 'Error al actualizar estado');
-      throw err; // el caller (tarjeta/fila) lo captura para resaltar el error visualmente
-    }
-  }, [fetchAll]);
+      toast.success(`→ ${getEstadoMeta(estado).label}`);
+    } catch (err) { toast.error(err?.response?.data?.detail || 'Error al actualizar estado'); }
+  };
 
-  const handleConvertir = useCallback((updated) => {
+  const handleConvertir = (updated) => {
     setPedidos(prev => prev.map(p => p.id === updated.id ? updated : p));
     fetchAll(true);
-  }, [fetchAll]);
+  };
 
-  const handleEditSuccess = useCallback((updated) => {
+  const handleEditSuccess = (updated) => {
     setPedidos(prev => prev.map(p => p.id === updated.id ? updated : p));
-    setDetailPedido(prev => (prev?.id === updated.id ? updated : prev));
-  }, []);
-
-  const handleComprobante = useCallback(async (pedido) => {
-    try {
-      const res = await apiClient.get(`/ventas/${pedido.venta_id}`);
-      setComprobantePedido({ venta: res.data, pedido });
-    } catch {
-      toast.error('No se pudo cargar el comprobante de venta');
-    }
-  }, []);
+    if (detailPedido?.id === updated.id) setDetailPedido(updated);
+  };
 
   const urgentCount = pedidos.filter(p => p.estado === 'nuevo' && minutesAgo(p.fecha_creacion) > 45).length;
 
@@ -1420,18 +1298,7 @@ export default function PedidosVirtuales({ user }) {
             <PedidoCard key={p.id} pedido={p} empresa={empresa} vendedor={vendedor}
               onStateChange={handleStateChange} onCancel={setCancelPedido}
               onConvertir={handleConvertir} onWhatsApp={setWaPedido}
-              onEdit={setEditPedido} onDetail={setDetailPedido} onComprobante={handleComprobante} linkPagosConfig={linkPagosConfig} />
-          ))}
-        </Box>
-      ) : isMobile ? (
-        // En celular la tabla no cabe: mostramos tarjetas (una por fila),
-        // igual que la vista de tarjetas pero en una sola columna.
-        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 1.5 }}>
-          {sortedPedidos.map(p => (
-            <PedidoCard key={p.id} pedido={p} empresa={empresa} vendedor={vendedor}
-              onStateChange={handleStateChange} onCancel={setCancelPedido}
-              onConvertir={handleConvertir} onWhatsApp={setWaPedido}
-              onEdit={setEditPedido} onDetail={setDetailPedido} onComprobante={handleComprobante} linkPagosConfig={linkPagosConfig} />
+              onEdit={setEditPedido} onDetail={setDetailPedido} onComprobante={handleComprobante} linkPagoConfig={linkPagoConfig} />
           ))}
         </Box>
       ) : (
@@ -1446,7 +1313,7 @@ export default function PedidosVirtuales({ user }) {
                   <TableCell sx={{ fontWeight: 700, fontSize: 11, display: { xs: 'none', md: 'table-cell' } }}>Ítems</TableCell>
                   <TableCell sx={{ fontWeight: 700, fontSize: 11 }} align="right">Total</TableCell>
                   <TableCell sx={{ fontWeight: 700, fontSize: 11, display: { xs: 'none', sm: 'table-cell' } }}>Hace</TableCell>
-                  <TableCell sx={{ fontWeight: 700, fontSize: 11, display: { xs: 'none', sm: 'table-cell' } }} align="right">Acciones</TableCell>
+                  <TableCell sx={{ fontWeight: 700, fontSize: 11 }} align="right">Acciones</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -1454,7 +1321,7 @@ export default function PedidosVirtuales({ user }) {
                   <ListRow key={p.id} pedido={p} empresa={empresa} vendedor={vendedor}
                     onStateChange={handleStateChange} onCancel={setCancelPedido}
                     onConvertir={handleConvertir} onWhatsApp={setWaPedido}
-                    onEdit={setEditPedido} onDetail={setDetailPedido} onComprobante={handleComprobante} linkPagosConfig={linkPagosConfig} />
+                    onEdit={setEditPedido} onDetail={setDetailPedido} onComprobante={handleComprobante} linkPagoConfig={linkPagoConfig} />
                 ))}
               </TableBody>
             </Table>
@@ -1467,7 +1334,7 @@ export default function PedidosVirtuales({ user }) {
         empresa={empresa} vendedor={vendedor} onStateChange={handleStateChange}
         onEdit={p => { setDetailPedido(null); setEditPedido(p); }}
         onCancel={p => { setDetailPedido(null); setCancelPedido(p); }}
-        onConvertir={handleConvertir} linkPagosConfig={linkPagosConfig} />
+        onConvertir={handleConvertir} linkPagoConfig={linkPagoConfig} />
 
       <CancelDialog open={!!cancelPedido} onClose={() => setCancelPedido(null)}
         pedido={cancelPedido} onSuccess={() => { fetchAll(true); setCancelPedido(null); }} />

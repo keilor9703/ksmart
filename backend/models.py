@@ -5,7 +5,7 @@ from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from datetime import datetime, timezone
 import enum
 from sqlalchemy import JSON 
-from sqlalchemy import UniqueConstraint, Index
+from sqlalchemy import UniqueConstraint
 
 from sqlalchemy import (
    Column, Integer, String, Text, BigInteger, DateTime, ForeignKey, Boolean,
@@ -42,43 +42,7 @@ class Empresa(Base):
     # 👇 NUEVOS CAMPOS CATÁLOGO VIRTUAL
     slug_catalogo     = Column(String(100), unique=True, index=True, nullable=True)
     whatsapp_pedidos  = Column(String(20), nullable=True)
-    # Instancia de WhatsApp (bot de pedidos). Es la llave con la que la
-    # automatización identifica de qué empresa viene cada mensaje entrante.
-    whatsapp_instancia = Column(String(100), unique=True, index=True, nullable=True)
-    # Horario en texto libre ("Lun-Sáb 8am-6pm"): el bot lo cita tal cual al
-    # responder. Texto y no campos estructurados porque cada negocio lo
-    # expresa distinto (jornada continua, domingos, festivos, almuerzo…).
-    horario_atencion   = Column(String(200), nullable=True)
-    # WhatsApp personal de quien atiende: ahí llegan los avisos cuando un
-    # cliente pide hablar con una persona. Separado de whatsapp_pedidos
-    # porque en la mayoría de negocios ese es el número que atiende el bot,
-    # y un aviso al propio número cae en "Mensajes contigo mismo" —donde
-    # nadie lo ve, porque quien atiende ya está mirando esa bandeja—.
-    whatsapp_notificaciones = Column(String(20), nullable=True)
-    # Vigilancia de la conexión. Una sesión de WhatsApp se cae sola —el celular
-    # sin datos, WhatsApp cerrando el dispositivo vinculado— y hasta ahora eso
-    # era invisible: los clientes escribían, el bot no contestaba, y el negocio
-    # se enteraba por el reclamo. Estos campos permiten detectarlo y avisar.
-    whatsapp_estado           = Column(String(20), nullable=True)  # open | close | ...
-    whatsapp_desconectado_desde = Column(DateTime(timezone=True), nullable=True)
-    whatsapp_ultimo_aviso     = Column(DateTime(timezone=True), nullable=True)
-    # Avisarle al cliente por WhatsApp cuando su pedido cambia de estado.
-    # Apagado por defecto: cada mensaje saliente no solicitado suma al patrón
-    # que WhatsApp castiga, así que es una decisión consciente del negocio.
-    notificar_estado_pedido   = Column(Boolean, default=False)
-    # Saludo personalizado del bot en el primer mensaje de cada cliente.
-    # Vacío/NULL = usa el saludo genérico por defecto que ya trae la
-    # automatización; si la empresa lo llena, el bot lo usa tal cual.
-    mensaje_bienvenida_bot    = Column(String(300), nullable=True)
     logo_base64       = Column(Text, nullable=True) # WebP comprimido
-    instagram_url     = Column(String(300), nullable=True)
-    facebook_url      = Column(String(300), nullable=True)
-
-    # 👇 CENTRO COMERCIAL VIRTUAL — directorio público que agrupa el catálogo
-    # de varias empresas bajo un solo dominio. Opt-in explícito: nunca se
-    # expone una empresa sin que su dueño lo active manualmente.
-    visible_marketplace   = Column(Boolean, default=False, nullable=False, server_default="false")
-    categoria_marketplace = Column(String(60), nullable=True)
 
     # Opcional: relación inversa para acceder a sus usuarios
     usuarios = relationship("User", back_populates="empresa")
@@ -135,7 +99,6 @@ class Empresa(Base):
     ultimo_numero_movimiento = Column(Integer, default=0, nullable=False, server_default="0")
     ultimo_numero_compra     = Column(Integer, default=0, nullable=False, server_default="0")
     ultimo_numero_asiento    = Column(Integer, default=0, nullable=False, server_default="0")
-    ultimo_numero_pedido     = Column(Integer, default=0, nullable=False, server_default="0")
 
     # Configuración de ventas
     omitir_inventario     = Column(Boolean, default=False)
@@ -311,8 +274,6 @@ class Cliente(Base, TenantMixin):
     longitud = Column(Float, nullable=True)
     puntos_fidelidad = Column(Integer, default=0)
 
-    fecha_nacimiento = Column(Date, nullable=True)
-
     ventas          = relationship("Venta", back_populates="cliente")
     ordenes_trabajo = relationship("OrdenTrabajo", back_populates="cliente")
     movimientos_puntos = relationship("MovimientoPuntos", back_populates="cliente", cascade="all, delete-orphan")
@@ -449,12 +410,6 @@ class InventoryMovement(Base, TenantMixin):
     numero_lote = Column(String(100), nullable=True)
     lote        = relationship("LoteExistencia", back_populates="movimientos")
 
-    # Movimiento dirigido a una variante específica (talla/color/etc.) en vez
-    # del producto padre — nombre_variante es snapshot para no depender de un
-    # join si la variante se elimina luego.
-    variante_id     = Column(Integer, ForeignKey("producto_variantes.id"), nullable=True)
-    nombre_variante = Column(String(200), nullable=True)
-
     # Consecutivo visible por empresa (#1, #2…); el PK 'id' es global a todos
     # los tenants. Se asigna automáticamente vía event listener before_insert.
     numero_movimiento = Column(Integer, nullable=True, index=True)
@@ -489,8 +444,8 @@ def _asignar_numero_movimiento(mapper, connection, target):
 class DetalleVenta(Base, TenantMixin):
     __tablename__ = "detalles_venta"
     id               = Column(Integer, primary_key=True, index=True)
-    venta_id         = Column(Integer, ForeignKey("ventas.id"), index=True)
-    producto_id      = Column(Integer, ForeignKey("productos.id"), nullable=True, index=True)   # nullable: libre items have no product
+    venta_id         = Column(Integer, ForeignKey("ventas.id"))
+    producto_id      = Column(Integer, ForeignKey("productos.id"), nullable=True)   # nullable: libre items have no product
     variante_id      = Column(Integer, ForeignKey("producto_variantes.id"), nullable=True)
     nombre_libre     = Column(String(200), nullable=True)   # description for libre items
     nombre_variante  = Column(String(200), nullable=True)   # snapshot del nombre de variante al momento de vender
@@ -506,7 +461,7 @@ class DetalleVenta(Base, TenantMixin):
 class Pago(Base, TenantMixin):
     __tablename__ = "pagos"
     id           = Column(Integer, primary_key=True, index=True)
-    venta_id     = Column(Integer, ForeignKey("ventas.id"), index=True)
+    venta_id     = Column(Integer, ForeignKey("ventas.id"))
     monto        = Column(Float)
     fecha        = Column(DateTime(timezone=True), default=utcnow)
     metodo_pago  = Column(String, nullable=True)
@@ -560,37 +515,17 @@ class IntentoFE(Base):
 
 class Venta(Base, TenantMixin):
     __tablename__ = "ventas"
-    __table_args__ = (
-        # El historial de ventas siempre filtra por empresa_id y ordena por
-        # fecha desc — sin este índice compuesto, cada consulta hace un scan
-        # secuencial completo de la tabla que empeora linealmente con miles/
-        # millones de ventas.
-        Index("ix_ventas_empresa_fecha", "empresa_id", "fecha"),
-    )
     id              = Column(Integer, primary_key=True, index=True)
-    cliente_id      = Column(Integer, ForeignKey("clientes.id"), index=True)
+    cliente_id      = Column(Integer, ForeignKey("clientes.id"))
     total           = Column(Float)
     iva_total       = Column(Float, default=0.0)
     iva_porcentaje  = Column(Float, default=0.0)
     descuento_total = Column(Float, default=0.0)
-    fecha           = Column(DateTime(timezone=True), default=utcnow, index=True)
+    fecha           = Column(DateTime(timezone=True), default=utcnow)
     monto_pagado    = Column(Float, default=0.0)
     estado_pago     = Column(String, default="pendiente")
     fecha_pago      = Column(DateTime(timezone=True), nullable=True)
     metodo_pago     = Column(String, nullable=True)
-    # Cuando metodo_pago == "Link de Pago", registra CUÁL de los links/QR
-    # configurados por la empresa (Nequi, Bancolombia, etc.) usó el cliente.
-    # No es una FK a LinkPagoEmpresa a propósito: si el link se edita/borra
-    # después, el histórico de la venta debe seguir mostrando el nombre tal
-    # como era al momento del cobro.
-    link_pago_nombre = Column(String(100), nullable=True)
-
-    # Fidelización: puntos ganados en ESTA venta, y el saldo total del
-    # cliente justo después de aplicarla — se guardan como snapshot para que
-    # el comprobante (reimpreso después) siga mostrando lo que era en el
-    # momento de la venta, sin importar compras posteriores del cliente.
-    puntos_ganados        = Column(Integer, nullable=True, default=0)
-    saldo_puntos_cliente  = Column(Integer, nullable=True)
 
     # Consecutivo visible por empresa (V-0001…); el PK 'id' es global a todos
     # los tenants y no debe mostrarse al usuario como número de venta.
@@ -640,30 +575,6 @@ class Venta(Base, TenantMixin):
     pagos                  = relationship("Pago", back_populates="venta", cascade="all, delete-orphan")
     orden_trabajo_asociada = relationship("OrdenTrabajo", back_populates="venta_asociada", uselist=False)
     operador               = relationship("User", foreign_keys=[operador_id])
-
-
-class VentaBorrador(Base, TenantMixin):
-    """
-    Venta "aparcada" en el POS: el vendedor guarda el carrito tal como está
-    (productos, cliente, método de pago, etc.) para atender a otro cliente en
-    fila, y lo retoma después. A propósito NO es una fila de Venta a medio
-    hacer — crear una Venta real dispara descuento de inventario, asiento
-    contable, puntos de fidelización y numeración/factura DIAN; nada de eso
-    debe ocurrir solo por guardar un borrador. `datos` guarda el snapshot
-    completo del carrito como JSON, opaco para el backend — el frontend es
-    quien sabe cómo reconstruir la pantalla a partir de él.
-    """
-    __tablename__ = "ventas_borrador"
-
-    id                  = Column(Integer, primary_key=True, index=True)
-    creado_por_id       = Column(Integer, ForeignKey("users.id"), nullable=True)
-    cliente_nombre      = Column(String(150), nullable=True)   # snapshot para listar sin parsear el JSON
-    total_aproximado    = Column(Float, default=0.0)           # snapshot idem
-    datos               = Column(JSON, nullable=False)         # carrito completo (saleDetails, cliente, metodoPago, etc.)
-    created_at          = Column(DateTime(timezone=True), default=utcnow)
-
-    creado_por = relationship("User", foreign_keys=[creado_por_id])
-
 
 class OrdenProducto(Base, TenantMixin):
     __tablename__ = "orden_productos"
@@ -799,9 +710,6 @@ class LoteProduccion(Base, TenantMixin):
     numero_orden                 = Column(Integer, nullable=True, index=True)
     costo_insumos                = Column(Float, default=0.0)
     costo_maquila                = Column(Float, default=0.0)
-    # Si el producto resultante de la receta maneja variantes, indica a cuál
-    # variante (talla/presentación/etc.) se le acredita el stock producido.
-    variante_id                  = Column(Integer, ForeignKey("producto_variantes.id"), nullable=True)
 
     receta          = relationship("Receta")
     cliente         = relationship("Cliente")
@@ -835,16 +743,6 @@ class DetalleCompra(Base, TenantMixin):
     cantidad        = Column(Float)
     precio_unitario = Column(Float)
     iva_porcentaje  = Column(Float, default=0.0)
-    variante_id     = Column(Integer, ForeignKey("producto_variantes.id"), nullable=True)
-    nombre_variante = Column(String(200), nullable=True)
-    # Datos del lote de perecederos con el que ENTRÓ esta línea. Antes solo
-    # vivían de forma transitoria en el request (se usaban una vez para crear
-    # el LoteExistencia y se perdían) — al editar la compra, el formulario no
-    # tenía de dónde recuperarlos para pre-rellenar ni el backend cómo saber
-    # a qué lote ajustar. Ahora quedan en la propia línea de la compra.
-    numero_lote       = Column(String(100), nullable=True)
-    fecha_vencimiento = Column(Date, nullable=True)
-    fecha_fabricacion = Column(Date, nullable=True)
 
     compra   = relationship("Compra", back_populates="detalles")
     producto = relationship("Producto", foreign_keys=[producto_id])
@@ -1159,10 +1057,6 @@ class ParqueaderoConfig(Base, TenantMixin):
     """
     __tablename__ = "parqueadero_config"
 
-    # Candado en BD: UNA config por empresa (get_or_create hace read-then-insert
-    # sin bloqueo y concurrentemente podía duplicarse).
-    __table_args__ = (UniqueConstraint("empresa_id", name="uq_parq_config_empresa"),)
-
     id                    = Column(Integer, primary_key=True, index=True)
     tarifa_mensual        = Column(Float, default=0.0)
     tarifa_quincenal      = Column(Float, default=0.0)
@@ -1197,11 +1091,6 @@ class Vehiculo(Base, TenantMixin):
     id              = Column(Integer, primary_key=True, index=True)
     placa           = Column(String(10), nullable=False, index=True)
     cliente_id      = Column(Integer, ForeignKey("clientes.id"), nullable=False)
-
-    # Candado en BD: una placa solo puede existir una vez por empresa. La
-    # validación en aplicación no protege contra requests concurrentes.
-    # (Índice creado por migración V130 para tablas existentes.)
-    __table_args__ = (UniqueConstraint("empresa_id", "placa", name="uq_vehiculo_empresa_placa"),)
     marca           = Column(String(60), nullable=True)   # Yamaha, Honda…
     modelo          = Column(String(60), nullable=True)   # XTZ 125, CB 110…
     color           = Column(String(40), nullable=True)
@@ -1480,57 +1369,6 @@ class CredencialBiometrica(Base):
     usuario         = relationship("User", back_populates="credenciales_biometricas", lazy="joined")
 
 
-class BiometricDeviceToken(Base):
-    """
-    Token de acceso rápido ligado a un dispositivo, para el login con biometría
-    NATIVA de la app instalada (Android BiometricPrompt / Face ID). A diferencia
-    de WebAuthn (que no funciona dentro del WebView), aquí el dispositivo guarda
-    en su Keystore un secreto que solo se libera tras validar la huella/rostro.
-
-    El backend NUNCA ve la huella: solo guarda el HASH de un secreto aleatorio.
-    En el login, la app envía el token (token_id + secreto) y aquí se verifica.
-
-    No usa TenantMixin: es a nivel de usuario, igual que las credenciales
-    biométricas WebAuthn.
-    """
-    __tablename__ = "biometric_device_tokens"
-
-    id           = Column(Integer, primary_key=True, index=True)
-    user_id      = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-
-    # Identificador público del token (para localizarlo sin escanear toda la tabla)
-    token_id     = Column(String(64), nullable=False, unique=True, index=True)
-    # Hash del secreto (nunca se guarda el secreto en claro)
-    token_hash   = Column(String(255), nullable=False)
-
-    device_name  = Column(String(120), nullable=True)
-    last_used_at = Column(DateTime(timezone=True), nullable=True)
-    created_at   = Column(DateTime(timezone=True), default=utcnow)
-
-    usuario      = relationship("User", lazy="joined")
-
-
-class AppVersion(Base):
-    """
-    Versiones publicadas de la app móvil (APK). En vez de configurar variables
-    de entorno en el servidor para anunciar una nueva versión, el superadmin
-    agrega un registro aquí (desde el panel). La app instalada consulta la
-    última versión activa al abrir y, si es mayor que la instalada, muestra el
-    aviso de actualización.
-    """
-    __tablename__ = "app_versiones"
-
-    id           = Column(Integer, primary_key=True, index=True)
-    plataforma   = Column(String(20), default="android", index=True)  # android | ios
-    version      = Column(String(20), nullable=False)   # semver visible, ej "1.4.0"
-    version_code = Column(Integer, nullable=False, default=0)  # para ordenar la "última"
-    url_descarga = Column(String(500), nullable=True)
-    mensaje      = Column(Text, nullable=True)
-    obligatoria  = Column(Boolean, default=False)
-    is_active    = Column(Boolean, default=True, index=True)
-    created_at   = Column(DateTime(timezone=True), default=utcnow)
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # MODIFICACIÓN AL MODELO USER — añadir relación inversa
 # Busca tu clase User en models.py y añade esta línea junto a las otras
@@ -1586,18 +1424,8 @@ class EstadoPedidoVirtual(str, enum.Enum):
 
 class PedidoVirtual(Base, TenantMixin):
     __tablename__ = "pedidos_virtuales"
-    __table_args__ = (
-        # Único por empresa (no global) — a propósito: cuando el carrito
-        # multi-tienda (fase 2) exista, el mismo número de orden podrá
-        # repetirse entre empresas distintas sin chocar.
-        UniqueConstraint("empresa_id", "numero_pedido", name="uq_pedido_numero_empresa"),
-    )
 
     id               = Column(Integer, primary_key=True, index=True)
-    # Consecutivo visible/entregado al cliente (#1, #2…), único por empresa —
-    # ver crud.consecutivos.next_consecutivo. El PK 'id' es global y nunca
-    # debe mostrarse al cliente final.
-    numero_pedido    = Column(Integer, nullable=True)
     nombre_cliente   = Column(String(200), nullable=False)
     celular_cliente  = Column(String(30),  nullable=False)
     email_cliente    = Column(String(200), nullable=True)
@@ -1626,8 +1454,6 @@ class DetallePedidoVirtual(Base, TenantMixin):
     cantidad        = Column(Float, nullable=False)
     precio_unitario = Column(Float, nullable=False)
     subtotal        = Column(Float, nullable=False)
-    variante_id     = Column(Integer, ForeignKey("producto_variantes.id"), nullable=True)
-    nombre_variante = Column(String(200), nullable=True)   # snapshot, ej. "Talla M / Azul"
 
     pedido   = relationship("PedidoVirtual", back_populates="detalles")
     producto = relationship("Producto", lazy="joined")
@@ -1785,15 +1611,12 @@ class Reserva(Base):
 class TipoLinkPago(str, enum.Enum):
     QR_IMAGEN = "qr_imagen"   # imagen subida manualmente
     URL       = "url"         # URL → QR generado automáticamente en frontend
-    TEXTO     = "texto"       # datos bancarios en texto libre (cuenta, banco, etc.)
 
 
 class LinkPagoEmpresa(Base, TenantMixin):
     """
-    Uno o varios links/QR/datos de pago activos por empresa para usar en el POS.
-    Permite a cada negocio configurar sus propias pasarelas y cuentas (Nequi,
-    Bold, Bancolombia, cuenta bancaria en texto, etc.) — cada uno aparece como
-    su propio método de pago al cobrar una venta.
+    Un único link/QR de pago activo por empresa para usar en el POS.
+    Permite a cada negocio configurar su propia pasarela (Nequi, Bold, Bancolombia, etc.)
     """
     __tablename__ = "links_pago_empresa"
 
@@ -1803,7 +1626,6 @@ class LinkPagoEmpresa(Base, TenantMixin):
     link_url      = Column(String(500), nullable=True)           # URL si tipo=URL
     qr_base64     = Column(Text, nullable=True)                  # base64 si tipo=QR_IMAGEN
     qr_mime_type  = Column(String(40), nullable=True)            # "image/png"
-    texto_pago    = Column(Text, nullable=True)                  # datos bancarios si tipo=TEXTO
     instrucciones = Column(Text, nullable=True)                  # "Escanea y paga"
     is_active     = Column(Boolean, default=True)
     created_at    = Column(DateTime(timezone=True), default=utcnow)
@@ -1824,20 +1646,9 @@ class LavaderoOrden(Base, TenantMixin):
     estado          = Column(String(20), default='recibido', nullable=False, index=True)
     operador_id     = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     cliente_id      = Column(Integer, ForeignKey("clientes.id"), nullable=True)
-    # Sede donde se hizo la lavada — solo para trazabilidad y reportes; nula
-    # para negocios de una sola sede o para órdenes creadas antes de esta
-    # funcionalidad.
-    sede_id         = Column(Integer, ForeignKey("lavadero_sedes.id"), nullable=True, index=True)
     observaciones   = Column(Text, nullable=True)
     fecha_entrada   = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     fecha_salida    = Column(DateTime(timezone=True), nullable=True)
-    # Momento real en que el vehículo empezó/terminó el lavado (estado
-    # "lavando" → "terminado"), distinto de fecha_salida (que es cuando se
-    # cobra — el carro puede quedar listo y esperar un rato hasta que se
-    # cobre y se entregue). Sin esto no hay forma de medir cuánto tardó cada
-    # lavada de verdad.
-    fecha_inicio_lavado = Column(DateTime(timezone=True), nullable=True)
-    fecha_fin_lavado    = Column(DateTime(timezone=True), nullable=True)
     total           = Column(Float, nullable=True)
     metodo_pago     = Column(String(50), nullable=True)
     pagado          = Column(Boolean, default=False)
@@ -1845,7 +1656,6 @@ class LavaderoOrden(Base, TenantMixin):
 
     operador  = relationship("User", foreign_keys=[operador_id])
     cliente   = relationship("Cliente")
-    sede      = relationship("LavaderoSede")
     detalles  = relationship("LavaderoOrdenDetalle", back_populates="orden", cascade="all, delete-orphan")
 
 
@@ -1861,43 +1671,6 @@ class LavaderoOrdenDetalle(Base, TenantMixin):
 
     orden    = relationship("LavaderoOrden", back_populates="detalles")
     producto = relationship("Producto")
-
-
-class LavaderoSede(Base, TenantMixin):
-    """
-    Multi-sede — solo aplica a los módulos de Lavadero (POS, Config,
-    Reportes). El resto del sistema (Productos, Clientes, Inventario) sigue
-    compartido entre todas las sedes de la empresa.
-    """
-    __tablename__ = "lavadero_sedes"
-    id      = Column(Integer, primary_key=True, index=True)
-    nombre  = Column(String(100), nullable=False)
-    activa  = Column(Boolean, default=True)
-
-
-class LavaderoTrabajadorSede(Base, TenantMixin):
-    """
-    Un trabajador queda asignado a UNA sola sede (lo normal: un lavador
-    trabaja en un solo lugar). Sin fila aquí = visible en todas las sedes,
-    para no romper cuentas que aún no configuraron sedes.
-    """
-    __tablename__ = "lavadero_trabajador_sede"
-    id       = Column(Integer, primary_key=True, index=True)
-    user_id  = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
-    sede_id  = Column(Integer, ForeignKey("lavadero_sedes.id", ondelete="CASCADE"), nullable=False, index=True)
-
-
-class LavaderoSedeServicio(Base, TenantMixin):
-    """
-    Un servicio puede ofrecerse en varias sedes a la vez. Un servicio sin
-    ninguna fila aquí se considera disponible en TODAS las sedes (default
-    abierto, para no obligar a reconfigurar el catálogo existente).
-    """
-    __tablename__ = "lavadero_sede_servicios"
-    id          = Column(Integer, primary_key=True, index=True)
-    sede_id     = Column(Integer, ForeignKey("lavadero_sedes.id", ondelete="CASCADE"), nullable=False, index=True)
-    producto_id = Column(Integer, ForeignKey("productos.id", ondelete="CASCADE"), nullable=False, index=True)
-
 
 
 class LavaderoConfig(Base, TenantMixin):
@@ -2070,12 +1843,6 @@ class Cita(Base, TenantMixin):
     solapada en ese rango.
     """
     __tablename__ = "citas"
-    __table_args__ = (
-        # El calendario (admin y disponibilidad) siempre filtra por
-        # empresa_id + rango de fecha_inicio y ordena por fecha_inicio —
-        # mismo patrón que ix_ventas_empresa_fecha.
-        Index("ix_citas_empresa_fecha", "empresa_id", "fecha_inicio"),
-    )
     id           = Column(Integer, primary_key=True, index=True)
     producto_id  = Column(Integer, ForeignKey("productos.id"), nullable=False, index=True)
     cliente_id   = Column(Integer, ForeignKey("clientes.id"), nullable=True, index=True)
@@ -2141,139 +1908,3 @@ class AgendamientoConfig(Base, TenantMixin):
     mensaje_recordatorio   = Column(Text, nullable=True)
 
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# TALLER DE MECÁNICA — dos flujos sobre el mismo vehículo:
-#   1) reparacion_cliente: el cliente trae SU vehículo, se le cobra un servicio.
-#   2) remanufactura_reventa: el taller COMPRA un vehículo usado, le invierte en
-#      repuestos/pintura/mano de obra hasta dejarlo listo, y lo VENDE.
-# Ninguno de los módulos existentes (Producción con receta fija + costo
-# promediado, Órdenes de Trabajo sin campo de costo) sirve para acumular un
-# número abierto de gastos contra UNA unidad no fungible hasta su cierre —
-# de ahí este módulo dedicado, siguiendo el mismo precedente que Préstamos y
-# Parqueadero (tablas propias cuando la operación no encaja en el POS genérico).
-# ═══════════════════════════════════════════════════════════════════════════════
-
-class TipoVehiculo(str, enum.Enum):
-    MOTO = "moto"
-    CARRO = "carro"
-
-
-class OrigenVehiculo(str, enum.Enum):
-    CLIENTE = "cliente"                    # llegó a reparación, sigue siendo del cliente
-    COMPRA_REVENTA = "compra_reventa"       # el taller lo compró para remanufacturar y vender
-
-
-class TipoOrdenTaller(str, enum.Enum):
-    REPARACION_CLIENTE = "reparacion_cliente"
-    REMANUFACTURA_REVENTA = "remanufactura_reventa"
-
-
-class EstadoOrdenTaller(str, enum.Enum):
-    RECIBIDO      = "recibido"
-    DIAGNOSTICO   = "diagnostico"
-    EN_REPARACION = "en_reparacion"
-    LISTO         = "listo"          # listo para entregar (cliente) o para vender (reventa)
-    ENTREGADO     = "entregado"      # cierre de reparacion_cliente
-    VENDIDO       = "vendido"        # cierre de remanufactura_reventa
-    CANCELADO     = "cancelado"
-
-
-class TipoDetalleOrdenTaller(str, enum.Enum):
-    REPUESTO = "repuesto"
-    MANO_OBRA = "mano_obra"
-    SERVICIO_EXTERNO = "servicio_externo"   # maquila tercerizada: pintura, latonería, etc.
-
-
-class VehiculoTaller(Base, TenantMixin):
-    """Un vehículo físico del Taller de Mecánica — de un cliente (llega a
-    reparación) o comprado por el taller para remanufacturar y revender. No
-    es un SKU de inventario reutilizable: cada placa es una unidad única.
-
-    Nota: se llama VehiculoTaller (no Vehiculo) porque el módulo de
-    Parqueadero ya tiene un modelo `Vehiculo`/tabla `vehiculos` con un
-    propósito distinto (motos registradas en el parqueadero)."""
-    __tablename__ = "vehiculos_taller"
-    __table_args__ = (
-        UniqueConstraint("empresa_id", "placa", name="uq_vehiculo_taller_placa_empresa"),
-    )
-    id            = Column(Integer, primary_key=True, index=True)
-    placa         = Column(String(20), nullable=False, index=True)
-    tipo          = Column(String(10), default=TipoVehiculo.CARRO.value)
-    marca         = Column(String(60), nullable=True)
-    modelo        = Column(String(60), nullable=True)
-    anio          = Column(Integer, nullable=True)
-    color         = Column(String(40), nullable=True)
-    kilometraje   = Column(Integer, nullable=True)
-    origen        = Column(String(20), default=OrigenVehiculo.CLIENTE.value, index=True)
-    cliente_id    = Column(Integer, ForeignKey("clientes.id"), nullable=True)  # dueño, si es de un cliente
-    foto_ingreso  = Column(Text, nullable=True)  # WebP base64, evidencia del estado al entrar
-    created_at    = Column(DateTime(timezone=True), default=utcnow)
-
-    cliente = relationship("Cliente")
-    ordenes = relationship("OrdenTaller", back_populates="vehiculo", cascade="all, delete-orphan")
-
-
-class OrdenTaller(Base, TenantMixin):
-    """Una orden de trabajo sobre un VehiculoTaller — la reparación completa
-    (para cliente) o el proceso de remanufactura (para reventa). El costo NO
-    se define de antemano: se va acumulando vía DetalleOrdenTaller mientras
-    la orden esté abierta."""
-    __tablename__ = "ordenes_taller"
-    id                     = Column(Integer, primary_key=True, index=True)
-    vehiculo_id            = Column(Integer, ForeignKey("vehiculos_taller.id"), nullable=False, index=True)
-    tipo_orden             = Column(String(30), default=TipoOrdenTaller.REPARACION_CLIENTE.value, index=True)
-    mecanico_id            = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
-    estado                 = Column(String(20), default=EstadoOrdenTaller.RECIBIDO.value, index=True)
-
-    descripcion_problema   = Column(Text, nullable=True)   # motivo de ingreso / diagnóstico inicial
-    diagnostico            = Column(Text, nullable=True)   # hallazgo del mecánico
-
-    fecha_ingreso          = Column(DateTime(timezone=True), default=utcnow)
-    fecha_estimada_entrega = Column(DateTime(timezone=True), nullable=True)
-    fecha_entrega_real     = Column(DateTime(timezone=True), nullable=True)
-    updated_at             = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
-
-    # ── reparacion_cliente ──
-    valor_cobrado          = Column(Float, nullable=True)          # precio del servicio al cliente
-    estado_pago            = Column(String(20), default="pendiente")  # pendiente | pagado
-
-    # ── remanufactura_reventa ──
-    precio_compra_vehiculo = Column(Float, nullable=True)
-    precio_venta_sugerido  = Column(Float, nullable=True)
-    precio_venta_final     = Column(Float, nullable=True)
-    comprador_cliente_id   = Column(Integer, ForeignKey("clientes.id"), nullable=True)
-
-    venta_id               = Column(Integer, ForeignKey("ventas.id"), nullable=True)  # cierre (ambos flujos)
-    notas_internas         = Column(Text, nullable=True)
-
-    # Trazabilidad de permutas: si este vehículo/orden nació como parte de
-    # pago de OTRA venta (alguien entregó este vehículo a cambio), aquí queda
-    # el id de esa orden de origen — para poder rastrear la cadena completa.
-    permuta_origen_orden_id = Column(Integer, ForeignKey("ordenes_taller.id"), nullable=True)
-
-    vehiculo   = relationship("VehiculoTaller", back_populates="ordenes")
-    mecanico   = relationship("User")
-    comprador  = relationship("Cliente", foreign_keys=[comprador_cliente_id])
-    venta      = relationship("Venta", foreign_keys=[venta_id])
-    detalles   = relationship("DetalleOrdenTaller", back_populates="orden", cascade="all, delete-orphan")
-
-
-class DetalleOrdenTaller(Base, TenantMixin):
-    """Una línea de costo/trabajo contra una OrdenTaller — se le pueden ir
-    agregando indefinidamente mientras la orden esté abierta. La suma de
-    subtotal (+ precio_compra_vehiculo si aplica) es el costo acumulado."""
-    __tablename__ = "detalles_orden_taller"
-    id              = Column(Integer, primary_key=True, index=True)
-    orden_id        = Column(Integer, ForeignKey("ordenes_taller.id"), nullable=False, index=True)
-    tipo            = Column(String(20), default=TipoDetalleOrdenTaller.REPUESTO.value)
-    producto_id     = Column(Integer, ForeignKey("productos.id"), nullable=True)  # si es un repuesto de inventario
-    descripcion     = Column(String(200), nullable=False)
-    cantidad        = Column(Float, default=1.0)
-    costo_unitario  = Column(Float, default=0.0)
-    subtotal        = Column(Float, default=0.0)
-    fecha           = Column(DateTime(timezone=True), default=utcnow)
-
-    orden    = relationship("OrdenTaller", back_populates="detalles")
-    producto = relationship("Producto")

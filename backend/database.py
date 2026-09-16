@@ -101,27 +101,6 @@ def _column_exists(conn, table, column):
             {"t": table, "c": column}
         ).fetchone() is not None
 
-
-def _add_column_safe(conn, table: str, column: str, typedef: str):
-    """ALTER TABLE … ADD COLUMN compatible con SQLite y PostgreSQL.
-    
-    PostgreSQL soporta ADD COLUMN IF NOT EXISTS de forma nativa.
-    SQLite no lo soporta: hay que verificar con PRAGMA table_info primero.
-    """
-    if IS_SQLITE:
-        if not _column_exists(conn, table, column):
-            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {typedef}"))
-    else:
-        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {typedef}"))
-
-
-def _create_index_safe(conn, index_name: str, table: str, columns: list):
-    """CREATE INDEX IF NOT EXISTS — sintaxis soportada tanto por SQLite como
-    por PostgreSQL, a diferencia de ADD COLUMN."""
-    cols = ", ".join(columns)
-    conn.execute(text(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table} ({cols})"))
-
-
 # ──────────────────────────────────────────────────────────────────────────────
 # MIGRACIONES
 # ──────────────────────────────────────────────────────────────────────────────
@@ -1063,20 +1042,12 @@ def run_migrations():
             # V62 - Columnas faltantes en inventory_movements
             migration_v62 = "v62_inventory_movements_columns"
             if not _migration_already_applied(conn, migration_v62):
-                if IS_SQLITE:
-                    if not _column_exists(conn, "inventory_movements", "usuario_id"):
-                        conn.execute(text("ALTER TABLE inventory_movements ADD COLUMN usuario_id INTEGER REFERENCES users(id)"))
-                    if not _column_exists(conn, "inventory_movements", "lote_id"):
-                        conn.execute(text("ALTER TABLE inventory_movements ADD COLUMN lote_id INTEGER REFERENCES lotes_existencias(id)"))
-                    if not _column_exists(conn, "inventory_movements", "numero_lote"):
-                        conn.execute(text("ALTER TABLE inventory_movements ADD COLUMN numero_lote VARCHAR(100)"))
-                else:
-                    conn.execute(text("""
-                        ALTER TABLE inventory_movements
-                          ADD COLUMN IF NOT EXISTS usuario_id  INTEGER REFERENCES users(id),
-                          ADD COLUMN IF NOT EXISTS lote_id     INTEGER REFERENCES lotes_existencias(id),
-                          ADD COLUMN IF NOT EXISTS numero_lote VARCHAR(100)
-                    """))
+                conn.execute(text("""
+                    ALTER TABLE inventory_movements
+                      ADD COLUMN IF NOT EXISTS usuario_id  INTEGER REFERENCES users(id),
+                      ADD COLUMN IF NOT EXISTS lote_id     INTEGER REFERENCES lotes_existencias(id),
+                      ADD COLUMN IF NOT EXISTS numero_lote VARCHAR(100)
+                """))
                 _mark_migration_applied(conn, migration_v62)
                 logger.info("V62 (inventory_movements: usuario_id, lote_id, numero_lote) aplicada.")
 
@@ -1134,39 +1105,29 @@ def run_migrations():
             # V64 - Puntos de fidelización + plan is_featured
             migration_v64 = "v64_loyalty_points_plan_featured"
             if not _migration_already_applied(conn, migration_v64):
-                _add_column_safe(conn, "clientes", "puntos_fidelidad", "INTEGER DEFAULT 0")
-                if not _table_exists(conn, "movimientos_puntos"):
-                    if IS_SQLITE:
-                        conn.execute(text("""
-                            CREATE TABLE movimientos_puntos (
-                                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                                empresa_id  INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
-                                cliente_id  INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
-                                puntos      INTEGER NOT NULL,
-                                tipo        VARCHAR(20) NOT NULL,
-                                venta_id    INTEGER REFERENCES ventas(id) ON DELETE SET NULL,
-                                descripcion VARCHAR(255),
-                                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                            )
-                        """))
-                    else:
-                        conn.execute(text("""
-                            CREATE TABLE movimientos_puntos (
-                                id          SERIAL PRIMARY KEY,
-                                empresa_id  INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
-                                cliente_id  INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
-                                puntos      INTEGER NOT NULL,
-                                tipo        VARCHAR(20) NOT NULL,
-                                venta_id    INTEGER REFERENCES ventas(id) ON DELETE SET NULL,
-                                descripcion VARCHAR(255),
-                                created_at  TIMESTAMPTZ DEFAULT NOW()
-                            )
-                        """))
+                conn.execute(text("""
+                    ALTER TABLE clientes ADD COLUMN IF NOT EXISTS puntos_fidelidad INTEGER DEFAULT 0;
+                """))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS movimientos_puntos (
+                        id          SERIAL PRIMARY KEY,
+                        empresa_id  INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+                        cliente_id  INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+                        puntos      INTEGER NOT NULL,
+                        tipo        VARCHAR(20) NOT NULL,
+                        venta_id    INTEGER REFERENCES ventas(id) ON DELETE SET NULL,
+                        descripcion VARCHAR(255),
+                        created_at  TIMESTAMPTZ DEFAULT NOW()
+                    );
+                """))
                 conn.execute(text("""
                     CREATE INDEX IF NOT EXISTS ix_movimientos_puntos_empresa_cliente
                         ON movimientos_puntos(empresa_id, cliente_id);
                 """))
-                _add_column_safe(conn, "planes_suscripcion", "is_featured", "BOOLEAN DEFAULT 0" if IS_SQLITE else "BOOLEAN DEFAULT FALSE")
+                conn.execute(text("""
+                    ALTER TABLE planes_suscripcion
+                        ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT FALSE;
+                """))
                 _mark_migration_applied(conn, migration_v64)
                 logger.info("V64 (puntos fidelización + plan is_featured) aplicada.")
 
@@ -1175,50 +1136,31 @@ def run_migrations():
             # ═══════════════════════════════════════════════════════════════
             migration_v65 = "v65_links_pago_empresa"
             if not _migration_already_applied(conn, migration_v65):
-                if not _table_exists(conn, "links_pago_empresa"):
-                    if IS_SQLITE:
-                        # SQLite no soporta tipos ENUM ni DO $$ blocks; se usa VARCHAR
-                        conn.execute(text("""
-                            CREATE TABLE links_pago_empresa (
-                                id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                                empresa_id    INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
-                                nombre        VARCHAR(100) NOT NULL,
-                                tipo          VARCHAR(20) NOT NULL DEFAULT 'url',
-                                link_url      VARCHAR(500),
-                                qr_base64     TEXT,
-                                qr_mime_type  VARCHAR(40),
-                                instrucciones TEXT,
-                                is_active     INTEGER NOT NULL DEFAULT 1,
-                                created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                            )
-                        """))
-                    else:
-                        conn.execute(text("""
-                            DO $$
-                            BEGIN
-                              IF NOT EXISTS (
-                                SELECT 1 FROM pg_type WHERE typname = 'tipolinkpago'
-                              ) THEN
-                                CREATE TYPE tipolinkpago AS ENUM ('qr_imagen', 'url');
-                              END IF;
-                            END $$
-                        """))
-                        conn.execute(text("""
-                            CREATE TABLE IF NOT EXISTS links_pago_empresa (
-                                id            SERIAL PRIMARY KEY,
-                                empresa_id    INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
-                                nombre        VARCHAR(100) NOT NULL,
-                                tipo          tipolinkpago NOT NULL DEFAULT 'url',
-                                link_url      VARCHAR(500),
-                                qr_base64     TEXT,
-                                qr_mime_type  VARCHAR(40),
-                                instrucciones TEXT,
-                                is_active     BOOLEAN NOT NULL DEFAULT TRUE,
-                                created_at    TIMESTAMPTZ DEFAULT NOW(),
-                                updated_at    TIMESTAMPTZ DEFAULT NOW()
-                            );
-                        """))
+                conn.execute(text("""
+                    DO $$
+                    BEGIN
+                      IF NOT EXISTS (
+                        SELECT 1 FROM pg_type WHERE typname = 'tipolinkpago'
+                      ) THEN
+                        CREATE TYPE tipolinkpago AS ENUM ('qr_imagen', 'url');
+                      END IF;
+                    END $$
+                """))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS links_pago_empresa (
+                        id            SERIAL PRIMARY KEY,
+                        empresa_id    INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+                        nombre        VARCHAR(100) NOT NULL,
+                        tipo          tipolinkpago NOT NULL DEFAULT 'url',
+                        link_url      VARCHAR(500),
+                        qr_base64     TEXT,
+                        qr_mime_type  VARCHAR(40),
+                        instrucciones TEXT,
+                        is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+                        created_at    TIMESTAMPTZ DEFAULT NOW(),
+                        updated_at    TIMESTAMPTZ DEFAULT NOW()
+                    );
+                """))
                 conn.execute(text("""
                     CREATE INDEX IF NOT EXISTS ix_links_pago_empresa_empresa_id
                         ON links_pago_empresa(empresa_id);
@@ -1251,16 +1193,23 @@ def run_migrations():
             # ═══════════════════════════════════════════════════════════════
             migration_v67 = "v67_empresa_omitir_inventario"
             if not _migration_already_applied(conn, migration_v67):
-                _add_column_safe(conn, "empresas", "omitir_inventario", "BOOLEAN DEFAULT 0" if IS_SQLITE else "BOOLEAN DEFAULT FALSE")
-                _add_column_safe(conn, "detalles_venta", "nombre_libre", "VARCHAR(200)")
-                if not IS_SQLITE:
-                    conn.execute(text("ALTER TABLE detalles_venta ALTER COLUMN producto_id DROP NOT NULL;"))
+                conn.execute(text("""
+                    ALTER TABLE empresas ADD COLUMN IF NOT EXISTS omitir_inventario BOOLEAN DEFAULT FALSE;
+                """))
+                conn.execute(text("""
+                    ALTER TABLE detalles_venta ADD COLUMN IF NOT EXISTS nombre_libre VARCHAR(200);
+                """))
+                conn.execute(text("""
+                    ALTER TABLE detalles_venta ALTER COLUMN producto_id DROP NOT NULL;
+                """))
                 _mark_migration_applied(conn, migration_v67)
                 logger.info("V67 (empresas.omitir_inventario + detalles_venta.nombre_libre + producto_id nullable) aplicada.")
 
             migration_v68 = "v68_restaurante_config_imprimir_comanda_auto"
             if not _migration_already_applied(conn, migration_v68):
-                _add_column_safe(conn, "restaurante_config", "imprimir_comanda_auto", "BOOLEAN DEFAULT 0" if IS_SQLITE else "BOOLEAN DEFAULT FALSE")
+                conn.execute(text("""
+                    ALTER TABLE restaurante_config ADD COLUMN IF NOT EXISTS imprimir_comanda_auto BOOLEAN DEFAULT FALSE;
+                """))
                 _mark_migration_applied(conn, migration_v68)
                 logger.info("V68 (restaurante_config.imprimir_comanda_auto) aplicada.")
 
@@ -1361,8 +1310,6 @@ def run_migrations():
                     ("Bebidas Alcohólicas", "BAL", "#8B5CF6", 16, False, True),
                 ]
                 empresas_rest = conn.execute(text(
-                    "SELECT id FROM empresas WHERE CAST(modulos_habilitados AS TEXT) LIKE '%/restaurante%'"
-                    if IS_SQLITE else
                     "SELECT id FROM empresas WHERE modulos_habilitados::text LIKE '%/restaurante%'"
                 )).fetchall()
                 for (emp_id,) in empresas_rest:
@@ -1389,22 +1336,34 @@ def run_migrations():
             # V74 - restaurante_config.mesero_puede_cobrar_directo
             migration_v74 = "v74_restaurante_config_mesero_cobro_directo"
             if not _migration_already_applied(conn, migration_v74):
-                _add_column_safe(conn, "restaurante_config", "mesero_puede_cobrar_directo", "BOOLEAN DEFAULT 0" if IS_SQLITE else "BOOLEAN DEFAULT FALSE")
+                conn.execute(text("""
+                    ALTER TABLE restaurante_config
+                    ADD COLUMN IF NOT EXISTS mesero_puede_cobrar_directo BOOLEAN DEFAULT FALSE;
+                """))
                 _mark_migration_applied(conn, migration_v74)
                 logger.info("V74 (restaurante_config.mesero_puede_cobrar_directo) aplicada.")
 
             # V75 - restaurante_config.tipo_impresora
             migration_v75 = "v75_restaurante_config_tipo_impresora"
             if not _migration_already_applied(conn, migration_v75):
-                _add_column_safe(conn, "restaurante_config", "tipo_impresora", "VARCHAR(10) DEFAULT 'p80'")
+                conn.execute(text("""
+                    ALTER TABLE restaurante_config
+                    ADD COLUMN IF NOT EXISTS tipo_impresora VARCHAR(10) DEFAULT 'p80';
+                """))
                 _mark_migration_applied(conn, migration_v75)
                 logger.info("V75 (restaurante_config.tipo_impresora) aplicada.")
 
             # V76 - parqueadero_config: tipo_impresora_parq + preferir_impresion
             migration_v76 = "v76_parqueadero_config_print_settings"
             if not _migration_already_applied(conn, migration_v76):
-                _add_column_safe(conn, "parqueadero_config", "tipo_impresora_parq", "VARCHAR(10) DEFAULT 'p80'")
-                _add_column_safe(conn, "parqueadero_config", "preferir_impresion", "BOOLEAN DEFAULT 0" if IS_SQLITE else "BOOLEAN DEFAULT FALSE")
+                conn.execute(text("""
+                    ALTER TABLE parqueadero_config
+                    ADD COLUMN IF NOT EXISTS tipo_impresora_parq VARCHAR(10) DEFAULT 'p80';
+                """))
+                conn.execute(text("""
+                    ALTER TABLE parqueadero_config
+                    ADD COLUMN IF NOT EXISTS preferir_impresion BOOLEAN DEFAULT FALSE;
+                """))
                 _mark_migration_applied(conn, migration_v76)
                 logger.info("V76 (parqueadero_config print settings) aplicada.")
 
@@ -1951,21 +1910,18 @@ def run_migrations():
             # ── V90: planes privados por empresa ──────────────────────────────
             migration_v90 = "v90_planes_empresa_exclusivo"
             if not _migration_already_applied(conn, migration_v90):
-                if IS_SQLITE:
-                    _add_column_safe(conn, "planes_suscripcion", "empresa_id_exclusivo", "INTEGER REFERENCES empresas(id)")
-                else:
-                    conn.execute(text("""
-                        ALTER TABLE planes_suscripcion
-                        ADD COLUMN IF NOT EXISTS empresa_id_exclusivo INTEGER
-                        REFERENCES empresas(id) ON DELETE SET NULL
-                    """))
+                conn.execute(text("""
+                    ALTER TABLE planes_suscripcion
+                    ADD COLUMN IF NOT EXISTS empresa_id_exclusivo INTEGER
+                    REFERENCES empresas(id) ON DELETE SET NULL
+                """))
                 _mark_migration_applied(conn, migration_v90)
                 logger.info("V90 (planes privados por empresa) aplicada.")
 
             # ── V91: descripción pública de la empresa (catálogo virtual) ──────
             migration_v91 = "v91_empresa_descripcion_catalogo"
             if not _migration_already_applied(conn, migration_v91):
-                _add_column_safe(conn, "empresas", "descripcion", "TEXT")
+                conn.execute(text("ALTER TABLE empresas ADD COLUMN IF NOT EXISTS descripcion TEXT"))
                 _mark_migration_applied(conn, migration_v91)
                 logger.info("V91 (empresa.descripcion para catálogo) aplicada.")
 
@@ -2010,20 +1966,29 @@ def run_migrations():
             # ── V93: columna matias_sandbox_api_key en empresas ──────────────
             migration_v93 = "v93_matias_sandbox_api_key"
             if not _migration_already_applied(conn, migration_v93):
-                _add_column_safe(conn, "empresas", "matias_sandbox_api_key", "TEXT")
+                conn.execute(text(
+                    "ALTER TABLE empresas ADD COLUMN IF NOT EXISTS matias_sandbox_api_key TEXT NULL"
+                ))
                 _mark_migration_applied(conn, migration_v93)
                 logger.info("V93 (empresas.matias_sandbox_api_key) aplicada.")
 
             # ── V94: producción avanzada (merma_pct, rendimiento_esperado, costo breakdown) ──
             migration_v94 = "v94_produccion_avanzada"
             if not _migration_already_applied(conn, migration_v94):
-                _add_column_safe(conn, "receta_items", "merma_pct", "FLOAT DEFAULT 0.0")
-                _add_column_safe(conn, "receta_servicios", "cantidad", "FLOAT DEFAULT 1.0")
-                _add_column_safe(conn, "recetas", "rendimiento_esperado", "FLOAT DEFAULT 1.0")
-                _add_column_safe(conn, "recetas", "notas_tecnicas", "TEXT")
-                _add_column_safe(conn, "lotes_produccion", "numero_lote_produccion", "VARCHAR(100)")
-                _add_column_safe(conn, "lotes_produccion", "costo_insumos", "FLOAT DEFAULT 0.0")
-                _add_column_safe(conn, "lotes_produccion", "costo_maquila", "FLOAT DEFAULT 0.0")
+                sqls = [
+                    "ALTER TABLE receta_items ADD COLUMN IF NOT EXISTS merma_pct FLOAT DEFAULT 0.0",
+                    "ALTER TABLE receta_servicios ADD COLUMN IF NOT EXISTS cantidad FLOAT DEFAULT 1.0",
+                    "ALTER TABLE recetas ADD COLUMN IF NOT EXISTS rendimiento_esperado FLOAT DEFAULT 1.0",
+                    "ALTER TABLE recetas ADD COLUMN IF NOT EXISTS notas_tecnicas TEXT",
+                    "ALTER TABLE lotes_produccion ADD COLUMN IF NOT EXISTS numero_lote_produccion VARCHAR(100)",
+                    "ALTER TABLE lotes_produccion ADD COLUMN IF NOT EXISTS costo_insumos FLOAT DEFAULT 0.0",
+                    "ALTER TABLE lotes_produccion ADD COLUMN IF NOT EXISTS costo_maquila FLOAT DEFAULT 0.0",
+                ]
+                for sql in sqls:
+                    try:
+                        conn.execute(text(sql))
+                    except Exception:
+                        pass  # Column may already exist in SQLite
                 _mark_migration_applied(conn, migration_v94)
                 logger.info("V94 (producción avanzada) aplicada.")
 
@@ -2501,575 +2466,6 @@ def run_migrations():
                     ))
                 _mark_migration_applied(conn, migration_v112)
                 logger.info("V112 (consecutivo libro diario + índice único) aplicada.")
-
-            # V114 — Índice único (empresa_id, numero_factura) en ventas.
-            # Defensa en profundidad para el bug de numeración DIAN concurrente
-            # (_asignar_numero_factura hacía un read-modify-write en Python sin
-            # lock, y podía asignar el MISMO consecutivo a dos ventas
-            # simultáneas — ya corregido con UPDATE...RETURNING atómico, pero
-            # una restricción a nivel de BD es la única garantía que no
-            # depende de que ningún código futuro vuelva a introducir el
-            # mismo error). No se auto-corrigen duplicados existentes: son
-            # documentos legales ya emitidos ante la DIAN con su propio CUFE,
-            # y mutarlos en silencio sería peor que dejarlos para revisión
-            # manual — si hay duplicados, se registra una alerta y el índice
-            # se reintenta en el próximo arranque una vez se resuelvan.
-            migration_v114 = "v114_indice_unico_numero_factura"
-            if not _migration_already_applied(conn, migration_v114):
-                duplicados = conn.execute(text("""
-                    SELECT empresa_id, numero_factura, COUNT(*) AS n
-                    FROM ventas
-                    WHERE numero_factura IS NOT NULL
-                    GROUP BY empresa_id, numero_factura
-                    HAVING COUNT(*) > 1
-                """)).fetchall()
-                if duplicados:
-                    logger.error(
-                        "V114: %d numero_factura duplicados detectados (empresa_id, numero) — "
-                        "requieren revisión manual antes de poder crear el índice único: %s",
-                        len(duplicados),
-                        [(d[0], d[1], d[2]) for d in duplicados][:20],
-                    )
-                else:
-                    if not _index_exists(conn, "uq_venta_empresa_numero_factura"):
-                        conn.execute(text(
-                            "CREATE UNIQUE INDEX uq_venta_empresa_numero_factura "
-                            "ON ventas (empresa_id, numero_factura) "
-                            "WHERE numero_factura IS NOT NULL"
-                        ))
-                    _mark_migration_applied(conn, migration_v114)
-                    logger.info("V114 (índice único numero_factura por empresa) aplicada.")
-
-            # V115 — Soporte de variantes en movimientos de inventario y
-            # pedidos virtuales. Sin esto, el ajuste manual de stock, las
-            # compras y el catálogo virtual solo pueden operar sobre el
-            # stock del producto padre, ignorando cuál variante (talla,
-            # color, etc.) corresponde.
-            migration_v115 = "v115_variantes_movimientos_pedidos"
-            if not _migration_already_applied(conn, migration_v115):
-                _add_column_safe(conn, "inventory_movements", "variante_id", "INTEGER")
-                _add_column_safe(conn, "inventory_movements", "nombre_variante", "VARCHAR(200)")
-                _add_column_safe(conn, "detalles_pedido_virtual", "variante_id", "INTEGER")
-                _add_column_safe(conn, "detalles_pedido_virtual", "nombre_variante", "VARCHAR(200)")
-                _mark_migration_applied(conn, migration_v115)
-                logger.info("V115 (variantes en movimientos y pedidos virtuales) aplicada.")
-
-            # V116 — Fase 2 de soporte de variantes: Compras (recepción de
-            # stock hacia una variante específica) y Producción (lote
-            # acreditado a una variante del producto resultante).
-            migration_v116 = "v116_variantes_compras_produccion"
-            if not _migration_already_applied(conn, migration_v116):
-                _add_column_safe(conn, "detalles_compra", "variante_id", "INTEGER")
-                _add_column_safe(conn, "detalles_compra", "nombre_variante", "VARCHAR(200)")
-                _add_column_safe(conn, "lotes_produccion", "variante_id", "INTEGER")
-                _mark_migration_applied(conn, migration_v116)
-                logger.info("V116 (variantes en compras y producción) aplicada.")
-
-            # V117 — Centro Comercial Virtual: directorio público opt-in que
-            # agrupa el catálogo de varias empresas bajo un solo dominio.
-            migration_v117 = "v117_marketplace_empresas"
-            if not _migration_already_applied(conn, migration_v117):
-                _add_column_safe(conn, "empresas", "visible_marketplace", "BOOLEAN NOT NULL DEFAULT false")
-                _add_column_safe(conn, "empresas", "categoria_marketplace", "VARCHAR(60)")
-                _mark_migration_applied(conn, migration_v117)
-                logger.info("V117 (centro comercial virtual) aplicada.")
-
-            # V118 — Índices en ventas/detalles_venta/pagos. El historial de
-            # ventas siempre filtra por empresa_id + ordena por fecha desc, y
-            # las cargas de detalles/pagos por venta_id — sin estos índices,
-            # cada consulta hace un scan secuencial completo que empeora
-            # linealmente con el volumen de ventas (miles/millones de filas).
-            migration_v118 = "v118_indices_ventas"
-            if not _migration_already_applied(conn, migration_v118):
-                _create_index_safe(conn, "ix_ventas_empresa_fecha", "ventas", ["empresa_id", "fecha"])
-                _create_index_safe(conn, "ix_ventas_cliente_id", "ventas", ["cliente_id"])
-                _create_index_safe(conn, "ix_detalles_venta_venta_id", "detalles_venta", ["venta_id"])
-                _create_index_safe(conn, "ix_detalles_venta_producto_id", "detalles_venta", ["producto_id"])
-                _create_index_safe(conn, "ix_pagos_venta_id", "pagos", ["venta_id"])
-                _mark_migration_applied(conn, migration_v118)
-                logger.info("V118 (índices en ventas/detalles/pagos) aplicada.")
-
-            # V119 — Número de pedido consecutivo por empresa en Pedidos
-            # Virtuales (fase 1 de multicarrito): el cliente del catálogo
-            # virtual ahora recibe un número/código de su pedido en vez de
-            # ser redirigido automáticamente a WhatsApp, y puede usarlo para
-            # consultar el estado. Único por empresa (no global) a propósito:
-            # cuando exista el carrito multi-tienda, el mismo número podrá
-            # repetirse entre empresas distintas sin chocar.
-            migration_v119 = "v119_numero_pedido_virtual"
-            if not _migration_already_applied(conn, migration_v119):
-                _add_column_safe(conn, "empresas", "ultimo_numero_pedido", "INTEGER NOT NULL DEFAULT 0")
-                _add_column_safe(conn, "pedidos_virtuales", "numero_pedido", "INTEGER")
-
-                if not IS_SQLITE:
-                    conn.execute(text("""
-                        UPDATE pedidos_virtuales SET numero_pedido = sub.rn
-                        FROM (
-                            SELECT id, ROW_NUMBER() OVER (PARTITION BY empresa_id ORDER BY id) AS rn
-                            FROM pedidos_virtuales
-                        ) AS sub
-                        WHERE pedidos_virtuales.id = sub.id AND pedidos_virtuales.numero_pedido IS NULL
-                    """))
-                    conn.execute(text("""
-                        UPDATE empresas SET ultimo_numero_pedido = COALESCE(
-                            (SELECT MAX(p.numero_pedido) FROM pedidos_virtuales p WHERE p.empresa_id = empresas.id), 0)
-                    """))
-                    conn.execute(text(
-                        "CREATE UNIQUE INDEX IF NOT EXISTS uq_pedido_numero_empresa "
-                        "ON pedidos_virtuales (empresa_id, numero_pedido) WHERE numero_pedido IS NOT NULL"
-                    ))
-
-                _mark_migration_applied(conn, migration_v119)
-                logger.info("V119 (número de pedido consecutivo en pedidos virtuales) aplicada.")
-
-            # V120 — Redes sociales del Catálogo Virtual (Instagram/Facebook).
-            migration_v120 = "v120_redes_sociales_catalogo"
-            if not _migration_already_applied(conn, migration_v120):
-                _add_column_safe(conn, "empresas", "instagram_url", "VARCHAR(300)")
-                _add_column_safe(conn, "empresas", "facebook_url", "VARCHAR(300)")
-                _mark_migration_applied(conn, migration_v120)
-                logger.info("V120 (redes sociales del catálogo virtual) aplicada.")
-
-            # V121 — Índice compuesto en citas (empresa_id, fecha_inicio),
-            # mismo patrón que ix_ventas_empresa_fecha: el calendario de
-            # Agendamiento (admin y disponibilidad) siempre filtra por
-            # empresa + rango de fecha y ordena por fecha_inicio.
-            migration_v121 = "v121_indice_citas_empresa_fecha"
-            if not _migration_already_applied(conn, migration_v121):
-                _create_index_safe(conn, "ix_citas_empresa_fecha", "citas", ["empresa_id", "fecha_inicio"])
-                _mark_migration_applied(conn, migration_v121)
-                logger.info("V121 (índice compuesto en citas) aplicada.")
-
-            # V122 — Taller de Mecánica: vehiculos, ordenes_taller,
-            # detalles_orden_taller. Nuevo tipo_negocio para talleres que
-            # reparan vehículos de clientes y/o compran-remanufactura-venden
-            # vehículos usados — ninguna tabla existente (Producción con
-            # receta fija, Órdenes de Trabajo sin costo) sirve para acumular
-            # un número abierto de gastos contra una unidad no fungible.
-            migration_v122 = "v122_taller_mecanica"
-            if not _migration_already_applied(conn, migration_v122):
-                if IS_SQLITE:
-                    conn.execute(text("""
-                        CREATE TABLE IF NOT EXISTS vehiculos_taller (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            empresa_id INTEGER NOT NULL,
-                            placa VARCHAR(20) NOT NULL,
-                            tipo VARCHAR(10) DEFAULT 'carro',
-                            marca VARCHAR(60) NULL,
-                            modelo VARCHAR(60) NULL,
-                            anio INTEGER NULL,
-                            color VARCHAR(40) NULL,
-                            kilometraje INTEGER NULL,
-                            origen VARCHAR(20) DEFAULT 'cliente',
-                            cliente_id INTEGER NULL REFERENCES clientes(id),
-                            foto_ingreso TEXT NULL,
-                            created_at DATETIME,
-                            UNIQUE(empresa_id, placa)
-                        )
-                    """))
-                    conn.execute(text("""
-                        CREATE TABLE IF NOT EXISTS ordenes_taller (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            empresa_id INTEGER NOT NULL,
-                            vehiculo_id INTEGER NOT NULL REFERENCES vehiculos_taller(id),
-                            tipo_orden VARCHAR(30) DEFAULT 'reparacion_cliente',
-                            mecanico_id INTEGER NULL REFERENCES users(id),
-                            estado VARCHAR(20) DEFAULT 'recibido',
-                            descripcion_problema TEXT NULL,
-                            diagnostico TEXT NULL,
-                            fecha_ingreso DATETIME,
-                            fecha_estimada_entrega DATETIME NULL,
-                            fecha_entrega_real DATETIME NULL,
-                            updated_at DATETIME,
-                            valor_cobrado REAL NULL,
-                            estado_pago VARCHAR(20) DEFAULT 'pendiente',
-                            precio_compra_vehiculo REAL NULL,
-                            precio_venta_sugerido REAL NULL,
-                            precio_venta_final REAL NULL,
-                            comprador_cliente_id INTEGER NULL REFERENCES clientes(id),
-                            venta_id INTEGER NULL REFERENCES ventas(id),
-                            notas_internas TEXT NULL
-                        )
-                    """))
-                    conn.execute(text("""
-                        CREATE TABLE IF NOT EXISTS detalles_orden_taller (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            empresa_id INTEGER NOT NULL,
-                            orden_id INTEGER NOT NULL REFERENCES ordenes_taller(id) ON DELETE CASCADE,
-                            tipo VARCHAR(20) DEFAULT 'repuesto',
-                            producto_id INTEGER NULL REFERENCES productos(id),
-                            descripcion VARCHAR(200) NOT NULL,
-                            cantidad REAL DEFAULT 1.0,
-                            costo_unitario REAL DEFAULT 0.0,
-                            subtotal REAL DEFAULT 0.0,
-                            fecha DATETIME
-                        )
-                    """))
-                else:
-                    conn.execute(text("""
-                        CREATE TABLE IF NOT EXISTS vehiculos_taller (
-                            id SERIAL PRIMARY KEY,
-                            empresa_id INTEGER NOT NULL,
-                            placa VARCHAR(20) NOT NULL,
-                            tipo VARCHAR(10) DEFAULT 'carro',
-                            marca VARCHAR(60) NULL,
-                            modelo VARCHAR(60) NULL,
-                            anio INTEGER NULL,
-                            color VARCHAR(40) NULL,
-                            kilometraje INTEGER NULL,
-                            origen VARCHAR(20) DEFAULT 'cliente',
-                            cliente_id INTEGER NULL REFERENCES clientes(id),
-                            foto_ingreso TEXT NULL,
-                            created_at TIMESTAMPTZ,
-                            UNIQUE(empresa_id, placa)
-                        )
-                    """))
-                    conn.execute(text("""
-                        CREATE TABLE IF NOT EXISTS ordenes_taller (
-                            id SERIAL PRIMARY KEY,
-                            empresa_id INTEGER NOT NULL,
-                            vehiculo_id INTEGER NOT NULL REFERENCES vehiculos_taller(id),
-                            tipo_orden VARCHAR(30) DEFAULT 'reparacion_cliente',
-                            mecanico_id INTEGER NULL REFERENCES users(id),
-                            estado VARCHAR(20) DEFAULT 'recibido',
-                            descripcion_problema TEXT NULL,
-                            diagnostico TEXT NULL,
-                            fecha_ingreso TIMESTAMPTZ,
-                            fecha_estimada_entrega TIMESTAMPTZ NULL,
-                            fecha_entrega_real TIMESTAMPTZ NULL,
-                            updated_at TIMESTAMPTZ,
-                            valor_cobrado FLOAT NULL,
-                            estado_pago VARCHAR(20) DEFAULT 'pendiente',
-                            precio_compra_vehiculo FLOAT NULL,
-                            precio_venta_sugerido FLOAT NULL,
-                            precio_venta_final FLOAT NULL,
-                            comprador_cliente_id INTEGER NULL REFERENCES clientes(id),
-                            venta_id INTEGER NULL REFERENCES ventas(id),
-                            notas_internas TEXT NULL
-                        )
-                    """))
-                    conn.execute(text("""
-                        CREATE TABLE IF NOT EXISTS detalles_orden_taller (
-                            id SERIAL PRIMARY KEY,
-                            empresa_id INTEGER NOT NULL,
-                            orden_id INTEGER NOT NULL REFERENCES ordenes_taller(id) ON DELETE CASCADE,
-                            tipo VARCHAR(20) DEFAULT 'repuesto',
-                            producto_id INTEGER NULL REFERENCES productos(id),
-                            descripcion VARCHAR(200) NOT NULL,
-                            cantidad FLOAT DEFAULT 1.0,
-                            costo_unitario FLOAT DEFAULT 0.0,
-                            subtotal FLOAT DEFAULT 0.0,
-                            fecha TIMESTAMPTZ
-                        )
-                    """))
-                _create_index_safe(conn, "ix_vehiculos_taller_empresa", "vehiculos_taller", ["empresa_id"])
-                _create_index_safe(conn, "ix_ordenes_taller_empresa_estado", "ordenes_taller", ["empresa_id", "estado"])
-                _create_index_safe(conn, "ix_ordenes_taller_vehiculo", "ordenes_taller", ["vehiculo_id"])
-                _create_index_safe(conn, "ix_detalles_orden_taller_orden", "detalles_orden_taller", ["orden_id"])
-
-                # Registrar el nuevo tipo_negocio en tipo_negocio_config (V78)
-                # para que aparezca como opción seleccionable en el panel SaaS.
-                taller_modulos_json = (
-                    '["/taller/ordenes","/taller/vehiculos","/clientes","/productos",'
-                    '"/inventario","/compras","/caja","/reportes","/admin/usuarios"]'
-                )
-                if IS_SQLITE:
-                    conn.execute(text("""
-                        INSERT OR IGNORE INTO tipo_negocio_config(tipo, label, modulos)
-                        VALUES(:tipo, :label, :modulos)
-                    """), {"tipo": "taller_mecanica", "label": "Taller de Mecánica", "modulos": taller_modulos_json})
-                else:
-                    conn.execute(text("""
-                        INSERT INTO tipo_negocio_config(tipo, label, modulos)
-                        VALUES(:tipo, :label, CAST(:modulos AS jsonb))
-                        ON CONFLICT(tipo) DO NOTHING
-                    """), {"tipo": "taller_mecanica", "label": "Taller de Mecánica", "modulos": taller_modulos_json})
-
-                _mark_migration_applied(conn, migration_v122)
-                logger.info("V122 (taller de mecánica) aplicada.")
-
-            # V123 — Venta mixta (efectivo + crédito + permuta) al vender un
-            # vehículo remanufacturado. permuta_origen_orden_id traza qué
-            # orden de venta originó un vehículo recibido en permuta.
-            migration_v123 = "v123_taller_permuta"
-            if not _migration_already_applied(conn, migration_v123):
-                _add_column_safe(conn, "ordenes_taller", "permuta_origen_orden_id", "INTEGER")
-                _mark_migration_applied(conn, migration_v123)
-                logger.info("V123 (venta mixta y permuta en taller) aplicada.")
-
-            # V124 — Fecha de cumpleaños del cliente (marketing/fidelización).
-            migration_v124 = "v124_clientes_fecha_nacimiento"
-            if not _migration_already_applied(conn, migration_v124):
-                _add_column_safe(conn, "clientes", "fecha_nacimiento", "DATE")
-                _mark_migration_applied(conn, migration_v124)
-                logger.info("V124 (fecha_nacimiento en clientes) aplicada.")
-
-            # V125 — Múltiples links/QR de pago por empresa (antes solo uno
-            # activo). Registra en la venta cuál link específico se usó.
-            migration_v125 = "v125_ventas_link_pago_nombre"
-            if not _migration_already_applied(conn, migration_v125):
-                _add_column_safe(conn, "ventas", "link_pago_nombre", "VARCHAR(100)")
-                _mark_migration_applied(conn, migration_v125)
-                logger.info("V125 (link_pago_nombre en ventas) aplicada.")
-
-            # V126 — Asegura nombre_completo/email/telefono en users (ya
-            # estaban en el modelo, pero faltaban en los schemas de
-            # Pydantic — se perdían al crear/editar/leer un usuario del
-            # panel de administración).
-            migration_v126 = "v126_users_datos_contacto"
-            if not _migration_already_applied(conn, migration_v126):
-                _add_column_safe(conn, "users", "nombre_completo", "VARCHAR(120)")
-                _add_column_safe(conn, "users", "email", "VARCHAR(120)")
-                _add_column_safe(conn, "users", "telefono", "VARCHAR(30)")
-                _mark_migration_applied(conn, migration_v126)
-                logger.info("V126 (nombre_completo/email/telefono en users) aplicada.")
-
-            # V127 — Tipo "texto" para links de pago (datos bancarios en
-            # texto libre: cuenta, banco, etc.) además de URL y QR imagen.
-            migration_v127 = "v127_links_pago_texto"
-            if not _migration_already_applied(conn, migration_v127):
-                _add_column_safe(conn, "links_pago_empresa", "texto_pago", "TEXT")
-                _mark_migration_applied(conn, migration_v127)
-                logger.info("V127 (texto_pago en links_pago_empresa) aplicada.")
-
-            # V128 — Snapshot de puntos de fidelización en la venta (ganados
-            # en esa venta + saldo total del cliente en ese momento), para
-            # mostrarlos en el comprobante.
-            migration_v128 = "v128_ventas_puntos_snapshot"
-            if not _migration_already_applied(conn, migration_v128):
-                _add_column_safe(conn, "ventas", "puntos_ganados", "INTEGER")
-                _add_column_safe(conn, "ventas", "saldo_puntos_cliente", "INTEGER")
-                _mark_migration_applied(conn, migration_v128)
-                logger.info("V128 (puntos_ganados/saldo_puntos_cliente en ventas) aplicada.")
-
-            # V129 — Agregar el valor 'TEXTO' al enum nativo tipolinkpago de
-            # Postgres. La V127 agregó la columna texto_pago pero no el nuevo
-            # valor del enum, así que guardar un link tipo "texto" fallaba con
-            # "invalid input value for enum tipolinkpago". En SQLite no aplica
-            # (los enums se guardan como texto). ALTER TYPE ADD VALUE debe ir
-            # en una conexión autocommit aparte porque en algunas versiones de
-            # Postgres no puede correr dentro de la transacción de migraciones.
-            migration_v129 = "v129_tipolinkpago_texto"
-            if not _migration_already_applied(conn, migration_v129):
-                if not IS_SQLITE:
-                    with engine.connect() as _ac:
-                        _ac = _ac.execution_options(isolation_level="AUTOCOMMIT")
-                        _ac.execute(text("ALTER TYPE tipolinkpago ADD VALUE IF NOT EXISTS 'TEXTO'"))
-                _mark_migration_applied(conn, migration_v129)
-                logger.info("V129 (valor TEXTO en enum tipolinkpago) aplicada.")
-
-            # ═══════════════════════════════════════════════════════════════
-            # V130 — Candados de unicidad del parqueadero:
-            #   - vehiculos(empresa_id, placa) único
-            #   - parqueadero_config(empresa_id) único
-            # La validación solo en aplicación permitía duplicados con
-            # requests concurrentes. Antes de crear los índices se depuran
-            # duplicados existentes conservando el registro más antiguo (el
-            # de menor id), que es el que ya tiene el histórico asociado.
-            # ═══════════════════════════════════════════════════════════════
-            migration_v130 = "v130_unique_placa_y_config_parqueadero"
-            if not _migration_already_applied(conn, migration_v130):
-                # 1) Depurar vehículos duplicados (conservar el de menor id)
-                conn.execute(text("""
-                    DELETE FROM vehiculos WHERE id NOT IN (
-                        SELECT MIN(id) FROM vehiculos GROUP BY empresa_id, placa
-                    ) AND id NOT IN (
-                        SELECT DISTINCT vehiculo_id FROM suscripciones_parqueadero WHERE vehiculo_id IS NOT NULL
-                    ) AND id NOT IN (
-                        SELECT DISTINCT vehiculo_id FROM accesos_parqueadero WHERE vehiculo_id IS NOT NULL
-                    )
-                """))
-                # 2) Depurar configs duplicadas (conservar la de menor id)
-                conn.execute(text("""
-                    DELETE FROM parqueadero_config WHERE id NOT IN (
-                        SELECT MIN(id) FROM parqueadero_config GROUP BY empresa_id
-                    )
-                """))
-                # 3) Crear los índices únicos (si aún quedan duplicados con
-                #    histórico asociado, el índice de vehículos fallaría; en ese
-                #    caso se deja solo el de config y se reporta en logs).
-                try:
-                    conn.execute(text(
-                        "CREATE UNIQUE INDEX IF NOT EXISTS uq_vehiculo_empresa_placa "
-                        "ON vehiculos (empresa_id, placa)"
-                    ))
-                except Exception as _e_veh:
-                    logger.warning(
-                        "V130: no se pudo crear el índice único de placas (duplicados "
-                        "con histórico). Resolver manualmente. Detalle: %s", _e_veh)
-                conn.execute(text(
-                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_parq_config_empresa "
-                    "ON parqueadero_config (empresa_id)"
-                ))
-                _mark_migration_applied(conn, migration_v130)
-                logger.info("V130 (unicidad placa/config parqueadero) aplicada.")
-
-            # ═══════════════════════════════════════════════════════════════
-            # V131 — Columna whatsapp_instancia en empresas (bot de WhatsApp).
-            # Identifica de qué empresa viene cada mensaje entrante; es única
-            # porque una instancia de WhatsApp pertenece a un solo tenant.
-            # ═══════════════════════════════════════════════════════════════
-            migration_v131 = "v131_whatsapp_instancia_empresas"
-            if not _migration_already_applied(conn, migration_v131):
-                _add_column_safe(conn, "empresas", "whatsapp_instancia", "VARCHAR(100)")
-                try:
-                    conn.execute(text(
-                        "CREATE UNIQUE INDEX IF NOT EXISTS uq_empresa_whatsapp_instancia "
-                        "ON empresas (whatsapp_instancia)"
-                    ))
-                except Exception as _e_wa:
-                    logger.warning("V131: no se pudo crear el índice único: %s", _e_wa)
-                _mark_migration_applied(conn, migration_v131)
-                logger.info("V131 (whatsapp_instancia en empresas) aplicada.")
-
-            # ═══════════════════════════════════════════════════════════════
-            # V132 — Horario de atención de la empresa (texto libre). Lo usa
-            # el bot de WhatsApp para responder "¿a qué hora abren?" sin
-            # inventarse el dato.
-            # ═══════════════════════════════════════════════════════════════
-            migration_v132 = "v132_horario_atencion_empresas"
-            if not _migration_already_applied(conn, migration_v132):
-                _add_column_safe(conn, "empresas", "horario_atencion", "VARCHAR(200)")
-                _mark_migration_applied(conn, migration_v132)
-                logger.info("V132 (horario_atencion en empresas) aplicada.")
-
-            # ═══════════════════════════════════════════════════════════════
-            # V133 — Número al que el bot avisa cuando un cliente pide hablar
-            # con una persona. Va aparte de whatsapp_pedidos porque en la
-            # mayoría de negocios ese ES el número que atiende el bot: el
-            # aviso terminaba en "Mensajes contigo mismo", donde nadie lo ve.
-            # ═══════════════════════════════════════════════════════════════
-            migration_v133 = "v133_whatsapp_notificaciones_empresas"
-            if not _migration_already_applied(conn, migration_v133):
-                _add_column_safe(conn, "empresas", "whatsapp_notificaciones", "VARCHAR(20)")
-                _mark_migration_applied(conn, migration_v133)
-                logger.info("V133 (whatsapp_notificaciones en empresas) aplicada.")
-
-            # ═══════════════════════════════════════════════════════════════
-            # V134 — Vigilancia de la conexión de WhatsApp. Permite detectar
-            # que la sesión de una empresa se cayó y avisarle, en vez de que
-            # se entere cuando un cliente reclame que nadie le respondió.
-            # ═══════════════════════════════════════════════════════════════
-            migration_v134 = "v134_vigilancia_whatsapp_empresas"
-            if not _migration_already_applied(conn, migration_v134):
-                _add_column_safe(conn, "empresas", "whatsapp_estado", "VARCHAR(20)")
-                _add_column_safe(conn, "empresas", "whatsapp_desconectado_desde", "TIMESTAMP WITH TIME ZONE")
-                _add_column_safe(conn, "empresas", "whatsapp_ultimo_aviso", "TIMESTAMP WITH TIME ZONE")
-                _mark_migration_applied(conn, migration_v134)
-                logger.info("V134 (vigilancia de conexión WhatsApp) aplicada.")
-
-            # ═══════════════════════════════════════════════════════════════
-            # V136 — Aviso automático al cliente cuando su pedido cambia de
-            # estado. Apagado por defecto: es el negocio quien decide gastar
-            # mensajes salientes, que es lo que arriesga el número.
-            # ═══════════════════════════════════════════════════════════════
-            migration_v136 = "v136_notificar_estado_pedido"
-            if not _migration_already_applied(conn, migration_v136):
-                _add_column_safe(conn, "empresas", "notificar_estado_pedido",
-                                 "BOOLEAN DEFAULT FALSE")
-                _mark_migration_applied(conn, migration_v136)
-                logger.info("V136 (notificar estado de pedido) aplicada.")
-
-            # ═══════════════════════════════════════════════════════════════
-            # V137 — Datos del lote (número, fecha de vencimiento y de
-            # fabricación) en la propia línea de la compra. Antes solo se
-            # usaban una vez para crear el LoteExistencia y se perdían: al
-            # editar la compra, ni el formulario podía pre-rellenarlos ni el
-            # backend sabía a qué lote ajustar — la edición terminaba
-            # tratando un insumo perecedero como uno normal.
-            # ═══════════════════════════════════════════════════════════════
-            migration_v137 = "v137_detalle_compra_lote"
-            if not _migration_already_applied(conn, migration_v137):
-                _add_column_safe(conn, "detalles_compra", "numero_lote", "VARCHAR(100)")
-                _add_column_safe(conn, "detalles_compra", "fecha_vencimiento", "DATE")
-                _add_column_safe(conn, "detalles_compra", "fecha_fabricacion", "DATE")
-                _mark_migration_applied(conn, migration_v137)
-                logger.info("V137 (lote en detalle de compra) aplicada.")
-
-            # ═══════════════════════════════════════════════════════════════
-            # V138 — Saludo personalizado del bot de WhatsApp. Si la empresa
-            # lo deja vacío, la automatización sigue usando el saludo
-            # genérico por defecto — es opt-in, no rompe a nadie.
-            # ═══════════════════════════════════════════════════════════════
-            migration_v138 = "v138_mensaje_bienvenida_bot"
-            if not _migration_already_applied(conn, migration_v138):
-                _add_column_safe(conn, "empresas", "mensaje_bienvenida_bot", "VARCHAR(300)")
-                _mark_migration_applied(conn, migration_v138)
-                logger.info("V138 (saludo personalizado del bot) aplicada.")
-
-            # ═══════════════════════════════════════════════════════════════
-            # V139 — Tiempo real de lavado por orden (fecha_inicio_lavado /
-            # fecha_fin_lavado), distinto de fecha_salida (que es cuando se
-            # cobra). Permite medir cuánto tardó cada lavada de verdad, para
-            # evaluar productividad por trabajador.
-            # ═══════════════════════════════════════════════════════════════
-            migration_v139 = "v139_tiempos_lavado"
-            if not _migration_already_applied(conn, migration_v139):
-                _add_column_safe(conn, "lavadero_ordenes", "fecha_inicio_lavado", "TIMESTAMP WITH TIME ZONE")
-                _add_column_safe(conn, "lavadero_ordenes", "fecha_fin_lavado", "TIMESTAMP WITH TIME ZONE")
-                _mark_migration_applied(conn, migration_v139)
-                logger.info("V139 (tiempos de lavado) aplicada.")
-
-            # ═══════════════════════════════════════════════════════════════
-            # V140 — Multi-sede, acotado a los módulos de Lavadero (POS,
-            # Config, Reportes). El resto del sistema sigue compartido entre
-            # sedes de la misma empresa: productos, clientes, inventario.
-            # ═══════════════════════════════════════════════════════════════
-            migration_v140 = "v140_lavadero_multisede"
-            if not _migration_already_applied(conn, migration_v140):
-                if IS_SQLITE:
-                    conn.execute(text("""
-                        CREATE TABLE IF NOT EXISTS lavadero_sedes (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            empresa_id INTEGER NOT NULL,
-                            nombre VARCHAR(100) NOT NULL,
-                            activa BOOLEAN DEFAULT 1
-                        )
-                    """))
-                    conn.execute(text("""
-                        CREATE TABLE IF NOT EXISTS lavadero_trabajador_sede (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            empresa_id INTEGER NOT NULL,
-                            user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-                            sede_id INTEGER NOT NULL REFERENCES lavadero_sedes(id) ON DELETE CASCADE
-                        )
-                    """))
-                    conn.execute(text("""
-                        CREATE TABLE IF NOT EXISTS lavadero_sede_servicios (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            empresa_id INTEGER NOT NULL,
-                            sede_id INTEGER NOT NULL REFERENCES lavadero_sedes(id) ON DELETE CASCADE,
-                            producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE
-                        )
-                    """))
-                else:
-                    conn.execute(text("""
-                        CREATE TABLE IF NOT EXISTS lavadero_sedes (
-                            id SERIAL PRIMARY KEY,
-                            empresa_id INTEGER NOT NULL,
-                            nombre VARCHAR(100) NOT NULL,
-                            activa BOOLEAN DEFAULT TRUE
-                        )
-                    """))
-                    conn.execute(text("""
-                        CREATE TABLE IF NOT EXISTS lavadero_trabajador_sede (
-                            id SERIAL PRIMARY KEY,
-                            empresa_id INTEGER NOT NULL,
-                            user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-                            sede_id INTEGER NOT NULL REFERENCES lavadero_sedes(id) ON DELETE CASCADE
-                        )
-                    """))
-                    conn.execute(text("""
-                        CREATE TABLE IF NOT EXISTS lavadero_sede_servicios (
-                            id SERIAL PRIMARY KEY,
-                            empresa_id INTEGER NOT NULL,
-                            sede_id INTEGER NOT NULL REFERENCES lavadero_sedes(id) ON DELETE CASCADE,
-                            producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE
-                        )
-                    """))
-                _add_column_safe(conn, "lavadero_ordenes", "sede_id", "INTEGER")
-                _mark_migration_applied(conn, migration_v140)
-                logger.info("V140 (lavadero multi-sede) aplicada.")
 
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)

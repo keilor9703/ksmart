@@ -50,7 +50,6 @@ import Autorenew from '@mui/icons-material/Autorenew';
 import SettingsSuggest from '@mui/icons-material/SettingsSuggest';
 import HelpOutline from '@mui/icons-material/HelpOutline';
 import Storefront from '@mui/icons-material/Storefront';
-import WhatsApp from '@mui/icons-material/WhatsApp';
 import QrCode2 from '@mui/icons-material/QrCode2';
 import Settings from '@mui/icons-material/Settings';
 import AutoAwesome from '@mui/icons-material/AutoAwesome';
@@ -67,7 +66,6 @@ export const MODULE_ICONS = {
   // Ventas y comercial (Tonos Naranjas y Ámbar)
   '/ventas':              { icon: <ShoppingCart />,           color: '#0891B2', label: 'Ventas (POS)' },
   '/pedidos-virtuales':   { icon: <Storefront />,             color: '#F43F5E', label: 'Pedidos Virtuales' },
-  '/whatsapp-bot':        { icon: <WhatsApp />,               color: '#25D366', label: 'Pedidos por WhatsApp' },
   '/cotizaciones':        { icon: <RequestQuote />,           color: '#E65100', label: 'Cotizaciones' },
 
   // Compras y Terceros (Tonos Verdes y Azules)
@@ -117,10 +115,6 @@ export const MODULE_ICONS = {
   // Agendamiento de citas (Tonos Teal/Esmeralda)
   '/agendamiento':         { icon: <EventNote />,      color: '#0D9488', label: 'Agendamiento' },
   '/agendamiento/config':  { icon: <EventAvailable />, color: '#0F766E', label: 'Config Agendamiento' },
-
-  // Taller de Mecánica (Tonos Naranja/Gris — herramientas)
-  '/taller/ordenes':   { icon: <Build />,        color: '#EA580C', label: 'Taller de Mecánica' },
-  '/taller/vehiculos': { icon: <DirectionsCar />, color: '#C2410C', label: 'Vehículos del Taller' },
 
   // Contabilidad
   '/contabilidad': { icon: <AutoAwesome />, color: '#0891B2', label: 'Contabilidad' },

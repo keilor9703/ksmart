@@ -36,14 +36,10 @@ _base_origins = [
     "http://127.0.0.1:3000",
     "https://appksmp.vercel.app",
     "https://ksmart360.vercel.app",
-    "https://www.ksmart360.com",
-    "https://ksmart360.com",
-    "https://api.ksmart360.com",
-    "https://catalogo.ksmart360.com",
-    "https://e-comerce.ksmart360.com",
-    # Origen interno del WebView de la app Android (Capacitor)
-    "https://localhost",
-    "capacitor://localhost",
+    "https://www.appjeylor.com",
+    "https://appjeylor.com",
+    "https://api.appjeylor.com",
+    "https://catalogo.appjeylor.com",
 ]
 _extra = [o.strip() for o in os.getenv("EXTRA_CORS_ORIGINS", "").split(",") if o.strip()]
 origins = _base_origins + _extra
@@ -73,55 +69,6 @@ def read_root():
 @app.get("/ping")
 def ping():
     return {"ping": "pong", "timestamp": datetime.now(timezone.utc)}
-
-
-def _get_db_main():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-@app.get("/app/version-movil")
-def app_version_movil(plataforma: str = "android", db: Session = Depends(_get_db_main)):
-    """Última versión publicada de la app móvil (APK).
-
-    La app instalada compara su propia versión nativa contra esto al abrir y,
-    si está desactualizada, muestra un aviso para descargar la nueva.
-
-    Fuente: la tabla `app_versiones` (el superadmin publica versiones desde el
-    panel, sin tocar el servidor). Se devuelve la versión ACTIVA más reciente
-    (mayor version_code) de la plataforma. Si la tabla está vacía, cae a las
-    variables de entorno APP_MOVIL_* por compatibilidad.
-    """
-    try:
-        ultima = (
-            db.query(models.AppVersion)
-            .filter(models.AppVersion.plataforma == plataforma,
-                    models.AppVersion.is_active == True)  # noqa: E712
-            .order_by(models.AppVersion.version_code.desc(),
-                      models.AppVersion.id.desc())
-            .first()
-        )
-    except Exception:
-        ultima = None
-
-    if ultima:
-        return {
-            "version":      ultima.version,
-            "url_descarga": ultima.url_descarga or None,
-            "mensaje":      ultima.mensaje or None,
-            "obligatoria":  bool(ultima.obligatoria),
-        }
-
-    # Fallback a variables de entorno (compatibilidad con el esquema anterior).
-    return {
-        "version":       os.getenv("APP_MOVIL_VERSION", "1.0"),
-        "url_descarga":  os.getenv("APP_MOVIL_URL_DESCARGA", "") or None,
-        "mensaje":       os.getenv("APP_MOVIL_MENSAJE", "") or None,
-        "obligatoria":   os.getenv("APP_MOVIL_OBLIGATORIA", "false").lower() == "true",
-    }
 
 @app.get("/health")
 def health():
@@ -219,7 +166,6 @@ def initialize_default_data(db: Session):
         {"name": "Gestión Usuarios",     "description": "Administración de usuarios y roles.",               "frontend_path": "/admin/usuarios"},
         {"name": "Catálogo Virtual",     "description": "Tienda virtual con pedidos por WhatsApp.",          "frontend_path": "/admin/catalogo"},
         {"name": "Pedidos Virtuales",    "description": "Gestión de pedidos recibidos desde la tienda virtual.", "frontend_path": "/pedidos-virtuales"},
-        {"name": "Pedidos por WhatsApp","description": "Bot que recibe pedidos por WhatsApp y los pasa a Pedidos Virtuales.", "frontend_path": "/whatsapp-bot"},
         {"name": "Mapa de Mesas",        "description": "Gestión de mesas y comandas del restaurante.",      "frontend_path": "/restaurante"},
         {"name": "Pantalla Cocina",      "description": "Pantalla de órdenes para el área de cocina.",       "frontend_path": "/restaurante/cocina"},
         {"name": "Config Restaurante",   "description": "Configuración de áreas y mesas.",                   "frontend_path": "/restaurante/config"},
@@ -227,8 +173,6 @@ def initialize_default_data(db: Session):
         {"name": "Reportes Restaurante", "description": "Reportes de ventas y desempeño del restaurante.",   "frontend_path": "/restaurante/reportes"},
         {"name": "Agendamiento",         "description": "Agenda de citas de servicios por trabajador.",       "frontend_path": "/agendamiento"},
         {"name": "Config Agendamiento",  "description": "Servicios agendables y asignación de trabajadores.", "frontend_path": "/agendamiento/config"},
-        {"name": "Taller de Mecánica",   "description": "Órdenes de reparación y remanufactura/reventa de vehículos.", "frontend_path": "/taller/ordenes"},
-        {"name": "Vehículos del Taller", "description": "Vehículos registrados en el taller (clientes y reventa).",   "frontend_path": "/taller/vehiculos"},
     ]
 
     admin_role = crud.get_role_by_name(db, name="Admin", empresa_id=empresa_default.id)
@@ -247,8 +191,6 @@ def initialize_default_data(db: Session):
 
     crud.set_modules_for_role(db, role_id=admin_role.id, module_ids=[m.id for m in created_modules], empresa_id=empresa_default.id)
 
-    _backfill_modulo_whatsapp(db)
-
     superadmin_username = os.getenv("SUPERADMIN_USERNAME", "admin")
     superadmin_password = os.getenv("SUPERADMIN_PASSWORD", "")
     if not superadmin_password:
@@ -262,57 +204,6 @@ def initialize_default_data(db: Session):
             schemas.UserCreate(username=superadmin_username, password=superadmin_password, role_id=admin_role.id),
             empresa_id=empresa_default.id
         )
-
-
-def _backfill_modulo_whatsapp(db: Session):
-    """
-    Da acceso al módulo "Pedidos por WhatsApp" a las empresas que ya lo tenían
-    habilitado desde Clientes SaaS.
-
-    El módulo se agregó al catálogo después de que la funcionalidad existiera,
-    así que habilitarlo a nivel SaaS no bastaba: al no existir la fila en
-    `modulos`, no aparecía en Administración → Roles y no había forma de
-    otorgarlo. Esto cierra ese hueco de una sola vez, sin que el dueño de cada
-    empresa tenga que volver a marcarlo.
-
-    Corre una sola vez (marcador en _schema_meta) y solo sobre empresas que ya
-    pidieron el módulo — nunca lo activa donde no se pidió.
-    """
-    from database import _migration_already_applied, _mark_migration_applied
-
-    marca = "v135_backfill_modulo_whatsapp"
-    try:
-        conn = db.connection()
-        if _migration_already_applied(conn, marca):
-            return
-
-        modulo = crud.get_modulo_by_frontend_path(db, frontend_path="/whatsapp-bot")
-        if not modulo:
-            return
-
-        empresas = db.query(models.Empresa).all()
-        tocadas = 0
-        for empresa in empresas:
-            habilitados = empresa.modulos_habilitados or []
-            if "/whatsapp-bot" not in habilitados:
-                continue
-            roles = db.query(models.Role).filter(
-                models.Role.empresa_id == empresa.id,
-                models.Role.name == "Admin",
-            ).all()
-            for rol in roles:
-                if modulo not in rol.modules:
-                    rol.modules.append(modulo)
-                    tocadas += 1
-
-        _mark_migration_applied(conn, marca)
-        db.commit()
-        if tocadas:
-            logger.info("V135: módulo WhatsApp otorgado a %d roles Admin.", tocadas)
-    except Exception:
-        logger.exception("No se pudo hacer el backfill del módulo de WhatsApp")
-        db.rollback()
-
 
 def run_migrations():
     """Aplica migraciones de columnas nuevas sin romper datos existentes."""
@@ -497,38 +388,6 @@ async def start_vencimientos_scheduler():
                 db2.close()
 
             await asyncio.sleep(6 * 3600)  # re-chequea cada 6h; corre 1 vez/día
-
-    asyncio.create_task(_loop())
-
-
-@app.on_event("startup")
-async def start_whatsapp_monitor():
-    """
-    Vigila las conexiones de WhatsApp de las empresas.
-
-    Una sesión caída es invisible: los clientes escriben, el bot no responde y
-    el negocio se entera por el reclamo. Cada 10 minutos se revisa el estado
-    real y, al detectar una caída, se notifica a los administradores de esa
-    empresa dentro de Ksmart360 (por WhatsApp no se puede: es el canal caído).
-    """
-    import asyncio
-
-    async def _loop():
-        # Espera inicial: al arrancar, Evolution puede no estar listo todavía.
-        await asyncio.sleep(120)
-        while True:
-            db = SessionLocal()
-            try:
-                from services.whatsapp_monitor import revisar_conexiones
-                r = revisar_conexiones(db)
-                if r["avisos"]:
-                    logger.info("Monitor WhatsApp: %s", r)
-            except Exception:
-                logger.exception("Error en el monitor de WhatsApp")
-                db.rollback()
-            finally:
-                db.close()
-            await asyncio.sleep(600)  # 10 minutos
 
     asyncio.create_task(_loop())
 

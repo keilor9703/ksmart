@@ -14,7 +14,6 @@ import {
 } from '@mui/icons-material';
 import apiClient, { createCompra, addPagoCompra } from '../../api';
 import { formatCurrency } from '../../utils/formatters';
-import { printHtml } from '../../utils/printHtml';
 import { toast } from 'react-toastify';
 import CurrencyField from '../../components/common/CurrencyField';
 import QuickCreateModal from '../../components/common/QuickCreateModal';
@@ -138,8 +137,9 @@ const handlePrintOC = (compra) => {
   <div class="footer">Orden generada con Ksmart360 · ${new Date().toLocaleString('es-CO')}</div>
   </body></html>`;
 
-  // printHtml: seguro dentro de la app instalada (window.open bloqueaba el WebView)
-  printHtml(html, 'width=950,height=720');
+  const win = window.open('', '_blank', 'width=950,height=720');
+  win.document.write(html);
+  win.document.close();
 };
 
 // ─── Componente principal ──────────────────────────────────────────────────────
@@ -159,7 +159,7 @@ const Compras = () => {
   const [proveedorInput, setProveedorInput]        = useState('');
   const [refFactura, setRefFactura]               = useState('');
   const [observaciones, setObservaciones]         = useState('');
-  const [detalles, setDetalles] = useState([{ producto_id: '', variante_id: '', cantidad: 1, precio_unitario: 0, numero_lote: '', fecha_vencimiento: '', fecha_fabricacion: '' }]);
+  const [detalles, setDetalles] = useState([{ producto_id: '', cantidad: 1, precio_unitario: 0, numero_lote: '', fecha_vencimiento: '', fecha_fabricacion: '' }]);
   const [ivaPorcentajeGlobal, setIvaPorcentajeGlobal] = useState(0);
   const [pagadaAlCrear, setPagadaAlCrear]         = useState(false);
 
@@ -265,7 +265,7 @@ const Compras = () => {
     setProductoInputs(prev => { const next = [...prev]; next[idx] = val; return next; });
 
   const addDetalle = () => {
-    setDetalles(p => [...p, { producto_id: '', variante_id: '', nombre_libre: '', es_libre: false, cantidad: 1, precio_unitario: 0, numero_lote: '', fecha_vencimiento: '', fecha_fabricacion: '' }]);
+    setDetalles(p => [...p, { producto_id: '', nombre_libre: '', es_libre: false, cantidad: 1, precio_unitario: 0, numero_lote: '', fecha_vencimiento: '', fecha_fabricacion: '' }]);
     setProductoInputs(p => [...p, '']);
   };
   const removeDetalle = (idx) => {
@@ -283,7 +283,7 @@ const Compras = () => {
 
   const resetForm = () => {
     setProveedorSel(null); setProveedorInput(''); setRefFactura(''); setObservaciones('');
-    setDetalles([{ producto_id: '', variante_id: '', nombre_libre: '', es_libre: false, cantidad: 1, precio_unitario: 0, numero_lote: '', fecha_vencimiento: '', fecha_fabricacion: '' }]);
+    setDetalles([{ producto_id: '', nombre_libre: '', es_libre: false, cantidad: 1, precio_unitario: 0, numero_lote: '', fecha_vencimiento: '', fecha_fabricacion: '' }]);
     setProductoInputs(['']);
     setIvaPorcentajeGlobal(0); setPagadaAlCrear(false);
   };
@@ -355,10 +355,6 @@ const Compras = () => {
         toast.warning(`El producto "${prod.nombre}" es perecedero. Ingresa el Lote y Vencimiento.`);
         return;
       }
-      if (prod?.tiene_variantes && !d.variante_id) {
-        toast.warning(`"${prod.nombre}" maneja variantes — indica a cuál le llega el stock.`);
-        return;
-      }
     }
     setLoading(true);
     try {
@@ -376,7 +372,6 @@ const Compras = () => {
           numero_lote:        d.numero_lote || undefined,
           fecha_vencimiento:  d.fecha_vencimiento || undefined,
           fecha_fabricacion:  d.fecha_fabricacion || undefined,
-          variante_id:        d.es_libre ? undefined : (d.variante_id || undefined),
         })),
         pagada: pagadaAlCrear,
         iva_porcentaje: parseFloat(ivaPorcentajeGlobal),
@@ -407,7 +402,6 @@ const Compras = () => {
       .map(item => ({
         es_libre: !item.producto_id,
         producto_id: item.producto_id || '',
-        variante_id: item.variante_id || '',
         nombre_libre: item.nombre_libre || '',
         cantidad: item.cantidad,
         precio_unitario: item.precio_unitario,
@@ -667,10 +661,7 @@ const Compras = () => {
                       <Autocomplete
                         options={productos} getOptionLabel={(p) => p.nombre || ''}
                         value={prodSel || null}
-                        onChange={(_, v) => {
-                          handleDetalleChange(idx, 'producto_id', v ? v.id : '');
-                          handleDetalleChange(idx, 'variante_id', '');
-                        }}
+                        onChange={(_, v) => handleDetalleChange(idx, 'producto_id', v ? v.id : '')}
                         inputValue={productoInputs[idx] || ''}
                         onInputChange={(_, v) => handleProductoInputChange(idx, v)}
                         filterOptions={(opts, state) => {
@@ -715,23 +706,6 @@ const Compras = () => {
                         </span></Tooltip>
                       </Box>
                     </Box>
-
-                    {prodSel?.tiene_variantes && (
-                      <Box sx={{ mt: 1.5 }}>
-                        <Autocomplete
-                          options={(prodSel.variantes || []).filter(v => v.activo)}
-                          value={(prodSel.variantes || []).find(v => v.id === det.variante_id) || null}
-                          onChange={(_, v) => handleDetalleChange(idx, 'variante_id', v ? v.id : '')}
-                          getOptionLabel={opt => opt
-                            ? `${opt.nombre} — Stock: ${opt.stock_actual ?? 0}${Object.keys(opt.atributos || {}).length ? ` (${Object.entries(opt.atributos).map(([k, val]) => `${k}: ${val}`).join(', ')})` : ''}`
-                            : ''}
-                          renderInput={params => (
-                            <TextField {...params} size="small" label="Variante que recibe este stock *"
-                              helperText="Este producto maneja variantes — indica a cuál le llega la mercancía." />
-                          )}
-                        />
-                      </Box>
-                    )}
 
                     {prodSel?.maneja_lotes && (
                       <Box sx={{ mt: 1.5, p: 1.5, bgcolor: theme.palette.mode === 'dark' ? 'rgba(16,185,129,0.08)' : '#ECFDF5', borderRadius: 2, border: '1px dashed #10B981', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 1.5, alignItems: 'center' }}>
@@ -1337,7 +1311,7 @@ const Compras = () => {
             {compraDetalle?.detalles.map((d, idx) => (
               <Box key={idx} sx={{ p: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.5 }}>
-                  <Typography sx={{ fontWeight: 700, fontSize: 13, flex: 1, pr: 1 }}>{d.producto.nombre}{d.nombre_variante ? ` — ${d.nombre_variante}` : ''}</Typography>
+                  <Typography sx={{ fontWeight: 700, fontSize: 13, flex: 1, pr: 1 }}>{d.producto.nombre}</Typography>
                   <Typography sx={{ fontWeight: 800, fontSize: 14, color: GREEN, flexShrink: 0 }}>{formatCurrency(d.cantidad * d.precio_unitario)}</Typography>
                 </Box>
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
@@ -1369,7 +1343,7 @@ const Compras = () => {
               <TableBody>
                 {compraDetalle?.detalles.map((d, idx) => (
                   <TableRow key={idx} hover>
-                    <TableCell sx={{ fontWeight: 600 }}>{d.producto.nombre}{d.nombre_variante ? ` — ${d.nombre_variante}` : ''}</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>{d.producto.nombre}</TableCell>
                     <TableCell sx={{ fontSize: 12, color: 'text.secondary' }}>
                       {d.numero_lote ? (<><strong>Lote:</strong> {d.numero_lote}<br /><strong>Vence:</strong> {d.fecha_vencimiento ? new Date(d.fecha_vencimiento).toLocaleDateString() : ''}</>) : '—'}
                     </TableCell>

@@ -5,15 +5,12 @@ import {
   Divider, MenuItem, InputAdornment, CircularProgress, IconButton,
   Autocomplete, Chip
 } from '@mui/material';
-import { Close, TwoWheeler, Person, AttachMoney, Save, QrCode2, Print } from '@mui/icons-material';
+import { Close, TwoWheeler, Person, AttachMoney, Save } from '@mui/icons-material';
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
 import { formatCurrency } from '../../utils/formatters';
 import CurrencyField from '../../components/common/CurrencyField';
 import { METODOS_PAGO_SIMPLE as METODOS_PAGO } from '../../utils/constants';
-import { imprimirReciboSuscripcion } from '../../utils/printParqueadero';
-import LinkPagoModal from '../../components/common/LinkPagoModal';
-import { Switch } from '@mui/material';
 
 const ACCENT = '#0891B2';
 
@@ -31,20 +28,13 @@ export function ParqueaderoSuscripcionDialog({ open, onClose, vehiculo, onSucces
   const [metodoPago, setMetodoPago]       = useState('Efectivo');
   const [obs, setObs]                     = useState('');
   const [loading, setLoading]             = useState(false);
-  const [metodoLinkQR, setMetodoLinkQR]   = useState(null);   // pago con Link/QR (igual que la salida)
-  const [linkPagoModalOpen, setLinkPagoModalOpen] = useState(false);
-  const [imprimir, setImprimir]           = useState(false);  // imprimir comprobante al cobrar
 
   // Cargar tarifas al abrir
   useEffect(() => {
     if (!open) return;
     apiClient.get('/parqueadero/config')
-      .then(({ data }) => {
-        setConfig(data);
-        setImprimir(!!data?.preferir_impresion);
-      })
+      .then(({ data }) => setConfig(data))
       .catch(() => toast.error('No se pudo cargar la configuración de tarifas.'));
-    apiClient.get('/empresa/link-pago').then(({ data }) => setMetodoLinkQR(data || null)).catch(() => {});
     // Reset
     setTipo('mensual');
     setMontoPer('');
@@ -79,19 +69,6 @@ export function ParqueaderoSuscripcionDialog({ open, onClose, vehiculo, onSucces
         observaciones:      obs || null,
       });
       toast.success(`Suscripción ${tipo} registrada.`);
-      // Comprobante impreso (Sunmi o navegador), homologado con la salida por horas
-      if (imprimir && pagado > 0) {
-        const nombreTipo = tipo === 'mensual' ? 'Mensualidad' : tipo === 'quincenal' ? 'Quincena' : 'Día';
-        imprimirReciboSuscripcion({
-          placa:       vehiculo.placa,
-          cliente:     vehiculo.cliente_nombre,
-          concepto:    nombreTipo,
-          total:       montoFinal,
-          pagado,
-          saldo:       Math.max(0, montoFinal - pagado),
-          metodo_pago: metodoPago,
-        }, config, config?.tipo_impresora_parq || 'p80');
-      }
       onSuccess?.();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al registrar.');
@@ -99,10 +76,6 @@ export function ParqueaderoSuscripcionDialog({ open, onClose, vehiculo, onSucces
       setLoading(false);
     }
   };
-
-  const metodosList = metodoLinkQR
-    ? ['Efectivo', 'Link/QR', ...METODOS_PAGO.filter(m => m !== 'Efectivo')]
-    : METODOS_PAGO;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -160,14 +133,8 @@ export function ParqueaderoSuscripcionDialog({ open, onClose, vehiculo, onSucces
           value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)}
           sx={{ mb: 2 }}
         >
-          {metodosList.map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+          {METODOS_PAGO.map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
         </TextField>
-
-        <FormControlLabel
-          control={<Switch checked={imprimir} onChange={(e) => setImprimir(e.target.checked)} size="small" />}
-          label={<Typography sx={{ fontSize: 13 }}>Imprimir comprobante</Typography>}
-          sx={{ mb: 1 }}
-        />
 
         <TextField
           fullWidth size="small" multiline rows={2}
@@ -176,7 +143,7 @@ export function ParqueaderoSuscripcionDialog({ open, onClose, vehiculo, onSucces
         />
 
         {/* Resumen */}
-        <Box sx={{ mt: 2, p: 2, bgcolor: 'background.default', borderRadius: 2 }}>
+        <Box sx={{ mt: 2, p: 2, bgcolor: '#F8FAFC', borderRadius: 2 }}>
           <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
             <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Total a cobrar</Typography>
             <Typography sx={{ fontSize: 14, fontWeight: 700 }}>{formatCurrency(montoFinal)}</Typography>
@@ -199,29 +166,13 @@ export function ParqueaderoSuscripcionDialog({ open, onClose, vehiculo, onSucces
       <DialogActions sx={{ p: 2 }}>
         <Button onClick={onClose} disabled={loading}>Cancelar</Button>
         <Button
-          variant="contained" disabled={loading}
-          onClick={() => {
-            if (metodoPago === 'Link/QR' && metodoLinkQR) setLinkPagoModalOpen(true);
-            else handleGuardar();
-          }}
-          startIcon={loading ? <CircularProgress size={16} color="inherit" /> : metodoPago === 'Link/QR' ? <QrCode2 /> : <Save />}
-          sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' }, fontWeight: 700 }}
+          variant="contained" onClick={handleGuardar} disabled={loading}
+          startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <Save />}
+          sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700 }}
         >
-          {metodoPago === 'Link/QR' ? 'Mostrar QR / Link' : 'Registrar'}
+          Registrar
         </Button>
       </DialogActions>
-
-      {/* Modal QR / Link de pago — homologado con la salida por horas */}
-      <LinkPagoModal
-        open={linkPagoModalOpen}
-        onClose={() => setLinkPagoModalOpen(false)}
-        onConfirm={async () => {
-          setLinkPagoModalOpen(false);
-          await handleGuardar();
-        }}
-        linkConfig={metodoLinkQR}
-        clienteTelefono={vehiculo?.cliente_telefono || ''}
-      />
     </Dialog>
   );
 }

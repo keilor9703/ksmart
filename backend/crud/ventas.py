@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session, joinedload, selectinload
-from sqlalchemy import func, text
+from sqlalchemy import func
 from typing import Optional, List
 from datetime import datetime, timezone, date
 from fastapi import HTTPException
@@ -28,14 +28,8 @@ def get_ventas(
         db.query(models.Venta)
         .options(
             joinedload(models.Venta.cliente),
-            # selectinload (no joinedload) para las dos colecciones: dos
-            # joinedload de colecciones distintas en la misma query producen
-            # un producto cartesiano (N detalles × M pagos por venta), lo que
-            # multiplica las filas devueltas/parseadas incluso con pocas
-            # ventas. selectinload trae cada colección en su propia query
-            # (IN sobre los ids ya paginados), sin fan-out.
-            selectinload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
-            selectinload(models.Venta.pagos),
+            joinedload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
+            joinedload(models.Venta.pagos),
         )
         .filter(models.Venta.empresa_id == empresa_id, models.Venta.tipo == "venta")
     )
@@ -112,8 +106,8 @@ def get_venta(db: Session, empresa_id: int, venta_id: int):
         db.query(models.Venta)
         .options(
             joinedload(models.Venta.cliente),
-            selectinload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
-            selectinload(models.Venta.pagos),
+            joinedload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
+            joinedload(models.Venta.pagos),
         )
         .filter(
             models.Venta.id == venta_id,
@@ -209,7 +203,6 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate, commi
         monto_pagado=total_final if venta.pagada else 0,
         estado_pago="pagado" if venta.pagada else "pendiente",
         metodo_pago=venta.metodo_pago if venta.pagada else None,
-        link_pago_nombre=getattr(venta, 'link_pago_nombre', None) if venta.pagada else None,
         empresa_id=empresa_id,
         fecha=ahora_utc,  # Forzado explicito para no depender del default base
         solicita_fe=getattr(venta, 'solicita_fe', False),
@@ -263,70 +256,6 @@ def create_venta(db: Session, empresa_id: int, venta: schemas.VentaCreate, commi
             db.commit()
     return db_venta
 
-def _revertir_stock_detalles(db: Session, empresa_id: int, venta: models.Venta, detalles: List[models.DetalleVenta], refer: str):
-    from datetime import datetime, timezone
-    for det in detalles:
-        if not det.producto_id:
-            continue
-        prod = get_producto(db, empresa_id, det.producto_id)
-        if not prod or prod.es_servicio:
-            continue
-
-        lote_id = None
-        numero_lote = None
-        # Restaurar lote original si maneja lotes
-        if getattr(prod, "maneja_lotes", False):
-            mov_salida = (
-                db.query(models.InventoryMovement)
-                .filter(
-                    models.InventoryMovement.empresa_id == empresa_id,
-                    models.InventoryMovement.producto_id == det.producto_id,
-                    models.InventoryMovement.lote_id.isnot(None),
-                    models.InventoryMovement.referencia.ilike(f"%venta #{venta.numero_venta}%")
-                    if venta.numero_venta
-                    else models.InventoryMovement.referencia.ilike(f"%venta #{venta.id}%"),
-                )
-                .order_by(models.InventoryMovement.id.desc())
-                .first()
-            )
-            if mov_salida:
-                lote_repuesto = db.query(models.LoteExistencia).filter(
-                    models.LoteExistencia.id == mov_salida.lote_id,
-                    models.LoteExistencia.empresa_id == empresa_id
-                ).first()
-                if lote_repuesto:
-                    lote_repuesto.cantidad_actual = (lote_repuesto.cantidad_actual or 0.0) + det.cantidad
-                    db.add(lote_repuesto)
-                    lote_id = lote_repuesto.id
-                    numero_lote = lote_repuesto.numero_lote
-
-        # Restaurar variante si aplica
-        if det.variante_id:
-            variante = db.query(models.ProductoVariante).filter(
-                models.ProductoVariante.id == det.variante_id,
-                models.ProductoVariante.producto_id == det.producto_id
-            ).first()
-            if variante and variante.stock_actual is not None:
-                variante.stock_actual = (variante.stock_actual or 0.0) + det.cantidad
-                db.add(variante)
-
-        prod.stock_actual = (prod.stock_actual or 0.0) + det.cantidad
-        db.add(prod)
-
-        mov = models.InventoryMovement(
-            producto_id=det.producto_id,
-            tipo="entrada",
-            cantidad=det.cantidad,
-            costo_unitario=prod.costo or 0.0,
-            motivo="reversa_venta",
-            referencia=refer,
-            observacion=f"Reversa por actualización de venta #{venta.id}",
-            empresa_id=empresa_id,
-            lote_id=lote_id,
-            numero_lote=numero_lote
-        )
-        db.add(mov)
-
 def update_venta(db: Session, empresa_id: int, venta_id: int, venta: schemas.VentaCreate):
     db_venta = db.query(models.Venta).filter(
         models.Venta.id == venta_id,
@@ -337,9 +266,6 @@ def update_venta(db: Session, empresa_id: int, venta_id: int, venta: schemas.Ven
 
     if venta.cliente_id is not None:
         db_venta.cliente_id = venta.cliente_id
-
-    # 1. Revertir stock de los detalles antiguos antes de eliminarlos
-    _revertir_stock_detalles(db, empresa_id, db_venta, db_venta.detalles, f"reversa_actualizacion venta #{db_venta.id}")
 
     db.query(models.DetalleVenta).filter(models.DetalleVenta.venta_id == venta_id).delete()
     db.flush()
@@ -354,49 +280,19 @@ def update_venta(db: Session, empresa_id: int, venta_id: int, venta: schemas.Ven
                 detail=f"Producto {detalle_data.producto_id} no encontrado"
             )
 
-        # Resolver variante si viene variante_id
-        variante_id     = getattr(detalle_data, 'variante_id', None)
-        nombre_variante = getattr(detalle_data, 'nombre_variante', None)
-        variante_obj    = None
-        if variante_id:
-            variante_obj = db.query(models.ProductoVariante).filter(
-                models.ProductoVariante.id == variante_id,
-                models.ProductoVariante.producto_id == detalle_data.producto_id,
-            ).first()
-            if not variante_obj:
-                raise HTTPException(status_code=404, detail=f"Variante {variante_id} no encontrada")
-
-        # Precio: variante > payload > producto padre
-        if detalle_data.precio_unitario is not None:
-            precio_unitario = detalle_data.precio_unitario
-        elif variante_obj and variante_obj.precio is not None:
-            precio_unitario = variante_obj.precio
-        else:
-            precio_unitario = producto.precio
-
+        precio_unitario = detalle_data.precio_unitario if detalle_data.precio_unitario is not None else producto.precio
         detalle_total = precio_unitario * detalle_data.cantidad
         total_venta += detalle_total
 
         db_detalle = models.DetalleVenta(
             venta_id=venta_id,
             producto_id=detalle_data.producto_id,
-            variante_id=variante_id,
-            nombre_variante=nombre_variante or (variante_obj.nombre if variante_obj else None),
             cantidad=detalle_data.cantidad,
-            precio_unitario=precio_unitario,
-            descuento_pct=getattr(detalle_data, 'descuento_pct', 0.0),
-            iva_porcentaje=getattr(detalle_data, 'iva_porcentaje', 0.0),
+            precio_unitario=precio_unitario
         )
-        # Asociar la relación producto explícitamente para que la FE tenga los datos sin lazy-load
-        db_detalle.producto = producto
         new_detalles.append(db_detalle)
 
     db.add_all(new_detalles)
-    db.flush()
-
-    # 2. Descontar stock e inventario de los nuevos detalles si no se omite
-    if not getattr(venta, "omitir_inventario", False):
-        _ejecutar_movimientos_venta(db, empresa_id, db_venta)
 
     iva_porc = float(getattr(venta, 'iva_porcentaje', 0) or db_venta.iva_porcentaje or 0)
     # IVA incluido
@@ -518,55 +414,34 @@ def _asignar_numero_factura(db: Session, empresa_id: int, venta: models.Venta, t
     Incrementa el consecutivo de la resolución activa (del tipo indicado) y asigna
     el numero_factura a la venta. Retorna el número asignado o None si no hay
     resolución activa de ese tipo. Llama ANTES de hacer db.commit().
-
-    El incremento es un UPDATE...RETURNING atómico en BD, no un read-modify-write
-    en Python: dos ventas concurrentes de la misma empresa (POS + tablet de
-    mesero, por ejemplo) leían el mismo numero_actual y podían asignar el MISMO
-    consecutivo DIAN a dos facturas distintas — la DIAN rechaza consecutivos
-    duplicados, así que esa carrera era un problema legal, no solo técnico. La
-    validación de rango (numero_actual + 1 <= numero_final) va en el mismo
-    statement para que tampoco quede una ventana entre "leer el límite" y
-    "escribir el incremento".
     """
     resolucion = _get_resolucion_activa(db, empresa_id, tipo)
     if not resolucion:
         return None
 
-    row = db.execute(
-        text(
-            "UPDATE resoluciones_dian "
-            "SET numero_actual = numero_actual + 1 "
-            "WHERE id = :id AND numero_actual + 1 <= numero_final "
-            "RETURNING numero_actual"
-        ),
-        {"id": resolucion.id},
-    ).first()
+    siguiente = resolucion.numero_actual + 1
 
-    if row is None:
-        db.refresh(resolucion)
-        if resolucion.numero_actual >= resolucion.numero_final:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"La resolución DIAN ha llegado al límite de numeración "
-                    f"({resolucion.numero_final}). Configura una nueva resolución."
-                )
+    # Validación de rango
+    if siguiente > resolucion.numero_final:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"La resolución DIAN ha llegado al límite de numeración "
+                f"({resolucion.numero_final}). Configura una nueva resolución."
             )
-        # Carrera con otra transacción concurrente que agotó el rango justo
-        # ahora (caso extremadamente infrecuente): no hay número que asignar.
-        raise HTTPException(status_code=409, detail="No se pudo asignar el número DIAN, intenta de nuevo.")
+        )
 
-    siguiente = row[0]
+    resolucion.numero_actual = siguiente
     numero_str = f"{resolucion.prefijo}{siguiente}"
     venta.numero_factura = numero_str
     venta.resolucion_id  = resolucion.id
-    resolucion.numero_actual = siguiente  # sincroniza el objeto en memoria de la sesión
 
     # 👇 NUEVO: Marcar como pendiente si la empresa tiene FE activa
     empresa = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
     if empresa and empresa.facturacion_electronica_activa:
         venta.estado_electronico = "pendiente"
 
+    db.add(resolucion)
     return numero_str
 
 
@@ -750,29 +625,6 @@ def emitir_fe_venta(
             # (p.ej. empresa sin resolución POS configurada aún)
             return None
 
-    # Confirmar la venta (con su número DIAN ya asignado) en BD ANTES de la
-    # llamada de red a Matías. emitir_factura es un POST síncrono que puede
-    # tardar segundos — hacerlo con la transacción todavía abierta significaba
-    # que (a) cualquier lock adquirido antes (filas de producto, la fila de la
-    # resolución) seguía retenido durante toda la llamada HTTP, y (b) si Matías
-    # emitía el CUFE con éxito pero algo después en la MISMA transacción fallaba
-    # y hacía rollback, quedaba un documento válido en la DIAN sin ninguna fila
-    # correspondiente en el sistema (y el consecutivo quedaba libre para
-    # reutilizarse, con el CUFE anterior huérfano). Al comprometer aquí, un
-    # fallo de Matías solo puede dejar estado_electronico='fallido' —
-    # recuperable desde "Reintentar FE" — nunca perder la venta ni el número.
-    try:
-        db.commit()
-        db.refresh(venta)
-    except Exception:
-        db.rollback()
-        import logging as _logging
-        _logging.getLogger("crud.ventas").exception(
-            "No se pudo confirmar la venta %s antes de emitir FE — se omite la emisión esta vez.",
-            getattr(venta, "id", "?"),
-        )
-        return None
-
     try:
         from services import matias_service as _ms
         test_mode = empresa_fe.matias_test_mode
@@ -811,19 +663,13 @@ def emitir_fe_venta(
         # Solo los documentos efectivamente emitidos cuentan contra el límite.
         if resultado.get("estado") == "exitoso":
             _incrementar_contador_docs(db, empresa_id)
-        db.commit()
         return resultado
     except Exception:
         import logging as _logging
         _logging.getLogger("crud.ventas").exception(
             "Error al emitir FE para venta %s — se guarda sin FE.", getattr(venta, "id", "?")
         )
-        db.rollback()
         venta.estado_electronico = "fallido"
-        try:
-            db.commit()
-        except Exception:
-            db.rollback()
         return None
 
 
@@ -883,49 +729,3 @@ def _ejecutar_movimientos_venta(db: Session, empresa_id: int, db_venta: models.V
                 if variante:
                     variante.stock_actual = (variante.stock_actual or 0) - det.cantidad
                     db.add(variante)
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# BORRADORES DE VENTA (POS) — "aparcar" un carrito para atender a otro cliente
-# ═══════════════════════════════════════════════════════════════════════════
-
-def create_venta_borrador(db: Session, empresa_id: int, creado_por_id: int, borrador: schemas.VentaBorradorCreate):
-    db_borrador = models.VentaBorrador(
-        empresa_id=empresa_id,
-        creado_por_id=creado_por_id,
-        cliente_nombre=borrador.cliente_nombre,
-        total_aproximado=borrador.total_aproximado,
-        datos=borrador.datos,
-    )
-    db.add(db_borrador)
-    db.commit()
-    db.refresh(db_borrador)
-    return db_borrador
-
-
-def get_ventas_borrador(db: Session, empresa_id: int):
-    """Lista compartida entre todos los vendedores de la empresa — cualquiera
-    puede retomar el borrador de un compañero (ej. si el cliente vuelve en
-    otro turno)."""
-    return (
-        db.query(models.VentaBorrador)
-        .filter(models.VentaBorrador.empresa_id == empresa_id)
-        .order_by(models.VentaBorrador.created_at.desc())
-        .all()
-    )
-
-
-def get_venta_borrador(db: Session, empresa_id: int, borrador_id: int):
-    return db.query(models.VentaBorrador).filter(
-        models.VentaBorrador.id == borrador_id,
-        models.VentaBorrador.empresa_id == empresa_id,
-    ).first()
-
-
-def delete_venta_borrador(db: Session, empresa_id: int, borrador_id: int) -> bool:
-    db_borrador = get_venta_borrador(db, empresa_id, borrador_id)
-    if not db_borrador:
-        return False
-    db.delete(db_borrador)
-    db.commit()
-    return True

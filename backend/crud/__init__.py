@@ -20,20 +20,18 @@ from crud.usuarios import (
 )
 
 from crud.clientes import (
-    get_cliente, get_cliente_deuda, get_clientes, get_clientes_cumpleanos_hoy,
+    get_cliente, get_cliente_deuda, get_clientes,
     create_cliente, update_cliente, delete_cliente, get_cliente_history,
 )
 
 from crud.productos import (
     get_producto, get_productos, create_producto, update_producto, delete_producto,
     sku_exists, create_variante, list_variantes, update_variante, delete_variante,
-    generar_variantes,
 )
 
 from crud.ventas import (
     get_ventas, get_venta, create_venta, update_venta, delete_venta,
     _get_resolucion_activa, _asignar_numero_factura, _ejecutar_movimientos_venta,
-    create_venta_borrador, get_ventas_borrador, get_venta_borrador, delete_venta_borrador,
 )
 
 from crud.inventario import (
@@ -50,7 +48,6 @@ from crud.reportes import (
     get_clientes_compradores, get_clientes_deudores, get_rentabilidad_por_producto,
     get_sales_by_day, get_total_sales_today, get_dashboard_data,
     get_ventas_por_vendedor, get_ventas_de_vendedor,
-    get_cuentas_por_pagar_por_proveedor, get_ventas_por_variante,
 )
 
 from crud.ordenes_trabajo import (

@@ -15,7 +15,6 @@ import {
 } from '@mui/icons-material';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
-import { printHtml } from '../../utils/printHtml';
 import { toast } from 'react-toastify';
 import CurrencyField from '../../components/common/CurrencyField';
 import QuickCreateModal from '../../components/common/QuickCreateModal';
@@ -316,7 +315,6 @@ const Cotizaciones = () => {
   const [convertirPagada, setConvertirPagada] = useState(true);
   const [convertirMetodo, setConvertirMetodo] = useState('Efectivo');
   const [convertirLoading, setConvertirLoading] = useState(false);
-  const [linkPagosConfig, setLinkPagosConfig] = useState([]);
 
   // Detail modal
   const [detailModal, setDetailModal] = useState({ open: false, cot: null });
@@ -338,9 +336,6 @@ const Cotizaciones = () => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
   useEffect(() => { fetchAll(); }, []);
-  useEffect(() => {
-    apiClient.get('/empresa/link-pago/activos').then(r => setLinkPagosConfig(r.data || [])).catch(() => {});
-  }, []);
 
   const fetchAll = async () => {
     try {
@@ -463,8 +458,9 @@ const Cotizaciones = () => {
   const handlePrint = (cot) => {
     const totales = totalesParaCot(cot);
     const html = generatePrintHTML(cot, totales);
-    // printHtml: seguro dentro de la app instalada (window.open bloqueaba el WebView)
-    printHtml(html, 'width=900,height=700');
+    const win = window.open('', '_blank', 'width=900,height=700');
+    win.document.write(html);
+    win.document.close();
   };
 
   // ── Submit ─────────────────────────────────────────────────────────────────
@@ -1104,9 +1100,10 @@ const Cotizaciones = () => {
 
               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2.5 }}>
                 {[
-                  { value: 'Efectivo', label: '💵 Efectivo',  pagada: true },
-                  ...linkPagosConfig.map(l => ({ value: `Link de Pago: ${l.nombre}`, label: `📲 ${l.nombre}`, pagada: true })),
-                  { value: null,       label: '🕒 Por Cobrar', pagada: false },
+                  { value: 'Efectivo',      label: '💵 Efectivo',     pagada: true },
+                  { value: 'Transferencia', label: '🏦 Transferencia', pagada: true },
+                  { value: 'Tarjeta',       label: '💳 Tarjeta',       pagada: true },
+                  { value: null,            label: '🕒 Por Cobrar',    pagada: false },
                 ].map(opt => {
                   const selected = opt.pagada ? (convertirPagada && convertirMetodo === opt.value) : !convertirPagada;
                   const color = opt.pagada ? GREEN : RED;

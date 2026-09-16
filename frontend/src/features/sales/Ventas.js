@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
-import { sugerenciasEfectivo } from '../../utils/cashSuggestions';
 import { toast } from 'react-toastify';
 import CurrencyField from '../../components/common/CurrencyField';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
@@ -19,8 +18,6 @@ import {
     TableHead, TableRow, Chip, useMediaQuery, useTheme, Tabs, Tab,
     TablePagination, Divider, Tooltip, InputAdornment, CircularProgress,
     ToggleButton, ToggleButtonGroup, Switch, FormControlLabel,
-    Badge, Dialog, DialogTitle, DialogContent, DialogActions,
-    List, ListItem, ListItemText,
 } from '@mui/material';
 import {
     Edit, Delete, Visibility, Search, ShoppingCart, TrendingUp,
@@ -28,7 +25,7 @@ import {
     Videocam, VideocamOff, LockOutlined, LockOpenOutlined,
     AddCircle, RemoveCircle, PersonOutline, HelpOutline,
     Keyboard, TouchApp, FileDownload, Stars, CreditCard, Close,
-    PictureAsPdf, Scale, Notes, PlayCircleOutline,
+    PictureAsPdf, Scale,
 } from '@mui/icons-material';
 import { getProductoByBarcode } from '../../api';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
@@ -37,58 +34,21 @@ import BasculaWidget from '../../components/common/BasculaWidget';
 import BasculaConfigDialog from '../../components/common/BasculaConfigDialog';
 import { esPesable, useBascula } from '../../hooks/useBascula';
 import VarianteSelectorDialog from '../../components/common/VarianteSelectorDialog';
-import { sunmiScannerDisponible, escanearSunmi, onScanFisico } from '../../utils/sunmiScanner';
-import { alpha } from '@mui/material/styles';
 
 const ACCENT = '#0891B2';
-const ACCENT2 = '#0EA5E9';
 const HAS_BARCODE_DETECTOR = typeof window !== 'undefined' && 'BarcodeDetector' in window;
 const HAS_CAMERA = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
 const BARCODE_FORMATS = ['ean_13', 'ean_8', 'code_128', 'qr_code', 'upc_e', 'code_39', 'itf'];
 
-// Helper para focus neon/glassmorphism en TextFields
-const getInputSx = (accentColor) => ({
-  '& .MuiOutlinedInput-root': {
-    borderRadius: 2.5,
-    transition: 'all 0.2s ease-in-out',
-    '&:hover .MuiOutlinedInput-notchedOutline': {
-      borderColor: alpha(accentColor, 0.6),
-    },
-    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-      borderColor: accentColor,
-      borderWidth: 2,
-    },
-    '&.Mui-focused': {
-      boxShadow: `0 0 0 3px ${alpha(accentColor, 0.15)}`,
-    },
-  },
-  '& .MuiInputLabel-root.Mui-focused': {
-    color: accentColor,
-  },
-});
-
-// Solo Efectivo viene fijo por defecto. Cualquier otro método (Nequi,
-// Transferencia, Bancolombia, etc.) debe ser configurado por la empresa en
-// Mi Cuenta → Link de Pago — no se asumen pasarelas que la empresa no usa.
 const METODOS_PAGO = [
     { value: 'Efectivo',      label: '💵 Efectivo',      pagada: true,  color: '#10B981' },
+    { value: 'Transferencia', label: '🏦 Transferencia',  pagada: true,  color: '#3B82F6' },
+    { value: 'Nequi',         label: '💜 Nequi',          pagada: true,  color: '#7C3AED' },
+    { value: 'Daviplata',     label: '🔵 Daviplata',      pagada: true,  color: '#2563EB' },
+    { value: 'Tarjeta',       label: '💳 Tarjeta',        pagada: true,  color: '#8B5CF6' },
+    { value: 'Cheque',        label: '📄 Cheque',         pagada: true,  color: '#6B7280' },
     { value: 'Por Cobrar',    label: '🕒 Por Cobrar',     pagada: false, color: '#EF4444' },
-];
-
-// Cada link/QR de pago activo de la empresa (Nequi, Bancolombia, etc.)
-// aparece como su propia opción de método de pago, además de la lista fija
-// de arriba. El value se codifica como "link:{id}" para poder distinguirlo
-// y recuperar cuál link específico se usó al armar el payload de la venta.
-const buildMetodosPago = (linkPagosConfig) => [
-    ...METODOS_PAGO,
-    ...linkPagosConfig.map(l => ({
-        value: `link:${l.id}`,
-        label: `📲 ${l.nombre}`,
-        pagada: true,
-        color: '#0891B2',
-        digital: true,
-        linkData: l,
-    })),
+    { value: 'Link de Pago',  label: '📲 Link/QR',        pagada: true,  color: '#0891B2', digital: true },
 ];
 
 const PUNTOS_REDEEM_RATE_DEFAULT = 100;
@@ -182,7 +142,7 @@ const VentaCard = ({ venta, handleEdit, handleDelete, handleOpenDetails, handleO
         <Box sx={{ mb: 1.5 }}>
             {venta.detalles.map(d => (
                 <Typography key={d.id} sx={{ fontSize: 13, color: 'text.secondary', mb: 0.3 }}>
-                    • {d.producto?.nombre || d.nombre_libre || 'Ítem'} × {d.cantidad}
+                    • {d.producto?.nombre} × {d.cantidad}
                 </Typography>
             ))}
         </Box>
@@ -469,10 +429,6 @@ const Ventas = ({ user }) => {
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-    // El historial de ventas permite editar/eliminar una venta ya registrada —
-    // solo el Admin puede hacerlo (el backend también lo bloquea en
-    // PUT/DELETE /ventas/{id}, esto es solo para no mostrar la pestaña).
-    const isAdmin = user?.role?.name === 'Admin';
     const location = useLocation();
 
     // Cobro proveniente de una cita del módulo de agendamiento.
@@ -480,9 +436,6 @@ const Ventas = ({ user }) => {
     const citaVendedorRef = useRef(null);    // id del trabajador (vendedor) de la cita
     const citaProductoRef = useRef(null);    // servicio inyectado (para preservarlo en refetch)
     const fromCitaAppliedRef = useRef(false); // evita reaplicar al re-render
-    // Ref hacia handleGuardarBorrador (definida más abajo) para el atajo de
-    // teclado, sin depender del orden de declaración dentro del componente.
-    const handleGuardarBorradorRef = useRef(null);
 
     // ── Data ──
     const [totalVentasHoy, setTotalVentasHoy] = useState(0);
@@ -508,12 +461,6 @@ const Ventas = ({ user }) => {
     const [editingVenta, setEditingVenta] = useState(null);
     const [savingVenta, setSavingVenta]   = useState(false);
 
-    // ── Borradores de venta ("aparcar" el carrito para atender a otro cliente) ──
-    const [borradores, setBorradores]         = useState([]);
-    const [borradoresOpen, setBorradoresOpen] = useState(false);
-    const [guardandoBorrador, setGuardandoBorrador] = useState(false);
-    const [retomandoBorradorId, setRetomandoBorradorId] = useState(null);
-
     // ── Fidelización ──
     const [clientePuntos, setClientePuntos]   = useState(0);
     const [puntosACanjear, setPuntosACanjear] = useState(0);
@@ -526,20 +473,14 @@ const Ventas = ({ user }) => {
     // incluso cuando es llamado desde el callback de LinkPagoModal
     const omitirInventarioRef = useRef(false);
     omitirInventarioRef.current = omitirInventario;
-    // ── Link de Pago POS (múltiples links activos: Nequi, Bancolombia, etc.) ──
-    const [linkPagosConfig, setLinkPagosConfig] = useState([]);
+    // ── Link de Pago POS ──
+    const [linkPagoConfig, setLinkPagoConfig] = useState(null);
     const [linkPagoModalOpen, setLinkPagoModalOpen] = useState(false);
     const pendingVentaRef = useRef(null);
-    const metodosPagoConLinks = buildMetodosPago(linkPagosConfig);
-    const selectedLinkPago = metodoPago?.startsWith('link:')
-        ? linkPagosConfig.find(l => `link:${l.id}` === metodoPago)
-        : null;
 
     // ── Barcode / Camera ──
     const [barcodeInput, setBarcodeInput]     = useState('');
     const [cameraActive, setCameraActive]     = useState(false);
-    const [sunmiScanOk, setSunmiScanOk]       = useState(false); // escáner nativo Sunmi disponible
-    const handleProcessBarcodeRef = useRef(null);                 // para el listener del botón físico
     const [searchingBarcode, setSearchingBarcode] = useState(false);
     const [scanFlash, setScanFlash]           = useState(false);
     const barcodeFieldRef  = useRef(null);
@@ -577,15 +518,10 @@ const Ventas = ({ user }) => {
     const [ventasStats, setVentasStats]           = useState({ sum_total: 0, sum_pagado: 0, sum_pendiente: 0 });
 
     // ── Fetch inicial ──
-    const fetchBorradores = useCallback(() => {
-        apiClient.get('/ventas/borradores').then(r => setBorradores(r.data || [])).catch(() => {});
-    }, []);
-
     useEffect(() => {
         fetchVentas(); fetchClientes(); fetchProductos(); fetchVentasSummary(); fetchGrupos();
-        fetchBorradores();
         apiClient.get('/admin/usuarios/').then(r => setEmpleados(r.data.filter(u => u.is_active))).catch(() => {});
-        apiClient.get('/empresa/link-pago/activos').then(r => setLinkPagosConfig(r.data || [])).catch(() => {});
+        apiClient.get('/empresa/link-pago').then(r => setLinkPagoConfig(r.data)).catch(() => {});
         apiClient.get('/empresa/config-ventas').then(r => setConfigFidelizacion({
             activa:      r.data.fidelizacion_activa     ?? true,
             redeem_rate: r.data.fidelizacion_redeem_rate ?? PUNTOS_REDEEM_RATE_DEFAULT,
@@ -822,13 +758,6 @@ useEffect(() => {
                 return;
             }
 
-            // Cmd/Ctrl+G → guardar el carrito actual como borrador
-            if ((e.ctrlKey || e.metaKey) && (e.key === 'g' || e.key === 'G') && tabValue === 0 && !savingVenta) {
-                e.preventDefault();
-                handleGuardarBorradorRef.current?.();
-                return;
-            }
-
             // Auto-focus al campo de búsqueda cuando:
             // - Estamos en el tab de venta (0) y la cámara no está activa
             // - La tecla es un carácter imprimible (letras, números)
@@ -932,31 +861,10 @@ useEffect(() => {
         return () => { active = false; cleanupCamera(); };
     }, [cameraActive, cleanupCamera]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const handleToggleCamera = async () => {
-        // En un dispositivo Sunmi usamos el escáner nativo (la cámara del WebView
-        // no funciona al cargar la web remota). En un navegador/celular normal,
-        // se usa la cámara web como antes.
-        if (sunmiScanOk) {
-            const code = await escanearSunmi();
-            if (code) handleProcessBarcode(code);
-            return;
-        }
+    const handleToggleCamera = () => {
         if (cameraActive) { cleanupCamera(); setCameraActive(false); setTimeout(() => barcodeFieldRef.current?.focus(), 100); }
         else setCameraActive(true);
     };
-
-    // Detectar el escáner Sunmi al montar.
-    useEffect(() => {
-        sunmiScannerDisponible().then(setSunmiScanOk).catch(() => setSunmiScanOk(false));
-    }, []);
-
-    // Botón físico del escáner del V3 (modo broadcast): inyecta el código en la
-    // misma lógica que la búsqueda por código de barras. Solo en modo clásico —
-    // en modo táctil lo maneja TouchPOSMode para no procesarlo dos veces.
-    useEffect(() => {
-        if (!sunmiScanOk || viewMode !== 'classic') return undefined;
-        return onScanFisico((code) => handleProcessBarcodeRef.current?.(code));
-    }, [sunmiScanOk, viewMode]);
 
     // ── Barcode processing ──
     const playScanBeep = () => {
@@ -1030,7 +938,6 @@ useEffect(() => {
             }
         }
     };
-    handleProcessBarcodeRef.current = handleProcessBarcode;
 
     // ── Mostrador ──
     const handleSetMostrador = () => {
@@ -1150,7 +1057,11 @@ useEffect(() => {
         const descuentoPuntosImporte = puntosACanjear * (configFidelizacion.redeem_rate || PUNTOS_REDEEM_RATE_DEFAULT);
 
         // ── Link de Pago — mostrar QR/URL al cliente antes de registrar ──
-        if (pagada && selectedLinkPago && !pendingVentaRef.current) {
+        if (pagada && metodoPago === 'Link de Pago' && !pendingVentaRef.current) {
+            if (!linkPagoConfig) {
+                toast.error('No hay un link de pago configurado. Configúralo en Mi Suscripción.');
+                return;
+            }
             const subtotal = calculateSubtotal();
             const totalBruto = subtotal; // IVA incluido: el precio ya tiene el IVA
             const totalFinal = Math.max(0, totalBruto - descuentoPuntosImporte);
@@ -1172,8 +1083,7 @@ useEffect(() => {
                 descuento_pct:   descuentoPct || 0,
                 iva_porcentaje:  0.0,
             })),
-            pagada, metodo_pago: pagada ? (selectedLinkPago ? 'Link de Pago' : metodoPago) : null,
-            link_pago_nombre: pagada && selectedLinkPago ? selectedLinkPago.nombre : undefined,
+            pagada, metodo_pago: pagada ? metodoPago : null,
             iva_porcentaje: parseFloat(ivaPorcentajeGlobal),
             // El vendedor es el trabajador de la cita si la venta vino de un cobro de agendamiento.
             operador_id: atendidoPor?.id ?? citaVendedorRef.current ?? user?.id,
@@ -1213,10 +1123,6 @@ useEffect(() => {
                 iva_total: saved.iva_total ?? 0,
                 monto_pagado: pagada ? (saved.total ?? totalBruto) : 0,
                 metodo_pago: ventaData.metodo_pago, estado_pago: pagada ? 'pagado' : 'pendiente',
-                puntos_ganados: saved.puntos_ganados ?? 0,
-                puntos_canjeados: puntosACanjear || 0,
-                descuento_puntos: descuentoPuntosImporte || 0,
-                saldo_puntos_cliente: saved.saldo_puntos_cliente ?? null,
             });
             setReciboOpen(true);
             resetForm();
@@ -1240,80 +1146,6 @@ useEffect(() => {
         setPuntosACanjear(0); setClientePuntos(0); setOmitirInventario(false); pendingVentaRef.current = null;
         cleanupCamera(); setCameraActive(false);
         setTimeout(() => barcodeFieldRef.current?.focus(), 300);
-    };
-
-    // ── Borradores de venta ──────────────────────────────────────────────
-    const handleGuardarBorrador = async () => {
-        if (editingVenta) { toast.warning('No puedes aparcar una venta que estás editando.'); return; }
-        const validDetails = saleDetails.filter(d => d.isLibre ? d.precioUnitario > 0 : (d.producto !== null && d.cantidad > 0));
-        if (validDetails.length === 0) { toast.warning('Agrega al menos un producto antes de guardar el borrador.'); return; }
-
-        const snapshot = {
-            saleDetails, cliente, isMostrador, clienteInput, atendidoPor,
-            metodoPago, pagada, ivaPorcentajeGlobal, valorRecibido, solicitaFe,
-            omitirInventario, puntosACanjear,
-            citaId: citaIdRef.current || null,
-        };
-        const clienteNombre = isMostrador ? 'Mostrador' : (cliente?.nombre || 'Sin cliente');
-
-        setGuardandoBorrador(true);
-        try {
-            await apiClient.post('/ventas/borradores', {
-                cliente_nombre: clienteNombre,
-                total_aproximado: calculateSubtotal(),
-                datos: snapshot,
-            });
-            toast.success('Venta guardada como borrador — puedes atender al siguiente cliente.');
-            resetForm();
-            fetchBorradores();
-        } catch (err) {
-            toast.error(err.response?.data?.detail || 'No se pudo guardar el borrador.');
-        } finally {
-            setGuardandoBorrador(false);
-        }
-    };
-    handleGuardarBorradorRef.current = handleGuardarBorrador;
-
-    const handleRetomarBorrador = async (borradorId) => {
-        setRetomandoBorradorId(borradorId);
-        try {
-            const { data } = await apiClient.get(`/ventas/borradores/${borradorId}`);
-            const d = data.datos || {};
-            setSaleDetails(d.saleDetails?.length ? d.saleDetails : [{ id: Date.now(), producto: null, cantidad: 1, precioUnitario: 0, descuentoPct: 0 }]);
-            setCliente(d.cliente ?? null);
-            setIsMostrador(!!d.isMostrador);
-            setClienteInput(d.clienteInput || '');
-            setAtendidoPor(d.atendidoPor ?? null);
-            setMetodoPago(d.metodoPago || 'Efectivo');
-            setPagada(d.pagada ?? true);
-            setIvaPorcentajeGlobal(d.ivaPorcentajeGlobal ?? 19);
-            setValorRecibido(d.valorRecibido || 0);
-            setSolicitaFe(!!d.solicitaFe);
-            setOmitirInventario(!!d.omitirInventario);
-            setPuntosACanjear(d.puntosACanjear || 0);
-            citaIdRef.current = d.citaId || null;
-            setEditingVenta(null);
-            setTabValue(0);
-            setBorradoresOpen(false);
-            await apiClient.delete(`/ventas/borradores/${borradorId}`);
-            fetchBorradores();
-            toast.success('Borrador retomado.');
-        } catch {
-            toast.error('No se pudo retomar el borrador.');
-        } finally {
-            setRetomandoBorradorId(null);
-        }
-    };
-
-    const handleDescartarBorrador = async (borradorId) => {
-        if (!window.confirm('¿Descartar este borrador? No se podrá recuperar.')) return;
-        try {
-            await apiClient.delete(`/ventas/borradores/${borradorId}`);
-            fetchBorradores();
-            toast.success('Borrador descartado.');
-        } catch {
-            toast.error('No se pudo descartar el borrador.');
-        }
     };
 
     const handleDelete  = (id) => { setVentaToDelete(id); setShowDeleteDialog(true); };
@@ -1366,174 +1198,82 @@ useEffect(() => {
     return (
         <Box sx={{ width: '100%', minWidth: 0 }}>
 
-            {/* ── Header Hero Banner ── */}
-            <Paper
-                elevation={0}
-                sx={{
-                    p: { xs: 2.5, md: 4 },
-                    mb: 3,
-                    borderRadius: 4,
-                    position: 'relative',
-                    overflow: 'hidden',
-                    background: isDark
-                        ? `linear-gradient(135deg, ${alpha(ACCENT, 0.95)} 0%, #0F172A 100%)`
-                        : `linear-gradient(135deg, ${ACCENT} 0%, ${ACCENT2} 100%)`,
-                    color: '#fff',
-                    boxShadow: '0 8px 32px rgba(8, 145, 178, 0.15)',
-                    '&::before': {
-                        content: '""',
-                        position: 'absolute',
-                        top: -50,
-                        right: -50,
-                        width: 150,
-                        height: 150,
-                        borderRadius: '50%',
-                        background: 'rgba(255, 255, 255, 0.08)',
-                        filter: 'blur(20px)',
-                    },
-                    '&::after': {
-                        content: '""',
-                        position: 'absolute',
-                        bottom: -30,
-                        left: '30%',
-                        width: 100,
-                        height: 100,
-                        borderRadius: '50%',
-                        background: 'rgba(255, 255, 255, 0.05)',
-                        filter: 'blur(15px)',
-                    }
-                }}
-            >
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2, position: 'relative', zIndex: 1 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Box sx={{
-                            width: 48,
-                            height: 48,
-                            borderRadius: 3,
-                            bgcolor: 'rgba(255, 255, 255, 0.2)',
-                            backdropFilter: 'blur(8px)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            border: '1px solid rgba(255, 255, 255, 0.3)'
-                        }}>
-                            <ShoppingCart sx={{ color: '#fff', fontSize: 24 }} />
-                        </Box>
-                        <Box>
-                            <Typography sx={{ fontWeight: 800, fontSize: { xs: 20, md: 24 }, letterSpacing: -0.5 }}>POS & Ventas</Typography>
-                            <Typography sx={{ fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>Registra cobros y administra facturas electrónicas al instante</Typography>
-                        </Box>
+            {/* ── Header ── */}
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: `${ACCENT}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ACCENT }}>
+                        <ShoppingCart />
                     </Box>
-                    <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
-                        <HelpGuideTopBar
-                            moduleName="Ventas POS"
-                            moduleColor="#fff"
-                            steps={[
-                                { title: 'Selecciona el cliente', description: 'Busca por nombre, NIT o teléfono. Para ventas rápidas usa el botón "Mostrador".' },
-                                { title: 'Agrega productos', description: 'Escanea el código de barras o escribe el nombre. Usa los botones + / − para ajustar cantidades.' },
-                                { title: 'Aplica descuentos', description: 'Cada producto tiene un campo "Desc. %" donde puedes reducir su precio de forma individual.' },
-                                { title: 'Elige el método de pago', description: 'Selecciona Efectivo, Transferencia, Tarjeta o "Por Cobrar" para registrar ventas a crédito.' },
-                                { title: 'Registra la venta', description: 'Haz clic en "Registrar Venta" o presiona Ctrl + Enter para guardar. El sistema descuenta el stock automáticamente.' },
-                            ]}
-                        />
+                    <Box>
+                        <Typography sx={{ fontWeight: 700, fontSize: 20, lineHeight: 1.2 }}>Ventas</Typography>
+                        <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Gestión de ventas y cobros</Typography>
                     </Box>
+                    <HelpGuideTopBar
+                        moduleName="Ventas POS"
+                        moduleColor={ACCENT}
+                        steps={[
+                            { title: 'Selecciona el cliente', description: 'Busca por nombre, NIT o teléfono. Para ventas rápidas usa el botón "Mostrador".' },
+                            { title: 'Agrega productos', description: 'Escanea el código de barras o escribe el nombre. Usa los botones + / − para ajustar cantidades.' },
+                            { title: 'Aplica descuentos', description: 'Cada producto tiene un campo "Desc. %" donde puedes reducir su precio de forma individual.' },
+                            { title: 'Elige el método de pago', description: 'Selecciona Efectivo, Transferencia, Tarjeta o "Por Cobrar" para registrar ventas a crédito.' },
+                            { title: 'Registra la venta', description: 'Haz clic en "Registrar Venta" o presiona Ctrl + Enter para guardar. El sistema descuenta el stock automáticamente.' },
+                            { title: 'Atajos de teclado', description: 'Ctrl + Enter: registrar venta. Enter en el campo de código de barras: agregar producto al carrito. Estos atajos agilizan el proceso en caja.' },
+                        ]}
+                        faqItems={[
+                            { q: '¿Qué atajos de teclado están disponibles?', a: 'Ctrl + Enter (o Cmd + Enter en Mac): registra la venta sin usar el mouse. Enter en el campo de código de barras: agrega el producto al carrito inmediatamente. Estos atajos están activos siempre que estés en la pestaña de nueva venta.' },
+                            { q: '¿Cómo registro una venta a crédito?', a: 'Selecciona "Por Cobrar" como método de pago. La venta queda registrada como deuda del cliente y aparece en "Cartera pendiente". Puedes gestionarla desde el historial.' },
+                            { q: '¿Puedo aplicar un descuento en la venta?', a: 'Sí, cada producto en el carrito tiene un campo "Desc. %" donde puedes ingresar un porcentaje de descuento individual. El total se recalcula automáticamente.' },
+                            { q: '¿Qué pasa con el stock al registrar una venta?', a: 'El stock se descuenta automáticamente al registrar. Si un producto tiene stock bajo o insuficiente para la cantidad pedida, verás una alerta en el carrito.' },
+                            { q: '¿Cómo edito o anulo una venta ya registrada?', a: 'En la pestaña "Historial", usa el ícono de lápiz ✏️ para editar o el ícono de devolución para registrar una devolución parcial o total.' },
+                        ]}
+                    />
                 </Box>
-            </Paper>
-
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
-                <Box />
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <ToggleButtonGroup
                         value={viewMode}
                         exclusive
                         onChange={handleViewModeChange}
                         size="small"
-                        sx={{
-                            bgcolor: 'background.paper',
-                            borderRadius: 2.5,
-                            border: '1px solid',
-                            borderColor: 'divider',
-                            p: 0.5,
-                            '& .MuiToggleButton-root': {
-                                border: 'none',
-                                borderRadius: 2,
-                                px: 2,
-                                py: 0.5,
-                                textTransform: 'none',
-                                fontWeight: 700,
-                                fontSize: 12.5,
-                                '&.Mui-selected': {
-                                    bgcolor: alpha(ACCENT, 0.1),
-                                    color: ACCENT,
-                                    '&:hover': { bgcolor: alpha(ACCENT, 0.15) }
-                                }
-                            }
-                        }}
+                        sx={{ bgcolor: 'background.paper', borderRadius: 2 }}
                     >
-                        <ToggleButton value="classic" sx={{ gap: 1 }}>
+                        <ToggleButton value="classic" sx={{ textTransform: 'none', gap: 1, px: 2 }}>
                             <Keyboard fontSize="small" /> {!isMobile && 'Teclado'}
                         </ToggleButton>
-                        <ToggleButton value="touch" sx={{ gap: 1 }}>
+                        <ToggleButton value="touch" sx={{ textTransform: 'none', gap: 1, px: 2 }}>
                             <TouchApp fontSize="small" /> {!isMobile && 'Táctil'}
                         </ToggleButton>
                     </ToggleButtonGroup>
                     <Tooltip title="Configurar báscula digital (USB/Serial)">
-                        <IconButton onClick={() => setBasculaConfigOpen(true)} size="small" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1, bgcolor: 'background.paper' }}>
-                            <Scale fontSize="small" sx={{ color: 'text.secondary' }} />
+                        <IconButton onClick={() => setBasculaConfigOpen(true)} size="small" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+                            <Scale fontSize="small" />
                         </IconButton>
                     </Tooltip>
                     <Tooltip title="Exportar historial filtrado a CSV">
-                        <IconButton onClick={exportCSV} size="small" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1, bgcolor: 'background.paper' }}>
-                            <FileDownload fontSize="small" sx={{ color: 'text.secondary' }} />
+                        <IconButton onClick={exportCSV} size="small" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+                            <FileDownload fontSize="small" />
                         </IconButton>
                     </Tooltip>
-                    <Box sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1,
-                        px: 2,
-                        py: 0.75,
-                        borderRadius: 2.5,
-                        bgcolor: alpha(ACCENT, 0.08),
-                        border: '1px solid',
-                        borderColor: alpha(ACCENT, 0.15),
-                        boxShadow: `0 2px 8px ${alpha(ACCENT, 0.05)}`
-                    }}>
-                        <TrendingUp sx={{ fontSize: 18, color: ACCENT }} />
-                        <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 600 }}>Hoy:</Typography>
-                        <Typography sx={{ fontSize: 14, fontWeight: 800, color: ACCENT }}>{formatCurrency(totalVentasHoy)}</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, px: 1.5, py: 0.6, borderRadius: 2, bgcolor: `${ACCENT}0F` }}>
+                        <TrendingUp sx={{ fontSize: 16, color: ACCENT }} />
+                        <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Ventas hoy</Typography>
+                        <Typography sx={{ fontSize: 13, fontWeight: 700, color: ACCENT }}>{formatCurrency(totalVentasHoy)}</Typography>
                     </Box>
-                    {borradores.length > 0 && (
-                        <Button
-                            size="small"
-                            onClick={() => setBorradoresOpen(true)}
-                            startIcon={<Badge badgeContent={borradores.length} color="warning"><Notes sx={{ fontSize: 18 }} /></Badge>}
-                            sx={{
-                                ml: 1, borderRadius: 2.5, fontWeight: 700, fontSize: 12, textTransform: 'none',
-                                color: '#B45309', bgcolor: alpha('#F59E0B', 0.1),
-                                '&:hover': { bgcolor: alpha('#F59E0B', 0.18) },
-                            }}
-                        >
-                            Borradores
-                        </Button>
-                    )}
                 </Box>
             </Box>
 
             {/* ── Tabs ── */}
-            <Paper sx={{ borderRadius: 4, border: '1px solid', borderColor: 'divider', boxShadow: isDark ? '0 12px 40px rgba(0,0,0,0.3)' : '0 8px 30px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
+            <Paper sx={{ borderRadius: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
                 <Tabs
                     value={tabValue} onChange={(_, v) => setTabValue(v)}
                     sx={{
                         px: 2, borderBottom: '1px solid', borderColor: 'divider',
-                        background: isDark ? 'rgba(255,255,255,0.01)' : 'rgba(0,0,0,0.01)',
-                        '& .MuiTab-root': { fontWeight: 700, fontSize: 14, textTransform: 'none', minHeight: 56 },
+                        '& .MuiTab-root': { fontWeight: 600, fontSize: 13.5, textTransform: 'none', minHeight: 52 },
                         '& .MuiTabs-indicator': { backgroundColor: ACCENT, height: 3, borderRadius: 3 },
                         '& .Mui-selected': { color: `${ACCENT} !important` },
                     }}
                 >
-                    <Tab label={editingVenta ? '✏️ Editar Venta' : '➕ Nueva Venta POS'} />
-                    {isAdmin && <Tab label={`📋 Historial de Ventas (${ventas.length})`} />}
+                    <Tab label={editingVenta ? '✏️ Editar Venta' : '➕ Registrar Venta'} />
+                    <Tab label={`📋 Historial (${ventas.length})`} />
                 </Tabs>
 
                 {/* ════════════════════════════════════════
@@ -1541,9 +1281,9 @@ useEffect(() => {
                 ════════════════════════════════════════ */}
                 <TabPanel value={tabValue} index={0}>
                     {viewMode === 'classic' ? (
-                        <Box sx={{ display: 'flex', gap: 0, alignItems: 'stretch', minHeight: 0, flexDirection: { xs: 'column', lg: 'row' } }}>
+                        <Box sx={{ display: 'flex', gap: 0, alignItems: 'stretch', minHeight: 0, flexDirection: { xs: 'column', md: 'row' } }}>
                           {/* ── LEFT PANEL ── */}
-                          <Box sx={{ flex: 1, minWidth: 0, p: { xs: 2, md: 3 }, overflowY: 'auto', maxHeight: { lg: 'calc(100vh - 220px)' } }}>
+                          <Box sx={{ flex: 1, minWidth: 0, p: { xs: 2, md: 3 }, overflowY: 'auto', maxHeight: { md: 'calc(100vh - 220px)' } }}>
                             {/* ── 0. ¿Factura Electrónica? (primera pregunta al cliente) ── */}
                             {user?.empresa?.facturacion_electronica_activa && (
                                 <Paper elevation={0} sx={{
@@ -1656,10 +1396,9 @@ useEffect(() => {
                                         renderInput={(params) => (
                                             <TextField
                                                 {...params} label="Buscar cliente por nombre, NIT o teléfono" fullWidth
-                                                sx={getInputSx(ACCENT)}
                                                 InputProps={{
                                                     ...params.InputProps,
-                                                    endAdornment: (<>{params.InputProps.endAdornment}<Tooltip title="Crear nuevo cliente"><IconButton size="small" onClick={() => openQuickCreate('tercero', clienteInput)} sx={{ color: ACCENT, p: 0.5 }}><Add fontSize="small" /></IconButton></Tooltip></>),
+                                                    endAdornment: (<>{params.InputProps.endAdornment}<Tooltip title="Crear nuevo cliente"><IconButton size="small" onClick={() => openQuickCreate('tercero', clienteInput)} sx={{ color: '#3B82F6', p: 0.5 }}><Add fontSize="small" /></IconButton></Tooltip></>),
                                                 }}
                                             />
                                         )}
@@ -1696,7 +1435,6 @@ useEffect(() => {
                                   )}
                                   renderInput={params => (
                                     <TextField {...params} size="small" fullWidth
-                                      sx={getInputSx(ACCENT)}
                                       placeholder={`${user?.nombre_completo || user?.username} (por defecto)`}
                                       helperText="Deja vacío si el vendedor es quien inicia sesión"
                                     />
@@ -1737,7 +1475,6 @@ useEffect(() => {
                                         inputRef={barcodeFieldRef}
                                         autoComplete="off"
                                         disabled={searchingBarcode}
-                                        sx={getInputSx(ACCENT)}
                                         InputProps={{
                                             startAdornment: <InputAdornment position="start"><QrCodeScanner sx={{ color: ACCENT, fontSize: 22 }} /></InputAdornment>,
                                             endAdornment: searchingBarcode ? <CircularProgress size={18} sx={{ color: ACCENT }} /> : null,
@@ -1897,14 +1634,14 @@ useEffect(() => {
                           </Box>{/* end LEFT PANEL */}
 
                           {/* ── vertical DIVIDER — desktop only ── */}
-                          <Box sx={{ display: { xs: 'none', lg: 'block' }, width: '1px', bgcolor: 'divider', flexShrink: 0 }} />
+                          <Box sx={{ display: { xs: 'none', md: 'block' }, width: '1px', bgcolor: 'divider', flexShrink: 0 }} />
 
                           {/* ── RIGHT PANEL ── */}
                           <Box sx={{
-                            width: { xs: '100%', lg: 560 }, flexShrink: 0,
+                            width: { xs: '100%', md: 560 }, flexShrink: 0,
                             p: { xs: 2, md: 3 },
                             display: 'flex', flexDirection: 'column', gap: 2,
-                            overflowY: 'auto', maxHeight: { lg: 'calc(100vh - 220px)' },
+                            overflowY: 'auto', maxHeight: { md: 'calc(100vh - 220px)' },
                             bgcolor: isDark ? 'background.paper' : '#FFFBF9',
                             borderLeft: { md: `1.5px solid ${ACCENT}20` },
                           }}>
@@ -2029,7 +1766,7 @@ useEffect(() => {
                                     </SmartTooltip>
                                 </Box>
                                 <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap' }}>
-                                    {metodosPagoConLinks.map(opt => {
+                                    {METODOS_PAGO.filter(opt => opt.value !== 'Link de Pago' || !!linkPagoConfig).map(opt => {
                                         const isSelected = pagada ? (opt.pagada && metodoPago === opt.value) : !opt.pagada;
                                         return (
                                             <Box key={opt.value} onClick={() => { setPagada(opt.pagada); if (opt.pagada) setMetodoPago(opt.value); }}
@@ -2066,26 +1803,6 @@ useEffect(() => {
                                         Valor recibido
                                     </Typography>
                                     <CurrencyField label="" size="small" fullWidth value={valorRecibido} onChange={setValorRecibido} />
-                                    {/* Un toque = billete con el que paga el cliente (evita teclear) */}
-                                    {totalFinal > 0 && (
-                                        <Box sx={{ display: 'flex', gap: 0.6, flexWrap: 'wrap', mt: 0.8 }}>
-                                            {sugerenciasEfectivo(totalFinal).map(s => (
-                                                <Chip
-                                                    key={s.valor}
-                                                    label={s.label}
-                                                    size="small"
-                                                    onClick={() => setValorRecibido(s.valor)}
-                                                    sx={{
-                                                        fontWeight: 700, fontSize: 11, cursor: 'pointer',
-                                                        bgcolor: valorRecibido === s.valor ? '#10B981' : alpha('#10B981', 0.08),
-                                                        color: valorRecibido === s.valor ? '#fff' : '#059669',
-                                                        border: '1px solid', borderColor: alpha('#10B981', 0.35),
-                                                        '&:hover': { bgcolor: valorRecibido === s.valor ? '#059669' : alpha('#10B981', 0.16) },
-                                                    }}
-                                                />
-                                            ))}
-                                        </Box>
-                                    )}
                                     {valorRecibido > 0 && (
                                         <Box sx={{
                                             mt: 0.8, px: 2, py: 0.6, borderRadius: 2, textAlign: 'center',
@@ -2134,83 +1851,20 @@ useEffect(() => {
                                         Cancelar edición
                                     </Button>
                                 )}
-                                {!editingVenta && (
-                                    <Tooltip title="Guarda el carrito actual para atender a otro cliente y retomarlo después (Ctrl+G)">
-                                        <span>
-                                            <Button
-                                                onClick={handleGuardarBorrador}
-                                                variant="outlined" fullWidth
-                                                disabled={guardandoBorrador}
-                                                startIcon={guardandoBorrador ? <CircularProgress size={14} /> : <Notes />}
-                                                sx={{ borderRadius: 2, fontWeight: 600, borderColor: '#F59E0B', color: '#B45309', mb: 1 }}
-                                            >
-                                                Guardar como borrador
-                                            </Button>
-                                        </span>
-                                    </Tooltip>
-                                )}
-                                {borradores.length > 0 && (
-                                    <Button
-                                        onClick={() => setBorradoresOpen(true)}
-                                        variant="contained" fullWidth disableElevation
-                                        startIcon={<Badge badgeContent={borradores.length} color="error"><Notes /></Badge>}
-                                        sx={{ borderRadius: 2, fontWeight: 700, mb: 1, bgcolor: '#F59E0B', color: '#fff', '&:hover': { bgcolor: '#D97706' } }}
-                                    >
-                                        Retomar venta guardada
-                                    </Button>
-                                )}
                                 <Typography sx={{ fontSize: 11, color: 'text.disabled', textAlign: 'center', mb: 0.4 }}>
-                                    Ctrl + Enter · Ctrl + G borrador
+                                    Ctrl + Enter
                                 </Typography>
                                 <LiquidButton
                                     id="btn-registrar-venta"
                                     type="submit" fullWidth
                                     disabled={savingVenta} loading={savingVenta}
                                     onClick={handleSubmit}
-                                    startIcon={!savingVenta && (selectedLinkPago ? <CreditCard /> : <ShoppingCart />)}
+                                    startIcon={!savingVenta && (metodoPago === 'Link de Pago' ? <CreditCard /> : <ShoppingCart />)}
                                 >
-                                    {savingVenta ? 'Guardando…' : (editingVenta ? 'Actualizar' : (selectedLinkPago ? 'Cobrar con Link' : 'Registrar Venta'))}
+                                    {savingVenta ? 'Guardando…' : (editingVenta ? 'Actualizar' : (metodoPago === 'Link de Pago' ? 'Cobrar con Link' : 'Registrar Venta'))}
                                 </LiquidButton>
                             </Box>
                           </Box>{/* end RIGHT PANEL */}
-
-                          {/* ── Barra fija de cobro (solo móvil): total + registrar siempre
-                              visibles sin scrollear hasta el fondo del formulario. ── */}
-                          {isMobile && saleDetails.filter(d => d.producto || d.isLibre).length > 0 && (
-                            <>
-                              <Box sx={{ height: 76 }} />{/* espacio para que la barra no tape contenido */}
-                              <Box sx={{
-                                  position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 1100,
-                                  px: 1.5, pt: 1, pb: 'calc(10px + env(safe-area-inset-bottom))',
-                                  bgcolor: 'background.paper',
-                                  borderTop: '1px solid', borderColor: 'divider',
-                                  boxShadow: '0 -6px 24px rgba(0,0,0,0.12)',
-                                  display: 'flex', alignItems: 'center', gap: 1.5,
-                              }}>
-                                  <Box sx={{ minWidth: 0, flex: 1 }} onClick={() => document.getElementById('btn-registrar-venta')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
-                                      <Typography sx={{ fontSize: 10, color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6 }}>
-                                          {saleDetails.filter(d => d.producto || d.isLibre).length} ítem(s) · Total
-                                      </Typography>
-                                      <Typography sx={{ fontSize: 20, fontWeight: 900, color: ACCENT, lineHeight: 1.1 }} noWrap>
-                                          {formatCurrency(totalFinal)}
-                                      </Typography>
-                                  </Box>
-                                  <Button
-                                      variant="contained"
-                                      disabled={savingVenta}
-                                      onClick={handleSubmit}
-                                      startIcon={savingVenta ? <CircularProgress size={16} color="inherit" /> : <ShoppingCart />}
-                                      sx={{
-                                          borderRadius: 2.5, fontWeight: 800, textTransform: 'none', px: 2.5, py: 1.2,
-                                          bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' },
-                                          boxShadow: `0 6px 18px ${alpha(ACCENT, 0.35)}`, flexShrink: 0,
-                                      }}
-                                  >
-                                      {savingVenta ? 'Guardando…' : (editingVenta ? 'Actualizar' : 'Cobrar')}
-                                  </Button>
-                              </Box>
-                            </>
-                          )}
                         </Box>
                     ) : (
                         <Box sx={{ p: { xs: 1.5, md: 2 } }}>
@@ -2238,18 +1892,13 @@ useEffect(() => {
                                 setIvaPorcentajeGlobal={setIvaPorcentajeGlobal}
                                 onSubmit={handleVentaSubmit}
                                 savingVenta={savingVenta}
-                                onGuardarBorrador={handleGuardarBorrador}
-                                guardandoBorrador={guardandoBorrador}
-                                borradoresCount={borradores.length}
-                                onVerBorradores={() => setBorradoresOpen(true)}
                                 calculateSubtotal={calculateSubtotal}
                                 cambioEfectivo={cambioEfectivo}
                                 openQuickCreate={openQuickCreate}
                                 isDark={isDark}
                                 omitirInventario={omitirInventario}
                                 setOmitirInventario={setOmitirInventario}
-                                linkPagosConfig={linkPagosConfig}
-                                metodosPagoConLinks={metodosPagoConLinks}
+                                linkPagoConfig={linkPagoConfig}
                                 fidelizacionActiva={configFidelizacion.activa}
                                 clientePuntos={clientePuntos}
                                 puntosACanjear={puntosACanjear}
@@ -2266,7 +1915,7 @@ useEffect(() => {
                 {/* ════════════════════════════════════════
                     TAB 1 — HISTORIAL
                 ════════════════════════════════════════ */}
-                {isAdmin && <TabPanel value={tabValue} index={1}>
+                <TabPanel value={tabValue} index={1}>
                     <Box sx={{ px: { xs: 2, md: 3 }, pb: 3 }}>
 
                         {/* ── Buscador principal ── */}
@@ -2389,10 +2038,10 @@ useEffect(() => {
                                                 const saldo = (v.total || 0) - (v.monto_pagado || 0);
                                                 const productosSummary = v.detalles?.length > 0
                                                     ? v.detalles.length === 1
-                                                        ? `${v.detalles[0].producto?.nombre || v.detalles[0].nombre_libre || 'Ítem'} ×${v.detalles[0].cantidad}`
-                                                        : `${v.detalles[0].producto?.nombre || v.detalles[0].nombre_libre || 'Ítem'} ×${v.detalles[0].cantidad} + ${v.detalles.length - 1} más`
+                                                        ? `${v.detalles[0].producto?.nombre || v.detalles[0].nombre_producto} ×${v.detalles[0].cantidad}`
+                                                        : `${v.detalles[0].producto?.nombre || v.detalles[0].nombre_producto} ×${v.detalles[0].cantidad} + ${v.detalles.length - 1} más`
                                                     : '—';
-                                                const productosTooltip = v.detalles?.map(d => `${d.producto?.nombre || d.nombre_libre || 'Ítem'} ×${d.cantidad}`).join('\n');
+                                                const productosTooltip = v.detalles?.map(d => `${d.producto?.nombre || d.nombre_producto} ×${d.cantidad}`).join('\n');
                                                 const fechaVenta = new Date(v.fecha + (v.fecha?.endsWith('Z') ? '' : 'Z'));
                                                 const fechaStr = fechaVenta.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
                                                 const horaStr  = fechaVenta.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
@@ -2479,7 +2128,7 @@ useEffect(() => {
                             labelRowsPerPage="Filas:" labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
                         />
                     </Box>
-                </TabPanel>}
+                </TabPanel>
             </Paper>
 
             {/* ── Dialogs ── */}
@@ -2501,7 +2150,6 @@ useEffect(() => {
                 open={quickCreate.open} onClose={closeQuickCreate}
                 type={quickCreate.type} initialName={quickCreate.initialName}
                 onCreated={handleQuickCreated}
-                defaultTipo="cliente"
             />
             <ReciboDialog
                 open={reciboOpen} onClose={() => setReciboOpen(false)}
@@ -2532,65 +2180,9 @@ useEffect(() => {
                 open={linkPagoModalOpen}
                 onClose={() => { setLinkPagoModalOpen(false); pendingVentaRef.current = null; }}
                 onConfirm={() => { setLinkPagoModalOpen(false); handleVentaSubmit(); }}
-                linkConfig={selectedLinkPago}
+                linkConfig={linkPagoConfig}
                 clienteTelefono={cliente?.telefono || ''}
             />
-
-            {/* ── Borradores de venta ── */}
-            <Dialog open={borradoresOpen} onClose={() => setBorradoresOpen(false)} maxWidth="xs" fullWidth
-                PaperProps={{ sx: { borderRadius: 3 } }}>
-                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, fontWeight: 800, fontSize: 16 }}>
-                    <Notes sx={{ color: '#F59E0B' }} /> Ventas en borrador
-                </DialogTitle>
-                <DialogContent dividers sx={{ p: 0 }}>
-                    {borradores.length === 0 ? (
-                        <Typography sx={{ p: 3, textAlign: 'center', color: 'text.secondary', fontSize: 13 }}>
-                            No hay borradores guardados.
-                        </Typography>
-                    ) : (
-                        <List disablePadding>
-                            {borradores.map(b => (
-                                <ListItem
-                                    key={b.id}
-                                    divider
-                                    secondaryAction={
-                                        <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                            <Tooltip title="Retomar esta venta">
-                                                <span>
-                                                    <IconButton
-                                                        edge="end" color="primary"
-                                                        disabled={retomandoBorradorId === b.id}
-                                                        onClick={() => handleRetomarBorrador(b.id)}
-                                                    >
-                                                        {retomandoBorradorId === b.id
-                                                            ? <CircularProgress size={18} />
-                                                            : <PlayCircleOutline />}
-                                                    </IconButton>
-                                                </span>
-                                            </Tooltip>
-                                            <Tooltip title="Descartar borrador">
-                                                <IconButton edge="end" color="error" onClick={() => handleDescartarBorrador(b.id)}>
-                                                    <Delete fontSize="small" />
-                                                </IconButton>
-                                            </Tooltip>
-                                        </Box>
-                                    }
-                                >
-                                    <ListItemText
-                                        primary={b.cliente_nombre || 'Sin cliente'}
-                                        secondary={`${formatCurrency(b.total_aproximado || 0)} · ${new Date(b.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}`}
-                                        primaryTypographyProps={{ fontWeight: 700, fontSize: 14 }}
-                                        secondaryTypographyProps={{ fontSize: 12 }}
-                                    />
-                                </ListItem>
-                            ))}
-                        </List>
-                    )}
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setBorradoresOpen(false)} sx={{ textTransform: 'none' }}>Cerrar</Button>
-                </DialogActions>
-            </Dialog>
         </Box>
     );
 };

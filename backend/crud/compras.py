@@ -138,21 +138,10 @@ def create_compra(db: Session, empresa_id: int, compra: schemas.CompraCreate):
             raise HTTPException(status_code=400, detail=f"El ítem #{idx+1} debe tener un producto o una descripción.")
 
         prod = None
-        variante = None
         if item.producto_id is not None:
             prod = get_producto(db, empresa_id, item.producto_id)
             if not prod:
                 raise HTTPException(status_code=404, detail=f"Producto {item.producto_id} no encontrado")
-            if prod.tiene_variantes:
-                if not item.variante_id:
-                    raise HTTPException(status_code=400, detail=f"'{prod.nombre}' maneja variantes — indica a cuál le llega este stock.")
-                variante = db.query(models.ProductoVariante).filter(
-                    models.ProductoVariante.id == item.variante_id,
-                    models.ProductoVariante.producto_id == prod.id,
-                    models.ProductoVariante.empresa_id == empresa_id,
-                ).first()
-                if not variante:
-                    raise HTTPException(status_code=400, detail=f"La variante indicada no existe para '{prod.nombre}'")
 
         db_detalle = models.DetalleCompra(
             compra_id=db_compra.id,
@@ -161,12 +150,7 @@ def create_compra(db: Session, empresa_id: int, compra: schemas.CompraCreate):
             sort_order=idx,
             cantidad=item.cantidad,
             precio_unitario=item.precio_unitario,
-            iva_porcentaje=0.0,
-            variante_id=variante.id if variante else None,
-            nombre_variante=variante.nombre if variante else None,
-            numero_lote=item.numero_lote,
-            fecha_vencimiento=item.fecha_vencimiento,
-            fecha_fabricacion=getattr(item, 'fecha_fabricacion', None),
+            iva_porcentaje=0.0
         )
         db.add(db_detalle)
 
@@ -175,9 +159,7 @@ def create_compra(db: Session, empresa_id: int, compra: schemas.CompraCreate):
             continue
 
         # ── Crear lote automático si el detalle trae datos de lote ──────────────
-        # (Los lotes de perecederos son siempre por producto — no se combinan
-        # con variantes en esta fase.)
-        if item.numero_lote and item.fecha_vencimiento and not variante:
+        if item.numero_lote and item.fecha_vencimiento:
             if prod and getattr(prod, 'maneja_lotes', False):
                 from crud.perecederos import crear_lote_existencia
                 lote_payload = schemas.LoteExistenciaCreate(
@@ -195,10 +177,9 @@ def create_compra(db: Session, empresa_id: int, compra: schemas.CompraCreate):
             prod.costo = item.precio_unitario
             db.add(prod)
         else:
-            # Entrada de producto regular (o de una variante específica)
+            # Entrada de producto regular
             payload_mov = schemas.InventoryMovementCreate(
                 producto_id=item.producto_id,
-                variante_id=variante.id if variante else None,
                 tipo=schemas.MovementType.entrada,
                 cantidad=item.cantidad,
                 costo_unitario=item.precio_unitario,
@@ -208,12 +189,8 @@ def create_compra(db: Session, empresa_id: int, compra: schemas.CompraCreate):
             )
             create_movement(db, empresa_id, payload_mov)
 
-            if variante:
-                variante.costo = item.precio_unitario
-                db.add(variante)
-            else:
-                prod.costo = item.precio_unitario
-                db.add(prod)
+            prod.costo = item.precio_unitario
+            db.add(prod)
 
     db.commit()
     db.refresh(db_compra)
@@ -264,56 +241,19 @@ def update_compra(db: Session, empresa_id: int, compra_id: int, data: schemas.Co
 
     # 1. Revertir inventario de la compra actual
     for detalle in db_compra.detalles:
-        prod = get_producto(db, empresa_id, detalle.producto_id) if detalle.producto_id else None
-
-        # ── Insumo perecedero: la entrada NO se registró como movimiento
-        # genérico, sino como un LoteExistencia (crear_lote_existencia). El
-        # bloque de abajo, basado en buscar un InventoryMovement por
-        # referencia "Compra #N", nunca lo encuentra —esa entrada usa la
-        # referencia de factura, no ese formato— así que revertía cero y
-        # dejaba el lote con la cantidad original mientras el agregado de
-        # stock sí se actualizaba: la discrepancia exacta que se reportó.
-        if prod and getattr(prod, 'maneja_lotes', False) and detalle.numero_lote:
-            lote = db.query(models.LoteExistencia).filter(
-                models.LoteExistencia.empresa_id  == empresa_id,
-                models.LoteExistencia.producto_id == detalle.producto_id,
-                models.LoteExistencia.numero_lote == detalle.numero_lote,
-            ).first()
-            if lote:
-                lote.cantidad_actual = max(0, (lote.cantidad_actual or 0) - detalle.cantidad)
-                db.add(lote)
-            prod.stock_actual = max(0, (prod.stock_actual or 0) - detalle.cantidad)
-            db.add(prod)
-            db.add(models.InventoryMovement(
-                producto_id    = detalle.producto_id,
-                tipo           = "salida",
-                cantidad       = detalle.cantidad,
-                costo_unitario = lote.costo_unitario if lote else detalle.precio_unitario,
-                motivo         = "Anulación por edición de compra",
-                referencia     = f"Reversa Compra #{db_compra.numero_compra or db_compra.id}",
-                empresa_id     = empresa_id,
-                lote_id        = lote.id if lote else None,
-                numero_lote    = detalle.numero_lote,
-            ))
-            continue
-
-        # ── Producto regular: revertir por el movimiento genérico de entrada ──
-        # Buscar movimiento de inventario asociado (incluye variante, para no
-        # confundir dos líneas del mismo producto con variantes distintas)
+        # Buscar movimiento de inventario asociado
         mov = db.query(models.InventoryMovement).filter(
             models.InventoryMovement.referencia.in_([
                 f"Compra #{db_compra.id}",
                 f"Compra #{db_compra.numero_compra}" if db_compra.numero_compra else f"Compra #{db_compra.id}",
             ]),
-            models.InventoryMovement.producto_id == detalle.producto_id,
-            models.InventoryMovement.variante_id == detalle.variante_id,
+            models.InventoryMovement.producto_id == detalle.producto_id
         ).first()
-
+        
         if mov:
-            # Revertir stock (salida por el mismo valor, misma variante si aplica)
+            # Revertir stock (salida por el mismo valor)
             reversa = schemas.InventoryMovementCreate(
                 producto_id=detalle.producto_id,
-                variante_id=detalle.variante_id,
                 tipo=schemas.MovementType.salida,
                 cantidad=detalle.cantidad,
                 motivo="Anulación por edición de compra",
@@ -344,14 +284,6 @@ def update_compra(db: Session, empresa_id: int, compra_id: int, data: schemas.Co
         for idx, item in enumerate(data.detalles):
             total_bruto += item.cantidad * item.precio_unitario
 
-            variante = None
-            if item.producto_id is not None and item.variante_id:
-                variante = db.query(models.ProductoVariante).filter(
-                    models.ProductoVariante.id == item.variante_id,
-                    models.ProductoVariante.producto_id == item.producto_id,
-                    models.ProductoVariante.empresa_id == empresa_id,
-                ).first()
-
             db_detalle = models.DetalleCompra(
                 compra_id=db_compra.id,
                 producto_id=item.producto_id,
@@ -360,11 +292,6 @@ def update_compra(db: Session, empresa_id: int, compra_id: int, data: schemas.Co
                 cantidad=item.cantidad,
                 precio_unitario=item.precio_unitario,
                 iva_porcentaje=0.0,
-                variante_id=variante.id if variante else None,
-                nombre_variante=variante.nombre if variante else None,
-                numero_lote=item.numero_lote,
-                fecha_vencimiento=item.fecha_vencimiento,
-                fecha_fabricacion=getattr(item, 'fecha_fabricacion', None),
                 empresa_id=empresa_id
             )
             db.add(db_detalle)
@@ -372,34 +299,11 @@ def update_compra(db: Session, empresa_id: int, compra_id: int, data: schemas.Co
             if item.producto_id is None:
                 continue
 
+            # Aplicar nuevo inventario
             prod = get_producto(db, empresa_id, item.producto_id)
-            if not prod:
-                continue
-
-            # ── Insumo perecedero: igual que en create_compra, pasa por el
-            # lote (crea uno nuevo o suma al existente por número de lote) en
-            # vez de un movimiento genérico — así el stock del lote y el
-            # agregado del producto quedan sincronizados tras la edición.
-            if item.numero_lote and item.fecha_vencimiento and not variante and getattr(prod, 'maneja_lotes', False):
-                from crud.perecederos import crear_lote_existencia
-                lote_payload = schemas.LoteExistenciaCreate(
-                    producto_id       = item.producto_id,
-                    numero_lote       = item.numero_lote.strip().upper(),
-                    fecha_vencimiento = item.fecha_vencimiento,
-                    fecha_fabricacion = getattr(item, 'fecha_fabricacion', None),
-                    cantidad_inicial  = item.cantidad,
-                    costo_unitario    = item.precio_unitario,
-                    proveedor_id      = db_compra.proveedor_id,
-                    referencia_compra = db_compra.referencia_factura,
-                )
-                crear_lote_existencia(db, empresa_id, lote_payload, commit=False)
-                prod.costo = item.precio_unitario
-                db.add(prod)
-            else:
-                # Aplicar nuevo inventario (producto regular, o una variante)
+            if prod:
                 payload_mov = schemas.InventoryMovementCreate(
                     producto_id=item.producto_id,
-                    variante_id=variante.id if variante else None,
                     tipo=schemas.MovementType.entrada,
                     cantidad=item.cantidad,
                     costo_unitario=item.precio_unitario,
@@ -408,11 +312,7 @@ def update_compra(db: Session, empresa_id: int, compra_id: int, data: schemas.Co
                     observacion=f"Factura: {db_compra.referencia_factura or 'N/A'}"
                 )
                 create_movement(db, empresa_id, payload_mov)
-                if variante:
-                    variante.costo = item.precio_unitario
-                    db.add(variante)
-                else:
-                    prod.costo = item.precio_unitario
+                prod.costo = item.precio_unitario
 
         iva_pct = db_compra.iva_porcentaje or 0.0
         # IVA incluido: retrocálculo, el total no suma el IVA encima
@@ -460,39 +360,8 @@ def delete_compra(db: Session, empresa_id: int, compra_id: int):
     for detalle in db_compra.detalles:
         if detalle.producto_id is None:
             continue
-
-        prod = get_producto(db, empresa_id, detalle.producto_id)
-
-        # Mismo caso que en update_compra: un insumo perecedero entró por
-        # LoteExistencia, no por un movimiento genérico — hay que descontar
-        # el lote específico, no solo el agregado.
-        if prod and getattr(prod, 'maneja_lotes', False) and detalle.numero_lote:
-            lote = db.query(models.LoteExistencia).filter(
-                models.LoteExistencia.empresa_id  == empresa_id,
-                models.LoteExistencia.producto_id == detalle.producto_id,
-                models.LoteExistencia.numero_lote == detalle.numero_lote,
-            ).first()
-            if lote:
-                lote.cantidad_actual = max(0, (lote.cantidad_actual or 0) - detalle.cantidad)
-                db.add(lote)
-            prod.stock_actual = max(0, (prod.stock_actual or 0) - detalle.cantidad)
-            db.add(prod)
-            db.add(models.InventoryMovement(
-                producto_id    = detalle.producto_id,
-                tipo           = "salida",
-                cantidad       = detalle.cantidad,
-                costo_unitario = lote.costo_unitario if lote else detalle.precio_unitario,
-                motivo         = "Eliminación de compra",
-                referencia     = f"Eliminación Compra #{db_compra.numero_compra or db_compra.id}",
-                empresa_id     = empresa_id,
-                lote_id        = lote.id if lote else None,
-                numero_lote    = detalle.numero_lote,
-            ))
-            continue
-
         reversa = schemas.InventoryMovementCreate(
             producto_id=detalle.producto_id,
-            variante_id=detalle.variante_id,
             tipo=schemas.MovementType.salida,
             cantidad=detalle.cantidad,
             motivo="Eliminación de compra",
