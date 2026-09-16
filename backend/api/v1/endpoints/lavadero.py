@@ -435,14 +435,24 @@ def cobrar_orden(
 
     # Ganar puntos por esta compra — sí puede fallar en silencio (no es
     # dinero que se pierda, solo puntos que el cliente no acumula), pero se
-    # deja registrado en el log para poder auditarlo.
+    # deja registrado en el log para poder auditarlo. El snapshot
+    # (puntos_ganados / saldo_puntos_cliente) queda en la Venta para que el
+    # recibo pueda mostrarlo sin recalcular nada en una reimpresión futura.
+    puntos_ganados = 0
+    saldo_puntos_cliente = None
     if orden.cliente_id and fidel_activa:
         try:
             from crud.puntos import ganar_puntos_venta
-            ganar_puntos_venta(db, empresa_id=current_user.empresa_id,
+            puntos_ganados = ganar_puntos_venta(db, empresa_id=current_user.empresa_id,
                                cliente_id=orden.cliente_id,
                                total_venta=float(total), venta_id=venta.id,
                                earn_rate=earn_rate, commit=False)
+            db.flush()
+            cliente_obj = db.query(models.Cliente).filter_by(id=orden.cliente_id).first()
+            saldo_puntos_cliente = cliente_obj.puntos_fidelidad if cliente_obj else None
+            venta.puntos_ganados = puntos_ganados
+            venta.saldo_puntos_cliente = saldo_puntos_cliente
+            db.add(venta)
         except Exception:
             import logging
             logging.getLogger("lavadero").exception(
@@ -480,7 +490,15 @@ def cobrar_orden(
         logging.getLogger("lavadero").error("Error FE en cobrar_orden %s: %s", orden_id, _fe_exc)
 
     db.refresh(orden)
-    return {**_orden_to_dict(orden), "venta_id": venta.id}
+    return {
+        **_orden_to_dict(orden),
+        "venta_id": venta.id,
+        "subtotal": bruto,
+        "descuento_puntos": descuento_pts,
+        "puntos_canjeados": puntos_canjeados,
+        "puntos_ganados": puntos_ganados,
+        "saldo_puntos_cliente": saldo_puntos_cliente,
+    }
 
 
 # ─── Historial de ventas ──────────────────────────────────────────────────────

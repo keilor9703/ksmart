@@ -866,7 +866,22 @@ export default function LavaderoVentas({ user }) {
       .map(d => `• ${d.nombre_servicio}${d.cantidad > 1 ? ` x${d.cantidad}` : ''}: $${Number(d.precio_unitario * d.cantidad).toLocaleString('es-CO')}`)
       .join('\n');
     const nombreLav = config?.nombre_lavadero || 'Lavadero';
-    const msg = `🚗 *Recibo de Lavado - ${nombreLav}*\n\nPlaca: *${cobraData.placa}*${cobraData.tipo_vehiculo ? ` (${cobraData.tipo_vehiculo})` : ''}\n📅 ${fechaStr} ${horaStr}\n\n${detallesStr}\n\n💰 *Total: $${Number(cobraData.total).toLocaleString('es-CO')}*\nPago: ${cobraData.metodo_pago}\n\n¡Gracias por su preferencia! 🙏`;
+    const descuento = cobraData.descuento_puntos || 0;
+    const puntosCanjeados = cobraData.puntos_canjeados || 0;
+    const puntosGanados = cobraData.puntos_ganados || 0;
+    const saldoPuntos = cobraData.saldo_puntos_cliente;
+    let extra = '';
+    if (descuento > 0) {
+      extra += `\nSubtotal: $${Number(cobraData.subtotal ?? cobraData.total).toLocaleString('es-CO')}`;
+      extra += `\nDescuento (${puntosCanjeados} pts): -$${Number(descuento).toLocaleString('es-CO')}`;
+    }
+    if (puntosCanjeados > 0 || puntosGanados > 0 || (saldoPuntos !== null && saldoPuntos !== undefined)) {
+      extra += '\n';
+      if (puntosCanjeados > 0) extra += `\n⭐ Puntos canjeados: -${puntosCanjeados}`;
+      if (puntosGanados > 0) extra += `\n⭐ Puntos ganados: +${puntosGanados}`;
+      if (saldoPuntos !== null && saldoPuntos !== undefined) extra += `\n⭐ Saldo de puntos: ${saldoPuntos}`;
+    }
+    const msg = `🚗 *Recibo de Lavado - ${nombreLav}*\n\nPlaca: *${cobraData.placa}*${cobraData.tipo_vehiculo ? ` (${cobraData.tipo_vehiculo})` : ''}\n📅 ${fechaStr} ${horaStr}\n\n${detallesStr}${extra}\n\n💰 *Total: $${Number(cobraData.total).toLocaleString('es-CO')}*\nPago: ${cobraData.metodo_pago}\n\n¡Gracias por su preferencia! 🙏`;
     window.open(`https://wa.me/${countryNum}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
   };
 
@@ -1760,6 +1775,24 @@ export default function LavaderoVentas({ user }) {
                   </Box>
                 ))}
                 <Divider sx={{ my: 1 }} />
+                {cobraData.descuento_puntos > 0 && (
+                  <>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.4 }}>
+                      <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Subtotal</Typography>
+                      <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+                        {formatCurrency(cobraData.subtotal ?? cobraData.total ?? 0)}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                      <Typography sx={{ fontSize: 13, color: GREEN }}>
+                        Descuento ({cobraData.puntos_canjeados} pts canjeados)
+                      </Typography>
+                      <Typography sx={{ fontSize: 13, fontWeight: 700, color: GREEN }}>
+                        -{formatCurrency(cobraData.descuento_puntos)}
+                      </Typography>
+                    </Box>
+                  </>
+                )}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                   <Typography sx={{ fontWeight: 800 }}>Total</Typography>
                   <Typography sx={{ fontWeight: 900, fontSize: 18, color: GREEN }}>
@@ -1769,6 +1802,22 @@ export default function LavaderoVentas({ user }) {
                 <Typography sx={{ fontSize: 12, color: 'text.secondary', textAlign: 'right' }}>
                   Pago: {cobraData.metodo_pago}
                 </Typography>
+                {(cobraData.puntos_ganados > 0 || (cobraData.saldo_puntos_cliente !== null && cobraData.saldo_puntos_cliente !== undefined)) && (
+                  <Box sx={{ mt: 1.5, p: 1.2, borderRadius: 2, bgcolor: alpha(GREEN, 0.06), border: `1px solid ${alpha(GREEN, 0.2)}` }}>
+                    {cobraData.puntos_ganados > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography sx={{ fontSize: 12, color: GREEN, fontWeight: 600 }}>⭐ Puntos ganados</Typography>
+                        <Typography sx={{ fontSize: 12, fontWeight: 800, color: GREEN }}>+{cobraData.puntos_ganados}</Typography>
+                      </Box>
+                    )}
+                    {(cobraData.saldo_puntos_cliente !== null && cobraData.saldo_puntos_cliente !== undefined) && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Saldo de puntos del cliente</Typography>
+                        <Typography sx={{ fontSize: 12, fontWeight: 700 }}>{cobraData.saldo_puntos_cliente}</Typography>
+                      </Box>
+                    )}
+                  </Box>
+                )}
               </Box>
 
               <Divider sx={{ mb: 2 }} />
