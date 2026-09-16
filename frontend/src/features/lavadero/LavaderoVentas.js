@@ -163,10 +163,13 @@ function DroppableColumn({ id, children }) {
   const { setNodeRef, isOver } = useDroppable({ id: `col-${id}` });
   return (
     <Box ref={setNodeRef} sx={{
-      minHeight: 80, borderRadius: 2, transition: 'background-color 0.15s',
+      minHeight: 80, maxHeight: 520, overflowY: 'auto', borderRadius: 2,
+      transition: 'background-color 0.15s',
       bgcolor: isOver ? alpha(ACCENT, 0.06) : 'transparent',
       outline: isOver ? `2px dashed ${alpha(ACCENT, 0.4)}` : 'none',
-      p: isOver ? 0.5 : 0,
+      p: isOver ? 0.5 : 0, pr: 0.6,
+      '&::-webkit-scrollbar': { width: 5 },
+      '&::-webkit-scrollbar-thumb': { bgcolor: 'divider', borderRadius: 3 },
     }}>
       {children}
     </Box>
@@ -1669,7 +1672,12 @@ export default function LavaderoVentas({ user }) {
             </DndContext>
 
             {/* Mobile: columna filtrada */}
-            <Box sx={{ display: { xs: 'block', md: 'none' } }}>
+            <Box sx={{
+              display: { xs: 'block', md: 'none' },
+              maxHeight: 560, overflowY: 'auto', pr: 0.5,
+              '&::-webkit-scrollbar': { width: 5 },
+              '&::-webkit-scrollbar-thumb': { bgcolor: 'divider', borderRadius: 3 },
+            }}>
               {(() => {
                 const est   = ESTADOS_TABLERO.find(e => e.key === boardFilter);
                 const lista = ordensPorEstado[boardFilter] || [];
