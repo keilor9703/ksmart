@@ -193,7 +193,7 @@ export default function LavaderoConfig() {
               startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
               onClick={handleSaveConfig}
               disabled={saving}
-              sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' }, fontWeight: 700, borderRadius: 2.5, textTransform: 'none', px: 3 }}
+              sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' }, fontWeight: 700, borderRadius: 2.5, textTransform: 'none', px: 3 }}
             >
               {saving ? 'Guardando…' : 'Guardar configuración'}
             </Button>

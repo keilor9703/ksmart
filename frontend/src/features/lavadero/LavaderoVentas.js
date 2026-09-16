@@ -58,6 +58,25 @@ const getElapsed = (fechaEntrada) => {
   return rem > 0 ? `${hrs}h ${rem}m` : `${hrs}h`;
 };
 
+// Un servicio de lavado puede costar distinto según el vehículo (moto, carro,
+// SUV…). Eso se modela como UN producto-servicio con VARIANTES — la misma
+// herramienta de variantes por atributo que ya existe en Productos — donde
+// cada variante representa un tipo de vehículo. Si el servicio no tiene
+// variantes, aplica igual a cualquier vehículo con su precio base. Si tiene
+// variantes pero ninguna coincide con el vehículo seleccionado, ese servicio
+// no aplica y se oculta de la grilla.
+const resolverServicioParaVehiculo = (servicio, tipoVehiculo) => {
+  const variantes = (servicio.variantes || []).filter(v => v.activo !== false);
+  if (!servicio.tiene_variantes || variantes.length === 0) {
+    return { disponible: true, precio: parseFloat(servicio.precio_venta ?? servicio.precio ?? 0) };
+  }
+  const match = variantes.find(v =>
+    Object.values(v.atributos || {}).some(val => String(val).toLowerCase() === String(tipoVehiculo).toLowerCase())
+  );
+  if (!match) return { disponible: false, precio: 0 };
+  return { disponible: true, precio: parseFloat(match.precio ?? servicio.precio_venta ?? servicio.precio ?? 0) };
+};
+
 const SectionLabel = ({ children }) => (
   <Typography sx={{ fontWeight: 700, fontSize: 11, mb: 1.2, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
     {children}
@@ -224,7 +243,7 @@ function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar, trabajadores
 }
 
 /* ── Item grid card (services & products) ───────────────────────────────── */
-function ItemCard({ item, enCarrito, onAgregar }) {
+function ItemCard({ item, enCarrito, onAgregar, precio }) {
   return (
     <Paper
       onClick={() => onAgregar(item)}
@@ -252,7 +271,7 @@ function ItemCard({ item, enCarrito, onAgregar }) {
       )}
       <Typography sx={{ fontWeight: 700, fontSize: 12, lineHeight: 1.3 }}>{item.nombre}</Typography>
       <Typography sx={{ fontSize: 11, color: GREEN, fontWeight: 600, mt: 0.3 }}>
-        {formatCurrency(item.precio_venta ?? item.precio ?? 0)}
+        {formatCurrency(precio ?? item.precio_venta ?? item.precio ?? 0)}
       </Typography>
     </Paper>
   );
@@ -434,13 +453,16 @@ export default function LavaderoVentas({ user }) {
 
   /* ── Cart helpers ─────────────────────────────────────────────────────── */
   const agregarItem = (item, esServicio) => {
+    const precioResuelto = esServicio
+      ? resolverServicioParaVehiculo(item, tipoVehiculo).precio
+      : parseFloat(item.precio_venta ?? item.precio ?? 0);
     setCarrito(prev => {
       const ex = prev.find(i => i.productoId === item.id);
       if (ex) return prev.map(i => i.productoId === item.id ? { ...i, cantidad: i.cantidad + 1 } : i);
       return [...prev, {
         productoId:   item.id,
         nombre:       item.nombre,
-        precio:       parseFloat(item.precio_venta ?? item.precio ?? 0),
+        precio:       precioResuelto,
         cantidad:     1,
         comision_pct: esServicio ? (item.comision_pct ?? null) : 0,
       }];
@@ -455,11 +477,16 @@ export default function LavaderoVentas({ user }) {
 
   const total = carrito.reduce((s, i) => s + i.precio * i.cantidad, 0);
 
+  // Solo se muestran los servicios que aplican al tipo de vehículo elegido:
+  // sin variantes (aplican a cualquiera) o con una variante para ese vehículo.
   const serviciosFiltrados = useMemo(() => {
-    if (!busquedaServ.trim()) return servicios;
-    const q = busquedaServ.toLowerCase();
-    return servicios.filter(s => s.nombre.toLowerCase().includes(q));
-  }, [servicios, busquedaServ]);
+    let list = servicios.filter(s => resolverServicioParaVehiculo(s, tipoVehiculo).disponible);
+    if (busquedaServ.trim()) {
+      const q = busquedaServ.toLowerCase();
+      list = list.filter(s => s.nombre.toLowerCase().includes(q));
+    }
+    return list;
+  }, [servicios, busquedaServ, tipoVehiculo]);
 
   const productosFiltrados = useMemo(() => {
     if (!busquedaProd.trim()) return productos;
@@ -811,7 +838,13 @@ export default function LavaderoVentas({ user }) {
                   key={label}
                   icon={<Icon sx={{ fontSize: 16 }} />}
                   label={label}
-                  onClick={() => setTipoVehiculo(label)}
+                  onClick={() => {
+                    if (label !== tipoVehiculo && carrito.length > 0) {
+                      setCarrito([]);
+                      toast.info('Cambiaste el tipo de vehículo — se limpiaron los servicios seleccionados porque sus precios dependen del vehículo.');
+                    }
+                    setTipoVehiculo(label);
+                  }}
                   sx={{
                     cursor: 'pointer', fontWeight: 600, fontSize: 12,
                     bgcolor: tipoVehiculo === label ? ACCENT : 'action.hover',
@@ -826,7 +859,7 @@ export default function LavaderoVentas({ user }) {
 
           {/* Servicios */}
           <Paper sx={{ p: 2.5, borderRadius: 3, mb: 2, border: '1px solid', borderColor: 'divider' }}>
-            <SectionLabel>Servicios de lavado</SectionLabel>
+            <SectionLabel>Servicios de lavado para {tipoVehiculo}</SectionLabel>
             <TextField
               size="small" fullWidth placeholder="Buscar servicio…"
               value={busquedaServ}
@@ -846,7 +879,9 @@ export default function LavaderoVentas({ user }) {
               <Typography sx={{ color: 'text.disabled', fontSize: 12, textAlign: 'center', py: 2 }}>
                 {servicios.length === 0
                   ? 'No hay servicios. Créalos en Productos marcando "Es servicio".'
-                  : 'Sin resultados para esta búsqueda.'}
+                  : busquedaServ.trim()
+                    ? 'Sin resultados para esta búsqueda.'
+                    : `Ningún servicio tiene un precio configurado para "${tipoVehiculo}".`}
               </Typography>
             ) : (
               <Grid container spacing={1}>
@@ -854,6 +889,7 @@ export default function LavaderoVentas({ user }) {
                   <Grid item xs={6} key={s.id}>
                     <ItemCard
                       item={s}
+                      precio={resolverServicioParaVehiculo(s, tipoVehiculo).precio}
                       enCarrito={carrito.find(i => i.productoId === s.id)}
                       onAgregar={item => agregarItem(item, true)}
                     />
@@ -990,7 +1026,7 @@ export default function LavaderoVentas({ user }) {
             onClick={handleRegistrar}
             startIcon={saving ? <CircularProgress size={18} color="inherit" /> : <CheckCircle />}
             sx={{
-              bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' },
+              bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' },
               '&.Mui-disabled': { bgcolor: 'action.disabledBackground' },
               fontWeight: 800, fontSize: 15, borderRadius: 3,
               textTransform: 'none', py: 1.5,

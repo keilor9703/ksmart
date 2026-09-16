@@ -493,16 +493,19 @@ def reporte_lavadero(
 ):
     empresa_id = current_user.empresa_id
 
-    # Query from LavaderoOrden (paid orders)
+    # Query from LavaderoOrden (paid orders). LEFT JOIN a User: una orden sin
+    # lavador asignado (operador_id nulo) debe seguir sumando al total del
+    # negocio, agrupada bajo "Sin asignar" — antes se perdía por completo con
+    # un INNER JOIN.
     q = db.query(
-        models.User.id.label("operador_id"),
-        func.coalesce(models.User.nombre_completo, models.User.username).label("nombre"),
+        models.LavaderoOrden.operador_id.label("operador_id"),
+        func.coalesce(models.User.nombre_completo, models.User.username, "Sin asignar").label("nombre"),
         func.count(models.LavaderoOrden.id).label("num_lavadas"),
         func.sum(models.LavaderoOrden.total).label("total_ventas"),
         func.min(models.LavaderoOrden.fecha_entrada).label("primera_lavada"),
         func.max(models.LavaderoOrden.fecha_entrada).label("ultima_lavada"),
-    ).join(
-        models.LavaderoOrden, models.LavaderoOrden.operador_id == models.User.id
+    ).outerjoin(
+        models.User, models.LavaderoOrden.operador_id == models.User.id
     ).filter(
         models.LavaderoOrden.empresa_id == empresa_id,
         models.LavaderoOrden.pagado == True,
@@ -513,7 +516,7 @@ def reporte_lavadero(
     if fecha_fin:
         q = q.filter(models.LavaderoOrden.fecha_entrada <= datetime.combine(fecha_fin, datetime.max.time()))
 
-    q = q.group_by(models.User.id, models.User.nombre_completo)
+    q = q.group_by(models.LavaderoOrden.operador_id, models.User.nombre_completo, models.User.username)
     q = q.order_by(func.sum(models.LavaderoOrden.total).desc())
     rows = q.all()
 
