@@ -5,14 +5,15 @@ import {
   Tooltip, InputAdornment, Dialog, DialogTitle, DialogContent,
   DialogActions, ToggleButtonGroup, ToggleButton, Badge, alpha,
   Table, TableHead, TableRow, TableCell, TableBody, TableContainer,
-  Tabs, Tab, Switch, FormControlLabel,
+  Tabs, Tab, Switch, FormControlLabel, useMediaQuery, useTheme,
 } from '@mui/material';
 import {
   DirectionsCar, Add, Remove, DeleteOutline, LocalCarWash,
   TwoWheeler, LocalShipping, DriveEta, ClearAll, Notes,
   Refresh, AccessTime, AttachMoney, CheckCircle, PlayArrow,
   Done, Close, Person, WhatsApp, Print, Storefront, QrCode2, Stars,
-  History, PictureAsPdf, ContentCopy, Search, Replay,
+  History, PictureAsPdf, ContentCopy, Search, Replay, Undo,
+  WarningAmber, Cancel,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
@@ -37,10 +38,14 @@ const TIPOS_VEHICULO = [
 ];
 
 const ESTADOS_TABLERO = [
-  { key: 'recibido',  label: 'Recibido',  color: BLUE,  bg: '#EFF6FF', nextKey: 'lavando',   nextLabel: 'Iniciar lavado',    NextIcon: PlayArrow },
-  { key: 'lavando',   label: 'Lavando',   color: AMBER, bg: '#FFFBEB', nextKey: 'terminado', nextLabel: 'Marcar terminado',  NextIcon: Done      },
-  { key: 'terminado', label: 'Terminado', color: GREEN, bg: '#ECFDF5', nextKey: null,         nextLabel: null,               NextIcon: null      },
+  { key: 'recibido',  label: 'Recibido',  color: BLUE,  bg: '#EFF6FF', nextKey: 'lavando',   nextLabel: 'Iniciar lavado',    NextIcon: PlayArrow, prevKey: null,        prevLabel: null },
+  { key: 'lavando',   label: 'Lavando',   color: AMBER, bg: '#FFFBEB', nextKey: 'terminado', nextLabel: 'Marcar terminado',  NextIcon: Done,      prevKey: 'recibido',  prevLabel: 'Regresar a Recibido' },
+  { key: 'terminado', label: 'Terminado', color: GREEN, bg: '#ECFDF5', nextKey: null,         nextLabel: null,               NextIcon: null,      prevKey: 'lavando',   prevLabel: 'Regresar a Lavando' },
 ];
+
+// Minutos que puede estar un vehículo "Lavando" antes de marcarlo como
+// demorado en el tablero (alerta visual, no bloquea nada).
+const MINUTOS_DEMORA = 45;
 
 const formatPlaca = (raw) => {
   const clean = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -57,6 +62,10 @@ const getElapsed = (fechaEntrada) => {
   const rem = mins % 60;
   return rem > 0 ? `${hrs}h ${rem}m` : `${hrs}h`;
 };
+
+const getElapsedMinutes = (fechaEntrada) =>
+  Math.floor((Date.now() - new Date(fechaEntrada).getTime()) / 60000);
+
 
 // Un servicio de lavado puede costar distinto según el vehículo (moto, carro,
 // SUV…). Eso se modela como UN producto-servicio con VARIANTES — la misma
@@ -84,11 +93,13 @@ const SectionLabel = ({ children }) => (
 );
 
 /* ── Tarjeta de orden en el tablero ─────────────────────────────────────── */
-function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar, trabajadores }) {
+function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar, onCancelar, trabajadores }) {
   const TipoIcon = TIPOS_VEHICULO.find(t => t.label === orden.tipo_vehiculo)?.icon ?? DirectionsCar;
   const [cambiandoLavador, setCambiandoLavador] = useState(false);
   const [nuevoLavadorObj, setNuevoLavadorObj] = useState(null);
   const [confirmandoCambio, setConfirmandoCambio] = useState(false);
+
+  const demorado = estadoConfig.key === 'lavando' && getElapsedMinutes(orden.fecha_entrada) > MINUTOS_DEMORA;
 
   const handleIniciarLavado = () => {
     // Si es recibido → lavando, ofrecer cambio de lavador
@@ -116,13 +127,14 @@ function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar, trabajadores
     <Paper
       elevation={0}
       sx={{
-        borderRadius: 2.5, border: `1.5px solid ${estadoConfig.color}30`,
+        borderRadius: 2.5,
+        border: demorado ? `1.5px solid ${RED}60` : `1.5px solid ${estadoConfig.color}30`,
         bgcolor: estadoConfig.bg, mb: 1.5, overflow: 'hidden',
         transition: 'box-shadow 0.15s',
         '&:hover': { boxShadow: `0 2px 12px ${estadoConfig.color}20` },
       }}
     >
-      <Box sx={{ height: 3, bgcolor: estadoConfig.color }} />
+      <Box sx={{ height: 3, bgcolor: demorado ? RED : estadoConfig.color }} />
       <Box sx={{ p: 1.8 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.8 }}>
           <Typography sx={{ fontSize: 20, fontWeight: 900, letterSpacing: 2, color: estadoConfig.color }}>
@@ -133,6 +145,18 @@ function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar, trabajadores
             <Typography sx={{ fontSize: 11 }}>{orden.tipo_vehiculo || '—'}</Typography>
           </Box>
         </Box>
+
+        {demorado && (
+          <Box sx={{
+            display: 'flex', alignItems: 'center', gap: 0.5, mb: 1,
+            px: 1, py: 0.4, borderRadius: 1, bgcolor: `${RED}12`,
+          }}>
+            <WarningAmber sx={{ fontSize: 14, color: RED }} />
+            <Typography sx={{ fontSize: 10.5, fontWeight: 700, color: RED }}>
+              Lleva más de {MINUTOS_DEMORA} min lavando
+            </Typography>
+          </Box>
+        )}
 
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
           {(orden.detalles || []).map((d, i) => (
@@ -178,6 +202,20 @@ function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar, trabajadores
         )}
 
         <Box sx={{ mt: 1.5, display: 'flex', gap: 1 }}>
+          {estadoConfig.prevKey && (
+            <Tooltip title={estadoConfig.prevLabel}>
+              <IconButton
+                size="small"
+                onClick={() => onEstadoChange(orden.id, estadoConfig.prevKey)}
+                sx={{
+                  border: '1px solid', borderColor: 'divider', borderRadius: 1.5,
+                  color: 'text.secondary', flexShrink: 0,
+                }}
+              >
+                <Undo sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          )}
           {estadoConfig.nextKey && (
             <Button
               size="small" fullWidth variant="contained"
@@ -204,6 +242,22 @@ function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar, trabajadores
               Cobrar
             </Button>
           )}
+          <Tooltip title="Cancelar orden">
+            <IconButton
+              size="small"
+              onClick={() => {
+                if (window.confirm(`¿Cancelar la orden de ${orden.placa}? Esta acción no se puede deshacer.`)) {
+                  onCancelar(orden.id);
+                }
+              }}
+              sx={{
+                border: '1px solid', borderColor: `${RED}40`, borderRadius: 1.5,
+                color: RED, flexShrink: 0,
+              }}
+            >
+              <Cancel sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
         </Box>
       </Box>
     </Paper>
@@ -280,6 +334,8 @@ function ItemCard({ item, enCarrito, onAgregar, precio }) {
 /* ══════════════════════════════════════════════════════════════════════════ */
 export default function LavaderoVentas({ user }) {
   const isAdmin = user?.role?.name === 'Admin';
+  const theme    = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   /* ── Form state ───────────────────────────────────────────────────────── */
   const [placa,         setPlaca]         = useState('');
@@ -304,6 +360,7 @@ export default function LavaderoVentas({ user }) {
   const [tick,         setTick]         = useState(0);
   const [mobileView,   setMobileView]   = useState('crear');
   const [boardFilter,  setBoardFilter]  = useState('recibido');
+  const [boardSearch,  setBoardSearch]  = useState('');
 
   /* ── Config & cobrar ──────────────────────────────────────────────────── */
   const [config,        setConfig]        = useState(null);
@@ -547,6 +604,19 @@ export default function LavaderoVentas({ user }) {
     }
   };
 
+  /* ── Cancelar orden ───────────────────────────────────────────────────── */
+  const handleCancelarOrden = async (ordenId) => {
+    setOrdenes(prev => prev.filter(o => o.id !== ordenId));
+    try {
+      await apiClient.post(`/lavadero/ordenes/${ordenId}/cancelar`);
+      toast.success('Orden cancelada.');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al cancelar la orden.');
+    } finally {
+      fetchOrdenes();
+    }
+  };
+
   /* ── Cobrar ───────────────────────────────────────────────────────────── */
   const handleCobrar = async () => {
     if (!cobrarOrden) return;
@@ -594,10 +664,12 @@ export default function LavaderoVentas({ user }) {
 
   /* ── Board grouping ───────────────────────────────────────────────────── */
   const ordensPorEstado = useMemo(() => {
+    const q = boardSearch.trim().toUpperCase();
+    const filtradas = q ? ordenes.filter(o => o.placa.includes(q)) : ordenes;
     const map = { recibido: [], lavando: [], terminado: [] };
-    ordenes.forEach(o => { if (map[o.estado]) map[o.estado].push(o); });
+    filtradas.forEach(o => { if (map[o.estado]) map[o.estado].push(o); });
     return map;
-  }, [ordenes]);
+  }, [ordenes, boardSearch]);
 
   const activeCount = ordenes.length;
 
@@ -701,6 +773,79 @@ export default function LavaderoVentas({ user }) {
           )}
 
           {/* Tabla */}
+          {isMobile ? (
+            /* ── Móvil: tarjetas (evita el scroll horizontal de 11 columnas) ── */
+            historial.length === 0 && !histLoading ? (
+              <Paper sx={{ p: 4, borderRadius: 3, textAlign: 'center', color: 'text.disabled' }}>
+                Sin registros. Usa los filtros y presiona Buscar.
+              </Paper>
+            ) : (
+              <Stack spacing={1.5}>
+                {historial.map(h => {
+                  const feColor = h.estado_fe === 'exitoso' ? GREEN : h.estado_fe === 'fallido' ? RED : '#94a3b8';
+                  const feLabel = h.estado_fe === 'exitoso' ? 'Emitida' : h.estado_fe === 'fallido' ? 'Fallida' : 'Sin FE';
+                  return (
+                    <Paper key={h.id} sx={{ p: 2, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                        <Box>
+                          <Typography sx={{ fontSize: 15, fontWeight: 800, letterSpacing: 2, fontFamily: 'monospace' }}>{h.placa}</Typography>
+                          <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                            {h.tipo_vehiculo || '—'} · {h.fecha_salida ? new Date(h.fecha_salida).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                            {h.fecha_salida ? ` · ${new Date(h.fecha_salida).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}` : ''}
+                          </Typography>
+                        </Box>
+                        <Typography sx={{ fontSize: 15, fontWeight: 800, color: GREEN }}>
+                          ${new Intl.NumberFormat('es-CO').format(h.total || 0)}
+                        </Typography>
+                      </Box>
+
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.4, mb: 1 }}>
+                        {(h.servicios || []).map((s, i) => (
+                          <Chip key={i} label={`${s.nombre}${s.cantidad > 1 ? ` x${s.cantidad}` : ''}`} size="small"
+                            sx={{ fontSize: 10, height: 18, bgcolor: alpha(ACCENT, 0.1), color: ACCENT }} />
+                        ))}
+                      </Box>
+
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center', mb: 1 }}>
+                        <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{h.metodo_pago || '—'}</Typography>
+                        {h.cliente_nombre && <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>· {h.cliente_nombre}</Typography>}
+                        {h.operador_nombre && <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>· {h.operador_nombre}</Typography>}
+                      </Box>
+
+                      <Divider sx={{ my: 1 }} />
+
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Chip label={feLabel} size="small" sx={{ bgcolor: alpha(feColor, 0.1), color: feColor, fontWeight: 700, fontSize: 10, height: 20 }} />
+                          {h.numero_factura && (
+                            <Typography sx={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 600, color: 'text.secondary' }}>{h.numero_factura}</Typography>
+                          )}
+                        </Box>
+                        <Box sx={{ display: 'flex', gap: 0.3, alignItems: 'center' }}>
+                          {h.pdf_url && (
+                            <IconButton size="small" component="a" href={h.pdf_url} target="_blank" rel="noopener noreferrer" sx={{ color: '#EF4444' }}>
+                              <PictureAsPdf fontSize="small" />
+                            </IconButton>
+                          )}
+                          {h.venta_id && (h.estado_fe === 'fallido' || !h.estado_fe) && (
+                            <IconButton size="small"
+                              disabled={reintentando === h.venta_id}
+                              onClick={() => reintentarFE(h.venta_id)}
+                              sx={{ color: '#0891B2' }}
+                            >
+                              {reintentando === h.venta_id
+                                ? <CircularProgress size={14} />
+                                : <Replay fontSize="small" />}
+                            </IconButton>
+                          )}
+                        </Box>
+                      </Box>
+                    </Paper>
+                  );
+                })}
+              </Stack>
+            )
+          ) : (
           <Paper sx={{ borderRadius: 3, overflow: 'hidden' }}>
             <TableContainer sx={{ maxHeight: '65vh' }}>
               <Table size="small" stickyHeader>
@@ -791,6 +936,7 @@ export default function LavaderoVentas({ user }) {
               </Table>
             </TableContainer>
           </Paper>
+          )}
         </Box>
       )}
 
@@ -1051,6 +1197,19 @@ export default function LavaderoVentas({ user }) {
               {loadingBoard && <CircularProgress size={16} sx={{ color: ACCENT }} />}
             </Box>
 
+            <TextField
+              size="small" fullWidth placeholder="Buscar por placa…"
+              value={boardSearch}
+              onChange={e => setBoardSearch(e.target.value.toUpperCase())}
+              sx={{ mb: 2 }}
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><Search sx={{ fontSize: 16, color: 'text.disabled' }} /></InputAdornment>,
+                endAdornment: boardSearch ? (
+                  <IconButton size="small" onClick={() => setBoardSearch('')}><Close sx={{ fontSize: 14 }} /></IconButton>
+                ) : null,
+              }}
+            />
+
             {/* Mobile: tabs por estado */}
             <Box sx={{ display: { xs: 'block', md: 'none' }, mb: 2 }}>
               <ToggleButtonGroup
@@ -1100,6 +1259,7 @@ export default function LavaderoVentas({ user }) {
                           trabajadores={trabajadores}
                           onEstadoChange={handleEstadoChange}
                           onCobrar={ord => { setCobrarOrden(ord); setMetodoPago('Efectivo'); setMontoRecibido(0); }}
+                          onCancelar={handleCancelarOrden}
                           tick={tick}
                         />
                       ))
@@ -1125,6 +1285,7 @@ export default function LavaderoVentas({ user }) {
                     trabajadores={trabajadores}
                     onEstadoChange={handleEstadoChange}
                     onCobrar={ord => { setCobrarOrden(ord); setMetodoPago('Efectivo'); setMontoRecibido(0); }}
+                    onCancelar={handleCancelarOrden}
                     tick={tick}
                   />
                 ));

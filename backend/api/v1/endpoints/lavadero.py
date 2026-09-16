@@ -253,6 +253,30 @@ def actualizar_estado(
     return _orden_to_dict(orden)
 
 
+@router.post("/ordenes/{orden_id}/cancelar")
+def cancelar_orden(
+    orden_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Cancela una orden que aún no fue cobrada (el cliente se fue, error al
+    registrar, etc.). Deja de aparecer en el tablero de activas. Una orden ya
+    cobrada no se puede cancelar desde aquí — para eso está el flujo normal
+    de devoluciones sobre la venta."""
+    orden = db.query(models.LavaderoOrden).filter_by(
+        id=orden_id, empresa_id=current_user.empresa_id
+    ).first()
+    if not orden:
+        raise HTTPException(404, "Orden no encontrada")
+    if orden.pagado:
+        raise HTTPException(400, "Esta orden ya fue cobrada, no se puede cancelar.")
+
+    orden.estado = "cancelado"
+    db.commit()
+    db.refresh(orden)
+    return _orden_to_dict(orden)
+
+
 @router.post("/ordenes/{orden_id}/cobrar")
 def cobrar_orden(
     orden_id: int,
@@ -407,15 +431,23 @@ def historial_ventas(
 
     ordenes = q.order_by(models.LavaderoOrden.fecha_salida.desc()).all()
 
-    resultado = []
-    for o in ordenes:
-        # Traer datos de FE desde la Venta vinculada
-        venta_fe = db.query(
+    # Datos de FE de todas las ventas vinculadas en UNA sola consulta, en vez
+    # de una consulta aparte por cada orden del historial (N+1).
+    venta_ids = [o.venta_id for o in ordenes if o.venta_id]
+    fe_por_venta = {}
+    if venta_ids:
+        fe_rows = db.query(
+            models.Venta.id,
             models.Venta.numero_factura,
             models.Venta.estado_electronico,
             models.Venta.cufe,
             models.Venta.pdf_url,
-        ).filter_by(id=o.venta_id).first() if o.venta_id else None
+        ).filter(models.Venta.id.in_(venta_ids)).all()
+        fe_por_venta = {r.id: r for r in fe_rows}
+
+    resultado = []
+    for o in ordenes:
+        venta_fe = fe_por_venta.get(o.venta_id) if o.venta_id else None
 
         resultado.append({
             "id":           o.id,
