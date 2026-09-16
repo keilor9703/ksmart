@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Box, Paper, Typography, Grid, TextField, Button, Chip, Stack,
   IconButton, Divider, Autocomplete, CircularProgress,
@@ -13,7 +13,7 @@ import {
   Refresh, AccessTime, AttachMoney, CheckCircle, PlayArrow,
   Done, Close, Person, WhatsApp, Print, Storefront, QrCode2, Stars,
   History, PictureAsPdf, ContentCopy, Search, Replay, Undo,
-  WarningAmber, Cancel,
+  WarningAmber, Cancel, TrendingUp, Bolt,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
@@ -141,8 +141,8 @@ function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar, onCancelar, 
         borderRadius: 2.5,
         border: demorado ? `1.5px solid ${RED}60` : `1.5px solid ${estadoConfig.color}30`,
         bgcolor: estadoConfig.bg, mb: 1.5, overflow: 'hidden',
-        transition: 'box-shadow 0.15s',
-        '&:hover': { boxShadow: `0 2px 12px ${estadoConfig.color}20` },
+        transition: 'box-shadow 0.15s, transform 0.15s',
+        '&:hover': { boxShadow: `0 6px 18px ${estadoConfig.color}25`, transform: 'translateY(-1px)' },
       }}
     >
       <Box sx={{ height: 3, bgcolor: demorado ? RED : estadoConfig.color }} />
@@ -183,15 +183,20 @@ function OrdenCard({ orden, estadoConfig, onEstadoChange, onCobrar, onCancelar, 
         {/* Lavador y cliente */}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 0.8 }}>
           {orden.operador_nombre && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4,
-              bgcolor: `${BLUE}12`, px: 1, py: 0.3, borderRadius: 1 }}>
-              <Person sx={{ fontSize: 12, color: BLUE }} />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6,
+              bgcolor: `${BLUE}12`, pl: 0.4, pr: 1, py: 0.3, borderRadius: 5 }}>
+              <Box sx={{
+                width: 16, height: 16, borderRadius: '50%', bgcolor: BLUE, color: 'white',
+                fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {orden.operador_nombre[0]?.toUpperCase()}
+              </Box>
               <Typography sx={{ fontSize: 11, fontWeight: 600, color: BLUE }}>{orden.operador_nombre}</Typography>
             </Box>
           )}
           {orden.cliente_nombre && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4,
-              bgcolor: `${GREEN}12`, px: 1, py: 0.3, borderRadius: 1 }}>
+              bgcolor: `${GREEN}12`, px: 1, py: 0.3, borderRadius: 5 }}>
               <Person sx={{ fontSize: 12, color: GREEN }} />
               <Typography sx={{ fontSize: 11, fontWeight: 600, color: GREEN }}>{orden.cliente_nombre}</Typography>
             </Box>
@@ -342,11 +347,48 @@ function ItemCard({ item, enCarrito, onAgregar, precio }) {
   );
 }
 
+/* ── KPI del día, estilo "premium" con blob de gradiente ─────────────────── */
+function DiaKpiCard({ label, value, icon, gradient, isDark }) {
+  return (
+    <Paper elevation={0} sx={{
+      p: 1.8, borderRadius: 3, flex: '1 1 0', minWidth: 128,
+      position: 'relative', overflow: 'hidden',
+      border: '1px solid',
+      borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+      background: isDark ? 'rgba(255,255,255,0.03)' : '#fff',
+      boxShadow: isDark ? '0 2px 14px rgba(0,0,0,0.25)' : '0 2px 12px rgba(0,0,0,0.05)',
+      transition: 'transform 0.15s, box-shadow 0.15s',
+      '&:hover': { transform: 'translateY(-2px)', boxShadow: isDark ? '0 6px 22px rgba(0,0,0,0.35)' : '0 6px 22px rgba(0,0,0,0.09)' },
+      '&::after': {
+        content: '""', position: 'absolute', width: 64, height: 64, borderRadius: '50%',
+        background: gradient, opacity: 0.14, top: -18, right: -18,
+      },
+    }}>
+      <Box sx={{ position: 'relative', zIndex: 1 }}>
+        <Box sx={{
+          width: 30, height: 30, borderRadius: 1.5, mb: 1,
+          background: gradient, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          {React.cloneElement(icon, { sx: { color: '#fff', fontSize: 16 } })}
+        </Box>
+        <Typography sx={{ fontSize: 10, color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          {label}
+        </Typography>
+        <Typography sx={{ fontSize: 18, fontWeight: 800, letterSpacing: -0.3, lineHeight: 1.25 }}>
+          {value}
+        </Typography>
+      </Box>
+    </Paper>
+  );
+}
+
 /* ══════════════════════════════════════════════════════════════════════════ */
 export default function LavaderoVentas({ user }) {
   const isAdmin = user?.role?.name === 'Admin';
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isDark   = theme.palette.mode === 'dark';
+  const busquedaServRef = useRef(null);
 
   /* ── Form state ───────────────────────────────────────────────────────── */
   const [placa,         setPlaca]         = useState('');
@@ -372,6 +414,7 @@ export default function LavaderoVentas({ user }) {
   const [mobileView,   setMobileView]   = useState('crear');
   const [boardFilter,  setBoardFilter]  = useState('recibido');
   const [boardSearch,  setBoardSearch]  = useState('');
+  const [resumenHoy,   setResumenHoy]   = useState(null);
 
   /* ── Config & cobrar ──────────────────────────────────────────────────── */
   const [config,        setConfig]        = useState(null);
@@ -455,6 +498,14 @@ export default function LavaderoVentas({ user }) {
     } catch { /* silent */ } finally { setLoadingBoard(false); }
   }, []);
 
+  const fetchResumenHoy = useCallback(async () => {
+    try {
+      const hoy = new Date().toISOString().slice(0, 10);
+      const { data } = await apiClient.get('/lavadero/reporte', { params: { fecha_inicio: hoy, fecha_fin: hoy } });
+      setResumenHoy(data.resumen || null);
+    } catch { /* silent — el header KPI es informativo, no crítico */ }
+  }, []);
+
   const fetchItems = useCallback(async () => {
     setLoadingItems(true);
     try {
@@ -490,6 +541,7 @@ export default function LavaderoVentas({ user }) {
 
   useEffect(() => {
     fetchOrdenes();
+    fetchResumenHoy();
     fetchItems();
     fetchTrabajadores();
     fetchClientes();
@@ -499,7 +551,7 @@ export default function LavaderoVentas({ user }) {
       activa:      data.fidelizacion_activa     ?? true,
       redeem_rate: data.fidelizacion_redeem_rate ?? 100,
     })).catch(() => {});
-  }, [fetchOrdenes, fetchItems, fetchTrabajadores, fetchClientes, fetchConfig]);
+  }, [fetchOrdenes, fetchResumenHoy, fetchItems, fetchTrabajadores, fetchClientes, fetchConfig]);
 
   // Fetch puntos cuando se selecciona una orden para cobrar
   useEffect(() => {
@@ -515,9 +567,9 @@ export default function LavaderoVentas({ user }) {
   }, [cobrarOrden, configFidel.activa]);
 
   useEffect(() => {
-    const id = setInterval(() => { fetchOrdenes(); setTick(t => t + 1); }, 30000);
+    const id = setInterval(() => { fetchOrdenes(); fetchResumenHoy(); setTick(t => t + 1); }, 30000);
     return () => clearInterval(id);
-  }, [fetchOrdenes]);
+  }, [fetchOrdenes, fetchResumenHoy]);
 
   /* ── Cart helpers ─────────────────────────────────────────────────────── */
   const agregarItem = (item, esServicio) => {
@@ -665,6 +717,7 @@ export default function LavaderoVentas({ user }) {
       });
       setCobraData(resData);
       fetchOrdenes();
+      fetchResumenHoy();
       if (config?.imprimir_recibo) {
         imprimirReciboLavadero(resData, config, config?.tipo_impresora || 'p80');
       }
@@ -739,11 +792,38 @@ export default function LavaderoVentas({ user }) {
         </Box>
         <Button
           size="small" variant="outlined" startIcon={<Refresh />}
-          onClick={fetchOrdenes}
+          onClick={() => { fetchOrdenes(); fetchResumenHoy(); }}
           sx={{ borderRadius: 2, textTransform: 'none', borderColor: 'divider' }}
         >
           Actualizar tablero
         </Button>
+      </Box>
+
+      {/* ── KPIs del día, siempre visibles mientras se trabaja ── */}
+      <Box sx={{ display: 'flex', gap: 1.2, mb: 2.5, flexWrap: 'wrap' }}>
+        <DiaKpiCard
+          label="Activos ahora" value={activeCount}
+          icon={<LocalCarWash />} gradient={`linear-gradient(135deg, ${ACCENT}, ${BLUE})`}
+          isDark={isDark}
+        />
+        <DiaKpiCard
+          label="Lavados hoy" value={resumenHoy?.total_lavadas ?? '—'}
+          icon={<Bolt />} gradient={`linear-gradient(135deg, ${AMBER}, #F97316)`}
+          isDark={isDark}
+        />
+        <DiaKpiCard
+          label="Ingresos hoy" value={resumenHoy ? formatCurrency(resumenHoy.total_ventas || 0) : '—'}
+          icon={<AttachMoney />} gradient={`linear-gradient(135deg, ${GREEN}, #059669)`}
+          isDark={isDark}
+        />
+        <DiaKpiCard
+          label="Prom./lavada hoy"
+          value={resumenHoy && resumenHoy.total_lavadas > 0
+            ? formatCurrency(resumenHoy.total_ventas / resumenHoy.total_lavadas)
+            : '—'}
+          icon={<TrendingUp />} gradient={`linear-gradient(135deg, #8B5CF6, #6366F1)`}
+          isDark={isDark}
+        />
       </Box>
 
       {/* ── Tabs principales: POS | Historial ── */}
@@ -1005,6 +1085,9 @@ export default function LavaderoVentas({ user }) {
               label="Placa" fullWidth size="small"
               value={placa}
               onChange={e => setPlaca(formatPlaca(e.target.value))}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { e.preventDefault(); busquedaServRef.current?.focus(); }
+              }}
               inputProps={{ maxLength: 8, style: { textTransform: 'uppercase', fontWeight: 800, letterSpacing: 4, fontSize: 18 } }}
               placeholder="ABC-123"
               sx={{ mb: 2 }}
@@ -1041,6 +1124,7 @@ export default function LavaderoVentas({ user }) {
           <Paper sx={{ p: 2.5, borderRadius: 3, mb: 2, border: '1px solid', borderColor: 'divider' }}>
             <SectionLabel>Servicios de lavado para {tipoVehiculo}</SectionLabel>
             <TextField
+              inputRef={busquedaServRef}
               size="small" fullWidth placeholder="Buscar servicio…"
               value={busquedaServ}
               onChange={e => setBusquedaServ(e.target.value)}
@@ -1281,7 +1365,8 @@ export default function LavaderoVentas({ user }) {
                   </Box>
                   <Box sx={{ minHeight: 80 }}>
                     {(ordensPorEstado[est.key] || []).length === 0 ? (
-                      <Box sx={{ py: 4, textAlign: 'center' }}>
+                      <Box sx={{ py: 4, textAlign: 'center', opacity: 0.5 }}>
+                        <LocalCarWash sx={{ fontSize: 26, color: est.color, mb: 0.5 }} />
                         <Typography sx={{ color: 'text.disabled', fontSize: 12 }}>Sin órdenes</Typography>
                       </Box>
                     ) : (
@@ -1309,7 +1394,8 @@ export default function LavaderoVentas({ user }) {
                 const est   = ESTADOS_TABLERO.find(e => e.key === boardFilter);
                 const lista = ordensPorEstado[boardFilter] || [];
                 return lista.length === 0 ? (
-                  <Box sx={{ py: 6, textAlign: 'center' }}>
+                  <Box sx={{ py: 6, textAlign: 'center', opacity: 0.5 }}>
+                    <LocalCarWash sx={{ fontSize: 34, color: est?.color, mb: 1 }} />
                     <Typography sx={{ color: 'text.disabled', fontSize: 13 }}>Sin órdenes en "{est?.label}"</Typography>
                   </Box>
                 ) : lista.map(o => (
