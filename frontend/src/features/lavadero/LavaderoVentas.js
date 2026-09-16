@@ -14,8 +14,10 @@ import {
   Done, Close, Person, WhatsApp, Print, Storefront, QrCode2, Stars,
   History, PictureAsPdf, ContentCopy, Search, Replay, Undo,
   WarningAmber, Cancel, TrendingUp, Bolt, DragIndicator,
+  Assignment, Groups, BarChart, ArrowForward,
 } from '@mui/icons-material';
 import { DndContext, useDraggable, useDroppable, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
@@ -121,10 +123,21 @@ const resolverServicioParaVehiculo = (servicio, tipoVehiculo) => {
   return { disponible: true, precio: parseFloat(match.precio ?? servicio.precio_venta ?? servicio.precio ?? 0) };
 };
 
-const SectionLabel = ({ children }) => (
-  <Typography sx={{ fontWeight: 700, fontSize: 11, mb: 1.2, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
-    {children}
-  </Typography>
+const SectionLabel = ({ children, step }) => (
+  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.2 }}>
+    {step && (
+      <Box sx={{
+        width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+        bgcolor: ACCENT, color: 'white', fontSize: 11, fontWeight: 800,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        {step}
+      </Box>
+    )}
+    <Typography sx={{ fontWeight: 700, fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+      {children}
+    </Typography>
+  </Box>
 );
 
 /* ── Arrastrar y soltar entre columnas del tablero ────────────────────────── */
@@ -453,6 +466,7 @@ export default function LavaderoVentas({ user }) {
   const theme    = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isDark   = theme.palette.mode === 'dark';
+  const navigate = useNavigate();
   const busquedaServRef = useRef(null);
 
   /* ── Form state ───────────────────────────────────────────────────────── */
@@ -1176,7 +1190,7 @@ export default function LavaderoVentas({ user }) {
         >
           {/* Placa + tipo vehículo */}
           <Paper sx={{ p: 2.5, borderRadius: 3, mb: 2, border: '1px solid', borderColor: 'divider' }}>
-            <SectionLabel>Vehículo</SectionLabel>
+            <SectionLabel step={1}>Vehículo</SectionLabel>
             <TextField
               label="Placa" fullWidth size="small"
               value={placa}
@@ -1250,7 +1264,7 @@ export default function LavaderoVentas({ user }) {
 
           {/* Servicios */}
           <Paper sx={{ p: 2.5, borderRadius: 3, mb: 2, border: '1px solid', borderColor: 'divider' }}>
-            <SectionLabel>Servicios de lavado para {tipoVehiculo}</SectionLabel>
+            <SectionLabel step={2}>Servicios de lavado para {tipoVehiculo}</SectionLabel>
             <TextField
               inputRef={busquedaServRef}
               size="small" fullWidth placeholder="Buscar servicio…"
@@ -1374,7 +1388,7 @@ export default function LavaderoVentas({ user }) {
           {/* Trabajador (solo admin) */}
           {isAdmin && trabajadores.length > 0 && (
             <Paper sx={{ p: 2.5, borderRadius: 3, mb: 2, border: '1px solid', borderColor: 'divider' }}>
-              <SectionLabel>Asignar lavador</SectionLabel>
+              <SectionLabel step={3}>Asignar lavador</SectionLabel>
               <Autocomplete
                 size="small"
                 options={trabajadores}
@@ -1388,7 +1402,7 @@ export default function LavaderoVentas({ user }) {
 
           {/* Cliente (opcional) */}
           <Paper sx={{ p: 2.5, borderRadius: 3, mb: 2, border: '1px solid', borderColor: 'divider' }}>
-            <SectionLabel>Cliente (opcional)</SectionLabel>
+            <SectionLabel step={4}>Cliente (opcional)</SectionLabel>
             <Autocomplete
               size="small"
               options={clientes}
@@ -1401,7 +1415,7 @@ export default function LavaderoVentas({ user }) {
 
           {/* Observaciones */}
           <Paper sx={{ p: 2.5, borderRadius: 3, mb: 2, border: '1px solid', borderColor: 'divider' }}>
-            <SectionLabel>Observaciones</SectionLabel>
+            <SectionLabel step={5}>Observaciones</SectionLabel>
             <TextField
               size="small" fullWidth multiline rows={2}
               placeholder="Daños previos, pedido especial…"
@@ -1433,10 +1447,89 @@ export default function LavaderoVentas({ user }) {
           )}
         </Grid>
 
-        {/* ══ RIGHT: Tablero kanban ══ */}
+        {/* ══ RIGHT: Resumen + accesos rápidos + Tablero kanban ══ */}
         <Grid item xs={12} md={7}
           sx={{ display: { xs: mobileView === 'tablero' ? 'block' : 'none', md: 'block' } }}
         >
+          {/* Resumen de la orden en curso */}
+          <Paper sx={{ p: 2.5, borderRadius: 3, mb: 2, border: '1px solid', borderColor: 'divider' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+              <Assignment sx={{ fontSize: 18, color: ACCENT }} />
+              <Typography sx={{ fontWeight: 800, fontSize: 14 }}>Resumen de la orden</Typography>
+            </Box>
+            <Stack spacing={1.2}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+                <DirectionsCar sx={{ fontSize: 16, color: 'text.disabled' }} />
+                <Box>
+                  <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Vehículo</Typography>
+                  <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
+                    {placa ? `${placa} · ${tipoVehiculo}` : 'Sin placa'}
+                  </Typography>
+                </Box>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+                <LocalCarWash sx={{ fontSize: 16, color: 'text.disabled' }} />
+                <Box>
+                  <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Servicios</Typography>
+                  <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
+                    {carrito.length > 0 ? carrito.map(i => i.nombre).join(', ') : 'No seleccionado'}
+                  </Typography>
+                </Box>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+                <Person sx={{ fontSize: 16, color: 'text.disabled' }} />
+                <Box>
+                  <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Lavador</Typography>
+                  <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
+                    {operadorObj?.nombre_completo || operadorObj?.username || (isAdmin ? 'Sin asignar' : (user?.nombre_completo || user?.username || 'Sin asignar'))}
+                  </Typography>
+                </Box>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+                <Groups sx={{ fontSize: 16, color: 'text.disabled' }} />
+                <Box>
+                  <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Cliente</Typography>
+                  <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
+                    {clienteObj?.nombre || 'Sin asignar'}
+                  </Typography>
+                </Box>
+              </Box>
+            </Stack>
+            <Box sx={{
+              mt: 2, p: 1.5, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              bgcolor: alpha(GREEN, 0.08), border: `1px solid ${alpha(GREEN, 0.25)}`,
+            }}>
+              <Typography sx={{ fontSize: 12, fontWeight: 700, color: GREEN }}>Total a pagar</Typography>
+              <Typography sx={{ fontSize: 18, fontWeight: 900, color: GREEN }}>{formatCurrency(total)}</Typography>
+            </Box>
+          </Paper>
+
+          {/* Accesos rápidos a módulos relacionados */}
+          <Grid container spacing={1.2} sx={{ mb: 2 }}>
+            {[
+              { label: 'Clientes',  icon: <Groups />,   color: BLUE,  onClick: () => navigate('/clientes') },
+              { label: 'Historial', icon: <History />,  color: AMBER, onClick: () => setMainTab(1) },
+              { label: 'Reportes',  icon: <BarChart />, color: '#8B5CF6', onClick: () => navigate('/lavadero/reporte') },
+              { label: 'Config.',   icon: <Bolt />,      color: ACCENT, onClick: () => navigate('/lavadero/config') },
+            ].map(a => (
+              <Grid item xs={6} sm={3} key={a.label}>
+                <Paper
+                  onClick={a.onClick}
+                  elevation={0}
+                  sx={{
+                    p: 1.5, borderRadius: 2.5, cursor: 'pointer', textAlign: 'center',
+                    bgcolor: alpha(a.color, 0.06), border: `1px solid ${alpha(a.color, 0.18)}`,
+                    transition: 'transform 0.12s',
+                    '&:hover': { transform: 'translateY(-1px)', bgcolor: alpha(a.color, 0.1) },
+                  }}
+                >
+                  {React.cloneElement(a.icon, { sx: { color: a.color, fontSize: 20, mb: 0.4 } })}
+                  <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: a.color }}>{a.label}</Typography>
+                </Paper>
+              </Grid>
+            ))}
+          </Grid>
+
           <Paper sx={{ p: 2.5, borderRadius: 3, border: '1px solid', borderColor: 'divider', height: '100%' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
               <Typography sx={{ fontWeight: 800, fontSize: 15 }}>Tablero de órdenes</Typography>

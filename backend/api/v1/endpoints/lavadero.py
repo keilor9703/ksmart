@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import Optional, List
-from datetime import datetime, date, timezone
+from datetime import datetime, date, timezone, timedelta
 from pydantic import BaseModel
 
 import models
@@ -10,6 +10,26 @@ from api.deps import get_db, get_current_active_user
 from models import utcnow
 
 router = APIRouter()
+
+# Colombia es UTC-5 fijo todo el año (sin horario de verano). El frontend
+# manda "hoy" como la fecha calendario LOCAL del navegador, pero
+# fecha_entrada se guarda en UTC real — comparar esa fecha local contra
+# límites UTC sin ajustar el desfase hace que, por ejemplo, un lavado de
+# ayer 7:10pm (medianoche UTC) se cuente como "hoy". Este helper corrige
+# eso convirtiendo el rango de fechas LOCAL al rango UTC equivalente.
+COLOMBIA_UTC_OFFSET = timedelta(hours=5)
+
+def _rango_utc_colombia(fecha_inicio: Optional[date], fecha_fin: Optional[date]):
+    inicio_utc = fin_utc = None
+    if fecha_inicio:
+        inicio_utc = datetime.combine(fecha_inicio, datetime.min.time()) + COLOMBIA_UTC_OFFSET
+        inicio_utc = inicio_utc.replace(tzinfo=timezone.utc)
+    if fecha_fin:
+        # Límite superior exclusivo: el día siguiente a las 00:00 local,
+        # convertido a UTC — evita el redondeo de datetime.max.time().
+        fin_utc = datetime.combine(fecha_fin + timedelta(days=1), datetime.min.time()) + COLOMBIA_UTC_OFFSET
+        fin_utc = fin_utc.replace(tzinfo=timezone.utc)
+    return inicio_utc, fin_utc
 
 
 # ─── Schemas (inline) ────────────────────────────────────────────────────────
@@ -218,10 +238,8 @@ def listar_ordenes(
         q = q.filter(models.LavaderoOrden.estado.in_(["recibido", "lavando", "terminado"]))
 
     if fecha:
-        from datetime import timedelta
-        start = datetime.combine(fecha, datetime.min.time()).replace(tzinfo=timezone.utc)
-        end = datetime.combine(fecha, datetime.max.time()).replace(tzinfo=timezone.utc)
-        q = q.filter(models.LavaderoOrden.fecha_entrada.between(start, end))
+        start, end = _rango_utc_colombia(fecha, fecha)
+        q = q.filter(models.LavaderoOrden.fecha_entrada >= start, models.LavaderoOrden.fecha_entrada < end)
     elif activas:
         # For active orders, show all active regardless of date (could be from yesterday)
         pass
@@ -456,14 +474,11 @@ def historial_ventas(
     )
     if placa:
         q = q.filter(models.LavaderoOrden.placa.ilike(f"%{placa.upper().replace('-','')}%"))
-    if fecha_inicio:
-        q = q.filter(
-            models.LavaderoOrden.fecha_entrada >= datetime.combine(fecha_inicio, datetime.min.time()).replace(tzinfo=timezone.utc)
-        )
-    if fecha_fin:
-        q = q.filter(
-            models.LavaderoOrden.fecha_entrada <= datetime.combine(fecha_fin, datetime.max.time()).replace(tzinfo=timezone.utc)
-        )
+    start, end = _rango_utc_colombia(fecha_inicio, fecha_fin)
+    if start:
+        q = q.filter(models.LavaderoOrden.fecha_entrada >= start)
+    if end:
+        q = q.filter(models.LavaderoOrden.fecha_entrada < end)
 
     ordenes = q.order_by(models.LavaderoOrden.fecha_salida.desc()).all()
 
@@ -579,10 +594,11 @@ def reporte_lavadero(
         models.LavaderoOrden.pagado == True,
     )
 
-    if fecha_inicio:
-        q = q.filter(models.LavaderoOrden.fecha_entrada >= datetime.combine(fecha_inicio, datetime.min.time()))
-    if fecha_fin:
-        q = q.filter(models.LavaderoOrden.fecha_entrada <= datetime.combine(fecha_fin, datetime.max.time()))
+    _r_start, _r_end = _rango_utc_colombia(fecha_inicio, fecha_fin)
+    if _r_start:
+        q = q.filter(models.LavaderoOrden.fecha_entrada >= _r_start)
+    if _r_end:
+        q = q.filter(models.LavaderoOrden.fecha_entrada < _r_end)
 
     q = q.group_by(models.LavaderoOrden.operador_id, models.User.nombre_completo, models.User.username)
     q = q.order_by(func.sum(models.LavaderoOrden.total).desc())
@@ -603,10 +619,10 @@ def reporte_lavadero(
         models.LavaderoOrden.pagado == True,
     )
 
-    if fecha_inicio:
-        comision_q = comision_q.filter(models.LavaderoOrden.fecha_entrada >= datetime.combine(fecha_inicio, datetime.min.time()))
-    if fecha_fin:
-        comision_q = comision_q.filter(models.LavaderoOrden.fecha_entrada <= datetime.combine(fecha_fin, datetime.max.time()))
+    if _r_start:
+        comision_q = comision_q.filter(models.LavaderoOrden.fecha_entrada >= _r_start)
+    if _r_end:
+        comision_q = comision_q.filter(models.LavaderoOrden.fecha_entrada < _r_end)
 
     comision_q = comision_q.group_by(models.LavaderoOrden.operador_id)
     comision_data = {r.operador_id: float(r.comision_total or 0) for r in comision_q.all()}
