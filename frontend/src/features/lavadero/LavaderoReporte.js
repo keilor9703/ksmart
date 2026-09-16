@@ -190,7 +190,7 @@ export default function LavaderoReporte({ user }) {
                 bgcolor: activeRange === r.label ? ACCENT : 'action.hover',
                 color: activeRange === r.label ? 'white' : 'text.primary',
                 '& .MuiChip-icon': { color: activeRange === r.label ? 'rgba(255,255,255,0.8)' : 'text.disabled' },
-                '&:hover': { bgcolor: activeRange === r.label ? '#e6561c' : 'action.selected' },
+                '&:hover': { bgcolor: activeRange === r.label ? '#0e7490' : 'action.selected' },
                 transition: 'all 0.15s',
               }}
             />
@@ -218,7 +218,7 @@ export default function LavaderoReporte({ user }) {
             disabled={loading}
             startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <Refresh />}
             sx={{
-              bgcolor: ACCENT, '&:hover': { bgcolor: '#e6561c' },
+              bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' },
               fontWeight: 700, borderRadius: 2.5,
               textTransform: 'none', whiteSpace: 'nowrap', minWidth: 160,
             }}
