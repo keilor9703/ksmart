@@ -3010,6 +3010,67 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v139)
                 logger.info("V139 (tiempos de lavado) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V140 — Multi-sede, acotado a los módulos de Lavadero (POS,
+            # Config, Reportes). El resto del sistema sigue compartido entre
+            # sedes de la misma empresa: productos, clientes, inventario.
+            # ═══════════════════════════════════════════════════════════════
+            migration_v140 = "v140_lavadero_multisede"
+            if not _migration_already_applied(conn, migration_v140):
+                if IS_SQLITE:
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS lavadero_sedes (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            empresa_id INTEGER NOT NULL,
+                            nombre VARCHAR(100) NOT NULL,
+                            activa BOOLEAN DEFAULT 1
+                        )
+                    """))
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS lavadero_trabajador_sede (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            empresa_id INTEGER NOT NULL,
+                            user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+                            sede_id INTEGER NOT NULL REFERENCES lavadero_sedes(id) ON DELETE CASCADE
+                        )
+                    """))
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS lavadero_sede_servicios (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            empresa_id INTEGER NOT NULL,
+                            sede_id INTEGER NOT NULL REFERENCES lavadero_sedes(id) ON DELETE CASCADE,
+                            producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE
+                        )
+                    """))
+                else:
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS lavadero_sedes (
+                            id SERIAL PRIMARY KEY,
+                            empresa_id INTEGER NOT NULL,
+                            nombre VARCHAR(100) NOT NULL,
+                            activa BOOLEAN DEFAULT TRUE
+                        )
+                    """))
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS lavadero_trabajador_sede (
+                            id SERIAL PRIMARY KEY,
+                            empresa_id INTEGER NOT NULL,
+                            user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+                            sede_id INTEGER NOT NULL REFERENCES lavadero_sedes(id) ON DELETE CASCADE
+                        )
+                    """))
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS lavadero_sede_servicios (
+                            id SERIAL PRIMARY KEY,
+                            empresa_id INTEGER NOT NULL,
+                            sede_id INTEGER NOT NULL REFERENCES lavadero_sedes(id) ON DELETE CASCADE,
+                            producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE
+                        )
+                    """))
+                _add_column_safe(conn, "lavadero_ordenes", "sede_id", "INTEGER")
+                _mark_migration_applied(conn, migration_v140)
+                logger.info("V140 (lavadero multi-sede) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

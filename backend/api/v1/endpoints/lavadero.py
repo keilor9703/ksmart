@@ -46,6 +46,7 @@ class OrdenCreate(BaseModel):
     tipo_vehiculo: Optional[str] = None
     operador_id: Optional[int] = None
     cliente_id: Optional[int] = None
+    sede_id: Optional[int] = None
     observaciones: Optional[str] = None
     detalles: List[DetalleIn]
 
@@ -65,6 +66,20 @@ class LavaderoConfigUpdate(BaseModel):
     tipo_impresora: Optional[str] = None
     imprimir_recibo: Optional[bool] = None
     nombre_lavadero: Optional[str] = None
+
+class SedeIn(BaseModel):
+    nombre: str
+    activa: Optional[bool] = True
+
+class SedeUpdate(BaseModel):
+    nombre: Optional[str] = None
+    activa: Optional[bool] = None
+
+class TrabajadoresSedeIn(BaseModel):
+    user_ids: List[int]
+
+class ServiciosSedeIn(BaseModel):
+    producto_ids: List[int]
 
 
 # ─── Config ──────────────────────────────────────────────────────────────────
@@ -121,6 +136,194 @@ def update_config(
     }
 
 
+# ─── Sedes (multi-sede, solo para Lavadero) ──────────────────────────────────
+
+def _sede_to_dict(s: models.LavaderoSede) -> dict:
+    return {"id": s.id, "nombre": s.nombre, "activa": s.activa}
+
+
+@router.get("/sedes")
+def listar_sedes(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    sedes = db.query(models.LavaderoSede).filter_by(
+        empresa_id=current_user.empresa_id
+    ).order_by(models.LavaderoSede.nombre.asc()).all()
+    return [_sede_to_dict(s) for s in sedes]
+
+
+@router.post("/sedes")
+def crear_sede(
+    body: SedeIn,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    sede = models.LavaderoSede(
+        empresa_id=current_user.empresa_id,
+        nombre=body.nombre.strip(),
+        activa=body.activa if body.activa is not None else True,
+    )
+    db.add(sede)
+    db.commit()
+    db.refresh(sede)
+    return _sede_to_dict(sede)
+
+
+@router.put("/sedes/{sede_id}")
+def actualizar_sede(
+    sede_id: int,
+    body: SedeUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    sede = db.query(models.LavaderoSede).filter_by(
+        id=sede_id, empresa_id=current_user.empresa_id
+    ).first()
+    if not sede:
+        raise HTTPException(404, "Sede no encontrada")
+    if body.nombre is not None:
+        sede.nombre = body.nombre.strip()
+    if body.activa is not None:
+        sede.activa = body.activa
+    db.commit()
+    db.refresh(sede)
+    return _sede_to_dict(sede)
+
+
+@router.delete("/sedes/{sede_id}")
+def eliminar_sede(
+    sede_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    sede = db.query(models.LavaderoSede).filter_by(
+        id=sede_id, empresa_id=current_user.empresa_id
+    ).first()
+    if not sede:
+        raise HTTPException(404, "Sede no encontrada")
+    tiene_ordenes = db.query(models.LavaderoOrden).filter_by(
+        empresa_id=current_user.empresa_id, sede_id=sede_id
+    ).first()
+    if tiene_ordenes:
+        raise HTTPException(400, "Esta sede ya tiene órdenes registradas — desactívala en vez de eliminarla.")
+    db.query(models.LavaderoTrabajadorSede).filter_by(empresa_id=current_user.empresa_id, sede_id=sede_id).delete()
+    db.query(models.LavaderoSedeServicio).filter_by(empresa_id=current_user.empresa_id, sede_id=sede_id).delete()
+    db.delete(sede)
+    db.commit()
+    return {"ok": True}
+
+
+@router.get("/sedes/{sede_id}/asignaciones")
+def get_asignaciones_sede(
+    sede_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Trabajadores y servicios asignados a esta sede en particular."""
+    sede = db.query(models.LavaderoSede).filter_by(
+        id=sede_id, empresa_id=current_user.empresa_id
+    ).first()
+    if not sede:
+        raise HTTPException(404, "Sede no encontrada")
+    trabajador_ids = [r.user_id for r in db.query(models.LavaderoTrabajadorSede.user_id).filter_by(
+        empresa_id=current_user.empresa_id, sede_id=sede_id)]
+    producto_ids = [r.producto_id for r in db.query(models.LavaderoSedeServicio.producto_id).filter_by(
+        empresa_id=current_user.empresa_id, sede_id=sede_id)]
+    return {"trabajador_ids": trabajador_ids, "producto_ids": producto_ids}
+
+
+@router.put("/sedes/{sede_id}/trabajadores")
+def set_trabajadores_sede(
+    sede_id: int,
+    body: TrabajadoresSedeIn,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """
+    Reemplaza la asignación de trabajadores de esta sede. Un trabajador solo
+    puede estar en UNA sede a la vez: si ya estaba en otra, se le quita de
+    allá al asignarlo aquí.
+    """
+    empresa_id = current_user.empresa_id
+    sede = db.query(models.LavaderoSede).filter_by(id=sede_id, empresa_id=empresa_id).first()
+    if not sede:
+        raise HTTPException(404, "Sede no encontrada")
+
+    if body.user_ids:
+        db.query(models.LavaderoTrabajadorSede).filter(
+            models.LavaderoTrabajadorSede.empresa_id == empresa_id,
+            models.LavaderoTrabajadorSede.user_id.in_(body.user_ids),
+        ).delete(synchronize_session=False)
+    db.query(models.LavaderoTrabajadorSede).filter_by(
+        empresa_id=empresa_id, sede_id=sede_id
+    ).delete(synchronize_session=False)
+    for uid in body.user_ids:
+        db.add(models.LavaderoTrabajadorSede(empresa_id=empresa_id, user_id=uid, sede_id=sede_id))
+    db.commit()
+    return {"ok": True, "user_ids": body.user_ids}
+
+
+@router.put("/sedes/{sede_id}/servicios")
+def set_servicios_sede(
+    sede_id: int,
+    body: ServiciosSedeIn,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Reemplaza qué servicios se ofrecen en esta sede (un servicio puede
+    estar en varias sedes a la vez)."""
+    empresa_id = current_user.empresa_id
+    sede = db.query(models.LavaderoSede).filter_by(id=sede_id, empresa_id=empresa_id).first()
+    if not sede:
+        raise HTTPException(404, "Sede no encontrada")
+
+    db.query(models.LavaderoSedeServicio).filter_by(
+        empresa_id=empresa_id, sede_id=sede_id
+    ).delete(synchronize_session=False)
+    for pid in body.producto_ids:
+        db.add(models.LavaderoSedeServicio(empresa_id=empresa_id, sede_id=sede_id, producto_id=pid))
+    db.commit()
+    return {"ok": True, "producto_ids": body.producto_ids}
+
+
+@router.get("/sedes/{sede_id}/filtros")
+def get_filtros_sede(
+    sede_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """
+    IDs a EXCLUIR de las listas de trabajadores/servicios ya cargadas en el
+    frontend, para que el POS muestre solo lo que aplica a esta sede:
+    - Trabajador: se excluye si está asignado a OTRA sede distinta a esta.
+      Uno sin ninguna sede asignada se ve en todas.
+    - Servicio: se excluye si tiene sedes asignadas y esta no es una de
+      ellas. Uno sin ninguna sede asignada se ve en todas.
+    """
+    empresa_id = current_user.empresa_id
+    sede = db.query(models.LavaderoSede).filter_by(id=sede_id, empresa_id=empresa_id).first()
+    if not sede:
+        raise HTTPException(404, "Sede no encontrada")
+
+    asignados_aqui = {r.user_id for r in db.query(models.LavaderoTrabajadorSede.user_id).filter_by(
+        empresa_id=empresa_id, sede_id=sede_id)}
+    todos_asignados = {r.user_id for r in db.query(models.LavaderoTrabajadorSede.user_id).filter_by(
+        empresa_id=empresa_id)}
+    trabajador_ids_excluidos = list(todos_asignados - asignados_aqui)
+
+    con_restriccion = {r.producto_id for r in db.query(models.LavaderoSedeServicio.producto_id).filter_by(
+        empresa_id=empresa_id).distinct()}
+    permitidos_aqui = {r.producto_id for r in db.query(models.LavaderoSedeServicio.producto_id).filter_by(
+        empresa_id=empresa_id, sede_id=sede_id)}
+    producto_ids_excluidos = list(con_restriccion - permitidos_aqui)
+
+    return {
+        "trabajador_ids_excluidos": trabajador_ids_excluidos,
+        "producto_ids_excluidos": producto_ids_excluidos,
+    }
+
+
 # ─── Update producto comision_pct ────────────────────────────────────────────
 
 class ProductoComisionUpdate(BaseModel):
@@ -154,6 +357,8 @@ def _orden_to_dict(o: models.LavaderoOrden) -> dict:
         "cliente_id": o.cliente_id,
         "cliente_nombre": o.cliente.nombre if o.cliente else None,
         "cliente_telefono": o.cliente.telefono if o.cliente else None,
+        "sede_id": o.sede_id,
+        "sede_nombre": o.sede.nombre if o.sede else None,
         "observaciones": o.observaciones,
         "fecha_entrada": o.fecha_entrada.isoformat() if o.fecha_entrada else None,
         "fecha_salida": o.fecha_salida.isoformat() if o.fecha_salida else None,
@@ -195,6 +400,7 @@ def crear_orden(
         estado="recibido",
         operador_id=body.operador_id,
         cliente_id=body.cliente_id,
+        sede_id=body.sede_id,
         observaciones=body.observaciones,
         fecha_entrada=datetime.now(timezone.utc),
     )
@@ -227,12 +433,15 @@ def listar_ordenes(
     estado: Optional[str] = Query(None),
     activas: bool = Query(True),
     fecha: Optional[date] = Query(None),
+    sede_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
     q = db.query(models.LavaderoOrden).filter(
         models.LavaderoOrden.empresa_id == current_user.empresa_id
     )
+    if sede_id:
+        q = q.filter(models.LavaderoOrden.sede_id == sede_id)
     if estado:
         q = q.filter(models.LavaderoOrden.estado == estado)
     elif activas:
@@ -508,6 +717,7 @@ def historial_ventas(
     fecha_inicio: Optional[date] = Query(None),
     fecha_fin:    Optional[date] = Query(None),
     placa:        Optional[str]  = Query(None),
+    sede_id:      Optional[int]  = Query(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
@@ -522,8 +732,11 @@ def historial_ventas(
             joinedload(models.LavaderoOrden.detalles),
             joinedload(models.LavaderoOrden.cliente),
             joinedload(models.LavaderoOrden.operador),
+            joinedload(models.LavaderoOrden.sede),
         )
     )
+    if sede_id:
+        q = q.filter(models.LavaderoOrden.sede_id == sede_id)
     if placa:
         q = q.filter(models.LavaderoOrden.placa.ilike(f"%{placa.upper().replace('-','')}%"))
     start, end = _rango_utc_colombia(fecha_inicio, fecha_fin)
@@ -562,6 +775,7 @@ def historial_ventas(
             "metodo_pago":  o.metodo_pago,
             "cliente_nombre": o.cliente.nombre if o.cliente else None,
             "operador_nombre": (o.operador.nombre_completo or o.operador.username) if o.operador else None,
+            "sede_nombre": o.sede.nombre if o.sede else None,
             "servicios":    [{"nombre": d.nombre_servicio or d.nombre_libre, "precio": d.precio_unitario, "cantidad": d.cantidad} for d in o.detalles],
             "venta_id":     o.venta_id,
             "numero_factura":  venta_fe.numero_factura  if venta_fe else None,
@@ -623,6 +837,7 @@ def reintentar_fe_lavadero(
 def reporte_lavadero(
     fecha_inicio: Optional[date] = Query(None),
     fecha_fin: Optional[date] = Query(None),
+    sede_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
@@ -645,6 +860,8 @@ def reporte_lavadero(
         models.LavaderoOrden.empresa_id == empresa_id,
         models.LavaderoOrden.pagado == True,
     )
+    if sede_id:
+        q = q.filter(models.LavaderoOrden.sede_id == sede_id)
 
     _r_start, _r_end = _rango_utc_colombia(fecha_inicio, fecha_fin)
     if _r_start:
@@ -670,6 +887,8 @@ def reporte_lavadero(
         models.LavaderoOrden.empresa_id == empresa_id,
         models.LavaderoOrden.pagado == True,
     )
+    if sede_id:
+        comision_q = comision_q.filter(models.LavaderoOrden.sede_id == sede_id)
 
     if _r_start:
         comision_q = comision_q.filter(models.LavaderoOrden.fecha_entrada >= _r_start)
@@ -717,6 +936,7 @@ def reporte_lavadero(
 def reporte_tiempos(
     fecha_inicio: Optional[date] = Query(None),
     fecha_fin: Optional[date] = Query(None),
+    sede_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user),
 ):
@@ -736,6 +956,8 @@ def reporte_tiempos(
         models.LavaderoOrden.fecha_inicio_lavado.isnot(None),
         models.LavaderoOrden.fecha_fin_lavado.isnot(None),
     )
+    if sede_id:
+        q = q.filter(models.LavaderoOrden.sede_id == sede_id)
     if start:
         q = q.filter(models.LavaderoOrden.fecha_entrada >= start)
     if end:

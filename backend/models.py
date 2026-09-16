@@ -1824,6 +1824,10 @@ class LavaderoOrden(Base, TenantMixin):
     estado          = Column(String(20), default='recibido', nullable=False, index=True)
     operador_id     = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     cliente_id      = Column(Integer, ForeignKey("clientes.id"), nullable=True)
+    # Sede donde se hizo la lavada — solo para trazabilidad y reportes; nula
+    # para negocios de una sola sede o para órdenes creadas antes de esta
+    # funcionalidad.
+    sede_id         = Column(Integer, ForeignKey("lavadero_sedes.id"), nullable=True, index=True)
     observaciones   = Column(Text, nullable=True)
     fecha_entrada   = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     fecha_salida    = Column(DateTime(timezone=True), nullable=True)
@@ -1841,6 +1845,7 @@ class LavaderoOrden(Base, TenantMixin):
 
     operador  = relationship("User", foreign_keys=[operador_id])
     cliente   = relationship("Cliente")
+    sede      = relationship("LavaderoSede")
     detalles  = relationship("LavaderoOrdenDetalle", back_populates="orden", cascade="all, delete-orphan")
 
 
@@ -1856,6 +1861,43 @@ class LavaderoOrdenDetalle(Base, TenantMixin):
 
     orden    = relationship("LavaderoOrden", back_populates="detalles")
     producto = relationship("Producto")
+
+
+class LavaderoSede(Base, TenantMixin):
+    """
+    Multi-sede — solo aplica a los módulos de Lavadero (POS, Config,
+    Reportes). El resto del sistema (Productos, Clientes, Inventario) sigue
+    compartido entre todas las sedes de la empresa.
+    """
+    __tablename__ = "lavadero_sedes"
+    id      = Column(Integer, primary_key=True, index=True)
+    nombre  = Column(String(100), nullable=False)
+    activa  = Column(Boolean, default=True)
+
+
+class LavaderoTrabajadorSede(Base, TenantMixin):
+    """
+    Un trabajador queda asignado a UNA sola sede (lo normal: un lavador
+    trabaja en un solo lugar). Sin fila aquí = visible en todas las sedes,
+    para no romper cuentas que aún no configuraron sedes.
+    """
+    __tablename__ = "lavadero_trabajador_sede"
+    id       = Column(Integer, primary_key=True, index=True)
+    user_id  = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    sede_id  = Column(Integer, ForeignKey("lavadero_sedes.id", ondelete="CASCADE"), nullable=False, index=True)
+
+
+class LavaderoSedeServicio(Base, TenantMixin):
+    """
+    Un servicio puede ofrecerse en varias sedes a la vez. Un servicio sin
+    ninguna fila aquí se considera disponible en TODAS las sedes (default
+    abierto, para no obligar a reconfigurar el catálogo existente).
+    """
+    __tablename__ = "lavadero_sede_servicios"
+    id          = Column(Integer, primary_key=True, index=True)
+    sede_id     = Column(Integer, ForeignKey("lavadero_sedes.id", ondelete="CASCADE"), nullable=False, index=True)
+    producto_id = Column(Integer, ForeignKey("productos.id", ondelete="CASCADE"), nullable=False, index=True)
+
 
 
 class LavaderoConfig(Base, TenantMixin):

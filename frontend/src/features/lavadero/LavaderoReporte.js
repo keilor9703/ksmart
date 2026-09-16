@@ -3,11 +3,12 @@ import {
   Box, Paper, Typography, Grid, TextField, Button, Stack,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   CircularProgress, Avatar, Chip, Tooltip, LinearProgress,
+  Select, MenuItem, FormControl, InputLabel,
 } from '@mui/material';
 import {
   DirectionsCar, BarChart, AttachMoney, LocalCarWash,
   EmojiEvents, FileDownload, CalendarToday, Refresh, Percent,
-  Timer, Warning, ExpandMore, ExpandLess,
+  Timer, Warning, ExpandMore, ExpandLess, Storefront,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
@@ -94,6 +95,12 @@ export default function LavaderoReporte({ user }) {
   const [loading,     setLoading]     = useState(false);
   const [tiemposData, setTiemposData] = useState(null);
   const [detalleAbierto, setDetalleAbierto] = useState(false);
+  const [sedes,   setSedes]   = useState([]);
+  const [sedeId,  setSedeId]  = useState('');
+
+  useEffect(() => {
+    apiClient.get('/lavadero/sedes').then(({ data }) => setSedes(data || [])).catch(() => {});
+  }, []);
 
   const fetchReporte = useCallback(async (inicio, fin) => {
     const start = inicio ?? fechaInicio;
@@ -101,9 +108,11 @@ export default function LavaderoReporte({ user }) {
     if (!start || !end) { toast.warning('Selecciona un rango de fechas.'); return; }
     setLoading(true);
     try {
+      const params = { fecha_inicio: start, fecha_fin: end };
+      if (sedeId) params.sede_id = sedeId;
       const [{ data }, tiemposRes] = await Promise.all([
-        apiClient.get('/lavadero/reporte', { params: { fecha_inicio: start, fecha_fin: end } }),
-        apiClient.get('/lavadero/reporte-tiempos', { params: { fecha_inicio: start, fecha_fin: end } }).catch(() => null),
+        apiClient.get('/lavadero/reporte', { params }),
+        apiClient.get('/lavadero/reporte-tiempos', { params }).catch(() => null),
       ]);
       setReportData(data);
       setTiemposData(tiemposRes?.data ?? null);
@@ -114,10 +123,17 @@ export default function LavaderoReporte({ user }) {
     } finally {
       setLoading(false);
     }
-  }, [fechaInicio, fechaFin]);
+  }, [fechaInicio, fechaFin, sedeId]);
 
   /* auto-fetch este mes al montar */
   useEffect(() => { fetchReporte(ranges[3].start, ranges[3].end); }, []); // eslint-disable-line
+
+  /* re-generar al cambiar de sede (si ya había un reporte cargado) */
+  const isFirstSedeRender = React.useRef(true);
+  useEffect(() => {
+    if (isFirstSedeRender.current) { isFirstSedeRender.current = false; return; }
+    fetchReporte();
+  }, [sedeId]); // eslint-disable-line
 
   const applyRange = (r) => {
     setFechaInicio(r.start);
@@ -218,6 +234,23 @@ export default function LavaderoReporte({ user }) {
             InputLabelProps={{ shrink: true }}
             size="small" sx={{ flex: 1 }}
           />
+          {sedes.length > 0 && (
+            <FormControl size="small" sx={{ flex: 1, minWidth: 160 }}>
+              <InputLabel id="reporte-sede-label">Sede</InputLabel>
+              <Select
+                labelId="reporte-sede-label"
+                label="Sede"
+                value={sedeId}
+                onChange={e => setSedeId(e.target.value)}
+                startAdornment={<Storefront sx={{ fontSize: 16, color: 'text.secondary', mr: 0.8 }} />}
+              >
+                <MenuItem value="">Todas las sedes</MenuItem>
+                {sedes.map(s => (
+                  <MenuItem key={s.id} value={String(s.id)}>{s.nombre}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
           <Button
             variant="contained"
             onClick={() => { setActiveRange(''); fetchReporte(); }}

@@ -6,6 +6,7 @@ import {
   DialogActions, ToggleButtonGroup, ToggleButton, Badge, alpha,
   Table, TableHead, TableRow, TableCell, TableBody, TableContainer,
   Tabs, Tab, Switch, FormControlLabel, useMediaQuery, useTheme,
+  Select, MenuItem, FormControl, InputLabel,
 } from '@mui/material';
 import {
   DirectionsCar, Add, Remove, DeleteOutline, LocalCarWash,
@@ -496,6 +497,13 @@ export default function LavaderoVentas({ user }) {
   const [busquedaProd,  setBusquedaProd]  = useState('');
   const [loadingItems,  setLoadingItems]  = useState(true);
 
+  /* ── Sedes (multi-sede) ───────────────────────────────────────────────── */
+  const [sedes,        setSedes]        = useState([]);
+  const [sedeId,       setSedeId]       = useState(() => {
+    try { return localStorage.getItem('lavadero_sede_id') || ''; } catch { return ''; }
+  });
+  const [sedeFiltros,  setSedeFiltros]  = useState({ trabajador_ids_excluidos: [], producto_ids_excluidos: [] });
+
   /* ── Board state ──────────────────────────────────────────────────────── */
   const [ordenes,      setOrdenes]      = useState([]);
   const [loadingBoard, setLoadingBoard] = useState(true);
@@ -538,11 +546,12 @@ export default function LavaderoVentas({ user }) {
       if (histFechaIni) params.fecha_inicio = histFechaIni;
       if (histFechaFin) params.fecha_fin    = histFechaFin;
       if (histPlaca.trim()) params.placa    = histPlaca.trim();
+      if (sedeId) params.sede_id = sedeId;
       const { data } = await apiClient.get('/lavadero/historial', { params });
       setHistorial(data);
     } catch { toast.error('No se pudo cargar el historial.'); }
     finally { setHistLoading(false); }
-  }, [histFechaIni, histFechaFin, histPlaca]);
+  }, [histFechaIni, histFechaFin, histPlaca, sedeId]);
 
   useEffect(() => {
     if (mainTab === 1) fetchHistorial();
@@ -585,7 +594,9 @@ export default function LavaderoVentas({ user }) {
 
   const fetchOrdenes = useCallback(async () => {
     try {
-      const { data } = await apiClient.get('/lavadero/ordenes', { params: { activas: true } });
+      const params = { activas: true };
+      if (sedeId) params.sede_id = sedeId;
+      const { data } = await apiClient.get('/lavadero/ordenes', { params });
       // Aviso sonoro cuando un vehículo QUEDA listo (pasa a "terminado") —
       // así el encargado se entera aunque no esté mirando la pantalla.
       const prevMap = new Map(prevOrdenesRef.current.map(o => [o.id, o.estado]));
@@ -594,7 +605,7 @@ export default function LavaderoVentas({ user }) {
       prevOrdenesRef.current = data;
       setOrdenes(data);
     } catch { /* silent */ } finally { setLoadingBoard(false); }
-  }, []);
+  }, [sedeId]);
 
   const fetchResumenHoy = useCallback(async () => {
     try {
@@ -644,6 +655,21 @@ export default function LavaderoVentas({ user }) {
     } catch { /* silent */ }
   }, []);
 
+  const fetchSedes = useCallback(async () => {
+    try {
+      const { data } = await apiClient.get('/lavadero/sedes');
+      setSedes(data || []);
+      // Si la sede guardada ya no existe o fue desactivada, se limpia la selección.
+      setSedeId(prev => {
+        if (prev && !(data || []).some(s => String(s.id) === String(prev) && s.activa)) {
+          try { localStorage.removeItem('lavadero_sede_id'); } catch { /* noop */ }
+          return '';
+        }
+        return prev;
+      });
+    } catch { /* silent */ }
+  }, []);
+
   useEffect(() => {
     fetchOrdenes();
     fetchResumenHoy();
@@ -652,12 +678,28 @@ export default function LavaderoVentas({ user }) {
     fetchTrabajadores();
     fetchClientes();
     fetchConfig();
+    fetchSedes();
     apiClient.get('/empresa/link-pago').then(({ data }) => setMetodoLinkQR(data || null)).catch(() => {});
     apiClient.get('/empresa/config-ventas').then(({ data }) => setConfigFidel({
       activa:      data.fidelizacion_activa     ?? true,
       redeem_rate: data.fidelizacion_redeem_rate ?? 100,
     })).catch(() => {});
-  }, [fetchOrdenes, fetchResumenHoy, fetchVehiculosFrecuentes, fetchItems, fetchTrabajadores, fetchClientes, fetchConfig]);
+  }, [fetchOrdenes, fetchResumenHoy, fetchVehiculosFrecuentes, fetchItems, fetchTrabajadores, fetchClientes, fetchConfig, fetchSedes]);
+
+  // Cambio de sede: persistir selección y recargar filtros de trabajadores/servicios.
+  useEffect(() => {
+    try {
+      if (sedeId) localStorage.setItem('lavadero_sede_id', sedeId);
+      else localStorage.removeItem('lavadero_sede_id');
+    } catch { /* noop */ }
+    if (!sedeId) {
+      setSedeFiltros({ trabajador_ids_excluidos: [], producto_ids_excluidos: [] });
+      return;
+    }
+    apiClient.get(`/lavadero/sedes/${sedeId}/filtros`)
+      .then(({ data }) => setSedeFiltros(data || { trabajador_ids_excluidos: [], producto_ids_excluidos: [] }))
+      .catch(() => setSedeFiltros({ trabajador_ids_excluidos: [], producto_ids_excluidos: [] }));
+  }, [sedeId]);
 
   // Fetch puntos cuando se selecciona una orden para cobrar
   useEffect(() => {
@@ -731,18 +773,29 @@ export default function LavaderoVentas({ user }) {
 
   const serviciosFiltrados = useMemo(() => {
     let list = servicios.filter(s => resolverServicioParaVehiculo(s, tipoVehiculo).disponible);
+    if (sedeId && sedeFiltros.producto_ids_excluidos?.length) {
+      list = list.filter(s => !sedeFiltros.producto_ids_excluidos.includes(s.id));
+    }
     if (busquedaServ.trim()) {
       const q = busquedaServ.toLowerCase();
       list = list.filter(s => s.nombre.toLowerCase().includes(q));
     }
     return list;
-  }, [servicios, busquedaServ, tipoVehiculo]);
+  }, [servicios, busquedaServ, tipoVehiculo, sedeId, sedeFiltros]);
 
   const productosFiltrados = useMemo(() => {
     if (!busquedaProd.trim()) return productos;
     const q = busquedaProd.toLowerCase();
     return productos.filter(p => p.nombre.toLowerCase().includes(q));
   }, [productos, busquedaProd]);
+
+  // Trabajadores visibles en el POS de esta sede: si la sede tiene exclusiones
+  // (por asignación a otra sede específica), se ocultan; sin sede seleccionada
+  // o trabajador sin sede asignada, se muestran todos (comportamiento previo).
+  const trabajadoresFiltrados = useMemo(() => {
+    if (!sedeId || !sedeFiltros.trabajador_ids_excluidos?.length) return trabajadores;
+    return trabajadores.filter(t => !sedeFiltros.trabajador_ids_excluidos.includes(t.id));
+  }, [trabajadores, sedeId, sedeFiltros]);
 
   const resetForm = () => {
     setPlaca(''); setTipoVehiculo('Carro'); setCarrito([]);
@@ -763,6 +816,7 @@ export default function LavaderoVentas({ user }) {
         tipo_vehiculo: tipoVehiculo,
         operador_id:   operadorId,
         cliente_id:    clienteObj?.id ?? null,
+        sede_id:       sedeId || null,
         observaciones: observaciones.trim() || null,
         detalles: carrito.map(item => ({
           producto_id:     item.productoId,
@@ -929,13 +983,32 @@ export default function LavaderoVentas({ user }) {
             <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Entrada rápida y tablero de órdenes</Typography>
           </Box>
         </Box>
-        <Button
-          size="small" variant="outlined" startIcon={<Refresh />}
-          onClick={() => { fetchOrdenes(); fetchResumenHoy(); }}
-          sx={{ borderRadius: 2, textTransform: 'none', borderColor: 'divider' }}
-        >
-          Actualizar tablero
-        </Button>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {sedes.length > 0 && (
+            <FormControl size="small" sx={{ minWidth: 170 }}>
+              <InputLabel id="lavadero-sede-label">Sede</InputLabel>
+              <Select
+                labelId="lavadero-sede-label"
+                label="Sede"
+                value={sedeId}
+                onChange={e => setSedeId(e.target.value)}
+                startAdornment={<Storefront sx={{ fontSize: 17, color: 'text.secondary', mr: 0.8 }} />}
+              >
+                <MenuItem value="">Todas las sedes</MenuItem>
+                {sedes.filter(s => s.activa || String(s.id) === String(sedeId)).map(s => (
+                  <MenuItem key={s.id} value={String(s.id)}>{s.nombre}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+          <Button
+            size="small" variant="outlined" startIcon={<Refresh />}
+            onClick={() => { fetchOrdenes(); fetchResumenHoy(); }}
+            sx={{ borderRadius: 2, textTransform: 'none', borderColor: 'divider' }}
+          >
+            Actualizar tablero
+          </Button>
+        </Box>
       </Box>
 
       {/* ── KPIs del día, siempre visibles mientras se trabaja ── */}
@@ -992,6 +1065,22 @@ export default function LavaderoVentas({ user }) {
                 value={histPlaca} onChange={e => setHistPlaca(e.target.value.toUpperCase())}
                 inputProps={{ style: { textTransform: 'uppercase', letterSpacing: 2 } }}
                 sx={{ width: 130 }} />
+              {sedes.length > 0 && (
+                <FormControl size="small" sx={{ width: 170 }}>
+                  <InputLabel id="hist-sede-label">Sede</InputLabel>
+                  <Select
+                    labelId="hist-sede-label"
+                    label="Sede"
+                    value={sedeId}
+                    onChange={e => setSedeId(e.target.value)}
+                  >
+                    <MenuItem value="">Todas las sedes</MenuItem>
+                    {sedes.filter(s => s.activa || String(s.id) === String(sedeId)).map(s => (
+                      <MenuItem key={s.id} value={String(s.id)}>{s.nombre}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
               <Button variant="contained" startIcon={histLoading ? <CircularProgress size={14} color="inherit" /> : <Search />}
                 onClick={fetchHistorial} disabled={histLoading}
                 sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#e5551c' }, fontWeight: 700, borderRadius: 2 }}>
@@ -1428,11 +1517,11 @@ export default function LavaderoVentas({ user }) {
           )}
 
           {/* Trabajador (solo admin) */}
-          {isAdmin && trabajadores.length > 0 && (
+          {isAdmin && trabajadoresFiltrados.length > 0 && (
             <Paper sx={{ p: 2.5, borderRadius: 3, mb: 2, border: '1px solid', borderColor: 'divider' }}>
               <SectionLabel step={3}>Asignar lavador</SectionLabel>
               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                {trabajadores.map(t => {
+                {trabajadoresFiltrados.map(t => {
                   const nombre = t.nombre_completo || t.username;
                   const selected = operadorObj?.id === t.id;
                   return (
@@ -1669,7 +1758,7 @@ export default function LavaderoVentas({ user }) {
                             <OrdenCard
                               orden={o}
                               estadoConfig={est}
-                              trabajadores={trabajadores}
+                              trabajadores={trabajadoresFiltrados}
                               onEstadoChange={handleEstadoChange}
                               onCobrar={ord => { setCobrarOrden(ord); setMetodoPago('Efectivo'); setMontoRecibido(0); }}
                               onCancelar={handleCancelarOrden}
@@ -1705,7 +1794,7 @@ export default function LavaderoVentas({ user }) {
                   <OrdenCard
                     key={o.id} orden={o}
                     estadoConfig={est}
-                    trabajadores={trabajadores}
+                    trabajadores={trabajadoresFiltrados}
                     onEstadoChange={handleEstadoChange}
                     onCobrar={ord => { setCobrarOrden(ord); setMetodoPago('Efectivo'); setMontoRecibido(0); }}
                     onCancelar={handleCancelarOrden}
