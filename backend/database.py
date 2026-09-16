@@ -2997,6 +2997,19 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v138)
                 logger.info("V138 (saludo personalizado del bot) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V139 — Tiempo real de lavado por orden (fecha_inicio_lavado /
+            # fecha_fin_lavado), distinto de fecha_salida (que es cuando se
+            # cobra). Permite medir cuánto tardó cada lavada de verdad, para
+            # evaluar productividad por trabajador.
+            # ═══════════════════════════════════════════════════════════════
+            migration_v139 = "v139_tiempos_lavado"
+            if not _migration_already_applied(conn, migration_v139):
+                _add_column_safe(conn, "lavadero_ordenes", "fecha_inicio_lavado", "TIMESTAMP WITH TIME ZONE")
+                _add_column_safe(conn, "lavadero_ordenes", "fecha_fin_lavado", "TIMESTAMP WITH TIME ZONE")
+                _mark_migration_applied(conn, migration_v139)
+                logger.info("V139 (tiempos de lavado) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

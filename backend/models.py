@@ -1827,6 +1827,13 @@ class LavaderoOrden(Base, TenantMixin):
     observaciones   = Column(Text, nullable=True)
     fecha_entrada   = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     fecha_salida    = Column(DateTime(timezone=True), nullable=True)
+    # Momento real en que el vehículo empezó/terminó el lavado (estado
+    # "lavando" → "terminado"), distinto de fecha_salida (que es cuando se
+    # cobra — el carro puede quedar listo y esperar un rato hasta que se
+    # cobre y se entregue). Sin esto no hay forma de medir cuánto tardó cada
+    # lavada de verdad.
+    fecha_inicio_lavado = Column(DateTime(timezone=True), nullable=True)
+    fecha_fin_lavado    = Column(DateTime(timezone=True), nullable=True)
     total           = Column(Float, nullable=True)
     metodo_pago     = Column(String(50), nullable=True)
     pagado          = Column(Boolean, default=False)

@@ -51,6 +51,7 @@ class OrdenCreate(BaseModel):
 
 class OrdenEstadoUpdate(BaseModel):
     estado: str  # recibido | lavando | terminado | entregado
+    operador_id: Optional[int] = None  # cambio de lavador al iniciar el lavado
 
 class CobrarIn(BaseModel):
     metodo_pago: str = "Efectivo"
@@ -301,6 +302,17 @@ def actualizar_estado(
     if not orden:
         raise HTTPException(404, "Orden no encontrada")
 
+    if body.operador_id is not None:
+        orden.operador_id = body.operador_id
+
+    # Tiempo real de lavado: se marca la primera vez que entra a "lavando" y
+    # cuando queda "terminado" — no se pisa si ya se había marcado antes (un
+    # regreso accidental de estado no debe borrar el tiempo ya registrado).
+    if body.estado == "lavando" and orden.fecha_inicio_lavado is None:
+        orden.fecha_inicio_lavado = datetime.now(timezone.utc)
+    if body.estado == "terminado" and orden.fecha_fin_lavado is None:
+        orden.fecha_fin_lavado = datetime.now(timezone.utc)
+
     orden.estado = body.estado
     db.commit()
     db.refresh(orden)
@@ -347,7 +359,36 @@ def cobrar_orden(
         raise HTTPException(400, "Esta orden ya fue cobrada")
 
     bruto = orden.total or sum(d.cantidad * d.precio_unitario for d in orden.detalles)
-    descuento_pts = float(body.descuento_puntos or 0)
+
+    # Puntos de fidelización: el descuento se calcula y se descuenta AQUÍ,
+    # con el redeem_rate real de la empresa — nunca se confía en el monto que
+    # mande el navegador. Si no hay puntos suficientes, se rechaza el cobro
+    # en vez de aplicar el descuento y dejar el canje sin efecto (antes esto
+    # fallaba en silencio: la venta salía con el descuento aplicado, pero los
+    # puntos del cliente jamás se restaban).
+    empresa_obj = db.query(models.Empresa).filter_by(id=current_user.empresa_id).first()
+    fidel_activa = getattr(empresa_obj, "fidelizacion_activa", True)
+    if fidel_activa is None:
+        fidel_activa = True
+    earn_rate   = getattr(empresa_obj, "fidelizacion_earn_rate",   1000) or 1000
+    redeem_rate = getattr(empresa_obj, "fidelizacion_redeem_rate", 100)  or 100
+
+    puntos_canjeados = int(body.puntos_canjeados or 0)
+    descuento_pts = 0.0
+    if puntos_canjeados > 0:
+        if not orden.cliente_id:
+            raise HTTPException(400, "No se puede canjear puntos: el pedido no tiene un cliente asignado.")
+        if not fidel_activa:
+            raise HTTPException(400, "El programa de fidelización está desactivado.")
+        from crud.puntos import canjear_puntos
+        try:
+            descuento_pts = canjear_puntos(
+                db, empresa_id=current_user.empresa_id, cliente_id=orden.cliente_id,
+                puntos_a_canjear=puntos_canjeados, redeem_rate=redeem_rate, commit=False,
+            )
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
     total = max(0.0, bruto - descuento_pts)
 
     # Create Venta record (maintains compatibility with existing reports)
@@ -366,7 +407,7 @@ def cobrar_orden(
         operador_id=orden.operador_id,
         observaciones=orden.observaciones,
         descuento_puntos=descuento_pts,
-        puntos_canjeados=body.puntos_canjeados or 0,
+        puntos_canjeados=puntos_canjeados,
         origen='lavadero',
         solicita_fe=body.solicita_fe,
     )
@@ -392,28 +433,21 @@ def cobrar_orden(
     orden.fecha_salida = datetime.now(timezone.utc)
     orden.venta_id = venta.id
 
-    # Puntos de fidelización
-    if orden.cliente_id:
+    # Ganar puntos por esta compra — sí puede fallar en silencio (no es
+    # dinero que se pierda, solo puntos que el cliente no acumula), pero se
+    # deja registrado en el log para poder auditarlo.
+    if orden.cliente_id and fidel_activa:
         try:
-            empresa_obj = db.query(models.Empresa).filter_by(id=current_user.empresa_id).first()
-            fidel_activa = getattr(empresa_obj, "fidelizacion_activa", True)
-            if fidel_activa is None:
-                fidel_activa = True
-            if fidel_activa:
-                from crud.puntos import ganar_puntos_venta, canjear_puntos
-                earn_rate   = getattr(empresa_obj, "fidelizacion_earn_rate",   1000) or 1000
-                redeem_rate = getattr(empresa_obj, "fidelizacion_redeem_rate", 100)  or 100
-                if body.puntos_canjeados and body.puntos_canjeados > 0:
-                    canjear_puntos(db, empresa_id=current_user.empresa_id,
-                                   cliente_id=orden.cliente_id,
-                                   puntos_a_canjear=body.puntos_canjeados,
-                                   redeem_rate=redeem_rate, commit=False)
-                ganar_puntos_venta(db, empresa_id=current_user.empresa_id,
-                                   cliente_id=orden.cliente_id,
-                                   total_venta=float(total), venta_id=venta.id,
-                                   earn_rate=earn_rate, commit=False)
+            from crud.puntos import ganar_puntos_venta
+            ganar_puntos_venta(db, empresa_id=current_user.empresa_id,
+                               cliente_id=orden.cliente_id,
+                               total_venta=float(total), venta_id=venta.id,
+                               earn_rate=earn_rate, commit=False)
         except Exception:
-            pass  # Points are non-critical; never block the sale
+            import logging
+            logging.getLogger("lavadero").exception(
+                "No se pudieron acreditar puntos de fidelización para la orden %s", orden_id
+            )
 
     db.commit()
     db.refresh(orden)
@@ -656,4 +690,82 @@ def reporte_lavadero(
             "comision_global":  comision_global,
             "comision_pct_global": cfg.comision_pct_global,
         },
+    }
+
+
+# ─── Reporte de tiempos de lavada ─────────────────────────────────────────────
+
+@router.get("/reporte-tiempos")
+def reporte_tiempos(
+    fecha_inicio: Optional[date] = Query(None),
+    fecha_fin: Optional[date] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """
+    Cuánto tardó cada lavada de verdad (de "lavando" a "terminado"), para
+    evaluar trabajadores y detectar cuál lavada específica infló el
+    promedio. Solo cuenta órdenes con ambas marcas de tiempo registradas —
+    las anteriores a esta funcionalidad no tienen ese dato.
+    """
+    empresa_id = current_user.empresa_id
+    start, end = _rango_utc_colombia(fecha_inicio, fecha_fin)
+
+    q = db.query(models.LavaderoOrden).options(
+        joinedload(models.LavaderoOrden.operador)
+    ).filter(
+        models.LavaderoOrden.empresa_id == empresa_id,
+        models.LavaderoOrden.fecha_inicio_lavado.isnot(None),
+        models.LavaderoOrden.fecha_fin_lavado.isnot(None),
+    )
+    if start:
+        q = q.filter(models.LavaderoOrden.fecha_entrada >= start)
+    if end:
+        q = q.filter(models.LavaderoOrden.fecha_entrada < end)
+
+    ordenes = q.order_by(models.LavaderoOrden.fecha_fin_lavado.desc()).all()
+
+    detalle = []
+    por_trabajador = {}
+    for o in ordenes:
+        minutos = round((o.fecha_fin_lavado - o.fecha_inicio_lavado).total_seconds() / 60, 1)
+        nombre = (o.operador.nombre_completo or o.operador.username) if o.operador else "Sin asignar"
+        detalle.append({
+            "orden_id":            o.id,
+            "placa":               o.placa,
+            "tipo_vehiculo":       o.tipo_vehiculo,
+            "operador_id":         o.operador_id,
+            "operador_nombre":     nombre,
+            "minutos":             minutos,
+            "fecha_inicio_lavado": o.fecha_inicio_lavado.isoformat(),
+            "fecha_fin_lavado":    o.fecha_fin_lavado.isoformat(),
+        })
+        acc = por_trabajador.setdefault(o.operador_id, {"nombre": nombre, "tiempos": []})
+        acc["tiempos"].append(minutos)
+
+    resumen_trabajadores = []
+    for operador_id, acc in por_trabajador.items():
+        tiempos = acc["tiempos"]
+        resumen_trabajadores.append({
+            "operador_id":       operador_id,
+            "nombre":            acc["nombre"],
+            "num_lavados":       len(tiempos),
+            "promedio_minutos":  round(sum(tiempos) / len(tiempos), 1),
+            "minimo_minutos":    round(min(tiempos), 1),
+            "maximo_minutos":    round(max(tiempos), 1),
+        })
+    resumen_trabajadores.sort(key=lambda r: r["promedio_minutos"])
+
+    todos_los_tiempos = [d["minutos"] for d in detalle]
+    promedio_general = round(sum(todos_los_tiempos) / len(todos_los_tiempos), 1) if todos_los_tiempos else 0.0
+
+    # Detalle ordenado de más lenta a más rápida — para identificar de un
+    # vistazo cuál lavada específica infló el promedio de un trabajador.
+    detalle.sort(key=lambda d: d["minutos"], reverse=True)
+
+    return {
+        "promedio_general_minutos": promedio_general,
+        "num_lavados_con_tiempo":   len(detalle),
+        "trabajadores":             resumen_trabajadores,
+        "detalle":                  detalle,
     }
