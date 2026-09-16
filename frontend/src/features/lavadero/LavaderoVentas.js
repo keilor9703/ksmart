@@ -547,16 +547,14 @@ export default function LavaderoVentas({ user }) {
 
   // Solo se muestran los servicios que aplican al tipo de vehículo elegido:
   // sin variantes (aplican a cualquiera) o con una variante para ese vehículo.
-  // Categorías de vehículo reales del negocio: se toman de los valores que
-  // ya existen en las variantes de los servicios (cualquier atributo cuyo
-  // nombre contenga "vehículo"), no de una lista fija — cada lavadero define
-  // las suyas (Automóvil, Moto, Camioneta Grande, Taxi…).
+  // Categorías de vehículo reales del negocio: se toman de TODOS los valores
+  // de variante que existan en los servicios, sin importar cómo se llame el
+  // atributo (Vehículo, Presentación, etc.) — no de una lista fija, así cada
+  // lavadero usa las suyas (Automóvil, Moto, Camioneta Grande, Taxi…).
   const opcionesVehiculo = useMemo(() => {
     const set = new Set();
     servicios.forEach(s => (s.variantes || []).forEach(v => {
-      Object.entries(v.atributos || {}).forEach(([k, val]) => {
-        if (String(k).toLowerCase().includes('vehic') && val) set.add(String(val));
-      });
+      Object.values(v.atributos || {}).forEach(val => { if (val) set.add(String(val)); });
     }));
     return set.size > 0 ? Array.from(set) : TIPOS_VEHICULO.map(t => t.label);
   }, [servicios]);
