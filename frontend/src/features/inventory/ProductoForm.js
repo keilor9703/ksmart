@@ -301,6 +301,8 @@ const ProductoForm = ({
   const [nuevoAtributo,     setNuevoAtributo]     = useState('');
   const [filasNuevaVariante, setFilasNuevaVariante] = useState([{ valor: '', costo: '', precio: '', stock: '' }]);
   const [guardandoVariantes, setGuardandoVariantes] = useState(false);
+  const [nuevoAttrEditKey,  setNuevoAttrEditKey]  = useState('');
+  const [nuevoAttrEditVal,  setNuevoAttrEditVal]  = useState('');
 
   // ── Lifecycle (unchanged) ──
   useEffect(() => {
@@ -1770,22 +1772,66 @@ const ProductoForm = ({
             <Grid item xs={12}>
               <Divider sx={{ my: 1 }}><Typography variant="caption" color="text.secondary">Atributos (define las características que diferencian esta variante)</Typography></Divider>
             </Grid>
-            {['presentacion','color','talla','medida','tipo','nivel','material'].map(attr => (
-              <Grid item xs={6} sm={4} key={attr}>
+            {Object.keys(varianteForm.atributos || {}).length === 0 && (
+              <Grid item xs={12}>
+                <Typography sx={{ fontSize: 12, color: 'text.secondary', fontStyle: 'italic' }}>
+                  Esta variante no tiene atributos. Agrega uno abajo (ej: "Vehículo" → "Automóvil").
+                </Typography>
+              </Grid>
+            )}
+            {Object.entries(varianteForm.atributos || {}).map(([attrKey, attrVal]) => (
+              <Grid item xs={12} sm={6} key={attrKey}>
                 <TextField fullWidth size="small"
-                  label={attr.charAt(0).toUpperCase() + attr.slice(1)}
-                  value={varianteForm.atributos[attr] || ''}
+                  label={attrKey}
+                  value={attrVal || ''}
                   onChange={e => {
                     const val = e.target.value;
-                    setVarianteForm(p => ({
-                      ...p,
-                      atributos: val ? { ...p.atributos, [attr]: val } : Object.fromEntries(Object.entries(p.atributos).filter(([k]) => k !== attr))
-                    }));
+                    setVarianteForm(p => ({ ...p, atributos: { ...p.atributos, [attrKey]: val } }));
                   }}
-                  placeholder={attr === 'presentacion' ? '500g, 1kg…' : attr === 'color' ? 'Azul, Rojo…' : attr === 'talla' ? 'XS, M, XL…' : ''}
+                  InputProps={{
+                    endAdornment: (
+                      <IconButton size="small" edge="end" title="Quitar este atributo"
+                        onClick={() => setVarianteForm(p => ({
+                          ...p,
+                          atributos: Object.fromEntries(Object.entries(p.atributos).filter(([k]) => k !== attrKey)),
+                        }))}
+                      >
+                        <Delete fontSize="small" />
+                      </IconButton>
+                    ),
+                  }}
                 />
               </Grid>
             ))}
+            <Grid item xs={12}>
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 0.5 }}>
+                <Autocomplete
+                  freeSolo size="small"
+                  options={ATRIBUTOS_SUGERIDOS}
+                  inputValue={nuevoAttrEditKey}
+                  onInputChange={(e, val) => setNuevoAttrEditKey(val)}
+                  sx={{ flex: 1 }}
+                  renderInput={(params) => <TextField {...params} label="Nuevo atributo" placeholder="Ej: Vehículo" />}
+                />
+                <TextField size="small" label="Valor" sx={{ flex: 1 }}
+                  value={nuevoAttrEditVal}
+                  onChange={e => setNuevoAttrEditVal(e.target.value)}
+                />
+                <Button
+                  size="small" variant="outlined"
+                  disabled={!nuevoAttrEditKey.trim() || !nuevoAttrEditVal.trim()}
+                  onClick={() => {
+                    const key = nuevoAttrEditKey.trim();
+                    const val = nuevoAttrEditVal.trim();
+                    setVarianteForm(p => ({ ...p, atributos: { ...p.atributos, [key]: val } }));
+                    setNuevoAttrEditKey(''); setNuevoAttrEditVal('');
+                  }}
+                  sx={{ textTransform: 'none', fontWeight: 700, flexShrink: 0 }}
+                >
+                  Agregar
+                </Button>
+              </Box>
+            </Grid>
             <Grid item xs={12}><Divider /></Grid>
             <Grid item xs={6}>
               <CurrencyField label="Precio (opcional)" value={varianteForm.precio}
